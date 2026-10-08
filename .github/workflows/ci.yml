@@ -24,23 +24,23 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      - name: Compile
+      - name: 컴파일
         run: ./gradlew compileJava compileTestJava
 
-      - name: Checkstyle
+      - name: 코드 스타일 검사 (Checkstyle)
         run: ./gradlew checkstyleMain checkstyleTest
 
-      - name: ArchUnit
+      - name: 모듈 경계 검사 (ArchUnit)
         run: ./gradlew archTest
 
       # 단위·통합 테스트(Testcontainers)
-      - name: Test
+      - name: 테스트
         run: ./gradlew test
 
-      - name: Build
+      - name: 빌드
         run: ./gradlew build
 
-      - name: Upload reports
+      - name: 실패 리포트 업로드
         if: failure()
         uses: actions/upload-artifact@v7
         with:
