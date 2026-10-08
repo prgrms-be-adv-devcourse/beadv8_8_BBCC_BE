@@ -73,3 +73,22 @@ checkstyle {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// ArchUnit 경계 규칙은 archTest로 분리해 CI에서 단계별로 실패 원인을 구분한다
+val architecturePackage = "com.bbcc.kidly.architecture.*"
+
+val archTest = tasks.register<Test>("archTest") {
+    description = "ArchUnit으로 모듈 경계 규칙을 검사한다"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    filter.includeTestsMatching(architecturePackage)
+}
+
+tasks.test {
+    filter.excludeTestsMatching(architecturePackage)
+}
+
+tasks.check {
+    dependsOn(archTest)
+}

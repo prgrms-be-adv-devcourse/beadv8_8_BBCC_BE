@@ -6,6 +6,7 @@
 - 로컬 DB: `docker compose up -d` (pgAdmin: http://localhost:5050, 서버 비밀번호 `kidly`)
 - 실행: `./gradlew bootRun` (기본 프로필 local)
 - 빌드(Checkstyle, ArchUnit, 테스트 포함): `./gradlew build`
+- 경계 규칙만 검사: `./gradlew archTest` (`test`에서는 제외된다)
 - Swagger: http://localhost:8080/swagger-ui.html
 
 ## 구조
