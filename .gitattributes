@@ -1,0 +1,12 @@
+# 모든 텍스트 파일을 LF로 통일한다
+* text=auto eol=lf
+
+# Windows 배치 파일은 CRLF가 아니면 cmd에서 오동작할 수 있어 예외로 둔다
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 바이너리
+*.jar binary
+*.png binary
+*.jpg binary
+*.ico binary

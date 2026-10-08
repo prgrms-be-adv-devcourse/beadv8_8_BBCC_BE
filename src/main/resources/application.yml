@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: kidly
+  profiles:
+    default: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+springdoc:
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha
