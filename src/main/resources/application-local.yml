@@ -4,9 +4,14 @@ spring:
     username: kidly
     password: kidly
   jpa:
+    # 로컬은 엔티티 기준으로 스키마를 자동 생성·갱신한다
+    hibernate:
+      ddl-auto: update
     properties:
       hibernate:
         format_sql: true
+        hbm2ddl:
+          create_namespaces: true
 
 logging:
   level:
