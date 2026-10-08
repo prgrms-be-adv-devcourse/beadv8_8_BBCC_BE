@@ -3,7 +3,7 @@
 자녀 맞춤 키즈 패션 이커머스. Spring Boot 4.1 / Java 25 / PostgreSQL 18 모듈러 모놀리스.
 
 ## 명령어
-- 로컬 DB: `docker compose up -d`
+- 로컬 DB: `docker compose up -d` (pgAdmin: http://localhost:5050, 서버 비밀번호 `kidly`)
 - 실행: `./gradlew bootRun` (기본 프로필 local)
 - 빌드(Checkstyle, ArchUnit, 테스트 포함): `./gradlew build`
 - Swagger: http://localhost:8080/swagger-ui.html
