@@ -6,6 +6,11 @@ on:
   push:
     branches: [main, develop]
 
+# 같은 PR에 새 커밋이 올라오면 이전 실행을 취소한다. push는 끝까지 돌린다
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,6 +24,26 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      # 컴파일, Checkstyle, ArchUnit, 테스트(Testcontainers)
-      - name: Build
+      - name: 컴파일
+        run: ./gradlew compileJava compileTestJava
+
+      - name: 코드 스타일 검사 (Checkstyle)
+        run: ./gradlew checkstyleMain checkstyleTest
+
+      - name: 모듈 경계 검사 (ArchUnit)
+        run: ./gradlew archTest
+
+      # 단위·통합 테스트(Testcontainers)
+      - name: 테스트
+        run: ./gradlew test
+
+      - name: 빌드
         run: ./gradlew build
+
+      - name: 실패 리포트 업로드
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports
+          path: build/reports/
+          retention-days: 7
