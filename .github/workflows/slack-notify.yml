@@ -1,0 +1,74 @@
+name: Slack Notify
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    types: [opened, closed, reopened, review_requested]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, closed, reopened]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          # push
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMPARE_URL: ${{ github.event.compare }}
+          # pull_request / pull_request_review
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          REVIEWER: ${{ github.event.requested_reviewer.login || github.event.requested_team.name }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+          REVIEW_URL: ${{ github.event.review.html_url }}
+          # issues
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          case "$EVENT" in
+            push)
+              MSG=$(printf '%s' "$COMMIT_MSG" | head -n1)
+              TEXT="📦 *[$REPO]* \`$REF\` 브랜치에 push — $ACTOR"$'\n'"$MSG"$'\n'"<$COMPARE_URL|변경사항 보기>"
+              ;;
+            pull_request)
+              case "$ACTION" in
+                opened)           LABEL="🔀 PR 생성" ;;
+                reopened)         LABEL="🔁 PR 재오픈" ;;
+                closed)           if [ "$PR_MERGED" = "true" ]; then LABEL="✅ PR 머지"; else LABEL="❌ PR 닫힘"; fi ;;
+                review_requested) LABEL="👀 리뷰 요청 → $REVIEWER" ;;
+              esac
+              TEXT="$LABEL *[$REPO]* #$PR_NUMBER — $ACTOR"$'\n'"<$PR_URL|$PR_TITLE>"
+              ;;
+            pull_request_review)
+              case "$REVIEW_STATE" in
+                approved)          LABEL="✅ 리뷰 승인" ;;
+                changes_requested) LABEL="🔧 변경 요청" ;;
+                *)                 LABEL="💬 리뷰 코멘트" ;;
+              esac
+              TEXT="$LABEL *[$REPO]* #$PR_NUMBER — $ACTOR"$'\n'"<$REVIEW_URL|$PR_TITLE>"
+              ;;
+            issues)
+              case "$ACTION" in
+                opened)   LABEL="🐛 이슈 생성" ;;
+                reopened) LABEL="🔁 이슈 재오픈" ;;
+                closed)   LABEL="✔️ 이슈 닫힘" ;;
+              esac
+              TEXT="$LABEL *[$REPO]* #$ISSUE_NUMBER — $ACTOR"$'\n'"<$ISSUE_URL|$ISSUE_TITLE>"
+              ;;
+          esac
+
+          jq -n --arg t "$TEXT" '{text: $t}' \
+            | curl -sS -f -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"
