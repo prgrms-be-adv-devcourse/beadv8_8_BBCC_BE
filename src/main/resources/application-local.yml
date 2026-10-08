@@ -8,6 +8,9 @@ spring:
       hibernate:
         format_sql: true
 
+cors:
+  allowed-origins: http://localhost:5173
+
 logging:
   level:
     org.hibernate.SQL: debug
