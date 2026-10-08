@@ -22,7 +22,7 @@
 - TDD (RED → GREEN → REFACTOR)
 - camelCase: 변수·메서드 / PascalCase: 클래스 / UPPER_SNAKE_CASE: 상수 / snake_case: DB 테이블·컬럼
 - 엔티티에 `@Data`, public setter 금지. 상태는 업무 메서드로만 바꾼다
-- 스키마 변경은 Flyway(`src/main/resources/db/migration`)로만 한다. `ddl-auto`는 validate
+- 마이그레이션 도구(Flyway)는 쓰지 않는다. `ddl-auto`는 로컬 update, 그 외 validate
 
 ## DB 명명
 - PK `id`, FK `참조테이블단수_id`, 불리언 `is_/has_/can_`, 일시 `_at`, 날짜 `_on/_date`
