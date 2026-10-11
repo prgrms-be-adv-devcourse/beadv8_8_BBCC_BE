@@ -1,5 +1,6 @@
 package com.bbcc.kidly.global.config;
 
+import com.bbcc.kidly.global.error.SecurityProblemHandler;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -28,7 +29,8 @@ public class SecurityConfig {
 
     // TODO(회원): JWT(RS256) 인증 필터 연결
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityProblemHandler problemHandler)
+        throws Exception {
         return http
             .cors(Customizer.withDefaults())
             .csrf(AbstractHttpConfigurer::disable)
@@ -40,6 +42,9 @@ public class SecurityConfig {
                 // 비로그인 사용자는 상품 조회만 할 수 있다
                 .requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                 .anyRequest().authenticated())
+            .exceptionHandling(exception -> exception
+                .authenticationEntryPoint(problemHandler)
+                .accessDeniedHandler(problemHandler))
             .build();
     }
 
