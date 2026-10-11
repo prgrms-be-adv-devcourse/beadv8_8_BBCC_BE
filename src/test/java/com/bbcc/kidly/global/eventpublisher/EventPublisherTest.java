@@ -2,7 +2,6 @@ package com.bbcc.kidly.global.eventpublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.shared.event.DomainEvent;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +23,6 @@ class EventPublisherTest {
         assertThat(published).containsExactly(event);
     }
 
-    private record TestEvent(Long id, Instant occurredAt) implements DomainEvent {
+    private record TestEvent(Long id, Instant occurredAt) {
     }
 }
