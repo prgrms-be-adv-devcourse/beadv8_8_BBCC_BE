@@ -13,7 +13,12 @@
 - `com.bbcc.kidly.global`: 공통 코드. 도메인 패키지를 참조하지 않는다
   - `eventpublisher`: `EventPublisher`. 이벤트는 `ApplicationEventPublisher` 대신 이것으로 발행한다
 - `com.bbcc.kidly.shared`: 도메인 사이 계약. 도메인 패키지와 `global`을 참조하지 않는다
-  - `event`: `DomainEvent`와 도메인 간 이벤트. 이벤트는 `DomainEvent`를 구현하는 record로 만들고, 이름은 `발행도메인+과거형+Event`(예: `PaymentCompletedEvent`)
+  - `event`: 모든 도메인 간 이벤트가 구현하는 `DomainEvent`
+  - 도메인별 패키지 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
+    - `dto`: 도메인 사이에 주고받는 데이터
+    - `domain`: 다른 도메인이 복사해 두는 그 도메인 데이터의 복사본
+    - `event`: 그 도메인이 발행하는 도메인 간 이벤트. `DomainEvent`를 구현하는 record로 만들고, 이름은 `발행도메인+과거형+Event`(예: `shared.payment.event.PaymentCompletedEvent`)
+    - `out`: 다른 도메인이 그 도메인과 연결할 때 쓰는 계약
 - `com.bbcc.kidly.boundedcontext`: 도메인 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
   - `app`: 유스케이스 서비스, 이벤트 리스너
   - `in`: 들어오는 요청. 컨트롤러, `dto`의 XxxRequest/XxxResponse
