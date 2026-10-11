@@ -33,9 +33,14 @@ jobs:
       - name: 모듈 경계 검사 (ArchUnit)
         run: ./gradlew archTest
 
-      # 단위·통합 테스트(Testcontainers)
-      - name: 테스트
+      - name: 단위 테스트
         run: ./gradlew test
+
+      - name: 통합 테스트 (Testcontainers)
+        run: ./gradlew integrationTest
+
+      - name: 기능 테스트 (Testcontainers)
+        run: ./gradlew functionalTest
 
       - name: 빌드
         run: ./gradlew build
