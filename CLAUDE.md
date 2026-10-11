@@ -7,6 +7,7 @@
 - 실행: `./gradlew bootRun` (기본 프로필 local)
 - 빌드(Checkstyle, ArchUnit, 테스트 포함): `./gradlew build`
 - 경계 규칙만 검사: `./gradlew archTest` (`test`에서는 제외된다)
+- 단위 테스트: `./gradlew test` (Docker 불필요) / 통합: `./gradlew integrationTest` / 기능: `./gradlew functionalTest` (둘 다 Docker 필요)
 - Swagger: http://localhost:8080/swagger-ui.html
 
 ## 구조
@@ -37,6 +38,21 @@
 - 엔티티는 `global.entity.BaseTimeEntity`를 상속한다 (`created_at`, `updated_at` 자동 기록, `Instant`). 현재 시각이 필요하면 `Clock` 빈을 주입받는다
 - 소프트 삭제하는 엔티티는 `global.entity.BaseSoftDeleteEntity`를 상속한다 (`deleted_at`). 서비스에서 `entity.delete(clock.instant())`로 삭제하고, 삭제된 행을 조회에서 빼려면 엔티티에 `@SQLRestriction("deleted_at IS NULL")`을 붙인다
 - 마이그레이션 도구(Flyway)는 쓰지 않는다. `ddl-auto`는 로컬 update, 그 외 validate
+
+## 테스트
+- 도메인 테스트는 `src/test/java/com/bbcc/kidly/boundedcontext/{도메인}`에 둔다. `app`·`domain`·`in`·`out` 하위 폴더는 만들지 않는다
+- `global`·`shared` 테스트는 대상과 같은 패키지에 둔다
+- 종류별 규칙
+
+| 종류 | 대상 | 이름 | 붙일 것 |
+|---|---|---|---|
+| 단위 | 엔티티 업무 메서드, 값 객체, 서비스 로직 | `XxxTest` | 없음. 서비스는 `@ExtendWith(MockitoExtension.class)` + `@Mock` |
+| 통합 | 리포지토리 쿼리, 서비스 + DB, 이벤트 발행 → 수신 | `XxxIntegrationTest` | `support.IntegrationTest` |
+| 기능 | API 하나를 HTTP 요청부터 응답까지 | `XxxApiTest` | `support.FunctionalTest` + `RestTestClient` 주입 |
+
+- `@IntegrationTest`·`@FunctionalTest`에 설정(`@MockitoBean`, `@TestPropertySource` 등)을 더하지 않는다. 설정이 다르면 스프링 컨텍스트를 새로 띄워 느려진다
+- 통합·기능 테스트는 끝날 때마다 모든 테이블을 비운다(`DatabaseCleanerExtension`). 테스트에 `@Transactional`을 붙여 롤백하지 않는다 (커밋되지 않으면 `@DomainEventListener`가 실행되지 않는다)
+- 테스트용 엔티티는 도메인별 `XxxFixture`의 정적 메서드로 만든다
 
 ## DB 명명
 - PK `id`, FK `참조테이블단수_id`, 불리언 `is_/has_/can_`, 일시 `_at`, 날짜 `_on/_date`
