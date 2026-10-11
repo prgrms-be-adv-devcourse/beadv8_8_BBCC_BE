@@ -36,9 +36,13 @@
 - 예약어(order, user, group, key, value 등) 금지, 부정형 불리언 금지
 
 ## API 응답
+- 성공은 감싸지 않고 그대로. 조회 200, 생성 201(+Location), 삭제 204
+- 실패는 ProblemDetail 5필드(`type, title, status, detail, instance`), `application/problem+json`
+  - 도메인 오류는 `global.error.ErrorCode`를 구현한 enum(예: `OrderErrorCode`)을 만들고 `BusinessException`을 던진다
+  - `GlobalExceptionHandler`가 업무 예외·검증 실패·스프링 기본 예외·예상 못 한 예외(500)를 변환한다. 401·403은 `SecurityProblemHandler`
 - 리스트는 null 대신 `[]`, 없는 숫자·선택 문자열·중첩 객체는 `null`, Boolean은 non-null
 - 단건 조회 결과가 없으면 404
-- 목록은 PageResponse: `content, page, size, totalElements, totalPages, hasNext`
+- 목록은 `global.response.PageResponse.from(page.map(XxxResponse::from))`: `content, page, size, totalElements, totalPages, hasNext`
 
 ## Git
 - 브랜치 `feature/도메인/#이슈-기능`, `fix/...`, `hotfix/...`. main·develop 직접 push 금지
