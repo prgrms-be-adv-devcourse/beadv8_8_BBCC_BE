@@ -2,11 +2,10 @@
  * 정산 도메인: 정산 대상, 월 정산, 정산 내역. DB 스키마 settlement.
  *
  * <ul>
- *   <li>{@code api}: 다른 도메인에 공개하는 인터페이스, DTO. 이벤트는 shared.event에 둔다. 다른 도메인은 이 패키지만 참조할 수 있다</li>
- *   <li>{@code presentation}: 컨트롤러, {@code dto} 안에 XxxRequest / XxxResponse</li>
- *   <li>{@code application}: 서비스, 이벤트 리스너</li>
- *   <li>{@code domain}: 엔티티, 상태 enum, 리포지토리 인터페이스</li>
- *   <li>{@code infrastructure}: QueryDSL 구현, 외부 API 클라이언트</li>
+ *   <li>{@code app}: 유스케이스 서비스, 이벤트 리스너</li>
+ *   <li>{@code in}: 들어오는 요청: 컨트롤러, {@code dto} 안에 XxxRequest / XxxResponse</li>
+ *   <li>{@code domain}: 엔티티, 상태 enum, 리포지토리 인터페이스, {@code event} 안에 도메인 내부 이벤트</li>
+ *   <li>{@code out}: 나가는 연결: QueryDSL 구현, 외부 API 클라이언트</li>
  * </ul>
  */
 package com.bbcc.kidly.boundedcontext.settlement;
