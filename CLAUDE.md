@@ -20,7 +20,6 @@
   - `domain`: 엔티티, 상태 enum, 리포지토리 인터페이스, `event`(도메인 내부 이벤트)
   - `out`: 나가는 연결. QueryDSL 구현, 외부 API 클라이언트
   - 도메인끼리는 서로의 코드를 참조하지 않는다. `shared`의 이벤트로만 주고받는다
-- 직접 호출은 세 곳만: 주문→상품(재고 선점), 추천→회원(자녀 프로필), 추천→상품(권장 키 범위·판매 중 상품). 나머지는 Spring 이벤트
 - 각 도메인은 자기 DB 스키마만 쓴다: `member`, `product`, `recommend`, `orders`, `payment`, `settlement`
 - 경계 규칙은 `src/test/java/com/bbcc/kidly/architecture/ArchitectureTest.java`에서 검사한다
 
