@@ -11,8 +11,11 @@
 
 ## 구조
 - `com.bbcc.kidly.global`: 공통 코드. 도메인 패키지를 참조하지 않는다
-- 도메인: `member`, `product`, `recommend`, `order`, `payment`, `settlement`
-  - `api`: 다른 도메인에 공개하는 인터페이스·DTO·이벤트. 다른 도메인은 이 패키지만 참조한다
+  - `eventpublisher`: `EventPublisher`. 이벤트는 `ApplicationEventPublisher` 대신 이것으로 발행한다
+- `com.bbcc.kidly.shared`: 도메인 사이 계약. 도메인 패키지와 `global`을 참조하지 않는다
+  - `event`: `DomainEvent`와 도메인 간 이벤트. 이벤트는 `DomainEvent`를 구현하는 record로 만들고, 이름은 `발행도메인+과거형+Event`(예: `PaymentCompletedEvent`)
+- `com.bbcc.kidly.boundedcontext`: 도메인 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
+  - `api`: 다른 도메인에 공개하는 인터페이스·DTO. 다른 도메인은 이 패키지와 `shared`만 참조한다
   - `presentation`(컨트롤러, `dto`의 XxxRequest/XxxResponse), `application`, `domain`, `infrastructure`
 - 직접 호출은 세 곳만: 주문→상품(재고 선점), 추천→회원(자녀 프로필), 추천→상품(권장 키 범위·판매 중 상품). 나머지는 Spring 이벤트
 - 각 도메인은 자기 DB 스키마만 쓴다: `member`, `product`, `recommend`, `orders`, `payment`, `settlement`
