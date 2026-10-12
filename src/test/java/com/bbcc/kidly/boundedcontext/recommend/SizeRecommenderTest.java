@@ -271,6 +271,28 @@ class SizeRecommenderTest {
         assertThat(result.getNotices().contains(SizeNotice.BODY_TYPE_ADJUSTED)).isEqualTo(expectedNotice);
     }
 
+    @ParameterizedTest(name = "키 {0}cm, 몸무게 {1}kg, 입력 체형 {2}, 선호 핏 {3} → 안내 {4}")
+    @CsvSource({
+        "115.0, 23.0, CHUNKY, SLIM, true",
+        "115.0, 23.0, NORMAL, SLIM, true",
+        "115.0, 18.0, NORMAL, LOOSE, true",
+        "115.0, 18.0, SLIM, REGULAR, true",
+        "115.0, 23.0, CHUNKY, LOOSE, false",
+        "115.0, 18.0, SLIM, SLIM, false",
+        "115.0, 23.0, CHUNKY, REGULAR, false",
+        "115.0, 23.0, CHUNKY, , false",
+        "115.0, 20.0, NORMAL, SLIM, false",
+        "120.0, 23.0, CHUNKY, SLIM, false",
+    })
+    @DisplayName("체형으로 고른 사이즈가 선호 핏이 원한 사이즈와 다르면 PREFERRED_FIT_NOT_APPLIED 안내를 준다")
+    void preferredFitNotAppliedNotice(
+        double heightCm, double weightKg, BodyType inputBodyType, PreferredFit preferredFit, boolean expectedNotice) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(heightCm, weightKg, inputBodyType, preferredFit), productA(), TODAY);
+
+        assertThat(result.getNotices().contains(SizeNotice.PREFERRED_FIT_NOT_APPLIED)).isEqualTo(expectedNotice);
+    }
+
     private SizeRecommendation recommendForHeight(double heightCm) {
         return recommender().recommend(childSizeInputWithHeight(heightCm), productA(), TODAY);
     }

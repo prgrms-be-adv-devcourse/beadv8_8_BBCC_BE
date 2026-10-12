@@ -4,6 +4,7 @@ import com.bbcc.kidly.shared.member.domain.BodyType;
 import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -30,7 +31,7 @@ public class SizeRecommender {
         }
         double childHeight = childSizeInput.heightCm();
 
-        List<SizeRange> candidates = findCandidates(productSizes.sizeRanges(), childHeight);
+        List<SizeRange> candidates = sortBySize(findCandidates(productSizes.sizeRanges(), childHeight));
         if (candidates.isEmpty()) {
             return SizeRecommendation.noMatchingSize();
         }
@@ -42,7 +43,7 @@ public class SizeRecommender {
         return SizeRecommendation.recommended(
                 recommendedRange.size(),
                 fitOf(recommendedRange, childHeight, bodyType),
-                noticesFor(bodyTypeDecision, candidates, recommendedRange, childHeight)
+                noticesFor(bodyTypeDecision, candidates, recommendedRange, childSizeInput)
         );
     }
 
@@ -65,15 +66,35 @@ public class SizeRecommender {
             BodyTypeDecision bodyTypeDecision,
             List<SizeRange> candidates,
             SizeRange recommendedRange,
-            double childHeight
+            ChildSizeInput childSizeInput
     ) {
-        if (!isBodyTypeUsed(candidates, recommendedRange, childHeight)) {
+        if (!isBodyTypeUsed(candidates, recommendedRange, childSizeInput.heightCm())) {
             return List.of();
         }
+
+        List<SizeNotice> notices = new ArrayList<>();
         if (bodyTypeDecision.basis() == BodyTypeDecision.Basis.ADJUSTED) {
-            return List.of(SizeNotice.BODY_TYPE_ADJUSTED);
+            notices.add(SizeNotice.BODY_TYPE_ADJUSTED);
         }
-        return List.of();
+        if (isPreferredFitOverridden(candidates, recommendedRange, childSizeInput, bodyTypeDecision.bodyType())) {
+            notices.add(SizeNotice.PREFERRED_FIT_NOT_APPLIED);
+        }
+        return List.copyOf(notices);
+    }
+
+    private boolean isPreferredFitOverridden(
+            List<SizeRange> candidates,
+            SizeRange recommendedRange,
+            ChildSizeInput childSizeInput,
+            BodyType bodyType
+    ) {
+        if (candidates.size() == 1 || childSizeInput.preferredFit() == null) {
+            return false;
+        }
+        if (bodyType != BodyType.CHUNKY && bodyType != BodyType.SLIM) {
+            return false;
+        }
+        return !chooseByPreferredFit(candidates, childSizeInput).equals(recommendedRange);
     }
 
     private boolean isBodyTypeUsed(List<SizeRange> candidates, SizeRange recommendedRange, double childHeight) {
@@ -105,8 +126,11 @@ public class SizeRecommender {
         return Optional.of(percentiles.get().bodyTypeOf(childSizeInput.weightKg()));
     }
 
-    private SizeRange chooseOne(List<SizeRange> candidates, ChildSizeInput childSizeInput, BodyType bodyType) {
-        List<SizeRange> sorted = candidates.stream().sorted(BY_SIZE).toList();
+    private List<SizeRange> sortBySize(List<SizeRange> sizeRanges) {
+        return sizeRanges.stream().sorted(BY_SIZE).toList();
+    }
+
+    private SizeRange chooseOne(List<SizeRange> sorted, ChildSizeInput childSizeInput, BodyType bodyType) {
         if (sorted.size() == 1) {
             return sorted.getFirst();
         }
@@ -118,6 +142,10 @@ public class SizeRecommender {
             return sorted.getFirst();
         }
 
+        return chooseByPreferredFit(sorted, childSizeInput);
+    }
+
+    private SizeRange chooseByPreferredFit(List<SizeRange> sorted, ChildSizeInput childSizeInput) {
         if (childSizeInput.preferredFit() == PreferredFit.SLIM) {
             return sorted.getFirst();
         }
