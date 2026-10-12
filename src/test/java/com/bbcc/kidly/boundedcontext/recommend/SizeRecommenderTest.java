@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.TODAY;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputBornOn;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWith;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWithHeight;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productA;
@@ -14,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommendation;
 import com.bbcc.kidly.shared.member.domain.BodyType;
 import com.bbcc.kidly.shared.member.domain.PreferredFit;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -163,6 +165,56 @@ class SizeRecommenderTest {
         assertThat(result.getRecommendedSize()).isNull();
         assertThat(result.getFit()).isNull();
         assertThat(result.getNotices()).containsExactly(SizeNotice.SIZE_FREE);
+    }
+
+    @ParameterizedTest(name = "몸무게 {0}kg, 입력 체형 {1}, 선호 핏 {2} → {3}")
+    @CsvSource({
+        "18.0, NORMAL, LOOSE, 110",
+        "19.1, NORMAL, LOOSE, 110",
+        "19.2, NORMAL, LOOSE, 120",
+        "22.7, NORMAL, SLIM, 110",
+        "22.8, NORMAL, SLIM, 120",
+        "23.0, , SLIM, 120",
+    })
+    @DisplayName("체형표가 있으면 몸무게로 판정한 체형으로 고른다 (15백분위 이하 마름, 85백분위 초과 통통)")
+    void bodyTypeJudgedByWeight(
+        double weightKg, BodyType inputBodyType, PreferredFit preferredFit, String expectedSize) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(115.0, weightKg, inputBodyType, preferredFit), productA(), TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
+    }
+
+    @ParameterizedTest(name = "입력 체형 {0}, 몸무게 {1}kg, 선호 핏 {2} → {3}, {4}")
+    @CsvSource({
+        "SLIM, 23.0, LOOSE, 120, ROOMY",
+        "CHUNKY, 18.0, LOOSE, 120, ROOMY",
+        "SLIM, 23.0, SLIM, 110, TIGHT",
+    })
+    @DisplayName("입력 체형과 판정 체형이 두 단계 다르면 체형을 쓰지 않고 키와 선호 핏으로만 고른다")
+    void heightOnlyWhenBodyTypesTwoStepsApart(
+        BodyType inputBodyType, double weightKg, PreferredFit preferredFit, String expectedSize, Fit expectedFit) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(115.0, weightKg, inputBodyType, preferredFit), productA(), TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
+        assertThat(result.getFit()).isEqualTo(expectedFit);
+    }
+
+    @ParameterizedTest(name = "생년월일 {0}, 몸무게 {1}kg, 선호 핏 {2} → {3}")
+    @CsvSource({
+        "2024-10-13, 22.5, SLIM, 110",
+        "2024-10-12, 22.5, SLIM, 120",
+        "2023-10-13, 19.0, LOOSE, 120",
+        "2023-10-12, 19.0, LOOSE, 110",
+    })
+    @DisplayName("만 나이 개월 수에 맞는 체형표로 판정한다 (24개월부터 2~3세 표, 36개월부터 3~18세 표)")
+    void bodyTypeJudgedByAgeGroup(
+        LocalDate birthDate, double weightKg, PreferredFit preferredFit, String expectedSize) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputBornOn(birthDate, weightKg, preferredFit), productA(), TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
 
     private SizeRecommendation recommendForHeight(double heightCm) {

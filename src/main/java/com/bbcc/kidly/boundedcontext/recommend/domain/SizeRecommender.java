@@ -3,9 +3,13 @@ package com.bbcc.kidly.boundedcontext.recommend.domain;
 import com.bbcc.kidly.shared.member.domain.BodyType;
 import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import java.time.LocalDate;
+import java.time.Period;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 public class SizeRecommender {
 
     private static final int OUT_OF_RANGE_LIMIT_CM = 2;
@@ -13,6 +17,8 @@ public class SizeRecommender {
     private static final Comparator<SizeRange> BY_SIZE =
             Comparator.comparingInt(SizeRange::minHeightCm)
                     .thenComparingInt(SizeRange::maxHeightCm);
+
+    private final GrowthChart growthChart;
 
     public SizeRecommendation recommend(
             ChildSizeInput childSizeInput,
@@ -29,22 +35,56 @@ public class SizeRecommender {
             return SizeRecommendation.noMatchingSize();
         }
 
-        SizeRange recommendedRange = chooseOne(candidates, childSizeInput);
+        BodyType bodyType = bodyTypeFor(childSizeInput, today);
+        SizeRange recommendedRange = chooseOne(candidates, childSizeInput, bodyType);
 
         return SizeRecommendation.recommended(
                 recommendedRange.size(),
-                fitOf(recommendedRange, childHeight, childSizeInput.bodyType()),
+                fitOf(recommendedRange, childHeight, bodyType),
                 List.of()
         );
     }
 
-    private SizeRange chooseOne(List<SizeRange> candidates, ChildSizeInput childSizeInput) {
+    private BodyType bodyTypeFor(ChildSizeInput childSizeInput, LocalDate today) {
+        BodyType input = childSizeInput.bodyType();
+        Optional<BodyType> judged = judgeByWeight(childSizeInput, today);
+        if (judged.isEmpty()) {
+            return input;
+        }
+        if (isTwoStepsApart(input, judged.get())) {
+            return null;
+        }
+        return judged.get();
+    }
+
+    private boolean isTwoStepsApart(BodyType input, BodyType judged) {
+        return input == BodyType.SLIM && judged == BodyType.CHUNKY
+                || input == BodyType.CHUNKY && judged == BodyType.SLIM;
+    }
+
+    private Optional<BodyType> judgeByWeight(ChildSizeInput childSizeInput, LocalDate today) {
+        long months = Period.between(childSizeInput.birthDate(), today).toTotalMonths();
+        Optional<AgeGroup> ageGroup = AgeGroup.fromMonths(months);
+        if (ageGroup.isEmpty()) {
+            return Optional.empty();
+        }
+
+        double chartHeight = ageGroup.get().roundHeight(childSizeInput.heightCm());
+        Optional<WeightPercentiles> percentiles = growthChart.find(
+                ageGroup.get(), childSizeInput.gender(), chartHeight);
+        if (percentiles.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(percentiles.get().bodyTypeOf(childSizeInput.weightKg()));
+    }
+
+    private SizeRange chooseOne(List<SizeRange> candidates, ChildSizeInput childSizeInput, BodyType bodyType) {
         List<SizeRange> sorted = candidates.stream().sorted(BY_SIZE).toList();
         if (sorted.size() == 1) {
             return sorted.getFirst();
         }
 
-        BodyType bodyType = childSizeInput.bodyType();
         if (bodyType == BodyType.CHUNKY) {
             return sorted.getLast();
         }
