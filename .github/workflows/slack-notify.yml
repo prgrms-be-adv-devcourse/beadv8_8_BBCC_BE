@@ -19,6 +19,8 @@ jobs:
       - name: Send to Slack
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # {"GitHub아이디": "이름"} 형식의 Actions 변수. public 레포라 실명을 코드에 두지 않는다
+          NAME_MAP: ${{ vars.SLACK_NAME_MAP }}
           EVENT: ${{ github.event_name }}
           ACTION: ${{ github.event.action }}
           ACTOR: ${{ github.actor }}
@@ -41,6 +43,15 @@ jobs:
           ISSUE_URL: ${{ github.event.issue.html_url }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
+          # 매핑에 없거나 JSON이 잘못되면 GitHub 아이디를 그대로 쓴다
+          display_name() {
+            local name
+            name=$(printf '%s' "${NAME_MAP:-null}" | jq -r --arg u "$1" '.[$u] // empty' 2>/dev/null)
+            printf '%s' "${name:-$1}"
+          }
+          ACTOR=$(display_name "$ACTOR")
+          REVIEWER=$(display_name "$REVIEWER")
+
           # 색상: 파랑=열림, 보라=머지, 초록=승인, 주황=변경 요청·직접 push, 회색=닫힘·코멘트, 빨강=이슈
           BRANCHES="\`$PR_HEAD\` → \`$PR_BASE\`"
           case "$EVENT" in
