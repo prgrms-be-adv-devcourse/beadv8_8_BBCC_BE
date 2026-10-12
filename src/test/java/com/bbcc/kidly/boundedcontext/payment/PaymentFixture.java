@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.payment;
 
+import com.bbcc.kidly.boundedcontext.payment.domain.Charge;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import java.time.LocalDateTime;
 
@@ -19,5 +20,16 @@ final class PaymentFixture {
             wallet.deposit(balance);
         }
         return wallet;
+    }
+
+    static Charge charge(long amount) {
+        return Charge.request(WALLET_ID, "charge-order-1", amount, NOW.plusMinutes(30));
+    }
+
+    static Charge approvedCharge(long amount) {
+        Charge charge = charge(amount);
+        charge.startConfirming(amount, NOW);
+        charge.approve("encrypted-payment-key", NOW);
+        return charge;
     }
 }
