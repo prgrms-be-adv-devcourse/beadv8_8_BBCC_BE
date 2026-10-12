@@ -1,8 +1,11 @@
 package com.bbcc.kidly.boundedcontext.payment;
 
 import com.bbcc.kidly.boundedcontext.payment.domain.Charge;
+import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
+import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import java.time.LocalDateTime;
+import java.util.List;
 
 final class PaymentFixture {
 
@@ -31,5 +34,11 @@ final class PaymentFixture {
         charge.startConfirming(amount, NOW);
         charge.approve("encrypted-payment-key", NOW);
         return charge;
+    }
+
+    static Payment completedPayment() {
+        return Payment.complete(ORDER_ID, WALLET_ID, MEMBER_ID, List.of(
+            PaymentItem.of(1000L, 10_000L),
+            PaymentItem.of(1001L, 5_000L)), NOW);
     }
 }
