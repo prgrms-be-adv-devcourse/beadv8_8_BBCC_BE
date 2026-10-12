@@ -1,12 +1,15 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.TODAY;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWith;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWithHeight;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productA;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommender;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.BodyType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.Fit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.PreferredFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRange;
@@ -92,6 +95,19 @@ class SizeRecommenderTest {
         SizeRecommendation result = recommender().recommend(childSizeInputWithHeight(heightCm), narrowProduct, TODAY);
 
         assertThat(result.getFit()).isEqualTo(expectedFit);
+    }
+
+    @ParameterizedTest(name = "몸무게 {0}kg, 체형 {1}, 선호 핏 {2} → {3}")
+    @CsvSource({
+        "20.0, NORMAL, LOOSE, 120",
+    })
+    @DisplayName("키 115cm로 후보가 110과 120 둘이면 체형과 선호 핏으로 하나를 고른다")
+    void chooseBetweenTwoCandidates(
+        double weightKg, BodyType bodyType, PreferredFit preferredFit, String expectedSize) {
+        SizeRecommendation result = recommender()
+            .recommend(childSizeInputWith(115.0, weightKg, bodyType, preferredFit), productA(), TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
 
     private SizeRecommendation recommendForHeight(double heightCm) {

@@ -29,6 +29,11 @@ public final class RecommendFixture {
         return childSizeInputWithHeight(115.0);
     }
 
+    public static ChildSizeInput childSizeInputWith(
+        double heightCm, double weightKg, BodyType bodyType, PreferredFit preferredFit) {
+        return ChildSizeInput.of(heightCm, weightKg, Gender.MALE, YearMonth.of(2019, 1), bodyType, preferredFit);
+    }
+
     public static ChildSizeInput childSizeInputWithHeight(double heightCm) {
         return ChildSizeInput.of(heightCm, 20.0, Gender.MALE,
                 YearMonth.of(2019, 1), BodyType.NORMAL, PreferredFit.LOOSE);
