@@ -31,13 +31,20 @@ public final class RecommendFixture {
     }
 
     /**
-     * 테스트용 체형표. 질병관리청 2017 성장도표 3~18세 남자 115cm 행(15백분위 19.1kg, 85백분위 22.7kg)만 있다.
-     * 다른 키는 표에 없어서, 계산은 보호자가 입력한 체형을 그대로 쓴다.
+     * 테스트용 체형표. 질병관리청 2017 성장도표의 남자 115cm 행 두 개만 있다.
+     * 3~18세 15백분위 19.1kg, 85백분위 22.7kg / 2~3세 미만 18.6kg, 22.4kg.
+     * 그 밖은 표에 없어서, 계산은 보호자가 입력한 체형을 그대로 쓴다.
      */
     public static GrowthChart growthChart() {
         return (ageGroup, gender, heightCm) -> {
-            if (ageGroup == AgeGroup.YEARS_3_18 && gender == Gender.MALE && heightCm == 115.0) {
+            if (gender != Gender.MALE || heightCm != 115.0) {
+                return Optional.empty();
+            }
+            if (ageGroup == AgeGroup.YEARS_3_18) {
                 return Optional.of(WeightPercentiles.of(19.1, 22.7));
+            }
+            if (ageGroup == AgeGroup.MONTHS_24_35) {
+                return Optional.of(WeightPercentiles.of(18.6, 22.4));
             }
             return Optional.empty();
         };
@@ -53,6 +60,11 @@ public final class RecommendFixture {
     public static ChildSizeInput childSizeInputWith(
         double heightCm, double weightKg, BodyType bodyType, PreferredFit preferredFit) {
         return ChildSizeInput.of(heightCm, weightKg, Gender.MALE, CHILD_1_BIRTH_DATE, bodyType, preferredFit);
+    }
+
+    public static ChildSizeInput childSizeInputBornOn(
+        LocalDate birthDate, double weightKg, PreferredFit preferredFit) {
+        return ChildSizeInput.of(115.0, weightKg, Gender.MALE, birthDate, BodyType.NORMAL, preferredFit);
     }
 
     public static ChildSizeInput childSizeInputWithHeight(double heightCm) {
