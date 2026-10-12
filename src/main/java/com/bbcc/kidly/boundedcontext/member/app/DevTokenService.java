@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.member.app;
 
-import com.bbcc.kidly.boundedcontext.member.out.AccessTokenIssuer;
+import com.bbcc.kidly.boundedcontext.member.app.dto.DevTokenRequest;
+import com.bbcc.kidly.boundedcontext.member.app.port.AccessTokenIssuer;
 import com.bbcc.kidly.global.config.DevOnly;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,7 +14,7 @@ public class DevTokenService {
 
     private final AccessTokenIssuer accessTokenIssuer;
 
-    public String issue(Long memberId, List<String> roles) {
-        return accessTokenIssuer.issue(memberId, roles);
+    public String issue(DevTokenRequest request) {
+        return accessTokenIssuer.issue(request.memberId(), request.roles());
     }
 }
