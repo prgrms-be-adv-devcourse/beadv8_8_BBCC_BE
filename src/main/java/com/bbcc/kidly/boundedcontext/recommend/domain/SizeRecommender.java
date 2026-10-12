@@ -20,7 +20,23 @@ public class SizeRecommender {
             return SizeRecommendation.noMatchingSize();
         }
 
-        return SizeRecommendation.recommended(candidate.get().size(), Fit.PROPER, List.of());
+        SizeRange recommendedRange = candidate.get();
+        return SizeRecommendation.recommended(
+                recommendedRange.size(),
+                fitOf(recommendedRange, childHeight),
+                List.of()
+        );
+    }
+
+    private Fit fitOf(SizeRange sizeRange, double childHeight) {
+        if (childHeight > sizeRange.maxHeightCm()) {
+            return Fit.TIGHT;
+        }
+
+        if (childHeight < sizeRange.minHeightCm()) {
+            return Fit.ROOMY;
+        }
+        return Fit.PROPER;
     }
 
     private Optional<SizeRange> findCandidate(List<SizeRange> sizeRanges, double childHeight) {
