@@ -1,7 +1,5 @@
-package com.bbcc.kidly.global.config;
+package com.bbcc.kidly.global.security;
 
-import com.bbcc.kidly.global.auth.PublicApiRequestMatcher;
-import com.bbcc.kidly.global.error.SecurityProblemHandler;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

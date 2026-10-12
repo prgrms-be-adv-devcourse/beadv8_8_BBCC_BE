@@ -1,4 +1,4 @@
-package com.bbcc.kidly.global.config;
+package com.bbcc.kidly.global.security;
 
 import static com.bbcc.kidly.support.TestApiController.ADMIN_PATH;
 import static com.bbcc.kidly.support.TestApiController.AUTH_PATH;

@@ -1,4 +1,4 @@
-package com.bbcc.kidly.global.error;
+package com.bbcc.kidly.global.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

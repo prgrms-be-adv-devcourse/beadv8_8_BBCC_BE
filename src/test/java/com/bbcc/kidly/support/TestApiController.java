@@ -1,7 +1,7 @@
 package com.bbcc.kidly.support;
 
-import com.bbcc.kidly.global.auth.LoginMember;
-import com.bbcc.kidly.global.auth.PublicApi;
+import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.PublicApi;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;

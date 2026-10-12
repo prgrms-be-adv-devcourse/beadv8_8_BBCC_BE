@@ -1,4 +1,4 @@
-package com.bbcc.kidly.global.config;
+package com.bbcc.kidly.global.security;
 
 import java.io.IOException;
 import java.io.InputStream;

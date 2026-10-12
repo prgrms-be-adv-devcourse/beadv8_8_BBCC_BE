@@ -1,4 +1,4 @@
-package com.bbcc.kidly.global.auth;
+package com.bbcc.kidly.global.security;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

@@ -1,4 +1,4 @@
-package com.bbcc.kidly.global.auth;
+package com.bbcc.kidly.global.security;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Qualifier;

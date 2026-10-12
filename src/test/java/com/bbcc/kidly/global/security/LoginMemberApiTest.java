@@ -1,4 +1,4 @@
-package com.bbcc.kidly.global.auth;
+package com.bbcc.kidly.global.security;
 
 import static com.bbcc.kidly.support.TestApiController.LOGIN_MEMBER_PATH;
 
