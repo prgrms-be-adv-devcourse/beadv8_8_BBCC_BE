@@ -6,7 +6,8 @@ import java.util.Optional;
 
 public class SizeRecommender {
 
-    private static final double OUT_OF_RANGE_LIMIT_CM = 2;
+    private static final int OUT_OF_RANGE_LIMIT_CM = 2;
+    private static final int EDGE_ZONE_CM = 2;
 
     public SizeRecommendation recommend(
             ChildSizeInput childSizeInput,
@@ -29,13 +30,14 @@ public class SizeRecommender {
     }
 
     private Fit fitOf(SizeRange sizeRange, double childHeight) {
-        if (childHeight > sizeRange.maxHeightCm()) {
+        if (sizeRange.maxHeightCm() - EDGE_ZONE_CM <= childHeight) {
             return Fit.TIGHT;
         }
 
-        if (childHeight < sizeRange.minHeightCm()) {
+        if (childHeight <= sizeRange.minHeightCm() + EDGE_ZONE_CM) {
             return Fit.ROOMY;
         }
+
         return Fit.PROPER;
     }
 

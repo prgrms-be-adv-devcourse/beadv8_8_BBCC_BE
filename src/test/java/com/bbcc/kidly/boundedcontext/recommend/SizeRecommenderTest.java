@@ -23,6 +23,7 @@ class SizeRecommenderTest {
         "103.0, 110",
         "126.0, 120",
         "127.0, 120",
+        "116.0, 120",
     })
     @DisplayName("키가 범위 안에 들거나 범위에서 2cm 이내인 사이즈를 추천한다")
     void recommendedSizeByHeight(double heightCm, String expectedSize) {
@@ -50,6 +51,23 @@ class SizeRecommenderTest {
     })
     @DisplayName("범위 밖 후보는 범위보다 작으면 여유 있음, 크면 작을 가능성 있음이다")
     void fitOutOfRange(double heightCm, Fit expectedFit) {
+        SizeRecommendation result = recommendForHeight(heightCm);
+
+        assertThat(result.getFit()).isEqualTo(expectedFit);
+    }
+
+    @ParameterizedTest(name = "키 {0}cm → {1}")
+    @CsvSource({
+        "116.0, ROOMY",
+        "120.0, PROPER",
+        "124.0, TIGHT",
+        "107.0, ROOMY",
+        "107.1, PROPER",
+        "112.9, PROPER",
+        "113.0, TIGHT",
+    })
+    @DisplayName("범위 안 후보는 아래쪽 끝 2cm면 여유 있음, 위쪽 끝 2cm면 작을 가능성 있음, 그 사이는 적정이다")
+    void fitInRange(double heightCm, Fit expectedFit) {
         SizeRecommendation result = recommendForHeight(heightCm);
 
         assertThat(result.getFit()).isEqualTo(expectedFit);
