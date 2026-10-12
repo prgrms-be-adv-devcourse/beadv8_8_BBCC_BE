@@ -29,4 +29,8 @@ public class SizeRecommendation {
                 List.of(SizeNotice.SIZE_FREE)
         );
     }
+
+    public static SizeRecommendation recommended(String size, Fit fit, List<SizeNotice> notices) {
+        return new SizeRecommendation(size, fit, notices);
+    }
 }
