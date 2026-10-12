@@ -8,7 +8,6 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 @FunctionalTest
@@ -26,7 +25,7 @@ class LoginMemberApiTest {
         String token = accessTokenIssuer.issue(7L, List.of("BUYER"));
 
         client.get().uri(LOGIN_MEMBER_PATH)
-            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+            .headers(headers -> headers.setBearerAuth(token))
             .exchange()
             .expectStatus().isOk()
             .expectBody(Long.class).isEqualTo(7L);

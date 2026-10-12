@@ -2,9 +2,7 @@ package com.bbcc.kidly.global.config;
 
 import com.bbcc.kidly.global.auth.PublicApiRequestMatcher;
 import com.bbcc.kidly.global.error.SecurityProblemHandler;
-import java.util.Arrays;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,13 +16,9 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
-import org.springframework.security.web.util.matcher.OrRequestMatcher;
-import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 @Configuration
 @EnableWebSecurity
@@ -41,15 +35,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
         HttpSecurity http,
         SecurityProblemHandler problemHandler,
-        @Qualifier("requestMappingHandlerMapping") RequestMappingHandlerMapping handlerMapping) throws Exception {
-        // 고정 공개 경로(Swagger, /error)와 각 도메인이 @PublicApi로 선언한 API
-        RequestMatcher publicRequests = new OrRequestMatcher(
-            new OrRequestMatcher(Arrays.stream(PUBLIC_PATHS)
-                .map(PathPatternRequestMatcher::pathPattern)
-                .map(RequestMatcher.class::cast)
-                .toList()),
-            new PublicApiRequestMatcher(handlerMapping));
-
+        PublicApiRequestMatcher publicApis) throws Exception {
         return http
             .cors(Customizer.withDefaults())
             .csrf(AbstractHttpConfigurer::disable)
@@ -57,13 +43,12 @@ public class SecurityConfig {
             .httpBasic(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(publicRequests).permitAll()
+                .requestMatchers(PUBLIC_PATHS).permitAll()
+                .requestMatchers(publicApis).permitAll()
                 .requestMatchers("/api/v1/seller/**").hasRole("SELLER")
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
-            // 토큰은 공개 API에서도 보내면 검증한다(잘못된 토큰은 401). 공개 API는 토큰 없이도 통과할 뿐이다.
-            // 잘못된 토큰은 BearerTokenAuthenticationFilter가, 토큰 없음은 ExceptionTranslationFilter가 처리한다.
-            // 두 곳 모두 ProblemDetail로 응답하도록 entry point를 각각 지정한다
+            // 보낸 토큰은 공개 API에서도 검증한다. 잘못된 토큰(여기)과 토큰 없음(exceptionHandling) 모두 ProblemDetail로 응답한다
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                 .authenticationEntryPoint(problemHandler))
