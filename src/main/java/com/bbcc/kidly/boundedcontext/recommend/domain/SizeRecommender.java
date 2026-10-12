@@ -6,6 +6,8 @@ import java.util.Optional;
 
 public class SizeRecommender {
 
+    private static final double OUT_OF_RANGE_LIMIT_CM = 2;
+
     public SizeRecommendation recommend(
             ChildSizeInput childSizeInput,
             ProductSizes productSizes,
@@ -13,21 +15,29 @@ public class SizeRecommender {
     ) {
         double childHeight = childSizeInput.heightCm();
 
-        Optional<SizeRange> matchedRange = productSizes.sizeRanges()
-                .stream()
-                .filter(range ->
-                        range.minHeightCm() <= childHeight
-                                && childHeight <= range.maxHeightCm())
-                .findFirst();
-
-        if (matchedRange.isEmpty()) {
+        Optional<SizeRange> candidate = findCandidate(productSizes.sizeRanges(), childHeight);
+        if (candidate.isEmpty()) {
             return SizeRecommendation.noMatchingSize();
         }
 
-        return SizeRecommendation.recommended(
-                matchedRange.get().size(),
-                Fit.PROPER,
-                List.of()
-        );
+        return SizeRecommendation.recommended(candidate.get().size(), Fit.PROPER, List.of());
+    }
+
+    private Optional<SizeRange> findCandidate(List<SizeRange> sizeRanges, double childHeight) {
+        Optional<SizeRange> inRange = sizeRanges.stream()
+                .filter(range -> range.distanceFrom(childHeight) == 0)
+                .findFirst();
+        if (inRange.isPresent()) {
+            return inRange;
+        }
+
+        return sizeRanges.stream()
+                .filter(range -> isNearby(range, childHeight))
+                .findFirst();
+    }
+
+    private boolean isNearby(SizeRange range, double childHeight) {
+        double distance = range.distanceFrom(childHeight);
+        return distance > 0 && distance <= OUT_OF_RANGE_LIMIT_CM;
     }
 }

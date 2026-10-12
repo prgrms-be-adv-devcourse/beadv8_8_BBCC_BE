@@ -16,4 +16,16 @@ public record SizeRange(
                 maxHeightCm
         );
     }
+
+    public double distanceFrom(double heightCm) {
+        if (heightCm < minHeightCm) {
+            return minHeightCm - heightCm;
+        }
+
+        if (heightCm > maxHeightCm) {
+            return heightCm - maxHeightCm;
+        }
+
+        return 0;
+    }
 }
