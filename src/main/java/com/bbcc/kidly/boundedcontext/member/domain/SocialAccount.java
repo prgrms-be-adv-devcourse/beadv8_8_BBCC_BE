@@ -6,9 +6,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -27,7 +29,8 @@ import lombok.NoArgsConstructor;
     schema = "member",
     uniqueConstraints = @UniqueConstraint(
         name = "uk_social_account_provider_user",
-        columnNames = {"provider", "provider_user_id"}))
+        columnNames = {"provider", "provider_user_id"}),
+    indexes = @Index(name = "idx_social_account_member_id", columnList = "member_id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SocialAccount extends BaseTimeEntity {
@@ -37,7 +40,7 @@ public class SocialAccount extends BaseTimeEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "member_id", nullable = false)
+    @JoinColumn(name = "member_id", nullable = false, foreignKey = @ForeignKey(name = "fk_social_account_member"))
     private Member member;
 
     @Enumerated(EnumType.STRING)
