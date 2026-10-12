@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommendation;
 import com.bbcc.kidly.shared.member.domain.BodyType;
 import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -80,5 +81,29 @@ class SizeRecommenderNoticeTest {
             childSizeInputWith(heightCm, weightKg, inputBodyType, preferredFit), productA(), TODAY);
 
         assertThat(result.getNotices().contains(SizeNotice.PREFERRED_FIT_NOT_APPLIED)).isEqualTo(expectedNotice);
+    }
+
+    @ParameterizedTest(name = "키 {0}cm, 몸무게 {1}kg, 입력 체형 {2}, 선호 핏 {3} → 안내 [{4}]")
+    @CsvSource({
+        "115.0, 23.0, SLIM, LOOSE, HEIGHT_ONLY",
+        "115.0, 18.0, CHUNKY, LOOSE, HEIGHT_ONLY",
+        "115.0, 23.0, SLIM, SLIM, HEIGHT_ONLY",
+        "115.0, 23.0, NORMAL, LOOSE, BODY_TYPE_ADJUSTED",
+        "120.0, 23.0, SLIM, LOOSE, ''",
+    })
+    @DisplayName("입력 체형과 판정 체형이 두 단계 다르면 HEIGHT_ONLY 안내 하나만 준다 (체형표 밖이라 입력 체형을 쓰면 주지 않는다)")
+    void heightOnlyNotice(
+        double heightCm, double weightKg, BodyType inputBodyType, PreferredFit preferredFit, String expectedNotices) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(heightCm, weightKg, inputBodyType, preferredFit), productA(), TODAY);
+
+        assertThat(result.getNotices()).isEqualTo(noticesOf(expectedNotices));
+    }
+
+    private List<SizeNotice> noticesOf(String names) {
+        return Arrays.stream(names.split(" "))
+            .filter(name -> !name.isBlank())
+            .map(SizeNotice::valueOf)
+            .toList();
     }
 }

@@ -71,6 +71,9 @@ public class SizeRecommender {
         if (!isBodyTypeUsed(candidates, recommendedRange, childSizeInput.heightCm())) {
             return List.of();
         }
+        if (bodyTypeDecision.basis() == BodyTypeDecision.Basis.HEIGHT_ONLY) {
+            return List.of(SizeNotice.HEIGHT_ONLY);
+        }
 
         List<SizeNotice> notices = new ArrayList<>();
         if (bodyTypeDecision.basis() == BodyTypeDecision.Basis.ADJUSTED) {
