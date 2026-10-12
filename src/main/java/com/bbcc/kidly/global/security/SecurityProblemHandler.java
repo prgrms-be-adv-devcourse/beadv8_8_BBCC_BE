@@ -1,5 +1,7 @@
-package com.bbcc.kidly.global.error;
+package com.bbcc.kidly.global.security;
 
+import com.bbcc.kidly.global.error.CommonErrorCode;
+import com.bbcc.kidly.global.error.ProblemDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;

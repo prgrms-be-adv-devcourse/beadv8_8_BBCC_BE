@@ -1,4 +1,4 @@
-package com.bbcc.kidly.global.error;
+package com.bbcc.kidly.global.security;
 
 import com.bbcc.kidly.support.FunctionalTest;
 import org.junit.jupiter.api.DisplayName;

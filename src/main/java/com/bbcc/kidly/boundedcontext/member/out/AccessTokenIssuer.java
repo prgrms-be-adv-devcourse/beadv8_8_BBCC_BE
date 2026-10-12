@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.member.out;
 
-import com.bbcc.kidly.global.config.JwtProperties;
+import com.bbcc.kidly.global.security.JwtProperties;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;

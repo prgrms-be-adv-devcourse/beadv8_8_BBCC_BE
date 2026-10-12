@@ -1,16 +1,18 @@
-package com.bbcc.kidly.global.config;
+package com.bbcc.kidly.global.security;
 
-import com.bbcc.kidly.global.error.SecurityProblemHandler;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -27,10 +29,11 @@ public class SecurityConfig {
         "/error"
     };
 
-    // TODO(회원): JWT(RS256) 인증 필터 연결
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityProblemHandler problemHandler)
-        throws Exception {
+    public SecurityFilterChain securityFilterChain(
+        HttpSecurity http,
+        SecurityProblemHandler problemHandler,
+        PublicApiRequestMatcher publicApis) throws Exception {
         return http
             .cors(Customizer.withDefaults())
             .csrf(AbstractHttpConfigurer::disable)
@@ -39,13 +42,35 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(PUBLIC_PATHS).permitAll()
-                // 비로그인 사용자는 상품 조회만 할 수 있다
-                .requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
+                .requestMatchers(publicApis).permitAll()
+                .requestMatchers("/api/v1/seller/**").hasRole("SELLER")
+                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
+            // 보낸 토큰은 공개 API에서도 검증한다. 잘못된 토큰(여기)과 토큰 없음(exceptionHandling) 모두 ProblemDetail로 응답한다
+            .oauth2ResourceServer(oauth2 -> oauth2
+                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                .authenticationEntryPoint(problemHandler))
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint(problemHandler)
                 .accessDeniedHandler(problemHandler))
             .build();
+    }
+
+    // 발급은 회원 도메인(개인키), 검증은 여기서 공개키로만 한다
+    @Bean
+    public JwtDecoder jwtDecoder(JwtProperties jwtProperties) {
+        return NimbusJwtDecoder.withPublicKey(jwtProperties.rsaPublicKey()).build();
+    }
+
+    // roles 클레임(BUYER · SELLER · ADMIN)을 ROLE_ 권한으로 바꾼다. 클레임 이름은 AccessTokenIssuer와 같아야 한다
+    private JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        authoritiesConverter.setAuthoritiesClaimName("roles");
+        authoritiesConverter.setAuthorityPrefix("ROLE_");
+
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+        return converter;
     }
 
     // 프론트 origin만 허용한다. 리프레시 토큰 쿠키를 고려해 credentials를 켜 둔다

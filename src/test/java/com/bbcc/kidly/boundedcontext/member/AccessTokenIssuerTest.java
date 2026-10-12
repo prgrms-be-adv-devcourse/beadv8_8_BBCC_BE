@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.out.AccessTokenIssuer;
-import com.bbcc.kidly.global.config.JwtProperties;
+import com.bbcc.kidly.global.security.JwtProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.KeyPair;
