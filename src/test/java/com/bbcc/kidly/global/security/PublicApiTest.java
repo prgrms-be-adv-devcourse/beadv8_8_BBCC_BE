@@ -5,9 +5,8 @@ import static com.bbcc.kidly.support.TestApiController.PRIVATE_ITEM_PATH;
 import static com.bbcc.kidly.support.TestApiController.PUBLIC_ITEM_PATH;
 import static com.bbcc.kidly.support.TestApiController.PUBLIC_PATH;
 
-import com.bbcc.kidly.boundedcontext.member.out.AccessTokenIssuer;
 import com.bbcc.kidly.support.FunctionalTest;
-import java.util.List;
+import com.bbcc.kidly.support.TestTokens;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +19,7 @@ class PublicApiTest {
     private RestTestClient client;
 
     @Autowired
-    private AccessTokenIssuer accessTokenIssuer;
+    private TestTokens tokens;
 
     @Test
     @DisplayName("@PublicApi가 붙은 API는 토큰 없이 호출할 수 있다")
@@ -34,7 +33,7 @@ class PublicApiTest {
     @DisplayName("@PublicApi가 붙은 API도 유효한 토큰을 보내면 로그인 상태로 호출된다")
     void validTokenAuthenticated() {
         client.get().uri(PUBLIC_PATH)
-            .headers(headers -> headers.setBearerAuth(accessTokenIssuer.issue(1L, List.of("BUYER"))))
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(1L)))
             .exchange()
             .expectStatus().isOk();
     }

@@ -4,8 +4,8 @@ import static com.bbcc.kidly.support.TestApiController.ADMIN_PATH;
 import static com.bbcc.kidly.support.TestApiController.AUTH_PATH;
 import static com.bbcc.kidly.support.TestApiController.SELLER_PATH;
 
-import com.bbcc.kidly.boundedcontext.member.out.AccessTokenIssuer;
 import com.bbcc.kidly.support.FunctionalTest;
+import com.bbcc.kidly.support.TestTokens;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -34,7 +34,7 @@ class JwtAuthenticationApiTest {
     private RestTestClient client;
 
     @Autowired
-    private AccessTokenIssuer accessTokenIssuer;
+    private TestTokens tokens;
 
     @Autowired
     private JwtProperties jwtProperties;
@@ -42,7 +42,7 @@ class JwtAuthenticationApiTest {
     @Test
     @DisplayName("유효한 토큰이면 로그인이 필요한 API를 호출할 수 있다")
     void validToken() {
-        expectOk(AUTH_PATH, tokenOf("BUYER"));
+        expectOk(AUTH_PATH, tokens.buyer(1L));
     }
 
     @Test
@@ -72,31 +72,31 @@ class JwtAuthenticationApiTest {
     @Test
     @DisplayName("BUYER는 판매자 API를 호출할 수 없다")
     void buyerCannotCallSellerApi() {
-        expectForbidden(SELLER_PATH, tokenOf("BUYER"));
+        expectForbidden(SELLER_PATH, tokens.buyer(1L));
     }
 
     @Test
     @DisplayName("BUYER는 관리자 API를 호출할 수 없다")
     void buyerCannotCallAdminApi() {
-        expectForbidden(ADMIN_PATH, tokenOf("BUYER"));
+        expectForbidden(ADMIN_PATH, tokens.buyer(1L));
     }
 
     @Test
     @DisplayName("SELLER는 관리자 API를 호출할 수 없다")
     void sellerCannotCallAdminApi() {
-        expectForbidden(ADMIN_PATH, tokenOf("BUYER", "SELLER"));
+        expectForbidden(ADMIN_PATH, tokens.seller(1L));
     }
 
     @Test
     @DisplayName("SELLER는 판매자 API를 호출할 수 있다")
     void sellerCanCallSellerApi() {
-        expectOk(SELLER_PATH, tokenOf("BUYER", "SELLER"));
+        expectOk(SELLER_PATH, tokens.seller(1L));
     }
 
     @Test
     @DisplayName("ADMIN은 관리자 API를 호출할 수 있다")
     void adminCanCallAdminApi() {
-        expectOk(ADMIN_PATH, tokenOf("BUYER", "ADMIN"));
+        expectOk(ADMIN_PATH, tokens.admin(1L));
     }
 
     private void expectOk(String path, String token) {
@@ -128,10 +128,6 @@ class JwtAuthenticationApiTest {
             .jsonPath("$.title").isEqualTo("권한이 없습니다")
             .jsonPath("$.status").isEqualTo(403)
             .jsonPath("$.instance").isEqualTo(path);
-    }
-
-    private String tokenOf(String... roles) {
-        return accessTokenIssuer.issue(1L, List.of(roles));
     }
 
     private KeyPair serverKeyPair() {
