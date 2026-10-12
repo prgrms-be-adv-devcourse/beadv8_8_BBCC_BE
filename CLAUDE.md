@@ -18,7 +18,11 @@
     - 수신은 받는 도메인 `app`의 `@Component`에 `@DomainEventListener public void on(PaymentCompletedEvent event)`. 발행한 쪽이 커밋된 뒤 새 트랜잭션에서 실행된다
     - 리스너가 실패하면 리스너 트랜잭션만 롤백되고 예외는 ERROR 로그로만 남는다 (발행한 쪽은 이미 커밋됨)
 - `com.bbcc.kidly.shared`: 도메인 사이 계약. 도메인 패키지와 `global`을 참조하지 않는다
-  - `event.DomainEvent`: 모든 도메인 간 이벤트가 구현하는 인터페이스. `LocalDateTime occurredAt()`을 가진다. 복사본은 저장된 값보다 `occurredAt`이 늦은 이벤트만 반영한다
+  - `event.DomainEvent`: 모든 도메인 간 이벤트가 구현하는 인터페이스. 기획서 6.2 공통 형식에서 data를 뺀 칸이고, data는 record의 나머지 필드다
+    - record가 필드로 갖는 것: `UUID eventId`(발행할 때 `UUID.randomUUID()`), `LocalDateTime occurredAt`
+    - record가 구현하는 것: `String aggregateId()`(이벤트가 다루는 대상의 ID)
+    - 기본값: `eventType`(클래스 이름에서, `OrderCreatedEvent` → `order.created`. 대상이 두 단어 이상이면 재정의), `producer`(패키지 `shared.{도메인}.event`에서), `schemaVersion` 1, `correlationId` = `aggregateId`
+    - 복사본은 저장된 값보다 `occurredAt`이 늦은 이벤트만 반영한다
   - 도메인별 패키지 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
     - `dto`: 도메인 사이에 주고받는 데이터
     - `domain`: 다른 도메인이 복사해 두는 그 도메인 데이터의 복사본
