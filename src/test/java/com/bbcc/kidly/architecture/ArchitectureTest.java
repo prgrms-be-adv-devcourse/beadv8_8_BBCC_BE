@@ -1,6 +1,9 @@
 package com.bbcc.kidly.architecture;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+
+import com.bbcc.kidly.shared.event.DomainEvent;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -63,6 +66,12 @@ class ArchitectureTest {
     static final ArchRule IN_DOES_NOT_USE_OUT = noClasses()
         .that().resideInAPackage(CONTEXTS + ".*.in..")
         .should().dependOnClassesThat().resideInAPackage(CONTEXTS + ".*.out..")
+        .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule DOMAIN_EVENTS_RESIDE_IN_SHARED_EVENT = classes()
+        .that().implement(DomainEvent.class)
+        .should().resideInAPackage(BASE + ".shared.*.event")
         .allowEmptyShould(true);
 
     private static String domainPackage(String domain) {
