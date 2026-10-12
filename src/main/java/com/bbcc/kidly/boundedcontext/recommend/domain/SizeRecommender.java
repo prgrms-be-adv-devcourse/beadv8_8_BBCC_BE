@@ -6,7 +6,9 @@ import java.time.LocalDate;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 
@@ -31,7 +33,8 @@ public class SizeRecommender {
         }
         double childHeight = childSizeInput.heightCm();
 
-        List<SizeRange> candidates = sortBySize(findCandidates(productSizes.sizeRanges(), childHeight));
+        List<SizeRange> sizeRanges = distinctBySize(productSizes.sizeRanges());
+        List<SizeRange> candidates = sortBySize(findCandidates(sizeRanges, childHeight));
         if (candidates.isEmpty()) {
             return SizeRecommendation.noMatchingSize();
         }
@@ -127,6 +130,14 @@ public class SizeRecommender {
         }
 
         return Optional.of(percentiles.get().bodyTypeOf(childSizeInput.weightKg()));
+    }
+
+    private List<SizeRange> distinctBySize(List<SizeRange> sizeRanges) {
+        Map<String, SizeRange> bySize = new LinkedHashMap<>();
+        for (SizeRange sizeRange : sizeRanges) {
+            bySize.putIfAbsent(sizeRange.size(), sizeRange);
+        }
+        return List.copyOf(bySize.values());
     }
 
     private List<SizeRange> sortBySize(List<SizeRange> sizeRanges) {

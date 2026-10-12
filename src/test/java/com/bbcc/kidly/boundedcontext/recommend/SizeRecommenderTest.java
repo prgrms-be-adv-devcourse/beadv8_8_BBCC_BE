@@ -257,6 +257,20 @@ class SizeRecommenderTest {
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
 
+    @Test
+    @DisplayName("같은 사이즈 옵션이 여러 개여도 사이즈 하나로 세어 후보 수가 늘지 않는다")
+    void sameSizeOptionsCountAsOneCandidate() {
+        ProductSizes colorOptions = ProductSizes.of(false, List.of(
+            SizeRange.of("110", 105, 116),
+            SizeRange.of("110", 105, 116),
+            SizeRange.of("120", 113, 125)));
+
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(114.0, 20.0, BodyType.NORMAL, null), colorOptions, TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo("120");
+    }
+
     private ProductSizes overlappingProduct(String name) {
         List<SizeRange> sizeRanges = switch (name) {
             case "THREE" -> List.of(
