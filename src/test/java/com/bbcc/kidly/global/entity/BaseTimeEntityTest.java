@@ -13,12 +13,14 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
 // JPA Auditing만 확인하므로 @IntegrationTest 대신 JPA 슬라이스로 띄운다
 @Tag("integration")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({TestcontainersConfiguration.class, JpaAuditingConfig.class})
+@ActiveProfiles("test")
 class BaseTimeEntityTest {
 
     @Autowired
