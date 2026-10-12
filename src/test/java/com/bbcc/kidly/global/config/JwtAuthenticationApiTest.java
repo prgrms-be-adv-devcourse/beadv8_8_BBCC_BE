@@ -6,6 +6,7 @@ import static com.bbcc.kidly.support.TestApiController.SELLER_PATH;
 
 import com.bbcc.kidly.boundedcontext.member.out.AccessTokenIssuer;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -13,6 +14,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -72,6 +74,18 @@ class JwtAuthenticationApiTest {
     }
 
     @Test
+    @DisplayName("서명하지 않은 토큰(alg: none)이면 401 ProblemDetail로 응답한다")
+    void unsignedToken() {
+        Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
+        String header = encoder.encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8));
+        long exp = Instant.now().plus(Duration.ofMinutes(30)).getEpochSecond();
+        String payload = encoder.encodeToString(
+            ("{\"sub\":\"1\",\"roles\":[\"ADMIN\"],\"exp\":" + exp + "}").getBytes(StandardCharsets.UTF_8));
+
+        expectUnauthorized(header + "." + payload + ".");
+    }
+
+    @Test
     @DisplayName("BUYER는 판매자 API를 호출할 수 없다")
     void buyerCannotCallSellerApi() {
         expectForbidden(SELLER_PATH, accessTokenIssuer.issue(1L, List.of("BUYER")));
@@ -81,6 +95,12 @@ class JwtAuthenticationApiTest {
     @DisplayName("BUYER는 관리자 API를 호출할 수 없다")
     void buyerCannotCallAdminApi() {
         expectForbidden(ADMIN_PATH, accessTokenIssuer.issue(1L, List.of("BUYER")));
+    }
+
+    @Test
+    @DisplayName("SELLER는 관리자 API를 호출할 수 없다")
+    void sellerCannotCallAdminApi() {
+        expectForbidden(ADMIN_PATH, accessTokenIssuer.issue(2L, List.of("BUYER", "SELLER")));
     }
 
     @Test

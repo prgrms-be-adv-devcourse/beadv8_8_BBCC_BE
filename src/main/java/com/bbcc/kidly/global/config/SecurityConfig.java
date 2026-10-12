@@ -47,11 +47,11 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/seller/**").hasRole("SELLER")
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
-            // 토큰 오류도 ProblemDetail로 응답하도록 resource server의 기본 응답을 바꾼다
+            // 잘못된 토큰은 BearerTokenAuthenticationFilter가, 토큰 없음은 ExceptionTranslationFilter가 처리한다.
+            // 두 곳 모두 ProblemDetail로 응답하도록 entry point를 각각 지정한다
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
-                .authenticationEntryPoint(problemHandler)
-                .accessDeniedHandler(problemHandler))
+                .authenticationEntryPoint(problemHandler))
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint(problemHandler)
                 .accessDeniedHandler(problemHandler))
