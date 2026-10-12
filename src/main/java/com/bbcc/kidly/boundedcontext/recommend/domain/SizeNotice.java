@@ -1,0 +1,6 @@
+package com.bbcc.kidly.boundedcontext.recommend.domain;
+
+public enum SizeNotice {
+
+    SIZE_FREE, NO_MATCHING_SIZE
+}
