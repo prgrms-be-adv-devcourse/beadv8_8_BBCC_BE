@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommendation;
 import com.bbcc.kidly.shared.member.domain.BodyType;
 import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -244,6 +245,28 @@ class SizeRecommenderTest {
     void bodyTypeAdjustedNotice(double weightKg, BodyType inputBodyType, boolean expectedNotice) {
         SizeRecommendation result = recommender().recommend(
             childSizeInputWith(115.0, weightKg, inputBodyType, PreferredFit.LOOSE), productA(), TODAY);
+
+        assertThat(result.getNotices().contains(SizeNotice.BODY_TYPE_ADJUSTED)).isEqualTo(expectedNotice);
+    }
+
+    @ParameterizedTest(name = "사이즈 {0}~{1}cm, {2}~{3}cm → 안내 {4}")
+    @CsvSource({
+        "117, 125, , , false",
+        "113, 125, , , true",
+        "117, 125, 105, 113, true",
+    })
+    @DisplayName("후보가 범위 밖 하나뿐이라 체형을 쓰지 않았으면 BODY_TYPE_ADJUSTED 안내를 주지 않는다")
+    void noBodyTypeNoticeWhenBodyTypeUnused(
+        int minHeightCm, int maxHeightCm, Integer otherMinHeightCm, Integer otherMaxHeightCm, boolean expectedNotice) {
+        List<SizeRange> sizeRanges = new ArrayList<>();
+        sizeRanges.add(SizeRange.of("120", minHeightCm, maxHeightCm));
+        if (otherMinHeightCm != null) {
+            sizeRanges.add(SizeRange.of("110", otherMinHeightCm, otherMaxHeightCm));
+        }
+
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(115.0, 23.0, BodyType.NORMAL, PreferredFit.LOOSE),
+            ProductSizes.of(false, sizeRanges), TODAY);
 
         assertThat(result.getNotices().contains(SizeNotice.BODY_TYPE_ADJUSTED)).isEqualTo(expectedNotice);
     }

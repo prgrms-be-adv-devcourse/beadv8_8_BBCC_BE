@@ -42,7 +42,7 @@ public class SizeRecommender {
         return SizeRecommendation.recommended(
                 recommendedRange.size(),
                 fitOf(recommendedRange, childHeight, bodyType),
-                noticesFor(bodyTypeDecision)
+                noticesFor(bodyTypeDecision, candidates, recommendedRange, childHeight)
         );
     }
 
@@ -61,11 +61,26 @@ public class SizeRecommender {
         return BodyTypeDecision.unchanged(judged.get());
     }
 
-    private List<SizeNotice> noticesFor(BodyTypeDecision bodyTypeDecision) {
+    private List<SizeNotice> noticesFor(
+            BodyTypeDecision bodyTypeDecision,
+            List<SizeRange> candidates,
+            SizeRange recommendedRange,
+            double childHeight
+    ) {
+        if (!isBodyTypeUsed(candidates, recommendedRange, childHeight)) {
+            return List.of();
+        }
         if (bodyTypeDecision.basis() == BodyTypeDecision.Basis.ADJUSTED) {
             return List.of(SizeNotice.BODY_TYPE_ADJUSTED);
         }
         return List.of();
+    }
+
+    private boolean isBodyTypeUsed(List<SizeRange> candidates, SizeRange recommendedRange, double childHeight) {
+        if (candidates.size() > 1) {
+            return true;
+        }
+        return recommendedRange.distanceFrom(childHeight) == 0;
     }
 
     private boolean isTwoStepsApart(BodyType input, BodyType judged) {
