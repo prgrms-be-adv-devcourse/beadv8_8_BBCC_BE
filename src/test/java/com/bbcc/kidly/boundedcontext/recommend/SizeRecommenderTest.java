@@ -7,13 +7,13 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productA;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommender;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.BodyType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.Fit;
-import com.bbcc.kidly.boundedcontext.recommend.domain.PreferredFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommendation;
+import com.bbcc.kidly.shared.member.domain.BodyType;
+import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

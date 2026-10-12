@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain;
 
+import com.bbcc.kidly.shared.member.domain.BodyType;
+import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;

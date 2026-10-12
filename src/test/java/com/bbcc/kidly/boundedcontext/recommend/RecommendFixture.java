@@ -1,12 +1,12 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.BodyType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ChildSizeInput;
-import com.bbcc.kidly.boundedcontext.recommend.domain.Gender;
-import com.bbcc.kidly.boundedcontext.recommend.domain.PreferredFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommender;
+import com.bbcc.kidly.shared.member.domain.BodyType;
+import com.bbcc.kidly.shared.member.domain.Gender;
+import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
