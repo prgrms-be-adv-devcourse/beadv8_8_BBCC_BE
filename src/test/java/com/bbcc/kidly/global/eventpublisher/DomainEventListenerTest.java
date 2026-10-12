@@ -51,15 +51,15 @@ class DomainEventListenerTest {
     @Test
     @DisplayName("발행한 쪽 트랜잭션이 커밋되면 리스너가 실행된다")
     void runsAfterCommit() {
-        publisher.publish(new TestEvent(EVENT_ID, 1L, NOW));
+        publisher.publish(new TestEvent(EVENT_ID, NOW, new TestEvent.Data(1L)));
 
-        assertThat(listener.received()).containsExactly(new TestEvent(EVENT_ID, 1L, NOW));
+        assertThat(listener.received()).containsExactly(new TestEvent(EVENT_ID, NOW, new TestEvent.Data(1L)));
     }
 
     @Test
     @DisplayName("발행한 쪽 트랜잭션이 롤백되면 리스너가 실행되지 않는다")
     void doesNotRunAfterRollback() {
-        assertThatThrownBy(() -> publisher.publishAndFail(new TestEvent(EVENT_ID, 1L, NOW)))
+        assertThatThrownBy(() -> publisher.publishAndFail(new TestEvent(EVENT_ID, NOW, new TestEvent.Data(1L))))
             .isInstanceOf(IllegalStateException.class);
 
         assertThat(listener.received()).isEmpty();
@@ -68,7 +68,7 @@ class DomainEventListenerTest {
     @Test
     @DisplayName("리스너는 발행한 쪽과 다른 새 트랜잭션에서 실행된다")
     void runsInNewTransaction() {
-        publisher.publish(new TestEvent(EVENT_ID, 1L, NOW));
+        publisher.publish(new TestEvent(EVENT_ID, NOW, new TestEvent.Data(1L)));
 
         assertThat(listener.transactionName()).endsWith("TestListener.on");
         assertThat(transactionManager.begun()).isEqualTo(2);
@@ -80,17 +80,21 @@ class DomainEventListenerTest {
     void listenerFailureDoesNotReachPublisher() {
         listener.failNext();
 
-        assertThatCode(() -> publisher.publish(new TestEvent(EVENT_ID, 1L, NOW))).doesNotThrowAnyException();
+        assertThatCode(() -> publisher.publish(new TestEvent(EVENT_ID, NOW, new TestEvent.Data(1L))))
+            .doesNotThrowAnyException();
 
         assertThat(transactionManager.committed()).isEqualTo(1);
         assertThat(transactionManager.rolledBack()).isEqualTo(1);
     }
 
-    record TestEvent(UUID eventId, Long id, LocalDateTime occurredAt) implements DomainEvent {
+    record TestEvent(UUID eventId, LocalDateTime occurredAt, Data data) implements DomainEvent {
+
+        record Data(Long id) {
+        }
 
         @Override
         public String aggregateId() {
-            return String.valueOf(id);
+            return String.valueOf(data.id());
         }
     }
 
