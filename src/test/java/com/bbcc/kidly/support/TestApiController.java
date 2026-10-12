@@ -3,6 +3,7 @@ package com.bbcc.kidly.support;
 import com.bbcc.kidly.global.auth.LoginMember;
 import com.bbcc.kidly.global.auth.PublicApi;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -17,6 +18,8 @@ public class TestApiController {
     public static final String ADMIN_PATH = "/api/v1/admin/test";
     public static final String LOGIN_MEMBER_PATH = "/api/v1/test/login-member";
     public static final String PUBLIC_PATH = "/api/v1/test/public";
+    public static final String PUBLIC_ITEM_PATH = "/api/v1/test/items/{id}";
+    public static final String PRIVATE_ITEM_PATH = "/api/v1/test/items/mine";
 
     @GetMapping(AUTH_PATH)
     void auth() {
@@ -33,6 +36,15 @@ public class TestApiController {
     @PublicApi
     @GetMapping(PUBLIC_PATH)
     void publicApi() {
+    }
+
+    @PublicApi
+    @GetMapping(PUBLIC_ITEM_PATH)
+    void publicItem(@PathVariable Long id) {
+    }
+
+    @GetMapping(PRIVATE_ITEM_PATH)
+    void privateItem() {
     }
 
     @GetMapping(LOGIN_MEMBER_PATH)

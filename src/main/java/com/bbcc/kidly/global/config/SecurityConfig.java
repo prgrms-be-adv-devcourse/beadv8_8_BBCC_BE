@@ -75,7 +75,7 @@ public class SecurityConfig {
             .build();
     }
 
-    // 공개 요청은 토큰을 꺼내지 않아 검증하지 않는다. 만료된 토큰을 붙여 보내도 비로그인으로 처리된다
+    // 공개 요청은 토큰을 꺼내지 않아 검증하지 않는다. 잘못된 토큰도, 유효한 토큰도 무시하고 비로그인으로 처리한다
     private BearerTokenResolver bearerTokenResolver(RequestMatcher publicRequests) {
         DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
         return request -> publicRequests.matches(request) ? null : delegate.resolve(request);
