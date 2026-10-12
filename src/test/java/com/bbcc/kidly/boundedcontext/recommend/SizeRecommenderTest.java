@@ -104,12 +104,31 @@ class SizeRecommenderTest {
         "20.0, NORMAL, , 120",
         "23.0, CHUNKY, SLIM, 120",
         "18.0, SLIM, LOOSE, 110",
+        "20.0, NORMAL, REGULAR, 120",
     })
     @DisplayName("키 115cm로 후보가 110과 120 둘이면 체형과 선호 핏으로 하나를 고른다")
     void chooseBetweenTwoCandidates(
         double weightKg, BodyType bodyType, PreferredFit preferredFit, String expectedSize) {
         SizeRecommendation result = recommender()
             .recommend(childSizeInputWith(115.0, weightKg, bodyType, preferredFit), productA(), TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
+    }
+
+    @ParameterizedTest(name = "키 {0}cm → {1}")
+    @CsvSource({
+        "114.0, 110",
+        "115.0, 120",
+        "114.75, 120",
+    })
+    @DisplayName("선호 핏이 보통 핏이면 키가 범위 한가운데에 더 가까운 사이즈를 고른다")
+    void regularFitChoosesSizeNearestToCenter(double heightCm, String expectedSize) {
+        ProductSizes overlappingProduct = ProductSizes.of(false, List.of(
+            SizeRange.of("110", 105, 116),
+            SizeRange.of("120", 113, 125)));
+
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(heightCm, 20.0, BodyType.NORMAL, PreferredFit.REGULAR), overlappingProduct, TODAY);
 
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }

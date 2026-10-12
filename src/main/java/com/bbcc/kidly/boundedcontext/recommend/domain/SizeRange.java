@@ -28,4 +28,8 @@ public record SizeRange(
 
         return 0;
     }
+
+    public double center() {
+        return (minHeightCm + maxHeightCm) / 2.0;
+    }
 }

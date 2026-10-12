@@ -50,7 +50,22 @@ public class SizeRecommender {
         if (childSizeInput.preferredFit() == PreferredFit.SLIM) {
             return sorted.getFirst();
         }
+
+        if (childSizeInput.preferredFit() == PreferredFit.REGULAR) {
+            return nearerToCenter(sorted.getFirst(), sorted.getLast(), childSizeInput.heightCm());
+        }
+
         return sorted.getLast();
+    }
+
+    private SizeRange nearerToCenter(SizeRange smaller, SizeRange bigger, double childHeight) {
+        double smallerDistance = Math.abs(childHeight - smaller.center());
+        double biggerDistance = Math.abs(childHeight - bigger.center());
+
+        if (smallerDistance < biggerDistance) {
+            return smaller;
+        }
+        return bigger;
     }
 
     private Fit fitOf(SizeRange sizeRange, double childHeight) {
