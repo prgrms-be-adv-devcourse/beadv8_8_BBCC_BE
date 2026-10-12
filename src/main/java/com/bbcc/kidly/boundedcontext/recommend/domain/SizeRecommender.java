@@ -139,35 +139,50 @@ public class SizeRecommender {
         }
 
         if (bodyType == BodyType.CHUNKY) {
-            return sorted.getLast();
+            return oneSizeBigger(sorted, childSizeInput.heightCm());
         }
         if (bodyType == BodyType.SLIM) {
-            return sorted.getFirst();
+            return oneSizeSmaller(sorted, childSizeInput.heightCm());
         }
 
         return chooseByPreferredFit(sorted, childSizeInput);
     }
 
     private SizeRange chooseByPreferredFit(List<SizeRange> sorted, ChildSizeInput childSizeInput) {
-        if (childSizeInput.preferredFit() == PreferredFit.SLIM) {
-            return sorted.getFirst();
+        PreferredFit preferredFit = childSizeInput.preferredFit();
+        if (preferredFit == PreferredFit.SLIM) {
+            return oneSizeSmaller(sorted, childSizeInput.heightCm());
+        }
+        if (preferredFit == PreferredFit.LOOSE) {
+            return oneSizeBigger(sorted, childSizeInput.heightCm());
+        }
+        if (preferredFit == null && sorted.size() == 2) {
+            return sorted.getLast();
         }
 
-        if (childSizeInput.preferredFit() == PreferredFit.REGULAR) {
-            return nearerToCenter(sorted.getFirst(), sorted.getLast(), childSizeInput.heightCm());
-        }
-
-        return sorted.getLast();
+        return sorted.get(nearestToCenterIndex(sorted, childSizeInput.heightCm()));
     }
 
-    private SizeRange nearerToCenter(SizeRange smaller, SizeRange bigger, double childHeight) {
-        double smallerDistance = Math.abs(childHeight - smaller.center());
-        double biggerDistance = Math.abs(childHeight - bigger.center());
+    private SizeRange oneSizeBigger(List<SizeRange> sorted, double childHeight) {
+        int index = nearestToCenterIndex(sorted, childHeight) + 1;
+        return sorted.get(Math.min(index, sorted.size() - 1));
+    }
 
-        if (smallerDistance < biggerDistance) {
-            return smaller;
+    private SizeRange oneSizeSmaller(List<SizeRange> sorted, double childHeight) {
+        int index = nearestToCenterIndex(sorted, childHeight) - 1;
+        return sorted.get(Math.max(index, 0));
+    }
+
+    private int nearestToCenterIndex(List<SizeRange> sorted, double childHeight) {
+        int nearestIndex = 0;
+        for (int i = 1; i < sorted.size(); i++) {
+            double distance = Math.abs(childHeight - sorted.get(i).center());
+            double nearestDistance = Math.abs(childHeight - sorted.get(nearestIndex).center());
+            if (distance <= nearestDistance) {
+                nearestIndex = i;
+            }
         }
-        return bigger;
+        return nearestIndex;
     }
 
     private Fit fitOf(SizeRange sizeRange, double childHeight, BodyType bodyType) {

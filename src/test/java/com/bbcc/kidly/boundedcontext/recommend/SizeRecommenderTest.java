@@ -230,6 +230,47 @@ class SizeRecommenderTest {
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
 
+    @ParameterizedTest(name = "상품 {0}, 키 {1}cm, 체형 {2}, 선호 핏 {3} → {4}")
+    @CsvSource({
+        "THREE, 119.0, NORMAL, REGULAR, 120",
+        "THREE, 119.0, NORMAL, , 120",
+        "THREE, 119.0, NORMAL, LOOSE, 130",
+        "THREE, 119.0, NORMAL, SLIM, 110",
+        "THREE, 119.0, CHUNKY, SLIM, 130",
+        "THREE, 119.0, SLIM, LOOSE, 110",
+        "THREE, 112.0, NORMAL, REGULAR, 110",
+        "THREE, 112.0, SLIM, REGULAR, 110",
+        "THREE, 112.0, CHUNKY, REGULAR, 120",
+        "THREE, 112.5, NORMAL, REGULAR, 120",
+        "FOUR, 119.0, CHUNKY, REGULAR, 130",
+        "FOUR, 119.0, NORMAL, LOOSE, 130",
+        "TOP_EDGE, 128.0, NORMAL, REGULAR, 130",
+        "TOP_EDGE, 128.0, CHUNKY, REGULAR, 130",
+        "TOP_EDGE, 128.0, SLIM, REGULAR, 120",
+    })
+    @DisplayName("후보가 셋 이상이면 한가운데에 가까운 사이즈를 기본으로, 체형이나 선호 핏에 따라 한 칸 옮긴다")
+    void chooseAmongThreeOrMoreCandidates(
+        String product, double heightCm, BodyType bodyType, PreferredFit preferredFit, String expectedSize) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(heightCm, 20.0, bodyType, preferredFit), overlappingProduct(product), TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
+    }
+
+    private ProductSizes overlappingProduct(String name) {
+        List<SizeRange> sizeRanges = switch (name) {
+            case "THREE" -> List.of(
+                SizeRange.of("110", 100, 120), SizeRange.of("120", 105, 125), SizeRange.of("130", 110, 140));
+            case "FOUR" -> List.of(
+                SizeRange.of("110", 100, 120), SizeRange.of("120", 105, 125),
+                SizeRange.of("130", 110, 140), SizeRange.of("140", 115, 145));
+            case "TOP_EDGE" -> List.of(
+                SizeRange.of("110", 100, 130), SizeRange.of("120", 110, 132), SizeRange.of("130", 120, 130));
+            default -> throw new IllegalArgumentException(name);
+        };
+        return ProductSizes.of(false, sizeRanges);
+    }
+
     private SizeRecommendation recommendForHeight(double heightCm) {
         return recommender().recommend(childSizeInputWithHeight(heightCm), productA(), TODAY);
     }
