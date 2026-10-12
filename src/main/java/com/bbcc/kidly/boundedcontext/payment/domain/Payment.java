@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.payment.domain;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

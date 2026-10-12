@@ -6,10 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
-import com.bbcc.kidly.boundedcontext.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentStatus;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
