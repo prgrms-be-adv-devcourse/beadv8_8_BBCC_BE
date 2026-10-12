@@ -3,13 +3,13 @@ package com.bbcc.kidly.global.entity;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class BaseSoftDeleteEntityTest {
 
-    private static final Instant NOW = Instant.parse("2026-10-08T00:00:00Z");
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 8, 0, 0);
 
     @Test
     @DisplayName("새 엔티티는 삭제되지 않은 상태다")
