@@ -12,6 +12,8 @@ on:
 
 jobs:
   notify:
+    # PR 머지로 생긴 push는 'PR 머지' 알림과 겹치므로 보내지 않는다
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request')
     runs-on: ubuntu-latest
     steps:
       - name: Send to Slack
@@ -20,7 +22,6 @@ jobs:
           EVENT: ${{ github.event_name }}
           ACTION: ${{ github.event.action }}
           ACTOR: ${{ github.actor }}
-          REPO: ${{ github.repository }}
           REF: ${{ github.ref_name }}
           # push
           COMMIT_MSG: ${{ github.event.head_commit.message }}
@@ -30,6 +31,8 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
           REVIEWER: ${{ github.event.requested_reviewer.login || github.event.requested_team.name }}
           REVIEW_STATE: ${{ github.event.review.state }}
           REVIEW_URL: ${{ github.event.review.html_url }}
@@ -38,37 +41,57 @@ jobs:
           ISSUE_URL: ${{ github.event.issue.html_url }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
+          # 색상: 파랑=열림, 보라=머지, 초록=승인, 주황=변경 요청·직접 push, 회색=닫힘·코멘트, 빨강=이슈
+          BRANCHES="\`$PR_HEAD\` → \`$PR_BASE\`"
           case "$EVENT" in
             push)
-              MSG=$(printf '%s' "$COMMIT_MSG" | head -n1)
-              TEXT="📦 *[$REPO]* \`$REF\` 브랜치에 push — $ACTOR"$'\n'"$MSG"$'\n'"<$COMPARE_URL|변경사항 보기>"
+              COLOR="#d29922"
+              TITLE=$(printf '%s' "$COMMIT_MSG" | head -n1)
+              URL="$COMPARE_URL"
+              META="⚠️ \`$REF\` 직접 push · $ACTOR"
               ;;
             pull_request)
               case "$ACTION" in
-                opened)           LABEL="🔀 PR 생성" ;;
-                reopened)         LABEL="🔁 PR 재오픈" ;;
-                closed)           if [ "$PR_MERGED" = "true" ]; then LABEL="✅ PR 머지"; else LABEL="❌ PR 닫힘"; fi ;;
-                review_requested) LABEL="👀 리뷰 요청 → $REVIEWER" ;;
+                opened)           COLOR="#2f81f7"; LABEL="🔀 PR 생성" ;;
+                reopened)         COLOR="#2f81f7"; LABEL="🔁 PR 재오픈" ;;
+                closed)           if [ "$PR_MERGED" = "true" ]; then COLOR="#8250df"; LABEL="🟣 PR 머지"; else COLOR="#8c959f"; LABEL="❌ PR 닫힘"; fi ;;
+                review_requested) COLOR="#2f81f7"; LABEL="👀 리뷰 요청 → $REVIEWER" ;;
               esac
-              TEXT="$LABEL *[$REPO]* #$PR_NUMBER — $ACTOR"$'\n'"<$PR_URL|$PR_TITLE>"
+              TITLE="#$PR_NUMBER $PR_TITLE"
+              URL="$PR_URL"
+              META="$LABEL · $ACTOR · $BRANCHES"
               ;;
             pull_request_review)
               case "$REVIEW_STATE" in
-                approved)          LABEL="✅ 리뷰 승인" ;;
-                changes_requested) LABEL="🔧 변경 요청" ;;
-                *)                 LABEL="💬 리뷰 코멘트" ;;
+                approved)          COLOR="#1a7f37"; LABEL="✅ 리뷰 승인" ;;
+                changes_requested) COLOR="#d29922"; LABEL="🔧 변경 요청" ;;
+                *)                 COLOR="#8c959f"; LABEL="💬 리뷰 코멘트" ;;
               esac
-              TEXT="$LABEL *[$REPO]* #$PR_NUMBER — $ACTOR"$'\n'"<$REVIEW_URL|$PR_TITLE>"
+              TITLE="#$PR_NUMBER $PR_TITLE"
+              URL="$REVIEW_URL"
+              META="$LABEL · $ACTOR · $BRANCHES"
               ;;
             issues)
               case "$ACTION" in
-                opened)   LABEL="🐛 이슈 생성" ;;
-                reopened) LABEL="🔁 이슈 재오픈" ;;
-                closed)   LABEL="✔️ 이슈 닫힘" ;;
+                opened)   COLOR="#cf222e"; LABEL="🐛 이슈 생성" ;;
+                reopened) COLOR="#cf222e"; LABEL="🔁 이슈 재오픈" ;;
+                closed)   COLOR="#8c959f"; LABEL="✔️ 이슈 닫힘" ;;
               esac
-              TEXT="$LABEL *[$REPO]* #$ISSUE_NUMBER — $ACTOR"$'\n'"<$ISSUE_URL|$ISSUE_TITLE>"
+              TITLE="#$ISSUE_NUMBER $ISSUE_TITLE"
+              URL="$ISSUE_URL"
+              META="$LABEL · $ACTOR"
               ;;
           esac
 
-          jq -n --arg t "$TEXT" '{text: $t}' \
+          # 제목은 굵은 링크, 부가 정보는 context 블록(작은 회색 글씨)에 둔다
+          jq -n --arg color "$COLOR" --arg title "$TITLE" --arg url "$URL" --arg meta "$META" '
+            def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+            {attachments: [{
+              color: $color,
+              fallback: "\($meta) | \($title)",
+              blocks: [
+                {type: "section", text: {type: "mrkdwn", text: "*<\($url)|\($title | esc)>*"}},
+                {type: "context", elements: [{type: "mrkdwn", text: ($meta | esc)}]}
+              ]
+            }]}' \
             | curl -sS -f -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"
