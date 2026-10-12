@@ -1,5 +1,6 @@
 package com.bbcc.kidly.support;
 
+import com.bbcc.kidly.global.auth.LoginMember;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -13,6 +14,7 @@ public class TestApiController {
     public static final String AUTH_PATH = "/api/v1/test/auth";
     public static final String SELLER_PATH = "/api/v1/seller/test";
     public static final String ADMIN_PATH = "/api/v1/admin/test";
+    public static final String LOGIN_MEMBER_PATH = "/api/v1/test/login-member";
 
     @GetMapping(AUTH_PATH)
     void auth() {
@@ -24,5 +26,10 @@ public class TestApiController {
 
     @GetMapping(ADMIN_PATH)
     void admin() {
+    }
+
+    @GetMapping(LOGIN_MEMBER_PATH)
+    Long loginMember(@LoginMember Long memberId) {
+        return memberId;
     }
 }
