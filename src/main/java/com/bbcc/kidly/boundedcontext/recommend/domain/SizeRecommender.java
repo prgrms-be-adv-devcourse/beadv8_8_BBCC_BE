@@ -4,6 +4,7 @@ import com.bbcc.kidly.shared.member.domain.BodyType;
 import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -30,31 +31,80 @@ public class SizeRecommender {
         }
         double childHeight = childSizeInput.heightCm();
 
-        List<SizeRange> candidates = findCandidates(productSizes.sizeRanges(), childHeight);
+        List<SizeRange> candidates = sortBySize(findCandidates(productSizes.sizeRanges(), childHeight));
         if (candidates.isEmpty()) {
             return SizeRecommendation.noMatchingSize();
         }
 
-        BodyType bodyType = bodyTypeFor(childSizeInput, today);
+        BodyTypeDecision bodyTypeDecision = decideBodyType(childSizeInput, today);
+        BodyType bodyType = bodyTypeDecision.bodyType();
         SizeRange recommendedRange = chooseOne(candidates, childSizeInput, bodyType);
 
         return SizeRecommendation.recommended(
                 recommendedRange.size(),
                 fitOf(recommendedRange, childHeight, bodyType),
-                List.of()
+                noticesFor(bodyTypeDecision, candidates, recommendedRange, childSizeInput)
         );
     }
 
-    private BodyType bodyTypeFor(ChildSizeInput childSizeInput, LocalDate today) {
+    private BodyTypeDecision decideBodyType(ChildSizeInput childSizeInput, LocalDate today) {
         BodyType input = childSizeInput.bodyType();
         Optional<BodyType> judged = judgeByWeight(childSizeInput, today);
         if (judged.isEmpty()) {
-            return input;
+            return BodyTypeDecision.unchanged(input);
         }
         if (isTwoStepsApart(input, judged.get())) {
-            return null;
+            return BodyTypeDecision.heightOnly();
         }
-        return judged.get();
+        if (input != null && input != judged.get()) {
+            return BodyTypeDecision.adjusted(judged.get());
+        }
+        return BodyTypeDecision.unchanged(judged.get());
+    }
+
+    private List<SizeNotice> noticesFor(
+            BodyTypeDecision bodyTypeDecision,
+            List<SizeRange> candidates,
+            SizeRange recommendedRange,
+            ChildSizeInput childSizeInput
+    ) {
+        if (!isBodyTypeUsed(candidates, recommendedRange, childSizeInput.heightCm())) {
+            return List.of();
+        }
+        if (bodyTypeDecision.basis() == BodyTypeDecision.Basis.HEIGHT_ONLY) {
+            return List.of(SizeNotice.HEIGHT_ONLY);
+        }
+
+        List<SizeNotice> notices = new ArrayList<>();
+        if (bodyTypeDecision.basis() == BodyTypeDecision.Basis.ADJUSTED) {
+            notices.add(SizeNotice.BODY_TYPE_ADJUSTED);
+        }
+        if (isPreferredFitOverridden(candidates, recommendedRange, childSizeInput, bodyTypeDecision.bodyType())) {
+            notices.add(SizeNotice.PREFERRED_FIT_NOT_APPLIED);
+        }
+        return List.copyOf(notices);
+    }
+
+    private boolean isPreferredFitOverridden(
+            List<SizeRange> candidates,
+            SizeRange recommendedRange,
+            ChildSizeInput childSizeInput,
+            BodyType bodyType
+    ) {
+        if (candidates.size() == 1 || childSizeInput.preferredFit() == null) {
+            return false;
+        }
+        if (bodyType != BodyType.CHUNKY && bodyType != BodyType.SLIM) {
+            return false;
+        }
+        return !chooseByPreferredFit(candidates, childSizeInput).equals(recommendedRange);
+    }
+
+    private boolean isBodyTypeUsed(List<SizeRange> candidates, SizeRange recommendedRange, double childHeight) {
+        if (candidates.size() > 1) {
+            return true;
+        }
+        return recommendedRange.distanceFrom(childHeight) == 0;
     }
 
     private boolean isTwoStepsApart(BodyType input, BodyType judged) {
@@ -79,8 +129,11 @@ public class SizeRecommender {
         return Optional.of(percentiles.get().bodyTypeOf(childSizeInput.weightKg()));
     }
 
-    private SizeRange chooseOne(List<SizeRange> candidates, ChildSizeInput childSizeInput, BodyType bodyType) {
-        List<SizeRange> sorted = candidates.stream().sorted(BY_SIZE).toList();
+    private List<SizeRange> sortBySize(List<SizeRange> sizeRanges) {
+        return sizeRanges.stream().sorted(BY_SIZE).toList();
+    }
+
+    private SizeRange chooseOne(List<SizeRange> sorted, ChildSizeInput childSizeInput, BodyType bodyType) {
         if (sorted.size() == 1) {
             return sorted.getFirst();
         }
@@ -92,6 +145,10 @@ public class SizeRecommender {
             return sorted.getFirst();
         }
 
+        return chooseByPreferredFit(sorted, childSizeInput);
+    }
+
+    private SizeRange chooseByPreferredFit(List<SizeRange> sorted, ChildSizeInput childSizeInput) {
         if (childSizeInput.preferredFit() == PreferredFit.SLIM) {
             return sorted.getFirst();
         }
