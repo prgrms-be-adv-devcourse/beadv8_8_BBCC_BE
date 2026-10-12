@@ -39,6 +39,8 @@ out/
 ### Env ###
 .env
 *.pem
+# 로컬·테스트 전용 JWT 키는 팀이 같은 토큰을 쓰도록 커밋한다. 운영 키는 커밋하지 않는다
+!config/jwt/local-*.pem
 
 ### Logs ###
 logs/
