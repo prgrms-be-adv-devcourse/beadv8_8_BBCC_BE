@@ -183,6 +183,22 @@ class SizeRecommenderTest {
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
 
+    @ParameterizedTest(name = "입력 체형 {0}, 몸무게 {1}kg, 선호 핏 {2} → {3}, {4}")
+    @CsvSource({
+        "SLIM, 23.0, LOOSE, 120, ROOMY",
+        "CHUNKY, 18.0, LOOSE, 120, ROOMY",
+        "SLIM, 23.0, SLIM, 110, TIGHT",
+    })
+    @DisplayName("입력 체형과 판정 체형이 두 단계 다르면 체형을 쓰지 않고 키와 선호 핏으로만 고른다")
+    void heightOnlyWhenBodyTypesTwoStepsApart(
+        BodyType inputBodyType, double weightKg, PreferredFit preferredFit, String expectedSize, Fit expectedFit) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(115.0, weightKg, inputBodyType, preferredFit), productA(), TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
+        assertThat(result.getFit()).isEqualTo(expectedFit);
+    }
+
     private SizeRecommendation recommendForHeight(double heightCm) {
         return recommender().recommend(childSizeInputWithHeight(heightCm), productA(), TODAY);
     }
