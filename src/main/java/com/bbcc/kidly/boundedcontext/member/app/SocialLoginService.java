@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.member.app;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberQueryRepository;
+import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;

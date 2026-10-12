@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.member.app;
+package com.bbcc.kidly.boundedcontext.member.app.support;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberRepository;
@@ -26,7 +26,7 @@ public class MemberRegistrar {
     @Transactional
     public Member register(MemberLoginRequest request) {
         var now = LocalDateTime.now();
-        // ID가 IDENTITY라서 save 때 회원과 소셜 계정이 바로 insert된다. 유니크 제약 위반도 이벤트 발행 전에 여기서 난다
+
         Member member = memberRepository.save(
             Member.register(request.provider(), request.providerUserId(), request.nickname(), now));
 

@@ -3,10 +3,10 @@ package com.bbcc.kidly.boundedcontext.member;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.member.app.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberQueryRepository;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
