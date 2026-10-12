@@ -13,14 +13,16 @@
 ## 구조
 - `com.bbcc.kidly.global`: 공통 코드. 도메인 패키지를 참조하지 않는다
   - `eventpublisher`: `EventPublisher`. 이벤트는 `ApplicationEventPublisher` 대신 이것으로 발행한다
+    - 발행할 수 있는 건 `shared.event.DomainEvent`를 구현한 record뿐이다
     - 발행은 `@Transactional` 서비스 안에서 `eventPublisher.publish(new PaymentCompletedEvent(...))`. 트랜잭션 밖에서 발행하면 전달되지 않는다
     - 수신은 받는 도메인 `app`의 `@Component`에 `@DomainEventListener public void on(PaymentCompletedEvent event)`. 발행한 쪽이 커밋된 뒤 새 트랜잭션에서 실행된다
     - 리스너가 실패하면 리스너 트랜잭션만 롤백되고 예외는 ERROR 로그로만 남는다 (발행한 쪽은 이미 커밋됨)
 - `com.bbcc.kidly.shared`: 도메인 사이 계약. 도메인 패키지와 `global`을 참조하지 않는다
+  - `event.DomainEvent`: 모든 도메인 간 이벤트가 구현하는 인터페이스. `LocalDateTime occurredAt()`을 가진다. 복사본은 저장된 값보다 `occurredAt`이 늦은 이벤트만 반영한다
   - 도메인별 패키지 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
     - `dto`: 도메인 사이에 주고받는 데이터
     - `domain`: 다른 도메인이 복사해 두는 그 도메인 데이터의 복사본
-    - `event`: 그 도메인이 발행하는 도메인 간 이벤트. record로 만들고, 이름은 `발행도메인+과거형+Event`(예: `shared.payment.event.PaymentCompletedEvent`). 엔티티 대신 ID와 그 시점의 값만 담는다
+    - `event`: 그 도메인이 발행하는 도메인 간 이벤트. record로 만들어 `DomainEvent`를 구현하고, 이름은 `발행도메인+과거형+Event`(예: `shared.payment.event.PaymentCompletedEvent`). 엔티티 대신 ID와 그 시점의 값만 담는다
     - `out`: 다른 도메인이 그 도메인과 연결할 때 쓰는 계약
 - `com.bbcc.kidly.boundedcontext`: 도메인 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
   - `app`: 유스케이스 서비스, 이벤트 리스너

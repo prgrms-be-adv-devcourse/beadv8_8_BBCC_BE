@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.shared.event.DomainEvent;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @SpringJUnitConfig(DomainEventListenerTest.Config.class)
 class DomainEventListenerTest {
 
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 11, 0, 0);
+
     @Autowired
     private TestPublisher publisher;
 
@@ -45,15 +49,15 @@ class DomainEventListenerTest {
     @Test
     @DisplayName("발행한 쪽 트랜잭션이 커밋되면 리스너가 실행된다")
     void runsAfterCommit() {
-        publisher.publish(new TestEvent(1L));
+        publisher.publish(new TestEvent(1L, NOW));
 
-        assertThat(listener.received()).containsExactly(new TestEvent(1L));
+        assertThat(listener.received()).containsExactly(new TestEvent(1L, NOW));
     }
 
     @Test
     @DisplayName("발행한 쪽 트랜잭션이 롤백되면 리스너가 실행되지 않는다")
     void doesNotRunAfterRollback() {
-        assertThatThrownBy(() -> publisher.publishAndFail(new TestEvent(1L)))
+        assertThatThrownBy(() -> publisher.publishAndFail(new TestEvent(1L, NOW)))
             .isInstanceOf(IllegalStateException.class);
 
         assertThat(listener.received()).isEmpty();
@@ -62,7 +66,7 @@ class DomainEventListenerTest {
     @Test
     @DisplayName("리스너는 발행한 쪽과 다른 새 트랜잭션에서 실행된다")
     void runsInNewTransaction() {
-        publisher.publish(new TestEvent(1L));
+        publisher.publish(new TestEvent(1L, NOW));
 
         assertThat(listener.transactionName()).endsWith("TestListener.on");
         assertThat(transactionManager.begun()).isEqualTo(2);
@@ -74,13 +78,13 @@ class DomainEventListenerTest {
     void listenerFailureDoesNotReachPublisher() {
         listener.failNext();
 
-        assertThatCode(() -> publisher.publish(new TestEvent(1L))).doesNotThrowAnyException();
+        assertThatCode(() -> publisher.publish(new TestEvent(1L, NOW))).doesNotThrowAnyException();
 
         assertThat(transactionManager.committed()).isEqualTo(1);
         assertThat(transactionManager.rolledBack()).isEqualTo(1);
     }
 
-    record TestEvent(Long id) {
+    record TestEvent(Long id, LocalDateTime occurredAt) implements DomainEvent {
     }
 
     static class TestPublisher {

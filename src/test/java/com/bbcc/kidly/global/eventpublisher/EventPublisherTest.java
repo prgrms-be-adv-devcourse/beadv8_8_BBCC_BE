@@ -2,7 +2,8 @@ package com.bbcc.kidly.global.eventpublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Instant;
+import com.bbcc.kidly.shared.event.DomainEvent;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -16,13 +17,13 @@ class EventPublisherTest {
     @Test
     @DisplayName("도메인 이벤트를 스프링 이벤트로 발행한다")
     void publishesDomainEventAsSpringEvent() {
-        TestEvent event = new TestEvent(1L, Instant.parse("2026-10-11T00:00:00Z"));
+        TestEvent event = new TestEvent(1L, LocalDateTime.of(2026, 10, 11, 0, 0));
 
         publisher.publish(event);
 
         assertThat(published).containsExactly(event);
     }
 
-    private record TestEvent(Long id, Instant occurredAt) {
+    private record TestEvent(Long id, LocalDateTime occurredAt) implements DomainEvent {
     }
 }
