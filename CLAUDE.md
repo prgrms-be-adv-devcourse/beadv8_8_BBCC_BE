@@ -13,14 +13,16 @@
 ## 구조
 - `com.bbcc.kidly.global`: 공통 코드. 도메인 패키지를 참조하지 않는다
   - `eventpublisher`: `EventPublisher`. 이벤트는 `ApplicationEventPublisher` 대신 이것으로 발행한다
+    - 발행할 수 있는 건 `shared.event.DomainEvent`를 구현한 record뿐이다
     - 발행은 `@Transactional` 서비스 안에서 `eventPublisher.publish(new PaymentCompletedEvent(...))`. 트랜잭션 밖에서 발행하면 전달되지 않는다
     - 수신은 받는 도메인 `app`의 `@Component`에 `@DomainEventListener public void on(PaymentCompletedEvent event)`. 발행한 쪽이 커밋된 뒤 새 트랜잭션에서 실행된다
     - 리스너가 실패하면 리스너 트랜잭션만 롤백되고 예외는 ERROR 로그로만 남는다 (발행한 쪽은 이미 커밋됨)
 - `com.bbcc.kidly.shared`: 도메인 사이 계약. 도메인 패키지와 `global`을 참조하지 않는다
+  - `event.DomainEvent`: 모든 도메인 간 이벤트가 구현하는 인터페이스. `LocalDateTime occurredAt()`을 가진다. 복사본은 저장된 값보다 `occurredAt`이 늦은 이벤트만 반영한다
   - 도메인별 패키지 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
     - `dto`: 도메인 사이에 주고받는 데이터
     - `domain`: 다른 도메인이 복사해 두는 그 도메인 데이터의 복사본
-    - `event`: 그 도메인이 발행하는 도메인 간 이벤트. record로 만들고, 이름은 `발행도메인+과거형+Event`(예: `shared.payment.event.PaymentCompletedEvent`). 엔티티 대신 ID와 그 시점의 값만 담는다
+    - `event`: 그 도메인이 발행하는 도메인 간 이벤트. record로 만들어 `DomainEvent`를 구현하고, 이름은 `발행도메인+과거형+Event`(예: `shared.payment.event.PaymentCompletedEvent`). 엔티티 대신 ID와 그 시점의 값만 담는다
     - `out`: 다른 도메인이 그 도메인과 연결할 때 쓰는 계약
 - `com.bbcc.kidly.boundedcontext`: 도메인 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
   - `app`: 유스케이스 서비스, 이벤트 리스너
@@ -35,8 +37,8 @@
 - TDD (RED → GREEN → REFACTOR)
 - camelCase: 변수·메서드 / PascalCase: 클래스 / UPPER_SNAKE_CASE: 상수 / snake_case: DB 테이블·컬럼
 - 엔티티에 `@Data`, public setter 금지. 상태는 업무 메서드로만 바꾼다
-- 엔티티는 `global.entity.BaseTimeEntity`를 상속한다 (`created_at`, `updated_at` 자동 기록, `Instant`). 현재 시각이 필요하면 `Clock` 빈을 주입받는다
-- 소프트 삭제하는 엔티티는 `global.entity.BaseSoftDeleteEntity`를 상속한다 (`deleted_at`). 서비스에서 `entity.delete(clock.instant())`로 삭제하고, 삭제된 행을 조회에서 빼려면 엔티티에 `@SQLRestriction("deleted_at IS NULL")`을 붙인다
+- 엔티티는 `global.entity.BaseTimeEntity`를 상속한다 (`created_at`, `updated_at` 자동 기록, `LocalDateTime`)
+- 소프트 삭제하는 엔티티는 `global.entity.BaseSoftDeleteEntity`를 상속한다 (`deleted_at`). 서비스에서 `entity.delete(LocalDateTime.now())`로 삭제하고, 삭제된 행을 조회에서 빼려면 엔티티에 `@SQLRestriction("deleted_at IS NULL")`을 붙인다
 - 마이그레이션 도구(Flyway)는 쓰지 않는다. `ddl-auto`는 로컬 update, 그 외 validate
 
 ## 테스트
