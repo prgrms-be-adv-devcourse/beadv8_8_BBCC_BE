@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.member.in;
 
 import com.bbcc.kidly.boundedcontext.member.app.DevTokenService;
-import com.bbcc.kidly.boundedcontext.member.in.dto.DevTokenRequest;
+import com.bbcc.kidly.boundedcontext.member.app.dto.DevTokenRequest;
 import com.bbcc.kidly.boundedcontext.member.in.dto.DevTokenResponse;
 import com.bbcc.kidly.global.config.DevOnly;
 import com.bbcc.kidly.global.security.PublicApi;
@@ -25,6 +25,6 @@ public class DevTokenController {
     @PublicApi
     @PostMapping("/api/v1/dev/tokens")
     public DevTokenResponse issue(@Valid @RequestBody DevTokenRequest request) {
-        return new DevTokenResponse(devTokenService.issue(request.memberId(), request.roles()));
+        return new DevTokenResponse(devTokenService.issue(request));
     }
 }

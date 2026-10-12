@@ -1,6 +1,7 @@
 package com.bbcc.kidly.support;
 
-import com.bbcc.kidly.boundedcontext.member.out.AccessTokenIssuer;
+import com.bbcc.kidly.boundedcontext.member.app.port.AccessTokenIssuer;
+import com.bbcc.kidly.global.security.Role;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -16,14 +17,14 @@ public class TestTokens {
     private final AccessTokenIssuer accessTokenIssuer;
 
     public String buyer(Long memberId) {
-        return accessTokenIssuer.issue(memberId, List.of("BUYER"));
+        return accessTokenIssuer.issue(memberId, List.of(Role.BUYER));
     }
 
     public String seller(Long memberId) {
-        return accessTokenIssuer.issue(memberId, List.of("BUYER", "SELLER"));
+        return accessTokenIssuer.issue(memberId, List.of(Role.BUYER, Role.SELLER));
     }
 
     public String admin(Long memberId) {
-        return accessTokenIssuer.issue(memberId, List.of("BUYER", "ADMIN"));
+        return accessTokenIssuer.issue(memberId, List.of(Role.BUYER, Role.ADMIN));
     }
 }

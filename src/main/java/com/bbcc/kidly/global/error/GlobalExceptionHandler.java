@@ -8,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -42,6 +43,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             .map(error -> error.getField() + ": " + error.getDefaultMessage())
             .collect(Collectors.joining(", "));
         ProblemDetail problem = ProblemDetails.of(CommonErrorCode.INVALID_INPUT, detail, requestUri(request));
+        return handleExceptionInternal(e, problem, headers, status, request);
+    }
+
+    // JSON 형식이 틀렸거나 enum에 없는 값이면 여기로 온다
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+        HttpMessageNotReadableException e, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        ProblemDetail problem = ProblemDetails.of(CommonErrorCode.INVALID_INPUT, requestUri(request));
         return handleExceptionInternal(e, problem, headers, status, request);
     }
 

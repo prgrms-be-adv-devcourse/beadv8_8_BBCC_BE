@@ -43,8 +43,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(PUBLIC_PATHS).permitAll()
                 .requestMatchers(publicApis).permitAll()
-                .requestMatchers("/api/v1/seller/**").hasRole("SELLER")
-                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/seller/**").hasRole(Role.SELLER.name())
+                .requestMatchers("/api/v1/admin/**").hasRole(Role.ADMIN.name())
                 .anyRequest().authenticated())
             // 보낸 토큰은 공개 API에서도 검증한다. 잘못된 토큰(여기)과 토큰 없음(exceptionHandling) 모두 ProblemDetail로 응답한다
             .oauth2ResourceServer(oauth2 -> oauth2
@@ -62,7 +62,7 @@ public class SecurityConfig {
         return NimbusJwtDecoder.withPublicKey(jwtProperties.rsaPublicKey()).build();
     }
 
-    // roles 클레임(BUYER · SELLER · ADMIN)을 ROLE_ 권한으로 바꾼다. 클레임 이름은 AccessTokenIssuer와 같아야 한다
+    // roles 클레임(BUYER · SELLER · ADMIN)을 ROLE_ 권한으로 바꾼다. 클레임 이름은 JwtAccessTokenIssuer와 같아야 한다
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
         authoritiesConverter.setAuthoritiesClaimName("roles");

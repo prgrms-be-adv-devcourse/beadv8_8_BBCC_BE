@@ -3,10 +3,10 @@ package com.bbcc.kidly.boundedcontext.member;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.member.app.port.MemberQueryRepository;
+import com.bbcc.kidly.boundedcontext.member.app.port.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
-import com.bbcc.kidly.boundedcontext.member.out.MemberQueryRepository;
-import com.bbcc.kidly.boundedcontext.member.out.MemberRepository;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,9 +42,9 @@ class MemberRepositoryIntegrationTest {
     @Test
     @DisplayName("같은 소셜 계정은 두 회원에게 연결할 수 없다")
     void duplicateSocialAccount() {
-        memberRepository.saveAndFlush(MemberFixture.kakaoMember("kakao-1"));
+        memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
 
-        assertThatThrownBy(() -> memberRepository.saveAndFlush(MemberFixture.kakaoMember("kakao-1")))
+        assertThatThrownBy(() -> memberRepository.save(MemberFixture.kakaoMember("kakao-1")))
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

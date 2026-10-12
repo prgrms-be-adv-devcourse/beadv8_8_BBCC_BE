@@ -3,8 +3,9 @@ package com.bbcc.kidly.boundedcontext.member;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.member.out.AccessTokenIssuer;
+import com.bbcc.kidly.boundedcontext.member.out.JwtAccessTokenIssuer;
 import com.bbcc.kidly.global.security.JwtProperties;
+import com.bbcc.kidly.global.security.Role;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.KeyPair;
@@ -23,18 +24,18 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
-class AccessTokenIssuerTest {
+class JwtAccessTokenIssuerTest {
 
     private static final Duration VALIDITY = Duration.ofMinutes(30);
 
     private static final KeyPair KEY_PAIR = generateKeyPair();
-    private static final AccessTokenIssuer ISSUER = new AccessTokenIssuer(new JwtProperties(
+    private static final JwtAccessTokenIssuer ISSUER = new JwtAccessTokenIssuer(new JwtProperties(
         pem("PUBLIC KEY", KEY_PAIR.getPublic()), pem("PRIVATE KEY", KEY_PAIR.getPrivate()), VALIDITY));
 
     @Test
     @DisplayName("회원 ID를 sub에, 역할을 roles에 담는다")
     void claims() {
-        String token = ISSUER.issue(1L, List.of("BUYER", "SELLER"));
+        String token = ISSUER.issue(1L, List.of(Role.BUYER, Role.SELLER));
 
         Jwt jwt = decoderOf(KEY_PAIR).decode(token);
 
@@ -45,7 +46,7 @@ class AccessTokenIssuerTest {
     @Test
     @DisplayName("업무 정보는 sub와 roles만 담는다")
     void onlyAllowedClaims() {
-        String token = ISSUER.issue(1L, List.of("BUYER"));
+        String token = ISSUER.issue(1L, List.of(Role.BUYER));
 
         Jwt jwt = decoderOf(KEY_PAIR).decode(token);
 
@@ -55,7 +56,7 @@ class AccessTokenIssuerTest {
     @Test
     @DisplayName("만료 시각은 발급 시각에서 유효 기간만큼 뒤다")
     void validity() {
-        String token = ISSUER.issue(1L, List.of("BUYER"));
+        String token = ISSUER.issue(1L, List.of(Role.BUYER));
 
         Jwt jwt = decoderOf(KEY_PAIR).decode(token);
 
@@ -65,7 +66,7 @@ class AccessTokenIssuerTest {
     @Test
     @DisplayName("RS256으로 서명한다")
     void algorithm() {
-        String token = ISSUER.issue(1L, List.of("BUYER"));
+        String token = ISSUER.issue(1L, List.of(Role.BUYER));
 
         Jwt jwt = decoderOf(KEY_PAIR).decode(token);
 
@@ -75,7 +76,7 @@ class AccessTokenIssuerTest {
     @Test
     @DisplayName("다른 공개키로는 검증되지 않는다")
     void otherKeyRejected() {
-        String token = ISSUER.issue(1L, List.of("BUYER"));
+        String token = ISSUER.issue(1L, List.of(Role.BUYER));
 
         JwtDecoder otherDecoder = decoderOf(generateKeyPair());
 
