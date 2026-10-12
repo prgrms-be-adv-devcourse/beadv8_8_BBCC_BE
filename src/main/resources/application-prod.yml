@@ -4,6 +4,10 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
+jwt:
+  public-key: ${JWT_PUBLIC_KEY_LOCATION}
+  private-key: ${JWT_PRIVATE_KEY_LOCATION}
+
 springdoc:
   swagger-ui:
     enabled: true
