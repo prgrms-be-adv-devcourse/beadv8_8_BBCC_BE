@@ -28,7 +28,7 @@ public class SizeRecommender {
 
         return SizeRecommendation.recommended(
                 recommendedRange.size(),
-                fitOf(recommendedRange, childHeight),
+                fitOf(recommendedRange, childHeight, childSizeInput.bodyType()),
                 List.of()
         );
     }
@@ -68,7 +68,7 @@ public class SizeRecommender {
         return bigger;
     }
 
-    private Fit fitOf(SizeRange sizeRange, double childHeight) {
+    private Fit fitOf(SizeRange sizeRange, double childHeight, BodyType bodyType) {
         if (childHeight < sizeRange.minHeightCm()) {
             return Fit.ROOMY;
         }
@@ -77,6 +77,20 @@ public class SizeRecommender {
             return Fit.TIGHT;
         }
 
+        return adjustByBodyType(fitInRange(sizeRange, childHeight), bodyType);
+    }
+
+    private Fit adjustByBodyType(Fit fit, BodyType bodyType) {
+        if (bodyType == BodyType.CHUNKY) {
+            return fit.tighter();
+        }
+        if (bodyType == BodyType.SLIM) {
+            return fit.looser();
+        }
+        return fit;
+    }
+
+    private Fit fitInRange(SizeRange sizeRange, double childHeight) {
         boolean inLowerEdge = childHeight <= sizeRange.minHeightCm() + EDGE_ZONE_CM;
         boolean inUpperEdge = sizeRange.maxHeightCm() - EDGE_ZONE_CM <= childHeight;
 

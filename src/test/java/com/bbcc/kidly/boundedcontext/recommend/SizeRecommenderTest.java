@@ -133,6 +133,25 @@ class SizeRecommenderTest {
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
 
+    @ParameterizedTest(name = "키 {0}cm, 몸무게 {1}kg, 체형 {2} → {3}")
+    @CsvSource({
+        "115.0, 23.0, CHUNKY, PROPER",
+        "115.0, 18.0, SLIM, PROPER",
+        "120.0, 23.0, CHUNKY, TIGHT",
+        "120.0, 18.0, SLIM, ROOMY",
+        "124.0, 23.0, CHUNKY, TIGHT",
+        "116.0, 18.0, SLIM, ROOMY",
+        "104.0, 23.0, CHUNKY, ROOMY",
+        "126.0, 18.0, SLIM, TIGHT",
+    })
+    @DisplayName("범위 안 후보는 통통하면 작을 가능성 쪽, 마르면 여유 쪽으로 한 단계 옮기고 범위 밖 후보는 옮기지 않는다")
+    void fitAdjustedByBodyType(double heightCm, double weightKg, BodyType bodyType, Fit expectedFit) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(heightCm, weightKg, bodyType, PreferredFit.LOOSE), productA(), TODAY);
+
+        assertThat(result.getFit()).isEqualTo(expectedFit);
+    }
+
     private SizeRecommendation recommendForHeight(double heightCm) {
         return recommender().recommend(childSizeInputWithHeight(heightCm), productA(), TODAY);
     }
