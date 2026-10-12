@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
  * 통합 테스트: 스프링 컨텍스트 + 실제 DB(Testcontainers). 테스트가 끝나면 모든 테이블을 비운다.
@@ -19,6 +20,7 @@ import org.springframework.context.annotation.Import;
 @Tag("integration")
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
+@ActiveProfiles("test")
 @ExtendWith(DatabaseCleanerExtension.class)
 public @interface IntegrationTest {
 }
