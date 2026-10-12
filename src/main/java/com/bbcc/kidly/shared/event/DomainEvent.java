@@ -81,8 +81,7 @@ public interface DomainEvent {
         String[] parts = eventClass.getPackageName().split("\\.");
         int last = parts.length - 1;
         if (last < 2 || !parts[last - 2].equals("shared") || !parts[last].equals("event")) {
-            throw new IllegalStateException(
-                "producer를 정하지 못했습니다. 도메인 이벤트는 shared.{도메인}.event 패키지에 둡니다: " + eventClass.getName());
+            throw new IllegalStateException("도메인 이벤트의 패키지가 올바르지 않습니다: " + eventClass.getName());
         }
         return parts[last - 1];
     }
