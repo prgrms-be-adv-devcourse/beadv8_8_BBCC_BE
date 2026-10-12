@@ -17,6 +17,9 @@ public class SizeRecommender {
             ProductSizes productSizes,
             LocalDate today
     ) {
+        if (productSizes.isSizeFree()) {
+            return SizeRecommendation.sizeFree();
+        }
         double childHeight = childSizeInput.heightCm();
 
         List<SizeRange> candidates = findCandidates(productSizes.sizeRanges(), childHeight);

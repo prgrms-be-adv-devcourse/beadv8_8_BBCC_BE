@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommendation;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -150,6 +151,18 @@ class SizeRecommenderTest {
             childSizeInputWith(heightCm, weightKg, bodyType, PreferredFit.LOOSE), productA(), TODAY);
 
         assertThat(result.getFit()).isEqualTo(expectedFit);
+    }
+
+    @Test
+    @DisplayName("사이즈 무관 상품이면 사이즈와 적합도 없이 SIZE_FREE 안내만 준다")
+    void sizeFreeProduct() {
+        ProductSizes sizeFreeProduct = ProductSizes.of(true, List.of());
+
+        SizeRecommendation result = recommender().recommend(childSizeInputWithHeight(115.0), sizeFreeProduct, TODAY);
+
+        assertThat(result.getRecommendedSize()).isNull();
+        assertThat(result.getFit()).isNull();
+        assertThat(result.getNotices()).containsExactly(SizeNotice.SIZE_FREE);
     }
 
     private SizeRecommendation recommendForHeight(double heightCm) {
