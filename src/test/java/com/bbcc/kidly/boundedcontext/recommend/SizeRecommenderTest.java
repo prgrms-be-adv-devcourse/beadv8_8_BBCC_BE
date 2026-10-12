@@ -217,6 +217,19 @@ class SizeRecommenderTest {
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
 
+    @ParameterizedTest(name = "생년월일 {0} → {1}")
+    @CsvSource({
+        "2007-10-13, 120",
+        "2007-10-12, 110",
+    })
+    @DisplayName("만 19세(228개월)부터는 체형표가 없어 입력 체형으로 고른다")
+    void inputBodyTypeFromNineteen(LocalDate birthDate, String expectedSize) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputBornOn(birthDate, 23.0, PreferredFit.SLIM), productA(), TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
+    }
+
     private SizeRecommendation recommendForHeight(double heightCm) {
         return recommender().recommend(childSizeInputWithHeight(heightCm), productA(), TODAY);
     }
