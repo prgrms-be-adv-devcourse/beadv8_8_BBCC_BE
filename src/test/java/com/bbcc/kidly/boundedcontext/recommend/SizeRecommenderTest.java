@@ -100,6 +100,10 @@ class SizeRecommenderTest {
     @ParameterizedTest(name = "몸무게 {0}kg, 체형 {1}, 선호 핏 {2} → {3}")
     @CsvSource({
         "20.0, NORMAL, LOOSE, 120",
+        "20.0, NORMAL, SLIM, 110",
+        "20.0, NORMAL, , 120",
+        "23.0, CHUNKY, SLIM, 120",
+        "18.0, SLIM, LOOSE, 110",
     })
     @DisplayName("키 115cm로 후보가 110과 120 둘이면 체형과 선호 핏으로 하나를 고른다")
     void chooseBetweenTwoCandidates(

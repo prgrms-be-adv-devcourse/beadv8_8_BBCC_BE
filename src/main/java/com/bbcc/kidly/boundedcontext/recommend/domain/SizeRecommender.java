@@ -34,15 +34,23 @@ public class SizeRecommender {
     }
 
     private SizeRange chooseOne(List<SizeRange> candidates, ChildSizeInput childSizeInput) {
-        if (candidates.size() == 1) {
-            return candidates.getFirst();
+        List<SizeRange> sorted = candidates.stream().sorted(BY_SIZE).toList();
+        if (sorted.size() == 1) {
+            return sorted.getFirst();
         }
 
-        if (childSizeInput.preferredFit() == PreferredFit.LOOSE) {
-            return candidates.stream().max(BY_SIZE).orElseThrow();
+        BodyType bodyType = childSizeInput.bodyType();
+        if (bodyType == BodyType.CHUNKY) {
+            return sorted.getLast();
+        }
+        if (bodyType == BodyType.SLIM) {
+            return sorted.getFirst();
         }
 
-        return candidates.stream().min(BY_SIZE).orElseThrow();
+        if (childSizeInput.preferredFit() == PreferredFit.SLIM) {
+            return sorted.getFirst();
+        }
+        return sorted.getLast();
     }
 
     private Fit fitOf(SizeRange sizeRange, double childHeight) {
