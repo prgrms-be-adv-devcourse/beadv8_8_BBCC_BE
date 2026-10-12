@@ -30,11 +30,26 @@ public class SizeRecommender {
     }
 
     private Fit fitOf(SizeRange sizeRange, double childHeight) {
-        if (sizeRange.maxHeightCm() - EDGE_ZONE_CM <= childHeight) {
+        if (childHeight < sizeRange.minHeightCm()) {
+            return Fit.ROOMY;
+        }
+
+        if (childHeight > sizeRange.maxHeightCm()) {
             return Fit.TIGHT;
         }
 
-        if (childHeight <= sizeRange.minHeightCm() + EDGE_ZONE_CM) {
+        boolean inLowerEdge = childHeight <= sizeRange.minHeightCm() + EDGE_ZONE_CM;
+        boolean inUpperEdge = sizeRange.maxHeightCm() - EDGE_ZONE_CM <= childHeight;
+
+        if (inLowerEdge && inUpperEdge) {
+            return Fit.PROPER;
+        }
+
+        if (inUpperEdge) {
+            return Fit.TIGHT;
+        }
+
+        if (inLowerEdge) {
             return Fit.ROOMY;
         }
 

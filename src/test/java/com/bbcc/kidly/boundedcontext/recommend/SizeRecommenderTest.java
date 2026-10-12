@@ -7,8 +7,11 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommend
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.Fit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeNotice;
+import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommendation;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -69,6 +72,24 @@ class SizeRecommenderTest {
     @DisplayName("범위 안 후보는 아래쪽 끝 2cm면 여유 있음, 위쪽 끝 2cm면 작을 가능성 있음, 그 사이는 적정이다")
     void fitInRange(double heightCm, Fit expectedFit) {
         SizeRecommendation result = recommendForHeight(heightCm);
+
+        assertThat(result.getFit()).isEqualTo(expectedFit);
+    }
+
+    @ParameterizedTest(name = "범위 {0}~{1}cm, 키 {2}cm → {3}")
+    @CsvSource({
+        "110, 113, 111.0, PROPER",
+        "110, 113, 112.0, PROPER",
+        "110, 113, 110.0, ROOMY",
+        "110, 113, 113.0, TIGHT",
+        "110, 111, 109.0, ROOMY",
+        "110, 111, 112.0, TIGHT",
+    })
+    @DisplayName("범위가 4cm 이하라 두 끝 구간이 겹치는 키는 적정이고, 범위 밖은 겹침과 관계없다")
+    void fitInNarrowRange(int minHeightCm, int maxHeightCm, double heightCm, Fit expectedFit) {
+        ProductSizes narrowProduct = ProductSizes.of(false, List.of(SizeRange.of("110", minHeightCm, maxHeightCm)));
+
+        SizeRecommendation result = recommender().recommend(childSizeInputWithHeight(heightCm), narrowProduct, TODAY);
 
         assertThat(result.getFit()).isEqualTo(expectedFit);
     }
