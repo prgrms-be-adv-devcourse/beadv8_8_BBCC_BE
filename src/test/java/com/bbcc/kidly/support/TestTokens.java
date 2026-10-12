@@ -2,6 +2,7 @@ package com.bbcc.kidly.support;
 
 import com.bbcc.kidly.boundedcontext.member.out.AccessTokenIssuer;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,13 +10,10 @@ import org.springframework.stereotype.Component;
  * 테스트 클래스패스의 컴포넌트 스캔에 잡혀 통합 · 기능 테스트에서 주입받을 수 있다.
  */
 @Component
+@RequiredArgsConstructor
 public class TestTokens {
 
     private final AccessTokenIssuer accessTokenIssuer;
-
-    public TestTokens(AccessTokenIssuer accessTokenIssuer) {
-        this.accessTokenIssuer = accessTokenIssuer;
-    }
 
     public String buyer(Long memberId) {
         return accessTokenIssuer.issue(memberId, List.of("BUYER"));

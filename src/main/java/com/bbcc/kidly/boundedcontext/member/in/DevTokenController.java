@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.member.in.dto.DevTokenRequest;
 import com.bbcc.kidly.boundedcontext.member.in.dto.DevTokenResponse;
 import com.bbcc.kidly.global.security.PublicApi;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,13 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Profile({"local", "test"})
 @RestController
+@RequiredArgsConstructor
 public class DevTokenController {
 
     private final DevTokenService devTokenService;
-
-    public DevTokenController(DevTokenService devTokenService) {
-        this.devTokenService = devTokenService;
-    }
 
     @PublicApi
     @PostMapping("/api/v1/dev/tokens")
