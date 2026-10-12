@@ -32,6 +32,19 @@ class MemberTest {
     }
 
     @Test
+    @DisplayName("가입에 필요한 값이 하나라도 null이면 가입할 수 없다")
+    void registerRejectsNull() {
+        assertThatThrownBy(() -> Member.register(null, "kakao-1", "테스트회원", NOW))
+            .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Member.register(OAuthProvider.KAKAO, null, "테스트회원", NOW))
+            .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Member.register(OAuthProvider.KAKAO, "kakao-1", null, NOW))
+            .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Member.register(OAuthProvider.KAKAO, "kakao-1", "테스트회원", null))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
     @DisplayName("활성 회원은 로그인할 수 있다")
     void activeMemberCanLogin() {
         assertThat(MemberFixture.kakaoMember().canLogin()).isTrue();

@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.member.domain;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -54,8 +56,12 @@ public class Member extends BaseTimeEntity {
     }
 
     public static Member register(OAuthProvider provider, String providerUserId, String nickname, LocalDateTime now) {
-        Member member = new Member(nickname);
-        member.socialAccounts.add(new SocialAccount(member, provider, providerUserId, now));
+        Member member = new Member(requireNonNull(nickname, "nickname은 필수입니다"));
+        member.socialAccounts.add(new SocialAccount(
+            member,
+            requireNonNull(provider, "provider는 필수입니다"),
+            requireNonNull(providerUserId, "providerUserId는 필수입니다"),
+            requireNonNull(now, "now는 필수입니다")));
         return member;
     }
 
