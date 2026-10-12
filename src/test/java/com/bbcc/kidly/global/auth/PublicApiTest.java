@@ -4,7 +4,9 @@ import static com.bbcc.kidly.support.TestApiController.AUTH_PATH;
 import static com.bbcc.kidly.support.TestApiController.PRIVATE_ITEM_PATH;
 import static com.bbcc.kidly.support.TestApiController.PUBLIC_PATH;
 
+import com.bbcc.kidly.boundedcontext.member.out.AccessTokenIssuer;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +19,9 @@ class PublicApiTest {
     @Autowired
     private RestTestClient client;
 
+    @Autowired
+    private AccessTokenIssuer accessTokenIssuer;
+
     @Test
     @DisplayName("@PublicApi가 붙은 API는 토큰 없이 호출할 수 있다")
     void withoutToken() {
@@ -26,12 +31,21 @@ class PublicApiTest {
     }
 
     @Test
-    @DisplayName("@PublicApi가 붙은 API는 잘못된 토큰을 보내도 검증하지 않는다")
-    void invalidTokenIgnored() {
+    @DisplayName("@PublicApi가 붙은 API도 유효한 토큰을 보내면 로그인 상태로 호출된다")
+    void validTokenAuthenticated() {
+        client.get().uri(PUBLIC_PATH)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessTokenIssuer.issue(1L, List.of("BUYER")))
+            .exchange()
+            .expectStatus().isOk();
+    }
+
+    @Test
+    @DisplayName("@PublicApi가 붙은 API도 잘못된 토큰을 보내면 401이다")
+    void invalidTokenRejected() {
         client.get().uri(PUBLIC_PATH)
             .header(HttpHeaders.AUTHORIZATION, "Bearer not-a-jwt")
             .exchange()
-            .expectStatus().isOk();
+            .expectStatus().isUnauthorized();
     }
 
     @Test

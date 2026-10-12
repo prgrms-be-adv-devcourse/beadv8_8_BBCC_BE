@@ -17,8 +17,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
-import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
-import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
@@ -63,22 +61,16 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/seller/**").hasRole("SELLER")
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
+            // 토큰은 공개 API에서도 보내면 검증한다(잘못된 토큰은 401). 공개 API는 토큰 없이도 통과할 뿐이다.
             // 잘못된 토큰은 BearerTokenAuthenticationFilter가, 토큰 없음은 ExceptionTranslationFilter가 처리한다.
             // 두 곳 모두 ProblemDetail로 응답하도록 entry point를 각각 지정한다
             .oauth2ResourceServer(oauth2 -> oauth2
-                .bearerTokenResolver(bearerTokenResolver(publicRequests))
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                 .authenticationEntryPoint(problemHandler))
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint(problemHandler)
                 .accessDeniedHandler(problemHandler))
             .build();
-    }
-
-    // 공개 요청은 토큰을 꺼내지 않아 검증하지 않는다. 잘못된 토큰도, 유효한 토큰도 무시하고 비로그인으로 처리한다
-    private BearerTokenResolver bearerTokenResolver(RequestMatcher publicRequests) {
-        DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
-        return request -> publicRequests.matches(request) ? null : delegate.resolve(request);
     }
 
     // 발급은 회원 도메인(개인키), 검증은 여기서 공개키로만 한다
