@@ -165,6 +165,24 @@ class SizeRecommenderTest {
         assertThat(result.getNotices()).containsExactly(SizeNotice.SIZE_FREE);
     }
 
+    @ParameterizedTest(name = "몸무게 {0}kg, 입력 체형 {1}, 선호 핏 {2} → {3}")
+    @CsvSource({
+        "18.0, NORMAL, LOOSE, 110",
+        "19.1, NORMAL, LOOSE, 110",
+        "19.2, NORMAL, LOOSE, 120",
+        "22.7, NORMAL, SLIM, 110",
+        "22.8, NORMAL, SLIM, 120",
+        "23.0, , SLIM, 120",
+    })
+    @DisplayName("체형표가 있으면 몸무게로 판정한 체형으로 고른다 (15백분위 이하 마름, 85백분위 초과 통통)")
+    void bodyTypeJudgedByWeight(
+        double weightKg, BodyType inputBodyType, PreferredFit preferredFit, String expectedSize) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(115.0, weightKg, inputBodyType, preferredFit), productA(), TODAY);
+
+        assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
+    }
+
     private SizeRecommendation recommendForHeight(double heightCm) {
         return recommender().recommend(childSizeInputWithHeight(heightCm), productA(), TODAY);
     }
