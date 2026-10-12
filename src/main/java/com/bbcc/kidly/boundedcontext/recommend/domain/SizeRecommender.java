@@ -35,26 +35,37 @@ public class SizeRecommender {
             return SizeRecommendation.noMatchingSize();
         }
 
-        BodyType bodyType = bodyTypeFor(childSizeInput, today);
+        BodyTypeDecision bodyTypeDecision = decideBodyType(childSizeInput, today);
+        BodyType bodyType = bodyTypeDecision.bodyType();
         SizeRange recommendedRange = chooseOne(candidates, childSizeInput, bodyType);
 
         return SizeRecommendation.recommended(
                 recommendedRange.size(),
                 fitOf(recommendedRange, childHeight, bodyType),
-                List.of()
+                noticesFor(bodyTypeDecision)
         );
     }
 
-    private BodyType bodyTypeFor(ChildSizeInput childSizeInput, LocalDate today) {
+    private BodyTypeDecision decideBodyType(ChildSizeInput childSizeInput, LocalDate today) {
         BodyType input = childSizeInput.bodyType();
         Optional<BodyType> judged = judgeByWeight(childSizeInput, today);
         if (judged.isEmpty()) {
-            return input;
+            return BodyTypeDecision.unchanged(input);
         }
         if (isTwoStepsApart(input, judged.get())) {
-            return null;
+            return BodyTypeDecision.heightOnly();
         }
-        return judged.get();
+        if (input != null && input != judged.get()) {
+            return BodyTypeDecision.adjusted(judged.get());
+        }
+        return BodyTypeDecision.unchanged(judged.get());
+    }
+
+    private List<SizeNotice> noticesFor(BodyTypeDecision bodyTypeDecision) {
+        if (bodyTypeDecision.basis() == BodyTypeDecision.Basis.ADJUSTED) {
+            return List.of(SizeNotice.BODY_TYPE_ADJUSTED);
+        }
+        return List.of();
     }
 
     private boolean isTwoStepsApart(BodyType input, BodyType judged) {

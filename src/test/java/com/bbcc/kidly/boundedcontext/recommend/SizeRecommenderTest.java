@@ -230,6 +230,24 @@ class SizeRecommenderTest {
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
 
+    @ParameterizedTest(name = "몸무게 {0}kg, 입력 체형 {1} → 안내 {2}")
+    @CsvSource({
+        "23.0, NORMAL, true",
+        "18.0, NORMAL, true",
+        "20.0, SLIM, true",
+        "20.0, CHUNKY, true",
+        "20.0, NORMAL, false",
+        "23.0, CHUNKY, false",
+        "23.0, , false",
+    })
+    @DisplayName("판정 체형이 입력 체형과 한 단계 다르면 BODY_TYPE_ADJUSTED 안내를 준다 (같거나 입력이 없으면 주지 않는다)")
+    void bodyTypeAdjustedNotice(double weightKg, BodyType inputBodyType, boolean expectedNotice) {
+        SizeRecommendation result = recommender().recommend(
+            childSizeInputWith(115.0, weightKg, inputBodyType, PreferredFit.LOOSE), productA(), TODAY);
+
+        assertThat(result.getNotices().contains(SizeNotice.BODY_TYPE_ADJUSTED)).isEqualTo(expectedNotice);
+    }
+
     private SizeRecommendation recommendForHeight(double heightCm) {
         return recommender().recommend(childSizeInputWithHeight(heightCm), productA(), TODAY);
     }
