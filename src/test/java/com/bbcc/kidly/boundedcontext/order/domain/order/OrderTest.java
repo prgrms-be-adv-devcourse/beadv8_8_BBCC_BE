@@ -78,7 +78,7 @@ class OrderTest {
         }
 
         @Test
-        @DisplayName("주문상품 금액 = 단가 × 수량 − 할인액(0), 총액은 주문상품 금액의 합이다")
+        @DisplayName("주문상품 금액 = 단가 × 수량, 총액은 주문상품 금액의 합이다")
         void amounts() {
             Order order = OrderFixture.placedOrder();
 
@@ -177,6 +177,16 @@ class OrderTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(OrderErrorCode.CHILD_NOT_ORDERABLE);
         }
+
+        @Test
+        @DisplayName("같은 옵션 · 같은 자녀 주문 요청 항목이 두 번 있으면 주문할 수 없다 (400)")
+        void duplicateItem() {
+            assertThatThrownBy(() -> OrderFixture.place(List.of(
+                line(productOfSellerA(), child(), 1),
+                line(productOfSellerA(), child(), 2))))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.DUPLICATE_ORDER_ITEM);
+        }
     }
 
     @Nested
@@ -257,7 +267,7 @@ class OrderTest {
     }
 
     @Nested
-    @DisplayName("취소 · 만료")
+    @DisplayName("취소")
     class Cancel {
 
         @Test
