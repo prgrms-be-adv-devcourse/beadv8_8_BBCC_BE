@@ -1,11 +1,11 @@
-package com.bbcc.kidly.boundedcontext.member.domain;
+package com.bbcc.kidly.boundedcontext.childprofile.domain;
 
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
-import com.bbcc.kidly.shared.member.domain.BodyType;
-import com.bbcc.kidly.shared.member.domain.Gender;
-import com.bbcc.kidly.shared.member.domain.PreferredFit;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -38,7 +38,7 @@ import org.springframework.util.Assert;
 @Entity
 @Table(
     name = "child_profile",
-    schema = "member",
+    schema = "childprofile",
     indexes = @Index(name = "idx_child_profile_member_id", columnList = "member_id"))
 @SQLRestriction("deleted_at IS NULL")
 @Getter

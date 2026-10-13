@@ -1,7 +1,7 @@
-package com.bbcc.kidly.boundedcontext.member.domain;
+package com.bbcc.kidly.boundedcontext.childprofile.domain;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
-import com.bbcc.kidly.shared.member.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -28,7 +28,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
     name = "growth_record",
-    schema = "member",
+    schema = "childprofile",
     indexes = @Index(name = "idx_growth_record_child_profile_id", columnList = "child_profile_id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

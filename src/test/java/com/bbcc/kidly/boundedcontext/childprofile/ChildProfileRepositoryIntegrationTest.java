@@ -1,15 +1,15 @@
-package com.bbcc.kidly.boundedcontext.member;
+package com.bbcc.kidly.boundedcontext.childprofile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.member.domain.ChildProfile;
-import com.bbcc.kidly.boundedcontext.member.domain.ChildProfileRepository;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
-import com.bbcc.kidly.shared.member.domain.BodyType;
-import com.bbcc.kidly.shared.member.domain.Gender;
-import com.bbcc.kidly.shared.member.domain.PreferredFit;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;

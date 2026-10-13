@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.member.domain;
+package com.bbcc.kidly.boundedcontext.childprofile.domain;
 
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;

@@ -1,7 +1,7 @@
-package com.bbcc.kidly.boundedcontext.member.out;
+package com.bbcc.kidly.boundedcontext.childprofile.out;
 
-import com.bbcc.kidly.boundedcontext.member.domain.ChildProfile;
-import com.bbcc.kidly.boundedcontext.member.domain.ChildProfileRepository;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;

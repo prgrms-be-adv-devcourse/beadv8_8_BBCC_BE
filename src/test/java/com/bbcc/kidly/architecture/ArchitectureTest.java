@@ -25,7 +25,7 @@ class ArchitectureTest {
     private static final String BASE = "com.bbcc.kidly";
     private static final String CONTEXTS = BASE + ".boundedcontext";
     private static final List<String> DOMAINS =
-        List.of("member", "product", "recommend", "order", "payment", "settlement");
+        List.of("member", "childprofile", "product", "recommend", "order", "payment", "settlement");
 
     @ArchTest
     void domainsDoNotDependOnOtherDomains(JavaClasses classes) {

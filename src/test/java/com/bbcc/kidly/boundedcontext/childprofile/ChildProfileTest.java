@@ -1,17 +1,17 @@
-package com.bbcc.kidly.boundedcontext.member;
+package com.bbcc.kidly.boundedcontext.childprofile;
 
-import static com.bbcc.kidly.boundedcontext.member.ChildProfileFixture.BIRTH_DATE;
-import static com.bbcc.kidly.boundedcontext.member.ChildProfileFixture.HEIGHT;
-import static com.bbcc.kidly.boundedcontext.member.ChildProfileFixture.NOW;
-import static com.bbcc.kidly.boundedcontext.member.ChildProfileFixture.WEIGHT;
+import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.BIRTH_DATE;
+import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.HEIGHT;
+import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.NOW;
+import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.WEIGHT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.member.domain.ChildProfile;
-import com.bbcc.kidly.boundedcontext.member.domain.GrowthRecord;
-import com.bbcc.kidly.shared.member.domain.BodyType;
-import com.bbcc.kidly.shared.member.domain.Gender;
-import com.bbcc.kidly.shared.member.domain.PreferredFit;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GrowthRecord;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
