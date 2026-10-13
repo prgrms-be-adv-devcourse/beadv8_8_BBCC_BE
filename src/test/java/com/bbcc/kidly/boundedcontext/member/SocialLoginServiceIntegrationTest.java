@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.app.SocialLoginService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
+import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
@@ -13,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.support.FakeOAuthClient;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,6 +72,25 @@ class SocialLoginServiceIntegrationTest {
         assertThatThrownBy(() -> login("kakao-1"))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.LOGIN_NOT_ALLOWED));
+    }
+
+    @Test
+    @DisplayName("인가 코드로 로그인하면 제공자의 회원 번호와 닉네임으로 가입한다")
+    void loginWithCode() {
+        var member = socialLoginService.loginWithCode(OAuthProvider.KAKAO, new SocialLoginRequest("kakao-1"));
+
+        assertThat(member.getNickname()).isEqualTo(FakeOAuthClient.NICKNAME);
+        assertThat(memberRepository.findBySocialAccount(OAuthProvider.KAKAO, "kakao-1"))
+            .hasValueSatisfying(found -> assertThat(found.getId()).isEqualTo(member.getId()));
+    }
+
+    @Test
+    @DisplayName("제공자 닉네임이 없으면 회원 + 숫자 4자리로 가입한다")
+    void defaultNickname() {
+        var member = socialLoginService.loginWithCode(
+            OAuthProvider.KAKAO, new SocialLoginRequest(FakeOAuthClient.NO_NICKNAME_CODE));
+
+        assertThat(member.getNickname()).matches("회원\\d{4}");
     }
 
     private Member login(String providerUserId) {
