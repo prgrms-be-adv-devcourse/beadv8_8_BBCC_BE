@@ -1,6 +1,10 @@
 spring:
   application:
     name: kidly
+  # 도메인별 설정 파일. 서비스를 나누면 각 파일이 그 서비스의 application.yml이 된다
+  config:
+    import:
+      - classpath:payment.yml
   profiles:
     default: local
   jpa:
