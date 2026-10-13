@@ -41,6 +41,7 @@ jobs:
             | jq -s '.' > issues.json
 
           # 담당자별 진행률: 막대 10칸 · 비율 · (닫힘/전체) · 이름. 담당자가 여럿이면 각자에게 센다
+          # 매핑에 있는 사람은 맡은 이슈가 없어도 0/0으로 보여 준다
           PROGRESS=$(jq -r --argjson map "$MAP" '
             def bar($p): ($p / 10 | round) as $n | ("█" * $n // "") + ("░" * (10 - $n) // "");
             def pad3: tostring | ("   " + .)[-3:];
@@ -50,15 +51,17 @@ jobs:
               | {who: ., done: $done} ]
             | group_by(.who)
             | map({who: .[0].who, total: length, done: (map(select(.done)) | length)})
-            | map(. + {pct: (.done * 100 / .total | round)})
-            | sort_by(-.total, -.pct)
+            | . as $rows
+            | $rows + [ $map[] | select(. as $n | $rows | all(.who != $n)) | {who: ., total: 0, done: 0} ]
+            | map(. + {pct: (if .total > 0 then .done * 100 / .total | round else 0 end)})
+            | sort_by(.who == "담당자 없음", -.total, -.pct)
             | .[] | "\(bar(.pct)) \(.pct | pad3)% \("(\(.done)/\(.total))" | padr(7))  \(.who)"
           ' issues.json)
           TOTAL=$(jq 'length' issues.json)
           DONE=$(jq '[.[] | select(.state == "closed")] | length' issues.json)
           PCT=$(( TOTAL > 0 ? DONE * 100 / TOTAL : 0 ))
 
-          # 처리된 이슈: 번호순, 담당자 이름. 너무 길면 15개까지만 (Slack 블록 3000자 제한) 보여 준다
+          # 처리된 이슈: 번호순, 담당자 이름. Slack 블록은 3000자까지라 15개까지만 보여 준다
           CLOSED_COUNT=$(jq --arg since "$SINCE" '[.[] | select(.state == "closed" and .closed_at >= $since)] | length' issues.json)
           CLOSED=$(jq -r --arg since "$SINCE" --argjson map "$MAP" '
             def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
