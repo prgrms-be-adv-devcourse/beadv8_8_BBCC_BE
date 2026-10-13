@@ -104,7 +104,7 @@ class TossPaymentGatewayTest {
 
         PgResult<PgApproval> result = gateway.confirm("pk-1", "charge-1", 10_000L, "idem-1");
 
-        assertThat(result).isInstanceOf(PgResult.Unknown.class);
+        assertThat(result).isEqualTo(new PgResult.Unknown<>("토스 서버 오류입니다"));
     }
 
     @Test
@@ -181,7 +181,7 @@ class TossPaymentGatewayTest {
 
         PgResult<PgApproval> result = gateway.findByOrderId("charge-1");
 
-        assertThat(result).isInstanceOf(PgResult.Unknown.class);
+        assertThat(result).isEqualTo(new PgResult.Unknown<>("결제가 아직 진행 중입니다"));
     }
 
     @Test

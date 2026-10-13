@@ -76,7 +76,7 @@ public class TossPaymentGateway implements PaymentGateway {
                 return new PgResult.Success<>(payment.toApproval());
             }
             if (PENDING_STATUSES.contains(payment.status())) {
-                return new PgResult.Unknown<>("결제가 아직 진행 중입니다: " + payment.status());
+                return new PgResult.Unknown<>("결제가 아직 진행 중입니다");
             }
             if (CANCELED_STATUSES.contains(payment.status())) {
                 return new PgResult.Rejected<>(payment.status(), "승인 후 취소된 결제입니다");
@@ -94,7 +94,7 @@ public class TossPaymentGateway implements PaymentGateway {
                     return onSuccess.apply(response.bodyTo(TossPayment.class));
                 }
                 if (status.is5xxServerError()) {
-                    return new PgResult.Unknown<>("토스 서버 오류입니다: " + status.value());
+                    return new PgResult.Unknown<>("토스 서버 오류입니다");
                 }
                 return clientError(status, response.bodyTo(TossError.class));
             });
