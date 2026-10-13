@@ -90,22 +90,24 @@ public class ChildProfile extends BaseSoftDeleteEntity {
         this.memberId = memberId;
     }
 
-    public static ChildProfile register(Long memberId, String name, LocalDate birthDate, Gender gender,
-        BigDecimal heightCm, BigDecimal weightKg, BodyType bodyType, PreferredFit preferredFit, LocalDateTime now) {
-        var child = new ChildProfile(requireNonNull(memberId, "memberId는 필수입니다"));
-        child.change(name, birthDate, gender, heightCm, weightKg, bodyType, preferredFit, now);
-        child.growthRecords.add(new GrowthRecord(child, heightCm, bodyType, now));
+    public static ChildProfile register(ChildProfileRegisterInfo info, LocalDateTime now) {
+        requireNonNull(info, "info는 필수입니다");
+        var child = new ChildProfile(requireNonNull(info.memberId(), "memberId는 필수입니다"));
+        child.change(info.name(), info.birthDate(), info.gender(), info.heightCm(), info.weightKg(),
+            info.bodyType(), info.preferredFit(), now);
+        child.growthRecords.add(new GrowthRecord(child, info.heightCm(), info.bodyType(), now));
         return child;
     }
 
     // 모든 필드를 받는 전체 교체다. 키(값 비교) 또는 체형(null ↔ 값 포함)이 바뀌면 성장 이력을 1건 추가한다
-    public void update(String name, LocalDate birthDate, Gender gender, BigDecimal heightCm, BigDecimal weightKg,
-        BodyType bodyType, PreferredFit preferredFit, LocalDateTime now) {
-        boolean grown = this.heightCm.compareTo(requireNonNull(heightCm, "heightCm는 필수입니다")) != 0
-            || !Objects.equals(this.bodyType, bodyType);
-        change(name, birthDate, gender, heightCm, weightKg, bodyType, preferredFit, now);
+    public void update(ChildProfileUpdateInfo info, LocalDateTime now) {
+        requireNonNull(info, "info는 필수입니다");
+        boolean grown = this.heightCm.compareTo(requireNonNull(info.heightCm(), "heightCm는 필수입니다")) != 0
+            || !Objects.equals(this.bodyType, info.bodyType());
+        change(info.name(), info.birthDate(), info.gender(), info.heightCm(), info.weightKg(),
+            info.bodyType(), info.preferredFit(), now);
         if (grown) {
-            growthRecords.add(new GrowthRecord(this, heightCm, bodyType, now));
+            growthRecords.add(new GrowthRecord(this, info.heightCm(), info.bodyType(), now));
         }
     }
 

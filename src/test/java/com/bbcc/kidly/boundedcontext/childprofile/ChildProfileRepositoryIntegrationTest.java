@@ -8,7 +8,6 @@ import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
-import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
@@ -68,8 +67,8 @@ class ChildProfileRepositoryIntegrationTest {
     @DisplayName("회원의 자녀 목록을 등록 순으로 주고, 자녀마다 성장 이력을 함께 읽는다")
     void findAllByMemberId() {
         var grown = ChildProfileFixture.child(MEMBER_ID);
-        grown.update("첫째", ChildProfileFixture.BIRTH_DATE, Gender.MALE, new BigDecimal("118.0"),
-            ChildProfileFixture.WEIGHT, BodyType.NORMAL, PreferredFit.LOOSE, ChildProfileFixture.NOW.plusDays(30));
+        grown.update(ChildProfileFixture.updateInfo("첫째", new BigDecimal("118.0"), ChildProfileFixture.WEIGHT,
+            BodyType.NORMAL, PreferredFit.LOOSE), ChildProfileFixture.NOW.plusDays(30));
         var first = childProfileRepository.save(grown);
         var second = childProfileRepository.save(ChildProfileFixture.child(MEMBER_ID));
         childProfileRepository.save(ChildProfileFixture.child(OTHER_MEMBER_ID));
