@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.payment.out;
+package com.bbcc.kidly.boundedcontext.payment.out.toss;
 
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentGateway;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgApproval;

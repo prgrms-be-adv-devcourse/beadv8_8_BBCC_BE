@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.payment.out;
+package com.bbcc.kidly.boundedcontext.payment.out.toss;
 
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;

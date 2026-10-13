@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.payment.out;
+package com.bbcc.kidly.boundedcontext.payment.out.toss;
 
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentGateway;
 import java.net.http.HttpClient;
@@ -8,7 +8,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-class TossConfig {
+class TossClientConfig {
 
     @Bean
     PaymentGateway paymentGateway(TossProperties properties) {

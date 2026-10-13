@@ -13,8 +13,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgApproval;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgCancellation;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgResult;
-import com.bbcc.kidly.boundedcontext.payment.out.TossPaymentGateway;
-import com.bbcc.kidly.boundedcontext.payment.out.TossProperties;
+import com.bbcc.kidly.boundedcontext.payment.out.toss.TossPaymentGateway;
+import com.bbcc.kidly.boundedcontext.payment.out.toss.TossProperties;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.time.LocalDateTime;
