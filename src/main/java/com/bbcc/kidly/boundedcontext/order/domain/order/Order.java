@@ -181,10 +181,17 @@ public class Order extends BaseTimeEntity {
         return order;
     }
 
-    public void requestPayment(LocalDateTime now) {
-        if (status == Status.PENDING_PAYMENT && paymentRequestedAt == null) {
-            this.paymentRequestedAt = now;
+    /**
+     * 결제를 요청한다. 결제대기이고 아직 요청 전일 때만 기록한다(재고 차감 이벤트 중복 · 취소 뒤 도착 대비).
+     *
+     * @return 이번에 요청했으면 true
+     */
+    public boolean requestPayment(LocalDateTime now) {
+        if (status != Status.PENDING_PAYMENT || paymentRequestedAt != null) {
+            return false;
         }
+        this.paymentRequestedAt = now;
+        return true;
     }
 
     public void markPaid(Long paymentId, LocalDateTime now) {
