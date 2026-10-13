@@ -63,6 +63,12 @@ class ArchitectureTest {
         .allowEmptyShould(true);
 
     @ArchTest
+    static final ArchRule IN_DOES_NOT_USE_DOMAIN = noClasses()
+        .that().resideInAPackage(CONTEXTS + ".*.in..")
+        .should().dependOnClassesThat().resideInAPackage(CONTEXTS + ".*.domain..")
+        .allowEmptyShould(true);
+
+    @ArchTest
     static final ArchRule IN_DOES_NOT_USE_OUT = noClasses()
         .that().resideInAPackage(CONTEXTS + ".*.in..")
         .should().dependOnClassesThat().resideInAPackage(CONTEXTS + ".*.out..")
