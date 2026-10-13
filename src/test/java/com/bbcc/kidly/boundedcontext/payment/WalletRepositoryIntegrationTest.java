@@ -31,6 +31,16 @@ class WalletRepositoryIntegrationTest {
     }
 
     @Test
+    @DisplayName("회원 ID로 지갑을 찾는다")
+    void findByMemberId() {
+        Wallet saved = walletRepository.save(Wallet.create(1L));
+
+        assertThat(walletRepository.findByMemberId(1L)).hasValueSatisfying(
+            found -> assertThat(found.getId()).isEqualTo(saved.getId()));
+        assertThat(walletRepository.findByMemberId(2L)).isEmpty();
+    }
+
+    @Test
     @DisplayName("저장한 지갑은 잔액 0으로 조회된다")
     void save() {
         Wallet saved = walletRepository.save(Wallet.create(1L));
