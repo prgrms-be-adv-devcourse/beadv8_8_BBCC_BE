@@ -78,5 +78,6 @@ class ChildProfileRepositoryIntegrationTest {
 
         assertThat(children).extracting(ChildProfile::getId).containsExactly(first.getId(), second.getId());
         assertThat(children).extracting(ChildProfile::growthRecordCount).containsExactly(2, 1);
+        assertThat(children.getFirst().lastRecordedAt()).isEqualTo(ChildProfileFixture.NOW.plusDays(30));
     }
 }

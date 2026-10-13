@@ -93,7 +93,7 @@ class ChildProfileTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"39.9", "200.1", "115.25"})
+    @ValueSource(strings = {"39.9", "200.1", "115.25", "115.00"})
     @DisplayName("키가 40.0~200.0을 벗어나거나 소수 둘째 자리가 있으면 등록할 수 없다")
     void registerRejectsInvalidHeight(String height) {
         assertThatThrownBy(() -> ChildProfile.register(MEMBER_ID, "첫째", BIRTH_DATE, Gender.MALE,
@@ -102,7 +102,7 @@ class ChildProfileTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"1.9", "150.1", "20.05"})
+    @ValueSource(strings = {"1.9", "150.1", "20.05", "20.00"})
     @DisplayName("몸무게가 2.0~150.0을 벗어나거나 소수 둘째 자리가 있으면 등록할 수 없다")
     void registerRejectsInvalidWeight(String weight) {
         assertThatThrownBy(() -> ChildProfile.register(MEMBER_ID, "첫째", BIRTH_DATE, Gender.MALE,
