@@ -15,3 +15,6 @@ springdoc:
 
 jwt:
   access-token-validity: 30m
+
+refresh-token:
+  validity: 14d
