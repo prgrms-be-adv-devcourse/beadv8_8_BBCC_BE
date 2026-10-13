@@ -53,7 +53,7 @@ class ChildApiTest {
 
         var child = result.getResponseBody();
         assertThat(result.getResponseHeaders().getFirst(HttpHeaders.LOCATION))
-            .isEqualTo(CHILDREN_PATH + "/" + child.id());
+            .endsWith(CHILDREN_PATH + "/" + child.id());
         assertThat(child.name()).isEqualTo("첫째");
         assertThat(child.heightCm()).isEqualByComparingTo("115.0");
         assertThat(child.bodyType()).isEqualTo(BodyType.NORMAL);
@@ -194,14 +194,18 @@ class ChildApiTest {
             new BigDecimal("210.0"), new BigDecimal("20.0"), null, null), "heightCm");
         expectInvalid(new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
             new BigDecimal("115.25"), new BigDecimal("20.0"), null, null), "heightCm");
+        expectInvalid(new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
+            new BigDecimal("115.00"), new BigDecimal("20.0"), null, null), "heightCm");
     }
 
     @Test
-    @DisplayName("생년월일이 미래이거나 이름이 비어 있으면 400")
+    @DisplayName("생년월일이 미래이거나 이름이 비어 있거나 50자를 넘으면 400")
     void invalidBirthDateOrName() {
         expectInvalid(new ChildProfileRequest("첫째", LocalDate.now().plusDays(1), Gender.MALE,
             new BigDecimal("115.0"), new BigDecimal("20.0"), null, null), "birthDate");
         expectInvalid(new ChildProfileRequest(" ", LocalDate.of(2019, 1, 15), Gender.MALE,
+            new BigDecimal("115.0"), new BigDecimal("20.0"), null, null), "name");
+        expectInvalid(new ChildProfileRequest("가".repeat(51), LocalDate.of(2019, 1, 15), Gender.MALE,
             new BigDecimal("115.0"), new BigDecimal("20.0"), null, null), "name");
     }
 

@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -22,7 +23,7 @@ import java.time.LocalDate;
  * @param preferredFit 비우면 null
  */
 public record ChildProfileRequest(
-    @NotBlank String name,
+    @NotBlank @Size(max = 50) String name,
     @NotNull @PastOrPresent LocalDate birthDate,
     @NotNull Gender gender,
     @NotNull @DecimalMin("40.0") @DecimalMax("200.0") @Digits(integer = 3, fraction = 1) BigDecimal heightCm,
