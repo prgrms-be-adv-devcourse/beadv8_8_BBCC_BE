@@ -55,7 +55,7 @@ jobs:
               | (if $p >= 80 then "🟩" elif $p >= 50 then "🟦" else "🟪" end) as $c
               | ($c * $n // "") + ("⬜" * (5 - $n) // "");
             def short: sub("^\\[[A-Z]+\\]\\s*"; "");
-            def counts($done; $total): if $total == 0 then "맡은 이슈 없음" else "\($done)개 완료 · \($total - $done)개 남음" end;
+            def counts($done; $total): if $total == 0 then "아직 맡은 이슈가 없어요" else "\($done)개 완료 · \($total - $done)개 남음" end;
 
             . as $issues
             | ($issues | length) as $total
