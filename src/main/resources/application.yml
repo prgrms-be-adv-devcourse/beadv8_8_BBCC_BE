@@ -22,3 +22,8 @@ jwt:
 
 refresh-token:
   validity: 14d
+
+# Logstash 주소. 로컬은 docker compose의 Logstash, 운영은 환경 변수로 받는다. 연결되지 않으면 로그만 버려진다
+logging:
+  logstash:
+    destination: ${LOGSTASH_HOST:localhost}:${LOGSTASH_PORT:5000}
