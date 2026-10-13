@@ -18,3 +18,10 @@ jwt:
 
 refresh-token:
   validity: 14d
+
+# 토스페이먼츠. 시크릿 키가 없으면 앱은 뜨지만 토스 호출이 인증 오류로 거절된다
+toss:
+  secret-key: ${TOSS_SECRET_KEY:}
+  base-url: https://api.tosspayments.com
+  connect-timeout: 3s
+  read-timeout: 30s
