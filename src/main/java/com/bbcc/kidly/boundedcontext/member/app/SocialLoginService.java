@@ -31,14 +31,10 @@ public class SocialLoginService {
     private final MemberRegistrar memberRegistrar;
     private final OAuthClient oauthClient;
 
-    public Member loginWithCode(OAuthProvider provider, SocialLoginRequest request) {
+    public Member login(OAuthProvider provider, SocialLoginRequest request) {
         var profile = oauthClient.fetchProfile(provider, request.code());
-        return login(new MemberLoginRequest(provider, profile.providerUserId(), nicknameOf(profile)));
-    }
-
-    public Member login(MemberLoginRequest request) {
-        var member = memberRepository.findBySocialAccount(request.provider(), request.providerUserId())
-            .orElseGet(() -> register(request));
+        var member = memberRepository.findBySocialAccount(provider, profile.providerUserId())
+            .orElseGet(() -> register(provider, profile));
         if (!member.canLogin()) {
             throw new BusinessException(MemberErrorCode.LOGIN_NOT_ALLOWED);
         }
@@ -46,11 +42,12 @@ public class SocialLoginService {
     }
 
     // 같은 소셜 계정으로 동시에 처음 로그인하면 한 요청만 가입되고, 나머지는 그 회원으로 로그인한다
-    private Member register(MemberLoginRequest request) {
+    private Member register(OAuthProvider provider, OAuthProfile profile) {
         try {
-            return memberRegistrar.register(request);
+            return memberRegistrar.register(
+                new MemberLoginRequest(provider, profile.providerUserId(), nicknameOf(profile)));
         } catch (DataIntegrityViolationException e) {
-            return memberRepository.findBySocialAccount(request.provider(), request.providerUserId())
+            return memberRepository.findBySocialAccount(provider, profile.providerUserId())
                 .orElseThrow(() -> e);
         }
     }

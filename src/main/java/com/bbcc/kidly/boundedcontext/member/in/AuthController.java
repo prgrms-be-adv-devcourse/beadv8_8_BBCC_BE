@@ -24,7 +24,7 @@ public class AuthController {
     @PublicApi
     @PostMapping("/api/v1/auth/login/{provider}")
     public LoginResponse login(@PathVariable String provider, @Valid @RequestBody SocialLoginRequest request) {
-        var member = socialLoginService.loginWithCode(OAuthProvider.from(provider), request);
+        var member = socialLoginService.login(OAuthProvider.from(provider), request);
         return new LoginResponse(authTokenService.issueAccessToken(member.getId()));
     }
 }
