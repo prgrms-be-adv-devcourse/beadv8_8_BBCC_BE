@@ -55,6 +55,7 @@ jobs:
               | (if $p >= 80 then "🟩" elif $p >= 50 then "🟦" else "🟪" end) as $c
               | ($c * $n // "") + ("⬜" * (5 - $n) // "");
             def short: sub("^\\[[A-Z]+\\]\\s*"; "");
+            def counts($done; $total): if $total == 0 then "맡은 이슈 없음" else "\($done)개 완료 · \($total - $done)개 남음" end;
 
             . as $issues
             | ($issues | length) as $total
@@ -73,13 +74,13 @@ jobs:
                   [
                     {type: "header", text: {type: "plain_text", text: "📊 이슈 진행률 · \($today)"}},
                     {type: "section", text: {type: "mrkdwn",
-                      text: "전체 *\(pct($done; $total))%* 완료   \(bar(pct($done; $total)))   \($done) / \($total)개   <\($url)|이슈 보기 →>"}},
+                      text: "전체  \(bar(pct($done; $total)))  *\(pct($done; $total))%*\n\(counts($done; $total))   <\($url)|이슈 보기 →>"}},
                     {type: "divider"}
                   ]
                   # section 하나에 칸은 10개까지라 10명씩 나눈다
                   + [range(0; $people | length; 10) as $i
                       | {type: "section", fields: [$people[$i:$i + 10][]
-                          | {type: "mrkdwn", text: "*\(.who | esc)*\n\(bar(.pct))  \(.pct)%  ·  \(.done)/\(.total)"}]}]
+                          | {type: "mrkdwn", text: "*\(.who | esc)*\n\(bar(.pct))  *\(.pct)%*\n\(counts(.done; .total))"}]}]
                   + [
                     {type: "divider"},
                     {type: "section", text: {type: "mrkdwn", text: "*✅ \($sinceLabel) 처리된 이슈 \($closed | length)개*"}}
