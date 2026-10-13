@@ -55,7 +55,7 @@ public class KakaoOAuthClient implements OAuthClient {
                 .body(KakaoToken.class)
                 .accessToken();
         } catch (HttpClientErrorException.BadRequest e) {
-            if (isInvalidGrant(e)) {
+            if (isInvalidCode(e)) {
                 throw new BusinessException(MemberErrorCode.INVALID_AUTHORIZATION_CODE);
             }
             throw providerError(e);
@@ -76,12 +76,12 @@ public class KakaoOAuthClient implements OAuthClient {
         }
     }
 
-    // 400이어도 invalid_grant가 아니면(redirect URI 불일치 등) 우리 설정 문제라서 제공자 오류로 본다.
-    // 본문이 JSON이 아니면(게이트웨이 오류 페이지 등) 읽지 못하므로 invalid_grant가 아니다
-    private boolean isInvalidGrant(HttpClientErrorException e) {
+    // 인가 코드를 이미 썼거나 만료됐으면(KOE320) 다시 로그인하면 된다. 그 밖의 400(redirect URI 불일치 KOE303 등)은 우리 설정 문제라서 제공자 오류로 본다.
+    // 본문이 JSON이 아니면(게이트웨이 오류 페이지 등) 읽지 못하므로 인가 코드 오류로 보지 않는다
+    private boolean isInvalidCode(HttpClientErrorException e) {
         try {
             var error = e.getResponseBodyAs(KakaoError.class);
-            return error != null && "invalid_grant".equals(error.error());
+            return error != null && "KOE320".equals(error.errorCode());
         } catch (RestClientException unreadable) {
             return false;
         }
@@ -97,7 +97,7 @@ public class KakaoOAuthClient implements OAuthClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record KakaoError(String error) {
+    record KakaoError(@JsonProperty("error_code") String errorCode) {
     }
 
     // 닉네임은 사용자가 제공에 동의해야 온다. 동의하지 않으면 kakao_account.profile이 없다

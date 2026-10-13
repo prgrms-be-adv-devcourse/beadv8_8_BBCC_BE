@@ -86,12 +86,12 @@ class KakaoOAuthClientTest {
     }
 
     @Test
-    @DisplayName("redirect URI가 등록된 값과 달라 400이 나면 OAUTH_PROVIDER_ERROR")
-    void badRequestOtherThanInvalidGrant() {
+    @DisplayName("redirect URI가 인가 코드 요청 때와 달라 토큰을 받지 못하면 OAUTH_PROVIDER_ERROR")
+    void redirectUriMismatch() {
         server.expect(requestTo(TOKEN_URL))
             .andRespond(withBadRequest()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body("{\"error\":\"invalid_request\",\"error_code\":\"KOE006\"}"));
+                .body("{\"error\":\"invalid_grant\",\"error_code\":\"KOE303\"}"));
 
         assertErrorCode(() -> fetch("auth-code"), MemberErrorCode.OAUTH_PROVIDER_ERROR);
     }
