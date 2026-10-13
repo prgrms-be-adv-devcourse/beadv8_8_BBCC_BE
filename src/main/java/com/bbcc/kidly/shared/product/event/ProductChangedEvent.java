@@ -16,7 +16,7 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      * @param status 판매 상태. 품절은 여기가 아니라 옵션의 {@code soldOut}으로 보낸다
      * @param thumbnailUrl 썸네일 URL. 등록하지 않았으면 null
      * @param createdAt 상품 등록 시각. 판매 시작 시각이 아니다
-     * @param sizeFree true면 사이즈 무관 상품이다. 옵션의 권장 키는 null이다
+     * @param sizeFree true면 사이즈 무관 상품이다. 추천은 권장 키가 아니라 이 값으로 사이즈 무관을 판단한다
      * @param options 그 상품의 모든 옵션
      */
     public record Data(
@@ -36,8 +36,8 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      * @param color 색상. 쓰지 않는 도메인은 읽지 않아도 된다
      * @param material 소재. 쓰지 않는 도메인은 읽지 않아도 된다
      * @param price 판매가(원)
-     * @param minHeightCm 권장 키 하한(cm, 포함). 사이즈 무관 상품이면 null
-     * @param maxHeightCm 권장 키 상한(cm, 포함). 사이즈 무관 상품이면 null
+     * @param minHeightCm 권장 키 하한(cm, 포함). 입력하지 않았으면 null. 사이즈 무관 상품은 넣지 않을 수 있다
+     * @param maxHeightCm 권장 키 상한(cm, 포함). 입력하지 않았으면 null. 사이즈 무관 상품은 넣지 않을 수 있다
      * @param soldOut 판매 가능 수량이 0이면 true. 판매 상태와는 별개다
      */
     public record Option(
