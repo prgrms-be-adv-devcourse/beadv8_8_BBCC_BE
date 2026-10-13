@@ -3,10 +3,10 @@ package com.bbcc.kidly.boundedcontext.seller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
+import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +51,7 @@ class SellerApplicationRepositoryIntegrationTest {
         var saved = sellerApplicationRepository.save(SellerFixture.application(APPLICANT_ID));
 
         var found = sellerApplicationRepository.getById(saved.getId());
+        assertThat(found.getApplicantNickname()).isEqualTo(SellerFixture.APPLICANT_NICKNAME);
         assertThat(found.getBusinessRegistrationNumber()).isEqualTo(SellerFixture.BUSINESS_REGISTRATION_NUMBER);
         assertThat(found.getStatus()).isEqualTo(SellerApplicationStatus.PENDING);
         assertThat(found.getCreatedAt()).isNotNull();

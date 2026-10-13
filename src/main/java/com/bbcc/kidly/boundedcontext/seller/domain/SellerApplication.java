@@ -4,6 +4,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -35,9 +36,10 @@ public class SellerApplication extends BaseTimeEntity {
 
     public static final int NAME_MAX_LENGTH = 50;
     public static final int BUSINESS_REGISTRATION_NUMBER_LENGTH = 10;
+    public static final String BUSINESS_REGISTRATION_NUMBER_REGEX = "[0-9]{10}";
 
     // 하이픈 없는 ASCII 숫자 10자리. 진위 확인(사업자 인증)은 MVP에서 빠졌다
-    private static final Pattern BUSINESS_REGISTRATION_NUMBER = Pattern.compile("[0-9]{10}");
+    private static final Pattern BUSINESS_REGISTRATION_NUMBER = Pattern.compile(BUSINESS_REGISTRATION_NUMBER_REGEX);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -45,6 +47,10 @@ public class SellerApplication extends BaseTimeEntity {
 
     @Column(nullable = false, updatable = false)
     private Long applicantId;
+
+    // 신청 시점 닉네임. 관리자 목록 표시용이고, 회원이 닉네임을 바꿔도 갱신하지 않는다
+    @Column(nullable = false, updatable = false)
+    private String applicantNickname;
 
     @Column(nullable = false, length = NAME_MAX_LENGTH)
     private String businessName;
@@ -63,29 +69,31 @@ public class SellerApplication extends BaseTimeEntity {
 
     private LocalDateTime decidedAt;
 
-    private SellerApplication(Long applicantId, String businessName, String representativeName,
-        String businessRegistrationNumber) {
-        this.applicantId = applicantId;
-        this.businessName = businessName;
-        this.representativeName = representativeName;
-        this.businessRegistrationNumber = businessRegistrationNumber;
+    private SellerApplication(SellerApplicationSubmitInfo info) {
+        this.applicantId = info.applicantId();
+        this.applicantNickname = info.applicantNickname();
+        this.businessName = info.businessName();
+        this.representativeName = info.representativeName();
+        this.businessRegistrationNumber = info.businessRegistrationNumber();
         this.status = SellerApplicationStatus.PENDING;
     }
 
     public static SellerApplication submit(SellerApplicationSubmitInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        var applicantId = requireNonNull(info.applicantId(), "applicantId는 필수입니다");
+        requireNonNull(info.applicantId(), "applicantId는 필수입니다");
+        var applicantNickname = requireNonNull(info.applicantNickname(), "applicantNickname은 필수입니다");
         var businessName = requireNonNull(info.businessName(), "businessName은 필수입니다");
         var representativeName = requireNonNull(info.representativeName(), "representativeName은 필수입니다");
         var businessRegistrationNumber =
             requireNonNull(info.businessRegistrationNumber(), "businessRegistrationNumber는 필수입니다");
+        Assert.hasText(applicantNickname, "신청 회원 닉네임은 비어 있을 수 없습니다");
         Assert.hasText(businessName, "상호명은 비어 있을 수 없습니다");
         Assert.isTrue(businessName.length() <= NAME_MAX_LENGTH, "상호명은 50자 이하여야 합니다");
         Assert.hasText(representativeName, "대표자명은 비어 있을 수 없습니다");
         Assert.isTrue(representativeName.length() <= NAME_MAX_LENGTH, "대표자명은 50자 이하여야 합니다");
         Assert.isTrue(BUSINESS_REGISTRATION_NUMBER.matcher(businessRegistrationNumber).matches(),
             "사업자등록번호는 하이픈 없는 숫자 10자리여야 합니다");
-        return new SellerApplication(applicantId, businessName, representativeName, businessRegistrationNumber);
+        return new SellerApplication(info);
     }
 
     public void approve(Long adminId, LocalDateTime now) {
@@ -97,6 +105,11 @@ public class SellerApplication extends BaseTimeEntity {
         this.status = SellerApplicationStatus.APPROVED;
         this.decidedBy = adminId;
         this.decidedAt = now;
+    }
+
+    // 관리자 목록용. 앞 4자리만 보이게 가린다 (예: 2148612345 → 214-8*-*****)
+    public String maskedBusinessRegistrationNumber() {
+        return businessRegistrationNumber.substring(0, 3) + "-" + businessRegistrationNumber.charAt(3) + "*-*****";
     }
 
     public boolean isApproved() {

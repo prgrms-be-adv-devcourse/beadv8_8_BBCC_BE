@@ -15,12 +15,14 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * 회원 ID와 역할로 Access Token(JWT, RS256)을 발급한다. 개인키는 회원 도메인만 가진다.
+ * 회원 ID · 닉네임 · 역할로 Access Token(JWT, RS256)을 발급한다. 개인키는 회원 도메인만 가진다.
+ * 닉네임은 화면 표시 · 신청 스냅샷용이다.
  * JWT의 iat·exp는 epoch 초라서 LocalDateTime 대신 Instant를 쓴다.
  */
 @Component
 public class JwtAccessTokenIssuer implements AccessTokenIssuer {
 
+    private static final String NICKNAME_CLAIM = "nickname";
     private static final String ROLES_CLAIM = "roles";
 
     private final JwtEncoder jwtEncoder;
@@ -34,10 +36,11 @@ public class JwtAccessTokenIssuer implements AccessTokenIssuer {
     }
 
     @Override
-    public String issue(Long memberId, List<Role> roles) {
+    public String issue(Long memberId, String nickname, List<Role> roles) {
         var now = Instant.now();
         var claims = JwtClaimsSet.builder()
             .subject(String.valueOf(memberId))
+            .claim(NICKNAME_CLAIM, nickname)
             .issuedAt(now)
             .expiresAt(now.plus(validity))
             .claim(ROLES_CLAIM, roles.stream().map(Role::name).toList())
