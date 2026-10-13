@@ -1,4 +1,5 @@
 /**
- * 엔티티, 상태 enum, 리포지토리 인터페이스, event 안에 도메인 내부 이벤트.
+ * 애그리거트마다 하위 패키지(order · cart · delivery). 값 · enum은 주인 엔티티 파일 안에.
+ * 바로 아래는 여러 애그리거트가 쓰는 OrderErrorCode.
  */
 package com.bbcc.kidly.boundedcontext.order.domain;
