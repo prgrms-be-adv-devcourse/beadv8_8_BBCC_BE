@@ -45,6 +45,7 @@ import org.springframework.util.Assert;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChildProfile extends BaseSoftDeleteEntity {
 
+    private static final int NAME_MAX_LENGTH = 50;
     private static final BigDecimal MIN_HEIGHT = new BigDecimal("40.0");
     private static final BigDecimal MAX_HEIGHT = new BigDecimal("200.0");
     private static final BigDecimal MIN_WEIGHT = new BigDecimal("2.0");
@@ -57,7 +58,7 @@ public class ChildProfile extends BaseSoftDeleteEntity {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = NAME_MAX_LENGTH)
     private String name;
 
     @Column(name = "birth_date", nullable = false)
@@ -133,6 +134,7 @@ public class ChildProfile extends BaseSoftDeleteEntity {
         requireNonNull(weightKg, "weightKg는 필수입니다");
         requireNonNull(now, "now는 필수입니다");
         Assert.hasText(name, "name은 비어 있을 수 없습니다");
+        Assert.isTrue(name.length() <= NAME_MAX_LENGTH, "name은 50자 이하여야 합니다");
         Assert.isTrue(!birthDate.isAfter(now.toLocalDate()), "생년월일은 미래일 수 없습니다");
         Assert.isTrue(heightCm.scale() <= 1, "키는 소수 첫째 자리까지만 입력할 수 있습니다");
         Assert.isTrue(heightCm.compareTo(MIN_HEIGHT) >= 0 && heightCm.compareTo(MAX_HEIGHT) <= 0,

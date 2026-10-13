@@ -117,10 +117,11 @@ class ChildProfileTest {
         assertThatThrownBy(() -> ChildProfile.register(info, NOW)).isInstanceOf(IllegalArgumentException.class);
     }
 
-    @Test
-    @DisplayName("이름이 비어 있으면 등록할 수 없다")
-    void registerRejectsBlankName() {
-        var info = new ChildProfileRegisterInfo(MEMBER_ID, " ", BIRTH_DATE, Gender.MALE, HEIGHT, WEIGHT, null, null);
+    @ParameterizedTest
+    @ValueSource(strings = {" ", "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"})
+    @DisplayName("이름이 비어 있거나 50자를 넘으면 등록할 수 없다")
+    void registerRejectsInvalidName(String name) {
+        var info = new ChildProfileRegisterInfo(MEMBER_ID, name, BIRTH_DATE, Gender.MALE, HEIGHT, WEIGHT, null, null);
 
         assertThatThrownBy(() -> ChildProfile.register(info, NOW)).isInstanceOf(IllegalArgumentException.class);
     }
