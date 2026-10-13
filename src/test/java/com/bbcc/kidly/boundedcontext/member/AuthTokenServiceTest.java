@@ -7,7 +7,7 @@ import static org.mockito.BDDMockito.then;
 
 import com.bbcc.kidly.boundedcontext.member.app.AuthTokenService;
 import com.bbcc.kidly.boundedcontext.member.app.port.AccessTokenIssuer;
-import com.bbcc.kidly.boundedcontext.member.app.port.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;

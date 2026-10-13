@@ -5,11 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.app.SocialLoginService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
-import com.bbcc.kidly.boundedcontext.member.app.port.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -30,6 +31,9 @@ class SocialLoginServiceIntegrationTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private JpaMemberRepository jpaMemberRepository;
 
     @Autowired
     private ApplicationEvents events;
@@ -53,7 +57,7 @@ class SocialLoginServiceIntegrationTest {
         var member = login("kakao-1");
 
         assertThat(member.getId()).isEqualTo(saved.getId());
-        assertThat(memberRepository.count()).isEqualTo(1);
+        assertThat(jpaMemberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class)).isEmpty();
     }
 
