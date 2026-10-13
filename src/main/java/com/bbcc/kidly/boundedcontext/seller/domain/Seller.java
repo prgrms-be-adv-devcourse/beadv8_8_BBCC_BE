@@ -10,10 +10,10 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.domain.Persistable;
 import org.springframework.util.Assert;
 
 /**
@@ -24,7 +24,7 @@ import org.springframework.util.Assert;
 @Table(name = "seller", schema = "seller")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Seller extends BaseTimeEntity implements Persistable<Long> {
+public class Seller extends BaseTimeEntity {
 
     @Id
     private Long id;
@@ -36,6 +36,10 @@ public class Seller extends BaseTimeEntity implements Persistable<Long> {
     @Column(nullable = false)
     private SellerStatus status;
 
+    // id를 직접 넣으므로 Spring Data는 version이 null인지로 새 판매자를 판단한다. 새 판매자는 persist되어 같은 회원이면 PK 충돌로 실패한다
+    @Version
+    private Long version;
+
     private Seller(Long id, String businessName) {
         this.id = id;
         this.businessName = businessName;
@@ -46,11 +50,5 @@ public class Seller extends BaseTimeEntity implements Persistable<Long> {
         requireNonNull(application, "application은 필수입니다");
         Assert.state(application.isApproved(), "승인된 신청으로만 판매자를 만들 수 있습니다");
         return new Seller(application.getApplicantId(), application.getBusinessName());
-    }
-
-    // id를 직접 넣으므로 save()가 merge로 기존 판매자를 덮어쓰지 않게 한다. 새 판매자는 persist되어 같은 회원이면 PK 충돌로 실패한다
-    @Override
-    public boolean isNew() {
-        return getCreatedAt() == null;
     }
 }

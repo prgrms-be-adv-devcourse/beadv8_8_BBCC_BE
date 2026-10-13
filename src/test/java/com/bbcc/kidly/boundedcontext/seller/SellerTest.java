@@ -21,7 +21,6 @@ class SellerTest {
         assertThat(seller.getId()).isEqualTo(APPLICANT_ID);
         assertThat(seller.getBusinessName()).isEqualTo(BUSINESS_NAME);
         assertThat(seller.getStatus()).isEqualTo(SellerStatus.ACTIVE);
-        assertThat(seller.isNew()).isTrue();
     }
 
     @Test
