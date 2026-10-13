@@ -1,0 +1,85 @@
+name: Slack Daily Summary
+
+on:
+  schedule:
+    # 평일 09:00 KST (00:00 UTC)
+    - cron: '0 0 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  issues: read
+
+jobs:
+  summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send issue progress to Slack
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # {"GitHub아이디": "이름"} 형식의 Actions 변수. public 레포라 실명을 코드에 두지 않는다
+          NAME_MAP: ${{ vars.SLACK_NAME_MAP }}
+        run: |
+          # 매핑이 없거나 JSON이 잘못되면 GitHub 아이디를 그대로 쓴다
+          MAP=$(printf '%s' "${NAME_MAP:-}" | jq -c 'if type == "object" then . else {} end' 2>/dev/null || true)
+          [ -n "$MAP" ] || MAP='{}'
+
+          # 월요일은 금요일 아침부터, 그 외에는 어제 아침부터 닫힌 이슈를 모은다
+          if [ "$(TZ=Asia/Seoul date +%u)" = "1" ]; then
+            DAYS=3; SINCE_LABEL="금요일 9시 이후"
+          else
+            DAYS=1; SINCE_LABEL="어제 9시 이후"
+          fi
+          # 예약 실행이 늦어져도 기준은 그날 09:00 KST(00:00 UTC)로 고정한다
+          SINCE=$(date -u -d "-$DAYS days" +%Y-%m-%dT00:00:00Z)
+          TODAY=$(TZ=Asia/Seoul date +%m/%d)
+
+          # PR과 '계획 안 함(not planned)'으로 닫힌 이슈는 세지 않는다
+          gh api --paginate "repos/$REPO/issues?state=all&per_page=100" \
+            --jq '.[] | select(.pull_request | not) | select(.state_reason != "not_planned")' \
+            | jq -s '.' > issues.json
+
+          # 담당자별 진행률: 막대 10칸 · 비율 · (닫힘/전체) · 이름. 담당자가 여럿이면 각자에게 센다
+          PROGRESS=$(jq -r --argjson map "$MAP" '
+            def bar($p): ($p / 10 | round) as $n | ("█" * $n // "") + ("░" * (10 - $n) // "");
+            def pad3: tostring | ("   " + .)[-3:];
+            def padr($n): . + (" " * ($n - length) // "");
+            [ .[] | (.state == "closed") as $done
+              | (if (.assignees | length) > 0 then [.assignees[].login | ($map[.] // .)] else ["담당자 없음"] end)[]
+              | {who: ., done: $done} ]
+            | group_by(.who)
+            | map({who: .[0].who, total: length, done: (map(select(.done)) | length)})
+            | map(. + {pct: (.done * 100 / .total | round)})
+            | sort_by(-.total, -.pct)
+            | .[] | "\(bar(.pct)) \(.pct | pad3)% \("(\(.done)/\(.total))" | padr(7))  \(.who)"
+          ' issues.json)
+          TOTAL=$(jq 'length' issues.json)
+          DONE=$(jq '[.[] | select(.state == "closed")] | length' issues.json)
+          PCT=$(( TOTAL > 0 ? DONE * 100 / TOTAL : 0 ))
+
+          # 처리된 이슈: 번호순, 담당자 이름. 너무 길면 15개까지만 (Slack 블록 3000자 제한) 보여 준다
+          CLOSED_COUNT=$(jq --arg since "$SINCE" '[.[] | select(.state == "closed" and .closed_at >= $since)] | length' issues.json)
+          CLOSED=$(jq -r --arg since "$SINCE" --argjson map "$MAP" '
+            def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+            [ .[] | select(.state == "closed" and .closed_at >= $since) ] | sort_by(.number) | .[:15][]
+            | ([.assignees[].login | ($map[.] // .)] | if length > 0 then join(", ") else "담당자 없음" end) as $who
+            | "• <\(.html_url)|#\(.number) \(.title | esc)> · \($who | esc)"
+          ' issues.json)
+          [ "$CLOSED_COUNT" -gt 15 ] && CLOSED="$CLOSED"$'\n'"외 $((CLOSED_COUNT - 15))개"
+          [ -n "$CLOSED" ] || CLOSED="없음"
+
+          jq -n --arg today "$TODAY" --arg progress "$PROGRESS" --arg closed "$CLOSED" \
+            --arg since "$SINCE_LABEL" --arg count "$CLOSED_COUNT" \
+            --arg total "$TOTAL" --arg done "$DONE" --arg pct "$PCT" \
+            --arg url "https://github.com/$REPO/issues" '
+            def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+            {
+              text: "📊 이슈 진행률 \($today) · 전체 \($pct)% (\($done)/\($total))",
+              blocks: [
+                {type: "section", text: {type: "mrkdwn", text: "*📊 이슈 진행률 · \($today)*\n전체 *\($pct)%* (\($done)/\($total)) · <\($url)|이슈 보기>"}},
+                {type: "section", text: {type: "mrkdwn", text: "```\n\($progress | esc)\n```"}},
+                {type: "section", text: {type: "mrkdwn", text: "*✅ \($since) 처리된 이슈 (\($count))*\n\($closed)"}}
+              ]
+            }' \
+            | curl -sS -f -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"
