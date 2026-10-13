@@ -23,6 +23,8 @@ import java.time.ZoneId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -156,8 +158,19 @@ class TossPaymentGatewayTest {
 
         PgResult<PgApproval> result = gateway.findByOrderId("charge-1");
 
-        assertThat(result).isInstanceOf(PgResult.Rejected.class)
-            .extracting("code").isEqualTo("ABORTED");
+        assertThat(result).isEqualTo(new PgResult.Rejected<>("ABORTED", "승인되지 않고 끝난 결제입니다"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CANCELED", "PARTIAL_CANCELED"})
+    @DisplayName("조회한 결제가 승인 후 취소됐으면 취소된 결제로 돌려준다")
+    void findCanceledPayment(String status) {
+        server.expect(requestTo(BASE_URL + "/v1/payments/orders/charge-1"))
+            .andRespond(withSuccess(payment(status, APPROVED_AT), MediaType.APPLICATION_JSON));
+
+        PgResult<PgApproval> result = gateway.findByOrderId("charge-1");
+
+        assertThat(result).isEqualTo(new PgResult.Rejected<>(status, "승인 후 취소된 결제입니다"));
     }
 
     @Test

@@ -32,6 +32,8 @@ public class TossPaymentGateway implements PaymentGateway {
     private static final String DONE = "DONE";
     // 승인 전이거나 승인 중이라 조회만으로는 결과를 확정할 수 없는 결제 상태
     private static final Set<String> PENDING_STATUSES = Set.of("READY", "IN_PROGRESS", "WAITING_FOR_DEPOSIT");
+    // 승인된 뒤 취소된 결제 상태. 지금 돈이 들어와 있지 않으므로 거절로 돌려준다
+    private static final Set<String> CANCELED_STATUSES = Set.of("CANCELED", "PARTIAL_CANCELED");
     // 4xx지만 앞선 요청이 처리됐거나 처리 중일 수 있는 오류. 조회로 확정해야 한다
     private static final Set<String> UNCERTAIN_ERROR_CODES =
         Set.of("ALREADY_PROCESSED_PAYMENT", "IDEMPOTENT_REQUEST_PROCESSING");
@@ -74,9 +76,12 @@ public class TossPaymentGateway implements PaymentGateway {
                 return new PgResult.Success<>(payment.toApproval());
             }
             if (PENDING_STATUSES.contains(payment.status())) {
-                return new PgResult.Unknown<>("결제 진행 중: " + payment.status());
+                return new PgResult.Unknown<>("결제가 아직 진행 중입니다: " + payment.status());
             }
-            return new PgResult.Rejected<>(payment.status(), "승인되지 않고 끝난 결제");
+            if (CANCELED_STATUSES.contains(payment.status())) {
+                return new PgResult.Rejected<>(payment.status(), "승인 후 취소된 결제입니다");
+            }
+            return new PgResult.Rejected<>(payment.status(), "승인되지 않고 끝난 결제입니다");
         });
     }
 
@@ -89,7 +94,7 @@ public class TossPaymentGateway implements PaymentGateway {
                     return onSuccess.apply(response.bodyTo(TossPayment.class));
                 }
                 if (status.is5xxServerError()) {
-                    return new PgResult.Unknown<>("토스 서버 오류: " + status.value());
+                    return new PgResult.Unknown<>("토스 서버 오류입니다: " + status.value());
                 }
                 return clientError(status, response.bodyTo(TossError.class));
             });
