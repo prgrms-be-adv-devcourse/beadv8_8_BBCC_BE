@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class MemberTest {
 
@@ -42,6 +43,16 @@ class MemberTest {
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Member.register(OAuthProvider.KAKAO, "kakao-1", "테스트회원", null))
             .isInstanceOf(NullPointerException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " "})
+    @DisplayName("닉네임이나 소셜 사용자 ID가 비어 있으면 가입할 수 없다")
+    void registerRejectsBlank(String blank) {
+        assertThatThrownBy(() -> Member.register(OAuthProvider.KAKAO, blank, "테스트회원", NOW))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Member.register(OAuthProvider.KAKAO, "kakao-1", blank, NOW))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

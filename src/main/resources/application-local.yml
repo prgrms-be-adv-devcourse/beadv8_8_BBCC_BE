@@ -1,4 +1,7 @@
 spring:
+  # 프로젝트 루트의 .env(카카오 키 등, git 제외)를 읽는다. 없어도 앱은 뜬다
+  config:
+    import: optional:file:.env[.properties]
   datasource:
     url: jdbc:postgresql://localhost:5432/kidly
     username: kidly
@@ -25,3 +28,9 @@ cors:
 logging:
   level:
     org.hibernate.SQL: debug
+
+# 카카오 로그인. 키는 카카오 개발자 콘솔에서 받아 환경 변수로 넣는다. 없어도 앱은 뜨고 로그인만 실패한다
+kakao:
+  client-id: ${KAKAO_CLIENT_ID:}
+  client-secret: ${KAKAO_CLIENT_SECRET:}
+  redirect-uri: ${KAKAO_REDIRECT_URI:}

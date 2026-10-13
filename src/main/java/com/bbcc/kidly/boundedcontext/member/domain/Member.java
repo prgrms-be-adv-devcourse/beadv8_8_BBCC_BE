@@ -20,6 +20,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.util.Assert;
 
 /**
  * 회원. 소셜 계정으로 가입 · 로그인한다. 판매자 여부는 저장하지 않는다.
@@ -62,6 +63,8 @@ public class Member extends BaseTimeEntity {
             requireNonNull(provider, "provider는 필수입니다"),
             requireNonNull(providerUserId, "providerUserId는 필수입니다"),
             requireNonNull(now, "now는 필수입니다")));
+        Assert.hasText(nickname, "nickname은 비어 있을 수 없습니다");
+        Assert.hasText(providerUserId, "providerUserId는 비어 있을 수 없습니다");
         return member;
     }
 

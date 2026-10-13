@@ -4,14 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.app.SocialLoginService;
-import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
-import com.bbcc.kidly.boundedcontext.member.app.port.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.support.FakeOAuthClient;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,9 @@ class SocialLoginServiceIntegrationTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private JpaMemberRepository jpaMemberRepository;
 
     @Autowired
     private ApplicationEvents events;
@@ -53,7 +58,7 @@ class SocialLoginServiceIntegrationTest {
         var member = login("kakao-1");
 
         assertThat(member.getId()).isEqualTo(saved.getId());
-        assertThat(memberRepository.count()).isEqualTo(1);
+        assertThat(jpaMemberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class)).isEmpty();
     }
 
@@ -68,7 +73,26 @@ class SocialLoginServiceIntegrationTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.LOGIN_NOT_ALLOWED));
     }
 
+    @Test
+    @DisplayName("인가 코드로 로그인하면 제공자의 회원 번호와 닉네임으로 가입한다")
+    void registersWithProviderProfile() {
+        var member = login("kakao-1");
+
+        assertThat(member.getNickname()).isEqualTo(FakeOAuthClient.NICKNAME);
+        assertThat(memberRepository.findBySocialAccount(OAuthProvider.KAKAO, "kakao-1"))
+            .hasValueSatisfying(found -> assertThat(found.getId()).isEqualTo(member.getId()));
+    }
+
+    @Test
+    @DisplayName("제공자 닉네임이 없으면 회원 + 숫자 4자리로 가입한다")
+    void defaultNickname() {
+        var member = login(FakeOAuthClient.NO_NICKNAME_CODE);
+
+        assertThat(member.getNickname()).matches("회원\\d{4}");
+    }
+
+    // FakeOAuthClient는 인가 코드를 그대로 providerUserId로 돌려준다
     private Member login(String providerUserId) {
-        return socialLoginService.login(new MemberLoginRequest(OAuthProvider.KAKAO, providerUserId, "테스트회원"));
+        return socialLoginService.login(OAuthProvider.KAKAO, new SocialLoginRequest(providerUserId));
     }
 }

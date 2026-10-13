@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.member.app;
 
 import com.bbcc.kidly.boundedcontext.member.app.port.AccessTokenIssuer;
-import com.bbcc.kidly.boundedcontext.member.app.port.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;

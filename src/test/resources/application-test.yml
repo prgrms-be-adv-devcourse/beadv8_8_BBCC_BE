@@ -12,3 +12,9 @@ spring:
 jwt:
   public-key: file:config/jwt/local-public.pem
   private-key: file:config/jwt/local-private.pem
+
+# 테스트는 카카오를 호출하지 않는다 (support.FakeOAuthClient). 빈 생성에만 쓰인다
+kakao:
+  client-id: test-client-id
+  client-secret: test-client-secret
+  redirect-uri: http://localhost:5173/oauth/kakao

@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
-import com.bbcc.kidly.boundedcontext.member.app.port.MemberQueryRepository;
-import com.bbcc.kidly.boundedcontext.member.app.port.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +29,7 @@ class MemberRegistrarIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private MemberQueryRepository memberQueryRepository;
+    private JpaMemberRepository jpaMemberRepository;
 
     @Autowired
     private ApplicationEvents events;
@@ -39,7 +39,7 @@ class MemberRegistrarIntegrationTest {
     void register() {
         Member member = memberRegistrar.register(new MemberLoginRequest(OAuthProvider.KAKAO, "kakao-1", "테스트회원"));
 
-        assertThat(memberQueryRepository.findBySocialAccount(OAuthProvider.KAKAO, "kakao-1"))
+        assertThat(memberRepository.findBySocialAccount(OAuthProvider.KAKAO, "kakao-1"))
             .hasValueSatisfying(found -> assertThat(found.getId()).isEqualTo(member.getId()));
         assertThat(events.stream(MemberRegisteredEvent.class)).singleElement().satisfies(event -> {
             assertThat(event.data().memberId()).isEqualTo(member.getId());
@@ -56,7 +56,7 @@ class MemberRegistrarIntegrationTest {
         assertThatThrownBy(() -> memberRegistrar.register(
             new MemberLoginRequest(OAuthProvider.KAKAO, "kakao-1", "다른회원")))
             .isInstanceOf(DataIntegrityViolationException.class);
-        assertThat(memberRepository.count()).isEqualTo(1);
+        assertThat(jpaMemberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class)).isEmpty();
     }
 }
