@@ -7,9 +7,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.RefreshToken;
 import com.bbcc.kidly.boundedcontext.member.domain.RefreshTokenRepository;
 import com.bbcc.kidly.global.error.BusinessException;
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,9 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class RefreshTokenService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-    private static final int TOKEN_BYTES = 32;
-
     private final RefreshTokenRepository refreshTokenRepository;
     private final MemberRepository memberRepository;
     private final RefreshTokenProperties properties;
@@ -33,7 +28,7 @@ public class RefreshTokenService {
     @Transactional
     public String issue(Long memberId) {
         var now = LocalDateTime.now();
-        var token = newToken();
+        var token = RefreshToken.generate();
         refreshTokenRepository.upsert(memberId, RefreshToken.hashOf(token), now.plus(properties.validity()), now);
         return token;
     }
@@ -49,7 +44,7 @@ public class RefreshTokenService {
         if (!memberRepository.findById(memberId).map(Member::canLogin).orElse(false)) {
             throw invalid();
         }
-        var newToken = newToken();
+        var newToken = RefreshToken.generate();
         var rotated = refreshTokenRepository.rotate(
             memberId, saved.getTokenHash(), RefreshToken.hashOf(newToken), now.plus(properties.validity()), now);
         if (rotated != 1) {
@@ -61,12 +56,6 @@ public class RefreshTokenService {
     @Transactional
     public void revoke(String token) {
         refreshTokenRepository.deleteByTokenHash(RefreshToken.hashOf(token));
-    }
-
-    private static String newToken() {
-        var bytes = new byte[TOKEN_BYTES];
-        RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     private static BusinessException invalid() {

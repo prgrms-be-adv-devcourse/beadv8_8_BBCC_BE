@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.time.Duration;
@@ -9,7 +10,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.test.web.servlet.client.RestTestClient.ResponseSpec;
@@ -30,7 +30,7 @@ class RefreshTokenApiTest {
     void loginSetsCookie() {
         client.post().uri(LOGIN_PATH)
             .contentType(MediaType.APPLICATION_JSON)
-            .body("{\"code\": \"kakao-1\"}")
+            .body(new SocialLoginRequest("kakao-1"))
             .exchange()
             .expectStatus().isOk()
             .expectHeader().valueMatches(HttpHeaders.CACHE_CONTROL, ".*no-store.*")
@@ -100,7 +100,7 @@ class RefreshTokenApiTest {
     private String login() {
         return client.post().uri(LOGIN_PATH)
             .contentType(MediaType.APPLICATION_JSON)
-            .body("{\"code\": \"kakao-1\"}")
+            .body(new SocialLoginRequest("kakao-1"))
             .exchange()
             .expectStatus().isOk()
             .returnResult()
@@ -115,7 +115,7 @@ class RefreshTokenApiTest {
 
     private void expectInvalid(ResponseSpec response) {
         response
-            .expectStatus().isEqualTo(HttpStatus.UNAUTHORIZED)
+            .expectStatus().isUnauthorized()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody()
             .jsonPath("$.title").isEqualTo("로그인이 만료되었습니다");

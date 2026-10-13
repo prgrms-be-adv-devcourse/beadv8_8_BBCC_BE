@@ -11,10 +11,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.HexFormat;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.security.crypto.keygen.Base64StringKeyGenerator;
+import org.springframework.security.crypto.keygen.StringKeyGenerator;
 
 /**
  * 회원의 Refresh Token. 회원당 1개이고(PK가 member_id), 원문 대신 SHA-256 해시만 저장한다.
@@ -30,6 +33,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken extends BaseTimeEntity {
 
+    // 원문은 의미 없는 256비트(32바이트) 랜덤 값이다. 쿠키에 그대로 넣을 수 있게 URL-safe Base64(43자)로 만든다
+    private static final StringKeyGenerator GENERATOR =
+        new Base64StringKeyGenerator(Base64.getUrlEncoder().withoutPadding(), 32);
+
     @Id
     @Column(name = "member_id")
     private Long memberId;
@@ -39,6 +46,10 @@ public class RefreshToken extends BaseTimeEntity {
 
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
+
+    public static String generate() {
+        return GENERATOR.generateKey();
+    }
 
     // 원문이 256비트 랜덤 값이라 salt나 느린 해시 없이 SHA-256으로 충분하다
     public static String hashOf(String token) {
