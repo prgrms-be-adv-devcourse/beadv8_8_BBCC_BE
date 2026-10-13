@@ -49,7 +49,11 @@ jobs:
             def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
             def who: if (.assignees | length) > 0 then [.assignees[].login | ($map[.] // .)] else ["담당자 없음"] end;
             def pct($done; $total): if $total > 0 then $done * 100 / $total | round else 0 end;
-            def bar($p): ($p / 10 | round) as $n | ("▰" * $n // "") + ("▱" * (10 - $n) // "");
+            # 막대 5칸(한 칸 20%). 색은 80% 이상 초록, 50% 이상 파랑, 그 밑은 보라. 칸은 내림이라 100%일 때만 다 차고, 0%가 아니면 최소 한 칸은 칠한다
+            def bar($p):
+              (if $p > 0 then [($p / 20 | floor), 1] | max else 0 end) as $n
+              | (if $p >= 80 then "🟩" elif $p >= 50 then "🟦" else "🟪" end) as $c
+              | ($c * $n // "") + ("⬜" * (5 - $n) // "");
             def short: sub("^\\[[A-Z]+\\]\\s*"; "");
 
             . as $issues
@@ -69,13 +73,13 @@ jobs:
                   [
                     {type: "header", text: {type: "plain_text", text: "📊 이슈 진행률 · \($today)"}},
                     {type: "section", text: {type: "mrkdwn",
-                      text: "전체 *\(pct($done; $total))%* 완료   `\(bar(pct($done; $total)))`   \($done) / \($total)개   <\($url)|이슈 보기 →>"}},
+                      text: "전체 *\(pct($done; $total))%* 완료   \(bar(pct($done; $total)))   \($done) / \($total)개   <\($url)|이슈 보기 →>"}},
                     {type: "divider"}
                   ]
                   # section 하나에 칸은 10개까지라 10명씩 나눈다
                   + [range(0; $people | length; 10) as $i
                       | {type: "section", fields: [$people[$i:$i + 10][]
-                          | {type: "mrkdwn", text: "*\(.who | esc)*\n`\(bar(.pct))`  \(.pct)%  ·  \(.done)/\(.total)"}]}]
+                          | {type: "mrkdwn", text: "*\(.who | esc)*\n\(bar(.pct))  \(.pct)%  ·  \(.done)/\(.total)"}]}]
                   + [
                     {type: "divider"},
                     {type: "section", text: {type: "mrkdwn", text: "*✅ \($sinceLabel) 처리된 이슈 \($closed | length)개*"}}
