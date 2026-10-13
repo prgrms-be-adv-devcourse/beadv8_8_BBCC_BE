@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildProfileResponse;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.GrowthRecordResponse;
+import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -34,38 +35,38 @@ public class ChildProfileController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ChildProfileResponse register(
-        @LoginMember Long memberId, @Valid @RequestBody ChildProfileRequest request, HttpServletResponse response) {
-        var child = childProfileService.register(memberId, request);
+        @LoginMember AuthMember member, @Valid @RequestBody ChildProfileRequest request, HttpServletResponse response) {
+        var child = childProfileService.register(member.id(), request);
         response.setHeader(HttpHeaders.LOCATION, "/api/v1/children/" + child.id());
         return ChildProfileResponse.from(child);
     }
 
     @GetMapping
-    public List<ChildProfileResponse> list(@LoginMember Long memberId) {
-        return childProfileService.getChildren(memberId).stream().map(ChildProfileResponse::from).toList();
+    public List<ChildProfileResponse> list(@LoginMember AuthMember member) {
+        return childProfileService.getChildren(member.id()).stream().map(ChildProfileResponse::from).toList();
     }
 
     @GetMapping("/{childId}")
-    public ChildProfileResponse get(@LoginMember Long memberId, @PathVariable Long childId) {
-        return ChildProfileResponse.from(childProfileService.getChild(memberId, childId));
+    public ChildProfileResponse get(@LoginMember AuthMember member, @PathVariable Long childId) {
+        return ChildProfileResponse.from(childProfileService.getChild(member.id(), childId));
     }
 
     // 모든 필드를 담아 보내는 전체 교체다
     @PatchMapping("/{childId}")
     public ChildProfileResponse update(
-        @LoginMember Long memberId, @PathVariable Long childId, @Valid @RequestBody ChildProfileRequest request) {
-        return ChildProfileResponse.from(childProfileService.update(memberId, childId, request));
+        @LoginMember AuthMember member, @PathVariable Long childId, @Valid @RequestBody ChildProfileRequest request) {
+        return ChildProfileResponse.from(childProfileService.update(member.id(), childId, request));
     }
 
     @DeleteMapping("/{childId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@LoginMember Long memberId, @PathVariable Long childId) {
-        childProfileService.delete(memberId, childId);
+    public void delete(@LoginMember AuthMember member, @PathVariable Long childId) {
+        childProfileService.delete(member.id(), childId);
     }
 
     @GetMapping("/{childId}/growth-records")
-    public List<GrowthRecordResponse> growthRecords(@LoginMember Long memberId, @PathVariable Long childId) {
-        return childProfileService.getGrowthRecords(memberId, childId).stream()
+    public List<GrowthRecordResponse> growthRecords(@LoginMember AuthMember member, @PathVariable Long childId) {
+        return childProfileService.getGrowthRecords(member.id(), childId).stream()
             .map(GrowthRecordResponse::from)
             .toList();
     }

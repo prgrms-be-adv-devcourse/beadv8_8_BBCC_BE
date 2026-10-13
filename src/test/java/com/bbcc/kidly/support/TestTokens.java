@@ -16,15 +16,19 @@ public class TestTokens {
 
     private final AccessTokenIssuer accessTokenIssuer;
 
+    public static String nickname(Long memberId) {
+        return "회원" + memberId;
+    }
+
     public String buyer(Long memberId) {
-        return accessTokenIssuer.issue(memberId, List.of(Role.BUYER));
+        return accessTokenIssuer.issue(memberId, nickname(memberId), List.of(Role.BUYER));
     }
 
     public String seller(Long memberId) {
-        return accessTokenIssuer.issue(memberId, List.of(Role.BUYER, Role.SELLER));
+        return accessTokenIssuer.issue(memberId, nickname(memberId), List.of(Role.BUYER, Role.SELLER));
     }
 
     public String admin(Long memberId) {
-        return accessTokenIssuer.issue(memberId, List.of(Role.BUYER, Role.ADMIN));
+        return accessTokenIssuer.issue(memberId, nickname(memberId), List.of(Role.BUYER, Role.ADMIN));
     }
 }

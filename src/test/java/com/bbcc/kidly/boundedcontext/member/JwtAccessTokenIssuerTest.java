@@ -33,30 +33,31 @@ class JwtAccessTokenIssuerTest {
         pem("PUBLIC KEY", KEY_PAIR.getPublic()), pem("PRIVATE KEY", KEY_PAIR.getPrivate()), VALIDITY));
 
     @Test
-    @DisplayName("회원 ID를 sub에, 역할을 roles에 담는다")
+    @DisplayName("회원 ID를 sub에, 닉네임을 nickname에, 역할을 roles에 담는다")
     void claims() {
-        String token = ISSUER.issue(1L, List.of(Role.BUYER, Role.SELLER));
+        String token = ISSUER.issue(1L, "소소맘", List.of(Role.BUYER, Role.SELLER));
 
         Jwt jwt = decoderOf(KEY_PAIR).decode(token);
 
         assertThat(jwt.getSubject()).isEqualTo("1");
+        assertThat(jwt.getClaimAsString("nickname")).isEqualTo("소소맘");
         assertThat(jwt.getClaimAsStringList("roles")).containsExactly("BUYER", "SELLER");
     }
 
     @Test
-    @DisplayName("업무 정보는 sub와 roles만 담는다")
+    @DisplayName("업무 정보는 sub · nickname · roles만 담는다")
     void onlyAllowedClaims() {
-        String token = ISSUER.issue(1L, List.of(Role.BUYER));
+        String token = ISSUER.issue(1L, "소소맘", List.of(Role.BUYER));
 
         Jwt jwt = decoderOf(KEY_PAIR).decode(token);
 
-        assertThat(jwt.getClaims()).containsOnlyKeys("sub", "roles", "iat", "exp");
+        assertThat(jwt.getClaims()).containsOnlyKeys("sub", "nickname", "roles", "iat", "exp");
     }
 
     @Test
     @DisplayName("만료 시각은 발급 시각에서 유효 기간만큼 뒤다")
     void validity() {
-        String token = ISSUER.issue(1L, List.of(Role.BUYER));
+        String token = ISSUER.issue(1L, "소소맘", List.of(Role.BUYER));
 
         Jwt jwt = decoderOf(KEY_PAIR).decode(token);
 
@@ -66,7 +67,7 @@ class JwtAccessTokenIssuerTest {
     @Test
     @DisplayName("RS256으로 서명한다")
     void algorithm() {
-        String token = ISSUER.issue(1L, List.of(Role.BUYER));
+        String token = ISSUER.issue(1L, "소소맘", List.of(Role.BUYER));
 
         Jwt jwt = decoderOf(KEY_PAIR).decode(token);
 
@@ -76,7 +77,7 @@ class JwtAccessTokenIssuerTest {
     @Test
     @DisplayName("다른 공개키로는 검증되지 않는다")
     void otherKeyRejected() {
-        String token = ISSUER.issue(1L, List.of(Role.BUYER));
+        String token = ISSUER.issue(1L, "소소맘", List.of(Role.BUYER));
 
         JwtDecoder otherDecoder = decoderOf(generateKeyPair());
 
