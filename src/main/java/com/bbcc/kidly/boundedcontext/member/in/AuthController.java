@@ -4,10 +4,7 @@ import com.bbcc.kidly.boundedcontext.member.app.AuthTokenService;
 import com.bbcc.kidly.boundedcontext.member.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.member.app.SocialLoginService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
-import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
-import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.security.PublicApi;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -34,9 +31,9 @@ public class AuthController {
     @PostMapping("/api/v1/auth/login/{provider}")
     public LoginResponse login(
         @PathVariable String provider, @Valid @RequestBody SocialLoginRequest request, HttpServletResponse response) {
-        var member = socialLoginService.login(OAuthProvider.from(provider), request);
-        refreshTokenCookies.add(response, refreshTokenService.issue(member.getId()));
-        return new LoginResponse(authTokenService.issueAccessToken(member.getId()));
+        var member = socialLoginService.login(provider, request);
+        refreshTokenCookies.add(response, refreshTokenService.issue(member.memberId()));
+        return new LoginResponse(authTokenService.issueAccessToken(member.memberId()));
     }
 
     // Access Token이 만료되면 쿠키의 Refresh Token으로 둘 다 새로 받는다
@@ -45,9 +42,6 @@ public class AuthController {
     public LoginResponse reissue(
         @CookieValue(name = RefreshTokenCookies.NAME, required = false) String refreshToken,
         HttpServletResponse response) {
-        if (refreshToken == null) {
-            throw new BusinessException(MemberErrorCode.INVALID_REFRESH_TOKEN);
-        }
         var reissued = refreshTokenService.reissue(refreshToken);
         refreshTokenCookies.add(response, reissued.refreshToken());
         return new LoginResponse(authTokenService.issueAccessToken(reissued.memberId()));

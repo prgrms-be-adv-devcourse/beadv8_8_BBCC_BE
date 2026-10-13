@@ -88,6 +88,12 @@ class RefreshTokenServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("토큰이 없으면 재발급하지 않는다")
+    void missingToken() {
+        assertInvalid(() -> refreshTokenService.reissue(null));
+    }
+
+    @Test
     @DisplayName("만료된 토큰이면 재발급하지 않는다")
     void expiredToken() {
         var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
