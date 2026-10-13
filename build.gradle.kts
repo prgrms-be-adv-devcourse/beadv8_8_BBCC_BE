@@ -22,6 +22,7 @@ val querydslVersion = "7.7"
 val springdocVersion = "3.1.1"
 val archunitVersion = "1.5.1"
 val springDotenvVersion = "5.1.0"
+val logstashEncoderVersion = "9.0"
 
 dependencies {
     // Web
@@ -43,6 +44,9 @@ dependencies {
 
     // .env 읽기 (따옴표 · export 등 .env 문법 지원). 테스트 프로필에서는 끈다
     implementation("me.paulschwarz:springboot4-dotenv:$springDotenvVersion")
+
+    // 로그를 JSON으로 Logstash에 보낸다 (logback-spring.xml의 LOGSTASH)
+    implementation("net.logstash.logback:logstash-logback-encoder:$logstashEncoderVersion")
 
     // API 문서
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
