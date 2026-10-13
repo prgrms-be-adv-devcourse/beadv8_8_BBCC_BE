@@ -25,6 +25,10 @@ jwt:
 cors:
   allowed-origins: http://localhost:5173
 
+# 로컬은 http라서 Secure 쿠키를 브라우저가 보내지 않는다. 운영은 기본값(true)을 쓴다
+refresh-token:
+  secure-cookie: false
+
 logging:
   level:
     org.hibernate.SQL: debug
