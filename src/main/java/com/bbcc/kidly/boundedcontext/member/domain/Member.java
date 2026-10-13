@@ -3,8 +3,10 @@ package com.bbcc.kidly.boundedcontext.member.domain;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -23,7 +25,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 회원. 소셜 계정으로 가입 · 로그인한다. 판매자 여부는 저장하지 않는다.
+ * 회원. 소셜 계정으로 가입 · 로그인한다. 판매자 여부는 역할로 저장하지 않고, 이벤트로 받은 판매자 상태 복사본을 가진다.
  */
 @Entity
 @Table(name = "member", schema = "member")
@@ -45,6 +47,10 @@ public class Member extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MemberStatus status;
+
+    // 판매자가 아니면 null
+    @Embedded
+    private SellerState sellerState;
 
     // 나중에 같은 사람의 여러 소셜 계정을 한 회원으로 통합할 수 있게 1:N으로 둔다
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -74,6 +80,18 @@ public class Member extends BaseTimeEntity {
 
     public boolean isAdmin() {
         return role == MemberRole.ADMIN;
+    }
+
+    // 판매자 상태 복사본을 갱신한다. 저장된 값보다 늦게 일어난 변경만 반영한다
+    public void applySellerState(SellerStatus status, LocalDateTime occurredAt) {
+        var changed = new SellerState(status, occurredAt);
+        if (sellerState == null || sellerState.isOlderThan(changed)) {
+            this.sellerState = changed;
+        }
+    }
+
+    public boolean isActiveSeller() {
+        return sellerState != null && sellerState.isActive();
     }
 
     public List<SocialAccount> getSocialAccounts() {
