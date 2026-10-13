@@ -1,5 +1,6 @@
 package com.bbcc.kidly.architecture;
 
+import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue;
 import static com.tngtech.archunit.base.DescribedPredicate.not;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.equivalentTo;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
@@ -34,7 +35,10 @@ class OrderArchitectureTest {
     private static final String APP = ORDER + ".app..";
     private static final String PORT = ORDER + ".app.port..";
     private static final String IN = ORDER + ".in..";
+    private static final String EVENT = ORDER + ".in.event..";
     private static final String OUT = ORDER + ".out..";
+    private static final String SHARED_PRODUCT = "com.bbcc.kidly.shared.product..";
+    private static final String SHARED_CHILDPROFILE = "com.bbcc.kidly.shared.childprofile..";
 
     /**
      * domain은 jakarta.persistence까지만 안다.
@@ -48,7 +52,17 @@ class OrderArchitectureTest {
         .allowEmptyShould(true);
 
     /**
-     * 애그리거트 패키지(domain.order · cart · delivery)끼리는 의존하지 않고, domain 바로 아래 공통 값에만 의존한다.
+     * domain에는 인터페이스를 두지 않는다(엔티티 · record · enum만). 저장소 등 나가는 인터페이스는 app/port에 둔다.
+     */
+    @ArchTest
+    static final ArchRule DOMAIN_HAS_NO_INTERFACES = noClasses()
+        .that().resideInAPackage(DOMAIN)
+        .and().doNotHaveSimpleName("package-info")
+        .should().beInterfaces()
+        .allowEmptyShould(true);
+
+    /**
+     * 애그리거트 패키지(domain.order · cart · delivery · replica)끼리는 의존하지 않고, domain 바로 아래 공통 값에만 의존한다.
      */
     @ArchTest
     static final ArchRule DOMAIN_AGGREGATES_DO_NOT_DEPEND_ON_EACH_OTHER = slices()
@@ -73,7 +87,26 @@ class OrderArchitectureTest {
     static final ArchRule EVENT_LISTENERS_LIVE_IN_EVENT = methods()
         .that().areAnnotatedWith(DomainEventListener.class)
         .and().areDeclaredInClassesThat().resideInAPackage(ORDER + "..")
-        .should().beDeclaredInClassesThat().resideInAPackage(ORDER + ".in.event..")
+        .should().beDeclaredInClassesThat().resideInAPackage(EVENT)
+        .allowEmptyShould(true);
+
+    /**
+     * 다른 도메인 이벤트(상품 · 자녀)를 아는 클래스는 in.event 리스너뿐이다. 이벤트 → 커맨드 변환은 리스너 안에서만 한다.
+     */
+    @ArchTest
+    static final ArchRule ONLY_REPLICA_LISTENERS_KNOW_OTHER_DOMAIN_EVENTS = noClasses()
+        .that().resideInAPackage(ORDER + "..")
+        .and().resideOutsideOfPackage(EVENT)
+        .should().dependOnClassesThat().resideInAnyPackage(SHARED_PRODUCT, SHARED_CHILDPROFILE)
+        .allowEmptyShould(true);
+
+    /**
+     * domain · app은 다른 도메인 계약(상품 · 자녀)을 쓰지 않는다. 다른 도메인 enum은 name() 문자열로 받는다.
+     */
+    @ArchTest
+    static final ArchRule ORDER_DOMAIN_DOES_NOT_USE_OTHER_DOMAIN_CONTRACTS = noClasses()
+        .that().resideInAnyPackage(DOMAIN, APP)
+        .should().dependOnClassesThat().resideInAnyPackage(SHARED_PRODUCT, SHARED_CHILDPROFILE)
         .allowEmptyShould(true);
 
     /**
@@ -84,6 +117,16 @@ class OrderArchitectureTest {
         .that().areAnnotatedWith(Scheduled.class)
         .and().areDeclaredInClassesThat().resideInAPackage(ORDER + "..")
         .should().beDeclaredInClassesThat().resideInAPackage(ORDER + ".in.scheduler..")
+        .allowEmptyShould(true);
+
+    /**
+     * 기능 패키지(app.cart · replica …)끼리는 의존하지 않는다. 출력 포트(app.port)는 기능이 아니라 모든 기능이 쓴다.
+     */
+    @ArchTest
+    static final ArchRule APP_FEATURES_DO_NOT_DEPEND_ON_EACH_OTHER = slices()
+        .matching(ORDER + ".app.(*)..")
+        .should().notDependOnEachOther()
+        .ignoreDependency(alwaysTrue(), resideInAPackage(PORT))
         .allowEmptyShould(true);
 
     @ArchTest
