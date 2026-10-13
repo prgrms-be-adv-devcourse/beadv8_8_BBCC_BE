@@ -198,8 +198,9 @@ class OrderTest {
         void recordsRequestedAt() {
             Order order = OrderFixture.placedOrder();
 
-            order.requestPayment(NOW.plusSeconds(5));
+            boolean requested = order.requestPayment(NOW.plusSeconds(5));
 
+            assertThat(requested).isTrue();
             assertThat(order.getPaymentRequestedAt()).isEqualTo(NOW.plusSeconds(5));
             assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
         }
@@ -210,8 +211,9 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.requestPayment(NOW.plusSeconds(5));
 
-            catchThrowable(() -> order.requestPayment(NOW.plusSeconds(9)));
+            boolean requested = order.requestPayment(NOW.plusSeconds(9));
 
+            assertThat(requested).isFalse();
             assertThat(order.getPaymentRequestedAt()).isEqualTo(NOW.plusSeconds(5));
         }
 
@@ -221,8 +223,9 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
 
-            catchThrowable(() -> order.requestPayment(NOW.plusMinutes(12)));
+            boolean requested = order.requestPayment(NOW.plusMinutes(12));
 
+            assertThat(requested).isFalse();
             assertThat(order.getPaymentRequestedAt()).isNull();
         }
     }
