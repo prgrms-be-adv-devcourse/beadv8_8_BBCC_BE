@@ -36,6 +36,9 @@ public class RefreshTokenService {
     // 토큰을 새 값으로 바꾼다. 같은 토큰으로 동시에 요청하면 한 요청만 바꾸고 나머지는 거절한다
     @Transactional
     public ReissuedToken reissue(String token) {
+        if (token == null) {
+            throw invalid();
+        }
         var now = LocalDateTime.now();
         var saved = refreshTokenRepository.findByTokenHash(RefreshToken.hashOf(token))
             .filter(refreshToken -> refreshToken.isUsable(now))
