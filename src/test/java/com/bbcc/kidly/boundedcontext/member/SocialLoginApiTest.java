@@ -52,33 +52,33 @@ class SocialLoginApiTest {
     void suspendedMember() {
         memberRepository.save(MemberFixture.withStatus(MemberStatus.SUSPENDED));
 
-        expectProblem(KAKAO_LOGIN_PATH, "{\"code\": \"kakao-1\"}", HttpStatus.FORBIDDEN, "로그인할 수 없는 회원입니다");
+        expectProblem(KAKAO_LOGIN_PATH, codeBody("kakao-1"), HttpStatus.FORBIDDEN, "로그인할 수 없는 회원입니다");
     }
 
     @Test
     @DisplayName("잘못된 인가 코드면 400")
     void invalidCode() {
-        expectProblem(KAKAO_LOGIN_PATH, "{\"code\": \"" + FakeOAuthClient.INVALID_CODE + "\"}",
+        expectProblem(KAKAO_LOGIN_PATH, codeBody(FakeOAuthClient.INVALID_CODE),
             HttpStatus.BAD_REQUEST, "인가 코드가 올바르지 않습니다");
     }
 
     @Test
     @DisplayName("인가 코드가 비어 있으면 400")
     void blankCode() {
-        expectProblem(KAKAO_LOGIN_PATH, "{\"code\": \" \"}", HttpStatus.BAD_REQUEST, "잘못된 요청입니다");
+        expectProblem(KAKAO_LOGIN_PATH, codeBody(" "), HttpStatus.BAD_REQUEST, "잘못된 요청입니다");
     }
 
     @Test
     @DisplayName("지원하지 않는 제공자면 400")
     void unsupportedProvider() {
-        expectProblem("/api/v1/auth/login/unknown", "{\"code\": \"kakao-1\"}",
+        expectProblem("/api/v1/auth/login/unknown", codeBody("kakao-1"),
             HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인입니다");
     }
 
     private String login(String code) {
         return client.post().uri(KAKAO_LOGIN_PATH)
             .contentType(MediaType.APPLICATION_JSON)
-            .body("{\"code\": \"" + code + "\"}")
+            .body(codeBody(code))
             .exchange()
             .expectStatus().isOk()
             .expectBody(LoginResponse.class)
@@ -96,6 +96,10 @@ class SocialLoginApiTest {
             .expectBody(Long.class)
             .returnResult()
             .getResponseBody();
+    }
+
+    private static String codeBody(String code) {
+        return "{\"code\": \"" + code + "\"}";
     }
 
     private void expectProblem(String path, String body, HttpStatus status, String title) {
