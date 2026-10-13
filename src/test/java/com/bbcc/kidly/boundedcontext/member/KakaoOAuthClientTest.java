@@ -97,6 +97,15 @@ class KakaoOAuthClientTest {
     }
 
     @Test
+    @DisplayName("400 응답이 JSON이 아니면 OAUTH_PROVIDER_ERROR")
+    void nonJsonBadRequest() {
+        server.expect(requestTo(TOKEN_URL))
+            .andRespond(withBadRequest().contentType(MediaType.TEXT_HTML).body("<html>Bad Request</html>"));
+
+        assertErrorCode(() -> fetch("auth-code"), MemberErrorCode.OAUTH_PROVIDER_ERROR);
+    }
+
+    @Test
     @DisplayName("앱 키나 secret 설정이 잘못돼 토큰을 받지 못하면 OAUTH_PROVIDER_ERROR")
     void invalidClient() {
         server.expect(requestTo(TOKEN_URL))

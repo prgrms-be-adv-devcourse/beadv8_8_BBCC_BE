@@ -76,10 +76,15 @@ public class KakaoOAuthClient implements OAuthClient {
         }
     }
 
-    // 400이어도 invalid_grant가 아니면(redirect URI 불일치 등) 우리 설정 문제라서 제공자 오류로 본다
+    // 400이어도 invalid_grant가 아니면(redirect URI 불일치 등) 우리 설정 문제라서 제공자 오류로 본다.
+    // 본문이 JSON이 아니면(게이트웨이 오류 페이지 등) 읽지 못하므로 invalid_grant가 아니다
     private boolean isInvalidGrant(HttpClientErrorException e) {
-        var error = e.getResponseBodyAs(KakaoError.class);
-        return error != null && "invalid_grant".equals(error.error());
+        try {
+            var error = e.getResponseBodyAs(KakaoError.class);
+            return error != null && "invalid_grant".equals(error.error());
+        } catch (RestClientException unreadable) {
+            return false;
+        }
     }
 
     private BusinessException providerError(RestClientException e) {
