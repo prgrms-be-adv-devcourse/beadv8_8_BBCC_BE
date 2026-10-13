@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
  * 보호자의 자녀 프로필 API. 본인 자녀만 다루고, 없는 · 남의 · 삭제된 자녀는 모두 404다.
@@ -37,8 +36,7 @@ public class ChildController {
     public ChildResponse register(
         @LoginMember Long memberId, @Valid @RequestBody ChildProfileRequest request, HttpServletResponse response) {
         var child = childProfileService.register(memberId, request);
-        response.setHeader(HttpHeaders.LOCATION, ServletUriComponentsBuilder.fromCurrentRequest()
-            .path("/{childId}").build(child.id()).toString());
+        response.setHeader(HttpHeaders.LOCATION, "/api/v1/children/" + child.id());
         return ChildResponse.from(child);
     }
 

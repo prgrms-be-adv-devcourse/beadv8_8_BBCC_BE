@@ -53,7 +53,7 @@ class ChildApiTest {
 
         var child = result.getResponseBody();
         assertThat(result.getResponseHeaders().getFirst(HttpHeaders.LOCATION))
-            .endsWith(CHILDREN_PATH + "/" + child.id());
+            .isEqualTo(CHILDREN_PATH + "/" + child.id());
         assertThat(child.name()).isEqualTo("첫째");
         assertThat(child.heightCm()).isEqualByComparingTo("115.0");
         assertThat(child.bodyType()).isEqualTo(BodyType.NORMAL);
