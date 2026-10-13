@@ -22,8 +22,7 @@ import lombok.NoArgsConstructor;
 @Table(schema = "orders", name = "cart_item", indexes = @Index(
     name = "uk_cart_item_member_option_child",
     columnList = "member_id, option_id, child_id",
-    unique = true,
-    options = "NULLS NOT DISTINCT"))
+    unique = true))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CartItem extends BaseTimeEntity {

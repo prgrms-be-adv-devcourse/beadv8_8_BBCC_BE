@@ -119,6 +119,22 @@ class CartServiceTest {
     }
 
     @Test
+    @DisplayName("담기: 자녀 없는 같은 줄이 있으면 수량을 더하고 created false")
+    void addMergesSameLineWithoutChild() {
+        givenProduct(product(OPTION_ID, 25_000L, "ON_SALE", false));
+        CartItem existing = CartItem.create(BUYER_ID, OPTION_ID, null, 1);
+        when(cartItemRepository.findByMemberIdAndOptionIdAndChildId(BUYER_ID, OPTION_ID, null))
+            .thenReturn(Optional.of(existing));
+
+        AddCartItemResult result = cartService.addItem(BUYER_ID, OPTION_ID, null, 2);
+
+        assertThat(existing.getQuantity()).isEqualTo(3);
+        assertThat(result.created()).isFalse();
+        assertThat(result.line().childId()).isNull();
+        verify(cartItemRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("담기: 상품 옵션 복사본이 없으면 PRODUCT_OPTION_NOT_FOUND")
     void addFailsWhenOptionMissing() {
         assertAddFails(BUYER_ID, 1L, 1L, 0, OrderErrorCode.PRODUCT_OPTION_NOT_FOUND);

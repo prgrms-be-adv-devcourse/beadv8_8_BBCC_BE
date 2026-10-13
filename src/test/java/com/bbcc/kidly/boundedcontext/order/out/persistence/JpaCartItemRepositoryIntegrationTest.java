@@ -67,22 +67,21 @@ class JpaCartItemRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("(회원, 옵션, 자녀) 유니크 인덱스가 NULLS NOT DISTINCT로 만들어진다")
+    @DisplayName("(회원, 옵션, 자녀) 세 컬럼 유니크 인덱스가 있다")
     void uniqueIndexIsGenerated() {
         String indexDef = jdbcTemplate.queryForObject(
             "select indexdef from pg_indexes where schemaname = 'orders' and indexname = ?",
             String.class, "uk_cart_item_member_option_child");
 
-        assertThat(indexDef).contains("UNIQUE").contains("(member_id, option_id, child_id)")
-            .contains("NULLS NOT DISTINCT");
+        assertThat(indexDef).contains("UNIQUE").contains("(member_id, option_id, child_id)");
     }
 
     @Test
-    @DisplayName("자녀 없는 같은 줄을 두 번 저장할 수 없다")
-    void rejectsDuplicateLineWithoutChild() {
-        cartItemRepository.save(CartItem.create(BUYER_ID, 1L, null, 1));
+    @DisplayName("자녀를 지정한 같은 줄을 두 번 저장할 수 없다")
+    void rejectsDuplicateLineWithChild() {
+        cartItemRepository.save(CartItem.create(BUYER_ID, 1L, 1L, 1));
 
-        assertThatThrownBy(() -> cartItemRepository.save(CartItem.create(BUYER_ID, 1L, null, 1)))
+        assertThatThrownBy(() -> cartItemRepository.save(CartItem.create(BUYER_ID, 1L, 1L, 1)))
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 }
