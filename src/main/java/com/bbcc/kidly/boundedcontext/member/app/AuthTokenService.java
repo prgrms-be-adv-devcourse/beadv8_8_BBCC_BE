@@ -6,12 +6,13 @@ import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
 import com.bbcc.kidly.global.security.Role;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
- * 회원의 역할을 계산해 토큰을 발급한다. 판매자 여부는 저장하지 않으므로 발급할 때마다 계산한다.
+ * 회원의 역할을 계산해 토큰을 발급한다. SELLER 역할은 저장하지 않고, 회원의 판매자 상태 복사본으로 발급할 때마다 계산한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -26,8 +27,15 @@ public class AuthTokenService {
         return accessTokenIssuer.issue(memberId, rolesOf(member));
     }
 
-    // 판매자(SELLER)는 Seller 애그리거트가 생기면 추가한다
     private List<Role> rolesOf(Member member) {
-        return member.isAdmin() ? List.of(Role.BUYER, Role.ADMIN) : List.of(Role.BUYER);
+        var roles = new ArrayList<Role>();
+        roles.add(Role.BUYER);
+        if (member.isActiveSeller()) {
+            roles.add(Role.SELLER);
+        }
+        if (member.isAdmin()) {
+            roles.add(Role.ADMIN);
+        }
+        return List.copyOf(roles);
     }
 }

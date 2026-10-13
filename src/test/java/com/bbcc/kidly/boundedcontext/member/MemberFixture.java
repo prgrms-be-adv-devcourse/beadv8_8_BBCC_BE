@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import java.time.LocalDateTime;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -32,6 +33,12 @@ public final class MemberFixture {
     public static Member withStatus(MemberStatus status) {
         Member member = kakaoMember();
         ReflectionTestUtils.setField(member, "status", status);
+        return member;
+    }
+
+    public static Member withSellerState(SellerStatus status) {
+        Member member = kakaoMember();
+        member.applySellerState(status, NOW);
         return member;
     }
 }

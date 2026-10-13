@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
 import com.bbcc.kidly.global.security.Role;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -53,6 +54,40 @@ class AuthTokenServiceTest {
         authTokenService.issueAccessToken(MEMBER_ID);
 
         then(accessTokenIssuer).should().issue(MEMBER_ID, List.of(Role.BUYER, Role.ADMIN));
+    }
+
+    @Test
+    @DisplayName("ACTIVE 판매자는 BUYER와 SELLER 역할로 발급한다")
+    void seller() {
+        given(memberRepository.findById(MEMBER_ID))
+            .willReturn(Optional.of(MemberFixture.withSellerState(SellerStatus.ACTIVE)));
+
+        authTokenService.issueAccessToken(MEMBER_ID);
+
+        then(accessTokenIssuer).should().issue(MEMBER_ID, List.of(Role.BUYER, Role.SELLER));
+    }
+
+    @Test
+    @DisplayName("정지된 판매자는 SELLER 역할 없이 발급한다")
+    void suspendedSeller() {
+        given(memberRepository.findById(MEMBER_ID))
+            .willReturn(Optional.of(MemberFixture.withSellerState(SellerStatus.SUSPENDED)));
+
+        authTokenService.issueAccessToken(MEMBER_ID);
+
+        then(accessTokenIssuer).should().issue(MEMBER_ID, List.of(Role.BUYER));
+    }
+
+    @Test
+    @DisplayName("판매자인 관리자는 BUYER, SELLER, ADMIN 순서로 발급한다")
+    void sellerAdmin() {
+        var member = MemberFixture.withRole(MemberRole.ADMIN);
+        member.applySellerState(SellerStatus.ACTIVE, MemberFixture.NOW);
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+
+        authTokenService.issueAccessToken(MEMBER_ID);
+
+        then(accessTokenIssuer).should().issue(MEMBER_ID, List.of(Role.BUYER, Role.SELLER, Role.ADMIN));
     }
 
     @Test
