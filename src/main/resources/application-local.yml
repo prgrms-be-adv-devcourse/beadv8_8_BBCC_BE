@@ -1,4 +1,7 @@
 spring:
+  # 프로젝트 루트의 .env(카카오 키 등, git 제외)를 읽는다. 없어도 앱은 뜬다
+  config:
+    import: optional:file:.env[.properties]
   datasource:
     url: jdbc:postgresql://localhost:5432/kidly
     username: kidly
