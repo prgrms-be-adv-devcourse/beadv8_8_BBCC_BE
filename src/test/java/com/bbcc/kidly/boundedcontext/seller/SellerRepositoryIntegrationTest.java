@@ -39,7 +39,8 @@ class SellerRepositoryIntegrationTest {
     void saveDuplicate() {
         sellerRepository.save(Seller.from(SellerFixture.approvedApplication(MEMBER_ID)));
         var other = SellerApplication.submit(new SellerApplicationSubmitInfo(
-            MEMBER_ID, "다른상점", SellerFixture.REPRESENTATIVE_NAME, SellerFixture.BUSINESS_REGISTRATION_NUMBER));
+            MEMBER_ID, SellerFixture.APPLICANT_NICKNAME, "다른상점", SellerFixture.REPRESENTATIVE_NAME,
+            SellerFixture.BUSINESS_REGISTRATION_NUMBER));
         other.approve(SellerFixture.ADMIN_ID, SellerFixture.NOW);
 
         assertThatThrownBy(() -> sellerRepository.save(Seller.from(other)))

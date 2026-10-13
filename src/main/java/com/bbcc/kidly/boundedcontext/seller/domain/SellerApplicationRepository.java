@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.seller.domain;
 
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
+import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import java.util.Optional;
 
 public interface SellerApplicationRepository {

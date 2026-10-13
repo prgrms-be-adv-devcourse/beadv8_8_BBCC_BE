@@ -24,7 +24,7 @@ public class AuthTokenService {
     public String issueAccessToken(Long memberId) {
         var member = memberRepository.findById(memberId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        return accessTokenIssuer.issue(memberId, rolesOf(member));
+        return accessTokenIssuer.issue(memberId, member.getNickname(), rolesOf(member));
     }
 
     private List<Role> rolesOf(Member member) {

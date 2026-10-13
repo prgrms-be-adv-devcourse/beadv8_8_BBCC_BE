@@ -43,7 +43,7 @@ class AuthTokenServiceTest {
 
         authTokenService.issueAccessToken(MEMBER_ID);
 
-        then(accessTokenIssuer).should().issue(MEMBER_ID, List.of(Role.BUYER));
+        then(accessTokenIssuer).should().issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER));
     }
 
     @Test
@@ -53,7 +53,7 @@ class AuthTokenServiceTest {
 
         authTokenService.issueAccessToken(MEMBER_ID);
 
-        then(accessTokenIssuer).should().issue(MEMBER_ID, List.of(Role.BUYER, Role.ADMIN));
+        then(accessTokenIssuer).should().issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER, Role.ADMIN));
     }
 
     @Test
@@ -64,7 +64,7 @@ class AuthTokenServiceTest {
 
         authTokenService.issueAccessToken(MEMBER_ID);
 
-        then(accessTokenIssuer).should().issue(MEMBER_ID, List.of(Role.BUYER, Role.SELLER));
+        then(accessTokenIssuer).should().issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER, Role.SELLER));
     }
 
     @Test
@@ -75,7 +75,7 @@ class AuthTokenServiceTest {
 
         authTokenService.issueAccessToken(MEMBER_ID);
 
-        then(accessTokenIssuer).should().issue(MEMBER_ID, List.of(Role.BUYER));
+        then(accessTokenIssuer).should().issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER));
     }
 
     @Test
@@ -87,7 +87,8 @@ class AuthTokenServiceTest {
 
         authTokenService.issueAccessToken(MEMBER_ID);
 
-        then(accessTokenIssuer).should().issue(MEMBER_ID, List.of(Role.BUYER, Role.SELLER, Role.ADMIN));
+        then(accessTokenIssuer).should()
+            .issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER, Role.SELLER, Role.ADMIN));
     }
 
     @Test

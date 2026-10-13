@@ -2,8 +2,10 @@ package com.bbcc.kidly.boundedcontext.member;
 
 import static com.bbcc.kidly.support.TestApiController.LOGIN_MEMBER_PATH;
 import static com.bbcc.kidly.support.TestApiController.SELLER_PATH;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.member.in.dto.DevTokenResponse;
+import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.support.FunctionalTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,7 +30,8 @@ class DevTokenApiTest {
             .headers(headers -> headers.setBearerAuth(token))
             .exchange()
             .expectStatus().isOk()
-            .expectBody(Long.class).isEqualTo(7L);
+            .expectBody(AuthMember.class)
+            .value(member -> assertThat(member.id()).isEqualTo(7L));
     }
 
     @Test
@@ -40,6 +43,45 @@ class DevTokenApiTest {
             .headers(headers -> headers.setBearerAuth(token))
             .exchange()
             .expectStatus().isOk();
+    }
+
+    @Test
+    @DisplayName("발급받은 토큰에는 요청한 닉네임이 담긴다")
+    void issuedTokenHasNickname() {
+        String token = issue("{\"memberId\": 7, \"nickname\": \"개발자\", \"roles\": [\"BUYER\"]}");
+
+        client.get().uri(LOGIN_MEMBER_PATH)
+            .headers(headers -> headers.setBearerAuth(token))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(AuthMember.class)
+            .value(member -> assertThat(member.nickname()).isEqualTo("개발자"));
+    }
+
+    @Test
+    @DisplayName("닉네임을 생략하면 회원 ID로 만든 기본 닉네임이 담긴다")
+    void defaultNickname() {
+        String token = issue("{\"memberId\": 7, \"roles\": [\"BUYER\"]}");
+
+        client.get().uri(LOGIN_MEMBER_PATH)
+            .headers(headers -> headers.setBearerAuth(token))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(AuthMember.class)
+            .value(member -> assertThat(member.nickname()).isEqualTo("회원7"));
+    }
+
+    @Test
+    @DisplayName("닉네임이 비어 있으면 회원 ID로 만든 기본 닉네임이 담긴다")
+    void blankNickname() {
+        String token = issue("{\"memberId\": 7, \"nickname\": \"\", \"roles\": [\"BUYER\"]}");
+
+        client.get().uri(LOGIN_MEMBER_PATH)
+            .headers(headers -> headers.setBearerAuth(token))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(AuthMember.class)
+            .value(member -> assertThat(member.nickname()).isEqualTo("회원7"));
     }
 
     @Test
