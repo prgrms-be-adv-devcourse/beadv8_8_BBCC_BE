@@ -1,5 +1,7 @@
 package com.bbcc.kidly.architecture;
 
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideOutsideOfPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
@@ -23,7 +25,7 @@ class ArchitectureTest {
     private static final String BASE = "com.bbcc.kidly";
     private static final String CONTEXTS = BASE + ".boundedcontext";
     private static final List<String> DOMAINS =
-        List.of("member", "product", "recommend", "order", "payment", "settlement");
+        List.of("member", "childprofile", "seller", "product", "recommend", "order", "payment", "settlement");
 
     @ArchTest
     void domainsDoNotDependOnOtherDomains(JavaClasses classes) {
@@ -63,9 +65,34 @@ class ArchitectureTest {
         .allowEmptyShould(true);
 
     @ArchTest
+    static final ArchRule IN_DOES_NOT_USE_DOMAIN = noClasses()
+        .that().resideInAPackage(CONTEXTS + ".*.in..")
+        .should().dependOnClassesThat().resideInAPackage(CONTEXTS + ".*.domain..")
+        .allowEmptyShould(true);
+
+    @ArchTest
     static final ArchRule IN_DOES_NOT_USE_OUT = noClasses()
         .that().resideInAPackage(CONTEXTS + ".*.in..")
         .should().dependOnClassesThat().resideInAPackage(CONTEXTS + ".*.out..")
+        .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule APP_DOES_NOT_USE_IN_OR_OUT = noClasses()
+        .that().resideInAPackage(CONTEXTS + ".*.app..")
+        .should().dependOnClassesThat().resideInAnyPackage(CONTEXTS + ".*.in..", CONTEXTS + ".*.out..")
+        .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule OUT_DOES_NOT_USE_IN = noClasses()
+        .that().resideInAPackage(CONTEXTS + ".*.out..")
+        .should().dependOnClassesThat().resideInAPackage(CONTEXTS + ".*.in..")
+        .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule OUT_USES_ONLY_PORT_OF_APP = noClasses()
+        .that().resideInAPackage(CONTEXTS + ".*.out..")
+        .should().dependOnClassesThat(resideInAPackage(CONTEXTS + ".*.app..")
+            .and(resideOutsideOfPackage(CONTEXTS + ".*.app.port..")))
         .allowEmptyShould(true);
 
     @ArchTest

@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -82,5 +83,57 @@ class MemberTest {
 
         assertThatThrownBy(() -> member.getSocialAccounts().clear())
             .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    @DisplayName("판매자 상태를 처음 받으면 그대로 저장한다")
+    void applySellerStateFirst() {
+        Member member = MemberFixture.kakaoMember();
+
+        member.applySellerState(SellerStatus.ACTIVE, NOW);
+
+        assertThat(member.getSellerState().status()).isEqualTo(SellerStatus.ACTIVE);
+        assertThat(member.getSellerState().changedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("더 늦게 일어난 판매자 상태 변경은 저장된 값을 바꾼다")
+    void applySellerStateLater() {
+        Member member = MemberFixture.withSellerState(SellerStatus.ACTIVE);
+
+        member.applySellerState(SellerStatus.SUSPENDED, NOW.plusDays(1));
+
+        assertThat(member.getSellerState().status()).isEqualTo(SellerStatus.SUSPENDED);
+        assertThat(member.getSellerState().changedAt()).isEqualTo(NOW.plusDays(1));
+    }
+
+    @Test
+    @DisplayName("저장된 값보다 이르거나 같은 시각의 판매자 상태 변경은 무시한다")
+    void applySellerStateIgnoresEarlierOrEqual() {
+        Member member = MemberFixture.withSellerState(SellerStatus.SUSPENDED);
+
+        member.applySellerState(SellerStatus.ACTIVE, NOW.minusMinutes(1));
+        member.applySellerState(SellerStatus.ACTIVE, NOW);
+
+        assertThat(member.getSellerState().status()).isEqualTo(SellerStatus.SUSPENDED);
+        assertThat(member.getSellerState().changedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("판매자 상태가 null이면 반영할 수 없다")
+    void applySellerStateRejectsNull() {
+        Member member = MemberFixture.kakaoMember();
+
+        assertThatThrownBy(() -> member.applySellerState(null, NOW)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> member.applySellerState(SellerStatus.ACTIVE, null))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("판매자 상태가 ACTIVE일 때만 활성 판매자다")
+    void isActiveSeller() {
+        assertThat(MemberFixture.kakaoMember().isActiveSeller()).isFalse();
+        assertThat(MemberFixture.withSellerState(SellerStatus.SUSPENDED).isActiveSeller()).isFalse();
+        assertThat(MemberFixture.withSellerState(SellerStatus.ACTIVE).isActiveSeller()).isTrue();
     }
 }

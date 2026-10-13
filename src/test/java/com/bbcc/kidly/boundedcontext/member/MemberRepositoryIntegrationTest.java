@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,5 +43,21 @@ class MemberRepositoryIntegrationTest {
 
         assertThatThrownBy(() -> memberRepository.save(MemberFixture.kakaoMember("kakao-1")))
             .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("판매자 상태 복사본은 없으면 null로, 있으면 같은 값으로 다시 읽는다")
+    void sellerStatusMapping() {
+        var plain = memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
+        var seller = MemberFixture.kakaoMember("kakao-2");
+        seller.applySellerState(SellerStatus.ACTIVE, MemberFixture.NOW);
+        seller = memberRepository.save(seller);
+
+        assertThat(memberRepository.findById(plain.getId()))
+            .hasValueSatisfying(found -> assertThat(found.getSellerState()).isNull());
+        assertThat(memberRepository.findById(seller.getId())).hasValueSatisfying(found -> {
+            assertThat(found.getSellerState().status()).isEqualTo(SellerStatus.ACTIVE);
+            assertThat(found.getSellerState().changedAt()).isEqualTo(MemberFixture.NOW);
+        });
     }
 }

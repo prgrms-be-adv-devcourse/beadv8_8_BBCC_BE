@@ -8,6 +8,10 @@ spring:
         hbm2ddl:
           create_namespaces: true
 
+# 테스트는 PC마다 결과가 같아야 하므로 각자의 .env를 읽지 않는다
+springdotenv:
+  enabled: false
+
 # 로컬과 같은 개발용 키를 쓴다. 운영 키와 다르다
 jwt:
   public-key: file:config/jwt/local-public.pem

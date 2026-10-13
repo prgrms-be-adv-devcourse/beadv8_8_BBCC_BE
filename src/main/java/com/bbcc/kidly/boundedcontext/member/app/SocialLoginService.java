@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.member.app;
 
+import com.bbcc.kidly.boundedcontext.member.app.dto.LoggedInMember;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.OAuthClient;
@@ -31,14 +32,16 @@ public class SocialLoginService {
     private final MemberRegistrar memberRegistrar;
     private final OAuthClient oauthClient;
 
-    public Member login(OAuthProvider provider, SocialLoginRequest request) {
+    // provider는 URL 경로의 소문자 이름(kakao)이다
+    public LoggedInMember login(String providerName, SocialLoginRequest request) {
+        var provider = OAuthProvider.from(providerName);
         var profile = oauthClient.fetchProfile(provider, request.code());
         var member = memberRepository.findBySocialAccount(provider, profile.providerUserId())
             .orElseGet(() -> register(provider, profile));
         if (!member.canLogin()) {
             throw new BusinessException(MemberErrorCode.LOGIN_NOT_ALLOWED);
         }
-        return member;
+        return new LoggedInMember(member.getId());
     }
 
     // 같은 소셜 계정으로 동시에 처음 로그인하면 한 요청만 가입되고, 나머지는 그 회원으로 로그인한다

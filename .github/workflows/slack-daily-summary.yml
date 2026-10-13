@@ -1,0 +1,100 @@
+name: Slack Daily Summary
+
+on:
+  schedule:
+    # 평일 09:00 KST (00:00 UTC)
+    - cron: '0 0 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  issues: read
+
+jobs:
+  summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send issue progress to Slack
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # {"GitHub아이디": "이름"} 형식의 Actions 변수. public 레포라 실명을 코드에 두지 않는다
+          NAME_MAP: ${{ vars.SLACK_NAME_MAP }}
+        run: |
+          # 매핑이 없거나 JSON이 잘못되면 GitHub 아이디를 그대로 쓴다
+          MAP=$(printf '%s' "${NAME_MAP:-}" | jq -c 'if type == "object" then . else {} end' 2>/dev/null || true)
+          [ -n "$MAP" ] || MAP='{}'
+
+          # 월요일은 금요일 아침부터, 그 외에는 어제 아침부터 닫힌 이슈를 모은다
+          if [ "$(TZ=Asia/Seoul date +%u)" = "1" ]; then
+            DAYS=3; SINCE_LABEL="금요일 9시 이후"
+          else
+            DAYS=1; SINCE_LABEL="어제 9시 이후"
+          fi
+          # 예약 실행이 늦어져도 기준은 그날 09:00 KST(00:00 UTC)로 고정한다
+          SINCE=$(date -u -d "-$DAYS days" +%Y-%m-%dT00:00:00Z)
+          TODAY=$(TZ=Asia/Seoul date +%m/%d)
+
+          # PR과 '계획 안 함(not planned)'으로 닫힌 이슈는 세지 않는다
+          gh api --paginate "repos/$REPO/issues?state=all&per_page=100" \
+            --jq '.[] | select(.pull_request | not) | select(.state_reason != "not_planned")' \
+            | jq -s '.' > issues.json
+
+          # 메시지 구성
+          # - 머리: 날짜, 전체 완료율
+          # - 담당자별 진행률: 2열 카드. 담당자가 여럿이면 각자에게 세고, 매핑에 있는 사람은 맡은 이슈가 없어도 0/0으로 보여 준다
+          # - 처리된 이슈: 담당자별로 묶고 말머리([FEAT] 등)는 뺀다. 한 사람이 블록 하나라
+          #   Slack 블록 3000자 제한에 맞게 사람마다 20개까지 보여 준다 (블록은 메시지당 50개까지라 여유 있음)
+          jq --argjson map "$MAP" --arg since "$SINCE" --arg sinceLabel "$SINCE_LABEL" \
+            --arg today "$TODAY" --arg url "https://github.com/$REPO/issues" '
+            def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+            def who: if (.assignees | length) > 0 then [.assignees[].login | ($map[.] // .)] else ["담당자 없음"] end;
+            def pct($done; $total): if $total > 0 then $done * 100 / $total | round else 0 end;
+            # 막대 5칸(한 칸 20%). 색은 80% 이상 초록, 50% 이상 파랑, 그 밑은 보라. 칸은 내림이라 100%일 때만 다 차고, 0%가 아니면 최소 한 칸은 칠한다
+            def bar($p):
+              (if $p > 0 then [($p / 20 | floor), 1] | max else 0 end) as $n
+              | (if $p >= 80 then "🟩" elif $p >= 50 then "🟦" else "🟪" end) as $c
+              | ($c * $n // "") + ("⬜" * (5 - $n) // "");
+            def short: sub("^\\[[A-Z]+\\]\\s*"; "");
+            def counts($done; $total): if $total == 0 then "아직 맡은 이슈가 없어요" else "\($done)개 완료 · \($total - $done)개 남음" end;
+
+            . as $issues
+            | ($issues | length) as $total
+            | ([$issues[] | select(.state == "closed")] | length) as $done
+            | ([$issues[] | (.state == "closed") as $d | who[] | {who: ., done: $d}]
+                | group_by(.who)
+                | map({who: .[0].who, total: length, done: (map(select(.done)) | length)})
+                | . as $rows
+                | $rows + [$map[] | select(. as $n | $rows | all(.who != $n)) | {who: ., total: 0, done: 0}]
+                | map(. + {pct: pct(.done; .total)})
+                | sort_by(.who == "담당자 없음", -.total, -.pct)) as $people
+            | ([$issues[] | select(.state == "closed" and .closed_at >= $since)] | sort_by(.number)) as $closed
+            | {
+                text: "📊 이슈 진행률 \($today) · 전체 \(pct($done; $total))% (\($done)/\($total))",
+                blocks: (
+                  [
+                    {type: "header", text: {type: "plain_text", text: "📊 이슈 진행률 · \($today)"}},
+                    {type: "section", text: {type: "mrkdwn",
+                      text: "전체  \(bar(pct($done; $total)))  *\(pct($done; $total))%*\n\(counts($done; $total))   <\($url)|이슈 보기 →>"}},
+                    {type: "divider"}
+                  ]
+                  # section 하나에 칸은 10개까지라 10명씩 나눈다
+                  + [range(0; $people | length; 10) as $i
+                      | {type: "section", fields: [$people[$i:$i + 10][]
+                          | {type: "mrkdwn", text: "*\(.who | esc)*\n\(bar(.pct))  *\(.pct)%*\n\(counts(.done; .total))"}]}]
+                  + [
+                    {type: "divider"},
+                    {type: "section", text: {type: "mrkdwn", text: "*✅ \($sinceLabel) 처리된 이슈 \($closed | length)개*"}}
+                  ]
+                  + if ($closed | length) == 0 then
+                      [{type: "context", elements: [{type: "mrkdwn", text: "처리된 이슈가 없어요"}]}]
+                    else
+                      [$closed | map(. as $i | who[] | {who: ., issue: $i}) | group_by(.who)[]
+                        | {type: "section", text: {type: "mrkdwn",
+                            text: ("*\(.[0].who | esc)*  \(length)개\n"
+                              + (.[:20] | map("• <\(.issue.html_url)|#\(.issue.number)>  \(.issue.title | short | esc)") | join("\n"))
+                              + (if length > 20 then "\n외 \(length - 20)개" else "" end))}}]
+                    end
+                )
+              }' issues.json \
+            | curl -sS -f -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"

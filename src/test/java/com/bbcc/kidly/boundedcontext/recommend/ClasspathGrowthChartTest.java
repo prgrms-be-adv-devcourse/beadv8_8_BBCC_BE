@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.recommend.domain.AgeGroup;
 import com.bbcc.kidly.boundedcontext.recommend.domain.WeightPercentiles;
 import com.bbcc.kidly.boundedcontext.recommend.out.ClasspathGrowthChart;
-import com.bbcc.kidly.shared.member.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;

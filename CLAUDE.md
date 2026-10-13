@@ -31,9 +31,13 @@
     - `out`: 다른 도메인이 그 도메인과 연결할 때 쓰는 계약
 - `com.bbcc.kidly.boundedcontext`: 도메인 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
   - `app`: 유스케이스 서비스, 이벤트 리스너
-  - `in`: 들어오는 요청. 컨트롤러, `dto`의 XxxRequest/XxxResponse
-  - `domain`: 엔티티, 상태 enum, 리포지토리 인터페이스, `event`(도메인 내부 이벤트)
-  - `out`: 나가는 연결. QueryDSL 구현, 외부 API 클라이언트
+    - `dto`: 유스케이스 입력 XxxRequest(Bean Validation 포함, 컨트롤러에서 `@Valid`로 검증)와 서비스가 돌려주는 결과
+    - `port`: 리포지토리가 아닌 나가는 연결(토큰 발급, 외부 API, DTO 조회)의 인터페이스
+  - `in`: 들어오는 요청. 컨트롤러, `dto`의 XxxResponse
+  - `domain`: 엔티티, 상태 enum, 리포지토리 인터페이스
+  - `out`: 나가는 연결. `domain`의 리포지토리와 `app.port`의 인터페이스를 구현한다 (JPA · QueryDSL, 외부 API 클라이언트)
+  - 계층 의존은 `in → app → domain`, `out → app.port · domain` 방향만 허용한다
+    - `in`은 `out`을, `app`은 `in`·`out`을, `out`은 `in`과 `app.port` 밖의 `app`을 참조하지 않는다
   - 도메인끼리는 서로의 코드를 참조하지 않는다. `shared`의 이벤트로만 주고받는다
 - 각 도메인은 자기 DB 스키마만 쓴다: `member`, `product`, `recommend`, `orders`, `payment`, `settlement`
 - 경계 규칙은 `src/test/java/com/bbcc/kidly/architecture/ArchitectureTest.java`에서 검사한다
@@ -60,6 +64,19 @@
 - `@IntegrationTest`·`@FunctionalTest`에 설정(`@MockitoBean`, `@TestPropertySource` 등)을 더하지 않는다. 설정이 다르면 스프링 컨텍스트를 새로 띄워 느려진다
 - 통합·기능 테스트는 끝날 때마다 모든 테이블을 비운다(`DatabaseCleanerExtension`). 테스트에 `@Transactional`을 붙여 롤백하지 않는다 (커밋되지 않으면 `@DomainEventListener`가 실행되지 않는다)
 - 테스트용 엔티티는 도메인별 `XxxFixture`의 정적 메서드로 만든다
+
+## 검증
+| 변경 | 필수 검증 |
+| --- | --- |
+| 문서 · 포매팅 | diff · 내용 확인 (동작 테스트 생략, 이유 보고) |
+| 리팩터링 | 관련 테스트 수정 전 · 후 통과 + 영향받는 통합 테스트 + `./gradlew archTest` |
+| 기능 · 버그 수정 | TDD + 영향받는 통합 · 기능 테스트 + `./gradlew archTest`. 주문 정상 흐름(담기 → 주문하기 → 재고 · 결제 이벤트 → PAID → 송장 · 배송 완료 → 구매확정)에 영향이 있으면 그 흐름 테스트 포함 |
+| 코드 변경 작업의 최종 완료 | `./gradlew build` (Checkstyle · ArchUnit · test · integrationTest · functionalTest 포함) |
+
+- 통과한 검사는 새 변경 · 실패 · 미해결 우려가 없으면 다시 돌리지 않는다. 환경 때문에 못 돌린 검사는 미검증으로, 부분 통과는 부분 통과로 보고한다.
+- 검사 실패 시: 환경 문제(Docker · 네트워크 · DB 연결)는 고치려 하지 않고 미검증으로 보고한다. 의존성 충돌은 `[승인 요청]`. 범위 안의 코드 오류는 스스로 고치되, 같은 원인으로 2회 연속 실패하면 멈추고 시도한 내용과 원인을 보고한다.
+- ArchUnit은 `구조` 절의 경계 · 계층 의존 규칙을 검사하며(`ArchitectureTest`), 신규 클래스가 검사 대상에 실제 포함되는지 확인한다. 예외를 추가하지 않는다.
+- Java 25 · Spring Boot 4.1 · PostgreSQL 18과 기존 Gradle 설정을 유지한다. 새 의존성 · 검사 기준 · 외부 서비스는 승인 후 도입한다.
 
 ## DB 명명
 - PK `id`, FK `참조테이블단수_id`, 불리언 `is_/has_/can_`, 일시 `_at`, 날짜 `_on/_date`
