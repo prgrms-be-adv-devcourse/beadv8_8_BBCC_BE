@@ -1,0 +1,79 @@
+package com.bbcc.kidly.boundedcontext.childprofile.app;
+
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileResult;
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.GrowthRecordResult;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 보호자의 자녀 프로필을 등록 · 조회 · 수정 · 삭제한다. 본인 자녀만 다루고, 아니면 404다.
+ * 등록 · 수정 · 삭제 때마다 바뀐 뒤 전체 값으로 {@link ChildChangedEvent}를 발행한다. 추천 · 주문이 복사본을 갱신한다.
+ */
+@Service
+@RequiredArgsConstructor
+public class ChildProfileService {
+
+    private final ChildProfileRepository childProfileRepository;
+    private final EventPublisher eventPublisher;
+
+    @Transactional
+    public ChildProfileResult register(Long memberId, ChildProfileRequest request) {
+        var now = LocalDateTime.now();
+        var child = childProfileRepository.save(ChildProfile.register(request.toRegisterInfo(memberId), now));
+        publish(child, false, now);
+        return ChildProfileResult.from(child);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChildProfileResult> getChildren(Long memberId) {
+        return childProfileRepository.findAllByMemberId(memberId).stream().map(ChildProfileResult::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ChildProfileResult getChild(Long memberId, Long childId) {
+        return ChildProfileResult.from(childProfileRepository.getByIdAndMemberId(childId, memberId));
+    }
+
+    // 이름만 바뀌어도 이벤트를 발행한다. 받는 쪽은 어떤 필드가 바뀌었는지 보지 않고 덮어쓴다
+    @Transactional
+    public ChildProfileResult update(Long memberId, Long childId, ChildProfileRequest request) {
+        var now = LocalDateTime.now();
+        var child = childProfileRepository.getByIdAndMemberId(childId, memberId);
+        child.update(request.toUpdateInfo(), now);
+        publish(child, false, now);
+        return ChildProfileResult.from(child);
+    }
+
+    @Transactional
+    public void delete(Long memberId, Long childId) {
+        var now = LocalDateTime.now();
+        var child = childProfileRepository.getByIdAndMemberId(childId, memberId);
+        child.delete(now);
+        publish(child, true, now);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GrowthRecordResult> getGrowthRecords(Long memberId, Long childId) {
+        return childProfileRepository.getByIdAndMemberId(childId, memberId).getGrowthRecords().stream()
+            .map(GrowthRecordResult::from)
+            .toList();
+    }
+
+    private void publish(ChildProfile child, boolean deleted, LocalDateTime now) {
+        eventPublisher.publish(new ChildChangedEvent(
+            UUID.randomUUID(),
+            now,
+            new ChildChangedEvent.Data(
+                child.getId(), child.getMemberId(), child.getHeightCm(), child.getWeightKg(), child.getGender(),
+                child.getBirthDate(), child.getBodyType(), child.getPreferredFit(), deleted)));
+    }
+}
