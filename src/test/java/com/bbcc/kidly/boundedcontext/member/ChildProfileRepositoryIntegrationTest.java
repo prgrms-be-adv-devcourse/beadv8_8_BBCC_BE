@@ -7,7 +7,11 @@ import com.bbcc.kidly.boundedcontext.member.domain.ChildProfile;
 import com.bbcc.kidly.boundedcontext.member.domain.ChildProfileRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
+import com.bbcc.kidly.shared.member.domain.BodyType;
+import com.bbcc.kidly.shared.member.domain.Gender;
+import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,16 +63,20 @@ class ChildProfileRepositoryIntegrationTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
     }
 
+    // 이력이 여러 건이어도(fetch join) 같은 자녀가 두 번 나오지 않아야 한다
     @Test
     @DisplayName("회원의 자녀 목록을 등록 순으로 주고, 자녀마다 성장 이력을 함께 읽는다")
     void findAllByMemberId() {
-        var first = childProfileRepository.save(ChildProfileFixture.child(MEMBER_ID));
+        var grown = ChildProfileFixture.child(MEMBER_ID);
+        grown.update("첫째", ChildProfileFixture.BIRTH_DATE, Gender.MALE, new BigDecimal("118.0"),
+            ChildProfileFixture.WEIGHT, BodyType.NORMAL, PreferredFit.LOOSE, ChildProfileFixture.NOW.plusDays(30));
+        var first = childProfileRepository.save(grown);
         var second = childProfileRepository.save(ChildProfileFixture.child(MEMBER_ID));
         childProfileRepository.save(ChildProfileFixture.child(OTHER_MEMBER_ID));
 
         var children = childProfileRepository.findAllByMemberId(MEMBER_ID);
 
         assertThat(children).extracting(ChildProfile::getId).containsExactly(first.getId(), second.getId());
-        assertThat(children).allSatisfy(child -> assertThat(child.growthRecordCount()).isEqualTo(1));
+        assertThat(children).extracting(ChildProfile::growthRecordCount).containsExactly(2, 1);
     }
 }
