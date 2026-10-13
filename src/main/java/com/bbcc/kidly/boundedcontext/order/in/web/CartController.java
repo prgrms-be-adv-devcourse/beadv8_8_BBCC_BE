@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.order.app.cart.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.AddCartItemRequest;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.CartResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.ChangeCartItemQuantityRequest;
+import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -37,10 +38,10 @@ public class CartController {
      */
     @PostMapping("/items")
     public ResponseEntity<CartResponse.Line> addItem(
-        @LoginMember Long memberId,
+        @LoginMember AuthMember member,
         @Valid @RequestBody AddCartItemRequest request) {
         AddCartItemResult result = cartService.addItem(
-            memberId, request.optionId(), request.childId(), request.quantity());
+            member.id(), request.optionId(), request.childId(), request.quantity());
         CartResponse.Line body = CartResponse.Line.from(result.line());
         if (!result.created()) {
             return ResponseEntity.ok(body);
@@ -49,21 +50,21 @@ public class CartController {
     }
 
     @GetMapping
-    public CartResponse getCart(@LoginMember Long memberId) {
-        return CartResponse.from(cartService.getCart(memberId));
+    public CartResponse getCart(@LoginMember AuthMember member) {
+        return CartResponse.from(cartService.getCart(member.id()));
     }
 
     @PatchMapping("/items/{cartItemId}")
     public CartResponse.Line changeQuantity(
-        @LoginMember Long memberId,
+        @LoginMember AuthMember member,
         @PathVariable Long cartItemId,
         @Valid @RequestBody ChangeCartItemQuantityRequest request) {
-        return CartResponse.Line.from(cartService.changeQuantity(memberId, cartItemId, request.quantity()));
+        return CartResponse.Line.from(cartService.changeQuantity(member.id(), cartItemId, request.quantity()));
     }
 
     @DeleteMapping("/items/{cartItemId}")
-    public ResponseEntity<Void> removeItem(@LoginMember Long memberId, @PathVariable Long cartItemId) {
-        cartService.removeItem(memberId, cartItemId);
+    public ResponseEntity<Void> removeItem(@LoginMember AuthMember member, @PathVariable Long cartItemId) {
+        cartService.removeItem(member.id(), cartItemId);
         return ResponseEntity.noContent().build();
     }
 }
