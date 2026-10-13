@@ -37,7 +37,8 @@
   - `domain`: 엔티티, 상태 enum, 리포지토리 인터페이스
   - `out`: 나가는 연결. `domain`의 리포지토리와 `app.port`의 인터페이스를 구현한다 (JPA · QueryDSL, 외부 API 클라이언트)
   - 계층 의존은 `in → app → domain`, `out → app.port · domain` 방향만 허용한다
-    - `in`은 `out`을, `app`은 `in`·`out`을, `out`은 `in`과 `app.port` 밖의 `app`을 참조하지 않는다
+    - `domain`은 `app`·`in`·`out`을, `in`은 `domain`·`out`을, `app`은 `in`·`out`을, `out`은 `in`과 `app.port` 밖의 `app`을 참조하지 않는다
+    - 그래서 서비스는 엔티티 대신 `app.dto`의 결과를 돌려주고, XxxResponse는 그 결과로 만든다
   - 도메인끼리는 서로의 코드를 참조하지 않는다. `shared`의 이벤트로만 주고받는다
 - 각 도메인은 자기 DB 스키마만 쓴다: `member`, `product`, `recommend`, `orders`, `payment`, `settlement`
 - 경계 규칙은 `src/test/java/com/bbcc/kidly/architecture/ArchitectureTest.java`에서 검사한다
