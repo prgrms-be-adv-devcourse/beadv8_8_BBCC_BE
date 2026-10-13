@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum SellerErrorCode implements ErrorCode {
 
+    ALREADY_SELLER(HttpStatus.CONFLICT, "이미 판매자입니다", "이미 판매자로 등록된 회원입니다."),
+    APPLICATION_ALREADY_PENDING(HttpStatus.CONFLICT, "심사 중인 신청이 있습니다", "심사 중인 판매자 신청이 이미 있습니다."),
     APPLICATION_NOT_PENDING(HttpStatus.CONFLICT, "심사 중인 신청이 아닙니다", "이미 처리된 판매자 신청입니다.");
 
     private final HttpStatus status;

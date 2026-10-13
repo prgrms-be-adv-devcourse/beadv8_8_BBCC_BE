@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
 import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
+import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.support.FakeOAuthClient;
 import com.bbcc.kidly.support.FunctionalTest;
 import org.junit.jupiter.api.DisplayName;
@@ -93,9 +94,10 @@ class SocialLoginApiTest {
             .headers(headers -> headers.setBearerAuth(accessToken))
             .exchange()
             .expectStatus().isOk()
-            .expectBody(Long.class)
+            .expectBody(AuthMember.class)
             .returnResult()
-            .getResponseBody();
+            .getResponseBody()
+            .id();
     }
 
     private static String codeBody(String code) {

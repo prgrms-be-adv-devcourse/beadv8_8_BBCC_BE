@@ -1,5 +1,6 @@
 package com.bbcc.kidly.support;
 
+import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import com.bbcc.kidly.global.security.PublicApi;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,7 +49,7 @@ public class TestApiController {
     }
 
     @GetMapping(LOGIN_MEMBER_PATH)
-    Long loginMember(@LoginMember Long memberId) {
-        return memberId;
+    AuthMember loginMember(@LoginMember AuthMember member) {
+        return member;
     }
 }

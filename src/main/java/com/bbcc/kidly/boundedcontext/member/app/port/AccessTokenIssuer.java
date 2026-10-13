@@ -4,9 +4,9 @@ import com.bbcc.kidly.global.security.Role;
 import java.util.List;
 
 /**
- * 회원 ID와 역할로 Access Token을 발급한다.
+ * 회원 ID · 닉네임 · 역할로 Access Token을 발급한다.
  */
 public interface AccessTokenIssuer {
 
-    String issue(Long memberId, List<Role> roles);
+    String issue(Long memberId, String nickname, List<Role> roles);
 }

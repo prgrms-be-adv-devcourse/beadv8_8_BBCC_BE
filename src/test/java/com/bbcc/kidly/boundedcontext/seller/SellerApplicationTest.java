@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.seller;
 
 import static com.bbcc.kidly.boundedcontext.seller.SellerFixture.ADMIN_ID;
+import static com.bbcc.kidly.boundedcontext.seller.SellerFixture.APPLICANT_NICKNAME;
 import static com.bbcc.kidly.boundedcontext.seller.SellerFixture.BUSINESS_NAME;
 import static com.bbcc.kidly.boundedcontext.seller.SellerFixture.BUSINESS_REGISTRATION_NUMBER;
 import static com.bbcc.kidly.boundedcontext.seller.SellerFixture.NOW;
@@ -8,11 +9,11 @@ import static com.bbcc.kidly.boundedcontext.seller.SellerFixture.REPRESENTATIVE_
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplication;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationSubmitInfo;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -28,6 +29,7 @@ class SellerApplicationTest {
         var application = SellerFixture.application(APPLICANT_ID);
 
         assertThat(application.getApplicantId()).isEqualTo(APPLICANT_ID);
+        assertThat(application.getApplicantNickname()).isEqualTo(APPLICANT_NICKNAME);
         assertThat(application.getBusinessName()).isEqualTo(BUSINESS_NAME);
         assertThat(application.getRepresentativeName()).isEqualTo(REPRESENTATIVE_NAME);
         assertThat(application.getBusinessRegistrationNumber()).isEqualTo(BUSINESS_REGISTRATION_NUMBER);
@@ -42,27 +44,33 @@ class SellerApplicationTest {
     void submitRejectsNull() {
         assertThatThrownBy(() -> SellerApplication.submit(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
-            null, BUSINESS_NAME, REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
+            null, APPLICANT_NICKNAME, BUSINESS_NAME, REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
-            APPLICANT_ID, null, REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
+            APPLICANT_ID, null, BUSINESS_NAME, REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
-            APPLICANT_ID, BUSINESS_NAME, null, BUSINESS_REGISTRATION_NUMBER)))
+            APPLICANT_ID, APPLICANT_NICKNAME, null, REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
-            APPLICANT_ID, BUSINESS_NAME, REPRESENTATIVE_NAME, null)))
+            APPLICANT_ID, APPLICANT_NICKNAME, BUSINESS_NAME, null, BUSINESS_REGISTRATION_NUMBER)))
+            .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
+            APPLICANT_ID, APPLICANT_NICKNAME, BUSINESS_NAME, REPRESENTATIVE_NAME, null)))
             .isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    @DisplayName("상호명 · 대표자명이 비어 있으면 신청할 수 없다")
+    @DisplayName("닉네임 · 상호명 · 대표자명이 비어 있으면 신청할 수 없다")
     void submitRejectsBlankName() {
         assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
-            APPLICANT_ID, " ", REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
+            APPLICANT_ID, " ", BUSINESS_NAME, REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
             .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
-            APPLICANT_ID, BUSINESS_NAME, " ", BUSINESS_REGISTRATION_NUMBER)))
+            APPLICANT_ID, APPLICANT_NICKNAME, " ", REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
+            APPLICANT_ID, APPLICANT_NICKNAME, BUSINESS_NAME, " ", BUSINESS_REGISTRATION_NUMBER)))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -73,12 +81,13 @@ class SellerApplicationTest {
         var fiftyOne = fifty + "가";
 
         assertThat(SellerApplication.submit(new SellerApplicationSubmitInfo(
-            APPLICANT_ID, fifty, fifty, BUSINESS_REGISTRATION_NUMBER)).getBusinessName()).isEqualTo(fifty);
+            APPLICANT_ID, APPLICANT_NICKNAME, fifty, fifty, BUSINESS_REGISTRATION_NUMBER))
+            .getBusinessName()).isEqualTo(fifty);
         assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
-            APPLICANT_ID, fiftyOne, REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
+            APPLICANT_ID, APPLICANT_NICKNAME, fiftyOne, REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER)))
             .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
-            APPLICANT_ID, BUSINESS_NAME, fiftyOne, BUSINESS_REGISTRATION_NUMBER)))
+            APPLICANT_ID, APPLICANT_NICKNAME, BUSINESS_NAME, fiftyOne, BUSINESS_REGISTRATION_NUMBER)))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -87,8 +96,16 @@ class SellerApplicationTest {
     @DisplayName("사업자등록번호는 하이픈 없는 숫자 10자리만 받는다")
     void submitRejectsInvalidBusinessRegistrationNumber(String number) {
         assertThatThrownBy(() -> SellerApplication.submit(new SellerApplicationSubmitInfo(
-            APPLICANT_ID, BUSINESS_NAME, REPRESENTATIVE_NAME, number)))
+            APPLICANT_ID, APPLICANT_NICKNAME, BUSINESS_NAME, REPRESENTATIVE_NAME, number)))
             .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("사업자등록번호는 앞 4자리만 보이게 가려서 돌려준다")
+    void maskedBusinessRegistrationNumber() {
+        var application = SellerFixture.application(APPLICANT_ID);
+
+        assertThat(application.maskedBusinessRegistrationNumber()).isEqualTo("214-8*-*****");
     }
 
     @Test
