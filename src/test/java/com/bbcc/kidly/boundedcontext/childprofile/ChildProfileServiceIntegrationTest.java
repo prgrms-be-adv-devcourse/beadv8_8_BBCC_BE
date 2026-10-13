@@ -97,6 +97,20 @@ class ChildProfileServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("이름만 바꿔도 이벤트는 발행되고 성장 이력은 쌓이지 않는다")
+    void updateNameOnlyPublishes() {
+        var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
+        var renamed = new ChildProfileRequest("둘째", LocalDate.of(2019, 1, 15), Gender.MALE,
+            new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE);
+
+        var child = childProfileService.update(MEMBER_ID, childId, renamed);
+
+        assertThat(child.name()).isEqualTo("둘째");
+        assertThat(child.growthRecordCount()).isEqualTo(1);
+        assertThat(events.stream(ChildChangedEvent.class)).hasSize(2);
+    }
+
+    @Test
     @DisplayName("삭제하면 삭제 직전 값과 deleted = true로 이벤트가 발행되고, 이후 조회는 404다")
     void delete() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
@@ -105,7 +119,13 @@ class ChildProfileServiceIntegrationTest {
 
         assertThat(events.stream(ChildChangedEvent.class)).hasSize(2).last().satisfies(event -> {
             assertThat(event.data().childId()).isEqualTo(childId);
+            assertThat(event.data().memberId()).isEqualTo(MEMBER_ID);
             assertThat(event.data().heightCm()).isEqualByComparingTo("115.0");
+            assertThat(event.data().weightKg()).isEqualByComparingTo("20.0");
+            assertThat(event.data().gender()).isEqualTo(Gender.MALE);
+            assertThat(event.data().birthDate()).isEqualTo(LocalDate.of(2019, 1, 15));
+            assertThat(event.data().bodyType()).isEqualTo(BodyType.NORMAL);
+            assertThat(event.data().preferredFit()).isEqualTo(PreferredFit.LOOSE);
             assertThat(event.data().deleted()).isTrue();
         });
         assertNotFound(() -> childProfileService.getChild(MEMBER_ID, childId));

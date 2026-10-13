@@ -16,7 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 보호자의 자녀 프로필을 등록 · 조회 · 수정 · 삭제한다. 본인 자녀만 다루고, 아니면 404다.
- * 등록 · 수정 · 삭제 때마다 바뀐 뒤 전체 값으로 {@link ChildChangedEvent}를 발행한다. 추천 · 주문이 복사본을 갱신한다.
+ * 등록 · 수정 때는 바뀐 뒤 전체 값으로, 삭제 때는 삭제 직전 값에 {@code deleted = true}를 붙여 {@link ChildChangedEvent}를 발행한다.
+ * 추천 · 주문이 복사본을 갱신한다.
  */
 @Service
 @RequiredArgsConstructor
