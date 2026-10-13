@@ -43,7 +43,8 @@ jobs:
           # 메시지 구성
           # - 머리: 날짜, 전체 완료율
           # - 담당자별 진행률: 2열 카드. 담당자가 여럿이면 각자에게 세고, 매핑에 있는 사람은 맡은 이슈가 없어도 0/0으로 보여 준다
-          # - 처리된 이슈: 담당자별로 묶고 말머리([FEAT] 등)는 뺀다. 길어지지 않게 15개까지만 보여 준다
+          # - 처리된 이슈: 담당자별로 묶고 말머리([FEAT] 등)는 뺀다. 한 사람이 블록 하나라
+          #   Slack 블록 3000자 제한에 맞게 사람마다 20개까지 보여 준다 (블록은 메시지당 50개까지라 여유 있음)
           jq --argjson map "$MAP" --arg since "$SINCE" --arg sinceLabel "$SINCE_LABEL" \
             --arg today "$TODAY" --arg url "https://github.com/$REPO/issues" '
             def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
@@ -88,13 +89,12 @@ jobs:
                   + if ($closed | length) == 0 then
                       [{type: "context", elements: [{type: "mrkdwn", text: "처리된 이슈가 없어요"}]}]
                     else
-                      [$closed[:15] | map(. as $i | who[] | {who: ., issue: $i}) | group_by(.who)[]
+                      [$closed | map(. as $i | who[] | {who: ., issue: $i}) | group_by(.who)[]
                         | {type: "section", text: {type: "mrkdwn",
-                            text: ("*\(.[0].who | esc)*\n" + (map("• <\(.issue.html_url)|#\(.issue.number)>  \(.issue.title | short | esc)") | join("\n")))}}]
+                            text: ("*\(.[0].who | esc)*  \(length)개\n"
+                              + (.[:20] | map("• <\(.issue.html_url)|#\(.issue.number)>  \(.issue.title | short | esc)") | join("\n"))
+                              + (if length > 20 then "\n외 \(length - 20)개" else "" end))}}]
                     end
-                  + if ($closed | length) > 15 then
-                      [{type: "context", elements: [{type: "mrkdwn", text: "외 \(($closed | length) - 15)개는 <\($url)?q=is%3Aissue+is%3Aclosed|닫힌 이슈 목록>에서 볼 수 있어요"}]}]
-                    else [] end
                 )
               }' issues.json \
             | curl -sS -f -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"
