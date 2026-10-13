@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.childprofile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
-import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildResponse;
+import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildProfileResponse;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.GrowthRecordResponse;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -23,7 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 @FunctionalTest
-class ChildApiTest {
+class ChildProfileApiTest {
 
     private static final String CHILDREN_PATH = "/api/v1/children";
     private static final String CHILD_PATH = "/api/v1/children/{childId}";
@@ -49,7 +49,7 @@ class ChildApiTest {
             .body(REQUEST)
             .exchange()
             .expectStatus().isCreated()
-            .returnResult(ChildResponse.class);
+            .returnResult(ChildProfileResponse.class);
 
         var child = result.getResponseBody();
         assertThat(result.getResponseHeaders().getFirst(HttpHeaders.LOCATION))
@@ -72,11 +72,11 @@ class ChildApiTest {
             .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
             .exchange()
             .expectStatus().isOk()
-            .expectBody(new ParameterizedTypeReference<List<ChildResponse>>() { })
+            .expectBody(new ParameterizedTypeReference<List<ChildProfileResponse>>() { })
             .returnResult()
             .getResponseBody();
 
-        assertThat(children).extracting(ChildResponse::id).containsExactly(first, second);
+        assertThat(children).extracting(ChildProfileResponse::id).containsExactly(first, second);
     }
 
     @Test
@@ -109,7 +109,7 @@ class ChildApiTest {
             .body(changed)
             .exchange()
             .expectStatus().isOk()
-            .returnResult(ChildResponse.class)
+            .returnResult(ChildProfileResponse.class)
             .getResponseBody();
 
         assertThat(child.heightCm()).isEqualByComparingTo("118.0");
@@ -236,7 +236,7 @@ class ChildApiTest {
             .body(REQUEST)
             .exchange()
             .expectStatus().isCreated()
-            .returnResult(ChildResponse.class)
+            .returnResult(ChildProfileResponse.class)
             .getResponseBody()
             .id();
     }

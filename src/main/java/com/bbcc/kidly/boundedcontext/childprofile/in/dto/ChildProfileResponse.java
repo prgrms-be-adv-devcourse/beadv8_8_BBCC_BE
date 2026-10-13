@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * @param growthRecordCount 성장 이력 건수. 화면이 자녀마다 이력 API를 따로 부르지 않게 목록에도 담는다
  * @param lastRecordedAt 마지막 성장 이력 시각
  */
-public record ChildResponse(
+public record ChildProfileResponse(
     Long id,
     String name,
     LocalDate birthDate,
@@ -26,8 +26,8 @@ public record ChildResponse(
     int growthRecordCount,
     LocalDateTime lastRecordedAt) {
 
-    public static ChildResponse from(ChildProfileResult result) {
-        return new ChildResponse(
+    public static ChildProfileResponse from(ChildProfileResult result) {
+        return new ChildProfileResponse(
             result.id(), result.name(), result.birthDate(), result.gender(), result.heightCm(), result.weightKg(),
             result.bodyType(), result.preferredFit(), result.growthRecordCount(), result.lastRecordedAt());
     }
