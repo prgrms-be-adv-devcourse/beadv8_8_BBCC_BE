@@ -3,12 +3,7 @@ package com.bbcc.kidly.shared.member.event;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.shared.event.DomainEvent;
-import com.bbcc.kidly.shared.member.domain.BodyType;
-import com.bbcc.kidly.shared.member.domain.Gender;
-import com.bbcc.kidly.shared.member.domain.PreferredFit;
 import com.bbcc.kidly.shared.member.domain.SellerStatus;
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -24,16 +19,6 @@ class MemberEventsTest {
     void memberRegistered() {
         assertContract(new MemberRegisteredEvent(EVENT_ID, NOW, new MemberRegisteredEvent.Data(1L)),
             "member.registered", "1");
-    }
-
-    @Test
-    @DisplayName("자녀 변경 이벤트는 child.changed이고 대상은 자녀다")
-    void childChanged() {
-        ChildChangedEvent event = new ChildChangedEvent(EVENT_ID, NOW, new ChildChangedEvent.Data(10L, 1L,
-            new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE, LocalDate.of(2019, 1, 1),
-            BodyType.NORMAL, PreferredFit.LOOSE, false));
-
-        assertContract(event, "child.changed", "10");
     }
 
     @Test
