@@ -1,14 +1,19 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 final class ProductOptionFixture {
 
@@ -77,5 +82,15 @@ final class ProductOptionFixture {
     // 상품 A의 판매자가 의류 가격 25,000원으로 옵션을 추가하는 요청이다
     static Product.AddOptionsInfo addOptions(List<Product.OptionInfo> options) {
         return new Product.AddOptionsInfo(SELLER_ID, options, clothingPrice(CLOTHING_PRICE));
+    }
+
+    // 이미 추가한 옵션과 이번에 추가하려는 옵션이다. existing이 비어 있으면 먼저 추가한 옵션이 없다
+    record Requests(List<Product.OptionInfo> existing, List<Product.OptionInfo> requested) {
+    }
+
+    // 업무 규칙 위반(BusinessException)이 code로 거절되는지 확인한다
+    static void assertRejected(ThrowingCallable call, ProductErrorCode code) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(code));
     }
 }
