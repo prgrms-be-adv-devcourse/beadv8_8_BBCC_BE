@@ -192,9 +192,12 @@ class ProductSaleStartTest {
                 spec(test.clothing.size110(), 105, 115, measurements),
                 spec(test.clothing.size120(), 115, 125, top120Measurements()))), test.top, test.clothing.type());
         };
+        Consumer<ProductSaleStartTest> several = ProductSaleStartTest::withSeveralMissingInputs;
         return Stream.of(
             Arguments.of(Named.of("옵션 없음", noOptions), "옵션이 하나 이상 있어야 합니다."),
-            Arguments.of(Named.of("110 소매길이 빠짐", missingSleeve), "110 사이즈에 소매길이가 없습니다."));
+            Arguments.of(Named.of("110 소매길이 빠짐", missingSleeve), "110 사이즈에 소매길이가 없습니다."),
+            Arguments.of(Named.of("빠진 항목 여럿", several), "120 사이즈에 실측과 권장 키가 없습니다. "
+                + "110 사이즈에 소매길이가 없습니다. 110 사이즈에 권장 키가 없습니다."));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -216,6 +219,15 @@ class ProductSaleStartTest {
             Named.of("판매 시작의 상품 유형", () -> productA(clothing).startSale(SELLER_ID, top, null)),
             Named.of("입력 검사의 카테고리", () -> productA(clothing).validateSaleStartInputs(null, type)),
             Named.of("입력 검사의 상품 유형", () -> productA(clothing).validateSaleStartInputs(top, null)));
+    }
+
+    @Test
+    @DisplayName("SALE-03 빠진 항목이 여럿이면 옵션에 처음 나온 사이즈 순서로 모두 적는다")
+    void rejectStartSaleWithAllMissingItems() {
+        withSeveralMissingInputs();
+
+        assertSaleStartRejected("판매를 시작할 수 없습니다. 120 사이즈에 실측과 권장 키가 없습니다. "
+            + "110 사이즈에 소매길이가 없습니다. 110 사이즈에 권장 키가 없습니다.");
     }
 
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
@@ -248,5 +260,16 @@ class ProductSaleStartTest {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.sizeFree()),
             option(clothing.oatmeal(), clothing.sizeFree()))), clothing.type());
+    }
+
+    // 옵션은 120 · 110 순서로 넣고, 110 실측은 소매길이와 권장 키 없이 넣고, 120 실측은 넣지 않는다
+    private void withSeveralMissingInputs() {
+        product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.size120()),
+            option(clothing.navy(), clothing.size110()))), clothing.type());
+        Map<String, BigDecimal> measurements = new HashMap<>(top110Measurements());
+        measurements.remove("SLEEVE_LENGTH");
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), null, null, measurements))), top, clothing.type());
     }
 }
