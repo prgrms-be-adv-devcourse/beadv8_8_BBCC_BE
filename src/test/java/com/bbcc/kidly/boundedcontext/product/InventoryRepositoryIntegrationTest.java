@@ -90,6 +90,18 @@ class InventoryRepositoryIntegrationTest {
         assertThat(availableQty(option)).isEqualTo(expectedQty);
     }
 
+    @ParameterizedTest(name = "판매 가능 수량 {0}에서 {1}개 차감")
+    @CsvSource({"10, 11", "0, 1"})
+    @DisplayName("INV-01 판매 가능 수량보다 많이 요청하면 줄이지 않고 실패를 돌려준다")
+    void rejectDeductionOverAvailable(int stock, int qty) {
+        ProductOption option = openedOption(stock);
+
+        boolean deducted = inTransaction(() -> inventoryRepository.deductIfAvailable(option.getId(), qty, NOW));
+
+        assertThat(deducted).isFalse();
+        assertThat(availableQty(option)).isEqualTo(stock);
+    }
+
     // 판매 가능 수량 stock으로 재고를 연 옵션을 돌려준다
     private ProductOption openedOption(int stock) {
         ProductOption option = savedOption();
