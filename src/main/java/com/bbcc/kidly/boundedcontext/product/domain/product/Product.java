@@ -253,9 +253,9 @@ public class Product extends BaseTimeEntity {
         return false;
     }
 
-    // 직접 입력한 글이 있는지 판단하는 기준이다. 값 저장과 필수 항목 검사가 같은 기준을 쓴다
+    // 직접 입력한 글이 있는지 판단하는 기준이다. 공백만 있는 글은 없는 것으로 본다. 값 저장과 필수 항목 검사가 같은 기준을 쓴다
     private static boolean hasText(String text) {
-        return text != null && !text.isEmpty();
+        return text != null && !text.isBlank();
     }
 
     public List<String> getImageUrls() {

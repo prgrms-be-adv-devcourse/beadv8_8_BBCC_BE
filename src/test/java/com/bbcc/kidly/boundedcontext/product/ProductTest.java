@@ -158,6 +158,22 @@ class ProductTest {
     }
 
     @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"", "   "})
+    @DisplayName("INFO-02 선택 직접 입력 항목에 비었거나 공백뿐인 글자를 넣으면 값이 없는 것으로 보고 저장하지 않는다")
+    void ignoreBlankTextOfOptionalTextAttribute(String text) {
+        Clothing clothing = clothing();
+        Product.RegisterInfo info = productAWith(List.of(
+            cottonMaterial(clothing),
+            new InfoValueInfo(clothing.fabricComposition(), List.of(), text)));
+
+        Product product = Product.register(info, clothing.type());
+
+        assertThat(product.getInfoValues())
+            .extracting(ProductInfoValue::getAttribute)
+            .containsExactly(clothing.mainMaterial());
+    }
+
+    @ParameterizedTest(name = "{0}")
     @MethodSource("notAllowedMaterials")
     @DisplayName("INFO-03 그 유형에서 고를 수 없는 값을 넣으면 거절한다")
     void rejectNotAllowedInfoValue(Function<Clothing, AttributeValue> material) {
