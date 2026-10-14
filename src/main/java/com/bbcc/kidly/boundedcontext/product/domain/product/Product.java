@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAllowedValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -108,6 +109,7 @@ public class Product extends BaseTimeEntity {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
         validateInfoValues(info.infoValues());
+        validateAllowedInfoValues(info.infoValues(), productType);
         validateRequiredInfoValues(info.infoValues(), productType);
         Product product = new Product();
         product.sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
@@ -148,6 +150,41 @@ public class Product extends BaseTimeEntity {
                 throw new BusinessException(ProductErrorCode.DUPLICATE_INFO_VALUE);
             }
         }
+    }
+
+    // 목록 값은 그 항목의 값이어야 하고, 유형이 모든 값 허용이 아닌 항목이면 유형이 허용한 값이어야 한다 (INFO-03)
+    private static void validateAllowedInfoValues(List<InfoValueInfo> infoValues, ProductType productType) {
+        for (InfoValueInfo infoValue : infoValues) {
+            ProductTypeAttribute link = findLink(productType, infoValue.attribute());
+            for (AttributeValue value : infoValue.values()) {
+                if (value.getAttribute() != infoValue.attribute()) {
+                    throw new BusinessException(ProductErrorCode.INFO_VALUE_NOT_ALLOWED);
+                }
+                // 유형에 없는 항목은 다른 검사에서 거절하므로 여기서는 건너뛴다
+                if (link != null && !link.isAllValuesAllowed() && !isAllowedByType(productType, value)) {
+                    throw new BusinessException(ProductErrorCode.INFO_VALUE_NOT_ALLOWED);
+                }
+            }
+        }
+    }
+
+    // 유형에서 그 항목의 연결을 찾는다. 없으면 null이다
+    private static ProductTypeAttribute findLink(ProductType productType, Attribute attribute) {
+        for (ProductTypeAttribute link : productType.getAttributes()) {
+            if (link.getAttribute() == attribute) {
+                return link;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isAllowedByType(ProductType productType, AttributeValue value) {
+        for (ProductTypeAllowedValue allowed : productType.getAllowedValues()) {
+            if (allowed.getAttributeValue() == value) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // 유형이 필수로 정한 정보 항목마다 값이 있어야 한다 (INFO-02)

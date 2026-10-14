@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.CATEGORY_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.clothing;
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.clothingWithCottonOrOtherMaterial;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.cottonMaterial;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productA;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWith;
@@ -153,6 +154,25 @@ class ProductTest {
         assertThat(product.getInfoValues())
             .extracting(ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue)
             .containsExactly(tuple(clothing.mainMaterial(), clothing.cotton()));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("notAllowedMaterials")
+    @DisplayName("INFO-03 그 유형에서 고를 수 없는 값을 넣으면 거절한다")
+    void rejectNotAllowedInfoValue(Function<Clothing, AttributeValue> material) {
+        Clothing clothing = clothingWithCottonOrOtherMaterial();
+        Product.RegisterInfo info = productAWith(clothing, List.of(
+            new InfoValueInfo(clothing.mainMaterial(), List.of(material.apply(clothing)), null)));
+
+        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.INFO_VALUE_NOT_ALLOWED));
+    }
+
+    static Stream<Named<Function<Clothing, AttributeValue>>> notAllowedMaterials() {
+        return Stream.of(
+            Named.of("허용 값에 없는 주요소재 린넨", Clothing::linen),
+            Named.of("다른 항목(특징)의 값 기모", Clothing::brushed));
     }
 
     // 정보 값은 테스트가 만든 유형의 항목 객체로 만들어야 하므로, 의류를 받아 정보 값을 만드는 함수를 넘긴다

@@ -26,6 +26,8 @@ final class ProductFixture {
         Attribute fabricComposition,
         Attribute feature,
         AttributeValue cotton,
+        AttributeValue other,
+        AttributeValue linen,
         AttributeValue brushed,
         AttributeValue stretch) {
     }
@@ -33,21 +35,38 @@ final class ProductFixture {
     // 색상 · 사이즈는 필수 옵션 항목, 주요소재는 필수 정보 항목(모든 값 허용), 혼용률은 선택 직접 입력 항목,
     // 특징은 선택 다중 선택 목록 항목(모든 값 허용)이다
     static Clothing clothing() {
+        return clothing(false);
+    }
+
+    // clothing()과 같지만 주요소재는 면과 기타만 고를 수 있다. 린넨은 주요소재의 목록 값이지만 허용되지 않는다
+    static Clothing clothingWithCottonOrOtherMaterial() {
+        return clothing(true);
+    }
+
+    private static Clothing clothing(boolean materialLimited) {
         Attribute color = ProductTypeFixture.color();
         Attribute size = ProductTypeFixture.size();
         Attribute mainMaterial = ProductTypeFixture.mainMaterial();
         Attribute fabricComposition = ProductTypeFixture.fabricComposition();
         Attribute feature = Attribute.create("특징", "FEATURE", AttributeInputType.MULTI_LIST);
         AttributeValue cotton = AttributeValue.create(mainMaterial, "면", null);
+        AttributeValue other = AttributeValue.create(mainMaterial, "기타", null);
+        AttributeValue linen = AttributeValue.create(mainMaterial, "린넨", null);
         AttributeValue brushed = AttributeValue.create(feature, "기모", null);
         AttributeValue stretch = AttributeValue.create(feature, "신축성", null);
+        ProductType.LinkInfo materialLink = ProductTypeFixture.requiredInfo(mainMaterial);
+        if (materialLimited) {
+            materialLink = new ProductType.LinkInfo(
+                mainMaterial, AttributeRole.INFO, true, false, false, false, List.of(cotton, other));
+        }
         ProductType type = ProductType.define("의류", List.of(
             ProductTypeFixture.requiredOption(color),
             ProductTypeFixture.sizeOption(size),
-            ProductTypeFixture.requiredInfo(mainMaterial),
+            materialLink,
             ProductTypeFixture.optionalTextInfo(fabricComposition),
             new ProductType.LinkInfo(feature, AttributeRole.INFO, false, true, false, false, List.of())));
-        return new Clothing(type, color, mainMaterial, fabricComposition, feature, cotton, brushed, stretch);
+        return new Clothing(
+            type, color, mainMaterial, fabricComposition, feature, cotton, other, linen, brushed, stretch);
     }
 
     // 기획서 7.1 상품 A: 판매자 2, 상의(카테고리 1), 주요소재 면. 혼용률과 특징은 비운다
