@@ -2,8 +2,8 @@ name: Slack Daily Summary
 
 on:
   schedule:
-    # 평일 09:00 KST (00:00 UTC)
-    - cron: '0 0 * * 1-5'
+    # 평일 09:07 KST (00:07 UTC). 정각은 예약이 몰려 실행이 빠지기 쉬워 7분 늦춘다
+    - cron: '7 0 * * 1-5'
   workflow_dispatch:
 
 permissions:
