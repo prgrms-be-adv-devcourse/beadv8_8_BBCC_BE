@@ -18,16 +18,18 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductOptionTest {
 
@@ -196,62 +198,40 @@ class ProductOptionTest {
             }));
     }
 
-    @Test
-    @DisplayName("PRICE-01 옵션이 속한 가격 구분 묶음에 가격이 없으면 거절한다")
-    void rejectOptionWithoutPrice() {
-        ClothingOptions clothing = clothingOptions();
-        Product product = productA(clothing);
-        Product.AddOptionsInfo info = new Product.AddOptionsInfo(
-            SELLER_ID, List.of(option(clothing.navy(), clothing.size110())), List.of());
-
-        assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.PRICE_GROUP_MISMATCH));
-        assertThat(product.getOptions()).isEmpty();
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("additionsWithNull")
+    @DisplayName("요청 · 상품 유형 · 판매자 · 옵션 · 가격과 그 안의 값이 null이면 거절한다")
+    void rejectAdditionWithNull(ThrowingCallable addOptions) {
+        assertThatThrownBy(addOptions)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
     }
 
-    @Test
-    @DisplayName("PRICE-03 이미 있는 옵션과 같은 가격 구분 묶음인데 가격이 다르면 거절한다")
-    void rejectPriceDifferentFromExistingOptions() {
+    static Stream<Named<ThrowingCallable>> additionsWithNull() {
         ClothingOptions clothing = clothingOptions();
-        Product product = productA(clothing);
-        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
-        Product.AddOptionsInfo info = new Product.AddOptionsInfo(
-            SELLER_ID, List.of(option(clothing.navy(), clothing.size120())), clothingPrice(30_000L));
-
-        assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.PRICE_GROUP_MISMATCH));
-        assertThat(product.getOptions()).hasSize(1);
-    }
-
-    @ParameterizedTest(name = "{0}원")
-    @ValueSource(longs = {0, -1})
-    @DisplayName("PRICE-02 판매가가 0 이하이면 거절한다")
-    void rejectNonPositivePrice(long price) {
-        ClothingOptions clothing = clothingOptions();
-        Product product = productA(clothing);
-        Product.AddOptionsInfo info = new Product.AddOptionsInfo(
-            SELLER_ID, List.of(option(clothing.navy(), clothing.size110())), clothingPrice(price));
-
-        assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("0보다 커야");
-        assertThat(product.getOptions()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("PRICE-03 같은 가격 구분 묶음의 가격이 두 번 오면 거절한다")
-    void rejectTwoPricesForSamePriceGroup() {
-        ClothingOptions clothing = clothingOptions();
-        Product product = productA(clothing);
-        Product.AddOptionsInfo info = new Product.AddOptionsInfo(
-            SELLER_ID,
-            List.of(option(clothing.navy(), clothing.size110())),
-            List.of(new Product.PriceInfo(List.of(), 25_000L), new Product.PriceInfo(List.of(), 30_000L)));
-
-        assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.PRICE_GROUP_MISMATCH));
+        ProductType type = clothing.type();
+        List<Product.OptionInfo> options = List.of(option(clothing.navy(), clothing.size110()));
+        List<Product.PriceInfo> prices = clothingPrice(CLOTHING_PRICE);
+        return Stream.of(
+            Named.of("요청", () -> productA(clothing).addOptions(null, type)),
+            Named.of("상품 유형", () -> productA(clothing).addOptions(addOptions(options), null)),
+            Named.of("판매자", () -> productA(clothing).addOptions(
+                new Product.AddOptionsInfo(null, options, prices), type)),
+            Named.of("옵션 목록", () -> productA(clothing).addOptions(
+                new Product.AddOptionsInfo(SELLER_ID, null, prices), type)),
+            Named.of("가격 목록", () -> productA(clothing).addOptions(
+                new Product.AddOptionsInfo(SELLER_ID, options, null), type)),
+            Named.of("옵션", () -> productA(clothing).addOptions(
+                addOptions(Arrays.asList((Product.OptionInfo) null)), type)),
+            Named.of("옵션의 값 목록", () -> productA(clothing).addOptions(
+                addOptions(List.of(new Product.OptionInfo(null, null))), type)),
+            Named.of("옵션의 값", () -> productA(clothing).addOptions(
+                addOptions(List.of(new Product.OptionInfo(Arrays.asList(clothing.navy(), null), null))), type)),
+            Named.of("가격", () -> productA(clothing).addOptions(
+                new Product.AddOptionsInfo(SELLER_ID, options, Arrays.asList((Product.PriceInfo) null)), type)),
+            Named.of("가격의 값 목록", () -> productA(clothing).addOptions(new Product.AddOptionsInfo(
+                SELLER_ID, options, List.of(new Product.PriceInfo(null, CLOTHING_PRICE))), type)),
+            Named.of("판매가", () -> productA(clothing).addOptions(new Product.AddOptionsInfo(
+                SELLER_ID, options, List.of(new Product.PriceInfo(List.of(), null))), type)));
     }
 }

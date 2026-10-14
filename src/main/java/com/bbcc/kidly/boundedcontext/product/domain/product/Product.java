@@ -154,6 +154,10 @@ public class Product extends BaseTimeEntity {
      * 옵션을 판매중 상태로 추가한다. 하나라도 잘못되면 하나도 추가하지 않는다.
      */
     public void addOptions(AddOptionsInfo info, ProductType productType) {
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(productType, "productType은 필수입니다");
+        requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        ProductOptions.requireNonNullValues(info);
         // 등록한 판매자만 옵션을 추가할 수 있다 (OPT-08)
         if (!sellerId.equals(info.sellerId())) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);

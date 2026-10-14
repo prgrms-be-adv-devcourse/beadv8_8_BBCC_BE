@@ -1,5 +1,8 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
+import static java.util.Objects.requireNonNull;
+
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product.AddOptionsInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.OptionInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.PriceInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
@@ -23,6 +26,27 @@ final class ProductOptions {
     private static final String FREE_SIZE = "FREE";
 
     private ProductOptions() {
+    }
+
+    // 옵션 목록과 가격 목록, 그 안의 값은 null이면 안 된다. SKU 코드는 null을 허용한다
+    static void requireNonNullValues(AddOptionsInfo info) {
+        requireNonNull(info.options(), "options는 필수입니다");
+        requireNonNull(info.prices(), "prices는 필수입니다");
+        for (OptionInfo option : info.options()) {
+            requireNonNull(option, "option은 필수입니다");
+            requireNonNull(option.values(), "values는 필수입니다");
+            for (AttributeValue value : option.values()) {
+                requireNonNull(value, "value는 필수입니다");
+            }
+        }
+        for (PriceInfo price : info.prices()) {
+            requireNonNull(price, "price는 필수입니다");
+            requireNonNull(price.values(), "values는 필수입니다");
+            requireNonNull(price.price(), "판매가는 필수입니다");
+            for (AttributeValue value : price.values()) {
+                requireNonNull(value, "value는 필수입니다");
+            }
+        }
     }
 
     // 옵션 하나의 값을 검사한다. 값은 모두 유형의 옵션 항목 값이어야 하고, 유형의 필수 옵션 항목은 모두 값이 있어야 한다 (OPT-01)
