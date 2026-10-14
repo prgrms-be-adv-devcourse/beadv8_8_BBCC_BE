@@ -6,9 +6,14 @@ import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -57,13 +62,31 @@ public class DeliveryService {
     }
 
     /**
-     * 판매자의 배송을 최근 것부터.
+     * 판매자의 배송을 최근 것부터. 배송 페이지 1번 + 그 페이지 주문(주문상품 포함) 1번으로 읽는다(건마다 조회하지 않음).
      */
     @Transactional(readOnly = true)
     public Page<SellerOrderView> getSellerOrders(Long memberId, int page, int size) {
-        return deliveryRepository.findAllBySellerIdOrderByIdDesc(memberId, PageRequest.of(page, size))
-            .map(delivery -> SellerOrderView.of(delivery, orderRepository.findById(delivery.getOrderId())
-                .orElseThrow(() -> new IllegalStateException("배송의 주문이 없습니다: " + delivery.getOrderId()))));
+        Page<Delivery> deliveries =
+            deliveryRepository.findAllBySellerIdOrderByIdDesc(memberId, PageRequest.of(page, size));
+        Map<Long, Order> ordersById = findOrdersWithItems(deliveries.getContent());
+        return deliveries.map(delivery -> SellerOrderView.of(delivery, orderOf(ordersById, delivery)));
+    }
+
+    private Map<Long, Order> findOrdersWithItems(List<Delivery> deliveries) {
+        if (deliveries.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> orderIds = deliveries.stream().map(Delivery::getOrderId).distinct().toList();
+        return orderRepository.findAllWithItemsByIdIn(orderIds).stream()
+            .collect(Collectors.toMap(Order::getId, Function.identity()));
+    }
+
+    private Order orderOf(Map<Long, Order> ordersById, Delivery delivery) {
+        Order order = ordersById.get(delivery.getOrderId());
+        if (order == null) {
+            throw new IllegalStateException("배송의 주문이 없습니다: " + delivery.getOrderId());
+        }
+        return order;
     }
 
     private Delivery findOwned(Long memberId, Long deliveryId) {
