@@ -57,6 +57,54 @@ class MemberTest {
             .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"가", "가나다라마바사아자차카타파하가나다라마바사", " 하은맘", "하은맘 "})
+    @DisplayName("닉네임이 2~20자가 아니거나 앞뒤에 공백이 있으면 가입할 수 없다")
+    void registerRejectsNicknameLength(String nickname) {
+        assertThatThrownBy(() -> Member.register(OAuthProvider.KAKAO, "kakao-1", nickname, NOW))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"하은", "가나다라마바사아자차카타파하가나다라마바"})
+    @DisplayName("닉네임이 정확히 2자이거나 20자여도 가입하고 바꿀 수 있다")
+    void acceptsNicknameBoundaryLength(String nickname) {
+        var registered = Member.register(OAuthProvider.KAKAO, "kakao-1", nickname, NOW);
+        var member = MemberFixture.kakaoMember();
+
+        assertThat(registered.getNickname()).isEqualTo(nickname);
+        assertThat(member.changeNickname(nickname)).isTrue();
+        assertThat(member.getNickname()).isEqualTo(nickname);
+    }
+
+    @Test
+    @DisplayName("닉네임을 바꾸면 true를 돌려준다")
+    void changeNickname() {
+        var member = MemberFixture.kakaoMember();
+
+        assertThat(member.changeNickname("하은맘")).isTrue();
+        assertThat(member.getNickname()).isEqualTo("하은맘");
+    }
+
+    @Test
+    @DisplayName("지금 닉네임과 같으면 바꾸지 않고 false를 돌려준다")
+    void changeToSameNickname() {
+        var member = MemberFixture.kakaoMember();
+
+        assertThat(member.changeNickname(MemberFixture.NICKNAME)).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "가", "가나다라마바사아자차카타파하가나다라마바사", " 하은맘", "하은맘 "})
+    @DisplayName("비어 있거나 2~20자가 아니거나 앞뒤에 공백이 있는 닉네임으로는 바꿀 수 없다")
+    void changeNicknameRejectsInvalid(String nickname) {
+        var member = MemberFixture.kakaoMember();
+
+        assertThatThrownBy(() -> member.changeNickname(nickname))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThat(member.getNickname()).isEqualTo(MemberFixture.NICKNAME);
+    }
+
     @Test
     @DisplayName("활성 회원은 로그인할 수 있다")
     void activeMemberCanLogin() {

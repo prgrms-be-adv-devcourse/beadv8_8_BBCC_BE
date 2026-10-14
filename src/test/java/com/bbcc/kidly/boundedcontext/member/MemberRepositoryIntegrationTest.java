@@ -41,8 +41,30 @@ class MemberRepositoryIntegrationTest {
     void duplicateSocialAccount() {
         memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
 
-        assertThatThrownBy(() -> memberRepository.save(MemberFixture.kakaoMember("kakao-1")))
+        assertThatThrownBy(() -> memberRepository.save(
+            Member.register(OAuthProvider.KAKAO, "kakao-1", "다른회원", MemberFixture.NOW)))
             .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("같은 닉네임은 두 회원이 가질 수 없다")
+    void duplicateNickname() {
+        memberRepository.save(Member.register(OAuthProvider.KAKAO, "kakao-1", "하은맘", MemberFixture.NOW));
+
+        assertThatThrownBy(() -> memberRepository.save(
+            Member.register(OAuthProvider.KAKAO, "kakao-2", "하은맘", MemberFixture.NOW)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("닉네임이 있는지, 자신을 빼고 다른 회원이 쓰는지 확인한다")
+    void existsByNickname() {
+        var saved = memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
+
+        assertThat(memberRepository.existsByNickname("회원-kakao-1")).isTrue();
+        assertThat(memberRepository.existsByNickname("없는닉네임")).isFalse();
+        assertThat(memberRepository.existsByNicknameAndIdNot("회원-kakao-1", saved.getId())).isFalse();
+        assertThat(memberRepository.existsByNicknameAndIdNot("회원-kakao-1", saved.getId() + 1)).isTrue();
     }
 
     @Test

@@ -16,6 +16,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,12 +28,19 @@ import org.springframework.util.Assert;
 
 /**
  * 회원. 소셜 계정으로 가입 · 로그인한다. 판매자 여부는 역할로 저장하지 않고, 이벤트로 받은 판매자 상태 복사본을 가진다.
+ * 닉네임은 2~20자이고 회원끼리 겹치지 않는다.
  */
 @Entity
-@Table(name = "member", schema = "member")
+@Table(
+    name = "member",
+    schema = "member",
+    uniqueConstraints = @UniqueConstraint(name = "uk_member_nickname", columnNames = "nickname"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member extends BaseTimeEntity {
+
+    public static final int NICKNAME_MIN_LENGTH = 2;
+    public static final int NICKNAME_MAX_LENGTH = 20;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -70,9 +78,27 @@ public class Member extends BaseTimeEntity {
             requireNonNull(provider, "provider는 필수입니다"),
             requireNonNull(providerUserId, "providerUserId는 필수입니다"),
             requireNonNull(now, "now는 필수입니다")));
-        Assert.hasText(nickname, "nickname은 비어 있을 수 없습니다");
+        validateNickname(nickname);
         Assert.hasText(providerUserId, "providerUserId는 비어 있을 수 없습니다");
         return member;
+    }
+
+    // 닉네임이 바뀌면 true. 같은 값이면 바꾸지 않는다. 다른 회원과 겹치는지는 서비스와 DB 유니크 제약이 막는다
+    public boolean changeNickname(String nickname) {
+        requireNonNull(nickname, "nickname은 필수입니다");
+        validateNickname(nickname);
+        if (this.nickname.equals(nickname)) {
+            return false;
+        }
+        this.nickname = nickname;
+        return true;
+    }
+
+    private static void validateNickname(String nickname) {
+        Assert.hasText(nickname, "nickname은 비어 있을 수 없습니다");
+        Assert.isTrue(nickname.equals(nickname.strip()), "닉네임 앞뒤에 공백을 둘 수 없습니다");
+        Assert.isTrue(nickname.length() >= NICKNAME_MIN_LENGTH && nickname.length() <= NICKNAME_MAX_LENGTH,
+            "닉네임은 2~20자여야 합니다");
     }
 
     public boolean canLogin() {

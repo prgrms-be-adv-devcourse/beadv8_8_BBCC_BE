@@ -18,11 +18,12 @@ public final class MemberFixture {
     }
 
     public static Member kakaoMember() {
-        return kakaoMember("kakao-1");
+        return Member.register(OAuthProvider.KAKAO, "kakao-1", NICKNAME, NOW);
     }
 
+    // 닉네임은 회원끼리 겹칠 수 없어서 소셜 사용자 ID로 만든다
     public static Member kakaoMember(String providerUserId) {
-        return Member.register(OAuthProvider.KAKAO, providerUserId, NICKNAME, NOW);
+        return Member.register(OAuthProvider.KAKAO, providerUserId, "회원-" + providerUserId, NOW);
     }
 
     // ADMIN은 시드 데이터로만 부여하고 정지 · 탈퇴 메서드는 아직 없어서 테스트에서는 필드를 직접 바꾼다
