@@ -223,11 +223,9 @@ public class Product extends BaseTimeEntity {
         ProductSizeSpecs.validateNoDuplicate(info.specs(), sizeSpecs);
         ProductSizeSpecs.validateMeasurementItems(info.specs(), category);
         ProductSizeSpecs.validateSizeValuesInOptions(info.specs(), options, productType);
-        List<SizeSpec> created = new ArrayList<>();
         for (SizeSpecInfo spec : info.specs()) {
-            created.add(SizeSpec.create(this, spec));
+            sizeSpecs.add(SizeSpec.create(this, spec));
         }
-        sizeSpecs.addAll(created);
     }
 
     // 사이즈 무관 여부는 칸에 저장하지 않고 옵션의 사이즈 값으로 계산한다 (SIZE-02)
