@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.payment;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.MEMBER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.payment.app.ChargeReconcileService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentKeyCipher;
 import com.bbcc.kidly.boundedcontext.payment.domain.Charge;
@@ -54,6 +55,9 @@ class ChargeReconcileIntegrationTest {
 
     @Autowired
     private ChargeService chargeService;
+
+    @Autowired
+    private ChargeReconcileService chargeReconcileService;
 
     @Autowired
     private PaymentKeyCipher paymentKeyCipher;
@@ -162,6 +166,49 @@ class ChargeReconcileIntegrationTest {
             .extracting(Wallet::getBalance).isEqualTo(20_000L);
         assertThat(jpaWalletLedgerRepository.findAll())
             .filteredOn(ledger -> ledger.getType() == WalletLedgerType.CHARGE_CANCEL_REVERT).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("토스 직접 취소 웹훅을 두 번 받아도 충전액은 한 번만 빼고 원장도 하나만 남긴다")
+    void reconcileExternalCancelOnce() {
+        depositToWallet(15_000L);
+        Charge charge = done("payment-key-1", 10_000L);
+        fakePaymentGateway.willFindCancelled(charge.getTossOrderId());
+
+        chargeReconcileService.reconcileExternalCancel(charge.getTossOrderId());
+        chargeReconcileService.reconcileExternalCancel(charge.getTossOrderId());
+
+        assertThat(statusOf(charge)).isEqualTo(ChargeStatus.CANCELLED);
+        assertThat(jpaWalletRepository.findById(wallet.getId())).get()
+            .extracting(Wallet::getBalance).isEqualTo(5_000L);
+        assertThat(jpaWalletLedgerRepository.findAll()).singleElement().satisfies(ledger -> {
+            assertThat(ledger.getType()).isEqualTo(WalletLedgerType.CHARGE_CANCEL);
+            assertThat(ledger.getAmount()).isEqualTo(-10_000L);
+        });
+    }
+
+    @Test
+    @DisplayName("토스 직접 취소된 충전액보다 잔액이 적으면 있는 만큼만 빼서 잔액은 0이 된다")
+    void reconcileExternalCancelBalanceShort() {
+        depositToWallet(3_000L);
+        Charge charge = done("payment-key-1", 10_000L);
+        fakePaymentGateway.willFindCancelled(charge.getTossOrderId());
+
+        chargeReconcileService.reconcileExternalCancel(charge.getTossOrderId());
+
+        assertThat(statusOf(charge)).isEqualTo(ChargeStatus.CANCELLED);
+        assertThat(jpaWalletRepository.findById(wallet.getId())).get()
+            .extracting(Wallet::getBalance).isEqualTo(0L);
+        assertThat(jpaWalletLedgerRepository.findAll()).singleElement()
+            .extracting(WalletLedger::getAmount).isEqualTo(-3_000L);
+    }
+
+    private Charge done(String paymentKey, long amount) {
+        Charge charge = Charge.request(wallet.getId(), UUID.randomUUID().toString(), amount,
+            LocalDateTime.now().plusMinutes(30));
+        charge.startConfirming(amount, LocalDateTime.now());
+        charge.approve(paymentKeyCipher.encrypt(paymentKey), LocalDateTime.now());
+        return chargeRepository.save(charge);
     }
 
     private void depositToWallet(long amount) {

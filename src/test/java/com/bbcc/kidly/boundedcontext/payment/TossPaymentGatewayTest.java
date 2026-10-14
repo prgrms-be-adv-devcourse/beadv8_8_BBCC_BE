@@ -198,6 +198,55 @@ class TossPaymentGatewayTest {
             .extracting("code").isEqualTo("NOT_FOUND_PAYMENT");
     }
 
+    @Test
+    @DisplayName("이미 취소된 결제라는 응답은 취소가 끝난 것이므로 취소 시각 없이 성공으로 돌려준다")
+    void cancelAlreadyCanceled() {
+        server.expect(requestTo(BASE_URL + "/v1/payments/pk-1/cancel"))
+            .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(error("ALREADY_CANCELED_PAYMENT", "이미 취소된 결제 입니다.")));
+
+        PgResult<PgCancellation> result = gateway.cancel("pk-1", "단순 변심", "idem-2");
+
+        assertThat(result).isEqualTo(new PgResult.Success<>(new PgCancellation(null)));
+    }
+
+    @Test
+    @DisplayName("주문번호로 조회한 결제가 전액 취소됐으면 마지막 취소 시각을 돌려준다")
+    void findCancellationOfCanceledPayment() {
+        server.expect(requestTo(BASE_URL + "/v1/payments/orders/charge-1"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("Authorization", AUTHORIZATION))
+            .andRespond(withSuccess(canceledPayment(), MediaType.APPLICATION_JSON));
+
+        PgResult<PgCancellation> result = gateway.findCancellationByOrderId("charge-1");
+
+        assertThat(result).isEqualTo(new PgResult.Success<>(new PgCancellation(local(CANCELED_AT))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DONE", "PARTIAL_CANCELED"})
+    @DisplayName("조회한 결제가 전액 취소되지 않았으면 토스 결제 상태를 거절 코드로 돌려준다")
+    void findCancellationOfNotCanceledPayment(String status) {
+        server.expect(requestTo(BASE_URL + "/v1/payments/orders/charge-1"))
+            .andRespond(withSuccess(payment(status, APPROVED_AT), MediaType.APPLICATION_JSON));
+
+        PgResult<PgCancellation> result = gateway.findCancellationByOrderId("charge-1");
+
+        assertThat(result).isEqualTo(new PgResult.Rejected<>(status, "전액 취소되지 않은 결제입니다"));
+    }
+
+    @Test
+    @DisplayName("취소 조회 중 토스 서버 오류(5xx)는 결과를 모르는 것으로 돌려준다")
+    void findCancellationServerError() {
+        server.expect(requestTo(BASE_URL + "/v1/payments/orders/charge-1"))
+            .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        PgResult<PgCancellation> result = gateway.findCancellationByOrderId("charge-1");
+
+        assertThat(result).isInstanceOf(PgResult.Unknown.class);
+    }
+
     private static String payment(String status, String approvedAt) {
         String approved = approvedAt == null ? "null" : "\"" + approvedAt + "\"";
         return """

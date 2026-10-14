@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.payment.app.port.PgCancellation;
 import com.bbcc.kidly.boundedcontext.payment.domain.Charge;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeCancellation;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeRepository;
+import com.bbcc.kidly.boundedcontext.payment.domain.ChargeStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedger;
@@ -23,8 +24,10 @@ import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -34,12 +37,14 @@ import org.springframework.transaction.annotation.Transactional;
  * 충전의 상태를 바꾸는 트랜잭션 단위. 토스 호출은 트랜잭션 밖(ChargeConfirmService · ChargeCancelService)에서 한다.
  * 남의 지갑 충전은 없는 충전처럼 404다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChargeService {
 
     private static final Duration EXPIRES_IN = Duration.ofMinutes(30);
     private static final String CANCEL_REASON = "예치금 충전 취소";
+    private static final String EXTERNAL_CANCEL_REASON = "토스에서 직접 취소";
 
     private final WalletRepository walletRepository;
     private final ChargeRepository chargeRepository;
@@ -148,6 +153,38 @@ public class ChargeService {
         wallet.deposit(cancellation.getAmount());
         walletLedgerRepository.save(WalletLedger.record(wallet.getId(), WalletLedgerType.CHARGE_CANCEL_REVERT,
             cancellation.getAmount(), wallet.getBalance(), cancellation.getId()));
+    }
+
+    /**
+     * 토스에서 직접 전액 취소된 충전을 취소 완료로 바꾸고 충전액을 뺀다. 원장에는 CHARGE_CANCEL(ref_id = 취소 요청 ID)을 남긴다.
+     * 이미 써 버려 잔액이 모자라면 있는 만큼만 빼고, 못 뺀 금액은 운영자가 처리하도록 ERROR로 남긴다.
+     * 그사이 완료가 아니게 된 충전(이미 취소됨 · 우리 취소 진행 중)은 그대로 둔다.
+     */
+    @Transactional
+    public void applyExternalCancel(Long chargeId, PgCancellation cancellation) {
+        Optional<Charge> found = chargeRepository.findWithLockById(chargeId)
+            .filter(charge -> charge.getStatus() == ChargeStatus.DONE);
+        if (found.isEmpty()) {
+            log.info("완료 상태가 아니어서 토스 직접 취소를 반영하지 않습니다. chargeId={}", chargeId);
+            return;
+        }
+        Charge charge = found.get();
+        Wallet wallet = walletRepository.findWithLockById(charge.getWalletId())
+            .orElseThrow(() -> new BusinessException(PaymentErrorCode.WALLET_NOT_FOUND));
+        LocalDateTime cancelledAt = cancellation.cancelledAt();
+        charge.cancelExternally(EXTERNAL_CANCEL_REASON, cancelledAt == null ? LocalDateTime.now() : cancelledAt);
+        chargeRepository.saveAndFlush(charge);
+        long recovered = Math.min(wallet.getBalance(), charge.getAmount());
+        if (recovered > 0) {
+            wallet.withdraw(recovered);
+            walletLedgerRepository.save(WalletLedger.record(wallet.getId(), WalletLedgerType.CHARGE_CANCEL,
+                recovered, wallet.getBalance(), charge.getLastCancellation().getId()));
+        }
+        long shortfall = charge.getAmount() - recovered;
+        if (shortfall > 0) {
+            log.error("토스에서 직접 취소된 충전액을 다 회수하지 못했습니다. chargeId={}, walletId={}, shortfall={}",
+                charge.getId(), wallet.getId(), shortfall);
+        }
     }
 
     private Wallet walletOf(Long memberId) {

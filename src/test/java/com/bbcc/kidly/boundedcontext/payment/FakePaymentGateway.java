@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 /**
- * 통합 · 기능 테스트에서 토스 대신 쓴다. 승인 · 취소는 paymentKey로, 조회는 테스트가 정해 둔 주문번호별 결과로 고른다.
+ * 통합 · 기능 테스트에서 토스 대신 쓴다. 승인 · 취소는 paymentKey로, 승인 · 취소 조회는 테스트가 정해 둔 주문번호별 결과로 고른다.
  * 실제 토스 연동은 TossPaymentGatewayTest가 확인한다.
  */
 @Primary
@@ -30,6 +30,7 @@ public class FakePaymentGateway implements PaymentGateway {
 
     // 주문번호별 조회 결과. 정해 두지 않은 주문번호는 결과를 모름. 테스트가 끝나면 reset()으로 비운다
     private final Map<String, PgResult<PgApproval>> lookups = new ConcurrentHashMap<>();
+    private final Map<String, PgResult<PgCancellation>> cancellationLookups = new ConcurrentHashMap<>();
 
     public void willFindApproved(String orderId, long amount) {
         PgApproval approval = new PgApproval("payment-key-" + orderId, amount, LocalDateTime.now());
@@ -40,8 +41,18 @@ public class FakePaymentGateway implements PaymentGateway {
         lookups.put(orderId, new PgResult.Rejected<>(code, "승인되지 않고 끝난 결제입니다"));
     }
 
+    public void willFindCancelled(String orderId) {
+        cancellationLookups.put(orderId, new PgResult.Success<>(new PgCancellation(LocalDateTime.now())));
+    }
+
+    // status는 토스 결제 상태(DONE · PARTIAL_CANCELED 등)
+    public void willFindNotCancelled(String orderId, String status) {
+        cancellationLookups.put(orderId, new PgResult.Rejected<>(status, "전액 취소되지 않은 결제입니다"));
+    }
+
     public void reset() {
         lookups.clear();
+        cancellationLookups.clear();
     }
 
     @Override
@@ -65,5 +76,10 @@ public class FakePaymentGateway implements PaymentGateway {
     @Override
     public PgResult<PgApproval> findByOrderId(String orderId) {
         return lookups.getOrDefault(orderId, new PgResult.Unknown<>("정해 둔 조회 결과 없음"));
+    }
+
+    @Override
+    public PgResult<PgCancellation> findCancellationByOrderId(String orderId) {
+        return cancellationLookups.getOrDefault(orderId, new PgResult.Unknown<>("정해 둔 조회 결과 없음"));
     }
 }

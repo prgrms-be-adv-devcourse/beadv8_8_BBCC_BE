@@ -30,10 +30,13 @@ public class TossPaymentGateway implements PaymentGateway {
 
     private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
     private static final String DONE = "DONE";
+    private static final String CANCELED = "CANCELED";
+    // 같은 결제를 다시 취소하면 오는 오류. 취소는 이미 끝났으므로 성공으로 돌려준다
+    private static final String ALREADY_CANCELED_PAYMENT = "ALREADY_CANCELED_PAYMENT";
     // 승인 전이거나 승인 중이라 조회만으로는 결과를 확정할 수 없는 결제 상태
     private static final Set<String> PENDING_STATUSES = Set.of("READY", "IN_PROGRESS", "WAITING_FOR_DEPOSIT");
     // 승인된 뒤 취소된 결제 상태. 지금 돈이 들어와 있지 않으므로 거절로 돌려준다
-    private static final Set<String> CANCELED_STATUSES = Set.of("CANCELED", "PARTIAL_CANCELED");
+    private static final Set<String> CANCELED_STATUSES = Set.of(CANCELED, PARTIAL_CANCELED);
     // 4xx지만 앞선 요청이 처리됐거나 처리 중일 수 있는 오류. 조회로 확정해야 한다
     private static final Set<String> UNCERTAIN_ERROR_CODES =
         Set.of("ALREADY_PROCESSED_PAYMENT", "IDEMPOTENT_REQUEST_PROCESSING");
@@ -64,14 +67,18 @@ public class TossPaymentGateway implements PaymentGateway {
             .header(IDEMPOTENCY_KEY, idempotencyKey)
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("cancelReason", reason));
-        return call(request, payment -> new PgResult.Success<>(new PgCancellation(payment.lastCanceledAt())));
+        PgResult<PgCancellation> result =
+            call(request, payment -> new PgResult.Success<>(new PgCancellation(payment.lastCanceledAt())));
+        if (result instanceof PgResult.Rejected<PgCancellation> rejected
+            && ALREADY_CANCELED_PAYMENT.equals(rejected.code())) {
+            return new PgResult.Success<>(new PgCancellation(null));
+        }
+        return result;
     }
 
     @Override
     public PgResult<PgApproval> findByOrderId(String orderId) {
-        RestClient.RequestHeadersSpec<?> request = restClient.get()
-            .uri("/v1/payments/orders/{orderId}", orderId);
-        return call(request, payment -> {
+        return call(findRequest(orderId), payment -> {
             if (DONE.equals(payment.status())) {
                 return new PgResult.Success<>(payment.toApproval());
             }
@@ -83,6 +90,17 @@ public class TossPaymentGateway implements PaymentGateway {
             }
             return new PgResult.Rejected<>(payment.status(), "승인되지 않고 끝난 결제입니다");
         });
+    }
+
+    @Override
+    public PgResult<PgCancellation> findCancellationByOrderId(String orderId) {
+        return call(findRequest(orderId), payment -> CANCELED.equals(payment.status())
+            ? new PgResult.Success<>(new PgCancellation(payment.lastCanceledAt()))
+            : new PgResult.Rejected<>(payment.status(), "전액 취소되지 않은 결제입니다"));
+    }
+
+    private RestClient.RequestHeadersSpec<?> findRequest(String orderId) {
+        return restClient.get().uri("/v1/payments/orders/{orderId}", orderId);
     }
 
     private <T> PgResult<T> call(RestClient.RequestHeadersSpec<?> request,
