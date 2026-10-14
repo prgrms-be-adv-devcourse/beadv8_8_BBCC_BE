@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
@@ -158,6 +159,37 @@ class ProductRepositoryIntegrationTest {
                 .containsExactly("110", "120");
             assertThat(managedType().getAttributes()).extracting(link -> link.getAttribute().getCode())
                 .containsExactly("COLOR", "SIZE", "PATTERN", "MAIN_MATERIAL");
+        });
+    }
+
+    @Test
+    @DisplayName("SALE-04 새로 읽은 옵션은 상품이 지연 로딩 프록시여도, 상품과 옵션이 판매중이면 살 수 있다")
+    void purchasableWithProductProxy() {
+        Long productId = savedProductAWithOption110();
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            product.addSizeSpecs(
+                addSizeSpecs(List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements()))),
+                managedCategory(), managedType());
+            product.startSale(SELLER_ID, managedCategory(), managedType());
+        });
+        Long optionId = jdbcTemplate.queryForObject(
+            "select id from product.product_option where product_id = ?", Long.class, productId);
+
+        inTransaction(() -> assertThat(entityManager.find(ProductOption.class, optionId).isPurchasable()).isTrue());
+    }
+
+    @Test
+    @DisplayName("상품이 가리키는 카테고리는 ID만 읽으면 지연 로딩 프록시를 초기화하지 않는다")
+    void categoryIdWithoutInitializingProxy() {
+        Long productId = savedProductA();
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+
+            assertThat(product.getCategoryId()).isEqualTo(category.getId());
+            assertThat(entityManager.getEntityManagerFactory().getPersistenceUnitUtil().isLoaded(product, "category"))
+                .isFalse();
         });
     }
 
