@@ -12,6 +12,8 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
+import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -56,6 +58,9 @@ class SellerOrderApiTest {
     @Autowired
     private ChildReplicaRepository childReplicaRepository;
 
+    @Autowired
+    private WalletRepository walletRepository;
+
     private String orderId;
 
     @BeforeEach
@@ -64,6 +69,7 @@ class SellerOrderApiTest {
         productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
             2L, 2L, OTHER_SELLER_ID, "상품 B", "120", 30_000L, 2L, "ON_SALE", false, OCCURRED_AT)));
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
+        saveBuyerWallet(80_000L);
         orderId = placePaidOrder();
     }
 
@@ -239,6 +245,15 @@ class SellerOrderApiTest {
             .getResponseBody();
         assertThat(page).isNotNull();
         return page.content().get(0).sellerOrderId();
+    }
+
+    /**
+     * 결제 도메인이 order.payment-requested를 받아 실제로 결제하므로, 지갑이 없으면 payment.failed로 주문이 취소된다.
+     */
+    private void saveBuyerWallet(long balance) {
+        Wallet wallet = Wallet.create(BUYER_ID);
+        wallet.deposit(balance);
+        walletRepository.save(wallet);
     }
 
     private void publish(DomainEvent event) {
