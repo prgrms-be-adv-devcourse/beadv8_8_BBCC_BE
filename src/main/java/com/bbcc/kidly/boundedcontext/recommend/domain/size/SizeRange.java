@@ -1,6 +1,11 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.size;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Embeddable;
+
+@Embeddable
 public record SizeRange(
+        @Column(nullable = false, length = 20)
         String size,
         int minHeightCm,
         int maxHeightCm
