@@ -29,6 +29,10 @@ final class ProductOptions {
             if (link.isEmpty() || link.get().getRole() != AttributeRole.OPTION) {
                 throw new BusinessException(ProductErrorCode.NOT_OPTION_ATTRIBUTE);
             }
+            // 유형이 허용한 값만 받는다. 의류 사이즈는 Kidly 숫자 목록과 FREE만 허용한다 (OPT-04, SIZE-01)
+            if (!productType.allows(value)) {
+                throw new BusinessException(ProductErrorCode.OPTION_VALUE_NOT_ALLOWED);
+            }
             // 옵션은 옵션 항목마다 값 하나다
             if (!attributes.add(value.getAttribute())) {
                 throw new BusinessException(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED);

@@ -115,6 +115,18 @@ class ProductOptionTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED));
     }
 
+    @Test
+    @DisplayName("OPT-04 · SIZE-01 그 유형에서 고를 수 없는 사이즈 값은 거절한다")
+    void rejectNotAllowedOptionValue() {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+
+        assertThatThrownBy(() -> product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.size105()))), clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.OPTION_VALUE_NOT_ALLOWED));
+    }
+
     static Stream<Named<Function<ClothingOptions, AttributeValue>>> notOptionAttributeValues() {
         return Stream.of(
             Named.of("정보 항목(주요소재)의 값 면", ClothingOptions::cotton),
