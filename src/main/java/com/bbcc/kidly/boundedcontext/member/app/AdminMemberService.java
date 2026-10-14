@@ -24,7 +24,7 @@ public class AdminMemberService {
 
     @Transactional(readOnly = true)
     public Page<AdminMemberSummary> getMembers(AdminMemberFilter filter, Pageable pageable) {
-        return memberSummaryQuery.findAll(filter, pageable);
+        return memberSummaryQuery.findAll(filter, null, pageable);
     }
 
     // 동시에 정지하면 둘 다 성공하고 나중 사유가 남는다(@Version 없음, 상태는 같다)
