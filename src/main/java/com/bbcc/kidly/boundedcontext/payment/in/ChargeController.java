@@ -8,9 +8,12 @@ import com.bbcc.kidly.boundedcontext.payment.app.dto.ConfirmChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.in.dto.ChargeConfirmResponse;
 import com.bbcc.kidly.boundedcontext.payment.in.dto.ChargeDetailResponse;
 import com.bbcc.kidly.boundedcontext.payment.in.dto.ChargeRequestResponse;
+import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -52,6 +56,17 @@ public class ChargeController {
         return result.confirming()
             ? ResponseEntity.accepted().body(body)
             : ResponseEntity.ok(body);
+    }
+
+    /**
+     * 내 충전 내역. 상태와 상관없이 모두 최신순으로 준다.
+     */
+    @GetMapping
+    public PageResponse<ChargeDetailResponse> getCharges(
+        @LoginMember AuthMember member,
+        @RequestParam(defaultValue = "0") @Min(0) int page,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return PageResponse.from(chargeService.getCharges(member.id(), page, size).map(ChargeDetailResponse::from));
     }
 
     @GetMapping("/{chargeId}")

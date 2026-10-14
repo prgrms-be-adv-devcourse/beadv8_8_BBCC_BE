@@ -35,10 +35,11 @@
 | 모름(시간 초과 · 5xx) | CONFIRMING 유지 | 그대로 | 202. 실패로 처리하지 않는다(돈이 빠져나갔을 수 있다) |
 
 - 남의 지갑 충전은 없는 충전처럼 404 `CHARGE_NOT_FOUND`
+- 충전 목록 `GET /api/v1/wallets/me/charges`(#186)는 상태와 상관없이 내 지갑의 충전을 모두 최신순(ID 내림차순)으로 준다. 상태 필터는 없다
 - paymentKey는 `app.port.PaymentKeyCipher`(AES-256-GCM, `out.crypto`)로 암호화한다. 키는 환경 변수 `PAYMENT_KEY_ENCRYPTION_KEY`(Base64 32바이트)이고, 없으면 앱이 뜨지 않는다. 로컬 · 테스트는 프로필 설정의 개발용 키를 쓴다
 - 통합 · 기능 테스트는 토스 대신 `FakePaymentGateway`(결제 테스트 폴더, paymentKey로 결과 선택)를 쓴다
 - 끝나지 않은 충전은 `in.scheduler.ChargeScheduler`가 정리한다(#158). 주기 `kidly.payment.charge.reconcile-interval`(기본 1분)
   - 승인 중으로 `confirming-stale-after`(기본 5분) 넘게 남은 충전: 토스 조회로 승인 → 입금 / 승인 안 됨 → FAILED / 모름 → 다음 실행. 승인 금액이 다르면 반영하지 않고 ERROR
   - 만료 시각이 지난 PENDING 충전: EXPIRED
   - 충전 상태를 바꾸는 곳(승인 시작 · 승인 반영 · 실패 · 만료)은 충전을 비관적 락으로 읽는다. 사용자 승인과 스케줄러가 겹쳐도 늦은 쪽이 바뀐 상태를 보고 멈춰 한 번만 입금한다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
-- 아직 없음(다음 이슈): 충전 취소, 충전 내역 · 원장 조회 API
+- 아직 없음(다음 이슈): 충전 취소, 원장 조회 API
