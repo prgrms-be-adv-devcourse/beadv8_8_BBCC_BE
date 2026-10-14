@@ -92,10 +92,15 @@ public class Product extends BaseTimeEntity {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
         requireNonNull(info.infoValues(), "infoValues는 필수입니다");
+        // null이면 NPE가 먼저 나야 하므로 빈 값 검사보다 앞에 둔다
+        requireNonNull(info.name(), "name은 필수입니다");
+        if (info.name().isBlank()) {
+            throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
+        }
         Product product = new Product();
         product.sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
         product.categoryId = requireNonNull(info.categoryId(), "categoryId는 필수입니다");
-        product.name = requireNonNull(info.name(), "name은 필수입니다");
+        product.name = info.name();
         product.brand = info.brand();
         product.description = info.description();
         product.thumbnailUrl = info.thumbnailUrl();

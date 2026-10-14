@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductTest {
 
@@ -50,6 +51,19 @@ class ProductTest {
         Product product = Product.register(productAWithoutThumbnail(clothing), clothing.type());
 
         assertThat(product.getThumbnailUrl()).isNull();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"", " "})
+    @DisplayName("상품명이 비어 있으면 거절한다")
+    void rejectProductWithBlankName(String name) {
+        Clothing clothing = clothing();
+        Product.RegisterInfo info = productAWithRequired(
+            SELLER_ID, CATEGORY_ID, name, List.of("https://…/a-1.jpg"), productA(clothing).infoValues());
+
+        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("비어 있을 수 없습니다");
     }
 
     @ParameterizedTest(name = "{0}")
