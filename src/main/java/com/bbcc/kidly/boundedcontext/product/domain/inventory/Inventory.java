@@ -39,6 +39,10 @@ public class Inventory extends BaseTimeEntity {
 
     // 재고를 열 때 InventoryOpening만 만든다
     static Inventory create(ProductOption productOption, int availableQty) {
+        // 판매 가능 수량은 0 미만이 될 수 없다 (INV-01)
+        if (availableQty < 0) {
+            throw new IllegalArgumentException("판매 가능 수량은 0보다 작을 수 없습니다");
+        }
         Inventory inventory = new Inventory();
         inventory.productOption = productOption;
         inventory.availableQty = availableQty;

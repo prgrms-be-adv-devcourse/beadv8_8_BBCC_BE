@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.navy110;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentReason;
@@ -50,5 +51,13 @@ class InventoryTest {
         InventoryOpening opening = InventoryOpening.open(option, 0, SELLER_ID);
 
         assertThat(opening.records()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("INV-01 초기 재고가 0보다 작으면 재고를 열지 않는다")
+    void rejectNegativeInitialStock() {
+
+        assertThatThrownBy(() -> InventoryOpening.open(option, -1, SELLER_ID))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 }
