@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.purchase;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -60,19 +62,21 @@ public class PurchaseRecord extends BaseTimeEntity {
      * 구매 기록으로 남길 구매확정인지 판단한다. 자녀를 고르지 않은 구매확정은 사이즈 추천에 쓸 수 없어 남기지 않는다.
      */
     public static boolean isRecordable(RecordInfo info) {
+        requireNonNull(info, "info는 필수입니다");
         return info.childProfileId() != null;
     }
 
     public static PurchaseRecord create(RecordInfo info) {
+        requireNonNull(info, "info는 필수입니다");
         PurchaseRecord record = new PurchaseRecord();
-        record.orderItemId = info.orderItemId();
-        record.orderId = info.orderId();
-        record.memberId = info.memberId();
-        record.childProfileId = info.childProfileId();
-        record.productId = info.productId();
-        record.productOptionId = info.productOptionId();
-        record.size = info.size();
-        record.confirmedAt = info.confirmedAt();
+        record.orderItemId = requireNonNull(info.orderItemId(), "orderItemId는 필수입니다");
+        record.orderId = requireNonNull(info.orderId(), "orderId는 필수입니다");
+        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        record.childProfileId = requireNonNull(info.childProfileId(), "childProfileId는 필수입니다");
+        record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
+        record.productOptionId = requireNonNull(info.productOptionId(), "productOptionId는 필수입니다");
+        record.size = requireNonNull(info.size(), "size는 필수입니다");
+        record.confirmedAt = requireNonNull(info.confirmedAt(), "confirmedAt은 필수입니다");
         return record;
     }
 }

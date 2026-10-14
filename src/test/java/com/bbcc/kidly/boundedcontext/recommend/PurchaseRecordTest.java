@@ -8,10 +8,16 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PURCHASE_CONFIRMED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
+import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class PurchaseRecordTest {
 
@@ -44,5 +50,44 @@ class PurchaseRecordTest {
     @DisplayName("INV-R03 자녀를 고르지 않은 구매확정은 기록하지 않는다")
     void notRecordableWithoutChild() {
         assertThat(PurchaseRecord.isRecordable(RecommendFixture.purchaseConfirmationFor(null))).isFalse();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("confirmationsWithNull")
+    @DisplayName("구매확정 값에 필수 값이 없으면 기록을 만들지 않는다")
+    void rejectConfirmationWithNull(ThrowingCallable record) {
+        assertThatThrownBy(record)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> confirmationsWithNull() {
+        return Stream.of(
+            Named.of("기록 대상 판단 때 구매확정 값", () -> PurchaseRecord.isRecordable(null)),
+            Named.of("구매확정 값", () -> PurchaseRecord.create(null)),
+            Named.of("주문상품 ID", () -> PurchaseRecord.create(new PurchaseRecord.RecordInfo(
+                null, ORDER_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120",
+                PURCHASE_CONFIRMED_AT))),
+            Named.of("주문 ID", () -> PurchaseRecord.create(new PurchaseRecord.RecordInfo(
+                ORDER_ITEM_ID, null, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120",
+                PURCHASE_CONFIRMED_AT))),
+            Named.of("회원 ID", () -> PurchaseRecord.create(new PurchaseRecord.RecordInfo(
+                ORDER_ITEM_ID, ORDER_ID, null, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120",
+                PURCHASE_CONFIRMED_AT))),
+            Named.of("자녀 ID", () -> PurchaseRecord.create(new PurchaseRecord.RecordInfo(
+                ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, null, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120",
+                PURCHASE_CONFIRMED_AT))),
+            Named.of("상품 ID", () -> PurchaseRecord.create(new PurchaseRecord.RecordInfo(
+                ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, CHILD_1_ID, null, PRODUCT_A_120_OPTION_ID, "120",
+                PURCHASE_CONFIRMED_AT))),
+            Named.of("옵션 ID", () -> PurchaseRecord.create(new PurchaseRecord.RecordInfo(
+                ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, null, "120",
+                PURCHASE_CONFIRMED_AT))),
+            Named.of("사이즈", () -> PurchaseRecord.create(new PurchaseRecord.RecordInfo(
+                ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, null,
+                PURCHASE_CONFIRMED_AT))),
+            Named.of("구매확정 시각", () -> PurchaseRecord.create(new PurchaseRecord.RecordInfo(
+                ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120",
+                null))));
     }
 }
