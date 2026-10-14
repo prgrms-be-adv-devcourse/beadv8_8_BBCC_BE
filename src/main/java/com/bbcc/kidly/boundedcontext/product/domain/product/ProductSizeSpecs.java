@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.product.domain.product;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SizeSpecInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +40,19 @@ final class ProductSizeSpecs {
         for (SizeSpecInfo spec : specs) {
             if (!seen.add(spec.sizeValue())) {
                 throw new BusinessException(ProductErrorCode.DUPLICATE_SIZE_SPEC);
+            }
+        }
+    }
+
+    // 실측 값의 항목 코드는 모두 상품 카테고리의 실측 항목이어야 한다 (SIZE-04)
+    static void validateMeasurementItems(List<SizeSpecInfo> specs, Category category) {
+        Set<String> allowed = new HashSet<>();
+        for (CategoryMeasurementItem item : category.getMeasurementItems()) {
+            allowed.add(item.getMeasurementItem().getCode());
+        }
+        for (SizeSpecInfo spec : specs) {
+            if (!allowed.containsAll(spec.measurements().keySet())) {
+                throw new BusinessException(ProductErrorCode.MEASUREMENT_ITEM_NOT_IN_CATEGORY);
             }
         }
     }

@@ -18,7 +18,10 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -105,6 +108,20 @@ class ProductSizeSpecTest {
             Named.of("이미 있는 110과 겹침", clothing -> new SpecRequests(
                 List.of(spec(clothing.size110(), 105, 115, top110Measurements())),
                 List.of(spec(clothing.size110(), 105, 115, top110Measurements())))));
+    }
+
+    @Test
+    @DisplayName("SIZE-04 상품 카테고리에 없는 실측 항목은 받지 않는다")
+    void rejectMeasurementItemNotInCategory() {
+        withOptions110And120();
+        // 상의의 필수 실측 항목에 하의의 허리단면을 더한다
+        Map<String, BigDecimal> withWaist = new HashMap<>(top110Measurements());
+        withWaist.put("WAIST_WIDTH", new BigDecimal("25"));
+
+        assertRejected(() -> product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), 105, 115, withWaist))), top, clothing.type()),
+            ProductErrorCode.MEASUREMENT_ITEM_NOT_IN_CATEGORY);
+        assertThat(product.getSizeSpecs()).isEmpty();
     }
 
     // 상품 A에 네이비 110 · 120 옵션을 붙인다
