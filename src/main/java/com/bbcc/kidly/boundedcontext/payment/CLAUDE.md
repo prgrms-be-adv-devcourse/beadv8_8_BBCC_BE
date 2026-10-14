@@ -80,3 +80,16 @@
 ## 입출금 내역 (`app/WalletService`, #200)
 - `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 ID
 - 지갑이 없으면 404 `WALLET_NOT_FOUND`. 종류 · 기간 필터는 없다
+
+## 정산 지급 (`app/SettlementPayoutService`, #210)
+- `settlement.payout-requested`를 받아 판매자(`sellerId` = 회원 ID) 예치금에 정산금액을 입금하고 `payment.payout-completed` · `payment.payout-failed`를 발행한다. 계약은 #209
+- 지갑을 락으로 읽은 뒤 그 정산서의 `SETTLEMENT` 원장(ref_id = 정산서 ID)이 있는지 본다. 있으면 건너뛰고 발행도 하지 않는다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
+
+| 경우 | 지갑 · 원장 | 발행 |
+|---|---|---|
+| 입금 | 입금, 원장 `SETTLEMENT` | `payment.payout-completed`(ledgerId) |
+| 0원 | 그대로 | `payment.payout-completed`(ledgerId null) |
+| 지갑 없음 | 그대로 | `payment.payout-failed`(`WALLET_NOT_FOUND`), ERROR 로그 |
+| 이미 입금함 | 그대로 | 발행 안 함 |
+
+- 0원 · 지갑 없음은 원장이 남지 않아, 같은 요청이 다시 오면 결과 이벤트도 다시 발행된다. 받는 쪽(정산)은 한 번만 반영한다
