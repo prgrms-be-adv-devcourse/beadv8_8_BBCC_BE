@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
@@ -82,6 +83,13 @@ final class ProductOptionFixture {
     // 상품 A의 판매자가 의류 가격 25,000원으로 옵션을 추가하는 요청이다
     static Product.AddOptionsInfo addOptions(List<Product.OptionInfo> options) {
         return new Product.AddOptionsInfo(SELLER_ID, options, clothingPrice(CLOTHING_PRICE));
+    }
+
+    // 상품 A에 네이비 · 110 옵션 하나를 추가하고, 재고를 열 대상인 그 옵션을 돌려준다
+    static ProductOption navy110(ClothingOptions clothing) {
+        Product product = productA(clothing);
+        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
+        return product.getOptions().get(0);
     }
 
     // 이미 추가한 옵션과 이번에 추가하려는 옵션이다. existing이 비어 있으면 먼저 추가한 옵션이 없다
