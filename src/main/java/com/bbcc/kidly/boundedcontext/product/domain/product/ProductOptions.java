@@ -186,7 +186,7 @@ final class ProductOptions {
             Set<AttributeValue> group = priceGroup(valuesOf(option), productType);
             for (PriceInfo price : prices) {
                 if (new HashSet<>(price.values()).equals(group) && price.price() != option.getPrice()) {
-                    throw new BusinessException(ProductErrorCode.PRICE_GROUP_MISMATCH);
+                    throw new BusinessException(ProductErrorCode.EXISTING_OPTION_PRICE_MISMATCH);
                 }
             }
         }

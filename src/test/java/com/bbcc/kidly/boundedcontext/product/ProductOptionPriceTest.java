@@ -28,12 +28,21 @@ class ProductOptionPriceTest {
     @Test
     @DisplayName("PRICE-03 가격 구분 묶음의 가격을 그 묶음의 옵션 전체에 넣는다")
     void putGroupPriceOnEveryOption() {
-
         product.addOptions(new Product.AddOptionsInfo(SELLER_ID, List.of(
             option(clothing.navy(), clothing.size110()),
             option(clothing.oatmeal(), clothing.size120())), clothingPrice(27_000L)), clothing.type());
 
         assertThat(product.getOptions()).extracting(ProductOption::getPrice).containsExactly(27_000L, 27_000L);
+    }
+
+    @Test
+    @DisplayName("PRICE-03 옵션이 있는 상품에 같은 묶음 가격으로 옵션을 더 추가한다")
+    void addMoreOptionsWithSamePrice() {
+        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
+
+        product.addOptions(addOptions(List.of(option(clothing.oatmeal(), clothing.size110()))), clothing.type());
+
+        assertThat(product.getOptions()).hasSize(2);
     }
 
     @Test
@@ -53,7 +62,8 @@ class ProductOptionPriceTest {
         Product.AddOptionsInfo info = new Product.AddOptionsInfo(
             SELLER_ID, List.of(option(clothing.navy(), clothing.size120())), clothingPrice(30_000L));
 
-        assertRejected(() -> product.addOptions(info, clothing.type()), ProductErrorCode.PRICE_GROUP_MISMATCH);
+        assertRejected(
+            () -> product.addOptions(info, clothing.type()), ProductErrorCode.EXISTING_OPTION_PRICE_MISMATCH);
         assertThat(product.getOptions()).hasSize(1);
     }
 
