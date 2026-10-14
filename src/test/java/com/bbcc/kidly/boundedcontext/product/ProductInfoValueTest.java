@@ -35,10 +35,10 @@ class ProductInfoValueTest {
     @DisplayName("INFO-01 목록 항목에 값을 두 개 넣으면 거절한다")
     void rejectTwoValuesOnListAttribute() {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
+        Product.RegisterInfo info = productAWith(clothing.type(), List.of(
             new InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton(), clothing.other()), null)));
 
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+        assertThatThrownBy(() -> Product.register(info))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED));
     }
@@ -47,11 +47,11 @@ class ProductInfoValueTest {
     @DisplayName("INFO-01 다중 선택 목록 항목은 값을 여러 개 담는다")
     void registerManyValuesOnMultiListAttribute() {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
+        Product.RegisterInfo info = productAWith(clothing.type(), List.of(
             cottonMaterial(clothing),
             new InfoValueInfo(clothing.feature(), List.of(clothing.brushed(), clothing.stretch()), null)));
 
-        Product product = Product.register(info, clothing.type());
+        Product product = Product.register(info);
 
         assertThat(product.getInfoValues())
             .extracting(ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue)
@@ -68,9 +68,9 @@ class ProductInfoValueTest {
         Clothing clothing = clothing();
         List<InfoValueInfo> infoValues = new ArrayList<>(List.of(cottonMaterial(clothing)));
         infoValues.addAll(duplicated.apply(clothing));
-        Product.RegisterInfo info = productAWith(infoValues);
+        Product.RegisterInfo info = productAWith(clothing.type(), infoValues);
 
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+        assertThatThrownBy(() -> Product.register(info))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.DUPLICATE_INFO_VALUE));
     }
@@ -80,9 +80,9 @@ class ProductInfoValueTest {
     @DisplayName("INFO-02 필수 정보 항목에 값이 없으면 거절한다")
     void rejectMissingRequiredInfoValue(Function<Clothing, List<InfoValueInfo>> infoValues) {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(infoValues.apply(clothing));
+        Product.RegisterInfo info = productAWith(clothing.type(), infoValues.apply(clothing));
 
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+        assertThatThrownBy(() -> Product.register(info))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.REQUIRED_INFO_MISSING));
     }
@@ -98,12 +98,12 @@ class ProductInfoValueTest {
     @DisplayName("INFO-02 선택 정보 항목은 비워도 등록한다")
     void registerWithEmptyOptionalInfoValues() {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
+        Product.RegisterInfo info = productAWith(clothing.type(), List.of(
             cottonMaterial(clothing),
             new InfoValueInfo(clothing.fabricComposition(), List.of(), null),
             new InfoValueInfo(clothing.feature(), List.of(), null)));
 
-        Product product = Product.register(info, clothing.type());
+        Product product = Product.register(info);
 
         assertThat(product.getInfoValues())
             .extracting(ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue)
@@ -115,11 +115,11 @@ class ProductInfoValueTest {
     @DisplayName("INFO-02 선택 직접 입력 항목에 비었거나 공백뿐인 글자를 넣으면 값이 없는 것으로 보고 저장하지 않는다")
     void ignoreBlankTextOfOptionalTextAttribute(String text) {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
+        Product.RegisterInfo info = productAWith(clothing.type(), List.of(
             cottonMaterial(clothing),
             new InfoValueInfo(clothing.fabricComposition(), List.of(), text)));
 
-        Product product = Product.register(info, clothing.type());
+        Product product = Product.register(info);
 
         assertThat(product.getInfoValues())
             .extracting(ProductInfoValue::getAttribute)
@@ -130,11 +130,11 @@ class ProductInfoValueTest {
     @DisplayName("INFO-02 필수 직접 입력 항목에 글자를 넣으면 등록하고 그 글자를 저장한다")
     void registerTextOfRequiredTextAttribute() {
         Clothing clothing = clothingWithRequiredFabricComposition();
-        Product.RegisterInfo info = productAWith(List.of(
+        Product.RegisterInfo info = productAWith(clothing.type(), List.of(
             cottonMaterial(clothing),
             new InfoValueInfo(clothing.fabricComposition(), List.of(), "면 100%")));
 
-        Product product = Product.register(info, clothing.type());
+        Product product = Product.register(info);
 
         assertThat(product.getInfoValues())
             .extracting(
@@ -150,11 +150,11 @@ class ProductInfoValueTest {
     @DisplayName("INFO-02 필수 직접 입력 항목을 비우면 거절한다")
     void rejectMissingRequiredTextAttribute(String text) {
         Clothing clothing = clothingWithRequiredFabricComposition();
-        Product.RegisterInfo info = productAWith(List.of(
+        Product.RegisterInfo info = productAWith(clothing.type(), List.of(
             cottonMaterial(clothing),
             new InfoValueInfo(clothing.fabricComposition(), List.of(), text)));
 
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+        assertThatThrownBy(() -> Product.register(info))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.REQUIRED_INFO_MISSING));
     }
@@ -164,10 +164,10 @@ class ProductInfoValueTest {
     @DisplayName("INFO-03 그 유형에서 고를 수 없는 값을 넣으면 거절한다")
     void rejectNotAllowedInfoValue(NotAllowedMaterial notAllowed) {
         Clothing clothing = notAllowed.clothing();
-        Product.RegisterInfo info = productAWith(List.of(
+        Product.RegisterInfo info = productAWith(clothing.type(), List.of(
             new InfoValueInfo(clothing.mainMaterial(), List.of(notAllowed.material()), null)));
 
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+        assertThatThrownBy(() -> Product.register(info))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.INFO_VALUE_NOT_ALLOWED));
     }
@@ -176,11 +176,11 @@ class ProductInfoValueTest {
     @DisplayName("INFO-03 주요소재 목록에 없는 소재는 기타를 고르고 혼용률에 적어 등록한다")
     void registerOtherMaterialWithFabricComposition() {
         Clothing clothing = clothingWithCottonOrOtherMaterial();
-        Product.RegisterInfo info = productAWith(List.of(
+        Product.RegisterInfo info = productAWith(clothing.type(), List.of(
             new InfoValueInfo(clothing.mainMaterial(), List.of(clothing.other()), null),
             new InfoValueInfo(clothing.fabricComposition(), List.of(), "린넨 100%")));
 
-        Product product = Product.register(info, clothing.type());
+        Product product = Product.register(info);
 
         assertThat(product.getInfoValues())
             .extracting(
@@ -195,11 +195,11 @@ class ProductInfoValueTest {
     @DisplayName("그 유형의 정보 항목이 아닌 항목에 값을 넣으면 거절한다")
     void rejectValueOfNotInfoAttribute(Function<Clothing, InfoValueInfo> notInfoValue) {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
+        Product.RegisterInfo info = productAWith(clothing.type(), List.of(
             cottonMaterial(clothing),
             notInfoValue.apply(clothing)));
 
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+        assertThatThrownBy(() -> Product.register(info))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_INFO_ATTRIBUTE));
     }
@@ -209,9 +209,9 @@ class ProductInfoValueTest {
     @DisplayName("항목의 입력 방식에 맞지 않는 값을 넣으면 거절한다")
     void rejectInputTypeMismatchedValue(Function<Clothing, List<InfoValueInfo>> infoValues) {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(infoValues.apply(clothing));
+        Product.RegisterInfo info = productAWith(clothing.type(), infoValues.apply(clothing));
 
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+        assertThatThrownBy(() -> Product.register(info))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.INPUT_TYPE_MISMATCH));
     }

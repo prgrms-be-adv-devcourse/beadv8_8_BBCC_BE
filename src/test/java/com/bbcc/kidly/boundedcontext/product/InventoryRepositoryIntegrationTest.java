@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryOpening;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
@@ -162,7 +163,8 @@ class InventoryRepositoryIntegrationTest {
         return option;
     }
 
-    // 상품 A에 네이비 · 110 옵션을 추가해 저장하고 그 옵션을 돌려준다. 항목과 목록 값은 cascade되지 않아 먼저 저장한다
+    // 상품 A에 네이비 · 110 옵션을 추가해 저장하고 그 옵션을 돌려준다. 항목 · 목록 값 · 카테고리 · 실측 항목은
+    // cascade되지 않아 먼저 저장한다
     private ProductOption savedOption() {
         ClothingOptions clothing = clothingOptions();
         Product product = productA(clothing);
@@ -175,6 +177,10 @@ class InventoryRepositoryIntegrationTest {
                     clothing.sizeFree(), clothing.size105(), clothing.stripe())
                 .forEach(entityManager::persist);
             entityManager.persist(clothing.type());
+            Category category = product.getCategory();
+            entityManager.persist(category.getParent());
+            category.getMeasurementItems().forEach(link -> entityManager.persist(link.getMeasurementItem()));
+            entityManager.persist(category);
             entityManager.persist(product);
         });
         return product.getOptions().get(0);

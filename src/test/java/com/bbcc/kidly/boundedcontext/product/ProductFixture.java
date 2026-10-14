@@ -5,13 +5,13 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.util.List;
 
 final class ProductFixture {
 
     static final long SELLER_ID = 2L;
-    static final long CATEGORY_ID = 1L;
 
     private static final String NAME = "상품 A";
     private static final String THUMBNAIL_URL = "https://…/a-thumbnail.jpg";
@@ -82,9 +82,14 @@ final class ProductFixture {
             type, color, mainMaterial, fabricComposition, feature, cotton, other, linen, brushed, stretch);
     }
 
-    // 기획서 7.1 상품 A: 판매자 2, 상의(카테고리 1), 주요소재 면. 혼용률과 특징은 비운다
+    // 기획서 7.1 상품 A: 판매자 2, 상의, 주요소재 면. 혼용률과 특징은 비운다
     static Product.RegisterInfo productA(Clothing clothing) {
-        return productAWith(List.of(cottonMaterial(clothing)));
+        return productAWith(clothing.type(), List.of(cottonMaterial(clothing)));
+    }
+
+    // 기준 데이터의 의류 > 상의(말단 카테고리)이고, 등록할 상품 유형으로 type을 가리킨다
+    static Category leafOf(ProductType type) {
+        return CategoryFixture.top(CategoryFixture.clothing(), type);
     }
 
     static Product.InfoValueInfo cottonMaterial(Clothing clothing) {
@@ -92,29 +97,30 @@ final class ProductFixture {
     }
 
     // 상품 A에서 정보 값만 바꾼 등록 정보다
-    static Product.RegisterInfo productAWith(List<Product.InfoValueInfo> infoValues) {
-        return registerInfo(SELLER_ID, CATEGORY_ID, NAME, THUMBNAIL_URL, IMAGE_URLS, infoValues);
+    static Product.RegisterInfo productAWith(ProductType type, List<Product.InfoValueInfo> infoValues) {
+        return registerInfo(SELLER_ID, leafOf(type), NAME, THUMBNAIL_URL, IMAGE_URLS, infoValues);
     }
 
     static Product.RegisterInfo productAWithoutThumbnail(Clothing clothing) {
-        return registerInfo(SELLER_ID, CATEGORY_ID, NAME, null, IMAGE_URLS, List.of(cottonMaterial(clothing)));
+        return registerInfo(
+            SELLER_ID, leafOf(clothing.type()), NAME, null, IMAGE_URLS, List.of(cottonMaterial(clothing)));
     }
 
     // 상품 A에서 필수 값만 바꾼 등록 정보다. 필수 값이 비었을 때를 확인하는 테스트가 쓴다
     static Product.RegisterInfo productAWithRequired(
-        Long sellerId, Long categoryId, String name, List<String> imageUrls, List<Product.InfoValueInfo> infoValues) {
-        return registerInfo(sellerId, categoryId, name, THUMBNAIL_URL, imageUrls, infoValues);
+        Long sellerId, Category category, String name, List<String> imageUrls, List<Product.InfoValueInfo> infoValues) {
+        return registerInfo(sellerId, category, name, THUMBNAIL_URL, imageUrls, infoValues);
     }
 
     // 브랜드와 설명은 상품 A의 값으로 두고, 나머지 칸은 모두 받아 등록 정보를 만든다
     private static Product.RegisterInfo registerInfo(
         Long sellerId,
-        Long categoryId,
+        Category category,
         String name,
         String thumbnailUrl,
         List<String> imageUrls,
         List<Product.InfoValueInfo> infoValues) {
         return new Product.RegisterInfo(
-            sellerId, categoryId, name, "키들리", "상품 설명", thumbnailUrl, imageUrls, infoValues);
+            sellerId, category, name, "키들리", "상품 설명", thumbnailUrl, imageUrls, infoValues);
     }
 }

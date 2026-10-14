@@ -14,9 +14,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -42,11 +45,11 @@ import org.hibernate.type.SqlTypes;
 public class Product extends BaseTimeEntity {
 
     /**
-     * 상품을 등록할 때 받는 값이다. infoValues는 상품 정보 항목에 입력한 값이다.
+     * 상품을 등록할 때 받는 값이다. category는 상품을 등록할 말단 카테고리이고, infoValues는 상품 정보 항목에 입력한 값이다.
      */
     public record RegisterInfo(
         Long sellerId,
-        Long categoryId,
+        Category category,
         String name,
         String brand,
         String description,
@@ -100,9 +103,10 @@ public class Product extends BaseTimeEntity {
     @Column(nullable = false)
     private Long sellerId;
 
-    // 카테고리는 같은 상품 도메인이라 FK가 맞지만, 카테고리 엔티티가 아직 없어 ID 값으로 둔다. 카테고리를 만들 때 FK로 바꾼다
-    @Column(nullable = false)
-    private Long categoryId;
+    // 상품을 등록한 말단 카테고리다. 상품 유형은 이 카테고리가 가리킨다 (TYPE-01)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "category_id")
+    private Category category;
 
     @Column(nullable = false)
     private String name;
@@ -140,15 +144,15 @@ public class Product extends BaseTimeEntity {
     private List<SizeSpec> sizeSpecs = new ArrayList<>();
 
     /**
-     * 상품을 판매대기 상태로 등록한다. 정보 값의 항목과 목록 값은 productType과 같은 영속성 컨텍스트에서 읽은 객체여야 한다.
+     * 상품을 판매대기 상태로 등록한다. 상품 유형은 카테고리에서 꺼내므로 중간 카테고리로는 등록할 수 없다(TYPE-01).
+     * 정보 값의 항목과 목록 값은 카테고리의 상품 유형과 같은 영속성 컨텍스트에서 읽은 객체여야 한다.
      * 항목과 값을 객체 동일성(==)으로 비교하기 때문이다.
      */
-    public static Product register(RegisterInfo info, ProductType productType) {
+    public static Product register(RegisterInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        requireNonNull(productType, "productType은 필수입니다");
         requireNonNull(info.infoValues(), "infoValues는 필수입니다");
         requireNonNull(info.sellerId(), "sellerId는 필수입니다");
-        requireNonNull(info.categoryId(), "categoryId는 필수입니다");
+        requireNonNull(info.category(), "category는 필수입니다");
         requireNonNull(info.imageUrls(), "imageUrls는 필수입니다");
         // null 검사는 모두 업무 규칙 검사보다 앞에 둔다. null이 섞인 호출이 업무 오류(400)로 가려지지 않게 하기 위해서다
         requireNonNull(info.name(), "name은 필수입니다");
@@ -156,10 +160,11 @@ public class Product extends BaseTimeEntity {
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
+        ProductType productType = info.category().productTypeToRegister();
         ProductInfoValues.validate(info.infoValues(), productType);
         Product product = new Product();
         product.sellerId = info.sellerId();
-        product.categoryId = info.categoryId();
+        product.category = info.category();
         product.name = info.name();
         product.brand = info.brand();
         product.description = info.description();
