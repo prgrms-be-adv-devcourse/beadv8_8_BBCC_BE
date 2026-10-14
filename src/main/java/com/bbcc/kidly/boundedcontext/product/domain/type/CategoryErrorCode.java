@@ -7,7 +7,7 @@ import lombok.experimental.Accessors;
 import org.springframework.http.HttpStatus;
 
 /**
- * 카테고리 · 실측 항목처럼 상품 유형 정의에서 생기는 업무 오류다.
+ * 카테고리에서 생기는 업무 오류다.
  * domain.product가 domain.type을 참조하므로, 반대 방향 참조를 만들지 않으려고 ProductErrorCode와 따로 둔다.
  */
 @Getter
