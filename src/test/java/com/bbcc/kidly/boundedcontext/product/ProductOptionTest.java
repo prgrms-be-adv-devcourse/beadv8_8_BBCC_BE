@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingPrice;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,6 +18,8 @@ import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductOptionTest {
 
@@ -46,6 +49,21 @@ class ProductOptionTest {
         assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.PRICE_GROUP_MISMATCH));
+        assertThat(product.getOptions()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}원")
+    @ValueSource(longs = {0, -1})
+    @DisplayName("PRICE-02 판매가가 0 이하이면 거절한다")
+    void rejectNonPositivePrice(long price) {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+        Product.AddOptionsInfo info = new Product.AddOptionsInfo(
+            SELLER_ID, List.of(option(clothing.navy(), clothing.size110())), clothingPrice(price));
+
+        assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("0보다 커야");
         assertThat(product.getOptions()).isEmpty();
     }
 

@@ -59,6 +59,9 @@ public class ProductOption extends BaseTimeEntity {
 
     // 판매중 옵션을 만들고 옵션의 값마다 한 행을 입력 순서대로 붙인다
     static ProductOption create(Product product, long price, String skuCode, List<AttributeValue> values) {
+        if (price <= 0) {
+            throw new IllegalArgumentException("판매가는 0보다 커야 합니다");
+        }
         ProductOption option = new ProductOption();
         option.product = product;
         option.price = price;
