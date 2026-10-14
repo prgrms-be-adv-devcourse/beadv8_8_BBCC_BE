@@ -216,12 +216,19 @@ public class Order extends BaseTimeEntity {
         return true;
     }
 
-    public void cancel(CancelReason reason) {
+    /**
+     * 취소한다. 결제대기일 때만 바꾸고, 결제완료 · 이미 취소된 주문은 그대로 둔다(처음 사유 유지).
+     * 결제 마감이 지났는지는 판단하지 않는다(만료 대상 조회가 판단).
+     *
+     * @return 이번에 취소했으면 true
+     */
+    public boolean cancel(CancelReason reason) {
         if (status != Status.PENDING_PAYMENT) {
-            return;
+            return false;
         }
         this.status = Status.CANCELLED;
         this.cancelReason = reason;
+        return true;
     }
 
     public void recordDelivered(Long sellerId, LocalDateTime at) {

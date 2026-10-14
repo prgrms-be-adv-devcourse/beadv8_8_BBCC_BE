@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.app.port;
 
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,4 +25,9 @@ public interface OrderRepository {
      * 회원의 주문 목록. 최근 주문부터.
      */
     Page<Order> findAllByMemberIdOrderByIdDesc(Long memberId, Pageable pageable);
+
+    /**
+     * 결제 마감이 지난 주문(상태 · 마감 시각 조건). 주문 ID 오름차순 100건.
+     */
+    List<Order> findTop100ByStatusAndPaymentDueAtLessThanEqualOrderByIdAsc(Order.Status status, LocalDateTime now);
 }
