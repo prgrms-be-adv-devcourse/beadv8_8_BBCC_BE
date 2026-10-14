@@ -11,19 +11,19 @@ final class CategoryFixture {
     }
 
     static MeasurementItem totalLength() {
-        return MeasurementItem.create("TOTAL_LENGTH", "총장", "cm");
+        return MeasurementItem.create("총장", "TOTAL_LENGTH", "cm");
     }
 
     static MeasurementItem shoulderWidth() {
-        return MeasurementItem.create("SHOULDER_WIDTH", "어깨너비", "cm");
+        return MeasurementItem.create("어깨너비", "SHOULDER_WIDTH", "cm");
     }
 
     static MeasurementItem chestWidth() {
-        return MeasurementItem.create("CHEST_WIDTH", "가슴단면", "cm");
+        return MeasurementItem.create("가슴단면", "CHEST_WIDTH", "cm");
     }
 
     static MeasurementItem sleeveLength() {
-        return MeasurementItem.create("SLEEVE_LENGTH", "소매길이", "cm");
+        return MeasurementItem.create("소매길이", "SLEEVE_LENGTH", "cm");
     }
 
     // 기준 데이터의 최상위 중간 카테고리 의류다

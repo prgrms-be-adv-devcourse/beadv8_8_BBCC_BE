@@ -23,9 +23,9 @@ class MeasurementItemTest {
 
     static Stream<Named<ThrowingCallable>> creationsWithNull() {
         return Stream.of(
-            Named.of("코드", () -> MeasurementItem.create(null, "총장", "cm")),
-            Named.of("이름", () -> MeasurementItem.create("TOTAL_LENGTH", null, "cm")),
-            Named.of("단위", () -> MeasurementItem.create("TOTAL_LENGTH", "총장", null)));
+            Named.of("이름", () -> MeasurementItem.create(null, "TOTAL_LENGTH", "cm")),
+            Named.of("코드", () -> MeasurementItem.create("총장", null, "cm")),
+            Named.of("단위", () -> MeasurementItem.create("총장", "TOTAL_LENGTH", null)));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -39,8 +39,11 @@ class MeasurementItemTest {
 
     static Stream<Named<ThrowingCallable>> creationsWithBlank() {
         return Stream.of(
-            Named.of("코드 \"\"", () -> MeasurementItem.create("", "총장", "cm")),
-            Named.of("이름 \" \"", () -> MeasurementItem.create("TOTAL_LENGTH", " ", "cm")),
-            Named.of("단위 \"\"", () -> MeasurementItem.create("TOTAL_LENGTH", "총장", "")));
+            Named.of("이름 \"\"", () -> MeasurementItem.create("", "TOTAL_LENGTH", "cm")),
+            Named.of("이름 \" \"", () -> MeasurementItem.create(" ", "TOTAL_LENGTH", "cm")),
+            Named.of("코드 \"\"", () -> MeasurementItem.create("총장", "", "cm")),
+            Named.of("코드 \" \"", () -> MeasurementItem.create("총장", " ", "cm")),
+            Named.of("단위 \"\"", () -> MeasurementItem.create("총장", "TOTAL_LENGTH", "")),
+            Named.of("단위 \" \"", () -> MeasurementItem.create("총장", "TOTAL_LENGTH", " ")));
     }
 }
