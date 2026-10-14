@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.ORDER_ID;
+import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.item;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
@@ -36,8 +38,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @IntegrationTest
 class InventoryDeductionRepositoryIntegrationTest {
 
-    private static final long ORDER_ID = 100L;
     private static final long OTHER_ORDER_ID = 200L;
+    private static final long THIRD_ORDER_ID = 300L;
 
     @Autowired
     private InventoryDeductionRepository inventoryDeductionRepository;
@@ -49,26 +51,30 @@ class InventoryDeductionRepositoryIntegrationTest {
     private PlatformTransactionManager transactionManager;
 
     @Test
-    @DisplayName("INV-10 같은 주문 생성됨을 다시 받았는지 보려고 주문상품 ID 목록으로 찾으면, 그 주문상품의 기록만 저장한 그대로 나온다")
+    @DisplayName("INV-10 같은 주문 생성됨을 다시 받았는지 보려고 주문상품 ID 목록으로 찾으면, 주문이 달라도 그 주문상품의 기록만 저장한 그대로 나온다")
     void findByOrderItemIds() {
         ProductOption option = savedOption();
         inTransaction(() -> {
             inventoryDeductionRepository.saveAll(InventoryDeductionRequest.of(ORDER_ID, List.of(
-                new InventoryDeductionRequest.Item(11L, option, 2),
-                new InventoryDeductionRequest.Item(12L, option, 1))).deductedRecords());
+                item(11L, option, 2),
+                item(12L, option, 1))).deductedRecords());
             inventoryDeductionRepository.saveAll(InventoryDeductionRequest.of(OTHER_ORDER_ID, List.of(
-                new InventoryDeductionRequest.Item(21L, option, 3))).failedRecords());
+                item(21L, option, 3))).failedRecords());
+            inventoryDeductionRepository.saveAll(InventoryDeductionRequest.of(THIRD_ORDER_ID, List.of(
+                item(31L, option, 4))).deductedRecords());
         });
 
-        List<Tuple> found = inTransaction(() -> inventoryDeductionRepository.findAllByOrderItemIdIn(List.of(11L, 12L))
-            .stream()
-            .map(record -> tuple(record.getOrderId(), record.getOrderItemId(), record.getProductOptionId(),
-                record.getQty(), record.getStatus().name()))
-            .toList());
+        List<Tuple> found = inTransaction(
+            () -> inventoryDeductionRepository.findAllByOrderItemIdIn(List.of(11L, 12L, 21L))
+                .stream()
+                .map(record -> tuple(record.getOrderId(), record.getOrderItemId(), record.getProductOptionId(),
+                    record.getQty(), record.getStatus().name()))
+                .toList());
 
         assertThat(found).containsExactlyInAnyOrder(
             tuple(ORDER_ID, 11L, option.getId(), 2, "DEDUCTED"),
-            tuple(ORDER_ID, 12L, option.getId(), 1, "DEDUCTED"));
+            tuple(ORDER_ID, 12L, option.getId(), 1, "DEDUCTED"),
+            tuple(OTHER_ORDER_ID, 21L, option.getId(), 3, "FAILED"));
     }
 
     @Test
@@ -76,11 +82,11 @@ class InventoryDeductionRepositoryIntegrationTest {
     void rejectDuplicateOrderItem() {
         ProductOption option = savedOption();
         inTransaction(() -> inventoryDeductionRepository.saveAll(InventoryDeductionRequest.of(ORDER_ID, List.of(
-            new InventoryDeductionRequest.Item(11L, option, 2))).deductedRecords()));
+            item(11L, option, 2))).deductedRecords()));
 
         assertThatThrownBy(() -> inTransaction(() -> inventoryDeductionRepository.saveAll(
             InventoryDeductionRequest.of(OTHER_ORDER_ID, List.of(
-                new InventoryDeductionRequest.Item(11L, option, 1))).failedRecords())))
+                item(11L, option, 1))).failedRecords())))
             .isInstanceOf(DataIntegrityViolationException.class);
         List<Long> orderIds = inTransaction(() -> inventoryDeductionRepository.findAllByOrderItemIdIn(List.of(11L))
             .stream()
@@ -94,7 +100,7 @@ class InventoryDeductionRepositoryIntegrationTest {
     void readOptionIdOutsideTransaction() {
         ProductOption option = savedOption();
         inTransaction(() -> inventoryDeductionRepository.saveAll(InventoryDeductionRequest.of(ORDER_ID, List.of(
-            new InventoryDeductionRequest.Item(11L, option, 2))).deductedRecords()));
+            item(11L, option, 2))).deductedRecords()));
 
         InventoryDeduction found = inTransaction(
             () -> inventoryDeductionRepository.findAllByOrderItemIdIn(List.of(11L)).get(0));
