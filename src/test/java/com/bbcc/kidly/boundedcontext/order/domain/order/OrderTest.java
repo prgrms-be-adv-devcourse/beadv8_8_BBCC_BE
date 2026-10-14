@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -227,6 +228,66 @@ class OrderTest {
 
             assertThat(requested).isFalse();
             assertThat(order.getPaymentRequestedAt()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("결제 마감 만료")
+    class ExpirePayment {
+
+        private final LocalDateTime dueAt = NOW.plus(PAYMENT_TIMEOUT);
+
+        @Test
+        @DisplayName("마감 1초 전이면 취소하지 않는다")
+        void beforeDue() {
+            Order order = OrderFixture.placedOrder();
+
+            boolean expired = order.expirePayment(dueAt.minusSeconds(1));
+
+            assertThat(expired).isFalse();
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+            assertThat(order.getCancelReason()).isNull();
+        }
+
+        @Test
+        @DisplayName("정확히 마감 시각이면 PAYMENT_EXPIRED로 취소한다")
+        void atDue() {
+            Order order = OrderFixture.placedOrder();
+
+            boolean expired = order.expirePayment(dueAt);
+
+            assertThat(expired).isTrue();
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
+        }
+
+        @Test
+        @DisplayName("마감 1초 뒤면 PAYMENT_EXPIRED로 취소한다")
+        void afterDue() {
+            Order order = OrderFixture.placedOrder();
+
+            assertThat(order.expirePayment(dueAt.plusSeconds(1))).isTrue();
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
+        }
+
+        @Test
+        @DisplayName("결제완료 주문은 마감이 지나도 그대로다")
+        void paidIsNotExpired() {
+            Order order = OrderFixture.paidOrder();
+
+            assertThat(order.expirePayment(dueAt.plusMinutes(1))).isFalse();
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(order.getCancelReason()).isNull();
+        }
+
+        @Test
+        @DisplayName("이미 취소된 주문은 처음 사유를 유지한다")
+        void cancelledKeepsFirstReason() {
+            Order order = OrderFixture.placedOrder();
+            order.cancel(Order.CancelReason.PAYMENT_FAILED);
+
+            assertThat(order.expirePayment(dueAt.plusMinutes(1))).isFalse();
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_FAILED);
         }
     }
 

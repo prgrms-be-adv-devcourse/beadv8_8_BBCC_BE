@@ -139,6 +139,19 @@ class MemberTest {
     }
 
     @Test
+    @DisplayName("판매자 상태 복사본이 없으면 sellerStatus는 null이다")
+    void sellerStatusOfPlainMember() {
+        assertThat(MemberFixture.kakaoMember().sellerStatus()).isNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SellerStatus.class, names = {"ACTIVE", "SUSPENDED"})
+    @DisplayName("반영된 판매자 상태를 sellerStatus로 돌려준다")
+    void sellerStatusOfSeller(SellerStatus status) {
+        assertThat(MemberFixture.withSellerState(status).sellerStatus()).isEqualTo(status);
+    }
+
+    @Test
     @DisplayName("일반 회원의 역할은 BUYER뿐이다")
     void rolesOfPlainMember() {
         assertThat(MemberFixture.kakaoMember().roles()).containsExactly(Role.BUYER);

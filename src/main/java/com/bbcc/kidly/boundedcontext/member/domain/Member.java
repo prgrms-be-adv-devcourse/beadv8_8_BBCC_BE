@@ -95,6 +95,11 @@ public class Member extends BaseTimeEntity {
         return sellerState != null && sellerState.isActive();
     }
 
+    // 판매자가 아니면 null. 마이페이지가 정지 상태를 보여 주는 데 쓴다
+    public SellerStatus sellerStatus() {
+        return sellerState == null ? null : sellerState.status();
+    }
+
     // 토큰 · 내 정보 조회의 역할. 판매자 여부는 저장하지 않고 판매자 상태 복사본으로 계산한다
     public List<Role> roles() {
         var roles = new ArrayList<Role>();

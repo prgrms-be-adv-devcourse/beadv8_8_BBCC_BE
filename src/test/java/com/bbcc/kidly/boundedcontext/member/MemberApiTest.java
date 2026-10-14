@@ -42,6 +42,7 @@ class MemberApiTest {
         assertThat(response.id()).isEqualTo(member.getId());
         assertThat(response.nickname()).isEqualTo(MemberFixture.NICKNAME);
         assertThat(response.roles()).containsExactly(Role.BUYER);
+        assertThat(response.sellerStatus()).isNull();
     }
 
     @Test
@@ -55,6 +56,21 @@ class MemberApiTest {
             .getResponseBody();
 
         assertThat(response.roles()).containsExactly(Role.BUYER, Role.SELLER);
+        assertThat(response.sellerStatus()).isEqualTo(SellerStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("정지된 판매자는 sellerStatus가 SUSPENDED이고 SELLER 역할이 없다")
+    void suspendedSeller() {
+        var member = memberRepository.save(MemberFixture.withSellerState(SellerStatus.SUSPENDED));
+
+        var response = getMine(tokens.buyer(member.getId()))
+            .expectStatus().isOk()
+            .returnResult(MemberResponse.class)
+            .getResponseBody();
+
+        assertThat(response.roles()).containsExactly(Role.BUYER);
+        assertThat(response.sellerStatus()).isEqualTo(SellerStatus.SUSPENDED);
     }
 
     @Test

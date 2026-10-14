@@ -221,9 +221,9 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("결제 마감 만료면 PAYMENT_EXPIRED로 취소하고 order.cancelled를 발행한다")
+        @DisplayName("결제 마감이 지난 주문이면 PAYMENT_EXPIRED로 취소하고 order.cancelled를 발행한다")
         void cancelsForPaymentExpiry() {
-            Order order = placedOrder(BUYER_ID);
+            Order order = placedOrderAt(LocalDateTime.now().minusDays(1));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
             orderService.cancelForPaymentExpiry(ORDER_ID);
@@ -231,6 +231,18 @@ class OrderServiceTest {
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
             verify(eventPublisher).publish(published.capture());
             assertThat(((OrderCancelledEvent) published.getValue()).data().reason()).isEqualTo("PAYMENT_EXPIRED");
+        }
+
+        @Test
+        @DisplayName("결제 마감 전 주문이면 만료 취소하지 않고 발행하지 않는다")
+        void doesNotExpireBeforeDue() {
+            Order order = placedOrderAt(LocalDateTime.now());
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.cancelForPaymentExpiry(ORDER_ID);
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+            verify(eventPublisher, never()).publish(any());
         }
 
         @Test
@@ -406,6 +418,16 @@ class OrderServiceTest {
                 new Order.RequestedItem(second, true, null, 1, 30_000L)),
             new Order.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"), POLICY,
             LocalDateTime.of(2026, 10, 14, 9, 0));
+    }
+
+    /**
+     * 서비스가 지금 시각과 비교하는 테스트용. 주문 시각은 실행 시각 기준 상대값으로 준다(시간대와 무관하게).
+     */
+    private static Order placedOrderAt(LocalDateTime orderedAt) {
+        OrderItem.ProductSnapshot product =
+            new OrderItem.ProductSnapshot(1L, OPTION_ID, SELLER_ID, "상품 A", "110", 25_000L, 1L);
+        return Order.place(BUYER_ID, List.of(new Order.RequestedItem(product, true, null, 2, 25_000L)),
+            new Order.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"), POLICY, orderedAt);
     }
 
     private static Order placedOrder(Long memberId) {

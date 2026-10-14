@@ -217,8 +217,8 @@ public class Order extends BaseTimeEntity {
     }
 
     /**
-     * 취소한다. 결제대기일 때만 바꾸고, 결제완료 · 이미 취소된 주문은 그대로 둔다(처음 사유 유지).
-     * 결제 마감이 지났는지는 판단하지 않는다(만료 대상 조회가 판단).
+     * 결제대기일 때만 주어진 사유로 취소한다. 결제 마감 만료는 expirePayment를 쓴다.
+     * 결제완료 · 이미 취소된 주문은 그대로 둔다(처음 사유 유지).
      *
      * @return 이번에 취소했으면 true
      */
@@ -228,6 +228,21 @@ public class Order extends BaseTimeEntity {
         }
         this.status = Status.CANCELLED;
         this.cancelReason = reason;
+        return true;
+    }
+
+    /**
+     * 결제 마감 만료로 취소한다. 결제대기이고 마감 시각이 지났을 때(마감 시각 포함)만 바꾼다.
+     * 마감 전 · 결제완료 · 이미 취소된 주문은 그대로 둔다.
+     *
+     * @return 이번에 취소했으면 true
+     */
+    public boolean expirePayment(LocalDateTime now) {
+        if (status != Status.PENDING_PAYMENT || now.isBefore(paymentDueAt)) {
+            return false;
+        }
+        this.status = Status.CANCELLED;
+        this.cancelReason = CancelReason.PAYMENT_EXPIRED;
         return true;
     }
 
