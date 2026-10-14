@@ -14,6 +14,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.shoeSize;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeOption;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.textOption;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -107,5 +108,15 @@ class ProductTypeTest {
         assertThatThrownBy(() -> ProductType.define("의류", links))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("가격이 달라지는 항목은 옵션 항목");
+    }
+
+    @Test
+    @DisplayName("TYPE-08 직접 입력 항목을 옵션 항목에 두면 거절한다")
+    void rejectTypeWithTextOptionAttribute() {
+        List<ProductType.LinkInfo> links = List.of(requiredOption(color()), textOption(fabricComposition()));
+
+        assertThatThrownBy(() -> ProductType.define("의류", links))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("직접 입력 항목은 옵션 항목");
     }
 }

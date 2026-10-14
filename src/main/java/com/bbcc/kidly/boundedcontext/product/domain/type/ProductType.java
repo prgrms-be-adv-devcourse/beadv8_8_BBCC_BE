@@ -61,6 +61,9 @@ public class ProductType extends BaseTimeEntity {
         if (hasPriceAffectingOnInfo(links)) {
             throw new IllegalArgumentException("값에 따라 가격이 달라지는 항목은 옵션 항목에만 둘 수 있습니다");
         }
+        if (hasTextOption(links)) {
+            throw new IllegalArgumentException("직접 입력 항목은 옵션 항목이 될 수 없습니다");
+        }
         ProductType type = new ProductType();
         type.name = name;
         for (int i = 0; i < links.size(); i++) {
@@ -100,6 +103,15 @@ public class ProductType extends BaseTimeEntity {
     private static boolean hasPriceAffectingOnInfo(List<LinkInfo> links) {
         for (LinkInfo link : links) {
             if (link.priceAffecting() && link.role() != AttributeRole.OPTION) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasTextOption(List<LinkInfo> links) {
+        for (LinkInfo link : links) {
+            if (link.role() == AttributeRole.OPTION && link.attribute().getInputType() == AttributeInputType.TEXT) {
                 return true;
             }
         }
