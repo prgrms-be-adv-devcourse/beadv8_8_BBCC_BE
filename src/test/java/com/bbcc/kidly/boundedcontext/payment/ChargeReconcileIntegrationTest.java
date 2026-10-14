@@ -3,10 +3,13 @@ package com.bbcc.kidly.boundedcontext.payment;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.MEMBER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
+import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentKeyCipher;
 import com.bbcc.kidly.boundedcontext.payment.domain.Charge;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
+import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedger;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.boundedcontext.payment.in.scheduler.ChargeScheduler;
@@ -48,6 +51,12 @@ class ChargeReconcileIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ChargeService chargeService;
+
+    @Autowired
+    private PaymentKeyCipher paymentKeyCipher;
 
     private Wallet wallet;
 
@@ -116,6 +125,67 @@ class ChargeReconcileIntegrationTest {
 
         assertThat(statusOf(overdue)).isEqualTo(ChargeStatus.EXPIRED);
         assertThat(statusOf(notYet)).isEqualTo(ChargeStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("5분 넘게 취소 중인 충전은 다시 취소해 결과대로 완료 · 되돌림으로 바꾸고, 결과를 모르거나 오래되지 않았으면 그대로 둔다")
+    void reconcileCancelling() {
+        depositToWallet(100_000L);
+        Charge cancelled = staleCancelling("payment-key-1", 10_000L);
+        Charge rejected = staleCancelling(FakePaymentGateway.CANCEL_REJECTED_KEY, 20_000L);
+        Charge unknown = staleCancelling(FakePaymentGateway.CANCEL_UNKNOWN_KEY, 30_000L);
+        Charge recent = cancelling("payment-key-2", 40_000L);
+
+        chargeScheduler.reconcileCancelling();
+
+        assertThat(statusOf(cancelled)).isEqualTo(ChargeStatus.CANCELLED);
+        assertThat(statusOf(rejected)).isEqualTo(ChargeStatus.DONE);
+        assertThat(statusOf(unknown)).isEqualTo(ChargeStatus.CANCELLING);
+        assertThat(statusOf(recent)).isEqualTo(ChargeStatus.CANCELLING);
+        assertThat(jpaWalletRepository.findById(wallet.getId())).get()
+            .extracting(Wallet::getBalance).isEqualTo(20_000L);
+        assertThat(jpaWalletLedgerRepository.findAll())
+            .filteredOn(ledger -> ledger.getType() == WalletLedgerType.CHARGE_CANCEL_REVERT)
+            .singleElement().extracting(WalletLedger::getAmount).isEqualTo(20_000L);
+    }
+
+    @Test
+    @DisplayName("다시 실행해도 이미 되돌린 취소는 다시 입금하지 않는다")
+    void reconcileCancellingOnce() {
+        depositToWallet(20_000L);
+        staleCancelling(FakePaymentGateway.CANCEL_REJECTED_KEY, 20_000L);
+
+        chargeScheduler.reconcileCancelling();
+        chargeScheduler.reconcileCancelling();
+
+        assertThat(jpaWalletRepository.findById(wallet.getId())).get()
+            .extracting(Wallet::getBalance).isEqualTo(20_000L);
+        assertThat(jpaWalletLedgerRepository.findAll())
+            .filteredOn(ledger -> ledger.getType() == WalletLedgerType.CHARGE_CANCEL_REVERT).hasSize(1);
+    }
+
+    private void depositToWallet(long amount) {
+        Wallet found = jpaWalletRepository.findById(wallet.getId()).orElseThrow();
+        found.deposit(amount);
+        walletRepository.save(found);
+    }
+
+    // 승인된 충전을 실제 서비스로 취소 시작해 둔 충전. 토스 취소 결과는 paymentKey로 정한다
+    private Charge cancelling(String paymentKey, long amount) {
+        Charge charge = Charge.request(wallet.getId(), UUID.randomUUID().toString(), amount,
+            LocalDateTime.now().plusMinutes(30));
+        charge.startConfirming(amount, LocalDateTime.now());
+        charge.approve(paymentKeyCipher.encrypt(paymentKey), LocalDateTime.now());
+        Charge saved = chargeRepository.save(charge);
+        chargeService.startCancel(MEMBER_ID, saved.getId());
+        return saved;
+    }
+
+    private Charge staleCancelling(String paymentKey, long amount) {
+        Charge charge = cancelling(paymentKey, amount);
+        jdbcTemplate.update("update payment.charge set updated_at = ? where id = ?",
+            LocalDateTime.now().minusMinutes(10), charge.getId());
+        return charge;
     }
 
     private Charge confirming(long amount) {

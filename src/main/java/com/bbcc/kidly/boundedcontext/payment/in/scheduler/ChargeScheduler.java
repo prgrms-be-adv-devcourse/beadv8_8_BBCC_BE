@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.payment.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.payment.app.ChargeCancelService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeReconcileService;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeReconcileTarget;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Component;
 public class ChargeScheduler {
 
     private final ChargeReconcileService chargeReconcileService;
+    private final ChargeCancelService chargeCancelService;
 
     @Scheduled(fixedDelayString = "${kidly.payment.charge.reconcile-interval:PT1M}")
     public void reconcileConfirming() {
@@ -25,6 +28,17 @@ public class ChargeScheduler {
                 chargeReconcileService.reconcile(target);
             } catch (RuntimeException e) {
                 log.warn("승인 중 충전 정리 실패: chargeId={}", target.chargeId(), e);
+            }
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${kidly.payment.charge.reconcile-interval:PT1M}")
+    public void reconcileCancelling() {
+        for (ChargeCancelTarget target : chargeReconcileService.findStaleCancelling()) {
+            try {
+                chargeCancelService.resume(target);
+            } catch (RuntimeException e) {
+                log.warn("취소 중 충전 정리 실패: chargeId={}", target.chargeId(), e);
             }
         }
     }

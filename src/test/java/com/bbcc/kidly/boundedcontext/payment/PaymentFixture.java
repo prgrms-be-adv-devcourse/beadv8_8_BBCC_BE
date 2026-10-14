@@ -14,6 +14,7 @@ final class PaymentFixture {
     static final Long WALLET_ID = 10L;
     static final Long ORDER_ID = 100L;
     static final Long CHARGE_ID = 50L;
+    static final Long CANCELLATION_ID = 70L;
     static final String TOSS_ORDER_ID = "charge-order-1";
     static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 12, 12, 0);
 
@@ -50,6 +51,21 @@ final class PaymentFixture {
         Charge charge = charge(amount);
         charge.startConfirming(amount, NOW);
         charge.approve("encrypted-payment-key", NOW);
+        return charge;
+    }
+
+    // 저장된 충전처럼 ID가 CHARGE_ID인 완료 충전
+    static Charge savedApprovedCharge(long amount) {
+        Charge charge = approvedCharge(amount);
+        ReflectionTestUtils.setField(charge, "id", CHARGE_ID);
+        return charge;
+    }
+
+    // 저장된 충전처럼 ID가 CHARGE_ID이고, 취소 요청 ID가 CANCELLATION_ID인 취소 중 충전
+    static Charge savedCancellingCharge(long amount) {
+        Charge charge = savedApprovedCharge(amount);
+        charge.requestCancel("예치금 충전 취소");
+        ReflectionTestUtils.setField(charge.getLastCancellation(), "id", CANCELLATION_ID);
         return charge;
     }
 

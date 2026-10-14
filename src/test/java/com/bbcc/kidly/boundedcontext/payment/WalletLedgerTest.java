@@ -15,6 +15,7 @@ class WalletLedgerTest {
         "CHARGE, 1000",
         "REFUND, 1000",
         "SETTLEMENT, 1000",
+        "CHARGE_CANCEL_REVERT, 1000",
         "CHARGE_CANCEL, -1000",
         "PAYMENT, -1000"
     })

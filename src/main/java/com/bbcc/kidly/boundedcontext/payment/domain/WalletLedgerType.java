@@ -12,6 +12,8 @@ public enum WalletLedgerType {
 
     CHARGE(true),
     CHARGE_CANCEL(false),
+    // 토스가 충전 취소를 거절해 먼저 뺀 충전액을 되돌린다
+    CHARGE_CANCEL_REVERT(true),
     PAYMENT(false),
     REFUND(true),
     SETTLEMENT(true);

@@ -127,13 +127,13 @@ public class Charge extends BaseTimeEntity {
 
     public void completeCancel(LocalDateTime cancelledAt) {
         requireStatus(ChargeStatus.CANCELLING);
-        lastCancellation().complete(cancelledAt);
+        getLastCancellation().complete(cancelledAt);
         this.status = ChargeStatus.CANCELLED;
     }
 
     public void failCancel(String failureCode) {
         requireStatus(ChargeStatus.CANCELLING);
-        lastCancellation().fail(failureCode);
+        getLastCancellation().fail(failureCode);
         this.status = ChargeStatus.DONE;
     }
 
@@ -141,7 +141,7 @@ public class Charge extends BaseTimeEntity {
         return Collections.unmodifiableList(cancellations);
     }
 
-    private ChargeCancellation lastCancellation() {
+    public ChargeCancellation getLastCancellation() {
         return cancellations.getLast();
     }
 

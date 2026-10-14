@@ -136,6 +136,18 @@ class ChargeTest {
     }
 
     @Test
+    @DisplayName("마지막 취소 요청은 가장 최근에 만든 취소 요청이다")
+    void lastCancellation() {
+        Charge charge = PaymentFixture.approvedCharge(10_000L);
+        charge.requestCancel("첫 요청");
+        charge.failCancel("PROVIDER_ERROR");
+
+        charge.requestCancel("다시 요청");
+
+        assertThat(charge.getLastCancellation().getReason()).isEqualTo("다시 요청");
+    }
+
+    @Test
     @DisplayName("완료되지 않은 충전은 취소를 요청할 수 없다")
     void requestCancelRequiresDone() {
         Charge charge = PaymentFixture.charge(10_000L);

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 @FunctionalTest
@@ -31,6 +32,9 @@ class ChargeApiTest {
 
     @Autowired
     private WalletRepository walletRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void setUp() {
@@ -196,6 +200,95 @@ class ChargeApiTest {
     }
 
     @Test
+    @DisplayName("완료된 충전을 취소하면 200 CANCELLED와 줄어든 잔액을 주고 충전은 취소 상태다")
+    void cancel() {
+        RequestedCharge charge = confirmedCharge("payment-key", 10_000);
+
+        cancel(MEMBER_ID, charge)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.chargeId").isEqualTo(charge.chargeId())
+            .jsonPath("$.status").isEqualTo("CANCELLED")
+            .jsonPath("$.amount").isEqualTo(10_000)
+            .jsonPath("$.balance").isEqualTo(0);
+        expectStatus(charge, "CANCELLED");
+        expectBalance(0);
+    }
+
+    @Test
+    @DisplayName("토스가 취소를 거절하면 400 CHARGE_CANCEL_REJECTED와 토스 메시지를 주고 충전 · 잔액은 그대로다")
+    void cancelRejected() {
+        RequestedCharge charge = confirmedCharge(FakePaymentGateway.CANCEL_REJECTED_KEY, 10_000);
+
+        cancel(MEMBER_ID, charge)
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("충전 취소가 거절됐습니다")
+            .jsonPath("$.detail").isEqualTo(FakePaymentGateway.CANCEL_REJECTED_MESSAGE);
+        expectStatus(charge, "DONE");
+        expectBalance(10_000);
+    }
+
+    @Test
+    @DisplayName("토스 취소 결과를 모르면 202 CANCELLING이고 잔액은 null이며, 충전액은 이미 빠져 있다")
+    void cancelUnknown() {
+        RequestedCharge charge = confirmedCharge(FakePaymentGateway.CANCEL_UNKNOWN_KEY, 10_000);
+
+        cancel(MEMBER_ID, charge)
+            .expectStatus().isAccepted()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("CANCELLING")
+            .jsonPath("$.balance").isEmpty();
+        expectStatus(charge, "CANCELLING");
+        expectBalance(0);
+    }
+
+    @Test
+    @DisplayName("잔액이 충전액보다 적으면 409 CHARGE_CANCEL_BALANCE_SHORT")
+    void cancelBalanceShort() {
+        RequestedCharge charge = confirmedCharge("payment-key", 10_000);
+        jdbcTemplate.update("update payment.wallet set balance = 9999 where member_id = ?", MEMBER_ID);
+
+        cancel(MEMBER_ID, charge)
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("충전을 취소할 수 없습니다");
+        expectStatus(charge, "DONE");
+    }
+
+    @Test
+    @DisplayName("완료되지 않은 충전을 취소하면 409 INVALID_CHARGE_STATUS")
+    void cancelPending() {
+        RequestedCharge charge = requestCharge(10_000);
+
+        cancel(MEMBER_ID, charge)
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("처리할 수 없는 충전 상태입니다");
+    }
+
+    @Test
+    @DisplayName("남의 충전을 취소하면 404 CHARGE_NOT_FOUND")
+    void cancelOthersCharge() {
+        walletRepository.save(Wallet.create(OTHER_MEMBER_ID));
+        RequestedCharge charge = confirmedCharge("payment-key", 10_000);
+
+        cancel(OTHER_MEMBER_ID, charge)
+            .expectStatus().isNotFound()
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("충전을 찾을 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("로그인하지 않으면 충전 취소도 401")
+    void cancelWithoutToken() {
+        client.post().uri(CHARGES_PATH + "/1/cancel")
+            .exchange()
+            .expectStatus().isUnauthorized();
+    }
+
+    @Test
     @DisplayName("로그인하지 않으면 401")
     void withoutToken() {
         client.post().uri(CHARGES_PATH)
@@ -225,7 +318,7 @@ class ChargeApiTest {
         assertThat(location.getPath()).isEqualTo(CHARGES_PATH + "/" + body.chargeId());
         assertThat(body.amount()).isEqualTo(amount);
         assertThat(body.expiresAt()).isNotNull();
-        return new RequestedCharge(location, body.orderId());
+        return new RequestedCharge(location, body.chargeId(), body.orderId());
     }
 
     private RestTestClient.ResponseSpec confirm(Long memberId, String paymentKey, String orderId, int amount) {
@@ -234,6 +327,26 @@ class ChargeApiTest {
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("paymentKey", paymentKey, "orderId", orderId, "amount", amount))
             .exchange();
+    }
+
+    private RequestedCharge confirmedCharge(String paymentKey, int amount) {
+        RequestedCharge charge = requestCharge(amount);
+        confirm(MEMBER_ID, paymentKey, charge.orderId(), amount).expectStatus().isOk();
+        return charge;
+    }
+
+    private RestTestClient.ResponseSpec cancel(Long memberId, RequestedCharge charge) {
+        return client.post().uri(charge.location() + "/cancel")
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .exchange();
+    }
+
+    private void expectBalance(long balance) {
+        client.get().uri("/api/v1/wallets/me")
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .exchange()
+            .expectBody()
+            .jsonPath("$.balance").isEqualTo(balance);
     }
 
     private RestTestClient.ResponseSpec getCharges(Long memberId, String query) {
@@ -254,6 +367,6 @@ class ChargeApiTest {
     private record RequestedChargeBody(Long chargeId, String orderId, long amount, String expiresAt) {
     }
 
-    private record RequestedCharge(URI location, String orderId) {
+    private record RequestedCharge(URI location, Long chargeId, String orderId) {
     }
 }
