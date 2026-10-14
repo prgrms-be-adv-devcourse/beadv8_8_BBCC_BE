@@ -7,8 +7,12 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.mainMater
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.optionalOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.optionalTextInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredInfo;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredOption;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.shoeSize;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeOption;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
@@ -47,5 +51,29 @@ class ProductTypeTest {
             Named.of("연결 없음", List.of()),
             Named.of("정보 항목만", List.of(requiredInfo(mainMaterial()), optionalTextInfo(fabricComposition()))),
             Named.of("옵션 항목이 모두 선택", List.of(optionalOption(color()), optionalOption(size()))));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("linksWithAtMostOneSizeRole")
+    @DisplayName("TYPE-03 사이즈 역할 항목이 하나 이하면 유형을 만든다")
+    void defineTypeWithAtMostOneSizeRoleAttribute(List<ProductType.LinkInfo> links) {
+        assertThatCode(() -> ProductType.define("의류", links)).doesNotThrowAnyException();
+    }
+
+    static Stream<Named<List<ProductType.LinkInfo>>> linksWithAtMostOneSizeRole() {
+        return Stream.of(
+            Named.of("사이즈 역할 없음", List.of(requiredOption(color()), requiredOption(size()))),
+            Named.of("사이즈 역할 하나", clothingLinks()));
+    }
+
+    @Test
+    @DisplayName("TYPE-03 사이즈 역할 항목이 둘이면 거절한다")
+    void rejectTypeWithTwoSizeRoleAttributes() {
+        List<ProductType.LinkInfo> links = List.of(
+            requiredOption(color()), sizeOption(size()), sizeOption(shoeSize()));
+
+        assertThatThrownBy(() -> ProductType.define("의류", links))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("사이즈 역할 항목은 하나");
     }
 }

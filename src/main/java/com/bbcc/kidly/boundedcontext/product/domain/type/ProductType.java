@@ -17,7 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 상품 유형. 의류 · 신발처럼 상품이 어떤 항목을 옵션으로 고르고 상품 정보로 적는지 정한 정의.
+ * 상품 유형이다. 의류처럼 상품의 종류마다 구매자가 고르는 옵션 항목과 판매자가 적는 정보 항목을 정해 둔다.
  */
 @Entity
 @Table(schema = "product", name = "product_type")
@@ -26,7 +26,9 @@ import lombok.NoArgsConstructor;
 public class ProductType extends BaseTimeEntity {
 
     /**
-     * 유형에 연결할 항목 하나의 값. 허용 값은 항목 값 중 이 유형이 허용하는 것이다.
+     * 유형에 항목 하나를 연결할 때 넘기는 설정이다. 그 항목을 옵션 항목과 정보 항목 중 무엇으로 쓰는지(role),
+     * 반드시 채워야 하는지(required), 사이즈 역할인지(sizeRole), 값에 따라 가격이 달라지는지(priceAffecting)를 담는다.
+     * allowedValues는 allValuesAllowed가 false일 때만 쓰며, 그 항목의 목록 값 중 이 유형에서 고를 수 있는 값을 담는다.
      */
     public record LinkInfo(
         Attribute attribute,
@@ -52,6 +54,9 @@ public class ProductType extends BaseTimeEntity {
         if (!hasRequiredOption(links)) {
             throw new IllegalArgumentException("유형에는 필수 옵션 항목이 하나 이상 있어야 합니다");
         }
+        if (countSizeRoles(links) > 1) {
+            throw new IllegalArgumentException("사이즈 역할 항목은 하나만 둘 수 있습니다");
+        }
         ProductType type = new ProductType();
         type.name = name;
         for (int i = 0; i < links.size(); i++) {
@@ -67,6 +72,16 @@ public class ProductType extends BaseTimeEntity {
             }
         }
         return false;
+    }
+
+    private static int countSizeRoles(List<LinkInfo> links) {
+        int count = 0;
+        for (LinkInfo link : links) {
+            if (link.sizeRole()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public List<ProductTypeAttribute> getAttributes() {

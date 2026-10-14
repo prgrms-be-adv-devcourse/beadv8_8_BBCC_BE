@@ -19,6 +19,10 @@ final class ProductTypeFixture {
         return Attribute.create("사이즈", "SIZE", AttributeInputType.LIST);
     }
 
+    static Attribute shoeSize() {
+        return Attribute.create("신발 사이즈", "SHOE_SIZE", AttributeInputType.LIST);
+    }
+
     static Attribute mainMaterial() {
         return Attribute.create("주요소재", "MAIN_MATERIAL", AttributeInputType.LIST);
     }

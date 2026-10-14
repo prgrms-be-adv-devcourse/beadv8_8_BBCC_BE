@@ -14,7 +14,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 항목. 색상 · 사이즈 · 주요소재처럼 상품 유형이 옵션이나 상품 정보로 쓰는 속성의 정의.
+ * 상품을 설명하는 항목이다(예: 색상, 사이즈, 주요소재). 여러 상품 유형이 같은 항목을 함께 쓴다.
+ * 코드는 검색용 표의 키로 쓰이므로 한 번 정하면 바꾸지 않는다.
  */
 @Entity
 @Table(schema = "product", name = "attribute")
