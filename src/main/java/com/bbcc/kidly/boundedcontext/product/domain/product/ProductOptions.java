@@ -125,6 +125,31 @@ final class ProductOptions {
         }
     }
 
+    // 보관하지 않은 옵션이 있고 그 옵션이 모두 FREE 사이즈이면 사이즈 무관이다. SIZE-02가 FREE와 숫자가 섞이지 않게 막으므로
+    // 유형 정의 없이 값 글자로 판단한다 (SIZE-02)
+    static boolean isSizeFree(List<ProductOption> options) {
+        boolean hasOption = false;
+        for (ProductOption option : options) {
+            if (option.getSaleStatus() == ProductOptionStatus.ARCHIVED) {
+                continue;
+            }
+            hasOption = true;
+            if (!hasFreeSize(option)) {
+                return false;
+            }
+        }
+        return hasOption;
+    }
+
+    private static boolean hasFreeSize(ProductOption option) {
+        for (ProductOptionValue value : option.getValues()) {
+            if (FREE_SIZE.equals(value.getAttributeValue().getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean isSizeRole(AttributeValue value, ProductType productType) {
         Optional<ProductTypeAttribute> link = productType.findLink(value.getAttribute());
         return link.isPresent() && link.get().isSizeRole();

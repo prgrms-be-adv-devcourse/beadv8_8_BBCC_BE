@@ -173,6 +173,11 @@ public class Product extends BaseTimeEntity {
         options.addAll(created);
     }
 
+    // 사이즈 무관 여부는 칸에 저장하지 않고 옵션의 사이즈 값으로 계산한다 (SIZE-02)
+    public boolean isSizeFree() {
+        return ProductOptions.isSizeFree(options);
+    }
+
     public List<String> getImageUrls() {
         return Collections.unmodifiableList(imageUrls);
     }

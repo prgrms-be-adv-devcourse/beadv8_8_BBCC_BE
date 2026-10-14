@@ -17,6 +17,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class ProductOptionSizeTest {
@@ -38,6 +39,28 @@ class ProductOptionSizeTest {
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.SIZE_FREE_MIXED));
         assertThat(product.getOptions()).hasSize(before);
+    }
+
+    @ParameterizedTest(name = "{0} → {1}")
+    @MethodSource("sizeFreeCases")
+    @DisplayName("SIZE-02 사이즈 무관은 저장하지 않고, 옵션의 사이즈가 모두 FREE인지로 계산한다")
+    void calculateSizeFree(Function<ClothingOptions, List<Product.OptionInfo>> options, boolean sizeFree) {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+
+        product.addOptions(addOptions(options.apply(clothing)), clothing.type());
+
+        assertThat(product.isSizeFree()).isEqualTo(sizeFree);
+    }
+
+    static Stream<Arguments> sizeFreeCases() {
+        return Stream.of(
+            Arguments.of(Named.<Function<ClothingOptions, List<Product.OptionInfo>>>of("사이즈가 모두 FREE",
+                clothing -> List.of(option(clothing.navy(), clothing.sizeFree()),
+                    option(clothing.oatmeal(), clothing.sizeFree()))), true),
+            Arguments.of(Named.<Function<ClothingOptions, List<Product.OptionInfo>>>of("숫자 사이즈",
+                clothing -> List.of(option(clothing.navy(), clothing.size110()),
+                    option(clothing.navy(), clothing.size120()))), false));
     }
 
     // 앞의 목록은 먼저 추가한 옵션이고, 마지막 목록이 거절될 요청이다
