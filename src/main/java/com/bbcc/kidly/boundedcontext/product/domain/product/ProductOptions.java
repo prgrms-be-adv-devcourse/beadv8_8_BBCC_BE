@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -18,15 +19,20 @@ final class ProductOptions {
     private ProductOptions() {
     }
 
-    // 옵션의 가격 구분 묶음과 같은 값의 묶음을 가진 가격을 찾아 그 가격을 돌려준다. 없으면 거절한다 (PRICE-01)
+    // 옵션의 가격 구분 묶음과 같은 값의 묶음을 가진 가격을 찾아 그 가격을 돌려준다.
+    // 없으면 거절하고(PRICE-01), 같은 묶음의 가격이 둘 이상이어도 거절한다(PRICE-03)
     static long findPrice(List<AttributeValue> optionValues, List<PriceInfo> prices, ProductType productType) {
         Set<AttributeValue> group = priceGroup(optionValues, productType);
+        List<PriceInfo> matched = new ArrayList<>();
         for (PriceInfo price : prices) {
             if (new HashSet<>(price.values()).equals(group)) {
-                return price.price();
+                matched.add(price);
             }
         }
-        throw new BusinessException(ProductErrorCode.PRICE_GROUP_MISMATCH);
+        if (matched.size() != 1) {
+            throw new BusinessException(ProductErrorCode.PRICE_GROUP_MISMATCH);
+        }
+        return matched.getFirst().price();
     }
 
     // 옵션의 값 중 값에 따라 가격이 달라지는 항목의 값을 모은다. 가격 구분 항목이 없는 유형은 빈 집합이다

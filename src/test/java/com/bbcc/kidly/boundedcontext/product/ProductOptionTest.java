@@ -48,4 +48,19 @@ class ProductOptionTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.PRICE_GROUP_MISMATCH));
         assertThat(product.getOptions()).isEmpty();
     }
+
+    @Test
+    @DisplayName("PRICE-03 같은 가격 구분 묶음의 가격이 두 번 오면 거절한다")
+    void rejectTwoPricesForSamePriceGroup() {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+        Product.AddOptionsInfo info = new Product.AddOptionsInfo(
+            SELLER_ID,
+            List.of(option(clothing.navy(), clothing.size110())),
+            List.of(new Product.PriceInfo(List.of(), 25_000L), new Product.PriceInfo(List.of(), 30_000L)));
+
+        assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.PRICE_GROUP_MISMATCH));
+    }
 }
