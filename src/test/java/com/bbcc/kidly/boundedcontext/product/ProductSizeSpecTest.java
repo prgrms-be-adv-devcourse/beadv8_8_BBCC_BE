@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
@@ -160,6 +161,17 @@ class ProductSizeSpecTest {
         return Stream.of(
             Named.of("옵션에 없는 사이즈 120", ClothingOptions::size120),
             Named.of("옵션이 색상으로 쓰는 네이비", ClothingOptions::navy));
+    }
+
+    @Test
+    @DisplayName("OPT-08 상품을 등록한 판매자가 아니면 실측을 넣을 수 없다")
+    void rejectSizeSpecsFromOtherSeller() {
+        withOptions110And120();
+        Product.AddSizeSpecsInfo info = new Product.AddSizeSpecsInfo(
+            OTHER_SELLER_ID, List.of(spec(clothing.size110(), 105, 115, top110Measurements())));
+
+        assertRejected(() -> product.addSizeSpecs(info, top, clothing.type()), ProductErrorCode.NOT_PRODUCT_OWNER);
+        assertThat(product.getSizeSpecs()).isEmpty();
     }
 
     // 상품 A에 네이비 110 · 120 옵션을 붙인다
