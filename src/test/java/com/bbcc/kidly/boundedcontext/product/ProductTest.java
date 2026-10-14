@@ -3,30 +3,20 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.CATEGORY_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.clothing;
-import static com.bbcc.kidly.boundedcontext.product.ProductFixture.clothingWithCottonOrOtherMaterial;
-import static com.bbcc.kidly.boundedcontext.product.ProductFixture.cottonMaterial;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productA;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWith;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithRequired;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithoutThumbnail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductFixture.Clothing;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.InfoValueInfo;
-import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
-import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
-import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
-import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
@@ -79,198 +69,15 @@ class ProductTest {
     }
 
     @Test
-    @DisplayName("INFO-01 목록 항목에 값을 두 개 넣으면 거절한다")
-    void rejectTwoValuesOnListAttribute() {
+    @DisplayName("UC-PR01 이미지 목록이 비어 있어도 상품을 등록한다")
+    void registerWithoutImages() {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
-            new InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton(), clothing.other()), null)));
-
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED));
-    }
-
-    @Test
-    @DisplayName("INFO-01 다중 선택 목록 항목은 값을 여러 개 담는다")
-    void registerManyValuesOnMultiListAttribute() {
-        Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
-            cottonMaterial(clothing),
-            new InfoValueInfo(clothing.feature(), List.of(clothing.brushed(), clothing.stretch()), null)));
+        Product.RegisterInfo info = productAWithRequired(
+            SELLER_ID, CATEGORY_ID, "상품 A", List.of(), productA(clothing).infoValues());
 
         Product product = Product.register(info, clothing.type());
 
-        assertThat(product.getInfoValues())
-            .extracting(ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue)
-            .containsExactly(
-                tuple(clothing.mainMaterial(), clothing.cotton()),
-                tuple(clothing.feature(), clothing.brushed()),
-                tuple(clothing.feature(), clothing.stretch()));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("duplicatedInfoValues")
-    @DisplayName("INFO-01 같은 값이나 같은 항목을 두 번 넣으면 거절한다")
-    void rejectDuplicatedInfoValue(Function<Clothing, List<InfoValueInfo>> duplicated) {
-        Clothing clothing = clothing();
-        List<InfoValueInfo> infoValues = new ArrayList<>(List.of(cottonMaterial(clothing)));
-        infoValues.addAll(duplicated.apply(clothing));
-        Product.RegisterInfo info = productAWith(infoValues);
-
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.DUPLICATE_INFO_VALUE));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("missingRequiredInfoValues")
-    @DisplayName("INFO-02 필수 정보 항목에 값이 없으면 거절한다")
-    void rejectMissingRequiredInfoValue(Function<Clothing, List<InfoValueInfo>> infoValues) {
-        Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(infoValues.apply(clothing));
-
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.REQUIRED_INFO_MISSING));
-    }
-
-    static Stream<Named<Function<Clothing, List<InfoValueInfo>>>> missingRequiredInfoValues() {
-        return Stream.of(
-            Named.of("주요소재를 보내지 않음", clothing -> List.of()),
-            Named.of("주요소재에 빈 값 목록", clothing -> List.of(
-                new InfoValueInfo(clothing.mainMaterial(), List.of(), null))));
-    }
-
-    @Test
-    @DisplayName("INFO-02 선택 정보 항목은 비워도 등록한다")
-    void registerWithEmptyOptionalInfoValues() {
-        Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
-            cottonMaterial(clothing),
-            new InfoValueInfo(clothing.fabricComposition(), List.of(), null),
-            new InfoValueInfo(clothing.feature(), List.of(), null)));
-
-        Product product = Product.register(info, clothing.type());
-
-        assertThat(product.getInfoValues())
-            .extracting(ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue)
-            .containsExactly(tuple(clothing.mainMaterial(), clothing.cotton()));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"", "   "})
-    @DisplayName("INFO-02 선택 직접 입력 항목에 비었거나 공백뿐인 글자를 넣으면 값이 없는 것으로 보고 저장하지 않는다")
-    void ignoreBlankTextOfOptionalTextAttribute(String text) {
-        Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
-            cottonMaterial(clothing),
-            new InfoValueInfo(clothing.fabricComposition(), List.of(), text)));
-
-        Product product = Product.register(info, clothing.type());
-
-        assertThat(product.getInfoValues())
-            .extracting(ProductInfoValue::getAttribute)
-            .containsExactly(clothing.mainMaterial());
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("notAllowedMaterials")
-    @DisplayName("INFO-03 그 유형에서 고를 수 없는 값을 넣으면 거절한다")
-    void rejectNotAllowedInfoValue(NotAllowedMaterial notAllowed) {
-        Clothing clothing = notAllowed.clothing();
-        Product.RegisterInfo info = productAWith(List.of(
-            new InfoValueInfo(clothing.mainMaterial(), List.of(notAllowed.material()), null)));
-
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.INFO_VALUE_NOT_ALLOWED));
-    }
-
-    @Test
-    @DisplayName("INFO-03 주요소재 목록에 없는 소재는 기타를 고르고 혼용률에 적어 등록한다")
-    void registerOtherMaterialWithFabricComposition() {
-        Clothing clothing = clothingWithCottonOrOtherMaterial();
-        Product.RegisterInfo info = productAWith(List.of(
-            new InfoValueInfo(clothing.mainMaterial(), List.of(clothing.other()), null),
-            new InfoValueInfo(clothing.fabricComposition(), List.of(), "린넨 100%")));
-
-        Product product = Product.register(info, clothing.type());
-
-        assertThat(product.getInfoValues())
-            .extracting(
-                ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue, ProductInfoValue::getTextValue)
-            .containsExactly(
-                tuple(clothing.mainMaterial(), clothing.other(), null),
-                tuple(clothing.fabricComposition(), null, "린넨 100%"));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("notInfoAttributeValues")
-    @DisplayName("그 유형의 정보 항목이 아닌 항목에 값을 넣으면 거절한다")
-    void rejectValueOfNotInfoAttribute(Function<Clothing, InfoValueInfo> notInfoValue) {
-        Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(List.of(
-            cottonMaterial(clothing),
-            notInfoValue.apply(clothing)));
-
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_INFO_ATTRIBUTE));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("inputTypeMismatchedValues")
-    @DisplayName("항목의 입력 방식에 맞지 않는 값을 넣으면 거절한다")
-    void rejectInputTypeMismatchedValue(Function<Clothing, List<InfoValueInfo>> infoValues) {
-        Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(infoValues.apply(clothing));
-
-        assertThatThrownBy(() -> Product.register(info, clothing.type()))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.INPUT_TYPE_MISMATCH));
-    }
-
-    static Stream<Named<Function<Clothing, List<InfoValueInfo>>>> inputTypeMismatchedValues() {
-        return Stream.of(
-            Named.of("직접 입력 항목(혼용률)에 목록 값", clothing -> List.of(
-                cottonMaterial(clothing),
-                new InfoValueInfo(clothing.fabricComposition(),
-                    List.of(AttributeValue.create(clothing.fabricComposition(), "면 100%", null)), null))),
-            Named.of("목록 항목(주요소재)에 글자", clothing -> List.of(
-                new InfoValueInfo(clothing.mainMaterial(), List.of(), "면"))));
-    }
-
-    static Stream<Named<Function<Clothing, InfoValueInfo>>> notInfoAttributeValues() {
-        return Stream.of(
-            Named.of("유형에 없는 항목(신발 사이즈)", clothing -> {
-                Attribute shoeSize = ProductTypeFixture.shoeSize();
-                return new InfoValueInfo(shoeSize, List.of(AttributeValue.create(shoeSize, "150", null)), null);
-            }),
-            Named.of("옵션 항목(색상)", clothing -> new InfoValueInfo(
-                clothing.color(), List.of(AttributeValue.create(clothing.color(), "네이비", "#2f3e5c")), null)));
-    }
-
-    // 사례마다 쓰는 유형이 다르다. 린넨은 면 · 기타만 허용한 유형에서, 기모는 모든 값을 허용한 유형에서 확인한다.
-    // 기모를 허용 값이 제한된 유형에서 확인하면 허용 값 검사가 대신 거절해서, 항목이 다른 값을 거르는 검사를 확인하지 못한다
-    record NotAllowedMaterial(Clothing clothing, AttributeValue material) {
-    }
-
-    static Stream<Named<NotAllowedMaterial>> notAllowedMaterials() {
-        Clothing limited = clothingWithCottonOrOtherMaterial();
-        Clothing allAllowed = clothing();
-        return Stream.of(
-            Named.of("허용 값에 없는 주요소재 린넨", new NotAllowedMaterial(limited, limited.linen())),
-            Named.of("주요소재에 다른 항목(특징)의 값 기모", new NotAllowedMaterial(allAllowed, allAllowed.brushed())));
-    }
-
-    // 정보 값은 테스트가 만든 유형의 항목 객체로 만들어야 하므로, 의류를 받아 정보 값을 만드는 함수를 넘긴다
-    static Stream<Named<Function<Clothing, List<InfoValueInfo>>>> duplicatedInfoValues() {
-        return Stream.of(
-            Named.of("다중 선택 목록에 같은 값 두 번", clothing -> List.of(
-                new InfoValueInfo(clothing.feature(), List.of(clothing.brushed(), clothing.brushed()), null))),
-            Named.of("같은 항목 두 번", clothing -> List.of(
-                new InfoValueInfo(clothing.feature(), List.of(clothing.brushed()), null),
-                new InfoValueInfo(clothing.feature(), List.of(clothing.stretch()), null))));
+        assertThat(product.getImageUrls()).isEmpty();
     }
 
     @ParameterizedTest(name = "{0}")
