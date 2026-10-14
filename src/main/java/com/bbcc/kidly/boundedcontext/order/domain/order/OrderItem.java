@@ -16,6 +16,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
@@ -110,6 +111,12 @@ public class OrderItem extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private ConfirmType confirmType;
+
+    /**
+     * 직접 · 자동 구매확정이 같은 주문상품을 동시에 확정하면 나중 쪽을 실패시킨다(주문상품만 바뀌면 Order 버전은 오르지 않음).
+     */
+    @Version
+    private Long version;
 
     /**
      * 주문상품을 만든다. 주문상품 금액 = 주문 당시 단가 × 수량.

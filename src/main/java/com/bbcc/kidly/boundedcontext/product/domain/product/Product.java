@@ -4,6 +4,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -20,9 +21,11 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -76,6 +79,19 @@ public class Product extends BaseTimeEntity {
     public record PriceInfo(List<AttributeValue> values, Long price) {
     }
 
+    /**
+     * 실측과 권장 키를 한꺼번에 추가할 때 받는 값이다. sellerId는 요청한 판매자이다.
+     */
+    public record AddSizeSpecsInfo(Long sellerId, List<SizeSpecInfo> specs) {
+    }
+
+    /**
+     * 사이즈 값 하나의 실측과 권장 키 범위다. measurements의 키는 실측 항목 코드이고 값은 cm이다.
+     */
+    public record SizeSpecInfo(
+        AttributeValue sizeValue, Integer minHeightCm, Integer maxHeightCm, Map<String, BigDecimal> measurements) {
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -118,6 +134,10 @@ public class Product extends BaseTimeEntity {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
     @OrderBy("id ASC")
     private List<ProductOption> options = new ArrayList<>();
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @OrderBy("id ASC")
+    private List<SizeSpec> sizeSpecs = new ArrayList<>();
 
     /**
      * 상품을 판매대기 상태로 등록한다. 정보 값의 항목과 목록 값은 productType과 같은 영속성 컨텍스트에서 읽은 객체여야 한다.
@@ -182,6 +202,69 @@ public class Product extends BaseTimeEntity {
         options.addAll(created);
     }
 
+    /**
+     * 사이즈 값마다 실측과 권장 키를 받은 순서대로 추가한다. 하나라도 잘못되면 하나도 추가하지 않는다.
+     */
+    public void addSizeSpecs(AddSizeSpecsInfo info, Category category, ProductType productType) {
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(category, "category는 필수입니다");
+        requireNonNull(productType, "productType은 필수입니다");
+        requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        ProductSizeSpecs.requireNonNullValues(info);
+        if (info.specs().isEmpty()) {
+            throw new IllegalArgumentException("실측 목록은 비어 있을 수 없습니다");
+        }
+        // 등록한 판매자만 실측을 넣을 수 있다 (OPT-08)
+        if (!sellerId.equals(info.sellerId())) {
+            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
+        }
+        ProductSizeSpecs.validateSizeRole(productType);
+        ProductSizeSpecs.validateHeightRanges(info.specs());
+        ProductSizeSpecs.validateNoDuplicate(info.specs(), sizeSpecs);
+        ProductSizeSpecs.validateMeasurementItems(info.specs(), category);
+        ProductSizeSpecs.validateSizeValuesInOptions(info.specs(), options, productType);
+        for (SizeSpecInfo spec : info.specs()) {
+            sizeSpecs.add(SizeSpec.create(this, spec));
+        }
+    }
+
+    /**
+     * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다. 판매중지 상품도 판매 시작 조건을 다시 검사해
+     * 판매중으로 바꾼다(UC-PR07 재개). 관리자 판매중지(SALE-11)를 만들 때 판매자가 풀 수 있게 둘지 다시 정한다.
+     */
+    public boolean startSale(Long sellerId, Category category, ProductType productType) {
+        requireNonNull(sellerId, "sellerId는 필수입니다");
+        requireNonNull(category, "category는 필수입니다");
+        requireNonNull(productType, "productType은 필수입니다");
+        // 등록한 판매자만 판매를 시작할 수 있다 (OPT-08)
+        if (!this.sellerId.equals(sellerId)) {
+            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
+        }
+        // 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다 (API 명세 3.7)
+        if (status == ProductStatus.ON_SALE) {
+            return false;
+        }
+        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ProductErrorCode.SALE_START_CONDITION_NOT_MET,
+                "판매를 시작할 수 없습니다. " + String.join(" ", missing));
+        }
+        status = ProductStatus.ON_SALE;
+        return true;
+    }
+
+    /**
+     * 등록할 때 판매 시작 조건의 입력(옵션, 사이즈별 실측 · 권장 키)이 채워졌는지 검사한다. 상태는 바꾸지 않는다.
+     */
+    public void validateSaleStartInputs(Category category, ProductType productType) {
+        requireNonNull(category, "category는 필수입니다");
+        requireNonNull(productType, "productType은 필수입니다");
+        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ProductErrorCode.SALE_START_INPUT_MISSING, String.join(" ", missing));
+        }
+    }
+
     // 사이즈 무관 여부는 칸에 저장하지 않고 옵션의 사이즈 값으로 계산한다 (SIZE-02)
     public boolean isSizeFree() {
         return ProductOptions.isSizeFree(options);
@@ -197,5 +280,9 @@ public class Product extends BaseTimeEntity {
 
     public List<ProductOption> getOptions() {
         return Collections.unmodifiableList(options);
+    }
+
+    public List<SizeSpec> getSizeSpecs() {
+        return Collections.unmodifiableList(sizeSpecs);
     }
 }
