@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,6 +49,7 @@ public class ProductType extends BaseTimeEntity {
     private String name;
 
     @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL)
+    @OrderBy("sortOrder ASC")
     private List<ProductTypeAttribute> attributes = new ArrayList<>();
 
     @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL)
