@@ -121,7 +121,7 @@ public class SellerApplication extends BaseTimeEntity {
         this.rejectReason = reason;
     }
 
-    // 회원 닉네임 변경 이벤트로 갱신한다. 저장된 변경보다 늦게 일어난 변경만 반영한다
+    // 회원 변경 이벤트로 갱신한다. 저장된 변경보다 늦게 일어난 변경만 반영한다
     public void changeApplicantNickname(String nickname, LocalDateTime changedAt) {
         requireNonNull(changedAt, "changedAt은 필수입니다");
         Assert.hasText(nickname, "신청 회원 닉네임은 비어 있을 수 없습니다");

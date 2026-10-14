@@ -6,7 +6,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.member.event.MemberNicknameChangedEvent;
+import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -37,8 +37,8 @@ public class MemberService {
             throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_USED);
         }
         if (member.changeNickname(request.nickname())) {
-            eventPublisher.publish(new MemberNicknameChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
-                new MemberNicknameChangedEvent.Data(memberId, member.getNickname())));
+            eventPublisher.publish(new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+                new MemberChangedEvent.Data(memberId, member.getNickname())));
         }
         return MemberResult.from(member);
     }

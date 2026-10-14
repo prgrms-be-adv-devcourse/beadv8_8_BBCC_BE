@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.member.event.MemberNicknameChangedEvent;
+import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -52,8 +52,8 @@ class MemberEventListenerIntegrationTest {
 
     // 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행된다
     private void publish(Long memberId, String nickname, LocalDateTime occurredAt) {
-        var event = new MemberNicknameChangedEvent(UUID.randomUUID(), occurredAt,
-            new MemberNicknameChangedEvent.Data(memberId, nickname));
+        var event = new MemberChangedEvent(UUID.randomUUID(), occurredAt,
+            new MemberChangedEvent.Data(memberId, nickname));
         transactionTemplate.executeWithoutResult(transaction -> eventPublisher.publish(event));
     }
 }

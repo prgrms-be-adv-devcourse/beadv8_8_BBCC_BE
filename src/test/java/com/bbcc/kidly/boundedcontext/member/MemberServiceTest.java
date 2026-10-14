@@ -11,7 +11,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.member.event.MemberNicknameChangedEvent;
+import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,9 +42,9 @@ class MemberServiceTest {
         var result = memberService.update(MEMBER_ID, new MemberUpdateRequest("하은맘"));
 
         assertThat(result.nickname()).isEqualTo("하은맘");
-        var captor = ArgumentCaptor.forClass(MemberNicknameChangedEvent.class);
+        var captor = ArgumentCaptor.forClass(MemberChangedEvent.class);
         then(eventPublisher).should().publish(captor.capture());
-        assertThat(captor.getValue().data()).isEqualTo(new MemberNicknameChangedEvent.Data(MEMBER_ID, "하은맘"));
+        assertThat(captor.getValue().data()).isEqualTo(new MemberChangedEvent.Data(MEMBER_ID, "하은맘"));
     }
 
     @Test

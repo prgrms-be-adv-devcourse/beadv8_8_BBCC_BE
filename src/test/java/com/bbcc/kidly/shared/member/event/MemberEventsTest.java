@@ -28,10 +28,10 @@ class MemberEventsTest {
     }
 
     @Test
-    @DisplayName("닉네임 변경 이벤트는 member.nickname-changed이고 대상은 회원이다")
-    void memberNicknameChanged() {
-        assertContract(new MemberNicknameChangedEvent(EVENT_ID, NOW, new MemberNicknameChangedEvent.Data(1L, "하은맘")),
-            "member.nickname-changed", "1");
+    @DisplayName("회원 정보 변경 이벤트는 member.changed이고 대상은 회원이다")
+    void memberChanged() {
+        assertContract(new MemberChangedEvent(EVENT_ID, NOW, new MemberChangedEvent.Data(1L, "하은맘")),
+            "member.changed", "1");
     }
 
     private static void assertContract(DomainEvent event, String eventType, String aggregateId) {
