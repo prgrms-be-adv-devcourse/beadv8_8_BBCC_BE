@@ -11,8 +11,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -81,6 +83,27 @@ class GlobalExceptionHandlerTest {
             .andExpect(jsonPath("$.instance").value("/test/unexpected"));
     }
 
+    @Test
+    @DisplayName("DB 무결성 위반은 409로 응답한다")
+    void dataIntegrityViolation() throws Exception {
+        mockMvc.perform(get("/test/data-integrity"))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.title").value("다른 요청과 겹쳤습니다"))
+            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.instance").value("/test/data-integrity"));
+    }
+
+    @Test
+    @DisplayName("낙관적 락 실패는 409로 응답한다")
+    void optimisticLockFailure() throws Exception {
+        mockMvc.perform(get("/test/optimistic-lock"))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.title").value("다른 요청과 겹쳤습니다"))
+            .andExpect(jsonPath("$.instance").value("/test/optimistic-lock"));
+    }
+
     private enum TestErrorCode implements ErrorCode {
         PRICE_CHANGED(HttpStatus.CONFLICT, "가격이 바뀌었습니다", "장바구니 단가와 현재 단가가 다릅니다.");
 
@@ -128,6 +151,16 @@ class GlobalExceptionHandlerTest {
 
         @PostMapping("/test/valid")
         void valid(@Valid @RequestBody TestRequest request) {
+        }
+
+        @GetMapping("/test/data-integrity")
+        void dataIntegrity() {
+            throw new DataIntegrityViolationException("dup");
+        }
+
+        @GetMapping("/test/optimistic-lock")
+        void optimisticLock() {
+            throw new ObjectOptimisticLockingFailureException(Object.class, 1L);
         }
 
         @GetMapping("/test/unexpected")

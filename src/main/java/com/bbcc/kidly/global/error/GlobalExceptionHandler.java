@@ -4,6 +4,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
@@ -26,6 +29,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ProblemDetail> handleBusiness(BusinessException e, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetails.of(e.getErrorCode(), e.getDetail(), request.getRequestURI());
+        return ResponseEntity.status(problem.getStatus()).body(problem);
+    }
+
+    // 동시 요청이 DB 제약(PK · FK · unique)이나 낙관적 락(@Version)에 막힌 경우. 다시 시도하면 될 수 있어 409로 응답한다
+    @ExceptionHandler({DataIntegrityViolationException.class, OptimisticLockingFailureException.class})
+    public ResponseEntity<ProblemDetail> handleConflict(DataAccessException e, HttpServletRequest request) {
+        log.warn("DB 충돌: {}", request.getRequestURI(), e);
+        ProblemDetail problem = ProblemDetails.of(CommonErrorCode.CONFLICT, request.getRequestURI());
         return ResponseEntity.status(problem.getStatus()).body(problem);
     }
 
