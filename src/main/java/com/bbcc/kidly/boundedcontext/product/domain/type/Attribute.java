@@ -39,10 +39,19 @@ public class Attribute extends BaseTimeEntity {
     private AttributeInputType inputType;
 
     public static Attribute create(String name, String code, AttributeInputType inputType) {
+        requireNonNull(name, "name은 필수입니다");
+        requireNonNull(code, "code는 필수입니다");
+        requireNonNull(inputType, "inputType은 필수입니다");
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("항목 이름은 비어 있을 수 없습니다");
+        }
+        if (code.isBlank()) {
+            throw new IllegalArgumentException("항목 코드는 비어 있을 수 없습니다");
+        }
         Attribute attribute = new Attribute();
-        attribute.name = requireNonNull(name, "name은 필수입니다");
-        attribute.code = requireNonNull(code, "code는 필수입니다");
-        attribute.inputType = requireNonNull(inputType, "inputType은 필수입니다");
+        attribute.name = name;
+        attribute.code = code;
+        attribute.inputType = inputType;
         return attribute;
     }
 }

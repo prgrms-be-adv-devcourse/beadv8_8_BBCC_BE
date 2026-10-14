@@ -43,9 +43,14 @@ public class AttributeValue extends BaseTimeEntity {
     private String colorCode;
 
     public static AttributeValue create(Attribute attribute, String name, String colorCode) {
+        requireNonNull(attribute, "attribute는 필수입니다");
+        requireNonNull(name, "name은 필수입니다");
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("목록 값 이름은 비어 있을 수 없습니다");
+        }
         AttributeValue value = new AttributeValue();
-        value.attribute = requireNonNull(attribute, "attribute는 필수입니다");
-        value.name = requireNonNull(name, "name은 필수입니다");
+        value.attribute = attribute;
+        value.name = name;
         value.colorCode = colorCode;
         return value;
     }
