@@ -1,10 +1,13 @@
 package com.bbcc.kidly.boundedcontext.payment.in;
 
+import com.bbcc.kidly.boundedcontext.payment.app.ChargeCancelService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeConfirmService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ConfirmChargeRequest;
+import com.bbcc.kidly.boundedcontext.payment.in.dto.ChargeCancelResponse;
 import com.bbcc.kidly.boundedcontext.payment.in.dto.ChargeConfirmResponse;
 import com.bbcc.kidly.boundedcontext.payment.in.dto.ChargeDetailResponse;
 import com.bbcc.kidly.boundedcontext.payment.in.dto.ChargeRequestResponse;
@@ -26,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 예치금 충전. 요청 → 토스 결제창 → 승인 순서다.
+ * 예치금 충전. 요청 → 토스 결제창 → 승인 순서다. 완료된 충전은 전액 취소할 수 있다.
  */
 @RestController
 @RequestMapping(ChargeController.CHARGES_PATH)
@@ -37,6 +40,7 @@ public class ChargeController {
 
     private final ChargeService chargeService;
     private final ChargeConfirmService chargeConfirmService;
+    private final ChargeCancelService chargeCancelService;
 
     @PostMapping
     public ResponseEntity<ChargeRequestResponse> request(
@@ -54,6 +58,18 @@ public class ChargeController {
         ChargeConfirmResult result = chargeConfirmService.confirm(member.id(), request);
         ChargeConfirmResponse body = ChargeConfirmResponse.from(result);
         return result.confirming()
+            ? ResponseEntity.accepted().body(body)
+            : ResponseEntity.ok(body);
+    }
+
+    /**
+     * 취소까지 끝나면 200, 토스 결과를 아직 모르면 202. 202여도 충전액은 이미 빠져 있다.
+     */
+    @PostMapping("/{chargeId}/cancel")
+    public ResponseEntity<ChargeCancelResponse> cancel(@LoginMember AuthMember member, @PathVariable Long chargeId) {
+        ChargeCancelResult result = chargeCancelService.cancel(member.id(), chargeId);
+        ChargeCancelResponse body = ChargeCancelResponse.from(result);
+        return result.cancelling()
             ? ResponseEntity.accepted().body(body)
             : ResponseEntity.ok(body);
     }

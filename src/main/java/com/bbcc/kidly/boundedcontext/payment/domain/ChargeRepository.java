@@ -10,6 +10,9 @@ public interface ChargeRepository {
 
     Charge save(Charge charge);
 
+    // 새 취소 요청의 ID를 바로 받아야 할 때 쓴다
+    Charge saveAndFlush(Charge charge);
+
     Optional<Charge> findById(Long id);
 
     Optional<Charge> findByTossOrderId(String tossOrderId);

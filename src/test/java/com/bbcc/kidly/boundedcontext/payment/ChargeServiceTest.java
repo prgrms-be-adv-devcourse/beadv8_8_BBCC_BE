@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.payment;
 
+import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.CANCELLATION_ID;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.CHARGE_ID;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.MEMBER_ID;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.TOSS_ORDER_ID;
@@ -11,8 +12,11 @@ import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelResult;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeDetail;
@@ -21,7 +25,9 @@ import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequestResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ConfirmChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentKeyCipher;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgApproval;
+import com.bbcc.kidly.boundedcontext.payment.app.port.PgCancellation;
 import com.bbcc.kidly.boundedcontext.payment.domain.Charge;
+import com.bbcc.kidly.boundedcontext.payment.domain.ChargeCancellationStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
@@ -175,6 +181,113 @@ class ChargeServiceTest {
 
         assertThat(charge.getStatus()).isEqualTo(ChargeStatus.FAILED);
         assertThat(charge.getFailureCode()).isEqualTo("REJECT_CARD_COMPANY");
+    }
+
+    @Test
+    @DisplayName("취소를 시작하면 취소 중으로 바꾸고 충전액을 먼저 빼서 원장에 CHARGE_CANCEL(ref_id = 취소 요청 ID)을 남긴다")
+    void startCancel() {
+        Charge charge = PaymentFixture.savedApprovedCharge(10_000L);
+        Wallet wallet = PaymentFixture.savedWallet(15_000L);
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(walletRepository.findWithLockById(WALLET_ID)).willReturn(Optional.of(wallet));
+        given(chargeRepository.saveAndFlush(charge)).willAnswer(invocation -> {
+            ReflectionTestUtils.setField(charge.getLastCancellation(), "id", CANCELLATION_ID);
+            return charge;
+        });
+
+        ChargeCancelTarget target = chargeService.startCancel(MEMBER_ID, CHARGE_ID);
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.CANCELLING);
+        assertThat(charge.getLastCancellation().getAmount()).isEqualTo(10_000L);
+        assertThat(wallet.getBalance()).isEqualTo(5_000L);
+        ArgumentCaptor<WalletLedger> ledger = ArgumentCaptor.forClass(WalletLedger.class);
+        then(walletLedgerRepository).should().save(ledger.capture());
+        assertThat(ledger.getValue().getType()).isEqualTo(WalletLedgerType.CHARGE_CANCEL);
+        assertThat(ledger.getValue().getAmount()).isEqualTo(-10_000L);
+        assertThat(ledger.getValue().getBalanceAfter()).isEqualTo(5_000L);
+        assertThat(ledger.getValue().getRefId()).isEqualTo(CANCELLATION_ID);
+        assertThat(target).isEqualTo(
+            new ChargeCancelTarget(CHARGE_ID, CANCELLATION_ID, "encrypted-payment-key", "예치금 충전 취소", 10_000L));
+    }
+
+    @Test
+    @DisplayName("잔액이 충전액보다 적으면 취소할 수 없다")
+    void startCancelBalanceShort() {
+        Charge charge = PaymentFixture.savedApprovedCharge(10_000L);
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(walletRepository.findWithLockById(WALLET_ID))
+            .willReturn(Optional.of(PaymentFixture.savedWallet(9_999L)));
+
+        assertThatThrownBy(() -> chargeService.startCancel(MEMBER_ID, CHARGE_ID))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.CHARGE_CANCEL_BALANCE_SHORT);
+        then(walletLedgerRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("남의 충전은 없는 충전처럼 취소할 수 없다")
+    void startCancelOthersCharge() {
+        given(chargeRepository.findWithLockById(CHARGE_ID))
+            .willReturn(Optional.of(PaymentFixture.savedApprovedCharge(10_000L)));
+        given(walletRepository.findWithLockById(WALLET_ID))
+            .willReturn(Optional.of(PaymentFixture.savedWallet(10_000L)));
+
+        assertThatThrownBy(() -> chargeService.startCancel(2L, CHARGE_ID))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.CHARGE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("토스 취소가 끝나면 충전과 취소 요청을 완료로 바꾸고 잔액은 그대로다")
+    void completeCancel() {
+        Charge charge = PaymentFixture.savedCancellingCharge(10_000L);
+        Wallet wallet = PaymentFixture.savedWallet(5_000L);
+        LocalDateTime cancelledAt = LocalDateTime.now();
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(walletRepository.findWithLockById(WALLET_ID)).willReturn(Optional.of(wallet));
+
+        ChargeCancelResult result = chargeService.completeCancel(CHARGE_ID, new PgCancellation(cancelledAt));
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.CANCELLED);
+        assertThat(charge.getLastCancellation().getCancelledAt()).isEqualTo(cancelledAt);
+        assertThat(wallet.getBalance()).isEqualTo(5_000L);
+        then(walletLedgerRepository).should(never()).save(any());
+        assertThat(result).isEqualTo(new ChargeCancelResult(CHARGE_ID, "CANCELLED", 10_000L, 5_000L));
+    }
+
+    @Test
+    @DisplayName("토스 취소 시각이 없으면 지금 시각으로 완료한다")
+    void completeCancelWithoutCancelledAt() {
+        Charge charge = PaymentFixture.savedCancellingCharge(10_000L);
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(walletRepository.findWithLockById(WALLET_ID)).willReturn(Optional.of(PaymentFixture.savedWallet(0L)));
+
+        chargeService.completeCancel(CHARGE_ID, new PgCancellation(null));
+
+        assertThat(charge.getLastCancellation().getCancelledAt())
+            .isCloseTo(LocalDateTime.now(), within(5, ChronoUnit.SECONDS));
+    }
+
+    @Test
+    @DisplayName("토스가 취소를 거절하면 충전을 완료로 되돌리고 뺀 돈을 다시 넣어 원장에 CHARGE_CANCEL_REVERT를 남긴다")
+    void failCancel() {
+        Charge charge = PaymentFixture.savedCancellingCharge(10_000L);
+        Wallet wallet = PaymentFixture.savedWallet(5_000L);
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(walletRepository.findWithLockById(WALLET_ID)).willReturn(Optional.of(wallet));
+
+        chargeService.failCancel(CHARGE_ID, "NOT_CANCELABLE_PAYMENT");
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.DONE);
+        assertThat(charge.getLastCancellation().getStatus()).isEqualTo(ChargeCancellationStatus.FAILED);
+        assertThat(charge.getLastCancellation().getFailureCode()).isEqualTo("NOT_CANCELABLE_PAYMENT");
+        assertThat(wallet.getBalance()).isEqualTo(15_000L);
+        ArgumentCaptor<WalletLedger> ledger = ArgumentCaptor.forClass(WalletLedger.class);
+        then(walletLedgerRepository).should().save(ledger.capture());
+        assertThat(ledger.getValue().getType()).isEqualTo(WalletLedgerType.CHARGE_CANCEL_REVERT);
+        assertThat(ledger.getValue().getAmount()).isEqualTo(10_000L);
+        assertThat(ledger.getValue().getBalanceAfter()).isEqualTo(15_000L);
+        assertThat(ledger.getValue().getRefId()).isEqualTo(CANCELLATION_ID);
     }
 
     private static ConfirmChargeRequest confirmRequest(long amount) {

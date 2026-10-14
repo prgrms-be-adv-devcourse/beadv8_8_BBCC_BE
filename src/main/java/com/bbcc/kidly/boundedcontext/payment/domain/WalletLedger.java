@@ -47,7 +47,7 @@ public class WalletLedger extends BaseTimeEntity {
     @Column(nullable = false)
     private long balanceAfter;
 
-    // type에 따라 charge, charge_cancellation, payment, refund, settlement의 ID
+    // type에 따라 charge, charge_cancellation(CHARGE_CANCEL · CHARGE_CANCEL_REVERT), payment, refund, settlement의 ID
     @Column(nullable = false)
     private Long refId;
 

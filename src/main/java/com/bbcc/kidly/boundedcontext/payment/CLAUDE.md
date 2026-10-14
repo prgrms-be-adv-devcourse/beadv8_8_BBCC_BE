@@ -21,7 +21,7 @@
 - `payment.wallet_id`는 NOT NULL을 유지한다. 지갑 없는 실패를 저장하려고 null을 허용하지 않는다
 - 저장하지 않은 실패는 멱등 확인에 걸리지 않아, 같은 이벤트가 다시 오면 `payment.failed`도 다시 발행된다. 받는 쪽은 한 번만 반영한다
 
-## 예치금 충전 (`app/ChargeService` · `app/ChargeConfirmService`, #123)
+## 예치금 충전 (`app/ChargeService` · `app/ChargeConfirmService` · `app/ChargeCancelService`, #123)
 - 요청 `POST /api/v1/wallets/me/charges` → PENDING, 토스 주문번호는 UUID, 30분 뒤 만료
 - 승인 `POST /api/v1/wallets/me/charges/confirm`은 트랜잭션을 나눈다. 토스 호출 동안 DB 트랜잭션을 잡지 않는다
   1. `ChargeService.startConfirming`: 금액 대조 · 만료 확인 후 CONFIRMING 커밋
@@ -40,6 +40,22 @@
 - 통합 · 기능 테스트는 토스 대신 `FakePaymentGateway`(결제 테스트 폴더, paymentKey로 결과 선택)를 쓴다
 - 끝나지 않은 충전은 `in.scheduler.ChargeScheduler`가 정리한다(#158). 주기 `kidly.payment.charge.reconcile-interval`(기본 1분)
   - 승인 중으로 `confirming-stale-after`(기본 5분) 넘게 남은 충전: 토스 조회로 승인 → 입금 / 승인 안 됨 → FAILED / 모름 → 다음 실행. 승인 금액이 다르면 반영하지 않고 ERROR
+  - 취소 중으로 `cancelling-stale-after`(기본 5분) 넘게 남은 충전: 같은 멱등 키로 토스 취소를 다시 불러 아래 취소 표대로 반영 / 모름 → 다음 실행
   - 만료 시각이 지난 PENDING 충전: EXPIRED
-  - 충전 상태를 바꾸는 곳(승인 시작 · 승인 반영 · 실패 · 만료)은 충전을 비관적 락으로 읽는다. 사용자 승인과 스케줄러가 겹쳐도 늦은 쪽이 바뀐 상태를 보고 멈춰 한 번만 입금한다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
-- 아직 없음(다음 이슈): 충전 취소, 원장 조회 API
+  - 충전 상태를 바꾸는 곳(승인 시작 · 승인 반영 · 실패 · 만료 · 취소)은 충전을 비관적 락으로 읽는다. 사용자 승인과 스케줄러가 겹쳐도 늦은 쪽이 바뀐 상태를 보고 멈춰 한 번만 입금한다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
+
+### 충전 취소 (#192)
+- `POST /api/v1/wallets/me/charges/{chargeId}/cancel`. 완료(DONE) 충전만 전액 취소한다. 충전액만큼 잔액이 있어야 하고, 모자라면 409 `CHARGE_CANCEL_BALANCE_SHORT`
+- 승인처럼 트랜잭션을 나눈다
+  1. `ChargeService.startCancel`: 충전 → 지갑 순서로 락을 잡고(승인 반영과 같은 순서) CANCELLING 커밋. 충전액을 이때 먼저 빼고 원장 `CHARGE_CANCEL`(ref_id = 충전 취소 ID)을 남긴다. 토스 호출 동안 그 돈으로 결제하지 못하게 하려는 것이다
+  2. `ChargeCancelService`: 트랜잭션 밖에서 토스 취소. 멱등 키는 `charge-cancellation-{충전 취소 ID}`
+  3. 결과 반영
+
+| 토스 결과 | 충전 · 취소 요청 | 지갑 · 원장 | 응답 |
+|---|---|---|---|
+| 취소됨 | CANCELLED · COMPLETED | 그대로(이미 뺌) | 200 |
+| 거절 | DONE으로 되돌림 · FAILED(토스 오류 코드) | 다시 입금, 원장 `CHARGE_CANCEL_REVERT`(ref_id = 충전 취소 ID) | 400 `CHARGE_CANCEL_REJECTED`(detail은 토스 메시지) |
+| 모름(시간 초과 · 5xx) | CANCELLING 유지 | 그대로(뺀 상태) | 202, `balance` null |
+
+- 거절된 충전은 DONE이라 다시 취소할 수 있다. 새 취소 요청을 만들어 멱등 키도 새로 쓴다
+- 아직 없음(다음 이슈): 원장 조회 API, 부분 취소, 토스에서 직접 취소한 충전 맞추기

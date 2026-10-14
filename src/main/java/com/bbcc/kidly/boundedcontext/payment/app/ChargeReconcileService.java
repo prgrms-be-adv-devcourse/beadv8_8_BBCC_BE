@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.payment.app;
 
+import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeReconcileTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentGateway;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgApproval;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 끝나지 않은 충전을 정리한다. 승인 중으로 오래 남은 충전은 토스 조회로 확정하고, 만료된 대기 충전은 만료로 바꾼다.
+ * 취소 중으로 오래 남은 충전은 여기서 찾고, 다시 취소하는 일은 ChargeCancelService가 한다.
  * 토스 조회는 트랜잭션 밖에서 하고, 반영은 ChargeService의 승인 · 실패를 그대로 쓴다.
  */
 @Slf4j
@@ -59,6 +61,14 @@ public class ChargeReconcileService {
                 log.info("충전 승인 결과를 아직 알 수 없어 다음에 다시 봅니다. chargeId={}, reason={}",
                     target.chargeId(), unknown.reason());
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChargeCancelTarget> findStaleCancelling() {
+        LocalDateTime before = LocalDateTime.now().minus(chargeProperties.cancellingStaleAfter());
+        return chargeRepository.findAllByStatusAndUpdatedAtBefore(ChargeStatus.CANCELLING, before).stream()
+            .map(ChargeCancelTarget::from)
+            .toList();
     }
 
     @Transactional(readOnly = true)

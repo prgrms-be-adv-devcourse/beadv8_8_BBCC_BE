@@ -13,6 +13,7 @@ import static org.mockito.Mockito.never;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeProperties;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeReconcileService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeReconcileTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentGateway;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgApproval;
@@ -53,7 +54,8 @@ class ChargeReconcileServiceTest {
     @BeforeEach
     void setUp() {
         chargeReconcileService = new ChargeReconcileService(
-            chargeRepository, chargeService, paymentGateway, new ChargeProperties(Duration.ofMinutes(5)));
+            chargeRepository, chargeService, paymentGateway,
+            new ChargeProperties(Duration.ofMinutes(5), Duration.ofMinutes(5)));
     }
 
     @Test
@@ -69,6 +71,23 @@ class ChargeReconcileServiceTest {
         ArgumentCaptor<LocalDateTime> before = ArgumentCaptor.forClass(LocalDateTime.class);
         then(chargeRepository).should()
             .findAllByStatusAndUpdatedAtBefore(eq(ChargeStatus.CONFIRMING), before.capture());
+        assertThat(before.getValue()).isCloseTo(LocalDateTime.now().minusMinutes(5), within(5, ChronoUnit.SECONDS));
+    }
+
+    @Test
+    @DisplayName("5분 넘게 취소 중인 충전을 마지막 취소 요청으로 찾는다")
+    void findStaleCancelling() {
+        Charge charge = PaymentFixture.savedCancellingCharge(10_000L);
+        given(chargeRepository.findAllByStatusAndUpdatedAtBefore(eq(ChargeStatus.CANCELLING), any()))
+            .willReturn(List.of(charge));
+
+        List<ChargeCancelTarget> targets = chargeReconcileService.findStaleCancelling();
+
+        assertThat(targets).containsExactly(new ChargeCancelTarget(
+            CHARGE_ID, PaymentFixture.CANCELLATION_ID, "encrypted-payment-key", "예치금 충전 취소", 10_000L));
+        ArgumentCaptor<LocalDateTime> before = ArgumentCaptor.forClass(LocalDateTime.class);
+        then(chargeRepository).should()
+            .findAllByStatusAndUpdatedAtBefore(eq(ChargeStatus.CANCELLING), before.capture());
         assertThat(before.getValue()).isCloseTo(LocalDateTime.now().minusMinutes(5), within(5, ChronoUnit.SECONDS));
     }
 
