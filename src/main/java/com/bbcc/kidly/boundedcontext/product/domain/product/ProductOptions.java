@@ -19,6 +19,9 @@ import java.util.Set;
  */
 final class ProductOptions {
 
+    // 세미는 사이즈 무관을 값 글자 "FREE"로 판단한다 (SIZE-02)
+    private static final String FREE_SIZE = "FREE";
+
     private ProductOptions() {
     }
 
@@ -92,6 +95,39 @@ final class ProductOptions {
             attributes.add(value.getAttribute());
         }
         return attributes;
+    }
+
+    // 한 상품에 FREE와 숫자 사이즈를 섞지 않는다. 이미 있는 옵션(보관 제외)과 요청의 사이즈 역할 값을 모두 본다 (SIZE-02)
+    static void validateSizeFree(List<OptionInfo> requested, List<ProductOption> existing, ProductType productType) {
+        List<AttributeValue> values = new ArrayList<>();
+        for (ProductOption option : existing) {
+            if (option.getSaleStatus() != ProductOptionStatus.ARCHIVED) {
+                values.addAll(valuesOf(option));
+            }
+        }
+        for (OptionInfo option : requested) {
+            values.addAll(option.values());
+        }
+        boolean hasFree = false;
+        boolean hasNumber = false;
+        for (AttributeValue value : values) {
+            if (!isSizeRole(value, productType)) {
+                continue;
+            }
+            if (FREE_SIZE.equals(value.getName())) {
+                hasFree = true;
+            } else {
+                hasNumber = true;
+            }
+        }
+        if (hasFree && hasNumber) {
+            throw new BusinessException(ProductErrorCode.SIZE_FREE_MIXED);
+        }
+    }
+
+    private static boolean isSizeRole(AttributeValue value, ProductType productType) {
+        Optional<ProductTypeAttribute> link = productType.findLink(value.getAttribute());
+        return link.isPresent() && link.get().isSizeRole();
     }
 
     // 같은 값 묶음의 옵션은 하나만 둔다. 이미 있는 옵션(보관 제외)과 요청 안의 옵션을 모두 보고,
