@@ -70,6 +70,20 @@ class ProductOptionTest {
     }
 
     @Test
+    @DisplayName("OPT-01 필수 옵션 항목에 값이 없는 옵션은 거절한다")
+    void rejectOptionWithoutRequiredValue() {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+
+        assertThatThrownBy(() -> product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.size110()),
+            option(clothing.navy()))), clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.REQUIRED_OPTION_MISSING));
+        assertThat(product.getOptions()).isEmpty();
+    }
+
+    @Test
     @DisplayName("PRICE-01 옵션이 속한 가격 구분 묶음에 가격이 없으면 거절한다")
     void rejectOptionWithoutPrice() {
         ClothingOptions clothing = clothingOptions();

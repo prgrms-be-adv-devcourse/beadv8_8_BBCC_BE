@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.PriceInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
@@ -17,6 +19,26 @@ import java.util.Set;
 final class ProductOptions {
 
     private ProductOptions() {
+    }
+
+    // 옵션 하나의 값을 검사한다. 유형의 필수 옵션 항목은 모두 값이 있어야 한다 (OPT-01)
+    static void validateOption(List<AttributeValue> values, ProductType productType) {
+        for (ProductTypeAttribute link : productType.getAttributes()) {
+            if (link.getRole() == AttributeRole.OPTION
+                && link.isRequired()
+                && !hasValueOf(values, link.getAttribute())) {
+                throw new BusinessException(ProductErrorCode.REQUIRED_OPTION_MISSING);
+            }
+        }
+    }
+
+    private static boolean hasValueOf(List<AttributeValue> values, Attribute attribute) {
+        for (AttributeValue value : values) {
+            if (value.getAttribute() == attribute) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // 옵션의 가격 구분 묶음과 같은 값의 묶음을 가진 가격을 찾아 그 가격을 돌려준다.
