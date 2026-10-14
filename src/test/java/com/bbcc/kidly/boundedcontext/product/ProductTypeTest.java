@@ -176,6 +176,18 @@ class ProductTypeTest {
     }
 
     @Test
+    @DisplayName("TYPE-06 다른 항목의 목록 값을 허용 값으로 넘기면 거절한다")
+    void rejectAllowedValueOfOtherAttribute() {
+        Attribute size = size();
+        AttributeValue size110 = AttributeValue.create(size, "110", null);
+        List<ProductType.LinkInfo> links = List.of(restrictedOption(color(), List.of(size110)), sizeOption(size));
+
+        assertThatThrownBy(() -> ProductType.define("의류", links))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("허용 값은 그 항목의 목록 값");
+    }
+
+    @Test
     @DisplayName("TYPE-06 모든 값 허용 항목에 허용 값을 넘기면 거절한다")
     void rejectAllowedValuesOnAllValuesAllowedAttribute() {
         Attribute color = color();
