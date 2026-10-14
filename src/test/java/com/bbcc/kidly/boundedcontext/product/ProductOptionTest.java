@@ -103,6 +103,18 @@ class ProductOptionTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_OPTION_ATTRIBUTE));
     }
 
+    @Test
+    @DisplayName("OPT-01 한 옵션 항목에 값을 두 개 넣은 옵션은 거절한다")
+    void rejectTwoValuesOnOneOptionAttribute() {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+
+        assertThatThrownBy(() -> product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.oatmeal(), clothing.size110()))), clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED));
+    }
+
     static Stream<Named<Function<ClothingOptions, AttributeValue>>> notOptionAttributeValues() {
         return Stream.of(
             Named.of("정보 항목(주요소재)의 값 면", ClothingOptions::cotton),
