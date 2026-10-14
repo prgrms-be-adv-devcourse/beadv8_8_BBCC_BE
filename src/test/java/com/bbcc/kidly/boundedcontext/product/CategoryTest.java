@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -81,5 +82,27 @@ class CategoryTest {
 
         assertThatThrownBy(clothing::productTypeToRegister).isInstanceOfSatisfying(BusinessException.class,
             e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.NOT_LEAF_CATEGORY));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("creationsWithNull")
+    @DisplayName("이름 · 상품 유형 · 실측 항목 목록과 그 안의 실측 항목이 null이면 거절한다")
+    void rejectCreationWithNull(ThrowingCallable create) {
+        assertThatThrownBy(create)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> creationsWithNull() {
+        ProductType type = ProductType.define("의류", ProductTypeFixture.clothingLinks());
+        List<MeasurementItem> items = List.of(totalLength());
+        return Stream.of(
+            Named.of("중간 카테고리 이름", () -> Category.createMiddle(null, null)),
+            Named.of("말단 카테고리 요청", () -> Category.createLeaf(null)),
+            Named.of("말단 카테고리 이름", () -> Category.createLeaf(new Category.LeafInfo(null, null, type, items))),
+            Named.of("상품 유형", () -> Category.createLeaf(new Category.LeafInfo("상의", null, null, items))),
+            Named.of("실측 항목 목록", () -> Category.createLeaf(new Category.LeafInfo("상의", null, type, null))),
+            Named.of("실측 항목", () -> Category.createLeaf(
+                new Category.LeafInfo("상의", null, type, Arrays.asList(totalLength(), null)))));
     }
 }

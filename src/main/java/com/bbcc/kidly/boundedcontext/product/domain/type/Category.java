@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
@@ -64,6 +66,7 @@ public class Category extends BaseTimeEntity {
     private List<CategoryMeasurementItem> measurementItems = new ArrayList<>();
 
     public static Category createMiddle(String name, Category parent) {
+        requireNonNull(name, "name은 필수입니다");
         rejectLeafParent(parent);
         Category category = new Category();
         category.name = name;
@@ -72,6 +75,11 @@ public class Category extends BaseTimeEntity {
     }
 
     public static Category createLeaf(LeafInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(info.name(), "name은 필수입니다");
+        requireNonNull(info.productType(), "productType은 필수입니다");
+        requireNonNull(info.measurementItems(), "measurementItems는 필수입니다");
+        info.measurementItems().forEach(item -> requireNonNull(item, "measurementItem은 필수입니다"));
         rejectLeafParent(info.parent());
         Category category = new Category();
         category.name = info.name();
