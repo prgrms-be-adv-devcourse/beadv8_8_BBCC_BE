@@ -12,6 +12,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -27,7 +28,9 @@ import lombok.NoArgsConstructor;
  * 같은 패키지 내에서 Order를 통해 변경하는 것은 사용 규칙이며, 접근 제어가 Order만을 허용하는 것은 아니다.
  */
 @Entity
-@Table(schema = "orders", name = "order_item")
+@Table(schema = "orders", name = "order_item", indexes = {
+    @Index(name = "idx_order_item_order_id", columnList = "order_id"),
+    @Index(name = "idx_order_item_status_delivered_at", columnList = "status, delivered_at")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderItem extends BaseTimeEntity {
