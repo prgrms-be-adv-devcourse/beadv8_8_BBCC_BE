@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
+import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRejectRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.port.SellerApplicationSummary;
 import com.bbcc.kidly.boundedcontext.seller.app.port.SellerApplicationSummaryQuery;
@@ -185,5 +186,43 @@ class SellerApplicationServiceTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(SellerErrorCode.APPLICATION_NOT_PENDING);
         then(eventPublisher).should(never()).publish(any());
+    }
+
+    @Test
+    @DisplayName("거절하면 신청을 REJECTED로 바꾸고 판매자를 만들지 않으며 이벤트도 발행하지 않는다")
+    void reject() {
+        var application = SellerFixture.application(MEMBER_ID);
+        given(sellerApplicationRepository.getById(1L)).willReturn(application);
+
+        var result = sellerApplicationService.reject(
+            1L, SellerFixture.ADMIN_ID, new SellerApplicationRejectRequest(SellerFixture.REJECT_REASON));
+
+        assertThat(result.status()).isEqualTo(SellerApplicationStatus.REJECTED);
+        assertThat(application.getRejectReason()).isEqualTo(SellerFixture.REJECT_REASON);
+        then(sellerRepository).should(never()).save(any());
+        then(eventPublisher).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("심사 중이 아닌 신청을 거절하면 APPLICATION_NOT_PENDING이다")
+    void rejectNotPending() {
+        given(sellerApplicationRepository.getById(1L)).willReturn(SellerFixture.approvedApplication(MEMBER_ID));
+
+        assertThatThrownBy(() -> sellerApplicationService.reject(
+            1L, SellerFixture.ADMIN_ID, new SellerApplicationRejectRequest(SellerFixture.REJECT_REASON)))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(SellerErrorCode.APPLICATION_NOT_PENDING);
+    }
+
+    @Test
+    @DisplayName("가장 최근 신청이 거절됐으면 거절 사유를 준다")
+    void getLatestRejected() {
+        given(sellerApplicationRepository.findFirstByApplicantIdOrderByIdDesc(MEMBER_ID))
+            .willReturn(Optional.of(SellerFixture.rejectedApplication(MEMBER_ID)));
+
+        var result = sellerApplicationService.getLatest(MEMBER_ID);
+
+        assertThat(result.status()).isEqualTo(SellerApplicationStatus.REJECTED);
+        assertThat(result.rejectReason()).isEqualTo(SellerFixture.REJECT_REASON);
     }
 }

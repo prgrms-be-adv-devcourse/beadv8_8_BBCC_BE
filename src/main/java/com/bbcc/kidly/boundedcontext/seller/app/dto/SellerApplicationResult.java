@@ -11,12 +11,13 @@ public record SellerApplicationResult(
     String maskedBusinessRegistrationNumber,
     SellerApplicationStatus status,
     LocalDateTime createdAt,
-    LocalDateTime decidedAt) {
+    LocalDateTime decidedAt,
+    String rejectReason) {
 
     public static SellerApplicationResult from(SellerApplication application) {
         return new SellerApplicationResult(
             application.getId(), application.getBusinessName(), application.getRepresentativeName(),
             application.maskedBusinessRegistrationNumber(), application.getStatus(), application.getCreatedAt(),
-            application.getDecidedAt());
+            application.getDecidedAt(), application.getRejectReason());
     }
 }

@@ -2,7 +2,9 @@ package com.bbcc.kidly.boundedcontext.seller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRejectRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
+import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplication;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerErrorCode;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationSummaryResponse;
@@ -13,6 +15,9 @@ import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
@@ -145,6 +150,89 @@ class AdminSellerApplicationApiTest {
             .expectStatus().isForbidden();
     }
 
+    @Test
+    @DisplayName("거절하면 REJECTED 신청을 돌려주고, 신청자의 신청 조회에 거절 사유가 보인다")
+    void reject() {
+        var applicationId = apply(1L);
+
+        var body = reject(applicationId, SellerFixture.REJECT_REASON).expectStatus().isOk()
+            .returnResult(SellerApplicationSummaryResponse.class).getResponseBody();
+
+        assertThat(body.id()).isEqualTo(applicationId);
+        assertThat(body.status()).isEqualTo(SellerApplicationStatus.REJECTED);
+        var mine = client.get().uri(APPLY_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(1L)))
+            .exchange()
+            .expectStatus().isOk()
+            .returnResult(SellerApplicationResponse.class)
+            .getResponseBody();
+        assertThat(mine.status()).isEqualTo(SellerApplicationStatus.REJECTED);
+        assertThat(mine.rejectReason()).isEqualTo(SellerFixture.REJECT_REASON);
+        assertThat(mine.decidedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("거절된 신청은 status=REJECTED로 거를 수 있다")
+    void listRejected() {
+        var rejectedId = apply(1L);
+        apply(2L);
+        reject(rejectedId, SellerFixture.REJECT_REASON).expectStatus().isOk();
+
+        var page = list("?status=REJECTED");
+
+        assertThat(page.totalElements()).isEqualTo(1);
+        assertThat(page.content().getFirst().id()).isEqualTo(rejectedId);
+    }
+
+    @Test
+    @DisplayName("이미 승인한 신청을 거절하면 409다")
+    void rejectApproved() {
+        var applicationId = apply(1L);
+        approve(applicationId).expectStatus().isOk();
+
+        reject(applicationId, SellerFixture.REJECT_REASON).expectStatus().isEqualTo(HttpStatus.CONFLICT)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo(SellerErrorCode.APPLICATION_NOT_PENDING.title());
+    }
+
+    @Test
+    @DisplayName("없는 신청을 거절하면 404다")
+    void rejectMissing() {
+        reject(999L, SellerFixture.REJECT_REASON).expectStatus().isNotFound();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   "})
+    @DisplayName("거절 사유가 비어 있으면 400이다")
+    void rejectBlankReason(String reason) {
+        var applicationId = apply(1L);
+
+        reject(applicationId, reason).expectStatus().isBadRequest();
+    }
+
+    @Test
+    @DisplayName("거절 사유가 200자를 넘으면 400이다")
+    void rejectLongReason() {
+        var applicationId = apply(1L);
+
+        reject(applicationId, "가".repeat(SellerApplication.REJECT_REASON_MAX_LENGTH + 1))
+            .expectStatus().isBadRequest();
+    }
+
+    @Test
+    @DisplayName("구매자는 거절할 수 없다. 403이다")
+    void rejectForbiddenForBuyer() {
+        var applicationId = apply(1L);
+
+        client.post().uri(PATH + "/{id}/reject", applicationId)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(new SellerApplicationRejectRequest(SellerFixture.REJECT_REASON))
+            .exchange()
+            .expectStatus().isForbidden();
+    }
+
     private PageResponse<SellerApplicationSummaryResponse> list(String query) {
         return client.get().uri(PATH + query)
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
@@ -158,6 +246,14 @@ class AdminSellerApplicationApiTest {
     private RestTestClient.ResponseSpec approve(Long applicationId) {
         return client.post().uri(PATH + "/{id}/approve", applicationId)
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange();
+    }
+
+    private RestTestClient.ResponseSpec reject(Long applicationId, String reason) {
+        return client.post().uri(PATH + "/{id}/reject", applicationId)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(new SellerApplicationRejectRequest(reason))
             .exchange();
     }
 
