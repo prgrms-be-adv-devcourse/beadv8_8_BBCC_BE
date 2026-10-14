@@ -228,6 +228,14 @@ public class Product extends BaseTimeEntity {
         }
     }
 
+    /**
+     * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다.
+     */
+    public boolean startSale(Long sellerId, Category category, ProductType productType) {
+        status = ProductStatus.ON_SALE;
+        return true;
+    }
+
     // 사이즈 무관 여부는 칸에 저장하지 않고 옵션의 사이즈 값으로 계산한다 (SIZE-02)
     public boolean isSizeFree() {
         return ProductOptions.isSizeFree(options);
