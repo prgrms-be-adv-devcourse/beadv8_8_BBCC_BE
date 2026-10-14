@@ -20,6 +20,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -103,6 +105,22 @@ class RecommendReplicaChildIntegrationTest {
         RecommendReplicaChild replica = replicaChildRepository.findById(CHILD_1_ID).orElseThrow();
         assertThat(replica.getHeightCm()).isEqualByComparingTo("120.0");
         assertThat(replica.getEventOccurredAt()).isEqualTo(CHILD_CHANGED_AT.plusMinutes(1));
+    }
+
+    @ParameterizedTest(name = "저장된 시각에서 {0}분")
+    @ValueSource(longs = {0, -1})
+    @DisplayName("INV-R01 같은 시각이거나 더 이르게 일어난 이벤트를 받아도 예외 없이 자녀 복사본이 그대로다")
+    void keepReplicaForEventNotLater(long minutesFromStored) {
+        replicaChildService.applyChildChanged(
+            RecommendFixture.childChangedEventAt(new BigDecimal("115.0"), CHILD_CHANGED_AT));
+
+        assertThatCode(() -> replicaChildService.applyChildChanged(RecommendFixture.childChangedEventAt(
+            new BigDecimal("120.0"), CHILD_CHANGED_AT.plusMinutes(minutesFromStored))))
+            .doesNotThrowAnyException();
+
+        RecommendReplicaChild replica = replicaChildRepository.findById(CHILD_1_ID).orElseThrow();
+        assertThat(replica.getHeightCm()).isEqualByComparingTo("115.0");
+        assertThat(replica.getEventOccurredAt()).isEqualTo(CHILD_CHANGED_AT);
     }
 
     private void publishInTransaction(ChildChangedEvent event) {
