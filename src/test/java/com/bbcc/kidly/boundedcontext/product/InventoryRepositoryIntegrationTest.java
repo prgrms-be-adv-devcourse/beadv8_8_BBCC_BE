@@ -1,19 +1,13 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
-import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
-import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
-import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryOpening;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
-import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
-import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
@@ -24,7 +18,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,7 +31,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 재고 리포지토리를 실제 DB로 확인한다. 리포지토리는 서비스 트랜잭션 안에서 불리므로, 테스트도 호출을 트랜잭션으로 감싼다.
- * 상품 쪽 리포지토리가 아직 없어서 재고를 열 옵션은 EntityManager로 직접 저장한다. 테스트에 @Transactional을 붙이지 않는다.
+ * 재고를 열 옵션은 ProductOptionSaver로 상품과 함께 저장한다. 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest
 class InventoryRepositoryIntegrationTest {
@@ -47,6 +40,9 @@ class InventoryRepositoryIntegrationTest {
 
     @Autowired
     private InventoryRepository inventoryRepository;
+
+    @Autowired
+    private ProductOptionSaver productOptionSaver;
 
     @Autowired
     private EntityManager entityManager;
@@ -60,7 +56,7 @@ class InventoryRepositoryIntegrationTest {
     @Test
     @DisplayName("INV-19 재고를 열어 저장하면 그 옵션의 재고 행과 판매자가 남긴 INITIAL +10 기록이 저장된다")
     void saveOpening() {
-        ProductOption option = savedOption();
+        ProductOption option = productOptionSaver.saveNavy110();
 
         inTransaction(() -> inventoryRepository.saveOpening(InventoryOpening.open(option, 10, SELLER_ID)));
 
@@ -76,7 +72,7 @@ class InventoryRepositoryIntegrationTest {
     @Test
     @DisplayName("옵션 하나에 재고 행은 하나라서, 같은 옵션의 재고를 두 번 열면 두 번째는 저장되지 않는다")
     void rejectSecondOpeningForSameOption() {
-        ProductOption option = savedOption();
+        ProductOption option = productOptionSaver.saveNavy110();
         inTransaction(() -> inventoryRepository.saveOpening(InventoryOpening.open(option, 10, SELLER_ID)));
 
         assertThatThrownBy(() -> inTransaction(
@@ -157,34 +153,9 @@ class InventoryRepositoryIntegrationTest {
 
     // 판매 가능 수량 stock으로 재고를 연 옵션을 돌려준다
     private ProductOption openedOption(int stock) {
-        ProductOption option = savedOption();
+        ProductOption option = productOptionSaver.saveNavy110();
         inTransaction(() -> inventoryRepository.saveOpening(InventoryOpening.open(option, stock, SELLER_ID)));
         return option;
-    }
-
-    // 상품 A에 네이비 · 110 옵션을 추가해 저장하고 그 옵션을 돌려준다. 항목 · 목록 값 · 카테고리 · 실측 항목은
-    // cascade되지 않아 먼저 저장한다
-    private ProductOption savedOption() {
-        ClothingOptions clothing = clothingOptions();
-        Product.RegisterInfo info = ProductFixture.productAWith(clothing.type(), List.of(
-            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
-        Product product = Product.register(info);
-        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
-        inTransaction(() -> {
-            Stream.of(clothing.navy(), clothing.size110(), clothing.stripe(), clothing.cotton())
-                .map(value -> value.getAttribute())
-                .forEach(entityManager::persist);
-            Stream.of(clothing.cotton(), clothing.navy(), clothing.oatmeal(), clothing.size110(), clothing.size120(),
-                    clothing.sizeFree(), clothing.size105(), clothing.stripe())
-                .forEach(entityManager::persist);
-            entityManager.persist(clothing.type());
-            Category category = info.category();
-            entityManager.persist(category.getParent());
-            category.getMeasurementItems().forEach(link -> entityManager.persist(link.getMeasurementItem()));
-            entityManager.persist(category);
-            entityManager.persist(product);
-        });
-        return product.getOptions().get(0);
     }
 
     private void inTransaction(Runnable work) {
