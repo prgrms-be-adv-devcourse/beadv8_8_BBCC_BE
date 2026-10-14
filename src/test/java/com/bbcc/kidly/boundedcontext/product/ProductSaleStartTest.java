@@ -56,7 +56,7 @@ class ProductSaleStartTest {
     }
 
     @Test
-    @DisplayName("이미 판매중인 상품에 다시 판매를 시작하면 아무것도 바꾸지 않는다 (API 명세 3.7, 재시도 대비)")
+    @DisplayName("이미 판매중인 상품에 다시 판매를 시작하면 아무것도 바꾸지 않는다 (재시도 대비)")
     void startSaleAgainChangesNothing() {
         withOptionsAndSizeSpecs110And120();
         product.startSale(SELLER_ID, top, clothing.type());
@@ -170,7 +170,7 @@ class ProductSaleStartTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("incompleteInputs")
-    @DisplayName("SALE-03 등록할 때 판매 시작 조건의 입력이 빠지면 빠진 항목을 적어 400으로 거절한다 (10-14 결정)")
+    @DisplayName("SALE-03 등록할 때 판매 시작 조건의 입력이 빠지면 빠진 항목을 적어 400으로 거절한다")
     void rejectIncompleteSaleStartInputs(Consumer<ProductSaleStartTest> given, String detail) {
         given.accept(this);
 
@@ -230,7 +230,7 @@ class ProductSaleStartTest {
             + "110 사이즈에 소매길이가 없습니다. 110 사이즈에 권장 키가 없습니다.");
     }
 
-    // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
+    // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다
     private void withOptionsAndSizeSpecs110And120() {
         withOptions110And120();
         product.addSizeSpecs(addSizeSpecs(List.of(

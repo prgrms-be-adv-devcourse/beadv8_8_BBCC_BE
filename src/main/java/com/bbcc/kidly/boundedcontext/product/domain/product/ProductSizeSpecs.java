@@ -92,7 +92,7 @@ final class ProductSizeSpecs {
         }
     }
 
-    // 실측의 사이즈 값은 보관하지 않은 옵션이 쓰는 사이즈 값이어야 한다 (API 명세 3.2)
+    // 실측의 사이즈 값은 보관하지 않은 옵션이 쓰는 사이즈 값이어야 한다
     static void validateSizeValuesInOptions(List<SizeSpecInfo> specs, List<ProductOption> options,
         ProductType productType) {
         Set<AttributeValue> used = ProductOptions.activeSizeValues(options, productType);
