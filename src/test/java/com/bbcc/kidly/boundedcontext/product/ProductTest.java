@@ -202,6 +202,28 @@ class ProductTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_INFO_ATTRIBUTE));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("inputTypeMismatchedValues")
+    @DisplayName("항목의 입력 방식에 맞지 않는 값을 넣으면 거절한다")
+    void rejectInputTypeMismatchedValue(Function<Clothing, List<InfoValueInfo>> infoValues) {
+        Clothing clothing = clothing();
+        Product.RegisterInfo info = productAWith(clothing, infoValues.apply(clothing));
+
+        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.INPUT_TYPE_MISMATCH));
+    }
+
+    static Stream<Named<Function<Clothing, List<InfoValueInfo>>>> inputTypeMismatchedValues() {
+        return Stream.of(
+            Named.of("직접 입력 항목(혼용률)에 목록 값", clothing -> List.of(
+                cottonMaterial(clothing),
+                new InfoValueInfo(clothing.fabricComposition(),
+                    List.of(AttributeValue.create(clothing.fabricComposition(), "면 100%", null)), null))),
+            Named.of("목록 항목(주요소재)에 글자", clothing -> List.of(
+                new InfoValueInfo(clothing.mainMaterial(), List.of(), "면"))));
+    }
+
     static Stream<Named<Function<Clothing, InfoValueInfo>>> notInfoAttributeValues() {
         return Stream.of(
             Named.of("유형에 없는 항목(신발 사이즈)", clothing -> {

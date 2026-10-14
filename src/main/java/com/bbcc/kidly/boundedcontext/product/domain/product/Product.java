@@ -109,6 +109,7 @@ public class Product extends BaseTimeEntity {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
         validateInfoAttributes(info.infoValues(), productType);
+        validateInputTypes(info.infoValues());
         validateInfoValues(info.infoValues());
         validateAllowedInfoValues(info.infoValues(), productType);
         validateRequiredInfoValues(info.infoValues(), productType);
@@ -144,6 +145,19 @@ public class Product extends BaseTimeEntity {
             ProductTypeAttribute link = findLink(productType, infoValue.attribute());
             if (link == null || link.getRole() != AttributeRole.INFO) {
                 throw new BusinessException(ProductErrorCode.NOT_INFO_ATTRIBUTE);
+            }
+        }
+    }
+
+    // 직접 입력 항목은 글자만, 그 밖의 항목(팔레트 · 목록 · 다중 선택 목록)은 목록 값만 받는다
+    private static void validateInputTypes(List<InfoValueInfo> infoValues) {
+        for (InfoValueInfo infoValue : infoValues) {
+            boolean isText = infoValue.attribute().getInputType() == AttributeInputType.TEXT;
+            if (isText && !infoValue.values().isEmpty()) {
+                throw new BusinessException(ProductErrorCode.INPUT_TYPE_MISMATCH);
+            }
+            if (!isText && hasText(infoValue.text())) {
+                throw new BusinessException(ProductErrorCode.INPUT_TYPE_MISMATCH);
             }
         }
     }
