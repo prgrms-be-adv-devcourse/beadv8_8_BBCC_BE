@@ -7,13 +7,16 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.ORDER_ITE
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_120_OPTION_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PURCHASE_CONFIRMED_AT;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.out.purchase.JpaPurchaseRecordRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +57,30 @@ class PurchaseRecordIntegrationTest {
                 PurchaseRecord::getConfirmedAt)
             .containsExactly(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID,
                 "120", PURCHASE_CONFIRMED_AT);
+    }
+
+    @Test
+    @DisplayName("구매확정을 발행한 트랜잭션이 롤백되면 구매 기록이 생기지 않는다")
+    void noRecordAfterRollback() {
+        transactionTemplate.executeWithoutResult(status -> {
+            eventPublisher.publish(RecommendFixture.purchaseConfirmedEvent());
+            status.setRollbackOnly();
+        });
+
+        assertThat(purchaseRecordRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("구매 기록 저장이 실패해도 구매확정을 발행한 트랜잭션은 성공하고 기록은 남지 않는다")
+    void noRecordWhenListenerFails() {
+        OrderItemPurchaseConfirmedEvent withoutSize = new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(),
+            PURCHASE_CONFIRMED_AT, new OrderItemPurchaseConfirmedEvent.Data(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID,
+                SELLER_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, null, 2, 50_000L,
+                PURCHASE_CONFIRMED_AT));
+
+        assertThatCode(() -> publishInTransaction(withoutSize)).doesNotThrowAnyException();
+
+        assertThat(purchaseRecordRepository.findAll()).isEmpty();
     }
 
     private void publishInTransaction(OrderItemPurchaseConfirmedEvent event) {
