@@ -31,7 +31,8 @@ public enum ProductErrorCode implements ErrorCode {
         "권장 키는 최솟값과 최댓값을 함께 넣고, 최솟값이 최댓값보다 크지 않게 넣어 주세요."),
     DUPLICATE_SIZE_SPEC(HttpStatus.BAD_REQUEST, "같은 사이즈의 실측이 두 번 들어왔습니다", "사이즈마다 실측을 한 번만 넣어 주세요."),
     MEASUREMENT_ITEM_NOT_IN_CATEGORY(HttpStatus.BAD_REQUEST, "카테고리에 없는 실측 항목입니다", "상품 카테고리의 실측 항목만 넣어 주세요."),
-    SIZE_SPEC_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "실측을 받지 않는 상품 유형입니다", "사이즈 항목이 있는 상품에만 실측을 넣어 주세요.");
+    SIZE_SPEC_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "실측을 받지 않는 상품 유형입니다", "사이즈 항목이 있는 상품에만 실측을 넣어 주세요."),
+    SIZE_NOT_IN_OPTIONS(HttpStatus.BAD_REQUEST, "옵션에 없는 사이즈입니다", "옵션에 쓴 사이즈마다 실측을 넣어 주세요.");
 
     private final HttpStatus status;
     private final String title;

@@ -210,6 +210,7 @@ public class Product extends BaseTimeEntity {
         ProductSizeSpecs.validateHeightRanges(info.specs());
         ProductSizeSpecs.validateNoDuplicate(info.specs(), sizeSpecs);
         ProductSizeSpecs.validateMeasurementItems(info.specs(), category);
+        ProductSizeSpecs.validateSizeValuesInOptions(info.specs(), options, productType);
         List<SizeSpec> created = new ArrayList<>();
         for (SizeSpecInfo spec : info.specs()) {
             created.add(SizeSpec.create(this, spec));

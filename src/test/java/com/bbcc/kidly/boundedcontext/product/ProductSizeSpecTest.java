@@ -143,6 +143,25 @@ class ProductSizeSpecTest {
         assertThat(bottle.getSizeSpecs()).isEmpty();
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("sizeValuesNotInOptions")
+    @DisplayName("옵션이 쓰지 않는 사이즈 값의 실측은 거절한다")
+    void rejectSizeSpecForSizeValueNotInOptions(Function<ClothingOptions, AttributeValue> sizeValue) {
+        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
+        AttributeValue value = sizeValue.apply(clothing);
+
+        assertRejected(() -> product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(value, 115, 125, top120Measurements()))), top, clothing.type()),
+            ProductErrorCode.SIZE_NOT_IN_OPTIONS);
+        assertThat(product.getSizeSpecs()).isEmpty();
+    }
+
+    static Stream<Named<Function<ClothingOptions, AttributeValue>>> sizeValuesNotInOptions() {
+        return Stream.of(
+            Named.of("옵션에 없는 사이즈 120", ClothingOptions::size120),
+            Named.of("옵션이 색상으로 쓰는 네이비", ClothingOptions::navy));
+    }
+
     // 상품 A에 네이비 110 · 120 옵션을 붙인다
     private void withOptions110And120() {
         product.addOptions(addOptions(List.of(
