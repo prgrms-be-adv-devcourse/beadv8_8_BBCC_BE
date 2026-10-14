@@ -26,7 +26,6 @@ public class PurchaseRecord extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
 
     // 같은 주문상품은 한 번만 기록한다
@@ -48,7 +47,7 @@ public class PurchaseRecord extends BaseTimeEntity {
     @Column(name = "product_option_id", nullable = false)
     private Long productOptionId;
 
-    @Column(name = "size", nullable = false, length = 20)
+    @Column(nullable = false, length = 20)
     private String size;
 
     @Column(name = "confirmed_at", nullable = false)
