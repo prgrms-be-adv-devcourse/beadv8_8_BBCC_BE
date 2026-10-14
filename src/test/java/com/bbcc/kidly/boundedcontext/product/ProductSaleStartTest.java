@@ -97,6 +97,17 @@ class ProductSaleStartTest {
                 "판매를 시작할 수 없습니다. 110 사이즈에 어깨너비 · 소매길이가 없습니다."));
     }
 
+    @Test
+    @DisplayName("SALE-03 FREE가 아닌 사이즈에 권장 키가 없으면 판매를 시작할 수 없다")
+    void rejectStartSaleWithoutHeightRange() {
+        withOptions110And120();
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), null, null, top110Measurements()),
+            spec(clothing.size120(), 115, 125, top120Measurements()))), top, clothing.type());
+
+        assertSaleStartRejected("판매를 시작할 수 없습니다. 110 사이즈에 권장 키가 없습니다.");
+    }
+
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
     private void withOptionsAndSizeSpecs110And120() {
         withOptions110And120();

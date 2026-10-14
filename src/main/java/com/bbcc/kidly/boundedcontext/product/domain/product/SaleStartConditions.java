@@ -46,6 +46,10 @@ final class SaleStartConditions {
                 continue;
             }
             addMeasurementMissing(missing, sizeValue, spec, category);
+            // 권장 키는 최솟값과 최댓값이 함께 있으므로 최솟값만 본다 (SIZE-03)
+            if (spec.getMinHeightCm() == null) {
+                missing.add(sizeValue.getName() + " 사이즈에 권장 키가 없습니다.");
+            }
         }
     }
 
