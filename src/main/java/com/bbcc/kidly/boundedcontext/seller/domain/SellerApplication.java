@@ -50,9 +50,12 @@ public class SellerApplication extends BaseTimeEntity {
     @Column(nullable = false, updatable = false)
     private Long applicantId;
 
-    // 신청 시점 닉네임. 관리자 목록 표시용이고, 회원이 닉네임을 바꿔도 갱신하지 않는다
-    @Column(nullable = false, updatable = false)
+    // 관리자 목록 표시용. 신청 시점 닉네임으로 저장하고, 회원이 닉네임을 바꾸면 이벤트로 갱신한다
+    @Column(nullable = false)
     private String applicantNickname;
+
+    // 마지막으로 반영한 닉네임 변경 시각. 바꾼 적이 없으면 null
+    private LocalDateTime applicantNicknameChangedAt;
 
     @Column(nullable = false, length = NAME_MAX_LENGTH)
     private String businessName;
@@ -116,6 +119,17 @@ public class SellerApplication extends BaseTimeEntity {
         Assert.isTrue(reason.length() <= REJECT_REASON_MAX_LENGTH, "거절 사유는 200자 이하여야 합니다");
         decide(SellerApplicationStatus.REJECTED, adminId, now);
         this.rejectReason = reason;
+    }
+
+    // 회원 닉네임 변경 이벤트로 갱신한다. 저장된 변경보다 늦게 일어난 변경만 반영한다
+    public void changeApplicantNickname(String nickname, LocalDateTime changedAt) {
+        requireNonNull(changedAt, "changedAt은 필수입니다");
+        Assert.hasText(nickname, "신청 회원 닉네임은 비어 있을 수 없습니다");
+        if (applicantNicknameChangedAt != null && !changedAt.isAfter(applicantNicknameChangedAt)) {
+            return;
+        }
+        this.applicantNickname = nickname;
+        this.applicantNicknameChangedAt = changedAt;
     }
 
     // 승인 · 거절은 PENDING일 때만 할 수 있다

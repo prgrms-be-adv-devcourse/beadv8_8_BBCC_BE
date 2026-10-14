@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.seller.domain;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
+import java.util.List;
 import java.util.Optional;
 
 public interface SellerApplicationRepository {
@@ -13,6 +14,8 @@ public interface SellerApplicationRepository {
 
     // 회원의 가장 최근 신청
     Optional<SellerApplication> findFirstByApplicantIdOrderByIdDesc(Long applicantId);
+
+    List<SellerApplication> findAllByApplicantId(Long applicantId);
 
     boolean existsByApplicantIdAndStatus(Long applicantId, SellerApplicationStatus status);
 

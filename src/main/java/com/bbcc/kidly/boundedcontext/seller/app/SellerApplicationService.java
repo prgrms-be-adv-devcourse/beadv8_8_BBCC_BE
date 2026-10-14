@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 판매자 신청 · 조회 · 승인 · 거절.
  * 승인은 한 트랜잭션에서 신청을 APPROVED로 바꾸고, 판매자를 만들고, SellerChangedEvent를 발행한다.
  * 거절은 신청만 REJECTED로 바꾼다. 판매자를 만들지 않으므로 이벤트를 발행하지 않는다.
+ * 회원이 닉네임을 바꾸면 그 회원의 신청에 반영한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -84,5 +85,11 @@ public class SellerApplicationService {
         var application = sellerApplicationRepository.getById(applicationId);
         application.reject(adminId, request.reason(), LocalDateTime.now());
         return SellerApplicationSummary.from(application);
+    }
+
+    @Transactional
+    public void changeApplicantNickname(Long applicantId, String nickname, LocalDateTime changedAt) {
+        sellerApplicationRepository.findAllByApplicantId(applicantId)
+            .forEach(application -> application.changeApplicantNickname(nickname, changedAt));
     }
 }

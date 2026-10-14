@@ -222,4 +222,29 @@ class SellerApplicationTest {
         application.reject(ADMIN_ID, maxReason, NOW);
         assertThat(application.getRejectReason()).isEqualTo(maxReason);
     }
+
+    @Test
+    @DisplayName("신청 회원 닉네임을 처음 바꾸면 반영한다")
+    void changeApplicantNickname() {
+        var application = SellerFixture.application(1L);
+
+        application.changeApplicantNickname("하은맘", NOW);
+
+        assertThat(application.getApplicantNickname()).isEqualTo("하은맘");
+        assertThat(application.getApplicantNicknameChangedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("저장된 변경보다 늦은 변경만 반영한다")
+    void changeApplicantNicknameOnlyLater() {
+        var application = SellerFixture.application(1L);
+        application.changeApplicantNickname("하은맘", NOW);
+
+        application.changeApplicantNickname("예전닉네임", NOW);
+        application.changeApplicantNickname("더예전닉네임", NOW.minusDays(1));
+        assertThat(application.getApplicantNickname()).isEqualTo("하은맘");
+
+        application.changeApplicantNickname("새닉네임", NOW.plusDays(1));
+        assertThat(application.getApplicantNickname()).isEqualTo("새닉네임");
+    }
 }
