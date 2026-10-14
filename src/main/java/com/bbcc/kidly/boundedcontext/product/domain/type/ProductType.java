@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -149,6 +150,33 @@ public class ProductType extends BaseTimeEntity {
     private static boolean hasAllowedValueOfOtherAttribute(List<LinkInfo> links) {
         return links.stream().anyMatch(link ->
             link.allowedValues().stream().anyMatch(value -> value.getAttribute() != link.attribute()));
+    }
+
+    // 이 유형에서 그 항목의 연결을 찾는다. 유형에 연결되지 않은 항목이면 비어 있다
+    public Optional<ProductTypeAttribute> findLink(Attribute attribute) {
+        for (ProductTypeAttribute link : attributes) {
+            if (link.getAttribute() == attribute) {
+                return Optional.of(link);
+            }
+        }
+        return Optional.empty();
+    }
+
+    // 목록 값을 이 유형에서 고를 수 있는지 본다. 모든 값 허용 항목이면 그 항목의 값은 모두 고를 수 있고, 아니면 허용 값만 고를 수 있다
+    public boolean allows(AttributeValue value) {
+        Optional<ProductTypeAttribute> link = findLink(value.getAttribute());
+        if (link.isEmpty()) {
+            return false;
+        }
+        if (link.get().isAllValuesAllowed()) {
+            return true;
+        }
+        for (ProductTypeAllowedValue allowed : allowedValues) {
+            if (allowed.getAttributeValue() == value) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public List<ProductTypeAttribute> getAttributes() {
