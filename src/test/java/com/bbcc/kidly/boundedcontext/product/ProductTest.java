@@ -1,15 +1,27 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.CATEGORY_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.clothing;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productA;
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithRequired;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithoutThumbnail;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.ProductFixture.Clothing;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product.InfoValueInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.util.List;
+import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ProductTest {
 
@@ -38,5 +50,34 @@ class ProductTest {
         Product product = Product.register(productAWithoutThumbnail(clothing), clothing.type());
 
         assertThat(product.getThumbnailUrl()).isNull();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("registrationsWithNull")
+    @DisplayName("등록 정보 · 상품 유형 · 판매자 · 카테고리 · 상품명 · 이미지 목록 · 정보 값 목록이 null이면 거절한다")
+    void rejectProductWithNull(ThrowingCallable register) {
+        assertThatThrownBy(register)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> registrationsWithNull() {
+        Clothing clothing = clothing();
+        ProductType type = clothing.type();
+        List<String> imageUrls = List.of("https://…/a-1.jpg");
+        List<InfoValueInfo> infoValues = productA(clothing).infoValues();
+        return Stream.of(
+            Named.of("등록 정보", () -> Product.register(null, type)),
+            Named.of("상품 유형", () -> Product.register(productA(clothing), null)),
+            Named.of("판매자", () -> Product.register(
+                productAWithRequired(null, CATEGORY_ID, "상품 A", imageUrls, infoValues), type)),
+            Named.of("카테고리", () -> Product.register(
+                productAWithRequired(SELLER_ID, null, "상품 A", imageUrls, infoValues), type)),
+            Named.of("상품명", () -> Product.register(
+                productAWithRequired(SELLER_ID, CATEGORY_ID, null, imageUrls, infoValues), type)),
+            Named.of("이미지 목록", () -> Product.register(
+                productAWithRequired(SELLER_ID, CATEGORY_ID, "상품 A", null, infoValues), type)),
+            Named.of("정보 값 목록", () -> Product.register(
+                productAWithRequired(SELLER_ID, CATEGORY_ID, "상품 A", imageUrls, null), type)));
     }
 }

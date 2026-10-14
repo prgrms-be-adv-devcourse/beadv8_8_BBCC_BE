@@ -67,4 +67,11 @@ final class ProductFixture {
             List.of("https://…/a-1.jpg"),
             infoValues);
     }
+
+    // 상품 A에서 필수 값만 바꾼 등록 정보다. 필수 값이 비었을 때를 확인하는 테스트가 쓴다
+    static Product.RegisterInfo productAWithRequired(
+        Long sellerId, Long categoryId, String name, List<String> imageUrls, List<Product.InfoValueInfo> infoValues) {
+        return new Product.RegisterInfo(
+            sellerId, categoryId, name, "키들리", "상품 설명", "https://…/a-thumbnail.jpg", imageUrls, infoValues);
+    }
 }

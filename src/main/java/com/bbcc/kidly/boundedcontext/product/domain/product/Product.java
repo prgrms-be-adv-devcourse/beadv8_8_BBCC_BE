@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
@@ -87,14 +89,17 @@ public class Product extends BaseTimeEntity {
 
     // productType과 info.infoValues는 정보 값을 저장하고 검사하는 기능에서 쓴다
     public static Product register(RegisterInfo info, ProductType productType) {
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(productType, "productType은 필수입니다");
+        requireNonNull(info.infoValues(), "infoValues는 필수입니다");
         Product product = new Product();
-        product.sellerId = info.sellerId();
-        product.categoryId = info.categoryId();
-        product.name = info.name();
+        product.sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        product.categoryId = requireNonNull(info.categoryId(), "categoryId는 필수입니다");
+        product.name = requireNonNull(info.name(), "name은 필수입니다");
         product.brand = info.brand();
         product.description = info.description();
         product.thumbnailUrl = info.thumbnailUrl();
-        product.imageUrls = new ArrayList<>(info.imageUrls());
+        product.imageUrls = new ArrayList<>(requireNonNull(info.imageUrls(), "imageUrls는 필수입니다"));
         product.status = ProductStatus.SALE_PENDING;
         return product;
     }
