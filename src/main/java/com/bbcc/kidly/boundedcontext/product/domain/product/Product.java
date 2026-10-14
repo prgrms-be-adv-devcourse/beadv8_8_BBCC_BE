@@ -155,8 +155,8 @@ public class Product extends BaseTimeEntity {
     public void addOptions(AddOptionsInfo info, ProductType productType) {
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
-            // 묶음별 가격 배정은 뒤 테스트에서 한다. 지금은 첫 묶음의 가격을 넣는다
-            created.add(ProductOption.create(this, info.prices().get(0).price(), option.skuCode(), option.values()));
+            long price = ProductOptions.findPrice(option.values(), info.prices(), productType);
+            created.add(ProductOption.create(this, price, option.skuCode(), option.values()));
         }
         options.addAll(created);
     }
