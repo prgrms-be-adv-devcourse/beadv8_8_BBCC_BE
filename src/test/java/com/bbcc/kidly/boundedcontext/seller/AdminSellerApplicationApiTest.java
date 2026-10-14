@@ -98,6 +98,7 @@ class AdminSellerApplicationApiTest {
             .returnResult(SellerApplicationResponse.class)
             .getResponseBody();
         assertThat(mine.status()).isEqualTo(SellerApplicationStatus.APPROVED);
+        assertThat(mine.rejectReason()).isNull();
     }
 
     @Test

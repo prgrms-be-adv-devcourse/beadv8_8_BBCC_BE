@@ -14,6 +14,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.util.regex.Pattern;
 import lombok.AccessLevel;
@@ -73,6 +74,10 @@ public class SellerApplication extends BaseTimeEntity {
     private Long decidedBy;
 
     private LocalDateTime decidedAt;
+
+    // 승인과 거절이 동시에 오면 늦게 커밋하는 쪽이 실패한다(409)
+    @Version
+    private Long version;
 
     private SellerApplication(SellerApplicationSubmitInfo info) {
         this.applicantId = info.applicantId();
