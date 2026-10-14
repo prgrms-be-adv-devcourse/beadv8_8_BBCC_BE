@@ -5,9 +5,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChartRow;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.WeightPercentiles;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -38,10 +36,8 @@ public class GrowthChartConfig {
     }
 
     private static List<String> readLines() {
-        ClassPathResource resource = new ClassPathResource(CSV_PATH);
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-            return reader.lines().toList();
+        try {
+            return new ClassPathResource(CSV_PATH).getContentAsString(StandardCharsets.UTF_8).lines().toList();
         } catch (IOException e) {
             throw new UncheckedIOException("체형표 CSV를 읽지 못했습니다: " + CSV_PATH, e);
         }
