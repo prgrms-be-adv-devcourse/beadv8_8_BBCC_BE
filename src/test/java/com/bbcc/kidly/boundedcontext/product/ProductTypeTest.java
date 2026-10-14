@@ -6,6 +6,8 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.fabricCom
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.mainMaterial;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.optionalOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.optionalTextInfo;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.priceAffectingInfo;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.priceAffectingOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.shoeSize;
@@ -86,5 +88,24 @@ class ProductTypeTest {
         assertThatThrownBy(() -> ProductType.define("의류", links))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("사이즈 역할은 옵션 항목");
+    }
+
+    @Test
+    @DisplayName("TYPE-04 가격 구분 항목을 옵션 항목에 두면 유형을 만든다")
+    void defineTypeWithPriceAffectingOptionAttribute() {
+        List<ProductType.LinkInfo> links = List.of(priceAffectingOption(color()), sizeOption(size()));
+
+        assertThatCode(() -> ProductType.define("의류", links)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("TYPE-04 가격 구분 항목을 정보 항목에 두면 거절한다")
+    void rejectTypeWithPriceAffectingInfoAttribute() {
+        List<ProductType.LinkInfo> links = List.of(
+            requiredOption(color()), sizeOption(size()), priceAffectingInfo(mainMaterial()));
+
+        assertThatThrownBy(() -> ProductType.define("의류", links))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("가격이 달라지는 항목은 옵션 항목");
     }
 }

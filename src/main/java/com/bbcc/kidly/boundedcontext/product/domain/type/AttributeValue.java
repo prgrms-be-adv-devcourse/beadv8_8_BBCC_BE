@@ -16,7 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 항목에서 고를 수 있는 값이다(예: 사이즈 항목의 110, 색상 항목의 네이비). 팔레트 항목의 값은 화면에 보일 색 코드도 함께 가진다.
+ * 항목에서 고르는 값이다(예: 사이즈 110). 팔레트 값은 색 코드도 가진다.
  */
 @Entity
 @Table(

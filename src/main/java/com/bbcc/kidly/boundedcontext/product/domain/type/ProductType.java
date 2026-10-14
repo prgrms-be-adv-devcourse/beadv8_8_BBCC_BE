@@ -17,7 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 상품 유형이다. 의류처럼 상품의 종류마다 구매자가 고르는 옵션 항목과 판매자가 적는 정보 항목을 정해 둔다.
+ * 상품 유형이다. 의류처럼 종류마다 옵션 항목과 정보 항목을 정해 둔다.
  */
 @Entity
 @Table(schema = "product", name = "product_type")
@@ -26,9 +26,7 @@ import lombok.NoArgsConstructor;
 public class ProductType extends BaseTimeEntity {
 
     /**
-     * 유형에 항목 하나를 연결할 때 넘기는 설정이다. 그 항목을 옵션 항목과 정보 항목 중 무엇으로 쓰는지(role),
-     * 반드시 채워야 하는지(required), 사이즈 역할인지(sizeRole), 값에 따라 가격이 달라지는지(priceAffecting)를 담는다.
-     * allowedValues는 allValuesAllowed가 false일 때만 쓰며, 그 항목의 목록 값 중 이 유형에서 고를 수 있는 값을 담는다.
+     * 유형에 항목 하나를 연결하는 설정이다. allowedValues는 allValuesAllowed가 false일 때 고를 수 있는 값이다.
      */
     public record LinkInfo(
         Attribute attribute,
@@ -60,6 +58,9 @@ public class ProductType extends BaseTimeEntity {
         if (hasSizeRoleOnInfo(links)) {
             throw new IllegalArgumentException("사이즈 역할은 옵션 항목에만 둘 수 있습니다");
         }
+        if (hasPriceAffectingOnInfo(links)) {
+            throw new IllegalArgumentException("값에 따라 가격이 달라지는 항목은 옵션 항목에만 둘 수 있습니다");
+        }
         ProductType type = new ProductType();
         type.name = name;
         for (int i = 0; i < links.size(); i++) {
@@ -90,6 +91,15 @@ public class ProductType extends BaseTimeEntity {
     private static boolean hasSizeRoleOnInfo(List<LinkInfo> links) {
         for (LinkInfo link : links) {
             if (link.sizeRole() && link.role() != AttributeRole.OPTION) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasPriceAffectingOnInfo(List<LinkInfo> links) {
+        for (LinkInfo link : links) {
+            if (link.priceAffecting() && link.role() != AttributeRole.OPTION) {
                 return true;
             }
         }
