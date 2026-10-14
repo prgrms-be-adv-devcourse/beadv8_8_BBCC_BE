@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 배송지. 회원(memberId)은 바뀌지 않는다. 기본 배송지 여부는 저장하지 않고 {@code DefaultShippingAddress}가 가리킨다.
+ * 배송지. 회원(memberId)은 바뀌지 않는다. 기본 배송지 여부는 저장하지 않고 {@link DefaultShippingAddress}가 가리킨다.
  * 기본 배송지가 FK로 가리키므로 삭제된 배송지를 가리키지 않게 하려고 물리 삭제한다.
  */
 @Entity
