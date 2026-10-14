@@ -62,6 +62,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "event_occurred_at", nullable = false)
     private LocalDateTime eventOccurredAt;
 
+    // 사이즈 줄은 applyIfNewer로만 바꾸도록 getter를 두지 않고, 읽을 때는 toProductSizes를 쓴다
+    @Getter(AccessLevel.NONE)
     @ElementCollection
     @CollectionTable(schema = "recommend", name = "replica_product_size",
         joinColumns = @JoinColumn(name = "product_id"))
@@ -73,7 +75,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     }
 
     /**
-     * 사이즈 한 줄의 입력 값이다. 권장 키는 이벤트에서 비어 있을 수 있어 Integer로 받는다.
+     * 옵션 하나의 입력 값이다. 권장 키는 이벤트에서 비어 있을 수 있어 Integer로 받는다.
      */
     public record OptionInfo(String size, Integer minHeightCm, Integer maxHeightCm) {
     }
@@ -107,6 +109,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         requireNonNull(info.options(), "options는 필수입니다");
         requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         for (OptionInfo option : info.options()) {
+            requireNonNull(option, "option은 필수입니다");
             requireNonNull(option.size(), "size는 필수입니다");
         }
     }

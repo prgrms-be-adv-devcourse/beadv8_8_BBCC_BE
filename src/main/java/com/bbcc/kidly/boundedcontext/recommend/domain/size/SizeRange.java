@@ -5,7 +5,7 @@ import jakarta.persistence.Embeddable;
 
 @Embeddable
 public record SizeRange(
-        @Column(length = 20)
+        @Column(nullable = false, length = 20)
         String size,
         int minHeightCm,
         int maxHeightCm
