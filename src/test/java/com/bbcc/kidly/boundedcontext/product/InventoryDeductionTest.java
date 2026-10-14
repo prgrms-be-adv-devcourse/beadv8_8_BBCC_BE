@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.NA
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.ORDER_ID;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.item;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.onSaleOptions;
+import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.withStatus;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
@@ -18,6 +19,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class InventoryDeductionTest {
@@ -99,5 +101,21 @@ class InventoryDeductionTest {
             item(12L, options.navy120(), 1)));
 
         assertThat(request.isAlreadyHandled(List.of())).isFalse();
+    }
+
+    @ParameterizedTest(name = "기존 기록 {0}")
+    @EnumSource(InventoryDeductionStatus.class)
+    @DisplayName("INV-10 모든 주문상품의 기존 차감 기록이 옵션 · 수량까지 같으면 상태와 상관없이 이미 처리한 요청이다")
+    void alreadyHandledWhenAllRecordsMatch(InventoryDeductionStatus status) {
+        List<InventoryDeduction> firstRecords = withStatus(twoItemOrder(onSaleOptions()).deductedRecords(), status);
+
+        assertThat(twoItemOrder(options).isAlreadyHandled(firstRecords)).isTrue();
+    }
+
+    // 주문상품 11(네이비 110, 2개)과 12(네이비 120, 1개)로 만든 차감 요청이다
+    private static InventoryDeductionRequest twoItemOrder(Options options) {
+        return InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 2),
+            item(12L, options.navy120(), 1)));
     }
 }

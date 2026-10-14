@@ -11,7 +11,9 @@ import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top110Measur
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measurements;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeduction;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionStatus;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
@@ -46,6 +48,14 @@ final class InventoryDeductionFixture {
 
     static InventoryDeductionRequest.Item item(long orderItemId, ProductOption option, int qty) {
         return new InventoryDeductionRequest.Item(orderItemId, option, qty);
+    }
+
+    // 차감 서비스가 DB에서 읽은 기존 차감 기록처럼 상태를 맞춘다. 복구는 조건부 UPDATE로 해서 상태를 바꾸는 엔티티 메서드가 없다
+    static List<InventoryDeduction> withStatus(List<InventoryDeduction> records, InventoryDeductionStatus status) {
+        for (InventoryDeduction record : records) {
+            ReflectionTestUtils.setField(record, "status", status);
+        }
+        return records;
     }
 
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣고, startSale이면 판매를 시작한다

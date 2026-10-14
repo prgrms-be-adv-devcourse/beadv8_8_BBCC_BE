@@ -41,7 +41,7 @@ public final class InventoryDeductionRequest {
 
     // 같은 주문 생성됨을 다시 받았는지를 주문상품의 기존 차감 기록으로 판단한다 (INV-10)
     public boolean isAlreadyHandled(List<InventoryDeduction> existingRecords) {
-        return false;
+        return !existingRecords.isEmpty();
     }
 
     // 주문상품마다 DEDUCTED 차감 기록을 하나씩, 요청한 순서대로 만든다 (INV-04)
