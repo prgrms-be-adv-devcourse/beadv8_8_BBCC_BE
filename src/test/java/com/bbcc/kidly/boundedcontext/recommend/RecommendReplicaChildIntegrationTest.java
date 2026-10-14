@@ -18,7 +18,6 @@ import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -49,8 +48,7 @@ class RecommendReplicaChildIntegrationTest {
     @Test
     @DisplayName("자녀 정보 변경됨을 발행한 트랜잭션이 커밋되면 이벤트 값이 자녀 복사본에 저장된다")
     void saveReplicaAfterCommit() {
-        transactionTemplate.executeWithoutResult(
-            status -> eventPublisher.publish(RecommendFixture.childChangedEvent()));
+        publishInTransaction(RecommendFixture.childChangedEvent());
 
         RecommendReplicaChild replica = replicaChildRepository.findById(CHILD_1_ID).orElseThrow();
         assertThat(replica.getHeightCm()).isEqualByComparingTo("115.0");
@@ -83,9 +81,7 @@ class RecommendReplicaChildIntegrationTest {
     @DisplayName("자녀 복사본 반영이 실패해도 발행한 트랜잭션은 성공하고 복사본은 이전 값 그대로다")
     void keepReplicaWhenListenerFails() {
         publishInTransaction(RecommendFixture.childChangedEvent());
-        ChildChangedEvent withoutHeight = new ChildChangedEvent(UUID.randomUUID(), CHILD_CHANGED_AT.plusMinutes(1),
-            new ChildChangedEvent.Data(CHILD_1_ID, MEMBER_1_ID, null, new BigDecimal("20.0"), Gender.MALE,
-                CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, false));
+        ChildChangedEvent withoutHeight = RecommendFixture.childChangedEventAt(null, CHILD_CHANGED_AT.plusMinutes(1));
 
         assertThatCode(() -> publishInTransaction(withoutHeight)).doesNotThrowAnyException();
 

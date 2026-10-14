@@ -104,7 +104,7 @@ public final class RecommendFixture {
     }
 
     /**
-     * 회원이 보내는 자녀 1의 자녀 정보 변경됨 이벤트. 값은 {@link #childChange()}와 같다.
+     * 자녀 프로필 도메인이 보내는 자녀 1의 자녀 정보 변경됨 이벤트. 값은 {@link #childChange()}와 같다.
      */
     public static ChildChangedEvent childChangedEvent() {
         return childChangedEventAt(new BigDecimal("115.0"), CHILD_CHANGED_AT);
@@ -114,18 +114,21 @@ public final class RecommendFixture {
      * 자녀 1의 키와 발생 시각만 바꾼 자녀 정보 변경됨 이벤트. 어느 이벤트가 반영됐는지 키로 구분한다.
      */
     public static ChildChangedEvent childChangedEventAt(BigDecimal heightCm, LocalDateTime occurredAt) {
-        return new ChildChangedEvent(UUID.randomUUID(), occurredAt, new ChildChangedEvent.Data(CHILD_1_ID,
-            MEMBER_1_ID, heightCm, new BigDecimal("20.0"), Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL,
-            PreferredFit.LOOSE, false));
+        return childChangedEventOf(heightCm, false, occurredAt);
     }
 
     /**
      * 자녀 1을 삭제한 자녀 정보 변경됨 이벤트. 삭제 직전 값(키 115.0cm 등)을 그대로 담는다.
      */
     public static ChildChangedEvent childDeletedEvent(LocalDateTime occurredAt) {
+        return childChangedEventOf(new BigDecimal("115.0"), true, occurredAt);
+    }
+
+    private static ChildChangedEvent childChangedEventOf(BigDecimal heightCm, boolean deleted,
+        LocalDateTime occurredAt) {
         return new ChildChangedEvent(UUID.randomUUID(), occurredAt, new ChildChangedEvent.Data(CHILD_1_ID,
-            MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE, CHILD_1_BIRTH_DATE,
-            BodyType.NORMAL, PreferredFit.LOOSE, true));
+            MEMBER_1_ID, heightCm, new BigDecimal("20.0"), Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL,
+            PreferredFit.LOOSE, deleted));
     }
 
     public static SizeRecommender recommender() {
