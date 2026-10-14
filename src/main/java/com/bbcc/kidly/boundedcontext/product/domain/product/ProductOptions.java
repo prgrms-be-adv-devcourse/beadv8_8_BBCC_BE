@@ -19,7 +19,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * 옵션을 추가할 때 옵션 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addOptions만 쓴다.
+ * 옵션을 추가할 때 옵션 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addOptions와 ProductSizeSpecs가 쓴다.
  */
 final class ProductOptions {
 
@@ -137,7 +137,7 @@ final class ProductOptions {
         return !lists.isEmpty();
     }
 
-    private static boolean isSizeRole(AttributeValue value, ProductType productType) {
+    static boolean isSizeRole(AttributeValue value, ProductType productType) {
         return productType.findLink(value.getAttribute()).filter(ProductTypeAttribute::isSizeRole).isPresent();
     }
 
@@ -153,7 +153,7 @@ final class ProductOptions {
     }
 
     // 이미 있는 옵션(보관 제외)의 값 목록이다
-    private static List<List<AttributeValue>> activeValueLists(List<ProductOption> existing) {
+    static List<List<AttributeValue>> activeValueLists(List<ProductOption> existing) {
         List<List<AttributeValue>> lists = new ArrayList<>();
         for (ProductOption option : activeOptions(existing)) {
             lists.add(valuesOf(option));

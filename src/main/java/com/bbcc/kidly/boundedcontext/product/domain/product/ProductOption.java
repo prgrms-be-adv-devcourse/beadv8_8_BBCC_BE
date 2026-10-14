@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 상품이 파는 옵션 하나다. 옵션 항목마다 값 하나를 가지며, 새 옵션은 판매중 상태로 만들어진다.
- * 옵션을 바꾸는 일은 상품의 version으로 막으므로 이 행에는 version을 두지 않는다.
+ * 이 행을 동시에 바꾸는 일은 상품의 version이 막으므로 이 행에는 version을 두지 않는다.
  */
 @Entity
 @Table(schema = "product", name = "product_option")
