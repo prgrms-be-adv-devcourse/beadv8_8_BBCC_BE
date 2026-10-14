@@ -16,7 +16,7 @@ public interface OrderRepository {
     /**
      * 자동 구매확정 대상(주문 ID, 주문상품 ID).
      */
-    interface AutoConfirmTarget {
+    interface AutoConfirmRow {
 
         Long getOrderId();
 
@@ -46,6 +46,6 @@ public interface OrderRepository {
      * 자동 구매확정 대상을 좁힌다: 주문상품 상태가 status이고 deliveredBefore 이전(포함)에 배송 완료된 것.
      * 주문상품 ID 오름차순, 건수는 pageable로. 확정해도 되는지 최종 판단은 주문이 한다.
      */
-    List<AutoConfirmTarget> findAutoConfirmTargets(
+    List<AutoConfirmRow> findAutoConfirmTargets(
         OrderItem.Status status, LocalDateTime deliveredBefore, Pageable pageable);
 }

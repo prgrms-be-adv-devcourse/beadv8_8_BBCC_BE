@@ -376,7 +376,7 @@ class OrderServiceTest {
             LocalDateTime before = LocalDateTime.now().minus(POLICY.autoConfirmAfter());
             when(orderRepository.findAutoConfirmTargets(
                 eq(OrderItem.Status.ORDERED), any(), eq(PageRequest.of(0, 100))))
-                .thenReturn(List.of(target(7L, 70L), target(8L, 80L)));
+                .thenReturn(List.of(row(7L, 70L), row(8L, 80L)));
 
             List<AutoConfirmTarget> targets = orderService.findAutoConfirmTargets();
 
@@ -397,8 +397,8 @@ class OrderServiceTest {
             return order;
         }
 
-        private OrderRepository.AutoConfirmTarget target(Long orderId, Long orderItemId) {
-            return new OrderRepository.AutoConfirmTarget() {
+        private OrderRepository.AutoConfirmRow row(Long orderId, Long orderItemId) {
+            return new OrderRepository.AutoConfirmRow() {
                 @Override
                 public Long getOrderId() {
                     return orderId;

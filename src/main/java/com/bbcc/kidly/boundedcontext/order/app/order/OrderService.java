@@ -162,7 +162,7 @@ public class OrderService {
         return orderRepository.findAutoConfirmTargets(
                 OrderItem.Status.ORDERED, deliveredBefore, PageRequest.of(0, AUTO_CONFIRM_BATCH_SIZE))
             .stream()
-            .map(target -> new AutoConfirmTarget(target.getOrderId(), target.getOrderItemId()))
+            .map(row -> new AutoConfirmTarget(row.getOrderId(), row.getOrderItemId()))
             .toList();
     }
 
