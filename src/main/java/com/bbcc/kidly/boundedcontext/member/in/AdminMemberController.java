@@ -31,13 +31,14 @@ public class AdminMemberController {
 
     private final AdminMemberService adminMemberService;
 
-    // filter가 없으면 전체. 관리자 · 탈퇴 회원은 빠진다
+    // filter가 없으면 전체, keyword는 회원 번호 · 닉네임 검색. 관리자 · 탈퇴 회원은 빠진다
     @GetMapping
     public PageResponse<AdminMemberSummaryResponse> list(
         @RequestParam(defaultValue = "ALL") AdminMemberFilter filter,
+        @RequestParam(required = false) String keyword,
         @PageableDefault Pageable pageable) {
         return PageResponse.from(
-            adminMemberService.getMembers(filter, pageable).map(AdminMemberSummaryResponse::from));
+            adminMemberService.getMembers(filter, keyword, pageable).map(AdminMemberSummaryResponse::from));
     }
 
     @PostMapping("/{memberId}/suspend")
