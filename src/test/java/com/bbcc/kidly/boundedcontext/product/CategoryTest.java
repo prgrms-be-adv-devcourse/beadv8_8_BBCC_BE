@@ -105,4 +105,21 @@ class CategoryTest {
             Named.of("실측 항목", () -> Category.createLeaf(
                 new Category.LeafInfo("상의", null, type, Arrays.asList(totalLength(), null)))));
     }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("creationsWithBlankName")
+    @DisplayName("카테고리 이름이 비어 있으면 거절한다")
+    void rejectBlankName(ThrowingCallable create) {
+        assertThatThrownBy(create)
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("비어 있을 수 없습니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> creationsWithBlankName() {
+        ProductType type = ProductType.define("의류", ProductTypeFixture.clothingLinks());
+        return Stream.of(
+            Named.of("중간 카테고리 이름 \"\"", () -> Category.createMiddle("", null)),
+            Named.of("말단 카테고리 이름 \" \"", () -> Category.createLeaf(
+                new Category.LeafInfo(" ", null, type, List.of(totalLength())))));
+    }
 }

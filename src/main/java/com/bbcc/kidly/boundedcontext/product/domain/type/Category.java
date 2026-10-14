@@ -67,6 +67,7 @@ public class Category extends BaseTimeEntity {
 
     public static Category createMiddle(String name, Category parent) {
         requireNonNull(name, "name은 필수입니다");
+        rejectBlankName(name);
         rejectLeafParent(parent);
         Category category = new Category();
         category.name = name;
@@ -80,6 +81,7 @@ public class Category extends BaseTimeEntity {
         requireNonNull(info.productType(), "productType은 필수입니다");
         requireNonNull(info.measurementItems(), "measurementItems는 필수입니다");
         info.measurementItems().forEach(item -> requireNonNull(item, "measurementItem은 필수입니다"));
+        rejectBlankName(info.name());
         rejectLeafParent(info.parent());
         Category category = new Category();
         category.name = info.name();
@@ -90,6 +92,12 @@ public class Category extends BaseTimeEntity {
                 CategoryMeasurementItem.create(category, info.measurementItems().get(i), i + 1));
         }
         return category;
+    }
+
+    private static void rejectBlankName(String name) {
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("카테고리 이름은 비어 있을 수 없습니다");
+        }
     }
 
     // 말단 카테고리는 상품 유형을 가리키므로 그 아래에 카테고리를 두면 상품이 어느 유형을 쓸지 정할 수 없다 (TYPE-01)
