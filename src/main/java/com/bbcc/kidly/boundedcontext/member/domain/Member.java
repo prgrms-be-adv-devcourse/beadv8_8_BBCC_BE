@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.member.domain;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.security.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -92,6 +93,19 @@ public class Member extends BaseTimeEntity {
 
     public boolean isActiveSeller() {
         return sellerState != null && sellerState.isActive();
+    }
+
+    // 토큰 · 내 정보 조회의 역할. 판매자 여부는 저장하지 않고 판매자 상태 복사본으로 계산한다
+    public List<Role> roles() {
+        var roles = new ArrayList<Role>();
+        roles.add(Role.BUYER);
+        if (isActiveSeller()) {
+            roles.add(Role.SELLER);
+        }
+        if (isAdmin()) {
+            roles.add(Role.ADMIN);
+        }
+        return List.copyOf(roles);
     }
 
     public List<SocialAccount> getSocialAccounts() {

@@ -11,10 +11,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
-import com.bbcc.kidly.global.security.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
-import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,64 +34,21 @@ class AuthTokenServiceTest {
     private AuthTokenService authTokenService;
 
     @Test
-    @DisplayName("일반 회원은 BUYER 역할로 발급한다")
-    void buyer() {
-        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(MemberFixture.kakaoMember()));
-
-        authTokenService.issueAccessToken(MEMBER_ID);
-
-        then(accessTokenIssuer).should().issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER));
-    }
-
-    @Test
-    @DisplayName("관리자는 BUYER와 ADMIN 역할로 발급한다")
-    void admin() {
-        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(MemberFixture.withRole(MemberRole.ADMIN)));
-
-        authTokenService.issueAccessToken(MEMBER_ID);
-
-        then(accessTokenIssuer).should().issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER, Role.ADMIN));
-    }
-
-    @Test
-    @DisplayName("ACTIVE 판매자는 BUYER와 SELLER 역할로 발급한다")
-    void seller() {
-        given(memberRepository.findById(MEMBER_ID))
-            .willReturn(Optional.of(MemberFixture.withSellerState(SellerStatus.ACTIVE)));
-
-        authTokenService.issueAccessToken(MEMBER_ID);
-
-        then(accessTokenIssuer).should().issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER, Role.SELLER));
-    }
-
-    @Test
-    @DisplayName("정지된 판매자는 SELLER 역할 없이 발급한다")
-    void suspendedSeller() {
-        given(memberRepository.findById(MEMBER_ID))
-            .willReturn(Optional.of(MemberFixture.withSellerState(SellerStatus.SUSPENDED)));
-
-        authTokenService.issueAccessToken(MEMBER_ID);
-
-        then(accessTokenIssuer).should().issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER));
-    }
-
-    @Test
-    @DisplayName("판매자인 관리자는 BUYER, SELLER, ADMIN 순서로 발급한다")
-    void sellerAdmin() {
+    @DisplayName("member.roles()와 닉네임을 그대로 issuer에 넘긴다")
+    void issuesWithMemberRoles() {
         var member = MemberFixture.withRole(MemberRole.ADMIN);
         member.applySellerState(SellerStatus.ACTIVE, MemberFixture.NOW);
-        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(memberRepository.getById(MEMBER_ID)).willReturn(member);
 
         authTokenService.issueAccessToken(MEMBER_ID);
 
-        then(accessTokenIssuer).should()
-            .issue(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER, Role.SELLER, Role.ADMIN));
+        then(accessTokenIssuer).should().issue(MEMBER_ID, MemberFixture.NICKNAME, member.roles());
     }
 
     @Test
     @DisplayName("없는 회원이면 발급하지 않는다")
     void memberNotFound() {
-        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+        given(memberRepository.getById(MEMBER_ID)).willThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
 
         assertThatThrownBy(() -> authTokenService.issueAccessToken(MEMBER_ID))
             .isInstanceOfSatisfying(BusinessException.class,
