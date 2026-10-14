@@ -79,9 +79,6 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
             return;
         }
         apply(info);
-        if (info.deleted()) {
-            delete(info.occurredAt());
-        }
     }
 
     private void apply(ChangeInfo info) {
@@ -93,5 +90,8 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
         this.bodyType = info.bodyType();
         this.preferredFit = info.preferredFit();
         this.eventOccurredAt = info.occurredAt();
+        if (info.deleted()) {
+            delete(info.occurredAt());
+        }
     }
 }

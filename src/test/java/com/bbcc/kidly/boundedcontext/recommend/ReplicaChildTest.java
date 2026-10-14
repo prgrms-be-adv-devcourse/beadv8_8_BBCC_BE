@@ -104,4 +104,16 @@ class ReplicaChildTest {
             .extracting(ReplicaChild::isDeleted, ReplicaChild::getDeletedAt, ReplicaChild::getEventOccurredAt)
             .containsExactly(true, deletedAt, deletedAt);
     }
+
+    @Test
+    @DisplayName("INV-R02 처음 받은 이벤트가 삭제여도 삭제된 복사본으로 만든다")
+    void createDeletedWhenFirstChangeIsDelete() {
+        LocalDateTime deletedAt = CHILD_CHANGED_AT.plusMinutes(5);
+
+        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childDeleted(deletedAt));
+
+        assertThat(replica)
+            .extracting(ReplicaChild::isDeleted, ReplicaChild::getDeletedAt)
+            .containsExactly(true, deletedAt);
+    }
 }
