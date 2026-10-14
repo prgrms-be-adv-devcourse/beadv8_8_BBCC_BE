@@ -11,6 +11,7 @@ import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.spec;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top110Measurements;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measurements;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
@@ -171,6 +172,19 @@ class ProductSizeSpecTest {
             OTHER_SELLER_ID, List.of(spec(clothing.size110(), 105, 115, top110Measurements())));
 
         assertRejected(() -> product.addSizeSpecs(info, top, clothing.type()), ProductErrorCode.NOT_PRODUCT_OWNER);
+        assertThat(product.getSizeSpecs()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0} ~ {1}")
+    @CsvSource({"0, 115", "-5, 115"})
+    @DisplayName("SIZE-03 권장 키가 0 이하이면 거절한다")
+    void rejectNonPositiveHeight(Integer minHeightCm, Integer maxHeightCm) {
+        withOptions110And120();
+
+        assertThatThrownBy(() -> product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), minHeightCm, maxHeightCm, top110Measurements()))), top, clothing.type()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("0보다 커야 합니다");
         assertThat(product.getSizeSpecs()).isEmpty();
     }
 

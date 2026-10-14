@@ -25,11 +25,15 @@ final class ProductSizeSpecs {
         }
     }
 
-    // 권장 키는 최솟값과 최댓값을 함께 넣어야 하고, 최솟값이 최댓값보다 크면 안 된다 (SIZE-03)
+    // 권장 키는 0보다 크고, 최솟값과 최댓값을 함께 넣어야 하며, 최솟값이 최댓값보다 크면 안 된다 (SIZE-03)
     static void validateHeightRanges(List<SizeSpecInfo> specs) {
         for (SizeSpecInfo spec : specs) {
             Integer min = spec.minHeightCm();
             Integer max = spec.maxHeightCm();
+            // 0 이하는 요청 DTO가 먼저 막으므로 여기까지 오면 코드가 잘못 부른 것이다
+            if (min != null && min <= 0) {
+                throw new IllegalArgumentException("권장 키는 0보다 커야 합니다");
+            }
             if ((min == null) != (max == null)) {
                 throw new BusinessException(ProductErrorCode.INVALID_HEIGHT_RANGE);
             }
