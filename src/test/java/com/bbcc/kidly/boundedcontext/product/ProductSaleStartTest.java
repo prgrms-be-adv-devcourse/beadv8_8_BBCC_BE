@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class ProductSaleStartTest {
@@ -153,14 +154,18 @@ class ProductSaleStartTest {
         assertThat(bottle.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
-    @Test
-    @DisplayName("OPT-08 상품을 등록한 판매자가 아니면 판매를 시작할 수 없다")
-    void rejectStartSaleFromOtherSeller() {
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = ProductStatus.class, names = {"SALE_PENDING", "ON_SALE"})
+    @DisplayName("OPT-08 상품을 등록한 판매자가 아니면 판매대기든 판매중이든 판매를 시작할 수 없다")
+    void rejectStartSaleFromOtherSeller(ProductStatus status) {
         withOptionsAndSizeSpecs110And120();
+        if (status == ProductStatus.ON_SALE) {
+            product.startSale(SELLER_ID, top, clothing.type());
+        }
 
         assertRejected(() -> product.startSale(OTHER_SELLER_ID, top, clothing.type()),
             ProductErrorCode.NOT_PRODUCT_OWNER);
-        assertThat(product.getStatus()).isEqualTo(ProductStatus.SALE_PENDING);
+        assertThat(product.getStatus()).isEqualTo(status);
     }
 
     @ParameterizedTest(name = "{0}")
