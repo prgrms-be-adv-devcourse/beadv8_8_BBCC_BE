@@ -74,8 +74,8 @@ public class ProductType extends BaseTimeEntity {
         if (hasPriceAffectingOnInfo(links)) {
             throw new IllegalArgumentException("값에 따라 가격이 달라지는 항목은 옵션 항목에만 둘 수 있습니다");
         }
-        if (hasTextOption(links)) {
-            throw new IllegalArgumentException("직접 입력 항목은 옵션 항목이 될 수 없습니다");
+        if (hasNonSingleChoiceOption(links)) {
+            throw new IllegalArgumentException("옵션 항목은 팔레트나 목록 항목만 될 수 있습니다");
         }
         if (hasLinkWithoutAllowedValues(links)) {
             throw new IllegalArgumentException("모든 값 허용이 아닌 항목에는 허용 값을 하나 이상 연결해야 합니다");
@@ -124,9 +124,13 @@ public class ProductType extends BaseTimeEntity {
         return links.stream().anyMatch(link -> link.priceAffecting() && link.role() != AttributeRole.OPTION);
     }
 
-    private static boolean hasTextOption(List<LinkInfo> links) {
-        return links.stream().anyMatch(link ->
-            link.role() == AttributeRole.OPTION && link.attribute().getInputType() == AttributeInputType.TEXT);
+    private static boolean hasNonSingleChoiceOption(List<LinkInfo> links) {
+        return links.stream().anyMatch(link -> link.role() == AttributeRole.OPTION && !isSingleChoice(link));
+    }
+
+    private static boolean isSingleChoice(LinkInfo link) {
+        AttributeInputType inputType = link.attribute().getInputType();
+        return inputType == AttributeInputType.PALETTE || inputType == AttributeInputType.LIST;
     }
 
     private static boolean hasLinkWithoutAllowedValues(List<LinkInfo> links) {

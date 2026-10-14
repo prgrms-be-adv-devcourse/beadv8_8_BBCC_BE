@@ -15,13 +15,13 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.shoeSize;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeOption;
-import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.textOption;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
@@ -35,6 +35,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -133,14 +134,16 @@ class ProductTypeTest {
             .hasMessageContaining("가격이 달라지는 항목은 옵션 항목");
     }
 
-    @Test
-    @DisplayName("TYPE-08 직접 입력 항목을 옵션 항목에 두면 거절한다")
-    void rejectTypeWithTextOptionAttribute() {
-        List<ProductType.LinkInfo> links = List.of(requiredOption(color()), textOption(fabricComposition()));
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = AttributeInputType.class, names = {"MULTI_LIST", "TEXT"})
+    @DisplayName("TYPE-08 값을 하나 고르는 항목이 아니면 옵션 항목에 둘 수 없다")
+    void rejectTypeWithNonSingleChoiceOptionAttribute(AttributeInputType inputType) {
+        Attribute feature = Attribute.create("특징", "FEATURE", inputType);
+        List<ProductType.LinkInfo> links = List.of(requiredOption(color()), requiredOption(feature));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("직접 입력 항목은 옵션 항목");
+            .hasMessageContaining("옵션 항목은 팔레트나 목록 항목만");
     }
 
     @Test
