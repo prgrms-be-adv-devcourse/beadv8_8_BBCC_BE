@@ -119,6 +119,18 @@ class ProductSaleStartTest {
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
+    @Test
+    @DisplayName("SIZE-05 사이즈 무관 상품도 FREE 행에 필수 실측 항목이 빠지면 판매를 시작할 수 없다")
+    void rejectStartSaleOfFreeSizeWithMissingMeasurementItem() {
+        withFreeOptions();
+        Map<String, BigDecimal> measurements = new HashMap<>(top110Measurements());
+        measurements.remove("CHEST_WIDTH");
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.sizeFree(), null, null, measurements))), top, clothing.type());
+
+        assertSaleStartRejected("판매를 시작할 수 없습니다. FREE 사이즈에 가슴단면이 없습니다.");
+    }
+
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
     private void withOptionsAndSizeSpecs110And120() {
         withOptions110And120();
