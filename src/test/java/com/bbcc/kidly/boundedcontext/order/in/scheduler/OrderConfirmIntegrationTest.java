@@ -122,7 +122,7 @@ class OrderConfirmIntegrationTest {
         OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
-        orderService.markPaid(order.orderId(), 500L);
+        orderService.markPaid(order.orderId(), 500L, order.totalAmount());
         orderService.recordDelivered(order.orderId(), SELLER_ID, deliveredAt);
         return order;
     }

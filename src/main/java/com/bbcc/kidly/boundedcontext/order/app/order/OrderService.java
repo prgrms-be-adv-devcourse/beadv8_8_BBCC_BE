@@ -105,13 +105,13 @@ public class OrderService {
      *
      * @return 이번에 결제완료로 바꿨으면 true. 주문이 없거나 결제대기가 아니면 false
      */
-    public boolean markPaid(Long orderId, Long paymentId) {
+    public boolean markPaid(Long orderId, Long paymentId, long amount) {
         LocalDateTime now = LocalDateTime.now();
         Order order = findForEvent(orderId, "payment.completed");
         if (order == null) {
             return false;
         }
-        TransitionResult result = order.markPaid(paymentId, now);
+        TransitionResult result = order.markPaid(paymentId, amount, now);
         if (result != TransitionResult.APPLIED) {
             logIgnored("payment.completed", order, result);
             return false;
