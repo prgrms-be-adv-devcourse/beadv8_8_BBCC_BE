@@ -77,6 +77,8 @@ class PaymentConcurrencyRecoveryIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // 테스트마다 주문 ID가 1부터 다시 시작해(RESTART IDENTITY) 다른 테스트의 같은 orderId 이벤트가 섞이지 않게 비운다
+        recorder.clear();
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
         productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
             2L, 2L, OTHER_SELLER_ID, "상품 B", "120", 30_000L, 2L, "ON_SALE", false, OCCURRED_AT)));
