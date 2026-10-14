@@ -229,7 +229,8 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
-     * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다.
+     * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다. 판매중지 상품도 판매 시작 조건을 다시 검사해
+     * 판매중으로 바꾼다(UC-PR07 재개). 관리자 판매중지(SALE-11)를 만들 때 판매자가 풀 수 있게 둘지 다시 정한다.
      */
     public boolean startSale(Long sellerId, Category category, ProductType productType) {
         requireNonNull(sellerId, "sellerId는 필수입니다");

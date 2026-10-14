@@ -76,7 +76,7 @@ public class ProductOption extends BaseTimeEntity {
 
     // 옵션을 살 수 있는지는 이 메서드 하나에서 판단한다. 상품과 옵션이 모두 판매중이어야 한다 (SALE-04)
     public boolean isPurchasable() {
-        // 상품이 지연 로딩 프록시일 수 있으므로 상태는 getter로 읽는다
+        // 상품은 지연 로딩 프록시일 수 있고, getter를 부르면 프록시가 초기화돼 실제 상태를 돌려준다
         return product.getStatus() == ProductStatus.ON_SALE && saleStatus == ProductOptionStatus.ON_SALE;
     }
 

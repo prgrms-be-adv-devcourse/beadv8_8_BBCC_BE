@@ -34,9 +34,9 @@ public enum ProductErrorCode implements ErrorCode {
     SIZE_SPEC_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "실측을 받지 않는 상품 유형입니다", "사이즈 항목이 있는 상품에만 실측을 넣어 주세요."),
     SIZE_NOT_IN_OPTIONS(HttpStatus.BAD_REQUEST, "옵션에 없는 사이즈입니다", "옵션에 쓴 사이즈의 실측만 넣어 주세요."),
     SALE_START_CONDITION_NOT_MET(HttpStatus.CONFLICT, "판매를 시작할 수 없습니다",
-        "옵션과 사이즈마다 필수 실측 · 권장 키를 채운 뒤 다시 시작해 주세요."),
+        "옵션을 하나 이상 넣고, 사이즈마다 필수 실측과 권장 키(FREE는 선택)를 채운 뒤 다시 시작해 주세요."),
     SALE_START_INPUT_MISSING(HttpStatus.BAD_REQUEST, "판매 시작에 필요한 값이 빠졌습니다",
-        "옵션과 사이즈마다 필수 실측 · 권장 키를 채워 주세요.");
+        "옵션을 하나 이상 넣고, 사이즈마다 필수 실측과 권장 키(FREE는 선택)를 채워 주세요.");
 
     private final HttpStatus status;
     private final String title;

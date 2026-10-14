@@ -72,7 +72,7 @@ final class SaleStartConditions {
         }
     }
 
-    // 마지막 글자에 받침이 있으면 "이", 없으면 "가"를 붙인다 (예: 총장이, 소매길이가)
+    // 마지막 글자에 받침이 있으면 "이", 없으면 "가"를 붙인다 (예: 총장이, 소매길이가). 마지막 글자가 한글이 아니면 "가"를 붙인다
     private static String subjectParticle(String word) {
         char last = word.charAt(word.length() - 1);
         if (last >= '가' && last <= '힣' && (last - '가') % 28 != 0) {

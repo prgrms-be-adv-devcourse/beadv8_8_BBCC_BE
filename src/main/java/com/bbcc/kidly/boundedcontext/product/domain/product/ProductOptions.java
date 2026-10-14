@@ -20,7 +20,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * 옵션을 추가할 때 옵션 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addOptions, ProductSizeSpecs, SaleStartConditions가 쓴다.
+ * 옵션 목록 전체를 함께 보는 검사와 계산(보관 제외 옵션, 사이즈 값, FREE 판단)을 모은다.
+ * Product.addOptions, ProductSizeSpecs, SaleStartConditions가 쓴다.
  */
 final class ProductOptions {
 
