@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -28,23 +29,42 @@ public class OrderScheduler {
      */
     @Scheduled(fixedDelayString = "${kidly.order.auto-confirm.interval:PT10M}")
     public void autoConfirm() {
-        for (AutoConfirmTarget target : orderService.findAutoConfirmTargets()) {
+        List<AutoConfirmTarget> targets = orderService.findAutoConfirmTargets();
+        int failed = 0;
+        for (AutoConfirmTarget target : targets) {
             try {
                 orderService.confirmAutomatically(target.orderId(), target.orderItemId());
             } catch (RuntimeException e) {
-                log.warn("자동 구매확정 실패: orderId={}, orderItemId={}", target.orderId(), target.orderItemId(), e);
+                failed++;
+                log.warn("자동 구매확정 실패: orderId={} orderItemId={}", target.orderId(), target.orderItemId(), e);
             }
         }
+        logRun("auto-confirm", targets.size(), failed);
     }
 
     @Scheduled(fixedDelayString = "${kidly.order.payment-expiry-interval:PT1M}")
     public void expireOverduePayments() {
-        for (Long orderId : orderService.findOverduePaymentOrderIds()) {
+        List<Long> orderIds = orderService.findOverduePaymentOrderIds();
+        int failed = 0;
+        for (Long orderId : orderIds) {
             try {
                 orderService.cancelForPaymentExpiry(orderId);
             } catch (RuntimeException e) {
+                failed++;
                 log.warn("결제 마감 만료 취소 실패: orderId={}", orderId, e);
             }
         }
+        logRun("payment-expiry", orderIds.size(), failed);
+    }
+
+    /**
+     * 대상이 있으면 INFO, 없으면 DEBUG. 처리 = 예외 없이 끝난 건(적용 안 함 포함).
+     */
+    private void logRun(String job, int targets, int failed) {
+        if (targets == 0) {
+            log.debug("스케줄러 실행: job={} targets=0", job);
+            return;
+        }
+        log.info("스케줄러 실행: job={} targets={} processed={} failed={}", job, targets, targets - failed, failed);
     }
 }
