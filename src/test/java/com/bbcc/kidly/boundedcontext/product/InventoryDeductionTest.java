@@ -17,6 +17,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeduction
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class InventoryDeductionTest {
 
@@ -71,6 +73,14 @@ class InventoryDeductionTest {
         assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of(
             item(11L, options.navy110(), 2),
             item(11L, options.navy120(), 1))))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest(name = "수량 {0}")
+    @ValueSource(ints = {0, -1})
+    @DisplayName("수량이 0 이하인 주문상품은 차감 요청에 받지 않는다")
+    void rejectNonPositiveQty(int qty) {
+        assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of(item(11L, options.navy110(), qty))))
             .isInstanceOf(IllegalArgumentException.class);
     }
 }

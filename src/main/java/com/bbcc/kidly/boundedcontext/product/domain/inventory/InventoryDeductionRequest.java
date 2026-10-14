@@ -28,6 +28,10 @@ public final class InventoryDeductionRequest {
             if (!orderItemIds.add(item.orderItemId())) {
                 throw new IllegalArgumentException("주문상품 ID가 중복될 수 없습니다: " + item.orderItemId());
             }
+            // 0 이하를 차감하면 재고가 늘거나 아무것도 줄지 않으므로 받지 않는다
+            if (item.qty() <= 0) {
+                throw new IllegalArgumentException("차감 수량은 0보다 커야 합니다");
+            }
         }
         return new InventoryDeductionRequest(orderId, items);
     }
