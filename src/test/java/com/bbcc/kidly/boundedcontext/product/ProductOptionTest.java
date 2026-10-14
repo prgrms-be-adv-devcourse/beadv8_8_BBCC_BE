@@ -16,11 +16,17 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductOptionTest {
@@ -81,6 +87,29 @@ class ProductOptionTest {
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.REQUIRED_OPTION_MISSING));
         assertThat(product.getOptions()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("notOptionAttributeValues")
+    @DisplayName("OPT-01 그 유형의 옵션 항목이 아닌 항목의 값은 거절한다")
+    void rejectValueOfNotOptionAttribute(Function<ClothingOptions, AttributeValue> notOptionValue) {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+        AttributeValue value = notOptionValue.apply(clothing);
+
+        assertThatThrownBy(() -> product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.size110(), value))), clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_OPTION_ATTRIBUTE));
+    }
+
+    static Stream<Named<Function<ClothingOptions, AttributeValue>>> notOptionAttributeValues() {
+        return Stream.of(
+            Named.of("정보 항목(주요소재)의 값 면", ClothingOptions::cotton),
+            Named.of("유형에 없는 항목(신발 사이즈)의 값 150", clothing -> {
+                Attribute shoeSize = ProductTypeFixture.shoeSize();
+                return AttributeValue.create(shoeSize, "150", null);
+            }));
     }
 
     @Test

@@ -21,8 +21,14 @@ final class ProductOptions {
     private ProductOptions() {
     }
 
-    // 옵션 하나의 값을 검사한다. 유형의 필수 옵션 항목은 모두 값이 있어야 한다 (OPT-01)
+    // 옵션 하나의 값을 검사한다. 값은 모두 유형의 옵션 항목 값이어야 하고, 유형의 필수 옵션 항목은 모두 값이 있어야 한다 (OPT-01)
     static void validateOption(List<AttributeValue> values, ProductType productType) {
+        for (AttributeValue value : values) {
+            Optional<ProductTypeAttribute> link = productType.findLink(value.getAttribute());
+            if (link.isEmpty() || link.get().getRole() != AttributeRole.OPTION) {
+                throw new BusinessException(ProductErrorCode.NOT_OPTION_ATTRIBUTE);
+            }
+        }
         for (ProductTypeAttribute link : productType.getAttributes()) {
             if (link.getRole() == AttributeRole.OPTION
                 && link.isRequired()
