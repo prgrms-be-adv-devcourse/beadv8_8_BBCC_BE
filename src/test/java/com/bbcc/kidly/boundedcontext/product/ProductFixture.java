@@ -47,13 +47,23 @@ final class ProductFixture {
     }
 
     static Product.RegisterInfo productAWith(Clothing clothing, List<Product.InfoValueInfo> infoValues) {
+        return productA(clothing, "https://…/a-thumbnail.jpg", infoValues);
+    }
+
+    static Product.RegisterInfo productAWithoutThumbnail(Clothing clothing) {
+        Product.RegisterInfo productA = productA(clothing);
+        return productA(clothing, null, productA.infoValues());
+    }
+
+    private static Product.RegisterInfo productA(
+        Clothing clothing, String thumbnailUrl, List<Product.InfoValueInfo> infoValues) {
         return new Product.RegisterInfo(
             SELLER_ID,
             CATEGORY_ID,
             "상품 A",
             "키들리",
             "상품 설명",
-            "https://…/a-thumbnail.jpg",
+            thumbnailUrl,
             List.of("https://…/a-1.jpg"),
             infoValues);
     }

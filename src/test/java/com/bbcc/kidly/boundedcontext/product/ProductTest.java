@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.clothing;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productA;
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithoutThumbnail;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ProductFixture.Clothing;
@@ -27,5 +28,15 @@ class ProductTest {
         assertThat(product.getDescription()).isEqualTo("상품 설명");
         assertThat(product.getThumbnailUrl()).isEqualTo("https://…/a-thumbnail.jpg");
         assertThat(product.getImageUrls()).containsExactly("https://…/a-1.jpg");
+    }
+
+    @Test
+    @DisplayName("썸네일 없이도 상품을 등록한다")
+    void registerWithoutThumbnail() {
+        Clothing clothing = clothing();
+
+        Product product = Product.register(productAWithoutThumbnail(clothing), clothing.type());
+
+        assertThat(product.getThumbnailUrl()).isNull();
     }
 }
