@@ -3,8 +3,6 @@ package com.bbcc.kidly.boundedcontext.member.app;
 import com.bbcc.kidly.boundedcontext.member.app.port.AccessTokenIssuer;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.global.error.BusinessException;
-import com.bbcc.kidly.global.error.CommonErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,8 +17,7 @@ public class AuthTokenService {
     private final AccessTokenIssuer accessTokenIssuer;
 
     public String issueAccessToken(Long memberId) {
-        var member = memberRepository.findById(memberId)
-            .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        var member = memberRepository.getById(memberId);
         return accessTokenIssuer.issue(memberId, member.getNickname(), member.roles());
     }
 }
