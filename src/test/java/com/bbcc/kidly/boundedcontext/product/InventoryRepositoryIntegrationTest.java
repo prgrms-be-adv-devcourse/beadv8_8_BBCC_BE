@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothin
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
@@ -20,6 +21,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -56,6 +58,18 @@ class InventoryRepositoryIntegrationTest {
             (rs, rowNum) -> tuple(rs.getString("reason"), rs.getInt("delta_qty"), rs.getLong("adjusted_by")),
             option.getId()))
             .containsExactly(tuple("INITIAL", 10, SELLER_ID));
+    }
+
+    @Test
+    @DisplayName("옵션 하나에 재고 행은 하나라서, 같은 옵션의 재고를 두 번 열면 두 번째는 저장되지 않는다")
+    void rejectSecondOpeningForSameOption() {
+        ProductOption option = savedOption();
+        inTransaction(() -> inventoryRepository.saveOpening(InventoryOpening.open(option, 10, SELLER_ID)));
+
+        assertThatThrownBy(() -> inTransaction(
+            () -> inventoryRepository.saveOpening(InventoryOpening.open(option, 5, SELLER_ID))))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(availableQty(option)).isEqualTo(10);
     }
 
     // 상품 A에 네이비 · 110 옵션을 추가해 저장하고 그 옵션을 돌려준다. 항목과 목록 값은 cascade되지 않아 먼저 저장한다
