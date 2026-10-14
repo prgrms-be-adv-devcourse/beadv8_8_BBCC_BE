@@ -50,6 +50,14 @@ public final class RecommendFixture {
             Gender.MALE, CHILD_1_BIRTH_DATE, bodyType, preferredFit, false, CHILD_CHANGED_AT);
     }
 
+    /**
+     * 자녀 1의 키만 바꾼 자녀 정보 변경. 어느 이벤트가 반영됐는지 키로 구분한다.
+     */
+    public static ReplicaChild.ChangeInfo childChange(BigDecimal heightCm, LocalDateTime occurredAt) {
+        return new ReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, heightCm, new BigDecimal("20.0"),
+            Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, false, occurredAt);
+    }
+
     public static SizeRecommender recommender() {
         return new SizeRecommender(growthChart());
     }

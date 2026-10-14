@@ -71,7 +71,13 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
         return child;
     }
 
+    /**
+     * 저장된 시각보다 늦게 일어난 변경만 덮어쓴다. 같은 이벤트를 다시 받거나 이전 이벤트가 늦게 도착해도 값이 되돌아가지 않는다.
+     */
     public void applyIfNewer(ChangeInfo info) {
+        if (!info.occurredAt().isAfter(eventOccurredAt)) {
+            return;
+        }
         apply(info);
     }
 

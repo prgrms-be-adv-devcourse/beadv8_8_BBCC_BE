@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ReplicaChildTest {
 
@@ -75,5 +76,19 @@ class ReplicaChildTest {
                 ReplicaChild::getPreferredFit,
                 ReplicaChild::getEventOccurredAt)
             .containsExactly(new BigDecimal("120.0"), new BigDecimal("22.0"), BodyType.CHUNKY, null, later);
+    }
+
+    @ParameterizedTest(name = "저장된 시각 {0}분")
+    @ValueSource(longs = {0, -1})
+    @DisplayName("INV-R01 같은 시각이거나 더 이르게 일어난 이벤트는 무시한다")
+    void ignoreChangeNotLater(long minutesFromStored) {
+        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange(new BigDecimal("115.0"), CHILD_CHANGED_AT));
+
+        replica.applyIfNewer(
+            RecommendFixture.childChange(new BigDecimal("120.0"), CHILD_CHANGED_AT.plusMinutes(minutesFromStored)));
+
+        assertThat(replica)
+            .extracting(ReplicaChild::getHeightCm, ReplicaChild::getEventOccurredAt)
+            .containsExactly(new BigDecimal("115.0"), CHILD_CHANGED_AT);
     }
 }
