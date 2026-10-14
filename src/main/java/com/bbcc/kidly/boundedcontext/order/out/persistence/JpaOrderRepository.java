@@ -21,6 +21,6 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
         where i.status = :status and i.deliveredAt <= :deliveredBefore
         order by i.id asc
         """)
-    List<AutoConfirmTarget> findAutoConfirmTargets(
+    List<AutoConfirmRow> findAutoConfirmTargets(
         OrderItem.Status status, LocalDateTime deliveredBefore, Pageable pageable);
 }

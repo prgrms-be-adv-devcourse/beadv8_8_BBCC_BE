@@ -136,6 +136,39 @@ class OrderTest {
         }
 
         @Test
+        @DisplayName("수량 1은 주문할 수 있다 (최솟값)")
+        void allowsMinimumQuantity() {
+            Order order = OrderFixture.place(List.of(line(productOfSellerA(), null, 1)));
+
+            assertThat(order.getItems()).hasSize(1);
+            assertThat(order.getItems().get(0).getQuantity()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("화면 단가가 현재 단가와 같으면 주문된다")
+        void samePriceIsPlaced() {
+            long current = productOfSellerA().snapshot().unitPrice();
+
+            Order order = OrderFixture.place(List.of(
+                OrderFixture.lineWithRequestedPrice(productOfSellerA(), current)));
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+        }
+
+        @Test
+        @DisplayName("화면 단가가 현재 단가보다 1원 많거나 적어도 주문할 수 없다 (409)")
+        void priceChangedByOneWon() {
+            long current = productOfSellerA().snapshot().unitPrice();
+
+            for (long requested : new long[] {current + 1, current - 1}) {
+                assertThatThrownBy(() -> OrderFixture.place(List.of(
+                    OrderFixture.lineWithRequestedPrice(productOfSellerA(), requested))))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(OrderErrorCode.PRICE_CHANGED);
+            }
+        }
+
+        @Test
         @DisplayName("화면 단가가 현재 단가와 다르면 주문할 수 없다 (409)")
         void priceChanged() {
             assertThatThrownBy(() -> OrderFixture.place(List.of(

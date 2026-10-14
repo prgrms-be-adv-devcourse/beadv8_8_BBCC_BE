@@ -26,6 +26,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -123,6 +125,28 @@ class OrderApiTest {
                 .exchange()
                 .expectStatus().isBadRequest();
         }
+
+        @Test
+        @DisplayName("단가가 음수(-1)면 400")
+        void negativeUnitPrice() {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(orderBody("1", null, 1, -1))
+                .exchange()
+                .expectStatus().isBadRequest();
+        }
+
+        @Test
+        @DisplayName("단가 0은 형식 검증을 통과한다(가격이 다르면 409)")
+        void zeroUnitPricePassesValidation() {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(orderBody("1", null, 1, 0))
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("가격이 바뀌었습니다");
+        }
     }
 
     @Nested
@@ -171,6 +195,36 @@ class OrderApiTest {
         @DisplayName("목록 size가 100을 넘으면 400")
         void tooLargePageSize() {
             client.get().uri(ORDERS_PATH + "?size=101")
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isBadRequest();
+        }
+
+        @ParameterizedTest(name = "size={0}")
+        @ValueSource(ints = {1, 100})
+        @DisplayName("목록 size 1과 100은 200")
+        void pageSizeBoundsAreAllowed(int size) {
+            client.get().uri(ORDERS_PATH + "?size=" + size)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.size").isEqualTo(size);
+        }
+
+        @Test
+        @DisplayName("목록 size가 0이면 400")
+        void zeroPageSize() {
+            client.get().uri(ORDERS_PATH + "?size=0")
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isBadRequest();
+        }
+
+        @Test
+        @DisplayName("목록 page가 음수(-1)면 400")
+        void negativePage() {
+            client.get().uri(ORDERS_PATH + "?page=-1")
                 .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
                 .exchange()
                 .expectStatus().isBadRequest();
