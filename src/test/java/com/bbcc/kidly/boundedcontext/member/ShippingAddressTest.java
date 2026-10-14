@@ -92,6 +92,15 @@ class ShippingAddressTest {
         assertThat(address.getDetailAddress()).isNull();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"", " "})
+    @DisplayName("상세 주소가 비어 있으면 null로 등록된다")
+    void registerStoresBlankDetailAddressAsNull(String blank) {
+        var address = ShippingAddress.register(MEMBER_ID, withDetail(blank));
+
+        assertThat(address.getDetailAddress()).isNull();
+    }
+
     @Test
     @DisplayName("회원 id가 null이면 등록할 수 없다")
     void registerRejectsNullMemberId() {
@@ -173,6 +182,17 @@ class ShippingAddressTest {
         assertThat(address.getRecipientPhone()).isEqualTo("02-123-4567");
         assertThat(address.getZipCode()).isEqualTo("12345");
         assertThat(address.getRoadAddress()).isEqualTo("부산 해운대구 해운대로 1");
+        assertThat(address.getDetailAddress()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " "})
+    @DisplayName("상세 주소가 비어 있으면 null로 수정된다")
+    void updateStoresBlankDetailAddressAsNull(String blank) {
+        var address = ShippingAddressFixture.address();
+
+        address.update(withDetail(blank));
+
         assertThat(address.getDetailAddress()).isNull();
     }
 
