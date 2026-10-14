@@ -1,0 +1,104 @@
+package com.bbcc.kidly.boundedcontext.payment.app;
+
+import com.bbcc.kidly.boundedcontext.payment.app.dto.PayOrderCommand;
+import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
+import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
+import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
+import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
+import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedger;
+import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerRepository;
+import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
+import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
+import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
+import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
+import java.time.LocalDateTime;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 주문을 예치금으로 결제하고 결과를 payment.completed · payment.failed로 알린다.
+ * 주문당 결제는 한 번이다. 이미 결제가 있으면 건너뛰고, 동시에 받아 확인을 통과해도 {@code payment.order_id} UK가 막는다.
+ * 잔액 부족만 실패 결제를 저장한다. 금액 불일치 · 지갑 없음은 결제 대상이 아니라 ERROR 로그와 payment.failed만 남긴다.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class OrderPaymentService {
+
+    private final WalletRepository walletRepository;
+    private final PaymentRepository paymentRepository;
+    private final WalletLedgerRepository walletLedgerRepository;
+    private final EventPublisher eventPublisher;
+
+    @Transactional
+    public void pay(PayOrderCommand command) {
+        if (paymentRepository.existsByOrderId(command.orderId())) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (!command.amountMatchesItems()) {
+            log.error("주문 결제 요청 금액이 주문상품 금액의 합과 다릅니다. orderId={}, amount={}, items={}",
+                command.orderId(), command.amount(), command.items());
+            publishFailed(command, null, PaymentFailureCode.AMOUNT_MISMATCH, now);
+            return;
+        }
+        walletRepository.findWithLockByMemberId(command.memberId()).ifPresentOrElse(
+            wallet -> {
+                if (wallet.canWithdraw(command.amount())) {
+                    complete(command, wallet, now);
+                } else {
+                    failForInsufficientBalance(command, wallet, now);
+                }
+            },
+            () -> {
+                log.error("결제할 회원의 지갑이 없습니다. orderId={}, memberId={}",
+                    command.orderId(), command.memberId());
+                publishFailed(command, null, PaymentFailureCode.WALLET_NOT_FOUND, now);
+            });
+    }
+
+    private void complete(PayOrderCommand command, Wallet wallet, LocalDateTime now) {
+        wallet.withdraw(command.amount());
+        Payment payment = paymentRepository.save(Payment.complete(command.orderId(), wallet.getId(),
+            command.memberId(),
+            command.items().stream().map(item -> PaymentItem.of(item.orderItemId(), item.amount())).toList(),
+            now));
+        walletLedgerRepository.save(WalletLedger.record(
+            wallet.getId(), WalletLedgerType.PAYMENT, payment.getAmount(), wallet.getBalance(), payment.getId()));
+
+        eventPublisher.publish(new PaymentCompletedEvent(UUID.randomUUID(), now, new PaymentCompletedEvent.Data(
+            payment.getId(),
+            payment.getOrderId(),
+            payment.getMemberId(),
+            payment.getAmount(),
+            payment.getItems().stream()
+                .map(item -> new PaymentCompletedEvent.Item(item.getOrderItemId(), item.getAmount()))
+                .toList(),
+            payment.getPaidAt())));
+    }
+
+    private void failForInsufficientBalance(PayOrderCommand command, Wallet wallet, LocalDateTime now) {
+        Payment payment = paymentRepository.save(Payment.fail(command.orderId(), wallet.getId(), command.memberId(),
+            command.amount(), PaymentFailureCode.INSUFFICIENT_BALANCE));
+        publishFailed(command, payment.getId(), PaymentFailureCode.INSUFFICIENT_BALANCE, now);
+    }
+
+    /**
+     * @param paymentId 저장한 실패 결제 ID. 저장하지 않은 실패면 null
+     */
+    private void publishFailed(PayOrderCommand command, Long paymentId, PaymentFailureCode reasonCode,
+        LocalDateTime now) {
+        eventPublisher.publish(new PaymentFailedEvent(UUID.randomUUID(), now, new PaymentFailedEvent.Data(
+            paymentId,
+            command.orderId(),
+            command.memberId(),
+            command.amount(),
+            reasonCode,
+            now)));
+    }
+}

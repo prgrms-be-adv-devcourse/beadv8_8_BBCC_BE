@@ -74,4 +74,13 @@ class WalletTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(PaymentErrorCode.INVALID_AMOUNT);
     }
+
+    @Test
+    @DisplayName("잔액이 금액 이상이면 출금할 수 있다")
+    void canWithdraw() {
+        Wallet wallet = PaymentFixture.wallet(1_000L);
+
+        assertThat(wallet.canWithdraw(1_000L)).isTrue();
+        assertThat(wallet.canWithdraw(1_001L)).isFalse();
+    }
 }

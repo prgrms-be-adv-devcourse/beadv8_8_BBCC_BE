@@ -36,6 +36,15 @@ class PaymentEventsTest {
     }
 
     @Test
+    @DisplayName("결제를 저장하지 않은 실패 이벤트는 대상도 주문이다")
+    void paymentFailedWithoutPayment() {
+        PaymentFailedEvent event = new PaymentFailedEvent(EVENT_ID, NOW, new PaymentFailedEvent.Data(
+            null, 901L, 12L, 87_000L, PaymentFailureCode.WALLET_NOT_FOUND, NOW));
+
+        assertContract(event, "payment.failed", "901", "901");
+    }
+
+    @Test
     @DisplayName("환불 완료 이벤트는 payment.refunded이고 대상은 환불, 흐름은 주문이다")
     void paymentRefunded() {
         PaymentRefundedEvent event = new PaymentRefundedEvent(EVENT_ID, NOW, new PaymentRefundedEvent.Data(
