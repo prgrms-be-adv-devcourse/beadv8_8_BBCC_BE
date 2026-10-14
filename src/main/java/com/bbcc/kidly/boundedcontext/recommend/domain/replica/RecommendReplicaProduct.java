@@ -85,9 +85,22 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         product.sizeFree = info.sizeFree();
         product.eventOccurredAt = info.occurredAt();
         for (OptionInfo option : info.options()) {
+            // 색상만 다른 같은 사이즈 옵션은 권장 키가 같아야 하므로, 처음 들어온 옵션의 권장 키만 쓴다
+            if (product.hasSize(option.size())) {
+                continue;
+            }
             product.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
         return product;
+    }
+
+    private boolean hasSize(String size) {
+        for (SizeRange range : sizes) {
+            if (range.size().equals(size)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

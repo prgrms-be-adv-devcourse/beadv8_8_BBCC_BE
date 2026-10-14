@@ -38,4 +38,19 @@ class RecommendReplicaProductTest {
             SizeRange.of("110", 105, 115),
             SizeRange.of("120", 115, 125))));
     }
+
+    @Test
+    @DisplayName("색상만 다른 같은 사이즈 옵션은 한 줄로 묶고 처음 들어온 권장 키를 쓴다")
+    void groupOptionsOfSameSize() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(false,
+            List.of(
+                new RecommendReplicaProduct.OptionInfo("110", 105, 116),
+                new RecommendReplicaProduct.OptionInfo("110", 106, 117),
+                new RecommendReplicaProduct.OptionInfo("120", 113, 125)),
+            PRODUCT_CHANGED_AT));
+
+        assertThat(replica.toProductSizes().sizeRanges()).containsExactly(
+            SizeRange.of("110", 105, 116),
+            SizeRange.of("120", 113, 125));
+    }
 }
