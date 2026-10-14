@@ -31,6 +31,10 @@ kakao:
 # 결제 마감 만료 스케줄러가 테스트 중 다른 스레드에서 저절로 돌지 않게 주기를 아주 길게 둔다.
 # 만료 테스트는 OrderScheduler.expireOverduePayments()를 직접 부른다
 kidly:
+  # 충전 정리 스케줄러도 같은 이유로 길게 둔다. 정리 테스트는 ChargeScheduler를 직접 부른다
+  payment:
+    charge:
+      reconcile-interval: P3650D
   order:
     payment-expiry-interval: P3650D
     # 자동 구매확정 스케줄러도 같은 이유로 길게 둔다. 자동 확정 테스트는 OrderScheduler.autoConfirm()을 직접 부른다

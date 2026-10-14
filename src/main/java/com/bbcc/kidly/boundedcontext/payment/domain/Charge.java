@@ -23,6 +23,7 @@ import lombok.NoArgsConstructor;
 /**
  * 토스 결제창으로 예치금을 충전하는 요청.
  * PENDING → CONFIRMING → DONE 순서로 승인되고, DONE에서 CANCELLING을 거쳐 CANCELLED로 취소된다.
+ * 상태를 바꿀 때는 리포지토리에서 비관적 락(SELECT ... FOR UPDATE)으로 읽어, 사용자 승인과 정리 스케줄러가 겹쳐도 순서대로 처리한다.
  */
 @Entity
 @Table(schema = "payment", name = "charge")
