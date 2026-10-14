@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
@@ -11,7 +12,9 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.WeightPercentiles;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public final class RecommendFixture {
@@ -23,7 +26,28 @@ public final class RecommendFixture {
      */
     public static final LocalDate CHILD_1_BIRTH_DATE = LocalDate.of(2019, 1, 1);
 
+    public static final Long CHILD_1_ID = 1L;
+
+    public static final Long MEMBER_1_ID = 1L;
+
+    /**
+     * 자녀 정보 변경 이벤트가 일어난 시각. 늦고 이른 이벤트는 이 시각에서 분을 더하거나 빼서 만든다.
+     */
+    public static final LocalDateTime CHILD_CHANGED_AT = LocalDateTime.of(2026, 10, 15, 10, 0);
+
     private RecommendFixture() {
+    }
+
+    /**
+     * 기획서 7.1 자녀 1의 자녀 정보 변경: 회원 1의 자녀, 2019-01-01생 남자, 키 115.0cm, 몸무게 20.0kg, 체형 보통, 선호 핏 여유.
+     */
+    public static ReplicaChild.ChangeInfo childChange() {
+        return childChange(BodyType.NORMAL, PreferredFit.LOOSE);
+    }
+
+    public static ReplicaChild.ChangeInfo childChange(BodyType bodyType, PreferredFit preferredFit) {
+        return new ReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"),
+            Gender.MALE, CHILD_1_BIRTH_DATE, bodyType, preferredFit, false, CHILD_CHANGED_AT);
     }
 
     public static SizeRecommender recommender() {
