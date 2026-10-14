@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,12 +26,15 @@ public final class InventoryDeductionRequest {
     }
 
     public static InventoryDeductionRequest of(long orderId, List<Item> items) {
-        if (items.isEmpty()) {
+        // 받은 뒤 밖에서 목록을 바꿔도 검증한 내용이 그대로 남도록 복사한다. null 주문상품도 여기서 거절된다
+        List<Item> copied = List.copyOf(requireNonNull(items, "items는 필수입니다"));
+        if (copied.isEmpty()) {
             throw new IllegalArgumentException("차감할 주문상품은 비어 있을 수 없습니다");
         }
         // 한 주문 생성됨 안에서 주문상품 ID는 겹치지 않는다. 겹치면 주문 코드의 오류라 요청을 만들지 않는다 (INV-15)
         Set<Long> orderItemIds = new HashSet<>();
-        for (Item item : items) {
+        for (Item item : copied) {
+            requireNonNull(item.option(), "option은 필수입니다");
             if (!orderItemIds.add(item.orderItemId())) {
                 throw new IllegalArgumentException("주문상품 ID가 중복될 수 없습니다: " + item.orderItemId());
             }
@@ -38,7 +43,7 @@ public final class InventoryDeductionRequest {
                 throw new IllegalArgumentException("차감 수량은 0보다 커야 합니다");
             }
         }
-        return new InventoryDeductionRequest(orderId, items);
+        return new InventoryDeductionRequest(orderId, copied);
     }
 
     // 같은 주문 생성됨을 다시 받았는지를 주문상품의 기존 차감 기록으로 판단한다 (INV-10)

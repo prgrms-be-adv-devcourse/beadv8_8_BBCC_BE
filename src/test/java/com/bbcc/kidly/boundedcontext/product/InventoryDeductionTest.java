@@ -154,6 +154,13 @@ class InventoryDeductionTest {
         assertThat(request.isPurchasable()).isFalse();
     }
 
+    @Test
+    @DisplayName("옵션이 없는 주문상품은 차감 요청에 받지 않는다")
+    void rejectItemWithoutOption() {
+        assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of(item(11L, null, 1))))
+            .isInstanceOf(NullPointerException.class);
+    }
+
     // 주문상품 11(네이비 110, 2개)과 12(네이비 120, 1개)로 만든 차감 요청이다
     private static InventoryDeductionRequest twoItemOrder(Options options) {
         return InventoryDeductionRequest.of(ORDER_ID, List.of(
