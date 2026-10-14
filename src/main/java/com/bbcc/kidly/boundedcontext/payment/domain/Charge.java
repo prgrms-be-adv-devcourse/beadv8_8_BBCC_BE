@@ -24,6 +24,7 @@ import lombok.NoArgsConstructor;
 /**
  * 토스 결제창으로 예치금을 충전하는 요청.
  * PENDING → CONFIRMING → DONE 순서로 승인되고, DONE에서 CANCELLING을 거쳐 CANCELLED로 취소된다.
+ * 토스에서 직접 취소된 충전은 DONE에서 바로 CANCELLED가 된다.
  * 상태를 바꿀 때는 리포지토리에서 비관적 락(SELECT ... FOR UPDATE)으로 읽어, 사용자 승인과 정리 스케줄러가 겹쳐도 순서대로 처리한다.
  */
 @Entity
@@ -135,6 +136,18 @@ public class Charge extends BaseTimeEntity {
         requireStatus(ChargeStatus.CANCELLING);
         getLastCancellation().fail(failureCode);
         this.status = ChargeStatus.DONE;
+    }
+
+    /**
+     * 토스 상점관리자에서 직접 전액 취소된 충전을 맞춘다. 토스에서는 이미 끝났으므로 완료된 취소 요청을 남긴다.
+     * 지갑에서 충전액을 빼는 일은 서비스가 한다.
+     */
+    public void cancelExternally(String reason, LocalDateTime cancelledAt) {
+        requireStatus(ChargeStatus.DONE);
+        ChargeCancellation cancellation = ChargeCancellation.request(this, amount, reason);
+        cancellation.complete(cancelledAt);
+        cancellations.add(cancellation);
+        this.status = ChargeStatus.CANCELLED;
     }
 
     public List<ChargeCancellation> getCancellations() {

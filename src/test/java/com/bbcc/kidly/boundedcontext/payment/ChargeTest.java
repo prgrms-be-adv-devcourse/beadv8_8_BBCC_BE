@@ -186,4 +186,30 @@ class ChargeTest {
             tuple(ChargeCancellationStatus.FAILED, "PROVIDER_ERROR"),
             tuple(ChargeCancellationStatus.REQUESTED, null));
     }
+
+    @Test
+    @DisplayName("토스에서 직접 취소된 완료 충전은 완료된 취소 요청을 남기고 바로 취소 완료가 된다")
+    void cancelExternallyMarksCancelled() {
+        Charge charge = PaymentFixture.approvedCharge(10_000L);
+
+        charge.cancelExternally("토스에서 직접 취소", NOW);
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.CANCELLED);
+        assertThat(charge.getCancellations()).singleElement().satisfies(cancellation -> {
+            assertThat(cancellation.getAmount()).isEqualTo(10_000L);
+            assertThat(cancellation.getReason()).isEqualTo("토스에서 직접 취소");
+            assertThat(cancellation.getStatus()).isEqualTo(ChargeCancellationStatus.COMPLETED);
+            assertThat(cancellation.getCancelledAt()).isEqualTo(NOW);
+        });
+    }
+
+    @Test
+    @DisplayName("완료되지 않은 충전은 토스 직접 취소로 바꿀 수 없다")
+    void cancelExternallyRequiresDone() {
+        Charge charge = PaymentFixture.charge(10_000L);
+
+        assertThatThrownBy(() -> charge.cancelExternally("토스에서 직접 취소", NOW))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.INVALID_CHARGE_STATUS);
+    }
 }

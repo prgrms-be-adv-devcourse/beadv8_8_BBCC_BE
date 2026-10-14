@@ -290,6 +290,94 @@ class ChargeServiceTest {
         assertThat(ledger.getValue().getRefId()).isEqualTo(CANCELLATION_ID);
     }
 
+    @Test
+    @DisplayName("토스에서 직접 취소된 충전은 취소 완료로 바꾸고 충전액을 빼서 원장에 CHARGE_CANCEL(ref_id = 취소 요청 ID)을 남긴다")
+    void applyExternalCancel() {
+        Charge charge = PaymentFixture.savedApprovedCharge(10_000L);
+        Wallet wallet = PaymentFixture.savedWallet(15_000L);
+        LocalDateTime cancelledAt = LocalDateTime.now();
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(walletRepository.findWithLockById(WALLET_ID)).willReturn(Optional.of(wallet));
+        given(chargeRepository.saveAndFlush(charge)).willAnswer(invocation -> {
+            ReflectionTestUtils.setField(charge.getLastCancellation(), "id", CANCELLATION_ID);
+            return charge;
+        });
+
+        chargeService.applyExternalCancel(CHARGE_ID, new PgCancellation(cancelledAt));
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.CANCELLED);
+        assertThat(charge.getLastCancellation().getStatus()).isEqualTo(ChargeCancellationStatus.COMPLETED);
+        assertThat(charge.getLastCancellation().getCancelledAt()).isEqualTo(cancelledAt);
+        assertThat(wallet.getBalance()).isEqualTo(5_000L);
+        ArgumentCaptor<WalletLedger> ledger = ArgumentCaptor.forClass(WalletLedger.class);
+        then(walletLedgerRepository).should().save(ledger.capture());
+        assertThat(ledger.getValue().getType()).isEqualTo(WalletLedgerType.CHARGE_CANCEL);
+        assertThat(ledger.getValue().getAmount()).isEqualTo(-10_000L);
+        assertThat(ledger.getValue().getBalanceAfter()).isEqualTo(5_000L);
+        assertThat(ledger.getValue().getRefId()).isEqualTo(CANCELLATION_ID);
+    }
+
+    @Test
+    @DisplayName("잔액이 충전액보다 적으면 있는 만큼만 빼고 원장에도 뺀 만큼만 남긴다")
+    void applyExternalCancelBalanceShort() {
+        Charge charge = PaymentFixture.savedApprovedCharge(10_000L);
+        Wallet wallet = PaymentFixture.savedWallet(3_000L);
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(walletRepository.findWithLockById(WALLET_ID)).willReturn(Optional.of(wallet));
+        given(chargeRepository.saveAndFlush(charge)).willReturn(charge);
+
+        chargeService.applyExternalCancel(CHARGE_ID, new PgCancellation(LocalDateTime.now()));
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.CANCELLED);
+        assertThat(charge.getLastCancellation().getAmount()).isEqualTo(10_000L);
+        assertThat(wallet.getBalance()).isZero();
+        ArgumentCaptor<WalletLedger> ledger = ArgumentCaptor.forClass(WalletLedger.class);
+        then(walletLedgerRepository).should().save(ledger.capture());
+        assertThat(ledger.getValue().getAmount()).isEqualTo(-3_000L);
+        assertThat(ledger.getValue().getBalanceAfter()).isZero();
+    }
+
+    @Test
+    @DisplayName("잔액이 0이면 원장을 남기지 않고 충전만 취소 완료로 바꾼다")
+    void applyExternalCancelEmptyWallet() {
+        Charge charge = PaymentFixture.savedApprovedCharge(10_000L);
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(walletRepository.findWithLockById(WALLET_ID)).willReturn(Optional.of(PaymentFixture.savedWallet(0L)));
+        given(chargeRepository.saveAndFlush(charge)).willReturn(charge);
+
+        chargeService.applyExternalCancel(CHARGE_ID, new PgCancellation(LocalDateTime.now()));
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.CANCELLED);
+        then(walletLedgerRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("그사이 완료가 아니게 된 충전(이미 취소됨 · 우리 취소 진행 중)은 그대로 둔다")
+    void applyExternalCancelNotDone() {
+        Charge charge = PaymentFixture.savedCancellingCharge(10_000L);
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+
+        chargeService.applyExternalCancel(CHARGE_ID, new PgCancellation(LocalDateTime.now()));
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.CANCELLING);
+        then(walletRepository).should(never()).findWithLockById(any());
+        then(walletLedgerRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("토스 취소 시각이 없으면 지금 시각으로 직접 취소를 반영한다")
+    void applyExternalCancelWithoutCancelledAt() {
+        Charge charge = PaymentFixture.savedApprovedCharge(10_000L);
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(walletRepository.findWithLockById(WALLET_ID)).willReturn(Optional.of(PaymentFixture.savedWallet(0L)));
+        given(chargeRepository.saveAndFlush(charge)).willReturn(charge);
+
+        chargeService.applyExternalCancel(CHARGE_ID, new PgCancellation(null));
+
+        assertThat(charge.getLastCancellation().getCancelledAt())
+            .isCloseTo(LocalDateTime.now(), within(5, ChronoUnit.SECONDS));
+    }
+
     private static ConfirmChargeRequest confirmRequest(long amount) {
         return new ConfirmChargeRequest("payment-key", TOSS_ORDER_ID, amount);
     }

@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.payment;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.CHARGE_ID;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.TOSS_ORDER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -17,10 +18,13 @@ import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeReconcileTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentGateway;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgApproval;
+import com.bbcc.kidly.boundedcontext.payment.app.port.PgCancellation;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgResult;
 import com.bbcc.kidly.boundedcontext.payment.domain.Charge;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeStatus;
+import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -30,6 +34,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -165,5 +171,59 @@ class ChargeReconcileServiceTest {
         chargeReconcileService.expire(CHARGE_ID);
 
         assertThat(notYet.getStatus()).isEqualTo(ChargeStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("토스에서 전액 취소된 완료 충전은 토스 조회로 확인한 취소를 반영한다")
+    void reconcileExternalCancel() {
+        given(chargeRepository.findByTossOrderId(TOSS_ORDER_ID))
+            .willReturn(Optional.of(PaymentFixture.savedApprovedCharge(10_000L)));
+        PgCancellation cancellation = new PgCancellation(LocalDateTime.now());
+        given(paymentGateway.findCancellationByOrderId(TOSS_ORDER_ID)).willReturn(new PgResult.Success<>(cancellation));
+
+        chargeReconcileService.reconcileExternalCancel(TOSS_ORDER_ID);
+
+        then(chargeService).should().applyExternalCancel(CHARGE_ID, cancellation);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PARTIAL_CANCELED", "DONE"})
+    @DisplayName("토스 조회에서 전액 취소가 아니면(부분 취소 · 취소 안 됨) 아무것도 바꾸지 않는다")
+    void reconcileExternalCancelNotCanceled(String status) {
+        given(chargeRepository.findByTossOrderId(TOSS_ORDER_ID))
+            .willReturn(Optional.of(PaymentFixture.savedApprovedCharge(10_000L)));
+        given(paymentGateway.findCancellationByOrderId(TOSS_ORDER_ID))
+            .willReturn(new PgResult.Rejected<>(status, "전액 취소되지 않은 결제입니다"));
+
+        chargeReconcileService.reconcileExternalCancel(TOSS_ORDER_ID);
+
+        then(chargeService).should(never()).applyExternalCancel(any(), any());
+    }
+
+    @Test
+    @DisplayName("토스 조회 결과를 모르면 PG_RESULT_UNKNOWN을 던져 토스가 웹훅을 다시 보내게 한다")
+    void reconcileExternalCancelUnknown() {
+        given(chargeRepository.findByTossOrderId(TOSS_ORDER_ID))
+            .willReturn(Optional.of(PaymentFixture.savedApprovedCharge(10_000L)));
+        given(paymentGateway.findCancellationByOrderId(TOSS_ORDER_ID)).willReturn(new PgResult.Unknown<>("timeout"));
+
+        assertThatThrownBy(() -> chargeReconcileService.reconcileExternalCancel(TOSS_ORDER_ID))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.PG_RESULT_UNKNOWN);
+        then(chargeService).should(never()).applyExternalCancel(any(), any());
+    }
+
+    @Test
+    @DisplayName("우리 충전이 아니거나 완료가 아닌 충전이면 토스를 조회하지 않고 넘어간다")
+    void reconcileExternalCancelSkips() {
+        given(chargeRepository.findByTossOrderId("unknown-order")).willReturn(Optional.empty());
+        given(chargeRepository.findByTossOrderId(TOSS_ORDER_ID))
+            .willReturn(Optional.of(PaymentFixture.savedCancellingCharge(10_000L)));
+
+        chargeReconcileService.reconcileExternalCancel("unknown-order");
+        chargeReconcileService.reconcileExternalCancel(TOSS_ORDER_ID);
+
+        then(paymentGateway).should(never()).findCancellationByOrderId(any());
+        then(chargeService).should(never()).applyExternalCancel(any(), any());
     }
 }
