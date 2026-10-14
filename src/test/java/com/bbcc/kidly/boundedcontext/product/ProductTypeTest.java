@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductTypeTest {
 
@@ -121,6 +122,15 @@ class ProductTypeTest {
         assertThatThrownBy(() -> ProductType.define("의류", links))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("직접 입력 항목은 옵션 항목");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"", " "})
+    @DisplayName("유형 이름이 비어 있으면 거절한다")
+    void rejectTypeWithBlankName(String name) {
+        assertThatThrownBy(() -> ProductType.define(name, clothingLinks()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("비어 있을 수 없습니다");
     }
 
     @ParameterizedTest(name = "{0}")

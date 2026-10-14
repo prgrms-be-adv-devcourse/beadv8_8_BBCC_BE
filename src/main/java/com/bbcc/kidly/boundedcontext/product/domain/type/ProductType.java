@@ -56,6 +56,9 @@ public class ProductType extends BaseTimeEntity {
         for (LinkInfo link : links) {
             requireNonNullValues(link);
         }
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("유형 이름은 비어 있을 수 없습니다");
+        }
         if (!hasRequiredOption(links)) {
             throw new IllegalArgumentException("유형에는 필수 옵션 항목이 하나 이상 있어야 합니다");
         }
