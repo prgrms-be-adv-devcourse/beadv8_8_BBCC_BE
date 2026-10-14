@@ -95,7 +95,7 @@ class ChargeServiceTest {
     void startConfirming() {
         Charge charge = PaymentFixture.savedCharge(10_000L);
         given(walletRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(PaymentFixture.savedWallet(0L)));
-        given(chargeRepository.findByTossOrderId(TOSS_ORDER_ID)).willReturn(Optional.of(charge));
+        given(chargeRepository.findWithLockByTossOrderId(TOSS_ORDER_ID)).willReturn(Optional.of(charge));
 
         ChargeConfirmTarget target = chargeService.startConfirming(MEMBER_ID, confirmRequest(10_000L));
 
@@ -109,7 +109,7 @@ class ChargeServiceTest {
         Wallet mine = PaymentFixture.savedWallet(0L);
         ReflectionTestUtils.setField(mine, "id", 999L);
         given(walletRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(mine));
-        given(chargeRepository.findByTossOrderId(TOSS_ORDER_ID))
+        given(chargeRepository.findWithLockByTossOrderId(TOSS_ORDER_ID))
             .willReturn(Optional.of(PaymentFixture.savedCharge(10_000L)));
 
         assertThatThrownBy(() -> chargeService.startConfirming(MEMBER_ID, confirmRequest(10_000L)))
@@ -124,7 +124,7 @@ class ChargeServiceTest {
         charge.startConfirming(10_000L, LocalDateTime.now());
         Wallet wallet = PaymentFixture.savedWallet(5_000L);
         LocalDateTime approvedAt = LocalDateTime.now();
-        given(chargeRepository.findById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
         given(walletRepository.findWithLockById(WALLET_ID)).willReturn(Optional.of(wallet));
         given(paymentKeyCipher.encrypt("payment-key")).willReturn("encrypted");
 
@@ -149,7 +149,7 @@ class ChargeServiceTest {
     void fail() {
         Charge charge = PaymentFixture.savedCharge(10_000L);
         charge.startConfirming(10_000L, LocalDateTime.now());
-        given(chargeRepository.findById(CHARGE_ID)).willReturn(Optional.of(charge));
+        given(chargeRepository.findWithLockById(CHARGE_ID)).willReturn(Optional.of(charge));
 
         chargeService.fail(CHARGE_ID, "REJECT_CARD_COMPANY");
 

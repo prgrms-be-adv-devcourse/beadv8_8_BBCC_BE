@@ -62,7 +62,7 @@ public class ChargeService {
     @Transactional
     public ChargeConfirmTarget startConfirming(Long memberId, ConfirmChargeRequest request) {
         Wallet wallet = walletOf(memberId);
-        Charge charge = chargeRepository.findByTossOrderId(request.orderId())
+        Charge charge = chargeRepository.findWithLockByTossOrderId(request.orderId())
             .filter(found -> found.getWalletId().equals(wallet.getId()))
             .orElseThrow(() -> new BusinessException(PaymentErrorCode.CHARGE_NOT_FOUND));
         charge.startConfirming(request.amount(), LocalDateTime.now());
@@ -94,8 +94,9 @@ public class ChargeService {
             .orElseThrow(() -> new BusinessException(PaymentErrorCode.WALLET_NOT_FOUND));
     }
 
+    // 상태를 바꾸는 승인 반영 · 실패에서 쓴다. 락으로 읽어 겹친 요청은 앞 트랜잭션이 바꾼 상태를 본다
     private Charge chargeOf(Long chargeId) {
-        return chargeRepository.findById(chargeId)
+        return chargeRepository.findWithLockById(chargeId)
             .orElseThrow(() -> new BusinessException(PaymentErrorCode.CHARGE_NOT_FOUND));
     }
 }
