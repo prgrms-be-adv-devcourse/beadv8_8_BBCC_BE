@@ -183,8 +183,9 @@ class ProductRepositoryIntegrationTest {
         return product.getId();
     }
 
+    // 항목은 유형에 연결한 순서(색상 · 사이즈 · 무늬 · 주요소재)와 반대로 저장해, 항목 ID 순서가 연결 순서와 다르게 한다
     private void saveClothingType() {
-        Stream.of(clothing.navy(), clothing.size110(), clothing.stripe(), clothing.cotton())
+        Stream.of(clothing.cotton(), clothing.stripe(), clothing.size110(), clothing.navy())
             .map(AttributeValue::getAttribute)
             .forEach(entityManager::persist);
         Stream.of(clothing.cotton(), clothing.navy(), clothing.oatmeal(), clothing.size110(), clothing.size120(),
