@@ -198,6 +198,17 @@ class ProductOptionTest {
             }));
     }
 
+    @Test
+    @DisplayName("옵션 목록이 비어 있으면 거절한다")
+    void rejectEmptyOptions() {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+
+        assertThatThrownBy(() -> product.addOptions(addOptions(List.of()), clothing.type()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("비어 있을 수 없습니다");
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("additionsWithNull")
     @DisplayName("요청 · 상품 유형 · 판매자 · 옵션 · 가격과 그 안의 값이 null이면 거절한다")
