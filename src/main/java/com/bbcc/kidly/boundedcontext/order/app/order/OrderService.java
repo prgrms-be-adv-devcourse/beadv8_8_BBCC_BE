@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.time.LocalDateTime;
@@ -97,6 +98,32 @@ public class OrderService {
         orderRepository.findById(orderId).ifPresent(order -> order.recordDelivered(sellerId, at));
     }
 
+    /**
+     * 결제 실패로 취소한다. 결제대기가 아니면 그대로 둔다.
+     */
+    public void cancelForPaymentFailure(Long orderId) {
+        cancel(orderId, Order.CancelReason.PAYMENT_FAILED);
+    }
+
+    /**
+     * 결제 마감 만료로 취소한다. 결제대기가 아니면 그대로 둔다(그 사이 결제완료됐으면 결제완료가 이긴다).
+     */
+    public void cancelForPaymentExpiry(Long orderId) {
+        cancel(orderId, Order.CancelReason.PAYMENT_EXPIRED);
+    }
+
+    /**
+     * 결제대기이고 결제 마감이 지난 주문 ID. 주문 ID 오름차순 100건.
+     */
+    @Transactional(readOnly = true)
+    public List<Long> findOverduePaymentOrderIds() {
+        return orderRepository.findTop100ByStatusAndPaymentDueAtLessThanEqualOrderByIdAsc(
+                Order.Status.PENDING_PAYMENT, LocalDateTime.now())
+            .stream()
+            .map(Order::getId)
+            .toList();
+    }
+
     @Transactional(readOnly = true)
     public OrderDetail getOrder(Long memberId, Long orderId) {
         return orderRepository.findByIdAndMemberId(orderId, memberId)
@@ -111,6 +138,21 @@ public class OrderService {
     public Page<OrderSummary> getOrders(Long memberId, int page, int size) {
         return orderRepository.findAllByMemberIdOrderByIdDesc(memberId, PageRequest.of(page, size))
             .map(OrderSummary::from);
+    }
+
+    /**
+     * 주문이 없으면 무시. 이번에 취소했을 때만 order.cancelled를 발행한다(주문상품 순서 그대로).
+     */
+    private void cancel(Long orderId, Order.CancelReason reason) {
+        LocalDateTime now = LocalDateTime.now();
+        orderRepository.findById(orderId)
+            .filter(order -> order.cancel(reason))
+            .ifPresent(order -> eventPublisher.publish(new OrderCancelledEvent(UUID.randomUUID(), now,
+                new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), reason.name(),
+                    order.getItems().stream()
+                        .map(item -> new OrderCancelledEvent.Item(
+                            item.getId(), item.getProduct().optionId(), item.getQuantity()))
+                        .toList()))));
     }
 
     private Order.RequestedItem toRequestedItem(PlaceOrderCommand.Item item) {

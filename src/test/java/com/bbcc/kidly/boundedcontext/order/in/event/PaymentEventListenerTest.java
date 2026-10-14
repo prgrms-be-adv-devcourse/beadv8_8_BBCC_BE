@@ -8,7 +8,9 @@ import static org.mockito.Mockito.when;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
+import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -62,6 +64,22 @@ class PaymentEventListenerTest {
             verify(orderService).markPaid(ORDER_ID, PAYMENT_ID);
             verify(deliveryService, never()).createFor(anyLong());
             verify(cartService, never()).clearOrdered(anyLong());
+        }
+    }
+
+    @Nested
+    @DisplayName("결제 실패 이벤트")
+    class OnPaymentFailed {
+
+        @Test
+        @DisplayName("주문 ID로 결제 실패 취소를 맡긴다. 결제완료 처리는 하지 않는다")
+        void cancelsForPaymentFailure() {
+            listener.onPaymentFailed(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.of(2026, 10, 15, 9, 0),
+                new PaymentFailedEvent.Data(PAYMENT_ID, ORDER_ID, 1L, 50_000L, PaymentFailureCode.INSUFFICIENT_BALANCE,
+                    LocalDateTime.of(2026, 10, 15, 9, 0))));
+
+            verify(orderService).cancelForPaymentFailure(ORDER_ID);
+            verify(orderService, never()).markPaid(anyLong(), anyLong());
         }
     }
 
