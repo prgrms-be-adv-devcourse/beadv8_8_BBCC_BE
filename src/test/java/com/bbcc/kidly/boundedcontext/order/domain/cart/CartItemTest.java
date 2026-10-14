@@ -37,6 +37,24 @@ class CartItemTest {
     }
 
     @Test
+    @DisplayName("수량 1로 담을 수 있다 (최솟값)")
+    void allowsMinimumQuantity() {
+        CartItem item = CartItem.create(BUYER_ID, OPTION_ID, null, 1);
+
+        assertThat(item.getQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("수량을 1로 바꿀 수 있다 (최솟값)")
+    void changeQuantityToMinimum() {
+        CartItem item = CartItem.create(BUYER_ID, OPTION_ID, CHILD_ID, 3);
+
+        item.changeQuantity(1);
+
+        assertThat(item.getQuantity()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("같은 줄에 다시 담으면 수량을 더한다")
     void addQuantity() {
         CartItem item = CartItem.create(BUYER_ID, OPTION_ID, CHILD_ID, 2);

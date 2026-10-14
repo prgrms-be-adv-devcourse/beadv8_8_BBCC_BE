@@ -29,6 +29,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -100,6 +102,36 @@ class SellerOrderApiTest {
         @DisplayName("size가 100을 넘으면 400")
         void tooLargePageSize() {
             client.get().uri(SELLER_ORDERS_PATH + "?size=101")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isBadRequest();
+        }
+
+        @ParameterizedTest(name = "size={0}")
+        @ValueSource(ints = {1, 100})
+        @DisplayName("size 1과 100은 200")
+        void pageSizeBoundsAreAllowed(int size) {
+            client.get().uri(SELLER_ORDERS_PATH + "?size=" + size)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.size").isEqualTo(size);
+        }
+
+        @Test
+        @DisplayName("size가 0이면 400")
+        void zeroPageSize() {
+            client.get().uri(SELLER_ORDERS_PATH + "?size=0")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isBadRequest();
+        }
+
+        @Test
+        @DisplayName("page가 음수(-1)면 400")
+        void negativePage() {
+            client.get().uri(SELLER_ORDERS_PATH + "?page=-1")
                 .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
                 .exchange()
                 .expectStatus().isBadRequest();
