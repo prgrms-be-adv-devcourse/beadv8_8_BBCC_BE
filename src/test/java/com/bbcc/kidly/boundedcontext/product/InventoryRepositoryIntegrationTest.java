@@ -115,18 +115,13 @@ class InventoryRepositoryIntegrationTest {
         ProductOption option = openedOption(10);
         Callable<Boolean> deductOne =
             () -> inTransaction(() -> inventoryRepository.deductIfAvailable(option.getId(), 1, NOW));
-        ExecutorService executor = Executors.newFixedThreadPool(16);
+        List<Future<Boolean>> results;
 
-        List<Future<Boolean>> results = executor.invokeAll(Collections.nCopies(100, deductOne));
-        executor.shutdown();
-
-        long succeeded = 0;
-        for (Future<Boolean> result : results) {
-            if (result.get()) {
-                succeeded++;
-            }
+        try (ExecutorService executor = Executors.newFixedThreadPool(16)) {
+            results = executor.invokeAll(Collections.nCopies(100, deductOne));
         }
-        assertThat(succeeded).isEqualTo(10);
+
+        assertThat(results.stream().filter(Future::resultNow).count()).isEqualTo(10);
         assertThat(availableQty(option)).isZero();
     }
 
