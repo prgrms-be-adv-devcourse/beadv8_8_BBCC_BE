@@ -15,7 +15,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
@@ -129,6 +132,20 @@ class ProductSaleStartTest {
             spec(clothing.sizeFree(), null, null, measurements))), top, clothing.type());
 
         assertSaleStartRejected("판매를 시작할 수 없습니다. FREE 사이즈에 가슴단면이 없습니다.");
+    }
+
+    @Test
+    @DisplayName("SALE-03 사이즈 역할 항목이 없는 유형의 상품은 실측 없이 판매를 시작한다")
+    void startSaleOfTypeWithoutSizeRole() {
+        // 용기처럼 색상만 옵션 항목으로 두고 사이즈 역할 항목이 없는 유형이다
+        Attribute color = ProductTypeFixture.color();
+        AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
+        ProductType container = ProductType.define("용기", List.of(ProductTypeFixture.requiredOption(color)));
+        Product bottle = Product.register(ProductFixture.productAWith(List.of()), container);
+        bottle.addOptions(addOptions(List.of(option(navy))), container);
+
+        assertThat(bottle.startSale(SELLER_ID, top, container)).isTrue();
+        assertThat(bottle.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
