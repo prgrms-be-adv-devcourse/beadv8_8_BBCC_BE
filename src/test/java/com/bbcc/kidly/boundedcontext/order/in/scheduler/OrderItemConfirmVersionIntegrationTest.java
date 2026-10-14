@@ -57,6 +57,8 @@ class OrderItemConfirmVersionIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // 테스트마다 주문 ID가 1부터 다시 시작해(RESTART IDENTITY) 다른 테스트의 같은 orderId 이벤트가 섞이지 않게 비운다
+        recorder.clear();
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
     }
 
