@@ -92,6 +92,7 @@ class ProductSaleStartTest {
     static Stream<Arguments> missingMeasurementItems() {
         return Stream.of(
             Arguments.of(List.of("SLEEVE_LENGTH"), "판매를 시작할 수 없습니다. 110 사이즈에 소매길이가 없습니다."),
+            Arguments.of(List.of("TOTAL_LENGTH"), "판매를 시작할 수 없습니다. 110 사이즈에 총장이 없습니다."),
             Arguments.of(List.of("SLEEVE_LENGTH", "SHOULDER_WIDTH"),
                 "판매를 시작할 수 없습니다. 110 사이즈에 어깨너비 · 소매길이가 없습니다."));
     }

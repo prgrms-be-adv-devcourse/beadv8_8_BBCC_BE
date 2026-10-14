@@ -60,7 +60,17 @@ final class SaleStartConditions {
             }
         }
         if (!names.isEmpty()) {
-            missing.add(sizeValue.getName() + " 사이즈에 " + String.join(" · ", names) + "가 없습니다.");
+            String joined = String.join(" · ", names);
+            missing.add(sizeValue.getName() + " 사이즈에 " + joined + subjectParticle(joined) + " 없습니다.");
         }
+    }
+
+    // 마지막 글자에 받침이 있으면 "이", 없으면 "가"를 붙인다 (예: 총장이, 소매길이가)
+    private static String subjectParticle(String word) {
+        char last = word.charAt(word.length() - 1);
+        if (last >= '가' && last <= '힣' && (last - '가') % 28 != 0) {
+            return "이";
+        }
+        return "가";
     }
 }
