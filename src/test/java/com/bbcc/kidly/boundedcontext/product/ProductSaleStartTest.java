@@ -1,7 +1,9 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.productA;
@@ -146,6 +148,16 @@ class ProductSaleStartTest {
 
         assertThat(bottle.startSale(SELLER_ID, top, container)).isTrue();
         assertThat(bottle.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+    }
+
+    @Test
+    @DisplayName("OPT-08 상품을 등록한 판매자가 아니면 판매를 시작할 수 없다")
+    void rejectStartSaleFromOtherSeller() {
+        withOptionsAndSizeSpecs110And120();
+
+        assertRejected(() -> product.startSale(OTHER_SELLER_ID, top, clothing.type()),
+            ProductErrorCode.NOT_PRODUCT_OWNER);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.SALE_PENDING);
     }
 
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
