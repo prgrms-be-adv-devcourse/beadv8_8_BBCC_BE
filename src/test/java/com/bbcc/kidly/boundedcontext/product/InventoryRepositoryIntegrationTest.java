@@ -17,7 +17,12 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -100,6 +105,27 @@ class InventoryRepositoryIntegrationTest {
 
         assertThat(deducted).isFalse();
         assertThat(availableQty(option)).isEqualTo(stock);
+    }
+
+    @Test
+    @DisplayName("INV-01 판매 가능 수량 10인 옵션에 1개씩 차감하는 요청 100건이 동시에 오면 10건만 성공하고 수량은 0이다")
+    void deductConcurrently() throws Exception {
+        ProductOption option = openedOption(10);
+        Callable<Boolean> deductOne =
+            () -> inTransaction(() -> inventoryRepository.deductIfAvailable(option.getId(), 1, NOW));
+        ExecutorService executor = Executors.newFixedThreadPool(16);
+
+        List<Future<Boolean>> results = executor.invokeAll(Collections.nCopies(100, deductOne));
+        executor.shutdown();
+
+        long succeeded = 0;
+        for (Future<Boolean> result : results) {
+            if (result.get()) {
+                succeeded++;
+            }
+        }
+        assertThat(succeeded).isEqualTo(10);
+        assertThat(availableQty(option)).isZero();
     }
 
     // 판매 가능 수량 stock으로 재고를 연 옵션을 돌려준다
