@@ -134,6 +134,33 @@ class CategoryApiTest {
             "카테고리를 찾을 수 없습니다", "카테고리를 다시 확인해 주세요.");
     }
 
+    @Test
+    @DisplayName("TYPE-01 상품 유형이 없는 중간 카테고리의 입력 항목을 찾으면 상품 등록과 같은 오류로 400이다")
+    void inputAttributesOfMiddleCategoryIsBadRequest() {
+        Long clothingId = inTransaction(() -> persist(Category.createMiddle("의류", null)).getId());
+
+        expectProblem("/api/v1/categories/" + clothingId + "/attributes", HttpStatus.BAD_REQUEST,
+            "상품을 등록할 수 없는 카테고리입니다", "가장 아래 단계의 카테고리를 골라 주세요.");
+    }
+
+    @Test
+    @DisplayName("카테고리 ID가 숫자가 아니면 400이다")
+    void nonNumericCategoryIdIsBadRequest() {
+        client.get().uri("/api/v1/categories/abc/attributes")
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    @Test
+    @DisplayName("로그인 없이 부르는 API여도 잘못된 토큰을 보내면 401이다")
+    void invalidTokenIsUnauthorized() {
+        client.get().uri("/api/v1/categories")
+            .headers(headers -> headers.setBearerAuth("invalid-token"))
+            .exchange()
+            .expectStatus().isUnauthorized();
+    }
+
     // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(String path, HttpStatus status, String title, String detail) {
         client.get().uri(path)
