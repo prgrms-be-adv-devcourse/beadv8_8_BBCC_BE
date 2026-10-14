@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_I
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_CHANGED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
@@ -12,7 +13,10 @@ import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.math.BigDecimal;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,5 +69,24 @@ class RecommendReplicaChildIntegrationTest {
         });
 
         assertThat(replicaChildRepository.findById(CHILD_1_ID)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("자녀 복사본 반영이 실패해도 발행한 트랜잭션은 성공하고 복사본은 이전 값 그대로다")
+    void keepReplicaWhenListenerFails() {
+        publishInTransaction(RecommendFixture.childChangedEvent());
+        ChildChangedEvent withoutHeight = new ChildChangedEvent(UUID.randomUUID(), CHILD_CHANGED_AT.plusMinutes(1),
+            new ChildChangedEvent.Data(CHILD_1_ID, MEMBER_1_ID, null, new BigDecimal("20.0"), Gender.MALE,
+                CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, false));
+
+        assertThatCode(() -> publishInTransaction(withoutHeight)).doesNotThrowAnyException();
+
+        RecommendReplicaChild replica = replicaChildRepository.findById(CHILD_1_ID).orElseThrow();
+        assertThat(replica.getHeightCm()).isEqualByComparingTo("115.0");
+        assertThat(replica.getEventOccurredAt()).isEqualTo(CHILD_CHANGED_AT);
+    }
+
+    private void publishInTransaction(ChildChangedEvent event) {
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }
