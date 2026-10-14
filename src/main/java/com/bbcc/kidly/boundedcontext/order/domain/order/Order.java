@@ -194,60 +194,72 @@ public class Order extends BaseTimeEntity {
     /**
      * 결제를 요청한다. 결제대기이고 아직 요청 전일 때만 기록한다(재고 차감 이벤트 중복 · 취소 뒤 도착 대비).
      *
-     * @return 이번에 요청했으면 true
+     * @return APPLIED 이번에 요청함 · ALREADY_DONE 결제대기이고 이미 요청함 · NOT_APPLICABLE 결제대기 아님
      */
-    public boolean requestPayment(LocalDateTime now) {
-        if (status != Status.PENDING_PAYMENT || paymentRequestedAt != null) {
-            return false;
+    public TransitionResult requestPayment(LocalDateTime now) {
+        if (status != Status.PENDING_PAYMENT) {
+            return TransitionResult.NOT_APPLICABLE;
+        }
+        if (paymentRequestedAt != null) {
+            return TransitionResult.ALREADY_DONE;
         }
         this.paymentRequestedAt = now;
-        return true;
+        return TransitionResult.APPLIED;
     }
 
     /**
      * 결제완료로 바꾼다. 결제대기일 때만 바꾸고, 중복 · 취소된 주문은 그대로 둔다.
      * 동시에 두 번 오면 @Version이 나중 쪽을 실패시킨다.
      *
-     * @return 이번에 결제완료로 바꿨으면 true
+     * @return APPLIED 이번에 결제완료로 바꿈 · ALREADY_DONE 이미 결제완료 · NOT_APPLICABLE 취소됨
      */
-    public boolean markPaid(Long paymentId, LocalDateTime now) {
+    public TransitionResult markPaid(Long paymentId, LocalDateTime now) {
+        if (status == Status.PAID) {
+            return TransitionResult.ALREADY_DONE;
+        }
         if (status != Status.PENDING_PAYMENT) {
-            return false;
+            return TransitionResult.NOT_APPLICABLE;
         }
         this.status = Status.PAID;
         this.paymentId = paymentId;
         this.paidAt = now;
-        return true;
+        return TransitionResult.APPLIED;
     }
 
     /**
      * 결제대기일 때만 주어진 사유로 취소한다. 결제 마감 만료는 expirePayment를 쓴다.
      * 결제완료 · 이미 취소된 주문은 그대로 둔다(처음 사유 유지).
      *
-     * @return 이번에 취소했으면 true
+     * @return APPLIED 이번에 취소함 · ALREADY_DONE 이미 취소됨(사유와 상관없이) · NOT_APPLICABLE 결제완료
      */
-    public boolean cancel(CancelReason reason) {
+    public TransitionResult cancel(CancelReason reason) {
+        if (status == Status.CANCELLED) {
+            return TransitionResult.ALREADY_DONE;
+        }
         if (status != Status.PENDING_PAYMENT) {
-            return false;
+            return TransitionResult.NOT_APPLICABLE;
         }
         this.status = Status.CANCELLED;
         this.cancelReason = reason;
-        return true;
+        return TransitionResult.APPLIED;
     }
 
     /**
      * 결제 마감 만료로 취소한다. 결제대기이고 마감 시각이 지났을 때(마감 시각 포함)만 바꾼다.
      * 마감 전 · 결제완료 · 이미 취소된 주문은 그대로 둔다.
      *
-     * @return 이번에 취소했으면 true
+     * @return APPLIED 이번에 취소함 · ALREADY_DONE 이미 취소됨(사유와 상관없이) · NOT_APPLICABLE 결제완료 · 마감 전
      */
-    public boolean expirePayment(LocalDateTime now) {
+    public TransitionResult expirePayment(LocalDateTime now) {
+        if (status == Status.CANCELLED) {
+            return TransitionResult.ALREADY_DONE;
+        }
         if (status != Status.PENDING_PAYMENT || now.isBefore(paymentDueAt)) {
-            return false;
+            return TransitionResult.NOT_APPLICABLE;
         }
         this.status = Status.CANCELLED;
         this.cancelReason = CancelReason.PAYMENT_EXPIRED;
-        return true;
+        return TransitionResult.APPLIED;
     }
 
     public void recordDelivered(Long sellerId, LocalDateTime at) {
@@ -261,32 +273,43 @@ public class Order extends BaseTimeEntity {
     /**
      * 구매자가 직접 구매확정한다. 주문에 없는 주문상품이면 404, 배송 전이면 409, 이미 확정이면 그대로 둔다.
      *
-     * @return 이번에 확정했으면 true
+     * @return APPLIED 이번에 확정함 · ALREADY_DONE 이미 확정. 이 메서드는 NOT_APPLICABLE을 돌려주지 않는다(예외로 알림)
      */
-    public boolean confirmItem(Long orderItemId, LocalDateTime now) {
+    public TransitionResult confirmItem(Long orderItemId, LocalDateTime now) {
         OrderItem item = findItem(orderItemId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_ITEM_NOT_FOUND));
         if (item.getStatus() == OrderItem.Status.CONFIRMED) {
-            return false;
+            return TransitionResult.ALREADY_DONE;
         }
         if (item.getDeliveredAt() == null) {
             throw new BusinessException(OrderErrorCode.NOT_DELIVERED);
         }
-        return item.confirm(OrderItem.ConfirmType.DIRECT, now);
+        return item.confirm(OrderItem.ConfirmType.DIRECT, now)
+            ? TransitionResult.APPLIED
+            : TransitionResult.ALREADY_DONE;
     }
 
     /**
      * 배송 완료 후 자동 구매확정 기간이 지났으면(기간 시각 포함) 자동 확정한다.
-     * 주문상품 없음 · 배송 전 · 기간 전 · 이미 확정이면 예외 없이 그대로 둔다.
+     * 판단 순서는 직접 확정과 같이 확정 여부를 먼저 본다: 주문상품 없음 → 이미 확정 → 배송 전 · 기간 전. 예외는 없다.
      *
-     * @return 이번에 확정했으면 true
+     * @return APPLIED 이번에 확정함 · ALREADY_DONE 이미 확정(기간과 상관없이) · NOT_APPLICABLE 주문상품 없음 · 배송 전 · 기간 전
      */
-    public boolean autoConfirmItem(Long orderItemId, Policy policy, LocalDateTime now) {
-        return findItem(orderItemId)
-            .filter(item -> item.getDeliveredAt() != null
-                && !now.isBefore(item.getDeliveredAt().plus(policy.autoConfirmAfter())))
-            .map(item -> item.confirm(OrderItem.ConfirmType.AUTO, now))
-            .orElse(false);
+    public TransitionResult autoConfirmItem(Long orderItemId, Policy policy, LocalDateTime now) {
+        Optional<OrderItem> found = findItem(orderItemId);
+        if (found.isEmpty()) {
+            return TransitionResult.NOT_APPLICABLE;
+        }
+        OrderItem item = found.get();
+        if (item.getStatus() == OrderItem.Status.CONFIRMED) {
+            return TransitionResult.ALREADY_DONE;
+        }
+        if (item.getDeliveredAt() == null || now.isBefore(item.getDeliveredAt().plus(policy.autoConfirmAfter()))) {
+            return TransitionResult.NOT_APPLICABLE;
+        }
+        return item.confirm(OrderItem.ConfirmType.AUTO, now)
+            ? TransitionResult.APPLIED
+            : TransitionResult.ALREADY_DONE;
     }
 
     private Optional<OrderItem> findItem(Long orderItemId) {
