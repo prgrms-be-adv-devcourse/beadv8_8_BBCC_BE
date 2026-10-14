@@ -41,10 +41,10 @@ public class ProductOptionValue extends BaseTimeEntity {
     @JoinColumn(name = "attribute_value_id")
     private AttributeValue attributeValue;
 
-    static ProductOptionValue create(ProductOption productOption, Attribute attribute, AttributeValue attributeValue) {
+    static ProductOptionValue create(ProductOption productOption, AttributeValue attributeValue) {
         ProductOptionValue optionValue = new ProductOptionValue();
         optionValue.productOption = productOption;
-        optionValue.attribute = attribute;
+        optionValue.attribute = attributeValue.getAttribute();
         optionValue.attributeValue = attributeValue;
         return optionValue;
     }

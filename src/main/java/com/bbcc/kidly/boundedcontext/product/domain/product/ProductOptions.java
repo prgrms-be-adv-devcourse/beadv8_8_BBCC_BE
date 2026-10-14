@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -35,17 +36,13 @@ final class ProductOptions {
         for (OptionInfo option : info.options()) {
             requireNonNull(option, "option은 필수입니다");
             requireNonNull(option.values(), "values는 필수입니다");
-            for (AttributeValue value : option.values()) {
-                requireNonNull(value, "value는 필수입니다");
-            }
+            option.values().forEach(value -> requireNonNull(value, "value는 필수입니다"));
         }
         for (PriceInfo price : info.prices()) {
             requireNonNull(price, "price는 필수입니다");
             requireNonNull(price.values(), "values는 필수입니다");
             requireNonNull(price.price(), "판매가는 필수입니다");
-            for (AttributeValue value : price.values()) {
-                requireNonNull(value, "value는 필수입니다");
-            }
+            price.values().forEach(value -> requireNonNull(value, "value는 필수입니다"));
         }
     }
 
@@ -69,48 +66,30 @@ final class ProductOptions {
         for (ProductTypeAttribute link : productType.getAttributes()) {
             if (link.getRole() == AttributeRole.OPTION
                 && link.isRequired()
-                && !hasValueOf(values, link.getAttribute())) {
+                && !attributes.contains(link.getAttribute())) {
                 throw new BusinessException(ProductErrorCode.REQUIRED_OPTION_MISSING);
             }
         }
     }
 
-    private static boolean hasValueOf(List<AttributeValue> values, Attribute attribute) {
-        for (AttributeValue value : values) {
-            if (value.getAttribute() == attribute) {
-                return true;
-            }
+    // 이미 있는 옵션(보관 제외)의 값 목록 뒤에 요청 옵션의 값 목록을 붙인다. OPT-02 · 03과 SIZE-02 검사가 함께 쓴다
+    static List<List<AttributeValue>> valueLists(List<OptionInfo> requested, List<ProductOption> existing) {
+        List<List<AttributeValue>> lists = activeValueLists(existing);
+        for (OptionInfo option : requested) {
+            lists.add(option.values());
         }
-        return false;
+        return lists;
     }
 
     // 한 상품의 옵션은 모두 같은 옵션 항목 묶음을 쓴다. 이미 있는 옵션(보관 제외)이 있으면 그 묶음에,
     // 없으면 요청의 첫 옵션 묶음에 맞춘다 (OPT-02)
-    static void validateSameAttributes(List<OptionInfo> requested, List<ProductOption> existing) {
-        Set<Attribute> expected = null;
-        for (ProductOption option : existing) {
-            if (option.getSaleStatus() != ProductOptionStatus.ARCHIVED) {
-                expected = attributesOf(option);
-                break;
-            }
-        }
-        for (OptionInfo option : requested) {
-            Set<Attribute> attributes = attributesOf(option.values());
-            if (expected == null) {
-                expected = attributes;
-            }
-            if (!attributes.equals(expected)) {
+    static void validateSameAttributes(List<List<AttributeValue>> valueLists) {
+        Set<Attribute> expected = attributesOf(valueLists.getFirst());
+        for (List<AttributeValue> values : valueLists) {
+            if (!attributesOf(values).equals(expected)) {
                 throw new BusinessException(ProductErrorCode.OPTION_ATTRIBUTES_MISMATCH);
             }
         }
-    }
-
-    private static Set<Attribute> attributesOf(ProductOption option) {
-        Set<Attribute> attributes = new HashSet<>();
-        for (ProductOptionValue value : option.getValues()) {
-            attributes.add(value.getAttribute());
-        }
-        return attributes;
     }
 
     private static Set<Attribute> attributesOf(List<AttributeValue> values) {
@@ -122,26 +101,19 @@ final class ProductOptions {
     }
 
     // 한 상품에 FREE와 숫자 사이즈를 섞지 않는다. 이미 있는 옵션(보관 제외)과 요청의 사이즈 역할 값을 모두 본다 (SIZE-02)
-    static void validateSizeFree(List<OptionInfo> requested, List<ProductOption> existing, ProductType productType) {
-        List<AttributeValue> values = new ArrayList<>();
-        for (ProductOption option : existing) {
-            if (option.getSaleStatus() != ProductOptionStatus.ARCHIVED) {
-                values.addAll(valuesOf(option));
-            }
-        }
-        for (OptionInfo option : requested) {
-            values.addAll(option.values());
-        }
+    static void validateSizeFree(List<List<AttributeValue>> valueLists, ProductType productType) {
         boolean hasFree = false;
         boolean hasNumber = false;
-        for (AttributeValue value : values) {
-            if (!isSizeRole(value, productType)) {
-                continue;
-            }
-            if (FREE_SIZE.equals(value.getName())) {
-                hasFree = true;
-            } else {
-                hasNumber = true;
+        for (List<AttributeValue> values : valueLists) {
+            for (AttributeValue value : values) {
+                if (!isSizeRole(value, productType)) {
+                    continue;
+                }
+                if (FREE_SIZE.equals(value.getName())) {
+                    hasFree = true;
+                } else {
+                    hasNumber = true;
+                }
             }
         }
         if (hasFree && hasNumber) {
@@ -152,51 +124,56 @@ final class ProductOptions {
     // 보관하지 않은 옵션이 있고 그 옵션이 모두 FREE 사이즈이면 사이즈 무관이다. SIZE-02가 FREE와 숫자가 섞이지 않게 막으므로
     // 유형 정의 없이 값 글자로 판단한다 (SIZE-02)
     static boolean isSizeFree(List<ProductOption> options) {
-        boolean hasOption = false;
-        for (ProductOption option : options) {
-            if (option.getSaleStatus() == ProductOptionStatus.ARCHIVED) {
-                continue;
+        List<List<AttributeValue>> lists = activeValueLists(options);
+        for (List<AttributeValue> values : lists) {
+            boolean hasFree = false;
+            for (AttributeValue value : values) {
+                hasFree = hasFree || FREE_SIZE.equals(value.getName());
             }
-            hasOption = true;
-            if (!hasFreeSize(option)) {
+            if (!hasFree) {
                 return false;
             }
         }
-        return hasOption;
-    }
-
-    private static boolean hasFreeSize(ProductOption option) {
-        for (ProductOptionValue value : option.getValues()) {
-            if (FREE_SIZE.equals(value.getAttributeValue().getName())) {
-                return true;
-            }
-        }
-        return false;
+        return !lists.isEmpty();
     }
 
     private static boolean isSizeRole(AttributeValue value, ProductType productType) {
-        Optional<ProductTypeAttribute> link = productType.findLink(value.getAttribute());
-        return link.isPresent() && link.get().isSizeRole();
+        return productType.findLink(value.getAttribute()).filter(ProductTypeAttribute::isSizeRole).isPresent();
     }
 
     // 같은 값 묶음의 옵션은 하나만 둔다. 이미 있는 옵션(보관 제외)과 요청 안의 옵션을 모두 보고,
     // 값 묶음은 순서와 상관없는 집합으로 비교한다 (OPT-03)
-    static void validateNoDuplicate(List<OptionInfo> requested, List<ProductOption> existing) {
-        Set<Set<AttributeValue>> combinations = new HashSet<>();
-        for (ProductOption option : existing) {
-            if (option.getSaleStatus() != ProductOptionStatus.ARCHIVED) {
-                combinations.add(valuesOf(option));
-            }
-        }
-        for (OptionInfo option : requested) {
-            if (!combinations.add(new HashSet<>(option.values()))) {
+    static void validateNoDuplicate(List<List<AttributeValue>> valueLists) {
+        Set<Set<AttributeValue>> seen = new HashSet<>();
+        for (List<AttributeValue> values : valueLists) {
+            if (!seen.add(new HashSet<>(values))) {
                 throw new BusinessException(ProductErrorCode.DUPLICATE_OPTION);
             }
         }
     }
 
-    private static Set<AttributeValue> valuesOf(ProductOption option) {
-        Set<AttributeValue> values = new HashSet<>();
+    // 이미 있는 옵션(보관 제외)의 값 목록이다
+    private static List<List<AttributeValue>> activeValueLists(List<ProductOption> existing) {
+        List<List<AttributeValue>> lists = new ArrayList<>();
+        for (ProductOption option : activeOptions(existing)) {
+            lists.add(valuesOf(option));
+        }
+        return lists;
+    }
+
+    // 보관한 옵션은 판매 대상이 아니라서 모든 검사에서 뺀다
+    private static List<ProductOption> activeOptions(List<ProductOption> existing) {
+        List<ProductOption> active = new ArrayList<>();
+        for (ProductOption option : existing) {
+            if (option.getSaleStatus() != ProductOptionStatus.ARCHIVED) {
+                active.add(option);
+            }
+        }
+        return active;
+    }
+
+    private static List<AttributeValue> valuesOf(ProductOption option) {
+        List<AttributeValue> values = new ArrayList<>();
         for (ProductOptionValue value : option.getValues()) {
             values.add(value.getAttributeValue());
         }
@@ -205,11 +182,8 @@ final class ProductOptions {
 
     // 이미 있는 옵션(보관 제외)과 같은 가격 구분 묶음의 가격은 그 옵션의 가격과 같아야 한다 (PRICE-03)
     static void validateExistingPrices(List<PriceInfo> prices, List<ProductOption> existing, ProductType productType) {
-        for (ProductOption option : existing) {
-            if (option.getSaleStatus() == ProductOptionStatus.ARCHIVED) {
-                continue;
-            }
-            Set<AttributeValue> group = priceGroup(new ArrayList<>(valuesOf(option)), productType);
+        for (ProductOption option : activeOptions(existing)) {
+            Set<AttributeValue> group = priceGroup(valuesOf(option), productType);
             for (PriceInfo price : prices) {
                 if (new HashSet<>(price.values()).equals(group) && price.price() != option.getPrice()) {
                     throw new BusinessException(ProductErrorCode.PRICE_GROUP_MISMATCH);
@@ -248,11 +222,10 @@ final class ProductOptions {
     }
 
     // 옵션의 값 중 값에 따라 가격이 달라지는 항목의 값을 모은다. 가격 구분 항목이 없는 유형은 빈 집합이다
-    private static Set<AttributeValue> priceGroup(List<AttributeValue> optionValues, ProductType productType) {
+    private static Set<AttributeValue> priceGroup(Collection<AttributeValue> optionValues, ProductType productType) {
         Set<AttributeValue> group = new HashSet<>();
         for (AttributeValue value : optionValues) {
-            Optional<ProductTypeAttribute> link = productType.findLink(value.getAttribute());
-            if (link.isPresent() && link.get().isPriceAffecting()) {
+            if (productType.findLink(value.getAttribute()).filter(ProductTypeAttribute::isPriceAffecting).isPresent()) {
                 group.add(value);
             }
         }

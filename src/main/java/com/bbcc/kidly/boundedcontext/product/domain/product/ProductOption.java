@@ -68,7 +68,7 @@ public class ProductOption extends BaseTimeEntity {
         option.skuCode = skuCode;
         option.saleStatus = ProductOptionStatus.ON_SALE;
         for (AttributeValue value : values) {
-            option.values.add(ProductOptionValue.create(option, value.getAttribute(), value));
+            option.values.add(ProductOptionValue.create(option, value));
         }
         return option;
     }
