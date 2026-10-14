@@ -96,6 +96,46 @@ class SocialLoginServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("다른 회원이 쓰는 닉네임이면 뒤에 숫자 4자리를 붙여 가입한다")
+    void duplicateNicknameGetsNumber() {
+        login("kakao-1");
+
+        var member = login("kakao-2");
+
+        assertThat(memberRepository.findById(member.memberId()))
+            .hasValueSatisfying(found -> assertThat(found.getNickname()).matches(FakeOAuthClient.NICKNAME + "\\d{4}"));
+    }
+
+    @Test
+    @DisplayName("제공자 닉네임이 20자를 넘으면 20자로 자른다")
+    void longNicknameIsCut() {
+        var member = login(FakeOAuthClient.LONG_NICKNAME_CODE_PREFIX + 1);
+
+        assertThat(memberRepository.findById(member.memberId()))
+            .hasValueSatisfying(found -> assertThat(found.getNickname()).isEqualTo("가".repeat(20)));
+    }
+
+    @Test
+    @DisplayName("잘린 닉네임도 겹치면 앞 16자에 숫자 4자리를 붙인다")
+    void longDuplicateNicknameGetsNumber() {
+        login(FakeOAuthClient.LONG_NICKNAME_CODE_PREFIX + 1);
+
+        var member = login(FakeOAuthClient.LONG_NICKNAME_CODE_PREFIX + 2);
+
+        assertThat(memberRepository.findById(member.memberId()))
+            .hasValueSatisfying(found -> assertThat(found.getNickname()).matches("가{16}\\d{4}"));
+    }
+
+    @Test
+    @DisplayName("제공자 닉네임이 2자 미만이면 회원 + 숫자 4자리로 가입한다")
+    void shortNickname() {
+        var member = login(FakeOAuthClient.SHORT_NICKNAME_CODE);
+
+        assertThat(memberRepository.findById(member.memberId()))
+            .hasValueSatisfying(found -> assertThat(found.getNickname()).matches("회원\\d{4}"));
+    }
+
+    @Test
     @DisplayName("지원하지 않는 제공자면 로그인할 수 없다")
     void unsupportedProvider() {
         assertThatThrownBy(() -> socialLoginService.login("naver", new SocialLoginRequest("naver-1")))
