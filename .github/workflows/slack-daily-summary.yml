@@ -44,10 +44,10 @@ jobs:
           # 메시지 구성
           # - 머리: 날짜, 전체 완료율
           # - 담당자별 진행률: 2열 카드. 담당자가 여럿이면 각자에게 세고, 매핑에 있는 사람은 맡은 이슈가 없어도 0/0으로 보여 준다
-          # - 처리된 이슈: 담당자별로 묶고 말머리([FEAT] 등)는 뺀다. 한 사람이 블록 하나라
-          #   Slack 블록 3000자 제한에 맞게 사람마다 20개까지 보여 준다 (블록은 메시지당 50개까지라 여유 있음)
+          # - 처리된 이슈: 진행률처럼 담당자별 2열 카드(많이 처리한 순). 말머리([FEAT] 등)는 빼고 제목은 짧게 자른다.
+          #   사람마다 3개까지만 보여 주고, 링크는 담당자 줄 끝의 '보기'에만 건다(그 사람의 처리된 이슈 검색)
           jq --argjson map "$MAP" --arg since "$SINCE" --arg sinceLabel "$SINCE_LABEL" \
-            --arg today "$TODAY" --arg url "https://github.com/$REPO/issues" '
+            --arg today "$TODAY" --arg url "https://github.com/$REPO/issues" --argjson shown 3 '
             def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
             def who: if (.assignees | length) > 0 then [.assignees[].login | ($map[.] // .)] else ["담당자 없음"] end;
             def pct($done; $total): if $total > 0 then $done * 100 / $total | round else 0 end;
@@ -57,6 +57,14 @@ jobs:
               | (if $p >= 80 then "🟩" elif $p >= 50 then "🟦" else "🟪" end) as $c
               | ($c * $n // "") + ("⬜" * (5 - $n) // "");
             def short: sub("^\\[[A-Z]+\\]\\s*"; "");
+            # 2열 카드에서 줄이 넘어가지 않게 제목을 자른다
+            def cut($n): if length > $n then .[:$n] + "…" else . end;
+            # 기준 시각 이후 그 담당자가 처리한 이슈 검색 링크. 로그인이 비어 있으면("담당자 없음") 담당자 없는 이슈.
+            # Slack 링크 <주소|글자>가 닫는 꺾쇠에서 끊기지 않게 이상(>=) 대신 범위(날짜..*)를 쓰고, 공백은 + 로 넣는다
+            def closedSearch($login):
+              ["is:issue", "is:closed", "reason:completed", "closed:\($since)..*",
+                (if $login == "" then "no:assignee" else "assignee:\($login)" end)]
+              | "\($url)?q=\(join("+"))";
             def counts($done; $total): if $total == 0 then "아직 맡은 이슈가 없어요" else "\($done)개 완료 · \($total - $done)개 남음" end;
 
             . as $issues
@@ -85,16 +93,24 @@ jobs:
                           | {type: "mrkdwn", text: "*\(.who | esc)*\n\(bar(.pct))  *\(.pct)%*\n\(counts(.done; .total))"}]}]
                   + [
                     {type: "divider"},
-                    {type: "section", text: {type: "mrkdwn", text: "*✅ \($sinceLabel) 처리된 이슈 \($closed | length)개*"}}
+                    {type: "section", text: {type: "mrkdwn",
+                      text: "*✅ \($sinceLabel) 처리된 이슈 \($closed | length)개*"}}
                   ]
                   + if ($closed | length) == 0 then
                       [{type: "context", elements: [{type: "mrkdwn", text: "처리된 이슈가 없어요"}]}]
                     else
-                      [$closed | map(. as $i | who[] | {who: ., issue: $i}) | group_by(.who)[]
-                        | {type: "section", text: {type: "mrkdwn",
-                            text: ("*\(.[0].who | esc)*  \(length)개\n"
-                              + (.[:20] | map("• <\(.issue.html_url)|#\(.issue.number)>  \(.issue.title | short | esc)") | join("\n"))
-                              + (if length > 20 then "\n외 \(length - 20)개" else "" end))}}]
+                      # section 하나에 칸은 10개까지라 10명씩 나눈다
+                      ($closed
+                        | map(. as $i | (if (.assignees | length) > 0 then [.assignees[].login] else [""] end)[]
+                            | {login: ., who: (if . == "" then "담당자 없음" else ($map[.] // .) end), issue: $i})
+                        | group_by(.who)
+                        | sort_by(.[0].who == "담당자 없음", -length)) as $groups
+                      | [range(0; $groups | length; 10) as $g
+                          | {type: "section", fields: [$groups[$g:$g + 10][]
+                              | {type: "mrkdwn", text: (
+                                  "*\(.[0].who | esc)*  \(length)개  <\(closedSearch(.[0].login))|보기 →>\n"
+                                  + (.[:$shown] | map("#\(.issue.number)  \(.issue.title | short | cut(16) | esc)") | join("\n"))
+                                  + (if length > $shown then "\n외 \(length - $shown)개" else "" end))}]}]
                     end
                 )
               }' issues.json \
