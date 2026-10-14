@@ -241,6 +241,16 @@ class ProductSizeSpecTest {
                 addSizeSpecs(List.of(spec(clothing.size110(), 105, 115, nullLength))), top, type)));
     }
 
+    @Test
+    @DisplayName("실측 목록이 비어 있으면 거절한다")
+    void rejectEmptySizeSpecs() {
+        withOptions110And120();
+
+        assertThatThrownBy(() -> product.addSizeSpecs(addSizeSpecs(List.of()), top, clothing.type()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("비어 있을 수 없습니다");
+    }
+
     // 상품 A에 네이비 110 · 120 옵션을 붙인다
     private void withOptions110And120() {
         product.addOptions(addOptions(List.of(

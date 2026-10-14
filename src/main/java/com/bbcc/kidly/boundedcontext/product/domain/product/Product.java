@@ -211,6 +211,9 @@ public class Product extends BaseTimeEntity {
         requireNonNull(productType, "productType은 필수입니다");
         requireNonNull(info.sellerId(), "sellerId는 필수입니다");
         ProductSizeSpecs.requireNonNullValues(info);
+        if (info.specs().isEmpty()) {
+            throw new IllegalArgumentException("실측 목록은 비어 있을 수 없습니다");
+        }
         // 등록한 판매자만 실측을 넣을 수 있다 (OPT-08)
         if (!sellerId.equals(info.sellerId())) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
