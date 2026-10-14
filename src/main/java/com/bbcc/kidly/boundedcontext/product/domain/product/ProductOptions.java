@@ -179,6 +179,21 @@ final class ProductOptions {
         return values;
     }
 
+    // 이미 있는 옵션(보관 제외)과 같은 가격 구분 묶음의 가격은 그 옵션의 가격과 같아야 한다 (PRICE-03)
+    static void validateExistingPrices(List<PriceInfo> prices, List<ProductOption> existing, ProductType productType) {
+        for (ProductOption option : existing) {
+            if (option.getSaleStatus() == ProductOptionStatus.ARCHIVED) {
+                continue;
+            }
+            Set<AttributeValue> group = priceGroup(new ArrayList<>(valuesOf(option)), productType);
+            for (PriceInfo price : prices) {
+                if (new HashSet<>(price.values()).equals(group) && price.price() != option.getPrice()) {
+                    throw new BusinessException(ProductErrorCode.PRICE_GROUP_MISMATCH);
+                }
+            }
+        }
+    }
+
     // 옵션의 가격 구분 묶음과 같은 값의 묶음을 가진 가격을 찾아 그 가격을 돌려준다.
     // 없으면 거절하고(PRICE-01), 같은 묶음의 가격이 둘 이상이어도 거절한다(PRICE-03)
     static long findPrice(List<AttributeValue> optionValues, List<PriceInfo> prices, ProductType productType) {

@@ -210,6 +210,21 @@ class ProductOptionTest {
         assertThat(product.getOptions()).isEmpty();
     }
 
+    @Test
+    @DisplayName("PRICE-03 이미 있는 옵션과 같은 가격 구분 묶음인데 가격이 다르면 거절한다")
+    void rejectPriceDifferentFromExistingOptions() {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
+        Product.AddOptionsInfo info = new Product.AddOptionsInfo(
+            SELLER_ID, List.of(option(clothing.navy(), clothing.size120())), clothingPrice(30_000L));
+
+        assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.PRICE_GROUP_MISMATCH));
+        assertThat(product.getOptions()).hasSize(1);
+    }
+
     @ParameterizedTest(name = "{0}원")
     @ValueSource(longs = {0, -1})
     @DisplayName("PRICE-02 판매가가 0 이하이면 거절한다")
