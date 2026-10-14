@@ -11,5 +11,5 @@ public interface JpaCategoryRepository extends JpaRepository<Category, Long>, Ca
 
     @Override
     @Query("select c from Category c where c.parent is null and c.name = :name")
-    Optional<Category> findRootByName(@Param("name") String name);
+    Optional<Category> findTopLevelByName(@Param("name") String name);
 }

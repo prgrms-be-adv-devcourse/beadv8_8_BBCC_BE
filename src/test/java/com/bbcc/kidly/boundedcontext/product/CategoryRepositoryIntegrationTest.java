@@ -44,7 +44,7 @@ class CategoryRepositoryIntegrationTest {
 
     @Test
     @DisplayName("최상위 카테고리를 이름으로 찾을 때 같은 이름의 하위 카테고리는 찾지 않는다")
-    void findRootByNameFindsOnlyRoot() {
+    void findTopLevelByNameFindsOnlyTopLevel() {
         Category clothing = Category.createMiddle("의류", null);
         Category goods = Category.createMiddle("잡화", null);
         Category clothingUnderGoods = Category.createMiddle("의류", goods);
@@ -54,8 +54,10 @@ class CategoryRepositoryIntegrationTest {
             entityManager.persist(clothingUnderGoods);
         });
 
-        assertThat(categoryRepository.findRootByName("의류")).map(Category::getId).contains(clothing.getId());
-        assertThat(categoryRepository.findRootByName("신발")).isEmpty();
+        inTransaction(() -> {
+            assertThat(categoryRepository.findTopLevelByName("의류")).map(Category::getId).contains(clothing.getId());
+            assertThat(categoryRepository.findTopLevelByName("신발")).isEmpty();
+        });
     }
 
     @ParameterizedTest(name = "{0}")
