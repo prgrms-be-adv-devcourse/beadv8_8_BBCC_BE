@@ -33,6 +33,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.OptimisticLock;
 import org.hibernate.type.SqlTypes;
 
 /**
@@ -136,7 +137,9 @@ public class Product extends BaseTimeEntity {
     @OrderBy("id ASC")
     private List<ProductInfoValue> infoValues = new ArrayList<>();
 
+    // mappedBy 컬렉션은 Hibernate가 version 검사에서 빼므로, 옵션만 추가해도 version이 오르도록 포함한다
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @OptimisticLock(excluded = false)
     @OrderBy("id ASC")
     private List<ProductOption> options = new ArrayList<>();
 
@@ -259,9 +262,7 @@ public class Product extends BaseTimeEntity {
         return true;
     }
 
-    /**
-     * 등록할 때 판매 시작 조건의 입력(옵션, 사이즈별 실측 · 권장 키)이 채워졌는지 검사한다. 상태는 바꾸지 않는다.
-     */
+    /** 등록할 때 판매 시작 조건의 입력(옵션, 사이즈별 실측 · 권장 키)이 채워졌는지 검사한다. 상태는 바꾸지 않는다. */
     public void validateSaleStartInputs(Category category, ProductType productType) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
