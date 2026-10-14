@@ -19,9 +19,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -118,5 +121,27 @@ class ProductTypeTest {
         assertThatThrownBy(() -> ProductType.define("의류", links))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("직접 입력 항목은 옵션 항목");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("definitionsWithNull")
+    @DisplayName("유형 이름 · 연결 목록 · 연결의 항목 · 역할 · 허용 값 목록이 null이면 거절한다")
+    void rejectTypeWithNull(ThrowingCallable define) {
+        assertThatThrownBy(define)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> definitionsWithNull() {
+        return Stream.of(
+            Named.of("유형 이름", () -> ProductType.define(null, clothingLinks())),
+            Named.of("연결 목록", () -> ProductType.define("의류", null)),
+            Named.of("연결", () -> ProductType.define("의류", Arrays.asList(requiredOption(color()), null))),
+            Named.of("연결의 항목", () -> ProductType.define("의류", List.of(requiredOption(null)))),
+            Named.of("연결의 역할", () -> ProductType.define("의류", List.of(
+                requiredOption(size()),
+                new ProductType.LinkInfo(color(), null, true, true, false, false, List.of())))),
+            Named.of("허용 값 목록", () -> ProductType.define("의류", List.of(
+                new ProductType.LinkInfo(color(), AttributeRole.OPTION, true, true, false, false, null)))));
     }
 }

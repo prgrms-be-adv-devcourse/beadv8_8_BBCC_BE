@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -49,6 +51,11 @@ public class ProductType extends BaseTimeEntity {
     private List<ProductTypeAttribute> attributes = new ArrayList<>();
 
     public static ProductType define(String name, List<LinkInfo> links) {
+        requireNonNull(name, "name은 필수입니다");
+        requireNonNull(links, "links는 필수입니다");
+        for (LinkInfo link : links) {
+            requireNonNullValues(link);
+        }
         if (!hasRequiredOption(links)) {
             throw new IllegalArgumentException("유형에는 필수 옵션 항목이 하나 이상 있어야 합니다");
         }
@@ -70,6 +77,13 @@ public class ProductType extends BaseTimeEntity {
             type.attributes.add(ProductTypeAttribute.create(type, links.get(i), i + 1));
         }
         return type;
+    }
+
+    private static void requireNonNullValues(LinkInfo link) {
+        requireNonNull(link, "link는 필수입니다");
+        requireNonNull(link.attribute(), "attribute는 필수입니다");
+        requireNonNull(link.role(), "role은 필수입니다");
+        requireNonNull(link.allowedValues(), "allowedValues는 필수입니다");
     }
 
     private static boolean hasRequiredOption(List<LinkInfo> links) {
