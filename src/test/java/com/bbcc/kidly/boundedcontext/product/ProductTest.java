@@ -24,6 +24,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -251,7 +252,7 @@ class ProductTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("registrationsWithNull")
-    @DisplayName("등록 정보 · 상품 유형 · 판매자 · 카테고리 · 상품명 · 이미지 목록 · 정보 값 목록이 null이면 거절한다")
+    @DisplayName("등록 정보 · 상품 유형 · 판매자 · 카테고리 · 상품명 · 이미지 목록 · 정보 값이 null이면 거절한다")
     void rejectProductWithNull(ThrowingCallable register) {
         assertThatThrownBy(register)
             .isInstanceOf(NullPointerException.class)
@@ -275,6 +276,15 @@ class ProductTest {
             Named.of("이미지 목록", () -> Product.register(
                 productAWithRequired(SELLER_ID, CATEGORY_ID, "상품 A", null, infoValues), type)),
             Named.of("정보 값 목록", () -> Product.register(
-                productAWithRequired(SELLER_ID, CATEGORY_ID, "상품 A", imageUrls, null), type)));
+                productAWithRequired(SELLER_ID, CATEGORY_ID, "상품 A", imageUrls, null), type)),
+            Named.of("정보 값", () -> Product.register(
+                productAWith(Collections.singletonList(null)), type)),
+            Named.of("정보 값의 항목", () -> Product.register(
+                productAWith(List.of(new InfoValueInfo(null, List.of(clothing.cotton()), null))), type)),
+            Named.of("정보 값의 값 목록", () -> Product.register(
+                productAWith(List.of(new InfoValueInfo(clothing.mainMaterial(), null, null))), type)),
+            Named.of("정보 값의 값 목록 안의 값", () -> Product.register(
+                productAWith(List.of(
+                    new InfoValueInfo(clothing.mainMaterial(), Collections.singletonList(null), null))), type)));
     }
 }

@@ -108,6 +108,7 @@ public class Product extends BaseTimeEntity {
         requireNonNull(info.imageUrls(), "imageUrls는 필수입니다");
         // null 검사는 모두 업무 규칙 검사보다 앞에 둔다. null이 섞인 호출이 업무 오류(400)로 가려지지 않게 하기 위해서다
         requireNonNull(info.name(), "name은 필수입니다");
+        requireNonNullInfoValues(info.infoValues());
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
@@ -127,6 +128,18 @@ public class Product extends BaseTimeEntity {
         product.status = ProductStatus.SALE_PENDING;
         addInfoValues(product, info.infoValues());
         return product;
+    }
+
+    // 정보 값의 항목과 값 목록, 목록 안의 값은 null이면 안 된다. 직접 입력한 글(text)은 null을 허용한다
+    private static void requireNonNullInfoValues(List<InfoValueInfo> infoValues) {
+        for (InfoValueInfo infoValue : infoValues) {
+            requireNonNull(infoValue, "infoValue는 필수입니다");
+            requireNonNull(infoValue.attribute(), "attribute는 필수입니다");
+            requireNonNull(infoValue.values(), "values는 필수입니다");
+            for (AttributeValue value : infoValue.values()) {
+                requireNonNull(value, "value는 필수입니다");
+            }
+        }
     }
 
     // 목록 값마다 한 행을, 직접 입력한 글이 있으면 그 항목의 한 행을 입력 순서대로 만든다
