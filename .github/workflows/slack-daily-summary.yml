@@ -17,7 +17,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # 요약은 별도 채널로 보낸다. 그 채널의 웹훅 시크릿이 없으면 알림 채널로 보낸다
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DAILY_SUMMARY_WEBHOOK_URL || secrets.SLACK_WEBHOOK_URL }}
           # {"GitHub아이디": "이름"} 형식의 Actions 변수. public 레포라 실명을 코드에 두지 않는다
           NAME_MAP: ${{ vars.SLACK_NAME_MAP }}
         run: |
