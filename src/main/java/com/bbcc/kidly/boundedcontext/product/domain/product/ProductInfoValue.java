@@ -54,4 +54,13 @@ public class ProductInfoValue extends BaseTimeEntity {
         infoValue.attributeValue = attributeValue;
         return infoValue;
     }
+
+    // 직접 입력 항목의 값 한 행을 만든다
+    static ProductInfoValue createText(Product product, Attribute attribute, String textValue) {
+        ProductInfoValue infoValue = new ProductInfoValue();
+        infoValue.product = product;
+        infoValue.attribute = attribute;
+        infoValue.textValue = textValue;
+        return infoValue;
+    }
 }

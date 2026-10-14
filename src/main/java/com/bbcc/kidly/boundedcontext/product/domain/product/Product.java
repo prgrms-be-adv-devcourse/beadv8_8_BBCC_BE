@@ -124,11 +124,15 @@ public class Product extends BaseTimeEntity {
         return product;
     }
 
-    // 값마다 한 행을 입력 순서대로 만든다
+    // 목록 값마다 한 행을, 직접 입력한 글이 있으면 그 항목의 한 행을 입력 순서대로 만든다
     private static void addInfoValues(Product product, List<InfoValueInfo> infoValues) {
         for (InfoValueInfo infoValue : infoValues) {
             for (AttributeValue value : infoValue.values()) {
                 product.infoValues.add(ProductInfoValue.create(product, infoValue.attribute(), value));
+            }
+            if (hasText(infoValue.text())) {
+                product.infoValues.add(
+                    ProductInfoValue.createText(product, infoValue.attribute(), infoValue.text()));
             }
         }
     }
@@ -204,10 +208,14 @@ public class Product extends BaseTimeEntity {
             if (infoValue.attribute() != attribute) {
                 continue;
             }
-            return !infoValue.values().isEmpty()
-                || (infoValue.text() != null && !infoValue.text().isEmpty());
+            return !infoValue.values().isEmpty() || hasText(infoValue.text());
         }
         return false;
+    }
+
+    // 직접 입력한 글이 있는지 판단하는 기준이다. 값 저장과 필수 항목 검사가 같은 기준을 쓴다
+    private static boolean hasText(String text) {
+        return text != null && !text.isEmpty();
     }
 
     public List<String> getImageUrls() {

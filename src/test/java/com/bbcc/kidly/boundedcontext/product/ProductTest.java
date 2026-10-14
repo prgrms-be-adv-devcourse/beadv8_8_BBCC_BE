@@ -169,6 +169,24 @@ class ProductTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.INFO_VALUE_NOT_ALLOWED));
     }
 
+    @Test
+    @DisplayName("INFO-03 주요소재 목록에 없는 소재는 기타를 고르고 혼용률에 적어 등록한다")
+    void registerOtherMaterialWithFabricComposition() {
+        Clothing clothing = clothingWithCottonOrOtherMaterial();
+        Product.RegisterInfo info = productAWith(clothing, List.of(
+            new InfoValueInfo(clothing.mainMaterial(), List.of(clothing.other()), null),
+            new InfoValueInfo(clothing.fabricComposition(), List.of(), "린넨 100%")));
+
+        Product product = Product.register(info, clothing.type());
+
+        assertThat(product.getInfoValues())
+            .extracting(
+                ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue, ProductInfoValue::getTextValue)
+            .containsExactly(
+                tuple(clothing.mainMaterial(), clothing.other(), null),
+                tuple(clothing.fabricComposition(), null, "린넨 100%"));
+    }
+
     static Stream<Named<Function<Clothing, AttributeValue>>> notAllowedMaterials() {
         return Stream.of(
             Named.of("허용 값에 없는 주요소재 린넨", Clothing::linen),
