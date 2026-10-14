@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.in.dto.MemberResponse;
+import com.bbcc.kidly.boundedcontext.seller.SellerFixture;
+import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.global.security.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -32,6 +34,9 @@ class MemberApiTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private SellerApplicationRepository sellerApplicationRepository;
 
     @Test
     @DisplayName("로그인한 회원의 id, 닉네임, 역할을 준다")
@@ -172,6 +177,19 @@ class MemberApiTest {
         assertThat(response.nickname()).isEqualTo(MemberFixture.NICKNAME);
         assertThat(memberRepository.findById(member.getId()).orElseThrow().getNickname())
             .isEqualTo(MemberFixture.NICKNAME);
+    }
+
+    @Test
+    @DisplayName("닉네임을 바꾸면 판매자 신청의 신청 회원 닉네임도 바뀐다")
+    void updateNicknameChangesSellerApplicationNickname() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+        var applicationId = sellerApplicationRepository.save(SellerFixture.application(member.getId())).getId();
+
+        patchMine(tokens.buyer(member.getId()), new MemberUpdateRequest("하은맘"))
+            .expectStatus().isOk();
+
+        // 리스너는 응답 전에 커밋 뒤 같은 스레드에서 돌아서 기다리지 않아도 된다
+        assertThat(sellerApplicationRepository.getById(applicationId).getApplicantNickname()).isEqualTo("하은맘");
     }
 
     @Test
