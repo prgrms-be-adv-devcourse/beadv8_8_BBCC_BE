@@ -4,9 +4,11 @@ import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOpti
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeduction;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
@@ -18,9 +20,12 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.assertj.core.groups.Tuple;
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -64,6 +69,38 @@ class InventoryDeductionRepositoryIntegrationTest {
         assertThat(found).containsExactlyInAnyOrder(
             tuple(ORDER_ID, 11L, option.getId(), 2, "DEDUCTED"),
             tuple(ORDER_ID, 12L, option.getId(), 1, "DEDUCTED"));
+    }
+
+    @Test
+    @DisplayName("INV-10 같은 주문상품의 차감 기록을 또 저장하면 order_item_id UNIQUE 제약이 막아 한 줄만 남는다")
+    void rejectDuplicateOrderItem() {
+        ProductOption option = savedOption();
+        inTransaction(() -> inventoryDeductionRepository.saveAll(InventoryDeductionRequest.of(ORDER_ID, List.of(
+            new InventoryDeductionRequest.Item(11L, option, 2))).deductedRecords()));
+
+        assertThatThrownBy(() -> inTransaction(() -> inventoryDeductionRepository.saveAll(
+            InventoryDeductionRequest.of(OTHER_ORDER_ID, List.of(
+                new InventoryDeductionRequest.Item(11L, option, 1))).failedRecords())))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        List<Long> orderIds = inTransaction(() -> inventoryDeductionRepository.findAllByOrderItemIdIn(List.of(11L))
+            .stream()
+            .map(InventoryDeduction::getOrderId)
+            .toList());
+        assertThat(orderIds).containsExactly(ORDER_ID);
+    }
+
+    @Test
+    @DisplayName("트랜잭션 밖에서도 조회한 차감 기록의 옵션 ID를 옵션 프록시를 초기화하지 않고 읽는다")
+    void readOptionIdOutsideTransaction() {
+        ProductOption option = savedOption();
+        inTransaction(() -> inventoryDeductionRepository.saveAll(InventoryDeductionRequest.of(ORDER_ID, List.of(
+            new InventoryDeductionRequest.Item(11L, option, 2))).deductedRecords()));
+
+        InventoryDeduction found = inTransaction(
+            () -> inventoryDeductionRepository.findAllByOrderItemIdIn(List.of(11L)).get(0));
+
+        assertThat(found.getProductOptionId()).isEqualTo(option.getId());
+        assertThat(Hibernate.isInitialized(ReflectionTestUtils.getField(found, "productOption"))).isFalse();
     }
 
     // 상품 A에 네이비 · 110 옵션을 추가해 저장하고 그 옵션을 돌려준다. 항목 · 목록 값 · 카테고리 · 실측 항목은
