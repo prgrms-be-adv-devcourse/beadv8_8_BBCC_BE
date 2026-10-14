@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
@@ -20,7 +21,10 @@ import lombok.NoArgsConstructor;
  * 판매자별 주문(주문 1건 × 판매자 1명). READY → SHIPPING → DELIVERED 순서로만 바뀐다.
  */
 @Entity
-@Table(schema = "orders", name = "delivery")
+@Table(schema = "orders", name = "delivery", indexes = @Index(
+    name = "uk_delivery_order_seller",
+    columnList = "order_id, seller_id",
+    unique = true))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Delivery extends BaseTimeEntity {
@@ -89,7 +93,13 @@ public class Delivery extends BaseTimeEntity {
         this.shippedAt = now;
     }
 
+    /**
+     * 배송 완료. 이미 완료면 그대로 둔다(두 번 눌러도 처음 시각 유지). 발송 전이면 409.
+     */
     public void complete(LocalDateTime now) {
+        if (status == Status.DELIVERED) {
+            return;
+        }
         if (status != Status.SHIPPING) {
             throw new BusinessException(OrderErrorCode.INVALID_DELIVERY_STATUS);
         }

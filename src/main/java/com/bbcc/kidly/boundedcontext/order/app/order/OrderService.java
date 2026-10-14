@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
@@ -35,6 +36,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
+    private final DeliveryRepository deliveryRepository;
     private final EventPublisher eventPublisher;
     private final Order.Policy orderPolicy;
 
@@ -58,7 +60,7 @@ public class OrderService {
                 .map(item -> new OrderCreatedEvent.Item(
                     item.getId(), item.getProduct().optionId(), item.getQuantity()))
                 .toList())));
-        return OrderDetail.from(order);
+        return OrderDetail.from(order, List.of());
     }
 
     /**
@@ -76,10 +78,29 @@ public class OrderService {
                         .toList()))));
     }
 
+    /**
+     * 결제완료로 바꾼다. 결제 시각은 이벤트 값이 아니라 지금 시각을 쓴다.
+     *
+     * @return 이번에 결제완료로 바꿨으면 true. 주문이 없거나 결제대기가 아니면 false
+     */
+    public boolean markPaid(Long orderId, Long paymentId) {
+        LocalDateTime now = LocalDateTime.now();
+        return orderRepository.findById(orderId)
+            .map(order -> order.markPaid(paymentId, now))
+            .orElse(false);
+    }
+
+    /**
+     * 그 판매자 몫 주문상품에 배송 완료 시각을 기록한다. 이미 기록돼 있으면 그대로 둔다.
+     */
+    public void recordDelivered(Long orderId, Long sellerId, LocalDateTime at) {
+        orderRepository.findById(orderId).ifPresent(order -> order.recordDelivered(sellerId, at));
+    }
+
     @Transactional(readOnly = true)
     public OrderDetail getOrder(Long memberId, Long orderId) {
         return orderRepository.findByIdAndMemberId(orderId, memberId)
-            .map(OrderDetail::from)
+            .map(order -> OrderDetail.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId)))
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
     }
 

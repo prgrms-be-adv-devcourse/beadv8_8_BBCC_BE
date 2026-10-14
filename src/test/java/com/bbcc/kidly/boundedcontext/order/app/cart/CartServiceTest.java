@@ -11,17 +11,22 @@ import com.bbcc.kidly.boundedcontext.order.app.cart.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.order.app.cart.dto.CartView;
 import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.cart.CartItem;
+import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
+import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -49,6 +54,9 @@ class CartServiceTest {
 
     @Mock
     private ChildReplicaRepository childReplicaRepository;
+
+    @Mock
+    private OrderRepository orderRepository;
 
     @InjectMocks
     private CartService cartService;
@@ -293,6 +301,51 @@ class CartServiceTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(OrderErrorCode.CART_ITEM_NOT_FOUND);
         verify(cartItemRepository, never()).delete(any());
+    }
+
+    @Nested
+    @DisplayName("결제완료 뒤 장바구니 정리")
+    class ClearOrdered {
+
+        @Test
+        @DisplayName("주문한 (회원, 옵션, 자녀)와 같은 줄만 통째로 지운다")
+        void deletesOrderedLines() {
+            Order order = Order.place(BUYER_ID, List.of(
+                    orderLine(OPTION_ID, CHILD_ID, 2),
+                    orderLine(3L, null, 1)),
+                new Order.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"),
+                new Order.Policy(Duration.ofMinutes(10), Duration.ofDays(15)), OCCURRED_AT);
+            when(orderRepository.findById(7L)).thenReturn(Optional.of(order));
+            CartItem withChild = CartItem.create(BUYER_ID, OPTION_ID, CHILD_ID, 5);
+            CartItem withoutChild = CartItem.create(BUYER_ID, 3L, null, 1);
+            when(cartItemRepository.findByMemberIdAndOptionIdAndChildId(BUYER_ID, OPTION_ID, CHILD_ID))
+                .thenReturn(Optional.of(withChild));
+            when(cartItemRepository.findByMemberIdAndOptionIdAndChildId(BUYER_ID, 3L, null))
+                .thenReturn(Optional.of(withoutChild));
+
+            cartService.clearOrdered(7L);
+
+            verify(cartItemRepository).delete(withChild);
+            verify(cartItemRepository).delete(withoutChild);
+            verify(cartItemRepository, org.mockito.Mockito.times(2)).delete(any());
+        }
+
+        @Test
+        @DisplayName("주문이 없으면 아무것도 지우지 않는다")
+        void ignoresMissingOrder() {
+            cartService.clearOrdered(7L);
+
+            verify(cartItemRepository, never()).delete(any());
+        }
+
+        private Order.RequestedItem orderLine(Long optionId, Long childId, int quantity) {
+            Order.RequestedChild child = childId == null ? null : new Order.RequestedChild(
+                new OrderItem.ChildSnapshot(childId, null, new BigDecimal("115.0"), new BigDecimal("20.0"), null),
+                BUYER_ID, false);
+            return new Order.RequestedItem(
+                new OrderItem.ProductSnapshot(1L, optionId, SELLER_ID, "상품 A", "110", 25_000L, 1L),
+                true, child, quantity, 25_000L);
+        }
     }
 
     private void assertAddFails(Long memberId, Long optionId, Long childId, int quantity,

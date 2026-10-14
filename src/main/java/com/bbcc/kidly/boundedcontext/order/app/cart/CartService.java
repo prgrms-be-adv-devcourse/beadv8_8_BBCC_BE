@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.order.app.cart.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.order.app.cart.dto.CartView;
 import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.cart.CartItem;
@@ -29,6 +30,7 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
+    private final OrderRepository orderRepository;
 
     /**
      * 확인 순서: 옵션 없음 → 자기 상품 → 판매 중 아님 → 자녀 없음 · 남의 자녀 · 삭제된 자녀 → 수량.
@@ -83,6 +85,18 @@ public class CartService {
         CartItem item = findOwnedItem(memberId, cartItemId);
         item.changeQuantity(quantity);
         return toLine(item, productReplicaRepository.findByOptionId(item.getOptionId()).orElse(null));
+    }
+
+    /**
+     * 결제완료된 주문의 (회원, 옵션, 자녀)와 같은 장바구니 줄을 수량과 상관없이 통째로 지운다.
+     */
+    public void clearOrdered(Long orderId) {
+        orderRepository.findById(orderId).ifPresent(order -> order.getItems().forEach(item ->
+            cartItemRepository.findByMemberIdAndOptionIdAndChildId(
+                    order.getMemberId(),
+                    item.getProduct().optionId(),
+                    item.getChild() == null ? null : item.getChild().childId())
+                .ifPresent(cartItemRepository::delete)));
     }
 
     public void removeItem(Long memberId, Long cartItemId) {

@@ -14,7 +14,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -143,7 +145,11 @@ public class Order extends BaseTimeEntity {
 
     private Long paymentId;
 
+    @Version
+    private Long version;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<OrderItem> items = new ArrayList<>();
 
     private Order(Long memberId, ShippingAddress shippingAddress, LocalDateTime paymentDueAt) {
@@ -194,13 +200,20 @@ public class Order extends BaseTimeEntity {
         return true;
     }
 
-    public void markPaid(Long paymentId, LocalDateTime now) {
+    /**
+     * 결제완료로 바꾼다. 결제대기일 때만 바꾸고, 중복 · 취소된 주문은 그대로 둔다.
+     * 동시에 두 번 오면 @Version이 나중 쪽을 실패시킨다.
+     *
+     * @return 이번에 결제완료로 바꿨으면 true
+     */
+    public boolean markPaid(Long paymentId, LocalDateTime now) {
         if (status != Status.PENDING_PAYMENT) {
-            return;
+            return false;
         }
         this.status = Status.PAID;
         this.paymentId = paymentId;
         this.paidAt = now;
+        return true;
     }
 
     public void cancel(CancelReason reason) {

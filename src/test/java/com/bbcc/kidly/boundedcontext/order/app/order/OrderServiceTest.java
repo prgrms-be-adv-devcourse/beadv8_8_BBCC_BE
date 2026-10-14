@@ -14,9 +14,11 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
@@ -65,6 +67,9 @@ class OrderServiceTest {
     private ChildReplicaRepository childReplicaRepository;
 
     @Mock
+    private DeliveryRepository deliveryRepository;
+
+    @Mock
     private EventPublisher eventPublisher;
 
     @Captor
@@ -75,7 +80,7 @@ class OrderServiceTest {
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
-            eventPublisher, POLICY);
+            deliveryRepository, eventPublisher, POLICY);
     }
 
     @Nested
@@ -189,8 +194,76 @@ class OrderServiceTest {
     }
 
     @Nested
+    @DisplayName("결제 완료 (payment.completed)")
+    class MarkPaid {
+
+        @Test
+        @DisplayName("결제대기 주문을 결제완료로 바꾸고 true")
+        void marksPaid() {
+            Order order = placedOrder(BUYER_ID);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            boolean paid = orderService.markPaid(ORDER_ID, 500L);
+
+            assertThat(paid).isTrue();
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(order.getPaymentId()).isEqualTo(500L);
+            assertThat(order.getPaidAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("이미 결제완료면 그대로 두고 false (중복 이벤트)")
+        void duplicateIsFalse() {
+            Order order = placedOrder(BUYER_ID);
+            order.markPaid(500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            assertThat(orderService.markPaid(ORDER_ID, 999L)).isFalse();
+            assertThat(order.getPaymentId()).isEqualTo(500L);
+        }
+
+        @Test
+        @DisplayName("주문이 없으면 false")
+        void missingOrderIsFalse() {
+            assertThat(orderService.markPaid(ORDER_ID, 500L)).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("배송 완료 기록")
+    class RecordDelivered {
+
+        @Test
+        @DisplayName("그 판매자 몫 주문상품에 배송 완료 시각을 기록한다")
+        void recordsSellersItems() {
+            Order order = placedOrder(BUYER_ID);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+            LocalDateTime at = LocalDateTime.of(2026, 10, 16, 9, 0);
+
+            orderService.recordDelivered(ORDER_ID, SELLER_ID, at);
+
+            assertThat(order.getItems()).allSatisfy(item -> assertThat(item.getDeliveredAt()).isEqualTo(at));
+        }
+    }
+
+    @Nested
     @DisplayName("주문 조회")
     class GetOrder {
+
+        @Test
+        @DisplayName("상세에 판매자별 배송을 함께 담는다")
+        void includesDeliveries() {
+            when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID))
+                .thenReturn(Optional.of(placedOrder(BUYER_ID)));
+            when(deliveryRepository.findAllByOrderIdOrderByIdAsc(ORDER_ID))
+                .thenReturn(List.of(Delivery.create(ORDER_ID, SELLER_ID)));
+
+            OrderDetail detail = orderService.getOrder(BUYER_ID, ORDER_ID);
+
+            assertThat(detail.deliveries()).hasSize(1);
+            assertThat(detail.deliveries().get(0).sellerId()).isEqualTo(SELLER_ID);
+            assertThat(detail.deliveries().get(0).status()).isEqualTo("READY");
+        }
 
         @Test
         @DisplayName("본인 주문의 상세를 돌려준다")
