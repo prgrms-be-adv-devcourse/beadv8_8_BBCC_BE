@@ -27,7 +27,7 @@ class InventoryTest {
 
         InventoryOpening opening = InventoryOpening.open(option, initialQty, SELLER_ID);
 
-        int adjustmentSum = opening.records().stream().mapToInt(InventoryAdjustmentRecord::getDeltaQty).sum();
+        int adjustmentSum = opening.adjustmentRecords().stream().mapToInt(InventoryAdjustmentRecord::getDeltaQty).sum();
         assertThat(opening.inventory().getAvailableQty()).isEqualTo(initialQty);
         assertThat(adjustmentSum).isEqualTo(initialQty);
     }
@@ -38,7 +38,7 @@ class InventoryTest {
 
         InventoryOpening opening = InventoryOpening.open(option, 10, SELLER_ID);
 
-        assertThat(opening.records())
+        assertThat(opening.adjustmentRecords())
             .extracting(InventoryAdjustmentRecord::getReason, InventoryAdjustmentRecord::getDeltaQty,
                 InventoryAdjustmentRecord::getAdjustedBy)
             .containsExactly(tuple(InventoryAdjustmentReason.INITIAL, 10, SELLER_ID));
@@ -50,7 +50,7 @@ class InventoryTest {
 
         InventoryOpening opening = InventoryOpening.open(option, 0, SELLER_ID);
 
-        assertThat(opening.records()).isEmpty();
+        assertThat(opening.adjustmentRecords()).isEmpty();
     }
 
     @Test
