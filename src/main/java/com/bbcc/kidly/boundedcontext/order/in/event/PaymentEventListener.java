@@ -44,7 +44,7 @@ public class PaymentEventListener {
         AtomicBoolean logged = new AtomicBoolean(false);
         warnIfRolledBackAtCommit(paid, logged);
         try {
-            if (!orderService.markPaid(paid.orderId(), paid.paymentId())) {
+            if (!orderService.markPaid(paid.orderId(), paid.paymentId(), paid.amount())) {
                 return;
             }
             deliveryService.createFor(paid.orderId());
@@ -93,13 +93,14 @@ public class PaymentEventListener {
     }
 
     /**
-     * 주문 ID · 결제 ID만 쓴다. 결제 시각은 주문이 지금 시각으로 정하고, 금액 · 주문상품은 비교하지 않는다.
+     * 주문 ID · 결제 ID · 결제 금액을 쓴다. 금액은 주문이 주문 총액과 비교한다(다르면 예외).
+     * 결제 시각은 주문이 지금 시각으로 정하고, 주문상품별 금액은 비교하지 않는다.
      */
     private Paid toPaid(PaymentCompletedEvent event) {
-        return new Paid(event.data().orderId(), event.data().paymentId());
+        return new Paid(event.data().orderId(), event.data().paymentId(), event.data().amount());
     }
 
-    private record Paid(Long orderId, Long paymentId) {
+    private record Paid(Long orderId, Long paymentId, long amount) {
     }
 
     /**
