@@ -18,6 +18,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.InfoValueInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -185,6 +186,30 @@ class ProductTest {
             .containsExactly(
                 tuple(clothing.mainMaterial(), clothing.other(), null),
                 tuple(clothing.fabricComposition(), null, "린넨 100%"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("notInfoAttributeValues")
+    @DisplayName("그 유형의 정보 항목이 아닌 항목에 값을 넣으면 거절한다")
+    void rejectValueOfNotInfoAttribute(Function<Clothing, InfoValueInfo> notInfoValue) {
+        Clothing clothing = clothing();
+        Product.RegisterInfo info = productAWith(clothing, List.of(
+            cottonMaterial(clothing),
+            notInfoValue.apply(clothing)));
+
+        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_INFO_ATTRIBUTE));
+    }
+
+    static Stream<Named<Function<Clothing, InfoValueInfo>>> notInfoAttributeValues() {
+        return Stream.of(
+            Named.of("유형에 없는 항목(신발 사이즈)", clothing -> {
+                Attribute shoeSize = ProductTypeFixture.shoeSize();
+                return new InfoValueInfo(shoeSize, List.of(AttributeValue.create(shoeSize, "150", null)), null);
+            }),
+            Named.of("옵션 항목(색상)", clothing -> new InfoValueInfo(
+                clothing.color(), List.of(AttributeValue.create(clothing.color(), "네이비", "#2f3e5c")), null)));
     }
 
     static Stream<Named<Function<Clothing, AttributeValue>>> notAllowedMaterials() {

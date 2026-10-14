@@ -108,6 +108,7 @@ public class Product extends BaseTimeEntity {
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
+        validateInfoAttributes(info.infoValues(), productType);
         validateInfoValues(info.infoValues());
         validateAllowedInfoValues(info.infoValues(), productType);
         validateRequiredInfoValues(info.infoValues(), productType);
@@ -133,6 +134,16 @@ public class Product extends BaseTimeEntity {
             if (hasText(infoValue.text())) {
                 product.infoValues.add(
                     ProductInfoValue.createText(product, infoValue.attribute(), infoValue.text()));
+            }
+        }
+    }
+
+    // 값을 넣은 항목은 이 유형에 정보 항목으로 연결돼 있어야 한다. 유형에 없는 항목이나 옵션 항목은 거절한다 (INFO-03)
+    private static void validateInfoAttributes(List<InfoValueInfo> infoValues, ProductType productType) {
+        for (InfoValueInfo infoValue : infoValues) {
+            ProductTypeAttribute link = findLink(productType, infoValue.attribute());
+            if (link == null || link.getRole() != AttributeRole.INFO) {
+                throw new BusinessException(ProductErrorCode.NOT_INFO_ATTRIBUTE);
             }
         }
     }
@@ -164,15 +175,14 @@ public class Product extends BaseTimeEntity {
                 if (value.getAttribute() != infoValue.attribute()) {
                     throw new BusinessException(ProductErrorCode.INFO_VALUE_NOT_ALLOWED);
                 }
-                // 유형에 없는 항목은 다른 검사에서 거절하므로 여기서는 건너뛴다
-                if (link != null && !link.isAllValuesAllowed() && !isAllowedByType(productType, value)) {
+                if (!link.isAllValuesAllowed() && !isAllowedByType(productType, value)) {
                     throw new BusinessException(ProductErrorCode.INFO_VALUE_NOT_ALLOWED);
                 }
             }
         }
     }
 
-    // 유형에서 그 항목의 연결을 찾는다. 없으면 null이다
+    // 유형에서 그 항목의 연결을 찾는다. 없으면 null이다. 정보 값의 항목은 validateInfoAttributes가 먼저 확인한다
     private static ProductTypeAttribute findLink(ProductType productType, Attribute attribute) {
         for (ProductTypeAttribute link : productType.getAttributes()) {
             if (link.getAttribute() == attribute) {
