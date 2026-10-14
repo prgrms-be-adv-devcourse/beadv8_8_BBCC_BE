@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.productA;
@@ -13,11 +14,14 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class ProductSizeSpecTest {
 
@@ -43,5 +47,24 @@ class ProductSizeSpecTest {
             .containsExactly(
                 tuple(clothing.size110(), 105, 115, top110Measurements()),
                 tuple(clothing.size120(), 115, 125, top120Measurements()));
+    }
+
+    @ParameterizedTest(name = "{0} ~ {1}")
+    @CsvSource({"130, 120", "105, ", ", 115"})
+    @DisplayName("SIZE-03 권장 키 범위의 최솟값이 최댓값보다 크거나 한쪽만 있으면 거절한다")
+    void rejectInvalidHeightRange(Integer minHeightCm, Integer maxHeightCm) {
+        withOptions110And120();
+
+        assertRejected(() -> product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), minHeightCm, maxHeightCm, top110Measurements()))), top, clothing.type()),
+            ProductErrorCode.INVALID_HEIGHT_RANGE);
+        assertThat(product.getSizeSpecs()).isEmpty();
+    }
+
+    // 상품 A에 네이비 110 · 120 옵션을 붙인다
+    private void withOptions110And120() {
+        product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.size110()),
+            option(clothing.navy(), clothing.size120()))), clothing.type());
     }
 }

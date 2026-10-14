@@ -26,7 +26,9 @@ public enum ProductErrorCode implements ErrorCode {
     OPTION_VALUE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "허용되지 않은 옵션 값입니다", "이 상품 유형에서 고를 수 있는 옵션 값을 넣어 주세요."),
     DUPLICATE_OPTION(HttpStatus.CONFLICT, "이미 있는 옵션입니다", "같은 값 묶음의 옵션은 하나만 등록할 수 있습니다."),
     OPTION_ATTRIBUTES_MISMATCH(HttpStatus.BAD_REQUEST, "옵션 항목 묶음이 다릅니다", "한 상품의 옵션은 모두 같은 옵션 항목으로 만들어 주세요."),
-    SIZE_FREE_MIXED(HttpStatus.BAD_REQUEST, "FREE와 숫자 사이즈를 섞을 수 없습니다", "한 상품의 사이즈는 모두 FREE이거나 모두 숫자여야 합니다.");
+    SIZE_FREE_MIXED(HttpStatus.BAD_REQUEST, "FREE와 숫자 사이즈를 섞을 수 없습니다", "한 상품의 사이즈는 모두 FREE이거나 모두 숫자여야 합니다."),
+    INVALID_HEIGHT_RANGE(HttpStatus.BAD_REQUEST, "권장 키 범위가 올바르지 않습니다",
+        "권장 키는 최솟값과 최댓값을 함께 넣고, 최솟값이 최댓값보다 크지 않게 넣어 주세요.");
 
     private final HttpStatus status;
     private final String title;

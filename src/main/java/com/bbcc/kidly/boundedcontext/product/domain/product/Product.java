@@ -206,9 +206,12 @@ public class Product extends BaseTimeEntity {
      * 사이즈 값마다 실측과 권장 키를 받은 순서대로 추가한다.
      */
     public void addSizeSpecs(AddSizeSpecsInfo info, Category category, ProductType productType) {
+        ProductSizeSpecs.validateHeightRanges(info.specs());
+        List<SizeSpec> created = new ArrayList<>();
         for (SizeSpecInfo spec : info.specs()) {
-            sizeSpecs.add(SizeSpec.create(this, spec));
+            created.add(SizeSpec.create(this, spec));
         }
+        sizeSpecs.addAll(created);
     }
 
     // 사이즈 무관 여부는 칸에 저장하지 않고 옵션의 사이즈 값으로 계산한다 (SIZE-02)
