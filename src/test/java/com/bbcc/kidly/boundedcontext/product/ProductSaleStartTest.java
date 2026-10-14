@@ -58,11 +58,19 @@ class ProductSaleStartTest {
         assertSaleStartRejected("판매를 시작할 수 없습니다. 옵션이 하나 이상 있어야 합니다.");
     }
 
+    @Test
+    @DisplayName("SALE-03 옵션이 쓰는 사이즈 값에 실측이 없으면 판매를 시작할 수 없다")
+    void rejectStartSaleWithoutSizeSpec() {
+        withOptions110And120();
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), 105, 115, top110Measurements()))), top, clothing.type());
+
+        assertSaleStartRejected("판매를 시작할 수 없습니다. 120 사이즈에 실측이 없습니다.");
+    }
+
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
     private void withOptionsAndSizeSpecs110And120() {
-        product.addOptions(addOptions(List.of(
-            option(clothing.navy(), clothing.size110()),
-            option(clothing.navy(), clothing.size120()))), clothing.type());
+        withOptions110And120();
         product.addSizeSpecs(addSizeSpecs(List.of(
             spec(clothing.size110(), 105, 115, top110Measurements()),
             spec(clothing.size120(), 115, 125, top120Measurements()))), top, clothing.type());
@@ -76,5 +84,12 @@ class ProductSaleStartTest {
                 assertThat(e.getDetail()).isEqualTo(detail);
             });
         assertThat(product.getStatus()).isEqualTo(ProductStatus.SALE_PENDING);
+    }
+
+    // 상품 A에 네이비 110 · 120 옵션을 붙인다
+    private void withOptions110And120() {
+        product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.size110()),
+            option(clothing.navy(), clothing.size120()))), clothing.type());
     }
 }

@@ -14,6 +14,7 @@ import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -106,7 +107,7 @@ final class ProductOptions {
         boolean hasNumber = false;
         for (List<AttributeValue> values : valueLists) {
             for (AttributeValue value : values) {
-                if (!isSizeRole(value, productType)) {
+                if (!productType.isSizeValue(value)) {
                     continue;
                 }
                 if (FREE_SIZE.equals(value.getName())) {
@@ -137,8 +138,22 @@ final class ProductOptions {
         return !lists.isEmpty();
     }
 
-    static boolean isSizeRole(AttributeValue value, ProductType productType) {
-        return productType.findLink(value.getAttribute()).filter(ProductTypeAttribute::isSizeRole).isPresent();
+    // 보관하지 않은 옵션이 쓰는 사이즈 값을 옵션에 처음 나온 순서대로 모은다. 같은 사이즈는 한 번만 담는다
+    static Set<AttributeValue> activeSizeValues(List<ProductOption> options, ProductType productType) {
+        Set<AttributeValue> sizeValues = new LinkedHashSet<>();
+        for (List<AttributeValue> values : activeValueLists(options)) {
+            for (AttributeValue value : values) {
+                if (productType.isSizeValue(value)) {
+                    sizeValues.add(value);
+                }
+            }
+        }
+        return sizeValues;
+    }
+
+    // 보관하지 않은 옵션이 하나라도 있는지 본다
+    static boolean hasActiveOptions(List<ProductOption> options) {
+        return !activeOptions(options).isEmpty();
     }
 
     // 같은 값 묶음의 옵션은 하나만 둔다. 이미 있는 옵션(보관 제외)과 요청 안의 옵션을 모두 보고,
@@ -153,7 +168,7 @@ final class ProductOptions {
     }
 
     // 이미 있는 옵션(보관 제외)의 값 목록이다
-    static List<List<AttributeValue>> activeValueLists(List<ProductOption> existing) {
+    private static List<List<AttributeValue>> activeValueLists(List<ProductOption> existing) {
         List<List<AttributeValue>> lists = new ArrayList<>();
         for (ProductOption option : activeOptions(existing)) {
             lists.add(valuesOf(option));

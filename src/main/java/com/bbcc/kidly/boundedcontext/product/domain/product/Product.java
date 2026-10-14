@@ -236,7 +236,7 @@ public class Product extends BaseTimeEntity {
         if (status == ProductStatus.ON_SALE) {
             return false;
         }
-        List<String> missing = SaleStartConditions.missingItems(options);
+        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, productType);
         if (!missing.isEmpty()) {
             throw new BusinessException(ProductErrorCode.SALE_START_CONDITION_NOT_MET,
                 "판매를 시작할 수 없습니다. " + String.join(" ", missing));
