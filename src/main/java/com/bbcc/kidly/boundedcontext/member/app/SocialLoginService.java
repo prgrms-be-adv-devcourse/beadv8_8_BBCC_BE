@@ -9,13 +9,12 @@ import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.global.error.BusinessException;
-import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 /**
  * 소셜 계정으로 로그인한다. 처음이면 가입시킨다. 토큰은 {@link AuthTokenService}가 발급한다.
@@ -26,10 +25,9 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class SocialLoginService {
 
-    private static final String DEFAULT_NICKNAME_PREFIX = "회원";
-
     private final MemberRepository memberRepository;
     private final MemberRegistrar memberRegistrar;
+    private final NicknamePolicy nicknamePolicy;
     private final OAuthClient oauthClient;
 
     // provider는 URL 경로의 소문자 이름(kakao)이다
@@ -47,19 +45,12 @@ public class SocialLoginService {
     // 같은 소셜 계정으로 동시에 처음 로그인하면 한 요청만 가입되고, 나머지는 그 회원으로 로그인한다
     private Member register(OAuthProvider provider, OAuthProfile profile) {
         try {
-            return memberRegistrar.register(
-                new MemberLoginRequest(provider, profile.providerUserId(), nicknameOf(profile)));
+            var nickname = nicknamePolicy.generate(profile.nickname());
+            return memberRegistrar.register(new MemberLoginRequest(provider, profile.providerUserId(), nickname));
         } catch (DataIntegrityViolationException e) {
+            // 닉네임이 겹쳐 실패하면 소셜 계정으로 다시 찾지 못하므로 그대로 던진다 (409)
             return memberRepository.findBySocialAccount(provider, profile.providerUserId())
                 .orElseThrow(() -> e);
         }
-    }
-
-    // 닉네임은 사용자가 제공에 동의해야 온다. 없으면 "회원" + 숫자 4자리로 가입하고, 나중에 회원이 바꾼다
-    private String nicknameOf(OAuthProfile profile) {
-        if (StringUtils.hasText(profile.nickname())) {
-            return profile.nickname();
-        }
-        return DEFAULT_NICKNAME_PREFIX + ThreadLocalRandom.current().nextInt(1000, 10000);
     }
 }

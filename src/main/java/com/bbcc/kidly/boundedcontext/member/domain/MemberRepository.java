@@ -15,4 +15,9 @@ public interface MemberRepository {
     }
 
     Optional<Member> findBySocialAccount(OAuthProvider provider, String providerUserId);
+
+    boolean existsByNickname(String nickname);
+
+    // 자신을 빼고 다른 회원이 쓰는 닉네임인지
+    boolean existsByNicknameAndIdNot(String nickname, Long id);
 }
