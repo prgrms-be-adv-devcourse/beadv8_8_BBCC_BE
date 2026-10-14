@@ -139,6 +139,22 @@ class ProductTest {
                 new InfoValueInfo(clothing.mainMaterial(), List.of(), null))));
     }
 
+    @Test
+    @DisplayName("INFO-02 선택 정보 항목은 비워도 등록한다")
+    void registerWithEmptyOptionalInfoValues() {
+        Clothing clothing = clothing();
+        Product.RegisterInfo info = productAWith(clothing, List.of(
+            cottonMaterial(clothing),
+            new InfoValueInfo(clothing.fabricComposition(), List.of(), null),
+            new InfoValueInfo(clothing.feature(), List.of(), null)));
+
+        Product product = Product.register(info, clothing.type());
+
+        assertThat(product.getInfoValues())
+            .extracting(ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue)
+            .containsExactly(tuple(clothing.mainMaterial(), clothing.cotton()));
+    }
+
     // 정보 값은 테스트가 만든 유형의 항목 객체로 만들어야 하므로, 의류를 받아 정보 값을 만드는 함수를 넘긴다
     static Stream<Named<Function<Clothing, List<InfoValueInfo>>>> duplicatedInfoValues() {
         return Stream.of(
