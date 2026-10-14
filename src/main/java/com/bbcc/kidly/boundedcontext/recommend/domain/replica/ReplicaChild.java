@@ -22,8 +22,9 @@ import lombok.NoArgsConstructor;
 /**
  * 추천이 사이즈를 계산하려고 자녀 정보 변경됨 이벤트에서 옮겨 둔 자녀 정보다.
  * 삭제된 자녀도 조회되어야 늦게 도착한 이전 이벤트로 복사본이 다시 생기지 않으므로 {@code @SQLRestriction}을 붙이지 않는다.
+ * 주문 도메인에도 같은 이름의 복사본 엔티티가 있어서, JPA 엔티티 이름이 겹치지 않게 앞에 도메인 이름을 붙인다.
  */
-@Entity
+@Entity(name = "RecommendReplicaChild")
 @Table(schema = "recommend", name = "replica_child")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -76,6 +77,7 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
 
     /**
      * 저장된 시각보다 늦게 일어난 변경만 덮어쓴다. 같은 이벤트를 다시 받거나 이전 이벤트가 늦게 도착해도 값이 되돌아가지 않는다.
+     * 삭제 이벤트면 그 발생 시각으로 삭제 표시를 남기고, 한 번 삭제된 복사본은 되돌리지 않는다.
      */
     public void applyIfNewer(ChangeInfo info) {
         requireValues(info);
