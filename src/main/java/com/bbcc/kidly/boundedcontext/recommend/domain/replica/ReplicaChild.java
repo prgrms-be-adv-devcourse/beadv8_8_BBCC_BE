@@ -67,14 +67,22 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
     public static ReplicaChild create(ChangeInfo info) {
         ReplicaChild child = new ReplicaChild();
         child.childProfileId = info.childProfileId();
-        child.memberId = info.memberId();
-        child.heightCm = info.heightCm();
-        child.weightKg = info.weightKg();
-        child.gender = info.gender();
-        child.birthDate = info.birthDate();
-        child.bodyType = info.bodyType();
-        child.preferredFit = info.preferredFit();
-        child.eventOccurredAt = info.occurredAt();
+        child.apply(info);
         return child;
+    }
+
+    public void applyIfNewer(ChangeInfo info) {
+        apply(info);
+    }
+
+    private void apply(ChangeInfo info) {
+        this.memberId = info.memberId();
+        this.heightCm = info.heightCm();
+        this.weightKg = info.weightKg();
+        this.gender = info.gender();
+        this.birthDate = info.birthDate();
+        this.bodyType = info.bodyType();
+        this.preferredFit = info.preferredFit();
+        this.eventOccurredAt = info.occurredAt();
     }
 }
