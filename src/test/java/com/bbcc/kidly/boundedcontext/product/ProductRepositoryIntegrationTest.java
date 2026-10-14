@@ -17,11 +17,18 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -70,6 +77,33 @@ class ProductRepositoryIntegrationTest {
             managedCategory(), managedType()));
 
         assertThat(version(productId)).isGreaterThan(before);
+    }
+
+    @Test
+    @DisplayName("OPT-03 같은 상품에 같은 옵션을 두 요청이 동시에 추가하면 하나만 저장되고 나머지는 version 충돌로 실패한다")
+    void concurrentSameOptionAdditionsSaveOnlyOne() throws Exception {
+        Long productId = savedProductA();
+        // 두 요청이 모두 옵션을 추가한 뒤에 커밋하도록 맞춰, 둘 다 같은 version의 상품을 고치게 한다
+        CyclicBarrier bothAdded = new CyclicBarrier(2);
+        Callable<Void> addNavy110 = () -> {
+            inTransaction(() -> {
+                productRepository.findById(productId).orElseThrow().addOptions(
+                    addOptions(List.of(option(managed(clothing.navy()), managed(clothing.size110())))), managedType());
+                await(bothAdded);
+            });
+            return null;
+        };
+        List<Future<Void>> results;
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            results = executor.invokeAll(List.of(addNavy110, addNavy110));
+        }
+
+        assertThat(results).filteredOn(result -> result.state() == Future.State.FAILED)
+            .singleElement()
+            .satisfies(result -> assertThat(result.exceptionNow())
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class));
+        assertThat(optionCount(productId)).isEqualTo(1);
     }
 
     // 상품 A를 저장하고 네이비 110 옵션을 붙인 뒤 ID를 돌려준다
@@ -121,6 +155,19 @@ class ProductRepositoryIntegrationTest {
 
     private AttributeValue managed(AttributeValue value) {
         return entityManager.find(AttributeValue.class, value.getId());
+    }
+
+    private long optionCount(Long productId) {
+        return jdbcTemplate.queryForObject(
+            "select count(*) from product.product_option where product_id = ?", Long.class, productId);
+    }
+
+    private static void await(CyclicBarrier barrier) {
+        try {
+            barrier.await();
+        } catch (InterruptedException | BrokenBarrierException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private long version(Long productId) {
