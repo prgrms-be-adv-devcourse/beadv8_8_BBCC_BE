@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.replica;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
@@ -75,8 +77,9 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     }
 
     public static RecommendReplicaProduct create(ChangeInfo info) {
+        requireValues(info);
         RecommendReplicaProduct product = new RecommendReplicaProduct();
-        product.productId = info.productId();
+        product.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         product.apply(info);
         return product;
     }
@@ -86,10 +89,24 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
      * 반영할 때는 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄도 새 옵션으로 다시 채운다.
      */
     public void applyIfNewer(ChangeInfo info) {
+        requireValues(info);
         if (!info.occurredAt().isAfter(eventOccurredAt)) {
             return;
         }
         apply(info);
+    }
+
+    // 값을 하나도 바꾸기 전에 옵션의 사이즈까지 검사해서, 실패하면 복사본이 그대로 남도록 한다
+    private static void requireValues(ChangeInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        requireNonNull(info.status(), "status는 필수입니다");
+        requireNonNull(info.registeredAt(), "registeredAt은 필수입니다");
+        requireNonNull(info.options(), "options는 필수입니다");
+        requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
+        for (OptionInfo option : info.options()) {
+            requireNonNull(option.size(), "size는 필수입니다");
+        }
     }
 
     private void apply(ChangeInfo info) {

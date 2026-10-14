@@ -7,6 +7,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_CHANGED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
@@ -15,6 +16,7 @@ import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,16 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class RecommendReplicaProductTest {
+
+    private static final LocalDateTime LATER = PRODUCT_CHANGED_AT.plusMinutes(1);
+
+    private static final List<RecommendReplicaProduct.OptionInfo> OPTIONS =
+        List.of(new RecommendReplicaProduct.OptionInfo("130", 125, 135));
+
+    // 앞 옵션은 올바르므로, 값을 검사하기 전에 사이즈 줄을 고치기 시작하면 덮어쓰기 거절 테스트가 실패한다
+    private static final List<RecommendReplicaProduct.OptionInfo> OPTIONS_WITH_NULL_SIZE = List.of(
+        new RecommendReplicaProduct.OptionInfo("130", 125, 135),
+        new RecommendReplicaProduct.OptionInfo(null, 135, 145));
 
     @Test
     @DisplayName("처음 받은 상품 정보로 복사본을 만든다")
@@ -126,5 +138,80 @@ class RecommendReplicaProductTest {
                     new RecommendReplicaProduct.OptionInfo("120", 115, null),
                     new RecommendReplicaProduct.OptionInfo("130", 125, 135)),
                 ProductSizes.of(false, List.of(SizeRange.of("130", 125, 135)))));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("creationsWithNull")
+    @DisplayName("상품 정보에 필수 값이 없으면 복사본을 만들지 않는다")
+    void rejectCreationWithNull(ThrowingCallable creation) {
+        assertThatThrownBy(creation)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> creationsWithNull() {
+        return Stream.of(
+            Named.of("상품 정보", () -> RecommendReplicaProduct.create(null)),
+            Named.of("상품 ID", () -> RecommendReplicaProduct.create(
+                change(null, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER))),
+            Named.of("판매자 ID", () -> RecommendReplicaProduct.create(
+                change(PRODUCT_A_ID, null, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER))),
+            Named.of("판매 상태", () -> RecommendReplicaProduct.create(
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, null, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER))),
+            Named.of("상품 등록 시각", () -> RecommendReplicaProduct.create(
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, null, OPTIONS, LATER))),
+            Named.of("옵션 목록", () -> RecommendReplicaProduct.create(
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, null,
+                    LATER))),
+            Named.of("옵션의 사이즈", () -> RecommendReplicaProduct.create(
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT,
+                    OPTIONS_WITH_NULL_SIZE, LATER))),
+            Named.of("이벤트 발생 시각", () -> RecommendReplicaProduct.create(
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, OPTIONS,
+                    null))));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesWithNull")
+    @DisplayName("상품 정보에 필수 값이 없으면 복사본을 덮어쓰지 않고 이전 값을 그대로 둔다")
+    void rejectChangeWithNull(RecommendReplicaProduct.ChangeInfo change) {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        assertThatThrownBy(() -> replica.applyIfNewer(change))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+        assertThat(replica)
+            .extracting(
+                RecommendReplicaProduct::getSellerId,
+                RecommendReplicaProduct::getStatus,
+                RecommendReplicaProduct::getProductRegisteredAt,
+                RecommendReplicaProduct::getEventOccurredAt)
+            .containsExactly(PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, PRODUCT_CHANGED_AT);
+        assertThat(replica.toProductSizes()).isEqualTo(ProductSizes.of(false, List.of(
+            SizeRange.of("110", 105, 115),
+            SizeRange.of("120", 115, 125))));
+    }
+
+    static Stream<Named<RecommendReplicaProduct.ChangeInfo>> changesWithNull() {
+        return Stream.of(
+            Named.of("상품 정보", null),
+            Named.of("판매자 ID",
+                change(PRODUCT_A_ID, null, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER)),
+            Named.of("판매 상태",
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, null, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER)),
+            Named.of("상품 등록 시각",
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, null, OPTIONS, LATER)),
+            Named.of("옵션 목록",
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, null, LATER)),
+            Named.of("옵션의 사이즈", change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE,
+                PRODUCT_A_REGISTERED_AT, OPTIONS_WITH_NULL_SIZE, LATER)),
+            Named.of("이벤트 발생 시각", change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE,
+                PRODUCT_A_REGISTERED_AT, OPTIONS, null)));
+    }
+
+    private static RecommendReplicaProduct.ChangeInfo change(Long productId, Long sellerId, ProductStatus status,
+        LocalDateTime registeredAt, List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
+        return new RecommendReplicaProduct.ChangeInfo(productId, sellerId, PRODUCT_A_CATEGORY_ID, status,
+            PRODUCT_A_THUMBNAIL_URL, registeredAt, false, options, occurredAt);
     }
 }
