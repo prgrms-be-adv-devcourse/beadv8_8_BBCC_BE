@@ -128,6 +128,18 @@ class InventoryRepositoryIntegrationTest {
         assertThat(availableQty(option)).isZero();
     }
 
+    @Test
+    @DisplayName("차감하면 재고 행의 수정 시각이 차감한 시각으로 바뀐다")
+    void updateTimestampOnDeduction() {
+        ProductOption option = openedOption(10);
+
+        inTransaction(() -> inventoryRepository.deductIfAvailable(option.getId(), 1, NOW));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "select updated_at from product.inventory where product_option_id = ?", LocalDateTime.class, option.getId()))
+            .isEqualTo(NOW);
+    }
+
     // 판매 가능 수량 stock으로 재고를 연 옵션을 돌려준다
     private ProductOption openedOption(int stock) {
         ProductOption option = savedOption();
