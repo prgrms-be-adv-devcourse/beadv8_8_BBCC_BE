@@ -42,7 +42,7 @@ public final class RecommendFixture {
     public static final LocalDateTime CHILD_CHANGED_AT = LocalDateTime.of(2026, 10, 15, 10, 0);
 
     /**
-     * 구매확정의 주문 · 주문상품 · 상품 · 옵션 ID. ID마다 다른 값을 써서 두 칸을 바꿔 넣으면 테스트가 실패하게 한다.
+     * 아래 네 상수는 구매확정에 쓰는 주문 · 주문상품 · 상품 · 옵션 ID다. ID마다 다른 값을 써서 두 칸을 바꿔 넣으면 테스트가 실패하게 한다.
      */
     public static final Long ORDER_ID = 100L;
 
@@ -65,7 +65,7 @@ public final class RecommendFixture {
     }
 
     /**
-     * 위와 같은 구매확정에서 자녀만 바꾼다. 자녀를 고르지 않았으면 null이다.
+     * {@link #purchaseConfirmation()}과 같은 구매확정에서 자녀만 바꾼다. 자녀를 고르지 않았으면 null이다.
      */
     public static PurchaseRecord.RecordInfo purchaseConfirmationFor(Long childProfileId) {
         return new PurchaseRecord.RecordInfo(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, childProfileId, PRODUCT_A_ID,

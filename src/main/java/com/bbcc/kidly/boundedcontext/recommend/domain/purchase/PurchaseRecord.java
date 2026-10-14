@@ -16,7 +16,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * 구매확정 이벤트를 받아 주문상품 하나마다 남기는 구매 기록이다.
- * 다른 도메인의 ID는 FK 없이 값으로만 참조한다. 이벤트를 다시 받을 수 없으므로, 첫 버전에서 읽지 않는 칸도 함께 저장한다.
+ * 다른 도메인의 ID는 FK 없이 값으로만 참조한다.
+ * 이벤트를 다시 받을 수 없으므로, 첫 버전에서 읽지 않는 주문 ID · 회원 ID · 옵션 ID도 함께 저장한다.
  */
 @Entity
 @Table(schema = "recommend", name = "purchase_record")

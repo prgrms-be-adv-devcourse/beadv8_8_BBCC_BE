@@ -52,18 +52,25 @@ class PurchaseRecordTest {
         assertThat(PurchaseRecord.isRecordable(RecommendFixture.purchaseConfirmationFor(null))).isFalse();
     }
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("confirmationsWithNull")
-    @DisplayName("구매확정 값에 필수 값이 없으면 기록을 만들지 않는다")
-    void rejectConfirmationWithNull(ThrowingCallable record) {
-        assertThatThrownBy(record)
+    @Test
+    @DisplayName("기록 대상을 판단할 구매확정 값이 없으면 거절한다")
+    void rejectRecordableCheckWithNull() {
+        assertThatThrownBy(() -> PurchaseRecord.isRecordable(null))
             .isInstanceOf(NullPointerException.class)
             .hasMessageContaining("필수입니다");
     }
 
-    static Stream<Named<ThrowingCallable>> confirmationsWithNull() {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("creationsWithNull")
+    @DisplayName("구매확정 값에 필수 값이 없으면 기록을 만들지 않는다")
+    void rejectCreationWithNull(ThrowingCallable creation) {
+        assertThatThrownBy(creation)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> creationsWithNull() {
         return Stream.of(
-            Named.of("기록 대상 판단 때 구매확정 값", () -> PurchaseRecord.isRecordable(null)),
             Named.of("구매확정 값", () -> PurchaseRecord.create(null)),
             Named.of("주문상품 ID", () -> PurchaseRecord.create(new PurchaseRecord.RecordInfo(
                 null, ORDER_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120",
