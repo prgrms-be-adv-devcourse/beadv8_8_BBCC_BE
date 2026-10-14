@@ -65,7 +65,8 @@ class InventoryRepositoryIntegrationTest {
 
         assertThat(availableQty(option)).isEqualTo(10);
         assertThat(jdbcTemplate.query(
-            "select reason, delta_qty, adjusted_by from product.inventory_adjustment_record where product_option_id = ?",
+            "select reason, delta_qty, adjusted_by from product.inventory_adjustment_record"
+                + " where product_option_id = ?",
             (rs, rowNum) -> tuple(rs.getString("reason"), rs.getInt("delta_qty"), rs.getLong("adjusted_by")),
             option.getId()))
             .containsExactly(tuple("INITIAL", 10, SELLER_ID));
@@ -136,7 +137,8 @@ class InventoryRepositoryIntegrationTest {
         inTransaction(() -> inventoryRepository.deductIfAvailable(option.getId(), 1, NOW));
 
         assertThat(jdbcTemplate.queryForObject(
-            "select updated_at from product.inventory where product_option_id = ?", LocalDateTime.class, option.getId()))
+            "select updated_at from product.inventory where product_option_id = ?",
+            LocalDateTime.class, option.getId()))
             .isEqualTo(NOW);
     }
 
