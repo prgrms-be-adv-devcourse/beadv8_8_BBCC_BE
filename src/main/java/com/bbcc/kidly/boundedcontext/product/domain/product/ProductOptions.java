@@ -14,12 +14,14 @@ import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * 옵션을 추가할 때 옵션 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addOptions만 쓴다.
+ * 옵션 목록 전체를 함께 보는 검사와 계산(보관 제외 옵션, 사이즈 값, FREE 판단)을 모은다.
+ * Product.addOptions, ProductSizeSpecs, SaleStartConditions가 쓴다.
  */
 final class ProductOptions {
 
@@ -27,6 +29,11 @@ final class ProductOptions {
     private static final String FREE_SIZE = "FREE";
 
     private ProductOptions() {
+    }
+
+    // 사이즈 값이 FREE인지 본다 (SIZE-02)
+    static boolean isFreeValue(AttributeValue value) {
+        return FREE_SIZE.equals(value.getName());
     }
 
     // 옵션 목록과 가격 목록, 그 안의 값은 null이면 안 된다. SKU 코드는 null을 허용한다
@@ -106,10 +113,10 @@ final class ProductOptions {
         boolean hasNumber = false;
         for (List<AttributeValue> values : valueLists) {
             for (AttributeValue value : values) {
-                if (!isSizeRole(value, productType)) {
+                if (!productType.isSizeValue(value)) {
                     continue;
                 }
-                if (FREE_SIZE.equals(value.getName())) {
+                if (isFreeValue(value)) {
                     hasFree = true;
                 } else {
                     hasNumber = true;
@@ -128,7 +135,7 @@ final class ProductOptions {
         for (List<AttributeValue> values : lists) {
             boolean hasFree = false;
             for (AttributeValue value : values) {
-                hasFree = hasFree || FREE_SIZE.equals(value.getName());
+                hasFree = hasFree || isFreeValue(value);
             }
             if (!hasFree) {
                 return false;
@@ -137,8 +144,22 @@ final class ProductOptions {
         return !lists.isEmpty();
     }
 
-    private static boolean isSizeRole(AttributeValue value, ProductType productType) {
-        return productType.findLink(value.getAttribute()).filter(ProductTypeAttribute::isSizeRole).isPresent();
+    // 보관하지 않은 옵션이 쓰는 사이즈 값을 옵션에 처음 나온 순서대로 모은다. 같은 사이즈는 한 번만 담는다
+    static Set<AttributeValue> activeSizeValues(List<ProductOption> options, ProductType productType) {
+        Set<AttributeValue> sizeValues = new LinkedHashSet<>();
+        for (List<AttributeValue> values : activeValueLists(options)) {
+            for (AttributeValue value : values) {
+                if (productType.isSizeValue(value)) {
+                    sizeValues.add(value);
+                }
+            }
+        }
+        return sizeValues;
+    }
+
+    // 보관하지 않은 옵션이 하나라도 있는지 본다
+    static boolean hasActiveOptions(List<ProductOption> options) {
+        return !activeOptions(options).isEmpty();
     }
 
     // 같은 값 묶음의 옵션은 하나만 둔다. 이미 있는 옵션(보관 제외)과 요청 안의 옵션을 모두 보고,

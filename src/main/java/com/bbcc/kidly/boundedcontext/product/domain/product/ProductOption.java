@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.domain.product;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -25,7 +26,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 상품이 파는 옵션 하나다. 옵션 항목마다 값 하나를 가지며, 새 옵션은 판매중 상태로 만들어진다.
- * 옵션을 바꾸는 일은 상품의 version으로 막으므로 이 행에는 version을 두지 않는다.
+ * 이 행을 동시에 바꾸는 일은 상품의 version이 막으므로 이 행에는 version을 두지 않는다.
  */
 @Entity
 @Table(schema = "product", name = "product_option")
@@ -71,6 +72,12 @@ public class ProductOption extends BaseTimeEntity {
             option.values.add(ProductOptionValue.create(option, value));
         }
         return option;
+    }
+
+    // 옵션을 살 수 있는지는 이 메서드 하나에서 판단한다. 상품과 옵션이 모두 판매중이어야 한다 (SALE-04)
+    public boolean isPurchasable() {
+        // 상품은 지연 로딩 프록시일 수 있고, getter를 부르면 프록시가 초기화돼 실제 상태를 돌려준다
+        return product.getStatus() == ProductStatus.ON_SALE && saleStatus == ProductOptionStatus.ON_SALE;
     }
 
     // 옵션 이름은 저장하지 않고 옵션 값으로 만든다. 옵션 값은 유형의 항목 순서로 저장돼 있다 (OPT-09)
