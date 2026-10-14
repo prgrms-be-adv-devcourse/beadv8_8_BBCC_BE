@@ -17,7 +17,8 @@ public enum ProductErrorCode implements ErrorCode {
     INFO_VALUE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "허용되지 않은 값입니다", "이 상품 유형에서 고를 수 있는 값을 넣어 주세요."),
     NOT_INFO_ATTRIBUTE(HttpStatus.BAD_REQUEST, "이 상품 유형의 정보 항목이 아닙니다", "상품 유형의 정보 항목에만 값을 넣어 주세요."),
     INPUT_TYPE_MISMATCH(HttpStatus.BAD_REQUEST, "입력 방식에 맞지 않는 값입니다", "목록 항목은 값을 고르고, 직접 입력 항목은 글자를 적어 주세요."),
-    PRICE_GROUP_MISMATCH(HttpStatus.BAD_REQUEST, "가격 구분 묶음의 가격이 맞지 않습니다", "가격 구분 묶음마다 가격을 하나씩 넣어 주세요.");
+    PRICE_GROUP_MISMATCH(HttpStatus.BAD_REQUEST, "가격 구분 묶음의 가격이 맞지 않습니다", "가격 구분 묶음마다 가격을 하나씩 넣어 주세요."),
+    NOT_PRODUCT_OWNER(HttpStatus.FORBIDDEN, "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
 
     private final HttpStatus status;
     private final String title;

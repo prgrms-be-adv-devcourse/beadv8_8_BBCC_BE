@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -153,6 +154,10 @@ public class Product extends BaseTimeEntity {
      * 옵션을 판매중 상태로 추가한다. 하나라도 잘못되면 하나도 추가하지 않는다.
      */
     public void addOptions(AddOptionsInfo info, ProductType productType) {
+        // 등록한 판매자만 옵션을 추가할 수 있다 (OPT-08)
+        if (!sellerId.equals(info.sellerId())) {
+            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
+        }
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
             long price = ProductOptions.findPrice(option.values(), info.prices(), productType);

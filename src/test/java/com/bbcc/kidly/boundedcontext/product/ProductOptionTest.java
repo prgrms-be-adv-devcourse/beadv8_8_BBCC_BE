@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.CLOTHING_PRICE;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingPrice;
@@ -51,6 +53,20 @@ class ProductOptionTest {
         assertThat(product.getOptions())
             .extracting(ProductOption::getName)
             .containsExactly("색상: 네이비 / 사이즈: 110", "색상: 네이비 / 사이즈: 120");
+    }
+
+    @Test
+    @DisplayName("OPT-08 상품을 등록한 판매자가 아니면 옵션을 추가할 수 없다")
+    void rejectOptionsFromOtherSeller() {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+        Product.AddOptionsInfo info = new Product.AddOptionsInfo(
+            OTHER_SELLER_ID, List.of(option(clothing.navy(), clothing.size110())), clothingPrice(CLOTHING_PRICE));
+
+        assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_PRODUCT_OWNER));
+        assertThat(product.getOptions()).isEmpty();
     }
 
     @Test
