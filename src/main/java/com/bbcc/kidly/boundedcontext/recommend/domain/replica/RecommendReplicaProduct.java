@@ -77,25 +77,38 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     public static RecommendReplicaProduct create(ChangeInfo info) {
         RecommendReplicaProduct product = new RecommendReplicaProduct();
         product.productId = info.productId();
-        product.sellerId = info.sellerId();
-        product.categoryId = info.categoryId();
-        product.status = info.status();
-        product.thumbnailUrl = info.thumbnailUrl();
-        product.productRegisteredAt = info.registeredAt();
-        product.sizeFree = info.sizeFree();
-        product.eventOccurredAt = info.occurredAt();
+        product.apply(info);
+        return product;
+    }
+
+    /**
+     * 받은 상품 변경으로 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄도 새 옵션으로 다시 채운다.
+     */
+    public void applyIfNewer(ChangeInfo info) {
+        apply(info);
+    }
+
+    private void apply(ChangeInfo info) {
+        this.sellerId = info.sellerId();
+        this.categoryId = info.categoryId();
+        this.status = info.status();
+        this.thumbnailUrl = info.thumbnailUrl();
+        this.productRegisteredAt = info.registeredAt();
+        this.sizeFree = info.sizeFree();
+        this.eventOccurredAt = info.occurredAt();
+        // 컬렉션 객체를 새로 갈아 끼우지 않고 비운 뒤 다시 채운다
+        this.sizes.clear();
         for (OptionInfo option : info.options()) {
             // 권장 키가 하나라도 없으면 아이 키로 고를 수 없으므로 사이즈 추천 후보로 두지 않는다
             if (option.minHeightCm() == null || option.maxHeightCm() == null) {
                 continue;
             }
             // 색상만 다른 같은 사이즈 옵션은 권장 키가 같아야 하므로, 처음 들어온 옵션의 권장 키만 쓴다
-            if (product.hasSize(option.size())) {
+            if (hasSize(option.size())) {
                 continue;
             }
-            product.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
+            this.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
-        return product;
     }
 
     private boolean hasSize(String size) {

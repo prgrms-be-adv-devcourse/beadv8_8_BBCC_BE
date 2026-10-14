@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -68,6 +69,31 @@ class RecommendReplicaProductTest {
             RecommendFixture.productAChangeOf(sizeFree, options, PRODUCT_CHANGED_AT));
 
         assertThat(replica.toProductSizes()).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("INV-R01 더 늦게 일어난 상품 변경으로 덮어쓰고 사이즈 줄도 새 옵션으로 바꾼다")
+    void applyLaterChange() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+        LocalDateTime later = PRODUCT_CHANGED_AT.plusMinutes(1);
+
+        replica.applyIfNewer(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, 61L, 62L, ProductStatus.STOPPED,
+            "https://cdn.kidly.test/products/31-new.jpg", LocalDateTime.of(2026, 10, 2, 9, 0), true,
+            List.of(new RecommendReplicaProduct.OptionInfo("130", 125, 135)), later));
+
+        assertThat(replica)
+            .extracting(
+                RecommendReplicaProduct::getProductId,
+                RecommendReplicaProduct::getSellerId,
+                RecommendReplicaProduct::getCategoryId,
+                RecommendReplicaProduct::getStatus,
+                RecommendReplicaProduct::getThumbnailUrl,
+                RecommendReplicaProduct::getProductRegisteredAt,
+                RecommendReplicaProduct::getEventOccurredAt)
+            .containsExactly(PRODUCT_A_ID, 61L, 62L, ProductStatus.STOPPED,
+                "https://cdn.kidly.test/products/31-new.jpg", LocalDateTime.of(2026, 10, 2, 9, 0), later);
+        assertThat(replica.toProductSizes())
+            .isEqualTo(ProductSizes.of(true, List.of(SizeRange.of("130", 125, 135))));
     }
 
     static Stream<Arguments> optionsWithoutHeightRange() {
