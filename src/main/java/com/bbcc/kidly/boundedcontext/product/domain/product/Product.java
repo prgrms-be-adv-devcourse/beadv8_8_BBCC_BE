@@ -232,6 +232,10 @@ public class Product extends BaseTimeEntity {
      * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다.
      */
     public boolean startSale(Long sellerId, Category category, ProductType productType) {
+        // 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다 (API 명세 3.7)
+        if (status == ProductStatus.ON_SALE) {
+            return false;
+        }
         status = ProductStatus.ON_SALE;
         return true;
     }

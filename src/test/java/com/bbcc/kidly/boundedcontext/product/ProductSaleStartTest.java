@@ -36,6 +36,18 @@ class ProductSaleStartTest {
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
+    @Test
+    @DisplayName("이미 판매중인 상품에 다시 판매를 시작하면 아무것도 바꾸지 않는다 (API 명세 3.7, 재시도 대비)")
+    void startSaleAgainChangesNothing() {
+        withOptionsAndSizeSpecs110And120();
+        product.startSale(SELLER_ID, top, clothing.type());
+
+        boolean started = product.startSale(SELLER_ID, top, clothing.type());
+
+        assertThat(started).isFalse();
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+    }
+
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
     private void withOptionsAndSizeSpecs110And120() {
         product.addOptions(addOptions(List.of(
