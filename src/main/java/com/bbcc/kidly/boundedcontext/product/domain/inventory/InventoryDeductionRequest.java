@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * 주문 생성됨 하나로 만든 재고 차감 요청이다. 차감 기록은 이 요청만 만든다.
@@ -39,6 +41,22 @@ public final class InventoryDeductionRequest {
         return records;
     }
 
+    // 같은 옵션의 수량을 더해 옵션 ID 오름차순으로 돌려준다. 재고 행을 이 순서로 줄여야 두 차감이 서로의 행을 기다리는 교착 상태가 생기지 않는다 (INV-12)
+    public List<OptionQuantity> optionQuantities() {
+        Map<Long, Integer> qtyByOptionId = new TreeMap<>();
+        for (Item item : items) {
+            qtyByOptionId.merge(item.option().getId(), item.qty(), Integer::sum);
+        }
+        List<OptionQuantity> quantities = new ArrayList<>();
+        for (Map.Entry<Long, Integer> entry : qtyByOptionId.entrySet()) {
+            quantities.add(new OptionQuantity(entry.getKey(), entry.getValue()));
+        }
+        return quantities;
+    }
+
     public record Item(long orderItemId, ProductOption option, int qty) {
+    }
+
+    public record OptionQuantity(long optionId, int qty) {
     }
 }

@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.Options;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeduction;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest.OptionQuantity;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionStatus;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -48,5 +49,18 @@ class InventoryDeductionTest {
             .containsExactly(
                 tuple(ORDER_ID, 11L, NAVY_110_ID, 2, InventoryDeductionStatus.FAILED),
                 tuple(ORDER_ID, 12L, NAVY_120_ID, 1, InventoryDeductionStatus.FAILED));
+    }
+
+    @Test
+    @DisplayName("INV-12 같은 옵션의 수량을 더해 옵션 ID 오름차순으로 돌려준다")
+    void sumQuantitiesByOptionInAscendingOptionId() {
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 2),
+            item(12L, options.navy120(), 1),
+            item(13L, options.navy110(), 1)));
+
+        assertThat(request.optionQuantities())
+            .extracting(OptionQuantity::optionId, OptionQuantity::qty)
+            .containsExactly(tuple(NAVY_120_ID, 1), tuple(NAVY_110_ID, 3));
     }
 }
