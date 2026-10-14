@@ -21,6 +21,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ public class Product extends BaseTimeEntity {
     @Column(nullable = false)
     private Long sellerId;
 
-    // 카테고리도 FK 없이 ID 값으로만 참조한다
+    // 카테고리는 같은 상품 도메인이라 FK가 맞지만, 카테고리 엔티티가 아직 없어 ID 값으로 둔다. 카테고리를 만들 때 FK로 바꾼다
     @Column(nullable = false)
     private Long categoryId;
 
@@ -86,6 +87,7 @@ public class Product extends BaseTimeEntity {
     private String thumbnailUrl;
 
     @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false)
     private List<String> imageUrls = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
@@ -96,9 +98,15 @@ public class Product extends BaseTimeEntity {
     @Version
     private Long version;
 
+    // DB에서 다시 읽어도 입력한 순서를 지키려고 id 순으로 읽는다
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @OrderBy("id ASC")
     private List<ProductInfoValue> infoValues = new ArrayList<>();
 
+    /**
+     * 상품을 판매대기 상태로 등록한다. 정보 값의 항목과 목록 값은 productType과 같은 영속성 컨텍스트에서 읽은 객체여야 한다.
+     * 항목과 값을 객체 동일성(==)으로 비교하기 때문이다.
+     */
     public static Product register(RegisterInfo info, ProductType productType) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
@@ -114,7 +122,7 @@ public class Product extends BaseTimeEntity {
         }
         validateInfoAttributes(info.infoValues(), productType);
         validateInputTypes(info.infoValues());
-        validateInfoValues(info.infoValues());
+        validateInfoValueCounts(info.infoValues());
         validateAllowedInfoValues(info.infoValues(), productType);
         validateRequiredInfoValues(info.infoValues(), productType);
         Product product = new Product();
@@ -155,7 +163,7 @@ public class Product extends BaseTimeEntity {
         }
     }
 
-    // 값을 넣은 항목은 이 유형에 정보 항목으로 연결돼 있어야 한다. 유형에 없는 항목이나 옵션 항목은 거절한다 (INFO-03)
+    // 값을 넣은 항목은 이 유형에 정보 항목으로 연결돼 있어야 한다. 유형에 없는 항목이나 옵션 항목은 거절한다
     private static void validateInfoAttributes(List<InfoValueInfo> infoValues, ProductType productType) {
         for (InfoValueInfo infoValue : infoValues) {
             ProductTypeAttribute link = findLink(productType, infoValue.attribute());
@@ -178,7 +186,7 @@ public class Product extends BaseTimeEntity {
         }
     }
 
-    private static void validateInfoValues(List<InfoValueInfo> infoValues) {
+    private static void validateInfoValueCounts(List<InfoValueInfo> infoValues) {
         Set<Attribute> attributes = new HashSet<>();
         for (InfoValueInfo infoValue : infoValues) {
             // 같은 항목을 InfoValueInfo 여러 개로 나눠 보내면 거절한다 (INFO-01)
