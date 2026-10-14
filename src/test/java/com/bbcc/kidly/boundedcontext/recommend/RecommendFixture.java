@@ -14,6 +14,7 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -56,6 +57,11 @@ public final class RecommendFixture {
 
     public static final LocalDateTime PURCHASE_CONFIRMED_AT = LocalDateTime.of(2026, 10, 15, 12, 0);
 
+    /**
+     * 구매확정 이벤트에만 있고 구매 기록에는 옮기지 않는 판매자 ID다. 다른 ID와 겹치지 않는 값을 쓴다.
+     */
+    public static final Long SELLER_ID = 41L;
+
     private RecommendFixture() {
     }
 
@@ -72,6 +78,23 @@ public final class RecommendFixture {
     public static PurchaseRecord.RecordInfo purchaseConfirmationFor(Long childProfileId) {
         return new PurchaseRecord.RecordInfo(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, childProfileId, PRODUCT_A_ID,
             PRODUCT_A_120_OPTION_ID, "120", PURCHASE_CONFIRMED_AT);
+    }
+
+    /**
+     * 주문 도메인이 보내는 구매확정 이벤트를 만든다. 값은 {@link #purchaseConfirmation()}과 같고, 수량 2개 · 금액 50,000원이다.
+     * 이벤트 발생 시각은 구매확정 시각보다 1초 늦게 두어, 두 시각을 바꿔 넣으면 테스트가 실패하게 한다.
+     */
+    public static OrderItemPurchaseConfirmedEvent purchaseConfirmedEvent() {
+        return purchaseConfirmedEventFor(CHILD_1_ID);
+    }
+
+    /**
+     * {@link #purchaseConfirmedEvent()}와 같은 구매확정 이벤트에서 자녀만 바꾼다. 자녀를 고르지 않았으면 null이다.
+     */
+    public static OrderItemPurchaseConfirmedEvent purchaseConfirmedEventFor(Long childId) {
+        return new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), PURCHASE_CONFIRMED_AT.plusSeconds(1),
+            new OrderItemPurchaseConfirmedEvent.Data(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, SELLER_ID, childId,
+                PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120", 2, 50_000L, PURCHASE_CONFIRMED_AT));
     }
 
     /**
