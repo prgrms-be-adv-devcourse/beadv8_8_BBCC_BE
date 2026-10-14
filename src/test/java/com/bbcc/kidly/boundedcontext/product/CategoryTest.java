@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.product.CategoryFixture.shoulderWidt
 import static com.bbcc.kidly.boundedcontext.product.CategoryFixture.sleeveLength;
 import static com.bbcc.kidly.boundedcontext.product.CategoryFixture.totalLength;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
@@ -12,8 +13,14 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class CategoryTest {
 
@@ -38,5 +45,23 @@ class CategoryTest {
             .extracting(CategoryMeasurementItem::getMeasurementItem, CategoryMeasurementItem::getSortOrder)
             .containsExactly(
                 tuple(totalLength, 1), tuple(shoulderWidth, 2), tuple(chestWidth, 3), tuple(sleeveLength, 4));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("categoriesUnderLeaf")
+    @DisplayName("TYPE-01 말단 카테고리 아래에는 카테고리를 만들 수 없다")
+    void rejectCategoryUnderLeaf(Function<Category, ThrowingCallable> createUnder) {
+        Category top = CategoryFixture.top(clothing, clothingType);
+
+        assertThatThrownBy(createUnder.apply(top))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("말단 카테고리 아래에는");
+    }
+
+    static Stream<Named<Function<Category, ThrowingCallable>>> categoriesUnderLeaf() {
+        return Stream.of(
+            Named.of("중간 카테고리", leaf -> () -> Category.createMiddle("반팔", leaf)),
+            Named.of("말단 카테고리", leaf -> () -> Category.createLeaf(
+                new Category.LeafInfo("반팔", leaf, leaf.getProductType(), List.of(totalLength())))));
     }
 }

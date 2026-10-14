@@ -63,6 +63,7 @@ public class Category extends BaseTimeEntity {
     private List<CategoryMeasurementItem> measurementItems = new ArrayList<>();
 
     public static Category createMiddle(String name, Category parent) {
+        rejectLeafParent(parent);
         Category category = new Category();
         category.name = name;
         category.parent = parent;
@@ -70,6 +71,7 @@ public class Category extends BaseTimeEntity {
     }
 
     public static Category createLeaf(LeafInfo info) {
+        rejectLeafParent(info.parent());
         Category category = new Category();
         category.name = info.name();
         category.parent = info.parent();
@@ -79,6 +81,13 @@ public class Category extends BaseTimeEntity {
                 CategoryMeasurementItem.create(category, info.measurementItems().get(i), i + 1));
         }
         return category;
+    }
+
+    // 말단 카테고리는 상품 유형을 가리키므로 그 아래에 카테고리를 두면 상품이 어느 유형을 쓸지 정할 수 없다 (TYPE-01)
+    private static void rejectLeafParent(Category parent) {
+        if (parent != null && parent.productType != null) {
+            throw new IllegalArgumentException("말단 카테고리 아래에는 카테고리를 만들 수 없습니다");
+        }
     }
 
     public List<CategoryMeasurementItem> getMeasurementItems() {
