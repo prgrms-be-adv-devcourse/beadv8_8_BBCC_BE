@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class ProductTest {
 
@@ -52,10 +53,12 @@ class ProductTest {
     void registerWithLeafCategory() {
         Clothing clothing = clothing();
         Product.RegisterInfo info = productA(clothing);
+        // 저장하지 않은 카테고리라 ID가 없으므로, 가리키는 카테고리를 ID로 확인하려고 넣는다
+        ReflectionTestUtils.setField(info.category(), "id", 1L);
 
         Product product = Product.register(info);
 
-        assertThat(product.getCategory()).isSameAs(info.category());
+        assertThat(product.getCategoryId()).isEqualTo(1L);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -135,6 +138,8 @@ class ProductTest {
                 productAWithRequired(SELLER_ID, null, "상품 A", imageUrls, infoValues))),
             Named.of("상품명", () -> Product.register(
                 productAWithRequired(SELLER_ID, leafOf(type), null, imageUrls, infoValues))),
+            Named.of("중간 카테고리와 함께 상품명", () -> Product.register(
+                productAWithRequired(SELLER_ID, CategoryFixture.clothing(), null, imageUrls, infoValues))),
             Named.of("이미지 목록", () -> Product.register(
                 productAWithRequired(SELLER_ID, leafOf(type), "상품 A", null, infoValues))),
             Named.of("정보 값 목록", () -> Product.register(

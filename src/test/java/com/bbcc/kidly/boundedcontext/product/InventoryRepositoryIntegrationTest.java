@@ -4,7 +4,6 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
-import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
@@ -167,7 +166,9 @@ class InventoryRepositoryIntegrationTest {
     // cascade되지 않아 먼저 저장한다
     private ProductOption savedOption() {
         ClothingOptions clothing = clothingOptions();
-        Product product = productA(clothing);
+        Product.RegisterInfo info = ProductFixture.productAWith(clothing.type(), List.of(
+            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
+        Product product = Product.register(info);
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
         inTransaction(() -> {
             Stream.of(clothing.navy(), clothing.size110(), clothing.stripe(), clothing.cotton())
@@ -177,7 +178,7 @@ class InventoryRepositoryIntegrationTest {
                     clothing.sizeFree(), clothing.size105(), clothing.stripe())
                 .forEach(entityManager::persist);
             entityManager.persist(clothing.type());
-            Category category = product.getCategory();
+            Category category = info.category();
             entityManager.persist(category.getParent());
             category.getMeasurementItems().forEach(link -> entityManager.persist(link.getMeasurementItem()));
             entityManager.persist(category);

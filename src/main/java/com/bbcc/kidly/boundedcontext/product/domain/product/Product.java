@@ -103,7 +103,8 @@ public class Product extends BaseTimeEntity {
     @Column(nullable = false)
     private Long sellerId;
 
-    // 상품을 등록한 말단 카테고리다. 상품 유형은 이 카테고리가 가리킨다 (TYPE-01)
+    // 상품을 등록한 말단 카테고리다(TYPE-01). 다른 애그리거트라 getter를 열지 않고 ID만 꺼낸다(상품 규칙 3절)
+    @Getter(AccessLevel.NONE)
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id")
     private Category category;
@@ -268,6 +269,11 @@ public class Product extends BaseTimeEntity {
         if (!missing.isEmpty()) {
             throw new BusinessException(ProductErrorCode.SALE_START_INPUT_MISSING, String.join(" ", missing));
         }
+    }
+
+    // 카테고리가 지연 로딩 프록시여도 ID는 초기화 없이 읽힌다
+    public Long getCategoryId() {
+        return category.getId();
     }
 
     // 사이즈 무관 여부는 칸에 저장하지 않고 옵션의 사이즈 값으로 계산한다 (SIZE-02)
