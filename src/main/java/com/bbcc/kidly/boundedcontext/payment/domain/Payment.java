@@ -11,7 +11,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,7 +28,7 @@ import lombok.NoArgsConstructor;
  * 주문상품 단위로 환불되며, 환불 누적액에 따라 PARTIALLY_REFUNDED·REFUNDED가 된다.
  */
 @Entity
-@Table(schema = "payment", name = "payment")
+@Table(schema = "payment", name = "payment", indexes = @Index(columnList = "member_id, id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Payment extends BaseTimeEntity {
@@ -60,7 +62,9 @@ public class Payment extends BaseTimeEntity {
 
     private LocalDateTime paidAt;
 
+    // 주문상품 순서(ID 오름차순)로 읽는다
     @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL)
+    @OrderBy("id ASC")
     private List<PaymentItem> items = new ArrayList<>();
 
     private Payment(Long orderId, Long walletId, Long memberId, long amount, PaymentStatus status) {
