@@ -21,10 +21,9 @@ import lombok.NoArgsConstructor;
  * 판매자별 주문(주문 1건 × 판매자 1명). READY → SHIPPING → DELIVERED 순서로만 바뀐다.
  */
 @Entity
-@Table(schema = "orders", name = "delivery", indexes = @Index(
-    name = "uk_delivery_order_seller",
-    columnList = "order_id, seller_id",
-    unique = true))
+@Table(schema = "orders", name = "delivery", indexes = {
+    @Index(name = "uk_delivery_order_seller", columnList = "order_id, seller_id", unique = true),
+    @Index(name = "idx_delivery_seller_id", columnList = "seller_id")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Delivery extends BaseTimeEntity {

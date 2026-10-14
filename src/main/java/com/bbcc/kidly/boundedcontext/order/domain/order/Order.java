@@ -13,6 +13,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -36,7 +37,9 @@ import lombok.NoArgsConstructor;
  * 주문상품 변경은 Order의 메서드를 통해 수행한다.
  */
 @Entity
-@Table(schema = "orders", name = "orders")
+@Table(schema = "orders", name = "orders", indexes = {
+    @Index(name = "idx_orders_member_id", columnList = "member_id"),
+    @Index(name = "idx_orders_status_payment_due_at", columnList = "status, payment_due_at")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Order extends BaseTimeEntity {

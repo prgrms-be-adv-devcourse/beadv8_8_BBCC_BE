@@ -162,7 +162,8 @@ class DeliveryServiceTest {
             Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
             when(deliveryRepository.findAllBySellerIdOrderByIdDesc(SELLER_A_ID, PageRequest.of(0, 20)))
                 .thenReturn(new PageImpl<>(List.of(delivery), PageRequest.of(0, 20), 1));
-            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(orderOfTwoSellers()));
+            when(orderRepository.findAllWithItemsByIdIn(List.of(ORDER_ID)))
+                .thenReturn(List.of(withId(orderOfTwoSellers(), ORDER_ID)));
 
             Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, 0, 20);
 
@@ -173,6 +174,43 @@ class DeliveryServiceTest {
             assertThat(view.shippingAddress().recipientName()).isEqualTo("홍길동");
             assertThat(view.items()).hasSize(2);
             assertThat(view.items()).allSatisfy(item -> assertThat(item.sellerId()).isEqualTo(SELLER_A_ID));
+            verify(orderRepository, never()).findById(any());
+        }
+
+        @Test
+        @DisplayName("배송의 주문이 없으면 IllegalStateException")
+        void missingOrder() {
+            Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+            when(deliveryRepository.findAllBySellerIdOrderByIdDesc(SELLER_A_ID, PageRequest.of(0, 20)))
+                .thenReturn(new PageImpl<>(List.of(delivery), PageRequest.of(0, 20), 1));
+            when(orderRepository.findAllWithItemsByIdIn(List.of(ORDER_ID))).thenReturn(List.of());
+
+            assertThatThrownBy(() -> deliveryService.getSellerOrders(SELLER_A_ID, 0, 20))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("배송의 주문이 없습니다: " + ORDER_ID);
+        }
+
+        @Test
+        @DisplayName("배송이 없는 페이지면 주문을 조회하지 않는다")
+        void emptyPage() {
+            when(deliveryRepository.findAllBySellerIdOrderByIdDesc(SELLER_A_ID, PageRequest.of(0, 20)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+            Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, 0, 20);
+
+            assertThat(page.getContent()).isEmpty();
+            verify(orderRepository, never()).findAllWithItemsByIdIn(any());
+        }
+    }
+
+    private static Order withId(Order order, Long id) {
+        try {
+            java.lang.reflect.Field field = Order.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(order, id);
+            return order;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
         }
     }
 
