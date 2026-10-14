@@ -60,7 +60,7 @@ public class PurchaseRecord extends BaseTimeEntity {
      * 구매 기록으로 남길 구매확정인지 판단한다. 자녀를 고르지 않은 구매확정은 사이즈 추천에 쓸 수 없어 남기지 않는다.
      */
     public static boolean isRecordable(RecordInfo info) {
-        return true;
+        return info.childProfileId() != null;
     }
 
     public static PurchaseRecord create(RecordInfo info) {

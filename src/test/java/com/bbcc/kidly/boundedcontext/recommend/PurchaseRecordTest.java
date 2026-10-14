@@ -39,4 +39,10 @@ class PurchaseRecordTest {
     void recordableWhenChildChosen() {
         assertThat(PurchaseRecord.isRecordable(RecommendFixture.purchaseConfirmation())).isTrue();
     }
+
+    @Test
+    @DisplayName("INV-R03 자녀를 고르지 않은 구매확정은 기록하지 않는다")
+    void notRecordableWithoutChild() {
+        assertThat(PurchaseRecord.isRecordable(RecommendFixture.purchaseConfirmationFor(null))).isFalse();
+    }
 }
