@@ -64,11 +64,15 @@ class OrderConfirmIntegrationTest {
         Long orderItemId = order.items().get(0).orderItemId();
 
         OrderDetail.Item first = orderService.confirmByBuyer(BUYER_ID, order.orderId(), orderItemId);
-        OrderDetail.Item second = orderService.confirmByBuyer(BUYER_ID, order.orderId(), orderItemId);
+        LocalDateTime storedAfterFirst = itemOf(order).confirmedAt();
+        orderService.confirmByBuyer(BUYER_ID, order.orderId(), orderItemId);
+        LocalDateTime storedAfterSecond = itemOf(order).confirmedAt();
 
         assertThat(first.status()).isEqualTo("CONFIRMED");
         assertThat(first.confirmType()).isEqualTo("DIRECT");
-        assertThat(second.confirmedAt()).isEqualTo(first.confirmedAt());
+        // DB를 거친 시각끼리 비교한다(메모리 시각은 DB보다 정밀해서 다를 수 있다)
+        assertThat(storedAfterFirst).isNotNull();
+        assertThat(storedAfterSecond).isEqualTo(storedAfterFirst);
         List<OrderItemPurchaseConfirmedEvent> confirmed = events.stream(OrderItemPurchaseConfirmedEvent.class).toList();
         assertThat(confirmed).hasSize(1);
         assertThat(confirmed.get(0).data().orderItemId()).isEqualTo(orderItemId);
