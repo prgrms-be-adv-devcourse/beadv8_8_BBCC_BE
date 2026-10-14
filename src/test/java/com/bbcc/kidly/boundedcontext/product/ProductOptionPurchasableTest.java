@@ -36,6 +36,16 @@ class ProductOptionPurchasableTest {
             .containsExactly(true, true);
     }
 
+    @Test
+    @DisplayName("SALE-04 판매를 시작하기 전 상품의 옵션은 살 수 없다 (INV-13)")
+    void optionOfProductBeforeSaleIsNotPurchasable() {
+        withOptionsAndSizeSpecs110And120();
+
+        assertThat(product.getOptions())
+            .extracting(ProductOption::isPurchasable)
+            .containsExactly(false, false);
+    }
+
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
     private void withOptionsAndSizeSpecs110And120() {
         product.addOptions(addOptions(List.of(
