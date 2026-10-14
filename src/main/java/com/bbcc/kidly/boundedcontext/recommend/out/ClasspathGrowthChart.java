@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.recommend.out;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.AgeGroup;
-import com.bbcc.kidly.boundedcontext.recommend.domain.GrowthChart;
-import com.bbcc.kidly.boundedcontext.recommend.domain.WeightPercentiles;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.WeightPercentiles;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import java.io.BufferedReader;
 import java.io.IOException;

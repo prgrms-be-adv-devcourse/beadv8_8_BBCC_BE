@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.recommend.domain;
+package com.bbcc.kidly.boundedcontext.recommend.domain.size;
 
 import java.util.Arrays;
 import java.util.Optional;

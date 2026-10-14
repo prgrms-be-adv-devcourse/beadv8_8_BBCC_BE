@@ -2,8 +2,8 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.AgeGroup;
-import com.bbcc.kidly.boundedcontext.recommend.domain.WeightPercentiles;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.WeightPercentiles;
 import com.bbcc.kidly.boundedcontext.recommend.out.ClasspathGrowthChart;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import org.junit.jupiter.api.DisplayName;

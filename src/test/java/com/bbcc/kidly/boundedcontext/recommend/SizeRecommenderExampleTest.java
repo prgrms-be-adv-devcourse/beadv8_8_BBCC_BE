@@ -5,10 +5,10 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSize
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.Fit;
-import com.bbcc.kidly.boundedcontext.recommend.domain.SizeNotice;
-import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommendation;
-import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommender;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.boundedcontext.recommend.out.ClasspathGrowthChart;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;

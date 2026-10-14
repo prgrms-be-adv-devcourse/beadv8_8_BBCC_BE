@@ -2,8 +2,8 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.SizeNotice;
-import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommendation;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
