@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.seller;
 
+import com.bbcc.kidly.boundedcontext.seller.domain.Seller;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplication;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationSubmitInfo;
 import java.time.LocalDateTime;
@@ -38,5 +39,9 @@ public final class SellerFixture {
         var application = application(applicantId);
         application.reject(ADMIN_ID, REJECT_REASON, NOW);
         return application;
+    }
+
+    public static Seller activeSeller(Long memberId) {
+        return Seller.from(approvedApplication(memberId));
     }
 }
