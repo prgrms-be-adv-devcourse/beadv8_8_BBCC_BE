@@ -5,9 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberSuspension;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.security.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +20,9 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class MemberTest {
+
+    private static final Long ADMIN_ID = 99L;
+    private static final String REASON = "약관 위반";
 
     @Test
     @DisplayName("가입하면 소셜 계정 1개를 가진 활성 일반 회원이 된다")
@@ -116,6 +122,89 @@ class MemberTest {
     @DisplayName("정지 · 탈퇴한 회원은 로그인할 수 없다")
     void inactiveMemberCannotLogin(MemberStatus status) {
         assertThat(MemberFixture.withStatus(status).canLogin()).isFalse();
+    }
+
+    @Test
+    @DisplayName("정지하면 SUSPENDED이고 로그인할 수 없으며 사유 · 관리자 · 시각이 저장된다")
+    void suspend() {
+        var member = MemberFixture.kakaoMember();
+
+        member.suspend(ADMIN_ID, REASON, NOW);
+
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.SUSPENDED);
+        assertThat(member.canLogin()).isFalse();
+        assertThat(member.getSuspension()).isEqualTo(new MemberSuspension(REASON, ADMIN_ID, NOW));
+    }
+
+    @Test
+    @DisplayName("이미 정지된 회원은 다시 정지할 수 없다")
+    void suspendRejectsSuspended() {
+        var member = MemberFixture.kakaoMember();
+        member.suspend(ADMIN_ID, REASON, NOW);
+
+        assertThatThrownBy(() -> member.suspend(ADMIN_ID + 1, "다른 사유", NOW.plusMinutes(1)))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_SUSPENDABLE));
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.SUSPENDED);
+        assertThat(member.getSuspension()).isEqualTo(new MemberSuspension(REASON, ADMIN_ID, NOW));
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원은 정지할 수 없다")
+    void suspendRejectsWithdrawn() {
+        var member = MemberFixture.withStatus(MemberStatus.WITHDRAWN);
+
+        assertThatThrownBy(() -> member.suspend(ADMIN_ID, REASON, NOW))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_SUSPENDABLE));
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
+        assertThat(member.getSuspension()).isNull();
+    }
+
+    @Test
+    @DisplayName("관리자는 정지할 수 없다")
+    void suspendRejectsAdmin() {
+        var member = MemberFixture.withRole(MemberRole.ADMIN);
+
+        assertThatThrownBy(() -> member.suspend(ADMIN_ID, REASON, NOW))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_SUSPENDABLE));
+        assertStillActive(member);
+    }
+
+    @Test
+    @DisplayName("정지한 관리자 · 사유 · 시각이 없으면 정지할 수 없다")
+    void suspendRejectsNull() {
+        var member = MemberFixture.kakaoMember();
+
+        assertThatThrownBy(() -> member.suspend(null, REASON, NOW)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> member.suspend(ADMIN_ID, null, NOW)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> member.suspend(ADMIN_ID, REASON, null)).isInstanceOf(NullPointerException.class);
+        assertStillActive(member);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    @DisplayName("정지 사유가 비어 있으면 정지할 수 없다")
+    void suspendRejectsBlankReason(String reason) {
+        var member = MemberFixture.kakaoMember();
+
+        assertThatThrownBy(() -> member.suspend(ADMIN_ID, reason, NOW))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertStillActive(member);
+    }
+
+    @Test
+    @DisplayName("정지 사유는 200자까지다")
+    void suspendRejectsLongReason() {
+        var member = MemberFixture.kakaoMember();
+        var maxReason = "가".repeat(MemberSuspension.REASON_MAX_LENGTH);
+
+        assertThatThrownBy(() -> member.suspend(ADMIN_ID, maxReason + "가", NOW))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertStillActive(member);
+        member.suspend(ADMIN_ID, maxReason, NOW);
+        assertThat(member.getSuspension().reason()).isEqualTo(maxReason);
     }
 
     @Test
@@ -231,5 +320,10 @@ class MemberTest {
         member.applySellerState(SellerStatus.ACTIVE, NOW);
 
         assertThat(member.roles()).containsExactly(Role.BUYER, Role.SELLER, Role.ADMIN);
+    }
+
+    private void assertStillActive(Member member) {
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+        assertThat(member.getSuspension()).isNull();
     }
 }
