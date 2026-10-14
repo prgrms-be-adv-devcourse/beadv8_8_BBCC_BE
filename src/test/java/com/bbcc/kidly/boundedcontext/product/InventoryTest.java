@@ -4,11 +4,14 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.navy110;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentReason;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentRecord;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryOpening;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -26,5 +29,26 @@ class InventoryTest {
         int adjustmentSum = opening.records().stream().mapToInt(InventoryAdjustmentRecord::getDeltaQty).sum();
         assertThat(opening.inventory().getAvailableQty()).isEqualTo(initialQty);
         assertThat(adjustmentSum).isEqualTo(initialQty);
+    }
+
+    @Test
+    @DisplayName("INV-19 초기 재고 10으로 재고를 열면 판매자가 남긴 INITIAL +10 기록이 하나 생긴다")
+    void recordInitialStock() {
+
+        InventoryOpening opening = InventoryOpening.open(option, 10, SELLER_ID);
+
+        assertThat(opening.records())
+            .extracting(InventoryAdjustmentRecord::getReason, InventoryAdjustmentRecord::getDeltaQty,
+                InventoryAdjustmentRecord::getAdjustedBy)
+            .containsExactly(tuple(InventoryAdjustmentReason.INITIAL, 10, SELLER_ID));
+    }
+
+    @Test
+    @DisplayName("INV-19 초기 재고 0으로 재고를 열면 재고 조정 기록을 남기지 않는다")
+    void noRecordForZeroInitialStock() {
+
+        InventoryOpening opening = InventoryOpening.open(option, 0, SELLER_ID);
+
+        assertThat(opening.records()).isEmpty();
     }
 }
