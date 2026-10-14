@@ -57,12 +57,21 @@ public class InventoryDeduction extends BaseTimeEntity {
 
     // 차감 요청(InventoryDeductionRequest)만 차감 기록을 만든다
     static InventoryDeduction deducted(long orderId, long orderItemId, ProductOption productOption, int qty) {
+        return create(orderId, orderItemId, productOption, qty, InventoryDeductionStatus.DEDUCTED);
+    }
+
+    static InventoryDeduction failed(long orderId, long orderItemId, ProductOption productOption, int qty) {
+        return create(orderId, orderItemId, productOption, qty, InventoryDeductionStatus.FAILED);
+    }
+
+    private static InventoryDeduction create(
+            long orderId, long orderItemId, ProductOption productOption, int qty, InventoryDeductionStatus status) {
         InventoryDeduction deduction = new InventoryDeduction();
         deduction.orderId = orderId;
         deduction.orderItemId = orderItemId;
         deduction.productOption = productOption;
         deduction.qty = qty;
-        deduction.status = InventoryDeductionStatus.DEDUCTED;
+        deduction.status = status;
         return deduction;
     }
 }

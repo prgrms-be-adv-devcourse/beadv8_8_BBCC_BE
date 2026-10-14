@@ -34,4 +34,19 @@ class InventoryDeductionTest {
                 tuple(ORDER_ID, 11L, NAVY_110_ID, 2, InventoryDeductionStatus.DEDUCTED),
                 tuple(ORDER_ID, 12L, NAVY_120_ID, 1, InventoryDeductionStatus.DEDUCTED));
     }
+
+    @Test
+    @DisplayName("INV-11 거절한 주문과 취소가 먼저 온 주문(INV-09)은 주문상품마다 FAILED 차감 기록을 만든다")
+    void createFailedRecordPerOrderItem() {
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 2),
+            item(12L, options.navy120(), 1)));
+
+        assertThat(request.failedRecords())
+            .extracting(InventoryDeduction::getOrderId, InventoryDeduction::getOrderItemId,
+                InventoryDeduction::getProductOptionId, InventoryDeduction::getQty, InventoryDeduction::getStatus)
+            .containsExactly(
+                tuple(ORDER_ID, 11L, NAVY_110_ID, 2, InventoryDeductionStatus.FAILED),
+                tuple(ORDER_ID, 12L, NAVY_120_ID, 1, InventoryDeductionStatus.FAILED));
+    }
 }

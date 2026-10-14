@@ -30,6 +30,15 @@ public final class InventoryDeductionRequest {
         return records;
     }
 
+    // 재고가 부족하거나 판매중이 아니어서 거절한 주문(INV-11)과 취소가 먼저 온 주문(INV-09)은 주문상품마다 FAILED 차감 기록을 남긴다
+    public List<InventoryDeduction> failedRecords() {
+        List<InventoryDeduction> records = new ArrayList<>();
+        for (Item item : items) {
+            records.add(InventoryDeduction.failed(orderId, item.orderItemId(), item.option(), item.qty()));
+        }
+        return records;
+    }
+
     public record Item(long orderItemId, ProductOption option, int qty) {
     }
 }
