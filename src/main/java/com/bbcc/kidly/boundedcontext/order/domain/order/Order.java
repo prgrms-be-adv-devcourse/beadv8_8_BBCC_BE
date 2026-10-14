@@ -14,6 +14,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Duration;
@@ -148,6 +149,7 @@ public class Order extends BaseTimeEntity {
     private Long version;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<OrderItem> items = new ArrayList<>();
 
     private Order(Long memberId, ShippingAddress shippingAddress, LocalDateTime paymentDueAt) {

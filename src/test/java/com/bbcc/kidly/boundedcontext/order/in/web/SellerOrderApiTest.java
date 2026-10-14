@@ -133,8 +133,33 @@ class SellerOrderApiTest {
                 .jsonPath("$.deliveries[0].status").isEqualTo("DELIVERED")
                 .jsonPath("$.deliveries[0].deliveredAt").exists()
                 .jsonPath("$.deliveries[1].status").isEqualTo("READY")
-                .jsonPath("$.items[0].deliveredAt").exists()
-                .jsonPath("$.items[1].deliveredAt").doesNotExist();
+                .jsonPath("$.items[?(@.deliveredAt != null)].sellerId").isEqualTo(List.of("2"));
+        }
+
+        @Test
+        @DisplayName("한 판매자 몫에 배송 완료를 기록(UPDATE)한 뒤에도 주문 상세 주문상품은 주문한 순서(ID 오름차순)다")
+        void itemsKeepOrderedSequenceAfterUpdate() {
+            String sellerOrderId = sellerOrderIdOf(SELLER_ID);
+            client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .body(Map.of("carrier", "CJ", "trackingNumber", "1234567890"))
+                .exchange()
+                .expectStatus().isOk();
+            deliver(sellerOrderId);
+
+            OrderItems detail = client.get().uri(ORDERS_PATH + "/" + orderId)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(OrderItems.class)
+                .returnResult()
+                .getResponseBody();
+
+            assertThat(detail).isNotNull();
+            assertThat(detail.items()).extracting(OrderItemRow::sellerId)
+                .containsExactly(String.valueOf(SELLER_ID), String.valueOf(OTHER_SELLER_ID));
+            assertThat(Long.valueOf(detail.items().get(0).orderItemId()))
+                .isLessThan(Long.valueOf(detail.items().get(1).orderItemId()));
         }
 
         @Test
@@ -221,6 +246,12 @@ class SellerOrderApiTest {
     }
 
     private record SellerOrderPage(List<SellerOrderRow> content) {
+    }
+
+    private record OrderItems(List<OrderItemRow> items) {
+    }
+
+    private record OrderItemRow(String orderItemId, String sellerId) {
     }
 
     private record SellerOrderRow(String sellerOrderId) {
