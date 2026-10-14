@@ -55,4 +55,15 @@ class RecommendReplicaChildIntegrationTest {
             .containsExactly(MEMBER_1_ID, Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE,
                 CHILD_CHANGED_AT, false);
     }
+
+    @Test
+    @DisplayName("자녀 정보 변경됨을 발행한 트랜잭션이 롤백되면 자녀 복사본이 생기지 않는다")
+    void noReplicaAfterRollback() {
+        transactionTemplate.executeWithoutResult(status -> {
+            eventPublisher.publish(RecommendFixture.childChangedEvent());
+            status.setRollbackOnly();
+        });
+
+        assertThat(replicaChildRepository.findById(CHILD_1_ID)).isEmpty();
+    }
 }
