@@ -20,6 +20,8 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
+import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -69,6 +71,9 @@ class PaymentCompletedIntegrationTest {
     @Autowired
     private CartItemRepository cartItemRepository;
 
+    @Autowired
+    private WalletRepository walletRepository;
+
     @Test
     @DisplayName("결제가 완료되면 결제완료 · 판매자별 배송 · 장바구니 정리, 같은 이벤트가 다시 와도 배송이 늘지 않는다")
     void paidOnce() {
@@ -76,6 +81,7 @@ class PaymentCompletedIntegrationTest {
         productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
             2L, 2L, OTHER_SELLER_ID, "상품 B", "120", 30_000L, 2L, "ON_SALE", false, OCCURRED_AT)));
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
+        saveBuyerWallet(80_000L);
         cartService.addItem(BUYER_ID, 1L, 1L, 2);
         cartService.addItem(BUYER_ID, 2L, null, 1);
         cartService.addItem(BUYER_ID, 1L, null, 1);
@@ -111,6 +117,15 @@ class PaymentCompletedIntegrationTest {
                 .map(item -> new PaymentCompletedEvent.Item(item.orderItemId(), item.amount()))
                 .toList(),
             LocalDateTime.now()));
+    }
+
+    /**
+     * 결제 도메인이 order.payment-requested를 받아 실제로 결제하므로, 지갑이 없으면 payment.failed로 주문이 취소된다.
+     */
+    private void saveBuyerWallet(long balance) {
+        Wallet wallet = Wallet.create(BUYER_ID);
+        wallet.deposit(balance);
+        walletRepository.save(wallet);
     }
 
     private void publish(DomainEvent event) {

@@ -50,9 +50,13 @@ public class Wallet extends BaseTimeEntity {
         this.balance += amount;
     }
 
+    public boolean canWithdraw(long amount) {
+        return balance >= amount;
+    }
+
     public void withdraw(long amount) {
         Amounts.requirePositive(amount);
-        if (balance < amount) {
+        if (!canWithdraw(amount)) {
             throw new BusinessException(PaymentErrorCode.INSUFFICIENT_BALANCE);
         }
         this.balance -= amount;
