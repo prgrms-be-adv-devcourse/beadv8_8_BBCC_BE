@@ -7,6 +7,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
@@ -37,6 +38,10 @@ class RecommendReplicaChildIntegrationTest {
 
     @Autowired
     private RecommendReplicaChildRepository replicaChildRepository;
+
+    // 리스너의 예외는 커밋 뒤라 로그로만 남으므로, 반영 규칙은 서비스를 직접 불러 예외까지 확인한다
+    @Autowired
+    private RecommendReplicaChildService replicaChildService;
 
     @Test
     @DisplayName("자녀 정보 변경됨을 발행한 트랜잭션이 커밋되면 이벤트 값이 자녀 복사본에 저장된다")
@@ -84,6 +89,20 @@ class RecommendReplicaChildIntegrationTest {
         RecommendReplicaChild replica = replicaChildRepository.findById(CHILD_1_ID).orElseThrow();
         assertThat(replica.getHeightCm()).isEqualByComparingTo("115.0");
         assertThat(replica.getEventOccurredAt()).isEqualTo(CHILD_CHANGED_AT);
+    }
+
+    @Test
+    @DisplayName("INV-R01 이미 있는 자녀 복사본은 더 늦게 일어난 이벤트의 값으로 덮어써진다")
+    void overwriteWithLaterEvent() {
+        replicaChildService.applyChildChanged(
+            RecommendFixture.childChangedEventAt(new BigDecimal("115.0"), CHILD_CHANGED_AT));
+
+        replicaChildService.applyChildChanged(
+            RecommendFixture.childChangedEventAt(new BigDecimal("120.0"), CHILD_CHANGED_AT.plusMinutes(1)));
+
+        RecommendReplicaChild replica = replicaChildRepository.findById(CHILD_1_ID).orElseThrow();
+        assertThat(replica.getHeightCm()).isEqualByComparingTo("120.0");
+        assertThat(replica.getEventOccurredAt()).isEqualTo(CHILD_CHANGED_AT.plusMinutes(1));
     }
 
     private void publishInTransaction(ChildChangedEvent event) {
