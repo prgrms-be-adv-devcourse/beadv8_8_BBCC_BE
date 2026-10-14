@@ -15,7 +15,7 @@ public class PurchaseRecordService {
     private final PurchaseRecordRepository purchaseRecordRepository;
 
     /**
-     * 구매확정 이벤트의 값을 구매 기록으로 저장한다. 기록할 구매확정인지는 구매 기록이 판단하고, 아니면 건너뛴다.
+     * 구매확정 이벤트의 값을 구매 기록으로 저장한다. 기록할 구매확정인지는 구매 기록이 판단하고, 기록할 구매확정이 아니면 건너뛴다.
      * 같은 주문상품의 기록이 이미 있으면 다시 받은 이벤트로 보고 조용히 건너뛴다. 한 줄만 남는 것은 UNIQUE 제약이 지킨다.
      */
     public void recordPurchaseConfirmed(OrderItemPurchaseConfirmedEvent event) {
@@ -29,7 +29,8 @@ public class PurchaseRecordService {
         purchaseRecordRepository.save(PurchaseRecord.create(info));
     }
 
-    // 구매 기록의 칸은 원래 표의 칸 이름을 따르고 이벤트는 계약 이름을 쓰므로 여기서 이름을 옮긴다
+    // 구매 기록의 칸은 원래 표의 칸 이름(child_profile_id, product_option_id)을 따르고
+    // 이벤트는 계약 이름(childId, optionId)을 쓰므로 여기서 이름을 옮긴다
     private PurchaseRecord.RecordInfo toRecordInfo(OrderItemPurchaseConfirmedEvent event) {
         OrderItemPurchaseConfirmedEvent.Data data = event.data();
         return new PurchaseRecord.RecordInfo(
