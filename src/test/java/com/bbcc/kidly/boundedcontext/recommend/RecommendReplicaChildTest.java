@@ -8,7 +8,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.OTHER_MEM
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaChild;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -25,7 +25,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class ReplicaChildTest {
+class RecommendReplicaChildTest {
 
     private static final BigDecimal HEIGHT = new BigDecimal("120.0");
 
@@ -36,21 +36,21 @@ class ReplicaChildTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("firstChanges")
     @DisplayName("처음 받은 자녀 정보로 복사본을 만든다")
-    void createWithFirstChange(ReplicaChild.ChangeInfo info) {
-        ReplicaChild replica = ReplicaChild.create(info);
+    void createWithFirstChange(RecommendReplicaChild.ChangeInfo info) {
+        RecommendReplicaChild replica = RecommendReplicaChild.create(info);
 
         assertThat(replica)
             .extracting(
-                ReplicaChild::getChildProfileId,
-                ReplicaChild::getMemberId,
-                ReplicaChild::getHeightCm,
-                ReplicaChild::getWeightKg,
-                ReplicaChild::getGender,
-                ReplicaChild::getBirthDate,
-                ReplicaChild::getBodyType,
-                ReplicaChild::getPreferredFit,
-                ReplicaChild::getEventOccurredAt,
-                ReplicaChild::isDeleted)
+                RecommendReplicaChild::getChildProfileId,
+                RecommendReplicaChild::getMemberId,
+                RecommendReplicaChild::getHeightCm,
+                RecommendReplicaChild::getWeightKg,
+                RecommendReplicaChild::getGender,
+                RecommendReplicaChild::getBirthDate,
+                RecommendReplicaChild::getBodyType,
+                RecommendReplicaChild::getPreferredFit,
+                RecommendReplicaChild::getEventOccurredAt,
+                RecommendReplicaChild::isDeleted)
             .containsExactly(
                 info.childProfileId(),
                 info.memberId(),
@@ -64,7 +64,7 @@ class ReplicaChildTest {
                 false);
     }
 
-    static Stream<Named<ReplicaChild.ChangeInfo>> firstChanges() {
+    static Stream<Named<RecommendReplicaChild.ChangeInfo>> firstChanges() {
         return Stream.of(
             Named.of("체형 보통 · 선호 핏 여유", RecommendFixture.childChange()),
             Named.of("체형 · 선호 핏 입력 안 함", RecommendFixture.childChange(null, null)));
@@ -73,19 +73,19 @@ class ReplicaChildTest {
     @Test
     @DisplayName("INV-R01 더 늦게 일어난 이벤트의 값으로 덮어쓴다")
     void applyLaterChange() {
-        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange());
+        RecommendReplicaChild replica = RecommendReplicaChild.create(RecommendFixture.childChange());
         LocalDateTime later = CHILD_CHANGED_AT.plusMinutes(1);
 
-        replica.applyIfNewer(new ReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, new BigDecimal("120.0"),
+        replica.applyIfNewer(new RecommendReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, new BigDecimal("120.0"),
             new BigDecimal("22.0"), Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.CHUNKY, null, false, later));
 
         assertThat(replica)
             .extracting(
-                ReplicaChild::getHeightCm,
-                ReplicaChild::getWeightKg,
-                ReplicaChild::getBodyType,
-                ReplicaChild::getPreferredFit,
-                ReplicaChild::getEventOccurredAt)
+                RecommendReplicaChild::getHeightCm,
+                RecommendReplicaChild::getWeightKg,
+                RecommendReplicaChild::getBodyType,
+                RecommendReplicaChild::getPreferredFit,
+                RecommendReplicaChild::getEventOccurredAt)
             .containsExactly(new BigDecimal("120.0"), new BigDecimal("22.0"), BodyType.CHUNKY, null, later);
     }
 
@@ -93,27 +93,30 @@ class ReplicaChildTest {
     @ValueSource(longs = {0, -1})
     @DisplayName("INV-R01 같은 시각이거나 더 이르게 일어난 이벤트는 무시한다")
     void ignoreChangeNotLater(long minutesFromStored) {
-        ReplicaChild replica = ReplicaChild.create(
+        RecommendReplicaChild replica = RecommendReplicaChild.create(
             RecommendFixture.childChangeAt(new BigDecimal("115.0"), CHILD_CHANGED_AT));
 
         replica.applyIfNewer(
             RecommendFixture.childChangeAt(new BigDecimal("120.0"), CHILD_CHANGED_AT.plusMinutes(minutesFromStored)));
 
         assertThat(replica)
-            .extracting(ReplicaChild::getHeightCm, ReplicaChild::getEventOccurredAt)
+            .extracting(RecommendReplicaChild::getHeightCm, RecommendReplicaChild::getEventOccurredAt)
             .containsExactly(new BigDecimal("115.0"), CHILD_CHANGED_AT);
     }
 
     @Test
     @DisplayName("INV-R02 삭제 이벤트를 받으면 행을 지우지 않고 그 이벤트가 일어난 시각을 삭제 시각으로 남긴다")
     void markDeletedOnDeleteChange() {
-        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange());
+        RecommendReplicaChild replica = RecommendReplicaChild.create(RecommendFixture.childChange());
         LocalDateTime deletedAt = CHILD_CHANGED_AT.plusMinutes(5);
 
         replica.applyIfNewer(RecommendFixture.childDeleted(deletedAt));
 
         assertThat(replica)
-            .extracting(ReplicaChild::isDeleted, ReplicaChild::getDeletedAt, ReplicaChild::getEventOccurredAt)
+            .extracting(
+                RecommendReplicaChild::isDeleted,
+                RecommendReplicaChild::getDeletedAt,
+                RecommendReplicaChild::getEventOccurredAt)
             .containsExactly(true, deletedAt, deletedAt);
     }
 
@@ -122,10 +125,10 @@ class ReplicaChildTest {
     void createDeletedWhenFirstChangeIsDelete() {
         LocalDateTime deletedAt = CHILD_CHANGED_AT.plusMinutes(5);
 
-        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childDeleted(deletedAt));
+        RecommendReplicaChild replica = RecommendReplicaChild.create(RecommendFixture.childDeleted(deletedAt));
 
         assertThat(replica)
-            .extracting(ReplicaChild::isDeleted, ReplicaChild::getDeletedAt)
+            .extracting(RecommendReplicaChild::isDeleted, RecommendReplicaChild::getDeletedAt)
             .containsExactly(true, deletedAt);
     }
 
@@ -133,19 +136,22 @@ class ReplicaChildTest {
     @DisplayName("INV-R02 삭제된 뒤 늦게 도착한 이전 수정 이벤트는 무시한다")
     void ignoreEarlierChangeAfterDelete() {
         LocalDateTime deletedAt = CHILD_CHANGED_AT.plusMinutes(5);
-        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childDeleted(deletedAt));
+        RecommendReplicaChild replica = RecommendReplicaChild.create(RecommendFixture.childDeleted(deletedAt));
 
         replica.applyIfNewer(RecommendFixture.childChangeAt(new BigDecimal("120.0"), CHILD_CHANGED_AT));
 
         assertThat(replica)
-            .extracting(ReplicaChild::isDeleted, ReplicaChild::getHeightCm, ReplicaChild::getEventOccurredAt)
+            .extracting(
+                RecommendReplicaChild::isDeleted,
+                RecommendReplicaChild::getHeightCm,
+                RecommendReplicaChild::getEventOccurredAt)
             .containsExactly(true, new BigDecimal("115.0"), deletedAt);
     }
 
     @Test
     @DisplayName("INV-R02 삭제되지 않은 자기 자녀는 볼 수 있다")
     void visibleToOwner() {
-        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange());
+        RecommendReplicaChild replica = RecommendReplicaChild.create(RecommendFixture.childChange());
 
         assertThat(replica.isVisibleTo(MEMBER_1_ID)).isTrue();
     }
@@ -153,15 +159,17 @@ class ReplicaChildTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("invisibleChildren")
     @DisplayName("INV-R02 다른 회원의 자녀와 삭제된 자녀는 볼 수 없다")
-    void invisibleToOthersOrWhenDeleted(ReplicaChild replica, Long memberId) {
+    void invisibleToOthersOrWhenDeleted(RecommendReplicaChild replica, Long memberId) {
         assertThat(replica.isVisibleTo(memberId)).isFalse();
     }
 
     static Stream<Arguments> invisibleChildren() {
         return Stream.of(
-            Arguments.of(Named.of("다른 회원의 자녀", ReplicaChild.create(RecommendFixture.childChange())), OTHER_MEMBER_ID),
             Arguments.of(
-                Named.of("삭제된 자기 자녀", ReplicaChild.create(RecommendFixture.childDeleted(CHILD_CHANGED_AT))),
+                Named.of("다른 회원의 자녀", RecommendReplicaChild.create(RecommendFixture.childChange())),
+                OTHER_MEMBER_ID),
+            Arguments.of(
+                Named.of("삭제된 자기 자녀", RecommendReplicaChild.create(RecommendFixture.childDeleted(CHILD_CHANGED_AT))),
                 MEMBER_1_ID));
     }
 
@@ -176,45 +184,45 @@ class ReplicaChildTest {
 
     static Stream<Named<ThrowingCallable>> creationsWithNull() {
         return Stream.of(
-            Named.of("자녀 정보", () -> ReplicaChild.create(null)),
-            Named.of("자녀 ID", () -> ReplicaChild.create(
+            Named.of("자녀 정보", () -> RecommendReplicaChild.create(null)),
+            Named.of("자녀 ID", () -> RecommendReplicaChild.create(
                 change(null, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, LATER))),
-            Named.of("회원 ID", () -> ReplicaChild.create(
+            Named.of("회원 ID", () -> RecommendReplicaChild.create(
                 change(CHILD_1_ID, null, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, LATER))),
-            Named.of("키", () -> ReplicaChild.create(
+            Named.of("키", () -> RecommendReplicaChild.create(
                 change(CHILD_1_ID, MEMBER_1_ID, null, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, LATER))),
-            Named.of("몸무게", () -> ReplicaChild.create(
+            Named.of("몸무게", () -> RecommendReplicaChild.create(
                 change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, null, Gender.MALE, CHILD_1_BIRTH_DATE, LATER))),
-            Named.of("성별", () -> ReplicaChild.create(
+            Named.of("성별", () -> RecommendReplicaChild.create(
                 change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, null, CHILD_1_BIRTH_DATE, LATER))),
-            Named.of("생년월일", () -> ReplicaChild.create(
+            Named.of("생년월일", () -> RecommendReplicaChild.create(
                 change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, null, LATER))),
-            Named.of("이벤트 발생 시각", () -> ReplicaChild.create(
+            Named.of("이벤트 발생 시각", () -> RecommendReplicaChild.create(
                 change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, null))));
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("changesWithNull")
     @DisplayName("자녀 정보에 필수 값이 없으면 복사본을 덮어쓰지 않고 이전 값을 그대로 둔다")
-    void rejectChangeWithNull(ReplicaChild.ChangeInfo change) {
-        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange());
+    void rejectChangeWithNull(RecommendReplicaChild.ChangeInfo change) {
+        RecommendReplicaChild replica = RecommendReplicaChild.create(RecommendFixture.childChange());
 
         assertThatThrownBy(() -> replica.applyIfNewer(change))
             .isInstanceOf(NullPointerException.class)
             .hasMessageContaining("필수입니다");
         assertThat(replica)
             .extracting(
-                ReplicaChild::getMemberId,
-                ReplicaChild::getHeightCm,
-                ReplicaChild::getWeightKg,
-                ReplicaChild::getGender,
-                ReplicaChild::getBirthDate,
-                ReplicaChild::getEventOccurredAt)
+                RecommendReplicaChild::getMemberId,
+                RecommendReplicaChild::getHeightCm,
+                RecommendReplicaChild::getWeightKg,
+                RecommendReplicaChild::getGender,
+                RecommendReplicaChild::getBirthDate,
+                RecommendReplicaChild::getEventOccurredAt)
             .containsExactly(MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE,
                 CHILD_1_BIRTH_DATE, CHILD_CHANGED_AT);
     }
 
-    static Stream<Named<ReplicaChild.ChangeInfo>> changesWithNull() {
+    static Stream<Named<RecommendReplicaChild.ChangeInfo>> changesWithNull() {
         return Stream.of(
             Named.of("자녀 정보", null),
             Named.of("회원 ID", change(CHILD_1_ID, null, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, LATER)),
@@ -226,9 +234,9 @@ class ReplicaChildTest {
                 change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, null)));
     }
 
-    private static ReplicaChild.ChangeInfo change(Long childProfileId, Long memberId, BigDecimal heightCm,
+    private static RecommendReplicaChild.ChangeInfo change(Long childProfileId, Long memberId, BigDecimal heightCm,
         BigDecimal weightKg, Gender gender, LocalDate birthDate, LocalDateTime occurredAt) {
-        return new ReplicaChild.ChangeInfo(childProfileId, memberId, heightCm, weightKg, gender, birthDate,
+        return new RecommendReplicaChild.ChangeInfo(childProfileId, memberId, heightCm, weightKg, gender, birthDate,
             BodyType.NORMAL, PreferredFit.LOOSE, false, occurredAt);
     }
 }

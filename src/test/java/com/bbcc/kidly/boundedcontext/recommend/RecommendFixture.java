@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaChild;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
@@ -46,29 +46,30 @@ public final class RecommendFixture {
     /**
      * 기획서 7.1 자녀 1의 자녀 정보 변경: 회원 1의 자녀, 2019-01-01생 남자, 키 115.0cm, 몸무게 20.0kg, 체형 보통, 선호 핏 여유.
      */
-    public static ReplicaChild.ChangeInfo childChange() {
+    public static RecommendReplicaChild.ChangeInfo childChange() {
         return childChange(BodyType.NORMAL, PreferredFit.LOOSE);
     }
 
-    public static ReplicaChild.ChangeInfo childChange(BodyType bodyType, PreferredFit preferredFit) {
-        return new ReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"),
-            Gender.MALE, CHILD_1_BIRTH_DATE, bodyType, preferredFit, false, CHILD_CHANGED_AT);
+    public static RecommendReplicaChild.ChangeInfo childChange(BodyType bodyType, PreferredFit preferredFit) {
+        return new RecommendReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, new BigDecimal("115.0"),
+            new BigDecimal("20.0"), Gender.MALE, CHILD_1_BIRTH_DATE, bodyType, preferredFit, false, CHILD_CHANGED_AT);
     }
 
     /**
      * 자녀 1의 키만 바꾼 자녀 정보 변경. 어느 이벤트가 반영됐는지 키로 구분한다.
      */
-    public static ReplicaChild.ChangeInfo childChangeAt(BigDecimal heightCm, LocalDateTime occurredAt) {
-        return new ReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, heightCm, new BigDecimal("20.0"),
+    public static RecommendReplicaChild.ChangeInfo childChangeAt(BigDecimal heightCm, LocalDateTime occurredAt) {
+        return new RecommendReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, heightCm, new BigDecimal("20.0"),
             Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, false, occurredAt);
     }
 
     /**
      * 자녀 1의 삭제. 삭제 이벤트도 삭제 직전 값(키 115.0cm 등)을 그대로 담는다.
      */
-    public static ReplicaChild.ChangeInfo childDeleted(LocalDateTime occurredAt) {
-        return new ReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"),
-            Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, true, occurredAt);
+    public static RecommendReplicaChild.ChangeInfo childDeleted(LocalDateTime occurredAt) {
+        return new RecommendReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, new BigDecimal("115.0"),
+            new BigDecimal("20.0"), Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, true,
+            occurredAt);
     }
 
     public static SizeRecommender recommender() {

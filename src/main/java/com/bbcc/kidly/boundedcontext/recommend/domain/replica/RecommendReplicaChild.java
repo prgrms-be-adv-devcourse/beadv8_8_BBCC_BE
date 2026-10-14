@@ -22,13 +22,13 @@ import lombok.NoArgsConstructor;
 /**
  * 추천이 사이즈를 계산하려고 자녀 정보 변경됨 이벤트에서 옮겨 둔 자녀 정보다.
  * 삭제된 자녀도 조회되어야 늦게 도착한 이전 이벤트로 복사본이 다시 생기지 않으므로 {@code @SQLRestriction}을 붙이지 않는다.
- * 주문 도메인에도 같은 이름의 복사본 엔티티가 있어서, JPA 엔티티 이름이 겹치지 않게 앞에 도메인 이름을 붙인다.
+ * 주문 도메인에도 자녀 복사본 엔티티가 있어서, JPA 엔티티 이름이 겹치지 않게 클래스 이름 앞에 도메인 이름을 붙인다.
  */
-@Entity(name = "RecommendReplicaChild")
+@Entity
 @Table(schema = "recommend", name = "replica_child")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ReplicaChild extends BaseSoftDeleteEntity {
+public class RecommendReplicaChild extends BaseSoftDeleteEntity {
 
     // 원래 자녀 ID를 그대로 넣으므로 @GeneratedValue를 쓰지 않는다
     @Id
@@ -67,9 +67,9 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
         LocalDateTime occurredAt) {
     }
 
-    public static ReplicaChild create(ChangeInfo info) {
+    public static RecommendReplicaChild create(ChangeInfo info) {
         requireValues(info);
-        ReplicaChild child = new ReplicaChild();
+        RecommendReplicaChild child = new RecommendReplicaChild();
         child.childProfileId = requireNonNull(info.childProfileId(), "childProfileId는 필수입니다");
         child.apply(info);
         return child;
