@@ -18,7 +18,8 @@ public record OrderDetailResponse(
     LocalDateTime orderedAt,
     LocalDateTime paymentDueAt,
     ShippingAddress shippingAddress,
-    List<Item> items) {
+    List<Item> items,
+    List<Delivery> deliveries) {
 
     public record ShippingAddress(String recipientName, String phone, String zipCode, String address) {
     }
@@ -37,10 +38,24 @@ public record OrderDetailResponse(
         int quantity,
         long amount,
         String status,
+        LocalDateTime deliveredAt,
         Child child) {
     }
 
     public record Child(String childId, String name, BigDecimal heightCm, BigDecimal weightKg, String bodyType) {
+    }
+
+    /**
+     * 판매자별 배송. 결제완료 전이면 비어 있다.
+     */
+    public record Delivery(
+        String sellerOrderId,
+        String sellerId,
+        String status,
+        String carrier,
+        String trackingNumber,
+        LocalDateTime shippedAt,
+        LocalDateTime deliveredAt) {
     }
 
     public static OrderDetailResponse from(OrderDetail detail) {
@@ -53,7 +68,19 @@ public record OrderDetailResponse(
             detail.orderedAt(),
             detail.paymentDueAt(),
             new ShippingAddress(address.recipientName(), address.phone(), address.zipCode(), address.address()),
-            detail.items().stream().map(OrderDetailResponse::toItem).toList());
+            detail.items().stream().map(OrderDetailResponse::toItem).toList(),
+            detail.deliveries().stream().map(OrderDetailResponse::toDelivery).toList());
+    }
+
+    private static Delivery toDelivery(OrderDetail.SellerDelivery delivery) {
+        return new Delivery(
+            toText(delivery.deliveryId()),
+            toText(delivery.sellerId()),
+            delivery.status(),
+            delivery.carrier(),
+            delivery.trackingNumber(),
+            delivery.shippedAt(),
+            delivery.deliveredAt());
     }
 
     private static Item toItem(OrderDetail.Item item) {
@@ -69,6 +96,7 @@ public record OrderDetailResponse(
             item.quantity(),
             item.amount(),
             item.status(),
+            item.deliveredAt(),
             child == null ? null : new Child(toText(child.childId()), child.name(), child.heightCm(),
                 child.weightKg(), child.bodyType()));
     }

@@ -1,0 +1,119 @@
+package com.bbcc.kidly.boundedcontext.order.in.event;
+
+import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
+import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
+import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
+import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.domain.cart.CartItem;
+import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
+import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
+import com.bbcc.kidly.support.IntegrationTest;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * 주문 → stock.deducted → payment.completed → 결제완료 · 판매자별 배송 · 장바구니 정리.
+ * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않는다.
+ */
+@IntegrationTest
+class PaymentCompletedIntegrationTest {
+
+    private static final Long OTHER_SELLER_ID = 3L;
+
+    @Autowired
+    private OrderService orderService;
+
+    @Autowired
+    private CartService cartService;
+
+    @Autowired
+    private EventPublisher eventPublisher;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private ProductReplicaRepository productReplicaRepository;
+
+    @Autowired
+    private ChildReplicaRepository childReplicaRepository;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private DeliveryRepository deliveryRepository;
+
+    @Autowired
+    private CartItemRepository cartItemRepository;
+
+    @Test
+    @DisplayName("결제가 완료되면 결제완료 · 판매자별 배송 · 장바구니 정리, 같은 이벤트가 다시 와도 배송이 늘지 않는다")
+    void paidOnce() {
+        productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
+            2L, 2L, OTHER_SELLER_ID, "상품 B", "120", 30_000L, 2L, "ON_SALE", false, OCCURRED_AT)));
+        childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
+        cartService.addItem(BUYER_ID, 1L, 1L, 2);
+        cartService.addItem(BUYER_ID, 2L, null, 1);
+        cartService.addItem(BUYER_ID, 1L, null, 1);
+
+        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+            List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L), new PlaceOrderCommand.Item(2L, null, 1, 30_000L)),
+            new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
+        publish(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new StockDeductedEvent.Data(order.orderId())));
+
+        publish(paymentCompleted(order));
+
+        assertThat(orderRepository.findById(order.orderId())).get()
+            .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
+        List<Delivery> deliveries = deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId());
+        assertThat(deliveries).extracting(Delivery::getSellerId).containsExactly(SELLER_ID, OTHER_SELLER_ID);
+        assertThat(deliveries)
+            .allSatisfy(delivery -> assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.READY));
+        List<CartItem> remaining = cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID);
+        assertThat(remaining).hasSize(1);
+        assertThat(remaining.get(0).getOptionId()).isEqualTo(1L);
+        assertThat(remaining.get(0).getChildId()).isNull();
+
+        publish(paymentCompleted(order));
+
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
+    }
+
+    private PaymentCompletedEvent paymentCompleted(OrderDetail order) {
+        return new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
+            500L, order.orderId(), BUYER_ID, order.totalAmount(),
+            order.items().stream()
+                .map(item -> new PaymentCompletedEvent.Item(item.orderItemId(), item.amount()))
+                .toList(),
+            LocalDateTime.now()));
+    }
+
+    private void publish(DomainEvent event) {
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
+    }
+}

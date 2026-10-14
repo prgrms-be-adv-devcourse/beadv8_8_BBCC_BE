@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.order.dto;
 
+import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.math.BigDecimal;
@@ -20,7 +21,8 @@ public record OrderDetail(
     LocalDateTime orderedAt,
     LocalDateTime paymentDueAt,
     ShippingAddress shippingAddress,
-    List<Item> items) {
+    List<Item> items,
+    List<SellerDelivery> deliveries) {
 
     public record ShippingAddress(String recipientName, String phone, String zipCode, String address) {
     }
@@ -39,13 +41,29 @@ public record OrderDetail(
         int quantity,
         long amount,
         String status,
+        LocalDateTime deliveredAt,
         Child child) {
     }
 
     public record Child(Long childId, String name, BigDecimal heightCm, BigDecimal weightKg, String bodyType) {
     }
 
-    public static OrderDetail from(Order order) {
+    /**
+     * 판매자별 배송. 결제완료 전이면 목록이 비어 있다.
+     *
+     * @param carrier 발송 전이면 null
+     */
+    public record SellerDelivery(
+        Long deliveryId,
+        Long sellerId,
+        String status,
+        String carrier,
+        String trackingNumber,
+        LocalDateTime shippedAt,
+        LocalDateTime deliveredAt) {
+    }
+
+    public static OrderDetail from(Order order, List<Delivery> deliveries) {
         Order.ShippingAddress address = order.getShippingAddress();
         return new OrderDetail(
             order.getId(),
@@ -55,7 +73,19 @@ public record OrderDetail(
             order.getCreatedAt(),
             order.getPaymentDueAt(),
             new ShippingAddress(address.recipientName(), address.phone(), address.zipCode(), address.address()),
-            order.getItems().stream().map(OrderDetail::toItem).toList());
+            order.getItems().stream().map(OrderDetail::toItem).toList(),
+            deliveries.stream().map(OrderDetail::toDelivery).toList());
+    }
+
+    private static SellerDelivery toDelivery(Delivery delivery) {
+        return new SellerDelivery(
+            delivery.getId(),
+            delivery.getSellerId(),
+            delivery.getStatus().name(),
+            delivery.getCarrier() == null ? null : delivery.getCarrier().name(),
+            delivery.getTrackingNumber(),
+            delivery.getShippedAt(),
+            delivery.getDeliveredAt());
     }
 
     private static Item toItem(OrderItem item) {
@@ -72,6 +102,7 @@ public record OrderDetail(
             item.getQuantity(),
             item.getAmount(),
             item.getStatus().name(),
+            item.getDeliveredAt(),
             child == null ? null
                 : new Child(child.childId(), child.name(), child.heightCm(), child.weightKg(), child.bodyType()));
     }
