@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
     schema = "payment",
     name = "wallet_ledger",
     uniqueConstraints = @UniqueConstraint(columnNames = {"type", "ref_id"}),
-    indexes = @Index(columnList = "wallet_id, created_at"))
+    indexes = @Index(columnList = "wallet_id, id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WalletLedger extends BaseTimeEntity {
