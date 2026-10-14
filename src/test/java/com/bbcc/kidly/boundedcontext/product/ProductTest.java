@@ -176,10 +176,10 @@ class ProductTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("notAllowedMaterials")
     @DisplayName("INFO-03 그 유형에서 고를 수 없는 값을 넣으면 거절한다")
-    void rejectNotAllowedInfoValue(Function<Clothing, AttributeValue> material) {
-        Clothing clothing = clothingWithCottonOrOtherMaterial();
+    void rejectNotAllowedInfoValue(NotAllowedMaterial notAllowed) {
+        Clothing clothing = notAllowed.clothing();
         Product.RegisterInfo info = productAWith(List.of(
-            new InfoValueInfo(clothing.mainMaterial(), List.of(material.apply(clothing)), null)));
+            new InfoValueInfo(clothing.mainMaterial(), List.of(notAllowed.material()), null)));
 
         assertThatThrownBy(() -> Product.register(info, clothing.type()))
             .isInstanceOfSatisfying(BusinessException.class,
@@ -250,10 +250,17 @@ class ProductTest {
                 clothing.color(), List.of(AttributeValue.create(clothing.color(), "네이비", "#2f3e5c")), null)));
     }
 
-    static Stream<Named<Function<Clothing, AttributeValue>>> notAllowedMaterials() {
+    // 사례마다 쓰는 유형이 다르다. 린넨은 면 · 기타만 허용한 유형에서, 기모는 모든 값을 허용한 유형에서 확인한다.
+    // 기모를 허용 값이 제한된 유형에서 확인하면 허용 값 검사가 대신 거절해서, 항목이 다른 값을 거르는 검사를 확인하지 못한다
+    record NotAllowedMaterial(Clothing clothing, AttributeValue material) {
+    }
+
+    static Stream<Named<NotAllowedMaterial>> notAllowedMaterials() {
+        Clothing limited = clothingWithCottonOrOtherMaterial();
+        Clothing allAllowed = clothing();
         return Stream.of(
-            Named.of("허용 값에 없는 주요소재 린넨", Clothing::linen),
-            Named.of("다른 항목(특징)의 값 기모", Clothing::brushed));
+            Named.of("허용 값에 없는 주요소재 린넨", new NotAllowedMaterial(limited, limited.linen())),
+            Named.of("주요소재에 다른 항목(특징)의 값 기모", new NotAllowedMaterial(allAllowed, allAllowed.brushed())));
     }
 
     // 정보 값은 테스트가 만든 유형의 항목 객체로 만들어야 하므로, 의류를 받아 정보 값을 만드는 함수를 넘긴다
