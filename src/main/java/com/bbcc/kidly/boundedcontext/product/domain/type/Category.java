@@ -25,13 +25,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 카테고리 트리의 한 칸이다. 말단 카테고리만 상품 유형과 필수 실측 항목을 가지고, 중간 카테고리는 둘 다 없다.
+ * 상품을 분류하는 카테고리다. 카테고리는 계층을 이루며, 말단 카테고리만 상품 유형과 필수 실측 항목을 가지고
+ * 중간 카테고리는 둘 다 없다.
  */
 @Entity
 @Table(
     schema = "product",
     name = "category",
     uniqueConstraints = @UniqueConstraint(columnNames = {"parent_id", "name"}))
+// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 제약이 막지 못한다 (ERD 상품 섹션 수정안 v6 8절 2번)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Category extends BaseTimeEntity {
@@ -100,9 +102,10 @@ public class Category extends BaseTimeEntity {
         }
     }
 
-    // 말단 카테고리는 상품 유형을 가리키므로 그 아래에 카테고리를 두면 상품이 어느 유형을 쓸지 정할 수 없다 (TYPE-01)
+    // 유형을 가진 카테고리 아래에 카테고리를 만들면, 그 부모가 유형을 가진 중간 카테고리가 되어 TYPE-01을 어긴다.
+    // 부모가 지연 로딩 프록시이면 필드가 비어 있으므로 getter로 읽는다
     private static void rejectLeafParent(Category parent) {
-        if (parent != null && parent.productType != null) {
+        if (parent != null && parent.getProductType() != null) {
             throw new IllegalArgumentException("말단 카테고리 아래에는 카테고리를 만들 수 없습니다");
         }
     }
