@@ -81,15 +81,15 @@ class DeliveryTest {
     }
 
     @Test
-    @DisplayName("배송 완료된 배송은 다시 완료할 수 없다 (409)")
-    void cannotCompleteTwice() {
+    @DisplayName("이미 배송 완료면 예외 없이 처음 완료 시각을 유지한다 (배송 완료를 두 번 눌러도 200)")
+    void completeTwiceKeepsFirst() {
         Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
         delivery.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT);
         delivery.complete(COMPLETED_AT);
 
-        assertThatThrownBy(() -> delivery.complete(COMPLETED_AT.plusHours(1)))
-            .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_DELIVERY_STATUS);
+        delivery.complete(COMPLETED_AT.plusHours(1));
+
+        assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.DELIVERED);
         assertThat(delivery.getDeliveredAt()).isEqualTo(COMPLETED_AT);
     }
 }
