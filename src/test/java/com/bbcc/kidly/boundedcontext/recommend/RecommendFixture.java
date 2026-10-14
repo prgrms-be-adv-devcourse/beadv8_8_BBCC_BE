@@ -119,6 +119,15 @@ public final class RecommendFixture {
             PreferredFit.LOOSE, false));
     }
 
+    /**
+     * 자녀 1을 삭제한 자녀 정보 변경됨 이벤트. 삭제 직전 값(키 115.0cm 등)을 그대로 담는다.
+     */
+    public static ChildChangedEvent childDeletedEvent(LocalDateTime occurredAt) {
+        return new ChildChangedEvent(UUID.randomUUID(), occurredAt, new ChildChangedEvent.Data(CHILD_1_ID,
+            MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE, CHILD_1_BIRTH_DATE,
+            BodyType.NORMAL, PreferredFit.LOOSE, true));
+    }
+
     public static SizeRecommender recommender() {
         return new SizeRecommender(growthChart());
     }

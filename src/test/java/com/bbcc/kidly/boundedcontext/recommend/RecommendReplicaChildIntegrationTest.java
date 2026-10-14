@@ -17,6 +17,7 @@ import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -121,6 +122,35 @@ class RecommendReplicaChildIntegrationTest {
         RecommendReplicaChild replica = replicaChildRepository.findById(CHILD_1_ID).orElseThrow();
         assertThat(replica.getHeightCm()).isEqualByComparingTo("115.0");
         assertThat(replica.getEventOccurredAt()).isEqualTo(CHILD_CHANGED_AT);
+    }
+
+    @Test
+    @DisplayName("INV-R02 삭제 이벤트를 받으면 자녀 복사본 행이 남고 그 이벤트가 일어난 시각이 삭제 시각으로 저장된다")
+    void keepRowAndSaveDeletedAt() {
+        LocalDateTime deletedAt = CHILD_CHANGED_AT.plusMinutes(5);
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        replicaChildService.applyChildChanged(RecommendFixture.childDeletedEvent(deletedAt));
+
+        assertThat(replicaChildRepository.findById(CHILD_1_ID)).get()
+            .extracting(RecommendReplicaChild::isDeleted, RecommendReplicaChild::getDeletedAt)
+            .containsExactly(true, deletedAt);
+    }
+
+    @Test
+    @DisplayName("INV-R02 삭제된 뒤 늦게 도착한 이전 수정 이벤트를 받아도 예외 없이 자녀 복사본이 삭제 상태 그대로다")
+    void stayDeletedWhenEarlierEventArrivesLate() {
+        LocalDateTime deletedAt = CHILD_CHANGED_AT.plusMinutes(5);
+        replicaChildService.applyChildChanged(RecommendFixture.childDeletedEvent(deletedAt));
+
+        assertThatCode(() -> replicaChildService.applyChildChanged(
+            RecommendFixture.childChangedEventAt(new BigDecimal("120.0"), CHILD_CHANGED_AT)))
+            .doesNotThrowAnyException();
+
+        RecommendReplicaChild replica = replicaChildRepository.findById(CHILD_1_ID).orElseThrow();
+        assertThat(replica.isDeleted()).isTrue();
+        assertThat(replica.getHeightCm()).isEqualByComparingTo("115.0");
+        assertThat(replica.getEventOccurredAt()).isEqualTo(deletedAt);
     }
 
     private void publishInTransaction(ChildChangedEvent event) {
