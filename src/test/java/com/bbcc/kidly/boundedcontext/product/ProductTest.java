@@ -13,7 +13,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.product.ProductFixture.Clothing;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.InfoValueInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.Collections;
 import java.util.List;
@@ -53,6 +56,26 @@ class ProductTest {
         Product product = Product.register(info);
 
         assertThat(product.getCategory()).isSameAs(info.category());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("middleCategories")
+    @DisplayName("TYPE-01 중간 카테고리는 상품 유형을 가리키지 않으므로 상품을 등록할 수 없다")
+    void rejectRegisterWithMiddleCategory(Category middle) {
+        Clothing clothing = clothing();
+        Product.RegisterInfo info = productAWithRequired(
+            SELLER_ID, middle, "상품 A", List.of(), productA(clothing).infoValues());
+
+        assertThatThrownBy(() -> Product.register(info)).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.NOT_LEAF_CATEGORY));
+    }
+
+    // 기준 데이터의 최상위 의류와, 중간 카테고리 아래의 중간 카테고리인 의류 > 잡화다
+    static Stream<Named<Category>> middleCategories() {
+        Category clothing = CategoryFixture.clothing();
+        return Stream.of(
+            Named.of("최상위 의류", clothing),
+            Named.of("의류 아래 잡화", Category.createMiddle("잡화", clothing)));
     }
 
     @Test
