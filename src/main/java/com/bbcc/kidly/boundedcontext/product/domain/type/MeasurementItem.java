@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -34,6 +36,9 @@ public class MeasurementItem extends BaseTimeEntity {
     private String unit;
 
     public static MeasurementItem create(String code, String name, String unit) {
+        requireNonNull(code, "code는 필수입니다");
+        requireNonNull(name, "name은 필수입니다");
+        requireNonNull(unit, "unit은 필수입니다");
         MeasurementItem item = new MeasurementItem();
         item.code = code;
         item.name = name;
