@@ -142,6 +142,34 @@ class ProductOptionTest {
         assertThat(product.getOptions()).hasSameSizeAs(given.existing());
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("optionsWithDifferentAttributes")
+    @DisplayName("OPT-02 한 상품의 옵션이 서로 다른 옵션 항목 묶음을 쓰면 거절한다")
+    void rejectOptionsWithDifferentAttributes(Function<ClothingOptions, Requests> requests) {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+        Requests given = requests.apply(clothing);
+        if (!given.existing().isEmpty()) {
+            product.addOptions(addOptions(given.existing()), clothing.type());
+        }
+
+        assertThatThrownBy(() -> product.addOptions(addOptions(given.requested()), clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.OPTION_ATTRIBUTES_MISMATCH));
+        assertThat(product.getOptions()).hasSameSizeAs(given.existing());
+    }
+
+    static Stream<Named<Function<ClothingOptions, Requests>>> optionsWithDifferentAttributes() {
+        return Stream.of(
+            Named.of("요청 안에서 무늬를 쓴 옵션과 안 쓴 옵션", clothing -> new Requests(
+                List.of(),
+                List.of(option(clothing.navy(), clothing.size110(), clothing.stripe()),
+                    option(clothing.navy(), clothing.size120())))),
+            Named.of("무늬 없는 옵션이 있는데 무늬를 쓴 옵션을 추가", clothing -> new Requests(
+                List.of(option(clothing.navy(), clothing.size110())),
+                List.of(option(clothing.navy(), clothing.size120(), clothing.stripe())))));
+    }
+
     // 이미 추가한 옵션과 이번에 추가하려는 옵션이다
     record Requests(List<Product.OptionInfo> existing, List<Product.OptionInfo> requested) {
     }

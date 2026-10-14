@@ -57,6 +57,43 @@ final class ProductOptions {
         return false;
     }
 
+    // 한 상품의 옵션은 모두 같은 옵션 항목 묶음을 쓴다. 이미 있는 옵션(보관 제외)이 있으면 그 묶음에,
+    // 없으면 요청의 첫 옵션 묶음에 맞춘다 (OPT-02)
+    static void validateSameAttributes(List<OptionInfo> requested, List<ProductOption> existing) {
+        Set<Attribute> expected = null;
+        for (ProductOption option : existing) {
+            if (option.getSaleStatus() != ProductOptionStatus.ARCHIVED) {
+                expected = attributesOf(option);
+                break;
+            }
+        }
+        for (OptionInfo option : requested) {
+            Set<Attribute> attributes = attributesOf(option.values());
+            if (expected == null) {
+                expected = attributes;
+            }
+            if (!attributes.equals(expected)) {
+                throw new BusinessException(ProductErrorCode.OPTION_ATTRIBUTES_MISMATCH);
+            }
+        }
+    }
+
+    private static Set<Attribute> attributesOf(ProductOption option) {
+        Set<Attribute> attributes = new HashSet<>();
+        for (ProductOptionValue value : option.getValues()) {
+            attributes.add(value.getAttribute());
+        }
+        return attributes;
+    }
+
+    private static Set<Attribute> attributesOf(List<AttributeValue> values) {
+        Set<Attribute> attributes = new HashSet<>();
+        for (AttributeValue value : values) {
+            attributes.add(value.getAttribute());
+        }
+        return attributes;
+    }
+
     // 같은 값 묶음의 옵션은 하나만 둔다. 이미 있는 옵션(보관 제외)과 요청 안의 옵션을 모두 보고,
     // 값 묶음은 순서와 상관없는 집합으로 비교한다 (OPT-03)
     static void validateNoDuplicate(List<OptionInfo> requested, List<ProductOption> existing) {

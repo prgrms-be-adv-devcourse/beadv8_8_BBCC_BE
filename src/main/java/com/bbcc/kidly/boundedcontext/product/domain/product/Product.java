@@ -161,6 +161,7 @@ public class Product extends BaseTimeEntity {
         for (OptionInfo option : info.options()) {
             ProductOptions.validateOption(option.values(), productType);
         }
+        ProductOptions.validateSameAttributes(info.options(), options);
         ProductOptions.validateNoDuplicate(info.options(), options);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {

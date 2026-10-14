@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
@@ -19,7 +20,8 @@ final class ProductOptionFixture {
 
     /**
      * 옵션을 붙일 의류 유형과 그 유형이 쓰는 값이다. 색상은 필수 옵션 항목(모든 값 허용)이고, 사이즈는 필수 옵션 항목이자
-     * 사이즈 역할이며 110 · 120 · FREE만 고를 수 있다. 105는 사이즈의 목록 값이지만 허용되지 않는다. 주요소재는 필수 정보 항목이다.
+     * 사이즈 역할이며 110 · 120 · FREE만 고를 수 있다. 105는 사이즈의 목록 값이지만 허용되지 않는다. 무늬는 선택 옵션 항목이고,
+     * 주요소재는 필수 정보 항목이다.
      */
     record ClothingOptions(
         ProductType type,
@@ -30,12 +32,14 @@ final class ProductOptionFixture {
         AttributeValue size110,
         AttributeValue size120,
         AttributeValue sizeFree,
-        AttributeValue size105) {
+        AttributeValue size105,
+        AttributeValue stripe) {
     }
 
     static ClothingOptions clothingOptions() {
         Attribute color = ProductTypeFixture.color();
         Attribute size = ProductTypeFixture.size();
+        Attribute pattern = Attribute.create("무늬", "PATTERN", AttributeInputType.LIST);
         Attribute mainMaterial = ProductTypeFixture.mainMaterial();
         AttributeValue cotton = AttributeValue.create(mainMaterial, "면", null);
         AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
@@ -44,12 +48,15 @@ final class ProductOptionFixture {
         AttributeValue size120 = AttributeValue.create(size, "120", null);
         AttributeValue sizeFree = AttributeValue.create(size, "FREE", null);
         AttributeValue size105 = AttributeValue.create(size, "105", null);
+        AttributeValue stripe = AttributeValue.create(pattern, "스트라이프", null);
         ProductType type = ProductType.define("의류", List.of(
             ProductTypeFixture.requiredOption(color),
             new ProductType.LinkInfo(
                 size, AttributeRole.OPTION, true, false, true, false, List.of(size110, size120, sizeFree)),
+            ProductTypeFixture.optionalOption(pattern),
             ProductTypeFixture.requiredInfo(mainMaterial)));
-        return new ClothingOptions(type, mainMaterial, cotton, navy, oatmeal, size110, size120, sizeFree, size105);
+        return new ClothingOptions(
+            type, mainMaterial, cotton, navy, oatmeal, size110, size120, sizeFree, size105, stripe);
     }
 
     // 기획서 7.1 상품 A를 판매대기로 등록한 상태다. 옵션은 아직 없다
