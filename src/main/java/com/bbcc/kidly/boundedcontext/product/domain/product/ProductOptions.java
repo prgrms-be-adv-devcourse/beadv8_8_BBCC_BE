@@ -35,6 +35,19 @@ final class ProductOptions {
         return matched.getFirst().price();
     }
 
+    // 옵션 값을 유형–항목 연결의 순서대로 늘어놓는다. 옵션 이름이 이 순서를 쓴다 (OPT-09)
+    static List<AttributeValue> inTypeOrder(List<AttributeValue> values, ProductType productType) {
+        List<AttributeValue> sorted = new ArrayList<>();
+        for (ProductTypeAttribute link : productType.getAttributes()) {
+            for (AttributeValue value : values) {
+                if (value.getAttribute() == link.getAttribute()) {
+                    sorted.add(value);
+                }
+            }
+        }
+        return sorted;
+    }
+
     // 옵션의 값 중 값에 따라 가격이 달라지는 항목의 값을 모은다. 가격 구분 항목이 없는 유형은 빈 집합이다
     private static Set<AttributeValue> priceGroup(List<AttributeValue> optionValues, ProductType productType) {
         Set<AttributeValue> group = new HashSet<>();

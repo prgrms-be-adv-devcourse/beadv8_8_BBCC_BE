@@ -73,6 +73,15 @@ public class ProductOption extends BaseTimeEntity {
         return option;
     }
 
+    // 옵션 이름은 저장하지 않고 옵션 값으로 만든다. 옵션 값은 유형의 항목 순서로 저장돼 있다 (OPT-09)
+    public String getName() {
+        List<String> parts = new ArrayList<>();
+        for (ProductOptionValue value : values) {
+            parts.add(value.getAttribute().getName() + ": " + value.getAttributeValue().getName());
+        }
+        return String.join(" / ", parts);
+    }
+
     public List<ProductOptionValue> getValues() {
         return Collections.unmodifiableList(values);
     }

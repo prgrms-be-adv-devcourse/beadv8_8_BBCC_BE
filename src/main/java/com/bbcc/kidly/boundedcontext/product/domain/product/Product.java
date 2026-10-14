@@ -156,7 +156,8 @@ public class Product extends BaseTimeEntity {
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
             long price = ProductOptions.findPrice(option.values(), info.prices(), productType);
-            created.add(ProductOption.create(this, price, option.skuCode(), option.values()));
+            List<AttributeValue> values = ProductOptions.inTypeOrder(option.values(), productType);
+            created.add(ProductOption.create(this, price, option.skuCode(), values));
         }
         options.addAll(created);
     }

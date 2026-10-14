@@ -39,6 +39,21 @@ class ProductOptionTest {
     }
 
     @Test
+    @DisplayName("OPT-09 옵션 이름은 값을 보낸 순서와 상관없이 유형의 항목 순서대로 만든다")
+    void nameOptionInTypeOrder() {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+
+        product.addOptions(addOptions(List.of(
+            option(clothing.size110(), clothing.navy()),
+            option(clothing.navy(), clothing.size120()))), clothing.type());
+
+        assertThat(product.getOptions())
+            .extracting(ProductOption::getName)
+            .containsExactly("색상: 네이비 / 사이즈: 110", "색상: 네이비 / 사이즈: 120");
+    }
+
+    @Test
     @DisplayName("PRICE-01 옵션이 속한 가격 구분 묶음에 가격이 없으면 거절한다")
     void rejectOptionWithoutPrice() {
         ClothingOptions clothing = clothingOptions();
