@@ -43,6 +43,7 @@ class MemberApiTest {
         assertThat(response.nickname()).isEqualTo(MemberFixture.NICKNAME);
         assertThat(response.roles()).containsExactly(Role.BUYER);
         assertThat(response.sellerStatus()).isNull();
+        assertThat(response.providers()).containsExactly("KAKAO");
     }
 
     @Test
