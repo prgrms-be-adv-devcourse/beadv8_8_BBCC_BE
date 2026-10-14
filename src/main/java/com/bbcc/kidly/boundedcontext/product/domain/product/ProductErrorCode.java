@@ -28,7 +28,8 @@ public enum ProductErrorCode implements ErrorCode {
     OPTION_ATTRIBUTES_MISMATCH(HttpStatus.BAD_REQUEST, "옵션 항목 묶음이 다릅니다", "한 상품의 옵션은 모두 같은 옵션 항목으로 만들어 주세요."),
     SIZE_FREE_MIXED(HttpStatus.BAD_REQUEST, "FREE와 숫자 사이즈를 섞을 수 없습니다", "한 상품의 사이즈는 모두 FREE이거나 모두 숫자여야 합니다."),
     INVALID_HEIGHT_RANGE(HttpStatus.BAD_REQUEST, "권장 키 범위가 올바르지 않습니다",
-        "권장 키는 최솟값과 최댓값을 함께 넣고, 최솟값이 최댓값보다 크지 않게 넣어 주세요.");
+        "권장 키는 최솟값과 최댓값을 함께 넣고, 최솟값이 최댓값보다 크지 않게 넣어 주세요."),
+    DUPLICATE_SIZE_SPEC(HttpStatus.BAD_REQUEST, "같은 사이즈의 실측이 두 번 들어왔습니다", "사이즈마다 실측을 한 번만 넣어 주세요.");
 
     private final HttpStatus status;
     private final String title;

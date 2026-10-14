@@ -13,15 +13,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
+import com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.SpecRequests;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ProductSizeSpecTest {
 
@@ -74,6 +79,32 @@ class ProductSizeSpecTest {
         assertThat(product.getSizeSpecs())
             .extracting(SizeSpec::getSizeValue, SizeSpec::getMinHeightCm, SizeSpec::getMaxHeightCm)
             .containsExactly(tuple(clothing.sizeFree(), null, null));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("duplicatedSizeSpecs")
+    @DisplayName("SIZE-03 같은 사이즈 값의 실측이 요청 안에서 겹치거나 이미 있으면 거절한다")
+    void rejectDuplicatedSizeSpec(Function<ClothingOptions, SpecRequests> requests) {
+        withOptions110And120();
+        SpecRequests given = requests.apply(clothing);
+        if (!given.existing().isEmpty()) {
+            product.addSizeSpecs(addSizeSpecs(given.existing()), top, clothing.type());
+        }
+
+        assertRejected(() -> product.addSizeSpecs(addSizeSpecs(given.requested()), top, clothing.type()),
+            ProductErrorCode.DUPLICATE_SIZE_SPEC);
+        assertThat(product.getSizeSpecs()).hasSameSizeAs(given.existing());
+    }
+
+    static Stream<Named<Function<ClothingOptions, SpecRequests>>> duplicatedSizeSpecs() {
+        return Stream.of(
+            Named.of("요청 안에서 110 두 번", clothing -> new SpecRequests(
+                List.of(),
+                List.of(spec(clothing.size110(), 105, 115, top110Measurements()),
+                    spec(clothing.size110(), 110, 120, top110Measurements())))),
+            Named.of("이미 있는 110과 겹침", clothing -> new SpecRequests(
+                List.of(spec(clothing.size110(), 105, 115, top110Measurements())),
+                List.of(spec(clothing.size110(), 105, 115, top110Measurements())))));
     }
 
     // 상품 A에 네이비 110 · 120 옵션을 붙인다

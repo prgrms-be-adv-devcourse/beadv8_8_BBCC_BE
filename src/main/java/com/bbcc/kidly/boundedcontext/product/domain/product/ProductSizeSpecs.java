@@ -1,8 +1,11 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SizeSpecInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 실측을 추가할 때 실측 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addSizeSpecs만 쓴다.
@@ -22,6 +25,19 @@ final class ProductSizeSpecs {
             }
             if (min != null && min > max) {
                 throw new BusinessException(ProductErrorCode.INVALID_HEIGHT_RANGE);
+            }
+        }
+    }
+
+    // 같은 사이즈 값의 실측은 요청 안에서도, 이미 있는 실측과도 겹치면 안 된다 (SIZE-03)
+    static void validateNoDuplicate(List<SizeSpecInfo> specs, List<SizeSpec> existing) {
+        Set<AttributeValue> seen = new HashSet<>();
+        for (SizeSpec spec : existing) {
+            seen.add(spec.getSizeValue());
+        }
+        for (SizeSpecInfo spec : specs) {
+            if (!seen.add(spec.sizeValue())) {
+                throw new BusinessException(ProductErrorCode.DUPLICATE_SIZE_SPEC);
             }
         }
     }

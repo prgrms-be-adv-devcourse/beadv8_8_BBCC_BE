@@ -40,4 +40,8 @@ final class SizeSpecFixture {
     static Product.AddSizeSpecsInfo addSizeSpecs(List<Product.SizeSpecInfo> specs) {
         return new Product.AddSizeSpecsInfo(SELLER_ID, specs);
     }
+
+    // 이미 넣은 실측과 이번에 넣으려는 실측이다. existing이 비어 있으면 먼저 넣은 실측이 없다
+    record SpecRequests(List<Product.SizeSpecInfo> existing, List<Product.SizeSpecInfo> requested) {
+    }
 }
