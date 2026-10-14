@@ -12,9 +12,13 @@ on:
 
 jobs:
   notify:
-    # PR 머지로 생긴 push는 'PR 머지' 알림과 겹치므로 보내지 않는다
+    # PR 머지로 생긴 push는 'PR 머지' 알림과 겹치므로 보내지 않는다.
+    # 머지 커밋은 메시지로 바로 거르고, squash · rebase 머지는 아래 스크립트에서 API로 거른다
     if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Send to Slack
         env:
@@ -22,6 +26,9 @@ jobs:
           # {"GitHub아이디": "이름"} 형식의 Actions 변수. public 레포라 실명을 코드에 두지 않는다
           NAME_MAP: ${{ vars.SLACK_NAME_MAP }}
           EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
           ACTION: ${{ github.event.action }}
           ACTOR: ${{ github.actor }}
           REF: ${{ github.ref_name }}
@@ -43,6 +50,22 @@ jobs:
           ISSUE_URL: ${{ github.event.issue.html_url }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
+          # squash · rebase 머지는 커밋 메시지가 'Merge pull request'로 시작하지 않는다.
+          # 커밋이 머지된 PR에 속하면 직접 push가 아니므로 보내지 않는다. 머지 직후엔 API에 늦게 보일 수 있어 한 번 더 본다.
+          # API 호출이 실패하면 진짜 직접 push를 놓치지 않도록 알림을 보낸다
+          if [ "$EVENT" = "push" ]; then
+            for attempt in 1 2; do
+              # 실패하면 gh가 오류 본문을 출력하므로 값을 비우고, 숫자일 때만 PR 번호로 본다
+              merged_pr=$(gh api "repos/$REPO/commits/$SHA/pulls" \
+                --jq '[.[] | select(.merged_at != null)][0].number // empty' 2>/dev/null) || merged_pr=""
+              if [[ "$merged_pr" =~ ^[0-9]+$ ]]; then
+                echo "PR #$merged_pr 머지로 생긴 push라 알림을 보내지 않는다"
+                exit 0
+              fi
+              if [ "$attempt" = 1 ]; then sleep 5; fi
+            done
+          fi
+
           # 매핑에 없거나 JSON이 잘못되면 GitHub 아이디를 그대로 쓴다
           display_name() {
             local name
