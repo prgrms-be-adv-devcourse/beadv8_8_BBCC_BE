@@ -30,6 +30,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -176,7 +178,13 @@ class ProductRepositoryIntegrationTest {
         Long optionId = jdbcTemplate.queryForObject(
             "select id from product.product_option where product_id = ?", Long.class, productId);
 
-        inTransaction(() -> assertThat(entityManager.find(ProductOption.class, optionId).isPurchasable()).isTrue());
+        inTransaction(() -> {
+            ProductOption option = entityManager.find(ProductOption.class, optionId);
+
+            assertThat(entityManager.getEntityManagerFactory().getPersistenceUnitUtil().isLoaded(option, "product"))
+                .isFalse();
+            assertThat(option.isPurchasable()).isTrue();
+        });
     }
 
     @Test
@@ -245,10 +253,11 @@ class ProductRepositoryIntegrationTest {
         return entityManager.find(AttributeValue.class, value.getId());
     }
 
-    // PostgreSQL은 고친 행을 표 뒤쪽에 새로 쓴다. 먼저 넣은 행을 고쳐, 순서를 정하지 않고 읽으면 맨 뒤에 나오게 한다
+    // 먼저 넣은 행을 지우고 같은 값으로 다시 넣어 표 뒤쪽으로 옮긴다. 순서를 정하지 않고 읽으면 이 행이 맨 뒤에 나온다
+    // id를 그대로 두는 UPDATE는 색인이 원래 자리를 가리켜, 색인으로 읽을 때 순서가 바뀌지 않는다
     private void moveFirstRowToEnd(String table, String ownerColumn, Long ownerId) {
-        jdbcTemplate.update("update " + table + " set id = id where id = (select min(id) from " + table
-            + " where " + ownerColumn + " = ?)", ownerId);
+        jdbcTemplate.update("with moved as (delete from " + table + " where id = (select min(id) from " + table
+            + " where " + ownerColumn + " = ?) returning *) insert into " + table + " select * from moved", ownerId);
     }
 
     private long optionCount(Long productId) {
@@ -258,8 +267,8 @@ class ProductRepositoryIntegrationTest {
 
     private static void await(CyclicBarrier barrier) {
         try {
-            barrier.await();
-        } catch (InterruptedException | BrokenBarrierException e) {
+            barrier.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
             throw new IllegalStateException(e);
         }
     }

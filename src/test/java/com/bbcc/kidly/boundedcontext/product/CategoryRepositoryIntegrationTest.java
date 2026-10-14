@@ -89,9 +89,11 @@ class CategoryRepositoryIntegrationTest {
     @DisplayName("말단 카테고리의 실측 항목 연결은 카테고리를 채워 저장되고, 연결한 순서로 다시 읽힌다")
     void measurementItemLinksAreSavedWithCategoryInOrder() {
         Category top = savedTop();
-        // PostgreSQL은 고친 행을 표 뒤쪽에 새로 쓴다. 먼저 넣은 연결을 고쳐, 순서를 정하지 않고 읽으면 맨 뒤에 나오게 한다
-        jdbcTemplate.update("update product.category_measurement_item set id = id where id = (select min(id) from "
-            + "product.category_measurement_item where category_id = ?)", top.getId());
+        // 먼저 넣은 연결을 지우고 같은 값으로 다시 넣어 표 뒤쪽으로 옮긴다. 순서를 정하지 않고 읽으면 이 연결이 맨 뒤에 나온다
+        // id를 그대로 두는 UPDATE는 색인이 원래 자리를 가리켜, 색인으로 읽을 때 순서가 바뀌지 않는다
+        jdbcTemplate.update("with moved as (delete from product.category_measurement_item where id = (select min(id) "
+            + "from product.category_measurement_item where category_id = ?) returning *) "
+            + "insert into product.category_measurement_item select * from moved", top.getId());
 
         assertThat(jdbcTemplate.queryForObject(
             "select count(*) from product.category_measurement_item where category_id = ?", Long.class, top.getId()))
