@@ -26,9 +26,14 @@ public final class RecommendFixture {
      */
     public static final LocalDate CHILD_1_BIRTH_DATE = LocalDate.of(2019, 1, 1);
 
-    public static final Long CHILD_1_ID = 1L;
+    /**
+     * 기획서 7.1 자녀 1의 ID. 회원 ID와 값이 같으면 두 칸을 바꿔 넣어도 테스트가 통과하므로 다른 값을 쓴다.
+     */
+    public static final Long CHILD_1_ID = 11L;
 
     public static final Long MEMBER_1_ID = 1L;
+
+    public static final Long OTHER_MEMBER_ID = 2L;
 
     /**
      * 자녀 정보 변경 이벤트가 일어난 시각. 늦고 이른 이벤트는 이 시각에서 분을 더하거나 빼서 만든다.
@@ -53,7 +58,7 @@ public final class RecommendFixture {
     /**
      * 자녀 1의 키만 바꾼 자녀 정보 변경. 어느 이벤트가 반영됐는지 키로 구분한다.
      */
-    public static ReplicaChild.ChangeInfo childChange(BigDecimal heightCm, LocalDateTime occurredAt) {
+    public static ReplicaChild.ChangeInfo childChangeAt(BigDecimal heightCm, LocalDateTime occurredAt) {
         return new ReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, heightCm, new BigDecimal("20.0"),
             Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, false, occurredAt);
     }

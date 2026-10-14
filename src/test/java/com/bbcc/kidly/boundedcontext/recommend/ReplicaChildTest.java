@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_B
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_CHANGED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.OTHER_MEMBER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -25,6 +26,12 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ReplicaChildTest {
+
+    private static final BigDecimal HEIGHT = new BigDecimal("120.0");
+
+    private static final BigDecimal WEIGHT = new BigDecimal("22.0");
+
+    private static final LocalDateTime LATER = CHILD_CHANGED_AT.plusMinutes(1);
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("firstChanges")
@@ -60,7 +67,7 @@ class ReplicaChildTest {
     static Stream<Named<ReplicaChild.ChangeInfo>> firstChanges() {
         return Stream.of(
             Named.of("체형 보통 · 선호 핏 여유", RecommendFixture.childChange()),
-            Named.of("체형 · 선호 핏 입력 안 함", RecommendFixture.childChange((BodyType) null, (PreferredFit) null)));
+            Named.of("체형 · 선호 핏 입력 안 함", RecommendFixture.childChange(null, null)));
     }
 
     @Test
@@ -82,14 +89,15 @@ class ReplicaChildTest {
             .containsExactly(new BigDecimal("120.0"), new BigDecimal("22.0"), BodyType.CHUNKY, null, later);
     }
 
-    @ParameterizedTest(name = "저장된 시각 {0}분")
+    @ParameterizedTest(name = "저장된 시각에서 {0}분")
     @ValueSource(longs = {0, -1})
     @DisplayName("INV-R01 같은 시각이거나 더 이르게 일어난 이벤트는 무시한다")
     void ignoreChangeNotLater(long minutesFromStored) {
-        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange(new BigDecimal("115.0"), CHILD_CHANGED_AT));
+        ReplicaChild replica = ReplicaChild.create(
+            RecommendFixture.childChangeAt(new BigDecimal("115.0"), CHILD_CHANGED_AT));
 
         replica.applyIfNewer(
-            RecommendFixture.childChange(new BigDecimal("120.0"), CHILD_CHANGED_AT.plusMinutes(minutesFromStored)));
+            RecommendFixture.childChangeAt(new BigDecimal("120.0"), CHILD_CHANGED_AT.plusMinutes(minutesFromStored)));
 
         assertThat(replica)
             .extracting(ReplicaChild::getHeightCm, ReplicaChild::getEventOccurredAt)
@@ -127,7 +135,7 @@ class ReplicaChildTest {
         LocalDateTime deletedAt = CHILD_CHANGED_AT.plusMinutes(5);
         ReplicaChild replica = ReplicaChild.create(RecommendFixture.childDeleted(deletedAt));
 
-        replica.applyIfNewer(RecommendFixture.childChange(new BigDecimal("120.0"), CHILD_CHANGED_AT));
+        replica.applyIfNewer(RecommendFixture.childChangeAt(new BigDecimal("120.0"), CHILD_CHANGED_AT));
 
         assertThat(replica)
             .extracting(ReplicaChild::isDeleted, ReplicaChild::getHeightCm, ReplicaChild::getEventOccurredAt)
@@ -151,58 +159,71 @@ class ReplicaChildTest {
 
     static Stream<Arguments> invisibleChildren() {
         return Stream.of(
-            Arguments.of(Named.of("다른 회원의 자녀", ReplicaChild.create(RecommendFixture.childChange())), 2L),
+            Arguments.of(Named.of("다른 회원의 자녀", ReplicaChild.create(RecommendFixture.childChange())), OTHER_MEMBER_ID),
             Arguments.of(
                 Named.of("삭제된 자기 자녀", ReplicaChild.create(RecommendFixture.childDeleted(CHILD_CHANGED_AT))),
                 MEMBER_1_ID));
     }
 
     @ParameterizedTest(name = "{0}")
-    @MethodSource("changesWithNull")
-    @DisplayName("자녀 정보에 필수 값이 없으면 복사본을 만들거나 덮어쓰지 않는다")
-    void rejectChangeWithNull(ThrowingCallable change) {
-        assertThatThrownBy(change)
+    @MethodSource("creationsWithNull")
+    @DisplayName("자녀 정보에 필수 값이 없으면 복사본을 만들지 않는다")
+    void rejectCreationWithNull(ThrowingCallable creation) {
+        assertThatThrownBy(creation)
             .isInstanceOf(NullPointerException.class)
             .hasMessageContaining("필수입니다");
     }
 
-    static Stream<Named<ThrowingCallable>> changesWithNull() {
-        BigDecimal height = new BigDecimal("120.0");
-        BigDecimal weight = new BigDecimal("22.0");
-        LocalDateTime later = CHILD_CHANGED_AT.plusMinutes(1);
+    static Stream<Named<ThrowingCallable>> creationsWithNull() {
         return Stream.of(
-            Named.of("만들 때 자녀 정보", () -> ReplicaChild.create(null)),
-            Named.of("만들 때 자녀 ID", () -> ReplicaChild.create(
-                change(null, MEMBER_1_ID, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
-            Named.of("만들 때 회원 ID", () -> ReplicaChild.create(
-                change(CHILD_1_ID, null, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
-            Named.of("만들 때 키", () -> ReplicaChild.create(
-                change(CHILD_1_ID, MEMBER_1_ID, null, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
-            Named.of("만들 때 몸무게", () -> ReplicaChild.create(
-                change(CHILD_1_ID, MEMBER_1_ID, height, null, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
-            Named.of("만들 때 성별", () -> ReplicaChild.create(
-                change(CHILD_1_ID, MEMBER_1_ID, height, weight, null, CHILD_1_BIRTH_DATE, later))),
-            Named.of("만들 때 생년월일", () -> ReplicaChild.create(
-                change(CHILD_1_ID, MEMBER_1_ID, height, weight, Gender.MALE, null, later))),
-            Named.of("만들 때 이벤트 발생 시각", () -> ReplicaChild.create(
-                change(CHILD_1_ID, MEMBER_1_ID, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, null))),
-            Named.of("덮어쓸 때 자녀 정보", () -> existingReplica().applyIfNewer(null)),
-            Named.of("덮어쓸 때 회원 ID", () -> existingReplica().applyIfNewer(
-                change(CHILD_1_ID, null, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
-            Named.of("덮어쓸 때 키", () -> existingReplica().applyIfNewer(
-                change(CHILD_1_ID, MEMBER_1_ID, null, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
-            Named.of("덮어쓸 때 몸무게", () -> existingReplica().applyIfNewer(
-                change(CHILD_1_ID, MEMBER_1_ID, height, null, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
-            Named.of("덮어쓸 때 성별", () -> existingReplica().applyIfNewer(
-                change(CHILD_1_ID, MEMBER_1_ID, height, weight, null, CHILD_1_BIRTH_DATE, later))),
-            Named.of("덮어쓸 때 생년월일", () -> existingReplica().applyIfNewer(
-                change(CHILD_1_ID, MEMBER_1_ID, height, weight, Gender.MALE, null, later))),
-            Named.of("덮어쓸 때 이벤트 발생 시각", () -> existingReplica().applyIfNewer(
-                change(CHILD_1_ID, MEMBER_1_ID, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, null))));
+            Named.of("자녀 정보", () -> ReplicaChild.create(null)),
+            Named.of("자녀 ID", () -> ReplicaChild.create(
+                change(null, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, LATER))),
+            Named.of("회원 ID", () -> ReplicaChild.create(
+                change(CHILD_1_ID, null, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, LATER))),
+            Named.of("키", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, null, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, LATER))),
+            Named.of("몸무게", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, null, Gender.MALE, CHILD_1_BIRTH_DATE, LATER))),
+            Named.of("성별", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, null, CHILD_1_BIRTH_DATE, LATER))),
+            Named.of("생년월일", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, null, LATER))),
+            Named.of("이벤트 발생 시각", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, null))));
     }
 
-    private static ReplicaChild existingReplica() {
-        return ReplicaChild.create(RecommendFixture.childChange());
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesWithNull")
+    @DisplayName("자녀 정보에 필수 값이 없으면 복사본을 덮어쓰지 않고 이전 값을 그대로 둔다")
+    void rejectChangeWithNull(ReplicaChild.ChangeInfo change) {
+        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange());
+
+        assertThatThrownBy(() -> replica.applyIfNewer(change))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+        assertThat(replica)
+            .extracting(
+                ReplicaChild::getMemberId,
+                ReplicaChild::getHeightCm,
+                ReplicaChild::getWeightKg,
+                ReplicaChild::getGender,
+                ReplicaChild::getBirthDate,
+                ReplicaChild::getEventOccurredAt)
+            .containsExactly(MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE,
+                CHILD_1_BIRTH_DATE, CHILD_CHANGED_AT);
+    }
+
+    static Stream<Named<ReplicaChild.ChangeInfo>> changesWithNull() {
+        return Stream.of(
+            Named.of("자녀 정보", null),
+            Named.of("회원 ID", change(CHILD_1_ID, null, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, LATER)),
+            Named.of("키", change(CHILD_1_ID, MEMBER_1_ID, null, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, LATER)),
+            Named.of("몸무게", change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, null, Gender.MALE, CHILD_1_BIRTH_DATE, LATER)),
+            Named.of("성별", change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, null, CHILD_1_BIRTH_DATE, LATER)),
+            Named.of("생년월일", change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, null, LATER)),
+            Named.of("이벤트 발생 시각",
+                change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, null)));
     }
 
     private static ReplicaChild.ChangeInfo change(Long childProfileId, Long memberId, BigDecimal heightCm,
