@@ -53,7 +53,7 @@ public class CategoryService {
             results.add(new CategoryTreeResult(
                 category.getId(),
                 category.getName(),
-                category.getProductType() != null,
+                category.isLeaf(),
                 toResults(children, childrenByParentId)));
         }
         return results;
