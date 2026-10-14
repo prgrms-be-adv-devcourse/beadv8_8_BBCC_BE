@@ -9,7 +9,7 @@ import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.boundedcontext.member.domain.NicknameGenerator;
+import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.global.error.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +27,7 @@ public class SocialLoginService {
 
     private final MemberRepository memberRepository;
     private final MemberRegistrar memberRegistrar;
-    private final NicknameGenerator nicknameGenerator;
+    private final NicknamePolicy nicknamePolicy;
     private final OAuthClient oauthClient;
 
     // provider는 URL 경로의 소문자 이름(kakao)이다
@@ -45,7 +45,7 @@ public class SocialLoginService {
     // 같은 소셜 계정으로 동시에 처음 로그인하면 한 요청만 가입되고, 나머지는 그 회원으로 로그인한다
     private Member register(OAuthProvider provider, OAuthProfile profile) {
         try {
-            var nickname = nicknameGenerator.generate(profile.nickname());
+            var nickname = nicknamePolicy.generate(profile.nickname());
             return memberRegistrar.register(new MemberLoginRequest(provider, profile.providerUserId(), nickname));
         } catch (DataIntegrityViolationException e) {
             // 닉네임이 겹쳐 실패하면 소셜 계정으로 다시 찾지 못하므로 그대로 던진다 (409)

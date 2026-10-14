@@ -1,15 +1,18 @@
 package com.bbcc.kidly.boundedcontext.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.boundedcontext.member.domain.NicknameGenerator;
+import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.global.error.BusinessException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,15 +22,18 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
-class NicknameGeneratorTest {
+class NicknamePolicyTest {
+
+    private static final Long MEMBER_ID = 1L;
 
     @Mock
     private MemberRepository memberRepository;
 
     @InjectMocks
-    private NicknameGenerator nicknameGenerator;
+    private NicknamePolicy nicknamePolicy;
 
     @Test
     @DisplayName("앞뒤 공백을 뺀다")
@@ -90,9 +96,45 @@ class NicknameGeneratorTest {
         verify(memberRepository, times(5)).existsByNickname(anyString());
     }
 
+    @Test
+    @DisplayName("닉네임을 바꿀 때 다른 회원이 쓰고 있으면 409이고 닉네임은 그대로다")
+    void changeNicknameRejectsUsedNickname() {
+        var member = memberWithId();
+        given(memberRepository.existsByNicknameAndIdNot("하은맘", MEMBER_ID)).willReturn(true);
+
+        assertThatThrownBy(() -> nicknamePolicy.changeNickname(member, "하은맘"))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.NICKNAME_ALREADY_USED));
+        assertThat(member.getNickname()).isEqualTo(MemberFixture.NICKNAME);
+    }
+
+    @Test
+    @DisplayName("닉네임을 바꿀 때 겹치지 않으면 바꾸고 true다")
+    void changeNickname() {
+        var member = memberWithId();
+
+        assertThat(nicknamePolicy.changeNickname(member, "하은맘")).isTrue();
+        assertThat(member.getNickname()).isEqualTo("하은맘");
+    }
+
+    @Test
+    @DisplayName("닉네임을 바꿀 때 지금 닉네임과 같으면 false다")
+    void changeNicknameToSame() {
+        var member = memberWithId();
+
+        assertThat(nicknamePolicy.changeNickname(member, MemberFixture.NICKNAME)).isFalse();
+        assertThat(member.getNickname()).isEqualTo(MemberFixture.NICKNAME);
+    }
+
+    private Member memberWithId() {
+        var member = MemberFixture.kakaoMember();
+        ReflectionTestUtils.setField(member, "id", MEMBER_ID);
+        return member;
+    }
+
     // 결과는 항상 회원 닉네임 규칙을 만족한다 (규칙을 어기면 Member.register가 예외를 던진다)
     private String generate(String providerNickname) {
-        var nickname = nicknameGenerator.generate(providerNickname);
+        var nickname = nicknamePolicy.generate(providerNickname);
         Member.register(OAuthProvider.KAKAO, "kakao-1", nickname, MemberFixture.NOW);
         return nickname;
     }

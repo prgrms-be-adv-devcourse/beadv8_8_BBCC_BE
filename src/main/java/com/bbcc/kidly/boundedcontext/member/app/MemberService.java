@@ -2,9 +2,8 @@ package com.bbcc.kidly.boundedcontext.member.app;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberResult;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import java.time.LocalDateTime;
@@ -21,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
     private final MemberRepository memberRepository;
+    private final NicknamePolicy nicknamePolicy;
     private final EventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
@@ -28,15 +28,12 @@ public class MemberService {
         return MemberResult.from(memberRepository.getById(memberId));
     }
 
-    // 다른 회원이 쓰는 닉네임이면 409. 지금 닉네임과 같으면 바꾸지 않고 이벤트도 발행하지 않는다
+    // 지금 닉네임과 같으면 바꾸지 않고 이벤트도 발행하지 않는다
     // 동시에 같은 닉네임으로 바꾸면 유니크 제약이 한 요청만 통과시킨다 (나머지는 커밋 때 409)
     @Transactional
     public MemberResult update(Long memberId, MemberUpdateRequest request) {
         var member = memberRepository.getById(memberId);
-        if (memberRepository.existsByNicknameAndIdNot(request.nickname(), memberId)) {
-            throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_USED);
-        }
-        if (member.changeNickname(request.nickname())) {
+        if (nicknamePolicy.changeNickname(member, request.nickname())) {
             eventPublisher.publish(new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
                 new MemberChangedEvent.Data(memberId, member.getNickname())));
         }

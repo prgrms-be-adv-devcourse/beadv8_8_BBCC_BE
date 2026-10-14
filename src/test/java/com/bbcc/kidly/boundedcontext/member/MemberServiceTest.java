@@ -9,16 +9,18 @@ import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class MemberServiceTest {
@@ -31,8 +33,12 @@ class MemberServiceTest {
     @Mock
     private EventPublisher eventPublisher;
 
-    @InjectMocks
     private MemberService memberService;
+
+    @BeforeEach
+    void setUp() {
+        memberService = new MemberService(memberRepository, new NicknamePolicy(memberRepository), eventPublisher);
+    }
 
     @Test
     @DisplayName("닉네임을 바꾸면 변경 이벤트를 발행한다")
@@ -51,6 +57,7 @@ class MemberServiceTest {
     @DisplayName("다른 회원이 쓰는 닉네임이면 바꾸지 않는다")
     void duplicateNickname() {
         var member = MemberFixture.kakaoMember();
+        ReflectionTestUtils.setField(member, "id", MEMBER_ID);
         given(memberRepository.getById(MEMBER_ID)).willReturn(member);
         given(memberRepository.existsByNicknameAndIdNot("하은맘", MEMBER_ID)).willReturn(true);
 
