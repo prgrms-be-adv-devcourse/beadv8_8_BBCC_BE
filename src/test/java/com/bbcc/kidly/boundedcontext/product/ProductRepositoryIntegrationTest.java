@@ -6,10 +6,12 @@ import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.addSizeSpecs;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.spec;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top110Measurements;
+import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measurements;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
@@ -133,6 +135,32 @@ class ProductRepositoryIntegrationTest {
         });
     }
 
+    @Test
+    @DisplayName("옵션 · 실측은 추가한 순서로, 상품 유형의 항목은 연결한 순서로 다시 읽힌다")
+    void collectionsAreReadInDeclaredOrder() {
+        Long productId = savedProductA();
+        inTransaction(() -> productRepository.findById(productId).orElseThrow().addOptions(addOptions(List.of(
+            option(managed(clothing.navy()), managed(clothing.size110())),
+            option(managed(clothing.navy()), managed(clothing.size120())))), managedType()));
+        inTransaction(() -> productRepository.findById(productId).orElseThrow().addSizeSpecs(addSizeSpecs(List.of(
+            spec(managed(clothing.size110()), 105, 115, top110Measurements()),
+            spec(managed(clothing.size120()), 115, 125, top120Measurements()))), managedCategory(), managedType()));
+        moveFirstRowToEnd("product.product_option", "product_id", productId);
+        moveFirstRowToEnd("product.size_spec", "product_id", productId);
+        moveFirstRowToEnd("product.product_type_attribute", "product_type_id", clothing.type().getId());
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+
+            assertThat(product.getOptions()).extracting(ProductOption::getName)
+                .containsExactly("색상: 네이비 / 사이즈: 110", "색상: 네이비 / 사이즈: 120");
+            assertThat(product.getSizeSpecs()).extracting(spec -> spec.getSizeValue().getName())
+                .containsExactly("110", "120");
+            assertThat(managedType().getAttributes()).extracting(link -> link.getAttribute().getCode())
+                .containsExactly("COLOR", "SIZE", "PATTERN", "MAIN_MATERIAL");
+        });
+    }
+
     // 상품 A를 저장하고 네이비 110 옵션을 붙인 뒤 ID를 돌려준다
     private Long savedProductAWithOption110() {
         Long productId = savedProductA();
@@ -182,6 +210,12 @@ class ProductRepositoryIntegrationTest {
 
     private AttributeValue managed(AttributeValue value) {
         return entityManager.find(AttributeValue.class, value.getId());
+    }
+
+    // PostgreSQL은 고친 행을 표 뒤쪽에 새로 쓴다. 먼저 넣은 행을 고쳐, 순서를 정하지 않고 읽으면 맨 뒤에 나오게 한다
+    private void moveFirstRowToEnd(String table, String ownerColumn, Long ownerId) {
+        jdbcTemplate.update("update " + table + " set id = id where id = (select min(id) from " + table
+            + " where " + ownerColumn + " = ?)", ownerId);
     }
 
     private long optionCount(Long productId) {
