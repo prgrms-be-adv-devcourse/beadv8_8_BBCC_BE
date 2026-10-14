@@ -49,12 +49,24 @@ public class ProductType extends BaseTimeEntity {
     private List<ProductTypeAttribute> attributes = new ArrayList<>();
 
     public static ProductType define(String name, List<LinkInfo> links) {
+        if (!hasRequiredOption(links)) {
+            throw new IllegalArgumentException("유형에는 필수 옵션 항목이 하나 이상 있어야 합니다");
+        }
         ProductType type = new ProductType();
         type.name = name;
         for (int i = 0; i < links.size(); i++) {
             type.attributes.add(ProductTypeAttribute.create(type, links.get(i), i + 1));
         }
         return type;
+    }
+
+    private static boolean hasRequiredOption(List<LinkInfo> links) {
+        for (LinkInfo link : links) {
+            if (link.role() == AttributeRole.OPTION && link.required()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public List<ProductTypeAttribute> getAttributes() {

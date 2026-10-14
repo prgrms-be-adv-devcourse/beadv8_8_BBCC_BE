@@ -1,21 +1,51 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.clothingLinks;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.color;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.fabricComposition;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.mainMaterial;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.optionalOption;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.optionalTextInfo;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredInfo;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ProductTypeTest {
 
     @Test
     @DisplayName("TYPE-02 필수 옵션 항목이 있으면 유형을 만든다")
     void defineTypeWithRequiredOptionAttribute() {
-        ProductType clothing = ProductType.define("의류", ProductTypeFixture.clothingLinks());
+        ProductType clothing = ProductType.define("의류", clothingLinks());
 
         assertThat(clothing.getName()).isEqualTo("의류");
         assertThat(clothing.getAttributes())
             .extracting(link -> link.getAttribute().getCode())
             .containsExactly("COLOR", "SIZE", "MAIN_MATERIAL", "FABRIC_COMPOSITION");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("linksWithoutRequiredOption")
+    @DisplayName("TYPE-02 필수 옵션 항목이 없으면 거절한다")
+    void rejectTypeWithoutRequiredOptionAttribute(List<ProductType.LinkInfo> links) {
+        assertThatThrownBy(() -> ProductType.define("의류", links))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("필수 옵션 항목");
+    }
+
+    static Stream<Named<List<ProductType.LinkInfo>>> linksWithoutRequiredOption() {
+        return Stream.of(
+            Named.of("연결 없음", List.of()),
+            Named.of("정보 항목만", List.of(requiredInfo(mainMaterial()), optionalTextInfo(fabricComposition()))),
+            Named.of("옵션 항목이 모두 선택", List.of(optionalOption(color()), optionalOption(size()))));
     }
 }
