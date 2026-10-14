@@ -75,7 +75,8 @@ class SellerApplicationServiceTest {
         assertThat(result.status()).isEqualTo(SellerApplicationStatus.PENDING);
         assertThat(result.businessName()).isEqualTo(SellerFixture.BUSINESS_NAME);
         assertThat(result.representativeName()).isEqualTo(SellerFixture.REPRESENTATIVE_NAME);
-        assertThat(result.businessRegistrationNumber()).isEqualTo(SellerFixture.BUSINESS_REGISTRATION_NUMBER);
+        assertThat(result.maskedBusinessRegistrationNumber())
+            .isEqualTo(SellerFixture.MASKED_BUSINESS_REGISTRATION_NUMBER);
         assertThat(result.decidedAt()).isNull();
     }
 

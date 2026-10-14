@@ -11,14 +11,14 @@ public record SellerApplicationResponse(
     Long id,
     String businessName,
     String representativeName,
-    String businessRegistrationNumber,
+    String maskedBusinessRegistrationNumber,
     SellerApplicationStatus status,
     LocalDateTime createdAt,
     LocalDateTime decidedAt) {
 
     public static SellerApplicationResponse from(SellerApplicationResult result) {
         return new SellerApplicationResponse(
-            result.id(), result.businessName(), result.representativeName(), result.businessRegistrationNumber(),
-            result.status(), result.createdAt(), result.decidedAt());
+            result.id(), result.businessName(), result.representativeName(),
+            result.maskedBusinessRegistrationNumber(), result.status(), result.createdAt(), result.decidedAt());
     }
 }
