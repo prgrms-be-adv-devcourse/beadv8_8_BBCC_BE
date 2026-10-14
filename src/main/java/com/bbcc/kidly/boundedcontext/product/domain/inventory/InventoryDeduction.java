@@ -55,22 +55,22 @@ public class InventoryDeduction extends BaseTimeEntity {
         return productOption.getId();
     }
 
-    // 차감 요청(InventoryDeductionRequest)만 차감 기록을 만든다
-    static InventoryDeduction deducted(long orderId, long orderItemId, ProductOption productOption, int qty) {
-        return create(orderId, orderItemId, productOption, qty, InventoryDeductionStatus.DEDUCTED);
+    // 차감 요청(InventoryDeductionRequest)만 차감 기록을 만든다. 주문상품의 값은 요청이 이미 검증했다
+    static InventoryDeduction deducted(long orderId, InventoryDeductionRequest.Item item) {
+        return create(orderId, item, InventoryDeductionStatus.DEDUCTED);
     }
 
-    static InventoryDeduction failed(long orderId, long orderItemId, ProductOption productOption, int qty) {
-        return create(orderId, orderItemId, productOption, qty, InventoryDeductionStatus.FAILED);
+    static InventoryDeduction failed(long orderId, InventoryDeductionRequest.Item item) {
+        return create(orderId, item, InventoryDeductionStatus.FAILED);
     }
 
     private static InventoryDeduction create(
-            long orderId, long orderItemId, ProductOption productOption, int qty, InventoryDeductionStatus status) {
+            long orderId, InventoryDeductionRequest.Item item, InventoryDeductionStatus status) {
         InventoryDeduction deduction = new InventoryDeduction();
         deduction.orderId = orderId;
-        deduction.orderItemId = orderItemId;
-        deduction.productOption = productOption;
-        deduction.qty = qty;
+        deduction.orderItemId = item.orderItemId();
+        deduction.productOption = item.option();
+        deduction.qty = item.qty();
         deduction.status = status;
         return deduction;
     }
