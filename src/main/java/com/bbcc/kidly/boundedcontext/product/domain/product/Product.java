@@ -22,7 +22,9 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -128,11 +130,20 @@ public class Product extends BaseTimeEntity {
     }
 
     private static void validateInfoValues(List<InfoValueInfo> infoValues) {
+        Set<Attribute> attributes = new HashSet<>();
         for (InfoValueInfo infoValue : infoValues) {
+            // 같은 항목을 InfoValueInfo 여러 개로 나눠 보내면 거절한다 (INFO-01)
+            if (!attributes.add(infoValue.attribute())) {
+                throw new BusinessException(ProductErrorCode.DUPLICATE_INFO_VALUE);
+            }
             // 다중 선택 목록만 값을 여러 개 넣을 수 있다 (INFO-01)
             if (infoValue.attribute().getInputType() != AttributeInputType.MULTI_LIST
                 && infoValue.values().size() > 1) {
                 throw new BusinessException(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED);
+            }
+            // 한 항목 안에 같은 값이 두 번 들어오면 거절한다 (INFO-01)
+            if (new HashSet<>(infoValue.values()).size() != infoValue.values().size()) {
+                throw new BusinessException(ProductErrorCode.DUPLICATE_INFO_VALUE);
             }
         }
     }

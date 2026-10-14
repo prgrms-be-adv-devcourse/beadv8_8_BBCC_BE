@@ -21,7 +21,9 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
@@ -102,6 +104,30 @@ class ProductTest {
                 tuple(clothing.mainMaterial(), clothing.cotton()),
                 tuple(clothing.feature(), clothing.brushed()),
                 tuple(clothing.feature(), clothing.stretch()));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("duplicatedInfoValues")
+    @DisplayName("INFO-01 같은 값이나 같은 항목을 두 번 넣으면 거절한다")
+    void rejectDuplicatedInfoValue(Function<Clothing, List<InfoValueInfo>> duplicated) {
+        Clothing clothing = clothing();
+        List<InfoValueInfo> infoValues = new ArrayList<>(List.of(cottonMaterial(clothing)));
+        infoValues.addAll(duplicated.apply(clothing));
+        Product.RegisterInfo info = productAWith(clothing, infoValues);
+
+        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.DUPLICATE_INFO_VALUE));
+    }
+
+    // 정보 값은 테스트가 만든 유형의 항목 객체로 만들어야 하므로, 의류를 받아 정보 값을 만드는 함수를 넘긴다
+    static Stream<Named<Function<Clothing, List<InfoValueInfo>>>> duplicatedInfoValues() {
+        return Stream.of(
+            Named.of("다중 선택 목록에 같은 값 두 번", clothing -> List.of(
+                new InfoValueInfo(clothing.feature(), List.of(clothing.brushed(), clothing.brushed()), null))),
+            Named.of("같은 항목 두 번", clothing -> List.of(
+                new InfoValueInfo(clothing.feature(), List.of(clothing.brushed()), null),
+                new InfoValueInfo(clothing.feature(), List.of(clothing.stretch()), null))));
     }
 
     @ParameterizedTest(name = "{0}")
