@@ -16,7 +16,6 @@ import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
-import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
@@ -244,7 +243,8 @@ class SellerOrderApiTest {
     }
 
     /**
-     * 판매자 2 상품(자녀 1) · 판매자 3 상품으로 주문하고, 재고 차감 · 결제 완료 이벤트를 직접 발행해 결제완료로 만든다.
+     * 판매자 2 상품(자녀 1) · 판매자 3 상품으로 주문하고 재고 차감 이벤트만 직접 발행한다.
+     * 결제 요청을 받은 결제 도메인이 준비한 지갑으로 실제 결제해 결제 완료를 보내므로 결제완료가 된다.
      */
     private String placePaidOrder() {
         URI location = client.post().uri(ORDERS_PATH)
@@ -262,8 +262,6 @@ class SellerOrderApiTest {
         Long id = Long.valueOf(location.getPath().substring((ORDERS_PATH + "/").length()));
 
         publish(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(), new StockDeductedEvent.Data(id)));
-        publish(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
-            500L, id, BUYER_ID, 80_000L, List.of(), LocalDateTime.now())));
         return String.valueOf(id);
     }
 
