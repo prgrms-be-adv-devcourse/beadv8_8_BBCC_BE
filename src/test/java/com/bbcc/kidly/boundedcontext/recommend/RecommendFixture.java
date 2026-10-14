@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
@@ -40,7 +41,35 @@ public final class RecommendFixture {
      */
     public static final LocalDateTime CHILD_CHANGED_AT = LocalDateTime.of(2026, 10, 15, 10, 0);
 
+    /**
+     * 구매확정의 주문 · 주문상품 · 상품 · 옵션 ID. ID마다 다른 값을 써서 두 칸을 바꿔 넣으면 테스트가 실패하게 한다.
+     */
+    public static final Long ORDER_ID = 100L;
+
+    public static final Long ORDER_ITEM_ID = 101L;
+
+    public static final Long PRODUCT_A_ID = 31L;
+
+    public static final Long PRODUCT_A_120_OPTION_ID = 32L;
+
+    public static final LocalDateTime PURCHASE_CONFIRMED_AT = LocalDateTime.of(2026, 10, 15, 12, 0);
+
     private RecommendFixture() {
+    }
+
+    /**
+     * 회원 1이 자녀 1을 골라 주문한 상품 A의 120 옵션을 구매확정했다.
+     */
+    public static PurchaseRecord.RecordInfo purchaseConfirmation() {
+        return purchaseConfirmationFor(CHILD_1_ID);
+    }
+
+    /**
+     * 위와 같은 구매확정에서 자녀만 바꾼다. 자녀를 고르지 않았으면 null이다.
+     */
+    public static PurchaseRecord.RecordInfo purchaseConfirmationFor(Long childProfileId) {
+        return new PurchaseRecord.RecordInfo(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, childProfileId, PRODUCT_A_ID,
+            PRODUCT_A_120_OPTION_ID, "120", PURCHASE_CONFIRMED_AT);
     }
 
     /**
