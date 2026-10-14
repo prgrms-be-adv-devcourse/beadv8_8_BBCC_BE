@@ -20,7 +20,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * 옵션을 추가할 때 옵션 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addOptions와 ProductSizeSpecs가 쓴다.
+ * 옵션을 추가할 때 옵션 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addOptions, ProductSizeSpecs, SaleStartConditions가 쓴다.
  */
 final class ProductOptions {
 
@@ -31,7 +31,7 @@ final class ProductOptions {
     }
 
     // 사이즈 값이 FREE인지 본다 (SIZE-02)
-    static boolean isFreeSize(AttributeValue value) {
+    static boolean isFreeValue(AttributeValue value) {
         return FREE_SIZE.equals(value.getName());
     }
 
@@ -115,7 +115,7 @@ final class ProductOptions {
                 if (!productType.isSizeValue(value)) {
                     continue;
                 }
-                if (isFreeSize(value)) {
+                if (isFreeValue(value)) {
                     hasFree = true;
                 } else {
                     hasNumber = true;
@@ -134,7 +134,7 @@ final class ProductOptions {
         for (List<AttributeValue> values : lists) {
             boolean hasFree = false;
             for (AttributeValue value : values) {
-                hasFree = hasFree || isFreeSize(value);
+                hasFree = hasFree || isFreeValue(value);
             }
             if (!hasFree) {
                 return false;

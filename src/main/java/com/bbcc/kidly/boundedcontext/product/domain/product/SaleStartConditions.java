@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 판매 시작 조건(SALE-03) 중 채우지 못한 항목을 문장 목록으로 계산한다. Product.startSale이 쓴다.
+ * 판매 시작 조건(SALE-03) 중 채우지 못한 항목을 문장 목록으로 계산한다. Product.startSale과 validateSaleStartInputs가 쓴다.
  */
 final class SaleStartConditions {
 
@@ -48,7 +48,7 @@ final class SaleStartConditions {
             addMeasurementMissing(missing, sizeValue, spec, category);
             // FREE가 아닌 사이즈는 권장 키도 있어야 하고, FREE는 권장 키가 선택이다 (SALE-03, SIZE-05).
             // 권장 키는 최솟값과 최댓값이 함께 있으므로 최솟값만 본다 (SIZE-03)
-            if (spec.getMinHeightCm() == null && !ProductOptions.isFreeSize(sizeValue)) {
+            if (spec.getMinHeightCm() == null && !ProductOptions.isFreeValue(sizeValue)) {
                 missing.add(sizeValue.getName() + " 사이즈에 권장 키가 없습니다.");
             }
         }
