@@ -45,6 +45,8 @@ public record SellerOrderView(
         long amount,
         String status,
         LocalDateTime deliveredAt,
+        LocalDateTime confirmedAt,
+        String confirmType,
         Child child) {
     }
 
@@ -84,6 +86,8 @@ public record SellerOrderView(
             item.getAmount(),
             item.getStatus().name(),
             item.getDeliveredAt(),
+            item.getConfirmedAt(),
+            item.getConfirmType() == null ? null : item.getConfirmType().name(),
             child == null ? null
                 : new Child(child.childId(), child.name(), child.heightCm(), child.weightKg(), child.bodyType()));
     }

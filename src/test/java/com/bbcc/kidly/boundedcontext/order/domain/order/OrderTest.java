@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.domain.order;
 
 import static com.bbcc.kidly.boundedcontext.order.domain.order.OrderFixture.ADDRESS;
+import static com.bbcc.kidly.boundedcontext.order.domain.order.OrderFixture.AUTO_CONFIRM_AFTER;
 import static com.bbcc.kidly.boundedcontext.order.domain.order.OrderFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.order.OrderFixture.CHILD_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.order.OrderFixture.DELIVERED_AT;
@@ -288,6 +289,127 @@ class OrderTest {
 
             assertThat(order.expirePayment(dueAt.plusMinutes(1))).isFalse();
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_FAILED);
+        }
+    }
+
+    @Nested
+    @DisplayName("직접 구매확정")
+    class ConfirmItem {
+
+        private final LocalDateTime confirmedAt = DELIVERED_AT.plusDays(1);
+
+        @Test
+        @DisplayName("배송 완료된 주문상품을 직접 확정하고 true")
+        void confirmsDelivered() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+            OrderItem item = itemOf(order, SELLER_A_ID);
+
+            boolean confirmed = order.confirmItem(item.getId(), confirmedAt);
+
+            assertThat(confirmed).isTrue();
+            assertThat(item.getStatus()).isEqualTo(OrderItem.Status.CONFIRMED);
+            assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.DIRECT);
+            assertThat(item.getConfirmedAt()).isEqualTo(confirmedAt);
+        }
+
+        @Test
+        @DisplayName("이미 확정이면 그대로 두고 false")
+        void alreadyConfirmed() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+            Long itemId = itemOf(order, SELLER_A_ID).getId();
+            order.confirmItem(itemId, confirmedAt);
+
+            assertThat(order.confirmItem(itemId, confirmedAt.plusDays(1))).isFalse();
+            assertThat(itemOf(order, SELLER_A_ID).getConfirmedAt()).isEqualTo(confirmedAt);
+        }
+
+        @Test
+        @DisplayName("배송 전이면 NOT_DELIVERED")
+        void notDelivered() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+            Long itemId = itemOf(order, SELLER_B_ID).getId();
+
+            assertThatThrownBy(() -> order.confirmItem(itemId, confirmedAt))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.NOT_DELIVERED);
+        }
+
+        @Test
+        @DisplayName("주문에 없는 주문상품이면 ORDER_ITEM_NOT_FOUND")
+        void missingItem() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+
+            assertThatThrownBy(() -> order.confirmItem(999L, confirmedAt))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.ORDER_ITEM_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("자동 구매확정 (배송 완료 후 기간이 지나면)")
+    class AutoConfirmItem {
+
+        private final LocalDateTime dueAt = DELIVERED_AT.plus(AUTO_CONFIRM_AFTER);
+
+        @Test
+        @DisplayName("기간 1초 전이면 확정하지 않는다")
+        void beforeDue() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+            OrderItem item = itemOf(order, SELLER_A_ID);
+
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.minusSeconds(1))).isFalse();
+            assertThat(item.getStatus()).isEqualTo(OrderItem.Status.ORDERED);
+        }
+
+        @Test
+        @DisplayName("정확히 기간이 되면 자동 확정한다")
+        void atDue() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+            OrderItem item = itemOf(order, SELLER_A_ID);
+
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt)).isTrue();
+            assertThat(item.getStatus()).isEqualTo(OrderItem.Status.CONFIRMED);
+            assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.AUTO);
+            assertThat(item.getConfirmedAt()).isEqualTo(dueAt);
+        }
+
+        @Test
+        @DisplayName("기간 1초 뒤면 자동 확정한다")
+        void afterDue() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+            OrderItem item = itemOf(order, SELLER_A_ID);
+
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusSeconds(1))).isTrue();
+            assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.AUTO);
+        }
+
+        @Test
+        @DisplayName("이미 확정이면 그대로 두고 false")
+        void alreadyConfirmed() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+            OrderItem item = itemOf(order, SELLER_A_ID);
+            order.confirmItem(item.getId(), DELIVERED_AT.plusDays(1));
+
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1))).isFalse();
+            assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.DIRECT);
+        }
+
+        @Test
+        @DisplayName("배송 전이면 예외 없이 false")
+        void notDelivered() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+            OrderItem item = itemOf(order, SELLER_B_ID);
+
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1))).isFalse();
+            assertThat(item.getStatus()).isEqualTo(OrderItem.Status.ORDERED);
+        }
+
+        @Test
+        @DisplayName("주문에 없는 주문상품이면 예외 없이 false")
+        void missingItem() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+
+            assertThat(order.autoConfirmItem(999L, POLICY, dueAt.plusDays(1))).isFalse();
         }
     }
 

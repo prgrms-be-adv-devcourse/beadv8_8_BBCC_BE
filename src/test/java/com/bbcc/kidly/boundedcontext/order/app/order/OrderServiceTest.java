@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -30,6 +31,7 @@ import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -76,6 +78,9 @@ class OrderServiceTest {
 
     @Captor
     private ArgumentCaptor<DomainEvent> published;
+
+    @Captor
+    private ArgumentCaptor<LocalDateTime> cutoff;
 
     private OrderService orderService;
 
@@ -278,6 +283,136 @@ class OrderServiceTest {
     }
 
     @Nested
+    @DisplayName("구매확정 (직접 · 자동)")
+    class Confirm {
+
+        private static final Long ORDER_ITEM_ID = 1L;
+
+        @Test
+        @DisplayName("직접 확정하면 order-item.purchase-confirmed를 발행하고 확정된 주문상품을 돌려준다")
+        void confirmsByBuyer() {
+            Order order = deliveredOrder(LocalDateTime.now().minusDays(1));
+            when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
+
+            OrderDetail.Item item = orderService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID);
+
+            assertThat(item.orderItemId()).isEqualTo(ORDER_ITEM_ID);
+            assertThat(item.status()).isEqualTo("CONFIRMED");
+            assertThat(item.confirmType()).isEqualTo("DIRECT");
+            assertThat(item.confirmedAt()).isNotNull();
+            verify(eventPublisher).publish(published.capture());
+            OrderItemPurchaseConfirmedEvent.Data data = ((OrderItemPurchaseConfirmedEvent) published.getValue()).data();
+            assertThat(data.orderItemId()).isEqualTo(ORDER_ITEM_ID);
+            assertThat(data.memberId()).isEqualTo(BUYER_ID);
+            assertThat(data.sellerId()).isEqualTo(SELLER_ID);
+            assertThat(data.childId()).isNull();
+            assertThat(data.productId()).isEqualTo(1L);
+            assertThat(data.optionId()).isEqualTo(OPTION_ID);
+            assertThat(data.size()).isEqualTo("110");
+            assertThat(data.quantity()).isEqualTo(2);
+            assertThat(data.amount()).isEqualTo(50_000L);
+            assertThat(data.confirmedAt()).isEqualTo(item.confirmedAt());
+        }
+
+        @Test
+        @DisplayName("이미 확정이면 발행하지 않고 주문상품은 그대로 돌려준다")
+        void alreadyConfirmed() {
+            Order order = deliveredOrder(LocalDateTime.now().minusDays(1));
+            order.confirmItem(ORDER_ITEM_ID, LocalDateTime.now().minusHours(1));
+            when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
+
+            OrderDetail.Item item = orderService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID);
+
+            assertThat(item.status()).isEqualTo("CONFIRMED");
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("없거나 남의 주문이면 ORDER_NOT_FOUND")
+        void othersOrder() {
+            assertThatThrownBy(() -> orderService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.ORDER_NOT_FOUND);
+            verify(orderRepository).findByIdAndMemberId(ORDER_ID, BUYER_ID);
+        }
+
+        @Test
+        @DisplayName("자동 확정: 배송 완료 후 기간이 지났으면 AUTO로 확정하고 발행한다")
+        void autoConfirmsAfterPeriod() {
+            Order order = deliveredOrder(LocalDateTime.now().minus(POLICY.autoConfirmAfter()).minusMinutes(1));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
+
+            assertThat(order.getItems().get(0).getConfirmType()).isEqualTo(OrderItem.ConfirmType.AUTO);
+            verify(eventPublisher).publish(published.capture());
+            assertThat(((OrderItemPurchaseConfirmedEvent) published.getValue()).data().orderItemId())
+                .isEqualTo(ORDER_ITEM_ID);
+        }
+
+        @Test
+        @DisplayName("자동 확정: 기간 전이면 확정하지 않고 발행하지 않는다")
+        void doesNotAutoConfirmBeforePeriod() {
+            Order order = deliveredOrder(LocalDateTime.now().minus(POLICY.autoConfirmAfter()).plusMinutes(1));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
+
+            assertThat(order.getItems().get(0).getStatus()).isEqualTo(OrderItem.Status.ORDERED);
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("자동 확정: 주문이 없으면 아무것도 하지 않는다")
+        void autoIgnoresMissingOrder() {
+            orderService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
+
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("자동 확정 대상은 지금 − 기간을 기준 시각으로 주문됨 상태 100건을 좁혀 (주문 ID, 주문상품 ID)로 돌려준다")
+        void findsAutoConfirmTargets() {
+            LocalDateTime before = LocalDateTime.now().minus(POLICY.autoConfirmAfter());
+            when(orderRepository.findAutoConfirmTargets(
+                eq(OrderItem.Status.ORDERED), any(), eq(PageRequest.of(0, 100))))
+                .thenReturn(List.of(target(7L, 70L), target(8L, 80L)));
+
+            List<AutoConfirmTarget> targets = orderService.findAutoConfirmTargets();
+
+            LocalDateTime after = LocalDateTime.now().minus(POLICY.autoConfirmAfter());
+            assertThat(targets).isEqualTo(List.of(new AutoConfirmTarget(7L, 70L), new AutoConfirmTarget(8L, 80L)));
+            verify(orderRepository).findAutoConfirmTargets(eq(OrderItem.Status.ORDERED), cutoff.capture(), any());
+            assertThat(cutoff.getValue()).isBetween(before, after);
+        }
+
+        /**
+         * 결제완료 후 deliveredAt에 판매자 몫 배송 완료된 주문. 주문상품 ID는 1.
+         */
+        private Order deliveredOrder(LocalDateTime deliveredAt) {
+            Order order = placedOrderAt(deliveredAt.minusDays(2));
+            order.markPaid(500L, deliveredAt.minusDays(1));
+            order.recordDelivered(SELLER_ID, deliveredAt);
+            setItemId(order.getItems().get(0), ORDER_ITEM_ID);
+            return order;
+        }
+
+        private OrderRepository.AutoConfirmTarget target(Long orderId, Long orderItemId) {
+            return new OrderRepository.AutoConfirmTarget() {
+                @Override
+                public Long getOrderId() {
+                    return orderId;
+                }
+
+                @Override
+                public Long getOrderItemId() {
+                    return orderItemId;
+                }
+            };
+        }
+    }
+
+    @Nested
     @DisplayName("결제 완료 (payment.completed)")
     class MarkPaid {
 
@@ -395,6 +530,16 @@ class OrderServiceTest {
 
     private static PlaceOrderCommand command(long unitPrice) {
         return new PlaceOrderCommand(List.of(new PlaceOrderCommand.Item(OPTION_ID, CHILD_ID, 2, unitPrice)), ADDRESS);
+    }
+
+    private static void setItemId(OrderItem item, Long id) {
+        try {
+            java.lang.reflect.Field field = OrderItem.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(item, id);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static Order withId(Order order, Long id) {

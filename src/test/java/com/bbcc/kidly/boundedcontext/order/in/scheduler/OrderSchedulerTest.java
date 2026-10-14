@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,6 +25,33 @@ class OrderSchedulerTest {
 
     @InjectMocks
     private OrderScheduler scheduler;
+
+    @Nested
+    @DisplayName("자동 구매확정")
+    class AutoConfirm {
+
+        @Test
+        @DisplayName("대상 주문상품을 한 건씩 자동 확정하고, 한 건이 실패해도 다음 건을 계속 처리한다")
+        void continuesAfterFailure() {
+            when(orderService.findAutoConfirmTargets()).thenReturn(List.of(
+                new AutoConfirmTarget(1L, 10L), new AutoConfirmTarget(2L, 20L), new AutoConfirmTarget(3L, 30L)));
+            doThrow(new IllegalStateException("동시 변경")).when(orderService).confirmAutomatically(2L, 20L);
+
+            scheduler.autoConfirm();
+
+            verify(orderService).confirmAutomatically(1L, 10L);
+            verify(orderService).confirmAutomatically(2L, 20L);
+            verify(orderService).confirmAutomatically(3L, 30L);
+        }
+
+        @Test
+        @DisplayName("대상이 없으면 아무것도 확정하지 않는다")
+        void nothingToConfirm() {
+            scheduler.autoConfirm();
+
+            verify(orderService, never()).confirmAutomatically(anyLong(), anyLong());
+        }
+    }
 
     @Nested
     @DisplayName("결제 마감 만료")

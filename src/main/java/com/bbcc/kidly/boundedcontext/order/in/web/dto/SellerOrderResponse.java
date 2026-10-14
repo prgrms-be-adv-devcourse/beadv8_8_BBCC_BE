@@ -49,6 +49,8 @@ public record SellerOrderResponse(
             item.amount(),
             item.status(),
             item.deliveredAt(),
+            item.confirmedAt(),
+            item.confirmType(),
             child == null ? null : new OrderDetailResponse.Child(toText(child.childId()), child.name(),
                 child.heightCm(), child.weightKg(), child.bodyType()));
     }

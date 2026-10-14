@@ -29,7 +29,8 @@ public enum OrderErrorCode implements ErrorCode {
     CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "장바구니 상품을 찾을 수 없습니다", "장바구니를 다시 확인해 주세요."),
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다", "주문 번호를 다시 확인해 주세요."),
     DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "판매 주문을 찾을 수 없습니다", "판매 주문 번호를 다시 확인해 주세요."),
-    INVALID_CARRIER(HttpStatus.BAD_REQUEST, "지원하지 않는 택배사입니다", "택배사를 다시 확인해 주세요.");
+    INVALID_CARRIER(HttpStatus.BAD_REQUEST, "지원하지 않는 택배사입니다", "택배사를 다시 확인해 주세요."),
+    ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "주문상품을 찾을 수 없습니다", "주문상품 번호를 다시 확인해 주세요.");
 
     private final HttpStatus status;
     private final String title;

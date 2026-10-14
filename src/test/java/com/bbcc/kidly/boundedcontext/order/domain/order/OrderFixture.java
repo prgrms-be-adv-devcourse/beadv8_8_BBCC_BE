@@ -105,6 +105,23 @@ final class OrderFixture {
         return order;
     }
 
+    /**
+     * 저장 전 주문상품에는 ID가 없어서, 주문한 순서대로 1, 2, … ID를 넣는다(주문상품으로 찾는 테스트용).
+     */
+    static Order withItemIds(Order order) {
+        try {
+            java.lang.reflect.Field id = OrderItem.class.getDeclaredField("id");
+            id.setAccessible(true);
+            long next = 1;
+            for (OrderItem item : order.getItems()) {
+                id.set(item, next++);
+            }
+            return order;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     static OrderItem itemOf(Order order, Long sellerId) {
         return order.getItems().stream()
             .filter(item -> item.getProduct().sellerId().equals(sellerId))
