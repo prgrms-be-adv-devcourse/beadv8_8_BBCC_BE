@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
+import com.bbcc.kidly.boundedcontext.order.domain.order.TransitionResult;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -23,7 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Predicate;
+import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -77,7 +78,7 @@ public class OrderService {
     public void requestPayment(Long orderId) {
         LocalDateTime now = LocalDateTime.now();
         orderRepository.findById(orderId)
-            .filter(order -> order.requestPayment(now))
+            .filter(order -> order.requestPayment(now) == TransitionResult.APPLIED)
             .ifPresent(order -> eventPublisher.publish(new OrderPaymentRequestedEvent(UUID.randomUUID(), now,
                 new OrderPaymentRequestedEvent.Data(order.getId(), order.getMemberId(), order.getTotalAmount(),
                     order.getItems().stream()
@@ -93,7 +94,7 @@ public class OrderService {
     public boolean markPaid(Long orderId, Long paymentId) {
         LocalDateTime now = LocalDateTime.now();
         return orderRepository.findById(orderId)
-            .map(order -> order.markPaid(paymentId, now))
+            .map(order -> order.markPaid(paymentId, now) == TransitionResult.APPLIED)
             .orElse(false);
     }
 
@@ -188,10 +189,10 @@ public class OrderService {
      *
      * @param change 주문을 취소하는 도메인 메서드. 이번에 취소했으면 true
      */
-    private void cancel(Long orderId, Predicate<Order> change) {
+    private void cancel(Long orderId, Function<Order, TransitionResult> change) {
         LocalDateTime now = LocalDateTime.now();
         orderRepository.findById(orderId)
-            .filter(change)
+            .filter(order -> change.apply(order) == TransitionResult.APPLIED)
             .ifPresent(order -> eventPublisher.publish(new OrderCancelledEvent(UUID.randomUUID(), now,
                 new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), order.getCancelReason().name(),
                     order.getItems().stream()
@@ -203,10 +204,10 @@ public class OrderService {
     /**
      * 이번에 확정했을 때만 order-item.purchase-confirmed를 발행한다.
      *
-     * @param change 주문상품을 확정하는 도메인 메서드. 이번에 확정했으면 true
+     * @param change 주문상품을 확정하는 도메인 메서드. 이번에 확정했으면 APPLIED
      */
-    private void confirm(Order order, Long orderItemId, Predicate<Order> change) {
-        if (!change.test(order)) {
+    private void confirm(Order order, Long orderItemId, Function<Order, TransitionResult> change) {
+        if (change.apply(order) != TransitionResult.APPLIED) {
             return;
         }
         OrderItem item = findItem(order, orderItemId);
