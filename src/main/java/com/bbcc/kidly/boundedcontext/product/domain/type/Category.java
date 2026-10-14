@@ -110,6 +110,11 @@ public class Category extends BaseTimeEntity {
         }
     }
 
+    // 말단 카테고리인지 본다. 말단 카테고리만 상품 유형을 가진다 (TYPE-01)
+    public boolean isLeaf() {
+        return getProductType() != null;
+    }
+
     // 상품을 등록할 때 쓸 상품 유형이다. 중간 카테고리는 유형이 없어 거절한다 (TYPE-01)
     public ProductType productTypeToRegister() {
         if (productType == null) {

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.out.type;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -12,4 +13,8 @@ public interface JpaCategoryRepository extends JpaRepository<Category, Long>, Ca
     @Override
     @Query("select c from Category c where c.parent is null and c.name = :name")
     Optional<Category> findTopLevelByName(@Param("name") String name);
+
+    @Override
+    @Query("select c from Category c order by c.id")
+    List<Category> findAll();
 }
