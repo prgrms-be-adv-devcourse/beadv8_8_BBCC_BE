@@ -103,7 +103,10 @@ public class Product extends BaseTimeEntity {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
         requireNonNull(info.infoValues(), "infoValues는 필수입니다");
-        // null이면 NPE가 먼저 나야 하므로 빈 값 검사보다 앞에 둔다
+        requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        requireNonNull(info.categoryId(), "categoryId는 필수입니다");
+        requireNonNull(info.imageUrls(), "imageUrls는 필수입니다");
+        // null 검사는 모두 업무 규칙 검사보다 앞에 둔다. null이 섞인 호출이 업무 오류(400)로 가려지지 않게 하기 위해서다
         requireNonNull(info.name(), "name은 필수입니다");
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
@@ -114,13 +117,13 @@ public class Product extends BaseTimeEntity {
         validateAllowedInfoValues(info.infoValues(), productType);
         validateRequiredInfoValues(info.infoValues(), productType);
         Product product = new Product();
-        product.sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
-        product.categoryId = requireNonNull(info.categoryId(), "categoryId는 필수입니다");
+        product.sellerId = info.sellerId();
+        product.categoryId = info.categoryId();
         product.name = info.name();
         product.brand = info.brand();
         product.description = info.description();
         product.thumbnailUrl = info.thumbnailUrl();
-        product.imageUrls = new ArrayList<>(requireNonNull(info.imageUrls(), "imageUrls는 필수입니다"));
+        product.imageUrls = new ArrayList<>(info.imageUrls());
         product.status = ProductStatus.SALE_PENDING;
         addInfoValues(product, info.infoValues());
         return product;
