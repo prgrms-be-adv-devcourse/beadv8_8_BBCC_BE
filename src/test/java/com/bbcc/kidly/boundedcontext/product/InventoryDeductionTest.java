@@ -16,10 +16,13 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeduction
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest.OptionQuantity;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionStatus;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class InventoryDeductionTest {
@@ -110,6 +113,28 @@ class InventoryDeductionTest {
         List<InventoryDeduction> firstRecords = withStatus(twoItemOrder(onSaleOptions()).deductedRecords(), status);
 
         assertThat(twoItemOrder(options).isAlreadyHandled(firstRecords)).isTrue();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("mismatchedFirstRecords")
+    @DisplayName("INV-10 기존 차감 기록이 일부만 있거나 옵션 · 수량이 다르면 차감 요청을 처리하지 않는다")
+    void rejectMismatchedRecords(String mismatch, List<InventoryDeduction> firstRecords) {
+        assertThatThrownBy(() -> twoItemOrder(options).isAlreadyHandled(firstRecords))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // 같은 주문상품 ID로 처음 받았던 주문 생성됨의 차감 기록인데, 지금 요청과 어긋난 경우들이다
+    static Stream<Arguments> mismatchedFirstRecords() {
+        Options first = onSaleOptions();
+        return Stream.of(
+            Arguments.of("일부만 있음", InventoryDeductionRequest.of(ORDER_ID, List.of(
+                item(11L, first.navy110(), 2))).deductedRecords()),
+            Arguments.of("옵션이 다름", InventoryDeductionRequest.of(ORDER_ID, List.of(
+                item(11L, first.navy120(), 2),
+                item(12L, first.navy120(), 1))).deductedRecords()),
+            Arguments.of("수량이 다름", InventoryDeductionRequest.of(ORDER_ID, List.of(
+                item(11L, first.navy110(), 5),
+                item(12L, first.navy120(), 1))).deductedRecords()));
     }
 
     // 주문상품 11(네이비 110, 2개)과 12(네이비 120, 1개)로 만든 차감 요청이다

@@ -2,9 +2,11 @@ package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -41,7 +43,28 @@ public final class InventoryDeductionRequest {
 
     // 같은 주문 생성됨을 다시 받았는지를 주문상품의 기존 차감 기록으로 판단한다 (INV-10)
     public boolean isAlreadyHandled(List<InventoryDeduction> existingRecords) {
-        return !existingRecords.isEmpty();
+        if (existingRecords.isEmpty()) {
+            return false;
+        }
+        Map<Long, InventoryDeduction> recordByOrderItemId = new HashMap<>();
+        for (InventoryDeduction existing : existingRecords) {
+            recordByOrderItemId.put(existing.getOrderItemId(), existing);
+        }
+        // 주문상품은 만든 뒤 바뀌지 않으므로, 같은 주문상품 ID에 다른 내용이 오면 주문 쪽 오류라 처리하지 않는다
+        for (Item item : items) {
+            if (!matches(recordByOrderItemId.get(item.orderItemId()), item)) {
+                throw new IllegalArgumentException("주문상품 " + item.orderItemId() + "의 기존 차감 기록이 요청과 다릅니다");
+            }
+        }
+        return true;
+    }
+
+    private boolean matches(InventoryDeduction existing, Item item) {
+        if (existing == null) {
+            return false;
+        }
+        return Objects.equals(existing.getProductOptionId(), item.option().getId())
+                && existing.getQty() == item.qty();
     }
 
     // 주문상품마다 DEDUCTED 차감 기록을 하나씩, 요청한 순서대로 만든다 (INV-04)
