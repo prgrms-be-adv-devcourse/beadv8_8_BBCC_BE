@@ -65,7 +65,7 @@ public class ProductType extends BaseTimeEntity {
         if (!hasRequiredOption(links)) {
             throw new IllegalArgumentException("유형에는 필수 옵션 항목이 하나 이상 있어야 합니다");
         }
-        if (countSizeRoles(links) > 1) {
+        if (hasManySizeRoles(links)) {
             throw new IllegalArgumentException("사이즈 역할 항목은 하나만 둘 수 있습니다");
         }
         if (hasSizeRoleOnInfo(links)) {
@@ -100,59 +100,31 @@ public class ProductType extends BaseTimeEntity {
     }
 
     private static boolean hasRequiredOption(List<LinkInfo> links) {
-        for (LinkInfo link : links) {
-            if (link.role() == AttributeRole.OPTION && link.required()) {
-                return true;
-            }
-        }
-        return false;
+        return links.stream().anyMatch(link -> link.role() == AttributeRole.OPTION && link.required());
     }
 
-    private static int countSizeRoles(List<LinkInfo> links) {
-        int count = 0;
-        for (LinkInfo link : links) {
-            if (link.sizeRole()) {
-                count++;
-            }
-        }
-        return count;
+    private static boolean hasManySizeRoles(List<LinkInfo> links) {
+        return links.stream().filter(LinkInfo::sizeRole).count() > 1;
     }
 
     private static boolean hasSizeRoleOnInfo(List<LinkInfo> links) {
-        for (LinkInfo link : links) {
-            if (link.sizeRole() && link.role() != AttributeRole.OPTION) {
-                return true;
-            }
-        }
-        return false;
+        return links.stream().anyMatch(link -> link.sizeRole() && link.role() != AttributeRole.OPTION);
     }
 
     private static boolean hasPriceAffectingOnInfo(List<LinkInfo> links) {
-        for (LinkInfo link : links) {
-            if (link.priceAffecting() && link.role() != AttributeRole.OPTION) {
-                return true;
-            }
-        }
-        return false;
+        return links.stream().anyMatch(link -> link.priceAffecting() && link.role() != AttributeRole.OPTION);
     }
 
     private static boolean hasTextOption(List<LinkInfo> links) {
-        for (LinkInfo link : links) {
-            if (link.role() == AttributeRole.OPTION && link.attribute().getInputType() == AttributeInputType.TEXT) {
-                return true;
-            }
-        }
-        return false;
+        return links.stream().anyMatch(link ->
+            link.role() == AttributeRole.OPTION && link.attribute().getInputType() == AttributeInputType.TEXT);
     }
 
     private static boolean hasLinkWithoutAllowedValues(List<LinkInfo> links) {
-        for (LinkInfo link : links) {
-            boolean isText = link.attribute().getInputType() == AttributeInputType.TEXT;
-            if (!isText && !link.allValuesAllowed() && link.allowedValues().isEmpty()) {
-                return true;
-            }
-        }
-        return false;
+        return links.stream().anyMatch(link ->
+            link.attribute().getInputType() != AttributeInputType.TEXT
+                && !link.allValuesAllowed()
+                && link.allowedValues().isEmpty());
     }
 
     public List<ProductTypeAttribute> getAttributes() {
