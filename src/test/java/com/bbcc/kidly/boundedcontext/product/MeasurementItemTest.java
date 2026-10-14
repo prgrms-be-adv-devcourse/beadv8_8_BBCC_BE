@@ -27,4 +27,20 @@ class MeasurementItemTest {
             Named.of("이름", () -> MeasurementItem.create("TOTAL_LENGTH", null, "cm")),
             Named.of("단위", () -> MeasurementItem.create("TOTAL_LENGTH", "총장", null)));
     }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("creationsWithBlank")
+    @DisplayName("실측 항목의 코드 · 이름 · 단위가 비어 있으면 거절한다")
+    void rejectCreationWithBlank(ThrowingCallable create) {
+        assertThatThrownBy(create)
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("비어 있을 수 없습니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> creationsWithBlank() {
+        return Stream.of(
+            Named.of("코드 \"\"", () -> MeasurementItem.create("", "총장", "cm")),
+            Named.of("이름 \" \"", () -> MeasurementItem.create("TOTAL_LENGTH", " ", "cm")),
+            Named.of("단위 \"\"", () -> MeasurementItem.create("TOTAL_LENGTH", "총장", "")));
+    }
 }

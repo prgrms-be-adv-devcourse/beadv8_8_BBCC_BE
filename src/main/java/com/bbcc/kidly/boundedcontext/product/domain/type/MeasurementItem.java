@@ -39,6 +39,15 @@ public class MeasurementItem extends BaseTimeEntity {
         requireNonNull(code, "code는 필수입니다");
         requireNonNull(name, "name은 필수입니다");
         requireNonNull(unit, "unit은 필수입니다");
+        if (code.isBlank()) {
+            throw new IllegalArgumentException("실측 항목 코드는 비어 있을 수 없습니다");
+        }
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("실측 항목 이름은 비어 있을 수 없습니다");
+        }
+        if (unit.isBlank()) {
+            throw new IllegalArgumentException("실측 단위는 비어 있을 수 없습니다");
+        }
         MeasurementItem item = new MeasurementItem();
         item.code = code;
         item.name = name;
