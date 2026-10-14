@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
@@ -39,6 +41,7 @@ public class Inventory extends BaseTimeEntity {
 
     // 재고를 열 때 InventoryOpening만 만든다
     static Inventory create(ProductOption productOption, int availableQty) {
+        requireNonNull(productOption, "productOption은 필수입니다");
         // 판매 가능 수량은 0 미만이 될 수 없다 (INV-01)
         if (availableQty < 0) {
             throw new IllegalArgumentException("판매 가능 수량은 0보다 작을 수 없습니다");

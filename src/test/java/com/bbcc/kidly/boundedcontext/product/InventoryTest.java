@@ -60,4 +60,12 @@ class InventoryTest {
         assertThatThrownBy(() -> InventoryOpening.open(option, -1, SELLER_ID))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    @DisplayName("옵션 없이는 재고를 열지 않는다")
+    void rejectOpeningWithoutOption() {
+
+        assertThatThrownBy(() -> InventoryOpening.open(null, 10, SELLER_ID))
+            .isInstanceOf(NullPointerException.class);
+    }
 }
