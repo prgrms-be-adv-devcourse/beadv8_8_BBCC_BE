@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
@@ -24,11 +25,13 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -202,6 +205,40 @@ class ProductSizeSpecTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("0보다 커야 합니다");
         assertThat(product.getSizeSpecs()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("additionsWithNull")
+    @DisplayName("요청 · 카테고리 · 상품 유형 · 판매자 · 실측 목록과 그 안의 사이즈 값 · 실측 값이 null이면 거절한다")
+    void rejectAdditionWithNull(ThrowingCallable addSizeSpecs) {
+        assertThatThrownBy(addSizeSpecs)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> additionsWithNull() {
+        ClothingOptions clothing = clothingOptions();
+        Category top = CategoryFixture.top(CategoryFixture.clothing(), clothing.type());
+        ProductType type = clothing.type();
+        List<Product.SizeSpecInfo> specs = List.of(spec(clothing.size110(), 105, 115, top110Measurements()));
+        Map<String, BigDecimal> nullLength = new HashMap<>(top110Measurements());
+        nullLength.put("TOTAL_LENGTH", null);
+        return Stream.of(
+            Named.of("요청", () -> productA(clothing).addSizeSpecs(null, top, type)),
+            Named.of("카테고리", () -> productA(clothing).addSizeSpecs(addSizeSpecs(specs), null, type)),
+            Named.of("상품 유형", () -> productA(clothing).addSizeSpecs(addSizeSpecs(specs), top, null)),
+            Named.of("판매자", () -> productA(clothing).addSizeSpecs(
+                new Product.AddSizeSpecsInfo(null, specs), top, type)),
+            Named.of("실측 목록", () -> productA(clothing).addSizeSpecs(
+                new Product.AddSizeSpecsInfo(SELLER_ID, null), top, type)),
+            Named.of("실측", () -> productA(clothing).addSizeSpecs(
+                addSizeSpecs(Arrays.asList((Product.SizeSpecInfo) null)), top, type)),
+            Named.of("사이즈 값", () -> productA(clothing).addSizeSpecs(
+                addSizeSpecs(List.of(spec(null, 105, 115, top110Measurements()))), top, type)),
+            Named.of("실측 값 묶음", () -> productA(clothing).addSizeSpecs(
+                addSizeSpecs(List.of(spec(clothing.size110(), 105, 115, null))), top, type)),
+            Named.of("실측 값", () -> productA(clothing).addSizeSpecs(
+                addSizeSpecs(List.of(spec(clothing.size110(), 105, 115, nullLength))), top, type)));
     }
 
     // 상품 A에 네이비 110 · 120 옵션을 붙인다

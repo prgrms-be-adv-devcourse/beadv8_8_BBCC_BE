@@ -1,5 +1,8 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
+import static java.util.Objects.requireNonNull;
+
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product.AddSizeSpecsInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SizeSpecInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
@@ -17,6 +20,19 @@ import java.util.Set;
 final class ProductSizeSpecs {
 
     private ProductSizeSpecs() {
+    }
+
+    // 실측 목록, 그 안의 실측과 사이즈 값, 실측 값 묶음과 그 안의 값은 null이면 안 된다. 권장 키는 null을 허용한다
+    static void requireNonNullValues(AddSizeSpecsInfo info) {
+        requireNonNull(info.specs(), "specs는 필수입니다");
+        for (SizeSpecInfo spec : info.specs()) {
+            requireNonNull(spec, "spec은 필수입니다");
+            requireNonNull(spec.sizeValue(), "sizeValue는 필수입니다");
+            requireNonNull(spec.measurements(), "measurements는 필수입니다");
+            for (BigDecimal value : spec.measurements().values()) {
+                requireNonNull(value, "실측 값은 필수입니다");
+            }
+        }
     }
 
     // 사이즈 역할 항목이 없는 유형의 상품에는 실측과 권장 키가 없다 (SIZE-06)
