@@ -10,17 +10,23 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
+import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.net.URI;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @FunctionalTest
 class OrderApiTest {
@@ -34,6 +40,12 @@ class OrderApiTest {
 
     @Autowired
     private TestTokens tokens;
+
+    @Autowired
+    private EventPublisher eventPublisher;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -157,6 +169,23 @@ class OrderApiTest {
                 .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
                 .exchange()
                 .expectStatus().isBadRequest();
+        }
+
+        @Test
+        @DisplayName("결제 실패로 취소된 주문은 상세에 CANCELLED와 취소 사유가 보인다")
+        void cancelledOrder() {
+            String orderId = placeAndReadId();
+            transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new PaymentFailedEvent(
+                UUID.randomUUID(), LocalDateTime.now(), new PaymentFailedEvent.Data(500L, Long.valueOf(orderId),
+                    BUYER_ID, 25_000L, PaymentFailureCode.INSUFFICIENT_BALANCE, LocalDateTime.now()))));
+
+            client.get().uri(ORDERS_PATH + "/" + orderId)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("CANCELLED")
+                .jsonPath("$.cancelReason").isEqualTo("PAYMENT_FAILED");
         }
 
         @Test

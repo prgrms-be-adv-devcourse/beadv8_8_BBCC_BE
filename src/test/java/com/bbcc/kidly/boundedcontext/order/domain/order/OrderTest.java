@@ -283,8 +283,9 @@ class OrderTest {
         void cancelPending() {
             Order order = OrderFixture.placedOrder();
 
-            order.cancel(Order.CancelReason.OUT_OF_STOCK);
+            boolean cancelled = order.cancel(Order.CancelReason.OUT_OF_STOCK);
 
+            assertThat(cancelled).isTrue();
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
         }
@@ -294,8 +295,9 @@ class OrderTest {
         void paidIsNotCancelled() {
             Order order = OrderFixture.paidOrder();
 
-            catchThrowable(() -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
+            boolean cancelled = order.cancel(Order.CancelReason.PAYMENT_FAILED);
 
+            assertThat(cancelled).isFalse();
             assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
             assertThat(order.getCancelReason()).isNull();
         }
@@ -306,8 +308,9 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.OUT_OF_STOCK);
 
-            catchThrowable(() -> order.cancel(Order.CancelReason.PAYMENT_EXPIRED));
+            boolean cancelled = order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
 
+            assertThat(cancelled).isFalse();
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
         }
     }

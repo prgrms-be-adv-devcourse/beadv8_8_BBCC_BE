@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,6 +28,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.math.BigDecimal;
@@ -194,6 +196,76 @@ class OrderServiceTest {
     }
 
     @Nested
+    @DisplayName("주문 취소 (결제 실패 · 결제 마감 만료)")
+    class Cancel {
+
+        @Test
+        @DisplayName("결제 실패면 결제대기 주문을 PAYMENT_FAILED로 취소하고 order.cancelled를 주문상품 순서대로 발행한다")
+        void cancelsForPaymentFailure() {
+            Order order = placedOrderWithTwoItems();
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.cancelForPaymentFailure(ORDER_ID);
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_FAILED);
+            verify(eventPublisher).publish(published.capture());
+            OrderCancelledEvent cancelled = (OrderCancelledEvent) published.getValue();
+            assertThat(cancelled.data().memberId()).isEqualTo(BUYER_ID);
+            assertThat(cancelled.data().reason()).isEqualTo("PAYMENT_FAILED");
+            assertThat(cancelled.data().items()).hasSize(2);
+            assertThat(cancelled.data().items().get(0).optionId()).isEqualTo(OPTION_ID);
+            assertThat(cancelled.data().items().get(0).quantity()).isEqualTo(2);
+            assertThat(cancelled.data().items().get(1).optionId()).isEqualTo(3L);
+            assertThat(cancelled.data().items().get(1).quantity()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("결제 마감 만료면 PAYMENT_EXPIRED로 취소하고 order.cancelled를 발행한다")
+        void cancelsForPaymentExpiry() {
+            Order order = placedOrder(BUYER_ID);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.cancelForPaymentExpiry(ORDER_ID);
+
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
+            verify(eventPublisher).publish(published.capture());
+            assertThat(((OrderCancelledEvent) published.getValue()).data().reason()).isEqualTo("PAYMENT_EXPIRED");
+        }
+
+        @Test
+        @DisplayName("결제완료 주문은 취소하지 않고 발행하지 않는다")
+        void doesNotCancelPaidOrder() {
+            Order order = placedOrder(BUYER_ID);
+            order.markPaid(500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.cancelForPaymentExpiry(ORDER_ID);
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("주문이 없으면 아무것도 하지 않는다")
+        void ignoresMissingOrder() {
+            orderService.cancelForPaymentFailure(ORDER_ID);
+
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("만료 대상은 결제대기 · 마감 지난 주문 ID를 저장소가 준 순서(ID 오름차순) 그대로 돌려준다")
+        void findsOverdueOrderIds() {
+            when(orderRepository.findTop100ByStatusAndPaymentDueAtLessThanEqualOrderByIdAsc(
+                eq(Order.Status.PENDING_PAYMENT), any()))
+                .thenReturn(List.of(withId(placedOrder(BUYER_ID), 3L), withId(placedOrder(BUYER_ID), 5L)));
+
+            assertThat(orderService.findOverduePaymentOrderIds()).isEqualTo(List.of(3L, 5L));
+        }
+    }
+
+    @Nested
     @DisplayName("결제 완료 (payment.completed)")
     class MarkPaid {
 
@@ -311,6 +383,17 @@ class OrderServiceTest {
 
     private static PlaceOrderCommand command(long unitPrice) {
         return new PlaceOrderCommand(List.of(new PlaceOrderCommand.Item(OPTION_ID, CHILD_ID, 2, unitPrice)), ADDRESS);
+    }
+
+    private static Order withId(Order order, Long id) {
+        try {
+            java.lang.reflect.Field field = Order.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(order, id);
+            return order;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static Order placedOrderWithTwoItems() {
