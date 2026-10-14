@@ -81,7 +81,7 @@ class ProductSaleStartTest {
         product.addSizeSpecs(addSizeSpecs(List.of(
             spec(clothing.size110(), 105, 115, top110Measurements()))), top, clothing.type());
 
-        assertSaleStartRejected("판매를 시작할 수 없습니다. 120 사이즈에 실측이 없습니다.");
+        assertSaleStartRejected("판매를 시작할 수 없습니다. 120 사이즈에 실측과 권장 키가 없습니다.");
     }
 
     @ParameterizedTest(name = "{0} 빠짐")

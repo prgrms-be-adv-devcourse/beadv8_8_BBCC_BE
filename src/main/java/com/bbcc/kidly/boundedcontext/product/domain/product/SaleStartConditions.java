@@ -41,8 +41,10 @@ final class SaleStartConditions {
         }
         for (AttributeValue sizeValue : ProductOptions.activeSizeValues(options, productType)) {
             SizeSpec spec = specBySize.get(sizeValue);
+            // 실측 행이 없으면 FREE가 아닌 사이즈는 권장 키도 없으므로, 한 번에 고칠 수 있게 둘 다 알린다
             if (spec == null) {
-                missing.add(sizeValue.getName() + " 사이즈에 실측이 없습니다.");
+                String lacking = ProductOptions.isFreeValue(sizeValue) ? "실측이" : "실측과 권장 키가";
+                missing.add(sizeValue.getName() + " 사이즈에 " + lacking + " 없습니다.");
                 continue;
             }
             addMeasurementMissing(missing, sizeValue, spec, category);
