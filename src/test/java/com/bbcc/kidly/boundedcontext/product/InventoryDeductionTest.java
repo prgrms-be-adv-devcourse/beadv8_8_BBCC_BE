@@ -83,4 +83,11 @@ class InventoryDeductionTest {
         assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of(item(11L, options.navy110(), qty))))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    @DisplayName("주문상품이 없으면 차감 요청을 만들지 않는다")
+    void rejectEmptyItems() {
+        assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of()))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }

@@ -22,6 +22,9 @@ public final class InventoryDeductionRequest {
     }
 
     public static InventoryDeductionRequest of(long orderId, List<Item> items) {
+        if (items.isEmpty()) {
+            throw new IllegalArgumentException("차감할 주문상품은 비어 있을 수 없습니다");
+        }
         // 한 주문 생성됨 안에서 주문상품 ID는 겹치지 않는다. 겹치면 주문 코드의 오류라 요청을 만들지 않는다 (INV-15)
         Set<Long> orderItemIds = new HashSet<>();
         for (Item item : items) {
