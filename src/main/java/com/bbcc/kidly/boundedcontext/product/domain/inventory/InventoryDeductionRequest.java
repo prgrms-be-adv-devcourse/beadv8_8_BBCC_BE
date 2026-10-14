@@ -67,6 +67,11 @@ public final class InventoryDeductionRequest {
                 && existing.getQty() == item.qty();
     }
 
+    // 주문상품의 옵션을 모두 살 수 있어야 차감한다. 판단은 옵션의 판매 가능 판단 메서드(SALE-04)에 맡긴다 (INV-13)
+    public boolean isPurchasable() {
+        return true;
+    }
+
     // 주문상품마다 DEDUCTED 차감 기록을 하나씩, 요청한 순서대로 만든다 (INV-04)
     public List<InventoryDeduction> deductedRecords() {
         List<InventoryDeduction> records = new ArrayList<>();

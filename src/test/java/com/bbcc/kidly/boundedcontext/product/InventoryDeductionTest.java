@@ -137,6 +137,12 @@ class InventoryDeductionTest {
                 item(12L, first.navy120(), 1))).deductedRecords()));
     }
 
+    @Test
+    @DisplayName("INV-13 모든 주문상품의 옵션이 판매중이면 살 수 있는 요청이다")
+    void purchasableWhenAllOptionsOnSale() {
+        assertThat(twoItemOrder(options).isPurchasable()).isTrue();
+    }
+
     // 주문상품 11(네이비 110, 2개)과 12(네이비 120, 1개)로 만든 차감 요청이다
     private static InventoryDeductionRequest twoItemOrder(Options options) {
         return InventoryDeductionRequest.of(ORDER_ID, List.of(
