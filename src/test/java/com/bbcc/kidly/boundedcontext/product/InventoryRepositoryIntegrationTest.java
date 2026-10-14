@@ -16,10 +16,14 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,6 +36,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @IntegrationTest
 class InventoryRepositoryIntegrationTest {
+
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 15, 10, 0);
 
     @Autowired
     private InventoryRepository inventoryRepository;
@@ -72,6 +78,25 @@ class InventoryRepositoryIntegrationTest {
         assertThat(availableQty(option)).isEqualTo(10);
     }
 
+    @ParameterizedTest(name = "판매 가능 수량 {0}에서 {1}개 차감 → {2}")
+    @CsvSource({"10, 1, 9", "10, 10, 0"})
+    @DisplayName("INV-01 판매 가능 수량이 요청 수량 이상이면 줄이고 성공을 돌려준다")
+    void deductWhenAvailable(int stock, int qty, int expectedQty) {
+        ProductOption option = openedOption(stock);
+
+        boolean deducted = inTransaction(() -> inventoryRepository.deductIfAvailable(option.getId(), qty, NOW));
+
+        assertThat(deducted).isTrue();
+        assertThat(availableQty(option)).isEqualTo(expectedQty);
+    }
+
+    // 판매 가능 수량 stock으로 재고를 연 옵션을 돌려준다
+    private ProductOption openedOption(int stock) {
+        ProductOption option = savedOption();
+        inTransaction(() -> inventoryRepository.saveOpening(InventoryOpening.open(option, stock, SELLER_ID)));
+        return option;
+    }
+
     // 상품 A에 네이비 · 110 옵션을 추가해 저장하고 그 옵션을 돌려준다. 항목과 목록 값은 cascade되지 않아 먼저 저장한다
     private ProductOption savedOption() {
         ClothingOptions clothing = clothingOptions();
@@ -92,6 +117,10 @@ class InventoryRepositoryIntegrationTest {
 
     private void inTransaction(Runnable work) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> work.run());
+    }
+
+    private <T> T inTransaction(Supplier<T> work) {
+        return new TransactionTemplate(transactionManager).execute(status -> work.get());
     }
 
     private int availableQty(ProductOption option) {
