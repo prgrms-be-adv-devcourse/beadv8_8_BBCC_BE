@@ -13,8 +13,13 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class RecommendReplicaProductTest {
 
@@ -52,5 +57,31 @@ class RecommendReplicaProductTest {
         assertThat(replica.toProductSizes().sizeRanges()).containsExactly(
             SizeRange.of("110", 105, 116),
             SizeRange.of("120", 113, 125));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("optionsWithoutHeightRange")
+    @DisplayName("권장 키가 없는 옵션은 추천 후보가 될 수 없어 사이즈 줄에 넣지 않는다")
+    void skipOptionWithoutHeightRange(boolean sizeFree, List<RecommendReplicaProduct.OptionInfo> options,
+        ProductSizes expected) {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            RecommendFixture.productAChangeOf(sizeFree, options, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.toProductSizes()).isEqualTo(expected);
+    }
+
+    static Stream<Arguments> optionsWithoutHeightRange() {
+        return Stream.of(
+            Arguments.of(
+                Named.of("사이즈 무관 상품의 FREE 옵션", true),
+                List.of(new RecommendReplicaProduct.OptionInfo("FREE", null, null)),
+                ProductSizes.of(true, List.of())),
+            Arguments.of(
+                Named.of("권장 키 하한이나 상한 하나만 빠진 옵션", false),
+                List.of(
+                    new RecommendReplicaProduct.OptionInfo("110", null, 115),
+                    new RecommendReplicaProduct.OptionInfo("120", 115, null),
+                    new RecommendReplicaProduct.OptionInfo("130", 125, 135)),
+                ProductSizes.of(false, List.of(SizeRange.of("130", 125, 135)))));
     }
 }

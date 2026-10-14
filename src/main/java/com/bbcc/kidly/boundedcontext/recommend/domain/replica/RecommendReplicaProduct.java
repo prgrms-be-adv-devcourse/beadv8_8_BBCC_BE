@@ -85,6 +85,10 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         product.sizeFree = info.sizeFree();
         product.eventOccurredAt = info.occurredAt();
         for (OptionInfo option : info.options()) {
+            // 권장 키가 하나라도 없으면 아이 키로 고를 수 없으므로 사이즈 추천 후보로 두지 않는다
+            if (option.minHeightCm() == null || option.maxHeightCm() == null) {
+                continue;
+            }
             // 색상만 다른 같은 사이즈 옵션은 권장 키가 같아야 하므로, 처음 들어온 옵션의 권장 키만 쓴다
             if (product.hasSize(option.size())) {
                 continue;
