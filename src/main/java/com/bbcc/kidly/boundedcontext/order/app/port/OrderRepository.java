@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.app.port;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -31,6 +32,12 @@ public interface OrderRepository {
      * 회원의 주문 1건. 남의 주문이면 없는 것으로 본다.
      */
     Optional<Order> findByIdAndMemberId(Long id, Long memberId);
+
+    /**
+     * ID 목록의 주문을 주문상품과 함께 한 번에 읽는다(목록 화면의 건마다 조회 방지). 순서는 보장하지 않으므로 ID로 찾는다.
+     * 주문상품은 ID 오름차순. 없는 ID는 결과에서 빠진다.
+     */
+    List<Order> findAllWithItemsByIdIn(Collection<Long> ids);
 
     /**
      * 회원의 주문 목록. 최근 주문부터.

@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.recommend.domain;
+package com.bbcc.kidly.boundedcontext.recommend.domain.size;
 
 public record SizeRange(
         String size,

@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
@@ -17,7 +18,8 @@ import lombok.NoArgsConstructor;
  * 재고 수량은 두지 않는다.
  */
 @Entity
-@Table(schema = "orders", name = "replica_product")
+@Table(schema = "orders", name = "replica_product", indexes =
+    @Index(name = "idx_replica_product_product_id", columnList = "product_id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReplicaProduct extends BaseTimeEntity {

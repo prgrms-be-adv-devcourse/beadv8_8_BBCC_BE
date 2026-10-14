@@ -5,11 +5,11 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSize
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.Fit;
-import com.bbcc.kidly.boundedcontext.recommend.domain.SizeNotice;
-import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommendation;
-import com.bbcc.kidly.boundedcontext.recommend.domain.SizeRecommender;
-import com.bbcc.kidly.boundedcontext.recommend.out.ClasspathGrowthChart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
+import com.bbcc.kidly.boundedcontext.recommend.out.size.GrowthChartConfig;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.util.Arrays;
@@ -20,7 +20,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class SizeRecommenderExampleTest {
 
-    private static final SizeRecommender RECOMMENDER = new SizeRecommender(new ClasspathGrowthChart());
+    private static final SizeRecommender RECOMMENDER = new SizeRecommender(new GrowthChartConfig().growthChart());
 
     @ParameterizedTest(name = "몸무게 {0}kg, 입력 체형 {1}, 선호 핏 {2} → {3}, {4}, 안내 [{5}]")
     @CsvSource({

@@ -233,9 +233,9 @@ class OrderTest {
         void recordsRequestedAt() {
             Order order = OrderFixture.placedOrder();
 
-            boolean requested = order.requestPayment(NOW.plusSeconds(5));
+            TransitionResult requested = order.requestPayment(NOW.plusSeconds(5));
 
-            assertThat(requested).isTrue();
+            assertThat(requested).isEqualTo(TransitionResult.APPLIED);
             assertThat(order.getPaymentRequestedAt()).isEqualTo(NOW.plusSeconds(5));
             assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
         }
@@ -246,9 +246,9 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.requestPayment(NOW.plusSeconds(5));
 
-            boolean requested = order.requestPayment(NOW.plusSeconds(9));
+            TransitionResult requested = order.requestPayment(NOW.plusSeconds(9));
 
-            assertThat(requested).isFalse();
+            assertThat(requested).isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(order.getPaymentRequestedAt()).isEqualTo(NOW.plusSeconds(5));
         }
 
@@ -258,9 +258,9 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
 
-            boolean requested = order.requestPayment(NOW.plusMinutes(12));
+            TransitionResult requested = order.requestPayment(NOW.plusMinutes(12));
 
-            assertThat(requested).isFalse();
+            assertThat(requested).isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(order.getPaymentRequestedAt()).isNull();
         }
     }
@@ -276,9 +276,9 @@ class OrderTest {
         void beforeDue() {
             Order order = OrderFixture.placedOrder();
 
-            boolean expired = order.expirePayment(dueAt.minusSeconds(1));
+            TransitionResult expired = order.expirePayment(dueAt.minusSeconds(1));
 
-            assertThat(expired).isFalse();
+            assertThat(expired).isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
             assertThat(order.getCancelReason()).isNull();
         }
@@ -288,9 +288,9 @@ class OrderTest {
         void atDue() {
             Order order = OrderFixture.placedOrder();
 
-            boolean expired = order.expirePayment(dueAt);
+            TransitionResult expired = order.expirePayment(dueAt);
 
-            assertThat(expired).isTrue();
+            assertThat(expired).isEqualTo(TransitionResult.APPLIED);
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
         }
@@ -300,7 +300,7 @@ class OrderTest {
         void afterDue() {
             Order order = OrderFixture.placedOrder();
 
-            assertThat(order.expirePayment(dueAt.plusSeconds(1))).isTrue();
+            assertThat(order.expirePayment(dueAt.plusSeconds(1))).isEqualTo(TransitionResult.APPLIED);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
         }
 
@@ -309,7 +309,7 @@ class OrderTest {
         void paidIsNotExpired() {
             Order order = OrderFixture.paidOrder();
 
-            assertThat(order.expirePayment(dueAt.plusMinutes(1))).isFalse();
+            assertThat(order.expirePayment(dueAt.plusMinutes(1))).isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
             assertThat(order.getCancelReason()).isNull();
         }
@@ -320,7 +320,7 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.PAYMENT_FAILED);
 
-            assertThat(order.expirePayment(dueAt.plusMinutes(1))).isFalse();
+            assertThat(order.expirePayment(dueAt.plusMinutes(1))).isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_FAILED);
         }
     }
@@ -332,27 +332,27 @@ class OrderTest {
         private final LocalDateTime confirmedAt = DELIVERED_AT.plusDays(1);
 
         @Test
-        @DisplayName("배송 완료된 주문상품을 직접 확정하고 true")
+        @DisplayName("배송 완료된 주문상품을 직접 확정하고 APPLIED")
         void confirmsDelivered() {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             OrderItem item = itemOf(order, SELLER_A_ID);
 
-            boolean confirmed = order.confirmItem(item.getId(), confirmedAt);
+            TransitionResult confirmed = order.confirmItem(item.getId(), confirmedAt);
 
-            assertThat(confirmed).isTrue();
+            assertThat(confirmed).isEqualTo(TransitionResult.APPLIED);
             assertThat(item.getStatus()).isEqualTo(OrderItem.Status.CONFIRMED);
             assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.DIRECT);
             assertThat(item.getConfirmedAt()).isEqualTo(confirmedAt);
         }
 
         @Test
-        @DisplayName("이미 확정이면 그대로 두고 false")
+        @DisplayName("이미 확정이면 그대로 두고 ALREADY_DONE")
         void alreadyConfirmed() {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             Long itemId = itemOf(order, SELLER_A_ID).getId();
             order.confirmItem(itemId, confirmedAt);
 
-            assertThat(order.confirmItem(itemId, confirmedAt.plusDays(1))).isFalse();
+            assertThat(order.confirmItem(itemId, confirmedAt.plusDays(1))).isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(itemOf(order, SELLER_A_ID).getConfirmedAt()).isEqualTo(confirmedAt);
         }
 
@@ -390,7 +390,8 @@ class OrderTest {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             OrderItem item = itemOf(order, SELLER_A_ID);
 
-            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.minusSeconds(1))).isFalse();
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.minusSeconds(1)))
+                .isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(item.getStatus()).isEqualTo(OrderItem.Status.ORDERED);
         }
 
@@ -400,7 +401,7 @@ class OrderTest {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             OrderItem item = itemOf(order, SELLER_A_ID);
 
-            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt)).isTrue();
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt)).isEqualTo(TransitionResult.APPLIED);
             assertThat(item.getStatus()).isEqualTo(OrderItem.Status.CONFIRMED);
             assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.AUTO);
             assertThat(item.getConfirmedAt()).isEqualTo(dueAt);
@@ -412,37 +413,53 @@ class OrderTest {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             OrderItem item = itemOf(order, SELLER_A_ID);
 
-            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusSeconds(1))).isTrue();
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusSeconds(1)))
+                .isEqualTo(TransitionResult.APPLIED);
             assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.AUTO);
         }
 
         @Test
-        @DisplayName("이미 확정이면 그대로 두고 false")
+        @DisplayName("기간이 지났고 이미 확정이면 그대로 두고 ALREADY_DONE")
         void alreadyConfirmed() {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             OrderItem item = itemOf(order, SELLER_A_ID);
             order.confirmItem(item.getId(), DELIVERED_AT.plusDays(1));
 
-            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1))).isFalse();
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1)))
+                .isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.DIRECT);
         }
 
         @Test
-        @DisplayName("배송 전이면 예외 없이 false")
+        @DisplayName("기간 전이라도 이미 직접 확정됐으면 확정 여부를 먼저 봐서 ALREADY_DONE")
+        void confirmedBeforeDue() {
+            Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+            OrderItem item = itemOf(order, SELLER_A_ID);
+            order.confirmItem(item.getId(), DELIVERED_AT.plusDays(1));
+
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.minusSeconds(1)))
+                .isEqualTo(TransitionResult.ALREADY_DONE);
+            assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.DIRECT);
+        }
+
+        @Test
+        @DisplayName("배송 전이면 예외 없이 NOT_APPLICABLE")
         void notDelivered() {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             OrderItem item = itemOf(order, SELLER_B_ID);
 
-            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1))).isFalse();
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1)))
+                .isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(item.getStatus()).isEqualTo(OrderItem.Status.ORDERED);
         }
 
         @Test
-        @DisplayName("주문에 없는 주문상품이면 예외 없이 false")
+        @DisplayName("주문에 없는 주문상품이면 예외 없이 NOT_APPLICABLE")
         void missingItem() {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
 
-            assertThat(order.autoConfirmItem(999L, POLICY, dueAt.plusDays(1))).isFalse();
+            assertThat(order.autoConfirmItem(999L, POLICY, dueAt.plusDays(1)))
+                .isEqualTo(TransitionResult.NOT_APPLICABLE);
         }
     }
 
@@ -455,9 +472,9 @@ class OrderTest {
         void markPaid() {
             Order order = OrderFixture.placedOrder();
 
-            boolean paid = order.markPaid(PAYMENT_ID, PAID_AT);
+            TransitionResult paid = order.markPaid(PAYMENT_ID, PAID_AT);
 
-            assertThat(paid).isTrue();
+            assertThat(paid).isEqualTo(TransitionResult.APPLIED);
             assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
             assertThat(order.getPaymentId()).isEqualTo(PAYMENT_ID);
             assertThat(order.getPaidAt()).isEqualTo(PAID_AT);
@@ -469,9 +486,9 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
 
-            boolean paid = order.markPaid(PAYMENT_ID, NOW.plusMinutes(12));
+            TransitionResult paid = order.markPaid(PAYMENT_ID, NOW.plusMinutes(12));
 
-            assertThat(paid).isFalse();
+            assertThat(paid).isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
             assertThat(order.getPaymentId()).isNull();
             assertThat(order.getPaidAt()).isNull();
@@ -482,9 +499,9 @@ class OrderTest {
         void duplicateKeepsFirst() {
             Order order = OrderFixture.paidOrder();
 
-            boolean paid = order.markPaid(999L, PAID_AT.plusMinutes(1));
+            TransitionResult paid = order.markPaid(999L, PAID_AT.plusMinutes(1));
 
-            assertThat(paid).isFalse();
+            assertThat(paid).isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(order.getPaymentId()).isEqualTo(PAYMENT_ID);
             assertThat(order.getPaidAt()).isEqualTo(PAID_AT);
         }
@@ -499,9 +516,9 @@ class OrderTest {
         void cancelPending() {
             Order order = OrderFixture.placedOrder();
 
-            boolean cancelled = order.cancel(Order.CancelReason.OUT_OF_STOCK);
+            TransitionResult cancelled = order.cancel(Order.CancelReason.OUT_OF_STOCK);
 
-            assertThat(cancelled).isTrue();
+            assertThat(cancelled).isEqualTo(TransitionResult.APPLIED);
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
         }
@@ -511,9 +528,9 @@ class OrderTest {
         void paidIsNotCancelled() {
             Order order = OrderFixture.paidOrder();
 
-            boolean cancelled = order.cancel(Order.CancelReason.PAYMENT_FAILED);
+            TransitionResult cancelled = order.cancel(Order.CancelReason.PAYMENT_FAILED);
 
-            assertThat(cancelled).isFalse();
+            assertThat(cancelled).isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
             assertThat(order.getCancelReason()).isNull();
         }
@@ -524,9 +541,9 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.OUT_OF_STOCK);
 
-            boolean cancelled = order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
+            TransitionResult cancelled = order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
 
-            assertThat(cancelled).isFalse();
+            assertThat(cancelled).isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
         }
     }
