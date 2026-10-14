@@ -81,9 +81,8 @@ class ProductTest {
     @DisplayName("INFO-01 목록 항목에 값을 두 개 넣으면 거절한다")
     void rejectTwoValuesOnListAttribute() {
         Clothing clothing = clothing();
-        AttributeValue polyester = AttributeValue.create(clothing.mainMaterial(), "폴리에스테르", null);
-        Product.RegisterInfo info = productAWith(clothing, List.of(
-            new InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton(), polyester), null)));
+        Product.RegisterInfo info = productAWith(List.of(
+            new InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton(), clothing.other()), null)));
 
         assertThatThrownBy(() -> Product.register(info, clothing.type()))
             .isInstanceOfSatisfying(BusinessException.class,
@@ -94,7 +93,7 @@ class ProductTest {
     @DisplayName("INFO-01 다중 선택 목록 항목은 값을 여러 개 담는다")
     void registerManyValuesOnMultiListAttribute() {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(clothing, List.of(
+        Product.RegisterInfo info = productAWith(List.of(
             cottonMaterial(clothing),
             new InfoValueInfo(clothing.feature(), List.of(clothing.brushed(), clothing.stretch()), null)));
 
@@ -115,7 +114,7 @@ class ProductTest {
         Clothing clothing = clothing();
         List<InfoValueInfo> infoValues = new ArrayList<>(List.of(cottonMaterial(clothing)));
         infoValues.addAll(duplicated.apply(clothing));
-        Product.RegisterInfo info = productAWith(clothing, infoValues);
+        Product.RegisterInfo info = productAWith(infoValues);
 
         assertThatThrownBy(() -> Product.register(info, clothing.type()))
             .isInstanceOfSatisfying(BusinessException.class,
@@ -127,7 +126,7 @@ class ProductTest {
     @DisplayName("INFO-02 필수 정보 항목에 값이 없으면 거절한다")
     void rejectMissingRequiredInfoValue(Function<Clothing, List<InfoValueInfo>> infoValues) {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(clothing, infoValues.apply(clothing));
+        Product.RegisterInfo info = productAWith(infoValues.apply(clothing));
 
         assertThatThrownBy(() -> Product.register(info, clothing.type()))
             .isInstanceOfSatisfying(BusinessException.class,
@@ -145,7 +144,7 @@ class ProductTest {
     @DisplayName("INFO-02 선택 정보 항목은 비워도 등록한다")
     void registerWithEmptyOptionalInfoValues() {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(clothing, List.of(
+        Product.RegisterInfo info = productAWith(List.of(
             cottonMaterial(clothing),
             new InfoValueInfo(clothing.fabricComposition(), List.of(), null),
             new InfoValueInfo(clothing.feature(), List.of(), null)));
@@ -162,7 +161,7 @@ class ProductTest {
     @DisplayName("INFO-03 그 유형에서 고를 수 없는 값을 넣으면 거절한다")
     void rejectNotAllowedInfoValue(Function<Clothing, AttributeValue> material) {
         Clothing clothing = clothingWithCottonOrOtherMaterial();
-        Product.RegisterInfo info = productAWith(clothing, List.of(
+        Product.RegisterInfo info = productAWith(List.of(
             new InfoValueInfo(clothing.mainMaterial(), List.of(material.apply(clothing)), null)));
 
         assertThatThrownBy(() -> Product.register(info, clothing.type()))
@@ -174,7 +173,7 @@ class ProductTest {
     @DisplayName("INFO-03 주요소재 목록에 없는 소재는 기타를 고르고 혼용률에 적어 등록한다")
     void registerOtherMaterialWithFabricComposition() {
         Clothing clothing = clothingWithCottonOrOtherMaterial();
-        Product.RegisterInfo info = productAWith(clothing, List.of(
+        Product.RegisterInfo info = productAWith(List.of(
             new InfoValueInfo(clothing.mainMaterial(), List.of(clothing.other()), null),
             new InfoValueInfo(clothing.fabricComposition(), List.of(), "린넨 100%")));
 
@@ -193,7 +192,7 @@ class ProductTest {
     @DisplayName("그 유형의 정보 항목이 아닌 항목에 값을 넣으면 거절한다")
     void rejectValueOfNotInfoAttribute(Function<Clothing, InfoValueInfo> notInfoValue) {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(clothing, List.of(
+        Product.RegisterInfo info = productAWith(List.of(
             cottonMaterial(clothing),
             notInfoValue.apply(clothing)));
 
@@ -207,7 +206,7 @@ class ProductTest {
     @DisplayName("항목의 입력 방식에 맞지 않는 값을 넣으면 거절한다")
     void rejectInputTypeMismatchedValue(Function<Clothing, List<InfoValueInfo>> infoValues) {
         Clothing clothing = clothing();
-        Product.RegisterInfo info = productAWith(clothing, infoValues.apply(clothing));
+        Product.RegisterInfo info = productAWith(infoValues.apply(clothing));
 
         assertThatThrownBy(() -> Product.register(info, clothing.type()))
             .isInstanceOfSatisfying(BusinessException.class,

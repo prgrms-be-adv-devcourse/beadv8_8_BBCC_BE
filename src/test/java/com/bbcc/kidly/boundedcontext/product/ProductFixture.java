@@ -13,6 +13,10 @@ final class ProductFixture {
     static final long SELLER_ID = 2L;
     static final long CATEGORY_ID = 1L;
 
+    private static final String NAME = "상품 A";
+    private static final String THUMBNAIL_URL = "https://…/a-thumbnail.jpg";
+    private static final List<String> IMAGE_URLS = List.of("https://…/a-1.jpg");
+
     private ProductFixture() {
     }
 
@@ -71,39 +75,37 @@ final class ProductFixture {
 
     // 기획서 7.1 상품 A: 판매자 2, 상의(카테고리 1), 주요소재 면. 혼용률과 특징은 비운다
     static Product.RegisterInfo productA(Clothing clothing) {
-        return productAWith(clothing, List.of(cottonMaterial(clothing)));
+        return productAWith(List.of(cottonMaterial(clothing)));
     }
 
     static Product.InfoValueInfo cottonMaterial(Clothing clothing) {
         return new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null);
     }
 
-    static Product.RegisterInfo productAWith(Clothing clothing, List<Product.InfoValueInfo> infoValues) {
-        return productA(clothing, "https://…/a-thumbnail.jpg", infoValues);
+    // 상품 A에서 정보 값만 바꾼 등록 정보다
+    static Product.RegisterInfo productAWith(List<Product.InfoValueInfo> infoValues) {
+        return registerInfo(SELLER_ID, CATEGORY_ID, NAME, THUMBNAIL_URL, IMAGE_URLS, infoValues);
     }
 
     static Product.RegisterInfo productAWithoutThumbnail(Clothing clothing) {
-        Product.RegisterInfo productA = productA(clothing);
-        return productA(clothing, null, productA.infoValues());
-    }
-
-    private static Product.RegisterInfo productA(
-        Clothing clothing, String thumbnailUrl, List<Product.InfoValueInfo> infoValues) {
-        return new Product.RegisterInfo(
-            SELLER_ID,
-            CATEGORY_ID,
-            "상품 A",
-            "키들리",
-            "상품 설명",
-            thumbnailUrl,
-            List.of("https://…/a-1.jpg"),
-            infoValues);
+        return registerInfo(SELLER_ID, CATEGORY_ID, NAME, null, IMAGE_URLS, List.of(cottonMaterial(clothing)));
     }
 
     // 상품 A에서 필수 값만 바꾼 등록 정보다. 필수 값이 비었을 때를 확인하는 테스트가 쓴다
     static Product.RegisterInfo productAWithRequired(
         Long sellerId, Long categoryId, String name, List<String> imageUrls, List<Product.InfoValueInfo> infoValues) {
+        return registerInfo(sellerId, categoryId, name, THUMBNAIL_URL, imageUrls, infoValues);
+    }
+
+    // 브랜드와 설명은 상품 A의 값으로 두고, 나머지 칸은 모두 받아 등록 정보를 만든다
+    private static Product.RegisterInfo registerInfo(
+        Long sellerId,
+        Long categoryId,
+        String name,
+        String thumbnailUrl,
+        List<String> imageUrls,
+        List<Product.InfoValueInfo> infoValues) {
         return new Product.RegisterInfo(
-            sellerId, categoryId, name, "키들리", "상품 설명", "https://…/a-thumbnail.jpg", imageUrls, infoValues);
+            sellerId, categoryId, name, "키들리", "상품 설명", thumbnailUrl, imageUrls, infoValues);
     }
 }
