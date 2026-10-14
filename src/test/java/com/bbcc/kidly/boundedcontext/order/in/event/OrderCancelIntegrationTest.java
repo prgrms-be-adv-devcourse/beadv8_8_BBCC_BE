@@ -127,6 +127,18 @@ class OrderCancelIntegrationTest {
     }
 
     @Test
+    @DisplayName("조회 조건을 거치지 않고 만료 취소를 바로 불러도, 마감 전 주문은 도메인이 막아 그대로다")
+    void domainKeepsNotOverdueOrder() {
+        OrderDetail order = place();
+
+        orderService.cancelForPaymentExpiry(order.orderId());
+
+        assertThat(orderRepository.findById(order.orderId())).get()
+            .extracting(Order::getStatus).isEqualTo(Order.Status.PENDING_PAYMENT);
+        assertThat(events.stream(OrderCancelledEvent.class).toList()).isEmpty();
+    }
+
+    @Test
     @DisplayName("만료로 취소된 뒤 온 결제 완료 이벤트는 무시된다 (상태 그대로 · 배송 없음)")
     void ignoresPaymentCompletedAfterExpiry() {
         OrderDetail order = place();

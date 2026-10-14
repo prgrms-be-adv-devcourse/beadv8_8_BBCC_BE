@@ -20,6 +20,7 @@ import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -102,14 +103,16 @@ public class OrderService {
      * 결제 실패로 취소한다. 결제대기가 아니면 그대로 둔다.
      */
     public void cancelForPaymentFailure(Long orderId) {
-        cancel(orderId, Order.CancelReason.PAYMENT_FAILED);
+        cancel(orderId, order -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
     }
 
     /**
-     * 결제 마감 만료로 취소한다. 결제대기가 아니면 그대로 둔다(그 사이 결제완료됐으면 결제완료가 이긴다).
+     * 결제 마감 만료로 취소한다. 마감이 지났는지는 주문이 직접 확인한다(마감 전이면 그대로).
+     * 결제대기가 아니면 그대로 둔다(그 사이 결제완료됐으면 결제완료가 이긴다).
      */
     public void cancelForPaymentExpiry(Long orderId) {
-        cancel(orderId, Order.CancelReason.PAYMENT_EXPIRED);
+        LocalDateTime now = LocalDateTime.now();
+        cancel(orderId, order -> order.expirePayment(now));
     }
 
     /**
@@ -141,14 +144,17 @@ public class OrderService {
     }
 
     /**
-     * 주문이 없으면 무시. 이번에 취소했을 때만 order.cancelled를 발행한다(주문상품 순서 그대로).
+     * 주문이 없으면 무시. 이번에 취소했을 때만 order.cancelled를 발행한다(사유는 주문에 기록된 값,
+     * 주문상품 순서 그대로).
+     *
+     * @param change 주문을 취소하는 도메인 메서드. 이번에 취소했으면 true
      */
-    private void cancel(Long orderId, Order.CancelReason reason) {
+    private void cancel(Long orderId, Predicate<Order> change) {
         LocalDateTime now = LocalDateTime.now();
         orderRepository.findById(orderId)
-            .filter(order -> order.cancel(reason))
+            .filter(change)
             .ifPresent(order -> eventPublisher.publish(new OrderCancelledEvent(UUID.randomUUID(), now,
-                new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), reason.name(),
+                new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), order.getCancelReason().name(),
                     order.getItems().stream()
                         .map(item -> new OrderCancelledEvent.Item(
                             item.getId(), item.getProduct().optionId(), item.getQuantity()))
