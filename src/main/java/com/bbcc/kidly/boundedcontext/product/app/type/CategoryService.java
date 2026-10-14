@@ -6,11 +6,13 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -60,7 +62,8 @@ public class CategoryService {
     // 말단 카테고리의 상품 등록 입력 항목을 돌려준다. 중간 카테고리이면 도메인이 거절한다
     @Transactional(readOnly = true)
     public CategoryInputsResult findInputs(Long categoryId) {
-        Category category = categoryRepository.findById(categoryId).orElseThrow();
+        Category category = categoryRepository.findById(categoryId)
+            .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
         ProductType type = category.productTypeToRegister();
         List<ProductTypeAttribute> links = type.inputAttributes();
         Map<Long, List<AttributeValue>> valuesByAttributeId = selectableValuesByAttributeId(type, links);

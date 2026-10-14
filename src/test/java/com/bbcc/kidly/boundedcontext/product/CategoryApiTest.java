@@ -14,6 +14,8 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -123,6 +125,27 @@ class CategoryApiTest {
             .isEqualTo(List.of("TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH"))
             .jsonPath("$.measurementItems[0].name").isEqualTo("총장")
             .jsonPath("$.measurementItems[0].unit").isEqualTo("cm");
+    }
+
+    @Test
+    @DisplayName("없는 카테고리의 입력 항목을 찾으면 404다")
+    void inputAttributesOfMissingCategoryIsNotFound() {
+        expectProblem("/api/v1/categories/999999/attributes", HttpStatus.NOT_FOUND,
+            "카테고리를 찾을 수 없습니다", "카테고리를 다시 확인해 주세요.");
+    }
+
+    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
+    private void expectProblem(String path, HttpStatus status, String title, String detail) {
+        client.get().uri(path)
+            .exchange()
+            .expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").isEqualTo(title)
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").isEqualTo(detail)
+            .jsonPath("$.instance").isEqualTo(path);
     }
 
     // 색상만 옵션 항목으로 둔 의류 유형을 저장한다. 항목은 cascade되지 않아 먼저 저장한다
