@@ -57,6 +57,9 @@ public class ProductType extends BaseTimeEntity {
         if (countSizeRoles(links) > 1) {
             throw new IllegalArgumentException("사이즈 역할 항목은 하나만 둘 수 있습니다");
         }
+        if (hasSizeRoleOnInfo(links)) {
+            throw new IllegalArgumentException("사이즈 역할은 옵션 항목에만 둘 수 있습니다");
+        }
         ProductType type = new ProductType();
         type.name = name;
         for (int i = 0; i < links.size(); i++) {
@@ -82,6 +85,15 @@ public class ProductType extends BaseTimeEntity {
             }
         }
         return count;
+    }
+
+    private static boolean hasSizeRoleOnInfo(List<LinkInfo> links) {
+        for (LinkInfo link : links) {
+            if (link.sizeRole() && link.role() != AttributeRole.OPTION) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public List<ProductTypeAttribute> getAttributes() {

@@ -52,6 +52,10 @@ final class ProductTypeFixture {
         return new ProductType.LinkInfo(attribute, AttributeRole.OPTION, true, true, true, false, List.of());
     }
 
+    static ProductType.LinkInfo sizeInfo(Attribute attribute) {
+        return new ProductType.LinkInfo(attribute, AttributeRole.INFO, true, true, true, false, List.of());
+    }
+
     static ProductType.LinkInfo requiredInfo(Attribute attribute) {
         return new ProductType.LinkInfo(attribute, AttributeRole.INFO, true, true, false, false, List.of());
     }

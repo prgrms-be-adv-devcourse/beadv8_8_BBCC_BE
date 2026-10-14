@@ -10,6 +10,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredI
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.shoeSize;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeOption;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -75,5 +76,15 @@ class ProductTypeTest {
         assertThatThrownBy(() -> ProductType.define("의류", links))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("사이즈 역할 항목은 하나");
+    }
+
+    @Test
+    @DisplayName("TYPE-03 사이즈 역할을 정보 항목에 두면 거절한다")
+    void rejectTypeWithSizeRoleOnInfoAttribute() {
+        List<ProductType.LinkInfo> links = List.of(requiredOption(color()), sizeInfo(size()));
+
+        assertThatThrownBy(() -> ProductType.define("의류", links))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("사이즈 역할은 옵션 항목");
     }
 }
