@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.AgeGroup;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;

@@ -2,17 +2,18 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.AgeGroup;
-import com.bbcc.kidly.boundedcontext.recommend.domain.WeightPercentiles;
-import com.bbcc.kidly.boundedcontext.recommend.out.ClasspathGrowthChart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.WeightPercentiles;
+import com.bbcc.kidly.boundedcontext.recommend.out.size.GrowthChartConfig;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-class ClasspathGrowthChartTest {
+class GrowthChartConfigTest {
 
-    private static final ClasspathGrowthChart GROWTH_CHART = new ClasspathGrowthChart();
+    private static final GrowthChart GROWTH_CHART = new GrowthChartConfig().growthChart();
 
     @ParameterizedTest(name = "{0}, {1}, 키 {2}cm → {3}kg / {4}kg")
     @CsvSource({
