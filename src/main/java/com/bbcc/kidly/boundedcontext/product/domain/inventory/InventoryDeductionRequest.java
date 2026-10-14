@@ -19,10 +19,13 @@ public final class InventoryDeductionRequest {
 
     private final long orderId;
     private final List<Item> items;
+    // 같은 옵션의 수량을 요청을 만들 때 더해 두고, int 범위를 넘으면 차감이 재고를 늘리므로 요청을 만들지 않는다 (INV-01)
+    private final Map<Long, Integer> qtyByOptionId;
 
-    private InventoryDeductionRequest(long orderId, List<Item> items) {
+    private InventoryDeductionRequest(long orderId, List<Item> items, Map<Long, Integer> qtyByOptionId) {
         this.orderId = orderId;
         this.items = items;
+        this.qtyByOptionId = qtyByOptionId;
     }
 
     public static InventoryDeductionRequest of(long orderId, List<Item> items) {
@@ -43,7 +46,21 @@ public final class InventoryDeductionRequest {
                 throw new IllegalArgumentException("차감 수량은 0보다 커야 합니다");
             }
         }
-        return new InventoryDeductionRequest(orderId, copied);
+        return new InventoryDeductionRequest(orderId, copied, sumQtyByOptionId(copied));
+    }
+
+    // 옵션 ID 오름차순으로 정렬된 옵션별 수량 합계를 만든다
+    private static Map<Long, Integer> sumQtyByOptionId(List<Item> items) {
+        Map<Long, Integer> sums = new TreeMap<>();
+        for (Item item : items) {
+            Long optionId = item.option().getId();
+            try {
+                sums.merge(optionId, item.qty(), Math::addExact);
+            } catch (ArithmeticException e) {
+                throw new IllegalArgumentException("같은 옵션의 차감 수량 합계가 너무 큽니다", e);
+            }
+        }
+        return sums;
     }
 
     // 같은 주문 생성됨을 다시 받았는지를 주문상품의 기존 차감 기록으로 판단한다 (INV-10)
@@ -102,10 +119,6 @@ public final class InventoryDeductionRequest {
 
     // 같은 옵션의 수량을 더해 옵션 ID 오름차순으로 돌려준다. 재고 행을 이 순서로 줄여야 두 차감이 서로의 행을 기다리는 교착 상태가 생기지 않는다 (INV-12)
     public List<OptionQuantity> optionQuantities() {
-        Map<Long, Integer> qtyByOptionId = new TreeMap<>();
-        for (Item item : items) {
-            qtyByOptionId.merge(item.option().getId(), item.qty(), Integer::sum);
-        }
         List<OptionQuantity> quantities = new ArrayList<>();
         for (Map.Entry<Long, Integer> entry : qtyByOptionId.entrySet()) {
             quantities.add(new OptionQuantity(entry.getKey(), entry.getValue()));

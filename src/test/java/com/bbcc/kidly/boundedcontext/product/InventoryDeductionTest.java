@@ -161,6 +161,15 @@ class InventoryDeductionTest {
             .isInstanceOf(NullPointerException.class);
     }
 
+    @Test
+    @DisplayName("INV-01 같은 옵션의 수량 합계가 int 범위를 넘으면 차감 요청을 만들지 않는다")
+    void rejectQtySumOverflow() {
+        assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 1_100_000_000),
+            item(12L, options.navy110(), 1_100_000_000))))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
     // 주문상품 11(네이비 110, 2개)과 12(네이비 120, 1개)로 만든 차감 요청이다
     private static InventoryDeductionRequest twoItemOrder(Options options) {
         return InventoryDeductionRequest.of(ORDER_ID, List.of(
