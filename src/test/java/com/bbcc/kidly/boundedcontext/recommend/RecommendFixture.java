@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChartRow;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
@@ -12,7 +13,6 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 public final class RecommendFixture {
 
@@ -36,18 +36,9 @@ public final class RecommendFixture {
      * 그 밖은 표에 없어서, 계산은 보호자가 입력한 체형을 그대로 쓴다.
      */
     public static GrowthChart growthChart() {
-        return (ageGroup, gender, heightCm) -> {
-            if (gender != Gender.MALE || heightCm != 115.0) {
-                return Optional.empty();
-            }
-            if (ageGroup == AgeGroup.YEARS_3_18) {
-                return Optional.of(WeightPercentiles.of(19.1, 22.7));
-            }
-            if (ageGroup == AgeGroup.MONTHS_24_35) {
-                return Optional.of(WeightPercentiles.of(18.6, 22.4));
-            }
-            return Optional.empty();
-        };
+        return GrowthChart.of(List.of(
+            GrowthChartRow.of(AgeGroup.YEARS_3_18, Gender.MALE, 115.0, WeightPercentiles.of(19.1, 22.7)),
+            GrowthChartRow.of(AgeGroup.MONTHS_24_35, Gender.MALE, 115.0, WeightPercentiles.of(18.6, 22.4))));
     }
 
     /**
