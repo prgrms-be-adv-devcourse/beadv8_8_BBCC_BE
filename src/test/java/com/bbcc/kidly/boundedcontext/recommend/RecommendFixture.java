@@ -81,7 +81,8 @@ public final class RecommendFixture {
     }
 
     /**
-     * 주문 도메인이 보내는 구매확정 이벤트. 값은 {@link #purchaseConfirmation()}과 같고, 수량 2개 · 금액 50,000원이다.
+     * 주문 도메인이 보내는 구매확정 이벤트를 만든다. 값은 {@link #purchaseConfirmation()}과 같고, 수량 2개 · 금액 50,000원이다.
+     * 이벤트 발생 시각은 구매확정 시각보다 1초 늦게 두어, 두 시각을 바꿔 넣으면 테스트가 실패하게 한다.
      */
     public static OrderItemPurchaseConfirmedEvent purchaseConfirmedEvent() {
         return purchaseConfirmedEventFor(CHILD_1_ID);
@@ -91,7 +92,7 @@ public final class RecommendFixture {
      * {@link #purchaseConfirmedEvent()}와 같은 구매확정 이벤트에서 자녀만 바꾼다. 자녀를 고르지 않았으면 null이다.
      */
     public static OrderItemPurchaseConfirmedEvent purchaseConfirmedEventFor(Long childId) {
-        return new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), PURCHASE_CONFIRMED_AT,
+        return new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), PURCHASE_CONFIRMED_AT.plusSeconds(1),
             new OrderItemPurchaseConfirmedEvent.Data(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, SELLER_ID, childId,
                 PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120", 2, 50_000L, PURCHASE_CONFIRMED_AT));
     }
