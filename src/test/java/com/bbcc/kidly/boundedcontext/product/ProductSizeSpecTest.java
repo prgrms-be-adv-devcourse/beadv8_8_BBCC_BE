@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductSizeSpecTest {
 
@@ -183,6 +184,21 @@ class ProductSizeSpecTest {
 
         assertThatThrownBy(() -> product.addSizeSpecs(addSizeSpecs(List.of(
             spec(clothing.size110(), minHeightCm, maxHeightCm, top110Measurements()))), top, clothing.type()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("0보다 커야 합니다");
+        assertThat(product.getSizeSpecs()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "총장 {0}")
+    @ValueSource(strings = {"0", "-1"})
+    @DisplayName("SIZE-04 실측 값이 0 이하이면 거절한다")
+    void rejectNonPositiveMeasurement(String totalLength) {
+        withOptions110And120();
+        Map<String, BigDecimal> measurements = new HashMap<>(top110Measurements());
+        measurements.put("TOTAL_LENGTH", new BigDecimal(totalLength));
+
+        assertThatThrownBy(() -> product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), 105, 115, measurements))), top, clothing.type()))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("0보다 커야 합니다");
         assertThat(product.getSizeSpecs()).isEmpty();

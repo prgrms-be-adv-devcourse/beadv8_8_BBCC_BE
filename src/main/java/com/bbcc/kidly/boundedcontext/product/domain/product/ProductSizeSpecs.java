@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -56,7 +57,7 @@ final class ProductSizeSpecs {
         }
     }
 
-    // 실측 값의 항목 코드는 모두 상품 카테고리의 실측 항목이어야 한다 (SIZE-04)
+    // 실측 값의 항목 코드는 모두 상품 카테고리의 실측 항목이어야 하고, 값은 0보다 커야 한다 (SIZE-04)
     static void validateMeasurementItems(List<SizeSpecInfo> specs, Category category) {
         Set<String> allowed = new HashSet<>();
         for (CategoryMeasurementItem item : category.getMeasurementItems()) {
@@ -65,6 +66,11 @@ final class ProductSizeSpecs {
         for (SizeSpecInfo spec : specs) {
             if (!allowed.containsAll(spec.measurements().keySet())) {
                 throw new BusinessException(ProductErrorCode.MEASUREMENT_ITEM_NOT_IN_CATEGORY);
+            }
+            for (BigDecimal value : spec.measurements().values()) {
+                if (value.signum() <= 0) {
+                    throw new IllegalArgumentException("실측 값은 0보다 커야 합니다");
+                }
             }
         }
     }
