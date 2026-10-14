@@ -91,4 +91,17 @@ class ReplicaChildTest {
             .extracting(ReplicaChild::getHeightCm, ReplicaChild::getEventOccurredAt)
             .containsExactly(new BigDecimal("115.0"), CHILD_CHANGED_AT);
     }
+
+    @Test
+    @DisplayName("INV-R02 삭제 이벤트를 받으면 행을 지우지 않고 그 이벤트가 일어난 시각을 삭제 시각으로 남긴다")
+    void markDeletedOnDeleteChange() {
+        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange());
+        LocalDateTime deletedAt = CHILD_CHANGED_AT.plusMinutes(5);
+
+        replica.applyIfNewer(RecommendFixture.childDeleted(deletedAt));
+
+        assertThat(replica)
+            .extracting(ReplicaChild::isDeleted, ReplicaChild::getDeletedAt, ReplicaChild::getEventOccurredAt)
+            .containsExactly(true, deletedAt, deletedAt);
+    }
 }

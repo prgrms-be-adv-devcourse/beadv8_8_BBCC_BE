@@ -79,6 +79,9 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
             return;
         }
         apply(info);
+        if (info.deleted()) {
+            delete(info.occurredAt());
+        }
     }
 
     private void apply(ChangeInfo info) {

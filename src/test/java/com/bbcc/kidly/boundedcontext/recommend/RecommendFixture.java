@@ -58,6 +58,14 @@ public final class RecommendFixture {
             Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, false, occurredAt);
     }
 
+    /**
+     * 자녀 1의 삭제. 삭제 이벤트도 삭제 직전 값(키 115.0cm 등)을 그대로 담는다.
+     */
+    public static ReplicaChild.ChangeInfo childDeleted(LocalDateTime occurredAt) {
+        return new ReplicaChild.ChangeInfo(CHILD_1_ID, MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"),
+            Gender.MALE, CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, true, occurredAt);
+    }
+
     public static SizeRecommender recommender() {
         return new SizeRecommender(growthChart());
     }
