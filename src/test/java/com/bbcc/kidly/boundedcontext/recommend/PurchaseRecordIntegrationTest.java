@@ -10,6 +10,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PURCHASE_
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.purchase.PurchaseRecordService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
@@ -21,6 +22,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -106,6 +108,17 @@ class PurchaseRecordIntegrationTest {
         assertThatCode(() -> purchaseRecordService.recordPurchaseConfirmed(RecommendFixture.purchaseConfirmedEvent()))
             .doesNotThrowAnyException();
 
+        assertThat(purchaseRecordRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("INV-R03 같은 주문상품의 구매 기록을 두 줄 저장하면 UNIQUE 제약이 막는다")
+    void rejectSecondRecordOfSameOrderItem() {
+        purchaseRecordRepository.saveAndFlush(PurchaseRecord.create(RecommendFixture.purchaseConfirmation()));
+
+        assertThatThrownBy(
+            () -> purchaseRecordRepository.saveAndFlush(PurchaseRecord.create(RecommendFixture.purchaseConfirmation())))
+            .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(purchaseRecordRepository.findAll()).hasSize(1);
     }
 
