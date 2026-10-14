@@ -249,6 +249,16 @@ public class Product extends BaseTimeEntity {
         return true;
     }
 
+    /**
+     * 등록할 때 판매 시작 조건의 입력(옵션, 사이즈별 실측 · 권장 키)이 채워졌는지 검사한다. 상태는 바꾸지 않는다.
+     */
+    public void validateSaleStartInputs(Category category, ProductType productType) {
+        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ProductErrorCode.SALE_START_INPUT_MISSING, String.join(" ", missing));
+        }
+    }
+
     // 사이즈 무관 여부는 칸에 저장하지 않고 옵션의 사이즈 값으로 계산한다 (SIZE-02)
     public boolean isSizeFree() {
         return ProductOptions.isSizeFree(options);

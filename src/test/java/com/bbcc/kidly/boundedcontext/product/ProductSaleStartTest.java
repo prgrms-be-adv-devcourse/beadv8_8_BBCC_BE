@@ -27,8 +27,10 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -158,6 +160,35 @@ class ProductSaleStartTest {
         assertRejected(() -> product.startSale(OTHER_SELLER_ID, top, clothing.type()),
             ProductErrorCode.NOT_PRODUCT_OWNER);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.SALE_PENDING);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("incompleteInputs")
+    @DisplayName("SALE-03 등록할 때 판매 시작 조건의 입력이 빠지면 빠진 항목을 적어 400으로 거절한다 (10-14 결정)")
+    void rejectIncompleteSaleStartInputs(Consumer<ProductSaleStartTest> given, String detail) {
+        given.accept(this);
+
+        assertThatThrownBy(() -> product.validateSaleStartInputs(top, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.SALE_START_INPUT_MISSING);
+                assertThat(e.getDetail()).isEqualTo(detail);
+            });
+    }
+
+    static Stream<Arguments> incompleteInputs() {
+        Consumer<ProductSaleStartTest> noOptions = test -> {
+        };
+        Consumer<ProductSaleStartTest> missingSleeve = test -> {
+            test.withOptions110And120();
+            Map<String, BigDecimal> measurements = new HashMap<>(top110Measurements());
+            measurements.remove("SLEEVE_LENGTH");
+            test.product.addSizeSpecs(addSizeSpecs(List.of(
+                spec(test.clothing.size110(), 105, 115, measurements),
+                spec(test.clothing.size120(), 115, 125, top120Measurements()))), test.top, test.clothing.type());
+        };
+        return Stream.of(
+            Arguments.of(Named.of("옵션 없음", noOptions), "옵션이 하나 이상 있어야 합니다."),
+            Arguments.of(Named.of("110 소매길이 빠짐", missingSleeve), "110 사이즈에 소매길이가 없습니다."));
     }
 
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
