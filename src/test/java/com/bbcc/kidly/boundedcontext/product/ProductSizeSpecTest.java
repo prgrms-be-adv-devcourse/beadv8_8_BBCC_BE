@@ -61,6 +61,21 @@ class ProductSizeSpecTest {
         assertThat(product.getSizeSpecs()).isEmpty();
     }
 
+    @Test
+    @DisplayName("SIZE-05 사이즈 무관 상품의 FREE 행은 권장 키 없이 실측만 저장한다")
+    void addFreeSizeSpecWithoutHeightRange() {
+        product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.sizeFree()),
+            option(clothing.oatmeal(), clothing.sizeFree()))), clothing.type());
+
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.sizeFree(), null, null, top110Measurements()))), top, clothing.type());
+
+        assertThat(product.getSizeSpecs())
+            .extracting(SizeSpec::getSizeValue, SizeSpec::getMinHeightCm, SizeSpec::getMaxHeightCm)
+            .containsExactly(tuple(clothing.sizeFree(), null, null));
+    }
+
     // 상품 A에 네이비 110 · 120 옵션을 붙인다
     private void withOptions110And120() {
         product.addOptions(addOptions(List.of(
