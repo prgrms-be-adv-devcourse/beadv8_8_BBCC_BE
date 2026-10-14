@@ -104,7 +104,7 @@ public class Product extends BaseTimeEntity {
     @Column(nullable = false)
     private Long sellerId;
 
-    // 상품을 등록한 말단 카테고리다(TYPE-01). 다른 애그리거트라 getter를 열지 않고 ID만 꺼낸다(상품 규칙 3절)
+    // 등록한 말단 카테고리다(TYPE-01). 다른 애그리거트라 getter 대신 ID만 꺼내고, 프록시여도 ID는 초기화 없이 읽힌다(상품 규칙 3절)
     @Getter(AccessLevel.NONE)
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id")
@@ -137,13 +137,14 @@ public class Product extends BaseTimeEntity {
     @OrderBy("id ASC")
     private List<ProductInfoValue> infoValues = new ArrayList<>();
 
-    // mappedBy 컬렉션은 Hibernate가 version 검사에서 빼므로, 옵션만 추가해도 version이 오르도록 포함한다
+    // mappedBy 컬렉션은 Hibernate가 version 검사에서 빼므로, 옵션 · 실측(아래)만 추가해도 version이 오르도록 포함한다
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
     @OptimisticLock(excluded = false)
     @OrderBy("id ASC")
     private List<ProductOption> options = new ArrayList<>();
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @OptimisticLock(excluded = false)
     @OrderBy("id ASC")
     private List<SizeSpec> sizeSpecs = new ArrayList<>();
 
@@ -272,7 +273,6 @@ public class Product extends BaseTimeEntity {
         }
     }
 
-    // 카테고리가 지연 로딩 프록시여도 ID는 초기화 없이 읽힌다
     public Long getCategoryId() {
         return category.getId();
     }

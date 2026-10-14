@@ -3,6 +3,9 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
+import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.addSizeSpecs;
+import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.spec;
+import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top110Measurements;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
@@ -30,6 +33,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 class ProductRepositoryIntegrationTest {
 
     private final ClothingOptions clothing = clothingOptions();
+    private Category category;
 
     @Autowired
     private ProductRepository productRepository;
@@ -55,11 +59,33 @@ class ProductRepositoryIntegrationTest {
         assertThat(version(productId)).isGreaterThan(before);
     }
 
+    @Test
+    @DisplayName("SIZE-03 실측만 추가하고 저장해도 상품의 version이 올라, 같은 사이즈의 실측이 동시에 두 번 저장되지 않는다")
+    void addingSizeSpecsIncreasesVersion() {
+        Long productId = savedProductAWithOption110();
+        long before = version(productId);
+
+        inTransaction(() -> productRepository.findById(productId).orElseThrow().addSizeSpecs(
+            addSizeSpecs(List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements()))),
+            managedCategory(), managedType()));
+
+        assertThat(version(productId)).isGreaterThan(before);
+    }
+
+    // 상품 A를 저장하고 네이비 110 옵션을 붙인 뒤 ID를 돌려준다
+    private Long savedProductAWithOption110() {
+        Long productId = savedProductA();
+        inTransaction(() -> productRepository.findById(productId).orElseThrow().addOptions(
+            addOptions(List.of(option(managed(clothing.navy()), managed(clothing.size110())))), managedType()));
+        return productId;
+    }
+
     // 옵션 없는 상품 A를 저장하고 ID를 돌려준다. 항목 · 목록 값 · 유형 · 카테고리 · 실측 항목은 cascade되지 않아 먼저 저장한다
     private Long savedProductA() {
         Product.RegisterInfo info = ProductFixture.productAWith(clothing.type(), List.of(
             new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
         Product product = Product.register(info);
+        category = info.category();
         inTransaction(() -> {
             saveClothingType();
             saveCategory(info.category());
@@ -87,6 +113,10 @@ class ProductRepositoryIntegrationTest {
     // 상품 유형과 목록 값은 객체 동일성으로 비교하므로, 상품을 읽은 트랜잭션에서 다시 읽은 객체를 넘긴다
     private ProductType managedType() {
         return entityManager.find(ProductType.class, clothing.type().getId());
+    }
+
+    private Category managedCategory() {
+        return entityManager.find(Category.class, category.getId());
     }
 
     private AttributeValue managed(AttributeValue value) {
