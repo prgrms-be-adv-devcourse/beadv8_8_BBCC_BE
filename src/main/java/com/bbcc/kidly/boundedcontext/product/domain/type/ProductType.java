@@ -172,6 +172,12 @@ public class ProductType extends BaseTimeEntity {
         return false;
     }
 
+    // 값이 이 유형의 사이즈 역할 항목의 값인지 본다
+    public boolean isSizeValue(AttributeValue value) {
+        Optional<ProductTypeAttribute> link = findLink(value.getAttribute());
+        return link.isPresent() && link.get().isSizeRole();
+    }
+
     // 목록 값을 이 유형에서 고를 수 있는지 본다. 모든 값 허용 항목이면 그 항목의 값은 모두 고를 수 있고, 아니면 허용 값만 고를 수 있다
     public boolean allows(AttributeValue value) {
         Optional<ProductTypeAttribute> link = findLink(value.getAttribute());
