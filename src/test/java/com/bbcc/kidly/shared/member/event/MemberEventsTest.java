@@ -27,6 +27,13 @@ class MemberEventsTest {
             "member.withdrawn", "1");
     }
 
+    @Test
+    @DisplayName("닉네임 변경 이벤트는 member.nickname-changed이고 대상은 회원이다")
+    void memberNicknameChanged() {
+        assertContract(new MemberNicknameChangedEvent(EVENT_ID, NOW, new MemberNicknameChangedEvent.Data(1L, "하은맘")),
+            "member.nickname-changed", "1");
+    }
+
     private static void assertContract(DomainEvent event, String eventType, String aggregateId) {
         assertThat(event.eventType()).isEqualTo(eventType);
         assertThat(event.producer()).isEqualTo("member");
