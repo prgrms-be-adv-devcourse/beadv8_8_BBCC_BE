@@ -90,4 +90,14 @@ class InventoryDeductionTest {
         assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of()))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    @DisplayName("INV-10 주문상품의 기존 차감 기록이 없으면 처음 받은 요청이다")
+    void firstReceivedWhenNoExistingRecord() {
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 2),
+            item(12L, options.navy120(), 1)));
+
+        assertThat(request.isAlreadyHandled(List.of())).isFalse();
+    }
 }
