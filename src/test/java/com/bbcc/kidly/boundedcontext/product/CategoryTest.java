@@ -9,9 +9,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -71,5 +73,13 @@ class CategoryTest {
         Category top = CategoryFixture.top(clothing, clothingType);
 
         assertThat(top.productTypeToRegister()).isSameAs(clothingType);
+    }
+
+    @Test
+    @DisplayName("TYPE-01 중간 카테고리는 상품 유형을 가리키지 않으므로 상품을 등록할 유형을 꺼내면 거절한다")
+    void rejectProductTypeToRegisterOfMiddle() {
+
+        assertThatThrownBy(clothing::productTypeToRegister).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.NOT_LEAF_CATEGORY));
     }
 }

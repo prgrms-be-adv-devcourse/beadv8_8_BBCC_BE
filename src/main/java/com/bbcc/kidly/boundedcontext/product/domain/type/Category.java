@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -90,8 +91,11 @@ public class Category extends BaseTimeEntity {
         }
     }
 
-    // 상품을 등록할 때 쓸 상품 유형이다
+    // 상품을 등록할 때 쓸 상품 유형이다. 중간 카테고리는 유형이 없어 거절한다 (TYPE-01)
     public ProductType productTypeToRegister() {
+        if (productType == null) {
+            throw new BusinessException(CategoryErrorCode.NOT_LEAF_CATEGORY);
+        }
         return productType;
     }
 
