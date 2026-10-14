@@ -10,12 +10,14 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 상품 · 자녀 변경을 복사본에 반영한다. 늦게 발생한 변경만 덮어쓴다.
  */
+@Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -36,8 +38,9 @@ public class ReplicaService {
             ReplicaProduct replica = stored.remove(option.optionId());
             if (replica == null) {
                 productReplicaRepository.save(ReplicaProduct.create(values));
-            } else {
-                replica.applyIfNewer(values);
+            } else if (!replica.applyIfNewer(values)) {
+                log.debug("복사본 이벤트 무시: event=product.changed productId={} optionId={} reason=not-newer",
+                    command.productId(), option.optionId());
             }
         }
         stored.values().forEach(missing -> missing.markSoldOutIfNewer(command.occurredAt()));
@@ -58,7 +61,12 @@ public class ReplicaService {
             command.occurredAt());
         childReplicaRepository.findByChildId(command.childId())
             .ifPresentOrElse(
-                replica -> replica.applyIfNewer(values),
+                replica -> {
+                    if (!replica.applyIfNewer(values)) {
+                        log.debug("복사본 이벤트 무시: event=child.changed childId={} reason=not-newer",
+                            command.childId());
+                    }
+                },
                 () -> childReplicaRepository.save(ReplicaChild.create(values)));
     }
 
