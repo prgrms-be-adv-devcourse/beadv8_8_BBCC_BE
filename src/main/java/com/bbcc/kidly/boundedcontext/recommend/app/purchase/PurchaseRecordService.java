@@ -16,10 +16,14 @@ public class PurchaseRecordService {
 
     /**
      * 구매확정 이벤트의 값을 구매 기록으로 저장한다. 기록할 구매확정인지는 구매 기록이 판단하고, 아니면 건너뛴다.
+     * 같은 주문상품의 기록이 이미 있으면 다시 받은 이벤트로 보고 조용히 건너뛴다. 한 줄만 남는 것은 UNIQUE 제약이 지킨다.
      */
     public void recordPurchaseConfirmed(OrderItemPurchaseConfirmedEvent event) {
         PurchaseRecord.RecordInfo info = toRecordInfo(event);
         if (!PurchaseRecord.isRecordable(info)) {
+            return;
+        }
+        if (purchaseRecordRepository.existsByOrderItemId(info.orderItemId())) {
             return;
         }
         purchaseRecordRepository.save(PurchaseRecord.create(info));

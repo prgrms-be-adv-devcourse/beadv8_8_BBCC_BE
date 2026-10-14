@@ -98,6 +98,17 @@ class PurchaseRecordIntegrationTest {
         assertThat(purchaseRecordRepository.findAll()).isEmpty();
     }
 
+    @Test
+    @DisplayName("INV-R03 같은 구매확정을 다시 받아도 예외 없이 구매 기록은 한 줄이다")
+    void keepOneRecordForSameConfirmation() {
+        purchaseRecordService.recordPurchaseConfirmed(RecommendFixture.purchaseConfirmedEvent());
+
+        assertThatCode(() -> purchaseRecordService.recordPurchaseConfirmed(RecommendFixture.purchaseConfirmedEvent()))
+            .doesNotThrowAnyException();
+
+        assertThat(purchaseRecordRepository.findAll()).hasSize(1);
+    }
+
     private void publishInTransaction(OrderItemPurchaseConfirmedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
