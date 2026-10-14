@@ -2,9 +2,11 @@ package com.bbcc.kidly.boundedcontext.order.in.web;
 
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
+import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
@@ -43,6 +45,9 @@ class OrderApiTest {
 
     @Autowired
     private EventPublisher eventPublisher;
+
+    @Autowired
+    private OrderService orderService;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -208,6 +213,108 @@ class OrderApiTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
         }
+    }
+
+    @Nested
+    @DisplayName("구매확정")
+    class Confirm {
+
+        @Test
+        @DisplayName("배송 완료된 주문상품을 확정하면 200, 다시 눌러도 200이고 주문 상세에 확정이 보인다")
+        void confirmsTwice() {
+            String orderId = placeAndReadId();
+            markDelivered(orderId);
+            String orderItemId = orderItemIdOf(orderId);
+
+            confirm(orderId, orderItemId, BUYER_ID)
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.orderItemId").isEqualTo(orderItemId)
+                .jsonPath("$.status").isEqualTo("CONFIRMED")
+                .jsonPath("$.confirmType").isEqualTo("DIRECT")
+                .jsonPath("$.confirmedAt").exists();
+            confirm(orderId, orderItemId, BUYER_ID)
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("CONFIRMED");
+
+            client.get().uri(ORDERS_PATH + "/" + orderId)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.items[0].status").isEqualTo("CONFIRMED")
+                .jsonPath("$.items[0].confirmType").isEqualTo("DIRECT")
+                .jsonPath("$.items[0].confirmedAt").exists();
+        }
+
+        @Test
+        @DisplayName("배송 전이면 409 NOT_DELIVERED")
+        void notDelivered() {
+            String orderId = placeAndReadId();
+            String orderItemId = orderItemIdOf(orderId);
+
+            confirm(orderId, orderItemId, BUYER_ID)
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("배송 완료 전입니다");
+        }
+
+        @Test
+        @DisplayName("남의 주문이면 404 ORDER_NOT_FOUND")
+        void othersOrder() {
+            String orderId = placeAndReadId();
+            markDelivered(orderId);
+            String orderItemId = orderItemIdOf(orderId);
+
+            confirm(orderId, orderItemId, OTHER_ID)
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("주문을 찾을 수 없습니다");
+        }
+
+        @Test
+        @DisplayName("주문에 없는 주문상품이면 404 ORDER_ITEM_NOT_FOUND")
+        void missingItem() {
+            String orderId = placeAndReadId();
+
+            confirm(orderId, "999999", BUYER_ID)
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("주문상품을 찾을 수 없습니다");
+        }
+
+        private RestTestClient.ResponseSpec confirm(String orderId, String orderItemId, Long memberId) {
+            return client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + orderItemId + "/confirm")
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+                .exchange();
+        }
+
+        /**
+         * 이벤트 대신 서비스를 바로 불러 결제완료 · 판매자 배송 완료(지금 시각)로 만든다.
+         */
+        private void markDelivered(String orderId) {
+            orderService.markPaid(Long.valueOf(orderId), 500L);
+            orderService.recordDelivered(Long.valueOf(orderId), SELLER_ID, LocalDateTime.now());
+        }
+
+        private String orderItemIdOf(String orderId) {
+            OrderItems detail = client.get().uri(ORDERS_PATH + "/" + orderId)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(OrderItems.class)
+                .returnResult()
+                .getResponseBody();
+            assertThat(detail).isNotNull();
+            return detail.items().get(0).orderItemId();
+        }
+    }
+
+    private record OrderItems(List<OrderItemRow> items) {
+    }
+
+    private record OrderItemRow(String orderItemId) {
     }
 
     private String placeAndReadId() {

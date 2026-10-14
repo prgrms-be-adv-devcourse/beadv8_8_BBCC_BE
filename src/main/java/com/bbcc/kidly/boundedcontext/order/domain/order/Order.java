@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -254,12 +255,41 @@ public class Order extends BaseTimeEntity {
         }
     }
 
-    public void confirmItem(Long orderItemId, OrderItem.FitFeedback fitFeedback, LocalDateTime now) {
-        OrderItem item = items.stream()
-            .filter(candidate -> Objects.equals(candidate.getId(), orderItemId))
-            .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("주문에 없는 주문상품입니다: " + orderItemId));
-        item.confirm(OrderItem.ConfirmType.DIRECT, fitFeedback, now);
+    /**
+     * 구매자가 직접 구매확정한다. 주문에 없는 주문상품이면 404, 배송 전이면 409, 이미 확정이면 그대로 둔다.
+     *
+     * @return 이번에 확정했으면 true
+     */
+    public boolean confirmItem(Long orderItemId, LocalDateTime now) {
+        OrderItem item = findItem(orderItemId)
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_ITEM_NOT_FOUND));
+        if (item.getStatus() == OrderItem.Status.CONFIRMED) {
+            return false;
+        }
+        if (item.getDeliveredAt() == null) {
+            throw new BusinessException(OrderErrorCode.NOT_DELIVERED);
+        }
+        return item.confirm(OrderItem.ConfirmType.DIRECT, now);
+    }
+
+    /**
+     * 배송 완료 후 자동 구매확정 기간이 지났으면(기간 시각 포함) 자동 확정한다.
+     * 주문상품 없음 · 배송 전 · 기간 전 · 이미 확정이면 예외 없이 그대로 둔다.
+     *
+     * @return 이번에 확정했으면 true
+     */
+    public boolean autoConfirmItem(Long orderItemId, Policy policy, LocalDateTime now) {
+        return findItem(orderItemId)
+            .filter(item -> item.getDeliveredAt() != null
+                && !now.isBefore(item.getDeliveredAt().plus(policy.autoConfirmAfter())))
+            .map(item -> item.confirm(OrderItem.ConfirmType.AUTO, now))
+            .orElse(false);
+    }
+
+    private Optional<OrderItem> findItem(Long orderItemId) {
+        return items.stream()
+            .filter(item -> Objects.equals(item.getId(), orderItemId))
+            .findFirst();
     }
 
     public List<OrderItem> getItems() {

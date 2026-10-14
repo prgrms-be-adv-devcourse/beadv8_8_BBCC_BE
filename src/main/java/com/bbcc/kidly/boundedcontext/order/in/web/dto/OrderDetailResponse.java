@@ -39,7 +39,29 @@ public record OrderDetailResponse(
         long amount,
         String status,
         LocalDateTime deliveredAt,
+        LocalDateTime confirmedAt,
+        String confirmType,
         Child child) {
+
+        public static Item from(OrderDetail.Item item) {
+            OrderDetail.Child child = item.child();
+            return new Item(
+                toText(item.orderItemId()),
+                toText(item.productId()),
+                toText(item.optionId()),
+                toText(item.sellerId()),
+                item.productName(),
+                item.size(),
+                item.unitPrice(),
+                item.quantity(),
+                item.amount(),
+                item.status(),
+                item.deliveredAt(),
+                item.confirmedAt(),
+                item.confirmType(),
+                child == null ? null : new Child(toText(child.childId()), child.name(), child.heightCm(),
+                    child.weightKg(), child.bodyType()));
+        }
     }
 
     public record Child(String childId, String name, BigDecimal heightCm, BigDecimal weightKg, String bodyType) {
@@ -68,7 +90,7 @@ public record OrderDetailResponse(
             detail.orderedAt(),
             detail.paymentDueAt(),
             new ShippingAddress(address.recipientName(), address.phone(), address.zipCode(), address.address()),
-            detail.items().stream().map(OrderDetailResponse::toItem).toList(),
+            detail.items().stream().map(Item::from).toList(),
             detail.deliveries().stream().map(OrderDetailResponse::toDelivery).toList());
     }
 
@@ -81,24 +103,6 @@ public record OrderDetailResponse(
             delivery.trackingNumber(),
             delivery.shippedAt(),
             delivery.deliveredAt());
-    }
-
-    private static Item toItem(OrderDetail.Item item) {
-        OrderDetail.Child child = item.child();
-        return new Item(
-            toText(item.orderItemId()),
-            toText(item.productId()),
-            toText(item.optionId()),
-            toText(item.sellerId()),
-            item.productName(),
-            item.size(),
-            item.unitPrice(),
-            item.quantity(),
-            item.amount(),
-            item.status(),
-            item.deliveredAt(),
-            child == null ? null : new Child(toText(child.childId()), child.name(), child.heightCm(),
-                child.weightKg(), child.bodyType()));
     }
 
     private static String toText(Long id) {

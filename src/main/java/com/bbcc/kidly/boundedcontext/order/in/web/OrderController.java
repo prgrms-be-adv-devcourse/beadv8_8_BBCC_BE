@@ -56,6 +56,17 @@ public class OrderController {
         return PageResponse.from(orderService.getOrders(member.id(), page, size).map(OrderSummaryResponse::from));
     }
 
+    /**
+     * 구매자가 주문상품을 직접 구매확정한다. 이미 확정이어도 200. 배송 전이면 409.
+     */
+    @PostMapping("/{orderId}/items/{orderItemId}/confirm")
+    public OrderDetailResponse.Item confirm(
+        @LoginMember AuthMember member,
+        @PathVariable Long orderId,
+        @PathVariable Long orderItemId) {
+        return OrderDetailResponse.Item.from(orderService.confirmByBuyer(member.id(), orderId, orderItemId));
+    }
+
     @GetMapping("/{orderId}")
     public OrderDetailResponse getOrder(@LoginMember AuthMember member, @PathVariable Long orderId) {
         return OrderDetailResponse.from(orderService.getOrder(member.id(), orderId));

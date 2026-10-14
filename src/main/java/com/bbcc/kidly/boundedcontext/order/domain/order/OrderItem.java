@@ -1,8 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.domain.order;
 
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
-import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
@@ -48,15 +46,6 @@ public class OrderItem extends BaseTimeEntity {
     public enum ConfirmType {
         DIRECT,
         AUTO
-    }
-
-    /**
-     * 구매확정 때 받는 핏 피드백(작아요 · 딱 맞아요 · 커요). 선택 값.
-     */
-    public enum FitFeedback {
-        SMALL,
-        FIT,
-        LARGE
     }
 
     /**
@@ -119,10 +108,6 @@ public class OrderItem extends BaseTimeEntity {
     @Column(length = 20)
     private ConfirmType confirmType;
 
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20)
-    private FitFeedback fitFeedback;
-
     /**
      * 주문상품을 만든다. 주문상품 금액 = 주문 당시 단가 × 수량.
      */
@@ -146,16 +131,18 @@ public class OrderItem extends BaseTimeEntity {
         }
     }
 
-    void confirm(ConfirmType type, FitFeedback fitFeedback, LocalDateTime now) {
-        if (status == Status.CONFIRMED) {
-            return;
-        }
-        if (deliveredAt == null) {
-            throw new BusinessException(OrderErrorCode.NOT_DELIVERED);
+    /**
+     * 구매확정. 주문됨이고 배송 완료일 때만 확정한다. 배송 전 · 이미 확정이면 그대로 둔다.
+     *
+     * @return 이번에 확정했으면 true
+     */
+    boolean confirm(ConfirmType type, LocalDateTime now) {
+        if (status != Status.ORDERED || deliveredAt == null) {
+            return false;
         }
         this.status = Status.CONFIRMED;
         this.confirmType = type;
-        this.fitFeedback = fitFeedback;
         this.confirmedAt = now;
+        return true;
     }
 }

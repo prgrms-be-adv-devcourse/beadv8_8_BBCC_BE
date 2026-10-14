@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -16,9 +17,11 @@ import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class OrderService {
+
+    private static final int AUTO_CONFIRM_BATCH_SIZE = 100;
 
     private final OrderRepository orderRepository;
     private final ProductReplicaRepository productReplicaRepository;
@@ -127,6 +132,40 @@ public class OrderService {
             .toList();
     }
 
+    /**
+     * 구매자가 직접 구매확정한다. 없거나 남의 주문이면 404. 이미 확정이어도 주문상품을 돌려준다.
+     */
+    public OrderDetail.Item confirmByBuyer(Long memberId, Long orderId, Long orderItemId) {
+        LocalDateTime now = LocalDateTime.now();
+        Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+        confirm(order, orderItemId, target -> target.confirmItem(orderItemId, now));
+        return OrderDetail.Item.from(findItem(order, orderItemId));
+    }
+
+    /**
+     * 자동 구매확정. 기간이 지났는지는 주문이 직접 확인한다(기간 전 · 이미 확정이면 그대로). 주문이 없으면 무시.
+     */
+    public void confirmAutomatically(Long orderId, Long orderItemId) {
+        LocalDateTime now = LocalDateTime.now();
+        orderRepository.findById(orderId).ifPresent(order ->
+            confirm(order, orderItemId, target -> target.autoConfirmItem(orderItemId, orderPolicy, now)));
+    }
+
+    /**
+     * 자동 구매확정 대상을 좁힌다: 주문됨이고 (지금 − 자동 구매확정 기간) 이전에 배송 완료된 주문상품.
+     * 주문상품 ID 오름차순 100건.
+     */
+    @Transactional(readOnly = true)
+    public List<AutoConfirmTarget> findAutoConfirmTargets() {
+        LocalDateTime deliveredBefore = LocalDateTime.now().minus(orderPolicy.autoConfirmAfter());
+        return orderRepository.findAutoConfirmTargets(
+                OrderItem.Status.ORDERED, deliveredBefore, PageRequest.of(0, AUTO_CONFIRM_BATCH_SIZE))
+            .stream()
+            .map(target -> new AutoConfirmTarget(target.getOrderId(), target.getOrderItemId()))
+            .toList();
+    }
+
     @Transactional(readOnly = true)
     public OrderDetail getOrder(Long memberId, Long orderId) {
         return orderRepository.findByIdAndMemberId(orderId, memberId)
@@ -159,6 +198,39 @@ public class OrderService {
                         .map(item -> new OrderCancelledEvent.Item(
                             item.getId(), item.getProduct().optionId(), item.getQuantity()))
                         .toList()))));
+    }
+
+    /**
+     * 이번에 확정했을 때만 order-item.purchase-confirmed를 발행한다.
+     *
+     * @param change 주문상품을 확정하는 도메인 메서드. 이번에 확정했으면 true
+     */
+    private void confirm(Order order, Long orderItemId, Predicate<Order> change) {
+        if (!change.test(order)) {
+            return;
+        }
+        OrderItem item = findItem(order, orderItemId);
+        OrderItem.ProductSnapshot product = item.getProduct();
+        eventPublisher.publish(new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), item.getConfirmedAt(),
+            new OrderItemPurchaseConfirmedEvent.Data(
+                item.getId(),
+                order.getId(),
+                order.getMemberId(),
+                product.sellerId(),
+                item.getChild() == null ? null : item.getChild().childId(),
+                product.productId(),
+                product.optionId(),
+                product.size(),
+                item.getQuantity(),
+                item.getAmount(),
+                item.getConfirmedAt())));
+    }
+
+    private OrderItem findItem(Order order, Long orderItemId) {
+        return order.getItems().stream()
+            .filter(item -> Objects.equals(item.getId(), orderItemId))
+            .findFirst()
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_ITEM_NOT_FOUND));
     }
 
     private Order.RequestedItem toRequestedItem(PlaceOrderCommand.Item item) {

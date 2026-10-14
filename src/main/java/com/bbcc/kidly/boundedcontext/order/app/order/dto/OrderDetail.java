@@ -42,7 +42,30 @@ public record OrderDetail(
         long amount,
         String status,
         LocalDateTime deliveredAt,
+        LocalDateTime confirmedAt,
+        String confirmType,
         Child child) {
+
+        public static Item from(OrderItem item) {
+            OrderItem.ProductSnapshot product = item.getProduct();
+            OrderItem.ChildSnapshot child = item.getChild();
+            return new Item(
+                item.getId(),
+                product.productId(),
+                product.optionId(),
+                product.sellerId(),
+                product.productName(),
+                product.size(),
+                product.unitPrice(),
+                item.getQuantity(),
+                item.getAmount(),
+                item.getStatus().name(),
+                item.getDeliveredAt(),
+                item.getConfirmedAt(),
+                item.getConfirmType() == null ? null : item.getConfirmType().name(),
+                child == null ? null
+                    : new Child(child.childId(), child.name(), child.heightCm(), child.weightKg(), child.bodyType()));
+        }
     }
 
     public record Child(Long childId, String name, BigDecimal heightCm, BigDecimal weightKg, String bodyType) {
@@ -73,7 +96,7 @@ public record OrderDetail(
             order.getCreatedAt(),
             order.getPaymentDueAt(),
             new ShippingAddress(address.recipientName(), address.phone(), address.zipCode(), address.address()),
-            order.getItems().stream().map(OrderDetail::toItem).toList(),
+            order.getItems().stream().map(Item::from).toList(),
             deliveries.stream().map(OrderDetail::toDelivery).toList());
     }
 
@@ -86,24 +109,5 @@ public record OrderDetail(
             delivery.getTrackingNumber(),
             delivery.getShippedAt(),
             delivery.getDeliveredAt());
-    }
-
-    private static Item toItem(OrderItem item) {
-        OrderItem.ProductSnapshot product = item.getProduct();
-        OrderItem.ChildSnapshot child = item.getChild();
-        return new Item(
-            item.getId(),
-            product.productId(),
-            product.optionId(),
-            product.sellerId(),
-            product.productName(),
-            product.size(),
-            product.unitPrice(),
-            item.getQuantity(),
-            item.getAmount(),
-            item.getStatus().name(),
-            item.getDeliveredAt(),
-            child == null ? null
-                : new Child(child.childId(), child.name(), child.heightCm(), child.weightKg(), child.bodyType()));
     }
 }
