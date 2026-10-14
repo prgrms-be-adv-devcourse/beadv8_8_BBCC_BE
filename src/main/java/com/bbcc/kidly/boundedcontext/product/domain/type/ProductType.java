@@ -208,6 +208,17 @@ public class ProductType extends BaseTimeEntity {
         return inputs;
     }
 
+    // 받은 목록 값 중 이 유형에서 고를 수 있는 값만 받은 순서대로 돌려준다 (TYPE-06)
+    public List<AttributeValue> selectableValues(List<AttributeValue> values) {
+        List<AttributeValue> selectable = new ArrayList<>();
+        for (AttributeValue value : values) {
+            if (allows(value)) {
+                selectable.add(value);
+            }
+        }
+        return selectable;
+    }
+
     public List<ProductTypeAttribute> getAttributes() {
         return Collections.unmodifiableList(attributes);
     }
