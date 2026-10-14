@@ -69,6 +69,11 @@ public final class InventoryDeductionRequest {
 
     // 주문상품의 옵션을 모두 살 수 있어야 차감한다. 판단은 옵션의 판매 가능 판단 메서드(SALE-04)에 맡긴다 (INV-13)
     public boolean isPurchasable() {
+        for (Item item : items) {
+            if (!item.option().isPurchasable()) {
+                return false;
+            }
+        }
         return true;
     }
 

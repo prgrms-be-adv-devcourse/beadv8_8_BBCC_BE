@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.NAVY_110_ID;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.NAVY_120_ID;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.ORDER_ID;
+import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.beforeSaleOptions;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.item;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.onSaleOptions;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.withStatus;
@@ -141,6 +142,16 @@ class InventoryDeductionTest {
     @DisplayName("INV-13 모든 주문상품의 옵션이 판매중이면 살 수 있는 요청이다")
     void purchasableWhenAllOptionsOnSale() {
         assertThat(twoItemOrder(options).isPurchasable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("INV-13 판매중이 아닌 옵션이 하나라도 있으면 살 수 없는 요청이다")
+    void notPurchasableWhenAnyOptionNotOnSale() {
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 2),
+            item(12L, beforeSaleOptions().navy120(), 1)));
+
+        assertThat(request.isPurchasable()).isFalse();
     }
 
     // 주문상품 11(네이비 110, 2개)과 12(네이비 120, 1개)로 만든 차감 요청이다
