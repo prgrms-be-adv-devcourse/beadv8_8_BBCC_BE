@@ -116,4 +116,17 @@ class ReplicaChildTest {
             .extracting(ReplicaChild::isDeleted, ReplicaChild::getDeletedAt)
             .containsExactly(true, deletedAt);
     }
+
+    @Test
+    @DisplayName("INV-R02 삭제된 뒤 늦게 도착한 이전 수정 이벤트는 무시한다")
+    void ignoreEarlierChangeAfterDelete() {
+        LocalDateTime deletedAt = CHILD_CHANGED_AT.plusMinutes(5);
+        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childDeleted(deletedAt));
+
+        replica.applyIfNewer(RecommendFixture.childChange(new BigDecimal("120.0"), CHILD_CHANGED_AT));
+
+        assertThat(replica)
+            .extracting(ReplicaChild::isDeleted, ReplicaChild::getHeightCm, ReplicaChild::getEventOccurredAt)
+            .containsExactly(true, new BigDecimal("115.0"), deletedAt);
+    }
 }
