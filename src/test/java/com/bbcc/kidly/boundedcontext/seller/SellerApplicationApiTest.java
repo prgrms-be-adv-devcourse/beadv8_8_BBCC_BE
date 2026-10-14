@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationResponse;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
+import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,11 +52,13 @@ class SellerApplicationApiTest {
             .returnResult(SellerApplicationResponse.class);
 
         var application = result.getResponseBody();
+        assertRawNumberNotExposed(result.getResponseBodyContent());
         assertThat(result.getResponseHeaders().getFirst(HttpHeaders.LOCATION)).isEqualTo(PATH);
         assertThat(application.status()).isEqualTo(SellerApplicationStatus.PENDING);
         assertThat(application.businessName()).isEqualTo(SellerFixture.BUSINESS_NAME);
         assertThat(application.representativeName()).isEqualTo(SellerFixture.REPRESENTATIVE_NAME);
-        assertThat(application.businessRegistrationNumber()).isEqualTo(SellerFixture.BUSINESS_REGISTRATION_NUMBER);
+        assertThat(application.maskedBusinessRegistrationNumber())
+            .isEqualTo(SellerFixture.MASKED_BUSINESS_REGISTRATION_NUMBER);
     }
 
     @Test
@@ -119,17 +122,19 @@ class SellerApplicationApiTest {
     void getLatest() {
         apply(MEMBER_ID);
 
-        var application = client.get().uri(PATH)
+        var result = client.get().uri(PATH)
             .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
             .exchange()
             .expectStatus().isOk()
-            .returnResult(SellerApplicationResponse.class)
-            .getResponseBody();
+            .returnResult(SellerApplicationResponse.class);
 
+        var application = result.getResponseBody();
+        assertRawNumberNotExposed(result.getResponseBodyContent());
         assertThat(application.status()).isEqualTo(SellerApplicationStatus.PENDING);
         assertThat(application.businessName()).isEqualTo(SellerFixture.BUSINESS_NAME);
         assertThat(application.representativeName()).isEqualTo(SellerFixture.REPRESENTATIVE_NAME);
-        assertThat(application.businessRegistrationNumber()).isEqualTo(SellerFixture.BUSINESS_REGISTRATION_NUMBER);
+        assertThat(application.maskedBusinessRegistrationNumber())
+            .isEqualTo(SellerFixture.MASKED_BUSINESS_REGISTRATION_NUMBER);
         assertThat(application.decidedAt()).isNull();
     }
 
@@ -147,6 +152,11 @@ class SellerApplicationApiTest {
     void unauthenticated() {
         submit(null, REQUEST)
             .expectStatus().isUnauthorized();
+    }
+
+    // 응답 본문에 원본 사업자등록번호가 없어야 한다
+    private static void assertRawNumberNotExposed(byte[] body) {
+        assertThat(new String(body, StandardCharsets.UTF_8)).doesNotContain(SellerFixture.BUSINESS_REGISTRATION_NUMBER);
     }
 
     private static SellerApplicationRequest request(String businessName, String businessRegistrationNumber) {

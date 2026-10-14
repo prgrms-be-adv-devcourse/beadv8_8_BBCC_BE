@@ -8,16 +8,15 @@ public record SellerApplicationResult(
     Long id,
     String businessName,
     String representativeName,
-    String businessRegistrationNumber,
+    String maskedBusinessRegistrationNumber,
     SellerApplicationStatus status,
     LocalDateTime createdAt,
     LocalDateTime decidedAt) {
 
-    // 신청자 본인이 보는 값이라 사업자등록번호를 마스킹하지 않는다
     public static SellerApplicationResult from(SellerApplication application) {
         return new SellerApplicationResult(
             application.getId(), application.getBusinessName(), application.getRepresentativeName(),
-            application.getBusinessRegistrationNumber(), application.getStatus(), application.getCreatedAt(),
+            application.maskedBusinessRegistrationNumber(), application.getStatus(), application.getCreatedAt(),
             application.getDecidedAt());
     }
 }

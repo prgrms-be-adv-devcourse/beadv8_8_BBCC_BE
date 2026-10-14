@@ -107,7 +107,7 @@ public class SellerApplication extends BaseTimeEntity {
         this.decidedAt = now;
     }
 
-    // 관리자 목록용. 앞 4자리만 보이게 가린다 (예: 2148612345 → 214-8*-*****)
+    // 신청 응답 · 관리자 목록용. 앞 4자리만 보이게 가린다 (예: 2148612345 → 214-8*-*****)
     public String maskedBusinessRegistrationNumber() {
         return businessRegistrationNumber.substring(0, 3) + "-" + businessRegistrationNumber.charAt(3) + "*-*****";
     }
