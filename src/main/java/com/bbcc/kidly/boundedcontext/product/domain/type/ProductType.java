@@ -50,6 +50,9 @@ public class ProductType extends BaseTimeEntity {
     @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL)
     private List<ProductTypeAttribute> attributes = new ArrayList<>();
 
+    @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL)
+    private List<ProductTypeAllowedValue> allowedValues = new ArrayList<>();
+
     public static ProductType define(String name, List<LinkInfo> links) {
         requireNonNull(name, "name은 필수입니다");
         requireNonNull(links, "links는 필수입니다");
@@ -80,7 +83,11 @@ public class ProductType extends BaseTimeEntity {
         ProductType type = new ProductType();
         type.name = name;
         for (int i = 0; i < links.size(); i++) {
-            type.attributes.add(ProductTypeAttribute.create(type, links.get(i), i + 1));
+            LinkInfo link = links.get(i);
+            type.attributes.add(ProductTypeAttribute.create(type, link, i + 1));
+            for (AttributeValue value : link.allowedValues()) {
+                type.allowedValues.add(ProductTypeAllowedValue.create(type, value));
+            }
         }
         return type;
     }
@@ -150,5 +157,9 @@ public class ProductType extends BaseTimeEntity {
 
     public List<ProductTypeAttribute> getAttributes() {
         return Collections.unmodifiableList(attributes);
+    }
+
+    public List<ProductTypeAllowedValue> getAllowedValues() {
+        return Collections.unmodifiableList(allowedValues);
     }
 }

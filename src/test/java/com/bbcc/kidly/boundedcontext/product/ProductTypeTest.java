@@ -20,8 +20,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAllowedValue;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -123,6 +126,20 @@ class ProductTypeTest {
         assertThatThrownBy(() -> ProductType.define("의류", links))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("직접 입력 항목은 옵션 항목");
+    }
+
+    @Test
+    @DisplayName("TYPE-06 모든 값 허용이 아니어도 허용 값이 있으면 유형을 만든다")
+    void defineTypeWithAllowedValues() {
+        Attribute color = color();
+        AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
+
+        ProductType clothing = ProductType.define(
+            "의류", List.of(restrictedOption(color, List.of(navy)), sizeOption(size())));
+
+        assertThat(clothing.getAllowedValues())
+            .extracting(ProductTypeAllowedValue::getAttributeValue)
+            .containsExactly(navy);
     }
 
     @Test
