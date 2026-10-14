@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.member.domain;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.security.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import jakarta.persistence.CascadeType;
@@ -29,6 +30,7 @@ import org.springframework.util.Assert;
 /**
  * 회원. 소셜 계정으로 가입 · 로그인한다. 판매자 여부는 역할로 저장하지 않고, 이벤트로 받은 판매자 상태 복사본을 가진다.
  * 닉네임은 2~20자이고 회원끼리 겹치지 않는다.
+ * 상태는 ACTIVE → SUSPENDED / WITHDRAWN으로만 바뀐다(정지 해제 없음).
  */
 @Entity
 @Table(
@@ -60,6 +62,10 @@ public class Member extends BaseTimeEntity {
     // 판매자가 아니면 null
     @Embedded
     private SellerState sellerState;
+
+    // 정지된 회원만 값이 있다
+    @Embedded
+    private MemberSuspension suspension;
 
     // 나중에 같은 사람의 여러 소셜 계정을 한 회원으로 통합할 수 있게 1:N으로 둔다
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -99,6 +105,16 @@ public class Member extends BaseTimeEntity {
         Assert.isTrue(nickname.equals(nickname.strip()), "닉네임 앞뒤에 공백을 둘 수 없습니다");
         Assert.isTrue(nickname.length() >= NICKNAME_MIN_LENGTH && nickname.length() <= NICKNAME_MAX_LENGTH,
             "닉네임은 2~20자여야 합니다");
+    }
+
+    // ACTIVE 회원만 정지할 수 있다. 관리자는 정지하면 되돌릴 방법이 없어 막는다(해제 없음)
+    public void suspend(Long adminId, String reason, LocalDateTime now) {
+        var suspension = new MemberSuspension(reason, adminId, now);
+        if (status != MemberStatus.ACTIVE || isAdmin()) {
+            throw new BusinessException(MemberErrorCode.MEMBER_NOT_SUSPENDABLE);
+        }
+        this.status = MemberStatus.SUSPENDED;
+        this.suspension = suspension;
     }
 
     public boolean canLogin() {

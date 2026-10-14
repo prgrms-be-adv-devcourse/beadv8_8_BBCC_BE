@@ -26,7 +26,7 @@ public final class MemberFixture {
         return Member.register(OAuthProvider.KAKAO, providerUserId, "회원-" + providerUserId, NOW);
     }
 
-    // ADMIN은 시드 데이터로만 부여하고 정지 · 탈퇴 메서드는 아직 없어서 테스트에서는 필드를 직접 바꾼다
+    // ADMIN은 시드 데이터로만 부여하고 탈퇴 메서드는 아직 없어서 테스트에서는 필드를 직접 바꾼다
     public static Member withRole(MemberRole role) {
         Member member = kakaoMember();
         ReflectionTestUtils.setField(member, "role", role);
