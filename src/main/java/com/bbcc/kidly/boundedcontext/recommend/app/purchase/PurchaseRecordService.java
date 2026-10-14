@@ -15,10 +15,13 @@ public class PurchaseRecordService {
     private final PurchaseRecordRepository purchaseRecordRepository;
 
     /**
-     * 구매확정 이벤트의 값을 구매 기록으로 저장한다.
+     * 구매확정 이벤트의 값을 구매 기록으로 저장한다. 기록할 구매확정인지는 구매 기록이 판단하고, 아니면 건너뛴다.
      */
     public void recordPurchaseConfirmed(OrderItemPurchaseConfirmedEvent event) {
         PurchaseRecord.RecordInfo info = toRecordInfo(event);
+        if (!PurchaseRecord.isRecordable(info)) {
+            return;
+        }
         purchaseRecordRepository.save(PurchaseRecord.create(info));
     }
 
