@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.CATEGORY_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.clothing;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productA;
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWith;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithRequired;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithoutThumbnail;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -12,7 +13,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.product.ProductFixture.Clothing;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.InfoValueInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.List;
 import java.util.stream.Stream;
@@ -64,6 +68,19 @@ class ProductTest {
         assertThatThrownBy(() -> Product.register(info, clothing.type()))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("비어 있을 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("INFO-01 목록 항목에 값을 두 개 넣으면 거절한다")
+    void rejectTwoValuesOnListAttribute() {
+        Clothing clothing = clothing();
+        AttributeValue polyester = AttributeValue.create(clothing.mainMaterial(), "폴리에스테르", null);
+        Product.RegisterInfo info = productAWith(clothing, List.of(
+            new InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton(), polyester), null)));
+
+        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED));
     }
 
     @ParameterizedTest(name = "{0}")

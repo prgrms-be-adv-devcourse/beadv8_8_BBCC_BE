@@ -3,9 +3,11 @@ package com.bbcc.kidly.boundedcontext.product.domain.product;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -97,6 +99,7 @@ public class Product extends BaseTimeEntity {
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
+        validateInfoValues(info.infoValues());
         Product product = new Product();
         product.sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
         product.categoryId = requireNonNull(info.categoryId(), "categoryId는 필수입니다");
@@ -107,6 +110,16 @@ public class Product extends BaseTimeEntity {
         product.imageUrls = new ArrayList<>(requireNonNull(info.imageUrls(), "imageUrls는 필수입니다"));
         product.status = ProductStatus.SALE_PENDING;
         return product;
+    }
+
+    private static void validateInfoValues(List<InfoValueInfo> infoValues) {
+        for (InfoValueInfo infoValue : infoValues) {
+            // 다중 선택 목록만 값을 여러 개 넣을 수 있다 (INFO-01)
+            if (infoValue.attribute().getInputType() != AttributeInputType.MULTI_LIST
+                && infoValue.values().size() > 1) {
+                throw new BusinessException(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED);
+            }
+        }
     }
 
     public List<String> getImageUrls() {
