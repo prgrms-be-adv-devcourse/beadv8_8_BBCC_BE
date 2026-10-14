@@ -122,7 +122,7 @@ class MemberApiTest {
         assertThat(memberRepository.findById(member.getId()).orElseThrow().getNickname()).isEqualTo("하은맘");
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"가", "가나다라마바사아자차카타파하가나다라마바사", "   "})
     @DisplayName("닉네임이 2자 미만이거나 20자를 넘거나 비어 있으면 400")
     void updateWithInvalidNickname(String nickname) {
@@ -130,7 +130,8 @@ class MemberApiTest {
 
         patchMine(tokens.buyer(member.getId()), new MemberUpdateRequest(nickname))
             .expectStatus().isBadRequest()
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody().jsonPath("$.title").isEqualTo("잘못된 요청입니다");
     }
 
     @Test
@@ -140,7 +141,8 @@ class MemberApiTest {
 
         patchMine(tokens.buyer(member.getId()), "{}")
             .expectStatus().isBadRequest()
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody().jsonPath("$.title").isEqualTo("잘못된 요청입니다");
     }
 
     @Test
@@ -162,8 +164,14 @@ class MemberApiTest {
     void updateToSameNickname() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
-        patchMine(tokens.buyer(member.getId()), new MemberUpdateRequest(MemberFixture.NICKNAME))
-            .expectStatus().isOk();
+        var response = patchMine(tokens.buyer(member.getId()), new MemberUpdateRequest(MemberFixture.NICKNAME))
+            .expectStatus().isOk()
+            .returnResult(MemberResponse.class)
+            .getResponseBody();
+
+        assertThat(response.nickname()).isEqualTo(MemberFixture.NICKNAME);
+        assertThat(memberRepository.findById(member.getId()).orElseThrow().getNickname())
+            .isEqualTo(MemberFixture.NICKNAME);
     }
 
     @Test
