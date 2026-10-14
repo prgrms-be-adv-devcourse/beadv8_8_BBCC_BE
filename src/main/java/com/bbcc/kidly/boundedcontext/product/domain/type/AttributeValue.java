@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -39,4 +41,12 @@ public class AttributeValue extends BaseTimeEntity {
     private String name;
 
     private String colorCode;
+
+    public static AttributeValue create(Attribute attribute, String name, String colorCode) {
+        AttributeValue value = new AttributeValue();
+        value.attribute = requireNonNull(attribute, "attribute는 필수입니다");
+        value.name = requireNonNull(name, "name은 필수입니다");
+        value.colorCode = colorCode;
+        return value;
+    }
 }
