@@ -152,6 +152,20 @@ class ProductTypeTest {
             .hasMessageContaining("허용 값을 하나 이상");
     }
 
+    @Test
+    @DisplayName("TYPE-06 모든 값 허용 항목에 허용 값을 넘기면 거절한다")
+    void rejectAllowedValuesOnAllValuesAllowedAttribute() {
+        Attribute color = color();
+        AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
+        List<ProductType.LinkInfo> links = List.of(
+            new ProductType.LinkInfo(color, AttributeRole.OPTION, true, true, false, false, List.of(navy)),
+            sizeOption(size()));
+
+        assertThatThrownBy(() -> ProductType.define("의류", links))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("모든 값 허용 항목에는 허용 값을");
+    }
+
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"", " "})
     @DisplayName("유형 이름이 비어 있으면 거절한다")

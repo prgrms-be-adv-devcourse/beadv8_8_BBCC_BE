@@ -80,6 +80,9 @@ public class ProductType extends BaseTimeEntity {
         if (hasLinkWithoutAllowedValues(links)) {
             throw new IllegalArgumentException("모든 값 허용이 아닌 항목에는 허용 값을 하나 이상 연결해야 합니다");
         }
+        if (hasAllowedValuesOnAllValuesAllowed(links)) {
+            throw new IllegalArgumentException("모든 값 허용 항목에는 허용 값을 연결하지 않습니다");
+        }
         ProductType type = new ProductType();
         type.name = name;
         for (int i = 0; i < links.size(); i++) {
@@ -125,6 +128,10 @@ public class ProductType extends BaseTimeEntity {
             link.attribute().getInputType() != AttributeInputType.TEXT
                 && !link.allValuesAllowed()
                 && link.allowedValues().isEmpty());
+    }
+
+    private static boolean hasAllowedValuesOnAllValuesAllowed(List<LinkInfo> links) {
+        return links.stream().anyMatch(link -> link.allValuesAllowed() && !link.allowedValues().isEmpty());
     }
 
     public List<ProductTypeAttribute> getAttributes() {
