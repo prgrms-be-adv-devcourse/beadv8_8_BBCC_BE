@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.seller.app;
 
+import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRejectRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationResult;
 import com.bbcc.kidly.boundedcontext.seller.app.port.SellerApplicationSummary;
@@ -23,8 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 판매자 신청 · 조회 · 승인.
+ * 판매자 신청 · 조회 · 승인 · 거절.
  * 승인은 한 트랜잭션에서 신청을 APPROVED로 바꾸고, 판매자를 만들고, SellerChangedEvent를 발행한다.
+ * 거절은 신청만 REJECTED로 바꾼다. 판매자를 만들지 않으므로 이벤트를 발행하지 않는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -74,6 +76,13 @@ public class SellerApplicationService {
         var seller = sellerRepository.save(Seller.from(application));
         eventPublisher.publish(new SellerChangedEvent(UUID.randomUUID(), now,
             new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
+        return SellerApplicationSummary.from(application);
+    }
+
+    @Transactional
+    public SellerApplicationSummary reject(Long applicationId, Long adminId, SellerApplicationRejectRequest request) {
+        var application = sellerApplicationRepository.getById(applicationId);
+        application.reject(adminId, request.reason(), LocalDateTime.now());
         return SellerApplicationSummary.from(application);
     }
 }

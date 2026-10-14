@@ -12,6 +12,7 @@ public final class SellerFixture {
     public static final String BUSINESS_NAME = "소소한옷장";
     public static final String REPRESENTATIVE_NAME = "홍길동";
     public static final String BUSINESS_REGISTRATION_NUMBER = "2148612345";
+    public static final String REJECT_REASON = "대표자명과 사업자등록번호가 사업자등록증과 달라요.";
 
     public static final String MASKED_BUSINESS_REGISTRATION_NUMBER = "214-8*-*****";
 
@@ -30,6 +31,12 @@ public final class SellerFixture {
     public static SellerApplication approvedApplication(Long applicantId) {
         var application = application(applicantId);
         application.approve(ADMIN_ID, NOW);
+        return application;
+    }
+
+    public static SellerApplication rejectedApplication(Long applicantId) {
+        var application = application(applicantId);
+        application.reject(ADMIN_ID, REJECT_REASON, NOW);
         return application;
     }
 }

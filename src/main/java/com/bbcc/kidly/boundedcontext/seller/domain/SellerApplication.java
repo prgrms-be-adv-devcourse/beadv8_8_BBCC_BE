@@ -14,6 +14,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.util.regex.Pattern;
 import lombok.AccessLevel;
@@ -22,7 +23,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 판매자 신청. 회원이 신청하면 PENDING이고, 관리자가 승인하면 APPROVED가 된다.
+ * 판매자 신청. 회원이 신청하면 PENDING이고, 관리자가 승인하면 APPROVED, 거절하면 REJECTED가 된다.
  * 신청자는 {@code applicantId}(회원 ID) 값으로만 가리킨다. 거절된 회원의 재신청은 새 행으로 쌓인다.
  */
 @Entity
@@ -37,6 +38,7 @@ public class SellerApplication extends BaseTimeEntity {
     public static final int NAME_MAX_LENGTH = 50;
     public static final int BUSINESS_REGISTRATION_NUMBER_LENGTH = 10;
     public static final String BUSINESS_REGISTRATION_NUMBER_REGEX = "[0-9]{10}";
+    public static final int REJECT_REASON_MAX_LENGTH = 200;
 
     // 하이픈 없는 ASCII 숫자 10자리. 진위 확인(사업자 인증)은 MVP에서 빠졌다
     private static final Pattern BUSINESS_REGISTRATION_NUMBER = Pattern.compile(BUSINESS_REGISTRATION_NUMBER_REGEX);
@@ -65,9 +67,17 @@ public class SellerApplication extends BaseTimeEntity {
     @Column(nullable = false)
     private SellerApplicationStatus status;
 
+    // 거절된 신청만 값이 있다. 신청한 회원에게 보여 준다
+    @Column(length = REJECT_REASON_MAX_LENGTH)
+    private String rejectReason;
+
     private Long decidedBy;
 
     private LocalDateTime decidedAt;
+
+    // 승인과 거절이 동시에 오면 늦게 커밋하는 쪽이 실패한다(409)
+    @Version
+    private Long version;
 
     private SellerApplication(SellerApplicationSubmitInfo info) {
         this.applicantId = info.applicantId();
@@ -97,12 +107,25 @@ public class SellerApplication extends BaseTimeEntity {
     }
 
     public void approve(Long adminId, LocalDateTime now) {
+        decide(SellerApplicationStatus.APPROVED, adminId, now);
+    }
+
+    public void reject(Long adminId, String reason, LocalDateTime now) {
+        requireNonNull(reason, "reason은 필수입니다");
+        Assert.hasText(reason, "거절 사유는 비어 있을 수 없습니다");
+        Assert.isTrue(reason.length() <= REJECT_REASON_MAX_LENGTH, "거절 사유는 200자 이하여야 합니다");
+        decide(SellerApplicationStatus.REJECTED, adminId, now);
+        this.rejectReason = reason;
+    }
+
+    // 승인 · 거절은 PENDING일 때만 할 수 있다
+    private void decide(SellerApplicationStatus decision, Long adminId, LocalDateTime now) {
         requireNonNull(adminId, "adminId는 필수입니다");
         requireNonNull(now, "now는 필수입니다");
         if (status != SellerApplicationStatus.PENDING) {
             throw new BusinessException(SellerErrorCode.APPLICATION_NOT_PENDING);
         }
-        this.status = SellerApplicationStatus.APPROVED;
+        this.status = decision;
         this.decidedBy = adminId;
         this.decidedAt = now;
     }

@@ -139,6 +139,23 @@ class SellerApplicationApiTest {
     }
 
     @Test
+    @DisplayName("거절된 회원은 다시 신청할 수 있다. 가장 최근 신청은 새 PENDING 신청이다")
+    void applyAfterRejected() {
+        sellerApplicationRepository.save(SellerFixture.rejectedApplication(MEMBER_ID));
+
+        apply(MEMBER_ID);
+
+        var latest = client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .returnResult(SellerApplicationResponse.class)
+            .getResponseBody();
+        assertThat(latest.status()).isEqualTo(SellerApplicationStatus.PENDING);
+        assertThat(latest.rejectReason()).isNull();
+    }
+
+    @Test
     @DisplayName("신청한 적이 없으면 조회는 404다")
     void getLatestWhenNone() {
         client.get().uri(PATH)
