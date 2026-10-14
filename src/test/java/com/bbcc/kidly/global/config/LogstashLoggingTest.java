@@ -105,7 +105,9 @@ class LogstashLoggingTest {
             .bannerMode(Banner.Mode.OFF)
             .logStartupInfo(false)
             .profiles(profile)
-            .run("--logging.logstash.destination=" + destination, "--logging.file.path=" + logPath)) {
+            .run("--logging.logstash.destination=" + destination, "--logging.file.path=" + logPath,
+                // 닫힌 Logstash로 못 보낸 로그를 기본 1분씩 기다리지 않게 한다
+                "--logging.logstash.shutdown-grace-period=1 second")) {
             assertThat(context.isActive()).isTrue();
         }
     }
