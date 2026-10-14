@@ -1,8 +1,16 @@
 package com.bbcc.kidly.boundedcontext.product.app.type;
 
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryTreeResult;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final AttributeValueRepository attributeValueRepository;
 
     // 최상위 카테고리부터 하위 카테고리까지 계층으로 돌려준다. 같은 부모 아래에서는 ID 순서다
     @Transactional(readOnly = true)
@@ -46,5 +55,60 @@ public class CategoryService {
                 toResults(children, childrenByParentId)));
         }
         return results;
+    }
+
+    // 말단 카테고리의 상품 등록 입력 항목을 돌려준다. 중간 카테고리이면 도메인이 거절한다
+    @Transactional(readOnly = true)
+    public CategoryInputsResult findInputs(Long categoryId) {
+        Category category = categoryRepository.findById(categoryId).orElseThrow();
+        ProductType type = category.productTypeToRegister();
+        List<ProductTypeAttribute> links = type.inputAttributes();
+        Map<Long, List<AttributeValue>> valuesByAttributeId = selectableValuesByAttributeId(type, links);
+        List<CategoryInputsResult.InputAttribute> attributes = new ArrayList<>();
+        for (ProductTypeAttribute link : links) {
+            attributes.add(toInputAttribute(link, valuesByAttributeId));
+        }
+        List<CategoryInputsResult.Measurement> measurements = new ArrayList<>();
+        for (CategoryMeasurementItem link : category.getMeasurementItems()) {
+            MeasurementItem item = link.getMeasurementItem();
+            measurements.add(new CategoryInputsResult.Measurement(item.getCode(), item.getName(), item.getUnit()));
+        }
+        return new CategoryInputsResult(
+            category.getId(), category.getName(), type.getId(), type.getName(), attributes, measurements);
+    }
+
+    // 항목마다 유형에서 고를 수 있는 값을 ID 순서로 묶는다
+    private Map<Long, List<AttributeValue>> selectableValuesByAttributeId(
+        ProductType type, List<ProductTypeAttribute> links) {
+        List<Attribute> attributes = new ArrayList<>();
+        for (ProductTypeAttribute link : links) {
+            attributes.add(link.getAttribute());
+        }
+        List<AttributeValue> values = attributeValueRepository.findAllOfAttributes(attributes);
+        List<AttributeValue> selectable = type.selectableValues(values);
+        Map<Long, List<AttributeValue>> valuesByAttributeId = new HashMap<>();
+        for (AttributeValue value : selectable) {
+            valuesByAttributeId.computeIfAbsent(value.getAttribute().getId(), id -> new ArrayList<>()).add(value);
+        }
+        return valuesByAttributeId;
+    }
+
+    private CategoryInputsResult.InputAttribute toInputAttribute(
+        ProductTypeAttribute link, Map<Long, List<AttributeValue>> valuesByAttributeId) {
+        Attribute attribute = link.getAttribute();
+        List<CategoryInputsResult.SelectableValue> values = new ArrayList<>();
+        for (AttributeValue value : valuesByAttributeId.getOrDefault(attribute.getId(), List.of())) {
+            values.add(new CategoryInputsResult.SelectableValue(value.getId(), value.getName(), value.getColorCode()));
+        }
+        return new CategoryInputsResult.InputAttribute(
+            attribute.getId(),
+            attribute.getCode(),
+            attribute.getName(),
+            attribute.getInputType().name(),
+            link.getRole().name(),
+            link.isRequired(),
+            link.isSizeRole(),
+            link.isPriceAffecting(),
+            values);
     }
 }

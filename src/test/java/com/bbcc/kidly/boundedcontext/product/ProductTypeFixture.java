@@ -58,6 +58,11 @@ final class ProductTypeFixture {
         return new ProductType.LinkInfo(attribute, AttributeRole.OPTION, true, false, false, false, allowedValues);
     }
 
+    // 사이즈 역할이면서 allowedValues에 넣은 사이즈 값만 고를 수 있는 옵션 항목
+    static ProductType.LinkInfo restrictedSizeOption(Attribute attribute, List<AttributeValue> allowedValues) {
+        return new ProductType.LinkInfo(attribute, AttributeRole.OPTION, true, false, true, false, allowedValues);
+    }
+
     static ProductType.LinkInfo priceAffectingOption(Attribute attribute) {
         return new ProductType.LinkInfo(attribute, AttributeRole.OPTION, true, true, false, true, List.of());
     }
