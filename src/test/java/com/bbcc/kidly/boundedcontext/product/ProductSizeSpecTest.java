@@ -169,7 +169,7 @@ class ProductSizeSpecTest {
         Attribute color = ProductTypeFixture.color();
         AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
         ProductType container = ProductType.define("용기", List.of(ProductTypeFixture.requiredOption(color)));
-        Product bottle = Product.register(ProductFixture.productAWith(List.of()), container);
+        Product bottle = Product.register(ProductFixture.productAWith(container, List.of()));
         bottle.addOptions(addOptions(List.of(option(navy))), container);
 
         assertRejected(() -> bottle.addSizeSpecs(addSizeSpecs(List.of(

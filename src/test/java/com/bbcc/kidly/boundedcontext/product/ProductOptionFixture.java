@@ -67,8 +67,8 @@ final class ProductOptionFixture {
 
     // 기획서 7.1 상품 A를 판매대기로 등록한 상태다. 옵션은 아직 없다
     static Product productA(ClothingOptions clothing) {
-        return Product.register(ProductFixture.productAWith(List.of(
-            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null))), clothing.type());
+        return Product.register(ProductFixture.productAWith(clothing.type(), List.of(
+            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null))));
     }
 
     static Product.OptionInfo option(AttributeValue... values) {
