@@ -390,7 +390,8 @@ class OrderTest {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             OrderItem item = itemOf(order, SELLER_A_ID);
 
-            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.minusSeconds(1))).isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.minusSeconds(1)))
+                .isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(item.getStatus()).isEqualTo(OrderItem.Status.ORDERED);
         }
 
@@ -412,7 +413,8 @@ class OrderTest {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             OrderItem item = itemOf(order, SELLER_A_ID);
 
-            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusSeconds(1))).isEqualTo(TransitionResult.APPLIED);
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusSeconds(1)))
+                .isEqualTo(TransitionResult.APPLIED);
             assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.AUTO);
         }
 
@@ -423,7 +425,8 @@ class OrderTest {
             OrderItem item = itemOf(order, SELLER_A_ID);
             order.confirmItem(item.getId(), DELIVERED_AT.plusDays(1));
 
-            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1))).isEqualTo(TransitionResult.ALREADY_DONE);
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1)))
+                .isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(item.getConfirmType()).isEqualTo(OrderItem.ConfirmType.DIRECT);
         }
 
@@ -445,7 +448,8 @@ class OrderTest {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
             OrderItem item = itemOf(order, SELLER_B_ID);
 
-            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1))).isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.autoConfirmItem(item.getId(), POLICY, dueAt.plusDays(1)))
+                .isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(item.getStatus()).isEqualTo(OrderItem.Status.ORDERED);
         }
 
@@ -454,7 +458,8 @@ class OrderTest {
         void missingItem() {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
 
-            assertThat(order.autoConfirmItem(999L, POLICY, dueAt.plusDays(1))).isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.autoConfirmItem(999L, POLICY, dueAt.plusDays(1)))
+                .isEqualTo(TransitionResult.NOT_APPLICABLE);
         }
     }
 

@@ -187,7 +187,7 @@ public class OrderService {
      * 주문이 없으면 무시. 이번에 취소했을 때만 order.cancelled를 발행한다(사유는 주문에 기록된 값,
      * 주문상품 순서 그대로).
      *
-     * @param change 주문을 취소하는 도메인 메서드. 이번에 취소했으면 true
+     * @param change 주문을 취소하는 도메인 메서드. 이번에 취소했으면 APPLIED
      */
     private void cancel(Long orderId, Function<Order, TransitionResult> change) {
         LocalDateTime now = LocalDateTime.now();
