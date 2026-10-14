@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
@@ -15,6 +16,7 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -43,6 +45,22 @@ public final class RecommendFixture {
      * 자녀 정보 변경 이벤트가 일어난 시각. 늦고 이른 이벤트는 이 시각에서 분을 더하거나 빼서 만든다.
      */
     public static final LocalDateTime CHILD_CHANGED_AT = LocalDateTime.of(2026, 10, 15, 10, 0);
+
+    /**
+     * 아래 네 상수는 상품 A 복사본의 판매자 · 카테고리 · 썸네일 · 등록 시각이다. ID는 상품 ID와 다른 값을 써서 두 칸을 바꿔 넣으면 테스트가 실패하게 한다.
+     */
+    public static final Long PRODUCT_A_SELLER_ID = 51L;
+
+    public static final Long PRODUCT_A_CATEGORY_ID = 52L;
+
+    public static final String PRODUCT_A_THUMBNAIL_URL = "https://cdn.kidly.test/products/31.jpg";
+
+    public static final LocalDateTime PRODUCT_A_REGISTERED_AT = LocalDateTime.of(2026, 10, 1, 9, 0);
+
+    /**
+     * 상품 변경 이벤트가 일어난 시각. 늦고 이른 이벤트는 이 시각에서 분을 더하거나 빼서 만든다.
+     */
+    public static final LocalDateTime PRODUCT_CHANGED_AT = LocalDateTime.of(2026, 10, 15, 9, 0);
 
     /**
      * 아래 네 상수는 구매확정에 쓰는 주문 · 주문상품 · 상품 · 옵션 ID다. ID마다 다른 값을 써서 두 칸을 바꿔 넣으면 테스트가 실패하게 한다.
@@ -198,5 +216,23 @@ public final class RecommendFixture {
         return ProductSizes.of(false, List.of(
             SizeRange.of("110", 105, 115),
             SizeRange.of("120", 115, 125)));
+    }
+
+    /**
+     * 판매 중인 상품 A의 상품 변경: 110(권장 키 105~115cm), 120(115~125cm) 옵션이 있다.
+     */
+    public static RecommendReplicaProduct.ChangeInfo productAChange() {
+        return productAChangeOf(false, List.of(
+            new RecommendReplicaProduct.OptionInfo("110", 105, 115),
+            new RecommendReplicaProduct.OptionInfo("120", 115, 125)), PRODUCT_CHANGED_AT);
+    }
+
+    /**
+     * {@link #productAChange()}와 같은 상품 변경에서 사이즈 무관 여부, 옵션, 발생 시각만 바꾼다.
+     */
+    public static RecommendReplicaProduct.ChangeInfo productAChangeOf(boolean sizeFree,
+        List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
+            ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree, options, occurredAt);
     }
 }
