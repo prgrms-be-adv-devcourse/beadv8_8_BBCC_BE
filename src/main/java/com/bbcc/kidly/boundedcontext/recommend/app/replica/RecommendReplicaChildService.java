@@ -16,7 +16,8 @@ public class RecommendReplicaChildService {
     private final RecommendReplicaChildRepository replicaChildRepository;
 
     /**
-     * 자녀 정보 변경됨 이벤트의 값을 자녀 복사본에 반영한다. 처음 받은 자녀면 복사본을 만들고, 이미 있으면 늦은 이벤트일 때만 덮어쓴다.
+     * 자녀 정보 변경됨 이벤트의 값을 자녀 복사본에 반영한다.
+     * 처음 받은 자녀면 복사본을 만들고, 이미 있으면 저장된 시각보다 늦게 일어난 이벤트일 때만 덮어쓴다.
      */
     public void applyChildChanged(ChildChangedEvent event) {
         RecommendReplicaChild.ChangeInfo info = toChangeInfo(event);
@@ -28,7 +29,7 @@ public class RecommendReplicaChildService {
         stored.get().applyIfNewer(info);
     }
 
-    // 이벤트의 childId는 복사본의 childProfileId로 옮긴다
+    // 복사본 칸은 원래 표의 칸 이름(child_profile_id)을 따르고 이벤트는 계약 이름(childId)을 쓰므로 여기서 이름을 옮긴다
     private RecommendReplicaChild.ChangeInfo toChangeInfo(ChildChangedEvent event) {
         ChildChangedEvent.Data data = event.data();
         return new RecommendReplicaChild.ChangeInfo(
