@@ -51,7 +51,8 @@ public class Charge extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private ChargeStatus status;
 
-    // 토스 paymentKey를 AES-GCM으로 암호화한 값
+    // 토스 paymentKey(최대 200자)를 AES-GCM으로 암호화한 Base64 값
+    @Column(length = 512)
     private String paymentKeyEnc;
 
     @Column(nullable = false)

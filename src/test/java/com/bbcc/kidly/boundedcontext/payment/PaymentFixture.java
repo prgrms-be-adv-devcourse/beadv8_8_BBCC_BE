@@ -6,12 +6,15 @@ import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.test.util.ReflectionTestUtils;
 
 final class PaymentFixture {
 
     static final Long MEMBER_ID = 1L;
     static final Long WALLET_ID = 10L;
     static final Long ORDER_ID = 100L;
+    static final Long CHARGE_ID = 50L;
+    static final String TOSS_ORDER_ID = "charge-order-1";
     static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 12, 12, 0);
 
     private PaymentFixture() {
@@ -25,8 +28,22 @@ final class PaymentFixture {
         return wallet;
     }
 
+    // 저장된 지갑처럼 ID가 WALLET_ID인 지갑
+    static Wallet savedWallet(long balance) {
+        Wallet wallet = wallet(balance);
+        ReflectionTestUtils.setField(wallet, "id", WALLET_ID);
+        return wallet;
+    }
+
     static Charge charge(long amount) {
-        return Charge.request(WALLET_ID, "charge-order-1", amount, NOW.plusMinutes(30));
+        return Charge.request(WALLET_ID, TOSS_ORDER_ID, amount, NOW.plusMinutes(30));
+    }
+
+    // 저장된 충전처럼 ID가 CHARGE_ID이고 만료가 먼 충전
+    static Charge savedCharge(long amount) {
+        Charge charge = Charge.request(WALLET_ID, TOSS_ORDER_ID, amount, LocalDateTime.now().plusMinutes(30));
+        ReflectionTestUtils.setField(charge, "id", CHARGE_ID);
+        return charge;
     }
 
     static Charge approvedCharge(long amount) {
