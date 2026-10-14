@@ -12,7 +12,8 @@ import org.springframework.http.HttpStatus;
 public enum ProductErrorCode implements ErrorCode {
 
     MULTIPLE_VALUES_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "값을 하나만 고를 수 있는 항목입니다", "이 항목은 값을 하나만 고를 수 있습니다."),
-    DUPLICATE_INFO_VALUE(HttpStatus.BAD_REQUEST, "같은 정보 값이 두 번 들어왔습니다", "같은 항목이나 값은 한 번만 넣을 수 있습니다.");
+    DUPLICATE_INFO_VALUE(HttpStatus.BAD_REQUEST, "같은 정보 값이 두 번 들어왔습니다", "같은 항목이나 값은 한 번만 넣을 수 있습니다."),
+    REQUIRED_INFO_MISSING(HttpStatus.BAD_REQUEST, "필수 정보 항목이 비어 있습니다", "필수 정보 항목에 값을 넣어 주세요.");
 
     private final HttpStatus status;
     private final String title;

@@ -120,6 +120,25 @@ class ProductTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.DUPLICATE_INFO_VALUE));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("missingRequiredInfoValues")
+    @DisplayName("INFO-02 필수 정보 항목에 값이 없으면 거절한다")
+    void rejectMissingRequiredInfoValue(Function<Clothing, List<InfoValueInfo>> infoValues) {
+        Clothing clothing = clothing();
+        Product.RegisterInfo info = productAWith(clothing, infoValues.apply(clothing));
+
+        assertThatThrownBy(() -> Product.register(info, clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.REQUIRED_INFO_MISSING));
+    }
+
+    static Stream<Named<Function<Clothing, List<InfoValueInfo>>>> missingRequiredInfoValues() {
+        return Stream.of(
+            Named.of("주요소재를 보내지 않음", clothing -> List.of()),
+            Named.of("주요소재에 빈 값 목록", clothing -> List.of(
+                new InfoValueInfo(clothing.mainMaterial(), List.of(), null))));
+    }
+
     // 정보 값은 테스트가 만든 유형의 항목 객체로 만들어야 하므로, 의류를 받아 정보 값을 만드는 함수를 넘긴다
     static Stream<Named<Function<Clothing, List<InfoValueInfo>>>> duplicatedInfoValues() {
         return Stream.of(

@@ -4,8 +4,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
@@ -96,7 +98,6 @@ public class Product extends BaseTimeEntity {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
     private List<ProductInfoValue> infoValues = new ArrayList<>();
 
-    // productType은 정보 값을 검사하는 기능에서 쓴다
     public static Product register(RegisterInfo info, ProductType productType) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
@@ -107,6 +108,7 @@ public class Product extends BaseTimeEntity {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
         validateInfoValues(info.infoValues());
+        validateRequiredInfoValues(info.infoValues(), productType);
         Product product = new Product();
         product.sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
         product.categoryId = requireNonNull(info.categoryId(), "categoryId는 필수입니다");
@@ -146,6 +148,29 @@ public class Product extends BaseTimeEntity {
                 throw new BusinessException(ProductErrorCode.DUPLICATE_INFO_VALUE);
             }
         }
+    }
+
+    // 유형이 필수로 정한 정보 항목마다 값이 있어야 한다 (INFO-02)
+    private static void validateRequiredInfoValues(List<InfoValueInfo> infoValues, ProductType productType) {
+        for (ProductTypeAttribute link : productType.getAttributes()) {
+            if (link.getRole() == AttributeRole.INFO
+                && link.isRequired()
+                && !hasValue(infoValues, link.getAttribute())) {
+                throw new BusinessException(ProductErrorCode.REQUIRED_INFO_MISSING);
+            }
+        }
+    }
+
+    // 목록 항목은 values가, 직접 입력 항목은 text가 비어 있지 않아야 값이 있는 것이다
+    private static boolean hasValue(List<InfoValueInfo> infoValues, Attribute attribute) {
+        for (InfoValueInfo infoValue : infoValues) {
+            if (infoValue.attribute() != attribute) {
+                continue;
+            }
+            return !infoValue.values().isEmpty()
+                || (infoValue.text() != null && !infoValue.text().isEmpty());
+        }
+        return false;
     }
 
     public List<String> getImageUrls() {
