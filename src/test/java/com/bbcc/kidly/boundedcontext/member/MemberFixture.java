@@ -26,6 +26,11 @@ public final class MemberFixture {
         return Member.register(OAuthProvider.KAKAO, providerUserId, "회원-" + providerUserId, NOW);
     }
 
+    // 닉네임을 직접 정해야 하는 검색 테스트용이다
+    public static Member withNickname(String providerUserId, String nickname) {
+        return Member.register(OAuthProvider.KAKAO, providerUserId, nickname, NOW);
+    }
+
     // ADMIN은 시드 데이터로만 부여하고 탈퇴 메서드는 아직 없어서 테스트에서는 필드를 직접 바꾼다
     public static Member withRole(MemberRole role) {
         return withRole(kakaoMember(), role);

@@ -81,6 +81,18 @@ class AdminMemberApiTest {
     }
 
     @Test
+    @DisplayName("keyword로 회원 번호를 검색한다")
+    void listByKeyword() {
+        memberRepository.save(MemberFixture.kakaoMember("1"));
+        var second = memberRepository.save(MemberFixture.kakaoMember("2"));
+
+        var page = list("?filter=ALL&keyword=" + second.getId());
+
+        assertThat(page.totalElements()).isEqualTo(1);
+        assertThat(page.content().getFirst().id()).isEqualTo(second.getId());
+    }
+
+    @Test
     @DisplayName("모르는 filter는 400이다")
     void listInvalidFilter() {
         client.get().uri(PATH + "?filter=FOO")

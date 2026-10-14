@@ -15,6 +15,9 @@ import java.util.Comparator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 
@@ -33,6 +36,8 @@ class MemberSummaryQueryIntegrationTest {
     private Member seller;
     private Member suspendedSeller;
     private Member suspendedMember;
+    private Member admin;
+    private Member withdrawn;
 
     // 5 · 6번(관리자 · 탈퇴)은 목록에서 빠져야 하는 회원
     @BeforeEach
@@ -43,14 +48,14 @@ class MemberSummaryQueryIntegrationTest {
         suspendedMember = MemberFixture.kakaoMember("4");
         suspendedMember.suspend(100L, REASON, MemberFixture.NOW);
         memberRepository.save(suspendedMember);
-        memberRepository.save(MemberFixture.withRole("5", MemberRole.ADMIN));
-        memberRepository.save(MemberFixture.withStatus("6", MemberStatus.WITHDRAWN));
+        admin = memberRepository.save(MemberFixture.withRole("5", MemberRole.ADMIN));
+        withdrawn = memberRepository.save(MemberFixture.withStatus("6", MemberStatus.WITHDRAWN));
     }
 
     @Test
     @DisplayName("ALL이면 관리자 · 탈퇴 회원을 빼고 모두 읽는다")
     void findAll() {
-        var page = query.findAll(AdminMemberFilter.ALL, PageRequest.of(0, 10));
+        var page = query.findAll(AdminMemberFilter.ALL, null, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).extracting(AdminMemberSummary::id)
             .containsExactlyInAnyOrder(buyer.getId(), seller.getId(), suspendedSeller.getId(), suspendedMember.getId());
@@ -59,7 +64,7 @@ class MemberSummaryQueryIntegrationTest {
     @Test
     @DisplayName("BUYER는 판매자 이력이 없는 회원이다. 이용 정지된 회원도 들어간다")
     void findBuyers() {
-        var page = query.findAll(AdminMemberFilter.BUYER, PageRequest.of(0, 10));
+        var page = query.findAll(AdminMemberFilter.BUYER, null, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).extracting(AdminMemberSummary::id)
             .containsExactlyInAnyOrder(buyer.getId(), suspendedMember.getId());
@@ -68,7 +73,7 @@ class MemberSummaryQueryIntegrationTest {
     @Test
     @DisplayName("SELLER는 판매자 이력이 있는 회원이다. 판매자 정지도 들어간다")
     void findSellers() {
-        var page = query.findAll(AdminMemberFilter.SELLER, PageRequest.of(0, 10));
+        var page = query.findAll(AdminMemberFilter.SELLER, null, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).extracting(AdminMemberSummary::id)
             .containsExactlyInAnyOrder(seller.getId(), suspendedSeller.getId());
@@ -77,7 +82,7 @@ class MemberSummaryQueryIntegrationTest {
     @Test
     @DisplayName("SUSPENDED는 이용 정지된 회원만이고 정지 사유 · 시각을 준다")
     void findSuspended() {
-        var page = query.findAll(AdminMemberFilter.SUSPENDED, PageRequest.of(0, 10));
+        var page = query.findAll(AdminMemberFilter.SUSPENDED, null, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).singleElement().satisfies(row -> {
             assertThat(row.id()).isEqualTo(suspendedMember.getId());
@@ -90,7 +95,7 @@ class MemberSummaryQueryIntegrationTest {
     @Test
     @DisplayName("판매자 정지 회원의 행은 sellerStatus가 SUSPENDED이고 정지 사유는 없다")
     void suspendedSellerRow() {
-        var page = query.findAll(AdminMemberFilter.SELLER, PageRequest.of(0, 10));
+        var page = query.findAll(AdminMemberFilter.SELLER, null, PageRequest.of(0, 10));
 
         var row = page.getContent().stream()
             .filter(summary -> summary.id().equals(suspendedSeller.getId())).findFirst().orElseThrow();
@@ -104,7 +109,7 @@ class MemberSummaryQueryIntegrationTest {
     @Test
     @DisplayName("최신 가입(id 내림차순)부터 읽는다")
     void findAllNewestFirst() {
-        var page = query.findAll(AdminMemberFilter.ALL, PageRequest.of(0, 10));
+        var page = query.findAll(AdminMemberFilter.ALL, null, PageRequest.of(0, 10));
 
         var ids = page.getContent().stream().map(AdminMemberSummary::id).toList();
         assertThat(ids).isSortedAccordingTo(Comparator.reverseOrder());
@@ -113,10 +118,103 @@ class MemberSummaryQueryIntegrationTest {
     @Test
     @DisplayName("페이지 크기만큼 읽고 전체 개수와 다음 페이지 여부를 알려준다")
     void findAllPaged() {
-        var page = query.findAll(AdminMemberFilter.ALL, PageRequest.of(0, 3));
+        var page = query.findAll(AdminMemberFilter.ALL, null, PageRequest.of(0, 3));
 
         assertThat(page.getContent()).hasSize(3);
         assertThat(page.getTotalElements()).isEqualTo(4);
         assertThat(page.hasNext()).isTrue();
+    }
+
+    @Test
+    @DisplayName("닉네임 일부로 회원을 찾는다")
+    void searchByNickname() {
+        var page = query.findAll(AdminMemberFilter.ALL, "회원-2", PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).extracting(AdminMemberSummary::id).containsExactly(seller.getId());
+    }
+
+    // 닉네임에 번호가 없는 회원은 번호로만, 닉네임에 번호가 든 회원은 닉네임으로만 걸린다
+    @Test
+    @DisplayName("숫자만 있으면 회원 번호가 같은 회원과 닉네임에 그 숫자가 든 회원을 모두 찾는다")
+    void searchByIdOrNickname() {
+        var byId = memberRepository.save(MemberFixture.withNickname("by-id", "번호없음"));
+        var byNickname = memberRepository.save(MemberFixture.withNickname("by-nickname", "번호-" + byId.getId()));
+
+        var page = query.findAll(AdminMemberFilter.ALL, String.valueOf(byId.getId()), PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).extracting(AdminMemberSummary::id)
+            .containsExactlyInAnyOrder(byId.getId(), byNickname.getId());
+    }
+
+    @Test
+    @DisplayName("키워드 앞뒤 공백은 무시한다")
+    void searchStripsWhitespace() {
+        var page = query.findAll(AdminMemberFilter.ALL, "  회원-2  ", PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).extracting(AdminMemberSummary::id).containsExactly(seller.getId());
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = " ")
+    @DisplayName("키워드가 null · 빈 값 · 공백이면 조건에서 빠진다")
+    void searchWithBlankKeyword(String keyword) {
+        var page = query.findAll(AdminMemberFilter.ALL, keyword, PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).extracting(AdminMemberSummary::id)
+            .containsExactlyInAnyOrder(buyer.getId(), seller.getId(), suspendedSeller.getId(), suspendedMember.getId());
+    }
+
+    @Test
+    @DisplayName("필터와 키워드는 함께 적용된다")
+    void searchWithFilter() {
+        var page = query.findAll(AdminMemberFilter.SELLER, "회원-2", PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).extracting(AdminMemberSummary::id).containsExactly(seller.getId());
+
+        var buyers = query.findAll(AdminMemberFilter.BUYER, "회원-2", PageRequest.of(0, 10));
+
+        assertThat(buyers.getContent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("키워드로 걸러진 전체 개수와 다음 페이지 여부를 알려준다")
+    void searchPaged() {
+        memberRepository.save(MemberFixture.withNickname("page-1", "검색-가"));
+        memberRepository.save(MemberFixture.withNickname("page-2", "검색-나"));
+
+        var page = query.findAll(AdminMemberFilter.ALL, "검색", PageRequest.of(0, 1));
+
+        assertThat(page.getContent()).hasSize(1);
+        assertThat(page.getTotalElements()).isEqualTo(2);
+        assertThat(page.hasNext()).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"%", "회원_2"})
+    @DisplayName("%와 _는 와일드카드가 아니라 문자 그대로 찾는다")
+    void searchTreatsWildcardsLiterally(String keyword) {
+        var page = query.findAll(AdminMemberFilter.ALL, keyword, PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("관리자 · 탈퇴 회원은 회원 번호로 찾아도 나오지 않는다")
+    void searchExcludesAdminAndWithdrawn() {
+        var byAdminId = query.findAll(AdminMemberFilter.ALL, String.valueOf(admin.getId()), PageRequest.of(0, 10));
+        var byWithdrawnId = query.findAll(AdminMemberFilter.ALL, String.valueOf(withdrawn.getId()),
+            PageRequest.of(0, 10));
+
+        assertThat(byAdminId.getContent()).isEmpty();
+        assertThat(byWithdrawnId.getContent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("19자리 이상 숫자도 오류 없이 검색한다")
+    void searchWithOverflowingNumber() {
+        var page = query.findAll(AdminMemberFilter.ALL, "9".repeat(19), PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).isEmpty();
     }
 }
