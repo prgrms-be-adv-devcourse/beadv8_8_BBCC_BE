@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.global.security.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -135,5 +136,39 @@ class MemberTest {
         assertThat(MemberFixture.kakaoMember().isActiveSeller()).isFalse();
         assertThat(MemberFixture.withSellerState(SellerStatus.SUSPENDED).isActiveSeller()).isFalse();
         assertThat(MemberFixture.withSellerState(SellerStatus.ACTIVE).isActiveSeller()).isTrue();
+    }
+
+    @Test
+    @DisplayName("일반 회원의 역할은 BUYER뿐이다")
+    void rolesOfPlainMember() {
+        assertThat(MemberFixture.kakaoMember().roles()).containsExactly(Role.BUYER);
+    }
+
+    @Test
+    @DisplayName("활성 판매자는 BUYER와 SELLER 역할을 가진다")
+    void rolesOfActiveSeller() {
+        assertThat(MemberFixture.withSellerState(SellerStatus.ACTIVE).roles())
+            .containsExactly(Role.BUYER, Role.SELLER);
+    }
+
+    @Test
+    @DisplayName("정지된 판매자는 SELLER 역할을 갖지 않는다")
+    void rolesOfSuspendedSeller() {
+        assertThat(MemberFixture.withSellerState(SellerStatus.SUSPENDED).roles()).containsExactly(Role.BUYER);
+    }
+
+    @Test
+    @DisplayName("관리자는 BUYER와 ADMIN 역할을 가진다")
+    void rolesOfAdmin() {
+        assertThat(MemberFixture.withRole(MemberRole.ADMIN).roles()).containsExactly(Role.BUYER, Role.ADMIN);
+    }
+
+    @Test
+    @DisplayName("판매자인 관리자는 BUYER, SELLER, ADMIN 순서로 역할을 가진다")
+    void rolesOfSellerAdmin() {
+        var member = MemberFixture.withRole(MemberRole.ADMIN);
+        member.applySellerState(SellerStatus.ACTIVE, NOW);
+
+        assertThat(member.roles()).containsExactly(Role.BUYER, Role.SELLER, Role.ADMIN);
     }
 }
