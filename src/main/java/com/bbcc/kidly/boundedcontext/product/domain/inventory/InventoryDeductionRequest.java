@@ -2,8 +2,10 @@ package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -20,6 +22,13 @@ public final class InventoryDeductionRequest {
     }
 
     public static InventoryDeductionRequest of(long orderId, List<Item> items) {
+        // 한 주문 생성됨 안에서 주문상품 ID는 겹치지 않는다. 겹치면 주문 코드의 오류라 요청을 만들지 않는다 (INV-15)
+        Set<Long> orderItemIds = new HashSet<>();
+        for (Item item : items) {
+            if (!orderItemIds.add(item.orderItemId())) {
+                throw new IllegalArgumentException("주문상품 ID가 중복될 수 없습니다: " + item.orderItemId());
+            }
+        }
         return new InventoryDeductionRequest(orderId, items);
     }
 

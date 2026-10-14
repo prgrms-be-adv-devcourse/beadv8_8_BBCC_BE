@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.OR
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.item;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.onSaleOptions;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.Options;
@@ -62,5 +63,14 @@ class InventoryDeductionTest {
         assertThat(request.optionQuantities())
             .extracting(OptionQuantity::optionId, OptionQuantity::qty)
             .containsExactly(tuple(NAVY_120_ID, 1), tuple(NAVY_110_ID, 3));
+    }
+
+    @Test
+    @DisplayName("INV-15 같은 주문상품 ID가 두 번 들어 있으면 차감 요청을 만들지 않는다")
+    void rejectDuplicateOrderItemId() {
+        assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 2),
+            item(11L, options.navy120(), 1))))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 }
