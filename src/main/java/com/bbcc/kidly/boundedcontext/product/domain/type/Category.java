@@ -90,6 +90,11 @@ public class Category extends BaseTimeEntity {
         }
     }
 
+    // 상품을 등록할 때 쓸 상품 유형이다
+    public ProductType productTypeToRegister() {
+        return productType;
+    }
+
     public List<CategoryMeasurementItem> getMeasurementItems() {
         return Collections.unmodifiableList(measurementItems);
     }

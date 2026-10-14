@@ -64,4 +64,12 @@ class CategoryTest {
             Named.of("말단 카테고리", leaf -> () -> Category.createLeaf(
                 new Category.LeafInfo("반팔", leaf, leaf.getProductType(), List.of(totalLength())))));
     }
+
+    @Test
+    @DisplayName("TYPE-01 말단 카테고리에서는 상품을 등록할 유형으로 그 카테고리의 유형을 꺼낸다")
+    void productTypeToRegisterOfLeaf() {
+        Category top = CategoryFixture.top(clothing, clothingType);
+
+        assertThat(top.productTypeToRegister()).isSameAs(clothingType);
+    }
 }
