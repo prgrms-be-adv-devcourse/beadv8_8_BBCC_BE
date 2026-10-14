@@ -129,4 +129,12 @@ class ReplicaChildTest {
             .extracting(ReplicaChild::isDeleted, ReplicaChild::getHeightCm, ReplicaChild::getEventOccurredAt)
             .containsExactly(true, new BigDecimal("115.0"), deletedAt);
     }
+
+    @Test
+    @DisplayName("INV-R02 삭제되지 않은 자기 자녀는 볼 수 있다")
+    void visibleToOwner() {
+        ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange());
+
+        assertThat(replica.isVisibleTo(MEMBER_1_ID)).isTrue();
+    }
 }

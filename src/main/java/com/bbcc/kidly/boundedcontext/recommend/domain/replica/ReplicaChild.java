@@ -81,6 +81,13 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
         apply(info);
     }
 
+    /**
+     * 이 회원이 사이즈 추천에 쓸 수 있는 자녀인지 판단한다. 아니면 사이즈 추천은 자녀를 찾을 수 없다고 응답한다.
+     */
+    public boolean isVisibleTo(Long memberId) {
+        return this.memberId.equals(memberId);
+    }
+
     private void apply(ChangeInfo info) {
         this.memberId = info.memberId();
         this.heightCm = info.heightCm();
