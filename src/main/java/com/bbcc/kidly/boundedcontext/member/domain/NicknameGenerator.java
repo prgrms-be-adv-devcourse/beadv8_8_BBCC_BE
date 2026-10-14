@@ -1,14 +1,12 @@
-package com.bbcc.kidly.boundedcontext.member.app.support;
+package com.bbcc.kidly.boundedcontext.member.domain;
 
-import com.bbcc.kidly.boundedcontext.member.domain.Member;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 소셜 가입 닉네임을 만든다. 제공자 닉네임을 정리해 회원 닉네임 규칙(2~20자, 앞뒤 공백 없음)에 맞추고,
+ * 가입할 때 쓸 닉네임을 정하는 도메인 서비스. 제공자 닉네임을 정리해 회원 닉네임 규칙(2~20자, 앞뒤 공백 없음)에 맞추고,
  * 다른 회원이 쓰고 있으면 숫자 4자리를 붙인다.
  */
 @Component
