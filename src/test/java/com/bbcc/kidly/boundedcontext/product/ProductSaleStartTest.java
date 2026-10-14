@@ -18,9 +18,16 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ProductSaleStartTest {
 
@@ -66,6 +73,27 @@ class ProductSaleStartTest {
             spec(clothing.size110(), 105, 115, top110Measurements()))), top, clothing.type());
 
         assertSaleStartRejected("판매를 시작할 수 없습니다. 120 사이즈에 실측이 없습니다.");
+    }
+
+    @ParameterizedTest(name = "{0} 빠짐")
+    @MethodSource("missingMeasurementItems")
+    @DisplayName("SIZE-04 실측 값이 카테고리의 필수 실측 항목을 모두 채우지 못하면 판매를 시작할 수 없다")
+    void rejectStartSaleWithMissingMeasurementItem(List<String> removedCodes, String detail) {
+        withOptions110And120();
+        Map<String, BigDecimal> measurements = new HashMap<>(top110Measurements());
+        removedCodes.forEach(measurements::remove);
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), 105, 115, measurements),
+            spec(clothing.size120(), 115, 125, top120Measurements()))), top, clothing.type());
+
+        assertSaleStartRejected(detail);
+    }
+
+    static Stream<Arguments> missingMeasurementItems() {
+        return Stream.of(
+            Arguments.of(List.of("SLEEVE_LENGTH"), "판매를 시작할 수 없습니다. 110 사이즈에 소매길이가 없습니다."),
+            Arguments.of(List.of("SLEEVE_LENGTH", "SHOULDER_WIDTH"),
+                "판매를 시작할 수 없습니다. 110 사이즈에 어깨너비 · 소매길이가 없습니다."));
     }
 
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
