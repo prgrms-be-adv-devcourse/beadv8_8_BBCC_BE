@@ -11,6 +11,7 @@ import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.OptimisticLockingFailureException;
 
 @IntegrationTest
 class SellerApplicationRepositoryIntegrationTest {
@@ -58,5 +59,22 @@ class SellerApplicationRepositoryIntegrationTest {
         assertThatThrownBy(() -> sellerApplicationRepository.getById(saved.getId() + 1))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("같은 신청을 먼저 승인하면 늦게 읽은 쪽의 거절은 낙관적 락으로 실패한다")
+    void rejectAfterConcurrentApprove() {
+        var saved = sellerApplicationRepository.save(SellerFixture.application(APPLICANT_ID));
+        var forApprove = sellerApplicationRepository.getById(saved.getId());
+        var forReject = sellerApplicationRepository.getById(saved.getId());
+
+        forApprove.approve(SellerFixture.ADMIN_ID, SellerFixture.NOW);
+        sellerApplicationRepository.save(forApprove);
+        forReject.reject(SellerFixture.ADMIN_ID, SellerFixture.REJECT_REASON, SellerFixture.NOW);
+
+        assertThatThrownBy(() -> sellerApplicationRepository.save(forReject))
+            .isInstanceOf(OptimisticLockingFailureException.class);
+        assertThat(sellerApplicationRepository.getById(saved.getId()).getStatus())
+            .isEqualTo(SellerApplicationStatus.APPROVED);
     }
 }

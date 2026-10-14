@@ -8,6 +8,9 @@
     <property name="LOG_FILE_NAME" value="kidly"/>
     <springProperty scope="context" name="LOGSTASH_DESTINATION" source="logging.logstash.destination"
                     defaultValue="localhost:5000"/>
+    <!-- 종료할 때 못 보낸 로그를 기다리는 시간. 테스트에서는 짧게 넘긴다 -->
+    <springProperty scope="context" name="LOGSTASH_SHUTDOWN_GRACE_PERIOD"
+                    source="logging.logstash.shutdown-grace-period" defaultValue="1 minute"/>
 
     <!-- 요청 추적용 traceId(MDC)를 포함한 로그 패턴 (콘솔: 색상 포함 / 파일: 색상 미포함) -->
     <property name="CONSOLE_LOG_PATTERN"
@@ -29,6 +32,7 @@
             <destination>${LOGSTASH_DESTINATION}</destination>
             <reconnectionDelay>10 seconds</reconnectionDelay>
             <keepAliveDuration>5 minutes</keepAliveDuration>
+            <shutdownGracePeriod>${LOGSTASH_SHUTDOWN_GRACE_PERIOD}</shutdownGracePeriod>
             <encoder class="net.logstash.logback.encoder.LogstashEncoder">
                 <!-- LOG_PATH 같은 logback 설정값은 보내지 않는다 -->
                 <includeContext>false</includeContext>

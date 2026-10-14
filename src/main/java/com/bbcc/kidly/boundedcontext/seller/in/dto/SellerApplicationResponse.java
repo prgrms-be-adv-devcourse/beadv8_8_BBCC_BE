@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 /**
  * @param decidedAt 심사 전이면 null
+ * @param rejectReason 거절된 신청이 아니면 null
  */
 public record SellerApplicationResponse(
     Long id,
@@ -14,11 +15,13 @@ public record SellerApplicationResponse(
     String maskedBusinessRegistrationNumber,
     SellerApplicationStatus status,
     LocalDateTime createdAt,
-    LocalDateTime decidedAt) {
+    LocalDateTime decidedAt,
+    String rejectReason) {
 
     public static SellerApplicationResponse from(SellerApplicationResult result) {
         return new SellerApplicationResponse(
             result.id(), result.businessName(), result.representativeName(),
-            result.maskedBusinessRegistrationNumber(), result.status(), result.createdAt(), result.decidedAt());
+            result.maskedBusinessRegistrationNumber(), result.status(), result.createdAt(), result.decidedAt(),
+            result.rejectReason());
     }
 }
