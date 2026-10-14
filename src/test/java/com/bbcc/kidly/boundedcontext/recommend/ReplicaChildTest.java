@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -136,5 +137,20 @@ class ReplicaChildTest {
         ReplicaChild replica = ReplicaChild.create(RecommendFixture.childChange());
 
         assertThat(replica.isVisibleTo(MEMBER_1_ID)).isTrue();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invisibleChildren")
+    @DisplayName("INV-R02 다른 회원의 자녀와 삭제된 자녀는 볼 수 없다")
+    void invisibleToOthersOrWhenDeleted(ReplicaChild replica, Long memberId) {
+        assertThat(replica.isVisibleTo(memberId)).isFalse();
+    }
+
+    static Stream<Arguments> invisibleChildren() {
+        return Stream.of(
+            Arguments.of(Named.of("다른 회원의 자녀", ReplicaChild.create(RecommendFixture.childChange())), 2L),
+            Arguments.of(
+                Named.of("삭제된 자기 자녀", ReplicaChild.create(RecommendFixture.childDeleted(CHILD_CHANGED_AT))),
+                MEMBER_1_ID));
     }
 }
