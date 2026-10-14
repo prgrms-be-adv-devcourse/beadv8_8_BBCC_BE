@@ -100,6 +100,9 @@ public class ProductType extends BaseTimeEntity {
         requireNonNull(link.attribute(), "attribute는 필수입니다");
         requireNonNull(link.role(), "role은 필수입니다");
         requireNonNull(link.allowedValues(), "allowedValues는 필수입니다");
+        for (AttributeValue value : link.allowedValues()) {
+            requireNonNull(value, "allowedValue는 필수입니다");
+        }
     }
 
     private static boolean hasRequiredOption(List<LinkInfo> links) {

@@ -177,7 +177,7 @@ class ProductTypeTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("definitionsWithNull")
-    @DisplayName("유형 이름 · 연결 목록 · 연결의 항목 · 역할 · 허용 값 목록이 null이면 거절한다")
+    @DisplayName("유형 이름 · 연결 목록 · 연결의 항목 · 역할 · 허용 값 목록 · 허용 값이 null이면 거절한다")
     void rejectTypeWithNull(ThrowingCallable define) {
         assertThatThrownBy(define)
             .isInstanceOf(NullPointerException.class)
@@ -194,6 +194,8 @@ class ProductTypeTest {
                 requiredOption(size()),
                 new ProductType.LinkInfo(color(), null, true, true, false, false, List.of())))),
             Named.of("허용 값 목록", () -> ProductType.define("의류", List.of(
-                new ProductType.LinkInfo(color(), AttributeRole.OPTION, true, true, false, false, null)))));
+                new ProductType.LinkInfo(color(), AttributeRole.OPTION, true, true, false, false, null)))),
+            Named.of("허용 값", () -> ProductType.define("의류", List.of(
+                restrictedOption(color(), Arrays.asList((AttributeValue) null))))));
     }
 }
