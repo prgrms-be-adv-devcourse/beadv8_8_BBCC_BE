@@ -15,6 +15,7 @@ import static org.mockito.BDDMockito.then;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmTarget;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeDetail;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequestResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ConfirmChargeRequest;
@@ -32,6 +33,7 @@ import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -88,6 +93,21 @@ class ChargeServiceTest {
         assertThatThrownBy(() -> chargeService.request(MEMBER_ID, new ChargeRequest(10_000L)))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(PaymentErrorCode.WALLET_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("충전 목록은 회원 지갑의 충전을 최신순 페이지로 준다")
+    void getCharges() {
+        Charge charge = PaymentFixture.savedCharge(10_000L);
+        given(walletRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(PaymentFixture.savedWallet(0L)));
+        given(chargeRepository.findAllByWalletIdOrderByIdDesc(WALLET_ID, PageRequest.of(1, 20)))
+            .willReturn(new PageImpl<>(List.of(charge), PageRequest.of(1, 20), 21));
+
+        Page<ChargeDetail> charges = chargeService.getCharges(MEMBER_ID, 1, 20);
+
+        assertThat(charges.getContent()).extracting(ChargeDetail::chargeId).containsExactly(CHARGE_ID);
+        assertThat(charges.getContent().getFirst().status()).isEqualTo("PENDING");
+        assertThat(charges.getTotalElements()).isEqualTo(21);
     }
 
     @Test

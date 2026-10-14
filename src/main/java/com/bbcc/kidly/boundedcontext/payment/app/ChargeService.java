@@ -21,6 +21,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +47,13 @@ public class ChargeService {
         Charge charge = chargeRepository.save(Charge.request(wallet.getId(), UUID.randomUUID().toString(),
             request.amount(), LocalDateTime.now().plus(EXPIRES_IN)));
         return ChargeRequestResult.from(charge);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ChargeDetail> getCharges(Long memberId, int page, int size) {
+        Wallet wallet = walletOf(memberId);
+        return chargeRepository.findAllByWalletIdOrderByIdDesc(wallet.getId(), PageRequest.of(page, size))
+            .map(ChargeDetail::from);
     }
 
     @Transactional(readOnly = true)

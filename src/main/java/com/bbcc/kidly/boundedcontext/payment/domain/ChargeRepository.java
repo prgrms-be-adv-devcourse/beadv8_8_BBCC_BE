@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.payment.domain;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface ChargeRepository {
 
@@ -20,4 +22,6 @@ public interface ChargeRepository {
     List<Charge> findAllByStatusAndUpdatedAtBefore(ChargeStatus status, LocalDateTime before);
 
     List<Charge> findAllByStatusAndExpiresAtBefore(ChargeStatus status, LocalDateTime before);
+
+    Page<Charge> findAllByWalletIdOrderByIdDesc(Long walletId, Pageable pageable);
 }

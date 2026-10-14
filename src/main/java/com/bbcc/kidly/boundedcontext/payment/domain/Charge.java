@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
@@ -26,7 +27,7 @@ import lombok.NoArgsConstructor;
  * 상태를 바꿀 때는 리포지토리에서 비관적 락(SELECT ... FOR UPDATE)으로 읽어, 사용자 승인과 정리 스케줄러가 겹쳐도 순서대로 처리한다.
  */
 @Entity
-@Table(schema = "payment", name = "charge")
+@Table(schema = "payment", name = "charge", indexes = @Index(columnList = "wallet_id, id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Charge extends BaseTimeEntity {
