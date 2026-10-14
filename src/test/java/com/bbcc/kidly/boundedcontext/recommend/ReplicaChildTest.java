@@ -5,14 +5,17 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_I
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_CHANGED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaChild;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -152,5 +155,59 @@ class ReplicaChildTest {
             Arguments.of(
                 Named.of("삭제된 자기 자녀", ReplicaChild.create(RecommendFixture.childDeleted(CHILD_CHANGED_AT))),
                 MEMBER_1_ID));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesWithNull")
+    @DisplayName("자녀 정보에 필수 값이 없으면 복사본을 만들거나 덮어쓰지 않는다")
+    void rejectChangeWithNull(ThrowingCallable change) {
+        assertThatThrownBy(change)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> changesWithNull() {
+        BigDecimal height = new BigDecimal("120.0");
+        BigDecimal weight = new BigDecimal("22.0");
+        LocalDateTime later = CHILD_CHANGED_AT.plusMinutes(1);
+        return Stream.of(
+            Named.of("만들 때 자녀 정보", () -> ReplicaChild.create(null)),
+            Named.of("만들 때 자녀 ID", () -> ReplicaChild.create(
+                change(null, MEMBER_1_ID, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
+            Named.of("만들 때 회원 ID", () -> ReplicaChild.create(
+                change(CHILD_1_ID, null, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
+            Named.of("만들 때 키", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, null, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
+            Named.of("만들 때 몸무게", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, height, null, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
+            Named.of("만들 때 성별", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, height, weight, null, CHILD_1_BIRTH_DATE, later))),
+            Named.of("만들 때 생년월일", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, height, weight, Gender.MALE, null, later))),
+            Named.of("만들 때 이벤트 발생 시각", () -> ReplicaChild.create(
+                change(CHILD_1_ID, MEMBER_1_ID, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, null))),
+            Named.of("덮어쓸 때 자녀 정보", () -> existingReplica().applyIfNewer(null)),
+            Named.of("덮어쓸 때 회원 ID", () -> existingReplica().applyIfNewer(
+                change(CHILD_1_ID, null, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
+            Named.of("덮어쓸 때 키", () -> existingReplica().applyIfNewer(
+                change(CHILD_1_ID, MEMBER_1_ID, null, weight, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
+            Named.of("덮어쓸 때 몸무게", () -> existingReplica().applyIfNewer(
+                change(CHILD_1_ID, MEMBER_1_ID, height, null, Gender.MALE, CHILD_1_BIRTH_DATE, later))),
+            Named.of("덮어쓸 때 성별", () -> existingReplica().applyIfNewer(
+                change(CHILD_1_ID, MEMBER_1_ID, height, weight, null, CHILD_1_BIRTH_DATE, later))),
+            Named.of("덮어쓸 때 생년월일", () -> existingReplica().applyIfNewer(
+                change(CHILD_1_ID, MEMBER_1_ID, height, weight, Gender.MALE, null, later))),
+            Named.of("덮어쓸 때 이벤트 발생 시각", () -> existingReplica().applyIfNewer(
+                change(CHILD_1_ID, MEMBER_1_ID, height, weight, Gender.MALE, CHILD_1_BIRTH_DATE, null))));
+    }
+
+    private static ReplicaChild existingReplica() {
+        return ReplicaChild.create(RecommendFixture.childChange());
+    }
+
+    private static ReplicaChild.ChangeInfo change(Long childProfileId, Long memberId, BigDecimal heightCm,
+        BigDecimal weightKg, Gender gender, LocalDate birthDate, LocalDateTime occurredAt) {
+        return new ReplicaChild.ChangeInfo(childProfileId, memberId, heightCm, weightKg, gender, birthDate,
+            BodyType.NORMAL, PreferredFit.LOOSE, false, occurredAt);
     }
 }

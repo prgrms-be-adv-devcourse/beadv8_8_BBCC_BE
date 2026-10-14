@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.replica;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -65,8 +67,9 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
     }
 
     public static ReplicaChild create(ChangeInfo info) {
+        requireValues(info);
         ReplicaChild child = new ReplicaChild();
-        child.childProfileId = info.childProfileId();
+        child.childProfileId = requireNonNull(info.childProfileId(), "childProfileId는 필수입니다");
         child.apply(info);
         return child;
     }
@@ -75,6 +78,7 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
      * 저장된 시각보다 늦게 일어난 변경만 덮어쓴다. 같은 이벤트를 다시 받거나 이전 이벤트가 늦게 도착해도 값이 되돌아가지 않는다.
      */
     public void applyIfNewer(ChangeInfo info) {
+        requireValues(info);
         if (!info.occurredAt().isAfter(eventOccurredAt)) {
             return;
         }
@@ -86,6 +90,17 @@ public class ReplicaChild extends BaseSoftDeleteEntity {
      */
     public boolean isVisibleTo(Long memberId) {
         return !isDeleted() && this.memberId.equals(memberId);
+    }
+
+    // 값을 하나도 바꾸기 전에 검사해서, 실패하면 복사본이 그대로 남도록 한다
+    private static void requireValues(ChangeInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(info.memberId(), "memberId는 필수입니다");
+        requireNonNull(info.heightCm(), "heightCm은 필수입니다");
+        requireNonNull(info.weightKg(), "weightKg는 필수입니다");
+        requireNonNull(info.gender(), "gender는 필수입니다");
+        requireNonNull(info.birthDate(), "birthDate는 필수입니다");
+        requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
     }
 
     private void apply(ChangeInfo info) {
