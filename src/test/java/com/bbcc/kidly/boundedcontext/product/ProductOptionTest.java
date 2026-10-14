@@ -127,6 +127,38 @@ class ProductOptionTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.OPTION_VALUE_NOT_ALLOWED));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("duplicatedOptions")
+    @DisplayName("OPT-03 같은 값 묶음의 옵션이 이미 있거나 요청 안에서 겹치면 거절한다")
+    void rejectDuplicatedOption(Function<ClothingOptions, Requests> requests) {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+        Requests given = requests.apply(clothing);
+        product.addOptions(addOptions(given.existing()), clothing.type());
+
+        assertThatThrownBy(() -> product.addOptions(addOptions(given.requested()), clothing.type()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.DUPLICATE_OPTION));
+        assertThat(product.getOptions()).hasSameSizeAs(given.existing());
+    }
+
+    // 이미 추가한 옵션과 이번에 추가하려는 옵션이다
+    record Requests(List<Product.OptionInfo> existing, List<Product.OptionInfo> requested) {
+    }
+
+    static Stream<Named<Function<ClothingOptions, Requests>>> duplicatedOptions() {
+        return Stream.of(
+            Named.of("요청 안에서 같은 값 묶음 두 번", clothing -> new Requests(
+                List.of(option(clothing.oatmeal(), clothing.size120())),
+                List.of(option(clothing.navy(), clothing.size110()), option(clothing.navy(), clothing.size110())))),
+            Named.of("요청 안에서 순서만 바꾼 같은 값 묶음", clothing -> new Requests(
+                List.of(option(clothing.oatmeal(), clothing.size120())),
+                List.of(option(clothing.navy(), clothing.size110()), option(clothing.size110(), clothing.navy())))),
+            Named.of("이미 있는 옵션과 같은 값 묶음", clothing -> new Requests(
+                List.of(option(clothing.navy(), clothing.size110())),
+                List.of(option(clothing.size110(), clothing.navy())))));
+    }
+
     static Stream<Named<Function<ClothingOptions, AttributeValue>>> notOptionAttributeValues() {
         return Stream.of(
             Named.of("정보 항목(주요소재)의 값 면", ClothingOptions::cotton),

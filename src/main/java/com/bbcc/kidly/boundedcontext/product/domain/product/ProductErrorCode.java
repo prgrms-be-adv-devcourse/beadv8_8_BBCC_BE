@@ -21,7 +21,8 @@ public enum ProductErrorCode implements ErrorCode {
     NOT_PRODUCT_OWNER(HttpStatus.FORBIDDEN, "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다."),
     REQUIRED_OPTION_MISSING(HttpStatus.BAD_REQUEST, "필수 옵션 항목이 비어 있습니다", "필수 옵션 항목마다 값을 하나씩 넣어 주세요."),
     NOT_OPTION_ATTRIBUTE(HttpStatus.BAD_REQUEST, "이 상품 유형의 옵션 항목이 아닙니다", "상품 유형의 옵션 항목 값으로만 옵션을 만들어 주세요."),
-    OPTION_VALUE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "허용되지 않은 옵션 값입니다", "이 상품 유형에서 고를 수 있는 옵션 값을 넣어 주세요.");
+    OPTION_VALUE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "허용되지 않은 옵션 값입니다", "이 상품 유형에서 고를 수 있는 옵션 값을 넣어 주세요."),
+    DUPLICATE_OPTION(HttpStatus.CONFLICT, "이미 있는 옵션입니다", "같은 값 묶음의 옵션은 하나만 등록할 수 있습니다.");
 
     private final HttpStatus status;
     private final String title;

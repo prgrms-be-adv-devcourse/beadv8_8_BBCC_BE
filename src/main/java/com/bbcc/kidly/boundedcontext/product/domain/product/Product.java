@@ -158,9 +158,12 @@ public class Product extends BaseTimeEntity {
         if (!sellerId.equals(info.sellerId())) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
         }
-        List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
             ProductOptions.validateOption(option.values(), productType);
+        }
+        ProductOptions.validateNoDuplicate(info.options(), options);
+        List<ProductOption> created = new ArrayList<>();
+        for (OptionInfo option : info.options()) {
             long price = ProductOptions.findPrice(option.values(), info.prices(), productType);
             List<AttributeValue> values = ProductOptions.inTypeOrder(option.values(), productType);
             created.add(ProductOption.create(this, price, option.skuCode(), values));

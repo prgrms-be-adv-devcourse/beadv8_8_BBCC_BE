@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product.OptionInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.PriceInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
@@ -54,6 +55,30 @@ final class ProductOptions {
             }
         }
         return false;
+    }
+
+    // 같은 값 묶음의 옵션은 하나만 둔다. 이미 있는 옵션(보관 제외)과 요청 안의 옵션을 모두 보고,
+    // 값 묶음은 순서와 상관없는 집합으로 비교한다 (OPT-03)
+    static void validateNoDuplicate(List<OptionInfo> requested, List<ProductOption> existing) {
+        Set<Set<AttributeValue>> combinations = new HashSet<>();
+        for (ProductOption option : existing) {
+            if (option.getSaleStatus() != ProductOptionStatus.ARCHIVED) {
+                combinations.add(valuesOf(option));
+            }
+        }
+        for (OptionInfo option : requested) {
+            if (!combinations.add(new HashSet<>(option.values()))) {
+                throw new BusinessException(ProductErrorCode.DUPLICATE_OPTION);
+            }
+        }
+    }
+
+    private static Set<AttributeValue> valuesOf(ProductOption option) {
+        Set<AttributeValue> values = new HashSet<>();
+        for (ProductOptionValue value : option.getValues()) {
+            values.add(value.getAttributeValue());
+        }
+        return values;
     }
 
     // 옵션의 가격 구분 묶음과 같은 값의 묶음을 가진 가격을 찾아 그 가격을 돌려준다.
