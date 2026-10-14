@@ -208,17 +208,23 @@ public class Order extends BaseTimeEntity {
     }
 
     /**
-     * 결제완료로 바꾼다. 결제대기일 때만 바꾸고, 중복 · 취소된 주문은 그대로 둔다.
+     * 결제완료로 바꾼다. 결제대기일 때만 바꾸고, 중복 · 취소된 주문은 금액과 상관없이 그대로 둔다.
      * 동시에 두 번 오면 @Version이 나중 쪽을 실패시킨다.
+     * 금액 불일치는 불변식 위반이라 결과값이 아닌 예외로 알린다(주문은 결제대기로 남음).
      *
+     * @param amount 결제 금액(원). 결제대기일 때 주문 총액과 같아야 한다
      * @return APPLIED 이번에 결제완료로 바꿈 · ALREADY_DONE 이미 결제완료 · NOT_APPLICABLE 취소됨
+     * @throws PaidAmountMismatchException 결제대기인데 금액이 주문 총액과 다르면
      */
-    public TransitionResult markPaid(Long paymentId, LocalDateTime now) {
+    public TransitionResult markPaid(Long paymentId, long amount, LocalDateTime now) {
         if (status == Status.PAID) {
             return TransitionResult.ALREADY_DONE;
         }
         if (status != Status.PENDING_PAYMENT) {
             return TransitionResult.NOT_APPLICABLE;
+        }
+        if (amount != totalAmount) {
+            throw new PaidAmountMismatchException(id, totalAmount, amount);
         }
         this.status = Status.PAID;
         this.paymentId = paymentId;

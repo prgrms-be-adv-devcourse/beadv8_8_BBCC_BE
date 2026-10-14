@@ -105,7 +105,7 @@ class ProductTest {
     }
 
     @Test
-    @DisplayName("UC-PR01 이미지 목록이 비어 있어도 상품을 등록한다")
+    @DisplayName("이미지 목록이 비어 있어도 상품을 등록한다")
     void registerWithoutImages() {
         Clothing clothing = clothing();
         Product.RegisterInfo info = productAWithRequired(

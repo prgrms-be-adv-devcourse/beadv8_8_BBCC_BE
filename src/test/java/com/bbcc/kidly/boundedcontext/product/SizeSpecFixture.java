@@ -13,7 +13,7 @@ final class SizeSpecFixture {
     private SizeSpecFixture() {
     }
 
-    // API 명세 3.2 예시의 상의 110 실측이다 (상품 규칙 7절 초안 값, cm)
+    // 상의 110 사이즈의 실측 예시 값이다(cm)
     static Map<String, BigDecimal> top110Measurements() {
         return Map.of(
             "TOTAL_LENGTH", new BigDecimal("42"),
@@ -22,7 +22,7 @@ final class SizeSpecFixture {
             "SLEEVE_LENGTH", new BigDecimal("38"));
     }
 
-    // API 명세 3.2 예시의 상의 120 실측이다 (상품 규칙 7절 초안 값, cm)
+    // 상의 120 사이즈의 실측 예시 값이다(cm)
     static Map<String, BigDecimal> top120Measurements() {
         return Map.of(
             "TOTAL_LENGTH", new BigDecimal("45"),

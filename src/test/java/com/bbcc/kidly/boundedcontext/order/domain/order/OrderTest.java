@@ -472,7 +472,7 @@ class OrderTest {
         void markPaid() {
             Order order = OrderFixture.placedOrder();
 
-            TransitionResult paid = order.markPaid(PAYMENT_ID, PAID_AT);
+            TransitionResult paid = order.markPaid(PAYMENT_ID, order.getTotalAmount(), PAID_AT);
 
             assertThat(paid).isEqualTo(TransitionResult.APPLIED);
             assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
@@ -486,7 +486,7 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
 
-            TransitionResult paid = order.markPaid(PAYMENT_ID, NOW.plusMinutes(12));
+            TransitionResult paid = order.markPaid(PAYMENT_ID, order.getTotalAmount(), NOW.plusMinutes(12));
 
             assertThat(paid).isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
@@ -499,11 +499,49 @@ class OrderTest {
         void duplicateKeepsFirst() {
             Order order = OrderFixture.paidOrder();
 
-            TransitionResult paid = order.markPaid(999L, PAID_AT.plusMinutes(1));
+            TransitionResult paid = order.markPaid(999L, order.getTotalAmount(), PAID_AT.plusMinutes(1));
 
             assertThat(paid).isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(order.getPaymentId()).isEqualTo(PAYMENT_ID);
             assertThat(order.getPaidAt()).isEqualTo(PAID_AT);
+        }
+
+        @Test
+        @DisplayName("결제 금액이 주문 총액보다 1원 많거나 적으면 예외, 주문은 결제대기로 남는다")
+        void amountMismatchThrows() {
+            for (long delta : new long[] {1L, -1L}) {
+                Order order = OrderFixture.placedOrder();
+                long amount = order.getTotalAmount() + delta;
+
+                assertThatThrownBy(() -> order.markPaid(PAYMENT_ID, amount, PAID_AT))
+                    .isInstanceOf(PaidAmountMismatchException.class)
+                    .hasMessageContaining("totalAmount=" + order.getTotalAmount())
+                    .hasMessageContaining("paidAmount=" + amount);
+                assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+                assertThat(order.getPaymentId()).isNull();
+                assertThat(order.getPaidAt()).isNull();
+            }
+        }
+
+        @Test
+        @DisplayName("이미 결제완료면 금액이 달라도 예외 없이 ALREADY_DONE")
+        void paidIgnoresAmount() {
+            Order order = OrderFixture.paidOrder();
+
+            assertThat(order.markPaid(999L, order.getTotalAmount() + 1, PAID_AT.plusMinutes(1)))
+                .isEqualTo(TransitionResult.ALREADY_DONE);
+            assertThat(order.getPaymentId()).isEqualTo(PAYMENT_ID);
+        }
+
+        @Test
+        @DisplayName("취소된 주문은 금액이 달라도 예외 없이 NOT_APPLICABLE")
+        void cancelledIgnoresAmount() {
+            Order order = OrderFixture.placedOrder();
+            order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
+
+            assertThat(order.markPaid(PAYMENT_ID, order.getTotalAmount() - 1, NOW.plusMinutes(12)))
+                .isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
         }
     }
 

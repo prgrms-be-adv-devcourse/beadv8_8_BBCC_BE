@@ -33,7 +33,7 @@ import lombok.NoArgsConstructor;
     schema = "product",
     name = "category",
     uniqueConstraints = @UniqueConstraint(columnNames = {"parent_id", "name"}))
-// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 제약이 막지 못한다 (ERD 상품 섹션 수정안 v6 8절 2번)
+// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 제약이 막지 못한다. UNIQUE는 null끼리 같은 값으로 보지 않는다
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Category extends BaseTimeEntity {
@@ -108,6 +108,11 @@ public class Category extends BaseTimeEntity {
         if (parent != null && parent.getProductType() != null) {
             throw new IllegalArgumentException("말단 카테고리 아래에는 카테고리를 만들 수 없습니다");
         }
+    }
+
+    // 말단 카테고리인지 본다. 말단 카테고리만 상품 유형을 가진다 (TYPE-01)
+    public boolean isLeaf() {
+        return getProductType() != null;
     }
 
     // 상품을 등록할 때 쓸 상품 유형이다. 중간 카테고리는 유형이 없어 거절한다 (TYPE-01)

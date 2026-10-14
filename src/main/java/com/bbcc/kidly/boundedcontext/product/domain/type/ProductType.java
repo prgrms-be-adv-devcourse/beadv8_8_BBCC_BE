@@ -195,6 +195,30 @@ public class ProductType extends BaseTimeEntity {
         return false;
     }
 
+    // 등록 화면이 받는 입력 항목이다. 옵션 항목을 먼저, 정보 항목을 다음에 두고, 각 역할 안에서는 연결 순서를 따른다 (OPT-09)
+    public List<ProductTypeAttribute> inputAttributes() {
+        List<ProductTypeAttribute> inputs = new ArrayList<>();
+        for (AttributeRole role : List.of(AttributeRole.OPTION, AttributeRole.INFO)) {
+            for (ProductTypeAttribute link : attributes) {
+                if (link.getRole() == role) {
+                    inputs.add(link);
+                }
+            }
+        }
+        return inputs;
+    }
+
+    // 받은 목록 값 중 이 유형에서 고를 수 있는 값만 받은 순서대로 돌려준다 (TYPE-06)
+    public List<AttributeValue> selectableValues(List<AttributeValue> values) {
+        List<AttributeValue> selectable = new ArrayList<>();
+        for (AttributeValue value : values) {
+            if (allows(value)) {
+                selectable.add(value);
+            }
+        }
+        return selectable;
+    }
+
     public List<ProductTypeAttribute> getAttributes() {
         return Collections.unmodifiableList(attributes);
     }

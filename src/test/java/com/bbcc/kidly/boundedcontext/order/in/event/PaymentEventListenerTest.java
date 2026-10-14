@@ -47,11 +47,11 @@ class PaymentEventListenerTest {
         @Test
         @DisplayName("주문 ID · 결제 ID로 결제완료를 맡기고, 바뀌었으면 판매자별 주문을 만든 뒤 장바구니를 정리한다")
         void marksPaidThenCreatesDeliveriesAndClearsCart() {
-            when(orderService.markPaid(ORDER_ID, PAYMENT_ID)).thenReturn(true);
+            when(orderService.markPaid(ORDER_ID, PAYMENT_ID, 1L)).thenReturn(true);
 
             listener.onPaymentCompleted(event());
 
-            verify(orderService).markPaid(ORDER_ID, PAYMENT_ID);
+            verify(orderService).markPaid(ORDER_ID, PAYMENT_ID, 1L);
             verify(deliveryService).createFor(ORDER_ID);
             verify(cartService).clearOrdered(ORDER_ID);
         }
@@ -61,7 +61,7 @@ class PaymentEventListenerTest {
         void doesNothingWhenNotChanged() {
             listener.onPaymentCompleted(event());
 
-            verify(orderService).markPaid(ORDER_ID, PAYMENT_ID);
+            verify(orderService).markPaid(ORDER_ID, PAYMENT_ID, 1L);
             verify(deliveryService, never()).createFor(anyLong());
             verify(cartService, never()).clearOrdered(anyLong());
         }
@@ -79,7 +79,7 @@ class PaymentEventListenerTest {
                     LocalDateTime.of(2026, 10, 15, 9, 0))));
 
             verify(orderService).cancelForPaymentFailure(ORDER_ID);
-            verify(orderService, never()).markPaid(anyLong(), anyLong());
+            verify(orderService, never()).markPaid(anyLong(), anyLong(), anyLong());
         }
     }
 

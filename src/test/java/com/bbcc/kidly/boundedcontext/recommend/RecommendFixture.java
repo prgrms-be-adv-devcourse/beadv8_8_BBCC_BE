@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
@@ -14,6 +15,8 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -44,6 +47,22 @@ public final class RecommendFixture {
     public static final LocalDateTime CHILD_CHANGED_AT = LocalDateTime.of(2026, 10, 15, 10, 0);
 
     /**
+     * 아래 네 상수는 상품 A 복사본의 판매자 · 카테고리 · 썸네일 · 등록 시각이다. ID는 상품 ID와 다른 값을 써서 두 칸을 바꿔 넣으면 테스트가 실패하게 한다.
+     */
+    public static final Long PRODUCT_A_SELLER_ID = 51L;
+
+    public static final Long PRODUCT_A_CATEGORY_ID = 52L;
+
+    public static final String PRODUCT_A_THUMBNAIL_URL = "https://cdn.kidly.test/products/31.jpg";
+
+    public static final LocalDateTime PRODUCT_A_REGISTERED_AT = LocalDateTime.of(2026, 10, 1, 9, 0);
+
+    /**
+     * 상품 변경 이벤트가 일어난 시각. 늦고 이른 이벤트는 이 시각에서 분을 더하거나 빼서 만든다.
+     */
+    public static final LocalDateTime PRODUCT_CHANGED_AT = LocalDateTime.of(2026, 10, 15, 9, 0);
+
+    /**
      * 아래 네 상수는 구매확정에 쓰는 주문 · 주문상품 · 상품 · 옵션 ID다. ID마다 다른 값을 써서 두 칸을 바꿔 넣으면 테스트가 실패하게 한다.
      */
     public static final Long ORDER_ID = 100L;
@@ -55,6 +74,11 @@ public final class RecommendFixture {
     public static final Long PRODUCT_A_120_OPTION_ID = 32L;
 
     public static final LocalDateTime PURCHASE_CONFIRMED_AT = LocalDateTime.of(2026, 10, 15, 12, 0);
+
+    /**
+     * 구매확정 이벤트에만 있고 구매 기록에는 옮기지 않는 판매자 ID다. 다른 ID와 겹치지 않는 값을 쓴다.
+     */
+    public static final Long SELLER_ID = 41L;
 
     private RecommendFixture() {
     }
@@ -72,6 +96,23 @@ public final class RecommendFixture {
     public static PurchaseRecord.RecordInfo purchaseConfirmationFor(Long childProfileId) {
         return new PurchaseRecord.RecordInfo(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, childProfileId, PRODUCT_A_ID,
             PRODUCT_A_120_OPTION_ID, "120", PURCHASE_CONFIRMED_AT);
+    }
+
+    /**
+     * 주문 도메인이 보내는 구매확정 이벤트를 만든다. 값은 {@link #purchaseConfirmation()}과 같고, 수량 2개 · 금액 50,000원이다.
+     * 이벤트 발생 시각은 구매확정 시각보다 1초 늦게 두어, 두 시각을 바꿔 넣으면 테스트가 실패하게 한다.
+     */
+    public static OrderItemPurchaseConfirmedEvent purchaseConfirmedEvent() {
+        return purchaseConfirmedEventFor(CHILD_1_ID);
+    }
+
+    /**
+     * {@link #purchaseConfirmedEvent()}와 같은 구매확정 이벤트에서 자녀만 바꾼다. 자녀를 고르지 않았으면 null이다.
+     */
+    public static OrderItemPurchaseConfirmedEvent purchaseConfirmedEventFor(Long childId) {
+        return new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), PURCHASE_CONFIRMED_AT.plusSeconds(1),
+            new OrderItemPurchaseConfirmedEvent.Data(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, SELLER_ID, childId,
+                PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120", 2, 50_000L, PURCHASE_CONFIRMED_AT));
     }
 
     /**
@@ -175,5 +216,23 @@ public final class RecommendFixture {
         return ProductSizes.of(false, List.of(
             SizeRange.of("110", 105, 115),
             SizeRange.of("120", 115, 125)));
+    }
+
+    /**
+     * 판매 중인 상품 A의 상품 변경: 110(권장 키 105~115cm), 120(115~125cm) 옵션이 있다.
+     */
+    public static RecommendReplicaProduct.ChangeInfo productAChange() {
+        return productAChangeOf(false, List.of(
+            new RecommendReplicaProduct.OptionInfo("110", 105, 115),
+            new RecommendReplicaProduct.OptionInfo("120", 115, 125)), PRODUCT_CHANGED_AT);
+    }
+
+    /**
+     * {@link #productAChange()}와 같은 상품 변경에서 사이즈 무관 여부, 옵션, 발생 시각만 바꾼다.
+     */
+    public static RecommendReplicaProduct.ChangeInfo productAChangeOf(boolean sizeFree,
+        List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
+            ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree, options, occurredAt);
     }
 }

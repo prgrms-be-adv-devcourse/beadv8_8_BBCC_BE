@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 주문하기 · 결제 요청 · 주문 조회. 남의 주문은 없는 주문으로 본다.
+ * 로그: 상태가 바뀌면 INFO, 받은 요청을 무시하면 DEBUG(결과 · 현재 상태), 받은 이벤트의 주문이 없으면 WARN.
+ * 개인 정보(배송지 · 연락처 · 자녀 이름 · 키 · 몸무게)는 남기지 않는다.
  */
+@Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -68,6 +72,8 @@ public class OrderService {
                 .map(item -> new OrderCreatedEvent.Item(
                     item.getId(), item.getProduct().optionId(), item.getQuantity()))
                 .toList())));
+        log.info("주문 생성: orderId={} itemCount={} totalAmount={}",
+            order.getId(), order.getItems().size(), order.getTotalAmount());
         return OrderDetail.from(order, List.of());
     }
 
@@ -77,13 +83,21 @@ public class OrderService {
      */
     public void requestPayment(Long orderId) {
         LocalDateTime now = LocalDateTime.now();
-        orderRepository.findById(orderId)
-            .filter(order -> order.requestPayment(now) == TransitionResult.APPLIED)
-            .ifPresent(order -> eventPublisher.publish(new OrderPaymentRequestedEvent(UUID.randomUUID(), now,
-                new OrderPaymentRequestedEvent.Data(order.getId(), order.getMemberId(), order.getTotalAmount(),
-                    order.getItems().stream()
-                        .map(item -> new OrderPaymentRequestedEvent.Item(item.getId(), item.getAmount()))
-                        .toList()))));
+        Order order = findForEvent(orderId, "stock.deducted");
+        if (order == null) {
+            return;
+        }
+        TransitionResult result = order.requestPayment(now);
+        if (result != TransitionResult.APPLIED) {
+            logIgnored("stock.deducted", order, result);
+            return;
+        }
+        eventPublisher.publish(new OrderPaymentRequestedEvent(UUID.randomUUID(), now,
+            new OrderPaymentRequestedEvent.Data(order.getId(), order.getMemberId(), order.getTotalAmount(),
+                order.getItems().stream()
+                    .map(item -> new OrderPaymentRequestedEvent.Item(item.getId(), item.getAmount()))
+                    .toList())));
+        log.info("결제 요청: orderId={} amount={}", order.getId(), order.getTotalAmount());
     }
 
     /**
@@ -91,11 +105,19 @@ public class OrderService {
      *
      * @return 이번에 결제완료로 바꿨으면 true. 주문이 없거나 결제대기가 아니면 false
      */
-    public boolean markPaid(Long orderId, Long paymentId) {
+    public boolean markPaid(Long orderId, Long paymentId, long amount) {
         LocalDateTime now = LocalDateTime.now();
-        return orderRepository.findById(orderId)
-            .map(order -> order.markPaid(paymentId, now) == TransitionResult.APPLIED)
-            .orElse(false);
+        Order order = findForEvent(orderId, "payment.completed");
+        if (order == null) {
+            return false;
+        }
+        TransitionResult result = order.markPaid(paymentId, amount, now);
+        if (result != TransitionResult.APPLIED) {
+            logIgnored("payment.completed", order, result);
+            return false;
+        }
+        log.info("결제완료: orderId={} paymentId={}", order.getId(), paymentId);
+        return true;
     }
 
     /**
@@ -109,7 +131,7 @@ public class OrderService {
      * 결제 실패로 취소한다. 결제대기가 아니면 그대로 둔다.
      */
     public void cancelForPaymentFailure(Long orderId) {
-        cancel(orderId, order -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
+        cancel(orderId, "payment.failed", order -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
     }
 
     /**
@@ -118,7 +140,7 @@ public class OrderService {
      */
     public void cancelForPaymentExpiry(Long orderId) {
         LocalDateTime now = LocalDateTime.now();
-        cancel(orderId, order -> order.expirePayment(now));
+        cancel(orderId, "payment-expiry", order -> order.expirePayment(now));
     }
 
     /**
@@ -140,7 +162,7 @@ public class OrderService {
         LocalDateTime now = LocalDateTime.now();
         Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-        confirm(order, orderItemId, target -> target.confirmItem(orderItemId, now));
+        confirm(order, orderItemId, "confirm-by-buyer", target -> target.confirmItem(orderItemId, now));
         return OrderDetail.Item.from(findItem(order, orderItemId));
     }
 
@@ -149,8 +171,11 @@ public class OrderService {
      */
     public void confirmAutomatically(Long orderId, Long orderItemId) {
         LocalDateTime now = LocalDateTime.now();
-        orderRepository.findById(orderId).ifPresent(order ->
-            confirm(order, orderItemId, target -> target.autoConfirmItem(orderItemId, orderPolicy, now)));
+        Order order = findForEvent(orderId, "auto-confirm");
+        if (order == null) {
+            return;
+        }
+        confirm(order, orderItemId, "auto-confirm", target -> target.autoConfirmItem(orderItemId, orderPolicy, now));
     }
 
     /**
@@ -187,27 +212,55 @@ public class OrderService {
      * 주문이 없으면 무시. 이번에 취소했을 때만 order.cancelled를 발행한다(사유는 주문에 기록된 값,
      * 주문상품 순서 그대로).
      *
+     * @param source 취소를 일으킨 이벤트 · 작업 이름(로그용)
      * @param change 주문을 취소하는 도메인 메서드. 이번에 취소했으면 APPLIED
      */
-    private void cancel(Long orderId, Function<Order, TransitionResult> change) {
+    private void cancel(Long orderId, String source, Function<Order, TransitionResult> change) {
         LocalDateTime now = LocalDateTime.now();
-        orderRepository.findById(orderId)
-            .filter(order -> change.apply(order) == TransitionResult.APPLIED)
-            .ifPresent(order -> eventPublisher.publish(new OrderCancelledEvent(UUID.randomUUID(), now,
-                new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), order.getCancelReason().name(),
-                    order.getItems().stream()
-                        .map(item -> new OrderCancelledEvent.Item(
-                            item.getId(), item.getProduct().optionId(), item.getQuantity()))
-                        .toList()))));
+        Order order = findForEvent(orderId, source);
+        if (order == null) {
+            return;
+        }
+        TransitionResult result = change.apply(order);
+        if (result != TransitionResult.APPLIED) {
+            logIgnored(source, order, result);
+            return;
+        }
+        eventPublisher.publish(new OrderCancelledEvent(UUID.randomUUID(), now,
+            new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), order.getCancelReason().name(),
+                order.getItems().stream()
+                    .map(item -> new OrderCancelledEvent.Item(
+                        item.getId(), item.getProduct().optionId(), item.getQuantity()))
+                    .toList())));
+        log.info("주문 취소: orderId={} reason={}", order.getId(), order.getCancelReason());
+    }
+
+    /**
+     * 받은 이벤트(또는 시간 작업)의 주문을 찾는다. 없으면 WARN을 남기고 null.
+     */
+    private Order findForEvent(Long orderId, String event) {
+        return orderRepository.findById(orderId).orElseGet(() -> {
+            log.warn("이벤트의 주문 없음: event={} orderId={}", event, orderId);
+            return null;
+        });
+    }
+
+    private void logIgnored(String event, Order order, TransitionResult result) {
+        log.debug("이벤트 무시: event={} orderId={} result={} status={}",
+            event, order.getId(), result, order.getStatus());
     }
 
     /**
      * 이번에 확정했을 때만 order-item.purchase-confirmed를 발행한다.
      *
+     * @param source 확정을 일으킨 요청 이름(로그용)
      * @param change 주문상품을 확정하는 도메인 메서드. 이번에 확정했으면 APPLIED
      */
-    private void confirm(Order order, Long orderItemId, Function<Order, TransitionResult> change) {
-        if (change.apply(order) != TransitionResult.APPLIED) {
+    private void confirm(Order order, Long orderItemId, String source, Function<Order, TransitionResult> change) {
+        TransitionResult result = change.apply(order);
+        if (result != TransitionResult.APPLIED) {
+            log.debug("이벤트 무시: event={} orderId={} orderItemId={} result={} status={}",
+                source, order.getId(), orderItemId, result, order.getStatus());
             return;
         }
         OrderItem item = findItem(order, orderItemId);
@@ -225,6 +278,8 @@ public class OrderService {
                 item.getQuantity(),
                 item.getAmount(),
                 item.getConfirmedAt())));
+        log.info("구매확정: orderId={} orderItemId={} confirmType={}",
+            order.getId(), item.getId(), item.getConfirmType());
     }
 
     private OrderItem findItem(Order order, Long orderItemId) {
