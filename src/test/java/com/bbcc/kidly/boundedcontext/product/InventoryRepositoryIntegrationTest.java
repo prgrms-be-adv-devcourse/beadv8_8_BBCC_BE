@@ -32,6 +32,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -140,6 +141,23 @@ class InventoryRepositoryIntegrationTest {
             "select updated_at from product.inventory where product_option_id = ?",
             LocalDateTime.class, option.getId()))
             .isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("차감하기 전에 같은 트랜잭션에서 바꾼 옵션 판매가는 차감한 뒤에도 저장된다")
+    void keepChangesMadeBeforeDeduction() {
+        ProductOption option = openedOption(10);
+
+        inTransaction(() -> {
+            ProductOption managed = entityManager.find(ProductOption.class, option.getId());
+            // 옵션 값을 바꾸는 업무 메서드가 아직 없어서, 아직 DB에 쓰지 않은 변경을 리플렉션으로 만든다
+            ReflectionTestUtils.setField(managed, "price", 30_000L);
+            inventoryRepository.deductIfAvailable(option.getId(), 1, NOW);
+        });
+
+        assertThat(jdbcTemplate.queryForObject(
+            "select price from product.product_option where id = ?", Long.class, option.getId()))
+            .isEqualTo(30_000L);
     }
 
     // 판매 가능 수량 stock으로 재고를 연 옵션을 돌려준다
