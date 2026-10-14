@@ -66,6 +66,35 @@ class ProductSizeSpecTest {
                 tuple(clothing.size120(), 115, 125, top120Measurements()));
     }
 
+    @Test
+    @DisplayName("SIZE-03 이미 110 실측이 있는 상품에 120 실측을 더하면 두 행이 된다")
+    void addSizeSpecForAnotherSize() {
+        withOptions110And120();
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), 105, 115, top110Measurements()))), top, clothing.type());
+
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size120(), 115, 125, top120Measurements()))), top, clothing.type());
+
+        assertThat(product.getSizeSpecs())
+            .extracting(SizeSpec::getSizeValue)
+            .containsExactly(clothing.size110(), clothing.size120());
+    }
+
+    @ParameterizedTest(name = "{0} ~ {1}")
+    @CsvSource({"105, 115", "110, 110"})
+    @DisplayName("SIZE-03 권장 키 최솟값이 최댓값보다 크지 않으면 저장한다")
+    void addSizeSpecWithValidHeightRange(int minHeightCm, int maxHeightCm) {
+        withOptions110And120();
+
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), minHeightCm, maxHeightCm, top110Measurements()))), top, clothing.type());
+
+        assertThat(product.getSizeSpecs())
+            .extracting(SizeSpec::getMinHeightCm, SizeSpec::getMaxHeightCm)
+            .containsExactly(tuple(minHeightCm, maxHeightCm));
+    }
+
     @ParameterizedTest(name = "{0} ~ {1}")
     @CsvSource({"130, 120", "105, ", ", 115"})
     @DisplayName("SIZE-03 권장 키 범위의 최솟값이 최댓값보다 크거나 한쪽만 있으면 거절한다")
