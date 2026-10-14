@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.util.List;
@@ -22,28 +24,39 @@ final class ProductFixture {
         Attribute color,
         Attribute mainMaterial,
         Attribute fabricComposition,
-        AttributeValue cotton) {
+        Attribute feature,
+        AttributeValue cotton,
+        AttributeValue brushed,
+        AttributeValue stretch) {
     }
 
-    // 색상 · 사이즈는 필수 옵션 항목, 주요소재는 필수 정보 항목(모든 값 허용), 혼용률은 선택 직접 입력 항목이다
+    // 색상 · 사이즈는 필수 옵션 항목, 주요소재는 필수 정보 항목(모든 값 허용), 혼용률은 선택 직접 입력 항목,
+    // 특징은 선택 다중 선택 목록 항목(모든 값 허용)이다
     static Clothing clothing() {
         Attribute color = ProductTypeFixture.color();
         Attribute size = ProductTypeFixture.size();
         Attribute mainMaterial = ProductTypeFixture.mainMaterial();
         Attribute fabricComposition = ProductTypeFixture.fabricComposition();
+        Attribute feature = Attribute.create("특징", "FEATURE", AttributeInputType.MULTI_LIST);
         AttributeValue cotton = AttributeValue.create(mainMaterial, "면", null);
+        AttributeValue brushed = AttributeValue.create(feature, "기모", null);
+        AttributeValue stretch = AttributeValue.create(feature, "신축성", null);
         ProductType type = ProductType.define("의류", List.of(
             ProductTypeFixture.requiredOption(color),
             ProductTypeFixture.sizeOption(size),
             ProductTypeFixture.requiredInfo(mainMaterial),
-            ProductTypeFixture.optionalTextInfo(fabricComposition)));
-        return new Clothing(type, color, mainMaterial, fabricComposition, cotton);
+            ProductTypeFixture.optionalTextInfo(fabricComposition),
+            new ProductType.LinkInfo(feature, AttributeRole.INFO, false, true, false, false, List.of())));
+        return new Clothing(type, color, mainMaterial, fabricComposition, feature, cotton, brushed, stretch);
     }
 
-    // 기획서 7.1 상품 A: 판매자 2, 상의(카테고리 1), 주요소재 면. 혼용률은 비운다
+    // 기획서 7.1 상품 A: 판매자 2, 상의(카테고리 1), 주요소재 면. 혼용률과 특징은 비운다
     static Product.RegisterInfo productA(Clothing clothing) {
-        return productAWith(clothing, List.of(
-            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
+        return productAWith(clothing, List.of(cottonMaterial(clothing)));
+    }
+
+    static Product.InfoValueInfo cottonMaterial(Clothing clothing) {
+        return new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null);
     }
 
     static Product.RegisterInfo productAWith(Clothing clothing, List<Product.InfoValueInfo> infoValues) {

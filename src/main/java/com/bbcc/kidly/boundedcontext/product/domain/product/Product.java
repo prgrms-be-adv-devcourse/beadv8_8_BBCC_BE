@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -16,6 +17,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.util.ArrayList;
@@ -89,7 +91,10 @@ public class Product extends BaseTimeEntity {
     @Version
     private Long version;
 
-    // productType과 info.infoValues는 정보 값을 저장하고 검사하는 기능에서 쓴다
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    private List<ProductInfoValue> infoValues = new ArrayList<>();
+
+    // productType은 정보 값을 검사하는 기능에서 쓴다
     public static Product register(RegisterInfo info, ProductType productType) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
@@ -109,7 +114,17 @@ public class Product extends BaseTimeEntity {
         product.thumbnailUrl = info.thumbnailUrl();
         product.imageUrls = new ArrayList<>(requireNonNull(info.imageUrls(), "imageUrls는 필수입니다"));
         product.status = ProductStatus.SALE_PENDING;
+        addInfoValues(product, info.infoValues());
         return product;
+    }
+
+    // 값마다 한 행을 입력 순서대로 만든다
+    private static void addInfoValues(Product product, List<InfoValueInfo> infoValues) {
+        for (InfoValueInfo infoValue : infoValues) {
+            for (AttributeValue value : infoValue.values()) {
+                product.infoValues.add(ProductInfoValue.create(product, infoValue.attribute(), value));
+            }
+        }
     }
 
     private static void validateInfoValues(List<InfoValueInfo> infoValues) {
@@ -124,5 +139,9 @@ public class Product extends BaseTimeEntity {
 
     public List<String> getImageUrls() {
         return Collections.unmodifiableList(imageUrls);
+    }
+
+    public List<ProductInfoValue> getInfoValues() {
+        return Collections.unmodifiableList(infoValues);
     }
 }

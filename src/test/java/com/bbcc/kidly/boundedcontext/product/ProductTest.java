@@ -3,17 +3,20 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.CATEGORY_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.clothing;
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.cottonMaterial;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productA;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWith;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithRequired;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithoutThumbnail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductFixture.Clothing;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.InfoValueInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -81,6 +84,24 @@ class ProductTest {
         assertThatThrownBy(() -> Product.register(info, clothing.type()))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED));
+    }
+
+    @Test
+    @DisplayName("INFO-01 다중 선택 목록 항목은 값을 여러 개 담는다")
+    void registerManyValuesOnMultiListAttribute() {
+        Clothing clothing = clothing();
+        Product.RegisterInfo info = productAWith(clothing, List.of(
+            cottonMaterial(clothing),
+            new InfoValueInfo(clothing.feature(), List.of(clothing.brushed(), clothing.stretch()), null)));
+
+        Product product = Product.register(info, clothing.type());
+
+        assertThat(product.getInfoValues())
+            .extracting(ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue)
+            .containsExactly(
+                tuple(clothing.mainMaterial(), clothing.cotton()),
+                tuple(clothing.feature(), clothing.brushed()),
+                tuple(clothing.feature(), clothing.stretch()));
     }
 
     @ParameterizedTest(name = "{0}")
