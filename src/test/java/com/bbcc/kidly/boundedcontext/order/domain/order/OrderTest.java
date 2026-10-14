@@ -237,8 +237,11 @@ class OrderTest {
         @Test
         @DisplayName("결제대기 주문은 결제완료가 되고 결제 ID와 시각을 남긴다")
         void markPaid() {
-            Order order = OrderFixture.paidOrder();
+            Order order = OrderFixture.placedOrder();
 
+            boolean paid = order.markPaid(PAYMENT_ID, PAID_AT);
+
+            assertThat(paid).isTrue();
             assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
             assertThat(order.getPaymentId()).isEqualTo(PAYMENT_ID);
             assertThat(order.getPaidAt()).isEqualTo(PAID_AT);
@@ -250,8 +253,9 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
 
-            catchThrowable(() -> order.markPaid(PAYMENT_ID, NOW.plusMinutes(12)));
+            boolean paid = order.markPaid(PAYMENT_ID, NOW.plusMinutes(12));
 
+            assertThat(paid).isFalse();
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
             assertThat(order.getPaymentId()).isNull();
             assertThat(order.getPaidAt()).isNull();
@@ -262,8 +266,9 @@ class OrderTest {
         void duplicateKeepsFirst() {
             Order order = OrderFixture.paidOrder();
 
-            catchThrowable(() -> order.markPaid(999L, PAID_AT.plusMinutes(1)));
+            boolean paid = order.markPaid(999L, PAID_AT.plusMinutes(1));
 
+            assertThat(paid).isFalse();
             assertThat(order.getPaymentId()).isEqualTo(PAYMENT_ID);
             assertThat(order.getPaidAt()).isEqualTo(PAID_AT);
         }
