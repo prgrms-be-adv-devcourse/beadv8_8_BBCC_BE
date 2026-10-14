@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +21,19 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductOptionPriceTest {
+
+    @Test
+    @DisplayName("PRICE-03 가격 구분 묶음의 가격을 그 묶음의 옵션 전체에 넣는다")
+    void putGroupPriceOnEveryOption() {
+        ClothingOptions clothing = clothingOptions();
+        Product product = productA(clothing);
+
+        product.addOptions(new Product.AddOptionsInfo(SELLER_ID, List.of(
+            option(clothing.navy(), clothing.size110()),
+            option(clothing.oatmeal(), clothing.size120())), clothingPrice(27_000L)), clothing.type());
+
+        assertThat(product.getOptions()).extracting(ProductOption::getPrice).containsExactly(27_000L, 27_000L);
+    }
 
     @Test
     @DisplayName("PRICE-01 옵션이 속한 가격 구분 묶음에 가격이 없으면 거절한다")
