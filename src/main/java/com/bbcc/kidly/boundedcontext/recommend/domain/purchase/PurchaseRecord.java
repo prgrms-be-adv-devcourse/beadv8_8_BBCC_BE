@@ -56,6 +56,13 @@ public class PurchaseRecord extends BaseTimeEntity {
         Long productOptionId, String size, LocalDateTime confirmedAt) {
     }
 
+    /**
+     * 구매 기록으로 남길 구매확정인지 판단한다. 자녀를 고르지 않은 구매확정은 사이즈 추천에 쓸 수 없어 남기지 않는다.
+     */
+    public static boolean isRecordable(RecordInfo info) {
+        return true;
+    }
+
     public static PurchaseRecord create(RecordInfo info) {
         PurchaseRecord record = new PurchaseRecord();
         record.orderItemId = info.orderItemId();

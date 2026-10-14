@@ -33,4 +33,10 @@ class PurchaseRecordTest {
             .containsExactly(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID,
                 "120", PURCHASE_CONFIRMED_AT);
     }
+
+    @Test
+    @DisplayName("INV-R03 자녀를 고른 구매확정은 기록할 수 있다")
+    void recordableWhenChildChosen() {
+        assertThat(PurchaseRecord.isRecordable(RecommendFixture.purchaseConfirmation())).isTrue();
+    }
 }
