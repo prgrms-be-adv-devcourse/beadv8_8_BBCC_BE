@@ -102,7 +102,7 @@ class OrderItemConfirmVersionIntegrationTest {
         OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
-        orderService.markPaid(order.orderId(), 500L);
+        orderService.markPaid(order.orderId(), 500L, order.totalAmount());
         orderService.recordDelivered(order.orderId(), SELLER_ID,
             LocalDateTime.now().minus(orderPolicy.autoConfirmAfter()).minusMinutes(1));
         return order;

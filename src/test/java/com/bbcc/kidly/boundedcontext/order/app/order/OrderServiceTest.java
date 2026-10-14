@@ -254,7 +254,7 @@ class OrderServiceTest {
         @DisplayName("결제완료 주문은 취소하지 않고 발행하지 않는다")
         void doesNotCancelPaidOrder() {
             Order order = placedOrder(BUYER_ID);
-            order.markPaid(500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            order.markPaid(500L, order.getTotalAmount(), LocalDateTime.of(2026, 10, 14, 9, 1));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
             orderService.cancelForPaymentExpiry(ORDER_ID);
@@ -391,7 +391,7 @@ class OrderServiceTest {
          */
         private Order deliveredOrder(LocalDateTime deliveredAt) {
             Order order = placedOrderAt(deliveredAt.minusDays(2));
-            order.markPaid(500L, deliveredAt.minusDays(1));
+            order.markPaid(500L, order.getTotalAmount(), deliveredAt.minusDays(1));
             order.recordDelivered(SELLER_ID, deliveredAt);
             setItemId(order.getItems().get(0), ORDER_ITEM_ID);
             return order;
@@ -422,7 +422,7 @@ class OrderServiceTest {
             Order order = placedOrder(BUYER_ID);
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            boolean paid = orderService.markPaid(ORDER_ID, 500L);
+            boolean paid = orderService.markPaid(ORDER_ID, 500L, order.getTotalAmount());
 
             assertThat(paid).isTrue();
             assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
@@ -434,17 +434,17 @@ class OrderServiceTest {
         @DisplayName("이미 결제완료면 그대로 두고 false (중복 이벤트)")
         void duplicateIsFalse() {
             Order order = placedOrder(BUYER_ID);
-            order.markPaid(500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            order.markPaid(500L, order.getTotalAmount(), LocalDateTime.of(2026, 10, 14, 9, 1));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            assertThat(orderService.markPaid(ORDER_ID, 999L)).isFalse();
+            assertThat(orderService.markPaid(ORDER_ID, 999L, order.getTotalAmount())).isFalse();
             assertThat(order.getPaymentId()).isEqualTo(500L);
         }
 
         @Test
         @DisplayName("주문이 없으면 false")
         void missingOrderIsFalse() {
-            assertThat(orderService.markPaid(ORDER_ID, 500L)).isFalse();
+            assertThat(orderService.markPaid(ORDER_ID, 500L, 50_000L)).isFalse();
         }
     }
 

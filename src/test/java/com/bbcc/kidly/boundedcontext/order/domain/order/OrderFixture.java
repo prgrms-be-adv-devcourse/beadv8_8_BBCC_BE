@@ -92,7 +92,7 @@ final class OrderFixture {
     static Order paidOrder() {
         Order order = placedOrder();
         order.requestPayment(NOW);
-        order.markPaid(PAYMENT_ID, PAID_AT);
+        order.markPaid(PAYMENT_ID, order.getTotalAmount(), PAID_AT);
         return order;
     }
 
