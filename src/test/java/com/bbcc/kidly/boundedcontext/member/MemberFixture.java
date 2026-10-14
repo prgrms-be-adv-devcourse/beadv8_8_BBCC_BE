@@ -28,19 +28,40 @@ public final class MemberFixture {
 
     // ADMIN은 시드 데이터로만 부여하고 탈퇴 메서드는 아직 없어서 테스트에서는 필드를 직접 바꾼다
     public static Member withRole(MemberRole role) {
-        Member member = kakaoMember();
+        return withRole(kakaoMember(), role);
+    }
+
+    public static Member withRole(String providerUserId, MemberRole role) {
+        return withRole(kakaoMember(providerUserId), role);
+    }
+
+    public static Member withStatus(MemberStatus status) {
+        return withStatus(kakaoMember(), status);
+    }
+
+    public static Member withStatus(String providerUserId, MemberStatus status) {
+        return withStatus(kakaoMember(providerUserId), status);
+    }
+
+    public static Member withSellerState(SellerStatus status) {
+        return withSellerState(kakaoMember(), status);
+    }
+
+    public static Member withSellerState(String providerUserId, SellerStatus status) {
+        return withSellerState(kakaoMember(providerUserId), status);
+    }
+
+    private static Member withRole(Member member, MemberRole role) {
         ReflectionTestUtils.setField(member, "role", role);
         return member;
     }
 
-    public static Member withStatus(MemberStatus status) {
-        Member member = kakaoMember();
+    private static Member withStatus(Member member, MemberStatus status) {
         ReflectionTestUtils.setField(member, "status", status);
         return member;
     }
 
-    public static Member withSellerState(SellerStatus status) {
-        Member member = kakaoMember();
+    private static Member withSellerState(Member member, SellerStatus status) {
         member.applySellerState(status, NOW);
         return member;
     }
