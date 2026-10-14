@@ -19,12 +19,14 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.textOptio
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAllowedValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -47,6 +49,15 @@ class ProductTypeTest {
         assertThat(clothing.getAttributes())
             .extracting(link -> link.getAttribute().getCode())
             .containsExactly("COLOR", "SIZE", "MAIN_MATERIAL", "FABRIC_COMPOSITION");
+        assertThat(clothing.getAttributes())
+            .extracting(ProductTypeAttribute::getRole, ProductTypeAttribute::isRequired,
+                ProductTypeAttribute::isAllValuesAllowed, ProductTypeAttribute::getSortOrder,
+                ProductTypeAttribute::isSizeRole, ProductTypeAttribute::isPriceAffecting)
+            .containsExactly(
+                tuple(AttributeRole.OPTION, true, true, 1, false, false),
+                tuple(AttributeRole.OPTION, true, true, 2, true, false),
+                tuple(AttributeRole.INFO, true, true, 3, false, false),
+                tuple(AttributeRole.INFO, false, false, 4, false, false));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -104,7 +115,11 @@ class ProductTypeTest {
     void defineTypeWithPriceAffectingOptionAttribute() {
         List<ProductType.LinkInfo> links = List.of(priceAffectingOption(color()), sizeOption(size()));
 
-        assertThatCode(() -> ProductType.define("의류", links)).doesNotThrowAnyException();
+        ProductType type = ProductType.define("의류", links);
+
+        assertThat(type.getAttributes())
+            .extracting(ProductTypeAttribute::isPriceAffecting)
+            .containsExactly(true, false);
     }
 
     @Test
@@ -140,6 +155,14 @@ class ProductTypeTest {
         assertThat(clothing.getAllowedValues())
             .extracting(ProductTypeAllowedValue::getAttributeValue)
             .containsExactly(navy);
+    }
+
+    @Test
+    @DisplayName("TYPE-06 직접 입력 항목은 허용 값 없이도 유형을 만든다")
+    void defineTypeWithTextAttributeWithoutAllowedValues() {
+        List<ProductType.LinkInfo> links = List.of(requiredOption(color()), optionalTextInfo(fabricComposition()));
+
+        assertThatCode(() -> ProductType.define("의류", links)).doesNotThrowAnyException();
     }
 
     @Test
