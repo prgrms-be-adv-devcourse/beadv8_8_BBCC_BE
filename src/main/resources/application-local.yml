@@ -19,6 +19,11 @@ jwt:
   public-key: file:config/jwt/local-public.pem
   private-key: file:config/jwt/local-private.pem
 
+# 로컬 개발용 paymentKey 암호화 키. 운영은 환경 변수로 다른 키를 쓴다
+payment:
+  key-encryption:
+    key: ${PAYMENT_KEY_ENCRYPTION_KEY:KIeLA4Q8UtNSoUDGDN4LsHMvk1JvINovlqKzRlonMaI=}
+
 cors:
   allowed-origins: http://localhost:5173
 

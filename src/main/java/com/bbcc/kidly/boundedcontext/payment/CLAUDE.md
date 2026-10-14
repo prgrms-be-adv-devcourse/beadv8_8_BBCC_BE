@@ -20,3 +20,21 @@
   - 주문 쪽도 `payment.failed`를 받으면 주문을 취소한다(#103). 다시 결제를 허용하려면 주문 쪽과 계약부터 다시 정한다
 - `payment.wallet_id`는 NOT NULL을 유지한다. 지갑 없는 실패를 저장하려고 null을 허용하지 않는다
 - 저장하지 않은 실패는 멱등 확인에 걸리지 않아, 같은 이벤트가 다시 오면 `payment.failed`도 다시 발행된다. 받는 쪽은 한 번만 반영한다
+
+## 예치금 충전 (`app/ChargeService` · `app/ChargeConfirmService`, #123)
+- 요청 `POST /api/v1/wallets/me/charges` → PENDING, 토스 주문번호는 UUID, 30분 뒤 만료
+- 승인 `POST /api/v1/wallets/me/charges/confirm`은 트랜잭션을 나눈다. 토스 호출 동안 DB 트랜잭션을 잡지 않는다
+  1. `ChargeService.startConfirming`: 금액 대조 · 만료 확인 후 CONFIRMING 커밋
+  2. `ChargeConfirmService`: 트랜잭션 밖에서 토스 승인. 멱등 키는 토스 주문번호
+  3. 결과 반영
+
+| 토스 결과 | 충전 | 지갑 · 원장 | 응답 |
+|---|---|---|---|
+| 승인 | DONE, paymentKey 암호화 저장 | 락으로 읽어 입금, 원장 `CHARGE`(ref_id = 충전 ID) | 200 |
+| 거절 | FAILED, 토스 오류 코드 저장 | 그대로 | 400 `CHARGE_REJECTED`(detail은 토스 메시지) |
+| 모름(시간 초과 · 5xx) | CONFIRMING 유지 | 그대로 | 202. 실패로 처리하지 않는다(돈이 빠져나갔을 수 있다) |
+
+- 남의 지갑 충전은 없는 충전처럼 404 `CHARGE_NOT_FOUND`
+- paymentKey는 `app.port.PaymentKeyCipher`(AES-256-GCM, `out.crypto`)로 암호화한다. 키는 환경 변수 `PAYMENT_KEY_ENCRYPTION_KEY`(Base64 32바이트)이고, 없으면 앱이 뜨지 않는다. 로컬 · 테스트는 프로필 설정의 개발용 키를 쓴다
+- 통합 · 기능 테스트는 토스 대신 `FakePaymentGateway`(결제 테스트 폴더, paymentKey로 결과 선택)를 쓴다
+- 아직 없음(다음 이슈): CONFIRMING을 토스 조회로 확정 · PENDING 만료, 충전 취소, 원장 조회 API

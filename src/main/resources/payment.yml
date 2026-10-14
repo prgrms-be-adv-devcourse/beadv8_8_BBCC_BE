@@ -6,3 +6,8 @@ toss:
   base-url: https://api.tosspayments.com
   connect-timeout: 3s
   read-timeout: 30s
+
+# 토스 paymentKey 암호화 키(Base64 32바이트). 없으면 앱이 뜨지 않는다. 로컬 · 테스트는 프로필 설정의 개발용 키를 쓴다
+payment:
+  key-encryption:
+    key: ${PAYMENT_KEY_ENCRYPTION_KEY:}

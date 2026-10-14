@@ -17,6 +17,11 @@ jwt:
   public-key: file:config/jwt/local-public.pem
   private-key: file:config/jwt/local-private.pem
 
+# 로컬과 같은 개발용 paymentKey 암호화 키. 운영 키와 다르다
+payment:
+  key-encryption:
+    key: KIeLA4Q8UtNSoUDGDN4LsHMvk1JvINovlqKzRlonMaI=
+
 # 테스트는 카카오를 호출하지 않는다 (support.FakeOAuthClient). 빈 생성에만 쓰인다
 kakao:
   client-id: test-client-id
