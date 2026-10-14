@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class RecommendReplicaProductTest {
 
@@ -94,6 +95,22 @@ class RecommendReplicaProductTest {
                 "https://cdn.kidly.test/products/31-new.jpg", LocalDateTime.of(2026, 10, 2, 9, 0), later);
         assertThat(replica.toProductSizes())
             .isEqualTo(ProductSizes.of(true, List.of(SizeRange.of("130", 125, 135))));
+    }
+
+    @ParameterizedTest(name = "저장된 시각에서 {0}분")
+    @ValueSource(longs = {0, -1})
+    @DisplayName("INV-R01 저장된 시각과 같거나 이르게 일어난 상품 변경은 무시한다")
+    void ignoreChangeNotLater(long minutes) {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        replica.applyIfNewer(RecommendFixture.productAChangeOf(true,
+            List.of(new RecommendReplicaProduct.OptionInfo("130", 125, 135)),
+            PRODUCT_CHANGED_AT.plusMinutes(minutes)));
+
+        assertThat(replica.getEventOccurredAt()).isEqualTo(PRODUCT_CHANGED_AT);
+        assertThat(replica.toProductSizes()).isEqualTo(ProductSizes.of(false, List.of(
+            SizeRange.of("110", 105, 115),
+            SizeRange.of("120", 115, 125))));
     }
 
     static Stream<Arguments> optionsWithoutHeightRange() {

@@ -82,9 +82,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     }
 
     /**
-     * 받은 상품 변경으로 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄도 새 옵션으로 다시 채운다.
+     * 저장된 시각보다 늦게 일어난 상품 변경만 반영한다. 같은 이벤트를 다시 받거나 이전 이벤트가 늦게 도착해도 값이 되돌아가지 않는다.
+     * 반영할 때는 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄도 새 옵션으로 다시 채운다.
      */
     public void applyIfNewer(ChangeInfo info) {
+        if (!info.occurredAt().isAfter(eventOccurredAt)) {
+            return;
+        }
         apply(info);
     }
 
