@@ -3,13 +3,9 @@ package com.bbcc.kidly.boundedcontext.product.domain.product;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
-import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
-import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
-import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -25,10 +21,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
-import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -138,15 +131,11 @@ public class Product extends BaseTimeEntity {
         requireNonNull(info.imageUrls(), "imageUrls는 필수입니다");
         // null 검사는 모두 업무 규칙 검사보다 앞에 둔다. null이 섞인 호출이 업무 오류(400)로 가려지지 않게 하기 위해서다
         requireNonNull(info.name(), "name은 필수입니다");
-        requireNonNullInfoValues(info.infoValues());
+        ProductInfoValues.requireNonNullValues(info.infoValues());
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
-        validateInfoAttributes(info.infoValues(), productType);
-        validateInputTypes(info.infoValues());
-        validateInfoValueCounts(info.infoValues());
-        validateAllowedInfoValues(info.infoValues(), productType);
-        validateRequiredInfoValues(info.infoValues(), productType);
+        ProductInfoValues.validate(info.infoValues(), productType);
         Product product = new Product();
         product.sellerId = info.sellerId();
         product.categoryId = info.categoryId();
@@ -156,7 +145,7 @@ public class Product extends BaseTimeEntity {
         product.thumbnailUrl = info.thumbnailUrl();
         product.imageUrls = new ArrayList<>(info.imageUrls());
         product.status = ProductStatus.SALE_PENDING;
-        addInfoValues(product, info.infoValues());
+        product.infoValues.addAll(ProductInfoValues.create(product, info.infoValues()));
         return product;
     }
 
@@ -170,114 +159,6 @@ public class Product extends BaseTimeEntity {
             created.add(ProductOption.create(this, info.prices().get(0).price(), option.skuCode(), option.values()));
         }
         options.addAll(created);
-    }
-
-    // 정보 값의 항목과 값 목록, 목록 안의 값은 null이면 안 된다. 직접 입력한 글(text)은 null을 허용한다
-    private static void requireNonNullInfoValues(List<InfoValueInfo> infoValues) {
-        for (InfoValueInfo infoValue : infoValues) {
-            requireNonNull(infoValue, "infoValue는 필수입니다");
-            requireNonNull(infoValue.attribute(), "attribute는 필수입니다");
-            requireNonNull(infoValue.values(), "values는 필수입니다");
-            for (AttributeValue value : infoValue.values()) {
-                requireNonNull(value, "value는 필수입니다");
-            }
-        }
-    }
-
-    // 목록 값마다 한 행을, 직접 입력한 글이 있으면 그 항목의 한 행을 입력 순서대로 만든다
-    private static void addInfoValues(Product product, List<InfoValueInfo> infoValues) {
-        for (InfoValueInfo infoValue : infoValues) {
-            for (AttributeValue value : infoValue.values()) {
-                product.infoValues.add(ProductInfoValue.create(product, infoValue.attribute(), value));
-            }
-            if (hasText(infoValue.text())) {
-                product.infoValues.add(
-                    ProductInfoValue.createText(product, infoValue.attribute(), infoValue.text()));
-            }
-        }
-    }
-
-    // 값을 넣은 항목은 이 유형에 정보 항목으로 연결돼 있어야 한다. 유형에 없는 항목이나 옵션 항목은 거절한다
-    private static void validateInfoAttributes(List<InfoValueInfo> infoValues, ProductType productType) {
-        for (InfoValueInfo infoValue : infoValues) {
-            Optional<ProductTypeAttribute> link = productType.findLink(infoValue.attribute());
-            if (link.isEmpty() || link.get().getRole() != AttributeRole.INFO) {
-                throw new BusinessException(ProductErrorCode.NOT_INFO_ATTRIBUTE);
-            }
-        }
-    }
-
-    // 직접 입력 항목은 글자만, 그 밖의 항목(팔레트 · 목록 · 다중 선택 목록)은 목록 값만 받는다
-    private static void validateInputTypes(List<InfoValueInfo> infoValues) {
-        for (InfoValueInfo infoValue : infoValues) {
-            boolean isText = infoValue.attribute().getInputType() == AttributeInputType.TEXT;
-            if (isText && !infoValue.values().isEmpty()) {
-                throw new BusinessException(ProductErrorCode.INPUT_TYPE_MISMATCH);
-            }
-            if (!isText && hasText(infoValue.text())) {
-                throw new BusinessException(ProductErrorCode.INPUT_TYPE_MISMATCH);
-            }
-        }
-    }
-
-    private static void validateInfoValueCounts(List<InfoValueInfo> infoValues) {
-        Set<Attribute> attributes = new HashSet<>();
-        for (InfoValueInfo infoValue : infoValues) {
-            // 같은 항목을 InfoValueInfo 여러 개로 나눠 보내면 거절한다 (INFO-01)
-            if (!attributes.add(infoValue.attribute())) {
-                throw new BusinessException(ProductErrorCode.DUPLICATE_INFO_VALUE);
-            }
-            // 다중 선택 목록만 값을 여러 개 넣을 수 있다 (INFO-01)
-            if (infoValue.attribute().getInputType() != AttributeInputType.MULTI_LIST
-                && infoValue.values().size() > 1) {
-                throw new BusinessException(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED);
-            }
-            // 한 항목 안에 같은 값이 두 번 들어오면 거절한다 (INFO-01)
-            if (new HashSet<>(infoValue.values()).size() != infoValue.values().size()) {
-                throw new BusinessException(ProductErrorCode.DUPLICATE_INFO_VALUE);
-            }
-        }
-    }
-
-    // 목록 값은 그 항목의 값이어야 하고, 유형이 모든 값 허용이 아닌 항목이면 유형이 허용한 값이어야 한다 (INFO-03)
-    private static void validateAllowedInfoValues(List<InfoValueInfo> infoValues, ProductType productType) {
-        for (InfoValueInfo infoValue : infoValues) {
-            for (AttributeValue value : infoValue.values()) {
-                if (value.getAttribute() != infoValue.attribute()) {
-                    throw new BusinessException(ProductErrorCode.INFO_VALUE_NOT_ALLOWED);
-                }
-                if (!productType.allows(value)) {
-                    throw new BusinessException(ProductErrorCode.INFO_VALUE_NOT_ALLOWED);
-                }
-            }
-        }
-    }
-
-    // 유형이 필수로 정한 정보 항목마다 값이 있어야 한다 (INFO-02)
-    private static void validateRequiredInfoValues(List<InfoValueInfo> infoValues, ProductType productType) {
-        for (ProductTypeAttribute link : productType.getAttributes()) {
-            if (link.getRole() == AttributeRole.INFO
-                && link.isRequired()
-                && !hasValue(infoValues, link.getAttribute())) {
-                throw new BusinessException(ProductErrorCode.REQUIRED_INFO_MISSING);
-            }
-        }
-    }
-
-    // 목록 항목은 values가, 직접 입력 항목은 text가 비어 있지 않아야 값이 있는 것이다
-    private static boolean hasValue(List<InfoValueInfo> infoValues, Attribute attribute) {
-        for (InfoValueInfo infoValue : infoValues) {
-            if (infoValue.attribute() != attribute) {
-                continue;
-            }
-            return !infoValue.values().isEmpty() || hasText(infoValue.text());
-        }
-        return false;
-    }
-
-    // 직접 입력한 글이 있는지 판단하는 기준이다. 공백만 있는 글은 없는 것으로 본다. 값 저장과 필수 항목 검사가 같은 기준을 쓴다
-    private static boolean hasText(String text) {
-        return text != null && !text.isBlank();
     }
 
     public List<String> getImageUrls() {
