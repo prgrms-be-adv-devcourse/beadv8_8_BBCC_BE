@@ -108,6 +108,17 @@ class ProductSaleStartTest {
         assertSaleStartRejected("판매를 시작할 수 없습니다. 110 사이즈에 권장 키가 없습니다.");
     }
 
+    @Test
+    @DisplayName("SIZE-05 사이즈 무관 상품은 FREE 행에 권장 키가 없어도 판매를 시작한다")
+    void startSaleOfFreeSizeWithoutHeightRange() {
+        withFreeOptions();
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.sizeFree(), null, null, top110Measurements()))), top, clothing.type());
+
+        assertThat(product.startSale(SELLER_ID, top, clothing.type())).isTrue();
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+    }
+
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
     private void withOptionsAndSizeSpecs110And120() {
         withOptions110And120();
@@ -131,5 +142,12 @@ class ProductSaleStartTest {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.size110()),
             option(clothing.navy(), clothing.size120()))), clothing.type());
+    }
+
+    // 상품 A에 네이비 · 오트밀 FREE 옵션을 붙인다(사이즈 무관 상품)
+    private void withFreeOptions() {
+        product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.sizeFree()),
+            option(clothing.oatmeal(), clothing.sizeFree()))), clothing.type());
     }
 }

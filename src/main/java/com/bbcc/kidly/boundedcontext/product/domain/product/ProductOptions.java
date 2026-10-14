@@ -30,6 +30,11 @@ final class ProductOptions {
     private ProductOptions() {
     }
 
+    // 사이즈 값이 FREE인지 본다 (SIZE-02)
+    static boolean isFreeSize(AttributeValue value) {
+        return FREE_SIZE.equals(value.getName());
+    }
+
     // 옵션 목록과 가격 목록, 그 안의 값은 null이면 안 된다. SKU 코드는 null을 허용한다
     static void requireNonNullValues(AddOptionsInfo info) {
         requireNonNull(info.options(), "options는 필수입니다");
@@ -110,7 +115,7 @@ final class ProductOptions {
                 if (!productType.isSizeValue(value)) {
                     continue;
                 }
-                if (FREE_SIZE.equals(value.getName())) {
+                if (isFreeSize(value)) {
                     hasFree = true;
                 } else {
                     hasNumber = true;
@@ -129,7 +134,7 @@ final class ProductOptions {
         for (List<AttributeValue> values : lists) {
             boolean hasFree = false;
             for (AttributeValue value : values) {
-                hasFree = hasFree || FREE_SIZE.equals(value.getName());
+                hasFree = hasFree || isFreeSize(value);
             }
             if (!hasFree) {
                 return false;
