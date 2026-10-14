@@ -21,6 +21,7 @@ public enum PaymentErrorCode implements ErrorCode {
     CHARGE_REJECTED(HttpStatus.BAD_REQUEST, "충전 승인이 거절됐습니다", "결제가 승인되지 않았습니다. 다시 시도해 주세요."),
     INVALID_CHARGE_STATUS(HttpStatus.CONFLICT, "처리할 수 없는 충전 상태입니다", "현재 충전 상태에서는 요청을 처리할 수 없습니다."),
     INVALID_PAYMENT_STATUS(HttpStatus.CONFLICT, "처리할 수 없는 결제 상태입니다", "현재 결제 상태에서는 요청을 처리할 수 없습니다."),
+    PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제를 찾을 수 없습니다", "해당 결제가 없습니다."),
     PAYMENT_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 항목을 찾을 수 없습니다", "결제에 해당 주문상품이 없습니다."),
     REFUND_AMOUNT_EXCEEDED(HttpStatus.CONFLICT, "환불 가능 금액을 넘었습니다", "결제한 금액보다 많이 환불할 수 없습니다.");
 
