@@ -11,12 +11,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
@@ -104,6 +108,29 @@ class ProductRepositoryIntegrationTest {
             .satisfies(result -> assertThat(result.exceptionNow())
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class));
         assertThat(optionCount(productId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("JSONB 칸인 이미지 주소 목록과 실측 값은 저장한 그대로 돌아오고, 실측 값은 소수까지 BigDecimal로 읽힌다")
+    void jsonbColumnsRoundTrip() {
+        Long productId = savedProductAWithOption110();
+        Map<String, BigDecimal> measurements = new HashMap<>(top110Measurements());
+        measurements.put("CHEST_WIDTH", new BigDecimal("34.5"));
+        inTransaction(() -> productRepository.findById(productId).orElseThrow().addSizeSpecs(
+            addSizeSpecs(List.of(spec(managed(clothing.size110()), 105, 115, measurements))),
+            managedCategory(), managedType()));
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+
+            assertThat(product.getImageUrls()).containsExactly("https://…/a-1.jpg");
+            assertThat(product.getSizeSpecs()).singleElement()
+                .extracting(SizeSpec::getMeasurements)
+                .satisfies(read -> {
+                    assertThat(read).containsExactlyInAnyOrderEntriesOf(measurements);
+                    assertThat(read.values()).allMatch(BigDecimal.class::isInstance);
+                });
+        });
     }
 
     // 상품 A를 저장하고 네이비 110 옵션을 붙인 뒤 ID를 돌려준다
