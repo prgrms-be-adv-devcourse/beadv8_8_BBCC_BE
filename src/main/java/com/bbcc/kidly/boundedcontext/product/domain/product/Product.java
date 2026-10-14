@@ -64,6 +64,24 @@ public class Product extends BaseTimeEntity {
     public record InfoValueInfo(Attribute attribute, List<AttributeValue> values, String text) {
     }
 
+    /**
+     * 옵션을 한꺼번에 추가할 때 받는 값이다. sellerId는 요청한 판매자이고, prices는 가격 구분 묶음마다 하나씩이다.
+     */
+    public record AddOptionsInfo(Long sellerId, List<OptionInfo> options, List<PriceInfo> prices) {
+    }
+
+    /**
+     * 옵션 하나의 값이다. 옵션 항목마다 값 하나를 넣고, skuCode는 없으면 null이다.
+     */
+    public record OptionInfo(List<AttributeValue> values, String skuCode) {
+    }
+
+    /**
+     * 가격 구분 묶음 하나의 가격이다. values는 그 묶음의 가격 구분 항목 값이고, 가격 구분 항목이 없는 유형은 빈 목록이다.
+     */
+    public record PriceInfo(List<AttributeValue> values, Long price) {
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -103,6 +121,10 @@ public class Product extends BaseTimeEntity {
     @OrderBy("id ASC")
     private List<ProductInfoValue> infoValues = new ArrayList<>();
 
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @OrderBy("id ASC")
+    private List<ProductOption> options = new ArrayList<>();
+
     /**
      * 상품을 판매대기 상태로 등록한다. 정보 값의 항목과 목록 값은 productType과 같은 영속성 컨텍스트에서 읽은 객체여야 한다.
      * 항목과 값을 객체 동일성(==)으로 비교하기 때문이다.
@@ -136,6 +158,18 @@ public class Product extends BaseTimeEntity {
         product.status = ProductStatus.SALE_PENDING;
         addInfoValues(product, info.infoValues());
         return product;
+    }
+
+    /**
+     * 옵션을 판매중 상태로 추가한다. 하나라도 잘못되면 하나도 추가하지 않는다.
+     */
+    public void addOptions(AddOptionsInfo info, ProductType productType) {
+        List<ProductOption> created = new ArrayList<>();
+        for (OptionInfo option : info.options()) {
+            // 묶음별 가격 배정은 뒤 테스트에서 한다. 지금은 첫 묶음의 가격을 넣는다
+            created.add(ProductOption.create(this, info.prices().get(0).price(), option.skuCode(), option.values()));
+        }
+        options.addAll(created);
     }
 
     // 정보 값의 항목과 값 목록, 목록 안의 값은 null이면 안 된다. 직접 입력한 글(text)은 null을 허용한다
@@ -252,5 +286,9 @@ public class Product extends BaseTimeEntity {
 
     public List<ProductInfoValue> getInfoValues() {
         return Collections.unmodifiableList(infoValues);
+    }
+
+    public List<ProductOption> getOptions() {
+        return Collections.unmodifiableList(options);
     }
 }
