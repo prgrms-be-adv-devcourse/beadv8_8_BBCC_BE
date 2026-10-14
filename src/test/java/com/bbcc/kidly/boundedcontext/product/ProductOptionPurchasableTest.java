@@ -46,7 +46,7 @@ class ProductOptionPurchasableTest {
             .containsExactly(false, false);
     }
 
-    // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다 (상품 규칙 7.1)
+    // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다
     private void withOptionsAndSizeSpecs110And120() {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.size110()),

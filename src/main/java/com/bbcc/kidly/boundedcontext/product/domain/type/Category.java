@@ -33,7 +33,7 @@ import lombok.NoArgsConstructor;
     schema = "product",
     name = "category",
     uniqueConstraints = @UniqueConstraint(columnNames = {"parent_id", "name"}))
-// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 제약이 막지 못한다 (ERD 상품 섹션 수정안 v6 8절 2번)
+// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 제약이 막지 못한다. UNIQUE는 null끼리 같은 값으로 보지 않는다
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Category extends BaseTimeEntity {
