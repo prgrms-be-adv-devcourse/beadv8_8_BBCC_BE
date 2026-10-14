@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 판매자별 주문(배송): 결제완료 뒤 만들기 · 발송 · 배송 완료 · 판매자 목록. 남의 배송은 없는 배송으로 본다.
  * 주문은 읽기만 한다.
  */
+@Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -49,6 +51,8 @@ public class DeliveryService {
         Delivery.Carrier parsed = toCarrier(carrier);
         Delivery delivery = findOwned(memberId, deliveryId);
         delivery.ship(parsed, trackingNumber, LocalDateTime.now());
+        log.info("발송: orderId={} deliveryId={} sellerId={} carrier={}",
+            delivery.getOrderId(), delivery.getId(), delivery.getSellerId(), parsed);
         return DeliveryResult.from(delivery);
     }
 
@@ -57,7 +61,15 @@ public class DeliveryService {
      */
     public DeliveryResult complete(Long memberId, Long deliveryId) {
         Delivery delivery = findOwned(memberId, deliveryId);
+        boolean alreadyDelivered = delivery.getStatus() == Delivery.Status.DELIVERED;
         delivery.complete(LocalDateTime.now());
+        if (alreadyDelivered) {
+            log.debug("요청 무시: event=deliver orderId={} deliveryId={} result=ALREADY_DONE",
+                delivery.getOrderId(), delivery.getId());
+        } else {
+            log.info("배송 완료: orderId={} deliveryId={} sellerId={}",
+                delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
+        }
         return DeliveryResult.from(delivery);
     }
 
