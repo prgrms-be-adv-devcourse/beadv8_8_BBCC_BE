@@ -74,6 +74,9 @@ public class ProductType extends BaseTimeEntity {
         if (hasTextOption(links)) {
             throw new IllegalArgumentException("직접 입력 항목은 옵션 항목이 될 수 없습니다");
         }
+        if (hasLinkWithoutAllowedValues(links)) {
+            throw new IllegalArgumentException("모든 값 허용이 아닌 항목에는 허용 값을 하나 이상 연결해야 합니다");
+        }
         ProductType type = new ProductType();
         type.name = name;
         for (int i = 0; i < links.size(); i++) {
@@ -129,6 +132,16 @@ public class ProductType extends BaseTimeEntity {
     private static boolean hasTextOption(List<LinkInfo> links) {
         for (LinkInfo link : links) {
             if (link.role() == AttributeRole.OPTION && link.attribute().getInputType() == AttributeInputType.TEXT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasLinkWithoutAllowedValues(List<LinkInfo> links) {
+        for (LinkInfo link : links) {
+            boolean isText = link.attribute().getInputType() == AttributeInputType.TEXT;
+            if (!isText && !link.allValuesAllowed() && link.allowedValues().isEmpty()) {
                 return true;
             }
         }

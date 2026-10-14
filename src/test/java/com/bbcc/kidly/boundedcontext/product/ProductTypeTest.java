@@ -10,6 +10,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.priceAffe
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.priceAffectingOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredOption;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.restrictedOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.shoeSize;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeInfo;
@@ -122,6 +123,16 @@ class ProductTypeTest {
         assertThatThrownBy(() -> ProductType.define("의류", links))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("직접 입력 항목은 옵션 항목");
+    }
+
+    @Test
+    @DisplayName("TYPE-06 모든 값 허용이 아닌데 허용 값이 없으면 거절한다")
+    void rejectTypeWithoutAllowedValues() {
+        List<ProductType.LinkInfo> links = List.of(restrictedOption(color(), List.of()), sizeOption(size()));
+
+        assertThatThrownBy(() -> ProductType.define("의류", links))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("허용 값을 하나 이상");
     }
 
     @ParameterizedTest(name = "{0}")

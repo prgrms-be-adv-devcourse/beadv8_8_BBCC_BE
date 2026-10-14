@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.util.List;
 
@@ -50,6 +51,11 @@ final class ProductTypeFixture {
 
     static ProductType.LinkInfo sizeOption(Attribute attribute) {
         return new ProductType.LinkInfo(attribute, AttributeRole.OPTION, true, true, true, false, List.of());
+    }
+
+    // 모든 값 허용이 아니어서 allowedValues에 넣은 값만 고를 수 있는 옵션 항목
+    static ProductType.LinkInfo restrictedOption(Attribute attribute, List<AttributeValue> allowedValues) {
+        return new ProductType.LinkInfo(attribute, AttributeRole.OPTION, true, false, false, false, allowedValues);
     }
 
     static ProductType.LinkInfo textOption(Attribute attribute) {
