@@ -76,12 +76,21 @@ class CategoryTest {
         assertThat(top.productTypeToRegister()).isSameAs(clothingType);
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("middleCategories")
     @DisplayName("TYPE-01 중간 카테고리는 상품 유형을 가리키지 않으므로 상품을 등록할 유형을 꺼내면 거절한다")
-    void rejectProductTypeToRegisterOfMiddle() {
+    void rejectProductTypeToRegisterOfMiddle(Category middle) {
 
-        assertThatThrownBy(clothing::productTypeToRegister).isInstanceOfSatisfying(BusinessException.class,
+        assertThatThrownBy(middle::productTypeToRegister).isInstanceOfSatisfying(BusinessException.class,
             e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.NOT_LEAF_CATEGORY));
+    }
+
+    // 기준 데이터의 최상위 의류와, 중간 카테고리 아래의 중간 카테고리인 의류 > 잡화다
+    static Stream<Named<Category>> middleCategories() {
+        Category clothing = CategoryFixture.clothing();
+        return Stream.of(
+            Named.of("최상위 의류", clothing),
+            Named.of("의류 아래 잡화", Category.createMiddle("잡화", clothing)));
     }
 
     @ParameterizedTest(name = "{0}")
