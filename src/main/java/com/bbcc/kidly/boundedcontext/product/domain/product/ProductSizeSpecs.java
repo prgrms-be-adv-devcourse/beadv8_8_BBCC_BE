@@ -47,7 +47,8 @@ final class ProductSizeSpecs {
         for (SizeSpecInfo spec : specs) {
             Integer min = spec.minHeightCm();
             Integer max = spec.maxHeightCm();
-            // 0 이하는 요청 DTO가 먼저 막으므로 여기까지 오면 코드가 잘못 부른 것이다
+            // 0 이하는 요청 DTO가 먼저 막으므로 여기까지 오면 코드가 잘못 부른 것이다. 최솟값만 보면 되는 까닭은,
+            // 최솟값이 0보다 크고 최댓값이 최솟값보다 작지 않으면 최댓값도 0보다 크기 때문이다
             if (min != null && min <= 0) {
                 throw new IllegalArgumentException("권장 키는 0보다 커야 합니다");
             }
