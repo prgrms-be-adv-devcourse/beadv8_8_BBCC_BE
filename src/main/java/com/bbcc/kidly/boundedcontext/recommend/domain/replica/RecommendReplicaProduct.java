@@ -17,7 +17,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -119,26 +121,18 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.eventOccurredAt = info.occurredAt();
         // 컬렉션 객체를 새로 갈아 끼우지 않고 비운 뒤 다시 채운다
         this.sizes.clear();
+        Set<String> seen = new HashSet<>();
         for (OptionInfo option : info.options()) {
             // 권장 키가 하나라도 없으면 아이 키로 고를 수 없으므로 사이즈 추천 후보로 두지 않는다
             if (option.minHeightCm() == null || option.maxHeightCm() == null) {
                 continue;
             }
             // 색상만 다른 같은 사이즈 옵션은 권장 키가 같아야 하므로, 처음 들어온 옵션의 권장 키만 쓴다
-            if (hasSize(option.size())) {
+            if (!seen.add(option.size())) {
                 continue;
             }
             this.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
-    }
-
-    private boolean hasSize(String size) {
-        for (SizeRange range : sizes) {
-            if (range.size().equals(size)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
