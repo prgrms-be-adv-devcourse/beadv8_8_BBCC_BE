@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SizeSpecInfo
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +16,13 @@ import java.util.Set;
 final class ProductSizeSpecs {
 
     private ProductSizeSpecs() {
+    }
+
+    // 사이즈 역할 항목이 없는 유형의 상품에는 실측과 권장 키가 없다 (SIZE-06)
+    static void validateSizeRole(ProductType productType) {
+        if (!productType.hasSizeRole()) {
+            throw new BusinessException(ProductErrorCode.SIZE_SPEC_NOT_ALLOWED);
+        }
     }
 
     // 권장 키는 최솟값과 최댓값을 함께 넣어야 하고, 최솟값이 최댓값보다 크면 안 된다 (SIZE-03)

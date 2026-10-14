@@ -17,7 +17,10 @@ import com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.SpecRequests;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -122,6 +125,22 @@ class ProductSizeSpecTest {
             spec(clothing.size110(), 105, 115, withWaist))), top, clothing.type()),
             ProductErrorCode.MEASUREMENT_ITEM_NOT_IN_CATEGORY);
         assertThat(product.getSizeSpecs()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SIZE-06 사이즈 역할 항목이 없는 유형의 상품에는 실측을 받지 않는다")
+    void rejectSizeSpecForTypeWithoutSizeRole() {
+        // 용기처럼 색상만 옵션 항목으로 두고 사이즈 역할 항목이 없는 유형이다
+        Attribute color = ProductTypeFixture.color();
+        AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
+        ProductType container = ProductType.define("용기", List.of(ProductTypeFixture.requiredOption(color)));
+        Product bottle = Product.register(ProductFixture.productAWith(List.of()), container);
+        bottle.addOptions(addOptions(List.of(option(navy))), container);
+
+        assertRejected(() -> bottle.addSizeSpecs(addSizeSpecs(List.of(
+            spec(navy, 105, 115, top110Measurements()))), top, container),
+            ProductErrorCode.SIZE_SPEC_NOT_ALLOWED);
+        assertThat(bottle.getSizeSpecs()).isEmpty();
     }
 
     // 상품 A에 네이비 110 · 120 옵션을 붙인다

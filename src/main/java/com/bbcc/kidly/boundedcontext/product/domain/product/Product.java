@@ -206,6 +206,7 @@ public class Product extends BaseTimeEntity {
      * 사이즈 값마다 실측과 권장 키를 받은 순서대로 추가한다.
      */
     public void addSizeSpecs(AddSizeSpecsInfo info, Category category, ProductType productType) {
+        ProductSizeSpecs.validateSizeRole(productType);
         ProductSizeSpecs.validateHeightRanges(info.specs());
         ProductSizeSpecs.validateNoDuplicate(info.specs(), sizeSpecs);
         ProductSizeSpecs.validateMeasurementItems(info.specs(), category);
