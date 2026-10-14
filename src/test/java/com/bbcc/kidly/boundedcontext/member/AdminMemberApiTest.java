@@ -9,6 +9,9 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberSuspension;
+import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
+import com.bbcc.kidly.global.response.PageResponse;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +20,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -39,6 +43,66 @@ class AdminMemberApiTest {
 
     @Autowired
     private RefreshTokenService refreshTokenService;
+
+    @Test
+    @DisplayName("목록은 최신 가입순이고 정지 사유 · 판매자 상태를 준다")
+    void list() {
+        var buyer = memberRepository.save(MemberFixture.kakaoMember("1"));
+        var seller = memberRepository.save(MemberFixture.withSellerState("2", SellerStatus.SUSPENDED));
+        suspend(buyer.getId(), REASON).expectStatus().isNoContent();
+
+        var page = list("");
+
+        assertThat(page.content()).extracting(AdminMemberSummaryResponse::id)
+            .containsExactly(seller.getId(), buyer.getId());
+        var sellerRow = page.content().getFirst();
+        assertThat(sellerRow.nickname()).isEqualTo(seller.getNickname());
+        assertThat(sellerRow.status()).isEqualTo(MemberStatus.ACTIVE.name());
+        assertThat(sellerRow.sellerStatus()).isEqualTo(SellerStatus.SUSPENDED);
+        assertThat(sellerRow.createdAt()).isNotNull();
+        var buyerRow = page.content().getLast();
+        assertThat(buyerRow.status()).isEqualTo(MemberStatus.SUSPENDED.name());
+        assertThat(buyerRow.sellerStatus()).isNull();
+        assertThat(buyerRow.suspendReason()).isEqualTo(REASON);
+        assertThat(buyerRow.suspendedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("filter로 거르면 그 조건의 회원만 준다")
+    void listByFilter() {
+        var buyer = memberRepository.save(MemberFixture.kakaoMember("1"));
+        memberRepository.save(MemberFixture.kakaoMember("2"));
+        suspend(buyer.getId(), REASON).expectStatus().isNoContent();
+
+        var page = list("?filter=SUSPENDED");
+
+        assertThat(page.totalElements()).isEqualTo(1);
+        assertThat(page.content().getFirst().id()).isEqualTo(buyer.getId());
+    }
+
+    @Test
+    @DisplayName("모르는 filter는 400이다")
+    void listInvalidFilter() {
+        client.get().uri(PATH + "?filter=FOO")
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectStatus().isBadRequest();
+    }
+
+    @Test
+    @DisplayName("구매자는 목록을 볼 수 없다. 403이다")
+    void listForbiddenForBuyer() {
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
+            .exchange()
+            .expectStatus().isForbidden();
+    }
+
+    @Test
+    @DisplayName("토큰이 없으면 401이다")
+    void listUnauthorized() {
+        client.get().uri(PATH).exchange().expectStatus().isUnauthorized();
+    }
 
     @Test
     @DisplayName("정지하면 204이고 회원은 SUSPENDED가 된다")
@@ -124,6 +188,16 @@ class AdminMemberApiTest {
             .body(new MemberSuspendRequest(REASON))
             .exchange()
             .expectStatus().isForbidden();
+    }
+
+    private PageResponse<AdminMemberSummaryResponse> list(String query) {
+        return client.get().uri(PATH + query)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(new ParameterizedTypeReference<PageResponse<AdminMemberSummaryResponse>>() { })
+            .returnResult()
+            .getResponseBody();
     }
 
     private RestTestClient.ResponseSpec suspend(Long memberId, String reason) {
