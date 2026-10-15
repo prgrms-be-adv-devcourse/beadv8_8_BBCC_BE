@@ -57,6 +57,7 @@ class AdminMemberApiTest {
             .containsExactly(seller.getId(), buyer.getId());
         var sellerRow = page.content().getFirst();
         assertThat(sellerRow.nickname()).isEqualTo(seller.getNickname());
+        assertThat(sellerRow.email()).isEqualTo(seller.getEmail());
         assertThat(sellerRow.status()).isEqualTo(MemberStatus.ACTIVE.name());
         assertThat(sellerRow.sellerStatus()).isEqualTo(SellerStatus.SUSPENDED);
         assertThat(sellerRow.createdAt()).isNotNull();
@@ -87,6 +88,18 @@ class AdminMemberApiTest {
         var second = memberRepository.save(MemberFixture.kakaoMember("2"));
 
         var page = list("?filter=ALL&keyword=" + second.getId());
+
+        assertThat(page.totalElements()).isEqualTo(1);
+        assertThat(page.content().getFirst().id()).isEqualTo(second.getId());
+    }
+
+    @Test
+    @DisplayName("keyword로 이메일을 검색한다")
+    void listByEmailKeyword() {
+        memberRepository.save(MemberFixture.kakaoMember("1"));
+        var second = memberRepository.save(MemberFixture.kakaoMember("2"));
+
+        var page = list("?keyword=" + second.getEmail());
 
         assertThat(page.totalElements()).isEqualTo(1);
         assertThat(page.content().getFirst().id()).isEqualTo(second.getId());

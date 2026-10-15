@@ -21,7 +21,7 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class JpaMemberSummaryQuery implements MemberSummaryQuery {
 
-    // 19자리 이상은 Long을 넘칠 수 있어 닉네임으로만 찾는다
+    // 19자리 이상은 Long을 넘칠 수 있어 닉네임 · 이메일로만 찾는다
     private static final Pattern ID_PATTERN = Pattern.compile("\\d{1,18}");
 
     private final JPAQueryFactory queryFactory;
@@ -61,16 +61,16 @@ public class JpaMemberSummaryQuery implements MemberSummaryQuery {
         };
     }
 
-    // 숫자만 있으면 회원 번호도 찾는다. 닉네임이 숫자일 수 있어 닉네임 포함과 OR로 묶는다
+    // 숫자만 있으면 회원 번호도 찾는다. 닉네임 · 이메일이 숫자를 담을 수 있어 OR로 묶는다
     private BooleanExpression keywordMatches(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return null;
         }
         var stripped = keyword.strip();
-        var nicknameMatches = member.nickname.contains(stripped);
+        var textMatches = member.nickname.contains(stripped).or(member.email.contains(stripped));
         if (!ID_PATTERN.matcher(stripped).matches()) {
-            return nicknameMatches;
+            return textMatches;
         }
-        return member.id.eq(Long.valueOf(stripped)).or(nicknameMatches);
+        return member.id.eq(Long.valueOf(stripped)).or(textMatches);
     }
 }
