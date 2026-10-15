@@ -81,7 +81,7 @@ class PaymentConcurrencyRecoveryIntegrationTest {
         recorder.clear();
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
         productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
-            2L, 2L, OTHER_SELLER_ID, "상품 B", "120", 30_000L, 2L, "ON_SALE", false, OCCURRED_AT)));
+            2L, 2L, OTHER_SELLER_ID, "상품 B", null, "120", 30_000L, 2L, "ON_SALE", null, false, OCCURRED_AT)));
     }
 
     @Test

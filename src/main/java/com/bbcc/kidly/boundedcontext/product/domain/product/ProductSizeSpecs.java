@@ -35,15 +35,25 @@ final class ProductSizeSpecs {
         }
     }
 
+    // 새 실측을 다음 순서로 검사한다: 사이즈 역할, 권장 키 범위, 중복, 실측 항목, 사이즈 값이 옵션에 있는지
+    static void validateNewSpecs(List<SizeSpecInfo> specs, List<SizeSpec> existing, List<ProductOption> options,
+                                 Category category, ProductType productType) {
+        validateSizeRole(productType);
+        validateHeightRanges(specs);
+        validateNoDuplicate(specs, existing);
+        validateMeasurementItems(specs, category);
+        validateSizeValuesInOptions(specs, options, productType);
+    }
+
     // 사이즈 역할 항목이 없는 유형의 상품에는 실측과 권장 키가 없다 (SIZE-06)
-    static void validateSizeRole(ProductType productType) {
+    private static void validateSizeRole(ProductType productType) {
         if (!productType.hasSizeRole()) {
             throw new BusinessException(ProductErrorCode.SIZE_SPEC_NOT_ALLOWED);
         }
     }
 
     // 권장 키는 0보다 크고, 최솟값과 최댓값을 함께 넣어야 하며, 최솟값이 최댓값보다 크면 안 된다 (SIZE-03)
-    static void validateHeightRanges(List<SizeSpecInfo> specs) {
+    private static void validateHeightRanges(List<SizeSpecInfo> specs) {
         for (SizeSpecInfo spec : specs) {
             Integer min = spec.minHeightCm();
             Integer max = spec.maxHeightCm();
@@ -62,7 +72,7 @@ final class ProductSizeSpecs {
     }
 
     // 같은 사이즈 값의 실측은 요청 안에서도, 이미 있는 실측과도 겹치면 안 된다 (SIZE-03)
-    static void validateNoDuplicate(List<SizeSpecInfo> specs, List<SizeSpec> existing) {
+    private static void validateNoDuplicate(List<SizeSpecInfo> specs, List<SizeSpec> existing) {
         Set<AttributeValue> seen = new HashSet<>();
         for (SizeSpec spec : existing) {
             seen.add(spec.getSizeValue());
@@ -75,7 +85,7 @@ final class ProductSizeSpecs {
     }
 
     // 실측 값의 항목 코드는 모두 상품 카테고리의 실측 항목이어야 하고, 값은 0보다 커야 한다 (SIZE-04)
-    static void validateMeasurementItems(List<SizeSpecInfo> specs, Category category) {
+    private static void validateMeasurementItems(List<SizeSpecInfo> specs, Category category) {
         Set<String> allowed = new HashSet<>();
         for (CategoryMeasurementItem item : category.getMeasurementItems()) {
             allowed.add(item.getMeasurementItem().getCode());
@@ -93,7 +103,7 @@ final class ProductSizeSpecs {
     }
 
     // 실측의 사이즈 값은 보관하지 않은 옵션이 쓰는 사이즈 값이어야 한다
-    static void validateSizeValuesInOptions(List<SizeSpecInfo> specs, List<ProductOption> options,
+    private static void validateSizeValuesInOptions(List<SizeSpecInfo> specs, List<ProductOption> options,
         ProductType productType) {
         Set<AttributeValue> used = ProductOptions.activeSizeValues(options, productType);
         for (SizeSpecInfo spec : specs) {

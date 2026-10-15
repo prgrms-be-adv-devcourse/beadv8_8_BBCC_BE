@@ -80,6 +80,11 @@ public class ProductOption extends BaseTimeEntity {
         return product.getStatus() == ProductStatus.ON_SALE && saleStatus == ProductOptionStatus.ON_SALE;
     }
 
+    // 보관 옵션은 구매자 상세와 판매자 화면 어디에도 보이지 않는다 (SALE-06)
+    public boolean isArchived() {
+        return saleStatus == ProductOptionStatus.ARCHIVED;
+    }
+
     // 옵션 이름은 저장하지 않고 옵션 값으로 만든다. 옵션 값은 유형의 항목 순서로 저장돼 있다 (OPT-09)
     public String getName() {
         List<String> parts = new ArrayList<>();

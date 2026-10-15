@@ -27,6 +27,8 @@ class CartApiTest {
 
     private static final Long OTHER_ID = 3L;
     private static final Long STOPPED_OPTION_ID = 2L;
+    private static final Long OPTION_STOPPED_ID = 4L;
+    private static final Long SOLD_OUT_ID = 5L;
 
     @Autowired
     private RestTestClient client;
@@ -45,6 +47,10 @@ class CartApiTest {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
         productReplicaRepository.save(ReplicaProduct.create(
             ReplicaFixture.product(STOPPED_OPTION_ID, 25_000L, "STOPPED", false, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.option(
+            OPTION_STOPPED_ID, "ON_SALE", "STOPPED", false, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.option(
+            SOLD_OUT_ID, "ON_SALE", "ON_SALE", true, OCCURRED_AT)));
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
     }
 
@@ -60,6 +66,7 @@ class CartApiTest {
             .jsonPath("$.optionId").isEqualTo("1")
             .jsonPath("$.childId").isEqualTo("1")
             .jsonPath("$.productName").isEqualTo("상품 A")
+            .jsonPath("$.optionName").isEqualTo("네이비 / 110")
             .jsonPath("$.unitPrice").isEqualTo(25_000)
             .jsonPath("$.lineAmount").isEqualTo(50_000)
             .returnResult()
@@ -89,6 +96,7 @@ class CartApiTest {
             .expectBody()
             .jsonPath("$.items.length()").isEqualTo(1)
             .jsonPath("$.items[0].cartItemId").isEqualTo(cartItemId)
+            .jsonPath("$.items[0].optionName").isEqualTo("네이비 / 110")
             .jsonPath("$.items[0].purchasable").isEqualTo(true)
             .jsonPath("$.totalAmount").isEqualTo(25_000);
     }
@@ -172,6 +180,30 @@ class CartApiTest {
         client.post().uri(CART_ITEMS_PATH)
             .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
             .body(Map.of("optionId", String.valueOf(STOPPED_OPTION_ID), "quantity", 1))
+            .exchange()
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다");
+    }
+
+    @Test
+    @DisplayName("상품은 판매 중이어도 옵션이 판매 중지면 담을 때 409 PRODUCT_NOT_PURCHASABLE")
+    void stoppedOptionIsConflict() {
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", String.valueOf(OPTION_STOPPED_ID), "quantity", 1))
+            .exchange()
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다");
+    }
+
+    @Test
+    @DisplayName("상품 · 옵션이 판매 중이어도 품절이면 담을 때 409 PRODUCT_NOT_PURCHASABLE")
+    void soldOutOptionIsConflict() {
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", String.valueOf(SOLD_OUT_ID), "quantity", 1))
             .exchange()
             .expectStatus().isEqualTo(409)
             .expectBody()

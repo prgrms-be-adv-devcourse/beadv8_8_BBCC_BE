@@ -39,6 +39,11 @@ public class Inventory extends BaseTimeEntity {
     @Column(nullable = false)
     private int availableQty;
 
+    // 다른 애그리거트라 옵션 객체는 열지 않고 ID만 돌려준다. 지연 로딩 프록시여도 ID는 초기화 없이 읽힌다
+    public Long getProductOptionId() {
+        return productOption.getId();
+    }
+
     // 재고를 열 때 InventoryOpening만 만든다
     static Inventory create(ProductOption productOption, int availableQty) {
         requireNonNull(productOption, "productOption은 필수입니다");

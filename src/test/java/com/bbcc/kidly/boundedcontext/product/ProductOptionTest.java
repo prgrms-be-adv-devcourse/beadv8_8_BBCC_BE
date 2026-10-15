@@ -64,6 +64,20 @@ class ProductOptionTest {
     }
 
     @Test
+    @DisplayName("옵션을 추가하면 이미 있던 옵션은 빼고 새로 만든 옵션만 요청 순서대로 돌려준다")
+    void returnCreatedOptionsInRequestOrder() {
+        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
+
+        List<ProductOption> created = product.addOptions(addOptions(List.of(
+            option(clothing.oatmeal(), clothing.size120()),
+            option(clothing.navy(), clothing.size120()))), clothing.type());
+
+        assertThat(created)
+            .extracting(ProductOption::getName)
+            .containsExactly("색상: 오트밀 / 사이즈: 120", "색상: 네이비 / 사이즈: 120");
+    }
+
+    @Test
     @DisplayName("OPT-08 상품을 등록한 판매자가 아니면 옵션을 추가할 수 없다")
     void rejectOptionsFromOtherSeller() {
         Product.AddOptionsInfo info = new Product.AddOptionsInfo(

@@ -54,6 +54,8 @@ public class OrderItem extends BaseTimeEntity {
 
     /**
      * 주문 당시 상품 정보. 주문상품마다 남기고 원본이 바뀌어도 바뀌지 않는다. 단가 = 주문 당시 실제 판매 단가.
+     *
+     * @param optionName 옵션 이름(색상 × 사이즈 조합 구분용). 이 값이 생기기 전 주문상품은 null
      */
     @Embeddable
     public record ProductSnapshot(
@@ -61,6 +63,8 @@ public class OrderItem extends BaseTimeEntity {
         Long optionId,
         Long sellerId,
         String productName,
+        @Column(length = 100)
+        String optionName,
         String size,
         long unitPrice,
         Long categoryId) {

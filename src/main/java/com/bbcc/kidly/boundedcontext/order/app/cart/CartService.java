@@ -119,11 +119,11 @@ public class CartService {
      */
     private CartView.Line toLine(CartItem item, ReplicaProduct product) {
         if (product == null) {
-            return new CartView.Line(item.getId(), item.getOptionId(), null, null, null, item.getChildId(),
+            return new CartView.Line(item.getId(), item.getOptionId(), null, null, null, null, item.getChildId(),
                 item.getQuantity(), null, false, 0L);
         }
         return new CartView.Line(item.getId(), item.getOptionId(), product.getProductId(), product.getProductName(),
-            product.getSize(), item.getChildId(), item.getQuantity(), product.unitPrice(), product.isPurchasable(),
-            Math.multiplyExact(product.unitPrice(), item.getQuantity()));
+            product.getOptionName(), product.getSize(), item.getChildId(), item.getQuantity(), product.unitPrice(),
+            product.isPurchasable(), Math.multiplyExact(product.unitPrice(), item.getQuantity()));
     }
 }

@@ -18,6 +18,11 @@ public record ProductChangedCommand(
     List<Option> options,
     LocalDateTime occurredAt) {
 
-    public record Option(Long optionId, String size, long unitPrice, boolean soldOut) {
+    /**
+     * @param optionName 옵션 이름
+     * @param saleStatus 옵션 판매 상태 이름(ON_SALE · STOPPED). 복사본에 그대로 저장한다
+     */
+    public record Option(Long optionId, String optionName, String size, long unitPrice, boolean soldOut,
+        String saleStatus) {
     }
 }

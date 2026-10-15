@@ -2,8 +2,8 @@ name: Slack Daily Summary
 
 on:
   schedule:
-    # 평일 09:07 KST (00:07 UTC). 정각은 예약이 몰려 실행이 빠지기 쉬워 7분 늦춘다
-    - cron: '7 0 * * 1-5'
+    # 평일 07:37 KST (전날 22:37 UTC라 요일은 일~목). UTC 자정 직후는 예약이 몰려 몇 시간씩 늦어지기 쉬워 피한다
+    - cron: '37 22 * * 0-4'
   workflow_dispatch:
 
 permissions:
@@ -28,12 +28,13 @@ jobs:
 
           # 월요일은 금요일 아침부터, 그 외에는 어제 아침부터 닫힌 이슈를 모은다
           if [ "$(TZ=Asia/Seoul date +%u)" = "1" ]; then
-            DAYS=3; SINCE_LABEL="금요일 9시 이후"
+            DAYS=3; SINCE_LABEL="금요일 7시 이후"
           else
-            DAYS=1; SINCE_LABEL="어제 9시 이후"
+            DAYS=1; SINCE_LABEL="어제 7시 이후"
           fi
-          # 예약 실행이 늦어져도 기준은 그날 09:00 KST(00:00 UTC)로 고정한다
-          SINCE=$(date -u -d "-$DAYS days" +%Y-%m-%dT00:00:00Z)
+          # 예약 실행이 늦어져도 기준은 그날 07:00 KST로 고정한다. 실행 시각(UTC)은 전날이라 날짜는 KST로 센다.
+          # 기준을 예약 시각보다 앞에 둬서, 실행 뒤에 닫힌 이슈도 다음 날 요약에 잡힌다
+          SINCE=$(date -u -d "$(TZ=Asia/Seoul date -d "-$DAYS days" +%F) 07:00 +0900" +%Y-%m-%dT%H:%M:%SZ)
           TODAY=$(TZ=Asia/Seoul date +%m/%d)
 
           # PR과 '계획 안 함(not planned)'으로 닫힌 이슈는 세지 않는다
