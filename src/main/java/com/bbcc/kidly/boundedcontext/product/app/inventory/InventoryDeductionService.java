@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product.app.inventory;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.support.InventoryDeductionRecorder;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.support.InventoryDeductor;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.support.InventoryShortageException;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
@@ -12,17 +13,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
  * 주문 생성됨을 받아 주문상품마다 재고를 차감하는 흐름이다. 규칙 판단은 InventoryDeductionRequest가 하고,
  * 서비스는 읽기와 호출 순서만 맡는다. 트랜잭션은 InventoryDeductor가 직접 열어서 이 클래스에는 붙이지 않는다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class InventoryDeductionService {
 
     private final ProductRepository productRepository;
+    private final InventoryDeductionRepository inventoryDeductionRepository;
     private final InventoryDeductor inventoryDeductor;
     private final InventoryDeductionRecorder inventoryDeductionRecorder;
 
@@ -43,6 +47,11 @@ public class InventoryDeductionService {
                 item.orderItemId(), optionById.get(item.optionId()), item.quantity()));
         }
         InventoryDeductionRequest request = InventoryDeductionRequest.of(data.orderId(), items);
+        // 같은 주문 생성됨을 다시 받았으면 재고도 기록도 바꾸지 않는다
+        if (request.isAlreadyHandled(inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds(data)))) {
+            log.info("이미 처리한 주문 생성됨이라 건너뜁니다. orderId={}", data.orderId());
+            return;
+        }
         // 차감은 영속성 컨텍스트를 비워 옵션의 상품을 더 읽을 수 없으므로, 판매 상태는 첫 차감 전에 판단한다
         if (!request.isPurchasable()) {
             inventoryDeductionRecorder.recordFailed(request);
@@ -54,5 +63,13 @@ public class InventoryDeductionService {
             // 차감 트랜잭션은 이미 롤백됐다. 주문상품마다 FAILED 기록을 새 트랜잭션으로 남긴다
             inventoryDeductionRecorder.recordFailed(request);
         }
+    }
+
+    private List<Long> orderItemIds(OrderCreatedEvent.Data data) {
+        List<Long> orderItemIds = new ArrayList<>();
+        for (OrderCreatedEvent.Item item : data.items()) {
+            orderItemIds.add(item.orderItemId());
+        }
+        return orderItemIds;
     }
 }

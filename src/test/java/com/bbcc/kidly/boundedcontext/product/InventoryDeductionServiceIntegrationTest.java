@@ -82,6 +82,19 @@ class InventoryDeductionServiceIntegrationTest {
         assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
     }
 
+    @Test
+    @DisplayName("INV-10 이미 차감한 주문의 주문 생성됨을 다시 받으면 재고를 한 번 더 줄이지 않고 기록도 그대로 둔다")
+    void ignoreRedeliveredDeductedOrder() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        OrderCreatedEvent event = orderCreated(ORDER_ID, item(11L, options.navy110(), 2));
+        inventoryDeductionService.deduct(event);
+
+        inventoryDeductionService.deduct(event);
+
+        assertThat(availableQty(options.navy110())).isEqualTo(8);
+        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+    }
+
     private static OrderCreatedEvent orderCreated(long orderId, OrderCreatedEvent.Item... items) {
         return new OrderCreatedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new OrderCreatedEvent.Data(orderId, MEMBER_ID, List.of(items)));
