@@ -28,6 +28,7 @@ public class ReplicaProduct extends BaseTimeEntity {
      * 복사본 입력 값(옵션 1개).
      *
      * @param optionName 옵션 이름(예: "네이비 / 110"). 옛 행은 null
+     * @param size 사이즈. 사이즈 없는 상품은 null
      * @param productStatus 상품 판매 상태 이름. 모르는 값이면 구매 불가
      * @param optionSaleStatus 옵션 판매 상태 이름. null이면 판매 중으로 본다(이 값이 없던 옛 행), 모르는 값이면 구매 불가
      * @param occurredAt 이벤트 발생 시각. 저장된 값보다 늦을 때만 반영한다
@@ -63,10 +64,10 @@ public class ReplicaProduct extends BaseTimeEntity {
     @Column(nullable = false, length = 100)
     private String productName;
 
-    @Column(length = 100)
+    @Column(length = 255)
     private String optionName;
 
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private String size;
 
     @Getter(AccessLevel.NONE)
