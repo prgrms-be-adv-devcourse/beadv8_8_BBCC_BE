@@ -24,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -45,12 +46,13 @@ class PostgresProductSearchIntegrationTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    @Test
-    @DisplayName("SALE-06 판매중지 상품은 목록에 나오지 않고 판매중 상품만 나온다")
-    void onlyOnSaleProducts() {
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = ProductStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ON_SALE")
+    @DisplayName("SALE-06 판매대기 · 판매중지 상품은 목록에 나오지 않고 판매중 상품만 나온다")
+    void onlyOnSaleProducts(ProductStatus hiddenStatus) {
         persist(
             document(1L).build(),
-            document(2L).status(ProductStatus.STOPPED).build());
+            document(2L).status(hiddenStatus).build());
 
         Page<ProductSearchItem> result = productSearch.search(noCondition(), PageRequest.of(0, 20));
 
