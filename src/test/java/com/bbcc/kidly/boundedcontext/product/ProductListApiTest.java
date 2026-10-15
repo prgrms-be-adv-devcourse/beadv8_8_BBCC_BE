@@ -12,7 +12,10 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -114,6 +117,31 @@ class ProductListApiTest {
             .jsonPath("$.size").isEqualTo(1)
             .jsonPath("$.totalElements").isEqualTo(2)
             .jsonPath("$.hasNext").isEqualTo(true);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({
+        "'size=0', 'size: 페이지 크기는 1 이상 100 이하여야 합니다.'",
+        "'size=101', 'size: 페이지 크기는 1 이상 100 이하여야 합니다.'",
+        "'page=-1', 'page: 페이지는 0 이상이어야 합니다.'",
+        "'sort=POPULAR', 'sort: 정렬은 NEWEST, PRICE_ASC, PRICE_DESC 중 하나여야 합니다.'",
+        "'attributes=COLOR', 'attributes[0]: 항목 값은 항목코드:값ID 형식이어야 합니다.'",
+        "'attributes=COLOR:abc', 'attributes[0]: 항목 값은 항목코드:값ID 형식이어야 합니다.'",
+        "'attributes=:3', 'attributes[0]: 항목 값은 항목코드:값ID 형식이어야 합니다.'",
+        "'attributes=COLOR:99999999999999999999', 'attributes[0]: 항목 값은 항목코드:값ID 형식이어야 합니다.'",
+        "'keyword=가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가', 'keyword: 검색어는 50자 이하여야 합니다.'"})
+    @DisplayName("쿼리 값이 범위나 형식을 벗어나면 400 ProblemDetail과 칸 이름 · 사유를 담은 detail을 받는다")
+    void rejectInvalidQuery(String query, String detail) {
+        client.get().uri(PATH + "?" + query)
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").isEqualTo("about:blank")
+            .jsonPath("$.title").isEqualTo("잘못된 요청입니다")
+            .jsonPath("$.status").isEqualTo(400)
+            .jsonPath("$.detail").isEqualTo(detail)
+            .jsonPath("$.instance").isEqualTo(PATH);
     }
 
     private void persist(ProductSearchDocument... documents) {
