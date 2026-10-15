@@ -57,7 +57,12 @@ public class ProductRegistrationService {
             request.thumbnailUrl(),
             request.imageUrls(),
             toInfoValues(request.attributes(), lookup)));
-        List<ProductOption> options = product.addOptions(toAddOptionsInfo(sellerId, request, lookup), type);
+        // 옵션 · 실측 목록이 비면 추가 메서드가 IllegalArgumentException(500)을 던지므로 부르지 않고,
+        // 빠진 입력은 아래 판매 시작 입력 검사의 400이 알려 준다
+        List<ProductOption> options = List.of();
+        if (!request.options().isEmpty()) {
+            options = product.addOptions(toAddOptionsInfo(sellerId, request, lookup), type);
+        }
         if (!request.sizeSpecs().isEmpty()) {
             product.addSizeSpecs(toAddSizeSpecsInfo(sellerId, request, lookup), category, type);
         }

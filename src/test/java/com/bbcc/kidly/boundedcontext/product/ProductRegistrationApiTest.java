@@ -174,6 +174,17 @@ class ProductRegistrationApiTest {
         assertThat(count("Inventory")).isZero();
     }
 
+    @Test
+    @DisplayName("SALE-03 옵션을 하나도 보내지 않으면 400을 받는다")
+    void rejectWithoutOptions() {
+        Map<String, Object> body = productA();
+        options(body).clear();
+        sizeSpecs(body).clear();
+
+        expectProblem(register(body), HttpStatus.BAD_REQUEST, "판매 시작에 필요한 값이 빠졌습니다",
+            "옵션이 하나 이상 있어야 합니다.");
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidInputs")
     @DisplayName("요청 값의 형식이나 범위가 틀리면 필드 이름을 앞에 붙인 400을 받는다")
