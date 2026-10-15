@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.settlement;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunRequest;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.in.dto.SettlementRunResponse;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
@@ -31,7 +30,7 @@ class AdminSettlementApiTest {
     @Test
     @DisplayName("관리자가 기준일로 정산을 실행하면 201과 Location, 실행 기록을 준다")
     void run() {
-        var cutoffOn = LocalDate.now(SettlementPeriod.SERVICE_ZONE).withDayOfMonth(1);
+        var cutoffOn = LocalDate.now().withDayOfMonth(1);
 
         var result = run(cutoffOn).expectStatus().isCreated()
             .expectHeader().value("Location", location -> assertThat(location).startsWith(RUNS_PATH + "/"))
@@ -63,14 +62,14 @@ class AdminSettlementApiTest {
     @Test
     @DisplayName("미래 기준일이면 400이다")
     void runFutureCutoff() {
-        run(LocalDate.now(SettlementPeriod.SERVICE_ZONE).plusDays(1)).expectStatus().isBadRequest()
+        run(LocalDate.now().plusDays(1)).expectStatus().isBadRequest()
             .expectBody().jsonPath("$.title").isEqualTo("정산 기준일이 올바르지 않습니다");
     }
 
     @Test
     @DisplayName("이미 정산한 기준일이면 409이다")
     void runAlreadyRun() {
-        var cutoffOn = LocalDate.now(SettlementPeriod.SERVICE_ZONE).withDayOfMonth(1);
+        var cutoffOn = LocalDate.now().withDayOfMonth(1);
         run(cutoffOn).expectStatus().isCreated();
 
         run(cutoffOn).expectStatus().isEqualTo(409);
@@ -82,7 +81,7 @@ class AdminSettlementApiTest {
         client.post().uri(RUN_PATH)
             .headers(headers -> headers.setBearerAuth(tokens.seller(2L)))
             .contentType(MediaType.APPLICATION_JSON)
-            .body(new SettlementRunRequest(LocalDate.now(SettlementPeriod.SERVICE_ZONE).withDayOfMonth(1)))
+            .body(new SettlementRunRequest(LocalDate.now().withDayOfMonth(1)))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -90,7 +89,7 @@ class AdminSettlementApiTest {
     @Test
     @DisplayName("실행 기록을 id로 조회한다")
     void getRun() {
-        var created = run(LocalDate.now(SettlementPeriod.SERVICE_ZONE).withDayOfMonth(1)).expectStatus().isCreated()
+        var created = run(LocalDate.now().withDayOfMonth(1)).expectStatus().isCreated()
             .expectBody(SettlementRunResponse.class).returnResult().getResponseBody();
 
         client.get().uri(RUNS_PATH + "/{id}", created.runId())

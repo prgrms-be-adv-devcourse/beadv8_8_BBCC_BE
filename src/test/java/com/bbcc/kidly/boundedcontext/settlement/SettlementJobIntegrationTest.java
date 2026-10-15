@@ -12,7 +12,6 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItem;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -38,7 +37,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class SettlementJobIntegrationTest {
 
     private static final Long ADMIN_ID = 3L;
-    private static final LocalDate CUTOFF_ON = LocalDate.now(SettlementPeriod.SERVICE_ZONE).withDayOfMonth(1);
+    private static final LocalDate CUTOFF_ON = LocalDate.now().withDayOfMonth(1);
     private static final LocalDateTime CUTOFF_AT = CUTOFF_ON.atStartOfDay();
     private static final LocalDate PERIOD_START = CUTOFF_ON.minusMonths(1);
     private static final LocalDate PERIOD_END = CUTOFF_ON.minusDays(1);
@@ -209,7 +208,7 @@ class SettlementJobIntegrationTest {
     @Test
     @DisplayName("미래 기준일로 수동 실행하면 INVALID_SETTLEMENT_CUTOFF이고 실행 기록을 남기지 않는다")
     void futureCutoff() {
-        var tomorrow = LocalDate.now(SettlementPeriod.SERVICE_ZONE).plusDays(1);
+        var tomorrow = LocalDate.now().plusDays(1);
 
         assertErrorCode(() -> settlementRunService.runManually(tomorrow, ADMIN_ID),
             SettlementErrorCode.INVALID_SETTLEMENT_CUTOFF);

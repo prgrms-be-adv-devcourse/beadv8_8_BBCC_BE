@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementRunService;
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
@@ -28,7 +27,7 @@ class SettlementPayoutIntegrationTest {
 
     private static final Long ADMIN_ID = 3L;
     private static final Long SELLER_ID = 10L;
-    private static final LocalDate CUTOFF_ON = LocalDate.now(SettlementPeriod.SERVICE_ZONE).withDayOfMonth(1);
+    private static final LocalDate CUTOFF_ON = LocalDate.now().withDayOfMonth(1);
     private static final LocalDateTime CONFIRMED_AT = CUTOFF_ON.atStartOfDay().minusDays(1);
 
     @Autowired
