@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.settlement.app;
 
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +21,7 @@ public class SettlementScheduler {
     @Scheduled(cron = "${kidly.settlement.run-cron}", zone = "Asia/Seoul")
     public void runMonthly() {
         try {
-            var run = settlementRunService.runScheduled(LocalDate.now(SettlementPeriod.SERVICE_ZONE));
+            var run = settlementRunService.runScheduled(LocalDate.now());
             log.info("정산 실행 {}: {} 성공 {} 건너뜀 {}", run.runId(), run.status(), run.successCount(), run.failCount());
         } catch (BusinessException e) {
             log.warn("정산 자동 실행을 건너뜁니다: {}", e.getDetail());

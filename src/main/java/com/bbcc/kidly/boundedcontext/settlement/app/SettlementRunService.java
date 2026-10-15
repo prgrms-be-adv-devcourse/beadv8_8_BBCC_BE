@@ -40,7 +40,7 @@ public class SettlementRunService {
 
     // 기준일은 오늘 또는 지난 날짜. 그 날 0시 전에 확정된 대기 항목을 정산한다
     public SettlementRunResult runManually(LocalDate cutoffOn, Long adminId) {
-        var period = SettlementPeriod.manual(cutoffOn, LocalDate.now(SettlementPeriod.SERVICE_ZONE));
+        var period = SettlementPeriod.manual(cutoffOn, LocalDate.now());
         return run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
     }
 

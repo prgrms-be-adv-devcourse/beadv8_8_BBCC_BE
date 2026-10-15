@@ -4,7 +4,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
@@ -36,7 +35,7 @@ public class SettlementSellerWriter implements ItemWriter<SettlementSellerPlan> 
     // 계획 뒤에 대상이 바뀌었으면 IllegalStateException
     @Override
     public void write(Chunk<? extends SettlementSellerPlan> plans) {
-        var now = LocalDateTime.now(SettlementPeriod.SERVICE_ZONE);
+        var now = LocalDateTime.now();
         for (var plan : plans) {
             var items = settlementItemRepository.findAllById(plan.itemIds());
             if (items.size() != plan.itemIds().size()) {
