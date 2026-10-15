@@ -88,6 +88,20 @@ public class ReplicaChild extends BaseTimeEntity {
         return true;
     }
 
+    /**
+     * 키 · 몸무게 없이 온 삭제 이벤트를 반영한다. 다른 값은 그대로 두고 삭제 표시만, 늦게 발생한 이벤트일 때만.
+     *
+     * @return 반영했으면 true
+     */
+    public boolean markDeletedIfNewer(LocalDateTime occurredAt) {
+        if (!occurredAt.isAfter(eventOccurredAt)) {
+            return false;
+        }
+        deleted = true;
+        eventOccurredAt = occurredAt;
+        return true;
+    }
+
     public boolean isOwnedBy(Long memberId) {
         return this.memberId.equals(memberId);
     }
