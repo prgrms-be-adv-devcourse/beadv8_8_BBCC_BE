@@ -16,7 +16,16 @@ import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -87,6 +96,38 @@ class ProductSearchDocumentRepositoryIntegrationTest {
         ProductSearchDocument stored = stored();
         assertThat(stored).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(first);
         assertThat(stored.getUpdatedAt()).isEqualTo(firstUpdatedAt);
+    }
+
+    @RepeatedTest(20)
+    @DisplayName("행이 없는 상품에 이른 이벤트와 늦은 이벤트를 동시에 저장해도 오류 없이 늦은 이벤트의 값이 남는다")
+    void concurrentFirstSavesKeepNewerEvent() throws Exception {
+        ProductSearchDocument older = documentAt(OCCURRED_AT, 25_000L, value("COLOR", 5L));
+        ProductSearchDocument newer = documentAt(OCCURRED_AT.plusMinutes(1), 19_000L, value("COLOR", 3L));
+        // 두 저장이 같은 순간에 시작하도록 맞춰, 둘 다 행이 없는 상태에서 INSERT하게 한다
+        CyclicBarrier ready = new CyclicBarrier(2);
+        List<Future<Boolean>> results;
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            results = executor.invokeAll(List.of(saveAfter(ready, older), saveAfter(ready, newer)));
+        }
+
+        assertThat(results).allSatisfy(result -> assertThat(result.state()).isEqualTo(Future.State.SUCCESS));
+        assertThat(stored()).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(newer);
+    }
+
+    private Callable<Boolean> saveAfter(CyclicBarrier ready, ProductSearchDocument document) {
+        return () -> {
+            await(ready);
+            return transaction().execute(status -> repository.saveIfNewer(document));
+        };
+    }
+
+    private static void await(CyclicBarrier barrier) {
+        try {
+            barrier.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     // 옵션 하나(판매중, 재고 있음)와 그 옵션 값으로 만든 행이다. 이벤트 발생 시각과 가격 · 값만 바꿔 쓴다
