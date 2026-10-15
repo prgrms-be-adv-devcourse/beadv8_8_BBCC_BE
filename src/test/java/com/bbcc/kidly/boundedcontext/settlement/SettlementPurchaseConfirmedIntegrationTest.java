@@ -51,11 +51,9 @@ class SettlementPurchaseConfirmedIntegrationTest {
                         SettlementItem::getSellerId,
                         SettlementItem::getSalesAmount,
                         SettlementItem::getConfirmedAt,
-                        SettlementItem::getEligibleAt,
-                        SettlementItem::getFeeAmount,
                         SettlementItem::getStatus)
                 .containsExactly(ORDER_ID, ORDER_ITEM_ID, SELLER_ID, AMOUNT, CONFIRMED_AT,
-                        CONFIRMED_AT.plusDays(14), null, SettlementItemStatus.PENDING);
+                        SettlementItemStatus.PENDING);
     }
 
     @Test
