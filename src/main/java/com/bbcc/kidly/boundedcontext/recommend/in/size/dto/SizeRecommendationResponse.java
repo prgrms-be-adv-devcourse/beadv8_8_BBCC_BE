@@ -19,13 +19,13 @@ public record SizeRecommendationResponse(
     List<String> candidateSizes,
     String lastPurchasedSize) {
 
-    public record Notice(String code) {
+    public record Notice(String code, String message) {
     }
 
     public static SizeRecommendationResponse from(SizeRecommendationResult result) {
         List<Notice> notices = new ArrayList<>();
         for (SizeRecommendationResult.Notice notice : result.notices()) {
-            notices.add(new Notice(notice.code()));
+            notices.add(new Notice(notice.code(), notice.message()));
         }
         return new SizeRecommendationResponse(
             String.valueOf(result.productId()),

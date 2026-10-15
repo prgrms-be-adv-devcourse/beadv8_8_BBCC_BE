@@ -59,7 +59,7 @@ public class SizeRecommendationService {
         }
         List<SizeRecommendationResult.Notice> notices = new ArrayList<>();
         for (SizeNotice notice : recommendation.getNotices()) {
-            notices.add(new SizeRecommendationResult.Notice(notice.name()));
+            notices.add(new SizeRecommendationResult.Notice(notice.name(), notice.getMessage()));
         }
         // 지난 구매 사이즈는 아직 채우지 않는다
         return new SizeRecommendationResult(

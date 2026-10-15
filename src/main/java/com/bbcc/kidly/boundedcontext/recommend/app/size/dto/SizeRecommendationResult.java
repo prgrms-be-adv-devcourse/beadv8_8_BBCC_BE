@@ -20,7 +20,8 @@ public record SizeRecommendationResult(
 
     /**
      * @param code 안내 종류의 이름
+     * @param message 화면에 그대로 보여 주는 문구
      */
-    public record Notice(String code) {
+    public record Notice(String code, String message) {
     }
 }
