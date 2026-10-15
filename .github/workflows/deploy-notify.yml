@@ -79,20 +79,11 @@ jobs:
           fi
 
           COMMIT_TITLE=$(printf '%s' "$COMMIT_MSG" | head -n1)
-          # PR 머지 커밋의 첫 줄은 "Merge pull request #N from 브랜치"라서, 다음 줄의 PR 제목과 PR 링크를 보여 준다
-          PR_URL=""
-          PR_NUMBER=""
-          if [[ "$COMMIT_TITLE" =~ ^Merge\ pull\ request\ \#([0-9]+)\  ]]; then
-            PR_NUMBER="${BASH_REMATCH[1]}"
-            PR_URL="$SERVER_URL/$REPO/pull/$PR_NUMBER"
-            PR_TITLE=$(printf '%s' "$COMMIT_MSG" | tail -n +2 | grep -m1 -v '^[[:space:]]*$' || true)
-            if [ -n "$PR_TITLE" ]; then COMMIT_TITLE="$PR_TITLE"; fi
-          fi
 
           # 제목은 굵은 링크, 상세는 그 아래 한 블록에 둔다
           jq -n --arg color "$COLOR" --arg result "$RESULT" --arg env "$ENV_LABEL" --arg branch "$BRANCH" \
             --arg sha "${SHA:0:7}" --arg commit_url "$SERVER_URL/$REPO/commit/$SHA" --arg msg "$COMMIT_TITLE" \
-            --arg actor "$ACTOR" --arg run_url "$RUN_URL" --arg pr_url "$PR_URL" --arg pr_number "$PR_NUMBER" \
+            --arg actor "$ACTOR" --arg run_url "$RUN_URL" \
             --arg failed_step "$FAILED_STEP" --arg hint "$HINT" --arg manual "$MANUAL" '
             def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
             {attachments: [{
@@ -103,7 +94,7 @@ jobs:
                 {type: "section", text: {type: "mrkdwn", text: ([
                   "*환경* \($env | esc)",
                   "*브랜치* `\($branch | esc)`",
-                  "*커밋* <\($commit_url)|`\($sha)`> \($msg | esc)\(if $pr_url != "" then " <\($pr_url)|PR #\($pr_number)>" else "" end)",
+                  "*커밋* <\($commit_url)|`\($sha)`> \($msg | esc)",
                   "*실행한 사람* \($actor | esc)",
                   (if $failed_step != "" then "*실패한 단계* \($failed_step | esc)" else empty end),
                   (if $hint != "" then $hint else empty end),
