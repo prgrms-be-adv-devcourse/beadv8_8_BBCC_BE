@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.app.product;
 
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductDetailResult;
-import com.bbcc.kidly.boundedcontext.product.domain.inventory.Inventory;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.StockDisplay;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
@@ -118,7 +117,11 @@ public class ProductDetailService {
     }
 
     private List<ProductDetailResult.Option> toOptions(List<ProductOption> options) {
-        Map<Long, Integer> availableQtyByOptionId = availableQtyByOptionId(options);
+        List<Long> optionIds = new ArrayList<>();
+        for (ProductOption option : options) {
+            optionIds.add(option.getId());
+        }
+        Map<Long, Integer> availableQtyByOptionId = inventoryRepository.findAvailableQtyByOptionId(optionIds);
         List<ProductDetailResult.Option> results = new ArrayList<>();
         for (ProductOption option : options) {
             // 재고 행이 없는 옵션은 판매 가능 수량 0으로 본다
@@ -138,19 +141,6 @@ public class ProductDetailService {
                 stock.quantity()));
         }
         return results;
-    }
-
-    // 옵션들의 재고를 한 번에 읽어 옵션 ID별 판매 가능 수량으로 묶는다
-    private Map<Long, Integer> availableQtyByOptionId(List<ProductOption> options) {
-        List<Long> optionIds = new ArrayList<>();
-        for (ProductOption option : options) {
-            optionIds.add(option.getId());
-        }
-        Map<Long, Integer> availableQtyByOptionId = new HashMap<>();
-        for (Inventory inventory : inventoryRepository.findAllOfOptions(optionIds)) {
-            availableQtyByOptionId.put(inventory.getProductOptionId(), inventory.getAvailableQty());
-        }
-        return availableQtyByOptionId;
     }
 
     // 정보 항목은 유형에 연결한 순서이고, 입력한 값이 없으면 null이다

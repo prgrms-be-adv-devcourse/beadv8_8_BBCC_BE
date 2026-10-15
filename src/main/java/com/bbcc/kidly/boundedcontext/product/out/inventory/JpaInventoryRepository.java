@@ -4,7 +4,9 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.Inventory;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -47,7 +49,15 @@ public interface JpaInventoryRepository extends JpaRepository<Inventory, Long>, 
     int deduct(@Param("optionId") long optionId, @Param("qty") int qty, @Param("now") LocalDateTime now);
 
     // 옵션 ID는 지연 로딩 연관 옵션의 id로 비교하므로 옵션을 읽지 않는다
-    @Override
     @Query("SELECT i FROM Inventory i WHERE i.productOption.id IN :optionIds")
     List<Inventory> findAllOfOptions(@Param("optionIds") Collection<Long> optionIds);
+
+    @Override
+    default Map<Long, Integer> findAvailableQtyByOptionId(Collection<Long> optionIds) {
+        Map<Long, Integer> availableQtyByOptionId = new HashMap<>();
+        for (Inventory inventory : findAllOfOptions(optionIds)) {
+            availableQtyByOptionId.put(inventory.getProductOptionId(), inventory.getAvailableQty());
+        }
+        return availableQtyByOptionId;
+    }
 }
