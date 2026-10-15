@@ -83,6 +83,32 @@ class PaymentEventListenerTest {
 
             verify(orderService).markPaid(new MarkPaidCommand(ORDER_ID, PAYMENT_ID, 1L, 1L, List.of()));
         }
+
+        @Test
+        @DisplayName("결제 ID가 없으면 결제완료는 그대로 맡기고(돈은 빠졌으므로) ERROR 한 줄을 남긴다")
+        void missingPaymentIdStillMarksPaidWithError(CapturedOutput output) {
+            LocalDateTime at = LocalDateTime.of(2026, 10, 14, 9, 0);
+            MarkPaidCommand withoutPaymentId = new MarkPaidCommand(ORDER_ID, null, 1L, 1L,
+                List.of(new MarkPaidCommand.Item(70L, 1L)));
+            when(orderService.markPaid(withoutPaymentId)).thenReturn(true);
+
+            listener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(), at,
+                new PaymentCompletedEvent.Data(null, ORDER_ID, 1L, 1L,
+                    List.of(new PaymentCompletedEvent.Item(70L, 1L)), at)));
+
+            verify(orderService).markPaid(withoutPaymentId);
+            verify(deliveryService).createFor(ORDER_ID);
+            assertThat(output).containsPattern(
+                "ERROR.*event=payment.completed reason=missing-payment-id orderId=" + ORDER_ID);
+        }
+
+        @Test
+        @DisplayName("결제 ID가 있으면 missing-payment-id ERROR를 남기지 않는다")
+        void noErrorWhenPaymentIdPresent(CapturedOutput output) {
+            listener.onPaymentCompleted(event());
+
+            assertThat(output).doesNotContain("missing-payment-id");
+        }
     }
 
     @Nested
