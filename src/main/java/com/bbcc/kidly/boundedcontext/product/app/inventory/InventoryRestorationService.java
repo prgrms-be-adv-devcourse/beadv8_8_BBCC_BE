@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -38,8 +39,11 @@ public class InventoryRestorationService {
         List<InventoryDeduction> records = inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds(data));
         if (records.isEmpty()) {
             // 주문 취소됨이 주문 생성됨보다 먼저 온 경우라, 주문상품마다 FAILED를 남겨 나중에 온 주문 생성됨을 차감하지 않게 한다 (INV-09)
-            recordFailed(data);
-            return;
+            if (recordFailed(data)) {
+                return;
+            }
+            // 기록을 읽은 뒤 같은 주문의 차감이 먼저 커밋해 FAILED가 UNIQUE 제약에 막혔다. 그 차감을 되돌리려고 다시 읽는다
+            records = inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds(data));
         }
         List<InventoryDeduction> targets = InventoryRestoration.of(records).deductedRecords();
         if (targets.isEmpty()) {
@@ -50,12 +54,19 @@ public class InventoryRestorationService {
     }
 
     // 취소가 먼저 온 주문의 FAILED 기록을 새 트랜잭션으로 저장한다. 요청을 만들 수 없으면 ERROR 로그만 남긴다
-    private void recordFailed(OrderCancelledEvent.Data data) {
+    // 저장했거나 더 할 일이 없으면 true, 그사이 커밋된 차감 기록에 막혔으면 false를 돌려준다
+    private boolean recordFailed(OrderCancelledEvent.Data data) {
         InventoryDeductionRequest request = createRequest(data);
         if (request == null) {
-            return;
+            return true;
         }
-        inventoryDeductionRecorder.recordFailed(request);
+        try {
+            inventoryDeductionRecorder.recordFailed(request);
+            return true;
+        } catch (DataIntegrityViolationException e) {
+            log.info("같은 주문의 차감이 먼저 커밋돼 그 차감을 되돌립니다. orderId={}", data.orderId());
+            return false;
+        }
     }
 
     // 이벤트의 옵션을 읽어 차감 요청을 만든다. 요청을 만들 수 없으면 ERROR 로그를 남기고 null을 돌려준다
