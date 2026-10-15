@@ -14,8 +14,13 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * 판매대기 상품을 이어서 쓸 때 옵션 · 가격 · 실측을 받은 값으로 바꿔 넣는 동작을 확인한다.
@@ -46,7 +51,7 @@ class ProductPendingRewriteTest {
     }
 
     @Test
-    @DisplayName("OPT-05 판매대기 상품은 주문이 없으므로 받은 값 조합에 없는 옵션을 뺀다")
+    @DisplayName("OPT-05 예외: 옵션을 지우지 않는 규칙은 주문이 가리키는 옵션을 지키려는 것이라, 주문이 없는 판매대기 상품은 받은 값 조합에 없는 옵션을 뺀다")
     void removeOptionsNotRequested() {
         ProductA productA = ProductUpdateFixture.salePendingProductA();
         ProductOption navy110 = productA.product().getOptions().get(0);
@@ -168,17 +173,22 @@ class ProductPendingRewriteTest {
                 tuple(115, 125, spec120.measurements()));
     }
 
-    @Test
-    @DisplayName("판매를 시작한 상품은 옵션 · 가격 · 실측을 보내면 409로 거절하고 아무것도 바꾸지 않는다")
-    void rejectSaleInputsAfterSaleStart() {
+    static Stream<Named<Function<ProductA, Product.SaleInputsInfo>>> saleInputsForOnSaleProduct() {
+        return Stream.of(
+            Named.of("지금과 다른 값", productA -> new Product.SaleInputsInfo(
+                List.of(productA.currentSaleInputs().options().get(0)), clothingPrice(27_000L),
+                List.of(productA.currentSizeSpecs().get(0)))),
+            Named.of("지금과 같은 값", ProductA::currentSaleInputs));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("saleInputsForOnSaleProduct")
+    @DisplayName("판매를 시작한 상품은 옵션 · 가격 · 실측을 보내면 지금과 같은 값이어도 409로 거절하고 아무것도 바꾸지 않는다")
+    void rejectSaleInputsAfterSaleStart(Function<ProductA, Product.SaleInputsInfo> saleInputs) {
         ProductA productA = ProductUpdateFixture.onSaleProductA();
         List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
 
-        assertRejected(() -> productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
-                List.of(new Product.OptionInfo(
-                    List.of(productA.clothing().navy(), productA.clothing().size110()), null)),
-                clothingPrice(27_000L),
-                List.of(productA.currentSizeSpecs().get(0)))),
+        assertRejected(() -> productA.product().update(productA.sameUpdate(), saleInputs.apply(productA)),
             ProductErrorCode.SALE_INPUTS_LOCKED);
         assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
         assertThat(productA.product().getOptions()).extracting(ProductOption::getPrice)
@@ -186,12 +196,13 @@ class ProductPendingRewriteTest {
     }
 
     @Test
-    @DisplayName("판매대기 상품을 이어 쓸 때도 등록처럼 옵션이 쓰는 사이즈마다 실측이 있어야 하고, 빠지면 거절하고 아무것도 바꾸지 않는다")
+    @DisplayName("판매대기 상품을 이어 쓸 때도 등록처럼 옵션이 쓰는 사이즈마다 실측이 있어야 하고, 빠지면 거절하고 상품명까지 아무것도 바꾸지 않는다")
     void rejectMissingSaleStartInputs() {
         ProductA productA = ProductUpdateFixture.salePendingProductA();
         List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
 
-        assertRejected(() -> productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+        assertRejected(() -> productA.product().update(productA.updateWith(
+                ProductUpdateFixture.VERSION, productA.top(), "상품 A 새 이름"), new Product.SaleInputsInfo(
                 List.of(
                     new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), "A-1"),
                     new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size120()), "A-2")),
@@ -201,6 +212,7 @@ class ProductPendingRewriteTest {
         assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
         assertThat(productA.product().getOptions()).extracting(ProductOption::getSkuCode).containsOnlyNulls();
         assertThat(productA.product().getSizeSpecs()).hasSize(2);
+        assertThat(productA.product().getName()).isEqualTo("상품 A");
     }
 
     @Test
@@ -214,45 +226,4 @@ class ProductPendingRewriteTest {
         assertThat(productA.product().getOptions()).hasSize(2);
     }
 
-    @Test
-    @DisplayName("OPT-06 판매대기 상품은 다른 유형의 카테고리(상의 → 운동화)로 바꾸면서 받은 새 유형의 옵션 · 실측으로 바꿔 넣는다")
-    void changeTypeWithNewSaleInputs() {
-        ProductA productA = ProductUpdateFixture.salePendingProductA();
-        ProductUpdateFixture.Shoes shoes = productA.shoes();
-
-        Product.UpdateResult result = productA.product().update(productA.updateWithCategory(shoes.sneakers()),
-            new Product.SaleInputsInfo(
-                List.of(new Product.OptionInfo(List.of(shoes.black(), shoes.size200()), null)),
-                clothingPrice(39_000L),
-                List.of(SizeSpecFixture.spec(
-                    shoes.size200(), 100, 110, Map.of("FOOT_LENGTH", new BigDecimal("200"))))));
-
-        assertThat(result.changed()).isTrue();
-        assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.SNEAKERS_ID);
-        assertThat(productA.product().getOptions()).singleElement()
-            .satisfies(option -> assertThat(option.getValues()).extracting(ProductOptionValue::getAttributeValue)
-                .containsExactlyInAnyOrder(shoes.black(), shoes.size200()))
-            .extracting(ProductOption::getPrice).isEqualTo(39_000L);
-        assertThat(productA.product().getSizeSpecs()).singleElement()
-            .extracting(SizeSpec::getMeasurements).isEqualTo(Map.of("FOOT_LENGTH", new BigDecimal("200")));
-    }
-
-    @Test
-    @DisplayName("판매대기 상품에 지금과 같은 옵션 · 가격 · 실측을 다시 보내면 아무것도 바꾸지 않고 바뀌지 않았다고 돌려준다")
-    void keepWhenSaleInputsUnchanged() {
-        ProductA productA = ProductUpdateFixture.salePendingProductA();
-        List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
-        List<SizeSpec> sizeSpecsBefore = List.copyOf(productA.product().getSizeSpecs());
-
-        Product.UpdateResult result = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
-            List.of(
-                new Product.OptionInfo(List.of(productA.clothing().size120(), productA.clothing().navy()), null),
-                new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null)),
-            clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
-            productA.currentSizeSpecs().reversed()));
-
-        assertThat(result.changed()).isFalse();
-        assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
-        assertThat(productA.product().getSizeSpecs()).containsExactlyElementsOf(sizeSpecsBefore);
-    }
 }

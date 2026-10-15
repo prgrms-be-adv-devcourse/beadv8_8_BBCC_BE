@@ -121,7 +121,7 @@ final class SaleInputsReplacement {
 
     // 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 맞춘다. 미리 만든 옵션에 없는 옵션(보관 제외)은 빼고,
     // 지금 없는 값 조합은 미리 만든 객체를 그대로 넣는다. 뺀 옵션과 받은 순서대로 짝지은 옵션을 돌려준다.
-    // 판매대기 상품은 주문이 없어서 지워도 이 옵션을 가리키는 주문상품이 없다 (OPT-05)
+    // 옵션을 지우지 않는 규칙(OPT-05)은 주문이 가리키는 옵션을 지키려는 것이라, 주문이 없는 판매대기 상품에는 적용하지 않는다
     private UpdateResult replaceOptions(List<ProductOption> current) {
         Map<Set<AttributeValue>, ProductOption> bySet = activeBySet(current);
         List<ProductOption> added = new ArrayList<>();
