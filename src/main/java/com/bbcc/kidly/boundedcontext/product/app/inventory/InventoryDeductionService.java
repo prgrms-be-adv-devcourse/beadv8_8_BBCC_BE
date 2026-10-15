@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -46,6 +47,9 @@ public class InventoryDeductionService {
         } catch (InventoryShortageException e) {
             // 차감 트랜잭션은 이미 롤백됐다. 주문상품마다 FAILED 기록을 새 트랜잭션으로 남긴다
             inventoryDeductionRecorder.recordFailed(request);
+        } catch (DataIntegrityViolationException e) {
+            // 같은 이벤트를 다른 쪽이 먼저 처리해 기록이 UNIQUE 제약에 막혔다. 차감도 함께 롤백됐으므로 재시도하지 않는다
+            log.info("같은 주문 생성됨을 동시에 처리해 늦은 쪽을 건너뜁니다. orderId={}", data.orderId());
         }
     }
 

@@ -11,6 +11,11 @@ import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -163,6 +168,18 @@ class InventoryDeductionServiceIntegrationTest {
         assertThat(records()).isEmpty();
     }
 
+    @Test
+    @DisplayName("INV-10 같은 주문 생성됨을 두 스레드가 동시에 처리해도 재고는 한 번만 줄고 기록은 한 벌이며, 어느 쪽도 예외를 던지지 않는다")
+    void deductSameEventConcurrently() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        OrderCreatedEvent event = orderCreated(ORDER_ID, item(11L, options.navy110(), 2));
+
+        runConcurrently(() -> inventoryDeductionService.deduct(event), () -> inventoryDeductionService.deduct(event));
+
+        assertThat(availableQty(options.navy110())).isEqualTo(8);
+        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+    }
+
     private static OrderCreatedEvent orderCreated(long orderId, OrderCreatedEvent.Item... items) {
         return new OrderCreatedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new OrderCreatedEvent.Data(orderId, MEMBER_ID, List.of(items)));
@@ -182,6 +199,28 @@ class InventoryDeductionServiceIntegrationTest {
     private void restock(ProductOption option, int availableQty) {
         jdbcTemplate.update("update product.inventory set available_qty = ? where product_option_id = ?",
             availableQty, option.getId());
+    }
+
+    // 두 작업을 실제 스레드 두 개에서 함께 시작하고, 둘 다 끝날 때까지 기다린다. 어느 쪽이든 예외가 나면 테스트가 실패한다
+    private static void runConcurrently(Runnable first, Runnable second) throws Exception {
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> firstResult = executor.submit(() -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                first.run();
+                return null;
+            });
+            Future<?> secondResult = executor.submit(() -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                second.run();
+                return null;
+            });
+            firstResult.get(30, TimeUnit.SECONDS);
+            secondResult.get(30, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private int availableQty(ProductOption option) {
