@@ -10,6 +10,8 @@ import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measur
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
@@ -38,7 +40,12 @@ final class ProductUpdateFixture {
      * 신발 유형도 주요소재를 필수 정보 항목으로 써서, 정보 값을 그대로 보내도 정보 값 검사에는 걸리지 않는다.
      */
     record ProductA(
-        ClothingOptions clothing, Category top, Category outer, Category bottom, Category sneakers, Product product) {
+        ClothingOptions clothing, Category top, Category outer, Category bottom, Shoes shoes, Product product) {
+
+        Category sneakers() {
+            return shoes.sneakers();
+        }
+
 
         // 상품 A의 지금 값을 그대로 보내는 수정 값이다
         Product.UpdateInfo sameUpdate() {
@@ -81,11 +88,11 @@ final class ProductUpdateFixture {
             List.of(CategoryFixture.totalLength(), measurement("허리단면", "WAIST_WIDTH"),
                 measurement("엉덩이단면", "HIP_WIDTH"), measurement("허벅지단면", "THIGH_WIDTH"),
                 measurement("밑위", "RISE"))));
-        Category sneakers = sneakers(clothing);
+        Shoes shoes = shoes(clothing);
         ReflectionTestUtils.setField(top, "id", TOP_ID);
         ReflectionTestUtils.setField(bottom, "id", BOTTOM_ID);
         ReflectionTestUtils.setField(outer, "id", OUTER_ID);
-        ReflectionTestUtils.setField(sneakers, "id", SNEAKERS_ID);
+        ReflectionTestUtils.setField(shoes.sneakers(), "id", SNEAKERS_ID);
 
         Product product = Product.register(ProductFixture.productAWithRequired(SELLER_ID, top, "상품 A",
             List.of("https://…/a-1.jpg"),
@@ -100,17 +107,27 @@ final class ProductUpdateFixture {
             product.startSale(SELLER_ID, top, clothing.type());
         }
         ReflectionTestUtils.setField(product, "version", VERSION);
-        return new ProductA(clothing, top, outer, bottom, sneakers, product);
+        return new ProductA(clothing, top, outer, bottom, shoes, product);
     }
 
-    // 신발 > 운동화다. 신발 유형은 색상 · 신발 사이즈가 옵션 항목이고 주요소재(의류와 같은 항목)가 필수 정보 항목이다
-    private static Category sneakers(ClothingOptions clothing) {
-        ProductType shoes = ProductType.define("신발", List.of(
-            ProductTypeFixture.requiredOption(ProductTypeFixture.color()),
-            ProductTypeFixture.sizeOption(ProductTypeFixture.shoeSize()),
+    /**
+     * 신발 > 운동화와 신발 유형의 값이다. 신발 유형은 색상 · 신발 사이즈가 옵션 항목이고,
+     * 주요소재(의류와 같은 항목)가 필수 정보 항목이다. 운동화의 필수 실측 항목은 발길이다.
+     */
+    record Shoes(Category sneakers, AttributeValue black, AttributeValue size200) {
+    }
+
+    private static Shoes shoes(ClothingOptions clothing) {
+        Attribute color = ProductTypeFixture.color();
+        Attribute shoeSize = ProductTypeFixture.shoeSize();
+        ProductType shoesType = ProductType.define("신발", List.of(
+            ProductTypeFixture.requiredOption(color),
+            ProductTypeFixture.sizeOption(shoeSize),
             ProductTypeFixture.requiredInfo(clothing.mainMaterial())));
-        return Category.createLeaf(new Category.LeafInfo("운동화", Category.createMiddle("신발", null), shoes,
-            List.of(measurement("발길이", "FOOT_LENGTH"))));
+        Category sneakers = Category.createLeaf(new Category.LeafInfo("운동화", Category.createMiddle("신발", null),
+            shoesType, List.of(measurement("발길이", "FOOT_LENGTH"))));
+        return new Shoes(sneakers, AttributeValue.create(color, "블랙", "#000000"),
+            AttributeValue.create(shoeSize, "200", null));
     }
 
     private static MeasurementItem measurement(String name, String code) {

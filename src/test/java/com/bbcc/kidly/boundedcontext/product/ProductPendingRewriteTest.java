@@ -177,4 +177,27 @@ class ProductPendingRewriteTest {
             ProductErrorCode.SALE_START_INPUT_MISSING);
         assertThat(productA.product().getOptions()).hasSize(2);
     }
+
+    @Test
+    @DisplayName("OPT-06 판매대기 상품은 다른 유형의 카테고리(상의 → 운동화)로 바꾸면서 받은 새 유형의 옵션 · 실측으로 바꿔 넣는다")
+    void changeTypeWithNewSaleInputs() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+        ProductUpdateFixture.Shoes shoes = productA.shoes();
+
+        boolean changed = productA.product().update(productA.updateWithCategory(shoes.sneakers()),
+            new Product.SaleInputsInfo(
+                List.of(new Product.OptionInfo(List.of(shoes.black(), shoes.size200()), null)),
+                clothingPrice(39_000L),
+                List.of(SizeSpecFixture.spec(
+                    shoes.size200(), 100, 110, Map.of("FOOT_LENGTH", new BigDecimal("200"))))));
+
+        assertThat(changed).isTrue();
+        assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.SNEAKERS_ID);
+        assertThat(productA.product().getOptions()).singleElement()
+            .satisfies(option -> assertThat(option.getValues()).extracting(ProductOptionValue::getAttributeValue)
+                .containsExactlyInAnyOrder(shoes.black(), shoes.size200()))
+            .extracting(ProductOption::getPrice).isEqualTo(39_000L);
+        assertThat(productA.product().getSizeSpecs()).singleElement()
+            .extracting(SizeSpec::getMeasurements).isEqualTo(Map.of("FOOT_LENGTH", new BigDecimal("200")));
+    }
 }
