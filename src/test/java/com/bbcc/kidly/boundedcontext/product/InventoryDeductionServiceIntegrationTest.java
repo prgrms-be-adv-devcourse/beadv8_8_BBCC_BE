@@ -30,6 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class InventoryDeductionServiceIntegrationTest {
 
     private static final long ORDER_ID = 100L;
+    private static final long OTHER_ORDER_ID = 200L;
     private static final long MEMBER_ID = 1L;
     private static final long MISSING_OPTION_ID = 999_999L;
 
@@ -178,6 +179,20 @@ class InventoryDeductionServiceIntegrationTest {
 
         assertThat(availableQty(options.navy110())).isEqualTo(8);
         assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+    }
+
+    @Test
+    @DisplayName("INV-01 판매 가능 수량이 1인 옵션에 서로 다른 두 주문이 동시에 오면 한 주문만 차감되고 다른 주문은 FAILED로 남으며 수량은 0이다")
+    void deductLastStockConcurrently() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
+
+        runConcurrently(
+            () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID, item(11L, options.navy110(), 1))),
+            () -> inventoryDeductionService.deduct(orderCreated(OTHER_ORDER_ID, item(21L, options.navy110(), 1))));
+
+        assertThat(availableQty(options.navy110())).isZero();
+        assertThat(records()).extracting(record -> record.toList().get(4))
+            .containsExactlyInAnyOrder("DEDUCTED", "FAILED");
     }
 
     private static OrderCreatedEvent orderCreated(long orderId, OrderCreatedEvent.Item... items) {
