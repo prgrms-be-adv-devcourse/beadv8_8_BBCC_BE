@@ -71,11 +71,44 @@ class ProductUpdateIntegrationTest {
             .containsExactly(linen.getId());
     }
 
+    @Test
+    @DisplayName("판매대기 상품의 옵션 · 실측을 바꿔 넣고 저장하면 뺀 옵션 · 옵션 값 · 실측 행은 지워지고 남긴 옵션의 ID는 그대로다")
+    void replaceSaleInputs() {
+        Long productId = savedProductA();
+        List<Long> optionIdsBefore = optionIds(productId);
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            product.update(sameBasicsWith(product, currentInfoValues()), new Product.SaleInputsInfo(
+                List.of(option(managed(clothing.navy()), managed(clothing.size110()))),
+                ProductOptionFixture.clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+                List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements()))));
+        });
+
+        assertThat(optionIds(productId)).containsExactly(optionIdsBefore.get(0));
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from product.product_option_value where product_option_id = ?", Long.class,
+            optionIdsBefore.get(1))).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from product.size_spec where product_id = ?", Long.class, productId)).isOne();
+    }
+
     // 상품 A의 기본 정보와 카테고리는 그대로 두고 정보 값만 받은 값으로 보내는 수정 값이다
     private Product.UpdateInfo sameBasicsWith(Product product, List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, product.getVersion(), managedCategory(), product.getName(),
             product.getBrand(), product.getDescription(), product.getThumbnailUrl(), product.getImageUrls(),
             infoValues);
+    }
+
+    // 상품 A의 지금 정보 값(주요소재 면)과 같은 값이다
+    private List<Product.InfoValueInfo> currentInfoValues() {
+        Attribute mainMaterial = entityManager.find(Attribute.class, clothing.mainMaterial().getId());
+        return List.of(new Product.InfoValueInfo(mainMaterial, List.of(managed(clothing.cotton())), null));
+    }
+
+    private List<Long> optionIds(Long productId) {
+        return jdbcTemplate.queryForList(
+            "select id from product.product_option where product_id = ? order by id", Long.class, productId);
     }
 
     // 판매대기 상품 A를 옵션 · 실측과 함께 저장하고 ID를 돌려준다.
