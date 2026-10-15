@@ -233,6 +233,13 @@ public final class RecommendFixture {
     }
 
     /**
+     * {@link #productAChange()}로 만든 상품 A의 복사본이다. 110과 120 옵션 모두 판매할 수 있다.
+     */
+    public static RecommendReplicaProduct productAReplica() {
+        return RecommendReplicaProduct.create(productAChange());
+    }
+
+    /**
      * 판매 중인 상품 A의 상품 정보 변경됨이다. {@link #productAChange()}와 같은 값을 이벤트 칸에 담는다.
      */
     public static ProductChangedEvent productAChangedEvent() {
