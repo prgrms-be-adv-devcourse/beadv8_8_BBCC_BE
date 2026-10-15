@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product.app.product.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -56,6 +57,8 @@ public record ProductRegisterRequest(
         @PositiveOrZero(message = "초기 재고는 0 이상이어야 합니다.")
         int initialQuantity,
         @Size(max = 255, message = "SKU 코드는 255자 이하로 입력해 주세요.")
+        // 없는 코드는 null로만 받는다. null은 통과하고, 빈 문자열이나 공백만 있는 값은 거절한다
+        @Pattern(regexp = ".*\\S.*", message = "SKU 코드는 공백만으로 넣을 수 없습니다.")
         String skuCode) {
     }
 
