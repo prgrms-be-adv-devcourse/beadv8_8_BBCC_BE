@@ -1,11 +1,13 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingPrice;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductUpdateFixture.ProductA;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionValue;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
@@ -128,5 +130,22 @@ class ProductPendingRewriteTest {
             .containsExactly(
                 tuple(105, 115, spec110.measurements()),
                 tuple(115, 125, spec120.measurements()));
+    }
+
+    @Test
+    @DisplayName("판매를 시작한 상품은 옵션 · 가격 · 실측을 보내면 409로 거절하고 아무것도 바꾸지 않는다")
+    void rejectSaleInputsAfterSaleStart() {
+        ProductA productA = ProductUpdateFixture.onSaleProductA();
+        List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
+
+        assertRejected(() -> productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+                List.of(new Product.OptionInfo(
+                    List.of(productA.clothing().navy(), productA.clothing().size110()), null)),
+                clothingPrice(27_000L),
+                List.of(productA.currentSizeSpecs().get(0)))),
+            ProductErrorCode.SALE_INPUTS_LOCKED);
+        assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
+        assertThat(productA.product().getOptions()).extracting(ProductOption::getPrice)
+            .containsOnly(ProductOptionFixture.CLOTHING_PRICE);
     }
 }

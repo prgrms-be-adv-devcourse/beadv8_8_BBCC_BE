@@ -13,6 +13,8 @@ public enum ProductErrorCode implements ErrorCode {
 
     PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요."),
     PRODUCT_VERSION_MISMATCH(HttpStatus.CONFLICT, "다른 곳에서 먼저 바뀐 상품입니다", "상품을 다시 불러온 뒤 고쳐 주세요."),
+    SALE_INPUTS_LOCKED(HttpStatus.CONFLICT, "판매를 시작한 상품의 옵션 · 가격 · 실측은 여기서 바꿀 수 없습니다",
+        "판매를 시작한 상품은 옵션 · 가격 · 실측을 빼고 보내 주세요."),
     PRODUCT_TYPE_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "판매를 시작한 상품은 상품 유형을 바꿀 수 없습니다",
         "같은 상품 유형의 카테고리로 바꿔 주세요."),
     MEASUREMENTS_MISSING_FOR_CATEGORY(HttpStatus.CONFLICT, "바꾸려는 카테고리의 필수 실측이 없습니다",
