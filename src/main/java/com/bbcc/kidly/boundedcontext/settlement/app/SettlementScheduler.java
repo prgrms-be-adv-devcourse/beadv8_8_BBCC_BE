@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 매월 지난달 확정분을 자동 정산한다. 서버가 여러 대여도 실행 기록 유니크 · 작업 인스턴스가 한 번만 정산하게 막는다.
+ * 매월 지난달 확정분을 자동 정산한다. 서버가 여러 대여도 같은 기준일은 작업 인스턴스가 한 번만 완료되게 막는다.
  */
 @Slf4j
 @Component
