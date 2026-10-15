@@ -205,6 +205,10 @@ public class Product extends BaseTimeEntity {
         if (isSameAs(info)) {
             return false;
         }
+        // 바꿀 것이 있을 때만 version을 본다. 다른 화면이 먼저 고친 상품을 예전 값으로 덮어쓰지 않게 하기 위해서다
+        if (!Objects.equals(info.version(), version)) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_VERSION_MISMATCH);
+        }
         name = info.name();
         brand = info.brand();
         description = info.description();

@@ -4,11 +4,14 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.cottonMaterial;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,6 +73,18 @@ class ProductUpdateTest {
 
         assertThat(changed).isFalse();
         assertThat(product.getInfoValues()).containsExactlyElementsOf(infoValuesBefore);
+    }
+
+    @Test
+    @DisplayName("바꿀 것이 있는데 마지막으로 읽은 version이 지금과 다르면 409로 거절하고 아무것도 바꾸지 않는다")
+    void rejectStaleVersion() {
+        Product.UpdateInfo stale = new Product.UpdateInfo(SELLER_ID, VERSION - 1, category, "상품 A 새 이름",
+            registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
+            List.of(cottonMaterial(clothing)));
+
+        assertThatThrownBy(() -> product.update(stale)).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.PRODUCT_VERSION_MISMATCH));
+        assertThat(product.getName()).isEqualTo(registered.name());
     }
 
     // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
