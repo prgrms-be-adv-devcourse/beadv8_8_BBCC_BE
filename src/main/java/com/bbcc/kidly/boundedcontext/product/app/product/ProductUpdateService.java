@@ -82,12 +82,13 @@ public class ProductUpdateService {
             productRepository.incrementVersion(product);
             // 새 옵션의 ID는 저장할 때 생기므로, 재고를 여는 일은 저장한 뒤에 한다
             productRepository.saveAndFlush(product);
-            if (!result.requestedOptions().isEmpty()) {
-                inventoryReplacer.align(result.requestedOptions(), optionsBefore, request.options(), sellerId);
-            }
-            if (product.getStatus() != ProductStatus.SALE_PENDING) {
-                productChangedPublisher.publish(product, type);
-            }
+        }
+        // 초기 재고는 재고 표에 있어 상품이 그대로여도 바뀔 수 있으므로, 받은 옵션이 있으면 늘 맞춘다
+        if (!result.requestedOptions().isEmpty()) {
+            inventoryReplacer.align(result.requestedOptions(), optionsBefore, request.options(), sellerId);
+        }
+        if (result.changed() && product.getStatus() != ProductStatus.SALE_PENDING) {
+            productChangedPublisher.publish(product, type);
         }
         return sellerProductService.findMyProductDetail(sellerId, productId);
     }

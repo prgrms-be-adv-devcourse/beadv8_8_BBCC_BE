@@ -278,6 +278,23 @@ class ProductUpdateApiTest {
             Long.valueOf(productId))).containsExactly("A-NV-110", null);
     }
 
+    @Test
+    @DisplayName("판매대기 상품에 옵션 · 가격 · 실측은 그대로 두고 초기 재고만 바꿔 보내면, 상품 version은 그대로이고 "
+        + "초기 재고 차이만큼 정정 기록을 남긴다")
+    void correctInitialQuantityOnly() {
+        Long navy110 = optionIds().get(0);
+        long version = storedVersion();
+        Map<String, Object> body = productA(saved);
+        body.put("version", version);
+        options(body).get(0).put("initialQuantity", 12);
+
+        update(tokens.seller(SELLER_ID), body).expectStatus().isOk();
+
+        assertThat(storedVersion()).isEqualTo(version);
+        assertThat(availableQty(navy110)).isEqualTo(12);
+        assertThat(adjustments(navy110)).containsExactly("INITIAL 10", "CORRECTION 2");
+    }
+
     // 상품 A를 등록할 때와 같은 값에 version을 더한 수정 요청이다. 옵션 · 가격 · 실측은 보내지 않는다
     private Map<String, Object> updateBody(long version) {
         Map<String, Object> body = productA(saved);
