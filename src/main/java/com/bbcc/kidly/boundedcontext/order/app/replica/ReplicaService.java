@@ -76,10 +76,12 @@ public class ReplicaService {
             command.productId(),
             command.sellerId(),
             command.productName(),
+            option.optionName(),
             option.size(),
             option.unitPrice(),
             command.categoryId(),
             command.productStatus(),
+            option.saleStatus(),
             option.soldOut(),
             command.occurredAt());
     }

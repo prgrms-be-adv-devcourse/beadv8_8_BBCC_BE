@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.onSaleProduct;
+import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.option;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.product;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -61,6 +62,49 @@ class ReplicaProductTest {
             .isFalse();
         assertThat(ReplicaProduct.create(product(1L, 25_000L, "UNKNOWN", false, OCCURRED_AT)).isPurchasable())
             .isFalse();
+    }
+
+    @Test
+    @DisplayName("구매 가능 = 상품 판매 중 + 옵션 판매 중 + 품절 아님. 하나라도 아니면 구매 불가")
+    void purchasableNeedsOptionOnSale() {
+        assertThat(ReplicaProduct.create(option(1L, "ON_SALE", "ON_SALE", false, OCCURRED_AT)).isPurchasable())
+            .isTrue();
+        assertThat(ReplicaProduct.create(option(1L, "ON_SALE", "STOPPED", false, OCCURRED_AT)).isPurchasable())
+            .isFalse();
+        assertThat(ReplicaProduct.create(option(1L, "ON_SALE", "ON_SALE", true, OCCURRED_AT)).isPurchasable())
+            .isFalse();
+        assertThat(ReplicaProduct.create(option(1L, "STOPPED", "ON_SALE", false, OCCURRED_AT)).isPurchasable())
+            .isFalse();
+    }
+
+    @Test
+    @DisplayName("옵션 판매 상태가 없던 옛 행(null)은 판매 중으로 본다")
+    void missingOptionSaleStatusIsOnSale() {
+        ReplicaProduct replica = ReplicaProduct.create(option(1L, "ON_SALE", null, false, OCCURRED_AT));
+
+        assertThat(replica.getOptionSaleStatus()).isNull();
+        assertThat(replica.isPurchasable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("모르는 옵션 판매 상태(ARCHIVED)는 이름 그대로 저장하고 구매 불가로 본다")
+    void unknownOptionSaleStatusIsNotPurchasable() {
+        ReplicaProduct replica = ReplicaProduct.create(option(1L, "ON_SALE", "ARCHIVED", false, OCCURRED_AT));
+
+        assertThat(replica.getOptionSaleStatus()).isEqualTo("ARCHIVED");
+        assertThat(replica.isPurchasable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("옵션 이름 · 옵션 판매 상태도 늦은 이벤트로 덮어쓴다")
+    void appliesOptionNameAndSaleStatus() {
+        ReplicaProduct replica = ReplicaProduct.create(onSaleProduct(25_000L, OCCURRED_AT));
+
+        replica.applyIfNewer(option(1L, "ON_SALE", "STOPPED", false, OCCURRED_AT.plusMinutes(1)));
+
+        assertThat(replica.getOptionName()).isEqualTo("네이비 / 110");
+        assertThat(replica.getOptionSaleStatus()).isEqualTo("STOPPED");
+        assertThat(replica.isPurchasable()).isFalse();
     }
 
     @Test

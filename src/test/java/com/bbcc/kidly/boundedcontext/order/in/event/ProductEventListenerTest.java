@@ -41,7 +41,7 @@ class ProductEventListenerTest {
             new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
                 105, 115, false, OptionSaleStatus.ON_SALE),
             new ProductChangedEvent.Option(2L, "색상: 네이비 / 사이즈: 120", "120", 26_000L,
-                115, 125, true, OptionSaleStatus.ON_SALE)));
+                115, 125, true, OptionSaleStatus.STOPPED)));
 
         verify(replicaService).applyProductChanged(command.capture());
         ProductChangedCommand sent = command.getValue();
@@ -52,8 +52,10 @@ class ProductEventListenerTest {
         assertThat(sent.productStatus()).isEqualTo("ON_SALE");
         assertThat(sent.occurredAt()).isEqualTo(OCCURRED_AT);
         assertThat(sent.options()).hasSize(2);
-        assertThat(sent.options().get(0)).isEqualTo(new ProductChangedCommand.Option(1L, "110", 25_000L, false));
-        assertThat(sent.options().get(1)).isEqualTo(new ProductChangedCommand.Option(2L, "120", 26_000L, true));
+        assertThat(sent.options().get(0)).isEqualTo(new ProductChangedCommand.Option(
+            1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L, false, "ON_SALE"));
+        assertThat(sent.options().get(1)).isEqualTo(new ProductChangedCommand.Option(
+            2L, "색상: 네이비 / 사이즈: 120", "120", 26_000L, true, "STOPPED"));
     }
 
     @Test
@@ -65,6 +67,17 @@ class ProductEventListenerTest {
 
         verify(replicaService).applyProductChanged(command.capture());
         assertThat(command.getValue().productStatus()).isEqualTo("STOPPED");
+    }
+
+    @Test
+    @DisplayName("옵션 판매 상태가 비어 있으면 null로 넘긴다")
+    void passesMissingOptionSaleStatusAsNull() {
+        listener.onProductChanged(event(ProductStatus.ON_SALE,
+            new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
+                null, null, false, null)));
+
+        verify(replicaService).applyProductChanged(command.capture());
+        assertThat(command.getValue().options().get(0).saleStatus()).isNull();
     }
 
     private static ProductChangedEvent event(ProductStatus status, ProductChangedEvent.Option... options) {

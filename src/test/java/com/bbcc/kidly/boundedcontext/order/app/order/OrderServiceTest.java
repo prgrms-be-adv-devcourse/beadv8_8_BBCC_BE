@@ -538,9 +538,9 @@ class OrderServiceTest {
 
     private static Order placedOrderWithTwoItems() {
         OrderItem.ProductSnapshot first =
-            new OrderItem.ProductSnapshot(1L, OPTION_ID, SELLER_ID, "상품 A", "110", 25_000L, 1L);
+            new OrderItem.ProductSnapshot(1L, OPTION_ID, SELLER_ID, "상품 A", null, "110", 25_000L, 1L);
         OrderItem.ProductSnapshot second =
-            new OrderItem.ProductSnapshot(2L, 3L, SELLER_ID, "상품 B", "120", 30_000L, 2L);
+            new OrderItem.ProductSnapshot(2L, 3L, SELLER_ID, "상품 B", null, "120", 30_000L, 2L);
         return Order.place(BUYER_ID, List.of(
                 new Order.RequestedItem(first, true, null, 2, 25_000L),
                 new Order.RequestedItem(second, true, null, 1, 30_000L)),
@@ -553,14 +553,14 @@ class OrderServiceTest {
      */
     private static Order placedOrderAt(LocalDateTime orderedAt) {
         OrderItem.ProductSnapshot product =
-            new OrderItem.ProductSnapshot(1L, OPTION_ID, SELLER_ID, "상품 A", "110", 25_000L, 1L);
+            new OrderItem.ProductSnapshot(1L, OPTION_ID, SELLER_ID, "상품 A", null, "110", 25_000L, 1L);
         return Order.place(BUYER_ID, List.of(new Order.RequestedItem(product, true, null, 2, 25_000L)),
             new Order.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"), POLICY, orderedAt);
     }
 
     private static Order placedOrder(Long memberId) {
         OrderItem.ProductSnapshot product =
-            new OrderItem.ProductSnapshot(1L, OPTION_ID, SELLER_ID, "상품 A", "110", 25_000L, 1L);
+            new OrderItem.ProductSnapshot(1L, OPTION_ID, SELLER_ID, "상품 A", null, "110", 25_000L, 1L);
         return Order.place(memberId, List.of(new Order.RequestedItem(product, true, null, 2, 25_000L)),
             new Order.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"), POLICY,
             LocalDateTime.of(2026, 10, 14, 9, 0));

@@ -54,7 +54,7 @@ final class OrderFixture {
     static Product product(Long productId, Long optionId, Long sellerId, String name, String size,
         long unitPrice, boolean purchasable) {
         return new Product(
-            new OrderItem.ProductSnapshot(productId, optionId, sellerId, name, size, unitPrice, 7L), purchasable);
+            new OrderItem.ProductSnapshot(productId, optionId, sellerId, name, null, size, unitPrice, 7L), purchasable);
     }
 
     static Order.RequestedChild child() {

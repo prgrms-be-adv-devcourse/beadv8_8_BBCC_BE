@@ -343,7 +343,7 @@ class CartServiceTest {
                 new OrderItem.ChildSnapshot(childId, null, new BigDecimal("115.0"), new BigDecimal("20.0"), null),
                 BUYER_ID, false);
             return new Order.RequestedItem(
-                new OrderItem.ProductSnapshot(1L, optionId, SELLER_ID, "상품 A", "110", 25_000L, 1L),
+                new OrderItem.ProductSnapshot(1L, optionId, SELLER_ID, "상품 A", null, "110", 25_000L, 1L),
                 true, child, quantity, 25_000L);
         }
     }
@@ -365,8 +365,8 @@ class CartServiceTest {
     }
 
     private static ReplicaProduct product(Long optionId, long unitPrice, String status, boolean soldOut) {
-        return ReplicaProduct.create(new ReplicaProduct.Values(optionId, 1L, SELLER_ID, "상품 A", "110", unitPrice,
-            1L, status, soldOut, OCCURRED_AT));
+        return ReplicaProduct.create(new ReplicaProduct.Values(optionId, 1L, SELLER_ID, "상품 A", null, "110", unitPrice,
+            1L, status, null, soldOut, OCCURRED_AT));
     }
 
     private static ReplicaChild child(Long memberId, boolean deleted) {

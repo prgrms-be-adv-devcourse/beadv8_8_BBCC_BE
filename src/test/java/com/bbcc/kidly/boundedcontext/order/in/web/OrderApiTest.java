@@ -37,6 +37,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 class OrderApiTest {
 
     private static final Long OTHER_ID = 3L;
+    private static final Long OPTION_STOPPED_ID = 4L;
+    private static final Long SOLD_OUT_ID = 5L;
     private static final Map<String, String> ADDRESS = Map.of(
         "recipientName", "홍길동", "phone", "010-0000-0000", "zipCode", "12345", "address", "서울시 테스트로 1");
 
@@ -67,6 +69,10 @@ class OrderApiTest {
     @BeforeEach
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.option(
+            OPTION_STOPPED_ID, "ON_SALE", "STOPPED", false, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.option(
+            SOLD_OUT_ID, "ON_SALE", "ON_SALE", true, OCCURRED_AT)));
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
     }
 
@@ -89,6 +95,7 @@ class OrderApiTest {
                 .jsonPath("$.paymentDueAt").exists()
                 .jsonPath("$.shippingAddress.recipientName").isEqualTo("홍길동")
                 .jsonPath("$.items[0].optionId").isEqualTo("1")
+                .jsonPath("$.items[0].optionName").isEqualTo("네이비 / 110")
                 .jsonPath("$.items[0].sellerId").isEqualTo("2")
                 .jsonPath("$.items[0].amount").isEqualTo(50_000)
                 .jsonPath("$.items[0].child.childId").isEqualTo("1")
@@ -96,6 +103,30 @@ class OrderApiTest {
                 .getResponseHeaders().getLocation();
 
             assertThat(location).isNotNull();
+        }
+
+        @Test
+        @DisplayName("상품은 판매 중이어도 옵션이 판매 중지면 409 PRODUCT_NOT_PURCHASABLE")
+        void stoppedOptionIsConflict() {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(orderBody(String.valueOf(OPTION_STOPPED_ID), null, 1, 25_000))
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다");
+        }
+
+        @Test
+        @DisplayName("상품 · 옵션이 판매 중이어도 품절이면 409 PRODUCT_NOT_PURCHASABLE")
+        void soldOutOptionIsConflict() {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(orderBody(String.valueOf(SOLD_OUT_ID), null, 1, 25_000))
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다");
         }
 
         @Test

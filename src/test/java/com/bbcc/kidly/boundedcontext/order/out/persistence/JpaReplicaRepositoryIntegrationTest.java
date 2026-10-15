@@ -53,7 +53,7 @@ class JpaReplicaRepositoryIntegrationTest {
     }
 
     private static ReplicaProduct.Values product(Long optionId, Long productId) {
-        return new ReplicaProduct.Values(optionId, productId, 2L, "상품 A", "110", 25_000L, 1L, "ON_SALE", false,
-            OCCURRED_AT);
+        return new ReplicaProduct.Values(optionId, productId, 2L, "상품 A", null, "110", 25_000L, 1L, "ON_SALE", null,
+            false, OCCURRED_AT);
     }
 }

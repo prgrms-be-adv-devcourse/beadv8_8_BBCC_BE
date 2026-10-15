@@ -68,7 +68,7 @@ class SellerOrderApiTest {
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
         productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
-            2L, 2L, OTHER_SELLER_ID, "상품 B", "120", 30_000L, 2L, "ON_SALE", false, OCCURRED_AT)));
+            2L, 2L, OTHER_SELLER_ID, "상품 B", null, "120", 30_000L, 2L, "ON_SALE", null, false, OCCURRED_AT)));
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
         saveBuyerWallet(80_000L);
         orderId = placePaidOrder();
@@ -93,6 +93,7 @@ class SellerOrderApiTest {
                 .jsonPath("$.content[0].shippingAddress.recipientName").isEqualTo("홍길동")
                 .jsonPath("$.content[0].items.length()").isEqualTo(1)
                 .jsonPath("$.content[0].items[0].sellerId").isEqualTo(String.valueOf(SELLER_ID))
+                .jsonPath("$.content[0].items[0].optionName").isEqualTo("네이비 / 110")
                 .jsonPath("$.content[0].items[0].child.childId").isEqualTo("1")
                 .jsonPath("$.totalElements").isEqualTo(1);
         }

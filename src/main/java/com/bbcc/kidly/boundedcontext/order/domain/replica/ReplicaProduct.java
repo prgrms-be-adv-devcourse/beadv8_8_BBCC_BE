@@ -27,7 +27,9 @@ public class ReplicaProduct extends BaseTimeEntity {
     /**
      * 복사본 입력 값(옵션 1개).
      *
+     * @param optionName 옵션 이름(예: "네이비 / 110"). 옛 행은 null
      * @param productStatus 상품 판매 상태 이름. 모르는 값이면 구매 불가
+     * @param optionSaleStatus 옵션 판매 상태 이름. null이면 판매 중으로 본다(이 값이 없던 옛 행), 모르는 값이면 구매 불가
      * @param occurredAt 이벤트 발생 시각. 저장된 값보다 늦을 때만 반영한다
      */
     public record Values(
@@ -35,10 +37,12 @@ public class ReplicaProduct extends BaseTimeEntity {
         Long productId,
         Long sellerId,
         String productName,
+        String optionName,
         String size,
         long unitPrice,
         Long categoryId,
         String productStatus,
+        String optionSaleStatus,
         boolean soldOut,
         LocalDateTime occurredAt) {
     }
@@ -59,6 +63,9 @@ public class ReplicaProduct extends BaseTimeEntity {
     @Column(nullable = false, length = 100)
     private String productName;
 
+    @Column(length = 100)
+    private String optionName;
+
     @Column(nullable = false, length = 20)
     private String size;
 
@@ -70,6 +77,9 @@ public class ReplicaProduct extends BaseTimeEntity {
 
     @Column(nullable = false, length = 30)
     private String productStatus;
+
+    @Column(length = 20)
+    private String optionSaleStatus;
 
     @Column(name = "is_sold_out", nullable = false)
     private boolean soldOut;
@@ -113,8 +123,12 @@ public class ReplicaProduct extends BaseTimeEntity {
         return true;
     }
 
+    /**
+     * 구매 가능 = 상품 판매 중 + 옵션 판매 중(값이 없던 옛 행은 판매 중으로 봄) + 품절 아님. 담기 · 장바구니 표시 · 주문하기가 모두 이것을 쓴다.
+     */
     public boolean isPurchasable() {
-        return ON_SALE.equals(productStatus) && !soldOut;
+        return ON_SALE.equals(productStatus) && (optionSaleStatus == null || ON_SALE.equals(optionSaleStatus))
+            && !soldOut;
     }
 
     public boolean isSoldBy(Long memberId) {
@@ -129,10 +143,12 @@ public class ReplicaProduct extends BaseTimeEntity {
         productId = values.productId();
         sellerId = values.sellerId();
         productName = values.productName();
+        optionName = values.optionName();
         size = values.size();
         unitPrice = values.unitPrice();
         categoryId = values.categoryId();
         productStatus = values.productStatus();
+        optionSaleStatus = values.optionSaleStatus();
         soldOut = values.soldOut();
         eventOccurredAt = values.occurredAt();
     }
