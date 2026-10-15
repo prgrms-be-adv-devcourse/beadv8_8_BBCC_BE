@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.settlement.domain;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,6 +12,8 @@ public interface SettlementItemRepository {
     Optional<SettlementItem> findById(Long id);
 
     boolean existsByOrderItemId(Long orderItemId);
+
+    List<SettlementItem> findAllByIdIn(Collection<Long> ids);
 
     List<SettlementItem> findAllBySellerIdAndStatusAndConfirmedAtBefore(
         Long sellerId, SettlementItemStatus status, LocalDateTime confirmedAt);

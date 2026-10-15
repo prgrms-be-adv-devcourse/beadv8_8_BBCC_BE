@@ -4,19 +4,17 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.springframework.batch.infrastructure.item.Chunk;
 import org.springframework.batch.infrastructure.item.ItemWriter;
 
 /**
- * 판매자마다 대기 항목을 읽어 정산서를 만들고 항목을 그 정산서로 정산한다.
- * 묶음이 실패하면 Batch가 같은 판매자 ID를 1명씩 새 트랜잭션에서 다시 넘기므로, 항목은 매번 새로 읽는다.
+ * 정산 계획마다 정산서를 만들고 대상을 그 정산서로 정산한다.
+ * 묶음이 실패하면 Batch가 같은 계획을 1명씩 새 트랜잭션에서 다시 넘기므로, 대상은 매번 새로 읽는다.
  */
-public class SettlementSellerWriter implements ItemWriter<Long> {
+public class SettlementSellerWriter implements ItemWriter<SettlementSellerPlan> {
 
     private final SettlementItemRepository settlementItemRepository;
     private final SettlementRepository settlementRepository;
@@ -25,23 +23,24 @@ public class SettlementSellerWriter implements ItemWriter<Long> {
 
     public SettlementSellerWriter(
         SettlementItemRepository settlementItemRepository, SettlementRepository settlementRepository,
-        BigDecimal feeRate, LocalDateTime cutoffAt) {
+        SettlementCalculator settlementCalculator, SettlementPeriod period) {
         this.settlementItemRepository = requireNonNull(settlementItemRepository, "settlementItemRepository는 필수입니다");
         this.settlementRepository = requireNonNull(settlementRepository, "settlementRepository는 필수입니다");
-        this.settlementCalculator = new SettlementCalculator(feeRate);
-        this.period = SettlementPeriod.from(cutoffAt);
+        this.settlementCalculator = requireNonNull(settlementCalculator, "settlementCalculator는 필수입니다");
+        this.period = requireNonNull(period, "period는 필수입니다");
     }
 
+    // 계획 뒤에 대상이 바뀌었으면 IllegalStateException
     @Override
-    public void write(Chunk<? extends Long> sellerIds) {
-        var now = LocalDateTime.now();
-        for (var sellerId : sellerIds) {
-            var items = settlementItemRepository.findAllBySellerIdAndStatusAndConfirmedAtBefore(
-                sellerId, SettlementItemStatus.PENDING, period.cutoffAt());
-            if (items.isEmpty()) {
-                continue;
+    public void write(Chunk<? extends SettlementSellerPlan> plans) {
+        var now = LocalDateTime.now(SettlementPeriod.SERVICE_ZONE);
+        for (var plan : plans) {
+            var items = settlementItemRepository.findAllByIdIn(plan.itemIds());
+            if (items.size() != plan.itemIds().size()) {
+                throw new IllegalStateException("정산 대상이 바뀌었습니다");
             }
-            var settlement = settlementRepository.save(settlementCalculator.calculate(period, items, now));
+            var settlement = settlementRepository.save(
+                settlementCalculator.create(period, plan.sellerId(), plan.totalSalesAmount(), now));
             items.forEach(item -> item.settle(settlement.getId()));
         }
         settlementItemRepository.flush();

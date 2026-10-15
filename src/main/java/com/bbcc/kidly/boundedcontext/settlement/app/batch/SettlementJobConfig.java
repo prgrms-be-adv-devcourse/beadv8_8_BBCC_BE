@@ -2,7 +2,9 @@ package com.bbcc.kidly.boundedcontext.settlement.app.batch;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementProperties;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSellerQuery;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import java.time.LocalDateTime;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -19,8 +21,9 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * 판매자별 정산 작업. 판매자 ID를 묶음으로 읽어 한 트랜잭션에서 정산하고, 묶음이 실패하면 판매자 1명씩 다시 처리해
- * 정산할 수 없는 판매자만 건너뛴다. 그 밖의 예외는 작업을 실패시킨다.
+ * 판매자별 정산 작업. 판매자 ID를 묶음으로 읽어 판매자마다 정산 계획을 만들고 한 트랜잭션에서 저장한다.
+ * 계획을 만들 수 없는 판매자는 그 자리에서 건너뛰고, 저장이 실패하면 판매자 1명씩 다시 저장해 실패한 판매자만 건너뛴다.
+ * 그 밖의 예외는 작업을 실패시킨다.
  */
 @Configuration
 public class SettlementJobConfig {
@@ -43,11 +46,13 @@ public class SettlementJobConfig {
     @Bean
     public Step settleSellerStep(
         JobRepository jobRepository, PlatformTransactionManager transactionManager, SettlementProperties properties,
-        SettlementSellerReader settlementSellerReader, SettlementSellerWriter settlementSellerWriter) {
+        SettlementSellerReader settlementSellerReader, SettlementSellerProcessor settlementSellerProcessor,
+        SettlementSellerWriter settlementSellerWriter) {
         return new StepBuilder(STEP_NAME, jobRepository)
-            .<Long, Long>chunk(properties.chunkSize())
+            .<Long, SettlementSellerPlan>chunk(properties.chunkSize())
             .transactionManager(transactionManager)
             .reader(settlementSellerReader)
+            .processor(settlementSellerProcessor)
             .writer(settlementSellerWriter)
             .faultTolerant()
             .skip(IllegalArgumentException.class, IllegalStateException.class, ArithmeticException.class,
@@ -67,10 +72,19 @@ public class SettlementJobConfig {
 
     @Bean
     @StepScope
+    public SettlementSellerProcessor settlementSellerProcessor(
+        SettlementItemRepository settlementItemRepository, SettlementProperties properties,
+        @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
+        return new SettlementSellerProcessor(
+            settlementItemRepository, new SettlementCalculator(properties.feeRate()), SettlementPeriod.from(cutoffAt));
+    }
+
+    @Bean
+    @StepScope
     public SettlementSellerWriter settlementSellerWriter(
         SettlementItemRepository settlementItemRepository, SettlementRepository settlementRepository,
         SettlementProperties properties, @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
-        return new SettlementSellerWriter(
-            settlementItemRepository, settlementRepository, properties.feeRate(), cutoffAt);
+        return new SettlementSellerWriter(settlementItemRepository, settlementRepository,
+            new SettlementCalculator(properties.feeRate()), SettlementPeriod.from(cutoffAt));
     }
 }
