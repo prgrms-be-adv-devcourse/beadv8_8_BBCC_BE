@@ -94,6 +94,10 @@
 - `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 ID
 - 지갑이 없으면 404 `WALLET_NOT_FOUND`. 종류 · 기간 필터는 없다
 
+## 관리자 결제 조회 (`app/PaymentQueryService`, #312)
+- `GET /api/v1/admin/payments`: 모든 회원의 결제를 최신순(ID 내림차순)으로 준다. `/api/v1/admin/**`라 ADMIN만 호출한다
+- 한 줄은 내 결제 내역(`GET /api/v1/payments`)과 같고 `memberId`를 더한다. 환불은 `status` · `refundedAmount`로 보인다. 회원 · 상태 · 기간 필터는 없다
+
 ## 정산 지급 (`app/SettlementPayoutService`, #210)
 - `settlement.payout-requested`를 받아 판매자(`sellerId` = 회원 ID) 예치금에 정산금액을 입금하고 `payment.payout-completed` · `payment.payout-failed`를 발행한다. 계약은 #209, 정산서 식별자는 정산과 맞춰 `settlementId`
 - 정산서마다 지급 기록(`payout`, `settlement_id` UK)을 남겨 한 번만 입금한다. 기록이 있는 정산서로 요청이 다시 오면 입금 없이 저장된 결과를 다시 발행한다(기획서 2.1 ⑦). 받는 쪽(정산)은 같은 결과를 한 번만 반영한다

@@ -15,4 +15,6 @@ public interface PaymentRepository {
     Optional<Payment> findByOrderId(Long orderId);
 
     Page<Payment> findAllByMemberIdOrderByIdDesc(Long memberId, Pageable pageable);
+
+    Page<Payment> findAllByOrderByIdDesc(Pageable pageable);
 }
