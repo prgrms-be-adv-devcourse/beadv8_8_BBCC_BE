@@ -19,13 +19,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class PostgresProductSearch implements ProductSearch {
 
+    // 상호명은 판매자 복사본에서 붙인다. 복사본이 없는 판매자의 상품도 빠지지 않게 LEFT JOIN하고,
+    // 판매자 ID가 복사본의 PK라 행이 늘지 않으므로 개수 쿼리도 같은 FROM을 쓴다
     private static final String FROM_ON_SALE = """
         FROM product.product_search_document d
+        LEFT JOIN product.replica_seller rs ON rs.seller_id = d.seller_id
         WHERE d.status = 'ON_SALE'
         """;
 
     private static final String SELECT_ITEMS = """
-        SELECT d.product_id, d.name, d.thumbnail_url, d.min_price, d.is_sold_out, d.is_size_free
+        SELECT d.product_id, d.name, d.thumbnail_url, rs.business_name, d.min_price, d.is_sold_out, d.is_size_free
         """;
 
     private static final String PAGE = """
@@ -51,7 +54,7 @@ public class PostgresProductSearch implements ProductSearch {
                 rs.getLong("product_id"),
                 rs.getString("name"),
                 rs.getString("thumbnail_url"),
-                null,
+                rs.getString("business_name"),
                 rs.getLong("min_price"),
                 rs.getBoolean("is_sold_out"),
                 rs.getBoolean("is_size_free")));

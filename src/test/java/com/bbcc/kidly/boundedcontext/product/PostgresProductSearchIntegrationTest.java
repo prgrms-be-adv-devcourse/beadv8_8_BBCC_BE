@@ -4,13 +4,15 @@ import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.CREATED_A
 import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.document;
 import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.value;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearch;
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchCondition;
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchItem;
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchSort;
-import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument;
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSeller;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
@@ -191,6 +193,27 @@ class PostgresProductSearchIntegrationTest {
         assertThat(result.hasNext()).isEqualTo(hasNext);
     }
 
+    @Test
+    @DisplayName("판매자 복사본이 있으면 그 상호명을 붙이고, 없으면 상호명만 null이다. 정지된 판매자의 상품도 숨기지 않는다")
+    void attachBusinessName() {
+        persist(
+            ProductReplicaSeller.create(ProductReplicaSellerFixture.sellerApproved()),
+            ProductReplicaSeller.create(new ProductReplicaSeller.ChangeInfo(
+                3L, "정지상점", SellerStatus.SUSPENDED, ProductReplicaSellerFixture.SELLER_CHANGED_AT)),
+            document(1L).sellerId(ProductReplicaSellerFixture.SELLER_ID).build(),
+            document(2L).sellerId(3L).createdAt(CREATED_AT.plusDays(1)).build(),
+            document(3L).sellerId(9L).createdAt(CREATED_AT.plusDays(2)).build());
+
+        Page<ProductSearchItem> result = productSearch.search(noCondition(), PageRequest.of(0, 20));
+
+        assertThat(result.getContent())
+            .extracting(ProductSearchItem::productId, ProductSearchItem::businessName)
+            .containsExactly(
+                tuple(3L, null),
+                tuple(2L, "정지상점"),
+                tuple(1L, ProductReplicaSellerFixture.BUSINESS_NAME));
+    }
+
     // CSV의 "COLOR:3,SIZE:15"를 항목 code별 값 ID 목록으로 묶는다
     private static Map<String, List<Long>> attributes(String spec) {
         Map<String, List<Long>> valueIdsByCode = new LinkedHashMap<>();
@@ -213,10 +236,10 @@ class PostgresProductSearchIntegrationTest {
         return new ProductSearchCondition(null, null, Map.of(), ProductSearchSort.NEWEST);
     }
 
-    private void persist(ProductSearchDocument... documents) {
+    private void persist(Object... entities) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            for (ProductSearchDocument document : documents) {
-                entityManager.persist(document);
+            for (Object entity : entities) {
+                entityManager.persist(entity);
             }
         });
     }
