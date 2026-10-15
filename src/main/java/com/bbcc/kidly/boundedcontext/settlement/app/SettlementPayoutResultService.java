@@ -33,16 +33,17 @@ public class SettlementPayoutResultService {
     }
 
     private Optional<Settlement> findMatching(Long settlementId, Long sellerId, long amount) {
-        var settlement = settlementRepository.findById(settlementId);
-        if (settlement.isEmpty()) {
+        var found = settlementRepository.findById(settlementId);
+        if (found.isEmpty()) {
             log.error("지급 결과의 정산서가 없습니다: settlementId={}", settlementId);
             return Optional.empty();
         }
-        if (!settlement.get().isPayoutOf(sellerId, amount)) {
+        var settlement = found.get();
+        if (!settlement.isPayoutOf(sellerId, amount)) {
             log.error("지급 결과가 정산서와 다릅니다: settlementId={}, 받은 sellerId={} amount={}, 정산서 sellerId={} amount={}",
-                settlementId, sellerId, amount, settlement.get().getSellerId(), settlement.get().getSettlementAmount());
+                settlementId, sellerId, amount, settlement.getSellerId(), settlement.getSettlementAmount());
             return Optional.empty();
         }
-        return settlement;
+        return found;
     }
 }

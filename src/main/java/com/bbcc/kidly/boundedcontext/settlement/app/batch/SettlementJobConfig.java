@@ -73,20 +73,24 @@ public class SettlementJobConfig {
 
     @Bean
     @StepScope
+    public SettlementCalculator settlementCalculator(
+        SettlementProperties properties, @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
+        return new SettlementCalculator(properties.feeRate(), SettlementPeriod.from(cutoffAt));
+    }
+
+    @Bean
+    @StepScope
     public SettlementSellerProcessor settlementSellerProcessor(
-        SettlementItemRepository settlementItemRepository, SettlementProperties properties,
-        @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
-        return new SettlementSellerProcessor(
-            settlementItemRepository, new SettlementCalculator(properties.feeRate()), SettlementPeriod.from(cutoffAt));
+        SettlementItemRepository settlementItemRepository, SettlementCalculator settlementCalculator) {
+        return new SettlementSellerProcessor(settlementItemRepository, settlementCalculator);
     }
 
     @Bean
     @StepScope
     public SettlementSellerWriter settlementSellerWriter(
         SettlementItemRepository settlementItemRepository, SettlementRepository settlementRepository,
-        SettlementProperties properties, EventPublisher eventPublisher,
-        @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
-        return new SettlementSellerWriter(settlementItemRepository, settlementRepository,
-            new SettlementCalculator(properties.feeRate()), SettlementPeriod.from(cutoffAt), eventPublisher);
+        SettlementCalculator settlementCalculator, EventPublisher eventPublisher) {
+        return new SettlementSellerWriter(
+            settlementItemRepository, settlementRepository, settlementCalculator, eventPublisher);
     }
 }

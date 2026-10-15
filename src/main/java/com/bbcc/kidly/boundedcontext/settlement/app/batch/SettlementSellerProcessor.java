@@ -6,7 +6,6 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItem;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 
 /**
@@ -16,24 +15,21 @@ public class SettlementSellerProcessor implements ItemProcessor<Long, Settlement
 
     private final SettlementItemRepository settlementItemRepository;
     private final SettlementCalculator settlementCalculator;
-    private final SettlementPeriod period;
 
     public SettlementSellerProcessor(
-        SettlementItemRepository settlementItemRepository, SettlementCalculator settlementCalculator,
-        SettlementPeriod period) {
+        SettlementItemRepository settlementItemRepository, SettlementCalculator settlementCalculator) {
         this.settlementItemRepository = requireNonNull(settlementItemRepository, "settlementItemRepository는 필수입니다");
         this.settlementCalculator = requireNonNull(settlementCalculator, "settlementCalculator는 필수입니다");
-        this.period = requireNonNull(period, "period는 필수입니다");
     }
 
     @Override
     public SettlementSellerPlan process(Long sellerId) {
         var items = settlementItemRepository.findAllBySellerIdAndStatusAndConfirmedAtBefore(
-            sellerId, SettlementItemStatus.PENDING, period.cutoffAt());
+            sellerId, SettlementItemStatus.PENDING, settlementCalculator.period().cutoffAt());
         if (items.isEmpty()) {
             return null;
         }
-        var total = settlementCalculator.sumSalesAmount(period, items);
+        var total = settlementCalculator.sumSalesAmount(items);
         var itemIds = items.stream().map(SettlementItem::getId).sorted().toList();
         return new SettlementSellerPlan(sellerId, itemIds, total);
     }
