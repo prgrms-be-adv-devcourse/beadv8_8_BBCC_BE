@@ -171,8 +171,10 @@ public class Product extends BaseTimeEntity {
     @Version
     private Long version;
 
-    // DB에서 다시 읽어도 입력한 순서를 지키려고 id 순으로 읽는다
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    // DB에서 다시 읽어도 입력한 순서를 지키려고 id 순으로 읽는다. 상품을 고칠 때 받지 않은 정보 값은 행까지 지우고,
+    // 정보 값만 바꿔도 version이 오르도록 version 검사에 포함한다
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OptimisticLock(excluded = false)
     @OrderBy("id ASC")
     private List<ProductInfoValue> infoValues = new ArrayList<>();
 
