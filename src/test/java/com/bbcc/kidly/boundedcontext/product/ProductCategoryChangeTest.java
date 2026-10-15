@@ -1,8 +1,10 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ProductUpdateFixture.ProductA;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -24,5 +26,15 @@ class ProductCategoryChangeTest {
         assertThat(changed).isTrue();
         assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.OUTER_ID);
         assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
+    }
+
+    @Test
+    @DisplayName("SIZE-04 판매중 상품을 필수 실측이 다른 카테고리(상의 → 하의)로 바꾸면 409로 거절하고 카테고리는 그대로다")
+    void rejectCategoryWithMissingMeasurements() {
+        ProductA productA = ProductUpdateFixture.onSaleProductA();
+
+        assertRejected(() -> productA.product().update(productA.updateWithCategory(productA.bottom())),
+            ProductErrorCode.MEASUREMENTS_MISSING_FOR_CATEGORY);
+        assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
     }
 }

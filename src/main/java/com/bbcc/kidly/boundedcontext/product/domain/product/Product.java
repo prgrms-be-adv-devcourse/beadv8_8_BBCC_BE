@@ -227,6 +227,16 @@ public class Product extends BaseTimeEntity {
         if (!Objects.equals(info.version(), version)) {
             throw new BusinessException(ProductErrorCode.PRODUCT_VERSION_MISMATCH);
         }
+        // 판매를 시작한 상품은 옵션 · 실측을 여기서 바꾸지 못하므로,
+        // 지금 실측이 새 카테고리의 필수 실측을 모두 채워야 한다 (SIZE-04)
+        if (status != ProductStatus.SALE_PENDING && category != info.category()) {
+            List<String> missing = SaleStartConditions.missingItems(
+                options, sizeSpecs, info.category(), info.category().productTypeToRegister());
+            if (!missing.isEmpty()) {
+                throw new BusinessException(
+                    ProductErrorCode.MEASUREMENTS_MISSING_FOR_CATEGORY, String.join(" ", missing));
+            }
+        }
         name = info.name();
         brand = info.brand();
         description = info.description();
