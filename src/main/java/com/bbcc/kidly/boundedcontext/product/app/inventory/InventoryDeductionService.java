@@ -46,7 +46,14 @@ public class InventoryDeductionService {
             items.add(new InventoryDeductionRequest.Item(
                 item.orderItemId(), optionById.get(item.optionId()), item.quantity()));
         }
-        InventoryDeductionRequest request = InventoryDeductionRequest.of(data.orderId(), items);
+        InventoryDeductionRequest request;
+        try {
+            request = InventoryDeductionRequest.of(data.orderId(), items);
+        } catch (IllegalArgumentException e) {
+            // 주문상품 ID가 겹치는 등 주문 쪽 오류라 차감 요청을 만들 수 없다. 다시 받아도 같으므로 재시도하지 않는다
+            log.error("차감 요청을 만들 수 없는 주문 생성됨이라 처리하지 않습니다. orderId={}", data.orderId(), e);
+            return;
+        }
         boolean alreadyHandled;
         try {
             alreadyHandled = request.isAlreadyHandled(

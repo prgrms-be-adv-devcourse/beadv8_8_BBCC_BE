@@ -135,6 +135,20 @@ class InventoryDeductionServiceIntegrationTest {
         assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
     }
 
+    @Test
+    @DisplayName("INV-15 주문상품 ID가 겹친 주문 생성됨은 주문 쪽 오류로 보고 예외 없이 재고와 기록을 바꾸지 않는다")
+    void ignoreDuplicateOrderItemIds() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
+            item(11L, options.navy110(), 2),
+            item(11L, options.navy120(), 1)));
+
+        assertThat(availableQty(options.navy110())).isEqualTo(10);
+        assertThat(availableQty(options.navy120())).isEqualTo(5);
+        assertThat(records()).isEmpty();
+    }
+
     private static OrderCreatedEvent orderCreated(long orderId, OrderCreatedEvent.Item... items) {
         return new OrderCreatedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new OrderCreatedEvent.Data(orderId, MEMBER_ID, List.of(items)));
