@@ -12,6 +12,8 @@ public record CartResponse(List<Line> items, long totalAmount) {
 
     /**
      * 장바구니 한 줄. ID는 문자열(기획서 6.1). 상품 복사본이 없는 줄은 상품 필드가 null.
+     *
+     * @param sellerName 판매자의 지금 상호명. 판매자 정보가 아직 없으면 null
      */
     public record Line(
         String cartItemId,
@@ -25,7 +27,8 @@ public record CartResponse(List<Line> items, long totalAmount) {
         int quantity,
         Long unitPrice,
         boolean purchasable,
-        long lineAmount) {
+        long lineAmount,
+        String sellerName) {
 
         public static Line from(CartView.Line view) {
             return new Line(
@@ -40,7 +43,8 @@ public record CartResponse(List<Line> items, long totalAmount) {
                 view.quantity(),
                 view.unitPrice(),
                 view.purchasable(),
-                view.lineAmount());
+                view.lineAmount(),
+                view.sellerName());
         }
 
         private static String toText(Long id) {

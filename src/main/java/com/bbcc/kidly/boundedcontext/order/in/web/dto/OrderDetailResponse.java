@@ -27,6 +27,7 @@ public record OrderDetailResponse(
     /**
      * @param child 자녀를 고르지 않았으면 null
      * @param unavailableReason 재고 차감 실패로 취소됐을 때 이 주문상품을 살 수 없던 사유. 그 밖에는 null
+     * @param sellerName 판매자의 지금 상호명. 판매자 정보가 아직 없으면 null(판매 주문 목록에서는 늘 null)
      */
     public record Item(
         String orderItemId,
@@ -44,7 +45,8 @@ public record OrderDetailResponse(
         LocalDateTime confirmedAt,
         String confirmType,
         Child child,
-        String unavailableReason) {
+        String unavailableReason,
+        String sellerName) {
 
         public static Item from(OrderDetail.Item item) {
             OrderDetail.Child child = item.child();
@@ -65,7 +67,8 @@ public record OrderDetailResponse(
                 item.confirmType(),
                 child == null ? null : new Child(toText(child.childId()), child.name(), child.heightCm(),
                     child.weightKg(), child.bodyType()),
-                item.unavailableReason());
+                item.unavailableReason(),
+                item.sellerName());
         }
     }
 

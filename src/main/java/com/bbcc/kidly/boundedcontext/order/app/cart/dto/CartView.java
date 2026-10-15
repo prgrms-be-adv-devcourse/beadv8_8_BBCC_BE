@@ -15,6 +15,7 @@ public record CartView(List<Line> items, long totalAmount) {
      *
      * @param sellerId 상품 복사본의 판매자 ID. 복사본이 없으면 null
      * @param childId 자녀를 고르지 않았으면 null
+     * @param sellerName 판매자의 지금 상호명(판매자 복사본). 상품 · 판매자 복사본이 없으면 null
      */
     public record Line(
         Long cartItemId,
@@ -28,6 +29,7 @@ public record CartView(List<Line> items, long totalAmount) {
         int quantity,
         Long unitPrice,
         boolean purchasable,
-        long lineAmount) {
+        long lineAmount,
+        String sellerName) {
     }
 }
