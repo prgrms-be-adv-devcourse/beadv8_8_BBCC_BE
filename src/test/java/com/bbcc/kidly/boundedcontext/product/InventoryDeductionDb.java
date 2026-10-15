@@ -87,6 +87,21 @@ class InventoryDeductionDb {
         return new HeldLock(connection);
     }
 
+    // 옵션이 속한 상품을 판매대기로 되돌려 커밋한 뒤, 테스트가 연 트랜잭션에서 판매중으로 바꾸고 커밋하지 않은 채 쥔다.
+    // 판매 시작이 상품 행을 바꾸고 아직 커밋하지 않은 때를 만든다. 닫으면 판매 시작이 커밋된다
+    HeldLock holdUncommittedSaleStart(ProductOption option) throws SQLException {
+        String changeStatus = "update product.product set status = ?"
+            + " where id = (select product_id from product.product_option where id = ?)";
+        jdbcTemplate.update(changeStatus, "SALE_PENDING", option.getId());
+        Connection connection = openTransaction();
+        try (PreparedStatement statement = connection.prepareStatement(changeStatus)) {
+            statement.setString(1, "ON_SALE");
+            statement.setLong(2, option.getId());
+            statement.executeUpdate();
+        }
+        return new HeldLock(connection);
+    }
+
     // 차감 기록 표를 SHARE 모드로 잠가 둔다. 조회는 지나가고 기록 INSERT만 기다린다
     HeldLock lockDeductionTable() throws SQLException {
         Connection connection = openTransaction();

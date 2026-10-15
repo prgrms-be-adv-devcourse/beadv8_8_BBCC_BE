@@ -131,6 +131,27 @@ class InventoryAdjustmentConcurrencyIntegrationTest {
                 tuple(options.navy120().getId(), true));
     }
 
+    // 판매 시작이 상품 행을 바꾸고 아직 커밋하지 않았을 때 조정이 오면, 조정은 상품 행 잠금에서 기다린다.
+    // 판매 상태를 잠금을 얻은 뒤에 읽으므로, 판매 시작이 커밋된 뒤의 판매중 상태를 보고 상품 정보 변경됨을 보낸다
+    @Test
+    @DisplayName("SALE-08 판매 시작이 커밋되기 전에 분실 조정으로 옵션이 품절되면, 판매 시작이 커밋된 뒤 상품 정보 변경됨을 한 번 보낸다")
+    void sendProductChangedAfterConcurrentSaleStartCommits() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(5, 5);
+        AtomicBoolean adjusted = new AtomicBoolean();
+        InventoryDeductionDb.HeldLock saleStart = inventoryDeductionDb.holdUncommittedSaleStart(options.navy110());
+        eventRecorder.clear();
+
+        ConcurrentTasks.runRacing(inventoryDeductionDb, saleStart, List.of(adjustLost(options.navy110(), 5, adjusted)));
+
+        assertThat(adjusted.get()).isTrue();
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(changed -> assertThat(changed.data().options())
+                .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+                .containsExactlyInAnyOrder(
+                    tuple(options.navy110().getId(), true),
+                    tuple(options.navy120().getId(), false)));
+    }
+
     // 분실로 qty만큼 줄이는 조정이다. 판매 가능 수량이 모자라 거절되면 adjusted가 false로 남는다
     private Runnable adjustLost(ProductOption option, int qty, AtomicBoolean adjusted) {
         return () -> {
