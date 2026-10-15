@@ -14,6 +14,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
@@ -40,6 +41,12 @@ class TransactionArchitectureTest {
     static final ArchRule NO_ISOLATION_LEVEL_IN_CODE = noClasses()
         .should().callMethodWhere(target(name("setIsolationLevel").or(name("setIsolationLevelName")))
             .and(target(owner(assignableTo(DefaultTransactionDefinition.class)))))
+        .allowEmptyShould(true);
+
+    // 트랜잭션 정의를 직접 구현하면 getIsolationLevel()을 재정의해 위 규칙을 거치지 않고 격리 수준을 정할 수 있다
+    @ArchTest
+    static final ArchRule NO_CUSTOM_TRANSACTION_DEFINITION = noClasses()
+        .should().beAssignableTo(TransactionDefinition.class)
         .allowEmptyShould(true);
 
     // 격리 수준을 DEFAULT가 아닌 값으로 지정한 Spring @Transactional이다
