@@ -70,6 +70,10 @@ public class ProductUpdateService {
         if (request.options() == null && request.prices() == null && request.sizeSpecs() == null) {
             return null;
         }
+        // 옵션 · 가격 · 실측은 셋을 함께 바꿔 넣으므로, 일부만 오면 무엇을 바꾸려는 요청인지 알 수 없어 거절한다
+        if (request.options() == null || request.prices() == null || request.sizeSpecs() == null) {
+            throw new BusinessException(ProductErrorCode.SALE_INPUTS_INCOMPLETE);
+        }
         return new SaleInputsInfo(
             inputReader.toOptionInfos(request.options(), lookup),
             inputReader.toPriceInfos(request.prices(), lookup),

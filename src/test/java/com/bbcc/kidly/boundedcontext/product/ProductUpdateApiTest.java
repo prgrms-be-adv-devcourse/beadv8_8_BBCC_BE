@@ -1,23 +1,39 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
+import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 판매자가 상품을 고치는 API를 HTTP 요청부터 응답까지 확인한다.
@@ -45,6 +61,12 @@ class ProductUpdateApiTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private SavedClothingTop saved;
 
@@ -145,6 +167,59 @@ class ProductUpdateApiTest {
         update(null, updateBody(storedVersion())).expectStatus().isUnauthorized();
     }
 
+    static Stream<Arguments> invalidRequests() {
+        return Stream.of(
+            Arguments.of(Named.of("상품명이 공백뿐", (Consumer<Map<String, Object>>) body -> body.put("name", " ")),
+                "name: 상품명을 입력해 주세요."),
+            Arguments.of(Named.of("상품명이 101자",
+                    (Consumer<Map<String, Object>>) body -> body.put("name", "가".repeat(101))),
+                "name: 상품명은 100자 이하로 입력해 주세요."),
+            Arguments.of(Named.of("version이 없음", (Consumer<Map<String, Object>>) body -> body.put("version", null)),
+                "version: version이 필요합니다."));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidRequests")
+    @DisplayName("요청 값이 형식을 벗어나면 400 ProblemDetail과 칸 이름 · 사유를 담은 detail을 받는다")
+    void rejectInvalidRequest(Consumer<Map<String, Object>> breakBody, String detail) {
+        Map<String, Object> body = updateBody(storedVersion());
+        breakBody.accept(body);
+
+        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST, "잘못된 요청입니다", detail);
+    }
+
+    @Test
+    @DisplayName("옵션 · 가격 · 실측 중 일부만 보내면 400 ProblemDetail을 받는다")
+    void rejectIncompleteSaleInputs() {
+        Map<String, Object> body = updateBody(storedVersion());
+        body.put("options", productA(saved).get("options"));
+
+        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST,
+            "옵션 · 가격 · 실측이 함께 오지 않았습니다", "옵션 · 가격 · 실측을 모두 보내거나 모두 빼 주세요.");
+    }
+
+    @Test
+    @DisplayName("판매를 시작한 상품에 옵션 · 가격 · 실측을 보내면 409 ProblemDetail을 받는다")
+    void rejectSaleInputsAfterSaleStart() {
+        startSale();
+        Map<String, Object> body = productA(saved);
+        body.put("version", storedVersion());
+
+        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.CONFLICT,
+            "판매를 시작한 상품의 옵션 · 가격 · 실측은 여기서 바꿀 수 없습니다", "판매를 시작한 상품은 옵션 · 가격 · 실측을 빼고 보내 주세요.");
+    }
+
+    @Test
+    @DisplayName("판매를 시작한 상품의 카테고리를 같은 유형의 다른 카테고리로 바꾸면 409 ProblemDetail을 받는다")
+    void rejectCategoryChangeAfterSaleStart() {
+        startSale();
+        Map<String, Object> body = updateBody(storedVersion());
+        body.put("categoryId", id(savedOuter()));
+
+        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.CONFLICT,
+            "판매를 시작한 상품은 카테고리를 바꿀 수 없습니다", "판매를 시작한 상품은 지금 카테고리를 그대로 보내 주세요.");
+    }
+
     // 상품 A를 등록할 때와 같은 값에 version을 더한 수정 요청이다. 옵션 · 가격 · 실측은 보내지 않는다
     private Map<String, Object> updateBody(long version) {
         Map<String, Object> body = productA(saved);
@@ -188,6 +263,22 @@ class ProductUpdateApiTest {
             .exchange()
             .expectStatus().isOk();
         eventRecorder.clear();
+    }
+
+    // 상의와 같은 유형 · 같은 필수 실측 항목을 쓰는 아우터 카테고리를 저장하고 ID를 돌려준다
+    private Long savedOuter() {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            Category top = entityManager.find(Category.class, saved.top().getId());
+            List<MeasurementItem> items = new ArrayList<>();
+            for (CategoryMeasurementItem link : top.getMeasurementItems()) {
+                items.add(link.getMeasurementItem());
+            }
+            Category outer = Category.createLeaf(new Category.LeafInfo("아우터",
+                entityManager.find(Category.class, saved.clothingCategory().getId()),
+                entityManager.find(ProductType.class, saved.clothing().type().getId()), items));
+            entityManager.persist(outer);
+            return outer.getId();
+        });
     }
 
     private long storedVersion() {

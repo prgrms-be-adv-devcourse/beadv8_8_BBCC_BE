@@ -15,6 +15,8 @@ public enum ProductErrorCode implements ErrorCode {
     PRODUCT_VERSION_MISMATCH(HttpStatus.CONFLICT, "다른 곳에서 먼저 바뀐 상품입니다", "상품을 다시 불러온 뒤 고쳐 주세요."),
     SALE_INPUTS_REQUIRED_FOR_CATEGORY_CHANGE(HttpStatus.BAD_REQUEST, "카테고리를 바꾸려면 옵션 · 가격 · 실측이 필요합니다",
         "새 카테고리에 맞는 옵션 · 가격 · 실측을 함께 보내 주세요."),
+    SALE_INPUTS_INCOMPLETE(HttpStatus.BAD_REQUEST, "옵션 · 가격 · 실측이 함께 오지 않았습니다",
+        "옵션 · 가격 · 실측을 모두 보내거나 모두 빼 주세요."),
     SALE_INPUTS_LOCKED(HttpStatus.CONFLICT, "판매를 시작한 상품의 옵션 · 가격 · 실측은 여기서 바꿀 수 없습니다",
         "판매를 시작한 상품은 옵션 · 가격 · 실측을 빼고 보내 주세요."),
     CATEGORY_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "판매를 시작한 상품은 카테고리를 바꿀 수 없습니다",
