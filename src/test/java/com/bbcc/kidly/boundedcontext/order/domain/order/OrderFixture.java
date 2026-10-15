@@ -92,8 +92,28 @@ final class OrderFixture {
     static Order paidOrder() {
         Order order = placedOrder();
         order.requestPayment(NOW);
-        order.markPaid(PAYMENT_ID, order.getTotalAmount(), PAID_AT);
+        pay(order, PAYMENT_ID, PAID_AT);
         return order;
+    }
+
+    /**
+     * 주문과 그대로 맞는 결제 완료(주문한 회원 · 총액 · 주문상품별 금액)를 반영한다.
+     * 주문상품에 ID가 없으면 먼저 넣는다(결제 완료는 주문상품 ID로 대조한다).
+     */
+    static TransitionResult pay(Order order, Long paymentId, LocalDateTime paidAt) {
+        if (order.getItems().getFirst().getId() == null) {
+            withItemIds(order);
+        }
+        return order.markPaid(paymentId, order.getMemberId(), order.getTotalAmount(), paidItemsOf(order), paidAt);
+    }
+
+    /**
+     * 주문상품마다 그 주문상품 금액 그대로인 결제 금액.
+     */
+    static List<Order.PaidItem> paidItemsOf(Order order) {
+        return order.getItems().stream()
+            .map(item -> new Order.PaidItem(item.getId(), item.getAmount()))
+            .toList();
     }
 
     /**
@@ -103,6 +123,20 @@ final class OrderFixture {
         Order order = paidOrder();
         order.recordDelivered(SELLER_A_ID, DELIVERED_AT);
         return order;
+    }
+
+    /**
+     * 저장 전 주문에는 ID가 없어서 넣는다(예외 메시지의 주문 ID를 확인하는 테스트용).
+     */
+    static Order withId(Order order, Long id) {
+        try {
+            java.lang.reflect.Field field = Order.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(order, id);
+            return order;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /**

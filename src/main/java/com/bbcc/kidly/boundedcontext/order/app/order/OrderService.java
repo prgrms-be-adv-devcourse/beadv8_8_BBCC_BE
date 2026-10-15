@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -102,22 +103,36 @@ public class OrderService {
 
     /**
      * 결제완료로 바꾼다. 결제 시각은 이벤트 값이 아니라 지금 시각을 쓴다.
+     * 결제대기면 주문이 회원 · 주문상품 구성 · 금액을 대조하고, 다르면 PaymentMismatchException이 그대로 나간다.
      *
      * @return 이번에 결제완료로 바꿨으면 true. 주문이 없거나 결제대기가 아니면 false
      */
-    public boolean markPaid(Long orderId, Long paymentId, long amount) {
+    public boolean markPaid(MarkPaidCommand command) {
         LocalDateTime now = LocalDateTime.now();
-        Order order = findForEvent(orderId, "payment.completed");
+        Order order = findForEvent(command.orderId(), "payment.completed");
         if (order == null) {
             return false;
         }
-        TransitionResult result = order.markPaid(paymentId, amount, now);
+        TransitionResult result = order.markPaid(command.paymentId(), command.memberId(), command.amount(),
+            toPaidItems(command.items()), now);
         if (result != TransitionResult.APPLIED) {
             logIgnored("payment.completed", order, result);
             return false;
         }
-        log.info("결제완료: orderId={} paymentId={}", order.getId(), paymentId);
+        log.info("결제완료: orderId={} paymentId={}", order.getId(), command.paymentId());
         return true;
+    }
+
+    /**
+     * 비어 있으면(null) 빈 목록으로 넘겨 주문이 구성 불일치로 판단하게 한다. 빈 칸(null)도 그대로 넘긴다.
+     */
+    private static List<Order.PaidItem> toPaidItems(List<MarkPaidCommand.Item> items) {
+        if (items == null) {
+            return List.of();
+        }
+        return items.stream()
+            .map(item -> item == null ? null : new Order.PaidItem(item.orderItemId(), item.amount()))
+            .toList();
     }
 
     /**

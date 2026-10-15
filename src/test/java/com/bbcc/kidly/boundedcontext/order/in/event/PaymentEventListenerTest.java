@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
@@ -31,6 +33,8 @@ class PaymentEventListenerTest {
 
     private static final Long ORDER_ID = 7L;
     private static final Long PAYMENT_ID = 500L;
+    private static final MarkPaidCommand COMMAND = new MarkPaidCommand(ORDER_ID, PAYMENT_ID, 1L, 1L,
+        List.of(new MarkPaidCommand.Item(70L, 1L)));
 
     @Mock
     private OrderService orderService;
@@ -49,13 +53,13 @@ class PaymentEventListenerTest {
     class OnPaymentCompleted {
 
         @Test
-        @DisplayName("주문 ID · 결제 ID로 결제완료를 맡기고, 바뀌었으면 판매자별 주문을 만든 뒤 장바구니를 정리한다")
+        @DisplayName("주문 ID · 결제 ID · 회원 · 금액 · 주문상품별 금액으로 결제완료를 맡기고, 바뀌었으면 판매자별 주문을 만든 뒤 장바구니를 정리한다")
         void marksPaidThenCreatesDeliveriesAndClearsCart() {
-            when(orderService.markPaid(ORDER_ID, PAYMENT_ID, 1L)).thenReturn(true);
+            when(orderService.markPaid(COMMAND)).thenReturn(true);
 
             listener.onPaymentCompleted(event());
 
-            verify(orderService).markPaid(ORDER_ID, PAYMENT_ID, 1L);
+            verify(orderService).markPaid(COMMAND);
             verify(deliveryService).createFor(ORDER_ID);
             verify(cartService).clearOrdered(ORDER_ID);
         }
@@ -65,9 +69,19 @@ class PaymentEventListenerTest {
         void doesNothingWhenNotChanged() {
             listener.onPaymentCompleted(event());
 
-            verify(orderService).markPaid(ORDER_ID, PAYMENT_ID, 1L);
+            verify(orderService).markPaid(COMMAND);
             verify(deliveryService, never()).createFor(anyLong());
             verify(cartService, never()).clearOrdered(anyLong());
+        }
+
+        @Test
+        @DisplayName("주문상품 목록이 비어 있으면(null) NPE 없이 빈 목록으로 넘겨 주문이 구성 불일치로 판단하게 한다")
+        void passesMissingItemsAsEmpty() {
+            LocalDateTime at = LocalDateTime.of(2026, 10, 14, 9, 0);
+            listener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(), at,
+                new PaymentCompletedEvent.Data(PAYMENT_ID, ORDER_ID, 1L, 1L, null, at)));
+
+            verify(orderService).markPaid(new MarkPaidCommand(ORDER_ID, PAYMENT_ID, 1L, 1L, List.of()));
         }
     }
 
@@ -83,7 +97,7 @@ class PaymentEventListenerTest {
                     LocalDateTime.of(2026, 10, 15, 9, 0))));
 
             verify(orderService).cancelForPaymentFailure(ORDER_ID);
-            verify(orderService, never()).markPaid(anyLong(), anyLong(), anyLong());
+            verify(orderService, never()).markPaid(any());
         }
     }
 

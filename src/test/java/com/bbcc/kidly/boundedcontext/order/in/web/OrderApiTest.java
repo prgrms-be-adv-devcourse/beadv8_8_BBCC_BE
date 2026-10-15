@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
@@ -383,8 +384,8 @@ class OrderApiTest {
          * 이벤트 대신 서비스를 바로 불러 결제완료 · 판매자 배송 완료(지금 시각)로 만든다.
          */
         private void markDelivered(String orderId) {
-            orderService.markPaid(Long.valueOf(orderId), 500L,
-                orderService.getOrder(BUYER_ID, Long.valueOf(orderId)).totalAmount());
+            orderService.markPaid(MarkPaidCommands.matching(
+                orderService.getOrder(BUYER_ID, Long.valueOf(orderId)), BUYER_ID, 500L));
             deliveredAtSetter.recordDelivered(Long.valueOf(orderId), SELLER_ID, LocalDateTime.now());
         }
 

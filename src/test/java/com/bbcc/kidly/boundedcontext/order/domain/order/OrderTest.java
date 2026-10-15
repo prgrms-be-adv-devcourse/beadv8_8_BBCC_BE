@@ -467,12 +467,14 @@ class OrderTest {
     @DisplayName("결제 완료 (payment.completed)")
     class MarkPaid {
 
+        private static final Long ORDER_ID = 7L;
+
         @Test
-        @DisplayName("결제대기 주문은 결제완료가 되고 결제 ID와 시각을 남긴다")
+        @DisplayName("회원 · 주문상품 구성 · 주문상품 금액 · 총액이 모두 같으면 결제완료가 되고 결제 ID와 시각을 남긴다")
         void markPaid() {
             Order order = OrderFixture.placedOrder();
 
-            TransitionResult paid = order.markPaid(PAYMENT_ID, order.getTotalAmount(), PAID_AT);
+            TransitionResult paid = OrderFixture.pay(order, PAYMENT_ID, PAID_AT);
 
             assertThat(paid).isEqualTo(TransitionResult.APPLIED);
             assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
@@ -486,7 +488,7 @@ class OrderTest {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
 
-            TransitionResult paid = order.markPaid(PAYMENT_ID, order.getTotalAmount(), NOW.plusMinutes(12));
+            TransitionResult paid = OrderFixture.pay(order, PAYMENT_ID, NOW.plusMinutes(12));
 
             assertThat(paid).isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
@@ -499,7 +501,7 @@ class OrderTest {
         void duplicateKeepsFirst() {
             Order order = OrderFixture.paidOrder();
 
-            TransitionResult paid = order.markPaid(999L, order.getTotalAmount(), PAID_AT.plusMinutes(1));
+            TransitionResult paid = OrderFixture.pay(order, 999L, PAID_AT.plusMinutes(1));
 
             assertThat(paid).isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(order.getPaymentId()).isEqualTo(PAYMENT_ID);
@@ -507,41 +509,175 @@ class OrderTest {
         }
 
         @Test
-        @DisplayName("결제 금액이 주문 총액보다 1원 많거나 적으면 예외, 주문은 결제대기로 남는다")
-        void amountMismatchThrows() {
-            for (long delta : new long[] {1L, -1L}) {
-                Order order = OrderFixture.placedOrder();
-                long amount = order.getTotalAmount() + delta;
+        @DisplayName("회원이 다르거나 비어 있으면 member-mismatch")
+        void memberMismatch() {
+            for (Long memberId : new Long[] {OTHER_MEMBER_ID, null}) {
+                Order order = pendingWithIds();
 
-                assertThatThrownBy(() -> order.markPaid(PAYMENT_ID, amount, PAID_AT))
-                    .isInstanceOf(PaidAmountMismatchException.class)
-                    .hasMessageContaining("totalAmount=" + order.getTotalAmount())
-                    .hasMessageContaining("paidAmount=" + amount);
-                assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
-                assertThat(order.getPaymentId()).isNull();
-                assertThat(order.getPaidAt()).isNull();
+                assertMismatch(order, () -> order.markPaid(PAYMENT_ID, memberId, order.getTotalAmount(),
+                        OrderFixture.paidItemsOf(order), PAID_AT),
+                    PaymentMismatchException.Reason.MEMBER_MISMATCH,
+                    "expectedMemberId=" + BUYER_ID + " actualMemberId=" + memberId);
             }
         }
 
         @Test
-        @DisplayName("이미 결제완료면 금액이 달라도 예외 없이 ALREADY_DONE")
-        void paidIgnoresAmount() {
+        @DisplayName("주문상품이 하나 빠지면 item-missing(빠진 주문상품 ID)")
+        void itemMissing() {
+            Order order = pendingWithIds();
+            List<Order.PaidItem> onlyFirst = OrderFixture.paidItemsOf(order).subList(0, 1);
+
+            assertMismatch(order, payWith(order, onlyFirst),
+                PaymentMismatchException.Reason.ITEM_MISSING, "orderItemId=2");
+        }
+
+        @Test
+        @DisplayName("주문상품 목록이 비었거나 없으면(null) NPE 없이 item-missing")
+        void emptyOrNullItemsAreMissing() {
+            for (List<Order.PaidItem> items : java.util.Arrays.asList(List.<Order.PaidItem>of(), null)) {
+                Order order = pendingWithIds();
+
+                assertMismatch(order, payWith(order, items),
+                    PaymentMismatchException.Reason.ITEM_MISSING, "orderItemId=1");
+            }
+        }
+
+        @Test
+        @DisplayName("주문에 없는 주문상품이 남으면 item-extra(남는 주문상품 ID)")
+        void itemExtra() {
+            Order order = pendingWithIds();
+            List<Order.PaidItem> withExtra = new java.util.ArrayList<>(OrderFixture.paidItemsOf(order));
+            withExtra.add(new Order.PaidItem(99L, 0L));
+
+            assertMismatch(order, payWith(order, withExtra),
+                PaymentMismatchException.Reason.ITEM_EXTRA, "orderItemId=99");
+        }
+
+        @Test
+        @DisplayName("같은 주문상품이 두 번 오거나, 주문상품 ID가 비었거나, 빈 칸(null)이 있으면 item-extra")
+        void duplicateOrBlankItemIsExtra() {
+            List<List<Order.PaidItem>> cases = List.of(
+                List.of(new Order.PaidItem(1L, 38_000L), new Order.PaidItem(2L, 15_000L), new Order.PaidItem(1L, 0L)),
+                List.of(new Order.PaidItem(1L, 38_000L), new Order.PaidItem(2L, 15_000L), new Order.PaidItem(null, 0L)),
+                java.util.Arrays.asList(new Order.PaidItem(1L, 38_000L), new Order.PaidItem(2L, 15_000L), null));
+            for (List<Order.PaidItem> items : cases) {
+                Order order = pendingWithIds();
+
+                assertMismatch(order, payWith(order, items),
+                    PaymentMismatchException.Reason.ITEM_EXTRA, "");
+            }
+        }
+
+        @Test
+        @DisplayName("한 주문상품 금액이 1원 적거나 많으면 item-amount-mismatch, 정확히 같으면 결제완료")
+        void itemAmountBoundary() {
+            for (long delta : new long[] {-1L, 1L}) {
+                Order order = pendingWithIds();
+                List<Order.PaidItem> items = List.of(
+                    new Order.PaidItem(1L, 38_000L + delta), new Order.PaidItem(2L, 15_000L));
+
+                assertMismatch(order, payWith(order, items),
+                    PaymentMismatchException.Reason.ITEM_AMOUNT_MISMATCH,
+                    "orderItemId=1 expected=38000 actual=" + (38_000L + delta));
+            }
+
+            Order exact = pendingWithIds();
+            assertThat(exact.markPaid(PAYMENT_ID, BUYER_ID, 53_000L,
+                List.of(new Order.PaidItem(1L, 38_000L), new Order.PaidItem(2L, 15_000L)), PAID_AT))
+                .isEqualTo(TransitionResult.APPLIED);
+        }
+
+        @Test
+        @DisplayName("총액은 같은데 주문상품끼리 금액이 바뀌면 item-amount-mismatch")
+        void swappedItemAmounts() {
+            Order order = pendingWithIds();
+            List<Order.PaidItem> swapped = List.of(new Order.PaidItem(1L, 15_000L), new Order.PaidItem(2L, 38_000L));
+
+            assertMismatch(order, payWith(order, swapped),
+                PaymentMismatchException.Reason.ITEM_AMOUNT_MISMATCH, "orderItemId=1 expected=38000 actual=15000");
+        }
+
+        @Test
+        @DisplayName("주문상품 금액은 모두 같아도 결제 금액이 총액보다 1원 많거나 적으면 total-amount-mismatch")
+        void totalAmountMismatch() {
+            for (long delta : new long[] {1L, -1L}) {
+                Order order = pendingWithIds();
+                long amount = order.getTotalAmount() + delta;
+
+                assertMismatch(order, () -> order.markPaid(PAYMENT_ID, BUYER_ID, amount,
+                        OrderFixture.paidItemsOf(order), PAID_AT),
+                    PaymentMismatchException.Reason.TOTAL_AMOUNT_MISMATCH,
+                    "expected=" + order.getTotalAmount() + " actual=" + amount);
+            }
+        }
+
+        @Test
+        @DisplayName("여러 개가 함께 틀리면 대조 순서(회원 → 구성 → 주문상품 금액 → 총액)에서 처음 걸린 사유 하나만 나온다")
+        void firstReasonOnly() {
+            Order memberFirst = pendingWithIds();
+            assertMismatch(memberFirst, () -> memberFirst.markPaid(PAYMENT_ID, OTHER_MEMBER_ID, 1L, List.of(), PAID_AT),
+                PaymentMismatchException.Reason.MEMBER_MISMATCH, "");
+
+            Order compositionBeforeAmount = pendingWithIds();
+            assertMismatch(compositionBeforeAmount, () -> compositionBeforeAmount.markPaid(PAYMENT_ID, BUYER_ID, 1L,
+                    List.of(new Order.PaidItem(1L, 1L)), PAID_AT),
+                PaymentMismatchException.Reason.ITEM_MISSING, "");
+
+            Order itemAmountBeforeTotal = pendingWithIds();
+            assertMismatch(itemAmountBeforeTotal, () -> itemAmountBeforeTotal.markPaid(PAYMENT_ID, BUYER_ID, 1L,
+                    List.of(new Order.PaidItem(1L, 1L), new Order.PaidItem(2L, 15_000L)), PAID_AT),
+                PaymentMismatchException.Reason.ITEM_AMOUNT_MISMATCH, "");
+        }
+
+        @Test
+        @DisplayName("이미 결제완료면 회원 · 구성 · 금액이 달라도 예외 없이 ALREADY_DONE")
+        void paidIgnoresMismatch() {
             Order order = OrderFixture.paidOrder();
 
-            assertThat(order.markPaid(999L, order.getTotalAmount() + 1, PAID_AT.plusMinutes(1)))
+            assertThat(order.markPaid(999L, OTHER_MEMBER_ID, order.getTotalAmount() + 1, List.of(),
+                PAID_AT.plusMinutes(1)))
                 .isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(order.getPaymentId()).isEqualTo(PAYMENT_ID);
         }
 
         @Test
-        @DisplayName("취소된 주문은 금액이 달라도 예외 없이 NOT_APPLICABLE")
-        void cancelledIgnoresAmount() {
+        @DisplayName("취소된 주문은 회원 · 구성 · 금액이 달라도 예외 없이 NOT_APPLICABLE")
+        void cancelledIgnoresMismatch() {
             Order order = OrderFixture.placedOrder();
             order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
 
-            assertThat(order.markPaid(PAYMENT_ID, order.getTotalAmount() - 1, NOW.plusMinutes(12)))
+            assertThat(order.markPaid(PAYMENT_ID, null, order.getTotalAmount() - 1, null, NOW.plusMinutes(12)))
                 .isEqualTo(TransitionResult.NOT_APPLICABLE);
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+        }
+
+        /**
+         * 주문 ID 7 · 주문상품 ID 1(판매자 A, 38,000원) · 2(판매자 B, 15,000원) · 총액 53,000원인 결제대기 주문.
+         */
+        private Order pendingWithIds() {
+            return OrderFixture.withId(OrderFixture.withItemIds(OrderFixture.placedOrder()), ORDER_ID);
+        }
+
+        /**
+         * 회원 · 총액은 주문과 같고 주문상품별 금액만 주어진 대로인 결제 완료.
+         */
+        private org.assertj.core.api.ThrowableAssert.ThrowingCallable payWith(Order order, List<Order.PaidItem> items) {
+            return () -> order.markPaid(PAYMENT_ID, BUYER_ID, order.getTotalAmount(), items, PAID_AT);
+        }
+
+        /**
+         * 사유 하나 · 메시지(공백 없는 코드 형식) · 주문이 결제대기 그대로인지 확인한다.
+         */
+        private void assertMismatch(Order order, org.assertj.core.api.ThrowableAssert.ThrowingCallable call,
+            PaymentMismatchException.Reason reason, String detail) {
+            assertThatThrownBy(call)
+                .isInstanceOfSatisfying(PaymentMismatchException.class,
+                    e -> assertThat(e.getReason()).isEqualTo(reason))
+                .hasMessageStartingWith("결제 불일치: orderId=" + ORDER_ID + " reason=" + reason.code())
+                .hasMessageContaining(detail);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+            assertThat(order.getPaymentId()).isNull();
+            assertThat(order.getPaidAt()).isNull();
         }
     }
 
