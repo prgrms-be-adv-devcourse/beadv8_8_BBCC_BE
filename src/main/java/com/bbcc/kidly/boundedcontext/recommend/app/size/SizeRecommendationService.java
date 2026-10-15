@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.size;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.size.dto.SizeRecommendationResult;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
@@ -8,7 +9,6 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
-import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDate;
@@ -40,11 +40,11 @@ public class SizeRecommendationService {
     @Transactional(readOnly = true)
     public SizeRecommendationResult recommend(Long memberId, Long productId, Long childId) {
         RecommendReplicaProduct product = replicaProductRepository.findById(productId)
-            .orElseThrow(() -> new BusinessException(SizeRecommendationErrorCode.PRODUCT_NOT_FOUND));
+            .orElseThrow(() -> new BusinessException(RecommendErrorCode.PRODUCT_NOT_FOUND));
         RecommendReplicaChild child = replicaChildRepository.findById(childId)
-            .orElseThrow(() -> new BusinessException(SizeRecommendationErrorCode.CHILD_NOT_FOUND));
+            .orElseThrow(() -> new BusinessException(RecommendErrorCode.CHILD_NOT_FOUND));
         if (!child.isVisibleTo(memberId)) {
-            throw new BusinessException(SizeRecommendationErrorCode.CHILD_NOT_FOUND);
+            throw new BusinessException(RecommendErrorCode.CHILD_NOT_FOUND);
         }
 
         SizeRecommendation recommendation = sizeRecommender.recommend(
