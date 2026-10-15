@@ -16,6 +16,7 @@ class DatabaseCleanerExtension implements AfterEachCallback {
         SELECT quote_ident(schemaname) || '.' || quote_ident(tablename)
         FROM pg_tables
         WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+          AND tablename <> 'flyway_schema_history'
         """;
 
     @Override
