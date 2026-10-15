@@ -52,7 +52,8 @@ public class InventoryAdjustmentService {
                 "판매 가능 수량보다 많이 줄일 수 없습니다. 지금 판매 가능 수량: " + availableQuantity);
         }
         inventoryRepository.saveAdjustmentRecord(record);
-        // 품절 여부가 바뀌었으면 상품 정보 변경됨을 보낸다 (SALE-08). 재고 행을 바꾼 뒤에 상품 행을 잠가 재고 차감과 잠금 순서가 같다
+        // 품절 여부가 바뀌었으면 상품 정보 변경됨을 보낸다 (SALE-08)
+        // 재고 행을 바꾼 뒤에 상품 행을 잠가, 재고 차감과 같은 순서로 잠근다
         if (record.changesSoldOut(availableQuantity)) {
             soldOutPublisher.publishAfterAdjustment(optionId);
         }
