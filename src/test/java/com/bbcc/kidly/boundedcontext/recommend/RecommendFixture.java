@@ -264,8 +264,16 @@ public final class RecommendFixture {
      */
     public static ProductChangedEvent.Option productOption(
         Long optionId, String size, Integer minHeightCm, Integer maxHeightCm) {
-        return new ProductChangedEvent.Option(optionId, "색상: 네이비 / 사이즈: " + size, size, 25_000L,
-            minHeightCm, maxHeightCm, false, OptionSaleStatus.ON_SALE);
+        return productOption(optionId, size, minHeightCm, maxHeightCm, 25_000L, false, OptionSaleStatus.ON_SALE);
+    }
+
+    /**
+     * {@link #productOption(Long, String, Integer, Integer)}에서 판매가 · 품절 · 옵션 판매 상태도 바꾼다.
+     */
+    public static ProductChangedEvent.Option productOption(Long optionId, String size, Integer minHeightCm,
+        Integer maxHeightCm, long price, boolean soldOut, OptionSaleStatus saleStatus) {
+        return new ProductChangedEvent.Option(optionId, "색상: 네이비 / 사이즈: " + size, size, price,
+            minHeightCm, maxHeightCm, soldOut, saleStatus);
     }
 
     /**

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_CATEGORY_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_NAME;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_REGISTERED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
@@ -16,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -76,6 +78,27 @@ class RecommendReplicaProductIntegrationTest {
             .containsExactlyInAnyOrder(SizeRange.of("110", 105, 115), SizeRange.of("120", 115, 125));
     }
 
+    // 가장 낮은 판매가를 판매 가능한 옵션에 두어, 품절 · 판매 중지 옵션을 최저가에 넣을지와 상관없이 기대값이 하나로 정해진다
+    @Test
+    @DisplayName("상품 정보 변경됨을 받으면 상품명 · 최저가 · 판매 가능 사이즈가 상품 복사본에 저장된다")
+    void saveNamePriceAndSellableSizes() {
+        publishInTransaction(RecommendFixture.productAChangedEventAt(List.of(
+            productOption(1L, "120", 115, 125, 25_000L, true, OptionSaleStatus.ON_SALE),
+            productOption(2L, "110", 105, 115, 23_000L, false, OptionSaleStatus.ON_SALE),
+            productOption(3L, "130", 125, 135, 27_000L, false, OptionSaleStatus.STOPPED)), PRODUCT_CHANGED_AT));
+
+        // 판매 가능 사이즈는 지연 로딩이라, 새 트랜잭션에서 읽어야 저장된 행을 실제로 불러온다
+        transactionTemplate.executeWithoutResult(status -> {
+            RecommendReplicaProduct replica = replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow();
+            assertThat(replica.getName()).isEqualTo(PRODUCT_A_NAME);
+            assertThat(replica.getMinPrice()).isEqualTo(23_000L);
+            assertThat(replica.isSellable("110")).isTrue();
+            assertThat(replica.isSellable("120")).isFalse();
+            assertThat(replica.isSellable("130")).isFalse();
+            assertThat(replica.hasSellableOption()).isTrue();
+        });
+    }
+
     @Test
     @DisplayName("사이즈 무관 상품의 상품 정보 변경됨을 받으면 사이즈 무관으로 저장되고 권장 키 없는 옵션은 사이즈 줄에 넣지 않는다")
     void saveSizeFreeReplica() {
@@ -124,6 +147,19 @@ class RecommendReplicaProductIntegrationTest {
         assertThat(replicaProductRepository.findById(PRODUCT_A_ID)).get()
             .extracting(RecommendReplicaProduct::getEventOccurredAt).isEqualTo(LATER);
         assertThat(sizesOf(PRODUCT_A_ID).sizeRanges()).containsExactly(SizeRange.of("130", 125, 135));
+    }
+
+    @Test
+    @DisplayName("INV-R01 더 늦게 일어난 이벤트를 받으면 판매 가능 사이즈 행이 새 옵션의 사이즈로 바뀌고 옛 사이즈 행은 남지 않는다")
+    void replaceSellableSizeRowsWithLaterEvent() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEventAt(
+            List.of(productOption(3L, "130", 125, 135)), LATER));
+
+        assertThat(jdbcTemplate.queryForList(
+            "select size from recommend.replica_product_sellable_size where product_id = ?", String.class,
+            PRODUCT_A_ID)).containsExactly("130");
     }
 
     @ParameterizedTest(name = "저장된 시각에서 {0}분")
