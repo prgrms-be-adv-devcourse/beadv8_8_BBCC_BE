@@ -319,7 +319,7 @@ public class Product extends BaseTimeEntity {
 
     /**
      * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다. 판매중지 상품도 판매 시작 조건을 다시 검사해
-     * 판매중으로 바꾼다(판매 재개). 관리자 판매중지(SALE-11)를 만들 때 판매자가 풀 수 있게 둘지 다시 정한다.
+     * 판매중으로 바꾼다(판매 재개). 관리자가 멈춘 상품(운영 정책 위반으로 관리자가 판매를 중지한 상품)은 판매자가 다시 열 수 없다.
      */
     public boolean startSale(Long sellerId, Category category, ProductType productType) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
@@ -329,21 +329,11 @@ public class Product extends BaseTimeEntity {
         if (!this.sellerId.equals(sellerId)) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
         }
-        // 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-        if (status == ProductStatus.ON_SALE) {
-            return false;
-        }
         // 관리자가 운영 정책 때문에 멈춘 상품은 판매자가 다시 열 수 없다 (SALE-11)
         if (stoppedByAdmin) {
             throw new BusinessException(ProductErrorCode.STOPPED_BY_ADMIN);
         }
-        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
-        if (!missing.isEmpty()) {
-            throw new BusinessException(ProductErrorCode.SALE_START_CONDITION_NOT_MET,
-                "판매를 시작할 수 없습니다. " + String.join(" ", missing));
-        }
-        status = ProductStatus.ON_SALE;
-        return true;
+        return openSale(category, productType);
     }
 
     /** 상품을 바꾸려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 바꿀 수 없다. */
@@ -361,48 +351,45 @@ public class Product extends BaseTimeEntity {
         if (!this.sellerId.equals(sellerId)) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
         }
-        // 판매대기 상품은 구매자에게 보이지 않으므로 멈출 판매가 없다
-        if (status == ProductStatus.SALE_PENDING) {
-            throw new BusinessException(ProductErrorCode.SALE_NOT_STARTED);
-        }
-        // 이미 판매중지면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-        if (status == ProductStatus.STOPPED) {
-            return false;
-        }
-        status = ProductStatus.STOPPED;
-        return true;
+        return markStopped();
     }
 
     /** 관리자가 상품의 판매를 시작하거나 다시 열고, 판매 상태가 바뀌었는지 돌려준다. 관리자가 멈춘 상품 표시도 끈다. */
     public boolean startSaleByAdmin(Category category, ProductType productType) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
-        // 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-        if (status == ProductStatus.ON_SALE) {
-            return false;
-        }
-        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
-        if (!missing.isEmpty()) {
-            throw new BusinessException(ProductErrorCode.SALE_START_CONDITION_NOT_MET,
-                "판매를 시작할 수 없습니다. " + String.join(" ", missing));
-        }
-        status = ProductStatus.ON_SALE;
+        boolean changed = openSale(category, productType);
         stoppedByAdmin = false;
-        return true;
+        return changed;
     }
 
     /** 관리자가 운영 정책을 어긴 상품의 판매를 중지하고, 판매 상태가 바뀌었는지 돌려준다. */
     public boolean stopSaleByAdmin() {
+        boolean changed = markStopped();
+        // 이미 판매중지여도 판매자가 다시 열지 못하게 관리자가 멈춘 상품으로 표시한다
+        stoppedByAdmin = true;
+        return changed;
+    }
+
+    // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
+    private boolean openSale(Category category, ProductType productType) {
+        if (status == ProductStatus.ON_SALE) {
+            return false;
+        }
+        SaleStartConditions.requireMet(options, sizeSpecs, category, productType);
+        status = ProductStatus.ON_SALE;
+        return true;
+    }
+
+    // 판매중지로 바꾼다. 판매대기 상품은 구매자에게 보이지 않으므로 멈출 판매가 없고, 이미 판매중지면 아무것도 바꾸지 않는다
+    private boolean markStopped() {
         if (status == ProductStatus.SALE_PENDING) {
             throw new BusinessException(ProductErrorCode.SALE_NOT_STARTED);
         }
-        // 이미 판매중지면 상태는 그대로 두고, 판매자가 다시 열지 못하게 관리자가 멈춘 상품으로만 표시한다
         if (status == ProductStatus.STOPPED) {
-            stoppedByAdmin = true;
             return false;
         }
         status = ProductStatus.STOPPED;
-        stoppedByAdmin = true;
         return true;
     }
 

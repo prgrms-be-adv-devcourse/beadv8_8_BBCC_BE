@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +17,16 @@ import java.util.Map;
 final class SaleStartConditions {
 
     private SaleStartConditions() {
+    }
+
+    // 판매 시작 조건을 모두 채우지 못했으면 빠진 항목을 이어 붙인 메시지로 SALE_START_CONDITION_NOT_MET을 던진다
+    static void requireMet(List<ProductOption> options, List<SizeSpec> sizeSpecs, Category category,
+        ProductType productType) {
+        List<String> missing = missingItems(options, sizeSpecs, category, productType);
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ProductErrorCode.SALE_START_CONDITION_NOT_MET,
+                "판매를 시작할 수 없습니다. " + String.join(" ", missing));
+        }
     }
 
     // 빠진 항목마다 마침표로 끝나는 문장을 하나씩 돌려준다. 모두 채웠으면 빈 목록이다
