@@ -202,7 +202,7 @@ class CartServiceTest {
     // ── 조회 ──
 
     @Test
-    @DisplayName("조회: 저장소 순서(최근 담은 줄부터)대로 줄을 만들고, 합계는 구매 가능한 줄만 더한다")
+    @DisplayName("조회: 저장소 순서(최근 담은 줄부터)대로 줄을 만들고 판매자 ID를 붙이며, 합계는 구매 가능한 줄만 더한다")
     void getCart() {
         when(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).thenReturn(List.of(
             CartItem.create(BUYER_ID, 2L, null, 1),
@@ -216,6 +216,7 @@ class CartServiceTest {
         assertThat(cart.items()).hasSize(2);
         CartView.Line soldOut = cart.items().get(0);
         assertThat(soldOut.optionId()).isEqualTo(2L);
+        assertThat(soldOut.sellerId()).isEqualTo(SELLER_ID);
         assertThat(soldOut.purchasable()).isFalse();
         assertThat(soldOut.unitPrice()).isEqualTo(30_000L);
         assertThat(soldOut.lineAmount()).isEqualTo(30_000L);
@@ -224,7 +225,7 @@ class CartServiceTest {
     }
 
     @Test
-    @DisplayName("조회: 상품 복사본이 없는 줄도 보여주되 구매 불가 · 상품 필드 null · 금액 0")
+    @DisplayName("조회: 상품 복사본이 없는 줄도 보여주되 구매 불가 · 상품 필드(판매자 ID 포함) null · 금액 0, NPE 없음")
     void getCartWithoutReplica() {
         when(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).thenReturn(List.of(
             CartItem.create(BUYER_ID, 9L, null, 2)));
@@ -236,6 +237,7 @@ class CartServiceTest {
         assertThat(line.optionId()).isEqualTo(9L);
         assertThat(line.quantity()).isEqualTo(2);
         assertThat(line.productId()).isNull();
+        assertThat(line.sellerId()).isNull();
         assertThat(line.productName()).isNull();
         assertThat(line.size()).isNull();
         assertThat(line.unitPrice()).isNull();

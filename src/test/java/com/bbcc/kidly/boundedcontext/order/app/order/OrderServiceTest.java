@@ -49,11 +49,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class OrderServiceTest {
 
     private static final Order.Policy POLICY = new Order.Policy(Duration.ofMinutes(10), Duration.ofDays(15));
@@ -518,16 +520,49 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("목록은 회원의 주문을 최근 주문부터 요청한 페이지로 돌려준다")
+        @DisplayName("목록은 회원의 주문을 최근 주문부터 요청한 페이지로, 주문상품을 한 번에 읽어 대표 상품명 · 주문상품 수와 함께 돌려준다")
         void returnsPage() {
+            Order order = withId(placedOrder(BUYER_ID), ORDER_ID);
             when(orderRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID, PageRequest.of(0, 20)))
-                .thenReturn(new PageImpl<>(List.of(placedOrder(BUYER_ID)), PageRequest.of(0, 20), 1));
+                .thenReturn(new PageImpl<>(List.of(order), PageRequest.of(0, 20), 1));
+            when(orderRepository.findAllWithItemsByIdIn(List.of(ORDER_ID))).thenReturn(List.of(order));
 
             Page<OrderSummary> page = orderService.getOrders(BUYER_ID, 0, 20);
 
             assertThat(page.getContent()).hasSize(1);
-            assertThat(page.getContent().get(0).status()).isEqualTo("PENDING_PAYMENT");
-            assertThat(page.getContent().get(0).totalAmount()).isEqualTo(50_000L);
+            OrderSummary summary = page.getContent().get(0);
+            assertThat(summary.status()).isEqualTo("PENDING_PAYMENT");
+            assertThat(summary.totalAmount()).isEqualTo(50_000L);
+            assertThat(summary.representativeProductName()).isEqualTo("상품 A");
+            assertThat(summary.itemCount()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("페이지에는 있는데 주문상품 조회에 없는 주문은 예외 없이 대표 상품명 null · 주문상품 수 0, WARN 한 줄")
+        void missingItemsAreBlank(CapturedOutput output) {
+            Order found = withId(placedOrder(BUYER_ID), ORDER_ID);
+            Order missing = withId(placedOrder(BUYER_ID), 8L);
+            when(orderRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID, PageRequest.of(0, 20)))
+                .thenReturn(new PageImpl<>(List.of(missing, found), PageRequest.of(0, 20), 2));
+            when(orderRepository.findAllWithItemsByIdIn(List.of(8L, ORDER_ID))).thenReturn(List.of(found));
+
+            Page<OrderSummary> page = orderService.getOrders(BUYER_ID, 0, 20);
+
+            assertThat(page.getContent()).extracting(OrderSummary::orderId).containsExactly(8L, ORDER_ID);
+            assertThat(page.getContent().get(0).representativeProductName()).isNull();
+            assertThat(page.getContent().get(0).itemCount()).isEqualTo(0);
+            assertThat(page.getContent().get(1).representativeProductName()).isEqualTo("상품 A");
+            assertThat(output).containsPattern("WARN.*reason=order-items-not-found orderId=8");
+        }
+
+        @Test
+        @DisplayName("빈 페이지면 주문상품을 조회하지 않는다")
+        void emptyPageSkipsItems() {
+            when(orderRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID, PageRequest.of(0, 20)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+            assertThat(orderService.getOrders(BUYER_ID, 0, 20).getContent()).isEqualTo(List.of());
+            verify(orderRepository, never()).findAllWithItemsByIdIn(any());
         }
     }
 

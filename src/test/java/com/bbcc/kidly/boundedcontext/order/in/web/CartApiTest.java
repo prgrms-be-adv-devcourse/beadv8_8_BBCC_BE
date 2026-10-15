@@ -97,6 +97,7 @@ class CartApiTest {
             .jsonPath("$.items.length()").isEqualTo(1)
             .jsonPath("$.items[0].cartItemId").isEqualTo(cartItemId)
             .jsonPath("$.items[0].optionName").isEqualTo("네이비 / 110")
+            .jsonPath("$.items[0].sellerId").isEqualTo(String.valueOf(SELLER_ID))
             .jsonPath("$.items[0].purchasable").isEqualTo(true)
             .jsonPath("$.totalAmount").isEqualTo(25_000);
     }
