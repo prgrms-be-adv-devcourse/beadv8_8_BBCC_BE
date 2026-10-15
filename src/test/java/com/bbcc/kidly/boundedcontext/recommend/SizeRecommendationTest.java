@@ -7,8 +7,13 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import java.util.List;
+import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class SizeRecommendationTest {
 
@@ -46,6 +51,24 @@ class SizeRecommendationTest {
             SizeRecommendation.recommended("120", Fit.ROOMY, List.of(), List.of("110", "120"));
 
         assertThat(result.getCandidateSizes()).containsExactly("110", "120");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("recommendationsWithNull")
+    @DisplayName("INV-R04 추천 결과의 사이즈 · 적합도 · 안내 목록 · 후보 목록이 null이면 만들지 않는다")
+    void rejectRecommendationWithNull(ThrowingCallable recommended) {
+        assertThatThrownBy(recommended)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> recommendationsWithNull() {
+        List<String> candidates = List.of("110", "120");
+        return Stream.of(
+            Named.of("사이즈", () -> SizeRecommendation.recommended(null, Fit.ROOMY, List.of(), candidates)),
+            Named.of("적합도", () -> SizeRecommendation.recommended("120", null, List.of(), candidates)),
+            Named.of("안내 목록", () -> SizeRecommendation.recommended("120", Fit.ROOMY, null, candidates)),
+            Named.of("후보 목록", () -> SizeRecommendation.recommended("120", Fit.ROOMY, List.of(), null)));
     }
 
     @Test
