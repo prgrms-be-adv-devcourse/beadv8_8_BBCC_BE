@@ -140,7 +140,6 @@ class CartServiceTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_QUANTITY);
         assertThat(existing.getQuantity()).isEqualTo(99);
-        assertThat(CartService.MAX_QUANTITY).isEqualTo(99);
     }
 
     @Test

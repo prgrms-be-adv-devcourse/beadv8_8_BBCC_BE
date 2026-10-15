@@ -23,6 +23,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 @FunctionalTest
@@ -47,6 +48,9 @@ class CartApiTest {
     @Autowired
     private ChildReplicaRepository childReplicaRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
@@ -69,10 +73,14 @@ class CartApiTest {
             .expectStatus().isCreated()
             .expectBody()
             .jsonPath("$.optionId").isEqualTo("1")
+            .jsonPath("$.productId").isEqualTo("1")
+            .jsonPath("$.sellerId").isEqualTo("2")
             .jsonPath("$.childId").isEqualTo("1")
             .jsonPath("$.productName").isEqualTo("상품 A")
             .jsonPath("$.optionName").isEqualTo("네이비 / 110")
+            .jsonPath("$.size").isEqualTo("110")
             .jsonPath("$.unitPrice").isEqualTo(25_000)
+            .jsonPath("$.purchasable").isEqualTo(true)
             .jsonPath("$.lineAmount").isEqualTo(50_000)
             .returnResult()
             .getResponseHeaders().getLocation();
@@ -178,7 +186,30 @@ class CartApiTest {
             .exchange()
             .expectStatus().isForbidden()
             .expectBody()
-            .jsonPath("$.title").isEqualTo("자기 상품은 살 수 없습니다");
+            .jsonPath("$.title").isEqualTo("자기 상품은 살 수 없습니다")
+            .jsonPath("$.detail").isEqualTo("자기 상품은 담거나 주문할 수 없습니다. 다른 판매자의 상품을 골라 주세요.");
+    }
+
+    @Test
+    @DisplayName("담은 뒤 상품 복사본이 없어지면 장바구니 조회는 200, 그 줄은 상품 값 null · 구매 불가 · 금액 0")
+    void lineWithoutReplicaIsNotPurchasable() {
+        String cartItemId = addAndReadId();
+        jdbcTemplate.update("delete from orders.replica_product where option_id = ?", 1L);
+
+        client.get().uri(CART_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(1)
+            .jsonPath("$.items[0].cartItemId").isEqualTo(cartItemId)
+            .jsonPath("$.items[0].optionId").isEqualTo("1")
+            .jsonPath("$.items[0].productName").value(name -> assertThat(name).isNull())
+            .jsonPath("$.items[0].sellerId").value(sellerId -> assertThat(sellerId).isNull())
+            .jsonPath("$.items[0].unitPrice").value(unitPrice -> assertThat(unitPrice).isNull())
+            .jsonPath("$.items[0].purchasable").isEqualTo(false)
+            .jsonPath("$.items[0].lineAmount").isEqualTo(0)
+            .jsonPath("$.totalAmount").isEqualTo(0);
     }
 
     @Test

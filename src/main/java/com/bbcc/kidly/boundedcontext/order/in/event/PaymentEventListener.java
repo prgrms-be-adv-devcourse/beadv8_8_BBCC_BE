@@ -66,10 +66,10 @@ public class PaymentEventListener {
         } catch (RuntimeException e) {
             logged.set(true);
             if (isLostConcurrentDuplicate(e)) {
-                log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event=payment.completed orderId={} paymentId={}",
-                    paid.orderId(), paid.paymentId(), e);
+                log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event=payment.completed "
+                    + "reason=lost-concurrent-duplicate orderId={} paymentId={}", paid.orderId(), paid.paymentId(), e);
             } else {
-                log.error("결제 완료 처리 실패: event=payment.completed orderId={} paymentId={}",
+                log.error("결제 완료 처리 실패: event=payment.completed reason=processing-failed orderId={} paymentId={}",
                     paid.orderId(), paid.paymentId(), e);
             }
             throw e;
@@ -85,7 +85,7 @@ public class PaymentEventListener {
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK && !logged.get()) {
                     log.warn("커밋 단계에서 되돌려짐 — 동시 처리에서 진 쪽일 가능성: event=payment.completed "
-                        + "orderId={} paymentId={}", paid.orderId(), paid.paymentId());
+                        + "reason=rolled-back-at-commit orderId={} paymentId={}", paid.orderId(), paid.paymentId());
                 }
             }
         });

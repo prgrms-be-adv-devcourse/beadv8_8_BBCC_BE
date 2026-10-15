@@ -91,7 +91,8 @@ class PaymentMismatchIntegrationTest {
         assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(event))
             .isInstanceOfSatisfying(PaymentMismatchException.class, e -> assertThat(e.getReason()).isEqualTo(reason));
 
-        assertThat(output).containsPattern("ERROR.*결제 완료 처리 실패: event=payment.completed orderId=" + order.orderId());
+        assertThat(output).containsPattern(
+            "ERROR.*event=payment.completed reason=processing-failed orderId=" + order.orderId());
         assertThat(output).contains("reason=" + reason.code());
         Order stored = orderRepository.findById(order.orderId()).orElseThrow();
         assertThat(stored.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);

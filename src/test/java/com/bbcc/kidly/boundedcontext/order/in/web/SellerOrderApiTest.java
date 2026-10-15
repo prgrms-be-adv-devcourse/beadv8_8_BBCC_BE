@@ -125,6 +125,103 @@ class SellerOrderApiTest {
         }
 
         @Test
+        @DisplayName("기본 페이지는 page 0 · size 20이고 배송 1건이면 hasNext false")
+        void defaultPage() {
+            client.get().uri(SELLER_ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.page").isEqualTo(0)
+                .jsonPath("$.size").isEqualTo(20)
+                .jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.totalPages").isEqualTo(1)
+                .jsonPath("$.hasNext").isEqualTo(false);
+        }
+
+        @Test
+        @DisplayName("마지막 페이지 바로 다음 page는 200 · 빈 목록")
+        void pageAfterLastIsEmpty() {
+            client.get().uri(SELLER_ORDERS_PATH + "?page=1&size=20")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.page").isEqualTo(1)
+                .jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.hasNext").isEqualTo(false);
+        }
+
+        @Test
+        @DisplayName("page가 int 최댓값(2147483647)이어도 500이 아니라 200 · 빈 목록이고 page 값은 그대로")
+        void hugePageIsEmpty() {
+            // page = Integer.MAX_VALUE에서는 Spring Page.hasNext()의 +1 넘침으로 true — global PageResponse 한계, backlog 후보.
+            // 그래서 hasNext는 바로 아래 큰 page(hugePageHasNoNext)에서 확인한다
+            client.get().uri(SELLER_ORDERS_PATH + "?page=2147483647&size=20")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.page").isEqualTo(2147483647)
+                .jsonPath("$.size").isEqualTo(20)
+                .jsonPath("$.totalElements").isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("offset이 정확히 int 최댓값(page 2147483647 · size 1)이면 실제 DB 조회로 200 · 빈 목록")
+        void offsetExactlyMaxIsQueriedFromDatabase() {
+            // hasNext는 단언하지 않는다(page = Integer.MAX_VALUE의 Spring Page.hasNext() +1 넘침, global 한계)
+            client.get().uri(SELLER_ORDERS_PATH + "?page=2147483647&size=1")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.page").isEqualTo(2147483647)
+                .jsonPath("$.size").isEqualTo(1)
+                .jsonPath("$.totalElements").isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("offset이 int를 넘는 큰 page(1073741824 · size 2)는 200 · 빈 목록 · hasNext false")
+        void hugePageHasNoNext() {
+            client.get().uri(SELLER_ORDERS_PATH + "?page=1073741824&size=2")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.page").isEqualTo(1073741824)
+                .jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.hasNext").isEqualTo(false);
+        }
+
+        @Test
+        @DisplayName("그 판매자 배송이 2건이면 size=1 첫 페이지는 hasNext true · totalPages 2")
+        void firstPageHasNext() {
+            transactionTemplate.executeWithoutResult(status -> {
+                Wallet wallet = walletRepository.findByMemberId(BUYER_ID).orElseThrow();
+                wallet.deposit(80_000L);
+                walletRepository.save(wallet);
+            });
+            placePaidOrder();
+
+            client.get().uri(SELLER_ORDERS_PATH + "?page=0&size=1")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(1)
+                .jsonPath("$.page").isEqualTo(0)
+                .jsonPath("$.size").isEqualTo(1)
+                .jsonPath("$.totalElements").isEqualTo(2)
+                .jsonPath("$.totalPages").isEqualTo(2)
+                .jsonPath("$.hasNext").isEqualTo(true);
+        }
+
+        @Test
         @DisplayName("size가 100을 넘으면 400")
         void tooLargePageSize() {
             client.get().uri(SELLER_ORDERS_PATH + "?size=101")
@@ -179,12 +276,36 @@ class SellerOrderApiTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
+                .jsonPath("$.sellerOrderId").isEqualTo(sellerOrderId)
+                .jsonPath("$.orderId").isEqualTo(orderId)
                 .jsonPath("$.status").isEqualTo("SHIPPING")
                 .jsonPath("$.carrier").isEqualTo("CJ")
+                .jsonPath("$.trackingNumber").isEqualTo("1234567890")
                 .jsonPath("$.shippedAt").exists();
 
+            client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/deliver")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("DELIVERED")
+                .jsonPath("$.carrier").isEqualTo("CJ")
+                .jsonPath("$.trackingNumber").isEqualTo("1234567890")
+                .jsonPath("$.shippedAt").exists()
+                .jsonPath("$.deliveredAt").exists();
             deliver(sellerOrderId);
-            deliver(sellerOrderId);
+
+            client.get().uri(SELLER_ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content[0].sellerOrderId").isEqualTo(sellerOrderId)
+                .jsonPath("$.content[0].status").isEqualTo("DELIVERED")
+                .jsonPath("$.content[0].carrier").isEqualTo("CJ")
+                .jsonPath("$.content[0].trackingNumber").isEqualTo("1234567890")
+                .jsonPath("$.content[0].shippedAt").exists()
+                .jsonPath("$.content[0].deliveredAt").exists();
 
             client.get().uri(ORDERS_PATH + "/" + orderId)
                 .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
@@ -299,6 +420,27 @@ class SellerOrderApiTest {
                 .body(Map.of("carrier", "CJ", "trackingNumber", ""))
                 .exchange()
                 .expectStatus().isBadRequest();
+        }
+
+        @Test
+        @DisplayName("송장 번호 51자는 400(발송 안 됨), 50자는 200이고 값 그대로 저장된다")
+        void trackingNumberLengthBoundary() {
+            String sellerOrderId = sellerOrderIdOf(SELLER_ID);
+            String fifty = "1".repeat(50);
+
+            ship(sellerOrderId, "CJ", "1".repeat(51)).expectStatus().isBadRequest();
+            ship(sellerOrderId, "CJ", fifty)
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("SHIPPING")
+                .jsonPath("$.trackingNumber").isEqualTo(fifty);
+
+            client.get().uri(SELLER_ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content[0].trackingNumber").isEqualTo(fifty);
         }
 
         private RestTestClient.ResponseSpec ship(String sellerOrderId, String carrier, String trackingNumber) {

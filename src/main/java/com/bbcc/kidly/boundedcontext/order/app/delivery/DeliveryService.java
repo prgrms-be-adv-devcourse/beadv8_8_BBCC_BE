@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,8 +84,12 @@ public class DeliveryService {
      */
     @Transactional(readOnly = true)
     public Page<SellerOrderView> getSellerOrders(Long memberId, int page, int size) {
-        Page<Delivery> deliveries =
-            deliveryRepository.findAllBySellerIdOrderByIdDesc(memberId, PageRequest.of(page, size));
+        PageRequest pageable = PageRequest.of(page, size);
+        // 저장소는 offset(page × size)이 int를 넘으면 조회하지 못하므로(500), 조회 없이 빈 페이지로 답한다
+        if (pageable.getOffset() > Integer.MAX_VALUE) {
+            return new PageImpl<>(List.of(), pageable, deliveryRepository.countBySellerId(memberId));
+        }
+        Page<Delivery> deliveries = deliveryRepository.findAllBySellerIdOrderByIdDesc(memberId, pageable);
         Map<Long, Order> ordersById = findOrdersWithItems(deliveries.getContent());
         return deliveries.map(delivery -> {
             Order order = ordersById.get(delivery.getOrderId());

@@ -37,9 +37,13 @@ class PaymentEventListenerLogTest {
     private static final Long PAYMENT_ID = 500L;
     private static final long AMOUNT = 50_000L;
     private static final MarkPaidCommand COMMAND = new MarkPaidCommand(ORDER_ID, PAYMENT_ID, 1L, AMOUNT, List.of());
-    private static final String LOST_MESSAGE = "결제 완료 처리 실패(동시 중복 처리에서 진 쪽)";
-    private static final String FAILED_MESSAGE = "결제 완료 처리 실패: event=payment.completed";
+    private static final String LOST_REASON =
+        "event=payment.completed reason=lost-concurrent-duplicate orderId=" + ORDER_ID + " paymentId=" + PAYMENT_ID;
+    private static final String FAILED_REASON =
+        "event=payment.completed reason=processing-failed orderId=" + ORDER_ID + " paymentId=" + PAYMENT_ID;
     private static final String ROLLED_BACK_MESSAGE = "커밋 단계에서 되돌려짐";
+    private static final String ROLLED_BACK_REASON =
+        "event=payment.completed reason=rolled-back-at-commit orderId=" + ORDER_ID + " paymentId=" + PAYMENT_ID;
 
     @Mock
     private OrderService orderService;
@@ -63,7 +67,7 @@ class PaymentEventListenerLogTest {
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
-        assertThat(output).contains("WARN").contains(LOST_MESSAGE).doesNotContain("ERROR");
+        assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
     }
 
     @Test
@@ -74,7 +78,7 @@ class PaymentEventListenerLogTest {
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
-        assertThat(output).contains("WARN").contains(LOST_MESSAGE).doesNotContain("ERROR");
+        assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
     }
 
     @Test
@@ -87,7 +91,7 @@ class PaymentEventListenerLogTest {
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
-        assertThat(output).contains("ERROR").contains(FAILED_MESSAGE).doesNotContain(LOST_MESSAGE);
+        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON).doesNotContain("lost-concurrent-duplicate");
     }
 
     @Test
@@ -99,7 +103,7 @@ class PaymentEventListenerLogTest {
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
-        assertThat(output).contains("ERROR").contains(FAILED_MESSAGE).doesNotContain(LOST_MESSAGE);
+        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON).doesNotContain("lost-concurrent-duplicate");
     }
 
     @Test
@@ -112,7 +116,8 @@ class PaymentEventListenerLogTest {
         List<TransactionSynchronization> committed = runInSynchronization(() -> listener.onPaymentCompleted(event()));
         committed.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
 
-        assertThat(output.getOut()).containsOnlyOnce(ROLLED_BACK_MESSAGE).doesNotContain("ERROR");
+        assertThat(output.getOut()).containsOnlyOnce(ROLLED_BACK_REASON).doesNotContain("ERROR");
+        assertThat(output).containsPattern("WARN.*" + ROLLED_BACK_MESSAGE + ".*" + ROLLED_BACK_REASON);
     }
 
     @Test
@@ -127,7 +132,7 @@ class PaymentEventListenerLogTest {
             assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error));
         synchronizations.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
 
-        assertThat(output.getOut()).containsOnlyOnce(LOST_MESSAGE).doesNotContain(ROLLED_BACK_MESSAGE);
+        assertThat(output.getOut()).containsOnlyOnce(LOST_REASON).doesNotContain("reason=rolled-back-at-commit");
     }
 
     /**

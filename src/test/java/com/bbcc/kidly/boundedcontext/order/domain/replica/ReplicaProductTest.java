@@ -100,9 +100,10 @@ class ReplicaProductTest {
     void appliesOptionNameAndSaleStatus() {
         ReplicaProduct replica = ReplicaProduct.create(onSaleProduct(25_000L, OCCURRED_AT));
 
-        replica.applyIfNewer(option(1L, "ON_SALE", "STOPPED", false, OCCURRED_AT.plusMinutes(1)));
+        replica.applyIfNewer(new ReplicaProduct.Values(1L, 1L, SELLER_ID, "상품 A", "그레이 / 120", "120", 25_000L, 1L,
+            "ON_SALE", "STOPPED", false, OCCURRED_AT.plusMinutes(1)));
 
-        assertThat(replica.getOptionName()).isEqualTo("네이비 / 110");
+        assertThat(replica.getOptionName()).isEqualTo("그레이 / 120");
         assertThat(replica.getOptionSaleStatus()).isEqualTo("STOPPED");
         assertThat(replica.isPurchasable()).isFalse();
     }

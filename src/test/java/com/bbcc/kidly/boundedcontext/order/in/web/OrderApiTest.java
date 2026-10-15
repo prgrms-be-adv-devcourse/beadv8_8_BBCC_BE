@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
@@ -23,6 +24,7 @@ import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.net.URI;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +73,9 @@ class OrderApiTest {
     @Autowired
     private ChildReplicaRepository childReplicaRepository;
 
+    @Autowired
+    private Order.Policy orderPolicy;
+
     @BeforeEach
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
@@ -104,10 +109,66 @@ class OrderApiTest {
                 .jsonPath("$.items[0].sellerId").isEqualTo("2")
                 .jsonPath("$.items[0].amount").isEqualTo(50_000)
                 .jsonPath("$.items[0].child.childId").isEqualTo("1")
+                .jsonPath("$.cancelReason").value(reason -> assertThat(reason).isNull())
                 .returnResult()
                 .getResponseHeaders().getLocation();
 
             assertThat(location).isNotNull();
+            OrderTimes times = client.get().uri(location)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(OrderTimes.class)
+                .returnResult()
+                .getResponseBody();
+            assertThat(times).isNotNull();
+            // 주문 시각(@CreatedDate)과 결제 마감 기준 시각(서비스 now)이 따로 잡혀 몇 ms 차이 — 별도 이슈 후보.
+            // 그래서 정확히 같지 않고, 주문 시각 + 결제 제한 시간 이하이면서 차이가 1초 미만인지 본다(정책 값이 틀리면 잡힘)
+            LocalDateTime expected = times.orderedAt().plus(orderPolicy.paymentTimeout());
+            assertThat(times.paymentDueAt()).isBeforeOrEqualTo(expected);
+            assertThat(Duration.between(times.paymentDueAt(), expected)).isLessThan(Duration.ofSeconds(1));
+        }
+
+        @ParameterizedTest(name = "요청 단가 {0}")
+        @ValueSource(longs = {24_999L, 25_001L})
+        @DisplayName("요청 단가가 지금 단가(25,000)보다 1원 적거나 많으면 409 PRICE_CHANGED")
+        void priceOffByOneIsConflict(long unitPrice) {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(orderBody("1", null, 1, unitPrice))
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("가격이 바뀌었습니다")
+                .jsonPath("$.detail").isEqualTo("상품 가격이 바뀌었습니다. 장바구니에서 바뀐 가격을 확인한 뒤 다시 주문해 주세요.");
+        }
+
+        @Test
+        @DisplayName("판매자가 자기 상품을 주문하면 403 OWN_PRODUCT")
+        void ownProductIsForbidden() {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .body(orderBody("1", null, 1, 25_000))
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("자기 상품은 살 수 없습니다")
+                .jsonPath("$.detail").isEqualTo("자기 상품은 담거나 주문할 수 없습니다. 다른 판매자의 상품을 골라 주세요.");
+        }
+
+        @Test
+        @DisplayName("같은 옵션 · 자녀 줄이 두 번 있으면 400 DUPLICATE_ORDER_ITEM")
+        void duplicateLineIsBadRequest() {
+            Map<String, Object> line = Map.of("optionId", "1", "quantity", 1, "unitPrice", 25_000);
+
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(Map.of("items", List.of(line, line), "shippingAddress", ADDRESS))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("같은 주문상품이 두 번 있습니다")
+                .jsonPath("$.detail").isEqualTo("같은 옵션 · 자녀 조합은 한 줄로 주문해 주세요.");
         }
 
         @Test
@@ -296,6 +357,93 @@ class OrderApiTest {
         }
 
         @Test
+        @DisplayName("마지막 페이지 바로 다음 page는 200 · 빈 목록")
+        void pageAfterLastIsEmpty() {
+            placeAndReadId();
+
+            client.get().uri(ORDERS_PATH + "?page=1&size=20")
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.page").isEqualTo(1)
+                .jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.hasNext").isEqualTo(false);
+        }
+
+        @Test
+        @DisplayName("page가 int 최댓값(2147483647)이어도 500이 아니라 200 · 빈 목록이고 page 값은 그대로")
+        void hugePageIsEmpty() {
+            placeAndReadId();
+
+            // page = Integer.MAX_VALUE에서는 Spring Page.hasNext()의 +1 넘침으로 true — global PageResponse 한계, backlog 후보.
+            // 그래서 hasNext는 바로 아래 큰 page(hugePageHasNoNext)에서 확인한다
+            client.get().uri(ORDERS_PATH + "?page=2147483647&size=20")
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.page").isEqualTo(2147483647)
+                .jsonPath("$.size").isEqualTo(20)
+                .jsonPath("$.totalElements").isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("offset이 정확히 int 최댓값(page 2147483647 · size 1)이면 실제 DB 조회로 200 · 빈 목록")
+        void offsetExactlyMaxIsQueriedFromDatabase() {
+            placeAndReadId();
+
+            // hasNext는 단언하지 않는다(page = Integer.MAX_VALUE의 Spring Page.hasNext() +1 넘침, global 한계)
+            client.get().uri(ORDERS_PATH + "?page=2147483647&size=1")
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.page").isEqualTo(2147483647)
+                .jsonPath("$.size").isEqualTo(1)
+                .jsonPath("$.totalElements").isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("offset이 int를 넘는 큰 page(1073741824 · size 2)는 200 · 빈 목록 · hasNext false")
+        void hugePageHasNoNext() {
+            placeAndReadId();
+
+            client.get().uri(ORDERS_PATH + "?page=1073741824&size=2")
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.page").isEqualTo(1073741824)
+                .jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.hasNext").isEqualTo(false);
+        }
+
+        @Test
+        @DisplayName("주문 2건을 size=1로 보면 첫 페이지는 hasNext true · totalPages 2")
+        void firstPageHasNext() {
+            placeAndReadId();
+            String second = placeAndReadId();
+
+            client.get().uri(ORDERS_PATH + "?page=0&size=1")
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(1)
+                .jsonPath("$.content[0].orderId").isEqualTo(second)
+                .jsonPath("$.page").isEqualTo(0)
+                .jsonPath("$.size").isEqualTo(1)
+                .jsonPath("$.totalElements").isEqualTo(2)
+                .jsonPath("$.totalPages").isEqualTo(2)
+                .jsonPath("$.hasNext").isEqualTo(true);
+        }
+
+        @Test
         @DisplayName("목록 항목의 대표 상품명 = 주문상품 ID가 가장 작은 주문 당시 상품명, itemCount = 주문상품 수. 주문 뒤 상품명이 바뀌어도 그대로")
         void representativeProductAndItemCount() {
             saveSecondProduct();
@@ -467,9 +615,20 @@ class OrderApiTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.orderItemId").isEqualTo(orderItemId)
+                .jsonPath("$.productId").isEqualTo("1")
+                .jsonPath("$.optionId").isEqualTo("1")
+                .jsonPath("$.sellerId").isEqualTo("2")
+                .jsonPath("$.productName").isEqualTo("상품 A")
+                .jsonPath("$.optionName").isEqualTo("네이비 / 110")
+                .jsonPath("$.size").isEqualTo("110")
+                .jsonPath("$.unitPrice").isEqualTo(25_000)
+                .jsonPath("$.quantity").isEqualTo(1)
+                .jsonPath("$.amount").isEqualTo(25_000)
                 .jsonPath("$.status").isEqualTo("CONFIRMED")
+                .jsonPath("$.deliveredAt").exists()
                 .jsonPath("$.confirmType").isEqualTo("DIRECT")
                 .jsonPath("$.confirmedAt").exists()
+                .jsonPath("$.child").value(child -> assertThat(child).isNull())
                 .jsonPath("$.unavailableReason").value(reason -> assertThat(reason).isNull());
             confirm(orderId, orderItemId, BUYER_ID)
                 .expectStatus().isOk()
@@ -556,6 +715,9 @@ class OrderApiTest {
     }
 
     private record OrderItemRow(String orderItemId) {
+    }
+
+    private record OrderTimes(LocalDateTime orderedAt, LocalDateTime paymentDueAt) {
     }
 
     private String placeAndReadId() {
