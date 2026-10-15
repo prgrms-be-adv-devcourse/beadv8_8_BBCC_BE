@@ -1,5 +1,6 @@
 # develop → dev 환경, main → prod 환경(Environment 승인 필요)으로 배포한다.
 # 이미지를 GHCR에 올린 뒤 서버의 /opt/app/deploy.sh 가 compose pull / up 을 한다.
+# 패키지가 private이라 배포 때마다 GITHUB_TOKEN으로 GHCR에 로그인한다. 자격증명은 세션 임시 디렉터리에만 두고 끝나면 지운다.
 # 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 빌드 없이 그 이미지를 배포한다.
 # workflow_dispatch 를 develop · main 이 아닌 브랜치에서 실행하면 그 브랜치가 dev 환경에 배포된다 (기능 브랜치 확인용).
 name: deploy
@@ -52,6 +53,9 @@ jobs:
     # 빌드가 성공했거나 롤백으로 생략된 경우만 배포한다
     if: ${{ !cancelled() && needs.build.result != 'failure' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
     env:
       SSH_HOST: ${{ vars.SSH_HOST }}
@@ -73,7 +77,15 @@ jobs:
         env:
           SHA: ${{ inputs.sha || github.sha }}
           APP_ENV: ${{ vars.APP_ENV }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
         run: |
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha 는 40자 전체 커밋 SHA 여야 합니다: $SHA"; exit 1; }
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
-            "APP_ENV=$APP_ENV IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:$SHA /opt/app/deploy.sh"
+          # 토큰은 명령줄이 아니라 stdin 으로 넘긴다. 자격증명은 이 세션만의 임시 디렉터리에 두고 끝나면 지운다
+          # (dev · prod 가 같은 서버를 쓸 때 공유 ~/.docker/config.json 을 서로 지우지 않도록)
+          printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
+            export DOCKER_CONFIG=\$(mktemp -d)
+            trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
+            docker login ghcr.io -u $GHCR_USER --password-stdin > /dev/null || exit 1
+            APP_ENV=$APP_ENV IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:$SHA /opt/app/deploy.sh
+          "
