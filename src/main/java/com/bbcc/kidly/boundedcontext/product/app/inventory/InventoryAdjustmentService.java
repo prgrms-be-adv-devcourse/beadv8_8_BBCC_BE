@@ -5,9 +5,11 @@ import com.bbcc.kidly.boundedcontext.product.app.inventory.dto.InventoryAdjustme
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentReason;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentRecord;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentRecord.AdjustInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -34,10 +36,14 @@ public class InventoryAdjustmentService {
         InventoryAdjustmentRecord record =
             InventoryAdjustmentRecord.adjust(new AdjustInfo(option, deltaQuantity, reason, sellerId));
 
-        if (inventoryRepository.adjustIfAvailable(optionId, deltaQuantity, LocalDateTime.now())) {
-            inventoryRepository.saveAdjustmentRecord(record);
-        }
+        boolean adjusted = inventoryRepository.adjustIfAvailable(optionId, deltaQuantity, LocalDateTime.now());
         int availableQuantity = inventoryRepository.findAvailableQtyByOptionId(List.of(optionId)).get(optionId);
+        // 판매자는 판매 가능 수량까지만 줄일 수 있다. 바뀐 행이 없으면 기록 없이 거절한다 (INV-03, INV-17)
+        if (!adjusted) {
+            throw new BusinessException(InventoryErrorCode.DECREASE_OVER_AVAILABLE,
+                "판매 가능 수량보다 많이 줄일 수 없습니다. 지금 판매 가능 수량: " + availableQuantity);
+        }
+        inventoryRepository.saveAdjustmentRecord(record);
         return new InventoryAdjustmentResult(optionId, reason.name(), deltaQuantity, availableQuantity);
     }
 }

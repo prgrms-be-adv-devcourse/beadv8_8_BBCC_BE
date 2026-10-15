@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -65,12 +66,41 @@ class InventoryAdjustmentApiTest {
         assertThat(sellerAdjustments(option)).containsExactly(tuple("RESTOCK", 10, SELLER_ID));
     }
 
+    @Test
+    @DisplayName("INV-03 판매 가능 수량 5인 옵션을 6 줄이면 409로 거절하고 판매 가능 수량과 재고 조정 기록이 그대로다")
+    void rejectDecreaseOverAvailable() {
+        expectProblem(
+            adjust(tokens.seller(SELLER_ID), option.getId(), Map.of("deltaQuantity", -6, "reason", "LOST")),
+            HttpStatus.CONFLICT, "판매 가능 수량보다 많이 줄일 수 없습니다",
+            "판매 가능 수량보다 많이 줄일 수 없습니다. 지금 판매 가능 수량: 5", option.getId());
+
+        assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(5);
+        assertThat(sellerAdjustments(option)).isEmpty();
+    }
+
+    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
+    private void expectProblem(ResponseSpec response, HttpStatus status, String title, String detail, long optionId) {
+        response
+            .expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").isEqualTo(title)
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").isEqualTo(detail)
+            .jsonPath("$.instance").isEqualTo(adjustmentsPath(optionId));
+    }
+
     private ResponseSpec adjust(String token, long optionId, Map<String, Object> body) {
-        return client.post().uri("/api/v1/seller/options/{optionId}/inventory-adjustments", optionId)
+        return client.post().uri(adjustmentsPath(optionId))
             .headers(headers -> headers.setBearerAuth(token))
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();
+    }
+
+    private static String adjustmentsPath(long optionId) {
+        return "/api/v1/seller/options/" + optionId + "/inventory-adjustments";
     }
 
     // 옵션을 등록할 때 남긴 INITIAL 기록을 빼고, 판매자가 조정한 기록을 (사유, 증감량, 조정한 판매자)로 읽는다
