@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.OTHER_MEMBER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,10 +19,17 @@ import com.bbcc.kidly.support.TestTokens;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
@@ -133,6 +141,44 @@ class SizeRecommendationApiTest {
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.recommendedSize").isEqualTo("120");
+    }
+
+    @Test
+    @DisplayName("추천의 상품 복사본에 없는 상품이면 404 \"상품을 찾을 수 없습니다.\"를 ProblemDetail로 받는다")
+    void rejectUnknownProduct() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        expectNotFound(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), "상품을 찾을 수 없습니다", "상품을 찾을 수 없습니다.");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invisibleChildren")
+    @DisplayName("INV-R02 없는 자녀, 다른 회원의 자녀, 삭제된 자녀는 모두 같은 404 \"자녀를 찾을 수 없습니다.\"를 받는다")
+    void rejectInvisibleChild(Optional<ChildChangedEvent> childEvent) {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+        childEvent.ifPresent(replicaChildService::applyChildChanged);
+
+        expectNotFound(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), "자녀를 찾을 수 없습니다", "자녀를 찾을 수 없습니다.");
+    }
+
+    static Stream<Arguments> invisibleChildren() {
+        return Stream.of(
+            Arguments.of(Named.of("없는 자녀", Optional.empty())),
+            Arguments.of(Named.of("다른 회원의 자녀", Optional.of(childChanged(OTHER_MEMBER_ID, "115.0", "20.0", false)))),
+            Arguments.of(Named.of("삭제된 자녀", Optional.of(childChanged(MEMBER_1_ID, "115.0", "20.0", true)))));
+    }
+
+    // 실패 응답이 ProblemDetail 5칸을 모두 담는지 확인한다
+    private static void expectNotFound(RestTestClient.ResponseSpec response, String title, String detail) {
+        response
+            .expectStatus().isNotFound()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").isEqualTo("about:blank")
+            .jsonPath("$.title").isEqualTo(title)
+            .jsonPath("$.status").isEqualTo(404)
+            .jsonPath("$.detail").isEqualTo(detail)
+            .jsonPath("$.instance").isEqualTo("/api/v1/products/" + PRODUCT_A_ID + "/size-recommendation");
     }
 
     // 상품 A의 상품 정보 변경됨에서 판매 상태 · 사이즈 무관 여부 · 옵션만 바꾼다
