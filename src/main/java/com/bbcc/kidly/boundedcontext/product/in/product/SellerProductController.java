@@ -2,16 +2,22 @@ package com.bbcc.kidly.boundedcontext.product.in.product;
 
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductRegistrationService;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductSaleService;
+import com.bbcc.kidly.boundedcontext.product.app.product.SellerProductService;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductRegisterRequest;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductSaleStatusRequest;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductSaleStatusResponse;
+import com.bbcc.kidly.boundedcontext.product.in.product.dto.SellerProductSummaryResponse;
+import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import jakarta.validation.Valid;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -31,6 +37,15 @@ public class SellerProductController {
 
     private final ProductRegistrationService productRegistrationService;
     private final ProductSaleService productSaleService;
+    private final SellerProductService sellerProductService;
+
+    // 정렬은 등록 최신순으로 고정이라 pageable의 sort는 무시된다
+    @GetMapping
+    public PageResponse<SellerProductSummaryResponse> list(
+        @LoginMember AuthMember member, @PageableDefault Pageable pageable) {
+        return PageResponse.from(
+            sellerProductService.findMyProducts(member.id(), pageable).map(SellerProductSummaryResponse::from));
+    }
 
     @PostMapping
     public ResponseEntity<ProductRegisterResponse> register(
