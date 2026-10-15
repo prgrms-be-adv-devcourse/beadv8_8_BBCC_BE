@@ -145,6 +145,20 @@ class ProductListApiTest {
     }
 
     @Test
+    @DisplayName("키워드 앞뒤의 공백은 빼고 상품명에서 찾는다")
+    void trimKeyword() {
+        persist(
+            document(1L).name("아기 맨투맨").build(),
+            document(2L).name("아기 바지").createdAt(CREATED_AT.plusDays(1)).build());
+
+        client.get().uri(PATH + "?keyword={keyword}", " 맨투맨 ")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of("1"));
+    }
+
+    @Test
     @DisplayName("로그인 없이 부를 수 있는 API여도 잘못된 토큰을 보내면 401을 받는다")
     void rejectInvalidToken() {
         client.get().uri(PATH)

@@ -28,10 +28,18 @@ public class ProductListService {
     public Page<ProductSearchItem> list(ProductListRequest request) {
         ProductSearchCondition condition = new ProductSearchCondition(
             request.categoryId(),
-            request.keyword(),
+            stripKeyword(request.keyword()),
             groupByCode(request.attributesOrEmpty()),
             ProductSearchSort.valueOf(request.sortOrDefault()));
         return productSearch.search(condition, PageRequest.of(request.pageOrDefault(), request.sizeOrDefault()));
+    }
+
+    // 앞뒤 공백까지 글자로 찾으면 맞는 상품이 빠지므로 빼고 넘긴다. 공백뿐이면 빈 문자열이 되어 거르지 않는다
+    private String stripKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        return keyword.strip();
     }
 
     // "COLOR:3" 형태의 문자열을 항목 code별 값 ID 목록으로 묶는다. 같은 code는 한 목록에 모으고 같은 값은 한 번만 넣는다.
