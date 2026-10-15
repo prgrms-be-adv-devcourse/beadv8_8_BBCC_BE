@@ -120,6 +120,10 @@ public class ProductSearchDocument extends BaseTimeEntity {
 
     private static void addValues(Map<String, Set<Long>> valueIdsByCode, List<ValueInfo> values) {
         for (ValueInfo value : values) {
+            // 직접 입력 항목은 고른 값 ID가 없어 값 ID로 거를 수 없으므로 넣지 않는다
+            if (value.valueId() == null) {
+                continue;
+            }
             valueIdsByCode.computeIfAbsent(value.code(), code -> new TreeSet<>()).add(value.valueId());
         }
     }

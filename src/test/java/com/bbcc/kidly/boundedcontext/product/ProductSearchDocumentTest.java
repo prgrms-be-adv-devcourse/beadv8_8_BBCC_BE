@@ -67,4 +67,14 @@ class ProductSearchDocumentTest {
             "MAIN_MATERIAL", List.of(20L),
             "FEATURE", List.of(32L, 33L)));
     }
+
+    @Test
+    @DisplayName("직접 입력 항목은 값 ID가 없어 attributes에 넣지 않는다")
+    void textInfoValueIsNotInAttributes() {
+        ProductSearchDocument document = ProductSearchDocument.create(changeInfo(
+            List.of(option(25_000L, false, OptionSaleStatus.ON_SALE)),
+            List.of(value("MAIN_MATERIAL", 20L), value("FABRIC_COMPOSITION", null))));
+
+        assertThat(document.getAttributes()).isEqualTo(Map.of("MAIN_MATERIAL", List.of(20L)));
+    }
 }
