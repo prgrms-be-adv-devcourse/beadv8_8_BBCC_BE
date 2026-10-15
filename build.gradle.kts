@@ -51,6 +51,9 @@ dependencies {
     // API 문서
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
 
+    // 헬스체크 (/actuator/health). 배포 시 docker compose healthcheck가 호출한다
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+
     // Lombok
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
