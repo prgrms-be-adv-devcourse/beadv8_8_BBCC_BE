@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.cancelledItem;
+import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.orderCancelled;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -8,8 +10,10 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
+import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
@@ -112,8 +116,44 @@ class ProductStockDeductionFailedIntegrationTest {
             });
     }
 
-    // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다
-    private void publishInTransaction(OrderCreatedEvent event) {
+    @Test
+    @DisplayName("INV-10 같은 주문 생성됨을 두 번 받아도 거절한 주문의 재고 부족함은 한 번만 보낸다")
+    void publishStockDeductionFailedOnceForRepeatedOrderCreated() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
+        OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
+
+        publishInTransaction(event);
+        publishInTransaction(event);
+
+        assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("INV-09 주문 취소됨이 먼저 온 주문은 FAILED만 남기고, 나중에 온 주문 생성됨에도 재고 부족함을 보내지 않는다")
+    void sendNoStockDeductionFailedWhenCancelledBeforeCreated() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+
+        publishInTransaction(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
+        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.countByStatus("FAILED")).isEqualTo(1);
+        assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("차감에 성공하면 재고 차감됨만 보내고 재고 부족함은 보내지 않는다")
+    void sendNoStockDeductionFailedWhenDeducted() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+
+        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+
+        assertThat(eventRecorder.events(StockDeductedEvent.class)).hasSize(1);
+        assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).isEmpty();
+    }
+
+    // 주문 저장처럼 트랜잭션 안에서 주문 이벤트를 발행하고 커밋한다
+    private void publishInTransaction(DomainEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }
