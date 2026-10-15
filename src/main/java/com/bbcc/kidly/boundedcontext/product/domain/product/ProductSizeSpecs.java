@@ -133,6 +133,15 @@ final class ProductSizeSpecs {
         return false;
     }
 
+    // 받은 실측으로 바꿔 넣은 뒤의 실측을 검사용으로 만들어 돌려준다. 상품의 실측 목록에는 붙이지 않는다
+    static List<SizeSpec> preview(Product product, List<SizeSpecInfo> requested) {
+        List<SizeSpec> previews = new ArrayList<>();
+        for (SizeSpecInfo spec : requested) {
+            previews.add(SizeSpec.create(product, spec));
+        }
+        return previews;
+    }
+
     // 사이즈 값이 같은 실측은 객체를 그대로 두고 권장 키와 실측 값만 받은 값으로 맞추고, 받지 않은 사이즈의 실측은 뺀다
     static void rewrite(Product product, List<SizeSpec> current, List<SizeSpecInfo> requested) {
         List<SizeSpec> notRequested = new ArrayList<>();

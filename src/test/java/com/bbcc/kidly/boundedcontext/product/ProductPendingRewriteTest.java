@@ -148,4 +148,22 @@ class ProductPendingRewriteTest {
         assertThat(productA.product().getOptions()).extracting(ProductOption::getPrice)
             .containsOnly(ProductOptionFixture.CLOTHING_PRICE);
     }
+
+    @Test
+    @DisplayName("판매대기 상품을 이어 쓸 때도 등록처럼 옵션이 쓰는 사이즈마다 실측이 있어야 하고, 빠지면 거절하고 아무것도 바꾸지 않는다")
+    void rejectMissingSaleStartInputs() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+        List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
+
+        assertRejected(() -> productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+                List.of(
+                    new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), "A-1"),
+                    new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size120()), "A-2")),
+                clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+                List.of(productA.currentSizeSpecs().get(0)))),
+            ProductErrorCode.SALE_START_INPUT_MISSING);
+        assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
+        assertThat(productA.product().getOptions()).extracting(ProductOption::getSkuCode).containsOnlyNulls();
+        assertThat(productA.product().getSizeSpecs()).hasSize(2);
+    }
 }

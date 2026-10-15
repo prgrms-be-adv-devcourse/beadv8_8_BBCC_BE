@@ -263,6 +263,18 @@ final class ProductOptions {
         return false;
     }
 
+    // 받은 옵션으로 바꿔 넣은 뒤의 옵션을 검사용으로 만들어 돌려준다. 상품의 옵션 목록에는 붙이지 않는다
+    static List<ProductOption> preview(
+        Product product, List<OptionInfo> requested, List<PriceInfo> prices, ProductType productType) {
+        List<ProductOption> previews = new ArrayList<>();
+        for (OptionInfo option : requested) {
+            long price = findPrice(option.values(), prices, productType);
+            List<AttributeValue> values = inTypeOrder(option.values(), productType);
+            previews.add(ProductOption.create(product, price, option.skuCode(), values));
+        }
+        return previews;
+    }
+
     // 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 받은 값으로 맞추고, 없는 조합은 새로 만든다
     static void rewrite(Product product, List<ProductOption> current, List<OptionInfo> requested,
         List<PriceInfo> prices, ProductType productType) {

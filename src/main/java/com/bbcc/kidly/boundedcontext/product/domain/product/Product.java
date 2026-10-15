@@ -242,6 +242,9 @@ public class Product extends BaseTimeEntity {
         if (saleInputs != null && status != ProductStatus.SALE_PENDING) {
             throw new BusinessException(ProductErrorCode.SALE_INPUTS_LOCKED);
         }
+        if (saleInputs != null) {
+            validateSaleInputs(saleInputs, info.category());
+        }
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
         boolean rewritesSaleInputs = saleInputs != null && status == ProductStatus.SALE_PENDING;
         if (isSameAs(info) && !(rewritesSaleInputs && differsFrom(saleInputs, info.category()))) {
@@ -270,6 +273,25 @@ public class Product extends BaseTimeEntity {
             ProductSizeSpecs.rewrite(this, sizeSpecs, saleInputs.sizeSpecs());
         }
         return true;
+    }
+
+    // 받은 옵션 · 가격 · 실측을 바꿔 넣기 전에 등록과 같은 규칙으로 검사한다. 지금 옵션 · 실측은 모두 갈아끼우므로 없다고 보고,
+    // 바꿔 넣은 뒤의 모습은 상품에 붙이지 않는 미리 보기로 만들어 검사한다. 거절되면 아무것도 바뀌지 않는다
+    private void validateSaleInputs(SaleInputsInfo saleInputs, Category newCategory) {
+        ProductType productType = newCategory.productTypeToRegister();
+        AddOptionsInfo addOptions = new AddOptionsInfo(sellerId, saleInputs.options(), saleInputs.prices());
+        ProductOptions.requireNonNullValues(addOptions);
+        AddSizeSpecsInfo addSizeSpecs = new AddSizeSpecsInfo(sellerId, saleInputs.sizeSpecs());
+        ProductSizeSpecs.requireNonNullValues(addSizeSpecs);
+        ProductOptions.validateNewOptions(addOptions, List.of(), productType);
+        List<ProductOption> previewOptions =
+            ProductOptions.preview(this, saleInputs.options(), saleInputs.prices(), productType);
+        ProductSizeSpecs.validateNewSpecs(saleInputs.sizeSpecs(), List.of(), previewOptions, newCategory, productType);
+        List<String> missing = SaleStartConditions.missingItems(
+            previewOptions, ProductSizeSpecs.preview(this, saleInputs.sizeSpecs()), newCategory, productType);
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ProductErrorCode.SALE_START_INPUT_MISSING, String.join(" ", missing));
+        }
     }
 
     // 판매를 시작한 상품은 옵션 · 실측을 여기서 바꾸지 못하므로,
