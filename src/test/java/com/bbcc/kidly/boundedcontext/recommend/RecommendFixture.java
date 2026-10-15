@@ -243,9 +243,17 @@ public final class RecommendFixture {
      */
     public static ProductChangedEvent productAChangedEventAt(
         List<ProductChangedEvent.Option> options, LocalDateTime occurredAt) {
+        return productAChangedEventOf(false, options, occurredAt);
+    }
+
+    /**
+     * {@link #productAChangedEventAt(List, LocalDateTime)}에서 사이즈 무관 여부도 바꾼다.
+     */
+    public static ProductChangedEvent productAChangedEventOf(
+        boolean sizeFree, List<ProductChangedEvent.Option> options, LocalDateTime occurredAt) {
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
             PRODUCT_A_ID, PRODUCT_A_SELLER_ID, "데일리 맨투맨", PRODUCT_A_CATEGORY_ID, ProductStatus.ON_SALE,
-            PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, options));
+            PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree, options));
     }
 
     /**

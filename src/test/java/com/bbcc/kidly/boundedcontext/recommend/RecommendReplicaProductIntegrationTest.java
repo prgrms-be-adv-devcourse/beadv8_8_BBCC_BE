@@ -77,6 +77,17 @@ class RecommendReplicaProductIntegrationTest {
     }
 
     @Test
+    @DisplayName("사이즈 무관 상품의 상품 정보 변경됨을 받으면 사이즈 무관으로 저장되고 권장 키 없는 옵션은 사이즈 줄에 넣지 않는다")
+    void saveSizeFreeReplica() {
+        publishInTransaction(RecommendFixture.productAChangedEventOf(
+            true, List.of(productOption(3L, "FREE", null, null)), PRODUCT_CHANGED_AT));
+
+        ProductSizes sizes = sizesOf(PRODUCT_A_ID);
+        assertThat(sizes.isSizeFree()).isTrue();
+        assertThat(sizes.sizeRanges()).isEmpty();
+    }
+
+    @Test
     @DisplayName("상품 정보 변경됨을 발행한 트랜잭션이 롤백되면 상품 복사본이 생기지 않는다")
     void noReplicaAfterRollback() {
         transactionTemplate.executeWithoutResult(status -> {
