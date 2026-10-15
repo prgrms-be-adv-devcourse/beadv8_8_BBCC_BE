@@ -53,10 +53,7 @@ public class SizeRecommendationService {
     }
 
     private SizeRecommendationResult toResult(Long productId, Long childId, SizeRecommendation recommendation) {
-        String fit = null;
-        if (recommendation.getFit() != null) {
-            fit = recommendation.getFit().name();
-        }
+        String fit = recommendation.getFit() == null ? null : recommendation.getFit().name();
         List<SizeRecommendationResult.Notice> notices = new ArrayList<>();
         for (SizeNotice notice : recommendation.getNotices()) {
             notices.add(new SizeRecommendationResult.Notice(notice.name(), notice.getMessage()));
