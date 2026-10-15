@@ -220,4 +220,23 @@ class ProductPendingRewriteTest {
             ProductErrorCode.SALE_START_INPUT_MISSING);
         assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
     }
+
+    @Test
+    @DisplayName("판매대기 상품에 지금과 같은 옵션 · 가격 · 실측을 다시 보내면 아무것도 바꾸지 않고 바뀌지 않았다고 돌려준다")
+    void keepWhenSaleInputsUnchanged() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+        List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
+        List<SizeSpec> sizeSpecsBefore = List.copyOf(productA.product().getSizeSpecs());
+
+        boolean changed = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+            List.of(
+                new Product.OptionInfo(List.of(productA.clothing().size120(), productA.clothing().navy()), null),
+                new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null)),
+            clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+            productA.currentSizeSpecs().reversed()));
+
+        assertThat(changed).isFalse();
+        assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
+        assertThat(productA.product().getSizeSpecs()).containsExactlyElementsOf(sizeSpecsBefore);
+    }
 }
