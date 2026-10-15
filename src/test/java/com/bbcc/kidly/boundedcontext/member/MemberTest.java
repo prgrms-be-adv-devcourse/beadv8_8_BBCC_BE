@@ -232,6 +232,20 @@ class MemberTest {
     }
 
     @Test
+    @DisplayName("관리자로 지정하면 ADMIN이 되고, 지정을 풀면 USER가 된다. 바뀌었을 때만 true다")
+    void changeAdmin() {
+        var member = MemberFixture.kakaoMember();
+
+        assertThat(member.changeAdmin(true)).isTrue();
+        assertThat(member.getRole()).isEqualTo(MemberRole.ADMIN);
+        assertThat(member.changeAdmin(true)).isFalse();
+
+        assertThat(member.changeAdmin(false)).isTrue();
+        assertThat(member.getRole()).isEqualTo(MemberRole.USER);
+        assertThat(member.changeAdmin(false)).isFalse();
+    }
+
+    @Test
     @DisplayName("소셜 계정 목록은 밖에서 바꿀 수 없다")
     void socialAccountsAreReadOnly() {
         Member member = MemberFixture.kakaoMember();

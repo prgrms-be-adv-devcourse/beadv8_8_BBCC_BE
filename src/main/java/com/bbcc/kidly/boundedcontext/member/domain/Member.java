@@ -130,6 +130,16 @@ public class Member extends BaseTimeEntity {
         return status == MemberStatus.ACTIVE;
     }
 
+    // 관리자 지정을 반영한다. 역할이 바뀌면 true
+    public boolean changeAdmin(boolean admin) {
+        var role = admin ? MemberRole.ADMIN : MemberRole.USER;
+        if (this.role == role) {
+            return false;
+        }
+        this.role = role;
+        return true;
+    }
+
     public boolean isAdmin() {
         return role == MemberRole.ADMIN;
     }
