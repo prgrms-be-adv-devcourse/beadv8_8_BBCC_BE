@@ -28,8 +28,10 @@ import org.springframework.util.Assert;
 @Table(
     name = "settlement_item", schema = "settlement",
     uniqueConstraints = @UniqueConstraint(name = "uk_settlement_item_order_item_id", columnNames = "order_item_id"),
-    indexes = @Index(
-        name = "idx_settlement_item_seller_status_confirmed", columnList = "seller_id, status, confirmed_at"))
+    indexes = {
+        @Index(name = "idx_settlement_item_seller_status_confirmed", columnList = "seller_id, status, confirmed_at"),
+        @Index(name = "idx_settlement_item_settlement_id", columnList = "settlement_id")
+    })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SettlementItem extends BaseTimeEntity {
