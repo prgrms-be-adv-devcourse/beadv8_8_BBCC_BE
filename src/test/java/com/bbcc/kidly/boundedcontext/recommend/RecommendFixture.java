@@ -247,6 +247,14 @@ public final class RecommendFixture {
     }
 
     /**
+     * 사이즈 무관 상품으로 바꾼 상품 A의 복사본이다. 권장 키가 없는 FREE 옵션 하나만 있고, 판매가 25,000원에 판매할 수 있다.
+     */
+    public static RecommendReplicaProduct productASizeFreeReplica() {
+        return RecommendReplicaProduct.create(productAChangeOf(true,
+            List.of(productOptionInfo("FREE", null, null)), PRODUCT_CHANGED_AT));
+    }
+
+    /**
      * {@link #productAReplica()}와 같은 상품 A의 복사본에서 상품 판매 상태만 바꾼다. 110과 120 옵션은 그대로 판매할 수 있다.
      */
     public static RecommendReplicaProduct productAReplicaWithStatus(ProductStatus status) {

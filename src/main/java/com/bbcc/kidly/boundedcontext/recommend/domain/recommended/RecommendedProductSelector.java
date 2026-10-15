@@ -28,21 +28,31 @@ public class RecommendedProductSelector {
             if (product.getStatus() != ProductStatus.ON_SALE) {
                 continue;
             }
+            if (product.isSizeFree()) {
+                if (product.hasSellableOption()) {
+                    selected.add(toRecommendedProduct(product, null));
+                }
+                continue;
+            }
             SizeRecommendation recommendation =
                     sizeRecommender.recommend(childSizeInput, product.toProductSizes(), today);
             String recommendedSize = recommendation.getRecommendedSize();
             if (recommendedSize == null || !product.isSellable(recommendedSize)) {
                 continue;
             }
-            selected.add(new RecommendedProduct(
-                    product.getProductId(),
-                    product.getSellerId(),
-                    product.getName(),
-                    product.getThumbnailUrl(),
-                    product.getMinPrice(),
-                    recommendedSize
-            ));
+            selected.add(toRecommendedProduct(product, recommendedSize));
         }
         return selected;
+    }
+
+    private RecommendedProduct toRecommendedProduct(RecommendReplicaProduct product, String recommendedSize) {
+        return new RecommendedProduct(
+                product.getProductId(),
+                product.getSellerId(),
+                product.getName(),
+                product.getThumbnailUrl(),
+                product.getMinPrice(),
+                recommendedSize
+        );
     }
 }

@@ -10,6 +10,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSize
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplica;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplicaWith;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplicaWithStatus;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productASizeFreeReplica;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOptionInfo;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommender;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -102,5 +103,24 @@ class RecommendedProductSelectorTest {
         List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("사이즈 무관 상품은 판매 가능한 옵션이 있으면 추천 사이즈 없이 목록에 담는다")
+    void selectSizeFreeProductWithSellableOption() {
+        ChildSizeInput child = childSizeInputWithHeight(115.0);
+        RecommendReplicaProduct product = productASizeFreeReplica();
+        assertThat(product.hasSellableOption()).isTrue();
+        assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize()).isNull();
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).containsExactly(new RecommendedProduct(
+            PRODUCT_A_ID,
+            PRODUCT_A_SELLER_ID,
+            PRODUCT_A_NAME,
+            PRODUCT_A_THUMBNAIL_URL,
+            25_000L,
+            null));
     }
 }
