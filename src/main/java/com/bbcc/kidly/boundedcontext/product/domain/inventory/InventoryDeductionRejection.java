@@ -15,6 +15,11 @@ public record InventoryDeductionRejection(List<Failure> failures) {
         failures = List.copyOf(requireNonNull(failures, "failures는 필수입니다"));
     }
 
+    // 대표 사유는 첫 줄의 사유다. 주문은 이 값만 읽어도 된다
+    public StockDeductionFailureCode reason() {
+        return failures.get(0).reason();
+    }
+
     public record Failure(long orderItemId, StockDeductionFailureCode reason) {
     }
 }

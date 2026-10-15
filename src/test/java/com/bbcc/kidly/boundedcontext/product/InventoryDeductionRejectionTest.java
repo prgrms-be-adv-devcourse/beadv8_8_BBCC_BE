@@ -75,4 +75,17 @@ class InventoryDeductionRejectionTest {
                 tuple(11L, StockDeductionFailureCode.OUT_OF_STOCK),
                 tuple(13L, StockDeductionFailureCode.OUT_OF_STOCK));
     }
+
+    @Test
+    @DisplayName("INV-13 대표 사유는 요청 순서에서 첫 번째로 거절한 주문상품의 사유다")
+    void representativeReasonIsFirstFailure() {
+        Options options = onSaleOptions();
+        ReflectionTestUtils.setField(options.navy120(), "saleStatus", ProductOptionStatus.STOPPED);
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 1),
+            item(12L, options.navy120(), 1),
+            item(13L, beforeSaleOptions().navy110(), 1)));
+
+        assertThat(request.notOnSaleRejection().reason()).isEqualTo(StockDeductionFailureCode.OPTION_NOT_ON_SALE);
+    }
 }
