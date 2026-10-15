@@ -50,6 +50,20 @@ final class ProductInfoValues {
         return rows;
     }
 
+    // 받은 값으로 만들 행이 지금 행과 순서까지 모두 같은지 본다. 비교용 행은 create로 만들기만 하고 상품에 붙이지 않는다
+    static boolean sameAs(Product product, List<ProductInfoValue> current, List<InfoValueInfo> infoValues) {
+        List<ProductInfoValue> received = create(product, infoValues);
+        if (received.size() != current.size()) {
+            return false;
+        }
+        for (int i = 0; i < received.size(); i++) {
+            if (!current.get(i).sameAs(received.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // 정보 값 규칙을 차례로 검사한다. 정보 항목인지를 먼저 봐야 뒤 검사가 유형의 연결을 믿고 쓸 수 있다
     static void validate(List<InfoValueInfo> infoValues, ProductType productType) {
         validateInfoAttributes(infoValues, productType);

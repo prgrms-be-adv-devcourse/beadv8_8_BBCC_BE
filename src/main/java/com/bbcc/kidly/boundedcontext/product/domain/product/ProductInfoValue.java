@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -62,5 +63,12 @@ public class ProductInfoValue extends BaseTimeEntity {
         infoValue.attribute = attribute;
         infoValue.textValue = textValue;
         return infoValue;
+    }
+
+    // 다른 행과 항목, 목록 값, 직접 입력한 글이 모두 같은지 본다. 항목과 목록 값은 같은 영속성 컨텍스트의 객체라 ==로 비교한다
+    boolean sameAs(ProductInfoValue other) {
+        return attribute == other.attribute
+            && attributeValue == other.attributeValue
+            && Objects.equals(textValue, other.textValue);
     }
 }

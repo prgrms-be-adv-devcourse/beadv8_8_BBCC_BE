@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -50,6 +51,22 @@ public class Product extends BaseTimeEntity {
      */
     public record RegisterInfo(
         Long sellerId,
+        Category category,
+        String name,
+        String brand,
+        String description,
+        String thumbnailUrl,
+        List<String> imageUrls,
+        List<InfoValueInfo> infoValues) {
+    }
+
+    /**
+     * 상품 정보를 수정할 때 받는 값이다. sellerId는 요청한 판매자이고, version은 요청한 쪽이 마지막으로 읽은 상품의 version이다.
+     * 나머지는 바꾼 뒤의 값이며, 바꾸지 않는 칸도 지금 값을 그대로 담아 보낸다.
+     */
+    public record UpdateInfo(
+        Long sellerId,
+        Long version,
         Category category,
         String name,
         String brand,
@@ -178,6 +195,74 @@ public class Product extends BaseTimeEntity {
         product.status = ProductStatus.SALE_PENDING;
         product.infoValues.addAll(ProductInfoValues.create(product, info.infoValues()));
         return product;
+    }
+
+    /**
+     * 상품의 기본 정보와 정보 값을 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
+     */
+    public boolean update(UpdateInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(info.infoValues(), "infoValues는 필수입니다");
+        requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        requireNonNull(info.version(), "version은 필수입니다");
+        requireNonNull(info.category(), "category는 필수입니다");
+        requireNonNull(info.imageUrls(), "imageUrls는 필수입니다");
+        // null 검사는 모두 업무 규칙 검사보다 앞에 둔다. null이 섞인 호출이 업무 오류(403 · 409)로 가려지지 않게 하기 위해서다
+        requireNonNull(info.name(), "name은 필수입니다");
+        ProductInfoValues.requireNonNullValues(info.infoValues());
+        // 등록한 판매자만 상품을 고칠 수 있다. 같은 값을 보내도 다른 판매자이면 거절한다 (OPT-08)
+        if (!this.sellerId.equals(info.sellerId())) {
+            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
+        }
+        if (info.name().isBlank()) {
+            throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
+        }
+        // 정보 값은 등록할 때와 같은 규칙으로 검사한다. 상품 유형은 받은 카테고리에서 꺼낸다
+        ProductInfoValues.validate(info.infoValues(), info.category().productTypeToRegister());
+        // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
+        if (isSameAs(info)) {
+            return false;
+        }
+        // 바꿀 것이 있을 때만 version을 본다. 다른 화면이 먼저 고친 상품을 예전 값으로 덮어쓰지 않게 하기 위해서다
+        if (!Objects.equals(info.version(), version)) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_VERSION_MISMATCH);
+        }
+        // 판매를 시작한 상품은 옵션 · 실측을 여기서 바꾸지 못하므로,
+        // 지금 실측이 새 카테고리의 필수 실측을 모두 채워야 한다 (SIZE-04)
+        if (status != ProductStatus.SALE_PENDING && category != info.category()) {
+            // 다른 유형으로 바꾸면 기존 옵션을 모두 보관해야 하는데, 이번에는 판매를 시작한 상품에서 하지 않는다 (OPT-06)
+            if (info.category().productTypeToRegister() != category.productTypeToRegister()) {
+                throw new BusinessException(ProductErrorCode.PRODUCT_TYPE_CHANGE_NOT_ALLOWED);
+            }
+            List<String> missing = SaleStartConditions.missingItems(
+                options, sizeSpecs, info.category(), info.category().productTypeToRegister());
+            if (!missing.isEmpty()) {
+                throw new BusinessException(
+                    ProductErrorCode.MEASUREMENTS_MISSING_FOR_CATEGORY, String.join(" ", missing));
+            }
+        }
+        name = info.name();
+        brand = info.brand();
+        description = info.description();
+        thumbnailUrl = info.thumbnailUrl();
+        imageUrls = new ArrayList<>(info.imageUrls());
+        category = info.category();
+        // 정보 값은 받은 값으로 통째로 바꾸므로 이전 행을 모두 빼고 받은 값으로 다시 만든다
+        infoValues.clear();
+        infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
+        return true;
+    }
+
+    // 정보 값은 영속성 컨텍스트의 같은 객체끼리 비교한다. 기본 정보는 값으로 비교하고 이미지는 순서까지 같아야 같다
+    private boolean isSameAs(UpdateInfo info) {
+        // 카테고리는 같은 영속성 컨텍스트의 객체라 정보 값의 항목처럼 ==로 비교한다
+        return category == info.category()
+            && Objects.equals(name, info.name())
+            && Objects.equals(brand, info.brand())
+            && Objects.equals(description, info.description())
+            && Objects.equals(thumbnailUrl, info.thumbnailUrl())
+            && imageUrls.equals(info.imageUrls())
+            && ProductInfoValues.sameAs(this, infoValues, info.infoValues());
     }
 
     /**
