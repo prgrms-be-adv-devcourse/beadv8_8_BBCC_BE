@@ -2,7 +2,10 @@ package com.bbcc.kidly.boundedcontext.settlement;
 
 import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.times;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementPayoutResultService;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
@@ -49,8 +52,13 @@ class SettlementPayoutResultServiceTest {
     void settlementMissing() {
         given(settlementRepository.findById(1L)).willReturn(Optional.empty());
 
-        service.markPaid(completed(1L, SELLER_ID, AMOUNT));
-        service.markPaymentFailed(failed(1L, SELLER_ID, AMOUNT));
+        assertThatNoException().isThrownBy(() -> {
+            service.markPaid(completed(1L, SELLER_ID, AMOUNT));
+            service.markPaymentFailed(failed(1L, SELLER_ID, AMOUNT));
+        });
+
+        then(settlementRepository).should(times(2)).findById(1L);
+        then(settlementRepository).shouldHaveNoMoreInteractions();
     }
 
     @Test

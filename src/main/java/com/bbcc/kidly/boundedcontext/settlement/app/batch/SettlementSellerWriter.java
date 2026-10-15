@@ -22,16 +22,14 @@ public class SettlementSellerWriter implements ItemWriter<SettlementSellerPlan> 
     private final SettlementItemRepository settlementItemRepository;
     private final SettlementRepository settlementRepository;
     private final SettlementCalculator settlementCalculator;
-    private final SettlementPeriod period;
     private final EventPublisher eventPublisher;
 
     public SettlementSellerWriter(
         SettlementItemRepository settlementItemRepository, SettlementRepository settlementRepository,
-        SettlementCalculator settlementCalculator, SettlementPeriod period, EventPublisher eventPublisher) {
+        SettlementCalculator settlementCalculator, EventPublisher eventPublisher) {
         this.settlementItemRepository = requireNonNull(settlementItemRepository, "settlementItemRepository는 필수입니다");
         this.settlementRepository = requireNonNull(settlementRepository, "settlementRepository는 필수입니다");
         this.settlementCalculator = requireNonNull(settlementCalculator, "settlementCalculator는 필수입니다");
-        this.period = requireNonNull(period, "period는 필수입니다");
         this.eventPublisher = requireNonNull(eventPublisher, "eventPublisher는 필수입니다");
     }
 
@@ -40,15 +38,14 @@ public class SettlementSellerWriter implements ItemWriter<SettlementSellerPlan> 
     public void write(Chunk<? extends SettlementSellerPlan> plans) {
         var now = LocalDateTime.now(SettlementPeriod.SERVICE_ZONE);
         for (var plan : plans) {
-            var items = settlementItemRepository.findAllByIdIn(plan.itemIds());
+            var items = settlementItemRepository.findAllById(plan.itemIds());
             if (items.size() != plan.itemIds().size()) {
                 throw new IllegalStateException("정산 대상이 바뀌었습니다");
             }
             var settlement = settlementRepository.save(
-                settlementCalculator.create(period, plan.sellerId(), plan.totalSalesAmount(), now));
+                settlementCalculator.create(plan.sellerId(), plan.totalSalesAmount(), now));
             items.forEach(item -> item.settle(settlement.getId()));
-            eventPublisher.publish(new SettlementPayoutRequestedEvent(UUID.randomUUID(),
-                LocalDateTime.now(SettlementPeriod.SERVICE_ZONE),
+            eventPublisher.publish(new SettlementPayoutRequestedEvent(UUID.randomUUID(), now,
                 new SettlementPayoutRequestedEvent.Data(settlement.getId(), settlement.getSellerId(),
                     settlement.getSettlementAmount(), settlement.getPeriodStartOn(), settlement.getPeriodEndOn())));
         }

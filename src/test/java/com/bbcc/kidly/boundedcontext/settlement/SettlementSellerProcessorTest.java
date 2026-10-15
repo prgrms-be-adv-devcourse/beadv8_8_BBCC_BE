@@ -35,7 +35,7 @@ class SettlementSellerProcessorTest {
     @BeforeEach
     void setUp() {
         processor = new SettlementSellerProcessor(
-            settlementItemRepository, new SettlementCalculator(FEE_RATE), SettlementPeriod.from(CUTOFF_AT));
+            settlementItemRepository, new SettlementCalculator(FEE_RATE, SettlementPeriod.from(CUTOFF_AT)));
     }
 
     @Test

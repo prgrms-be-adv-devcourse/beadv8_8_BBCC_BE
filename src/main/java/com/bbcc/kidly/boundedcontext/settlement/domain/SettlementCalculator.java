@@ -14,14 +14,19 @@ import org.springframework.util.Assert;
 public class SettlementCalculator {
 
     private final BigDecimal feeRate;
+    private final SettlementPeriod period;
 
-    public SettlementCalculator(BigDecimal feeRate) {
+    public SettlementCalculator(BigDecimal feeRate, SettlementPeriod period) {
         this.feeRate = requireNonNull(feeRate, "feeRate는 필수입니다");
+        this.period = requireNonNull(period, "period는 필수입니다");
+    }
+
+    public SettlementPeriod period() {
+        return period;
     }
 
     // 판매 합계가 long을 넘치면 ArithmeticException
-    public long sumSalesAmount(SettlementPeriod period, List<SettlementItem> items) {
-        requireNonNull(period, "period는 필수입니다");
+    public long sumSalesAmount(List<SettlementItem> items) {
         requireNonNull(items, "items는 필수입니다");
         Assert.notEmpty(items, "정산 대상이 없습니다");
         var sellerId = items.getFirst().getSellerId();
@@ -37,8 +42,7 @@ public class SettlementCalculator {
         return total;
     }
 
-    public Settlement create(SettlementPeriod period, Long sellerId, long totalSalesAmount, LocalDateTime now) {
-        requireNonNull(period, "period는 필수입니다");
+    public Settlement create(Long sellerId, long totalSalesAmount, LocalDateTime now) {
         return Settlement.create(
             new SettlementCreateInfo(sellerId, period.startOn(), period.endOn(), totalSalesAmount, feeRate), now);
     }
