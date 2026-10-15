@@ -7,6 +7,7 @@ import static com.bbcc.kidly.boundedcontext.order.in.web.SellerOrderController.S
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -57,6 +58,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @FunctionalTest
 class OrderFlowApiTest {
+
+    private static final OrderScheduleIntervals INTERVALS = new OrderScheduleIntervals(
+        java.time.Duration.ofMinutes(1), new OrderScheduleIntervals.AutoConfirm(java.time.Duration.ofMinutes(10)));
 
     private static final Long BUYER_ID = 1L;
     private static final Long SELLER_A_ID = 2L;
@@ -339,7 +343,7 @@ class OrderFlowApiTest {
      * 시연처럼 짧게: 한 번 조회 2건 · 한 실행 상한 10건. 같은 컨텍스트의 실제 서비스로 돌린다.
      */
     private OrderScheduler smallBatchScheduler() {
-        return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10));
+        return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10), INTERVALS);
     }
 
     @Test
