@@ -117,22 +117,18 @@ public class ProductSearchDocument extends BaseTimeEntity {
         return document;
     }
 
-    // 판매할 수 있는 옵션은 옵션 판매 상태가 ON_SALE이고 품절이 아닌 옵션이다. 하나도 없으면 전체 옵션에서 고른다
+    // 판매할 수 있는 옵션은 옵션 판매 상태가 ON_SALE이고 품절이 아닌 옵션이다.
+    // 판매할 수 있는 옵션이 하나도 없으면(lowestPurchasable이 시작값 그대로면) 전체 옵션의 최저가를 쓴다.
     private static Long lowestPrice(List<OptionInfo> options) {
-        Long lowestPurchasable = null;
-        Long lowestAll = null;
+        long lowestPurchasable = Long.MAX_VALUE;
+        long lowestAll = Long.MAX_VALUE;
         for (OptionInfo option : options) {
-            if (lowestAll == null || option.price() < lowestAll) {
-                lowestAll = option.price();
-            }
-            if (option.saleStatus() != OptionSaleStatus.ON_SALE || option.soldOut()) {
-                continue;
-            }
-            if (lowestPurchasable == null || option.price() < lowestPurchasable) {
-                lowestPurchasable = option.price();
+            lowestAll = Math.min(lowestAll, option.price());
+            if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {
+                lowestPurchasable = Math.min(lowestPurchasable, option.price());
             }
         }
-        if (lowestPurchasable != null) {
+        if (lowestPurchasable != Long.MAX_VALUE) {
             return lowestPurchasable;
         }
         return lowestAll;
