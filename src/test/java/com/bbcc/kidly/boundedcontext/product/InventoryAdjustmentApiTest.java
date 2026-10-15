@@ -34,6 +34,8 @@ import org.springframework.test.web.servlet.client.RestTestClient.ResponseSpec;
 @FunctionalTest
 class InventoryAdjustmentApiTest {
 
+    private static final long OTHER_SELLER_ID = 99L;
+
     @Autowired
     private RestTestClient client;
 
@@ -90,6 +92,17 @@ class InventoryAdjustmentApiTest {
     void rejectInvalidRequest(Map<String, Object> body, String detail) {
         expectProblem(adjust(tokens.seller(SELLER_ID), option.getId(), body),
             HttpStatus.BAD_REQUEST, "잘못된 요청입니다", detail, option.getId());
+
+        assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(5);
+        assertThat(sellerAdjustments(option)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("다른 판매자의 옵션 재고를 조정하면 403으로 거절하고 아무것도 바꾸지 않는다")
+    void rejectOtherSellersOption() {
+        expectProblem(
+            adjust(tokens.seller(OTHER_SELLER_ID), option.getId(), Map.of("deltaQuantity", 10, "reason", "RESTOCK")),
+            HttpStatus.FORBIDDEN, "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.", option.getId());
 
         assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(5);
         assertThat(sellerAdjustments(option)).isEmpty();

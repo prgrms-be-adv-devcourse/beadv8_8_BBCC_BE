@@ -98,6 +98,11 @@ public class ProductOption extends BaseTimeEntity {
         return Optional.empty();
     }
 
+    // 옵션을 바꾸려는 판매자가 옵션이 속한 상품을 등록한 판매자인지 검사한다. 다른 판매자의 옵션은 바꿀 수 없다
+    public void validateOwner(Long sellerId) {
+        product.validateOwner(sellerId);
+    }
+
     // 보관 옵션은 구매자 상세와 판매자 화면 어디에도 보이지 않는다 (SALE-06)
     public boolean isArchived() {
         return saleStatus == ProductOptionStatus.ARCHIVED;

@@ -31,6 +31,7 @@ public class InventoryAdjustmentService {
     @Transactional
     public InventoryAdjustmentResult adjust(long sellerId, long optionId, InventoryAdjustmentRequest request) {
         ProductOption option = productRepository.findOptionsWithProduct(List.of(optionId)).get(0);
+        option.validateOwner(sellerId);
         InventoryAdjustmentReason reason = InventoryAdjustmentReason.valueOf(request.reason());
         int deltaQuantity = request.deltaQuantity();
         InventoryAdjustmentRecord record =
