@@ -346,6 +346,25 @@ public class Product extends BaseTimeEntity {
         }
     }
 
+    /** 판매자가 상품의 판매를 중지해 판매중지로 바꾸고, 상태가 바뀌었는지 돌려준다. */
+    public boolean stopSale(Long sellerId) {
+        requireNonNull(sellerId, "sellerId는 필수입니다");
+        // 등록한 판매자만 판매를 중지할 수 있다 (OPT-08)
+        if (!this.sellerId.equals(sellerId)) {
+            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
+        }
+        // 판매대기 상품은 구매자에게 보이지 않으므로 멈출 판매가 없다
+        if (status == ProductStatus.SALE_PENDING) {
+            throw new BusinessException(ProductErrorCode.SALE_NOT_STARTED);
+        }
+        // 이미 판매중지면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
+        if (status == ProductStatus.STOPPED) {
+            return false;
+        }
+        status = ProductStatus.STOPPED;
+        return true;
+    }
+
     /** 내 상품 상세를 보려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 볼 수 없다. */
     public void validateViewer(Long sellerId) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
