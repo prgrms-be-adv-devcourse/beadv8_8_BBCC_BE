@@ -1,11 +1,14 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.sizeSpecs;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
+import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
@@ -220,6 +223,36 @@ class ProductUpdateApiTest {
             "판매를 시작한 상품은 카테고리를 바꿀 수 없습니다", "판매를 시작한 상품은 지금 카테고리를 그대로 보내 주세요.");
     }
 
+    @Test
+    @DisplayName("판매대기 상품의 옵션을 바꿔 넣으면 뺀 옵션의 재고는 지우고, 새 옵션은 받은 초기 재고로 열고, "
+        + "남긴 옵션은 초기 재고 차이만큼 정정 기록을 남긴다. 판매 전이라 상품 정보 변경됨은 나가지 않는다")
+    void replaceSaleInputsOfPendingProduct() {
+        List<Long> optionIdsBefore = optionIds();
+        ClothingOptions clothing = saved.clothing();
+        Map<String, Object> body = productA(saved);
+        body.put("version", storedVersion());
+        body.put("options", new ArrayList<>(List.of(
+            option(List.of(id(clothing.navy().getId()), id(clothing.size110().getId())), 7, "A-NV-110"),
+            option(List.of(id(clothing.oatmeal().getId()), id(clothing.size110().getId())), 5, null))));
+        body.put("sizeSpecs", new ArrayList<>(List.of(sizeSpecs(productA(saved)).get(0))));
+
+        update(tokens.seller(SELLER_ID), body)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.options.length()").isEqualTo(2);
+
+        List<Long> optionIdsAfter = optionIds();
+        Long navy110 = optionIdsBefore.get(0);
+        Long oatmeal110 = optionIdsAfter.get(1);
+        assertThat(optionIdsAfter.get(0)).isEqualTo(navy110);
+        assertThat(availableQty(navy110)).isEqualTo(7);
+        assertThat(availableQty(oatmeal110)).isEqualTo(5);
+        assertThat(inventoryRowCount(optionIdsBefore.get(1))).isZero();
+        assertThat(adjustments(navy110)).containsExactly("INITIAL 10", "CORRECTION -3");
+        assertThat(adjustments(oatmeal110)).containsExactly("INITIAL 5");
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
     // 상품 A를 등록할 때와 같은 값에 version을 더한 수정 요청이다. 옵션 · 가격 · 실측은 보내지 않는다
     private Map<String, Object> updateBody(long version) {
         Map<String, Object> body = productA(saved);
@@ -279,6 +312,27 @@ class ProductUpdateApiTest {
             entityManager.persist(outer);
             return outer.getId();
         });
+    }
+
+    private List<Long> optionIds() {
+        return jdbcTemplate.queryForList("select id from product.product_option where product_id = ? order by id",
+            Long.class, Long.valueOf(productId));
+    }
+
+    private int availableQty(Long optionId) {
+        return jdbcTemplate.queryForObject(
+            "select available_qty from product.inventory where product_option_id = ?", Integer.class, optionId);
+    }
+
+    private long inventoryRowCount(Long optionId) {
+        return jdbcTemplate.queryForObject(
+            "select count(*) from product.inventory where product_option_id = ?", Long.class, optionId);
+    }
+
+    // 옵션의 재고 조정 기록을 "사유 증감량"으로 남긴 순서대로 읽는다
+    private List<String> adjustments(Long optionId) {
+        return jdbcTemplate.queryForList("select reason || ' ' || delta_qty from product.inventory_adjustment_record "
+            + "where product_option_id = ? order by id", String.class, optionId);
     }
 
     private long storedVersion() {

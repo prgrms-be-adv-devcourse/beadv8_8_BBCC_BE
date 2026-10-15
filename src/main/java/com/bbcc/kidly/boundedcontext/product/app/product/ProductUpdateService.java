@@ -2,14 +2,17 @@ package com.bbcc.kidly.boundedcontext.product.app.product;
 
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductUpdateRequest;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetailResult;
+import com.bbcc.kidly.boundedcontext.product.app.product.support.InventoryReplacer;
 import com.bbcc.kidly.boundedcontext.product.app.product.support.ProductChangedPublisher;
 import com.bbcc.kidly.boundedcontext.product.app.product.support.ProductInputReader;
 import com.bbcc.kidly.boundedcontext.product.app.product.support.ProductInputReader.InputLookup;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SaleInputsInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.UpdateInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.UpdateResult;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
@@ -17,6 +20,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +36,8 @@ public class ProductUpdateService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ProductInputReader inputReader;
+    private final InventoryRepository inventoryRepository;
+    private final InventoryReplacer inventoryReplacer;
     private final ProductChangedPublisher productChangedPublisher;
     private final SellerProductService sellerProductService;
 
@@ -54,15 +61,30 @@ public class ProductUpdateService {
             request.thumbnailUrl(),
             request.imageUrls(),
             inputReader.toInfoValues(request.attributes(), lookup));
+        List<ProductOption> optionsBefore = List.copyOf(product.getOptions());
         UpdateResult result = product.update(info, toSaleInputs(request, lookup));
+        // 뺀 옵션의 재고는 상품을 고친 뒤 첫 flush보다 먼저 지운다. 옵션 삭제가 먼저 반영되면 재고 행이 옵션을 가리켜 막힌다
+        inventoryRepository.deleteByOptionIds(idsOf(result.removedOptions()));
         if (result.changed()) {
             productRepository.incrementVersion(product);
+            // 새 옵션의 ID는 저장할 때 생기므로, 재고를 여는 일은 저장한 뒤에 한다
             productRepository.saveAndFlush(product);
+            if (!result.requestedOptions().isEmpty()) {
+                inventoryReplacer.align(result.requestedOptions(), optionsBefore, request.options(), sellerId);
+            }
             if (product.getStatus() != ProductStatus.SALE_PENDING) {
                 productChangedPublisher.publish(product, type);
             }
         }
         return sellerProductService.findMyProductDetail(sellerId, productId);
+    }
+
+    private List<Long> idsOf(List<ProductOption> options) {
+        List<Long> ids = new ArrayList<>();
+        for (ProductOption option : options) {
+            ids.add(option.getId());
+        }
+        return ids;
     }
 
     // 옵션 · 가격 · 실측을 모두 보내지 않았으면 바꾸지 않는다는 뜻으로 null을 돌려준다
