@@ -7,7 +7,7 @@ import lombok.experimental.Accessors;
 import org.springframework.http.HttpStatus;
 
 /**
- * 주문 모듈(주문 · 장바구니 · 배송) 오류. 문구는 도메인 구현 때 다듬는다.
+ * 주문 모듈(주문 · 장바구니 · 배송) 오류. detail은 받는 쪽이 다음에 할 일을 알 수 있게 쓴다(행동이 다르면 코드를 나눈다).
  */
 @Getter
 @Accessors(fluent = true)
@@ -17,20 +17,27 @@ public enum OrderErrorCode implements ErrorCode {
     EMPTY_ORDER_ITEMS(HttpStatus.BAD_REQUEST, "주문상품이 없습니다", "주문할 상품을 하나 이상 골라 주세요."),
     DUPLICATE_ORDER_ITEM(HttpStatus.BAD_REQUEST, "같은 주문상품이 두 번 있습니다", "같은 옵션 · 자녀 조합은 한 줄로 주문해 주세요."),
     INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "잘못된 수량입니다", "수량은 1 이상 99 이하여야 합니다."),
-    INVALID_AMOUNT(HttpStatus.BAD_REQUEST, "잘못된 금액입니다", "금액은 0 이상이어야 합니다."),
-    PRICE_CHANGED(HttpStatus.CONFLICT, "가격이 바뀌었습니다", "상품 가격이 바뀌었습니다. 다시 확인해 주세요."),
-    PRODUCT_NOT_PURCHASABLE(HttpStatus.CONFLICT, "구매할 수 없는 상품입니다", "판매 중인 상품이 아닙니다."),
+    PRICE_CHANGED(HttpStatus.CONFLICT, "가격이 바뀌었습니다",
+        "상품 가격이 바뀌었습니다. 장바구니에서 바뀐 가격을 확인한 뒤 다시 주문해 주세요."),
+    PRODUCT_NOT_PURCHASABLE(HttpStatus.CONFLICT, "구매할 수 없는 상품입니다",
+        "판매가 중지됐거나 품절된 상품이 있습니다. 장바구니에서 빼고 다시 주문해 주세요."),
     OWN_PRODUCT(HttpStatus.FORBIDDEN, "자기 상품은 살 수 없습니다", "판매자는 자기 상품을 담거나 주문할 수 없습니다."),
-    CHILD_NOT_ORDERABLE(HttpStatus.CONFLICT, "선택할 수 없는 자녀입니다", "자녀 정보를 다시 확인해 주세요."),
+    CHILD_NOT_ORDERABLE(HttpStatus.CONFLICT, "선택할 수 없는 자녀입니다",
+        "삭제됐거나 내 자녀가 아닌 자녀입니다. 자녀를 다시 선택해 주세요."),
     NOT_DELIVERED(HttpStatus.CONFLICT, "배송 완료 전입니다", "배송이 완료된 뒤 구매확정할 수 있습니다."),
-    INVALID_DELIVERY_STATUS(HttpStatus.CONFLICT, "처리할 수 없는 배송 상태입니다", "현재 배송 상태에서는 요청을 처리할 수 없습니다."),
-    PRODUCT_OPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "상품 옵션을 찾을 수 없습니다", "상품 옵션을 다시 확인해 주세요."),
-    CHILD_NOT_FOUND(HttpStatus.NOT_FOUND, "자녀를 찾을 수 없습니다", "자녀 정보를 다시 확인해 주세요."),
-    CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "장바구니 상품을 찾을 수 없습니다", "장바구니를 다시 확인해 주세요."),
-    ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다", "주문 번호를 다시 확인해 주세요."),
-    DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "판매 주문을 찾을 수 없습니다", "판매 주문 번호를 다시 확인해 주세요."),
-    INVALID_CARRIER(HttpStatus.BAD_REQUEST, "지원하지 않는 택배사입니다", "택배사를 다시 확인해 주세요."),
-    ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "주문상품을 찾을 수 없습니다", "주문상품 번호를 다시 확인해 주세요.");
+    ALREADY_SHIPPED(HttpStatus.CONFLICT, "이미 발송된 주문입니다", "이미 발송된 주문입니다. 판매 주문 목록을 새로고침해 주세요."),
+    NOT_SHIPPED(HttpStatus.CONFLICT, "발송 전입니다", "발송 처리를 먼저 해 주세요."),
+    PRODUCT_OPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "상품 옵션을 찾을 수 없습니다",
+        "없는 상품 옵션입니다. 상품 화면에서 옵션을 다시 골라 주세요."),
+    CHILD_NOT_FOUND(HttpStatus.NOT_FOUND, "자녀를 찾을 수 없습니다", "없는 자녀입니다. 자녀를 다시 선택해 주세요."),
+    CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "장바구니 상품을 찾을 수 없습니다",
+        "이미 장바구니에서 빠진 상품입니다. 장바구니를 새로고침해 주세요."),
+    ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다", "없는 주문입니다. 주문 목록에서 다시 선택해 주세요."),
+    DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "판매 주문을 찾을 수 없습니다",
+        "없는 판매 주문입니다. 판매 주문 목록을 새로고침해 주세요."),
+    INVALID_CARRIER(HttpStatus.BAD_REQUEST, "지원하지 않는 택배사입니다",
+        "지원하는 택배사는 CJ · EPOST · HANJIN · LOTTE · LOGEN입니다."),
+    ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "주문상품을 찾을 수 없습니다", "없는 주문상품입니다. 주문 상세를 새로고침해 주세요.");
 
     private final HttpStatus status;
     private final String title;
