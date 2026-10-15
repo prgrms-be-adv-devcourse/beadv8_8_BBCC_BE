@@ -119,7 +119,8 @@ class OrderApiTest {
                 .exchange()
                 .expectStatus().isEqualTo(409)
                 .expectBody()
-                .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다");
+                .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다")
+                .jsonPath("$.detail").isEqualTo("판매가 중지됐거나 품절된 상품이 있습니다. 장바구니에서 빼고 다시 주문해 주세요.");
         }
 
         @Test
@@ -131,7 +132,8 @@ class OrderApiTest {
                 .exchange()
                 .expectStatus().isEqualTo(409)
                 .expectBody()
-                .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다");
+                .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다")
+                .jsonPath("$.detail").isEqualTo("판매가 중지됐거나 품절된 상품이 있습니다. 장바구니에서 빼고 다시 주문해 주세요.");
         }
 
         @Test
@@ -207,7 +209,47 @@ class OrderApiTest {
                 .exchange()
                 .expectStatus().isEqualTo(409)
                 .expectBody()
-                .jsonPath("$.title").isEqualTo("가격이 바뀌었습니다");
+                .jsonPath("$.title").isEqualTo("가격이 바뀌었습니다")
+                .jsonPath("$.detail").isEqualTo("상품 가격이 바뀌었습니다. 장바구니에서 바뀐 가격을 확인한 뒤 다시 주문해 주세요.");
+        }
+
+        @Test
+        @DisplayName("없는 옵션을 주문하면 404 PRODUCT_OPTION_NOT_FOUND, 옵션을 다시 고르라는 안내")
+        void missingOptionIsNotFound() {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(orderBody("999999", null, 1, 25_000))
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("상품 옵션을 찾을 수 없습니다")
+                .jsonPath("$.detail").isEqualTo("없는 상품 옵션입니다. 상품 화면에서 옵션을 다시 골라 주세요.");
+        }
+
+        @Test
+        @DisplayName("없는 자녀로 주문하면 404 CHILD_NOT_FOUND, 자녀를 다시 선택하라는 안내")
+        void missingChildIsNotFound() {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(orderBody("1", "999999", 1, 25_000))
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("자녀를 찾을 수 없습니다")
+                .jsonPath("$.detail").isEqualTo("없는 자녀입니다. 자녀를 다시 선택해 주세요.");
+        }
+
+        @Test
+        @DisplayName("남의 자녀로 주문하면 409 CHILD_NOT_ORDERABLE, 자녀를 다시 선택하라는 안내")
+        void othersChildIsNotOrderable() {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(OTHER_ID)))
+                .body(orderBody("1", "1", 1, 25_000))
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("선택할 수 없는 자녀입니다")
+                .jsonPath("$.detail").isEqualTo("삭제됐거나 내 자녀가 아닌 자녀입니다. 자녀를 다시 선택해 주세요.");
         }
     }
 
@@ -397,7 +439,8 @@ class OrderApiTest {
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()
-                .jsonPath("$.title").isEqualTo("주문을 찾을 수 없습니다");
+                .jsonPath("$.title").isEqualTo("주문을 찾을 수 없습니다")
+                .jsonPath("$.detail").isEqualTo("없는 주문입니다. 주문 목록에서 다시 선택해 주세요.");
         }
 
         @Test
@@ -464,7 +507,8 @@ class OrderApiTest {
             confirm(orderId, orderItemId, OTHER_ID)
                 .expectStatus().isNotFound()
                 .expectBody()
-                .jsonPath("$.title").isEqualTo("주문을 찾을 수 없습니다");
+                .jsonPath("$.title").isEqualTo("주문을 찾을 수 없습니다")
+                .jsonPath("$.detail").isEqualTo("없는 주문입니다. 주문 목록에서 다시 선택해 주세요.");
         }
 
         @Test
@@ -475,7 +519,8 @@ class OrderApiTest {
             confirm(orderId, "999999", BUYER_ID)
                 .expectStatus().isNotFound()
                 .expectBody()
-                .jsonPath("$.title").isEqualTo("주문상품을 찾을 수 없습니다");
+                .jsonPath("$.title").isEqualTo("주문상품을 찾을 수 없습니다")
+                .jsonPath("$.detail").isEqualTo("없는 주문상품입니다. 주문 상세를 새로고침해 주세요.");
         }
 
         private RestTestClient.ResponseSpec confirm(String orderId, String orderItemId, Long memberId) {
