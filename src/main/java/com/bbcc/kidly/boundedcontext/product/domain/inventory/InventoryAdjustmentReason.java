@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
 /**
  * 재고를 조정한 사유다. 사유마다 증감량의 부호가 정해져 있다.
- * 입고는 재고를 늘리고, 불량과 분실은 줄이고, 정정은 늘리거나 줄일 수 있다 (INV-18).
+ * 초기 재고와 입고는 재고를 늘리고, 불량과 분실은 줄이고, 정정은 늘리거나 줄일 수 있다 (INV-18).
  */
 public enum InventoryAdjustmentReason {
     INITIAL(true, false),
@@ -19,8 +19,8 @@ public enum InventoryAdjustmentReason {
         this.canDecrease = canDecrease;
     }
 
-    // 증감량의 부호가 이 사유에서 허용되는지 알려 준다
+    // 증감량의 부호가 이 사유에서 허용되는지 알려 준다. 0은 부호가 없어 어느 사유도 허용하지 않는다
     public boolean allows(int deltaQty) {
-        return deltaQty > 0 ? canIncrease : canDecrease;
+        return deltaQty > 0 ? canIncrease : deltaQty < 0 && canDecrease;
     }
 }

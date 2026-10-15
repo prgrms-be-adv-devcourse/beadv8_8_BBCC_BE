@@ -54,7 +54,7 @@ public class InventoryAdjustmentRecord extends BaseTimeEntity {
     // 판매자가 옵션의 재고를 증감량과 사유로 조정한 기록을 만든다
     public static InventoryAdjustmentRecord adjust(AdjustInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        // 초기 재고는 옵션을 등록할 때만 서버가 남겨서, 판매자 조정으로 초기 재고와 입고가 섞이지 않게 한다 (INV-19)
+        // INITIAL 기록은 옵션을 등록할 때 서버만 남긴다. 판매자가 INITIAL로 재고를 더하면 초기 재고와 입고를 구분할 수 없다 (INV-19)
         if (info.reason() == InventoryAdjustmentReason.INITIAL) {
             throw new IllegalArgumentException("재고 조정에 쓸 수 없는 사유입니다: INITIAL");
         }
@@ -69,7 +69,7 @@ public class InventoryAdjustmentRecord extends BaseTimeEntity {
         if (deltaQty == 0) {
             throw new IllegalArgumentException("증감량은 0이 아니어야 합니다");
         }
-        // 사유마다 증감량 부호가 정해져 있다. 입고는 늘리고 불량 · 분실은 줄인다 (INV-18)
+        // 사유마다 허용하는 증감량 부호는 InventoryAdjustmentReason에 있다 (INV-18)
         if (!reason.allows(deltaQty)) {
             throw new IllegalArgumentException("사유 " + reason + "에 맞지 않는 증감량입니다: " + deltaQty);
         }
