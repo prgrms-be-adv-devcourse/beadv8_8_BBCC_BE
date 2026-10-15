@@ -57,12 +57,16 @@ public class DeliveryService {
     }
 
     /**
-     * 배송 완료. 이미 완료면 그대로 처음 값을 돌려준다. 발송 전이면 409.
+     * 배송 완료 → 그 판매자 몫 주문상품에 배송 완료 시각 기록을 한 트랜잭션으로 처리한다(뒤 단계가 실패하면 배송도 되돌림).
+     * 이미 완료면 그대로 처음 값을 돌려주고, 주문상품 기록도 처음 시각을 유지한다(다시 불러도 같음). 발송 전이면 409.
+     * 주문이 없으면 주문상품 기록은 건너뛴다.
      */
     public DeliveryResult complete(Long memberId, Long deliveryId) {
         Delivery delivery = findOwned(memberId, deliveryId);
         boolean alreadyDelivered = delivery.getStatus() == Delivery.Status.DELIVERED;
         delivery.complete(LocalDateTime.now());
+        orderRepository.findById(delivery.getOrderId())
+            .ifPresent(order -> order.recordDelivered(delivery.getSellerId(), delivery.getDeliveredAt()));
         if (alreadyDelivered) {
             log.debug("요청 무시: event=deliver orderId={} deliveryId={} result=ALREADY_DONE",
                 delivery.getOrderId(), delivery.getId());
