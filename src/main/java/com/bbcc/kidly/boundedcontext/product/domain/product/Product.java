@@ -262,6 +262,8 @@ public class Product extends BaseTimeEntity {
         if (rewritesSaleInputs) {
             ProductOptions.rewrite(this, options, saleInputs.options(), saleInputs.prices(),
                 info.category().productTypeToRegister());
+            // 실측은 옵션을 먼저 맞춘 뒤에 맞춘다
+            ProductSizeSpecs.rewrite(this, sizeSpecs, saleInputs.sizeSpecs());
         }
         return true;
     }
@@ -280,10 +282,11 @@ public class Product extends BaseTimeEntity {
         }
     }
 
-    // 받은 옵션이 지금 옵션과 다른지 본다. 상품 유형은 받은 카테고리에서 꺼낸다
+    // 받은 옵션 · 실측이 지금 값과 다른지 본다. 상품 유형은 받은 카테고리에서 꺼낸다
     private boolean differsFrom(SaleInputsInfo saleInputs, Category newCategory) {
         return ProductOptions.differs(options, saleInputs.options(), saleInputs.prices(),
-            newCategory.productTypeToRegister());
+            newCategory.productTypeToRegister())
+            || ProductSizeSpecs.differs(sizeSpecs, saleInputs.sizeSpecs());
     }
 
     // 정보 값은 영속성 컨텍스트의 같은 객체끼리 비교한다. 기본 정보는 값으로 비교하고 이미지는 순서까지 같아야 같다

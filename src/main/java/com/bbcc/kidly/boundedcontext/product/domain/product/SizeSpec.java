@@ -64,6 +64,13 @@ public class SizeSpec extends BaseTimeEntity {
         return sizeSpec;
     }
 
+    // 판매대기 상품을 이어 쓸 때 사이즈 값이 같은 실측을 그대로 두고 권장 키와 실측 값만 받은 값으로 맞춘다
+    void revise(Integer minHeightCm, Integer maxHeightCm, Map<String, BigDecimal> measurements) {
+        this.minHeightCm = minHeightCm;
+        this.maxHeightCm = maxHeightCm;
+        this.measurements = Map.copyOf(measurements);
+    }
+
     // DB에서 읽은 맵도 밖에서 바꾸지 못하게 읽기 전용으로 돌려준다
     public Map<String, BigDecimal> getMeasurements() {
         return Collections.unmodifiableMap(measurements);

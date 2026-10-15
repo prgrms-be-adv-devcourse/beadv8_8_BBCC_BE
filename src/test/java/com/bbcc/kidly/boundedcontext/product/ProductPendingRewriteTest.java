@@ -8,7 +8,10 @@ import com.bbcc.kidly.boundedcontext.product.ProductUpdateFixture.ProductA;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionValue;
+import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -77,5 +80,28 @@ class ProductPendingRewriteTest {
             .containsExactlyInAnyOrder(productA.clothing().oatmeal(), productA.clothing().size110());
         assertThat(added).extracting(ProductOption::getSkuCode, ProductOption::getPrice)
             .containsExactly("A-OT-110", ProductOptionFixture.CLOTHING_PRICE);
+    }
+
+    @Test
+    @DisplayName("SIZE-04 판매대기 상품의 실측은 사이즈 값으로 짝지어 같은 사이즈는 객체를 두고 값만 맞추며, 받지 않은 사이즈의 실측은 뺀다")
+    void rewriteSizeSpecsBySize() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+        SizeSpec spec110 = productA.product().getSizeSpecs().get(0);
+        Map<String, BigDecimal> measurements = Map.of(
+            "TOTAL_LENGTH", new BigDecimal("43"),
+            "SHOULDER_WIDTH", new BigDecimal("31"),
+            "CHEST_WIDTH", new BigDecimal("35"),
+            "SLEEVE_LENGTH", new BigDecimal("39"));
+
+        boolean changed = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+            List.of(new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null)),
+            clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+            List.of(SizeSpecFixture.spec(productA.clothing().size110(), 104, 114, measurements))));
+
+        assertThat(changed).isTrue();
+        assertThat(productA.product().getSizeSpecs()).containsExactly(spec110);
+        assertThat(spec110.getMinHeightCm()).isEqualTo(104);
+        assertThat(spec110.getMaxHeightCm()).isEqualTo(114);
+        assertThat(spec110.getMeasurements()).isEqualTo(measurements);
     }
 }

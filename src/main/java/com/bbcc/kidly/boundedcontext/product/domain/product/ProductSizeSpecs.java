@@ -10,8 +10,11 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -111,5 +114,69 @@ final class ProductSizeSpecs {
                 throw new BusinessException(ProductErrorCode.SIZE_NOT_IN_OPTIONS);
             }
         }
+    }
+
+    // 판매대기 상품을 이어 쓸 때 받은 실측이 지금 실측과 다른지 본다. 사이즈 값이 짝지어지지 않으면 다른 것으로 본다
+    static boolean differs(List<SizeSpec> current, List<SizeSpecInfo> requested) {
+        if (current.size() != requested.size()) {
+            return true;
+        }
+        for (SizeSpecInfo spec : requested) {
+            SizeSpec matched = findBySize(current, spec.sizeValue());
+            if (matched == null
+                || !Objects.equals(matched.getMinHeightCm(), spec.minHeightCm())
+                || !Objects.equals(matched.getMaxHeightCm(), spec.maxHeightCm())
+                || !sameMeasurements(matched.getMeasurements(), spec.measurements())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 사이즈 값이 같은 실측은 객체를 그대로 두고 권장 키와 실측 값만 받은 값으로 맞추고, 받지 않은 사이즈의 실측은 뺀다
+    static void rewrite(Product product, List<SizeSpec> current, List<SizeSpecInfo> requested) {
+        List<SizeSpec> notRequested = new ArrayList<>();
+        for (SizeSpec sizeSpec : current) {
+            SizeSpecInfo matched = findRequested(requested, sizeSpec.getSizeValue());
+            if (matched == null) {
+                notRequested.add(sizeSpec);
+                continue;
+            }
+            sizeSpec.revise(matched.minHeightCm(), matched.maxHeightCm(), matched.measurements());
+        }
+        current.removeAll(notRequested);
+    }
+
+    // 사이즈 값은 같은 영속성 컨텍스트의 객체라 ==로 비교한다. 없으면 null이다
+    private static SizeSpec findBySize(List<SizeSpec> current, AttributeValue sizeValue) {
+        for (SizeSpec sizeSpec : current) {
+            if (sizeSpec.getSizeValue() == sizeValue) {
+                return sizeSpec;
+            }
+        }
+        return null;
+    }
+
+    private static SizeSpecInfo findRequested(List<SizeSpecInfo> requested, AttributeValue sizeValue) {
+        for (SizeSpecInfo spec : requested) {
+            if (spec.sizeValue() == sizeValue) {
+                return spec;
+            }
+        }
+        return null;
+    }
+
+    // 실측 값은 크기로 비교한다. 42와 42.0은 같은 길이라 같은 값으로 본다. 같은 요청을 다시 보냈을 때
+    // 자릿수만 다른 값 때문에 바뀐 것으로 보지 않게 하기 위해서다
+    private static boolean sameMeasurements(Map<String, BigDecimal> current, Map<String, BigDecimal> requested) {
+        if (!current.keySet().equals(requested.keySet())) {
+            return false;
+        }
+        for (Map.Entry<String, BigDecimal> entry : requested.entrySet()) {
+            if (current.get(entry.getKey()).compareTo(entry.getValue()) != 0) {
+                return false;
+            }
+        }
+        return true;
     }
 }
