@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product.OptionInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.PriceInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.RegisterInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SizeSpecInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
@@ -23,6 +24,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.global.error.ErrorCode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -111,8 +113,9 @@ public class ProductRegistrationService {
     private List<InfoValueInfo> toInfoValues(List<ProductRegisterRequest.AttributeInput> inputs, InputLookup lookup) {
         List<InfoValueInfo> infoValues = new ArrayList<>();
         for (ProductRegisterRequest.AttributeInput input : inputs) {
-            infoValues.add(new InfoValueInfo(
-                lookup.attributes().get(input.attributeId()), valuesOf(input.valueIds(), lookup), input.text()));
+            Attribute attribute = find(lookup.attributes(), input.attributeId(), ProductErrorCode.NOT_INFO_ATTRIBUTE);
+            List<AttributeValue> values = valuesOf(input.valueIds(), lookup, ProductErrorCode.INFO_VALUE_NOT_ALLOWED);
+            infoValues.add(new InfoValueInfo(attribute, values, input.text()));
         }
         return infoValues;
     }
@@ -120,11 +123,14 @@ public class ProductRegistrationService {
     private AddOptionsInfo toAddOptionsInfo(Long sellerId, ProductRegisterRequest request, InputLookup lookup) {
         List<OptionInfo> options = new ArrayList<>();
         for (ProductRegisterRequest.OptionInput option : request.options()) {
-            options.add(new OptionInfo(valuesOf(option.valueIds(), lookup), option.skuCode()));
+            List<AttributeValue> values =
+                valuesOf(option.valueIds(), lookup, ProductErrorCode.OPTION_VALUE_NOT_ALLOWED);
+            options.add(new OptionInfo(values, option.skuCode()));
         }
         List<PriceInfo> prices = new ArrayList<>();
         for (ProductRegisterRequest.PriceInput price : request.prices()) {
-            prices.add(new PriceInfo(valuesOf(price.valueIds(), lookup), price.price()));
+            List<AttributeValue> values = valuesOf(price.valueIds(), lookup, ProductErrorCode.PRICE_GROUP_MISMATCH);
+            prices.add(new PriceInfo(values, price.price()));
         }
         return new AddOptionsInfo(sellerId, options, prices);
     }
@@ -132,17 +138,26 @@ public class ProductRegistrationService {
     private AddSizeSpecsInfo toAddSizeSpecsInfo(Long sellerId, ProductRegisterRequest request, InputLookup lookup) {
         List<SizeSpecInfo> specs = new ArrayList<>();
         for (ProductRegisterRequest.SizeSpecInput spec : request.sizeSpecs()) {
-            specs.add(new SizeSpecInfo(
-                lookup.values().get(spec.sizeValueId()), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
+            AttributeValue sizeValue = find(lookup.values(), spec.sizeValueId(), ProductErrorCode.SIZE_NOT_IN_OPTIONS);
+            specs.add(new SizeSpecInfo(sizeValue, spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
         }
         return new AddSizeSpecsInfo(sellerId, specs);
     }
 
-    private List<AttributeValue> valuesOf(List<Long> valueIds, InputLookup lookup) {
+    private List<AttributeValue> valuesOf(List<Long> valueIds, InputLookup lookup, ErrorCode errorCode) {
         List<AttributeValue> values = new ArrayList<>();
         for (Long valueId : valueIds) {
-            values.add(lookup.values().get(valueId));
+            values.add(find(lookup.values(), valueId, errorCode));
         }
         return values;
+    }
+
+    // 상품 유형에서 읽은 맵에 없는 ID이면 넘겨받은 오류로 거절한다
+    private <T> T find(Map<Long, T> entitiesById, Long id, ErrorCode errorCode) {
+        T entity = entitiesById.get(id);
+        if (entity == null) {
+            throw new BusinessException(errorCode);
+        }
+        return entity;
     }
 }

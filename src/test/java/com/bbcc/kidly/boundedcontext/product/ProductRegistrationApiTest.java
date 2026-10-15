@@ -39,6 +39,9 @@ class ProductRegistrationApiTest {
 
     private static final long SELLER_ID = 7L;
 
+    // 어느 표에도 저장하지 않은 ID다
+    private static final String UNKNOWN_ID = "999999";
+
     @Autowired
     private RestTestClient client;
 
@@ -130,7 +133,7 @@ class ProductRegistrationApiTest {
     @DisplayName("없는 카테고리로 등록하면 404를 받는다")
     void rejectUnknownCategory() {
         Map<String, Object> body = productA();
-        body.put("categoryId", "999999");
+        body.put("categoryId", UNKNOWN_ID);
 
         expectProblem(register(body), HttpStatus.NOT_FOUND, "카테고리를 찾을 수 없습니다", "카테고리를 다시 확인해 주세요.");
     }
@@ -183,6 +186,30 @@ class ProductRegistrationApiTest {
 
         expectProblem(register(body), HttpStatus.BAD_REQUEST, "판매 시작에 필요한 값이 빠졌습니다",
             "옵션이 하나 이상 있어야 합니다.");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unknownIds")
+    @DisplayName("INFO-03 · OPT-04 카테고리 상품 유형에 없는 항목이나 값의 ID를 보내면 400을 받는다")
+    void rejectIdNotInProductType(Consumer<Map<String, Object>> change, String title) {
+        Map<String, Object> body = productA();
+        change.accept(body);
+
+        register(body)
+            .expectStatus().isBadRequest()
+            .expectBody()
+            .jsonPath("$.title").isEqualTo(title);
+    }
+
+    static Stream<Arguments> unknownIds() {
+        return Stream.of(
+            invalid("정보 항목", body -> attributes(body).get(0).put("attributeId", UNKNOWN_ID),
+                "이 상품 유형의 정보 항목이 아닙니다"),
+            invalid("정보 값", body -> attributes(body).get(0).put("valueIds", List.of(UNKNOWN_ID)), "허용되지 않은 값입니다"),
+            invalid("옵션 값", body -> options(body).get(0).put("valueIds", List.of(UNKNOWN_ID)), "허용되지 않은 옵션 값입니다"),
+            invalid("가격 구분 값", body -> prices(body).get(0).put("valueIds", List.of(UNKNOWN_ID)),
+                "가격 구분 묶음의 가격이 맞지 않습니다"),
+            invalid("실측의 사이즈 값", body -> sizeSpecs(body).get(0).put("sizeValueId", UNKNOWN_ID), "옵션에 없는 사이즈입니다"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -275,6 +302,11 @@ class ProductRegistrationApiTest {
 
     private long count(String entityName) {
         return entityManager.createQuery("select count(e) from " + entityName + " e", Long.class).getSingleResult();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> attributes(Map<String, Object> body) {
+        return (List<Map<String, Object>>) body.get("attributes");
     }
 
     @SuppressWarnings("unchecked")
