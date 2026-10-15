@@ -22,6 +22,10 @@ public final class ProductChangedData {
         Product product, ProductType productType, Map<Long, Integer> availableQtyByOptionId) {
         List<ProductChangedEvent.Option> options = new ArrayList<>();
         for (ProductOption option : product.getOptions()) {
+            // 보관한 옵션은 다시 팔 수 없어 받는 쪽에 보내지 않는다 (SALE-02)
+            if (option.isArchived()) {
+                continue;
+            }
             options.add(toOption(product, option, productType, availableQtyByOptionId));
         }
         return new ProductChangedEvent.Data(
@@ -46,7 +50,16 @@ public final class ProductChangedData {
         boolean soldOut = availableQtyByOptionId.getOrDefault(option.getId(), 0) <= 0;
         return new ProductChangedEvent.Option(
             option.getId(), option.getName(), size, option.getPrice(), minHeightCm, maxHeightCm, soldOut,
-            OptionSaleStatus.ON_SALE);
+            toSaleStatus(option.getSaleStatus()));
+    }
+
+    // 상품 안의 옵션 상태를 이벤트의 판매 상태로 바꾼다. 상품 안에 상태가 늘면 컴파일 오류로 이곳을 고치게 한다
+    private static OptionSaleStatus toSaleStatus(ProductOptionStatus status) {
+        return switch (status) {
+            case ON_SALE -> OptionSaleStatus.ON_SALE;
+            case STOPPED -> OptionSaleStatus.STOPPED;
+            case ARCHIVED -> throw new IllegalArgumentException("보관한 옵션은 상품 정보 변경됨에 담지 않습니다");
+        };
     }
 
     // 옵션 값 중 유형이 사이즈 역할로 정한 값을 찾는다. 없으면 null이다

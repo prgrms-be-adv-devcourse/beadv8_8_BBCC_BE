@@ -11,10 +11,12 @@ import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.spec;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top110Measurements;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measurements;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductChangedData;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
@@ -66,6 +68,23 @@ class ProductChangedDataTest {
                     105, 115, false, OptionSaleStatus.ON_SALE),
                 new ProductChangedEvent.Option(OPTION_120_ID, "색상: 네이비 / 사이즈: 120", "120", CLOTHING_PRICE,
                     115, 125, true, OptionSaleStatus.ON_SALE))));
+    }
+
+    @Test
+    @DisplayName("SALE-02 보관한 옵션은 담지 않고, 판매중지 옵션은 판매중지로 담는다")
+    void skipArchivedAndCarryStoppedOptions() {
+        withOptionsAndSizeSpecs110And120();
+        product.startSale(SELLER_ID, top, clothing.type());
+        // 옵션 상태를 바꾸는 업무 메서드가 아직 없어 칸을 직접 바꾼다
+        ReflectionTestUtils.setField(product.getOptions().get(0), "saleStatus", ProductOptionStatus.ARCHIVED);
+        ReflectionTestUtils.setField(product.getOptions().get(1), "saleStatus", ProductOptionStatus.STOPPED);
+
+        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(),
+            Map.of(OPTION_110_ID, 10, OPTION_120_ID, 10));
+
+        assertThat(data.options())
+            .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::saleStatus)
+            .containsExactly(tuple(OPTION_120_ID, OptionSaleStatus.STOPPED));
     }
 
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 실측 · 권장 키를 넣고, 옵션 ID를 정해 둔다
