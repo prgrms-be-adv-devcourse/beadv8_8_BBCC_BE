@@ -145,7 +145,8 @@ class SellerProductQueryIntegrationTest {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             productRepository.save(product);
             for (int i = 0; i < stocks.length; i++) {
-                inventoryRepository.saveOpening(InventoryOpening.open(product.getOptions().get(i), stocks[i], sellerId));
+                inventoryRepository.saveOpening(
+                    InventoryOpening.open(product.getOptions().get(i), stocks[i], sellerId));
             }
         });
         return product;
