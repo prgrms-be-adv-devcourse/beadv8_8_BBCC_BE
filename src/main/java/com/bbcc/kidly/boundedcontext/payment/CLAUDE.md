@@ -80,3 +80,19 @@
 ## 입출금 내역 (`app/WalletService`, #200)
 - `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 ID
 - 지갑이 없으면 404 `WALLET_NOT_FOUND`. 종류 · 기간 필터는 없다
+
+## 정산 지급 (`app/SettlementPayoutService`, #210)
+- `settlement.payout-requested`를 받아 판매자(`sellerId` = 회원 ID) 예치금에 정산금액을 입금하고 `payment.payout-completed` · `payment.payout-failed`를 발행한다. 계약은 #209, 정산서 식별자는 정산과 맞춰 `settlementId`
+- 정산서마다 지급 기록(`payout`, `settlement_id` UK)을 남겨 한 번만 입금한다. 기록이 있는 정산서로 요청이 다시 오면 입금 없이 저장된 결과를 다시 발행한다(기획서 2.1 ⑦). 받는 쪽(정산)은 같은 결과를 한 번만 반영한다
+- 지갑을 락으로 읽은 뒤 지급 기록을 본다. 같은 요청이 동시에 와도 한 번만 입금하고, 지급 기록 UK와 원장 `(type, ref_id)` UK가 마지막으로 막는다
+
+| 경우 | 지갑 · 원장 · 지급 기록 | 발행 |
+|---|---|---|
+| 입금 | 입금, 원장 `SETTLEMENT`(ref_id = 정산서 ID), 기록 COMPLETED | `payment.payout-completed`(ledgerId, paidAt) |
+| 0원 | 입금 · 원장 없이 기록 COMPLETED | `payment.payout-completed`(ledgerId null, paidAt) |
+| 지갑 없음 | 기록 FAILED, ERROR 로그 | `payment.payout-failed`(`WALLET_NOT_FOUND`) |
+| 이미 처리한 정산서 | 그대로 | 기록대로 완료 · 실패를 다시 발행 |
+
+- `paidAt`은 결제가 지급 완료로 처리한 시각이다. 0원도 같다
+- 지급 실패는 다시 시도하지 않는다. 지갑은 가입 때 만들어지므로 지갑 없음은 주로 탈퇴 회원이다. 처리는 탈퇴 정책과 같이 정한다
+- 도메인 간 이벤트는 스프링 이벤트라 리스너 실패 · 서버 중단 때 유실될 수 있다. 결과 유실은 정산이 같은 요청을 다시 보내면 복구된다. 요청 자체의 유실 복구와 재전송 장치는 추후 보완
