@@ -202,11 +202,11 @@ class ProductSaleStartApiTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"SALE_PENDING", "STOPPED", "FOO"})
-    @DisplayName("판매 시작(ON_SALE)이 아닌 판매 상태를 보내면 400이고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")
+    @ValueSource(strings = {"SALE_PENDING", "FOO"})
+    @DisplayName("판매 시작(ON_SALE)이나 판매 중지(STOPPED)가 아닌 판매 상태를 보내면 400이고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")
     void rejectStatusOtherThanOnSale(String status) {
         expectProblem(startSale(tokens.seller(SELLER_ID), Map.of("status", status)), HttpStatus.BAD_REQUEST,
-            "잘못된 요청입니다", "status: 판매 시작(ON_SALE)만 요청할 수 있습니다.");
+            "잘못된 요청입니다", "status: 판매 시작(ON_SALE)이나 판매 중지(STOPPED)만 요청할 수 있습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
@@ -252,7 +252,7 @@ class ProductSaleStartApiTest {
     @DisplayName("판매 상태를 보내지 않으면 400이다")
     void rejectMissingStatus() {
         expectProblem(startSale(tokens.seller(SELLER_ID), Map.of()), HttpStatus.BAD_REQUEST,
-            "잘못된 요청입니다", "status: 판매 시작(ON_SALE)만 요청할 수 있습니다.");
+            "잘못된 요청입니다", "status: 판매 시작(ON_SALE)이나 판매 중지(STOPPED)만 요청할 수 있습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
     }
 

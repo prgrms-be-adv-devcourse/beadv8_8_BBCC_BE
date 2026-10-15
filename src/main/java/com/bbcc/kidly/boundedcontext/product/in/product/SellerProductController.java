@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.product.in.product.dto.SellerProductSummary
 import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.validation.Valid;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
@@ -68,6 +69,7 @@ public class SellerProductController {
         @LoginMember AuthMember member,
         @PathVariable Long productId,
         @Valid @RequestBody ProductSaleStatusRequest request) {
-        return ProductSaleStatusResponse.from(productSaleService.startSale(member.id(), productId));
+        return ProductSaleStatusResponse.from(productSaleService.changeSaleStatus(
+            member.id(), productId, ProductStatus.valueOf(request.status())));
     }
 }
