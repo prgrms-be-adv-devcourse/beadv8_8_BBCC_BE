@@ -136,7 +136,8 @@ class InventoryAdjustmentApiTest {
     void adjustOptionOfProductNotOnSale(String productStatus) {
         // 판매대기로 되돌리거나 판매를 멈추는 기능이 아직 없어서 상품의 판매 상태를 DB에서 직접 바꾼다
         jdbcTemplate.update("update product.product set status = ?"
-            + " where id = (select product_id from product.product_option where id = ?)", productStatus, option.getId());
+            + " where id = (select product_id from product.product_option where id = ?)",
+            productStatus, option.getId());
 
         adjust(tokens.seller(SELLER_ID), option.getId(), Map.of("deltaQuantity", 10, "reason", "RESTOCK"))
             .expectStatus().isOk();
