@@ -151,6 +151,30 @@ class InventoryRepositoryIntegrationTest {
             .isEqualTo(30_000L);
     }
 
+    @ParameterizedTest(name = "판매 가능 수량 {0}에 {1} → {2}")
+    @CsvSource({"10, 5, 15", "10, -1, 9", "10, -10, 0"})
+    @DisplayName("INV-03 판매 가능 수량에 증감량을 더한 결과가 0 이상이면 바꾸고 성공을 돌려준다")
+    void adjustWhenResultNotNegative(int stock, int deltaQty, int expectedQty) {
+        ProductOption option = openedOption(stock);
+
+        boolean adjusted = inTransaction(() -> inventoryRepository.adjustIfAvailable(option.getId(), deltaQty, NOW));
+
+        assertThat(adjusted).isTrue();
+        assertThat(availableQty(option)).isEqualTo(expectedQty);
+    }
+
+    @ParameterizedTest(name = "판매 가능 수량 {0}에 {1}")
+    @CsvSource({"10, -11", "0, -1"})
+    @DisplayName("INV-03 판매 가능 수량보다 많이 줄이면 바꾸지 않고 실패를 돌려준다")
+    void rejectAdjustmentBelowZero(int stock, int deltaQty) {
+        ProductOption option = openedOption(stock);
+
+        boolean adjusted = inTransaction(() -> inventoryRepository.adjustIfAvailable(option.getId(), deltaQty, NOW));
+
+        assertThat(adjusted).isFalse();
+        assertThat(availableQty(option)).isEqualTo(stock);
+    }
+
     // 판매 가능 수량 stock으로 재고를 연 옵션을 돌려준다
     private ProductOption openedOption(int stock) {
         ProductOption option = productOptionSaver.saveNavy110();
