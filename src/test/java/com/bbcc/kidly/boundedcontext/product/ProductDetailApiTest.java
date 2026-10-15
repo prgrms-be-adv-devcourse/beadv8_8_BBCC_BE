@@ -177,6 +177,22 @@ class ProductDetailApiTest {
             .jsonPath("$.options[*].purchasable").isEqualTo(List.of(false, false, false));
     }
 
+    @Test
+    @DisplayName("SALE-06 보관 옵션은 옵션 목록에도, 옵션 항목의 값에도 없다")
+    void archivedOptionIsHidden() {
+        Product product = savedProductOnSale(10, 10, 10);
+        // 옵션을 보관하는 업무 메서드가 아직 없어서 상태 칸을 직접 바꾼다. 오트밀은 보관한 옵션에만 쓴 값이다
+        changeOptionStatus(product.getOptions().get(2).getId(), "ARCHIVED");
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.options[*].optionName").isEqualTo(List.of(
+                "색상: 네이비 / 사이즈: 110", "색상: 네이비 / 사이즈: 120"))
+            .jsonPath("$.optionAttributes[0].values[*].value").isEqualTo(List.of("네이비"));
+    }
+
     // 상품 A에 네이비 110 · 네이비 120 · 오트밀 110 옵션과 110 · 120 실측을 넣어 판매를 시작하고 저장한다.
     // quantities는 옵션 순서대로의 판매 가능 수량이다. 판매자가 입력한 정보 값은 주요소재 면, 특징 기모 · 신축성이다
     private Product savedProductOnSale(int... quantities) {

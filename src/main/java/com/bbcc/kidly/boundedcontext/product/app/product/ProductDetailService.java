@@ -42,7 +42,8 @@ public class ProductDetailService {
         Product product = productRepository.findById(productId).orElseThrow();
         Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
         ProductType type = category.getProductType();
-        List<ProductDetailResult.Option> options = toOptions(product.getOptions());
+        List<ProductOption> visibleOptions = visibleOptions(product.getOptions());
+        List<ProductDetailResult.Option> options = toOptions(visibleOptions);
         return new ProductDetailResult(
             product.getId(),
             product.getName(),
@@ -52,11 +53,22 @@ public class ProductDetailService {
             product.isSizeFree(),
             minPrice(options),
             product.getImageUrls(),
-            toOptionAttributes(product.getOptions(), type),
+            toOptionAttributes(visibleOptions, type),
             options,
             toProductInfo(product.getInfoValues(), type),
             toSizeSpecs(product.getSizeSpecs()),
             toMeasurements(category));
+    }
+
+    // 보관 옵션은 상세에 보이지 않으므로 옵션 목록과 옵션 항목의 값에서 뺀다
+    private List<ProductOption> visibleOptions(List<ProductOption> options) {
+        List<ProductOption> visible = new ArrayList<>();
+        for (ProductOption option : options) {
+            if (!option.isArchived()) {
+                visible.add(option);
+            }
+        }
+        return visible;
     }
 
     // 옵션이 없으면 null이다
