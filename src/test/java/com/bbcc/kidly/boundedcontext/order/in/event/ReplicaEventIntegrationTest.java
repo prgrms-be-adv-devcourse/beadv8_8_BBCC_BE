@@ -80,4 +80,21 @@ class ReplicaEventIntegrationTest {
         assertThat(result.created()).isTrue();
         assertThat(result.line().lineAmount()).isEqualTo(50_000L);
     }
+
+    @Test
+    @DisplayName("사이즈 없는 상품(옵션 size null)의 product.changed도 복사본으로 저장되고 구매 가능하다")
+    void sizeNullProductIsStored() {
+        transactionTemplate.executeWithoutResult(status ->
+            eventPublisher.publish(new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+                new ProductChangedEvent.Data(3L, SELLER_ID, "양말", 1L, ProductStatus.ON_SALE, null,
+                    OCCURRED_AT.minusDays(1), true, List.of(
+                        new ProductChangedEvent.Option(30L, "색상: 흰색", null, 5_000L,
+                            null, null, false, OptionSaleStatus.ON_SALE))))));
+
+        assertThat(productReplicaRepository.findByOptionId(30L)).get()
+            .satisfies(replica -> {
+                assertThat(replica.getSize()).isNull();
+                assertThat(replica.isPurchasable()).isTrue();
+            });
+    }
 }
