@@ -2,11 +2,13 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.CREATED_AT;
 import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.document;
+import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.value;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument;
 import com.bbcc.kidly.support.FunctionalTest;
 import jakarta.persistence.EntityManager;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -69,6 +71,34 @@ class ProductListApiTest {
                 .containsEntry("minPrice", 25_000)
                 .containsEntry("soldOut", false)
                 .containsEntry("sizeFree", false));
+    }
+
+    @Test
+    @DisplayName("카테고리 · 키워드 · 항목 값 · 정렬 · 페이지 쿼리를 함께 보내면 모두 조회에 반영된다")
+    void passQueryToSearch() {
+        persist(
+            document(1L).categoryId(1L).name("네이비 맨투맨").price(20_000L)
+                .values(value("COLOR", 3L), value("SIZE", 15L)).build(),
+            document(2L).categoryId(1L).name("네이비 맨투맨 세트").price(30_000L)
+                .values(value("COLOR", 3L), value("SIZE", 15L)).createdAt(CREATED_AT.plusDays(1)).build(),
+            document(3L).categoryId(2L).name("네이비 맨투맨").price(10_000L)
+                .values(value("COLOR", 3L), value("SIZE", 15L)).createdAt(CREATED_AT.plusDays(2)).build(),
+            document(4L).categoryId(1L).name("블랙 맨투맨").price(10_000L)
+                .values(value("COLOR", 5L), value("SIZE", 15L)).createdAt(CREATED_AT.plusDays(3)).build(),
+            document(5L).categoryId(1L).name("네이비 바지").price(10_000L)
+                .values(value("COLOR", 3L), value("SIZE", 15L)).createdAt(CREATED_AT.plusDays(4)).build());
+
+        // 조건에 맞는 상품은 1(20,000원)과 2(30,000원)다. 가격 낮은순의 첫 페이지(크기 1)라 상품 1만 온다
+        client.get()
+            .uri(PATH + "?categoryId={categoryId}&keyword={keyword}&attributes={color}&attributes={size}"
+                + "&sort={sort}&page=0&size=1", 1, "맨투맨", "COLOR:3", "SIZE:15", "PRICE_ASC")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of("1"))
+            .jsonPath("$.size").isEqualTo(1)
+            .jsonPath("$.totalElements").isEqualTo(2)
+            .jsonPath("$.hasNext").isEqualTo(true);
     }
 
     private void persist(ProductSearchDocument... documents) {
