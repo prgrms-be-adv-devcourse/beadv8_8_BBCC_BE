@@ -245,7 +245,7 @@ public class Product extends BaseTimeEntity {
             && Objects.equals(description, info.description())
             && Objects.equals(thumbnailUrl, info.thumbnailUrl())
             && imageUrls.equals(info.imageUrls())
-            && ProductInfoValues.sameAs(infoValues, info.infoValues());
+            && ProductInfoValues.sameAs(this, infoValues, info.infoValues());
     }
 
     /**
