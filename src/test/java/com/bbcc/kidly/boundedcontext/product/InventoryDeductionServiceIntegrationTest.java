@@ -70,6 +70,18 @@ class InventoryDeductionServiceIntegrationTest {
             tuple(ORDER_ID, 12L, options.navy120().getId(), 2, "FAILED"));
     }
 
+    @Test
+    @DisplayName("INV-13 판매중이 아닌 상품의 옵션이 든 주문은 재고를 줄이지 않고 주문상품마다 FAILED 기록을 남긴다")
+    void rejectWhenNotOnSale() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        stopSale(options.navy110());
+
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, item(11L, options.navy110(), 2)));
+
+        assertThat(availableQty(options.navy110())).isEqualTo(10);
+        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
+    }
+
     private static OrderCreatedEvent orderCreated(long orderId, OrderCreatedEvent.Item... items) {
         return new OrderCreatedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new OrderCreatedEvent.Data(orderId, MEMBER_ID, List.of(items)));
@@ -77,6 +89,12 @@ class InventoryDeductionServiceIntegrationTest {
 
     private static OrderCreatedEvent.Item item(long orderItemId, ProductOption option, int quantity) {
         return new OrderCreatedEvent.Item(orderItemId, option.getId(), quantity);
+    }
+
+    // 판매 중지 기능이 아직 없어서, 옵션이 속한 상품의 판매 상태를 DB에서 직접 판매중지로 바꾼다
+    private void stopSale(ProductOption option) {
+        jdbcTemplate.update("update product.product set status = 'STOPPED'"
+            + " where id = (select product_id from product.product_option where id = ?)", option.getId());
     }
 
     private int availableQty(ProductOption option) {

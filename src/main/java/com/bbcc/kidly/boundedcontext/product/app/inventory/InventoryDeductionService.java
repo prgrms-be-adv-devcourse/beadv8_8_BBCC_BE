@@ -43,6 +43,11 @@ public class InventoryDeductionService {
                 item.orderItemId(), optionById.get(item.optionId()), item.quantity()));
         }
         InventoryDeductionRequest request = InventoryDeductionRequest.of(data.orderId(), items);
+        // 차감은 영속성 컨텍스트를 비워 옵션의 상품을 더 읽을 수 없으므로, 판매 상태는 첫 차감 전에 판단한다
+        if (!request.isPurchasable()) {
+            inventoryDeductionRecorder.recordFailed(request);
+            return;
+        }
         try {
             inventoryDeductor.deduct(request);
         } catch (InventoryShortageException e) {
