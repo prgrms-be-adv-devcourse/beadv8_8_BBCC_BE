@@ -7,6 +7,8 @@ import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
@@ -36,6 +38,33 @@ public class ProductSearchDocument extends BaseTimeEntity {
     @Id
     @Column(name = "product_id")
     private Long productId;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(name = "thumbnail_url")
+    private String thumbnailUrl;
+
+    @Column(name = "seller_id", nullable = false)
+    private Long sellerId;
+
+    @Column(name = "category_id", nullable = false)
+    private Long categoryId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ProductStatus status;
+
+    @Column(name = "is_size_free", nullable = false)
+    private boolean sizeFree;
+
+    // 감사 칸 created_at과 이름이 겹치지 않게, 상품이 등록된 시각임을 이름에 드러낸다
+    @Column(name = "product_created_at", nullable = false)
+    private LocalDateTime productCreatedAt;
+
+    // 마지막으로 반영한 상품 정보 변경됨의 발생 시각이다. 늦게 도착한 이전 이벤트를 무시하는 비교는 저장 SQL이 한다
+    @Column(name = "event_occurred_at", nullable = false)
+    private LocalDateTime eventOccurredAt;
 
     // 판매할 수 있는 옵션 중 최저가다. 판매할 수 있는 옵션이 하나도 없으면 전체 옵션 중 최저가다
     @Column(name = "min_price", nullable = false)
@@ -68,6 +97,14 @@ public class ProductSearchDocument extends BaseTimeEntity {
         requireNonNull(info, "info는 필수입니다");
         ProductSearchDocument document = new ProductSearchDocument();
         document.productId = requireNonNull(info.productId(), "productId는 필수입니다");
+        document.name = info.name();
+        document.thumbnailUrl = info.thumbnailUrl();
+        document.sellerId = info.sellerId();
+        document.categoryId = info.categoryId();
+        document.status = info.status();
+        document.sizeFree = info.sizeFree();
+        document.productCreatedAt = info.productCreatedAt();
+        document.eventOccurredAt = info.occurredAt();
         document.minPrice = lowestPrice(info.options());
         document.soldOut = allSoldOut(info.options());
         document.attributes = collectAttributes(info);

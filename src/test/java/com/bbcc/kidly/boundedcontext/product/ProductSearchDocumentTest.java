@@ -7,6 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -76,5 +78,23 @@ class ProductSearchDocumentTest {
             List.of(value("MAIN_MATERIAL", 20L), value("FABRIC_COMPOSITION", null))));
 
         assertThat(document.getAttributes()).isEqualTo(Map.of("MAIN_MATERIAL", List.of(20L)));
+    }
+
+    @Test
+    @DisplayName("이름 · 썸네일 · 판매자 · 카테고리 · 판매 상태 · 사이즈 무관 · 상품 등록 시각 · 이벤트 발생 시각은 받은 값 그대로 옮긴다")
+    void copiesOtherColumns() {
+        LocalDateTime productCreatedAt = LocalDateTime.of(2026, 10, 2, 11, 0);
+        LocalDateTime occurredAt = LocalDateTime.of(2026, 10, 15, 12, 30);
+        ProductSearchDocument document = ProductSearchDocument.create(new ProductSearchDocument.ChangeInfo(
+            5L, 9L, "아기 모자", 4L, ProductStatus.STOPPED, "https://cdn.kidly.test/hat.jpg", productCreatedAt, true,
+            List.of(option(18_000L, false, OptionSaleStatus.ON_SALE)), List.of(), occurredAt));
+
+        assertThat(document)
+            .extracting(ProductSearchDocument::getProductId, ProductSearchDocument::getName,
+                ProductSearchDocument::getThumbnailUrl, ProductSearchDocument::getSellerId,
+                ProductSearchDocument::getCategoryId, ProductSearchDocument::getStatus, ProductSearchDocument::isSizeFree,
+                ProductSearchDocument::getProductCreatedAt, ProductSearchDocument::getEventOccurredAt)
+            .containsExactly(5L, "아기 모자", "https://cdn.kidly.test/hat.jpg", 9L, 4L, ProductStatus.STOPPED, true,
+                productCreatedAt, occurredAt);
     }
 }
