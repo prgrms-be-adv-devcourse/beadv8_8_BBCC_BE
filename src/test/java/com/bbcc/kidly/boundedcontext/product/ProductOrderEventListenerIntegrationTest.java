@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ConcurrentTasks.runRacing;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -13,19 +14,16 @@ import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -127,7 +125,8 @@ class ProductOrderEventListenerIntegrationTest {
 
     @Test
     @DisplayName("리스너가 예외를 던져도 주문 생성됨을 보낸 트랜잭션은 커밋된 채 남고, 재고와 차감 기록은 바뀌지 않으며 재고 차감됨도 보내지 않는다")
-    void keepPublisherCommittedWhenListenerThrows() {
+    @ExtendWith(OutputCaptureExtension.class)
+    void keepPublisherCommittedWhenListenerThrows(CapturedOutput output) {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         // 주문상품 목록이 없는 주문 생성됨은 리스너가 목록을 읽다가 예외를 던진다
         OrderCreatedEvent broken = orderCreated(ORDER_ID, (List<OrderCreatedEvent.Item>) null);
@@ -138,6 +137,8 @@ class ProductOrderEventListenerIntegrationTest {
             eventPublisher.publish(broken);
         })).doesNotThrowAnyException();
 
+        // 리스너가 돌다가 예외를 던졌고, 그 예외가 로그로만 남았는지 확인한다
+        assertThat(output.getAll()).contains("NullPointerException", "InventoryDeductionService");
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(13);
         assertThat(inventoryDeductionDb.records()).isEmpty();
         assertThat(eventRecorder.events(StockDeductedEvent.class)).isEmpty();
@@ -148,7 +149,8 @@ class ProductOrderEventListenerIntegrationTest {
     void deductOnlyOneOfTwoConcurrentOrdersForLastUnit() throws Exception {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
 
-        runConcurrently(List.of(
+        // 재고 행을 잠근 채 두 주문을 출발시켜, 두 차감이 모두 그 행을 기다린 뒤 겹치게 한다
+        runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(options.navy110()), List.of(
             () -> publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 1))),
             () -> publishInTransaction(orderCreated(ORDER_ID + 1, orderItem(21L, options.navy110(), 1)))));
 
@@ -163,32 +165,6 @@ class ProductOrderEventListenerIntegrationTest {
         assertThat(eventRecorder.events(StockDeductedEvent.class))
             .extracting(stockDeducted -> stockDeducted.data().orderId())
             .containsExactly(deductedOrderId);
-    }
-
-    // 작업마다 스레드를 하나씩 두고, 모두 준비되면 출발 신호로 함께 시작한 뒤 끝날 때까지 기다린다.
-    // 어느 작업이든 예외가 나면 테스트가 실패한다
-    private static void runConcurrently(List<Runnable> tasks) throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(tasks.size());
-        CountDownLatch ready = new CountDownLatch(tasks.size());
-        CountDownLatch start = new CountDownLatch(1);
-        try {
-            List<Future<?>> results = new ArrayList<>();
-            for (Runnable task : tasks) {
-                results.add(executor.submit(() -> {
-                    ready.countDown();
-                    start.await();
-                    task.run();
-                    return null;
-                }));
-            }
-            assertThat(ready.await(10, TimeUnit.SECONDS)).as("모든 스레드가 준비됨").isTrue();
-            start.countDown();
-            for (Future<?> result : results) {
-                result.get(60, TimeUnit.SECONDS);
-            }
-        } finally {
-            executor.shutdown();
-        }
     }
 
     // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다
