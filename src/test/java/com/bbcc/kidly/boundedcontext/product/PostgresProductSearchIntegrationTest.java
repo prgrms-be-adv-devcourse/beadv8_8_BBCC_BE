@@ -47,6 +47,18 @@ class PostgresProductSearchIntegrationTest {
         assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(1L);
     }
 
+    @Test
+    @DisplayName("SALE-07 모든 옵션이 품절인 상품도 목록에 남고, 품절 표시와 검색용 표의 표시 가격(PRICE-05)을 가진다")
+    void soldOutProductStaysWithDisplayPrice() {
+        persist(document(1L).name("품절 상품").thumbnailUrl("https://cdn.kidly.test/1.jpg")
+            .price(31_000L).soldOut().sizeFree().build());
+
+        Page<ProductSearchItem> result = productSearch.search(noCondition(), PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).containsExactly(
+            new ProductSearchItem(1L, "품절 상품", "https://cdn.kidly.test/1.jpg", null, 31_000L, true, true));
+    }
+
     private ProductSearchCondition noCondition() {
         return new ProductSearchCondition(null, null, Map.of(), ProductSearchSort.NEWEST);
     }
