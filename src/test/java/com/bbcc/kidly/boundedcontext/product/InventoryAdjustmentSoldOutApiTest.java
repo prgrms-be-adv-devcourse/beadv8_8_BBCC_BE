@@ -12,6 +12,7 @@ import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +56,21 @@ class InventoryAdjustmentSoldOutApiTest {
                 .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
                 .containsExactlyInAnyOrder(
                     tuple(options.navy110().getId(), true),
+                    tuple(options.navy120().getId(), false)));
+    }
+
+    @Test
+    @DisplayName("SALE-08 품절이던 옵션에 재고를 더하면 상품 정보 변경됨을 한 번 보내고, 그 옵션은 품절이 아니다")
+    void sendProductChangedWhenOptionBackInStock() {
+        OnSaleOptions options = saveOptionsWithStock(0, "ON_SALE");
+
+        adjust(options.navy110(), 10, "RESTOCK").expectStatus().isOk();
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(changed -> assertThat(changed.data().options())
+                .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+                .containsExactlyInAnyOrder(
+                    tuple(options.navy110().getId(), false),
                     tuple(options.navy120().getId(), false)));
     }
 
