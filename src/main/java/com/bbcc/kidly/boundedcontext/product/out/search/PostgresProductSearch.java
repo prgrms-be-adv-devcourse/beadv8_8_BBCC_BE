@@ -66,6 +66,15 @@ public class PostgresProductSearch implements ProductSearch {
             sql.append("AND d.category_id = :categoryId\n");
             params.addValue("categoryId", condition.categoryId());
         }
+        if (condition.keyword() != null && !condition.keyword().isBlank()) {
+            sql.append("AND d.name ILIKE :keyword ESCAPE '\\'\n");
+            params.addValue("keyword", "%" + escapeLike(condition.keyword()) + "%");
+        }
         return sql.toString();
+    }
+
+    // LIKE에서 특별한 뜻을 가진 \, %, _를 글자 그대로 찾도록 앞에 \를 붙인다. \를 가장 먼저 바꿔야 한다
+    private String escapeLike(String keyword) {
+        return keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 }

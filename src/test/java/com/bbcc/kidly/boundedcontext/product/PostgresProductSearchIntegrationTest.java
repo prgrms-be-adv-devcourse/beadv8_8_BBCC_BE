@@ -82,6 +82,30 @@ class PostgresProductSearchIntegrationTest {
         assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
     }
 
+    @ParameterizedTest(name = "키워드 [{0}] → 상품 {1}")
+    @CsvSource({
+        "맨투맨, 1",
+        "HOODIE, 2",
+        "kids, 2",
+        "'%', 3",
+        "_, 4",
+        "없는 상품, ''",
+        "'', '4,3,2,1'",
+        ", '4,3,2,1'"})
+    @DisplayName("키워드는 상품명에 들어간 글자로 찾고 대소문자를 무시하며, %와 _는 글자 그대로 찾는다. 비어 있으면 거르지 않는다")
+    void filterByKeyword(String keyword, String expectedIds) {
+        persist(
+            document(1L).name("아기 맨투맨").build(),
+            document(2L).name("Kids Hoodie").createdAt(CREATED_AT.plusDays(1)).build(),
+            document(3L).name("면 100% 티셔츠").createdAt(CREATED_AT.plusDays(2)).build(),
+            document(4L).name("세트_반바지").createdAt(CREATED_AT.plusDays(3)).build());
+
+        Page<ProductSearchItem> result = productSearch.search(
+            new ProductSearchCondition(null, keyword, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
+    }
+
     // CSV의 "3,2,1"을 기대하는 상품 ID 배열로 바꾼다. 빈 문자열이면 빈 배열이다
     private static Long[] ids(String csv) {
         if (csv == null || csv.isBlank()) {
