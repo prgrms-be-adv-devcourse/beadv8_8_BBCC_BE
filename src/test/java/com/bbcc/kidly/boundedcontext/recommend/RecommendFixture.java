@@ -307,4 +307,12 @@ public final class RecommendFixture {
         return new RecommendReplicaProduct.OptionInfo(size, minHeightCm, maxHeightCm, price, false,
             OptionSaleStatus.ON_SALE);
     }
+
+    /**
+     * {@link #productOptionInfo(String, Integer, Integer)}에서 품절 여부와 옵션 판매 상태만 바꾼다. 권장 키는 105 ~ 115cm로 둔다.
+     */
+    public static RecommendReplicaProduct.OptionInfo productOptionInfo(
+        String size, boolean soldOut, OptionSaleStatus saleStatus) {
+        return new RecommendReplicaProduct.OptionInfo(size, 105, 115, 25_000L, soldOut, saleStatus);
+    }
 }

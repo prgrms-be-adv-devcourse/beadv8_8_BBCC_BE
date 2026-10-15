@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,6 +35,11 @@ class RecommendReplicaProductTest {
 
     private static final List<RecommendReplicaProduct.OptionInfo> OPTIONS =
         List.of(productOptionInfo("130", 125, 135));
+
+    // FREE 옵션은 권장 키가 없어 사이즈 줄에는 들어가지 않지만, 판매할 수 있으므로 판매 가능 사이즈에는 들어가야 한다
+    private static final List<RecommendReplicaProduct.OptionInfo> ON_SALE_OPTIONS_WITH_FREE = List.of(
+        productOptionInfo("110", 105, 115),
+        productOptionInfo("FREE", null, null));
 
     // 앞 옵션은 올바르므로, 값을 검사하기 전에 사이즈 줄을 고치기 시작하면 덮어쓰기 거절 테스트가 실패한다
     private static final List<RecommendReplicaProduct.OptionInfo> OPTIONS_WITH_NULL_SIZE = List.of(
@@ -86,18 +92,59 @@ class RecommendReplicaProductTest {
         assertThat(replica.getMinPrice()).isNull();
     }
 
-    // FREE 옵션은 권장 키가 없어 사이즈 줄에는 들어가지 않지만, 판매할 수 있으므로 판매 가능 사이즈에는 들어가야 한다
-    @ParameterizedTest(name = "사이즈 {0} → {1}")
-    @CsvSource({"110, true", "FREE, true", "999, false"})
+    @ParameterizedTest(name = "사이즈 {0}")
+    @ValueSource(strings = {"110", "FREE"})
     @DisplayName("옵션이 판매중이고 품절이 아니면 그 사이즈는 판매 가능이다")
-    void sellableSizeOfOnSaleOption(String size, boolean sellable) {
+    void sellableSizeOfOnSaleOption(String size) {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            RecommendFixture.productAChangeOf(false, ON_SALE_OPTIONS_WITH_FREE, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.isSellable(size)).isTrue();
+    }
+
+    @Test
+    @DisplayName("옵션에 없는 사이즈는 판매 가능이 아니다")
+    void notSellableSizeWithoutOption() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            RecommendFixture.productAChangeOf(false, ON_SALE_OPTIONS_WITH_FREE, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.isSellable("999")).isFalse();
+    }
+
+    @ParameterizedTest(name = "품절 {0}, 옵션 판매 상태 {1}")
+    @CsvSource({"true, ON_SALE", "false, STOPPED"})
+    @DisplayName("옵션이 품절이거나 옵션 판매 상태가 STOPPED이면 그 사이즈는 판매 가능이 아니다")
+    void notSellableSizeOfSoldOutOrStoppedOption(boolean soldOut, OptionSaleStatus saleStatus) {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(false,
+            List.of(productOptionInfo("110", soldOut, saleStatus)), PRODUCT_CHANGED_AT));
+
+        assertThat(replica.isSellable("110")).isFalse();
+    }
+
+    // 판매 가능한 옵션을 가운데에 두어, 처음이나 마지막 옵션만 보고 정하면 실패하게 한다
+    @Test
+    @DisplayName("색상만 다른 같은 사이즈 옵션 중 하나라도 판매 가능이면 그 사이즈는 판매 가능이다")
+    void sellableSizeWhenAnyOptionOfSameSizeIsSellable() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(false,
             List.of(
-                productOptionInfo("110", 105, 115),
-                productOptionInfo("FREE", null, null)),
+                productOptionInfo("110", true, OptionSaleStatus.ON_SALE),
+                productOptionInfo("110", false, OptionSaleStatus.ON_SALE),
+                productOptionInfo("110", false, OptionSaleStatus.STOPPED)),
             PRODUCT_CHANGED_AT));
 
-        assertThat(replica.isSellable(size)).isEqualTo(sellable);
+        assertThat(replica.isSellable("110")).isTrue();
+    }
+
+    @Test
+    @DisplayName("색상만 다른 같은 사이즈 옵션이 모두 판매 가능이 아니면 그 사이즈는 판매 가능이 아니다")
+    void notSellableSizeWhenNoOptionOfSameSizeIsSellable() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(false,
+            List.of(
+                productOptionInfo("110", true, OptionSaleStatus.ON_SALE),
+                productOptionInfo("110", false, OptionSaleStatus.STOPPED)),
+            PRODUCT_CHANGED_AT));
+
+        assertThat(replica.isSellable("110")).isFalse();
     }
 
     @Test
