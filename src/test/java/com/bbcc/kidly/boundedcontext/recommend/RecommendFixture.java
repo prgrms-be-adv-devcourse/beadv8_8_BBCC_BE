@@ -16,7 +16,9 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -225,6 +227,34 @@ public final class RecommendFixture {
         return productAChangeOf(false, List.of(
             new RecommendReplicaProduct.OptionInfo("110", 105, 115),
             new RecommendReplicaProduct.OptionInfo("120", 115, 125)), PRODUCT_CHANGED_AT);
+    }
+
+    /**
+     * 판매 중인 상품 A의 상품 정보 변경됨이다. {@link #productAChange()}와 같은 값을 이벤트 칸에 담는다.
+     */
+    public static ProductChangedEvent productAChangedEvent() {
+        return productAChangedEventAt(List.of(
+            productOption(1L, "110", 105, 115),
+            productOption(2L, "120", 115, 125)), PRODUCT_CHANGED_AT);
+    }
+
+    /**
+     * {@link #productAChangedEvent()}와 같은 상품 정보 변경됨에서 옵션과 발생 시각만 바꾼다. 이벤트 ID는 새로 만든다.
+     */
+    public static ProductChangedEvent productAChangedEventAt(
+        List<ProductChangedEvent.Option> options, LocalDateTime occurredAt) {
+        return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
+            PRODUCT_A_ID, PRODUCT_A_SELLER_ID, "데일리 맨투맨", PRODUCT_A_CATEGORY_ID, ProductStatus.ON_SALE,
+            PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, options));
+    }
+
+    /**
+     * 상품 정보 변경됨의 옵션 하나다. 추천이 쓰지 않는 옵션 이름 · 판매가 · 품절 · 판매 상태는 정해 둔 값을 넣는다.
+     */
+    public static ProductChangedEvent.Option productOption(
+        Long optionId, String size, Integer minHeightCm, Integer maxHeightCm) {
+        return new ProductChangedEvent.Option(optionId, "색상: 네이비 / 사이즈: " + size, size, 25_000L,
+            minHeightCm, maxHeightCm, false, OptionSaleStatus.ON_SALE);
     }
 
     /**
