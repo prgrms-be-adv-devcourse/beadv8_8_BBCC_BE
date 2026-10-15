@@ -247,6 +247,15 @@ public final class RecommendFixture {
     }
 
     /**
+     * {@link #productAReplica()}와 같은 상품 A의 복사본에서 상품 판매 상태만 바꾼다. 110과 120 옵션은 그대로 판매할 수 있다.
+     */
+    public static RecommendReplicaProduct productAReplicaWithStatus(ProductStatus status) {
+        return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID,
+            PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, status, PRODUCT_A_THUMBNAIL_URL,
+            PRODUCT_A_REGISTERED_AT, false, productAChange().options(), PRODUCT_CHANGED_AT));
+    }
+
+    /**
      * 판매 중인 상품 A의 상품 정보 변경됨이다. {@link #productAChange()}와 같은 값을 이벤트 칸에 담는다.
      */
     public static ProductChangedEvent productAChangedEvent() {

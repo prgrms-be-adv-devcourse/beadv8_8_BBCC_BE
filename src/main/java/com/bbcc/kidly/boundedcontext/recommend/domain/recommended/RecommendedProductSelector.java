@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,9 @@ public class RecommendedProductSelector {
     ) {
         List<RecommendedProduct> selected = new ArrayList<>();
         for (RecommendReplicaProduct product : products) {
+            if (product.getStatus() != ProductStatus.ON_SALE) {
+                continue;
+            }
             SizeRecommendation recommendation =
                     sizeRecommender.recommend(childSizeInput, product.toProductSizes(), today);
             String recommendedSize = recommendation.getRecommendedSize();

@@ -9,6 +9,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSize
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWithHeight;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplica;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplicaWith;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplicaWithStatus;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOptionInfo;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommender;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,11 +21,13 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class RecommendedProductSelectorTest {
 
@@ -77,6 +80,24 @@ class RecommendedProductSelectorTest {
         RecommendReplicaProduct product = productAReplicaWith(List.of(productOptionInfo("110", soldOut, saleStatus)));
         assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize())
             .isEqualTo("110");
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).isEmpty();
+    }
+
+    @ParameterizedTest(name = "상품 판매 상태 {0}")
+    @EnumSource(value = ProductStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ON_SALE")
+    @DisplayName("상품 판매 상태가 판매중이 아니면 목록에서 뺀다")
+    void excludeProductNotOnSale(ProductStatus status) {
+        // 상품 판매 상태만 다르고, 맞는 사이즈가 있고 그 사이즈 옵션도 판매할 수 있는 상품이다
+        ChildSizeInput child = childSizeInputWithHeight(115.0);
+        RecommendReplicaProduct product = productAReplicaWithStatus(status);
+        String recommendedSize = recommender()
+            .recommend(child, product.toProductSizes(), TODAY)
+            .getRecommendedSize();
+        assertThat(recommendedSize).isNotNull();
+        assertThat(product.isSellable(recommendedSize)).isTrue();
 
         List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
 
