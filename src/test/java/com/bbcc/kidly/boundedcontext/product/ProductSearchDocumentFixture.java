@@ -28,8 +28,14 @@ final class ProductSearchDocumentFixture {
 
     static ProductSearchDocument.ChangeInfo changeInfo(
         List<ProductSearchDocument.OptionInfo> options, List<ProductSearchDocument.AttributeEntryInfo> infoValues) {
+        return changeInfoAt(OCCURRED_AT, options, infoValues);
+    }
+
+    // 이벤트 발생 시각만 다른 값이다. 저장할 때 늦은 이벤트만 반영하는지 볼 때 쓴다
+    static ProductSearchDocument.ChangeInfo changeInfoAt(LocalDateTime occurredAt,
+        List<ProductSearchDocument.OptionInfo> options, List<ProductSearchDocument.AttributeEntryInfo> infoValues) {
         return new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, ProductStatus.ON_SALE,
-            THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, infoValues, OCCURRED_AT);
+            THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, infoValues, occurredAt);
     }
 
     // 판매가와 품절 · 판매 상태, 옵션 값 조합을 정한 옵션이다
