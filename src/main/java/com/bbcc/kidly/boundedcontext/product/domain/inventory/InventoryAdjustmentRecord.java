@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
@@ -46,14 +48,37 @@ public class InventoryAdjustmentRecord extends BaseTimeEntity {
     @Column(nullable = false)
     private Long adjustedBy;
 
-    // 재고를 열 때 InventoryOpening만 만든다
+    public record AdjustInfo(ProductOption option, int deltaQty, InventoryAdjustmentReason reason, Long adjustedBy) {
+    }
+
+    // 판매자가 옵션의 재고를 증감량과 사유로 조정한 기록을 만든다
+    public static InventoryAdjustmentRecord adjust(AdjustInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        // 초기 재고는 옵션을 등록할 때만 서버가 남겨서, 판매자 조정으로 초기 재고와 입고가 섞이지 않게 한다 (INV-19)
+        if (info.reason() == InventoryAdjustmentReason.INITIAL) {
+            throw new IllegalArgumentException("재고 조정에 쓸 수 없는 사유입니다: INITIAL");
+        }
+        return create(info.option(), info.deltaQty(), info.reason(), info.adjustedBy());
+    }
+
+    // 재고를 열 때(InventoryOpening)와 판매자가 조정할 때 만든다. 어느 쪽이든 기록 값은 여기서 검사한다
     static InventoryAdjustmentRecord create(
             ProductOption productOption, int deltaQty, InventoryAdjustmentReason reason, Long adjustedBy) {
+        requireNonNull(reason, "reason은 필수입니다");
+        // 수량이 바뀌지 않는 조정은 기록하지 않는다 (INV-18)
+        if (deltaQty == 0) {
+            throw new IllegalArgumentException("증감량은 0이 아니어야 합니다");
+        }
+        // 사유마다 증감량 부호가 정해져 있다. 입고는 늘리고 불량 · 분실은 줄인다 (INV-18)
+        if (!reason.allows(deltaQty)) {
+            String required = deltaQty > 0 ? "작아야" : "커야";
+            throw new IllegalArgumentException(reason + "는 증감량이 0보다 " + required + " 합니다");
+        }
         InventoryAdjustmentRecord record = new InventoryAdjustmentRecord();
-        record.productOption = productOption;
+        record.productOption = requireNonNull(productOption, "productOption은 필수입니다");
         record.deltaQty = deltaQty;
         record.reason = reason;
-        record.adjustedBy = adjustedBy;
+        record.adjustedBy = requireNonNull(adjustedBy, "adjustedBy는 필수입니다");
         return record;
     }
 }
