@@ -30,11 +30,13 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class DeliveryServiceTest {
 
     private static final Long ORDER_ID = 7L;
@@ -213,16 +215,42 @@ class DeliveryServiceTest {
         }
 
         @Test
-        @DisplayName("배송의 주문이 없으면 IllegalStateException")
-        void missingOrder() {
-            Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+        @DisplayName("배송 3건 중 1건의 주문을 못 읽으면 예외 없이 그 건만 배송 값은 그대로 · 주문 값은 비우고(items []) WARN, 나머지는 정상")
+        void missingOrderIsBlank(CapturedOutput output) {
             when(deliveryRepository.findAllBySellerIdOrderByIdDesc(SELLER_A_ID, PageRequest.of(0, 20)))
-                .thenReturn(new PageImpl<>(List.of(delivery), PageRequest.of(0, 20), 1));
-            when(orderRepository.findAllWithItemsByIdIn(List.of(ORDER_ID))).thenReturn(List.of());
+                .thenReturn(new PageImpl<>(List.of(
+                    Delivery.create(9L, SELLER_A_ID), Delivery.create(8L, SELLER_A_ID),
+                    Delivery.create(7L, SELLER_A_ID)),
+                    PageRequest.of(0, 20), 3));
+            when(orderRepository.findAllWithItemsByIdIn(List.of(9L, 8L, 7L)))
+                .thenReturn(List.of(withId(orderOfTwoSellers(), 9L), withId(orderOfTwoSellers(), 7L)));
 
-            assertThatThrownBy(() -> deliveryService.getSellerOrders(SELLER_A_ID, 0, 20))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("배송의 주문이 없습니다: " + ORDER_ID);
+            Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, 0, 20);
+
+            assertThat(page.getContent()).extracting(SellerOrderView::orderId).containsExactly(9L, 8L, 7L);
+            SellerOrderView missing = page.getContent().get(1);
+            assertThat(missing.status()).isEqualTo("READY");
+            assertThat(missing.orderedAt()).isNull();
+            assertThat(missing.shippingAddress()).isNull();
+            assertThat(missing.items()).isEqualTo(List.of());
+            assertThat(page.getContent().get(0).items()).hasSize(2);
+            assertThat(page.getContent().get(2).items()).hasSize(2);
+            assertThat(output).containsPattern("WARN.*reason=order-not-found deliveryId=null orderId=8");
+        }
+
+        @Test
+        @DisplayName("주문의 배송지가 비어 있으면 NPE 없이 shippingAddress null, 주문상품은 그대로")
+        void missingShippingAddressIsNull() {
+            Order order = withId(orderOfTwoSellers(), ORDER_ID);
+            clearShippingAddress(order);
+            when(deliveryRepository.findAllBySellerIdOrderByIdDesc(SELLER_A_ID, PageRequest.of(0, 20)))
+                .thenReturn(new PageImpl<>(List.of(Delivery.create(ORDER_ID, SELLER_A_ID)), PageRequest.of(0, 20), 1));
+            when(orderRepository.findAllWithItemsByIdIn(List.of(ORDER_ID))).thenReturn(List.of(order));
+
+            SellerOrderView view = deliveryService.getSellerOrders(SELLER_A_ID, 0, 20).getContent().getFirst();
+
+            assertThat(view.shippingAddress()).isNull();
+            assertThat(view.items()).hasSize(2);
         }
 
         @Test
@@ -235,6 +263,16 @@ class DeliveryServiceTest {
 
             assertThat(page.getContent()).isEmpty();
             verify(orderRepository, never()).findAllWithItemsByIdIn(any());
+        }
+    }
+
+    private static void clearShippingAddress(Order order) {
+        try {
+            java.lang.reflect.Field field = Order.class.getDeclaredField("shippingAddress");
+            field.setAccessible(true);
+            field.set(order, null);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
         }
     }
 

@@ -79,13 +79,22 @@ public class DeliveryService {
 
     /**
      * 판매자의 배송을 최근 것부터. 배송 페이지 1번 + 그 페이지 주문(주문상품 포함) 1번으로 읽는다(건마다 조회하지 않음).
+     * 주문을 읽지 못한 배송은 목록 전체를 실패시키지 않고 배송 값만 내리고(주문 값은 비움) WARN만 남긴다.
      */
     @Transactional(readOnly = true)
     public Page<SellerOrderView> getSellerOrders(Long memberId, int page, int size) {
         Page<Delivery> deliveries =
             deliveryRepository.findAllBySellerIdOrderByIdDesc(memberId, PageRequest.of(page, size));
         Map<Long, Order> ordersById = findOrdersWithItems(deliveries.getContent());
-        return deliveries.map(delivery -> SellerOrderView.of(delivery, orderOf(ordersById, delivery)));
+        return deliveries.map(delivery -> {
+            Order order = ordersById.get(delivery.getOrderId());
+            if (order == null) {
+                log.warn("판매 주문 목록 주문 없음: reason=order-not-found deliveryId={} orderId={}",
+                    delivery.getId(), delivery.getOrderId());
+                return SellerOrderView.withoutOrder(delivery);
+            }
+            return SellerOrderView.of(delivery, order);
+        });
     }
 
     private Map<Long, Order> findOrdersWithItems(List<Delivery> deliveries) {
@@ -95,14 +104,6 @@ public class DeliveryService {
         List<Long> orderIds = deliveries.stream().map(Delivery::getOrderId).distinct().toList();
         return orderRepository.findAllWithItemsByIdIn(orderIds).stream()
             .collect(Collectors.toMap(Order::getId, Function.identity()));
-    }
-
-    private Order orderOf(Map<Long, Order> ordersById, Delivery delivery) {
-        Order order = ordersById.get(delivery.getOrderId());
-        if (order == null) {
-            throw new IllegalStateException("배송의 주문이 없습니다: " + delivery.getOrderId());
-        }
-        return order;
     }
 
     private Delivery findOwned(Long memberId, Long deliveryId) {

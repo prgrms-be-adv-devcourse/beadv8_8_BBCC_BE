@@ -65,11 +65,29 @@ public record SellerOrderView(
             delivery.getShippedAt(),
             delivery.getDeliveredAt(),
             order.getCreatedAt(),
-            new ShippingAddress(address.recipientName(), address.phone(), address.zipCode(), address.address()),
+            address == null ? null
+                : new ShippingAddress(address.recipientName(), address.phone(), address.zipCode(), address.address()),
             order.getItems().stream()
                 .filter(item -> Objects.equals(item.getProduct().sellerId(), delivery.getSellerId()))
                 .map(SellerOrderView::toItem)
                 .toList());
+    }
+
+    /**
+     * 주문을 읽지 못한 배송. 배송 값은 그대로, 주문에 딸린 값(주문 시각 · 배송지)은 null, 주문상품은 빈 목록.
+     */
+    public static SellerOrderView withoutOrder(Delivery delivery) {
+        return new SellerOrderView(
+            delivery.getId(),
+            delivery.getOrderId(),
+            delivery.getStatus().name(),
+            delivery.getCarrier() == null ? null : delivery.getCarrier().name(),
+            delivery.getTrackingNumber(),
+            delivery.getShippedAt(),
+            delivery.getDeliveredAt(),
+            null,
+            null,
+            List.of());
     }
 
     private static Item toItem(OrderItem item) {
