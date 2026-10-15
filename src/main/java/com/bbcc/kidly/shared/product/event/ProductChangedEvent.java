@@ -38,8 +38,9 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      * @param price 판매가(원)
      * @param minHeightCm 권장 키 하한(cm, 포함). 입력하지 않았으면 null. 사이즈 무관 상품은 넣지 않을 수 있다
      * @param maxHeightCm 권장 키 상한(cm, 포함). 입력하지 않았으면 null. 사이즈 무관 상품은 넣지 않을 수 있다
-     * @param soldOut 판매 가능 수량이 0이면 true. 판매 상태와는 별개다
-     * @param saleStatus 옵션 판매 상태다. 품절은 여기가 아니라 {@code soldOut}으로 보낸다
+     * @param soldOut 판매 가능 수량이 0이면 true. 상품 · 옵션 판매 상태와는 별개다
+     * @param saleStatus 옵션 판매 상태다. 품절은 여기가 아니라 {@code soldOut}으로 보낸다.
+     *        상품 판매 상태({@code status})와 따로 본다. 상품이 판매 중이 아니면 옵션이 ON_SALE이어도 팔 수 없다
      */
     public record Option(
             Long optionId,
