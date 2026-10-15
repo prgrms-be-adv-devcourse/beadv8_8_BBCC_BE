@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
+import com.bbcc.kidly.shared.payment.domain.PayoutFailureCode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -51,6 +52,24 @@ class PaymentEventsTest {
             81L, 620L, 900L, 7001L, List.of(new PaymentRefundedEvent.Item(5001L, 58_000L)), 58_000L, NOW));
 
         assertContract(event, "payment.refunded", "81", "900");
+    }
+
+    @Test
+    @DisplayName("정산 지급 완료 이벤트는 payment.payout-completed이고 대상 · 흐름은 정산서다")
+    void paymentPayoutCompleted() {
+        PaymentPayoutCompletedEvent event = new PaymentPayoutCompletedEvent(EVENT_ID, NOW,
+            new PaymentPayoutCompletedEvent.Data(31L, 7L, 270_000L, 4001L, NOW));
+
+        assertContract(event, "payment.payout-completed", "31", "31");
+    }
+
+    @Test
+    @DisplayName("정산 지급 실패 이벤트는 payment.payout-failed이고 대상 · 흐름은 정산서다")
+    void paymentPayoutFailed() {
+        PaymentPayoutFailedEvent event = new PaymentPayoutFailedEvent(EVENT_ID, NOW,
+            new PaymentPayoutFailedEvent.Data(31L, 7L, 270_000L, PayoutFailureCode.WALLET_NOT_FOUND, NOW));
+
+        assertContract(event, "payment.payout-failed", "31", "31");
     }
 
     private static void assertContract(DomainEvent event, String eventType, String aggregateId,
