@@ -10,16 +10,12 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
- * 실측을 추가할 때 실측 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addSizeSpecs만 쓴다.
+ * 실측을 추가할 때 실측 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addSizeSpecs와 SaleInputsReplacement가 쓴다.
  */
 final class ProductSizeSpecs {
 
@@ -115,62 +111,5 @@ final class ProductSizeSpecs {
                 throw new BusinessException(ProductErrorCode.SIZE_NOT_IN_OPTIONS);
             }
         }
-    }
-
-    // 판매대기 상품을 이어 쓸 때 미리 만든 실측이 지금 실측과 다른지 본다. 사이즈 값이 짝지어지지 않으면 다른 것으로 본다
-    static boolean differs(List<SizeSpec> current, List<SizeSpec> previews) {
-        if (current.size() != previews.size()) {
-            return true;
-        }
-        Map<AttributeValue, SizeSpec> bySize = bySize(current);
-        for (SizeSpec preview : previews) {
-            SizeSpec matched = bySize.get(preview.getSizeValue());
-            if (matched == null
-                || !Objects.equals(matched.getMinHeightCm(), preview.getMinHeightCm())
-                || !Objects.equals(matched.getMaxHeightCm(), preview.getMaxHeightCm())
-                || !sameMeasurements(matched.getMeasurements(), preview.getMeasurements())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // 사이즈 값이 같은 실측은 객체를 그대로 두고 권장 키와 실측 값만 미리 만든 값으로 맞추고,
-    // 미리 만든 실측에 없는 사이즈의 실측은 빼고, 지금 없는 사이즈의 실측은 미리 만든 객체를 그대로 넣는다
-    static void rewrite(List<SizeSpec> current, List<SizeSpec> previews) {
-        Map<AttributeValue, SizeSpec> bySize = bySize(current);
-        List<SizeSpec> created = new ArrayList<>();
-        for (SizeSpec preview : previews) {
-            SizeSpec matched = bySize.remove(preview.getSizeValue());
-            if (matched == null) {
-                created.add(preview);
-                continue;
-            }
-            matched.revise(preview.getMinHeightCm(), preview.getMaxHeightCm(), preview.getMeasurements());
-        }
-        current.removeAll(bySize.values());
-        current.addAll(created);
-    }
-
-    private static Map<AttributeValue, SizeSpec> bySize(List<SizeSpec> sizeSpecs) {
-        Map<AttributeValue, SizeSpec> bySize = new HashMap<>();
-        for (SizeSpec sizeSpec : sizeSpecs) {
-            bySize.put(sizeSpec.getSizeValue(), sizeSpec);
-        }
-        return bySize;
-    }
-
-    // 실측 값은 크기로 비교한다. 42와 42.0은 같은 길이라 같은 값으로 본다. 같은 요청을 다시 보냈을 때
-    // 자릿수만 다른 값 때문에 바뀐 것으로 보지 않게 하기 위해서다
-    private static boolean sameMeasurements(Map<String, BigDecimal> current, Map<String, BigDecimal> requested) {
-        if (!current.keySet().equals(requested.keySet())) {
-            return false;
-        }
-        for (Map.Entry<String, BigDecimal> entry : requested.entrySet()) {
-            if (current.get(entry.getKey()).compareTo(entry.getValue()) != 0) {
-                return false;
-            }
-        }
-        return true;
     }
 }

@@ -78,7 +78,7 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
-     * 판매대기 상품을 이어 쓸 때 받는 옵션 · 가격 · 실측 값이다. 지금 옵션 · 실측을 이 값으로 바꿔 넣는다.
+     * 판매대기 상품의 옵션 · 가격 · 실측을 바꿔 넣을 때 받는 값이다. 지금 옵션 · 실측을 이 값으로 바꿔 넣는다.
      */
     public record SaleInputsInfo(List<OptionInfo> options, List<PriceInfo> prices, List<SizeSpecInfo> sizeSpecs) {
     }
@@ -248,15 +248,15 @@ public class Product extends BaseTimeEntity {
             throw new BusinessException(ProductErrorCode.CATEGORY_CHANGE_NOT_ALLOWED);
         }
         // 판매대기 상품의 옵션 · 실측 검사는 모두 바꾸기 전에 끝낸다. 바꿔 넣을 값은 미리 만들어 둔 것을 그대로 쓴다
-        ProductRevision.Previews previews = null;
+        SaleInputsReplacement replacement = null;
         if (saleInputs != null) {
-            previews = ProductRevision.validateSaleInputs(this, saleInputs, info.category());
+            replacement = SaleInputsReplacement.prepare(this, saleInputs, info.category());
         } else if (category != info.category()) {
             // 카테고리를 바꾸면 옵션 · 실측도 새 카테고리에 맞게 다시 쓴다. 지금 옵션 · 실측을 그대로 옮기지 않는다
             throw new BusinessException(ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_CATEGORY_CHANGE);
         }
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-        if (isSameAs(info) && !(previews != null && ProductRevision.differs(this, previews))) {
+        if (isSameAs(info) && !(replacement != null && replacement.differsFrom(options, sizeSpecs))) {
             return false;
         }
         // 바꿀 것이 있을 때만 version을 본다. 다른 화면이 먼저 고친 상품을 예전 값으로 덮어쓰지 않게 하기 위해서다
@@ -264,9 +264,8 @@ public class Product extends BaseTimeEntity {
             throw new BusinessException(ProductErrorCode.PRODUCT_VERSION_MISMATCH);
         }
         replaceInfo(info);
-        if (previews != null) {
-            ProductOptionRevision.rewrite(options, previews.options());
-            ProductSizeSpecs.rewrite(sizeSpecs, previews.sizeSpecs());
+        if (replacement != null) {
+            replacement.replace(options, sizeSpecs);
         }
         return true;
     }

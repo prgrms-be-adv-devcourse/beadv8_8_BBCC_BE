@@ -64,8 +64,8 @@ public class SizeSpec extends BaseTimeEntity {
         return sizeSpec;
     }
 
-    // 판매대기 상품을 이어 쓸 때 사이즈 값이 같은 실측을 그대로 두고 권장 키와 실측 값만 받은 값으로 맞춘다
-    void revise(Integer minHeightCm, Integer maxHeightCm, Map<String, BigDecimal> measurements) {
+    // 판매대기 상품의 실측을 바꿔 넣을 때 사이즈 값이 같은 실측을 그대로 두고 권장 키와 실측 값만 받은 값으로 바꿔 넣는다
+    void replaceValues(Integer minHeightCm, Integer maxHeightCm, Map<String, BigDecimal> measurements) {
         this.minHeightCm = minHeightCm;
         this.maxHeightCm = maxHeightCm;
         this.measurements = Map.copyOf(measurements);

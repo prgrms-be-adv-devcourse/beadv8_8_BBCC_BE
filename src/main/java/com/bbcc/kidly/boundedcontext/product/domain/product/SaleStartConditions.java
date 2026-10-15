@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 판매 시작 조건(SALE-03) 중 채우지 못한 항목을 문장 목록으로 계산한다. Product.startSale과 validateSaleStartInputs가 쓴다.
+ * 판매 시작 조건(SALE-03) 중 채우지 못한 항목을 문장 목록으로 계산한다. Product.startSale, validateSaleStartInputs, SaleInputsReplacement가 쓴다.
  */
 final class SaleStartConditions {
 

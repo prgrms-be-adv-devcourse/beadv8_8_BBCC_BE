@@ -21,7 +21,7 @@ import java.util.Set;
 
 /**
  * 옵션 목록 전체를 함께 보는 검사와 계산(보관 제외 옵션, 사이즈 값, FREE 판단)을 모은다.
- * Product.addOptions, ProductSizeSpecs, SaleStartConditions가 쓴다.
+ * Product.addOptions, SaleInputsReplacement, ProductSizeSpecs, SaleStartConditions가 쓴다.
  */
 final class ProductOptions {
 

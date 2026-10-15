@@ -74,8 +74,8 @@ public class ProductOption extends BaseTimeEntity {
         return option;
     }
 
-    // 판매대기 상품을 이어 쓸 때 값 조합이 같은 옵션을 그대로 두고 SKU 코드와 판매가만 받은 값으로 맞춘다
-    void revise(String skuCode, long price) {
+    // 판매대기 상품의 옵션을 바꿔 넣을 때 값 조합이 같은 옵션을 그대로 두고 SKU 코드와 판매가만 받은 값으로 바꿔 넣는다
+    void replaceSkuAndPrice(String skuCode, long price) {
         validatePriceAndSkuCode(price, skuCode);
         this.skuCode = skuCode;
         this.price = price;
