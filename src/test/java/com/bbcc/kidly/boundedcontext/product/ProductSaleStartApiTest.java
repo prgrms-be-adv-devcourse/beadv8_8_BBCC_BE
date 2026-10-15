@@ -125,6 +125,26 @@ class ProductSaleStartApiTest {
     }
 
     @Test
+    @DisplayName("판매 시작이 커밋되면 그 상품의 검색용 표 행이 생기고, 저장된 값 ID로 attributes가 채워진다")
+    void startSaleCreatesSearchDocument() {
+        startSale(tokens.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+
+        // 등록 요청의 초기 재고가 110은 10개, 120은 0개라 품절이 아니고, 표시 가격은 살 수 있는 110 옵션의 판매가다
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+            "select status, min_price, is_sold_out from product.product_search_document where product_id = ?",
+            Long.valueOf(productId));
+        assertThat(row).containsEntry("status", "ON_SALE").containsEntry("min_price", 25_000L)
+            .containsEntry("is_sold_out", false);
+        ClothingOptions clothing = saved.clothing();
+        String expectedAttributes = "{\"COLOR\": [%d], \"SIZE\": [%d, %d], \"MAIN_MATERIAL\": [%d]}".formatted(
+            clothing.navy().getId(), clothing.size110().getId(), clothing.size120().getId(), clothing.cotton().getId());
+        Boolean sameAttributes = jdbcTemplate.queryForObject(
+            "select attributes = cast(? as jsonb) from product.product_search_document where product_id = ?",
+            Boolean.class, expectedAttributes, Long.valueOf(productId));
+        assertThat(sameAttributes).isTrue();
+    }
+
+    @Test
     @DisplayName("이미 판매중인 상품에 판매 시작을 다시 보내면 200이고, 상태 · version이 그대로이며 이벤트도 다시 나가지 않는다")
     void startSaleAgainChangesNothing() {
         startSale(tokens.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
