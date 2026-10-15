@@ -13,8 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 재고를 차감한 뒤 품절이 된 옵션이 있으면, 그 옵션이 속한 상품마다 상품 정보 변경됨을 발행한다.
- * 재고 차감 트랜잭션 안에서 불러야 한다. 차감이 커밋될 때만 상품 정보 변경됨이 나가게 하기 위해서다.
+ * 재고를 차감하거나 판매자가 재고를 조정한 뒤 품절이 된 옵션이 있으면, 그 옵션이 속한 상품마다 상품 정보 변경됨을 발행한다.
+ * 재고를 바꾸는 트랜잭션 안에서 불러야 한다. 재고 변경이 커밋될 때만 상품 정보 변경됨이 나가게 하기 위해서다.
  */
 @Component
 @RequiredArgsConstructor
@@ -34,7 +34,17 @@ public class SoldOutPublisher {
         if (soldOutOptionIds.isEmpty()) {
             return;
         }
-        for (Product product : productRepository.lockAllHavingOptions(soldOutOptionIds)) {
+        publishProductChanged(soldOutOptionIds);
+    }
+
+    // 판매자의 재고 조정으로 옵션의 품절 여부가 바뀐 뒤 그 옵션이 속한 상품의 상품 정보 변경됨을 발행한다
+    // 품절 여부가 바뀌었는지는 부르는 쪽이 이미 판단했다
+    public void publishAfterAdjustment(long optionId) {
+        publishProductChanged(List.of(optionId));
+    }
+
+    private void publishProductChanged(List<Long> optionIds) {
+        for (Product product : productRepository.lockAllHavingOptions(optionIds)) {
             Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
             productChangedPublisher.publish(product, category.getProductType());
         }
