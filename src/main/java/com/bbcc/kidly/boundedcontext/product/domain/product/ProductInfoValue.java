@@ -63,4 +63,14 @@ public class ProductInfoValue extends BaseTimeEntity {
         infoValue.textValue = textValue;
         return infoValue;
     }
+
+    // 이 행이 그 항목의 그 목록 값을 담고 있는지 본다. 항목과 목록 값은 같은 영속성 컨텍스트의 객체라 ==로 비교한다
+    boolean holds(Attribute attribute, AttributeValue value) {
+        return this.attribute == attribute && attributeValue == value;
+    }
+
+    // 이 행이 그 항목의 그 직접 입력한 글을 담고 있는지 본다
+    boolean holdsText(Attribute attribute, String text) {
+        return this.attribute == attribute && attributeValue == null && text.equals(textValue);
+    }
 }

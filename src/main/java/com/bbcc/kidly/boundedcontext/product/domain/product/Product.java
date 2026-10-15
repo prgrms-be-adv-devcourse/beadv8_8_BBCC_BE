@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -200,6 +201,10 @@ public class Product extends BaseTimeEntity {
      * 상품의 기본 정보와 정보 값을 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
      */
     public boolean update(UpdateInfo info) {
+        // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
+        if (isSameAs(info)) {
+            return false;
+        }
         name = info.name();
         brand = info.brand();
         description = info.description();
@@ -209,6 +214,16 @@ public class Product extends BaseTimeEntity {
         infoValues.clear();
         infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
         return true;
+    }
+
+    // 정보 값은 영속성 컨텍스트의 같은 객체끼리 비교한다. 기본 정보는 값으로 비교하고 이미지는 순서까지 같아야 같다
+    private boolean isSameAs(UpdateInfo info) {
+        return Objects.equals(name, info.name())
+            && Objects.equals(brand, info.brand())
+            && Objects.equals(description, info.description())
+            && Objects.equals(thumbnailUrl, info.thumbnailUrl())
+            && imageUrls.equals(info.imageUrls())
+            && ProductInfoValues.sameAs(infoValues, info.infoValues());
     }
 
     /**

@@ -61,6 +61,17 @@ class ProductUpdateTest {
                 tuple(clothing.fabricComposition(), null, "면 95%, 폴리우레탄 5%"));
     }
 
+    @Test
+    @DisplayName("받은 값이 지금과 같으면 아무것도 바꾸지 않고 바뀌지 않았다고 돌려준다. 정보 값 행도 새로 만들지 않는다")
+    void keepWhenNothingChanged() {
+        List<ProductInfoValue> infoValuesBefore = List.copyOf(product.getInfoValues());
+
+        boolean changed = product.update(sameBasicsWith(List.of(cottonMaterial(clothing))));
+
+        assertThat(changed).isFalse();
+        assertThat(product.getInfoValues()).containsExactlyElementsOf(infoValuesBefore);
+    }
+
     // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
     private Product.UpdateInfo sameBasicsWith(List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, VERSION, category, registered.name(), registered.brand(),
