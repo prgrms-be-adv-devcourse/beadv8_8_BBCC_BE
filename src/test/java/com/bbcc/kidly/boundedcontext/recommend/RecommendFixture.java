@@ -292,6 +292,16 @@ public final class RecommendFixture {
     }
 
     /**
+     * {@link #productAChange()}와 같은 상품 변경에서 상품명, 옵션, 발생 시각만 바꾼다.
+     */
+    public static RecommendReplicaProduct.ChangeInfo productAChangeNamed(String name,
+        List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
+            name, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, options,
+            occurredAt);
+    }
+
+    /**
      * 상품 복사본에 넣을 옵션 하나다. 판매가 · 품절 · 판매 상태는 판매할 수 있는 옵션의 값으로 정해 둔다.
      */
     public static RecommendReplicaProduct.OptionInfo productOptionInfo(

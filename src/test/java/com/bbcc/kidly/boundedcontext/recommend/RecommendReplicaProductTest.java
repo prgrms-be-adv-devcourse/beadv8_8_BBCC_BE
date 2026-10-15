@@ -147,6 +147,37 @@ class RecommendReplicaProductTest {
         assertThat(replica.isSellable("110")).isFalse();
     }
 
+    // 사이즈 무관 상품은 사이즈로 판매 가능을 물을 수 없어, 판매 가능한 옵션이 있는지로 판단한다
+    @Test
+    @DisplayName("판매 가능한 옵션이 하나라도 있으면 판매 가능한 옵션이 있는 상품이다")
+    void hasSellableOptionWhenAnyOptionIsSellable() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(true,
+            List.of(productOptionInfo("FREE", null, null)), PRODUCT_CHANGED_AT));
+
+        assertThat(replica.hasSellableOption()).isTrue();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("optionsWithoutSellable")
+    @DisplayName("판매 가능한 옵션이 하나도 없으면 판매 가능한 옵션이 없는 상품이다")
+    void hasNoSellableOptionWhenNoOptionIsSellable(List<RecommendReplicaProduct.OptionInfo> options) {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            RecommendFixture.productAChangeOf(false, options, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.hasSellableOption()).isFalse();
+    }
+
+    static Stream<Named<List<RecommendReplicaProduct.OptionInfo>>> optionsWithoutSellable() {
+        return Stream.of(
+            Named.of("모두 품절", List.of(
+                productOptionInfo("110", true, OptionSaleStatus.ON_SALE),
+                productOptionInfo("120", true, OptionSaleStatus.ON_SALE))),
+            Named.of("모두 판매 중지", List.of(
+                productOptionInfo("110", false, OptionSaleStatus.STOPPED),
+                productOptionInfo("120", false, OptionSaleStatus.STOPPED))),
+            Named.of("옵션 없음", List.of()));
+    }
+
     @Test
     @DisplayName("색상만 다른 같은 사이즈 옵션은 한 줄로 묶고 처음 들어온 권장 키를 쓴다")
     void groupOptionsOfSameSize() {
@@ -211,6 +242,38 @@ class RecommendReplicaProductTest {
         assertThat(replica.toProductSizes()).isEqualTo(ProductSizes.of(false, List.of(
             SizeRange.of("110", 105, 115),
             SizeRange.of("120", 115, 125))));
+    }
+
+    // 처음 상품 변경은 110 · 120 옵션이 모두 25,000원이고 판매 가능하다. 110은 새 옵션에 없어 판매 가능이 아니게 된다
+    @Test
+    @DisplayName("INV-R01 더 늦게 일어난 상품 변경으로 상품명 · 최저가 · 판매 가능 사이즈를 덮어쓴다")
+    void applyLaterChangeToNamePriceAndSellableSizes() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        replica.applyIfNewer(RecommendFixture.productAChangeNamed("데일리 기모 맨투맨",
+            List.of(productOptionInfo("130", 125, 135, 27_000L), productOptionInfo("140", 135, 145, 29_000L)),
+            LATER));
+
+        assertThat(replica.getName()).isEqualTo("데일리 기모 맨투맨");
+        assertThat(replica.getMinPrice()).isEqualTo(27_000L);
+        assertThat(replica.isSellable("110")).isFalse();
+        assertThat(replica.isSellable("130")).isTrue();
+        assertThat(replica.isSellable("140")).isTrue();
+    }
+
+    @ParameterizedTest(name = "저장된 시각에서 {0}분")
+    @ValueSource(longs = {0, -1})
+    @DisplayName("INV-R01 저장된 시각과 같거나 이르게 일어난 상품 변경은 상품명 · 최저가 · 판매 가능 사이즈를 바꾸지 않는다")
+    void ignoreChangeNotLaterForNamePriceAndSellableSizes(long minutes) {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        replica.applyIfNewer(RecommendFixture.productAChangeNamed("데일리 기모 맨투맨",
+            List.of(productOptionInfo("130", 125, 135, 27_000L)), PRODUCT_CHANGED_AT.plusMinutes(minutes)));
+
+        assertThat(replica.getName()).isEqualTo(PRODUCT_A_NAME);
+        assertThat(replica.getMinPrice()).isEqualTo(25_000L);
+        assertThat(replica.isSellable("110")).isTrue();
+        assertThat(replica.isSellable("130")).isFalse();
     }
 
     static Stream<Arguments> optionsWithoutHeightRange() {

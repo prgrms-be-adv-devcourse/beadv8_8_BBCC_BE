@@ -170,6 +170,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         return sellableSizes.contains(size);
     }
 
+    /**
+     * 판매중이고 품절이 아닌 옵션이 하나라도 있는지 돌려준다. 사이즈 무관 상품은 사이즈가 없어 이 값으로 판매 가능을 판단한다.
+     */
+    public boolean hasSellableOption() {
+        return !sellableSizes.isEmpty();
+    }
+
     private static Long lowestPrice(List<OptionInfo> options) {
         Long lowest = null;
         for (OptionInfo option : options) {
