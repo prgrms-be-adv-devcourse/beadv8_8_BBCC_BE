@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.TODAY;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWith;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWithHeight;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplica;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommender;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,5 +45,18 @@ class RecommendedProductSelectorTest {
             PRODUCT_A_THUMBNAIL_URL,
             25_000L,
             expectedSize));
+    }
+
+    @Test
+    @DisplayName("맞는 사이즈가 없는 상품은 목록에서 뺀다")
+    void excludeProductWithoutMatchingSize() {
+        // 키 160cm는 110(105 ~ 115cm)과 120(115 ~ 125cm) 모두에서 2cm보다 멀어 맞는 사이즈가 없다
+        ChildSizeInput child = childSizeInputWithHeight(160.0);
+        RecommendReplicaProduct product = productAReplica();
+        assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize()).isNull();
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).isEmpty();
     }
 }
