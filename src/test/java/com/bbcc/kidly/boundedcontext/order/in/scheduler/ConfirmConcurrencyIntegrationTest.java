@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
@@ -96,7 +97,7 @@ class ConfirmConcurrencyIntegrationTest {
         OrderDetail order = orderService.place(buyerId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
-        orderService.markPaid(order.orderId(), 500L, order.totalAmount());
+        orderService.markPaid(MarkPaidCommands.matching(order, buyerId, 500L));
         deliveredAtSetter.recordDelivered(order.orderId(), SELLER_ID,
             LocalDateTime.now().minus(orderPolicy.autoConfirmAfter()).minusMinutes(1));
         return order;

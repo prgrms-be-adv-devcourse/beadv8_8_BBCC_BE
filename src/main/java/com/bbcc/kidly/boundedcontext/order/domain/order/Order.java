@@ -23,8 +23,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -79,6 +81,14 @@ public class Order extends BaseTimeEntity {
     public record Policy(
         Duration paymentTimeout,
         Duration autoConfirmAfter) {
+    }
+
+    /**
+     * 결제 완료가 알려 온 주문상품 하나의 결제 금액.
+     */
+    public record PaidItem(
+        Long orderItemId,
+        long amount) {
     }
 
     /**
@@ -210,26 +220,74 @@ public class Order extends BaseTimeEntity {
     /**
      * 결제완료로 바꾼다. 결제대기일 때만 바꾸고, 중복 · 취소된 주문은 금액과 상관없이 그대로 둔다.
      * 동시에 두 번 오면 @Version이 나중 쪽을 실패시킨다.
-     * 금액 불일치는 불변식 위반이라 결과값이 아닌 예외로 알린다(주문은 결제대기로 남음).
+     * 결제 불일치는 불변식 위반이라 결과값이 아닌 예외로 알린다(주문은 결제대기로 남음).
      *
+     * @param memberId 결제한 회원. 결제대기일 때 주문한 회원과 같아야 한다
      * @param amount 결제 금액(원). 결제대기일 때 주문 총액과 같아야 한다
+     * @param paidItems 주문상품별 결제 금액. 결제대기일 때 주문상품 구성 · 금액이 같아야 한다
      * @return APPLIED 이번에 결제완료로 바꿈 · ALREADY_DONE 이미 결제완료 · NOT_APPLICABLE 취소됨
-     * @throws PaidAmountMismatchException 결제대기인데 금액이 주문 총액과 다르면
+     * @throws PaymentMismatchException 결제대기인데 회원 · 주문상품 구성 · 주문상품 금액 · 총액 중 하나라도 다르면
      */
-    public TransitionResult markPaid(Long paymentId, long amount, LocalDateTime now) {
+    public TransitionResult markPaid(Long paymentId, Long memberId, long amount, List<PaidItem> paidItems,
+        LocalDateTime now) {
         if (status == Status.PAID) {
             return TransitionResult.ALREADY_DONE;
         }
         if (status != Status.PENDING_PAYMENT) {
             return TransitionResult.NOT_APPLICABLE;
         }
-        if (amount != totalAmount) {
-            throw new PaidAmountMismatchException(id, totalAmount, amount);
-        }
+        verifyPayment(memberId, amount, paidItems);
         this.status = Status.PAID;
         this.paymentId = paymentId;
         this.paidAt = now;
         return TransitionResult.APPLIED;
+    }
+
+    /**
+     * 회원 → 주문상품 구성(빠짐 → 남음) → 주문상품 금액 → 총액 순서로 대조하고, 처음 다른 것 하나로 예외를 던진다.
+     * 주문상품 목록이 없으면(null) 빈 목록으로 본다. 주문상품 ID가 비었거나 같은 ID가 두 번 오면 남는 것으로 본다.
+     */
+    private void verifyPayment(Long paidMemberId, long amount, List<PaidItem> paidItems) {
+        if (!memberId.equals(paidMemberId)) {
+            throw mismatch(PaymentMismatchException.Reason.MEMBER_MISMATCH,
+                "expectedMemberId=" + memberId + " actualMemberId=" + paidMemberId);
+        }
+        List<PaidItem> paids = paidItems == null ? List.of() : paidItems;
+        Map<Long, Long> paidAmounts = new HashMap<>();
+        for (PaidItem paid : paids) {
+            if (paid != null && paid.orderItemId() != null) {
+                paidAmounts.putIfAbsent(paid.orderItemId(), paid.amount());
+            }
+        }
+        for (OrderItem item : items) {
+            if (!paidAmounts.containsKey(item.getId())) {
+                throw mismatch(PaymentMismatchException.Reason.ITEM_MISSING, "orderItemId=" + item.getId());
+            }
+        }
+        Set<Long> orderItemIds = new HashSet<>();
+        items.forEach(item -> orderItemIds.add(item.getId()));
+        Set<Long> seen = new HashSet<>();
+        for (PaidItem paid : paids) {
+            Long paidItemId = paid == null ? null : paid.orderItemId();
+            if (paidItemId == null || !orderItemIds.contains(paidItemId) || !seen.add(paidItemId)) {
+                throw mismatch(PaymentMismatchException.Reason.ITEM_EXTRA, "orderItemId=" + paidItemId);
+            }
+        }
+        for (OrderItem item : items) {
+            long paid = paidAmounts.get(item.getId());
+            if (paid != item.getAmount()) {
+                throw mismatch(PaymentMismatchException.Reason.ITEM_AMOUNT_MISMATCH,
+                    "orderItemId=" + item.getId() + " expected=" + item.getAmount() + " actual=" + paid);
+            }
+        }
+        if (amount != totalAmount) {
+            throw mismatch(PaymentMismatchException.Reason.TOTAL_AMOUNT_MISMATCH,
+                "expected=" + totalAmount + " actual=" + amount);
+        }
+    }
+
+    private PaymentMismatchException mismatch(PaymentMismatchException.Reason reason, String detail) {
+        return new PaymentMismatchException(id, reason, detail);
     }
 
     /**

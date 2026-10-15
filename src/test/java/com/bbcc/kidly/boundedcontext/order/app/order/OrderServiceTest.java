@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -23,6 +24,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
+import com.bbcc.kidly.boundedcontext.order.domain.order.PaymentMismatchException;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
@@ -254,7 +256,7 @@ class OrderServiceTest {
         @DisplayName("결제완료 주문은 취소하지 않고 발행하지 않는다")
         void doesNotCancelPaidOrder() {
             Order order = placedOrder(BUYER_ID);
-            order.markPaid(500L, order.getTotalAmount(), LocalDateTime.of(2026, 10, 14, 9, 1));
+            pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
             orderService.cancelForPaymentExpiry(ORDER_ID);
@@ -391,7 +393,7 @@ class OrderServiceTest {
          */
         private Order deliveredOrder(LocalDateTime deliveredAt) {
             Order order = placedOrderAt(deliveredAt.minusDays(2));
-            order.markPaid(500L, order.getTotalAmount(), deliveredAt.minusDays(1));
+            pay(order, 500L, deliveredAt.minusDays(1));
             order.recordDelivered(SELLER_ID, deliveredAt);
             setItemId(order.getItems().get(0), ORDER_ITEM_ID);
             return order;
@@ -422,7 +424,7 @@ class OrderServiceTest {
             Order order = placedOrder(BUYER_ID);
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            boolean paid = orderService.markPaid(ORDER_ID, 500L, order.getTotalAmount());
+            boolean paid = orderService.markPaid(commandFor(order, 500L));
 
             assertThat(paid).isTrue();
             assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
@@ -434,17 +436,45 @@ class OrderServiceTest {
         @DisplayName("이미 결제완료면 그대로 두고 false (중복 이벤트)")
         void duplicateIsFalse() {
             Order order = placedOrder(BUYER_ID);
-            order.markPaid(500L, order.getTotalAmount(), LocalDateTime.of(2026, 10, 14, 9, 1));
+            pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            assertThat(orderService.markPaid(ORDER_ID, 999L, order.getTotalAmount())).isFalse();
+            assertThat(orderService.markPaid(commandFor(order, 999L))).isFalse();
             assertThat(order.getPaymentId()).isEqualTo(500L);
+        }
+
+        @Test
+        @DisplayName("결제대기인데 회원이 다르면 주문의 결제 불일치 예외가 그대로 나가고 결제대기로 남는다")
+        void mismatchPropagates() {
+            Order order = placedOrder(BUYER_ID);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+            MarkPaidCommand matching = commandFor(order, 500L);
+
+            assertThatThrownBy(() -> orderService.markPaid(new MarkPaidCommand(ORDER_ID, 500L, 999L,
+                matching.amount(), matching.items())))
+                .isInstanceOf(PaymentMismatchException.class)
+                .hasMessageContaining("reason=member-mismatch");
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+        }
+
+        @Test
+        @DisplayName("주문상품 목록이 비어 있으면(null) NPE 없이 item-missing 예외")
+        void missingItemsAreItemMissing() {
+            Order order = placedOrder(BUYER_ID);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+            withItemIds(order);
+
+            assertThatThrownBy(() -> orderService.markPaid(
+                new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, order.getTotalAmount(), null)))
+                .isInstanceOf(PaymentMismatchException.class)
+                .hasMessageContaining("reason=item-missing");
         }
 
         @Test
         @DisplayName("주문이 없으면 false")
         void missingOrderIsFalse() {
-            assertThat(orderService.markPaid(ORDER_ID, 500L, 50_000L)).isFalse();
+            assertThat(orderService.markPaid(new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of())))
+                .isFalse();
         }
     }
 
@@ -520,6 +550,44 @@ class OrderServiceTest {
             java.lang.reflect.Field field = OrderItem.class.getDeclaredField("id");
             field.setAccessible(true);
             field.set(item, id);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 주문과 그대로 맞는 결제 완료(주문한 회원 · 총액 · 주문상품별 금액)를 도메인에 바로 반영한다.
+     */
+    private static void pay(Order order, Long paymentId, LocalDateTime paidAt) {
+        MarkPaidCommand command = commandFor(order, paymentId);
+        order.markPaid(paymentId, command.memberId(), command.amount(), command.items().stream()
+            .map(item -> new Order.PaidItem(item.orderItemId(), item.amount()))
+            .toList(), paidAt);
+    }
+
+    /**
+     * 주문과 그대로 맞는 결제 완료 입력. 주문상품에 ID가 없으면 먼저 넣는다(결제 완료는 주문상품 ID로 대조한다).
+     */
+    private static MarkPaidCommand commandFor(Order order, Long paymentId) {
+        withItemIds(order);
+        return new MarkPaidCommand(ORDER_ID, paymentId, order.getMemberId(), order.getTotalAmount(),
+            order.getItems().stream()
+                .map(item -> new MarkPaidCommand.Item(item.getId(), item.getAmount()))
+                .toList());
+    }
+
+    /**
+     * 저장 전 주문상품에는 ID가 없어서, 주문한 순서대로 1, 2, … ID를 넣는다.
+     */
+    private static Order withItemIds(Order order) {
+        try {
+            java.lang.reflect.Field field = OrderItem.class.getDeclaredField("id");
+            field.setAccessible(true);
+            long next = 1;
+            for (OrderItem item : order.getItems()) {
+                field.set(item, next++);
+            }
+            return order;
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(e);
         }

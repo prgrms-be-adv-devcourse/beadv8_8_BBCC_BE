@@ -127,7 +127,16 @@ class OrderFlowApiTest {
                 .toList());
         assertThat(requested.data().items().stream().mapToLong(OrderPaymentRequestedEvent.Item::amount).sum())
             .isEqualTo(requested.data().amount());
-        assertThat(paymentCompleted(orderId)).hasSize(1);
+        List<PaymentCompletedEvent> completed = paymentCompleted(orderId);
+        assertThat(completed).hasSize(1);
+        // 실제 결제 모듈이 보낸 회원 · 주문상품별 금액이 주문과 정확히 같아야 결제완료가 된다(#215, 할인 · 반올림 차이 없음)
+        assertThat(completed.get(0).data().memberId()).isEqualTo(BUYER_ID);
+        assertThat(completed.get(0).data().items())
+            .extracting(PaymentCompletedEvent.Item::orderItemId, PaymentCompletedEvent.Item::amount)
+            .containsExactlyElementsOf(requested.data().items().stream()
+                .map(item -> tuple(item.orderItemId(), item.amount()))
+                .toList());
+        assertThat(detail(orderId).items()).hasSize(2);
 
         OrderBody paid = detail(orderId);
         assertThat(paid.status()).isEqualTo("PAID");

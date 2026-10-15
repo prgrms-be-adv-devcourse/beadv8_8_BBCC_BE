@@ -3,9 +3,11 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,11 +46,11 @@ public class PaymentEventListener {
             log.warn("결제 이벤트 무시: event=payment.completed reason=missing-order-id");
             return;
         }
-        Paid paid = toPaid(event);
+        MarkPaidCommand paid = toCommand(event);
         AtomicBoolean logged = new AtomicBoolean(false);
         warnIfRolledBackAtCommit(paid, logged);
         try {
-            if (!orderService.markPaid(paid.orderId(), paid.paymentId(), paid.amount())) {
+            if (!orderService.markPaid(paid)) {
                 return;
             }
             deliveryService.createFor(paid.orderId());
@@ -66,7 +68,7 @@ public class PaymentEventListener {
         }
     }
 
-    private static void warnIfRolledBackAtCommit(Paid paid, AtomicBoolean logged) {
+    private static void warnIfRolledBackAtCommit(MarkPaidCommand paid, AtomicBoolean logged) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
         }
@@ -97,14 +99,15 @@ public class PaymentEventListener {
     }
 
     /**
-     * 주문 ID · 결제 ID · 결제 금액을 쓴다. 금액은 주문이 주문 총액과 비교한다(다르면 예외).
-     * 결제 시각은 주문이 지금 시각으로 정하고, 주문상품별 금액은 비교하지 않는다.
+     * 주문 ID · 결제 ID · 회원 · 결제 금액 · 주문상품별 금액을 쓴다. 회원 · 구성 · 금액은 주문이 대조한다(다르면 예외).
+     * 결제 시각은 주문이 지금 시각으로 정한다. 주문상품 목록이 비면(null) 빈 목록으로 넘긴다(구성 불일치).
      */
-    private Paid toPaid(PaymentCompletedEvent event) {
-        return new Paid(event.data().orderId(), event.data().paymentId(), event.data().amount());
-    }
-
-    private record Paid(Long orderId, Long paymentId, long amount) {
+    private MarkPaidCommand toCommand(PaymentCompletedEvent event) {
+        PaymentCompletedEvent.Data data = event.data();
+        List<MarkPaidCommand.Item> items = data.items() == null ? List.of() : data.items().stream()
+            .map(item -> item == null ? null : new MarkPaidCommand.Item(item.orderItemId(), item.amount()))
+            .toList();
+        return new MarkPaidCommand(data.orderId(), data.paymentId(), data.memberId(), data.amount(), items);
     }
 
     /**

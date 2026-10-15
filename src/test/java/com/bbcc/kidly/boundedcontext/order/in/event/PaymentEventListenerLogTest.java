@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,6 +36,7 @@ class PaymentEventListenerLogTest {
     private static final Long ORDER_ID = 7L;
     private static final Long PAYMENT_ID = 500L;
     private static final long AMOUNT = 50_000L;
+    private static final MarkPaidCommand COMMAND = new MarkPaidCommand(ORDER_ID, PAYMENT_ID, 1L, AMOUNT, List.of());
     private static final String LOST_MESSAGE = "결제 완료 처리 실패(동시 중복 처리에서 진 쪽)";
     private static final String FAILED_MESSAGE = "결제 완료 처리 실패: event=payment.completed";
     private static final String ROLLED_BACK_MESSAGE = "커밋 단계에서 되돌려짐";
@@ -56,7 +58,7 @@ class PaymentEventListenerLogTest {
     void deliveryUniqueViolationIsWarn(CapturedOutput output) {
         DataIntegrityViolationException error = new DataIntegrityViolationException(
             "duplicate key value violates unique constraint \"uk_delivery_order_seller\"");
-        when(orderService.markPaid(ORDER_ID, PAYMENT_ID, AMOUNT)).thenReturn(true);
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
         doThrow(error).when(deliveryService).createFor(ORDER_ID);
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
@@ -68,7 +70,7 @@ class PaymentEventListenerLogTest {
     @DisplayName("낙관적 락 충돌이면 WARN을 남기고 같은 예외를 다시 던진다")
     void optimisticLockIsWarn(CapturedOutput output) {
         ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", ORDER_ID);
-        when(orderService.markPaid(ORDER_ID, PAYMENT_ID, AMOUNT)).thenThrow(error);
+        when(orderService.markPaid(COMMAND)).thenThrow(error);
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
@@ -80,7 +82,7 @@ class PaymentEventListenerLogTest {
     void otherConstraintViolationIsError(CapturedOutput output) {
         DataIntegrityViolationException error = new DataIntegrityViolationException(
             "duplicate key value violates unique constraint \"uk_cart_item\"");
-        when(orderService.markPaid(ORDER_ID, PAYMENT_ID, AMOUNT)).thenReturn(true);
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
         doThrow(error).when(cartService).clearOrdered(ORDER_ID);
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
@@ -92,7 +94,7 @@ class PaymentEventListenerLogTest {
     @DisplayName("그 밖의 예외는 ERROR를 남기고 같은 예외를 다시 던진다")
     void otherErrorIsError(CapturedOutput output) {
         IllegalStateException error = new IllegalStateException("배송 생성 실패");
-        when(orderService.markPaid(ORDER_ID, PAYMENT_ID, AMOUNT)).thenReturn(true);
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
         doThrow(error).when(deliveryService).createFor(ORDER_ID);
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
@@ -103,7 +105,7 @@ class PaymentEventListenerLogTest {
     @Test
     @DisplayName("본문은 끝났는데 커밋 단계에서 되돌려지면 WARN을 한 번 남긴다(커밋되면 남기지 않음)")
     void rolledBackAtCommitIsWarnOnce(CapturedOutput output) {
-        when(orderService.markPaid(ORDER_ID, PAYMENT_ID, AMOUNT)).thenReturn(true);
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
 
         List<TransactionSynchronization> rolledBack = runInSynchronization(() -> listener.onPaymentCompleted(event()));
         rolledBack.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
@@ -118,7 +120,7 @@ class PaymentEventListenerLogTest {
     void noDuplicateWhenBodyAlreadyLogged(CapturedOutput output) {
         DataIntegrityViolationException error = new DataIntegrityViolationException(
             "duplicate key value violates unique constraint \"uk_delivery_order_seller\"");
-        when(orderService.markPaid(ORDER_ID, PAYMENT_ID, AMOUNT)).thenReturn(true);
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
         doThrow(error).when(deliveryService).createFor(ORDER_ID);
 
         List<TransactionSynchronization> synchronizations = runInSynchronization(() ->
