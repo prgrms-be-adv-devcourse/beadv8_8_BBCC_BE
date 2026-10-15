@@ -348,6 +348,16 @@ public final class RecommendFixture {
     }
 
     /**
+     * {@link #productAChange()}와 같은 값으로 만든 상품 복사본에서 상품 ID와 판매 상태만 바꾼다.
+     * 여러 상품 복사본을 저장해 조회 조건을 확인할 때 쓴다.
+     */
+    public static RecommendReplicaProduct replicaProduct(Long productId, ProductStatus status) {
+        return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId, PRODUCT_A_SELLER_ID,
+            PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, status, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false,
+            List.of(productOptionInfo("110", 105, 115), productOptionInfo("120", 115, 125)), PRODUCT_CHANGED_AT));
+    }
+
+    /**
      * {@link #productAChange()}와 같은 상품 변경에서 상품명, 옵션, 발생 시각만 바꾼다.
      */
     public static RecommendReplicaProduct.ChangeInfo productAChangeNamed(String name,
