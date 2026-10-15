@@ -129,6 +129,25 @@ class PostgresProductSearchIntegrationTest {
         assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
     }
 
+    @ParameterizedTest(name = "항목 값 {0} → 상품 {1}")
+    @CsvSource({
+        "'COLOR:3,SIZE:15', 1",
+        "'COLOR:3,COLOR:5,SIZE:15', '3,1'",
+        "'COLOR:5,SIZE:16', ''"})
+    @DisplayName("서로 다른 항목에서 값을 고르면 항목마다 고른 값 중 하나를 모두 가진 상품만 나온다")
+    void filterByValuesOfDifferentAttributes(String attributeSpec, String expectedIds) {
+        persist(
+            document(1L).values(value("COLOR", 3L), value("SIZE", 15L)).build(),
+            document(2L).values(value("COLOR", 3L), value("SIZE", 16L)).createdAt(CREATED_AT.plusDays(1)).build(),
+            document(3L).values(value("COLOR", 5L), value("SIZE", 15L)).createdAt(CREATED_AT.plusDays(2)).build());
+
+        Page<ProductSearchItem> result = productSearch.search(
+            new ProductSearchCondition(null, null, attributes(attributeSpec), ProductSearchSort.NEWEST),
+            PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
+    }
+
     // CSV의 "COLOR:3,SIZE:15"를 항목 code별 값 ID 목록으로 묶는다
     private static Map<String, List<Long>> attributes(String spec) {
         Map<String, List<Long>> valueIdsByCode = new LinkedHashMap<>();
