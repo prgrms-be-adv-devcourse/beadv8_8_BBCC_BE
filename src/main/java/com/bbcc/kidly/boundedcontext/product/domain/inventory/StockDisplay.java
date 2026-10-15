@@ -7,10 +7,11 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 /**
  * 구매자 화면에 보여 줄 옵션의 재고 표시다.
  *
+ * @param purchasable 구매자가 이 옵션을 살 수 있는지
  * @param status 재고 상태
  * @param quantity 남은 수량. 상태가 {@link StockStatus#LOW}일 때만 값이 있고, 그 밖에는 null이다
  */
-public record StockDisplay(StockStatus status, Integer quantity) {
+public record StockDisplay(boolean purchasable, StockStatus status, Integer quantity) {
 
     // 판매 가능 수량이 이 값 이하일 때만 구매자에게 수량을 보여 준다
     private static final int LOW_STOCK_THRESHOLD = 5;
@@ -23,12 +24,14 @@ public record StockDisplay(StockStatus status, Integer quantity) {
         if (availableQty < 0) {
             throw new IllegalArgumentException("판매 가능 수량은 0 이상이어야 합니다");
         }
+        // 판매 상태로 살 수 있는 옵션이어도 판매 가능 수량이 남아 있어야 살 수 있다 (SALE-04)
+        boolean purchasable = option.isPurchasable() && availableQty > 0;
         if (availableQty == 0) {
-            return new StockDisplay(StockStatus.SOLD_OUT, null);
+            return new StockDisplay(purchasable, StockStatus.SOLD_OUT, null);
         }
         if (availableQty <= LOW_STOCK_THRESHOLD) {
-            return new StockDisplay(StockStatus.LOW, availableQty);
+            return new StockDisplay(purchasable, StockStatus.LOW, availableQty);
         }
-        return new StockDisplay(StockStatus.AVAILABLE, null);
+        return new StockDisplay(purchasable, StockStatus.AVAILABLE, null);
     }
 }

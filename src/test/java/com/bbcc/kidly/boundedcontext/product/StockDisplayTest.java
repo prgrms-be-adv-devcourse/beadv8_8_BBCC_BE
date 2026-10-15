@@ -15,11 +15,15 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.StockDisplay;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.StockStatus;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class StockDisplayTest {
 
@@ -42,6 +46,39 @@ class StockDisplayTest {
 
         assertThat(display.status()).isEqualTo(expectedStatus);
         assertThat(display.quantity()).isEqualTo(expectedQuantity);
+    }
+
+    @ParameterizedTest(name = "판매 가능 수량 {0}")
+    @ValueSource(ints = {1, 8})
+    @DisplayName("SALE-04 판매중 상품의 판매중 옵션은 판매 가능 수량이 1 이상이면 살 수 있다")
+    void purchasableWhenOnSaleAndInStock(int availableQty) {
+        ProductOption option = optionOnSale();
+
+        StockDisplay display = StockDisplay.of(option, availableQty);
+
+        assertThat(display.purchasable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("SALE-04 판매중 상품의 판매중 옵션이어도 판매 가능 수량이 0이면 살 수 없다")
+    void notPurchasableWhenSoldOut() {
+        ProductOption option = optionOnSale();
+
+        StockDisplay display = StockDisplay.of(option, 0);
+
+        assertThat(display.purchasable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("SALE-04 판매중지 옵션은 판매 가능 수량이 남아 있어도 살 수 없다")
+    void notPurchasableWhenOptionStopped() {
+        ProductOption option = optionOnSale();
+        // 옵션을 판매중지하는 업무 메서드가 아직 없어서 상태를 리플렉션으로 바꾼다
+        ReflectionTestUtils.setField(option, "saleStatus", ProductOptionStatus.STOPPED);
+
+        StockDisplay display = StockDisplay.of(option, 8);
+
+        assertThat(display.purchasable()).isFalse();
     }
 
     // 판매를 시작한 상품 A의 네이비 110 옵션을 돌려준다
