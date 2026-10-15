@@ -9,15 +9,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 상품 목록 조회 테스트가 검색용 표에 넣을 행을 만든다. 기본은 판매중 · 품절 아님 · 옵션 하나(25,000원)인 상품이다.
+ * 상품 목록 조회(ProductSearch) 테스트가 검색용 표에 넣을 행을 만든다. 기본은 판매중 · 품절 아님 · 옵션 하나(25,000원)인 상품이다.
  */
-final class ProductListFixture {
+final class ProductSearchFixture {
 
     static final long SELLER_ID = 7L;
     static final long CATEGORY_ID = 1L;
     static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 10, 1, 9, 0);
 
-    private ProductListFixture() {
+    private ProductSearchFixture() {
     }
 
     static Document document(long productId) {
