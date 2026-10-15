@@ -251,8 +251,9 @@ public class Product extends BaseTimeEntity {
         ProductRevision.Previews previews = null;
         if (saleInputs != null) {
             previews = ProductRevision.validateSaleInputs(this, saleInputs, info.category());
-        } else if (status == ProductStatus.SALE_PENDING && category != info.category()) {
-            ProductRevision.validatePendingCategoryChange(this, info.category());
+        } else if (category != info.category()) {
+            // 카테고리를 바꾸면 옵션 · 실측도 새 카테고리에 맞게 다시 쓴다. 지금 옵션 · 실측을 그대로 옮기지 않는다
+            throw new BusinessException(ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_CATEGORY_CHANGE);
         }
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
         if (isSameAs(info) && !(previews != null && ProductRevision.differs(this, previews))) {
@@ -281,11 +282,6 @@ public class Product extends BaseTimeEntity {
         // 정보 값은 받은 값으로 통째로 바꾸므로 이전 행을 모두 빼고 받은 값으로 다시 만든다
         infoValues.clear();
         infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
-    }
-
-    // 같은 패키지의 수정 검사가 지금 카테고리를 읽을 때 쓴다. 카테고리는 다른 애그리거트라 getter는 열지 않는다
-    Category category() {
-        return category;
     }
 
     // 정보 값은 영속성 컨텍스트의 같은 객체끼리 비교한다. 기본 정보는 값으로 비교하고 이미지는 순서까지 같아야 같다

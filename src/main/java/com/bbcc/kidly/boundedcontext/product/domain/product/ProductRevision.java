@@ -7,7 +7,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SaleInputsIn
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SizeSpecInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -51,17 +50,6 @@ final class ProductRevision {
         SaleStartConditions.requireComplete(
             options, sizeSpecs, newCategory, productType, ProductErrorCode.SALE_START_INPUT_MISSING);
         return new Previews(options, sizeSpecs);
-    }
-
-    // 판매대기 상품의 옵션 · 실측을 받지 않고 카테고리만 바꿀 때 검사한다. 다른 유형으로 바꾸면 지금 옵션은 새 유형에 맞지 않으므로
-    // 새 옵션 · 실측을 함께 받아야 한다 (OPT-06). 같은 유형이면 지금 옵션 · 실측이 새 카테고리의 판매 시작 입력을 채워야 한다
-    static void validatePendingCategoryChange(Product product, Category newCategory) {
-        ProductType newType = newCategory.productTypeToRegister();
-        if (newType != product.category().productTypeToRegister()) {
-            throw new BusinessException(ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_TYPE_CHANGE);
-        }
-        SaleStartConditions.requireComplete(product.getOptions(), product.getSizeSpecs(), newCategory, newType,
-            ProductErrorCode.SALE_START_INPUT_MISSING);
     }
 
     // 미리 만든 옵션 · 실측이 지금 값과 다른지 본다

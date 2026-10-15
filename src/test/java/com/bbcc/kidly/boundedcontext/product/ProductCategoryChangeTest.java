@@ -39,4 +39,15 @@ class ProductCategoryChangeTest {
         assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
         assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
     }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("otherCategories")
+    @DisplayName("판매대기 상품은 어느 카테고리로 바꾸든 옵션 · 가격 · 실측을 함께 보내지 않으면 400으로 거절하고 카테고리는 그대로다")
+    void rejectPendingCategoryChangeWithoutSaleInputs(Function<ProductA, Category> newCategory) {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+
+        assertRejected(() -> productA.product().update(productA.updateWithCategory(newCategory.apply(productA))),
+            ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_CATEGORY_CHANGE);
+        assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
+    }
 }
