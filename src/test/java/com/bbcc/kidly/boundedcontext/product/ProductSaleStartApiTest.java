@@ -6,6 +6,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
+import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
@@ -59,11 +60,13 @@ class ProductSaleStartApiTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    private SavedClothingTop saved;
+
     private String productId;
 
     @BeforeEach
     void registerProductA() {
-        SavedClothingTop saved = clothingTopSaver.save();
+        saved = clothingTopSaver.save();
         productId = client.post().uri(PRODUCTS_PATH)
             .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
             .contentType(MediaType.APPLICATION_JSON)
@@ -100,6 +103,25 @@ class ProductSaleStartApiTest {
                 .containsExactly(tuple("110", 105, 115, false, OptionSaleStatus.ON_SALE),
                     tuple("120", 115, 125, true, OptionSaleStatus.ON_SALE));
         });
+    }
+
+    @Test
+    @DisplayName("SALE-08 판매 시작으로 나간 상품 정보 변경됨에 저장된 옵션 값과 상품 정보 값이 항목 코드 · 값 ID와 함께 들어 있다")
+    void startSaleEventCarriesAttributeValues() {
+        startSale(tokens.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+
+        // 항목은 지연 로딩이라, 판매 시작 트랜잭션 안에서 항목 코드와 값 ID를 읽는지 저장한 상품으로 확인한다
+        ClothingOptions clothing = saved.clothing();
+        ProductChangedEvent.Data data = eventRecorder.events(ProductChangedEvent.class).getFirst().data();
+        assertThat(data.options()).satisfiesExactly(
+            option110 -> assertThat(option110.values()).containsExactlyInAnyOrder(
+                new ProductChangedEvent.AttributeEntry("COLOR", clothing.navy().getId(), "네이비"),
+                new ProductChangedEvent.AttributeEntry("SIZE", clothing.size110().getId(), "110")),
+            option120 -> assertThat(option120.values()).containsExactlyInAnyOrder(
+                new ProductChangedEvent.AttributeEntry("COLOR", clothing.navy().getId(), "네이비"),
+                new ProductChangedEvent.AttributeEntry("SIZE", clothing.size120().getId(), "120")));
+        assertThat(data.infoValues()).containsExactly(
+            new ProductChangedEvent.AttributeEntry("MAIN_MATERIAL", clothing.cotton().getId(), "면"));
     }
 
     @Test
