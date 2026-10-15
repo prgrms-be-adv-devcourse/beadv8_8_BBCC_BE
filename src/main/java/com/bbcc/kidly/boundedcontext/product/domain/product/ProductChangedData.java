@@ -30,7 +30,8 @@ public final class ProductChangedData {
         }
         return new ProductChangedEvent.Data(
             product.getId(), product.getSellerId(), product.getName(), product.getCategoryId(),
-            product.getStatus(), product.getThumbnailUrl(), product.getCreatedAt(), product.isSizeFree(), options);
+            product.getStatus(), product.getThumbnailUrl(), product.getCreatedAt(), product.isSizeFree(), options,
+            toInfoValueEntries(product));
     }
 
     private static ProductChangedEvent.Option toOption(
@@ -60,6 +61,22 @@ public final class ProductChangedData {
             AttributeValue attributeValue = value.getAttributeValue();
             entries.add(new ProductChangedEvent.AttributeEntry(
                 value.getAttribute().getCode(), attributeValue.getId(), attributeValue.getName()));
+        }
+        return entries;
+    }
+
+    // 상품 정보 값을 항목 코드 · 값 ID · 값으로 옮긴다. 목록 항목은 고른 목록 값을 담고, 직접 입력 항목은 값 ID 없이 입력한 글을 담는다
+    private static List<ProductChangedEvent.AttributeEntry> toInfoValueEntries(Product product) {
+        List<ProductChangedEvent.AttributeEntry> entries = new ArrayList<>();
+        for (ProductInfoValue infoValue : product.getInfoValues()) {
+            AttributeValue attributeValue = infoValue.getAttributeValue();
+            if (attributeValue == null) {
+                entries.add(new ProductChangedEvent.AttributeEntry(
+                    infoValue.getAttribute().getCode(), null, infoValue.getTextValue()));
+                continue;
+            }
+            entries.add(new ProductChangedEvent.AttributeEntry(
+                infoValue.getAttribute().getCode(), attributeValue.getId(), attributeValue.getName()));
         }
         return entries;
     }

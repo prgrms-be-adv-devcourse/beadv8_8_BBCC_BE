@@ -42,6 +42,9 @@ class ProductChangedDataTest {
     private static final long NAVY_ID = 21L;
     private static final long SIZE_110_ID = 22L;
     private static final long SIZE_120_ID = 23L;
+    private static final long COTTON_ID = 31L;
+    private static final long BRUSHED_ID = 32L;
+    private static final long STRETCH_ID = 33L;
     private static final LocalDateTime REGISTERED_AT = LocalDateTime.of(2026, 10, 1, 9, 0);
 
     private final ClothingOptions clothing = clothingOptions();
@@ -91,6 +94,27 @@ class ProductChangedDataTest {
                 new ProductChangedEvent.AttributeEntry("SIZE", SIZE_110_ID, "110")),
             List.of(new ProductChangedEvent.AttributeEntry("COLOR", NAVY_ID, "네이비"),
                 new ProductChangedEvent.AttributeEntry("SIZE", SIZE_120_ID, "120")));
+    }
+
+    @Test
+    @DisplayName("SALE-08 상품 정보 값을 항목 코드 · 값 ID · 값으로 담는다. 다중 선택은 값마다 하나씩, 직접 입력은 값 ID 없이 입력한 글로 담는다")
+    void carryInfoValuesWithCodes() {
+        ProductFixture.Clothing info = ProductFixture.clothing();
+        ReflectionTestUtils.setField(info.cotton(), "id", COTTON_ID);
+        ReflectionTestUtils.setField(info.brushed(), "id", BRUSHED_ID);
+        ReflectionTestUtils.setField(info.stretch(), "id", STRETCH_ID);
+        Product withInfoValues = Product.register(ProductFixture.productAWith(info.type(), List.of(
+            new Product.InfoValueInfo(info.mainMaterial(), List.of(info.cotton()), null),
+            new Product.InfoValueInfo(info.fabricComposition(), List.of(), "면 95%, 폴리우레탄 5%"),
+            new Product.InfoValueInfo(info.feature(), List.of(info.brushed(), info.stretch()), null))));
+
+        ProductChangedEvent.Data data = ProductChangedData.of(withInfoValues, info.type(), Map.of());
+
+        assertThat(data.infoValues()).containsExactlyInAnyOrder(
+            new ProductChangedEvent.AttributeEntry("MAIN_MATERIAL", COTTON_ID, "면"),
+            new ProductChangedEvent.AttributeEntry("FABRIC_COMPOSITION", null, "면 95%, 폴리우레탄 5%"),
+            new ProductChangedEvent.AttributeEntry("FEATURE", BRUSHED_ID, "기모"),
+            new ProductChangedEvent.AttributeEntry("FEATURE", STRETCH_ID, "신축성"));
     }
 
     @Test
