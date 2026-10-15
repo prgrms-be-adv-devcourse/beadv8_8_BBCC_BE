@@ -16,8 +16,7 @@ spring:
     jdbc:
       # Batch 메타데이터 테이블은 settlement 스키마에 둔다
       table-prefix: settlement.BATCH_
-      schema: classpath:settlement/batch-schema-postgresql.sql
-      # 운영은 배포 전에 위 스크립트를 실행한다. local · test만 기동 때 만든다
+      # 메타데이터 테이블은 Flyway가 만든다 (db/migration/V1__init.sql)
       initialize-schema: never
       # Batch 기본(SERIALIZABLE)은 이 프로젝트의 Hibernate 연결 설정이 거부한다 (application.yml 참고)
       isolation-level-for-create: default
