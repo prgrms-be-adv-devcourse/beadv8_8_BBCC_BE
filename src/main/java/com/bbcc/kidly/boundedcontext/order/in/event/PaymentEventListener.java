@@ -40,6 +40,10 @@ public class PaymentEventListener {
      */
     @DomainEventListener
     public void onPaymentCompleted(PaymentCompletedEvent event) {
+        if (event.data() == null || event.data().orderId() == null) {
+            log.warn("결제 이벤트 무시: event=payment.completed reason=missing-order-id");
+            return;
+        }
         Paid paid = toPaid(event);
         AtomicBoolean logged = new AtomicBoolean(false);
         warnIfRolledBackAtCommit(paid, logged);
@@ -109,11 +113,15 @@ public class PaymentEventListener {
     @DomainEventListener
     public void onPaymentFailed(PaymentFailedEvent event) {
         Long orderId = toOrderId(event);
+        if (orderId == null) {
+            log.warn("결제 이벤트 무시: event=payment.failed reason=missing-order-id");
+            return;
+        }
         log.info("결제 실패 수신: event=payment.failed orderId={} reason={}", orderId, event.data().reasonCode());
         orderService.cancelForPaymentFailure(orderId);
     }
 
     private Long toOrderId(PaymentFailedEvent event) {
-        return event.data().orderId();
+        return event.data() == null ? null : event.data().orderId();
     }
 }
