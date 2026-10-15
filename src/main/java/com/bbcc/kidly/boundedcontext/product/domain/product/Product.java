@@ -201,6 +201,15 @@ public class Product extends BaseTimeEntity {
      * 상품의 기본 정보와 정보 값을 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
      */
     public boolean update(UpdateInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(info.infoValues(), "infoValues는 필수입니다");
+        requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        requireNonNull(info.version(), "version은 필수입니다");
+        requireNonNull(info.category(), "category는 필수입니다");
+        requireNonNull(info.imageUrls(), "imageUrls는 필수입니다");
+        // null 검사는 모두 업무 규칙 검사보다 앞에 둔다. null이 섞인 호출이 업무 오류(403 · 409)로 가려지지 않게 하기 위해서다
+        requireNonNull(info.name(), "name은 필수입니다");
+        ProductInfoValues.requireNonNullValues(info.infoValues());
         // 등록한 판매자만 상품을 고칠 수 있다. 같은 값을 보내도 다른 판매자이면 거절한다 (OPT-08)
         if (!this.sellerId.equals(info.sellerId())) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);

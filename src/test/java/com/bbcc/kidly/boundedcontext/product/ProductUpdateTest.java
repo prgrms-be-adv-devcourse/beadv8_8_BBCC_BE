@@ -13,9 +13,13 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -146,6 +150,42 @@ class ProductUpdateTest {
 
         assertThatThrownBy(() -> product.update(blankName)).isInstanceOf(IllegalArgumentException.class);
         assertThat(product.getName()).isEqualTo(registered.name());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("updatesWithNull")
+    @DisplayName("수정 값 · 판매자 ID · version · 카테고리 · 상품명 · 이미지 목록 · 정보 값이 null이면 코드가 잘못 호출된 것이라 고치지 않는다")
+    void rejectUpdateWithNull(Function<ProductUpdateTest, Product.UpdateInfo> updateWithNull) {
+        Product.UpdateInfo info = updateWithNull.apply(this);
+
+        assertThatThrownBy(() -> product.update(info))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+        assertThat(product.getName()).isEqualTo(registered.name());
+    }
+
+    static Stream<Named<Function<ProductUpdateTest, Product.UpdateInfo>>> updatesWithNull() {
+        return Stream.of(
+            Named.of("수정 값", test -> null),
+            Named.of("판매자 ID", test -> test.updateWith(null, VERSION, test.category, "새 이름", List.of(),
+                List.of(cottonMaterial(test.clothing)))),
+            Named.of("version", test -> test.updateWith(SELLER_ID, null, test.category, "새 이름", List.of(),
+                List.of(cottonMaterial(test.clothing)))),
+            Named.of("카테고리", test -> test.updateWith(SELLER_ID, VERSION, null, "새 이름", List.of(),
+                List.of(cottonMaterial(test.clothing)))),
+            Named.of("상품명", test -> test.updateWith(SELLER_ID, VERSION, test.category, null, List.of(),
+                List.of(cottonMaterial(test.clothing)))),
+            Named.of("이미지 목록", test -> test.updateWith(SELLER_ID, VERSION, test.category, "새 이름", null,
+                List.of(cottonMaterial(test.clothing)))),
+            Named.of("정보 값", test -> test.updateWith(SELLER_ID, VERSION, test.category, "새 이름", List.of(),
+                null)));
+    }
+
+    // 브랜드 · 설명 · 썸네일은 상품 A의 값으로 두고 필수 값만 받아 수정 값을 만든다
+    private Product.UpdateInfo updateWith(Long sellerId, Long version, Category category, String name,
+        List<String> imageUrls, List<Product.InfoValueInfo> infoValues) {
+        return new Product.UpdateInfo(sellerId, version, category, name, registered.brand(),
+            registered.description(), registered.thumbnailUrl(), imageUrls, infoValues);
     }
 
     // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
