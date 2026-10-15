@@ -37,4 +37,15 @@ class ProductSearchDocumentTest {
         assertThat(document.getMinPrice()).isEqualTo(22_000L);
         assertThat(document.isSoldOut()).isTrue();
     }
+
+    @Test
+    @DisplayName("SALE-07 · PRICE-05 판매중지 옵션만 재고가 남으면 품절이 아니고, 판매할 수 있는 옵션이 없어 전체 옵션 중 최저가를 둔다")
+    void stoppedOptionInStockIsNotSoldOut() {
+        ProductSearchDocument document = ProductSearchDocument.create(changeInfo(List.of(
+            option(25_000L, true, OptionSaleStatus.ON_SALE),
+            option(22_000L, false, OptionSaleStatus.STOPPED))));
+
+        assertThat(document.isSoldOut()).isFalse();
+        assertThat(document.getMinPrice()).isEqualTo(22_000L);
+    }
 }
