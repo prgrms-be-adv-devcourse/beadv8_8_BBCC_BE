@@ -3,10 +3,12 @@ package com.bbcc.kidly.boundedcontext.product.app.inventory.support;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +22,12 @@ public class InventoryDeductor {
 
     private final InventoryRepository inventoryRepository;
     private final InventoryDeductionRepository inventoryDeductionRepository;
+    private final EventPublisher eventPublisher;
 
     // 옵션 ID 오름차순으로 옵션별 수량을 줄이고, 줄인 뒤 같은 트랜잭션에서 DEDUCTED 기록을 저장한다
     // 한 옵션이라도 모자라면 예외를 던져 먼저 줄인 옵션까지 모두 되돌린다
-    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
+    // 차감이 끝나면 같은 트랜잭션에서 재고 차감됨을 발행해, 차감이 커밋될 때만 주문에 전달한다
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deduct(InventoryDeductionRequest request) {
         LocalDateTime now = LocalDateTime.now();
         for (InventoryDeductionRequest.OptionQuantity quantity : request.optionQuantities()) {
@@ -32,5 +36,7 @@ public class InventoryDeductor {
             }
         }
         inventoryDeductionRepository.saveAll(request.deductedRecords());
+        eventPublisher.publish(new StockDeductedEvent(
+            UUID.randomUUID(), now, new StockDeductedEvent.Data(request.orderId())));
     }
 }

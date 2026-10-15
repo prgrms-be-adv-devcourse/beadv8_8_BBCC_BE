@@ -1,32 +1,35 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ConcurrentTasks.awaitAll;
+import static com.bbcc.kidly.boundedcontext.product.ConcurrentTasks.runConcurrently;
+import static com.bbcc.kidly.boundedcontext.product.ConcurrentTasks.runRacing;
+import static com.bbcc.kidly.boundedcontext.product.ConcurrentTasks.startTogether;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
+import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 재고 차감을 실제 스레드 여러 개로 동시에 실행해 실제 PostgreSQL의 행 잠금과 UNIQUE 제약으로 결과를 확인한다.
- * 모든 스레드가 준비된 뒤 출발 신호 하나로 함께 시작한다. 테스트에 @Transactional을 붙이지 않는다.
+ * 스레드는 ConcurrentTasks로 함께 출발시킨다. 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest
 class InventoryDeductionConcurrencyIntegrationTest {
@@ -41,6 +44,14 @@ class InventoryDeductionConcurrencyIntegrationTest {
 
     @Autowired
     private InventoryDeductionDb inventoryDeductionDb;
+
+    @Autowired
+    private OrderFlowEventRecorder eventRecorder;
+
+    @BeforeEach
+    void clearEvents() {
+        eventRecorder.clear();
+    }
 
     @AfterEach
     void checkInvariants() {
@@ -65,7 +76,7 @@ class InventoryDeductionConcurrencyIntegrationTest {
     }
 
     @Test
-    @DisplayName("INV-10 같은 주문 생성됨을 다섯 스레드가 동시에 처리해도 두 옵션 모두 재고가 한 번만 줄고 주문상품마다 기록은 한 줄이다")
+    @DisplayName("INV-10 같은 주문 생성됨을 다섯 스레드가 동시에 처리해도 두 옵션 모두 재고가 한 번만 줄고, 주문상품마다 기록은 한 줄이며 재고 차감됨도 한 번만 보낸다")
     void deductSameEventConcurrently() throws Exception {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         OrderCreatedEvent event = orderCreated(ORDER_ID,
@@ -77,13 +88,16 @@ class InventoryDeductionConcurrencyIntegrationTest {
         }
 
         // 먼저 차감하는 110의 재고 행을 잠가, 다섯 스레드가 모두 기존 기록 확인을 지난 뒤 차감에서 겹치게 한다
-        runRacing(inventoryDeductionDb.lockInventoryRow(firstDeducted(options)), deliveries);
+        runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(firstDeducted(options)), deliveries);
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
         assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(4);
         assertThat(inventoryDeductionDb.records()).containsExactlyInAnyOrder(
             tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"),
             tuple(ORDER_ID, 12L, options.navy120().getId(), 1, "DEDUCTED"));
+        assertThat(eventRecorder.events(StockDeductedEvent.class))
+            .extracting(stockDeducted -> stockDeducted.data().orderId())
+            .containsExactly(ORDER_ID);
     }
 
     @Test
@@ -121,7 +135,7 @@ class InventoryDeductionConcurrencyIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(3, 5);
         OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
 
-        runRacing(inventoryDeductionDb.lockInventoryRow(options.navy110()),
+        runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(options.navy110()),
             List.of(() -> inventoryDeductionService.deduct(event), () -> inventoryDeductionService.deduct(event)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(1);
@@ -136,7 +150,7 @@ class InventoryDeductionConcurrencyIntegrationTest {
         inventoryDeductionDb.stopSale(options.navy110());
         OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
 
-        runRacing(inventoryDeductionDb.lockDeductionTable(),
+        runRacing(inventoryDeductionDb, inventoryDeductionDb.lockDeductionTable(),
             List.of(() -> inventoryDeductionService.deduct(event), () -> inventoryDeductionService.deduct(event)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
@@ -150,70 +164,5 @@ class InventoryDeductionConcurrencyIntegrationTest {
             return options.navy110();
         }
         return options.navy120();
-    }
-
-    // 테스트가 잠금을 쥔 채 작업을 모두 출발시키고, 모든 작업이 그 잠금을 기다리는 것을 확인한 뒤 잠금을 푼다.
-    // 그래서 작업들이 기존 기록 확인을 모두 지난 다음에 겹치는 경쟁이 매번 생긴다
-    private void runRacing(InventoryDeductionDb.HeldLock lock, List<Runnable> tasks) throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(tasks.size());
-        try {
-            List<Future<?>> results;
-            try (lock) {
-                results = startTogether(executor, tasks);
-                inventoryDeductionDb.awaitLockWaiters(tasks.size());
-            }
-            awaitAll(results);
-        } finally {
-            executor.shutdown();
-        }
-    }
-
-    // 작업마다 스레드를 하나씩 두고, 모두 준비되면 출발 신호로 함께 시작한다. 어느 작업이든 예외가 나면 테스트가 실패한다
-    private static void runConcurrently(List<Runnable> tasks) throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(tasks.size());
-        try {
-            awaitAll(startTogether(executor, tasks));
-        } finally {
-            executor.shutdown();
-        }
-    }
-
-    // 모든 작업이 스레드에서 준비된 뒤 출발 신호 하나로 함께 시작시키고, 결과를 기다릴 Future를 돌려준다
-    private static List<Future<?>> startTogether(ExecutorService executor, List<Runnable> tasks)
-        throws InterruptedException {
-        CountDownLatch ready = new CountDownLatch(tasks.size());
-        CountDownLatch start = new CountDownLatch(1);
-        List<Future<?>> results = new ArrayList<>();
-        for (Runnable task : tasks) {
-            results.add(executor.submit(() -> {
-                ready.countDown();
-                if (!start.await(10, TimeUnit.SECONDS)) {
-                    throw new IllegalStateException("출발 신호를 받지 못했습니다");
-                }
-                task.run();
-                return null;
-            }));
-        }
-        assertThat(ready.await(10, TimeUnit.SECONDS)).as("모든 스레드가 준비됨").isTrue();
-        start.countDown();
-        return results;
-    }
-
-    // 모든 작업이 끝날 때까지 기다린 뒤 처음 난 예외를 던진다. 먼저 실패한 작업 때문에 남은 작업을 끊지 않아,
-    // 테스트가 끝난 뒤 다른 스레드가 DB를 건드리지 않는다
-    private static void awaitAll(List<Future<?>> results) throws Exception {
-        Exception first = null;
-        for (Future<?> result : results) {
-            try {
-                result.get(60, TimeUnit.SECONDS);
-            } catch (ExecutionException | TimeoutException e) {
-                if (first == null) {
-                    first = e;
-                }
-            }
-        }
-        if (first != null) {
-            throw first;
-        }
     }
 }
