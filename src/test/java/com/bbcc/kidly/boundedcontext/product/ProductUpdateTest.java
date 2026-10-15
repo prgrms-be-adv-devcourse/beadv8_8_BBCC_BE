@@ -15,6 +15,8 @@ import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
@@ -95,6 +97,19 @@ class ProductUpdateTest {
             List.of(cottonMaterial(clothing)));
 
         assertThat(product.update(retried)).isFalse();
+    }
+
+    @ParameterizedTest(name = "상품명 {0}")
+    @ValueSource(strings = {"상품 A 새 이름", "상품 A"})
+    @DisplayName("OPT-08 상품을 등록한 판매자가 아니면 바꾸는 값이든 같은 값이든 403으로 거절하고 아무것도 바꾸지 않는다")
+    void rejectUpdateFromOtherSeller(String name) {
+        Product.UpdateInfo fromOtherSeller = new Product.UpdateInfo(SELLER_ID + 1, VERSION, category, name,
+            registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
+            List.of(cottonMaterial(clothing)));
+
+        assertThatThrownBy(() -> product.update(fromOtherSeller)).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_PRODUCT_OWNER));
+        assertThat(product.getName()).isEqualTo(registered.name());
     }
 
     // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다

@@ -201,6 +201,10 @@ public class Product extends BaseTimeEntity {
      * 상품의 기본 정보와 정보 값을 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
      */
     public boolean update(UpdateInfo info) {
+        // 등록한 판매자만 상품을 고칠 수 있다. 같은 값을 보내도 다른 판매자이면 거절한다 (OPT-08)
+        if (!this.sellerId.equals(info.sellerId())) {
+            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
+        }
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
         if (isSameAs(info)) {
             return false;
