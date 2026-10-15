@@ -23,9 +23,11 @@ import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -208,12 +210,27 @@ public class OrderService {
     }
 
     /**
-     * 최근 주문부터.
+     * 최근 주문부터. 그 페이지 주문들의 주문상품은 한 번에 읽어 합친다(주문 수와 상관없이 쿼리 수 일정).
+     * 주문상품을 읽지 못한 주문은 목록 전체를 실패시키지 않고 대표 상품명 없이 내리고 WARN만 남긴다.
      */
     @Transactional(readOnly = true)
     public Page<OrderSummary> getOrders(Long memberId, int page, int size) {
-        return orderRepository.findAllByMemberIdOrderByIdDesc(memberId, PageRequest.of(page, size))
-            .map(OrderSummary::from);
+        Page<Order> orders = orderRepository.findAllByMemberIdOrderByIdDesc(memberId, PageRequest.of(page, size));
+        if (orders.isEmpty()) {
+            return orders.map(OrderSummary::withoutItems);
+        }
+        Map<Long, Order> withItems = orderRepository.findAllWithItemsByIdIn(
+                orders.getContent().stream().map(Order::getId).toList())
+            .stream()
+            .collect(Collectors.toMap(Order::getId, Function.identity()));
+        return orders.map(order -> {
+            Order loaded = withItems.get(order.getId());
+            if (loaded == null) {
+                log.warn("주문 목록 주문상품 없음: reason=order-items-not-found orderId={}", order.getId());
+                return OrderSummary.withoutItems(order);
+            }
+            return OrderSummary.from(loaded);
+        });
     }
 
     /**
