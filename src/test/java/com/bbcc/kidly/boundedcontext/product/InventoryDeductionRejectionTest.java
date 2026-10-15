@@ -119,4 +119,23 @@ class InventoryDeductionRejectionTest {
         assertThatThrownBy(() -> new InventoryDeductionRejection(List.of()))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    @DisplayName("사유가 없는 거절 줄은 만들지 않는다")
+    void rejectFailureWithoutReason() {
+        assertThatThrownBy(() -> new InventoryDeductionRejection.Failure(11L, null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessage("reason은 필수입니다");
+    }
+
+    @Test
+    @DisplayName("모자란 옵션 ID 목록 없이 재고 부족 거절 사유를 만들지 않는다")
+    void rejectShortageWithoutShortOptionIds() {
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, onSaleOptions().navy110(), 1)));
+
+        assertThatThrownBy(() -> request.shortageRejection(null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessage("shortOptionIds는 필수입니다");
+    }
 }

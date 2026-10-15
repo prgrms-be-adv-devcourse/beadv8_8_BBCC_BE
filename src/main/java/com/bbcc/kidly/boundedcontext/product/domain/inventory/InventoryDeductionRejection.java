@@ -25,5 +25,9 @@ public record InventoryDeductionRejection(List<Failure> failures) {
     }
 
     public record Failure(long orderItemId, StockDeductionFailureCode reason) {
+
+        public Failure {
+            requireNonNull(reason, "reason은 필수입니다");
+        }
     }
 }

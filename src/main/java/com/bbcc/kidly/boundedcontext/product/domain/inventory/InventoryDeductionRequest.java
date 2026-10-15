@@ -123,6 +123,7 @@ public final class InventoryDeductionRequest {
 
     // 재고가 모자라 거절한 요청의 사유를 만든다. 모자란 옵션을 담은 주문상품만 요청한 순서대로 담는다 (INV-11)
     public InventoryDeductionRejection shortageRejection(Set<Long> shortOptionIds) {
+        requireNonNull(shortOptionIds, "shortOptionIds는 필수입니다");
         List<InventoryDeductionRejection.Failure> failures = new ArrayList<>();
         for (Item item : items) {
             if (shortOptionIds.contains(item.option().getId())) {
