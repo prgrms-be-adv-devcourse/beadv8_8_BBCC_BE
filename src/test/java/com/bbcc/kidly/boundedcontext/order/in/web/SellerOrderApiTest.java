@@ -99,6 +99,7 @@ class SellerOrderApiTest {
                 .jsonPath("$.content[0].items[0].sellerId").isEqualTo(String.valueOf(SELLER_ID))
                 .jsonPath("$.content[0].items[0].optionName").isEqualTo("네이비 / 110")
                 .jsonPath("$.content[0].items[0].child.childId").isEqualTo("1")
+                .jsonPath("$.content[0].items[0].unavailableReason").value(reason -> assertThat(reason).isNull())
                 .jsonPath("$.totalElements").isEqualTo(1);
         }
 

@@ -28,8 +28,10 @@ import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
+import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.lang.reflect.RecordComponent;
@@ -239,6 +241,53 @@ class OrderFlowApiTest {
             .containsExactlyElementsOf(orderItemIds);
         assertThat(cancelled.data().items()).extracting(OrderCancelledEvent.Item::quantity).containsExactly(2, 1);
         assertThat(cart()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("재고 차감 실패: 재고 부족함 → OUT_OF_STOCK으로 취소 · order.cancelled, 상세에 실패한 주문상품만 사유, "
+        + "늦게 온 재고 차감됨은 결제를 요청하지 않고 판매 주문 목록에도 나오지 않는다")
+    void stockDeductionFailed() {
+        addToCart("1", "1", 2);
+        addToCart("2", null, 1);
+        Long orderId = placeOrder();
+        List<Long> orderItemIds = single(OrderCreatedEvent.class, orderId).data().items().stream()
+            .map(OrderCreatedEvent.Item::orderItemId).toList();
+
+        publish(new StockDeductionFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new StockDeductionFailedEvent.Data(orderId, StockDeductionFailureCode.OUT_OF_STOCK,
+                List.of(new StockDeductionFailedEvent.Failure(
+                    orderItemIds.get(1), StockDeductionFailureCode.OUT_OF_STOCK)))));
+
+        client.get().uri(ORDERS_PATH + "/" + orderId)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("CANCELLED")
+            .jsonPath("$.cancelReason").isEqualTo("OUT_OF_STOCK")
+            .jsonPath("$.items[0].orderItemId").isEqualTo(String.valueOf(orderItemIds.get(0)))
+            .jsonPath("$.items[0].unavailableReason").value(reason -> assertThat(reason).isNull())
+            .jsonPath("$.items[1].orderItemId").isEqualTo(String.valueOf(orderItemIds.get(1)))
+            .jsonPath("$.items[1].unavailableReason").isEqualTo("OUT_OF_STOCK");
+        OrderCancelledEvent cancelled = single(OrderCancelledEvent.class, orderId);
+        assertThat(cancelled.data().reason()).isEqualTo("OUT_OF_STOCK");
+        assertThat(cancelled.data().items()).extracting(OrderCancelledEvent.Item::orderItemId)
+            .containsExactlyElementsOf(orderItemIds);
+        assertThat(cart()).hasSize(2);
+
+        publish(stockDeducted(orderId));
+
+        assertThat(recorder.events(OrderPaymentRequestedEvent.class))
+            .filteredOn(event -> event.data().orderId().equals(orderId)).isEmpty();
+        assertThat(detail(orderId).status()).isEqualTo("CANCELLED");
+        for (Long sellerId : List.of(SELLER_A_ID, SELLER_B_ID)) {
+            client.get().uri(SELLER_ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content[?(@.orderId == '" + orderId + "')]").isEmpty();
+        }
     }
 
     @Test
