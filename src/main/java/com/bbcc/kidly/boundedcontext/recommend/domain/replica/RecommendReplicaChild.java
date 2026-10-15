@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend.domain.replica;
 
 import static java.util.Objects.requireNonNull;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -92,6 +93,14 @@ public class RecommendReplicaChild extends BaseSoftDeleteEntity {
      */
     public boolean isVisibleTo(Long memberId) {
         return !isDeleted() && this.memberId.equals(memberId);
+    }
+
+    /**
+     * 사이즈 추천 계산에 넘길 입력으로 바꾼다. 키와 몸무게는 계산이 쓰는 double로 옮긴다.
+     */
+    public ChildSizeInput toChildSizeInput() {
+        return ChildSizeInput.of(
+            heightCm.doubleValue(), weightKg.doubleValue(), gender, birthDate, bodyType, preferredFit);
     }
 
     // 값을 하나도 바꾸기 전에 검사해서, 실패하면 복사본이 그대로 남도록 한다
