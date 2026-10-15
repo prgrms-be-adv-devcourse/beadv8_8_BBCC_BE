@@ -75,6 +75,18 @@ class InventoryDeductionDb {
         return new HeldLock(connection);
     }
 
+    // 옵션이 속한 상품 행을 테스트가 연 트랜잭션에서 잠가 둔다.
+    // 재고를 바꿔 품절 여부가 바뀐 작업들은 상품 정보 변경됨을 보내기 전에 상품 행 잠금에서 기다린다
+    HeldLock lockProductRow(ProductOption option) throws SQLException {
+        Connection connection = openTransaction();
+        try (PreparedStatement statement = connection.prepareStatement("select id from product.product"
+            + " where id = (select product_id from product.product_option where id = ?) for update")) {
+            statement.setLong(1, option.getId());
+            statement.executeQuery().close();
+        }
+        return new HeldLock(connection);
+    }
+
     // 차감 기록 표를 SHARE 모드로 잠가 둔다. 조회는 지나가고 기록 INSERT만 기다린다
     HeldLock lockDeductionTable() throws SQLException {
         Connection connection = openTransaction();
