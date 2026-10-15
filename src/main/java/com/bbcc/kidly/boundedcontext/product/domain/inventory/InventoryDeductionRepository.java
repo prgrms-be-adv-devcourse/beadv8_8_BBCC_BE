@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -11,4 +12,9 @@ public interface InventoryDeductionRepository {
 
     // 차감 요청이 만든 차감 기록을 저장한다. 이미 기록이 있는 주문상품을 저장하면 UNIQUE 제약 때문에 예외가 난다
     <S extends InventoryDeduction> List<S> saveAll(Iterable<S> records);
+
+    // DEDUCTED일 때만 RESTORED로 바꾸고, 바꿨으면 true를 돌려준다
+    // 이미 RESTORED거나 FAILED면 false라 같은 복구가 두 번 일어나지 않는다 (INV-04)
+    // 바꾼 뒤에는 영속성 컨텍스트를 비우므로, 그 전에 읽은 엔티티는 다시 읽어야 한다
+    boolean restoreIfDeducted(long deductionId, LocalDateTime now);
 }

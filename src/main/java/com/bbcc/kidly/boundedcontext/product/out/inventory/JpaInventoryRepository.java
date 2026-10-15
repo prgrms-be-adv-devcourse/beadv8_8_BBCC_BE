@@ -13,6 +13,23 @@ import org.springframework.data.repository.query.Param;
 public interface JpaInventoryRepository extends JpaRepository<Inventory, Long>, InventoryRepository {
 
     @Override
+    default void restore(long optionId, int qty, LocalDateTime now) {
+        if (increaseAvailableQty(optionId, qty, now) != 1) {
+            throw new IllegalStateException("옵션 " + optionId + "의 재고 행이 없어 복구할 수 없습니다");
+        }
+    }
+
+    // JPA Auditing이 동작하지 않는 벌크 UPDATE라서 updatedAt을 쿼리에서 직접 넣는다
+    // 쿼리 전에 같은 트랜잭션의 변경을 DB에 먼저 쓰고, 쿼리 뒤에 영속성 컨텍스트를 비워 늘기 전 재고가 남지 않게 한다
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+        UPDATE Inventory i
+        SET i.availableQty = i.availableQty + :qty, i.updatedAt = :now
+        WHERE i.productOption.id = :optionId
+        """)
+    int increaseAvailableQty(@Param("optionId") long optionId, @Param("qty") int qty, @Param("now") LocalDateTime now);
+
+    @Override
     default boolean deductIfAvailable(long optionId, int qty, LocalDateTime now) {
         return deduct(optionId, qty, now) == 1;
     }
