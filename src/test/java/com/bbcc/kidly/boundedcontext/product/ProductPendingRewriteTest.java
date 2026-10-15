@@ -81,6 +81,22 @@ class ProductPendingRewriteTest {
     }
 
     @Test
+    @DisplayName("판매대기 상품에 지금과 같은 옵션을 다시 보내도 받은 옵션 순서대로 지금 옵션을 짝지어 돌려주고, 뺀 옵션은 없다")
+    void returnMatchedOptionsWhenUnchanged() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+        ProductOption navy110 = productA.product().getOptions().get(0);
+        ProductOption navy120 = productA.product().getOptions().get(1);
+
+        Product.UpdateResult result = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+            productA.currentSaleInputs().options().reversed(), clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+            productA.currentSizeSpecs()));
+
+        assertThat(result.changed()).isFalse();
+        assertThat(result.removedOptions()).isEmpty();
+        assertThat(result.requestedOptions()).containsExactly(navy120, navy110);
+    }
+
+    @Test
     @DisplayName("판매대기 상품은 받은 값 조합 중 지금 없는 조합을 새 옵션으로 만들고, 있던 옵션은 그대로 둔다")
     void addNewCombinations() {
         ProductA productA = ProductUpdateFixture.salePendingProductA();

@@ -66,6 +66,16 @@ final class SaleInputsReplacement {
         return differsOptions(currentOptions) || differsSizeSpecs(currentSizeSpecs);
     }
 
+    // 받은 순서대로 값 조합이 같은 지금 옵션을 짝지어 돌려준다. 지금 값과 같아 바꿔 넣지 않을 때 쓴다
+    List<ProductOption> matchedOptions(List<ProductOption> currentOptions) {
+        Map<Set<AttributeValue>, ProductOption> bySet = activeBySet(currentOptions);
+        List<ProductOption> matched = new ArrayList<>();
+        for (ProductOption prepared : options) {
+            matched.add(bySet.get(valueSet(prepared)));
+        }
+        return matched;
+    }
+
     // 지금 옵션 · 실측을 미리 만든 값으로 바꿔 넣고, 뺀 옵션과 받은 순서대로 짝지은 옵션을 알려 준다
     UpdateResult replace(List<ProductOption> currentOptions, List<SizeSpec> currentSizeSpecs) {
         UpdateResult result = replaceOptions(currentOptions);

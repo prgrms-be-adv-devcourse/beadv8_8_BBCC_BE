@@ -46,10 +46,17 @@ final class ProductUpdateFixture {
             return shoes.sneakers();
         }
 
-
         // 상품 A의 지금 값을 그대로 보내는 수정 값이다
         Product.UpdateInfo sameUpdate() {
             return updateWithCategory(top);
+        }
+
+        // 상품 A의 지금 옵션 · 가격 · 실측과 같은 값이다
+        Product.SaleInputsInfo currentSaleInputs() {
+            return new Product.SaleInputsInfo(List.of(
+                new Product.OptionInfo(List.of(clothing.navy(), clothing.size110()), null),
+                new Product.OptionInfo(List.of(clothing.navy(), clothing.size120()), null)),
+                clothingPrice(CLOTHING_PRICE), currentSizeSpecs());
         }
 
         // 상품 A의 지금 실측(110 · 120의 상의 실측과 권장 키)과 같은 실측 목록이다
@@ -61,7 +68,12 @@ final class ProductUpdateFixture {
 
         // 상품 A에서 카테고리만 받은 값으로 바꾸고 나머지는 지금 값 그대로 보내는 수정 값이다
         Product.UpdateInfo updateWithCategory(Category category) {
-            return new Product.UpdateInfo(SELLER_ID, VERSION, category, product.getName(), product.getBrand(),
+            return updateWith(VERSION, category, product.getName());
+        }
+
+        // 상품 A에서 version · 카테고리 · 상품명만 받은 값으로 바꾸고 나머지는 지금 값 그대로 보내는 수정 값이다
+        Product.UpdateInfo updateWith(long version, Category category, String name) {
+            return new Product.UpdateInfo(SELLER_ID, version, category, name, product.getBrand(),
                 product.getDescription(), product.getThumbnailUrl(), product.getImageUrls(),
                 List.of(new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
         }

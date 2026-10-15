@@ -266,7 +266,9 @@ public class Product extends BaseTimeEntity {
         }
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
         if (isSameAs(info) && !(replacement != null && replacement.differsFrom(options, sizeSpecs))) {
-            return new UpdateResult(false, List.of(), List.of());
+            // 바뀌지 않아도 받은 옵션과 짝지은 옵션은 돌려준다. 재고처럼 상품 밖의 값은 따로 맞춰야 하기 때문이다
+            List<ProductOption> requested = replacement == null ? List.of() : replacement.matchedOptions(options);
+            return new UpdateResult(false, List.of(), requested);
         }
         // 바꿀 것이 있을 때만 version을 본다. 다른 화면이 먼저 고친 상품을 예전 값으로 덮어쓰지 않게 하기 위해서다
         if (!Objects.equals(info.version(), version)) {
