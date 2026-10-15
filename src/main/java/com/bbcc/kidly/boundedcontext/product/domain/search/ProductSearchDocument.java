@@ -106,6 +106,10 @@ public class ProductSearchDocument extends BaseTimeEntity {
         document.productCreatedAt = requireNonNull(info.productCreatedAt(), "productCreatedAt은 필수입니다");
         document.eventOccurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         List<OptionInfo> options = requireNonNull(info.options(), "options는 필수입니다");
+        // 표시 가격은 옵션 가격에서 고르므로 옵션이 없으면 만들 수 없다 (PRICE-05 목록 표시 가격)
+        if (options.isEmpty()) {
+            throw new IllegalArgumentException("옵션이 없는 상품은 검색용 표에 넣을 수 없습니다");
+        }
         requireNonNull(info.infoValues(), "infoValues는 필수입니다");
         document.minPrice = lowestPrice(options);
         document.soldOut = allSoldOut(options);

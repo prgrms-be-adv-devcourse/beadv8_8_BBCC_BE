@@ -11,6 +11,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.value;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
@@ -109,6 +110,13 @@ class ProductSearchDocumentTest {
                 ProductSearchDocument::getProductCreatedAt, ProductSearchDocument::getEventOccurredAt)
             .containsExactly(5L, "아기 모자", "https://cdn.kidly.test/hat.jpg", 9L, 4L, ProductStatus.STOPPED, true,
                 productCreatedAt, occurredAt);
+    }
+
+    @Test
+    @DisplayName("PRICE-05 옵션이 하나도 없으면 표시 가격을 정할 수 없어 만들지 않는다")
+    void rejectsEmptyOptions() {
+        assertThatIllegalArgumentException()
+            .isThrownBy(() -> ProductSearchDocument.create(changeInfo(List.of())));
     }
 
     @ParameterizedTest(name = "{0}")
