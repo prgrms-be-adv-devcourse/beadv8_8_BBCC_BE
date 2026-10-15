@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -141,6 +142,28 @@ public class OrderService {
      */
     public void cancelForPaymentFailure(Long orderId) {
         cancel(orderId, "payment.failed", order -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
+    }
+
+    /**
+     * 재고 차감 실패로 취소하고 주문상품별 사유를 남긴다. 결제대기가 아니면 그대로 둔다(사유도 남기지 않음).
+     * 주문에 없는 주문상품 ID는 주문이 무시하므로 여기서 WARN만 남긴다.
+     */
+    public void cancelForStockDeductionFailure(StockDeductionFailedCommand command) {
+        Map<Long, String> reasons = command.items().stream()
+            .collect(Collectors.toMap(StockDeductionFailedCommand.Item::orderItemId,
+                StockDeductionFailedCommand.Item::reason, (first, last) -> last));
+        cancel(command.orderId(), "stock.deduction-failed", order -> {
+            warnUnknownOrderItems(command.orderId(), order, reasons);
+            return order.cancelForOutOfStock(reasons);
+        });
+    }
+
+    private static void warnUnknownOrderItems(Long orderId, Order order, Map<Long, String> reasons) {
+        List<Long> orderItemIds = order.getItems().stream().map(OrderItem::getId).toList();
+        reasons.keySet().stream()
+            .filter(orderItemId -> !orderItemIds.contains(orderItemId))
+            .forEach(orderItemId -> log.warn("재고 차감 실패 주문상품 없음: event=stock.deduction-failed orderId={} "
+                + "orderItemId={} reason=unknown-order-item", orderId, orderItemId));
     }
 
     /**

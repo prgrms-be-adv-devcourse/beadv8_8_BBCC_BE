@@ -118,6 +118,12 @@ public class OrderItem extends BaseTimeEntity {
     private ConfirmType confirmType;
 
     /**
+     * 재고 차감 실패로 주문이 취소됐을 때 이 주문상품을 살 수 없던 사유. 상품 도메인 값이라 이름 문자열로 둔다.
+     */
+    @Column(length = 50)
+    private String unavailableReason;
+
+    /**
      * 직접 · 자동 구매확정이 같은 주문상품을 동시에 확정하면 나중 쪽을 실패시킨다(주문상품만 바뀌면 Order 버전은 오르지 않음).
      */
     @Version
@@ -138,6 +144,10 @@ public class OrderItem extends BaseTimeEntity {
 
     void assignTo(Order order) {
         this.order = order;
+    }
+
+    void markUnavailable(String reason) {
+        this.unavailableReason = reason;
     }
 
     void markDelivered(LocalDateTime at) {

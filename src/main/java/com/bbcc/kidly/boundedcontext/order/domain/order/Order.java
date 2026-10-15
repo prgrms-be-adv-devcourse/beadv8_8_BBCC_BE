@@ -309,6 +309,27 @@ public class Order extends BaseTimeEntity {
     }
 
     /**
+     * 재고 차감 실패로 취소한다(사유 OUT_OF_STOCK). 취소할 수 있는지는 이 메서드 한 곳에서 판단하고(지금은 cancel과 같은
+     * 결제대기 기준), 이번에 취소했을 때만 사유가 온 주문상품에 그 사유를 남긴다. 주문에 없는 주문상품 ID는 무시한다.
+     *
+     * @param reasonsByOrderItemId 주문상품 ID별로 살 수 없던 사유(상품 도메인 값의 이름)
+     * @return APPLIED 이번에 취소함 · ALREADY_DONE 이미 취소됨(처음 사유 유지) · NOT_APPLICABLE 결제완료
+     */
+    public TransitionResult cancelForOutOfStock(Map<Long, String> reasonsByOrderItemId) {
+        TransitionResult result = cancel(CancelReason.OUT_OF_STOCK);
+        if (result != TransitionResult.APPLIED) {
+            return result;
+        }
+        for (OrderItem item : items) {
+            String reason = reasonsByOrderItemId.get(item.getId());
+            if (reason != null) {
+                item.markUnavailable(reason);
+            }
+        }
+        return result;
+    }
+
+    /**
      * 결제 마감 만료로 취소한다. 결제대기이고 마감 시각이 지났을 때(마감 시각 포함)만 바꾼다.
      * 마감 전 · 결제완료 · 이미 취소된 주문은 그대로 둔다.
      *

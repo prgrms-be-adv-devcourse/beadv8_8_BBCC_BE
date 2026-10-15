@@ -53,7 +53,8 @@ public record SellerOrderResponse(
             item.confirmedAt(),
             item.confirmType(),
             child == null ? null : new OrderDetailResponse.Child(toText(child.childId()), child.name(),
-                child.heightCm(), child.weightKg(), child.bodyType()));
+                child.heightCm(), child.weightKg(), child.bodyType()),
+            item.unavailableReason());
     }
 
     private static String toText(Long id) {
