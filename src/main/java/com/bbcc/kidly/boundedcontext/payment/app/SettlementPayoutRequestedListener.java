@@ -18,6 +18,6 @@ public class SettlementPayoutRequestedListener {
     @DomainEventListener
     public void on(SettlementPayoutRequestedEvent event) {
         SettlementPayoutRequestedEvent.Data data = event.data();
-        settlementPayoutService.payout(new PayoutCommand(data.statementId(), data.sellerId(), data.amount()));
+        settlementPayoutService.payout(new PayoutCommand(data.settlementId(), data.sellerId(), data.amount()));
     }
 }
