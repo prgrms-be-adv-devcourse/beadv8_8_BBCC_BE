@@ -20,6 +20,9 @@ public interface ProductRepository {
     // 옵션마다 상품을 따로 조회하는 쿼리가 나가는 것도 막는다
     List<ProductOption> findOptionsWithProduct(Collection<Long> optionIds);
 
+    // 옵션 ID 목록에 든 옵션이 속한 상품들을 상품 ID 오름차순으로 읽는다. 같은 상품은 한 번만 나온다
+    List<Product> findAllHavingOptions(Collection<Long> optionIds);
+
     // 판매자의 옵션이 이미 쓰는 SKU 코드 중 skuCodes에 든 것을 돌려준다.
     // 옵션의 판매 상태(판매중 · 판매중지 · 보관)와 상관없이 찾는다. skuCodes가 비면 빈 목록을 돌려준다
     List<String> findSkuCodesInUse(Long sellerId, Collection<String> skuCodes);

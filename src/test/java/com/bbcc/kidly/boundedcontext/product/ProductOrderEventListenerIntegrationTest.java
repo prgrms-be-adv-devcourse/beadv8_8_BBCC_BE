@@ -167,6 +167,32 @@ class ProductOrderEventListenerIntegrationTest {
             .containsExactly(deductedOrderId);
     }
 
+    @Test
+    @DisplayName("SALE-08 차감한 뒤에도 재고가 남으면 상품 정보 변경됨을 보내지 않는다")
+    void sendNoProductChangedWhenStockRemains() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+
+        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SALE-08 옵션의 마지막 재고를 차감하면 그 상품의 상품 정보 변경됨을 한 번 보내고, 그 옵션만 품절이다")
+    void sendProductChangedWhenOptionSellsOut() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(2, 5);
+
+        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(changed -> assertThat(changed.data().options())
+                .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+                .containsExactlyInAnyOrder(
+                    tuple(options.navy110().getId(), true),
+                    tuple(options.navy120().getId(), false)));
+    }
+
     // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다
     private void publishInTransaction(OrderCreatedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
