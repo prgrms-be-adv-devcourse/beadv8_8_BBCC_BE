@@ -112,6 +112,18 @@ class ProductUpdateTest {
         assertThat(product.getName()).isEqualTo(registered.name());
     }
 
+    @Test
+    @DisplayName("INFO-02 필수 정보 항목(주요소재)을 빼고 고치면 거절하고 아무것도 바꾸지 않는다")
+    void rejectWithoutRequiredInfo() {
+        Product.UpdateInfo withoutMaterial = new Product.UpdateInfo(SELLER_ID, VERSION, category, "상품 A 새 이름",
+            registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
+            List.of());
+
+        assertThatThrownBy(() -> product.update(withoutMaterial)).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.REQUIRED_INFO_MISSING));
+        assertThat(product.getName()).isEqualTo(registered.name());
+    }
+
     // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
     private Product.UpdateInfo sameBasicsWith(List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, VERSION, category, registered.name(), registered.brand(),
