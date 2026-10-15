@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
@@ -85,6 +86,27 @@ class OrderListQueryCountIntegrationTest {
             assertThat(summary.sellerName()).isEqualTo("대표 판매자 " + i);
             assertThat(summary.itemCount()).isEqualTo(2);
         }
+    }
+
+    @Test
+    @DisplayName("관리자 전체 주문 목록도 주문이 1건이든 5건이든 쿼리 수가 같다(주문 페이지 1번 + 주문상품 1번)")
+    void adminListSameQueryCountRegardlessOfOrderCount() {
+        place(SINGLE_BUYER_ID, 0, "첫 주문", "둘째");
+        statistics.clear();
+        orderService.getAllOrders(0, 20);
+        long singleCount = statistics.getPrepareStatementCount();
+
+        for (int i = 1; i < MANY; i++) {
+            place(MANY_BUYER_ID, i, "대표 " + i, "둘째 " + i);
+        }
+        statistics.clear();
+        List<AdminOrderSummary> all = orderService.getAllOrders(0, 20).getContent();
+        long manyCount = statistics.getPrepareStatementCount();
+
+        assertThat(manyCount).isEqualTo(singleCount);
+        assertThat(singleCount).as("주문 페이지 1번 + 그 페이지 주문(주문상품 포함) 1번").isEqualTo(2);
+        assertThat(all).hasSize(MANY);
+        assertThat(all).extracting(AdminOrderSummary::itemCount).containsOnly(2);
     }
 
     private void saveSeller(Long sellerId, String businessName) {
