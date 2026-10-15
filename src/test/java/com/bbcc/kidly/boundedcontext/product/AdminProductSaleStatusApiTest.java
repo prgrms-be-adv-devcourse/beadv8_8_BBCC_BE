@@ -15,6 +15,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -84,14 +87,117 @@ class AdminProductSaleStatusApiTest {
             .satisfies(event -> assertThat(event.data().status()).isEqualTo(ProductStatus.STOPPED));
     }
 
-    // 판매자의 판매 시작 요청으로 판매중으로 바꾸고, 그때 나간 이벤트는 지운다
-    private void startSaleBySeller() {
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"판매대기", "판매자가 판매중지한 상품", "관리자가 판매중지한 상품"})
+    @DisplayName("SALE-03 · SALE-11 관리자가 ON_SALE을 보내면 판매 시작 조건 검사 뒤 판매중이 되고, 관리자 판매중지 표시가 꺼지며 이벤트가 한 번 나간다")
+    void startSaleByAdmin(String given) {
+        if (!given.equals("판매대기")) {
+            startSaleBySeller();
+            if (given.equals("판매자가 판매중지한 상품")) {
+                changeSaleStatusBySeller(STOPPED);
+            } else {
+                changeSaleStatusByAdmin(tokens.admin(ADMIN_ID), STOPPED).expectStatus().isOk();
+            }
+            eventRecorder.clear();
+        }
+
+        changeSaleStatusByAdmin(tokens.admin(ADMIN_ID), ON_SALE)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("ON_SALE")
+            .jsonPath("$.version").isEqualTo(storedVersion());
+
+        assertThat(storedStatus()).isEqualTo("ON_SALE");
+        assertThat(storedStoppedByAdmin()).isFalse();
+        assertThat(eventRecorder.events(ProductChangedEvent.class))
+            .singleElement()
+            .satisfies(event -> assertThat(event.data().status()).isEqualTo(ProductStatus.ON_SALE));
+    }
+
+    @Test
+    @DisplayName("SALE-11 판매자가 판매중지한 상품에 관리자가 STOPPED를 보내면 표시만 켜지고, 응답 version이 DB와 같으며 이벤트는 나가지 않는다")
+    void stopSaleByAdminOfSellerStoppedProduct() {
+        startSaleBySeller();
+        changeSaleStatusBySeller(STOPPED);
+        eventRecorder.clear();
+
+        changeSaleStatusByAdmin(tokens.admin(ADMIN_ID), STOPPED)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("STOPPED")
+            .jsonPath("$.version").isEqualTo(storedVersion());
+
+        assertThat(storedStoppedByAdmin()).isTrue();
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("관리자도 판매대기 상품에 STOPPED를 보내면 409이고 이벤트가 나가지 않는다")
+    void rejectStopSaleByAdminOfPendingProduct() {
+        expectProblem(changeSaleStatusByAdmin(tokens.admin(ADMIN_ID), STOPPED), HttpStatus.CONFLICT,
+            "판매를 시작하지 않은 상품입니다", "판매를 시작한 상품만 판매를 중지할 수 있습니다.");
+        assertThat(storedStatus()).isEqualTo("SALE_PENDING");
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SALE-03 관리자도 판매 시작 조건을 채우지 못한 상품에 ON_SALE을 보내면 409이고 이벤트가 나가지 않는다")
+    void rejectStartSaleByAdminWithoutSaleStartConditions() {
+        // 등록할 때 같은 검사를 하므로, 등록한 뒤 120 사이즈의 실측을 지워 조건을 못 채우게 한다
+        jdbcTemplate.update("delete from product.size_spec where product_id = ? and attribute_value_id = "
+            + "(select id from product.attribute_value where name = '120')", Long.valueOf(productId));
+
+        expectProblem(changeSaleStatusByAdmin(tokens.admin(ADMIN_ID), ON_SALE), HttpStatus.CONFLICT,
+            "판매를 시작할 수 없습니다", "판매를 시작할 수 없습니다. 120 사이즈에 실측과 권장 키가 없습니다.");
+        assertThat(storedStatus()).isEqualTo("SALE_PENDING");
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("없는 상품이면 404, 정해진 값이 아닌 판매 상태면 400이다")
+    void rejectMissingProductAndInvalidStatus() {
+        expectProblem(changeSaleStatusByAdmin(tokens.admin(ADMIN_ID), Map.of("status", "FOO")), HttpStatus.BAD_REQUEST,
+            "잘못된 요청입니다", "status: 판매 시작(ON_SALE)이나 판매 중지(STOPPED)만 요청할 수 있습니다.");
+        productId = "999999";
+        expectProblem(changeSaleStatusByAdmin(tokens.admin(ADMIN_ID), STOPPED), HttpStatus.NOT_FOUND,
+            "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
+    }
+
+    @Test
+    @DisplayName("토큰이 없으면 401, 관리자가 아닌 회원(판매자)이면 403이다")
+    void rejectWithoutAdminRole() {
+        startSaleBySeller();
+
+        changeSaleStatusByAdmin(null, STOPPED).expectStatus().isUnauthorized();
+        changeSaleStatusByAdmin(tokens.seller(SELLER_ID), STOPPED).expectStatus().isForbidden();
+        assertThat(storedStatus()).isEqualTo("ON_SALE");
+    }
+
+    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
+    private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
+        response
+            .expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").isEqualTo(title)
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").isEqualTo(detail)
+            .jsonPath("$.instance").isEqualTo(ADMIN_PRODUCTS_PATH + "/" + productId + "/sale-status");
+    }
+
+    private void changeSaleStatusBySeller(Map<String, Object> body) {
         client.put().uri(SELLER_PRODUCTS_PATH + "/{productId}/sale-status", productId)
             .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
             .contentType(MediaType.APPLICATION_JSON)
-            .body(ON_SALE)
+            .body(body)
             .exchange()
             .expectStatus().isOk();
+    }
+
+    // 판매자의 판매 시작 요청으로 판매중으로 바꾸고, 그때 나간 이벤트는 지운다
+    private void startSaleBySeller() {
+        changeSaleStatusBySeller(ON_SALE);
         eventRecorder.clear();
     }
 
