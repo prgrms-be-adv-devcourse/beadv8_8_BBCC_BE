@@ -26,6 +26,7 @@ class InventoryDeductionServiceIntegrationTest {
 
     private static final long ORDER_ID = 100L;
     private static final long MEMBER_ID = 1L;
+    private static final long MISSING_OPTION_ID = 999_999L;
 
     @Autowired
     private InventoryDeductionService inventoryDeductionService;
@@ -146,6 +147,19 @@ class InventoryDeductionServiceIntegrationTest {
 
         assertThat(availableQty(options.navy110())).isEqualTo(10);
         assertThat(availableQty(options.navy120())).isEqualTo(5);
+        assertThat(records()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("없는 옵션 ID가 든 주문 생성됨은 차감 기록이 가리킬 옵션이 없어 예외 없이 재고와 기록을 바꾸지 않는다")
+    void ignoreMissingOption() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
+            item(11L, options.navy110(), 2),
+            new OrderCreatedEvent.Item(12L, MISSING_OPTION_ID, 1)));
+
+        assertThat(availableQty(options.navy110())).isEqualTo(10);
         assertThat(records()).isEmpty();
     }
 
