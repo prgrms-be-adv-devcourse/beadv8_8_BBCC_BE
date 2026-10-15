@@ -1,4 +1,5 @@
 -- Spring Batch 6.0.5 schema-postgresql.sql에서 settlement 스키마 생성 · 이름에 settlement. 접두어 · IF NOT EXISTS만 바꿨다
+-- IF NOT EXISTS라서 Flyway 도입 전에 이 테이블을 만든 DB(baseline 1)에서도 그대로 실행된다
 
 CREATE SCHEMA IF NOT EXISTS settlement;
 
