@@ -87,6 +87,26 @@ class ProductChangedDataTest {
             .containsExactly(tuple(OPTION_120_ID, OptionSaleStatus.STOPPED));
     }
 
+    @Test
+    @DisplayName("SIZE-02 사이즈가 모두 FREE인 상품은 사이즈 무관으로 담고, 권장 키 없는 옵션의 권장 키는 비워 둔다")
+    void carrySizeFreeProduct() {
+        product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.sizeFree()),
+            option(clothing.oatmeal(), clothing.sizeFree()))), clothing.type());
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.sizeFree(), null, null, top110Measurements()))), top, clothing.type());
+        ReflectionTestUtils.setField(product.getOptions().get(0), "id", OPTION_110_ID);
+        ReflectionTestUtils.setField(product.getOptions().get(1), "id", OPTION_120_ID);
+
+        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+
+        assertThat(data.sizeFree()).isTrue();
+        assertThat(data.options())
+            .extracting(ProductChangedEvent.Option::size, ProductChangedEvent.Option::minHeightCm,
+                ProductChangedEvent.Option::maxHeightCm)
+            .containsExactly(tuple("FREE", null, null), tuple("FREE", null, null));
+    }
+
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 실측 · 권장 키를 넣고, 옵션 ID를 정해 둔다
     private void withOptionsAndSizeSpecs110And120() {
         product.addOptions(addOptions(List.of(
