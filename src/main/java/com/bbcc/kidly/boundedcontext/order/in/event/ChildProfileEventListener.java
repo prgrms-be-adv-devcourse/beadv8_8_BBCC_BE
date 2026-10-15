@@ -5,14 +5,12 @@ import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
 import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
  * child.changed를 받아 복사본 반영을 맡긴다. 이벤트 필드가 바뀌면 여기 변환만 고친다.
  * 리스너는 재시도가 없어 저장이 실패하면 이벤트가 사라지므로, 깨진 값은 여기서 걸러 예외 없이 처리한다.
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ChildProfileEventListener {
@@ -26,19 +24,18 @@ public class ChildProfileEventListener {
      */
     @DomainEventListener
     public void onChildChanged(ChildChangedEvent event) {
-        String missing = missingIdentity(event);
-        if (missing != null) {
-            warnSkipped(event, missing);
+        Long childId = event.data() == null ? null : event.data().childId();
+        if (!EventGuard.accept("자녀", event, "childId", childId, missingIdentity(event))) {
             return;
         }
         ChildChangedEvent.Data data = event.data();
         String missingBody = missingProfile(data);
-        if (missingBody == null) {
-            replicaService.applyChildChanged(toCommand(event));
-        } else if (data.deleted()) {
+        if (missingBody != null && data.deleted()) {
             replicaService.applyChildDeleted(data.childId(), event.occurredAt());
-        } else {
-            warnSkipped(event, missingBody);
+            return;
+        }
+        if (EventGuard.accept("자녀", event, "childId", childId, missingBody)) {
+            replicaService.applyChildChanged(toCommand(event));
         }
     }
 
@@ -73,11 +70,6 @@ public class ChildProfileEventListener {
             return "missing-birth-date";
         }
         return null;
-    }
-
-    private static void warnSkipped(ChildChangedEvent event, String reason) {
-        Long childId = event.data() == null ? null : event.data().childId();
-        log.warn("자녀 이벤트 무시: event=child.changed childId={} reason={}", childId, reason);
     }
 
     /**

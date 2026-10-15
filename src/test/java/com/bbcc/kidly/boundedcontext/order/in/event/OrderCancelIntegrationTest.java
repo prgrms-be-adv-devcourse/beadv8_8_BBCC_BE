@@ -105,6 +105,21 @@ class OrderCancelIntegrationTest {
     }
 
     @Test
+    @DisplayName("결제 실패 한 건의 로그는 서비스 결과 한 줄(주문 취소 · reason=PAYMENT_FAILED)뿐이고 리스너 수신 로그는 없다")
+    void paymentFailureLogsOneResultLine(CapturedOutput output) {
+        OrderDetail order = place();
+
+        publish(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentFailedEvent.Data(
+            500L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
+            LocalDateTime.now())));
+
+        assertThat(output).containsPattern("INFO.*주문 취소: orderId=" + order.orderId() + " reason=PAYMENT_FAILED");
+        assertThat(output.getAll().lines()
+            .filter(line -> line.contains("주문 취소: orderId=" + order.orderId() + " ")).count()).isEqualTo(1);
+        assertThat(output).doesNotContain("결제 실패 수신");
+    }
+
+    @Test
     @DisplayName("결제 마감이 지난 결제대기 주문은 스케줄러가 PAYMENT_EXPIRED로 취소하고 order.cancelled를 발행한다")
     void expiresOverdueOrder() {
         OrderDetail order = place();

@@ -32,12 +32,9 @@ public class ProductEventListener {
      */
     @DomainEventListener
     public void onProductChanged(ProductChangedEvent event) {
-        String missing = missingRequiredValue(event);
-        if (missing != null) {
-            log.warn("상품 이벤트 무시: event=product.changed productId={} reason={}", productIdOf(event), missing);
-            return;
+        if (EventGuard.accept("상품", event, "productId", productIdOf(event), missingRequiredValue(event))) {
+            replicaService.applyProductChanged(toCommand(event));
         }
-        replicaService.applyProductChanged(toCommand(event));
     }
 
     private static String missingRequiredValue(ProductChangedEvent event) {
@@ -76,7 +73,7 @@ public class ProductEventListener {
             data.name(),
             data.categoryId(),
             data.status() == null ? UNKNOWN_STATUS : data.status().name(),
-            toOptions(data),
+            toOptions(event.eventType(), data),
             event.occurredAt());
     }
 
@@ -84,19 +81,19 @@ public class ProductEventListener {
      * 옵션 목록이 비면(null) 빈 목록, 옵션 ID가 없는 옵션은 건너뛰고, 같은 옵션 ID는 마지막 값 하나를 처음 자리에 둔다.
      * 건너뜀 · 중복은 상품 쪽 계약 위반이라 운영에서 보이게 WARN으로 남긴다.
      */
-    private static List<ProductChangedCommand.Option> toOptions(ProductChangedEvent.Data data) {
+    private static List<ProductChangedCommand.Option> toOptions(String eventType, ProductChangedEvent.Data data) {
         if (data.options() == null) {
             return List.of();
         }
         Map<Long, ProductChangedCommand.Option> byOptionId = new LinkedHashMap<>();
         for (ProductChangedEvent.Option option : data.options()) {
             if (option == null || option.optionId() == null) {
-                log.warn("상품 옵션 무시: event=product.changed productId={} reason=missing-option-id", data.productId());
+                log.warn("상품 옵션 무시: event={} productId={} reason=missing-option-id", eventType, data.productId());
                 continue;
             }
             if (byOptionId.put(option.optionId(), toOption(option)) != null) {
-                log.warn("상품 옵션 중복: event=product.changed productId={} optionId={} reason=duplicate-option-id",
-                    data.productId(), option.optionId());
+                log.warn("상품 옵션 중복: event={} productId={} optionId={} reason=duplicate-option-id",
+                    eventType, data.productId(), option.optionId());
             }
         }
         return List.copyOf(byOptionId.values());

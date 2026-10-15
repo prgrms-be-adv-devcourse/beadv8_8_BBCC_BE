@@ -21,6 +21,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class StockEventListener {
 
+    private static final String MISSING_ORDER_ID = "missing-order-id";
+
     private final OrderService orderService;
 
     /**
@@ -29,31 +31,28 @@ public class StockEventListener {
     @DomainEventListener
     public void onStockDeducted(StockDeductedEvent event) {
         Long orderId = toOrderId(event);
-        if (orderId == null) {
-            log.warn("재고 이벤트 무시: event=stock.deducted reason=missing-order-id");
-            return;
+        if (EventGuard.accept("재고", event, orderId == null ? MISSING_ORDER_ID : null)) {
+            orderService.requestPayment(orderId);
         }
-        orderService.requestPayment(orderId);
     }
 
     /**
-     * 재고 차감 실패를 받아 재고 부족 취소를 맡긴다. 대표 사유(data.reason)는 쓰지 않고 INFO 로그에만 남긴다.
-     * 주문 ID가 없으면 무시(WARN). 주문상품 목록이 없으면 빈 목록, 빈 줄 · 주문상품 ID 없는 줄 · 사유 없는 줄은
-     * 그 줄만 건너뛴다(WARN). 같은 주문상품 ID가 두 번 오면 마지막 사유를 쓴다(WARN).
+     * 재고 차감 실패를 받아 재고 부족 취소를 맡긴다. 대표 사유(data.reason)는 쓰지 않는다(주문상품별 사유가 저장되고,
+     * 결과는 서비스가 "주문 취소" 한 줄로 남긴다). 주문 ID가 없으면 무시(WARN). 주문상품 목록이 없으면 빈 목록,
+     * 빈 줄 · 주문상품 ID 없는 줄 · 사유 없는 줄은 그 줄만 건너뛴다(WARN). 같은 주문상품 ID가 두 번 오면 마지막 사유를 쓴다(WARN).
      */
     @DomainEventListener
     public void onStockDeductionFailed(StockDeductionFailedEvent event) {
         StockDeductionFailedEvent.Data data = event.data();
-        if (data == null || data.orderId() == null) {
-            log.warn("재고 이벤트 무시: event=stock.deduction-failed reason=missing-order-id");
+        boolean missingOrderId = data == null || data.orderId() == null;
+        if (!EventGuard.accept("재고", event, missingOrderId ? MISSING_ORDER_ID : null)) {
             return;
         }
-        log.info("재고 차감 실패 수신: event=stock.deduction-failed orderId={} reason={}", data.orderId(), data.reason());
-        orderService.cancelForStockDeductionFailure(
-            new StockDeductionFailedCommand(data.orderId(), toItems(data.orderId(), data.failures())));
+        orderService.cancelForStockDeductionFailure(new StockDeductionFailedCommand(
+            data.orderId(), toItems(event.eventType(), data.orderId(), data.failures())));
     }
 
-    private static List<StockDeductionFailedCommand.Item> toItems(Long orderId,
+    private static List<StockDeductionFailedCommand.Item> toItems(String eventType, Long orderId,
         List<StockDeductionFailedEvent.Failure> failures) {
         if (failures == null) {
             return List.of();
@@ -61,18 +60,17 @@ public class StockEventListener {
         Map<Long, String> reasons = new LinkedHashMap<>();
         for (StockDeductionFailedEvent.Failure failure : failures) {
             if (failure == null || failure.orderItemId() == null) {
-                log.warn("재고 차감 실패 줄 무시: event=stock.deduction-failed reason=missing-order-item-id orderId={}",
-                    orderId);
+                log.warn("재고 차감 실패 줄 무시: event={} reason=missing-order-item-id orderId={}", eventType, orderId);
                 continue;
             }
             if (failure.reason() == null) {
-                log.warn("재고 차감 실패 줄 무시: event=stock.deduction-failed reason=missing-failure-reason orderId={} "
-                    + "orderItemId={}", orderId, failure.orderItemId());
+                log.warn("재고 차감 실패 줄 무시: event={} reason=missing-failure-reason orderId={} orderItemId={}",
+                    eventType, orderId, failure.orderItemId());
                 continue;
             }
             if (reasons.containsKey(failure.orderItemId())) {
-                log.warn("재고 차감 실패 줄 중복: event=stock.deduction-failed reason=duplicate-order-item-id orderId={} "
-                    + "orderItemId={}", orderId, failure.orderItemId());
+                log.warn("재고 차감 실패 줄 중복: event={} reason=duplicate-order-item-id orderId={} orderItemId={}",
+                    eventType, orderId, failure.orderItemId());
             }
             reasons.put(failure.orderItemId(), failure.reason().name());
         }

@@ -28,6 +28,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class PaymentEventListener {
 
     private static final String DELIVERY_UNIQUE = "uk_delivery_order_seller";
+    private static final String MISSING_ORDER_ID = "missing-order-id";
 
     private final OrderService orderService;
     private final DeliveryService deliveryService;
@@ -42,21 +43,22 @@ public class PaymentEventListener {
      */
     @DomainEventListener
     public void onPaymentCompleted(PaymentCompletedEvent event) {
-        if (event.data() == null || event.data().orderId() == null) {
-            log.warn("결제 이벤트 무시: event=payment.completed reason=missing-order-id");
+        boolean missingOrderId = event.data() == null || event.data().orderId() == null;
+        if (!EventGuard.accept("결제", event, missingOrderId ? MISSING_ORDER_ID : null)) {
             return;
         }
+        String eventType = event.eventType();
         MarkPaidCommand paid = toCommand(event);
         if (paid.paymentId() == null) {
             // 돈은 이미 빠졌으므로 막지 않고 결제완료로 바꾼다(막으면 결제 마감 만료로 취소됨). 결제 쪽 계약 위반이라 ERROR
-            log.error("결제 완료 결제 ID 없음: event=payment.completed reason=missing-payment-id orderId={}", paid.orderId());
+            log.error("결제 완료 결제 ID 없음: event={} reason=missing-payment-id orderId={}", eventType, paid.orderId());
         }
         if (event.data().paidAt() == null) {
             // 결제 시각은 이벤트 값이 아니라 처리 시각(now)을 쓰므로 막지 않는다. 결제 쪽 계약 위반이라 ERROR(사유별 한 줄)
-            log.error("결제 완료 결제 시각 없음: event=payment.completed reason=missing-paid-at orderId={}", paid.orderId());
+            log.error("결제 완료 결제 시각 없음: event={} reason=missing-paid-at orderId={}", eventType, paid.orderId());
         }
         AtomicBoolean logged = new AtomicBoolean(false);
-        warnIfRolledBackAtCommit(paid, logged);
+        warnIfRolledBackAtCommit(eventType, paid, logged);
         try {
             if (!orderService.markPaid(paid)) {
                 return;
@@ -66,17 +68,18 @@ public class PaymentEventListener {
         } catch (RuntimeException e) {
             logged.set(true);
             if (isLostConcurrentDuplicate(e)) {
-                log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event=payment.completed "
-                    + "reason=lost-concurrent-duplicate orderId={} paymentId={}", paid.orderId(), paid.paymentId(), e);
+                log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event={} "
+                    + "reason=lost-concurrent-duplicate orderId={} paymentId={}",
+                    eventType, paid.orderId(), paid.paymentId(), e);
             } else {
-                log.error("결제 완료 처리 실패: event=payment.completed reason=processing-failed orderId={} paymentId={}",
-                    paid.orderId(), paid.paymentId(), e);
+                log.error("결제 완료 처리 실패: event={} reason=processing-failed orderId={} paymentId={}",
+                    eventType, paid.orderId(), paid.paymentId(), e);
             }
             throw e;
         }
     }
 
-    private static void warnIfRolledBackAtCommit(MarkPaidCommand paid, AtomicBoolean logged) {
+    private static void warnIfRolledBackAtCommit(String eventType, MarkPaidCommand paid, AtomicBoolean logged) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
         }
@@ -84,8 +87,9 @@ public class PaymentEventListener {
             @Override
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK && !logged.get()) {
-                    log.warn("커밋 단계에서 되돌려짐 — 동시 처리에서 진 쪽일 가능성: event=payment.completed "
-                        + "reason=rolled-back-at-commit orderId={} paymentId={}", paid.orderId(), paid.paymentId());
+                    log.warn("커밋 단계에서 되돌려짐 — 동시 처리에서 진 쪽일 가능성: event={} "
+                        + "reason=rolled-back-at-commit orderId={} paymentId={}",
+                        eventType, paid.orderId(), paid.paymentId());
                 }
             }
         });
@@ -119,16 +123,15 @@ public class PaymentEventListener {
     }
 
     /**
-     * 실패 사유(reasonCode)는 업무 정보라 여기서 INFO로 남기고 주문에는 넘기지 않는다. 취소 결과는 서비스가 남긴다.
+     * 실패 사유(reasonCode)는 주문에 넘기지 않고 로그에도 남기지 않는다(결제 기록 · 관리자 결제 조회에서 확인).
+     * 취소 결과는 서비스가 "주문 취소" 한 줄로 남긴다.
      */
     @DomainEventListener
     public void onPaymentFailed(PaymentFailedEvent event) {
         Long orderId = toOrderId(event);
-        if (orderId == null) {
-            log.warn("결제 이벤트 무시: event=payment.failed reason=missing-order-id");
+        if (!EventGuard.accept("결제", event, orderId == null ? MISSING_ORDER_ID : null)) {
             return;
         }
-        log.info("결제 실패 수신: event=payment.failed orderId={} reason={}", orderId, event.data().reasonCode());
         orderService.cancelForPaymentFailure(orderId);
     }
 
