@@ -20,8 +20,9 @@ public class ChildProfileEventListener {
     private final ReplicaService replicaService;
 
     /**
-     * 자녀 ID · 회원 ID · 발생 시각이 없으면 무시한다. 키 · 몸무게가 없으면 복사본 행을 만들 수 없어 무시하되,
-     * 삭제 이벤트는 삭제가 빠지면 지워진 자녀로 계속 주문할 수 있으므로 기존 복사본에 삭제 표시만 맡긴다.
+     * 자녀 ID · 회원 ID · 발생 시각이 없으면 무시한다. 키 · 몸무게 · 성별 · 생년월일이 없으면 무시하되(#251 확정 기준,
+     * 기존 복사본을 지우거나 덮지 않음), 삭제 이벤트는 삭제가 빠지면 지워진 자녀로 계속 주문할 수 있으므로
+     * 기존 복사본에 삭제 표시만 맡긴다. 체형 · 선호 핏은 계약상 비어도 되므로 그대로 반영한다.
      */
     @DomainEventListener
     public void onChildChanged(ChildChangedEvent event) {
@@ -31,8 +32,7 @@ public class ChildProfileEventListener {
             return;
         }
         ChildChangedEvent.Data data = event.data();
-        String missingBody = data.heightCm() == null ? "missing-height"
-            : data.weightKg() == null ? "missing-weight" : null;
+        String missingBody = missingProfile(data);
         if (missingBody == null) {
             replicaService.applyChildChanged(toCommand(event));
         } else if (data.deleted()) {
@@ -55,6 +55,22 @@ public class ChildProfileEventListener {
         }
         if (event.occurredAt() == null) {
             return "missing-occurred-at";
+        }
+        return null;
+    }
+
+    private static String missingProfile(ChildChangedEvent.Data data) {
+        if (data.heightCm() == null) {
+            return "missing-height";
+        }
+        if (data.weightKg() == null) {
+            return "missing-weight";
+        }
+        if (data.gender() == null) {
+            return "missing-gender";
+        }
+        if (data.birthDate() == null) {
+            return "missing-birth-date";
         }
         return null;
     }

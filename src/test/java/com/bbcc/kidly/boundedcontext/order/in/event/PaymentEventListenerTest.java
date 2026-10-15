@@ -103,11 +103,48 @@ class PaymentEventListenerTest {
         }
 
         @Test
-        @DisplayName("결제 ID가 있으면 missing-payment-id ERROR를 남기지 않는다")
+        @DisplayName("결제 ID · 결제 시각이 있으면 missing-payment-id · missing-paid-at ERROR를 남기지 않는다")
         void noErrorWhenPaymentIdPresent(CapturedOutput output) {
             listener.onPaymentCompleted(event());
 
+            assertThat(output).doesNotContain("missing-payment-id").doesNotContain("missing-paid-at");
+        }
+
+        @Test
+        @DisplayName("결제 시각이 없으면 결제완료는 그대로 맡기고(결제 시각은 처리 시각을 씀) ERROR 한 줄을 남긴다")
+        void missingPaidAtStillMarksPaidWithError(CapturedOutput output) {
+            LocalDateTime at = LocalDateTime.of(2026, 10, 14, 9, 0);
+            when(orderService.markPaid(COMMAND)).thenReturn(true);
+
+            listener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(), at,
+                new PaymentCompletedEvent.Data(PAYMENT_ID, ORDER_ID, 1L, 1L,
+                    List.of(new PaymentCompletedEvent.Item(70L, 1L)), null)));
+
+            verify(orderService).markPaid(COMMAND);
+            verify(deliveryService).createFor(ORDER_ID);
+            assertThat(errorLines(output, "reason=missing-paid-at orderId=" + ORDER_ID)).isEqualTo(1);
             assertThat(output).doesNotContain("missing-payment-id");
+        }
+
+        @Test
+        @DisplayName("결제 ID · 결제 시각이 둘 다 없으면 결제완료는 그대로 맡기고 사유별로 ERROR 한 줄씩(두 줄)")
+        void missingPaymentIdAndPaidAtLogsEach(CapturedOutput output) {
+            LocalDateTime at = LocalDateTime.of(2026, 10, 14, 9, 0);
+
+            listener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(), at,
+                new PaymentCompletedEvent.Data(null, ORDER_ID, 1L, 1L,
+                    List.of(new PaymentCompletedEvent.Item(70L, 1L)), null)));
+
+            verify(orderService).markPaid(new MarkPaidCommand(ORDER_ID, null, 1L, 1L,
+                List.of(new MarkPaidCommand.Item(70L, 1L))));
+            assertThat(errorLines(output, "reason=missing-payment-id orderId=" + ORDER_ID)).isEqualTo(1);
+            assertThat(errorLines(output, "reason=missing-paid-at orderId=" + ORDER_ID)).isEqualTo(1);
+        }
+
+        private long errorLines(CapturedOutput output, String text) {
+            return output.getAll().lines()
+                .filter(line -> line.contains("ERROR") && line.contains("event=payment.completed " + text))
+                .count();
         }
     }
 
