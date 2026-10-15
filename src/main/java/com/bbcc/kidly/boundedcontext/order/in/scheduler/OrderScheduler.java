@@ -1,8 +1,10 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.BiFunction;
@@ -26,6 +28,8 @@ public class OrderScheduler {
 
     private final OrderService orderService;
     private final OrderSchedulerProperties properties;
+    // 주기 값의 바인딩 검증(1초 이상)이 @Scheduled 등록보다 먼저 돌아 키 이름이 나오는 오류로 실패하게 하려고 주입한다
+    private final OrderScheduleIntervals intervals;
 
     /**
      * 배송 완료 후 기간이 지난 주문상품을 자동 구매확정한다. 커서는 주문상품 ID. 한 건 = 트랜잭션 하나,
@@ -47,7 +51,7 @@ public class OrderScheduler {
                     return false;
                 }
             });
-        logRun("auto-confirm", run);
+        logRun("auto-confirm", run, intervals.autoConfirm().interval());
     }
 
     /**
@@ -68,7 +72,7 @@ public class OrderScheduler {
                     return false;
                 }
             });
-        logRun("payment-expiry", run);
+        logRun("payment-expiry", run, intervals.paymentExpiryInterval());
     }
 
     /**
@@ -105,12 +109,12 @@ public class OrderScheduler {
     /**
      * 대상이 있으면 INFO, 없으면 DEBUG. 처리 = 예외 없이 끝난 건(적용 안 함 포함).
      */
-    private void logRun(String job, Run run) {
+    private void logRun(String job, Run run, Duration interval) {
         if (run.targets() == 0) {
-            log.debug("스케줄러 실행: job={} targets=0", job);
+            log.debug("스케줄러 실행: job={} targets=0 interval={}", job, interval);
             return;
         }
-        log.info("스케줄러 실행: job={} targets={} processed={} failed={} batches={}", job, run.targets(),
-            run.targets() - run.failed(), run.failed(), run.batches());
+        log.info("스케줄러 실행: job={} targets={} processed={} failed={} batches={} interval={}", job, run.targets(),
+            run.targets() - run.failed(), run.failed(), run.batches(), interval);
     }
 }
