@@ -27,6 +27,8 @@ class ProductRegistrationSkuCodeApiTest {
 
     private static final long SELLER_ID = 7L;
 
+    private static final long OTHER_SELLER_ID = 8L;
+
     @Autowired
     private RestTestClient client;
 
@@ -67,6 +69,17 @@ class ProductRegistrationSkuCodeApiTest {
         assertThat(count("Product")).isEqualTo(1);
         assertThat(count("ProductOption")).isEqualTo(2);
         assertThat(count("Inventory")).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("OPT-07 다른 판매자가 쓰는 SKU 코드는 겹치는 것으로 보지 않고 등록한다")
+    void acceptSkuCodeOfOtherSeller() {
+        register(OTHER_SELLER_ID, productA(saved)).expectStatus().isCreated();
+
+        register(SELLER_ID, productA(saved))
+            .expectStatus().isCreated()
+            .expectBody()
+            .jsonPath("$.options[0].skuCode").isEqualTo("A-NV-110");
     }
 
     private RestTestClient.ResponseSpec register(long sellerId, Map<String, Object> body) {
