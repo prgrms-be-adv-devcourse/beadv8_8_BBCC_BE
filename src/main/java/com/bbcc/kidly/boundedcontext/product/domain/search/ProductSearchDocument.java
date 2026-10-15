@@ -30,9 +30,13 @@ public class ProductSearchDocument extends BaseTimeEntity {
     @Column(name = "product_id")
     private Long productId;
 
-    // 판매할 수 있는 옵션이 하나도 없으면 null이다
-    @Column(name = "min_price")
+    // 판매할 수 있는 옵션 중 최저가다. 판매할 수 있는 옵션이 하나도 없으면 전체 옵션 중 최저가다
+    @Column(name = "min_price", nullable = false)
     private Long minPrice;
+
+    // 모든 옵션이 품절일 때만 true다. 판매중지 옵션만 재고가 남은 상품은 품절로 표시하지 않는다
+    @Column(name = "is_sold_out", nullable = false)
+    private boolean soldOut;
 
     public record ChangeInfo(Long productId, Long sellerId, String name, Long categoryId, ProductStatus status,
         String thumbnailUrl, LocalDateTime productCreatedAt, boolean sizeFree, List<OptionInfo> options,
@@ -52,21 +56,38 @@ public class ProductSearchDocument extends BaseTimeEntity {
         requireNonNull(info, "info는 필수입니다");
         ProductSearchDocument document = new ProductSearchDocument();
         document.productId = requireNonNull(info.productId(), "productId는 필수입니다");
-        document.minPrice = lowestPurchasablePrice(info.options());
+        document.minPrice = lowestPrice(info.options());
+        document.soldOut = allSoldOut(info.options());
         return document;
     }
 
-    // 판매할 수 있는 옵션은 옵션 판매 상태가 ON_SALE이고 품절이 아닌 옵션이다
-    private static Long lowestPurchasablePrice(List<OptionInfo> options) {
-        Long lowest = null;
+    // 판매할 수 있는 옵션은 옵션 판매 상태가 ON_SALE이고 품절이 아닌 옵션이다. 하나도 없으면 전체 옵션에서 고른다
+    private static Long lowestPrice(List<OptionInfo> options) {
+        Long lowestPurchasable = null;
+        Long lowestAll = null;
         for (OptionInfo option : options) {
+            if (lowestAll == null || option.price() < lowestAll) {
+                lowestAll = option.price();
+            }
             if (option.saleStatus() != OptionSaleStatus.ON_SALE || option.soldOut()) {
                 continue;
             }
-            if (lowest == null || option.price() < lowest) {
-                lowest = option.price();
+            if (lowestPurchasable == null || option.price() < lowestPurchasable) {
+                lowestPurchasable = option.price();
             }
         }
-        return lowest;
+        if (lowestPurchasable != null) {
+            return lowestPurchasable;
+        }
+        return lowestAll;
+    }
+
+    private static boolean allSoldOut(List<OptionInfo> options) {
+        for (OptionInfo option : options) {
+            if (!option.soldOut()) {
+                return false;
+            }
+        }
+        return true;
     }
 }
