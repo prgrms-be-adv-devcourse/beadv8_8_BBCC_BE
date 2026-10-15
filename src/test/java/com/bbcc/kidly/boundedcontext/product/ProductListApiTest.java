@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.product;
 
-import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.CREATED_AT;
-import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.document;
-import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.value;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchFixture.CREATED_AT;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchFixture.document;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchFixture.value;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument;
