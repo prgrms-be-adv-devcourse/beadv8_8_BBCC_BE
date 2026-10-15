@@ -2,11 +2,13 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.changeInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.option;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.value;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -47,5 +49,22 @@ class ProductSearchDocumentTest {
 
         assertThat(document.isSoldOut()).isFalse();
         assertThat(document.getMinPrice()).isEqualTo(22_000L);
+    }
+
+    @Test
+    @DisplayName("attributes는 옵션 값과 상품 정보 값의 값 ID를 항목 코드별로 모은다. 같은 값은 한 번만 ID 오름차순으로 담고, 판매중지 · 품절 옵션의 값도 담는다")
+    void attributesCollectValueIdsByCode() {
+        ProductSearchDocument document = ProductSearchDocument.create(changeInfo(
+            List.of(
+                option(25_000L, false, OptionSaleStatus.ON_SALE, value("COLOR", 5L), value("SIZE", 13L)),
+                option(25_000L, true, OptionSaleStatus.ON_SALE, value("COLOR", 5L), value("SIZE", 12L)),
+                option(25_000L, false, OptionSaleStatus.STOPPED, value("COLOR", 3L), value("SIZE", 12L))),
+            List.of(value("MAIN_MATERIAL", 20L), value("FEATURE", 33L), value("FEATURE", 32L))));
+
+        assertThat(document.getAttributes()).isEqualTo(Map.of(
+            "COLOR", List.of(3L, 5L),
+            "SIZE", List.of(12L, 13L),
+            "MAIN_MATERIAL", List.of(20L),
+            "FEATURE", List.of(32L, 33L)));
     }
 }

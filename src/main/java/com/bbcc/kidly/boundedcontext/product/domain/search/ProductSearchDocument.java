@@ -10,10 +10,17 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 상품 정보 변경됨 이벤트에서 만드는 검색용 표의 한 행이다.
@@ -38,6 +45,11 @@ public class ProductSearchDocument extends BaseTimeEntity {
     @Column(name = "is_sold_out", nullable = false)
     private boolean soldOut;
 
+    // 키는 항목 code이고 값은 그 항목에서 고른 값 ID 목록(오름차순, 중복 없음)이다
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false)
+    private Map<String, List<Long>> attributes;
+
     public record ChangeInfo(Long productId, Long sellerId, String name, Long categoryId, ProductStatus status,
         String thumbnailUrl, LocalDateTime productCreatedAt, boolean sizeFree, List<OptionInfo> options,
         List<ValueInfo> infoValues, LocalDateTime occurredAt) {
@@ -58,6 +70,7 @@ public class ProductSearchDocument extends BaseTimeEntity {
         document.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         document.minPrice = lowestPrice(info.options());
         document.soldOut = allSoldOut(info.options());
+        document.attributes = collectAttributes(info);
         return document;
     }
 
@@ -89,5 +102,25 @@ public class ProductSearchDocument extends BaseTimeEntity {
             }
         }
         return true;
+    }
+
+    // 판매중지 · 품절 옵션의 값도 검색 조건으로 쓸 수 있도록 옵션 상태로 거르지 않는다
+    private static Map<String, List<Long>> collectAttributes(ChangeInfo info) {
+        Map<String, Set<Long>> valueIdsByCode = new HashMap<>();
+        for (OptionInfo option : info.options()) {
+            addValues(valueIdsByCode, option.values());
+        }
+        addValues(valueIdsByCode, info.infoValues());
+        Map<String, List<Long>> attributes = new HashMap<>();
+        for (Map.Entry<String, Set<Long>> entry : valueIdsByCode.entrySet()) {
+            attributes.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+        }
+        return attributes;
+    }
+
+    private static void addValues(Map<String, Set<Long>> valueIdsByCode, List<ValueInfo> values) {
+        for (ValueInfo value : values) {
+            valueIdsByCode.computeIfAbsent(value.code(), code -> new TreeSet<>()).add(value.valueId());
+        }
     }
 }
