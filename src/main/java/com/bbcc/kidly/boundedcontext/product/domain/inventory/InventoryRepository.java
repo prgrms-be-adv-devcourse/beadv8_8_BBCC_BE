@@ -23,6 +23,9 @@ public interface InventoryRepository {
     // 바꾼 뒤에는 영속성 컨텍스트를 비우므로, 그 전에 읽은 엔티티는 다시 읽어야 한다
     boolean adjustIfAvailable(long optionId, int deltaQty, LocalDateTime now);
 
+    // 판매자가 조정한 재고 조정 기록을 저장한다. 수량을 바꾼 같은 트랜잭션에서 불러야 한다
+    void saveAdjustmentRecord(InventoryAdjustmentRecord record);
+
     // 옵션 ID별 판매 가능 수량을 한 번에 읽는다. 재고 행이 없는 옵션은 결과에 없다
     Map<Long, Integer> findAvailableQtyByOptionId(Collection<Long> optionIds);
 }

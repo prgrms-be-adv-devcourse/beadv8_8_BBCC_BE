@@ -17,4 +17,9 @@ class JpaInventoryRepositoryImpl {
             entityManager.persist(record);
         }
     }
+
+    // 판매자가 조정한 재고 조정 기록을 호출한 쪽의 트랜잭션 안에서 저장한다
+    public void saveAdjustmentRecord(InventoryAdjustmentRecord record) {
+        entityManager.persist(record);
+    }
 }
