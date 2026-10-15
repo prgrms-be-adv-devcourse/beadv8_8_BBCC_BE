@@ -91,12 +91,14 @@ class ProductSaleStartApiTest {
         assertThat(events).singleElement().satisfies(event -> {
             assertThat(event.data().productId()).isEqualTo(Long.valueOf(productId));
             assertThat(event.data().status()).isEqualTo(ProductStatus.ON_SALE);
-            // 등록 요청의 초기 재고가 110은 10개, 120은 0개라 120만 품절이다
+            // 등록 요청의 초기 재고가 110은 10개, 120은 0개라 120만 품절이다.
+            // 권장 키는 DB에서 읽은 옵션과 실측의 사이즈 값이 같은 객체여야 채워지므로, 저장한 상품으로 다시 확인한다
             assertThat(event.data().options())
-                .extracting(ProductChangedEvent.Option::size, ProductChangedEvent.Option::soldOut,
+                .extracting(ProductChangedEvent.Option::size, ProductChangedEvent.Option::minHeightCm,
+                    ProductChangedEvent.Option::maxHeightCm, ProductChangedEvent.Option::soldOut,
                     ProductChangedEvent.Option::saleStatus)
-                .containsExactly(tuple("110", false, OptionSaleStatus.ON_SALE),
-                    tuple("120", true, OptionSaleStatus.ON_SALE));
+                .containsExactly(tuple("110", 105, 115, false, OptionSaleStatus.ON_SALE),
+                    tuple("120", 115, 125, true, OptionSaleStatus.ON_SALE));
         });
     }
 
@@ -202,6 +204,14 @@ class ProductSaleStartApiTest {
         assertThat(statuses).allMatch(status -> status == 200 || status == 409).contains(200);
         assertThat(storedStatus()).isEqualTo("ON_SALE");
         assertThat(eventRecorder.events(ProductChangedEvent.class)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("판매 상태를 보내지 않으면 400이다")
+    void rejectMissingStatus() {
+        expectProblem(startSale(tokens.seller(SELLER_ID), Map.of()), HttpStatus.BAD_REQUEST,
+            "잘못된 요청입니다", "status: 판매 시작(ON_SALE)만 요청할 수 있습니다.");
+        assertThat(storedStatus()).isEqualTo("SALE_PENDING");
     }
 
     // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
