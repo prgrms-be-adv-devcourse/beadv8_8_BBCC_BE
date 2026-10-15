@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product.out.search;
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearch;
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchCondition;
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchItem;
+import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchSort;
 import java.util.List;
 import java.util.Map;
 import org.springframework.data.domain.Page;
@@ -27,8 +28,7 @@ public class PostgresProductSearch implements ProductSearch {
         SELECT d.product_id, d.name, d.thumbnail_url, d.min_price, d.is_sold_out, d.is_size_free
         """;
 
-    private static final String ORDER_AND_PAGE = """
-        ORDER BY d.product_created_at DESC, d.product_id DESC
+    private static final String PAGE = """
         LIMIT :limit OFFSET :offset
         """;
 
@@ -46,7 +46,7 @@ public class PostgresProductSearch implements ProductSearch {
         String fromWhere = fromWhere(condition, params);
 
         List<ProductSearchItem> content = jdbcTemplate.query(
-            SELECT_ITEMS + fromWhere + ORDER_AND_PAGE, params,
+            SELECT_ITEMS + fromWhere + orderBy(condition.sort()) + PAGE, params,
             (rs, rowNum) -> new ProductSearchItem(
                 rs.getLong("product_id"),
                 rs.getString("name"),
@@ -58,6 +58,16 @@ public class PostgresProductSearch implements ProductSearch {
 
         Long total = jdbcTemplate.queryForObject("SELECT count(*) " + fromWhere, params, Long.class);
         return new PageImpl<>(content, pageable, total == null ? 0 : total);
+    }
+
+    // 정렬은 enum으로만 고르므로 사용자가 보낸 글자가 SQL에 들어가지 않는다. 정렬 값이 같으면 상품 ID가 큰 상품이 먼저 온다
+    private String orderBy(ProductSearchSort sort) {
+        String column = switch (sort) {
+            case NEWEST -> "d.product_created_at DESC";
+            case PRICE_ASC -> "d.min_price ASC";
+            case PRICE_DESC -> "d.min_price DESC";
+        };
+        return "ORDER BY " + column + ", d.product_id DESC\n";
     }
 
     // 조건이 있는 것만 WHERE에 더하고, 값은 모두 바인드 파라미터로 넘긴다

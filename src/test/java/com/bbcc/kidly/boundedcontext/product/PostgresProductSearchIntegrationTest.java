@@ -148,6 +148,25 @@ class PostgresProductSearchIntegrationTest {
         assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
     }
 
+    @ParameterizedTest(name = "{0} → 상품 {1}")
+    @CsvSource({
+        "NEWEST, '4,3,2,1'",
+        "PRICE_ASC, '4,2,3,1'",
+        "PRICE_DESC, '3,1,2,4'"})
+    @DisplayName("등록 최신순 · 가격 낮은순 · 가격 높은순으로 정렬하고, 정렬 값이 같으면 상품 ID가 큰 상품이 먼저 온다")
+    void sortProducts(ProductSearchSort sort, String expectedIds) {
+        persist(
+            document(1L).price(30_000L).build(),
+            document(2L).price(20_000L).createdAt(CREATED_AT.plusDays(1)).build(),
+            document(3L).price(30_000L).createdAt(CREATED_AT.plusDays(2)).build(),
+            document(4L).price(10_000L).createdAt(CREATED_AT.plusDays(2)).build());
+
+        Page<ProductSearchItem> result = productSearch.search(
+            new ProductSearchCondition(null, null, Map.of(), sort), PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
+    }
+
     // CSV의 "COLOR:3,SIZE:15"를 항목 code별 값 ID 목록으로 묶는다
     private static Map<String, List<Long>> attributes(String spec) {
         Map<String, List<Long>> valueIdsByCode = new LinkedHashMap<>();
