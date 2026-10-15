@@ -338,6 +338,14 @@ public class Product extends BaseTimeEntity {
         return true;
     }
 
+    /** 상품을 바꾸려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 바꿀 수 없다. */
+    public void validateOwner(Long sellerId) {
+        requireNonNull(sellerId, "sellerId는 필수입니다");
+        if (!this.sellerId.equals(sellerId)) {
+            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
+        }
+    }
+
     /** 내 상품 상세를 보려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 볼 수 없다. */
     public void validateViewer(Long sellerId) {
         requireNonNull(sellerId, "sellerId는 필수입니다");

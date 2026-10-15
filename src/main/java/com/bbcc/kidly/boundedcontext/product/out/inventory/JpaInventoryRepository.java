@@ -48,6 +48,23 @@ public interface JpaInventoryRepository extends JpaRepository<Inventory, Long>, 
         """)
     int deduct(@Param("optionId") long optionId, @Param("qty") int qty, @Param("now") LocalDateTime now);
 
+    @Override
+    default boolean adjustIfAvailable(long optionId, int deltaQty, LocalDateTime now) {
+        return adjust(optionId, deltaQty, now) == 1;
+    }
+
+    // 판단과 변경을 UPDATE 한 문장에서 함께 해서, 동시에 줄여도 판매 가능 수량이 0 아래로 내려가지 않는다 (INV-03)
+    // JPA Auditing이 동작하지 않는 벌크 UPDATE라서 updatedAt을 쿼리에서 직접 넣는다
+    // 쿼리 전에 같은 트랜잭션의 변경을 DB에 먼저 쓰고, 쿼리 뒤에 영속성 컨텍스트를 비워 바뀌기 전 재고가 남지 않게 한다.
+    // 먼저 쓰지 않으면 비울 때 아직 쓰지 않은 변경이 함께 사라진다
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+        UPDATE Inventory i
+        SET i.availableQty = i.availableQty + :deltaQty, i.updatedAt = :now
+        WHERE i.productOption.id = :optionId AND i.availableQty + :deltaQty >= 0
+        """)
+    int adjust(@Param("optionId") long optionId, @Param("deltaQty") int deltaQty, @Param("now") LocalDateTime now);
+
     // 옵션 ID는 지연 로딩 연관 옵션의 id로 비교하므로 옵션을 읽지 않는다
     @Query("SELECT i FROM Inventory i WHERE i.productOption.id IN :optionIds")
     List<Inventory> findAllOfOptions(@Param("optionIds") Collection<Long> optionIds);
