@@ -12,6 +12,13 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        # 트랜잭션이 끝나면 DB 연결을 바로 돌려준다. 커밋 뒤 같은 스레드에서 이어지는 이벤트 리스너가
+        # 단계마다 연결을 하나씩 더 쥐지 않게 해, 동시 요청이 몇 건만 와도 연결 풀이 고갈되는 일을 막는다
+        # 이 설정에서는 Spring이 격리 수준을 직접 지정한 트랜잭션을 거부하므로 @Transactional에 isolation을 쓰지 않는다
+        connection:
+          handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
 
 springdoc:
   swagger-ui:
