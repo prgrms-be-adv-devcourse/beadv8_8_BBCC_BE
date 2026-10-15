@@ -21,9 +21,6 @@ public enum InventoryAdjustmentReason {
 
     // 증감량의 부호가 이 사유에서 허용되는지 알려 준다
     public boolean allows(int deltaQty) {
-        if (deltaQty > 0) {
-            return canIncrease;
-        }
-        return canDecrease;
+        return deltaQty > 0 ? canIncrease : canDecrease;
     }
 }

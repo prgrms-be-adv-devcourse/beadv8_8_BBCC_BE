@@ -71,8 +71,7 @@ public class InventoryAdjustmentRecord extends BaseTimeEntity {
         }
         // 사유마다 증감량 부호가 정해져 있다. 입고는 늘리고 불량 · 분실은 줄인다 (INV-18)
         if (!reason.allows(deltaQty)) {
-            String required = deltaQty > 0 ? "작아야" : "커야";
-            throw new IllegalArgumentException(reason + "는 증감량이 0보다 " + required + " 합니다");
+            throw new IllegalArgumentException("사유 " + reason + "에 맞지 않는 증감량입니다: " + deltaQty);
         }
         InventoryAdjustmentRecord record = new InventoryAdjustmentRecord();
         record.productOption = requireNonNull(productOption, "productOption은 필수입니다");
