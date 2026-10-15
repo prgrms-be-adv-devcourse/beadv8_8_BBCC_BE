@@ -208,6 +208,23 @@ class ProductOrderEventListenerIntegrationTest {
             .containsExactlyInAnyOrder(products.firstId(), products.secondId());
     }
 
+    @Test
+    @DisplayName("SALE-08 한 주문으로 같은 상품의 두 옵션이 품절되면 그 상품의 상품 정보 변경됨을 한 번 보내고, 두 옵션 모두 품절이다")
+    void sendOneProductChangedWhenTwoOptionsOfSameProductSellOut() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 1);
+
+        publishInTransaction(orderCreated(ORDER_ID,
+            orderItem(11L, options.navy110(), 1),
+            orderItem(12L, options.navy120(), 1)));
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(changed -> assertThat(changed.data().options())
+                .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+                .containsExactlyInAnyOrder(
+                    tuple(options.navy110().getId(), true),
+                    tuple(options.navy120().getId(), true)));
+    }
+
     // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다
     private void publishInTransaction(OrderCreatedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
