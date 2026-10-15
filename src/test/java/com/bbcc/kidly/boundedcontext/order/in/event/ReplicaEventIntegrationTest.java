@@ -13,6 +13,7 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -59,8 +60,10 @@ class ReplicaEventIntegrationTest {
             eventPublisher.publish(new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
                 new ProductChangedEvent.Data(1L, SELLER_ID, "상품 A", 1L, ProductStatus.ON_SALE, null,
                     OCCURRED_AT.minusDays(1), false, List.of(
-                        new ProductChangedEvent.Option(1L, "110", "네이비", "면", 25_000L, null, null, false),
-                        new ProductChangedEvent.Option(2L, "120", "네이비", "면", 25_000L, null, null, true)))));
+                        new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
+                            null, null, false, OptionSaleStatus.ON_SALE),
+                        new ProductChangedEvent.Option(2L, "색상: 네이비 / 사이즈: 120", "120", 25_000L,
+                            null, null, true, OptionSaleStatus.ON_SALE)))));
             eventPublisher.publish(new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT,
                 new ChildChangedEvent.Data(1L, BUYER_ID, new BigDecimal("115.0"), new BigDecimal("20.0"),
                     Gender.MALE, LocalDate.of(2019, 1, 1), BodyType.NORMAL, PreferredFit.LOOSE, false)));

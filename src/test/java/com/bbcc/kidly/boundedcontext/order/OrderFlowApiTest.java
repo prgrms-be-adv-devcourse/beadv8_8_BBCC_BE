@@ -23,6 +23,7 @@ import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
@@ -290,10 +291,12 @@ class OrderFlowApiTest {
         LocalDateTime now = LocalDateTime.now();
         publish(new ProductChangedEvent(UUID.randomUUID(), now, new ProductChangedEvent.Data(
             1L, SELLER_A_ID, "상품 A", 1L, ProductStatus.ON_SALE, null, now.minusDays(1), false,
-            List.of(new ProductChangedEvent.Option(1L, "110", "네이비", "면", 25_000L, null, null, false)))));
+            List.of(new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
+                null, null, false, OptionSaleStatus.ON_SALE)))));
         publish(new ProductChangedEvent(UUID.randomUUID(), now, new ProductChangedEvent.Data(
             2L, SELLER_B_ID, "상품 B", 2L, ProductStatus.ON_SALE, null, now.minusDays(1), false,
-            List.of(new ProductChangedEvent.Option(2L, "120", "그레이", "면", 30_000L, null, null, false)))));
+            List.of(new ProductChangedEvent.Option(2L, "색상: 그레이 / 사이즈: 120", "120", 30_000L,
+                null, null, false, OptionSaleStatus.ON_SALE)))));
         publish(new ChildChangedEvent(UUID.randomUUID(), now, new ChildChangedEvent.Data(
             CHILD_ID, BUYER_ID, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE,
             LocalDate.now().minusYears(7), BodyType.NORMAL, PreferredFit.LOOSE, false)));
