@@ -42,7 +42,8 @@ class SettlementTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"0, 0.1, 0, 0", "10000, 0, 0, 10000", "10000, 1, 10000, 0", "9, 0.1, 0, 9"})
+    @CsvSource({
+        "0, 0.1, 0, 0", "10000, 0, 0, 10000", "10000, 1, 10000, 0", "9, 0.1, 0, 9", "10000, 0.10000, 1000, 9000"})
     @DisplayName("0원 · 수수료율 경계에서도 수수료 + 정산금액 = 판매 합계")
     void createBoundary(long total, String feeRate, long fee, long amount) {
         var settlement = Settlement.create(info(total, feeRate), NOW);
@@ -148,6 +149,24 @@ class SettlementTest {
 
         assertThatThrownBy(() -> settlement.markPaid(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> settlement.markPaymentFailed(" ")).isInstanceOf(IllegalArgumentException.class);
+        assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("수수료율을 DB 자릿수(소수점 넷째 자리)로 맞춰 저장한다")
+    void createNormalizesFeeRateScale() {
+        var settlement = Settlement.create(info(10_000L, "0.1"), NOW);
+
+        assertThat(settlement.getFeeRate()).isEqualTo(new BigDecimal("0.1000"));
+    }
+
+    @Test
+    @DisplayName("50자를 넘는 실패 사유는 반영하지 않는다")
+    void markPaymentFailedRejectsTooLongReason() {
+        var settlement = SettlementFixture.settlement(10_000L);
+
+        assertThatThrownBy(() -> settlement.markPaymentFailed("x".repeat(51)))
+            .isInstanceOf(IllegalArgumentException.class);
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.COMPLETED);
     }
 }

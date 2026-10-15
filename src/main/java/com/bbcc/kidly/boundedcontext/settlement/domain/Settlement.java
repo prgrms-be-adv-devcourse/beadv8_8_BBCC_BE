@@ -35,6 +35,7 @@ import org.springframework.util.Assert;
 public class Settlement extends BaseTimeEntity {
 
     private static final int FEE_RATE_SCALE = 4;
+    private static final int FAIL_REASON_MAX_LENGTH = 50;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -74,7 +75,7 @@ public class Settlement extends BaseTimeEntity {
     private LocalDateTime paidAt;
 
     // 지급 실패 전에는 null
-    @Column(name = "fail_reason", length = 50)
+    @Column(name = "fail_reason", length = FAIL_REASON_MAX_LENGTH)
     private String failReason;
 
     @Version
@@ -85,7 +86,7 @@ public class Settlement extends BaseTimeEntity {
         this.periodStartOn = info.periodStartOn();
         this.periodEndOn = info.periodEndOn();
         this.totalSalesAmount = info.totalSalesAmount();
-        this.feeRate = info.feeRate();
+        this.feeRate = info.feeRate().setScale(FEE_RATE_SCALE);
         this.feeAmount = feeAmount;
         this.settlementAmount = info.totalSalesAmount() - feeAmount;
         this.status = SettlementStatus.COMPLETED;
@@ -126,6 +127,7 @@ public class Settlement extends BaseTimeEntity {
     // 결제가 같은 결과를 다시 보내도 처음 반영한 사유를 유지한다
     public void markPaymentFailed(String failReason) {
         Assert.hasText(failReason, "failReason은 필수입니다");
+        Assert.isTrue(failReason.length() <= FAIL_REASON_MAX_LENGTH, "failReason은 50자 이하여야 합니다");
         if (status == SettlementStatus.FAILED) {
             return;
         }

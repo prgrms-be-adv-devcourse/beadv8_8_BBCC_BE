@@ -123,4 +123,13 @@ class SettlementItemTest {
         assertThatThrownBy(item::exclude).isInstanceOf(IllegalStateException.class);
         assertThat(item.getStatus()).isEqualTo(SettlementItemStatus.SETTLED);
     }
+
+    @Test
+    @DisplayName("0 이하의 정산서 ID로는 정산하지 않는다")
+    void settleRejectsNonPositiveSettlementId() {
+        var item = SettlementFixture.item(101L);
+
+        assertThatThrownBy(() -> item.settle(0L)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(item.getStatus()).isEqualTo(SettlementItemStatus.PENDING);
+    }
 }
