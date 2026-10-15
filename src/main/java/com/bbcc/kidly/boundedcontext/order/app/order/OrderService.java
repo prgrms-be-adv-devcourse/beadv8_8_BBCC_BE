@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -243,7 +244,12 @@ public class OrderService {
      */
     @Transactional(readOnly = true)
     public Page<OrderSummary> getOrders(Long memberId, int page, int size) {
-        Page<Order> orders = orderRepository.findAllByMemberIdOrderByIdDesc(memberId, PageRequest.of(page, size));
+        PageRequest pageable = PageRequest.of(page, size);
+        // 저장소는 offset(page × size)이 int를 넘으면 조회하지 못하므로(500), 조회 없이 빈 페이지로 답한다
+        if (pageable.getOffset() > Integer.MAX_VALUE) {
+            return new PageImpl<>(List.of(), pageable, orderRepository.countByMemberId(memberId));
+        }
+        Page<Order> orders = orderRepository.findAllByMemberIdOrderByIdDesc(memberId, pageable);
         if (orders.isEmpty()) {
             return orders.map(OrderSummary::withoutItems);
         }

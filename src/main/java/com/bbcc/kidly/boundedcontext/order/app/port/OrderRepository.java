@@ -46,6 +46,11 @@ public interface OrderRepository {
     Page<Order> findAllByMemberIdOrderByIdDesc(Long memberId, Pageable pageable);
 
     /**
+     * 회원의 주문 수. 목록을 읽을 수 없는 큰 page의 빈 페이지에 전체 건수를 채운다.
+     */
+    long countByMemberId(Long memberId);
+
+    /**
      * 결제 마감이 지난(now 포함) 주문 ID. afterId보다 큰 ID만 주문 ID 오름차순으로 limit건(한 실행 안의 ID 커서).
      */
     List<Long> findOverduePaymentOrderIds(Order.Status status, LocalDateTime now, Long afterId, Limit limit);
