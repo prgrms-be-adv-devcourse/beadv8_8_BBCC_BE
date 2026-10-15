@@ -280,10 +280,7 @@ public class Product extends BaseTimeEntity {
         if (info.options().isEmpty()) {
             throw new IllegalArgumentException("옵션 목록은 비어 있을 수 없습니다");
         }
-        // 등록한 판매자만 옵션을 추가할 수 있다 (OPT-08)
-        if (!sellerId.equals(info.sellerId())) {
-            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
-        }
+        requireOwner(info.sellerId());
         ProductOptions.validateNewOptions(info, options, productType);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
@@ -307,10 +304,7 @@ public class Product extends BaseTimeEntity {
         if (info.specs().isEmpty()) {
             throw new IllegalArgumentException("실측 목록은 비어 있을 수 없습니다");
         }
-        // 등록한 판매자만 실측을 넣을 수 있다 (OPT-08)
-        if (!sellerId.equals(info.sellerId())) {
-            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
-        }
+        requireOwner(info.sellerId());
         ProductSizeSpecs.validateNewSpecs(info.specs(), sizeSpecs, options, category, productType);
         for (SizeSpecInfo spec : info.specs()) {
             sizeSpecs.add(SizeSpec.create(this, spec));
@@ -325,10 +319,7 @@ public class Product extends BaseTimeEntity {
         requireNonNull(sellerId, "sellerId는 필수입니다");
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
-        // 등록한 판매자만 판매를 시작할 수 있다 (OPT-08)
-        if (!this.sellerId.equals(sellerId)) {
-            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
-        }
+        requireOwner(sellerId);
         // 관리자가 운영 정책 때문에 멈춘 상품은 판매자가 다시 열 수 없다 (SALE-11)
         if (stoppedByAdmin) {
             throw new BusinessException(ProductErrorCode.STOPPED_BY_ADMIN);
@@ -347,10 +338,7 @@ public class Product extends BaseTimeEntity {
     /** 판매자가 상품의 판매를 중지해 판매중지로 바꾸고, 상태가 바뀌었는지 돌려준다. */
     public boolean stopSale(Long sellerId) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
-        // 등록한 판매자만 판매를 중지할 수 있다 (OPT-08)
-        if (!this.sellerId.equals(sellerId)) {
-            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
-        }
+        requireOwner(sellerId);
         return markStopped();
     }
 
@@ -369,6 +357,13 @@ public class Product extends BaseTimeEntity {
         // 이미 판매중지여도 판매자가 다시 열지 못하게 관리자가 멈춘 상품으로 표시한다
         stoppedByAdmin = true;
         return changed;
+    }
+
+    // 등록한 판매자만 상품과 옵션 · 실측을 바꾸거나 판매 상태를 바꿀 수 있다 (OPT-08)
+    private void requireOwner(Long sellerId) {
+        if (!this.sellerId.equals(sellerId)) {
+            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
+        }
     }
 
     // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
