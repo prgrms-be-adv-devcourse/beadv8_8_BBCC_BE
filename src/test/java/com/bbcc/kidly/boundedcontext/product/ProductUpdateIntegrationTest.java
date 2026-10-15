@@ -19,6 +19,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.util.List;
@@ -133,12 +134,40 @@ class ProductUpdateIntegrationTest {
         assertThat(rowCount("product.inventory_adjustment_record", optionIds.get(0))).isOne();
     }
 
+    @Test
+    @DisplayName("OPT-07 SKU 코드는 같은 판매자 안에서 겹치지 않아야 하므로, 고치는 상품 자신의 옵션이 쓰는 코드는 빼고 "
+        + "같은 판매자의 다른 상품이 쓰는 코드만 찾는다")
+    void findSkuCodesInUseByOtherProducts() {
+        Long productId = savedProductA();
+        jdbcTemplate.update("update product.product_option set sku_code = 'A-110' where id = ?",
+            optionIds(productId).get(0));
+        savedProductBWithSku("B-110");
+
+        List<String> inUse = new TransactionTemplate(transactionManager).execute(status -> productRepository
+            .findSkuCodesInUseByOtherProducts(SELLER_ID, productId, List.of("A-110", "B-110", "C-110")));
+
+        assertThat(inUse).containsExactly("B-110");
+    }
+
     // 상품 A의 옵션 · 실측을 네이비 · 110 하나로 바꿔 넣는 값이다
     private Product.SaleInputsInfo onlyNavy110() {
         return new Product.SaleInputsInfo(
             List.of(option(managed(clothing.navy()), managed(clothing.size110()))),
             ProductOptionFixture.clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
             List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements())));
+    }
+
+    // 상품 A와 같은 판매자 · 카테고리의 상품 B를 SKU 코드가 있는 네이비 · 110 옵션 하나와 함께 저장한다
+    private void savedProductBWithSku(String skuCode) {
+        inTransaction(() -> {
+            Product productB = Product.register(ProductFixture.productAWithRequired(
+                SELLER_ID, managedCategory(), "상품 B", List.of("https://…/b-1.jpg"), currentInfoValues()));
+            productB.addOptions(new Product.AddOptionsInfo(SELLER_ID, List.of(
+                    new Product.OptionInfo(List.of(managed(clothing.navy()), managed(clothing.size110())), skuCode)),
+                ProductOptionFixture.clothingPrice(ProductOptionFixture.CLOTHING_PRICE)),
+                entityManager.find(ProductType.class, clothing.type().getId()));
+            productRepository.save(productB);
+        });
     }
 
     // 상품 A의 기본 정보와 카테고리는 그대로 두고 정보 값만 받은 값으로 보내는 수정 값이다
