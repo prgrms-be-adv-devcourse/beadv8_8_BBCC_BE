@@ -95,6 +95,34 @@ class InventoryDeductionServiceIntegrationTest {
         assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
     }
 
+    @Test
+    @DisplayName("INV-10 재고가 부족해 거절한 주문의 주문 생성됨을 재고를 채운 뒤 다시 받아도 차감하지 않고 FAILED 기록을 그대로 둔다")
+    void ignoreRedeliveredRejectedOrder() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
+        OrderCreatedEvent event = orderCreated(ORDER_ID, item(11L, options.navy110(), 2));
+        inventoryDeductionService.deduct(event);
+        restock(options.navy110(), 10);
+
+        inventoryDeductionService.deduct(event);
+
+        assertThat(availableQty(options.navy110())).isEqualTo(10);
+        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
+    }
+
+    @Test
+    @DisplayName("INV-10 차감한 뒤 판매를 멈춘 상품의 같은 주문 생성됨을 다시 받아도 판매 상태를 다시 판단하지 않아 아무것도 바뀌지 않는다")
+    void ignoreRedeliveredOrderAfterSaleStopped() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        OrderCreatedEvent event = orderCreated(ORDER_ID, item(11L, options.navy110(), 2));
+        inventoryDeductionService.deduct(event);
+        stopSale(options.navy110());
+
+        inventoryDeductionService.deduct(event);
+
+        assertThat(availableQty(options.navy110())).isEqualTo(8);
+        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+    }
+
     private static OrderCreatedEvent orderCreated(long orderId, OrderCreatedEvent.Item... items) {
         return new OrderCreatedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new OrderCreatedEvent.Data(orderId, MEMBER_ID, List.of(items)));
@@ -108,6 +136,12 @@ class InventoryDeductionServiceIntegrationTest {
     private void stopSale(ProductOption option) {
         jdbcTemplate.update("update product.product set status = 'STOPPED'"
             + " where id = (select product_id from product.product_option where id = ?)", option.getId());
+    }
+
+    // 재고 조정 기능이 아직 없어서, 판매 가능 수량을 DB에서 직접 바꿔 재고가 들어온 상황을 만든다
+    private void restock(ProductOption option, int availableQty) {
+        jdbcTemplate.update("update product.inventory set available_qty = ? where product_option_id = ?",
+            availableQty, option.getId());
     }
 
     private int availableQty(ProductOption option) {
