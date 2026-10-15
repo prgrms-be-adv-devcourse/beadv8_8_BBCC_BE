@@ -18,8 +18,8 @@ public record SettlementPayoutRequestedEvent(UUID eventId, LocalDateTime occurre
      * @param settlementId 정산서 ID
      * @param sellerId 판매자 ID. 회원 ID와 같고, 이 회원의 예치금 지갑에 입금한다
      * @param amount 정산금액(원). 0 이상이고, 0원이면 입금 없이 완료된다
-     * @param periodStartOn 정산 기간 시작일(그 달 1일)
-     * @param periodEndOn 정산 기간 종료일(그 달 마지막 날)
+     * @param periodStartOn 정산 기간 시작일(종료일이 속한 달 1일)
+     * @param periodEndOn 정산 기간 종료일(종료 기준일 − 1일, 수동 실행이면 달 중간일 수 있음)
      */
     public record Data(
         Long settlementId,
