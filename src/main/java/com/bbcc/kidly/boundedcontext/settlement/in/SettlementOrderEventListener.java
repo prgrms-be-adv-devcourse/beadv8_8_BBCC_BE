@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 주문상품 구매확정을 받아 정산항목 저장을 맡긴다.
+ * 주문상품이 구매확정되면 정산 대상으로 쌓는다.
  */
 @Component
 @RequiredArgsConstructor
@@ -17,6 +17,6 @@ public class SettlementOrderEventListener {
 
     @DomainEventListener
     public void on(OrderItemPurchaseConfirmedEvent event) {
-        settlementItemService.registerPurchaseConfirmed(event);
+        settlementItemService.register(event.data());
     }
 }
