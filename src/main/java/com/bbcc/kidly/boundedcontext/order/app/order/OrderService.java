@@ -106,6 +106,8 @@ public class OrderService {
     /**
      * 결제완료로 바꾼다. 결제 시각은 이벤트 값이 아니라 지금 시각을 쓴다.
      * 결제대기면 주문이 회원 · 주문상품 구성 · 금액을 대조하고, 다르면 PaymentMismatchException이 그대로 나간다.
+     * 취소된 주문에 온 결제 완료는 반영하지 않는다. 환불은 결제 쪽이 처리하므로 환불 여부 확인만 WARN으로 알린다
+     * (#290, 올 때마다).
      *
      * @return 이번에 결제완료로 바꿨으면 true. 주문이 없거나 결제대기가 아니면 false
      */
@@ -117,6 +119,13 @@ public class OrderService {
         }
         TransitionResult result = order.markPaid(command.paymentId(), command.memberId(), command.amount(),
             toPaidItems(command.items()), now);
+        if (result == TransitionResult.NOT_APPLICABLE && order.getStatus() == Order.Status.CANCELLED) {
+            log.warn("취소된 주문에 결제 완료 — 결제 쪽이 환불 처리, 환불 여부 확인 필요: event=payment.completed "
+                    + "reason=paid-after-cancel "
+                    + "orderId={} paymentId={} amount={} cancelReason={}",
+                command.orderId(), command.paymentId(), command.amount(), order.getCancelReason());
+            return false;
+        }
         if (result != TransitionResult.APPLIED) {
             logIgnored("payment.completed", order, result);
             return false;

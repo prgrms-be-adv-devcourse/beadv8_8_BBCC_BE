@@ -29,7 +29,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -42,6 +45,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @IntegrationTest
 @RecordApplicationEvents
+@ExtendWith(OutputCaptureExtension.class)
 class OrderCancelIntegrationTest {
 
     @Autowired
@@ -139,8 +143,8 @@ class OrderCancelIntegrationTest {
     }
 
     @Test
-    @DisplayName("만료로 취소된 뒤 온 결제 완료 이벤트는 무시된다 (상태 그대로 · 배송 없음)")
-    void ignoresPaymentCompletedAfterExpiry() {
+    @DisplayName("만료로 취소된 뒤 온 결제 완료 이벤트는 반영하지 않고(상태 그대로 · 배송 없음) 환불 대상 WARN을 한 줄 남긴다")
+    void ignoresPaymentCompletedAfterExpiry(CapturedOutput output) {
         OrderDetail order = place();
         makeOverdue(order.orderId());
         orderScheduler.expireOverduePayments();
@@ -150,6 +154,32 @@ class OrderCancelIntegrationTest {
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
+        assertThat(lines(output, "WARN", "reason=paid-after-cancel orderId=" + order.orderId()
+            + " paymentId=500 amount=" + order.totalAmount() + " cancelReason=PAYMENT_EXPIRED")).isEqualTo(1);
+        assertThat(lines(output, "ERROR", "reason=paid-after-cancel")).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("취소된 주문에 결제 ID · 결제 시각 없는 결제 완료가 오면 사유별 한 줄씩(환불 대상 WARN · 결제 ID 없음 ERROR · 결제 시각 없음 ERROR)")
+    void paidAfterCancelWithMissingValuesLogsEach(CapturedOutput output) {
+        OrderDetail order = place();
+        makeOverdue(order.orderId());
+        orderScheduler.expireOverduePayments();
+
+        publish(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
+            null, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), null)));
+
+        assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
+        assertThat(lines(output, "WARN", "reason=paid-after-cancel orderId=" + order.orderId() + " paymentId=null"))
+            .isEqualTo(1);
+        assertThat(lines(output, "ERROR", "reason=missing-payment-id orderId=" + order.orderId())).isEqualTo(1);
+        assertThat(lines(output, "ERROR", "reason=missing-paid-at orderId=" + order.orderId())).isEqualTo(1);
+    }
+
+    private long lines(CapturedOutput output, String level, String text) {
+        return output.getAll().lines()
+            .filter(line -> line.contains(" " + level + " ") && line.contains("event=payment.completed " + text))
+            .count();
     }
 
     private OrderDetail place() {
