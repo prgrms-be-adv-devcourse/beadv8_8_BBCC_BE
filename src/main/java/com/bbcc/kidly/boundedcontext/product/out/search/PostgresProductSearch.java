@@ -1,0 +1,60 @@
+package com.bbcc.kidly.boundedcontext.product.out.search;
+
+import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearch;
+import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchCondition;
+import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchItem;
+import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Component;
+
+/**
+ * 검색용 표(product_search_document)를 PostgreSQL 쿼리로 읽어 상품 목록을 만든다.
+ */
+@Component
+public class PostgresProductSearch implements ProductSearch {
+
+    private static final String FROM_WHERE = """
+        FROM product.product_search_document d
+        WHERE d.status = 'ON_SALE'
+        """;
+
+    private static final String SELECT_ITEMS = """
+        SELECT d.product_id, d.name, d.thumbnail_url, d.min_price, d.is_sold_out, d.is_size_free
+        """;
+
+    private static final String ORDER_AND_PAGE = """
+        ORDER BY d.product_created_at DESC, d.product_id DESC
+        LIMIT :limit OFFSET :offset
+        """;
+
+    private final NamedParameterJdbcTemplate jdbcTemplate;
+
+    public PostgresProductSearch(NamedParameterJdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    @Override
+    public Page<ProductSearchItem> search(ProductSearchCondition condition, Pageable pageable) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("limit", pageable.getPageSize())
+            .addValue("offset", pageable.getOffset());
+
+        List<ProductSearchItem> content = jdbcTemplate.query(
+            SELECT_ITEMS + FROM_WHERE + ORDER_AND_PAGE, params,
+            (rs, rowNum) -> new ProductSearchItem(
+                rs.getLong("product_id"),
+                rs.getString("name"),
+                rs.getString("thumbnail_url"),
+                null,
+                rs.getLong("min_price"),
+                rs.getBoolean("is_sold_out"),
+                rs.getBoolean("is_size_free")));
+
+        Long total = jdbcTemplate.queryForObject("SELECT count(*) " + FROM_WHERE, params, Long.class);
+        return new PageImpl<>(content, pageable, total == null ? 0 : total);
+    }
+}
