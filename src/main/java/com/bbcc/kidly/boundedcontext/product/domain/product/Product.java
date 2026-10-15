@@ -260,7 +260,7 @@ public class Product extends BaseTimeEntity {
         infoValues.clear();
         infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
         if (rewritesSaleInputs) {
-            ProductOptions.rewrite(options, saleInputs.options(), saleInputs.prices(),
+            ProductOptions.rewrite(this, options, saleInputs.options(), saleInputs.prices(),
                 info.category().productTypeToRegister());
         }
         return true;

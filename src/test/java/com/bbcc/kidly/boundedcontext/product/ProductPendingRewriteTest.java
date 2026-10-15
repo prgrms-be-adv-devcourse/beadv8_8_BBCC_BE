@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.product.ProductUpdateFixture.ProductA;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionValue;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,5 +53,29 @@ class ProductPendingRewriteTest {
 
         assertThat(changed).isTrue();
         assertThat(productA.product().getOptions()).containsExactly(navy110);
+    }
+
+    @Test
+    @DisplayName("판매대기 상품은 받은 값 조합 중 지금 없는 조합을 새 옵션으로 만들고, 있던 옵션은 그대로 둔다")
+    void addNewCombinations() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+        List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
+
+        boolean changed = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+            List.of(
+                new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null),
+                new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size120()), null),
+                new Product.OptionInfo(
+                    List.of(productA.clothing().oatmeal(), productA.clothing().size110()), "A-OT-110")),
+            clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+            productA.currentSizeSpecs()));
+
+        assertThat(changed).isTrue();
+        assertThat(productA.product().getOptions()).hasSize(3).startsWith(optionsBefore.toArray(ProductOption[]::new));
+        ProductOption added = productA.product().getOptions().get(2);
+        assertThat(added.getValues()).extracting(ProductOptionValue::getAttributeValue)
+            .containsExactlyInAnyOrder(productA.clothing().oatmeal(), productA.clothing().size110());
+        assertThat(added).extracting(ProductOption::getSkuCode, ProductOption::getPrice)
+            .containsExactly("A-OT-110", ProductOptionFixture.CLOTHING_PRICE);
     }
 }

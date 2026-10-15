@@ -263,14 +263,20 @@ final class ProductOptions {
         return false;
     }
 
-    // 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 받은 값으로 맞춘다
-    static void rewrite(
-        List<ProductOption> current, List<OptionInfo> requested, List<PriceInfo> prices, ProductType productType) {
+    // 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 받은 값으로 맞추고, 없는 조합은 새로 만든다
+    static void rewrite(Product product, List<ProductOption> current, List<OptionInfo> requested,
+        List<PriceInfo> prices, ProductType productType) {
+        List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : requested) {
+            long price = findPrice(option.values(), prices, productType);
             ProductOption matched = findActive(current, option.values());
             if (matched != null) {
-                matched.revise(option.skuCode(), findPrice(option.values(), prices, productType));
+                matched.revise(option.skuCode(), price);
+                continue;
             }
+            // 지금 없는 값 조합은 등록할 때와 같은 방식으로 새 옵션을 만든다
+            List<AttributeValue> values = inTypeOrder(option.values(), productType);
+            created.add(ProductOption.create(product, price, option.skuCode(), values));
         }
         // 받은 값 조합에 없는 옵션(보관 제외)은 뺀다. 판매대기 상품은 주문이 없어서 지워도 이 옵션을 가리키는 주문상품이 없다 (OPT-05)
         List<ProductOption> notRequested = new ArrayList<>();
@@ -280,6 +286,7 @@ final class ProductOptions {
             }
         }
         current.removeAll(notRequested);
+        current.addAll(created);
     }
 
     private static boolean isRequested(ProductOption option, List<OptionInfo> requested) {
