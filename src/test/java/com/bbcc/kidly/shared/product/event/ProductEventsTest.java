@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import java.lang.reflect.RecordComponent;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -60,6 +61,35 @@ class ProductEventsTest {
     void stockDeducted() {
         assertContract(new StockDeductedEvent(EVENT_ID, NOW, new StockDeductedEvent.Data(900L)),
             "stock.deducted", "900");
+    }
+
+    @Test
+    @DisplayName("재고 부족 이벤트는 stock.deduction-failed이고 대상은 주문이다")
+    void stockDeductionFailed() {
+        StockDeductionFailedEvent event = stockDeductionFailedEvent();
+
+        assertContract(event, "stock.deduction-failed", "900");
+        assertThat(event.data().reason()).isEqualTo(StockDeductionFailureCode.OPTION_NOT_ON_SALE);
+        assertThat(event.data().failures()).extracting(StockDeductionFailedEvent.Failure::orderItemId)
+            .containsExactly(11L, 12L);
+    }
+
+    @Test
+    @DisplayName("재고 부족 이벤트는 주문 ID, 대표 사유, 주문상품별 사유를 담고, 사유는 세 값이다")
+    void stockDeductionFailedFields() {
+        assertThat(StockDeductionFailedEvent.Data.class.getRecordComponents())
+            .extracting(RecordComponent::getName).containsExactly("orderId", "reason", "failures");
+        assertThat(StockDeductionFailedEvent.Failure.class.getRecordComponents())
+            .extracting(RecordComponent::getName).containsExactly("orderItemId", "reason");
+        assertThat(StockDeductionFailureCode.values()).extracting(Enum::name).containsExactly(
+            "OUT_OF_STOCK", "PRODUCT_NOT_ON_SALE", "OPTION_NOT_ON_SALE");
+    }
+
+    private static StockDeductionFailedEvent stockDeductionFailedEvent() {
+        return new StockDeductionFailedEvent(EVENT_ID, NOW, new StockDeductionFailedEvent.Data(
+            900L, StockDeductionFailureCode.OPTION_NOT_ON_SALE, List.of(
+                new StockDeductionFailedEvent.Failure(11L, StockDeductionFailureCode.OPTION_NOT_ON_SALE),
+                new StockDeductionFailedEvent.Failure(12L, StockDeductionFailureCode.OUT_OF_STOCK))));
     }
 
     private static void assertContract(DomainEvent event, String eventType, String aggregateId) {
