@@ -283,10 +283,16 @@ public class Product extends BaseTimeEntity {
         ProductOptions.requireNonNullValues(addOptions);
         AddSizeSpecsInfo addSizeSpecs = new AddSizeSpecsInfo(sellerId, saleInputs.sizeSpecs());
         ProductSizeSpecs.requireNonNullValues(addSizeSpecs);
-        ProductOptions.validateNewOptions(addOptions, List.of(), productType);
+        // 등록처럼 옵션 · 실측 목록이 비면 그 목록의 검사는 건너뛰고, 빠진 입력은 아래 판매 시작 입력 검사가 400으로 알린다
+        if (!saleInputs.options().isEmpty()) {
+            ProductOptions.validateNewOptions(addOptions, List.of(), productType);
+        }
         List<ProductOption> previewOptions =
             ProductOptions.preview(this, saleInputs.options(), saleInputs.prices(), productType);
-        ProductSizeSpecs.validateNewSpecs(saleInputs.sizeSpecs(), List.of(), previewOptions, newCategory, productType);
+        if (!saleInputs.sizeSpecs().isEmpty()) {
+            ProductSizeSpecs.validateNewSpecs(
+                saleInputs.sizeSpecs(), List.of(), previewOptions, newCategory, productType);
+        }
         List<String> missing = SaleStartConditions.missingItems(
             previewOptions, ProductSizeSpecs.preview(this, saleInputs.sizeSpecs()), newCategory, productType);
         if (!missing.isEmpty()) {

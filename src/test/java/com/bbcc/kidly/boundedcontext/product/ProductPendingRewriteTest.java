@@ -166,4 +166,15 @@ class ProductPendingRewriteTest {
         assertThat(productA.product().getOptions()).extracting(ProductOption::getSkuCode).containsOnlyNulls();
         assertThat(productA.product().getSizeSpecs()).hasSize(2);
     }
+
+    @Test
+    @DisplayName("판매대기 상품에 옵션 · 실측을 빈 목록으로 보내면 등록처럼 판매 시작 입력이 빠졌다고 거절한다")
+    void rejectEmptySaleInputs() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+
+        assertRejected(() -> productA.product().update(productA.sameUpdate(),
+                new Product.SaleInputsInfo(List.of(), clothingPrice(ProductOptionFixture.CLOTHING_PRICE), List.of())),
+            ProductErrorCode.SALE_START_INPUT_MISSING);
+        assertThat(productA.product().getOptions()).hasSize(2);
+    }
 }
