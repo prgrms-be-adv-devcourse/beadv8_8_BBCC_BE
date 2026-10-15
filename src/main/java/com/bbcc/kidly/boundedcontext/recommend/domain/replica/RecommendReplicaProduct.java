@@ -24,6 +24,7 @@ import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
 /**
  * 추천이 사이즈를 계산하려고 상품 정보 변경됨 이벤트에서 옮겨 둔 상품 정보다.
@@ -34,6 +35,9 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RecommendReplicaProduct extends BaseTimeEntity {
+
+    // 여러 상품의 사이즈 줄과 판매 가능 사이즈를 읽을 때 상품마다 조회하지 않고 이 개수씩 묶어서 읽는다
+    private static final int BATCH_FETCH_SIZE = 100;
 
     // 원래 상품 ID를 그대로 넣으므로 @GeneratedValue를 쓰지 않는다
     @Id
@@ -72,6 +76,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
 
     // 사이즈 줄은 applyIfNewer로만 바꾸도록 getter를 두지 않고, 읽을 때는 toProductSizes를 쓴다
     @Getter(AccessLevel.NONE)
+    @BatchSize(size = BATCH_FETCH_SIZE)
     @ElementCollection
     @CollectionTable(schema = "recommend", name = "replica_product_size",
         joinColumns = @JoinColumn(name = "product_id"))
@@ -79,6 +84,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
 
     // 판매중이고 품절이 아닌 옵션의 사이즈다. 권장 키가 없는 사이즈 무관(FREE)도 담는다
     @Getter(AccessLevel.NONE)
+    @BatchSize(size = BATCH_FETCH_SIZE)
     @ElementCollection
     @CollectionTable(schema = "recommend", name = "replica_product_sellable_size",
         joinColumns = @JoinColumn(name = "product_id"))
