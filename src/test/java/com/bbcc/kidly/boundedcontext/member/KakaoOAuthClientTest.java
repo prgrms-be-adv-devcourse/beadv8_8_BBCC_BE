@@ -19,9 +19,13 @@ import com.bbcc.kidly.boundedcontext.member.out.KakaoProperties;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.ErrorCode;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -40,7 +44,7 @@ class KakaoOAuthClientTest {
     private final KakaoOAuthClient client = new KakaoOAuthClient(builder.build(), PROPERTIES);
 
     @Test
-    @DisplayName("인가 코드로 토큰을 받고 그 토큰으로 사용자 ID와 닉네임을 받는다")
+    @DisplayName("인가 코드로 토큰을 받고 그 토큰으로 사용자 ID, 닉네임, 이메일을 받는다")
     void fetchProfile() {
         server.expect(requestTo(TOKEN_URL))
             .andExpect(method(HttpMethod.POST))
@@ -55,12 +59,13 @@ class KakaoOAuthClientTest {
         server.expect(requestTo(USER_URL))
             .andExpect(method(HttpMethod.GET))
             .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer kakao-token"))
-            .andRespond(withSuccess("{\"id\":12345,\"kakao_account\":{\"profile\":{\"nickname\":\"카카오닉네임\"}}}",
+            .andRespond(withSuccess("{\"id\":12345,\"kakao_account\":{\"profile\":{\"nickname\":\"카카오닉네임\"},"
+                + "\"email\":\"kakao@example.com\",\"is_email_valid\":true,\"is_email_verified\":true}}",
                 MediaType.APPLICATION_JSON));
 
         var profile = fetch("auth-code");
 
-        assertThat(profile).isEqualTo(new OAuthProfile("12345", "카카오닉네임"));
+        assertThat(profile).isEqualTo(new OAuthProfile("12345", "카카오닉네임", "kakao@example.com"));
         server.verify();
     }
 
@@ -71,7 +76,28 @@ class KakaoOAuthClientTest {
         server.expect(requestTo(USER_URL))
             .andRespond(withSuccess("{\"id\":12345,\"kakao_account\":{}}", MediaType.APPLICATION_JSON));
 
-        assertThat(fetch("auth-code")).isEqualTo(new OAuthProfile("12345", null));
+        assertThat(fetch("auth-code")).isEqualTo(new OAuthProfile("12345", null, null));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @DisplayName("이메일이 없거나 유효하지 않거나 인증되지 않았으면 이메일 없이 돌려준다")
+    @MethodSource("unusableEmailAccounts")
+    void noVerifiedEmail(String caseName, String kakaoAccount) {
+        expectToken();
+        server.expect(requestTo(USER_URL))
+            .andRespond(withSuccess("{\"id\":12345,\"kakao_account\":" + kakaoAccount + "}",
+                MediaType.APPLICATION_JSON));
+
+        assertThat(fetch("auth-code")).isEqualTo(new OAuthProfile("12345", null, null));
+    }
+
+    static Stream<Arguments> unusableEmailAccounts() {
+        return Stream.of(
+            Arguments.of("유효 여부와 인증 여부 값이 없다", "{\"email\":\"kakao@example.com\"}"),
+            Arguments.of("이메일이 유효하지 않다",
+                "{\"email\":\"kakao@example.com\",\"is_email_valid\":false,\"is_email_verified\":true}"),
+            Arguments.of("이메일이 인증되지 않았다",
+                "{\"email\":\"kakao@example.com\",\"is_email_valid\":true,\"is_email_verified\":false}"));
     }
 
     @Test

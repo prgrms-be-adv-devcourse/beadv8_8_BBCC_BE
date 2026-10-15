@@ -17,8 +17,10 @@ import org.springframework.stereotype.Component;
 public class FakeOAuthClient implements OAuthClient {
 
     public static final String NICKNAME = "소셜회원";
+    public static final String EMAIL = "member@example.com";
     public static final String INVALID_CODE = "invalid-code";
     public static final String NO_NICKNAME_CODE = "no-nickname";
+    public static final String NO_EMAIL_CODE = "no-email";
     public static final String SHORT_NICKNAME_CODE = "short-nickname";
     // 이 접두어로 시작하는 코드는 21자 닉네임을 돌려준다
     public static final String LONG_NICKNAME_CODE_PREFIX = "long-nickname-";
@@ -29,7 +31,7 @@ public class FakeOAuthClient implements OAuthClient {
         if (INVALID_CODE.equals(code)) {
             throw new BusinessException(MemberErrorCode.INVALID_AUTHORIZATION_CODE);
         }
-        return new OAuthProfile(code, nicknameOf(code));
+        return new OAuthProfile(code, nicknameOf(code), NO_EMAIL_CODE.equals(code) ? null : EMAIL);
     }
 
     private static String nicknameOf(String code) {
