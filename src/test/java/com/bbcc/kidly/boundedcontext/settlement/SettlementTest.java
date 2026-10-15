@@ -169,4 +169,14 @@ class SettlementTest {
             .isInstanceOf(IllegalArgumentException.class);
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.COMPLETED);
     }
+
+    @Test
+    @DisplayName("판매자와 정산금액이 같을 때만 그 정산서의 지급이다")
+    void isPayoutOf() {
+        var settlement = SettlementFixture.settlement(10_000L);
+
+        assertThat(settlement.isPayoutOf(SELLER_ID, 9_000L)).isTrue();
+        assertThat(settlement.isPayoutOf(SELLER_ID + 1, 9_000L)).isFalse();
+        assertThat(settlement.isPayoutOf(SELLER_ID, 9_001L)).isFalse();
+    }
 }

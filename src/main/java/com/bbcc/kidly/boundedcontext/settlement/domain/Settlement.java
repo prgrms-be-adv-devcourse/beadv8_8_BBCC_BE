@@ -141,4 +141,9 @@ public class Settlement extends BaseTimeEntity {
         this.status = SettlementStatus.FAILED;
         this.failReason = failReason;
     }
+
+    // 결제가 보낸 지급 결과가 이 정산서의 판매자 · 금액과 같은지
+    public boolean isPayoutOf(Long sellerId, long amount) {
+        return requireNonNull(sellerId, "sellerId는 필수입니다").equals(this.sellerId) && amount == settlementAmount;
+    }
 }
