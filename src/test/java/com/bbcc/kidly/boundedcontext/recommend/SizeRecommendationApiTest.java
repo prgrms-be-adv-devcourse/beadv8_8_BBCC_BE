@@ -29,6 +29,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -63,18 +64,20 @@ class SizeRecommendationApiTest {
         recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.productId").isEqualTo(String.valueOf(PRODUCT_A_ID))
-            .jsonPath("$.childId").isEqualTo(String.valueOf(CHILD_1_ID))
             .jsonPath("$.recommendedSize").isEqualTo("120")
             .jsonPath("$.fit").isEqualTo("ROOMY")
             .jsonPath("$.notices.length()").isEqualTo(0)
             .jsonPath("$.candidateSizes").isEqualTo(List.of("110", "120"))
-            // 없는 값은 칸을 빼지 않고 null로 보낸다
-            .jsonPath("$").value(Map.class, body -> assertThat(body).containsEntry("lastPurchasedSize", null));
+            // ID는 숫자가 아니라 문자열로 보내고, 없는 값은 칸을 빼지 않고 null로 보낸다.
+            // jsonPath의 isEqualTo는 숫자도 문자열로 바꿔 비교하므로 Map으로 꺼내 값의 타입까지 확인한다
+            .jsonPath("$").value(Map.class, body -> assertThat(body)
+                .containsEntry("productId", String.valueOf(PRODUCT_A_ID))
+                .containsEntry("childId", String.valueOf(CHILD_1_ID))
+                .containsEntry("lastPurchasedSize", null));
     }
 
     @Test
-    @DisplayName("안내가 붙으면 code와 화면에 보여 줄 message를 함께 받는다 (키 115cm · 몸무게 18kg · 체형 보통 · 선호 핏 여유)")
+    @DisplayName("INV-R05 안내가 붙으면 code와 화면에 보여 줄 message를 함께 받는다 (키 115cm · 몸무게 18kg · 체형 보통 · 선호 핏 여유)")
     void recommendSizeWithNotices() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
         replicaChildService.applyChildChanged(childChanged(MEMBER_1_ID, "115.0", "18.0", false));
@@ -148,7 +151,8 @@ class SizeRecommendationApiTest {
     void rejectUnknownProduct() {
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
 
-        expectNotFound(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), "상품을 찾을 수 없습니다", "상품을 찾을 수 없습니다.");
+        expectProblem(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), HttpStatus.NOT_FOUND,
+            "상품을 찾을 수 없습니다", "상품을 찾을 수 없습니다.");
     }
 
     @ParameterizedTest(name = "{0}")
@@ -158,7 +162,8 @@ class SizeRecommendationApiTest {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
         childEvent.ifPresent(replicaChildService::applyChildChanged);
 
-        expectNotFound(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), "자녀를 찾을 수 없습니다", "자녀를 찾을 수 없습니다.");
+        expectProblem(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), HttpStatus.NOT_FOUND,
+            "자녀를 찾을 수 없습니다", "자녀를 찾을 수 없습니다.");
     }
 
     static Stream<Arguments> invisibleChildren() {
@@ -171,7 +176,8 @@ class SizeRecommendationApiTest {
     @Test
     @DisplayName("상품과 자녀가 둘 다 없으면 경로의 상품을 먼저 확인해 상품 404를 받는다")
     void checkProductBeforeChild() {
-        expectNotFound(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), "상품을 찾을 수 없습니다", "상품을 찾을 수 없습니다.");
+        expectProblem(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), HttpStatus.NOT_FOUND,
+            "상품을 찾을 수 없습니다", "상품을 찾을 수 없습니다.");
     }
 
     @Test
@@ -181,19 +187,17 @@ class SizeRecommendationApiTest {
             List.of(RecommendFixture.productOption(1L, "FREE", null, null))));
         replicaChildService.applyChildChanged(childChanged(OTHER_MEMBER_ID, "115.0", "20.0", false));
 
-        expectNotFound(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), "자녀를 찾을 수 없습니다", "자녀를 찾을 수 없습니다.");
+        expectProblem(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), HttpStatus.NOT_FOUND,
+            "자녀를 찾을 수 없습니다", "자녀를 찾을 수 없습니다.");
     }
 
     @Test
     @DisplayName("childId 없이 요청하면 400 \"childId: 자녀 ID가 필요합니다.\"를 받는다")
     void rejectWithoutChildId() {
-        client.get().uri(PATH, PRODUCT_A_ID)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_1_ID)))
-            .exchange()
-            .expectStatus().isBadRequest()
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.detail").isEqualTo("childId: 자녀 ID가 필요합니다.");
+        expectProblem(client.get().uri(PATH, PRODUCT_A_ID)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_1_ID)))
+                .exchange(),
+            HttpStatus.BAD_REQUEST, "잘못된 요청입니다", "childId: 자녀 ID가 필요합니다.");
     }
 
     @Test
@@ -215,14 +219,15 @@ class SizeRecommendationApiTest {
     }
 
     // 실패 응답이 ProblemDetail 5칸을 모두 담는지 확인한다
-    private static void expectNotFound(RestTestClient.ResponseSpec response, String title, String detail) {
+    private static void expectProblem(
+        RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
         response
-            .expectStatus().isNotFound()
+            .expectStatus().isEqualTo(status)
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody()
             .jsonPath("$.type").isEqualTo("about:blank")
             .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(404)
+            .jsonPath("$.status").isEqualTo(status.value())
             .jsonPath("$.detail").isEqualTo(detail)
             .jsonPath("$.instance").isEqualTo("/api/v1/products/" + PRODUCT_A_ID + "/size-recommendation");
     }
