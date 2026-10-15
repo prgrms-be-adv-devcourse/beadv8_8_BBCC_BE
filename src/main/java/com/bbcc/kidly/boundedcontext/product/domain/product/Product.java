@@ -145,6 +145,10 @@ public class Product extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private ProductStatus status;
 
+    // 관리자가 운영 정책을 어긴 상품의 판매를 중지했는지 나타낸다. 켜져 있으면 판매자가 다시 판매를 시작할 수 없다
+    @Column(name = "is_stopped_by_admin", nullable = false)
+    private boolean stoppedByAdmin;
+
     // 같은 상품을 동시에 바꾸면 나중 쪽이 실패한다
     @Version
     private Long version;
@@ -329,6 +333,10 @@ public class Product extends BaseTimeEntity {
         if (status == ProductStatus.ON_SALE) {
             return false;
         }
+        // 관리자가 운영 정책 때문에 멈춘 상품은 판매자가 다시 열 수 없다 (SALE-11)
+        if (stoppedByAdmin) {
+            throw new BusinessException(ProductErrorCode.STOPPED_BY_ADMIN);
+        }
         List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
         if (!missing.isEmpty()) {
             throw new BusinessException(ProductErrorCode.SALE_START_CONDITION_NOT_MET,
@@ -362,6 +370,21 @@ public class Product extends BaseTimeEntity {
             return false;
         }
         status = ProductStatus.STOPPED;
+        return true;
+    }
+
+    /** 관리자가 운영 정책을 어긴 상품의 판매를 중지하고, 판매 상태가 바뀌었는지 돌려준다. */
+    public boolean stopSaleByAdmin() {
+        if (status == ProductStatus.SALE_PENDING) {
+            throw new BusinessException(ProductErrorCode.SALE_NOT_STARTED);
+        }
+        // 이미 판매중지면 상태는 그대로 두고, 판매자가 다시 열지 못하게 관리자가 멈춘 상품으로만 표시한다
+        if (status == ProductStatus.STOPPED) {
+            stoppedByAdmin = true;
+            return false;
+        }
+        status = ProductStatus.STOPPED;
+        stoppedByAdmin = true;
         return true;
     }
 
