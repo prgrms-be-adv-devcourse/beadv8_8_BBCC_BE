@@ -21,7 +21,7 @@ import java.util.Set;
 
 /**
  * 옵션 목록 전체를 함께 보는 검사와 계산(보관 제외 옵션, 사이즈 값, FREE 판단)을 모은다.
- * Product.addOptions, ProductSizeSpecs, SaleStartConditions가 쓴다.
+ * Product.addOptions, SaleInputsReplacement, ProductSizeSpecs, SaleStartConditions가 쓴다.
  */
 final class ProductOptions {
 
@@ -195,7 +195,7 @@ final class ProductOptions {
     }
 
     // 보관한 옵션은 판매 대상이 아니라서 모든 검사에서 뺀다
-    private static List<ProductOption> activeOptions(List<ProductOption> existing) {
+    static List<ProductOption> activeOptions(List<ProductOption> existing) {
         List<ProductOption> active = new ArrayList<>();
         for (ProductOption option : existing) {
             if (option.getSaleStatus() != ProductOptionStatus.ARCHIVED) {
@@ -205,7 +205,7 @@ final class ProductOptions {
         return active;
     }
 
-    private static List<AttributeValue> valuesOf(ProductOption option) {
+    static List<AttributeValue> valuesOf(ProductOption option) {
         List<AttributeValue> values = new ArrayList<>();
         for (ProductOptionValue value : option.getValues()) {
             values.add(value.getAttributeValue());
@@ -240,6 +240,13 @@ final class ProductOptions {
             throw new BusinessException(ProductErrorCode.PRICE_GROUP_MISMATCH);
         }
         return matched.getFirst().price();
+    }
+
+    // 받은 옵션 하나로 새 옵션을 만든다. 판매가는 가격 구분 묶음으로 찾고, 옵션 값은 유형의 항목 순서로 늘어놓는다
+    static ProductOption newOption(
+        Product product, OptionInfo option, List<PriceInfo> prices, ProductType productType) {
+        long price = findPrice(option.values(), prices, productType);
+        return ProductOption.create(product, price, option.skuCode(), inTypeOrder(option.values(), productType));
     }
 
     // 옵션 값을 유형–항목 연결의 순서대로 늘어놓는다. 옵션 이름이 이 순서를 쓴다 (OPT-09)

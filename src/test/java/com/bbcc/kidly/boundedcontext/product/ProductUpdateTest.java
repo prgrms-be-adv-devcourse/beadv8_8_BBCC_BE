@@ -45,11 +45,11 @@ class ProductUpdateTest {
     @Test
     @DisplayName("기본 정보를 받은 값으로 바꾸고 바뀌었다고 돌려준다. 썸네일은 null로 보내면 지운다")
     void updateBasicInfo() {
-        boolean changed = product.update(new Product.UpdateInfo(SELLER_ID, VERSION, category, "상품 A 새 이름",
+        Product.UpdateResult result = product.update(new Product.UpdateInfo(SELLER_ID, VERSION, category, "상품 A 새 이름",
             "새 브랜드", "새 설명", null, List.of("https://…/a-2.jpg", "https://…/a-3.jpg"),
             List.of(cottonMaterial(clothing))));
 
-        assertThat(changed).isTrue();
+        assertThat(result.changed()).isTrue();
         assertThat(product.getName()).isEqualTo("상품 A 새 이름");
         assertThat(product.getBrand()).isEqualTo("새 브랜드");
         assertThat(product.getDescription()).isEqualTo("새 설명");
@@ -60,12 +60,12 @@ class ProductUpdateTest {
     @Test
     @DisplayName("정보 항목 값을 받은 값으로 통째로 바꾼다. 받지 않은 이전 값은 남지 않는다")
     void replaceInfoValues() {
-        boolean changed = product.update(sameBasicsWith(List.of(
+        Product.UpdateResult result = product.update(sameBasicsWith(List.of(
             new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.linen()), null),
             new Product.InfoValueInfo(clothing.feature(), List.of(clothing.brushed(), clothing.stretch()), null),
             new Product.InfoValueInfo(clothing.fabricComposition(), List.of(), "면 95%, 폴리우레탄 5%"))));
 
-        assertThat(changed).isTrue();
+        assertThat(result.changed()).isTrue();
         assertThat(product.getInfoValues())
             .extracting(
                 ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue, ProductInfoValue::getTextValue)
@@ -81,9 +81,9 @@ class ProductUpdateTest {
     void keepWhenNothingChanged() {
         List<ProductInfoValue> infoValuesBefore = List.copyOf(product.getInfoValues());
 
-        boolean changed = product.update(sameBasicsWith(List.of(cottonMaterial(clothing))));
+        Product.UpdateResult result = product.update(sameBasicsWith(List.of(cottonMaterial(clothing))));
 
-        assertThat(changed).isFalse();
+        assertThat(result.changed()).isFalse();
         assertThat(product.getInfoValues()).containsExactlyElementsOf(infoValuesBefore);
     }
 
@@ -106,7 +106,7 @@ class ProductUpdateTest {
             registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
             List.of(cottonMaterial(clothing)));
 
-        assertThat(product.update(retried)).isFalse();
+        assertThat(product.update(retried).changed()).isFalse();
     }
 
     @ParameterizedTest(name = "상품명 {0}")
@@ -201,8 +201,8 @@ class ProductUpdateTest {
         Product detailed = detailedProduct();
         Product.UpdateInfo info = changeOneField.apply(this);
 
-        assertThat(detailed.update(info)).isTrue();
-        assertThat(detailed.update(info)).isFalse();
+        assertThat(detailed.update(info).changed()).isTrue();
+        assertThat(detailed.update(info).changed()).isFalse();
     }
 
     static Stream<Named<Function<ProductUpdateTest, Product.UpdateInfo>>> singleFieldChanges() {

@@ -62,13 +62,7 @@ public class ProductOption extends BaseTimeEntity {
 
     // 판매중 옵션을 만들고 옵션의 값마다 한 행을 입력 순서대로 붙인다
     static ProductOption create(Product product, long price, String skuCode, List<AttributeValue> values) {
-        if (price <= 0) {
-            throw new IllegalArgumentException("판매가는 0보다 커야 합니다");
-        }
-        // SKU 코드가 없으면 null로만 받는다. 요청 검사가 빈 코드를 먼저 400으로 막고, 여기서는 다른 경로를 막는다
-        if (skuCode != null && skuCode.isBlank()) {
-            throw new IllegalArgumentException("SKU 코드는 공백만으로 넣을 수 없습니다");
-        }
+        validatePriceAndSkuCode(price, skuCode);
         ProductOption option = new ProductOption();
         option.product = product;
         option.price = price;
@@ -78,6 +72,23 @@ public class ProductOption extends BaseTimeEntity {
             option.values.add(ProductOptionValue.create(option, value));
         }
         return option;
+    }
+
+    // 판매대기 상품의 옵션을 바꿔 넣을 때 값 조합이 같은 옵션을 그대로 두고 SKU 코드와 판매가만 받은 값으로 바꿔 넣는다
+    void replaceSkuAndPrice(String skuCode, long price) {
+        validatePriceAndSkuCode(price, skuCode);
+        this.skuCode = skuCode;
+        this.price = price;
+    }
+
+    // 판매가는 0보다 커야 하고, SKU 코드가 없으면 null로만 받는다. 요청 검사가 빈 코드를 먼저 400으로 막고, 여기서는 다른 경로를 막는다
+    private static void validatePriceAndSkuCode(long price, String skuCode) {
+        if (price <= 0) {
+            throw new IllegalArgumentException("판매가는 0보다 커야 합니다");
+        }
+        if (skuCode != null && skuCode.isBlank()) {
+            throw new IllegalArgumentException("SKU 코드는 공백만으로 넣을 수 없습니다");
+        }
     }
 
     // 살 수 없는 이유가 없으면 살 수 있다

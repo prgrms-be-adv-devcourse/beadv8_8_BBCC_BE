@@ -78,6 +78,21 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
+     * 판매대기 상품의 옵션 · 가격 · 실측을 바꿔 넣을 때 받는 값이다. 지금 옵션 · 실측을 이 값으로 바꿔 넣는다.
+     */
+    public record SaleInputsInfo(List<OptionInfo> options, List<PriceInfo> prices, List<SizeSpecInfo> sizeSpecs) {
+    }
+
+    /**
+     * 상품을 수정한 결과다. changed는 상품이 바뀌었는지, removedOptions는 옵션을 바꿔 넣으면서 뺀 옵션,
+     * requestedOptions는 받은 옵션과 같은 순서로 짝지은 옵션(남긴 옵션이거나 새로 넣은 옵션)이다.
+     * 옵션 · 가격 · 실측을 받지 않았으면 두 목록은 비어 있다.
+     */
+    public record UpdateResult(boolean changed, List<ProductOption> removedOptions,
+        List<ProductOption> requestedOptions) {
+    }
+
+    /**
      * 정보 항목 하나에 입력한 값이다. 목록 항목은 values에, 직접 입력 항목은 text에 값을 담는다.
      */
     public record InfoValueInfo(Attribute attribute, List<AttributeValue> values, String text) {
@@ -207,7 +222,15 @@ public class Product extends BaseTimeEntity {
     /**
      * 상품의 기본 정보와 정보 값을 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
      */
-    public boolean update(UpdateInfo info) {
+    public UpdateResult update(UpdateInfo info) {
+        return update(info, null);
+    }
+
+    /**
+     * 기본 정보와 정보 값에 더해, 판매대기 상품이면 옵션 · 가격 · 실측도 받은 값으로 맞춘다. saleInputs가 null이면
+     * 옵션과 실측은 그대로 둔다. 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 바꾼다.
+     */
+    public UpdateResult update(UpdateInfo info, SaleInputsInfo saleInputs) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(info.infoValues(), "infoValues는 필수입니다");
         requireNonNull(info.sellerId(), "sellerId는 필수입니다");
@@ -224,28 +247,42 @@ public class Product extends BaseTimeEntity {
         }
         // 정보 값은 등록할 때와 같은 규칙으로 검사한다. 상품 유형은 받은 카테고리에서 꺼낸다
         ProductInfoValues.validate(info.infoValues(), info.category().productTypeToRegister());
+        // 옵션 · 가격 · 실측은 주문이 없는 판매대기 상품에서만 바꿔 넣는다. 같은 값을 보내도 거절한다
+        if (saleInputs != null && status != ProductStatus.SALE_PENDING) {
+            throw new BusinessException(ProductErrorCode.SALE_INPUTS_LOCKED);
+        }
+        // 판매를 시작한 상품은 카테고리를 바꾸지 않는다. 이 요청으로는 판매중 상품의 실측을 다시 쓸 수 없어서,
+        // 새 카테고리에만 있는 실측 항목을 채울 방법이 없기 때문이다
+        if (status != ProductStatus.SALE_PENDING && category != info.category()) {
+            throw new BusinessException(ProductErrorCode.CATEGORY_CHANGE_NOT_ALLOWED);
+        }
+        // 판매대기 상품의 옵션 · 실측 검사는 모두 바꾸기 전에 끝낸다. 바꿔 넣을 값은 미리 만들어 둔 것을 그대로 쓴다
+        SaleInputsReplacement replacement = null;
+        if (saleInputs != null) {
+            replacement = SaleInputsReplacement.prepare(this, saleInputs, info.category());
+        } else if (category != info.category()) {
+            // 카테고리를 바꾸면 옵션 · 실측도 새 카테고리에 맞게 다시 쓴다. 지금 옵션 · 실측을 그대로 옮기지 않는다
+            throw new BusinessException(ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_CATEGORY_CHANGE);
+        }
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-        if (isSameAs(info)) {
-            return false;
+        if (isSameAs(info) && !(replacement != null && replacement.differsFrom(options, sizeSpecs))) {
+            // 바뀌지 않아도 받은 옵션과 짝지은 옵션은 돌려준다. 재고처럼 상품 밖의 값은 따로 맞춰야 하기 때문이다
+            List<ProductOption> requested = replacement == null ? List.of() : replacement.matchedOptions(options);
+            return new UpdateResult(false, List.of(), requested);
         }
         // 바꿀 것이 있을 때만 version을 본다. 다른 화면이 먼저 고친 상품을 예전 값으로 덮어쓰지 않게 하기 위해서다
         if (!Objects.equals(info.version(), version)) {
             throw new BusinessException(ProductErrorCode.PRODUCT_VERSION_MISMATCH);
         }
-        // 판매를 시작한 상품은 옵션 · 실측을 여기서 바꾸지 못하므로,
-        // 지금 실측이 새 카테고리의 필수 실측을 모두 채워야 한다 (SIZE-04)
-        if (status != ProductStatus.SALE_PENDING && category != info.category()) {
-            // 다른 유형으로 바꾸면 기존 옵션을 모두 보관해야 하는데, 이번에는 판매를 시작한 상품에서 하지 않는다 (OPT-06)
-            if (info.category().productTypeToRegister() != category.productTypeToRegister()) {
-                throw new BusinessException(ProductErrorCode.PRODUCT_TYPE_CHANGE_NOT_ALLOWED);
-            }
-            List<String> missing = SaleStartConditions.missingItems(
-                options, sizeSpecs, info.category(), info.category().productTypeToRegister());
-            if (!missing.isEmpty()) {
-                throw new BusinessException(
-                    ProductErrorCode.MEASUREMENTS_MISSING_FOR_CATEGORY, String.join(" ", missing));
-            }
+        replaceInfo(info);
+        if (replacement == null) {
+            return new UpdateResult(true, List.of(), List.of());
         }
+        return replacement.replace(options, sizeSpecs);
+    }
+
+    // 기본 정보와 정보 값을 받은 값으로 바꾼다
+    private void replaceInfo(UpdateInfo info) {
         name = info.name();
         brand = info.brand();
         description = info.description();
@@ -255,7 +292,6 @@ public class Product extends BaseTimeEntity {
         // 정보 값은 받은 값으로 통째로 바꾸므로 이전 행을 모두 빼고 받은 값으로 다시 만든다
         infoValues.clear();
         infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
-        return true;
     }
 
     // 정보 값은 영속성 컨텍스트의 같은 객체끼리 비교한다. 기본 정보는 값으로 비교하고 이미지는 순서까지 같아야 같다
@@ -285,9 +321,7 @@ public class Product extends BaseTimeEntity {
         ProductOptions.validateNewOptions(info, options, productType);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
-            long price = ProductOptions.findPrice(option.values(), info.prices(), productType);
-            List<AttributeValue> values = ProductOptions.inTypeOrder(option.values(), productType);
-            created.add(ProductOption.create(this, price, option.skuCode(), values));
+            created.add(ProductOptions.newOption(this, option, info.prices(), productType));
         }
         options.addAll(created);
         return Collections.unmodifiableList(created);
@@ -397,10 +431,8 @@ public class Product extends BaseTimeEntity {
     public void validateSaleStartInputs(Category category, ProductType productType) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
-        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
-        if (!missing.isEmpty()) {
-            throw new BusinessException(ProductErrorCode.SALE_START_INPUT_MISSING, String.join(" ", missing));
-        }
+        SaleStartConditions.requireComplete(
+            options, sizeSpecs, category, productType, ProductErrorCode.SALE_START_INPUT_MISSING);
     }
 
     public Long getCategoryId() {

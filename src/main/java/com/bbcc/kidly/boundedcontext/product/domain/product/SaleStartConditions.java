@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 판매 시작 조건(SALE-03) 중 채우지 못한 항목을 문장 목록으로 계산한다. Product.startSale과 validateSaleStartInputs가 쓴다.
+ * 판매 시작 조건(SALE-03) 중 채우지 못한 항목을 문장 목록으로 계산한다. Product.startSale, validateSaleStartInputs, SaleInputsReplacement가 쓴다.
  */
 final class SaleStartConditions {
 
@@ -40,6 +40,15 @@ final class SaleStartConditions {
             addSizeSpecMissing(missing, options, sizeSpecs, category, productType);
         }
         return missing;
+    }
+
+    // 채우지 못한 항목이 있으면 그 항목을 문장으로 이어 붙여 받은 오류 코드로 거절한다
+    static void requireComplete(List<ProductOption> options, List<SizeSpec> sizeSpecs, Category category,
+        ProductType productType, ProductErrorCode errorCode) {
+        List<String> missing = missingItems(options, sizeSpecs, category, productType);
+        if (!missing.isEmpty()) {
+            throw new BusinessException(errorCode, String.join(" ", missing));
+        }
     }
 
     // 옵션이 쓰는 사이즈 값마다 실측이 있어야 하고, 실측 값은 카테고리의 필수 실측 항목을 모두 채워야 한다.

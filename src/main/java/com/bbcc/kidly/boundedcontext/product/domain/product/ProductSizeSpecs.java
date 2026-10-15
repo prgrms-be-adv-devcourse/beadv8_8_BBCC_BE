@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 실측을 추가할 때 실측 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addSizeSpecs만 쓴다.
+ * 실측을 추가할 때 실측 여러 개나 요청 전체를 함께 보는 검사를 모은다. Product.addSizeSpecs와 SaleInputsReplacement가 쓴다.
  */
 final class ProductSizeSpecs {
 
