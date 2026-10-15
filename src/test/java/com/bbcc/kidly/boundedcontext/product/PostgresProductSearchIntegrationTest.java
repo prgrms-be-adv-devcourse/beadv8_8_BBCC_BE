@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.CREATED_AT;
 import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.document;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -11,9 +12,12 @@ import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
+import java.util.Arrays;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -57,6 +61,33 @@ class PostgresProductSearchIntegrationTest {
 
         assertThat(result.getContent()).containsExactly(
             new ProductSearchItem(1L, "품절 상품", "https://cdn.kidly.test/1.jpg", null, 31_000L, true, true));
+    }
+
+    @ParameterizedTest(name = "카테고리 {0} → 상품 {1}")
+    @CsvSource({
+        "1, '3,1'",
+        "2, 2",
+        "9, ''",
+        ", '3,2,1'"})
+    @DisplayName("카테고리를 고르면 그 카테고리 ID와 같은 상품만 나오고, 고르지 않으면 판매중 상품이 모두 나온다")
+    void filterByCategory(Long categoryId, String expectedIds) {
+        persist(
+            document(1L).categoryId(1L).build(),
+            document(2L).categoryId(2L).createdAt(CREATED_AT.plusDays(1)).build(),
+            document(3L).categoryId(1L).createdAt(CREATED_AT.plusDays(2)).build());
+
+        Page<ProductSearchItem> result = productSearch.search(
+            new ProductSearchCondition(categoryId, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
+    }
+
+    // CSV의 "3,2,1"을 기대하는 상품 ID 배열로 바꾼다. 빈 문자열이면 빈 배열이다
+    private static Long[] ids(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return new Long[0];
+        }
+        return Arrays.stream(csv.split(",")).map(Long::valueOf).toArray(Long[]::new);
     }
 
     private ProductSearchCondition noCondition() {

@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class PostgresProductSearch implements ProductSearch {
 
-    private static final String FROM_WHERE = """
+    private static final String FROM_ON_SALE = """
         FROM product.product_search_document d
         WHERE d.status = 'ON_SALE'
         """;
@@ -42,9 +42,10 @@ public class PostgresProductSearch implements ProductSearch {
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("limit", pageable.getPageSize())
             .addValue("offset", pageable.getOffset());
+        String fromWhere = fromWhere(condition, params);
 
         List<ProductSearchItem> content = jdbcTemplate.query(
-            SELECT_ITEMS + FROM_WHERE + ORDER_AND_PAGE, params,
+            SELECT_ITEMS + fromWhere + ORDER_AND_PAGE, params,
             (rs, rowNum) -> new ProductSearchItem(
                 rs.getLong("product_id"),
                 rs.getString("name"),
@@ -54,7 +55,17 @@ public class PostgresProductSearch implements ProductSearch {
                 rs.getBoolean("is_sold_out"),
                 rs.getBoolean("is_size_free")));
 
-        Long total = jdbcTemplate.queryForObject("SELECT count(*) " + FROM_WHERE, params, Long.class);
+        Long total = jdbcTemplate.queryForObject("SELECT count(*) " + fromWhere, params, Long.class);
         return new PageImpl<>(content, pageable, total == null ? 0 : total);
+    }
+
+    // 조건이 있는 것만 WHERE에 더하고, 값은 모두 바인드 파라미터로 넘긴다
+    private String fromWhere(ProductSearchCondition condition, MapSqlParameterSource params) {
+        StringBuilder sql = new StringBuilder(FROM_ON_SALE);
+        if (condition.categoryId() != null) {
+            sql.append("AND d.category_id = :categoryId\n");
+            params.addValue("categoryId", condition.categoryId());
+        }
+        return sql.toString();
     }
 }
