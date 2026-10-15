@@ -253,6 +253,8 @@ class ProductRegistrationApiTest {
                 "options[0].skuCode: SKU 코드는 공백만으로 넣을 수 없습니다."),
             invalid("공백만 있는 SKU 코드", body -> options(body).get(0).put("skuCode", "  "),
                 "options[0].skuCode: SKU 코드는 공백만으로 넣을 수 없습니다."),
+            invalid("전각 공백만 있는 SKU 코드", body -> options(body).get(0).put("skuCode", "　"),
+                "options[0].skuCode: SKU 코드는 공백만으로 넣을 수 없습니다."),
             invalid("판매가 0", body -> prices(body).get(0).put("price", 0), "prices[0].price: 판매가는 0보다 커야 합니다."),
             invalid("사이즈 값 없음", body -> sizeSpecs(body).get(0).put("sizeValueId", null),
                 "sizeSpecs[0].sizeValueId: 사이즈 값을 골라 주세요."),
