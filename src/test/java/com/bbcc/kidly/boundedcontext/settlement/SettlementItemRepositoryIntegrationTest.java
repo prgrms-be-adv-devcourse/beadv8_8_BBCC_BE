@@ -3,81 +3,50 @@ package com.bbcc.kidly.boundedcontext.settlement;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItem;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemCreateInfo;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatement;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatementCreateInfo;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatementRepository;
 import com.bbcc.kidly.support.IntegrationTest;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 @IntegrationTest
 class SettlementItemRepositoryIntegrationTest {
 
-    private static final LocalDateTime CONFIRMED_AT = LocalDateTime.of(2026, 10, 1, 10, 0);
-
     @Autowired
-    private SettlementItemRepository itemRepository;
-
-    @Autowired
-    private SettlementStatementRepository statementRepository;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private SettlementItemRepository settlementItemRepository;
 
     @Test
-    void savesItemAndFindsByOrderItemId() {
-        SettlementItem saved = itemRepository.save(newItem(101L));
+    @DisplayName("저장한 항목을 ID와 주문상품 ID로 찾는다")
+    void saveAndFind() {
+        var saved = settlementItemRepository.save(SettlementFixture.item(101L));
 
-        assertThat(saved.getId()).isNotNull();
-        assertThat(saved.getCreatedAt()).isNotNull();
-        assertThat(saved.getUpdatedAt()).isNotNull();
-        assertThat(itemRepository.findById(saved.getId())).isPresent();
-        assertThat(itemRepository.findByOrderItemId(101L)).hasValueSatisfying(found -> {
-            assertThat(found.getStatus()).isEqualTo(SettlementItemStatus.PENDING);
-            assertThat(found.getEligibleAt()).isEqualTo(CONFIRMED_AT.plusDays(14));
-            assertThat(found.getFeeAmount()).isNull();
+        assertThat(settlementItemRepository.findById(saved.getId()))
+            .hasValueSatisfying(found -> assertThat(found.getStatus()).isEqualTo(SettlementItemStatus.PENDING));
+        assertThat(settlementItemRepository.existsByOrderItemId(101L)).isTrue();
+        assertThat(settlementItemRepository.existsByOrderItemId(999L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("같은 주문상품은 두 번 저장되지 않는다")
+    void uniqueOrderItem() {
+        settlementItemRepository.save(SettlementFixture.item(102L));
+
+        assertThatThrownBy(() -> settlementItemRepository.save(SettlementFixture.item(102L)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("정산한 항목은 정산서 ID와 상태가 저장된다")
+    void saveSettled() {
+        var item = SettlementFixture.item(103L);
+        item.settle(7L);
+        var saved = settlementItemRepository.save(item);
+
+        assertThat(settlementItemRepository.findById(saved.getId())).hasValueSatisfying(found -> {
+            assertThat(found.getStatus()).isEqualTo(SettlementItemStatus.SETTLED);
+            assertThat(found.getSettlementId()).isEqualTo(7L);
         });
-    }
-
-    @Test
-    void preventsDuplicateOrderItemId() {
-        itemRepository.save(newItem(102L));
-
-        assertThatThrownBy(() -> itemRepository.save(newItem(102L)))
-                .isInstanceOf(DataIntegrityViolationException.class);
-    }
-
-    @Test
-    void persistsStatementForeignKey() {
-        SettlementStatement statement = statementRepository.save(SettlementStatement.create(
-                new SettlementStatementCreateInfo(
-                        10L, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31),
-                        10_000L, 1_000L, 9_000L)));
-        SettlementItem item = newItem(103L);
-        item.markReady(CONFIRMED_AT.plusDays(14));
-        item.assignToStatement(statement, 1_000L);
-        itemRepository.save(item);
-
-        Long referencedId = jdbcTemplate.queryForObject(
-                "SELECT settlement_statement_id FROM settlement.settlement_item WHERE order_item_id = ?",
-                Long.class, 103L);
-
-        assertThat(referencedId).isEqualTo(statement.getId());
-        assertThat(itemRepository.findByOrderItemId(103L))
-                .hasValueSatisfying(found -> assertThat(found.getStatus())
-                        .isEqualTo(SettlementItemStatus.SETTLED));
-    }
-
-    private SettlementItem newItem(Long orderItemId) {
-        return SettlementItem.create(new SettlementItemCreateInfo(
-                1L, orderItemId, 10L, 10_000L, CONFIRMED_AT));
     }
 }
