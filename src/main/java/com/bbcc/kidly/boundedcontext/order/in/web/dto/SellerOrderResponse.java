@@ -30,7 +30,7 @@ public record SellerOrderResponse(
             view.shippedAt(),
             view.deliveredAt(),
             view.orderedAt(),
-            new OrderDetailResponse.ShippingAddress(
+            address == null ? null : new OrderDetailResponse.ShippingAddress(
                 address.recipientName(), address.phone(), address.zipCode(), address.address()),
             view.items().stream().map(SellerOrderResponse::toItem).toList());
     }

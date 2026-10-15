@@ -97,4 +97,34 @@ class ReplicaEventIntegrationTest {
                 assertThat(replica.isPurchasable()).isTrue();
             });
     }
+
+    @Test
+    @DisplayName("키가 빠진 깨진 child.changed는 무시되어 기존 자녀 복사본이 그대로, 키 · 몸무게 없는 삭제 이벤트는 삭제 표시만 반영된다")
+    void brokenChildEventsKeepOrMarkReplica() {
+        publishChild(OCCURRED_AT, new BigDecimal("115.0"), new BigDecimal("20.0"), false);
+
+        publishChild(OCCURRED_AT.plusMinutes(1), null, new BigDecimal("21.0"), false);
+
+        assertThat(childReplicaRepository.findByChildId(1L)).get()
+            .satisfies(replica -> {
+                assertThat(replica.getHeightCm()).isEqualByComparingTo(new BigDecimal("115.0"));
+                assertThat(replica.getWeightKg()).isEqualByComparingTo(new BigDecimal("20.0"));
+                assertThat(replica.isDeleted()).isFalse();
+                assertThat(replica.getEventOccurredAt()).isEqualTo(OCCURRED_AT);
+            });
+
+        publishChild(OCCURRED_AT.plusMinutes(2), null, null, true);
+
+        assertThat(childReplicaRepository.findByChildId(1L)).get()
+            .satisfies(replica -> {
+                assertThat(replica.isDeleted()).isTrue();
+                assertThat(replica.getHeightCm()).isEqualByComparingTo(new BigDecimal("115.0"));
+            });
+    }
+
+    private void publishChild(LocalDateTime occurredAt, BigDecimal heightCm, BigDecimal weightKg, boolean deleted) {
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new ChildChangedEvent(
+            UUID.randomUUID(), occurredAt, new ChildChangedEvent.Data(1L, BUYER_ID, heightCm, weightKg, Gender.MALE,
+                LocalDate.of(2019, 1, 1), BodyType.NORMAL, PreferredFit.LOOSE, deleted))));
+    }
 }

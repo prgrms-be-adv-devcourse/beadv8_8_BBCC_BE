@@ -49,6 +49,21 @@ class ReplicaChildTest {
     }
 
     @Test
+    @DisplayName("키 · 몸무게 없는 삭제는 늦게 발생했을 때만 삭제 표시만 하고 다른 값은 그대로 둔다(같거나 이른 시각은 무시)")
+    void markDeletedIfNewer() {
+        ReplicaChild replica = ReplicaChild.create(child("115.0", false, OCCURRED_AT));
+
+        assertThat(replica.markDeletedIfNewer(OCCURRED_AT.minusSeconds(1))).isFalse();
+        assertThat(replica.markDeletedIfNewer(OCCURRED_AT)).isFalse();
+        assertThat(replica.isDeleted()).isFalse();
+
+        assertThat(replica.markDeletedIfNewer(OCCURRED_AT.plusSeconds(1))).isTrue();
+        assertThat(replica.isDeleted()).isTrue();
+        assertThat(replica.getHeightCm()).isEqualByComparingTo(new BigDecimal("115.0"));
+        assertThat(replica.getEventOccurredAt()).isEqualTo(OCCURRED_AT.plusSeconds(1));
+    }
+
+    @Test
     @DisplayName("삭제 이벤트가 와도 행을 남기고 삭제 표시만 한다")
     void deleteKeepsRow() {
         ReplicaChild replica = ReplicaChild.create(child("115.0", false, OCCURRED_AT));

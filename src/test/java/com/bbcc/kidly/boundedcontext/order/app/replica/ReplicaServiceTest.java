@@ -25,8 +25,10 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class ReplicaServiceTest {
 
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 10, 13, 9, 0);
@@ -185,6 +187,30 @@ class ReplicaServiceTest {
 
         assertThat(existing.getHeightCm()).isEqualByComparingTo(new BigDecimal("115.0"));
         assertThat(existing.isDeleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("키 · 몸무게 없는 삭제: 복사본이 있으면 늦은 이벤트일 때 삭제 표시만, 이른 이벤트면 그대로(저장 호출 없음)")
+    void marksExistingChildDeleted() {
+        ReplicaChild existing = ReplicaChild.create(childValues("115.0", OCCURRED_AT));
+        when(childReplicaRepository.findByChildId(1L)).thenReturn(Optional.of(existing));
+
+        replicaService.applyChildDeleted(1L, OCCURRED_AT.minusSeconds(1));
+        assertThat(existing.isDeleted()).isFalse();
+
+        replicaService.applyChildDeleted(1L, OCCURRED_AT.plusSeconds(1));
+        assertThat(existing.isDeleted()).isTrue();
+        assertThat(existing.getHeightCm()).isEqualByComparingTo(new BigDecimal("115.0"));
+        verify(childReplicaRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("키 · 몸무게 없는 삭제: 복사본이 없으면 만들 수 없어 저장 없이 WARN만 남긴다")
+    void ignoresDeleteWithoutReplica(CapturedOutput output) {
+        replicaService.applyChildDeleted(1L, OCCURRED_AT);
+
+        verify(childReplicaRepository, never()).save(any());
+        assertThat(output).containsPattern("WARN.*event=child.changed childId=1 reason=replica-not-found");
     }
 
     private static ProductChangedCommand product(LocalDateTime occurredAt, String status,

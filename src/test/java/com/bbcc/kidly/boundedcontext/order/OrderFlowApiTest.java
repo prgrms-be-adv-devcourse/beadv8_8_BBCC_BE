@@ -276,6 +276,25 @@ class OrderFlowApiTest {
     }
 
     @Test
+    @DisplayName("키 · 몸무게 없는 자녀 삭제 이벤트도 반영돼, 그 자녀로 주문하면 기존처럼 409 CHILD_NOT_ORDERABLE")
+    void deletedChildWithoutBodyValuesCannotBeOrdered() {
+        publish(new ChildChangedEvent(UUID.randomUUID(), LocalDateTime.now().plusMinutes(1), new ChildChangedEvent.Data(
+            CHILD_ID, BUYER_ID, null, null, Gender.MALE, LocalDate.now().minusYears(7), BodyType.NORMAL,
+            PreferredFit.LOOSE, true)));
+
+        client.post().uri(ORDERS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of(
+                "items", List.of(Map.of("optionId", "1", "childId", String.valueOf(CHILD_ID), "quantity", 1,
+                    "unitPrice", 25_000)),
+                "shippingAddress", ADDRESS))
+            .exchange()
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("선택할 수 없는 자녀입니다");
+    }
+
+    @Test
     @DisplayName("결제 마감 만료(여러 배치): 마감이 지난 주문 3건을 batch 2로 한 실행에 끝까지 PAYMENT_EXPIRED로 취소한다")
     void paymentExpiryAcrossBatches() {
         List<Long> orderIds = List.of(placeOrder(), placeOrder(), placeOrder());

@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -61,6 +62,9 @@ class SellerOrderApiTest {
 
     @Autowired
     private WalletRepository walletRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private String orderId;
 
@@ -96,6 +100,27 @@ class SellerOrderApiTest {
                 .jsonPath("$.content[0].items[0].optionName").isEqualTo("네이비 / 110")
                 .jsonPath("$.content[0].items[0].child.childId").isEqualTo("1")
                 .jsonPath("$.totalElements").isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("배송의 주문을 읽지 못해도(주문 행이 사라짐) 200, 그 건은 배송 값은 그대로 · 주문 값은 비운다(items [])")
+        void brokenOrderStillOk() {
+            String sellerOrderId = sellerOrderIdOf(SELLER_ID);
+            jdbcTemplate.update("delete from orders.order_item where order_id = ?", Long.valueOf(orderId));
+            jdbcTemplate.update("delete from orders.orders where id = ?", Long.valueOf(orderId));
+
+            client.get().uri(SELLER_ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(1)
+                .jsonPath("$.content[0].sellerOrderId").isEqualTo(sellerOrderId)
+                .jsonPath("$.content[0].orderId").isEqualTo(orderId)
+                .jsonPath("$.content[0].status").isEqualTo("READY")
+                .jsonPath("$.content[0].orderedAt").value(value -> assertThat(value).isNull())
+                .jsonPath("$.content[0].shippingAddress").value(value -> assertThat(value).isNull())
+                .jsonPath("$.content[0].items.length()").isEqualTo(0);
         }
 
         @Test

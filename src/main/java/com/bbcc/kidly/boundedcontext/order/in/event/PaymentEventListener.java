@@ -47,6 +47,14 @@ public class PaymentEventListener {
             return;
         }
         MarkPaidCommand paid = toCommand(event);
+        if (paid.paymentId() == null) {
+            // 돈은 이미 빠졌으므로 막지 않고 결제완료로 바꾼다(막으면 결제 마감 만료로 취소됨). 결제 쪽 계약 위반이라 ERROR
+            log.error("결제 완료 결제 ID 없음: event=payment.completed reason=missing-payment-id orderId={}", paid.orderId());
+        }
+        if (event.data().paidAt() == null) {
+            // 결제 시각은 이벤트 값이 아니라 처리 시각(now)을 쓰므로 막지 않는다. 결제 쪽 계약 위반이라 ERROR(사유별 한 줄)
+            log.error("결제 완료 결제 시각 없음: event=payment.completed reason=missing-paid-at orderId={}", paid.orderId());
+        }
         AtomicBoolean logged = new AtomicBoolean(false);
         warnIfRolledBackAtCommit(paid, logged);
         try {

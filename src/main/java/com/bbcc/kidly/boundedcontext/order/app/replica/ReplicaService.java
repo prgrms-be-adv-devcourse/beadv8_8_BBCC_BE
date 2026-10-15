@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ProductChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -68,6 +69,20 @@ public class ReplicaService {
                     }
                 },
                 () -> childReplicaRepository.save(ReplicaChild.create(values)));
+    }
+
+    /**
+     * 키 · 몸무게 없이 온 자녀 삭제. 복사본이 있으면 삭제 표시만(늦은 이벤트일 때), 없으면 만들 수 없어 WARN 후 무시한다.
+     */
+    public void applyChildDeleted(Long childId, LocalDateTime occurredAt) {
+        childReplicaRepository.findByChildId(childId)
+            .ifPresentOrElse(
+                replica -> {
+                    if (!replica.markDeletedIfNewer(occurredAt)) {
+                        log.debug("복사본 이벤트 무시: event=child.changed childId={} reason=not-newer", childId);
+                    }
+                },
+                () -> log.warn("자녀 삭제 이벤트 무시: event=child.changed childId={} reason=replica-not-found", childId));
     }
 
     private ReplicaProduct.Values toValues(ProductChangedCommand command, ProductChangedCommand.Option option) {
