@@ -46,11 +46,11 @@ public class ProductSaleService {
 
         boolean started = product.startSale(sellerId, category, productType);
         if (started) {
+            // 늘어난 version을 응답에 담으려고 바로 DB에 반영한다. 다른 요청이 먼저 고쳤으면 여기서 충돌해 이벤트를 만들지 않는다
+            productRepository.saveAndFlush(product);
             ProductChangedEvent.Data data = ProductChangedData.of(
                 product, productType, availableQtyByOptionId(product.getOptions()));
             eventPublisher.publish(new ProductChangedEvent(UUID.randomUUID(), LocalDateTime.now(), data));
-            // 늘어난 version을 같은 트랜잭션에서 응답에 담으려고 바로 DB에 반영한다
-            productRepository.saveAndFlush(product);
         }
         return new ProductSaleStatusResult(product.getId(), product.getStatus(), product.getVersion());
     }
