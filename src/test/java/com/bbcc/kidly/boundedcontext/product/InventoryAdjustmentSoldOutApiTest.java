@@ -86,6 +86,18 @@ class InventoryAdjustmentSoldOutApiTest {
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
+    // 판매대기 상품의 품절 여부는 판매를 시작할 때 보내는 상품 정보 변경됨에 담긴다
+    @ParameterizedTest(name = "판매 가능 수량 {0}에 {1} {2}")
+    @CsvSource({"5, LOST, -5", "0, RESTOCK, 10"})
+    @DisplayName("SALE-08 판매를 시작하기 전인 상품은 조정으로 품절 여부가 바뀌어도 상품 정보 변경됨을 보내지 않는다")
+    void skipProductChangedBeforeSaleStarts(int stock, String reason, int deltaQuantity) {
+        OnSaleOptions options = saveOptionsWithStock(stock, "SALE_PENDING");
+
+        adjust(options.navy110(), deltaQuantity, reason).expectStatus().isOk();
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
     // 네이비 · 110의 재고를 navy110Stock, 네이비 · 120의 재고를 10으로 연 상품을 저장하고 상품의 판매 상태를 바꾼다.
     // 판매 상태를 이렇게 바꾸는 기능이 아직 없어서 DB에서 직접 바꾼다. 저장하면서 나간 이벤트는 지운다
     private OnSaleOptions saveOptionsWithStock(int navy110Stock, String productStatus) {

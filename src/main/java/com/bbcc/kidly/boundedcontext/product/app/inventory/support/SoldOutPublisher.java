@@ -34,19 +34,25 @@ public class SoldOutPublisher {
         if (soldOutOptionIds.isEmpty()) {
             return;
         }
-        publishProductChanged(soldOutOptionIds);
+        for (Product product : productRepository.lockAllHavingOptions(soldOutOptionIds)) {
+            publishProductChanged(product);
+        }
     }
 
     // 판매자의 재고 조정으로 옵션의 품절 여부가 바뀐 뒤 그 옵션이 속한 상품의 상품 정보 변경됨을 발행한다
-    // 품절 여부가 바뀌었는지는 부르는 쪽이 이미 판단했다
+    // 품절 여부가 바뀌었는지는 부르는 쪽이 이미 판단했다 (SALE-08)
+    // 판매를 시작하기 전 상품의 품절 여부는 판매를 시작할 때 나가는 상품 정보 변경됨에 담기므로 여기서는 보내지 않는다
+    // 판매 상태는 상품 행을 잠근 뒤에 읽는다. 판매 시작과 동시에 와도 잠금이 풀린 뒤의 상태를 바르게 본다
     public void publishAfterAdjustment(long optionId) {
-        publishProductChanged(List.of(optionId));
+        for (Product product : productRepository.lockAllHavingOptions(List.of(optionId))) {
+            if (product.hasStartedSale()) {
+                publishProductChanged(product);
+            }
+        }
     }
 
-    private void publishProductChanged(List<Long> optionIds) {
-        for (Product product : productRepository.lockAllHavingOptions(optionIds)) {
-            Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
-            productChangedPublisher.publish(product, category.getProductType());
-        }
+    private void publishProductChanged(Product product) {
+        Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
+        productChangedPublisher.publish(product, category.getProductType());
     }
 }
