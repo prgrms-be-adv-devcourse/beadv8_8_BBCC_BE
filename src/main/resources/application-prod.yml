@@ -1,3 +1,7 @@
+server:
+  # nginx 가 넣는 X-Forwarded-* 를 믿어 https · 원래 호스트로 인식한다. Tomcat 은 사설 대역 프록시만 믿는다
+  forward-headers-strategy: native
+
 spring:
   datasource:
     url: ${DB_URL}
