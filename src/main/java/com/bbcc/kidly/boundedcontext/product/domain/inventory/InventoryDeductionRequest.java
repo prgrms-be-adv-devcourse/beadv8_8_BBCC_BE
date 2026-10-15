@@ -3,12 +3,14 @@ package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -105,6 +107,31 @@ public final class InventoryDeductionRequest {
             }
         }
         return true;
+    }
+
+    // 판매중이 아니어서 거절한 요청의 사유를 만든다. 살 수 없는 옵션을 담은 주문상품만 요청한 순서대로 담는다 (INV-13)
+    public InventoryDeductionRejection notOnSaleRejection() {
+        List<InventoryDeductionRejection.Failure> failures = new ArrayList<>();
+        for (Item item : items) {
+            Optional<StockDeductionFailureCode> reason = item.option().notPurchasableReason();
+            if (reason.isPresent()) {
+                failures.add(new InventoryDeductionRejection.Failure(item.orderItemId(), reason.get()));
+            }
+        }
+        return new InventoryDeductionRejection(failures);
+    }
+
+    // 재고가 모자라 거절한 요청의 사유를 만든다. 모자란 옵션을 담은 주문상품만 요청한 순서대로 담는다 (INV-11)
+    public InventoryDeductionRejection shortageRejection(Set<Long> shortOptionIds) {
+        requireNonNull(shortOptionIds, "shortOptionIds는 필수입니다");
+        List<InventoryDeductionRejection.Failure> failures = new ArrayList<>();
+        for (Item item : items) {
+            if (shortOptionIds.contains(item.option().getId())) {
+                failures.add(new InventoryDeductionRejection.Failure(
+                    item.orderItemId(), StockDeductionFailureCode.OUT_OF_STOCK));
+            }
+        }
+        return new InventoryDeductionRejection(failures);
     }
 
     // 주문상품마다 DEDUCTED 차감 기록을 하나씩, 요청한 순서대로 만든다 (INV-04)
