@@ -107,8 +107,8 @@ class ProductOrderEventListenerIntegrationTest {
     }
 
     @Test
-    @DisplayName("INV-11 한 옵션이라도 재고가 부족하면 재고를 줄이지 않고 FAILED 기록만 남기며, 재고 차감됨과 상품 정보 변경됨을 보내지 않는다")
-    void sendNoEventWhenStockIsShort() {
+    @DisplayName("INV-11 한 옵션이라도 재고가 부족하면 재고를 줄이지 않고 FAILED 기록을 남기며, 재고 차감됨과 상품 정보 변경됨은 보내지 않는다")
+    void sendNoStockDeductedWhenStockIsShort() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 1);
 
         publishInTransaction(orderCreated(ORDER_ID,

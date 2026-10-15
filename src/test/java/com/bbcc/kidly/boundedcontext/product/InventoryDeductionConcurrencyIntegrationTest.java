@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionSer
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
+import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.ArrayList;
 import java.util.List;
@@ -130,7 +131,7 @@ class InventoryDeductionConcurrencyIntegrationTest {
     }
 
     @Test
-    @DisplayName("INV-10 재고가 한 번분뿐인 같은 주문 생성됨을 두 스레드가 동시에 처리하면, 늦은 쪽은 FAILED를 남기려다 UNIQUE에 막히고 예외 없이 끝난다")
+    @DisplayName("INV-10 재고가 한 번분뿐인 같은 주문 생성됨을 두 스레드가 동시에 처리하면, 늦은 쪽은 FAILED를 남기려다 UNIQUE에 막히고 재고 부족함도 보내지 않는다")
     void deductSameEventWithStockForOnceConcurrently() throws Exception {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(3, 5);
         OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
@@ -141,6 +142,9 @@ class InventoryDeductionConcurrencyIntegrationTest {
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(1);
         assertThat(inventoryDeductionDb.records())
             .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+        // 늦은 쪽의 거절이 새면 재고를 이미 줄인 주문이 취소되므로, 재고 부족함이 나가지 않는지 함께 본다
+        assertThat(eventRecorder.events(StockDeductedEvent.class)).hasSize(1);
+        assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).isEmpty();
     }
 
     @Test
