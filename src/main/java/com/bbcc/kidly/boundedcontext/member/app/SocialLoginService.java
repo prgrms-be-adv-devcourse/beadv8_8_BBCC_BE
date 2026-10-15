@@ -1,13 +1,13 @@
 package com.bbcc.kidly.boundedcontext.member.app;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.LoggedInMember;
-import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.OAuthClient;
 import com.bbcc.kidly.boundedcontext.member.app.port.OAuthProfile;
 import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
@@ -15,6 +15,7 @@ import com.bbcc.kidly.global.error.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
  * 소셜 계정으로 로그인한다. 처음이면 가입시킨다. 토큰은 {@link AuthTokenService}가 발급한다.
@@ -44,9 +45,14 @@ public class SocialLoginService {
 
     // 같은 소셜 계정으로 동시에 처음 로그인하면 한 요청만 가입되고, 나머지는 그 회원으로 로그인한다
     private Member register(OAuthProvider provider, OAuthProfile profile) {
+        // 이메일은 가입할 때만 필수다. 이메일을 받기 전에 가입한 회원은 이메일 없이도 로그인한다
+        if (!StringUtils.hasText(profile.email())) {
+            throw new BusinessException(MemberErrorCode.EMAIL_REQUIRED);
+        }
         try {
             var nickname = nicknamePolicy.generate(profile.nickname());
-            return memberRegistrar.register(new MemberLoginRequest(provider, profile.providerUserId(), nickname));
+            return memberRegistrar.register(
+                new MemberRegisterInfo(provider, profile.providerUserId(), nickname, profile.email()));
         } catch (DataIntegrityViolationException e) {
             // 닉네임이 겹쳐 실패하면 소셜 계정으로 다시 찾지 못하므로 그대로 던진다 (409)
             return memberRepository.findBySocialAccount(provider, profile.providerUserId())

@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.member.app.support;
 
-import com.bbcc.kidly.boundedcontext.member.app.dto.MemberLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
@@ -25,11 +25,10 @@ public class MemberRegistrar {
     private final EventPublisher eventPublisher;
 
     @Transactional
-    public Member register(MemberLoginRequest request) {
+    public Member register(MemberRegisterInfo info) {
         var now = LocalDateTime.now();
 
-        Member member = memberRepository.save(
-            Member.register(request.provider(), request.providerUserId(), request.nickname(), now));
+        Member member = memberRepository.save(Member.register(info, now));
 
         eventPublisher.publish(new MemberRegisteredEvent(
             UUID.randomUUID(),

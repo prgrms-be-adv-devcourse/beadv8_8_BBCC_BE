@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -42,17 +43,18 @@ class MemberRepositoryIntegrationTest {
         memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
 
         assertThatThrownBy(() -> memberRepository.save(
-            Member.register(OAuthProvider.KAKAO, "kakao-1", "다른회원", MemberFixture.NOW)))
+            Member.register(new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", "다른회원", MemberFixture.EMAIL),
+                MemberFixture.NOW)))
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
     @DisplayName("같은 닉네임은 두 회원이 가질 수 없다")
     void duplicateNickname() {
-        memberRepository.save(Member.register(OAuthProvider.KAKAO, "kakao-1", "하은맘", MemberFixture.NOW));
+        memberRepository.save(MemberFixture.withNickname("kakao-1", "하은맘"));
 
         assertThatThrownBy(() -> memberRepository.save(
-            Member.register(OAuthProvider.KAKAO, "kakao-2", "하은맘", MemberFixture.NOW)))
+            MemberFixture.withNickname("kakao-2", "하은맘")))
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 

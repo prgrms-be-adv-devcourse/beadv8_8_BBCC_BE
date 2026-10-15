@@ -75,7 +75,7 @@ class SocialLoginServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("인가 코드로 로그인하면 제공자의 회원 번호와 닉네임으로 가입한다")
+    @DisplayName("인가 코드로 로그인하면 제공자의 회원 번호 · 닉네임 · 이메일로 가입한다")
     void registersWithProviderProfile() {
         var member = login("kakao-1");
 
@@ -83,7 +83,30 @@ class SocialLoginServiceIntegrationTest {
             .hasValueSatisfying(found -> {
                 assertThat(found.getId()).isEqualTo(member.memberId());
                 assertThat(found.getNickname()).isEqualTo(FakeOAuthClient.NICKNAME);
+                assertThat(found.getEmail()).isEqualTo(FakeOAuthClient.EMAIL);
             });
+    }
+
+    @Test
+    @DisplayName("제공자 이메일 없이 처음 로그인하면 가입되지 않는다")
+    void firstLoginWithoutEmail() {
+        assertThatThrownBy(() -> login(FakeOAuthClient.NO_EMAIL_CODE))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.EMAIL_REQUIRED));
+        assertThat(jpaMemberRepository.count()).isZero();
+        assertThat(events.stream(MemberRegisteredEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("이메일을 받기 전에 가입한 회원은 제공자 이메일 없이도 로그인한다")
+    void existingMemberWithoutEmailLogsIn() {
+        Member saved = memberRepository.save(MemberFixture.withoutEmail(FakeOAuthClient.NO_EMAIL_CODE));
+
+        var member = login(FakeOAuthClient.NO_EMAIL_CODE);
+
+        assertThat(member.memberId()).isEqualTo(saved.getId());
+        assertThat(jpaMemberRepository.count()).isEqualTo(1);
+        assertThat(events.stream(MemberRegisteredEvent.class)).isEmpty();
     }
 
     @Test
