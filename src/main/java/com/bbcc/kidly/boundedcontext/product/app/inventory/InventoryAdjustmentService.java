@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.app.inventory;
 
 import com.bbcc.kidly.boundedcontext.product.app.inventory.dto.InventoryAdjustmentRequest;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.dto.InventoryAdjustmentResult;
+import com.bbcc.kidly.boundedcontext.product.app.inventory.support.SoldOutPublisher;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentReason;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentRecord;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentRecord.AdjustInfo;
@@ -26,6 +27,7 @@ public class InventoryAdjustmentService {
 
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
+    private final SoldOutPublisher soldOutPublisher;
 
     // 수량을 바꾼 경우에만 같은 트랜잭션에서 조정 기록을 한 행 남긴다 (INV-17).
     // 조건부 UPDATE가 영속성 컨텍스트를 비우므로 옵션은 그 전에 읽은 값만 쓴다
@@ -50,6 +52,11 @@ public class InventoryAdjustmentService {
                 "판매 가능 수량보다 많이 줄일 수 없습니다. 지금 판매 가능 수량: " + availableQuantity);
         }
         inventoryRepository.saveAdjustmentRecord(record);
+        // 품절 여부가 바뀌었으면 상품 정보 변경됨을 보낸다 (SALE-08)
+        // 재고 행을 바꾼 뒤에 상품 행을 잠가, 재고 차감과 같은 순서로 잠근다
+        if (record.changesSoldOut(availableQuantity)) {
+            soldOutPublisher.publishAfterAdjustment(optionId);
+        }
         return new InventoryAdjustmentResult(optionId, reason.name(), deltaQuantity, availableQuantity);
     }
 }

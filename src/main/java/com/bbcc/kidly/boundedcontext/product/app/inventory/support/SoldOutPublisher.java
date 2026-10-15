@@ -13,8 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 재고를 차감한 뒤 품절이 된 옵션이 있으면, 그 옵션이 속한 상품마다 상품 정보 변경됨을 발행한다.
- * 재고 차감 트랜잭션 안에서 불러야 한다. 차감이 커밋될 때만 상품 정보 변경됨이 나가게 하기 위해서다.
+ * 재고를 차감하거나 판매자가 재고를 조정한 뒤 품절이 된 옵션이 있으면, 그 옵션이 속한 상품마다 상품 정보 변경됨을 발행한다.
+ * 재고를 바꾸는 트랜잭션 안에서 불러야 한다. 재고 변경이 커밋될 때만 상품 정보 변경됨이 나가게 하기 위해서다.
  */
 @Component
 @RequiredArgsConstructor
@@ -35,8 +35,23 @@ public class SoldOutPublisher {
             return;
         }
         for (Product product : productRepository.lockAllHavingOptions(soldOutOptionIds)) {
-            Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
-            productChangedPublisher.publish(product, category.getProductType());
+            publishProductChanged(product);
         }
+    }
+
+    // 판매자의 재고 조정으로 옵션의 품절 여부가 바뀐 뒤 그 옵션이 속한 상품의 상품 정보 변경됨을 발행한다
+    // 판매를 시작하기 전 상품의 품절 여부는 판매를 시작할 때 나가는 상품 정보 변경됨에 담기므로 여기서는 보내지 않는다
+    // 판매 상태는 상품 행을 잠근 뒤에 읽는다. 판매 시작과 동시에 와도 잠금이 풀린 뒤의 상태를 바르게 본다
+    public void publishAfterAdjustment(long optionId) {
+        for (Product product : productRepository.lockAllHavingOptions(List.of(optionId))) {
+            if (product.hasStartedSale()) {
+                publishProductChanged(product);
+            }
+        }
+    }
+
+    private void publishProductChanged(Product product) {
+        Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
+        productChangedPublisher.publish(product, category.getProductType());
     }
 }

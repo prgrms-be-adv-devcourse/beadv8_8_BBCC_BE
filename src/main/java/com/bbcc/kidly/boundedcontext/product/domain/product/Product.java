@@ -362,6 +362,11 @@ public class Product extends BaseTimeEntity {
         return openSale(category, productType);
     }
 
+    /** 판매를 시작한 상품인지 알려 준다. 판매중이거나 판매중지면 판매를 시작한 상품이고, 판매대기면 아니다. */
+    public boolean hasStartedSale() {
+        return status == ProductStatus.ON_SALE || status == ProductStatus.STOPPED;
+    }
+
     /** 상품을 바꾸려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 바꿀 수 없다. */
     public void validateOwner(Long sellerId) {
         requireNonNull(sellerId, "sellerId는 필수입니다");

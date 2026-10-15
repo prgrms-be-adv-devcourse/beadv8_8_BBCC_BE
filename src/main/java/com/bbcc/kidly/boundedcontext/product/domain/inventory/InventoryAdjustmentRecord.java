@@ -61,6 +61,13 @@ public class InventoryAdjustmentRecord extends BaseTimeEntity {
         return create(info.option(), info.deltaQty(), info.reason(), info.adjustedBy());
     }
 
+    // 조정 뒤 판매 가능 수량을 받아, 이 조정으로 옵션의 품절 여부가 바뀌었는지 판단한다 (SALE-08)
+    // 조정 전 수량은 조정 뒤 수량에서 증감량을 빼서 구한다. 판매 가능 수량이 0이면 품절이다
+    public boolean changesSoldOut(int availableQtyAfter) {
+        int availableQtyBefore = availableQtyAfter - deltaQty;
+        return (availableQtyBefore == 0) != (availableQtyAfter == 0);
+    }
+
     // 재고를 열 때(InventoryOpening)와 판매자가 조정할 때 만든다. 어느 쪽이든 기록 값은 여기서 검사한다
     static InventoryAdjustmentRecord create(
             ProductOption productOption, int deltaQty, InventoryAdjustmentReason reason, Long adjustedBy) {

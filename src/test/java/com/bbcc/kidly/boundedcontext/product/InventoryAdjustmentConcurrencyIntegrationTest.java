@@ -6,7 +6,9 @@ import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCre
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryAdjustmentService;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
@@ -15,8 +17,10 @@ import com.bbcc.kidly.boundedcontext.product.app.inventory.dto.InventoryAdjustme
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
+import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
@@ -48,6 +52,9 @@ class InventoryAdjustmentConcurrencyIntegrationTest {
 
     @Autowired
     private InventoryDeductionDb inventoryDeductionDb;
+
+    @Autowired
+    private OrderFlowEventRecorder eventRecorder;
 
     @AfterEach
     void checkInvariants() {
@@ -93,6 +100,56 @@ class InventoryAdjustmentConcurrencyIntegrationTest {
         assertThat(adjusted.get()).isTrue();
         assertThat(inventoryDeductionDb.countByStatus("RESTORED")).isEqualTo(1);
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(5);
+    }
+
+    // 복사본은 발생 시각이 더 늦은 이벤트만 반영하므로, 늦게 발생한 이벤트가 두 옵션의 품절을 모두 담아야 한다.
+    // 상품 행을 잠가 두면 두 작업이 각자 재고를 줄인 뒤 상품 행 잠금에서 기다린다. 잠금을 풀면 한쪽이 이벤트를 보내고 커밋한 뒤에
+    // 다른 쪽이 잠금을 얻어 두 옵션의 수량을 다시 읽는다
+    @Test
+    @DisplayName("SALE-08 같은 상품의 두 옵션을 분실 조정과 주문 차감이 동시에 품절시켜도, 늦게 발생한 상품 정보 변경됨에는 두 옵션이 모두 품절이다")
+    void latestProductChangedHasBothOptionsSoldOut() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(5, 1);
+        eventRecorder.clear();
+        AtomicBoolean adjusted = new AtomicBoolean();
+        List<Runnable> tasks = List.of(
+            adjustLost(options.navy110(), 5, adjusted),
+            () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy120(), 1))));
+
+        InventoryDeductionDb.HeldLock lock = inventoryDeductionDb.lockProductRow(options.navy110());
+        ConcurrentTasks.runRacing(inventoryDeductionDb, lock, tasks);
+
+        assertThat(adjusted.get()).isTrue();
+        List<ProductChangedEvent> changes = eventRecorder.events(ProductChangedEvent.class);
+        assertThat(changes).hasSize(2);
+        ProductChangedEvent latest = changes.stream()
+            .max(Comparator.comparing(ProductChangedEvent::occurredAt))
+            .orElseThrow();
+        assertThat(latest.data().options())
+            .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+            .containsExactlyInAnyOrder(
+                tuple(options.navy110().getId(), true),
+                tuple(options.navy120().getId(), true));
+    }
+
+    // 판매 시작이 상품 행을 바꾸고 아직 커밋하지 않았을 때 조정이 오면, 조정은 상품 행 잠금에서 기다린다.
+    // 판매 상태를 잠금을 얻은 뒤에 읽으므로, 판매 시작이 커밋된 뒤의 판매중 상태를 보고 상품 정보 변경됨을 보낸다
+    @Test
+    @DisplayName("SALE-08 판매 시작이 커밋되기 전에 분실 조정으로 옵션이 품절되면, 판매 시작이 커밋된 뒤 상품 정보 변경됨을 한 번 보낸다")
+    void sendProductChangedAfterConcurrentSaleStartCommits() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(5, 5);
+        AtomicBoolean adjusted = new AtomicBoolean();
+        InventoryDeductionDb.HeldLock saleStart = inventoryDeductionDb.holdUncommittedSaleStart(options.navy110());
+        eventRecorder.clear();
+
+        ConcurrentTasks.runRacing(inventoryDeductionDb, saleStart, List.of(adjustLost(options.navy110(), 5, adjusted)));
+
+        assertThat(adjusted.get()).isTrue();
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(changed -> assertThat(changed.data().options())
+                .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+                .containsExactlyInAnyOrder(
+                    tuple(options.navy110().getId(), true),
+                    tuple(options.navy120().getId(), false)));
     }
 
     // 분실로 qty만큼 줄이는 조정이다. 판매 가능 수량이 모자라 거절되면 adjusted가 false로 남는다
