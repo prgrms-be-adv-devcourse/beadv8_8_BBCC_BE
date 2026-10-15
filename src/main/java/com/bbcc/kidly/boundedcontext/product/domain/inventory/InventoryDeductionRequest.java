@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -112,9 +113,9 @@ public final class InventoryDeductionRequest {
     public InventoryDeductionRejection notOnSaleRejection() {
         List<InventoryDeductionRejection.Failure> failures = new ArrayList<>();
         for (Item item : items) {
-            if (!item.option().isPurchasable()) {
-                failures.add(new InventoryDeductionRejection.Failure(
-                        item.orderItemId(), StockDeductionFailureCode.PRODUCT_NOT_ON_SALE));
+            Optional<StockDeductionFailureCode> reason = item.option().notPurchasableReason();
+            if (reason.isPresent()) {
+                failures.add(new InventoryDeductionRejection.Failure(item.orderItemId(), reason.get()));
             }
         }
         return new InventoryDeductionRejection(failures);

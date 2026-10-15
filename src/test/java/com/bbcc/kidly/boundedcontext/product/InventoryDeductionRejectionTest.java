@@ -7,12 +7,17 @@ import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.on
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.Options;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRejection;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * 거절한 차감 요청이 재고 부족함에 담을 주문상품별 거절 사유를 만드는지 확인한다.
@@ -31,5 +36,23 @@ class InventoryDeductionRejectionTest {
         assertThat(rejection.failures())
             .extracting(InventoryDeductionRejection.Failure::orderItemId, InventoryDeductionRejection.Failure::reason)
             .containsExactly(tuple(12L, StockDeductionFailureCode.PRODUCT_NOT_ON_SALE));
+    }
+
+    @ParameterizedTest(name = "옵션 {0}")
+    @EnumSource(value = ProductOptionStatus.class, names = {"STOPPED", "ARCHIVED"})
+    @DisplayName("INV-13 상품은 판매중인데 옵션이 판매중이 아니면 그 옵션을 담은 주문상품만 OPTION_NOT_ON_SALE로 거절한다")
+    void optionNotOnSale(ProductOptionStatus optionStatus) {
+        Options options = onSaleOptions();
+        // 옵션을 판매중지 · 보관하는 업무 메서드가 아직 없어 상태 칸을 직접 바꾼다
+        ReflectionTestUtils.setField(options.navy120(), "saleStatus", optionStatus);
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 2),
+            item(12L, options.navy120(), 1)));
+
+        InventoryDeductionRejection rejection = request.notOnSaleRejection();
+
+        assertThat(rejection.failures())
+            .extracting(InventoryDeductionRejection.Failure::orderItemId, InventoryDeductionRejection.Failure::reason)
+            .containsExactly(tuple(12L, StockDeductionFailureCode.OPTION_NOT_ON_SALE));
     }
 }
