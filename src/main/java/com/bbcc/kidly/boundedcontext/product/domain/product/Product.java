@@ -242,6 +242,11 @@ public class Product extends BaseTimeEntity {
         if (saleInputs != null && status != ProductStatus.SALE_PENDING) {
             throw new BusinessException(ProductErrorCode.SALE_INPUTS_LOCKED);
         }
+        // 판매대기 상품을 다른 유형으로 바꾸면 지금 옵션은 새 유형에 맞지 않으므로 새 옵션 · 실측을 함께 받아야 한다 (OPT-06)
+        if (saleInputs == null && info.category().productTypeToRegister() != category.productTypeToRegister()
+            && status == ProductStatus.SALE_PENDING) {
+            throw new BusinessException(ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_TYPE_CHANGE);
+        }
         if (saleInputs != null) {
             validateSaleInputs(saleInputs, info.category());
         }

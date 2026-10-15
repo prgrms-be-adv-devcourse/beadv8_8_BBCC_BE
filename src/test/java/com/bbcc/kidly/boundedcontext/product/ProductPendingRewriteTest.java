@@ -200,4 +200,14 @@ class ProductPendingRewriteTest {
         assertThat(productA.product().getSizeSpecs()).singleElement()
             .extracting(SizeSpec::getMeasurements).isEqualTo(Map.of("FOOT_LENGTH", new BigDecimal("200")));
     }
+
+    @Test
+    @DisplayName("OPT-06 판매대기 상품을 다른 유형의 카테고리로 바꾸면서 옵션 · 가격 · 실측을 보내지 않으면 거절하고 카테고리는 그대로다")
+    void rejectTypeChangeWithoutSaleInputs() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+
+        assertRejected(() -> productA.product().update(productA.updateWithCategory(productA.sneakers())),
+            ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_TYPE_CHANGE);
+        assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
+    }
 }
