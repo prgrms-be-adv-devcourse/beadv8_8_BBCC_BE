@@ -168,6 +168,52 @@ class SizeRecommendationApiTest {
             Arguments.of(Named.of("삭제된 자녀", Optional.of(childChanged(MEMBER_1_ID, "115.0", "20.0", true)))));
     }
 
+    @Test
+    @DisplayName("상품과 자녀가 둘 다 없으면 경로의 상품을 먼저 확인해 상품 404를 받는다")
+    void checkProductBeforeChild() {
+        expectNotFound(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), "상품을 찾을 수 없습니다", "상품을 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("INV-R02 다른 회원의 자녀로 요청하면 사이즈 무관 상품이어도 SIZE_FREE가 아니라 자녀 404를 받는다")
+    void checkChildBeforeSizeFree() {
+        replicaProductService.applyProductChanged(productChanged(ProductStatus.ON_SALE, true,
+            List.of(RecommendFixture.productOption(1L, "FREE", null, null))));
+        replicaChildService.applyChildChanged(childChanged(OTHER_MEMBER_ID, "115.0", "20.0", false));
+
+        expectNotFound(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), "자녀를 찾을 수 없습니다", "자녀를 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("childId 없이 요청하면 400 \"childId: 자녀 ID가 필요합니다.\"를 받는다")
+    void rejectWithoutChildId() {
+        client.get().uri(PATH, PRODUCT_A_ID)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_1_ID)))
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.detail").isEqualTo("childId: 자녀 ID가 필요합니다.");
+    }
+
+    @Test
+    @DisplayName("childId가 숫자가 아니면 400을 받는다")
+    void rejectNonNumericChildId() {
+        client.get().uri(PATH + "?childId=abc", PRODUCT_A_ID)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_1_ID)))
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    @Test
+    @DisplayName("로그인하지 않으면 401을 받는다")
+    void rejectWithoutToken() {
+        client.get().uri(PATH + "?childId={childId}", PRODUCT_A_ID, CHILD_1_ID)
+            .exchange()
+            .expectStatus().isUnauthorized();
+    }
+
     // 실패 응답이 ProblemDetail 5칸을 모두 담는지 확인한다
     private static void expectNotFound(RestTestClient.ResponseSpec response, String title, String detail) {
         response
