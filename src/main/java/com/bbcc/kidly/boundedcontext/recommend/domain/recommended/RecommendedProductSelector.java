@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
@@ -16,6 +17,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class RecommendedProductSelector {
 
+    // 상품 등록 시각이 늦은 상품이 먼저이고, 등록 시각이 같으면 상품 ID가 큰 상품이 먼저다
+    private static final Comparator<RecommendReplicaProduct> NEWEST_FIRST =
+            Comparator.comparing(RecommendReplicaProduct::getProductRegisteredAt)
+                    .thenComparing(RecommendReplicaProduct::getProductId)
+                    .reversed();
+
     private final SizeRecommender sizeRecommender;
 
     public List<RecommendedProduct> select(
@@ -23,8 +30,10 @@ public class RecommendedProductSelector {
             List<RecommendReplicaProduct> products,
             LocalDate today
     ) {
+        List<RecommendReplicaProduct> newestFirst = new ArrayList<>(products);
+        newestFirst.sort(NEWEST_FIRST);
         List<RecommendedProduct> selected = new ArrayList<>();
-        for (RecommendReplicaProduct product : products) {
+        for (RecommendReplicaProduct product : newestFirst) {
             if (product.getStatus() != ProductStatus.ON_SALE) {
                 continue;
             }

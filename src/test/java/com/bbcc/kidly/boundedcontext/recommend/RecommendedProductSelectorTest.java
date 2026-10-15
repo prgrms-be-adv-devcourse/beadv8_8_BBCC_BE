@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_NAME;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_REGISTERED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.TODAY;
@@ -11,6 +12,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAR
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplicaWith;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplicaWithStatus;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productASizeFreeReplica;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productReplicaRegisteredAt;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOptionInfo;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommender;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,6 +25,7 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -122,5 +125,49 @@ class RecommendedProductSelectorTest {
             PRODUCT_A_THUMBNAIL_URL,
             25_000L,
             null));
+    }
+
+    @ParameterizedTest(name = "품절 {0}, 옵션 판매 상태 {1}")
+    @CsvSource({
+        "true, ON_SALE",
+        "false, STOPPED",
+    })
+    @DisplayName("사이즈 무관 상품은 판매 가능한 옵션이 하나도 없으면 목록에서 뺀다")
+    void excludeSizeFreeProductWithoutSellableOption(boolean soldOut, OptionSaleStatus saleStatus) {
+        ChildSizeInput child = childSizeInputWithHeight(115.0);
+        RecommendReplicaProduct product = productASizeFreeReplica(soldOut, saleStatus);
+        assertThat(product.hasSellableOption()).isFalse();
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("등록 시각이 늦은 상품이 목록에서 먼저 나온다")
+    void sortByRegisteredAtDescending() {
+        // 상품 ID 순서와 등록 시각 순서를 다르게 두어, ID로 정렬하면 이 테스트가 실패하게 한다
+        LocalDateTime oldest = PRODUCT_A_REGISTERED_AT;
+        RecommendReplicaProduct oldestProduct = productReplicaRegisteredAt(1L, oldest);
+        RecommendReplicaProduct newestProduct = productReplicaRegisteredAt(2L, oldest.plusDays(2));
+        RecommendReplicaProduct middleProduct = productReplicaRegisteredAt(3L, oldest.plusDays(1));
+
+        List<RecommendedProduct> result = selector.select(childSizeInputWithHeight(115.0),
+            List.of(oldestProduct, newestProduct, middleProduct), TODAY);
+
+        assertThat(result).extracting(RecommendedProduct::productId).containsExactly(2L, 3L, 1L);
+    }
+
+    @Test
+    @DisplayName("등록 시각이 같으면 상품 ID가 큰 상품이 목록에서 먼저 나온다")
+    void sortByProductIdDescendingWhenRegisteredAtIsSame() {
+        RecommendReplicaProduct smallestId = productReplicaRegisteredAt(1L, PRODUCT_A_REGISTERED_AT);
+        RecommendReplicaProduct largestId = productReplicaRegisteredAt(3L, PRODUCT_A_REGISTERED_AT);
+        RecommendReplicaProduct middleId = productReplicaRegisteredAt(2L, PRODUCT_A_REGISTERED_AT);
+
+        List<RecommendedProduct> result = selector.select(childSizeInputWithHeight(115.0),
+            List.of(smallestId, largestId, middleId), TODAY);
+
+        assertThat(result).extracting(RecommendedProduct::productId).containsExactly(3L, 2L, 1L);
     }
 }

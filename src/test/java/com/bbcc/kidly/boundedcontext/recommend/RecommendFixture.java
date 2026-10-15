@@ -250,8 +250,25 @@ public final class RecommendFixture {
      * 사이즈 무관 상품으로 바꾼 상품 A의 복사본이다. 권장 키가 없는 FREE 옵션 하나만 있고, 판매가 25,000원에 판매할 수 있다.
      */
     public static RecommendReplicaProduct productASizeFreeReplica() {
+        return productASizeFreeReplica(false, OptionSaleStatus.ON_SALE);
+    }
+
+    /**
+     * {@link #productASizeFreeReplica()}에서 FREE 옵션의 품절 여부와 옵션 판매 상태만 바꾼다.
+     */
+    public static RecommendReplicaProduct productASizeFreeReplica(boolean soldOut, OptionSaleStatus saleStatus) {
         return RecommendReplicaProduct.create(productAChangeOf(true,
-            List.of(productOptionInfo("FREE", null, null)), PRODUCT_CHANGED_AT));
+            List.of(new RecommendReplicaProduct.OptionInfo("FREE", null, null, 25_000L, soldOut, saleStatus)),
+            PRODUCT_CHANGED_AT));
+    }
+
+    /**
+     * {@link #productAReplica()}와 같은 상품 A의 복사본에서 상품 ID와 등록 시각만 바꾼다. 목록의 정렬 순서를 확인할 때 쓴다.
+     */
+    public static RecommendReplicaProduct productReplicaRegisteredAt(Long productId, LocalDateTime registeredAt) {
+        return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId,
+            PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE,
+            PRODUCT_A_THUMBNAIL_URL, registeredAt, false, productAChange().options(), PRODUCT_CHANGED_AT));
     }
 
     /**
