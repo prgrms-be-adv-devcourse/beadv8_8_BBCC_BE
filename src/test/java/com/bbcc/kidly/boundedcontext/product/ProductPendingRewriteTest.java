@@ -210,4 +210,14 @@ class ProductPendingRewriteTest {
             ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_TYPE_CHANGE);
         assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
     }
+
+    @Test
+    @DisplayName("SIZE-04 판매대기 상품을 필수 실측이 다른 카테고리(상의 → 하의)로 바꾸면서 실측을 보내지 않으면 등록처럼 거절한다")
+    void rejectPendingCategoryWithMissingMeasurements() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+
+        assertRejected(() -> productA.product().update(productA.updateWithCategory(productA.bottom())),
+            ProductErrorCode.SALE_START_INPUT_MISSING);
+        assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
+    }
 }

@@ -247,6 +247,14 @@ public class Product extends BaseTimeEntity {
             && status == ProductStatus.SALE_PENDING) {
             throw new BusinessException(ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_TYPE_CHANGE);
         }
+        // 판매대기 상품의 카테고리만 바꿀 때도, 등록처럼 지금 옵션 · 실측이 새 카테고리의 판매 시작 입력을 채워야 한다
+        if (saleInputs == null && status == ProductStatus.SALE_PENDING && category != info.category()) {
+            List<String> missing = SaleStartConditions.missingItems(
+                options, sizeSpecs, info.category(), info.category().productTypeToRegister());
+            if (!missing.isEmpty()) {
+                throw new BusinessException(ProductErrorCode.SALE_START_INPUT_MISSING, String.join(" ", missing));
+            }
+        }
         if (saleInputs != null) {
             validateSaleInputs(saleInputs, info.category());
         }
