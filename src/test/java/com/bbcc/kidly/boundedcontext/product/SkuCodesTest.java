@@ -1,16 +1,23 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class SkuCodesTest {
 
@@ -28,6 +35,21 @@ class SkuCodesTest {
         assertDuplicated(() -> SkuCodes.validateUnique(
                 List.of("A-NV-110", "A-NV-120", "A-NV-110", "A-NV-110"), Set.of()),
             "A-NV-110");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("uniqueCodes")
+    @DisplayName("OPT-07 SKU 코드가 없는 옵션은 여러 개여도 검사하지 않고, 겹치지 않는 코드는 통과한다")
+    void acceptUniqueOrMissingCodes(List<String> newCodes, Set<String> codesInUse) {
+        assertThatCode(() -> SkuCodes.validateUnique(newCodes, codesInUse)).doesNotThrowAnyException();
+    }
+
+    static Stream<Arguments> uniqueCodes() {
+        return Stream.of(
+            Arguments.of(Named.of("코드 없는 옵션 여러 개", Arrays.asList(null, null)), Set.of("A-NV-110")),
+            Arguments.of(Named.of("이미 쓰는 코드와 다른 코드", List.of("A-NV-120", "A-NV-130")), Set.of("A-NV-110")),
+            Arguments.of(Named.of("코드 없는 옵션과 새 코드", Arrays.asList(null, "A-NV-120", null)), Set.of()),
+            Arguments.of(Named.of("대소문자만 다른 코드", List.of("a-nv-110")), Set.of("A-NV-110")));
     }
 
     // 409 오류 코드로 거절하고 detail 끝에 겹친 코드를 적는지 확인한다
