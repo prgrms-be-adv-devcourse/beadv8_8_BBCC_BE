@@ -85,6 +85,9 @@ public class SettlementRunService {
         } catch (JobRestartException | InvalidJobParametersException e) {
             settlementRunRecorder.fail(runId, 0, 0);
             throw new IllegalStateException("정산 작업을 시작하지 못했습니다", e);
+        } catch (RuntimeException e) {
+            settlementRunRecorder.fail(runId, 0, 0);
+            throw e;
         }
         return getRun(runId);
     }
