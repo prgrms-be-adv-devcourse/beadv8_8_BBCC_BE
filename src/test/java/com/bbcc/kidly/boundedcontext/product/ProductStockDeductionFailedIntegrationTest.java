@@ -77,7 +77,8 @@ class ProductStockDeductionFailedIntegrationTest {
                 assertThat(failed.data().orderId()).isEqualTo(ORDER_ID);
                 assertThat(failed.data().reason()).isEqualTo(StockDeductionFailureCode.OUT_OF_STOCK);
                 assertThat(failed.data().failures())
-                    .extracting(StockDeductionFailedEvent.Failure::orderItemId, StockDeductionFailedEvent.Failure::reason)
+                    .extracting(StockDeductionFailedEvent.Failure::orderItemId,
+                        StockDeductionFailedEvent.Failure::reason)
                     .containsExactly(tuple(12L, StockDeductionFailureCode.OUT_OF_STOCK));
             });
     }
@@ -113,7 +114,8 @@ class ProductStockDeductionFailedIntegrationTest {
             .satisfies(failed -> {
                 assertThat(failed.data().reason()).isEqualTo(StockDeductionFailureCode.PRODUCT_NOT_ON_SALE);
                 assertThat(failed.data().failures())
-                    .extracting(StockDeductionFailedEvent.Failure::orderItemId, StockDeductionFailedEvent.Failure::reason)
+                    .extracting(StockDeductionFailedEvent.Failure::orderItemId,
+                        StockDeductionFailedEvent.Failure::reason)
                     .containsExactly(tuple(11L, StockDeductionFailureCode.PRODUCT_NOT_ON_SALE));
             });
     }
