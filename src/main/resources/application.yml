@@ -9,14 +9,6 @@ spring:
       - classpath:settlement.yml
   profiles:
     default: local
-  # 스키마는 Flyway가 만들고 Hibernate는 엔티티와 맞는지 검사만 한다 (db/migration)
-  flyway:
-    locations: classpath:db/migration
-    # 이력 테이블은 public에 둔다. 도메인 스키마도 함께 검사해 테이블이 이미 있으면 baseline 1로 잡고 V1을 건너뛴다
-    default-schema: public
-    schemas: public,childprofile,member,orders,payment,product,recommend,seller,settlement
-    baseline-on-migrate: true
-    baseline-version: 1
   jpa:
     open-in-view: false
     hibernate:
