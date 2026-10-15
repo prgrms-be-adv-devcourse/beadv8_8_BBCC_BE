@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.be
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.item;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.onSaleOptions;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.Options;
@@ -87,5 +88,12 @@ class InventoryDeductionRejectionTest {
             item(13L, beforeSaleOptions().navy110(), 1)));
 
         assertThat(request.notOnSaleRejection().reason()).isEqualTo(StockDeductionFailureCode.OPTION_NOT_ON_SALE);
+    }
+
+    @Test
+    @DisplayName("거절한 주문상품이 하나도 없으면 거절 사유를 만들지 않는다")
+    void rejectEmptyFailures() {
+        assertThatThrownBy(() -> new InventoryDeductionRejection(List.of()))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 }
