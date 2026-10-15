@@ -104,4 +104,29 @@ class ProductPendingRewriteTest {
         assertThat(spec110.getMaxHeightCm()).isEqualTo(114);
         assertThat(spec110.getMeasurements()).isEqualTo(measurements);
     }
+
+    @Test
+    @DisplayName("판매대기 상품에 새 사이즈 옵션을 넣으면 그 사이즈의 실측도 새로 만든다")
+    void addSizeSpecForNewSize() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+        Product.OptionInfo navy110 =
+            new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null);
+        Product.OptionInfo navy120 =
+            new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size120()), null);
+        List<Product.PriceInfo> price = clothingPrice(ProductOptionFixture.CLOTHING_PRICE);
+        Product.SizeSpecInfo spec110 = productA.currentSizeSpecs().get(0);
+        Product.SizeSpecInfo spec120 = productA.currentSizeSpecs().get(1);
+        productA.product().update(productA.sameUpdate(),
+            new Product.SaleInputsInfo(List.of(navy110), price, List.of(spec110)));
+
+        boolean changed = productA.product().update(productA.sameUpdate(),
+            new Product.SaleInputsInfo(List.of(navy110, navy120), price, List.of(spec110, spec120)));
+
+        assertThat(changed).isTrue();
+        assertThat(productA.product().getSizeSpecs())
+            .extracting(SizeSpec::getMinHeightCm, SizeSpec::getMaxHeightCm, SizeSpec::getMeasurements)
+            .containsExactly(
+                tuple(105, 115, spec110.measurements()),
+                tuple(115, 125, spec120.measurements()));
+    }
 }

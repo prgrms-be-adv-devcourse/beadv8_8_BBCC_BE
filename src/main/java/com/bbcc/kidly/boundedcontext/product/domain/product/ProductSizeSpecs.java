@@ -145,6 +145,12 @@ final class ProductSizeSpecs {
             sizeSpec.revise(matched.minHeightCm(), matched.maxHeightCm(), matched.measurements());
         }
         current.removeAll(notRequested);
+        // 지금 없는 사이즈의 실측은 등록할 때와 같은 방식으로 새로 만든다
+        for (SizeSpecInfo spec : requested) {
+            if (findBySize(current, spec.sizeValue()) == null) {
+                current.add(SizeSpec.create(product, spec));
+            }
+        }
     }
 
     // 사이즈 값은 같은 영속성 컨텍스트의 객체라 ==로 비교한다. 없으면 null이다
