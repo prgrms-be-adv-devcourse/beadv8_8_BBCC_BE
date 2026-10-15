@@ -38,4 +38,19 @@ class ProductPendingRewriteTest {
                 tuple("A-NV-110", 27_000L),
                 tuple("A-NV-120", 27_000L));
     }
+
+    @Test
+    @DisplayName("OPT-05 판매대기 상품은 주문이 없으므로 받은 값 조합에 없는 옵션을 뺀다")
+    void removeOptionsNotRequested() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+        ProductOption navy110 = productA.product().getOptions().get(0);
+
+        boolean changed = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+            List.of(new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null)),
+            clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+            List.of(productA.currentSizeSpecs().get(0))));
+
+        assertThat(changed).isTrue();
+        assertThat(productA.product().getOptions()).containsExactly(navy110);
+    }
 }

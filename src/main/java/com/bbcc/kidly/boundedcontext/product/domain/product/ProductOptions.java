@@ -272,6 +272,24 @@ final class ProductOptions {
                 matched.revise(option.skuCode(), findPrice(option.values(), prices, productType));
             }
         }
+        // 받은 값 조합에 없는 옵션(보관 제외)은 뺀다. 판매대기 상품은 주문이 없어서 지워도 이 옵션을 가리키는 주문상품이 없다 (OPT-05)
+        List<ProductOption> notRequested = new ArrayList<>();
+        for (ProductOption option : activeOptions(current)) {
+            if (!isRequested(option, requested)) {
+                notRequested.add(option);
+            }
+        }
+        current.removeAll(notRequested);
+    }
+
+    private static boolean isRequested(ProductOption option, List<OptionInfo> requested) {
+        Set<AttributeValue> values = new HashSet<>(valuesOf(option));
+        for (OptionInfo requestedOption : requested) {
+            if (new HashSet<>(requestedOption.values()).equals(values)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // 값 조합이 같은 옵션(보관 제외)을 찾는다. 값 묶음은 순서와 상관없는 집합으로 비교하고, 없으면 null이다
