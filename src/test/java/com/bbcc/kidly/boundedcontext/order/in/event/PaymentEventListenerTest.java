@@ -1,8 +1,10 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
@@ -21,8 +23,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class PaymentEventListenerTest {
 
     private static final Long ORDER_ID = 7L;
@@ -80,6 +84,53 @@ class PaymentEventListenerTest {
 
             verify(orderService).cancelForPaymentFailure(ORDER_ID);
             verify(orderService, never()).markPaid(anyLong(), anyLong(), anyLong());
+        }
+    }
+
+    @Nested
+    @DisplayName("주문 ID가 없는 이벤트")
+    class MissingOrderId {
+
+        @Test
+        @DisplayName("결제 완료의 주문 ID가 없으면 WARN을 남기고 아무것도 하지 않는다")
+        void completedWithoutOrderId(CapturedOutput output) {
+            LocalDateTime at = LocalDateTime.of(2026, 10, 14, 9, 0);
+            listener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(), at,
+                new PaymentCompletedEvent.Data(PAYMENT_ID, null, 1L, 1L, List.of(), at)));
+
+            verifyNoInteractions(orderService, deliveryService, cartService);
+            assertThat(output).containsPattern("WARN.*event=payment.completed.*reason=missing-order-id");
+        }
+
+        @Test
+        @DisplayName("결제 완료의 데이터가 없으면 WARN을 남기고 아무것도 하지 않는다")
+        void completedWithoutData(CapturedOutput output) {
+            listener.onPaymentCompleted(
+                new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.of(2026, 10, 14, 9, 0), null));
+
+            verifyNoInteractions(orderService, deliveryService, cartService);
+            assertThat(output).containsPattern("WARN.*event=payment.completed.*reason=missing-order-id");
+        }
+
+        @Test
+        @DisplayName("결제 실패의 주문 ID가 없으면 WARN을 남기고 취소를 맡기지 않는다")
+        void failedWithoutOrderId(CapturedOutput output) {
+            listener.onPaymentFailed(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.of(2026, 10, 15, 9, 0),
+                new PaymentFailedEvent.Data(PAYMENT_ID, null, 1L, 50_000L, PaymentFailureCode.INSUFFICIENT_BALANCE,
+                    LocalDateTime.of(2026, 10, 15, 9, 0))));
+
+            verifyNoInteractions(orderService);
+            assertThat(output).containsPattern("WARN.*event=payment.failed.*reason=missing-order-id");
+        }
+
+        @Test
+        @DisplayName("결제 실패의 데이터가 없으면 WARN을 남기고 취소를 맡기지 않는다")
+        void failedWithoutData(CapturedOutput output) {
+            listener.onPaymentFailed(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.of(2026, 10, 15, 9, 0),
+                null));
+
+            verifyNoInteractions(orderService);
+            assertThat(output).containsPattern("WARN.*event=payment.failed.*reason=missing-order-id");
         }
     }
 

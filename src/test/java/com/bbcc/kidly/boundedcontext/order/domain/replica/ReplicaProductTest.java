@@ -129,4 +129,19 @@ class ReplicaProductTest {
         assertThat(replica.isPurchasable()).isFalse();
         assertThat(replica.getEventOccurredAt()).isEqualTo(OCCURRED_AT.plusMinutes(1));
     }
+
+    @Test
+    @DisplayName("사이즈 없는 상품(size null)도 만들고 덮어쓸 수 있고 구매 가능 판정은 그대로다")
+    void sizeNullProduct() {
+        ReplicaProduct replica = ReplicaProduct.create(new ReplicaProduct.Values(1L, 1L, SELLER_ID, "양말", "색상: 흰색",
+            null, 5_000L, 1L, "ON_SALE", "ON_SALE", false, OCCURRED_AT));
+
+        assertThat(replica.getSize()).isNull();
+        assertThat(replica.isPurchasable()).isTrue();
+
+        assertThat(replica.applyIfNewer(new ReplicaProduct.Values(1L, 1L, SELLER_ID, "양말", "색상: 흰색",
+            null, 5_000L, 1L, "ON_SALE", "ON_SALE", true, OCCURRED_AT.plusMinutes(1)))).isTrue();
+        assertThat(replica.getSize()).isNull();
+        assertThat(replica.isPurchasable()).isFalse();
+    }
 }

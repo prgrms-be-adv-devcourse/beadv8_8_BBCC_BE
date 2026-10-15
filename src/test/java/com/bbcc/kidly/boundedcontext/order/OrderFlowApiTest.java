@@ -284,6 +284,67 @@ class OrderFlowApiTest {
             .containsExactlyInAnyOrder(String.valueOf(SELLER_A_ID), String.valueOf(SELLER_B_ID));
     }
 
+    @Test
+    @DisplayName("사이즈 없는 상품(size null): 담기 → 주문 → 결제 완료 → 배송 완료 → 구매확정까지 500 없이 되고, 응답 · 이벤트의 size는 null")
+    void sizeNullProductFlow() {
+        LocalDateTime now = LocalDateTime.now();
+        publish(new ProductChangedEvent(UUID.randomUUID(), now, new ProductChangedEvent.Data(
+            3L, SELLER_A_ID, "양말", 1L, ProductStatus.ON_SALE, null, now.minusDays(1), true,
+            List.of(new ProductChangedEvent.Option(30L, "색상: 흰색", null, 5_000L,
+                null, null, false, OptionSaleStatus.ON_SALE)))));
+        addToCart("30", null, 1);
+        client.get().uri(CART_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items[0].optionId").isEqualTo("30")
+            .jsonPath("$.items[0].size").value(size -> assertThat(size).isNull())
+            .jsonPath("$.items[0].purchasable").isEqualTo(true);
+        saveBuyerWallet(5_000L);
+
+        URI location = client.post().uri(ORDERS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of(
+                "items", List.of(Map.of("optionId", "30", "quantity", 1, "unitPrice", 5_000)),
+                "shippingAddress", ADDRESS))
+            .exchange()
+            .expectStatus().isCreated()
+            .expectBody().returnResult()
+            .getResponseHeaders().getLocation();
+        assertThat(location).isNotNull();
+        Long orderId = Long.valueOf(location.getPath().substring((ORDERS_PATH + "/").length()));
+        publish(stockDeducted(orderId));
+
+        assertThat(detail(orderId).status()).isEqualTo("PAID");
+        client.get().uri(ORDERS_PATH + "/" + orderId)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items[0].optionName").isEqualTo("색상: 흰색")
+            .jsonPath("$.items[0].size").value(size -> assertThat(size).isNull());
+        client.get().uri(SELLER_ORDERS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_A_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[0].items[0].optionId").isEqualTo("30")
+            .jsonPath("$.content[0].items[0].size").value(size -> assertThat(size).isNull());
+
+        shipAndDeliver(SELLER_A_ID, orderId);
+        ItemRow item = itemOfSeller(detail(orderId), SELLER_A_ID);
+        client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + item.orderItemId() + "/confirm")
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.size").value(size -> assertThat(size).isNull());
+
+        assertThat(itemOfSeller(detail(orderId), SELLER_A_ID).status()).isEqualTo("CONFIRMED");
+        assertThat(single(OrderItemPurchaseConfirmedEvent.class, orderId).data().size()).isNull();
+    }
+
     /**
      * 상품 1(판매자 A, 옵션 1 · 110 · 25,000원), 상품 2(판매자 B, 옵션 2 · 120 · 30,000원), 자녀 1(보호자 1).
      */

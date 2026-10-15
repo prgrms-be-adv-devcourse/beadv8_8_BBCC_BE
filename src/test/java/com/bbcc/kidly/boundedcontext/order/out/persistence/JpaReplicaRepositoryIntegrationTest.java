@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -13,6 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @IntegrationTest
 class JpaReplicaRepositoryIntegrationTest {
@@ -50,6 +52,27 @@ class JpaReplicaRepositoryIntegrationTest {
         assertThat(childReplicaRepository.findByChildId(1L)).get()
             .extracting(ReplicaChild::getMemberId).isEqualTo(1L);
         assertThat(childReplicaRepository.findByChildId(9L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("옵션 이름 255자 · 사이즈 null인 상품 복사본을 저장하고 그대로 다시 읽는다")
+    void storesLongOptionNameAndNullSize() {
+        productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(1L, 1L, 2L, "상품 A",
+            "가".repeat(255), null, 25_000L, 1L, "ON_SALE", null, false, OCCURRED_AT)));
+
+        assertThat(productReplicaRepository.findByOptionId(1L)).get()
+            .satisfies(replica -> {
+                assertThat(replica.getOptionName()).hasSize(255);
+                assertThat(replica.getSize()).isNull();
+            });
+    }
+
+    @Test
+    @DisplayName("옵션 이름이 256자면 상품 복사본 저장이 DB 제약으로 실패한다")
+    void rejectsOptionNameOver255() {
+        assertThatThrownBy(() -> productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(1L, 1L,
+            2L, "상품 A", "가".repeat(256), "110", 25_000L, 1L, "ON_SALE", null, false, OCCURRED_AT))))
+            .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private static ReplicaProduct.Values product(Long optionId, Long productId) {
