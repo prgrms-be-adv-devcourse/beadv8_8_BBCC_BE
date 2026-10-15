@@ -4,7 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
+import javax.sql.DataSource;
 import org.assertj.core.groups.Tuple;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -17,9 +22,11 @@ import org.springframework.stereotype.Component;
 class InventoryDeductionDb {
 
     private final JdbcTemplate jdbcTemplate;
+    private final DataSource dataSource;
 
-    InventoryDeductionDb(JdbcTemplate jdbcTemplate) {
+    InventoryDeductionDb(JdbcTemplate jdbcTemplate, DataSource dataSource) {
         this.jdbcTemplate = jdbcTemplate;
+        this.dataSource = dataSource;
     }
 
     int availableQty(ProductOption option) {
@@ -54,6 +61,65 @@ class InventoryDeductionDb {
         jdbcTemplate.update("insert into product.inventory_adjustment_record"
             + " (product_option_id, delta_qty, reason, adjusted_by, created_at, updated_at)"
             + " values (?, ?, 'RESTOCK', ?, now(), now())", option.getId(), addedQty, ProductFixture.SELLER_ID);
+    }
+
+    // 옵션의 재고 행을 테스트가 연 트랜잭션에서 잠가 둔다. 차감 스레드들은 기존 기록 확인을 지난 뒤 차감 UPDATE에서 기다린다
+    HeldLock lockInventoryRow(ProductOption option) throws SQLException {
+        Connection connection = openTransaction();
+        try (PreparedStatement statement = connection.prepareStatement(
+            "select id from product.inventory where product_option_id = ? for update")) {
+            statement.setLong(1, option.getId());
+            statement.executeQuery().close();
+        }
+        return new HeldLock(connection);
+    }
+
+    // 차감 기록 표를 SHARE 모드로 잠가 둔다. 조회는 지나가고 기록 INSERT만 기다린다
+    HeldLock lockDeductionTable() throws SQLException {
+        Connection connection = openTransaction();
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("lock table product.inventory_deduction in share mode");
+        }
+        return new HeldLock(connection);
+    }
+
+    // 잠금을 기다리는 DB 연결이 count개가 될 때까지 기다린다. 10초 안에 모이지 않으면 실패한다
+    void awaitLockWaiters(int count) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < deadline) {
+            Long waiters = jdbcTemplate.queryForObject("select count(*) from pg_stat_activity"
+                + " where wait_event_type = 'Lock' and datname = current_database()", Long.class);
+            if (waiters != null && waiters >= count) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new IllegalStateException("잠금을 기다리는 연결이 " + count + "개가 되지 않았습니다");
+    }
+
+    private Connection openTransaction() throws SQLException {
+        Connection connection = dataSource.getConnection();
+        connection.setAutoCommit(false);
+        return connection;
+    }
+
+    // 테스트가 쥔 잠금이다. 닫으면 트랜잭션을 커밋해 잠금을 풀고 연결을 돌려준다
+    static final class HeldLock implements AutoCloseable {
+
+        private final Connection connection;
+
+        private HeldLock(Connection connection) {
+            this.connection = connection;
+        }
+
+        @Override
+        public void close() throws SQLException {
+            try {
+                connection.commit();
+            } finally {
+                connection.close();
+            }
+        }
     }
 
     /**
