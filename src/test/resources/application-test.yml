@@ -26,7 +26,7 @@ payment:
 kakao:
   client-id: test-client-id
   client-secret: test-client-secret
-  redirect-uri: http://localhost:5173/oauth/kakao
+  redirect-uri: http://localhost:5173/oauth/kakao/callback
 
 # 결제 마감 만료 스케줄러가 테스트 중 다른 스레드에서 저절로 돌지 않게 주기를 아주 길게 둔다.
 # 만료 테스트는 OrderScheduler.expireOverduePayments()를 직접 부른다
