@@ -16,15 +16,20 @@ import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -52,6 +57,9 @@ class ReplicaEventIntegrationTest {
 
     @Autowired
     private CartService cartService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("상품 · 자녀 이벤트를 받으면 복사본이 저장되고 그 상품을 장바구니에 담을 수 있다")
@@ -120,6 +128,34 @@ class ReplicaEventIntegrationTest {
                 assertThat(replica.isDeleted()).isTrue();
                 assertThat(replica.getHeightCm()).isEqualByComparingTo(new BigDecimal("115.0"));
             });
+    }
+
+    @Test
+    @DisplayName("seller.changed를 받으면 replica_seller에 저장되고, 늦은 이벤트만 갱신되며 상호명 없는 이벤트는 무시된다")
+    void sellerEventsToReplica() {
+        publishSeller(OCCURRED_AT, "키들리샵", SellerStatus.ACTIVE);
+
+        assertThat(storedSeller()).isEqualTo(Map.of(
+            "business_name", "키들리샵", "status", "ACTIVE", "event_occurred_at", Timestamp.valueOf(OCCURRED_AT)));
+
+        publishSeller(OCCURRED_AT.plusMinutes(1), "키들리 아동복", SellerStatus.SUSPENDED);
+        publishSeller(OCCURRED_AT, "이전 이름", SellerStatus.ACTIVE);
+        publishSeller(OCCURRED_AT.plusMinutes(2), null, SellerStatus.ACTIVE);
+
+        assertThat(storedSeller()).isEqualTo(Map.of("business_name", "키들리 아동복", "status", "SUSPENDED",
+            "event_occurred_at", Timestamp.valueOf(OCCURRED_AT.plusMinutes(1))));
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.replica_seller", Long.class))
+            .isEqualTo(1L);
+    }
+
+    private Map<String, Object> storedSeller() {
+        return jdbcTemplate.queryForMap("select business_name, status, event_occurred_at "
+            + "from orders.replica_seller where seller_id = ?", SELLER_ID);
+    }
+
+    private void publishSeller(LocalDateTime occurredAt, String businessName, SellerStatus status) {
+        transactionTemplate.executeWithoutResult(transaction -> eventPublisher.publish(new SellerChangedEvent(
+            UUID.randomUUID(), occurredAt, new SellerChangedEvent.Data(SELLER_ID, businessName, status))));
     }
 
     private void publishChild(LocalDateTime occurredAt, BigDecimal heightCm, BigDecimal weightKg, boolean deleted) {

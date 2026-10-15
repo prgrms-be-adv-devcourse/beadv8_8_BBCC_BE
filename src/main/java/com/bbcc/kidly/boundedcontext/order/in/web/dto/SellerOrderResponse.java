@@ -35,6 +35,9 @@ public record SellerOrderResponse(
             view.items().stream().map(SellerOrderResponse::toItem).toList());
     }
 
+    /**
+     * 판매자 화면이라 상호명(sellerName)은 조회하지 않고 늘 null로 둔다(주문 상세와 같은 항목 모양만 맞춤).
+     */
     private static OrderDetailResponse.Item toItem(SellerOrderView.Item item) {
         SellerOrderView.Child child = item.child();
         return new OrderDetailResponse.Item(
@@ -54,7 +57,8 @@ public record SellerOrderResponse(
             item.confirmType(),
             child == null ? null : new OrderDetailResponse.Child(toText(child.childId()), child.name(),
                 child.heightCm(), child.weightKg(), child.bodyType()),
-            item.unavailableReason());
+            item.unavailableReason(),
+            null);
     }
 
     private static String toText(Long id) {

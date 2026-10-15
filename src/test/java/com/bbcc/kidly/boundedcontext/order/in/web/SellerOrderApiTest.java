@@ -9,9 +9,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
@@ -61,6 +63,9 @@ class SellerOrderApiTest {
     private ChildReplicaRepository childReplicaRepository;
 
     @Autowired
+    private SellerReplicaRepository sellerReplicaRepository;
+
+    @Autowired
     private WalletRepository walletRepository;
 
     @Autowired
@@ -101,6 +106,21 @@ class SellerOrderApiTest {
                 .jsonPath("$.content[0].items[0].child.childId").isEqualTo("1")
                 .jsonPath("$.content[0].items[0].unavailableReason").value(reason -> assertThat(reason).isNull())
                 .jsonPath("$.totalElements").isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("판매자 복사본이 있어도 판매 주문 목록 items[].sellerName은 늘 null(키만 있음, 판매자를 조회하지 않음)")
+        void sellerNameIsAlwaysNullInSellerOrders() {
+            sellerReplicaRepository.save(ReplicaSeller.create(
+                new ReplicaSeller.Values(SELLER_ID, "키들리샵", "ACTIVE", OCCURRED_AT)));
+
+            client.get().uri(SELLER_ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content[0].items[0].sellerId").isEqualTo(String.valueOf(SELLER_ID))
+                .jsonPath("$.content[0].items[0].sellerName").value(name -> assertThat(name).isNull());
         }
 
         @Test

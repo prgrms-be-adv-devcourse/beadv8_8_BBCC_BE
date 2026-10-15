@@ -10,12 +10,14 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.order.TransitionResult;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
@@ -23,9 +25,11 @@ import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -53,6 +57,7 @@ public class OrderService {
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
     private final DeliveryRepository deliveryRepository;
+    private final SellerReplicaRepository sellerReplicaRepository;
     private final EventPublisher eventPublisher;
     private final Order.Policy orderPolicy;
 
@@ -78,7 +83,7 @@ public class OrderService {
                 .toList())));
         log.info("주문 생성: orderId={} itemCount={} totalAmount={}",
             order.getId(), order.getItems().size(), order.getTotalAmount());
-        return OrderDetail.from(order, List.of());
+        return OrderDetail.from(order, List.of(), sellerNamesOf(List.of(order)));
     }
 
     /**
@@ -202,7 +207,11 @@ public class OrderService {
         Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
         confirm(order, orderItemId, "confirm-by-buyer", target -> target.confirmItem(orderItemId, now));
-        return OrderDetail.Item.from(findItem(order, orderItemId));
+        OrderItem item = findItem(order, orderItemId);
+        String sellerName = sellerReplicaRepository.findBySellerId(item.getProduct().sellerId())
+            .map(ReplicaSeller::getBusinessName)
+            .orElse(null);
+        return OrderDetail.Item.from(item, sellerName);
     }
 
     /**
@@ -234,12 +243,13 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderDetail getOrder(Long memberId, Long orderId) {
         return orderRepository.findByIdAndMemberId(orderId, memberId)
-            .map(order -> OrderDetail.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId)))
+            .map(order -> OrderDetail.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId),
+                sellerNamesOf(List.of(order))))
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
     }
 
     /**
-     * 최근 주문부터. 그 페이지 주문들의 주문상품은 한 번에 읽어 합친다(주문 수와 상관없이 쿼리 수 일정).
+     * 최근 주문부터. 그 페이지 주문들의 주문상품 · 판매자 상호명은 한 번씩 읽어 합친다(주문 수와 상관없이 쿼리 수 일정).
      * 주문상품을 읽지 못한 주문은 목록 전체를 실패시키지 않고 대표 상품명 없이 내리고 WARN만 남긴다.
      */
     @Transactional(readOnly = true)
@@ -257,14 +267,30 @@ public class OrderService {
                 orders.getContent().stream().map(Order::getId).toList())
             .stream()
             .collect(Collectors.toMap(Order::getId, Function.identity()));
+        Map<Long, String> sellerNames = sellerNamesOf(withItems.values());
         return orders.map(order -> {
             Order loaded = withItems.get(order.getId());
             if (loaded == null) {
                 log.warn("주문 목록 주문상품 없음: reason=order-items-not-found orderId={}", order.getId());
                 return OrderSummary.withoutItems(order);
             }
-            return OrderSummary.from(loaded);
+            return OrderSummary.from(loaded, sellerNames);
         });
+    }
+
+    /**
+     * 주문들의 주문상품 판매자 상호명을 한 번에 읽는다(판매자마다 조회하지 않음). 복사본이 없는 판매자는 빠진다.
+     */
+    private Map<Long, String> sellerNamesOf(Collection<Order> orders) {
+        Set<Long> sellerIds = orders.stream()
+            .flatMap(order -> order.getItems().stream())
+            .map(item -> item.getProduct().sellerId())
+            .collect(Collectors.toSet());
+        if (sellerIds.isEmpty()) {
+            return Map.of();
+        }
+        return sellerReplicaRepository.findAllBySellerIdIn(sellerIds).stream()
+            .collect(Collectors.toMap(ReplicaSeller::getSellerId, ReplicaSeller::getBusinessName));
     }
 
     /**

@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 주문 상세. 상태 · 사유는 enum 이름 문자열.
@@ -30,6 +31,7 @@ public record OrderDetail(
     /**
      * @param child 자녀를 고르지 않았으면 null
      * @param unavailableReason 재고 차감 실패로 취소됐을 때 이 주문상품을 살 수 없던 사유. 그 밖에는 null
+     * @param sellerName 판매자의 지금 상호명(판매자 복사본, 주문상품에 저장하지 않음). 복사본이 없으면 null
      */
     public record Item(
         Long orderItemId,
@@ -47,9 +49,10 @@ public record OrderDetail(
         LocalDateTime confirmedAt,
         String confirmType,
         Child child,
-        String unavailableReason) {
+        String unavailableReason,
+        String sellerName) {
 
-        public static Item from(OrderItem item) {
+        public static Item from(OrderItem item, String sellerName) {
             OrderItem.ProductSnapshot product = item.getProduct();
             OrderItem.ChildSnapshot child = item.getChild();
             return new Item(
@@ -69,7 +72,8 @@ public record OrderDetail(
                 item.getConfirmType() == null ? null : item.getConfirmType().name(),
                 child == null ? null
                     : new Child(child.childId(), child.name(), child.heightCm(), child.weightKg(), child.bodyType()),
-                item.getUnavailableReason());
+                item.getUnavailableReason(),
+                sellerName);
         }
     }
 
@@ -91,7 +95,10 @@ public record OrderDetail(
         LocalDateTime deliveredAt) {
     }
 
-    public static OrderDetail from(Order order, List<Delivery> deliveries) {
+    /**
+     * @param sellerNames 판매자 ID별 지금 상호명. 없는 판매자는 null로 둔다
+     */
+    public static OrderDetail from(Order order, List<Delivery> deliveries, Map<Long, String> sellerNames) {
         Order.ShippingAddress address = order.getShippingAddress();
         return new OrderDetail(
             order.getId(),
@@ -101,7 +108,9 @@ public record OrderDetail(
             order.getCreatedAt(),
             order.getPaymentDueAt(),
             new ShippingAddress(address.recipientName(), address.phone(), address.zipCode(), address.address()),
-            order.getItems().stream().map(Item::from).toList(),
+            order.getItems().stream()
+                .map(item -> Item.from(item, sellerNames.get(item.getProduct().sellerId())))
+                .toList(),
             deliveries.stream().map(OrderDetail::toDelivery).toList());
     }
 

@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
  *
  * @param representativeProductName 대표 상품명(주문상품 ID가 가장 작은 주문상품의 주문 당시 상품명). 없으면 null
  * @param itemCount 주문상품 수
+ * @param sellerName 대표 주문상품 판매자의 지금 상호명. 판매자 정보가 아직 없으면 null
  */
 public record OrderSummaryResponse(
     String orderId,
@@ -15,10 +16,11 @@ public record OrderSummaryResponse(
     long totalAmount,
     LocalDateTime orderedAt,
     String representativeProductName,
-    int itemCount) {
+    int itemCount,
+    String sellerName) {
 
     public static OrderSummaryResponse from(OrderSummary summary) {
         return new OrderSummaryResponse(String.valueOf(summary.orderId()), summary.status(), summary.totalAmount(),
-            summary.orderedAt(), summary.representativeProductName(), summary.itemCount());
+            summary.orderedAt(), summary.representativeProductName(), summary.itemCount(), summary.sellerName());
     }
 }

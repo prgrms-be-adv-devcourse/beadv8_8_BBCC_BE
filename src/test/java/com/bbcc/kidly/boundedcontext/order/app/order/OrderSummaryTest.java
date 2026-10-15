@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ class OrderSummaryTest {
     void singleItem() {
         Order order = withItemIds(place("양말"), 5L);
 
-        OrderSummary summary = OrderSummary.from(order);
+        OrderSummary summary = OrderSummary.from(order, Map.of());
 
         assertThat(summary.representativeProductName()).isEqualTo("양말");
         assertThat(summary.itemCount()).isEqualTo(1);
@@ -33,20 +34,30 @@ class OrderSummaryTest {
     void smallestItemIdIsRepresentative() {
         Order order = withItemIds(place("맨투맨", "바지", "양말"), 30L, 10L, 20L);
 
-        OrderSummary summary = OrderSummary.from(order);
+        OrderSummary summary = OrderSummary.from(order, Map.of());
 
         assertThat(summary.representativeProductName()).isEqualTo("바지");
         assertThat(summary.itemCount()).isEqualTo(3);
     }
 
     @Test
-    @DisplayName("주문상품을 읽지 못한 주문은 대표 상품명 null · 주문상품 수 0, 나머지 값은 그대로")
+    @DisplayName("상호명은 대표 주문상품 판매자의 지금 상호명이고, 그 판매자 복사본이 없으면 null")
+    void sellerNameOfRepresentativeItem() {
+        Order order = withItemIds(place("맨투맨", "바지"), 20L, 10L);
+
+        assertThat(OrderSummary.from(order, Map.of(2L, "키들리샵")).sellerName()).isEqualTo("키들리샵");
+        assertThat(OrderSummary.from(order, Map.of(9L, "다른 판매자")).sellerName()).isNull();
+    }
+
+    @Test
+    @DisplayName("주문상품을 읽지 못한 주문은 대표 상품명 · 상호명 null · 주문상품 수 0, 나머지 값은 그대로")
     void withoutItems() {
         Order order = withItemIds(place("양말"), 5L);
 
         OrderSummary summary = OrderSummary.withoutItems(order);
 
         assertThat(summary.representativeProductName()).isNull();
+        assertThat(summary.sellerName()).isNull();
         assertThat(summary.itemCount()).isEqualTo(0);
         assertThat(summary.status()).isEqualTo("PENDING_PAYMENT");
         assertThat(summary.totalAmount()).isEqualTo(order.getTotalAmount());

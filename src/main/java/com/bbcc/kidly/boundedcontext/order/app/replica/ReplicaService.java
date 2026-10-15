@@ -2,10 +2,13 @@ package com.bbcc.kidly.boundedcontext.order.app.replica;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ProductChangedCommand;
+import com.bbcc.kidly.boundedcontext.order.app.replica.dto.SellerChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.function.Function;
@@ -16,7 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 상품 · 자녀 변경을 복사본에 반영한다. 늦게 발생한 변경만 덮어쓴다.
+ * 상품 · 자녀 · 판매자 변경을 복사본에 반영한다. 늦게 발생한 변경만 덮어쓴다.
  */
 @Slf4j
 @Service
@@ -26,6 +29,7 @@ public class ReplicaService {
 
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
+    private final SellerReplicaRepository sellerReplicaRepository;
 
     /**
      * 옵션마다 없으면 만들고 있으면 늦은 변경일 때만 덮어쓴다. 변경에서 빠진 옵션은 행을 남기고 품절로 바꾼다.
@@ -83,6 +87,23 @@ public class ReplicaService {
                     }
                 },
                 () -> log.warn("자녀 삭제 이벤트 무시: event=child.changed childId={} reason=replica-not-found", childId));
+    }
+
+    /**
+     * 없으면 만들고 있으면 늦은 변경일 때만 덮어쓴다.
+     */
+    public void applySellerChanged(SellerChangedCommand command) {
+        ReplicaSeller.Values values = new ReplicaSeller.Values(
+            command.sellerId(), command.businessName(), command.status(), command.occurredAt());
+        sellerReplicaRepository.findBySellerId(command.sellerId())
+            .ifPresentOrElse(
+                replica -> {
+                    if (!replica.applyIfNewer(values)) {
+                        log.debug("복사본 이벤트 무시: event=seller.changed sellerId={} reason=not-newer",
+                            command.sellerId());
+                    }
+                },
+                () -> sellerReplicaRepository.save(ReplicaSeller.create(values)));
     }
 
     private ReplicaProduct.Values toValues(ProductChangedCommand command, ProductChangedCommand.Option option) {

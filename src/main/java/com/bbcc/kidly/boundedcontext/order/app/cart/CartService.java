@@ -6,13 +6,17 @@ import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.cart.CartItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +40,7 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
+    private final SellerReplicaRepository sellerReplicaRepository;
     private final OrderRepository orderRepository;
 
     /**
@@ -62,15 +67,15 @@ public class CartService {
                 throw new BusinessException(OrderErrorCode.INVALID_QUANTITY);
             }
             sameLine.get().addQuantity(quantity);
-            return new AddCartItemResult(toLine(sameLine.get(), product), false);
+            return new AddCartItemResult(toLine(sameLine.get(), product, sellerNameOf(product)), false);
         }
         CartItem created = cartItemRepository.save(
             CartItem.create(memberId, optionId, childId, quantity));
-        return new AddCartItemResult(toLine(created, product), true);
+        return new AddCartItemResult(toLine(created, product, sellerNameOf(product)), true);
     }
 
     /**
-     * 최근에 담은 줄부터. 합계는 구매 가능한 줄만 더한다.
+     * 최근에 담은 줄부터. 합계는 구매 가능한 줄만 더한다. 상품 · 판매자 복사본은 한 번씩 읽어 합친다(줄마다 조회하지 않음).
      */
     @Transactional(readOnly = true)
     public CartView getCart(Long memberId) {
@@ -79,9 +84,13 @@ public class CartService {
                 items.stream().map(CartItem::getOptionId).toList())
             .stream()
             .collect(Collectors.toMap(ReplicaProduct::getOptionId, Function.identity()));
+        Map<Long, String> sellerNames = sellerNamesOf(products.values());
 
         List<CartView.Line> lines = items.stream()
-            .map(item -> toLine(item, products.get(item.getOptionId())))
+            .map(item -> {
+                ReplicaProduct product = products.get(item.getOptionId());
+                return toLine(item, product, product == null ? null : sellerNames.get(product.getSellerId()));
+            })
             .toList();
         long totalAmount = lines.stream()
             .filter(CartView.Line::purchasable)
@@ -93,7 +102,8 @@ public class CartService {
     public CartView.Line changeQuantity(Long memberId, Long cartItemId, int quantity) {
         CartItem item = findOwnedItem(memberId, cartItemId);
         item.changeQuantity(quantity);
-        return toLine(item, productReplicaRepository.findByOptionId(item.getOptionId()).orElse(null));
+        ReplicaProduct product = productReplicaRepository.findByOptionId(item.getOptionId()).orElse(null);
+        return toLine(item, product, sellerNameOf(product));
     }
 
     /**
@@ -123,16 +133,35 @@ public class CartService {
             .orElseThrow(() -> new BusinessException(OrderErrorCode.CART_ITEM_NOT_FOUND));
     }
 
+    private String sellerNameOf(ReplicaProduct product) {
+        if (product == null) {
+            return null;
+        }
+        return sellerReplicaRepository.findBySellerId(product.getSellerId())
+            .map(ReplicaSeller::getBusinessName)
+            .orElse(null);
+    }
+
+    private Map<Long, String> sellerNamesOf(Collection<ReplicaProduct> products) {
+        Set<Long> sellerIds = products.stream().map(ReplicaProduct::getSellerId).collect(Collectors.toSet());
+        if (sellerIds.isEmpty()) {
+            return Map.of();
+        }
+        return sellerReplicaRepository.findAllBySellerIdIn(sellerIds).stream()
+            .collect(Collectors.toMap(ReplicaSeller::getSellerId, ReplicaSeller::getBusinessName));
+    }
+
     /**
      * 상품 복사본이 없으면 상품 필드 null, 구매 불가, 금액 0.
      */
-    private CartView.Line toLine(CartItem item, ReplicaProduct product) {
+    private CartView.Line toLine(CartItem item, ReplicaProduct product, String sellerName) {
         if (product == null) {
             return new CartView.Line(item.getId(), item.getOptionId(), null, null, null, null, null, item.getChildId(),
-                item.getQuantity(), null, false, 0L);
+                item.getQuantity(), null, false, 0L, null);
         }
         return new CartView.Line(item.getId(), item.getOptionId(), product.getProductId(), product.getSellerId(),
             product.getProductName(), product.getOptionName(), product.getSize(), item.getChildId(), item.getQuantity(),
-            product.unitPrice(), product.isPurchasable(), Math.multiplyExact(product.unitPrice(), item.getQuantity()));
+            product.unitPrice(), product.isPurchasable(), Math.multiplyExact(product.unitPrice(), item.getQuantity()),
+            sellerName);
     }
 }
