@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -105,6 +106,18 @@ public final class InventoryDeductionRequest {
             }
         }
         return true;
+    }
+
+    // 판매중이 아니어서 거절한 요청의 사유를 만든다. 살 수 없는 옵션을 담은 주문상품만 요청한 순서대로 담는다 (INV-13)
+    public InventoryDeductionRejection notOnSaleRejection() {
+        List<InventoryDeductionRejection.Failure> failures = new ArrayList<>();
+        for (Item item : items) {
+            if (!item.option().isPurchasable()) {
+                failures.add(new InventoryDeductionRejection.Failure(
+                        item.orderItemId(), StockDeductionFailureCode.PRODUCT_NOT_ON_SALE));
+            }
+        }
+        return new InventoryDeductionRejection(failures);
     }
 
     // 주문상품마다 DEDUCTED 차감 기록을 하나씩, 요청한 순서대로 만든다 (INV-04)
