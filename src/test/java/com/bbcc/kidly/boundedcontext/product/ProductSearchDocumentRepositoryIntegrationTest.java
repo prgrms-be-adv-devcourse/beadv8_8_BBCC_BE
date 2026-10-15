@@ -1,7 +1,9 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.OCCURRED_AT;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.PRODUCT_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.changeInfo;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.changeInfoAt;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.value;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -11,10 +13,13 @@ import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -53,6 +58,50 @@ class ProductSearchDocumentRepositoryIntegrationTest {
         assertThat(stored).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(document);
         assertThat(stored.getCreatedAt()).isNotNull();
         assertThat(stored.getUpdatedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("저장된 것보다 늦게 일어난 이벤트면 행 전체를 새 값으로 덮어쓴다")
+    void newerEventReplacesRow() {
+        save(documentAt(OCCURRED_AT, 25_000L, value("COLOR", 5L)));
+        ProductSearchDocument newer = documentAt(OCCURRED_AT.plusMinutes(1), 19_000L, value("COLOR", 3L));
+
+        boolean saved = transaction().execute(status -> repository.saveIfNewer(newer));
+
+        assertThat(saved).isTrue();
+        assertThat(stored()).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(newer);
+    }
+
+    @ParameterizedTest(name = "저장된 시각에서 {0}분")
+    @ValueSource(longs = {0, -1})
+    @DisplayName("저장된 것과 같은 시각이나 더 이른 시각에 일어난 이벤트면 아무것도 바꾸지 않는다")
+    void sameOrOlderEventChangesNothing(long minutes) {
+        ProductSearchDocument first = documentAt(OCCURRED_AT, 25_000L, value("COLOR", 5L));
+        save(first);
+        LocalDateTime firstUpdatedAt = stored().getUpdatedAt();
+        ProductSearchDocument late = documentAt(OCCURRED_AT.plusMinutes(minutes), 19_000L, value("COLOR", 3L));
+
+        boolean saved = transaction().execute(status -> repository.saveIfNewer(late));
+
+        assertThat(saved).isFalse();
+        ProductSearchDocument stored = stored();
+        assertThat(stored).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(first);
+        assertThat(stored.getUpdatedAt()).isEqualTo(firstUpdatedAt);
+    }
+
+    // 옵션 하나(판매중, 재고 있음)와 그 옵션 값으로 만든 행이다. 이벤트 발생 시각과 가격 · 값만 바꿔 쓴다
+    private static ProductSearchDocument documentAt(
+        LocalDateTime occurredAt, long price, ProductSearchDocument.AttributeEntryInfo... values) {
+        return ProductSearchDocument.create(changeInfoAt(occurredAt,
+            List.of(option(price, false, OptionSaleStatus.ON_SALE, values)), List.of()));
+    }
+
+    private void save(ProductSearchDocument document) {
+        transaction().executeWithoutResult(status -> repository.saveIfNewer(document));
+    }
+
+    private ProductSearchDocument stored() {
+        return transaction().execute(status -> entityManager.find(ProductSearchDocument.class, PRODUCT_ID));
     }
 
     private TransactionTemplate transaction() {
