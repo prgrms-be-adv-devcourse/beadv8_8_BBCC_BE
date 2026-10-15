@@ -37,4 +37,14 @@ class ProductCategoryChangeTest {
             ProductErrorCode.MEASUREMENTS_MISSING_FOR_CATEGORY);
         assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
     }
+
+    @Test
+    @DisplayName("판매중 상품을 다른 상품 유형의 카테고리(상의 → 운동화)로 바꾸면 409로 거절하고 카테고리는 그대로다")
+    void rejectOtherTypeCategoryAfterSaleStart() {
+        ProductA productA = ProductUpdateFixture.onSaleProductA();
+
+        assertRejected(() -> productA.product().update(productA.updateWithCategory(productA.sneakers())),
+            ProductErrorCode.PRODUCT_TYPE_CHANGE_NOT_ALLOWED);
+        assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
+    }
 }

@@ -230,6 +230,10 @@ public class Product extends BaseTimeEntity {
         // 판매를 시작한 상품은 옵션 · 실측을 여기서 바꾸지 못하므로,
         // 지금 실측이 새 카테고리의 필수 실측을 모두 채워야 한다 (SIZE-04)
         if (status != ProductStatus.SALE_PENDING && category != info.category()) {
+            // 다른 유형으로 바꾸면 기존 옵션을 모두 보관해야 하는데, 이번에는 판매를 시작한 상품에서 하지 않는다 (OPT-06)
+            if (info.category().productTypeToRegister() != category.productTypeToRegister()) {
+                throw new BusinessException(ProductErrorCode.PRODUCT_TYPE_CHANGE_NOT_ALLOWED);
+            }
             List<String> missing = SaleStartConditions.missingItems(
                 options, sizeSpecs, info.category(), info.category().productTypeToRegister());
             if (!missing.isEmpty()) {
