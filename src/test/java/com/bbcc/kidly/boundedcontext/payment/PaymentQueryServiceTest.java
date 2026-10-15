@@ -4,15 +4,18 @@ import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.MEMBER_ID;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.ORDER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.BDDMockito.given;
 
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentQueryService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentDetail;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentSummary;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,6 +23,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentQueryServiceTest {
@@ -84,5 +90,23 @@ class PaymentQueryServiceTest {
         assertThatThrownBy(() -> paymentQueryService.getPayment(MEMBER_ID, PAYMENT_ID))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(PaymentErrorCode.PAYMENT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("관리자 조회는 모든 회원의 결제를 최신순 페이지로 주고, 줄마다 결제한 회원을 담는다")
+    void getAllPayments() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        Payment others = Payment.fail(ORDER_ID + 1, PaymentFixture.WALLET_ID, 2L, 30_000L,
+            PaymentFailureCode.INSUFFICIENT_BALANCE);
+        given(paymentRepository.findAllByOrderByIdDesc(pageable))
+            .willReturn(new PageImpl<>(List.of(others, PaymentFixture.completedPayment()), pageable, 2));
+
+        Page<PaymentSummary> payments = paymentQueryService.getAllPayments(0, 20);
+
+        assertThat(payments.getTotalElements()).isEqualTo(2);
+        assertThat(payments.getContent()).extracting(PaymentSummary::memberId, PaymentSummary::status)
+            .containsExactly(
+                tuple(2L, "FAILED"),
+                tuple(MEMBER_ID, "COMPLETED"));
     }
 }

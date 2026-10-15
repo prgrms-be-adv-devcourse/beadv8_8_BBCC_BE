@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 회원의 주문 결제 내역을 조회한다. 남의 결제는 없는 결제처럼 404다.
+ * 회원의 주문 결제 내역을 조회한다. 남의 결제는 없는 결제처럼 404다. 관리자는 모든 회원의 결제를 본다.
  */
 @Service
 @RequiredArgsConstructor
@@ -24,6 +24,10 @@ public class PaymentQueryService {
     public Page<PaymentSummary> getPayments(Long memberId, int page, int size) {
         return paymentRepository.findAllByMemberIdOrderByIdDesc(memberId, PageRequest.of(page, size))
             .map(PaymentSummary::from);
+    }
+
+    public Page<PaymentSummary> getAllPayments(int page, int size) {
+        return paymentRepository.findAllByOrderByIdDesc(PageRequest.of(page, size)).map(PaymentSummary::from);
     }
 
     public PaymentDetail getPayment(Long memberId, Long paymentId) {
