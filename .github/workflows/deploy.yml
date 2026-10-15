@@ -1,7 +1,8 @@
 # develop → dev 환경, main → prod 환경(Environment 승인 필요)으로 배포한다.
-# 이미지를 GHCR에 올린 뒤 서버의 /opt/app/deploy.sh 가 compose pull / up 을 한다.
+# 이미지를 GHCR에 올리고, deploy/ (compose · deploy.sh · .env.<환경> + Secret) 를 서버 /opt/app/<환경>/ 에 올린 뒤 그 deploy.sh 가 compose pull / up 을 한다.
 # 패키지가 private이라 배포 때마다 GITHUB_TOKEN으로 GHCR에 로그인한다. 자격증명은 세션 임시 디렉터리에만 두고 끝나면 지운다.
 # 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 빌드 없이 그 이미지를 배포한다.
+# 롤백 때도 compose · .env 는 실행한 브랜치의 현재 것이 올라간다. 설정 키가 바뀐 커밋으로 되돌릴 땐 주의한다.
 # workflow_dispatch 를 develop · main 이 아닌 브랜치에서 실행하면 그 브랜치가 dev 환경에 배포된다 (기능 브랜치 확인용).
 name: deploy
 
@@ -60,6 +61,15 @@ jobs:
     env:
       SSH_HOST: ${{ vars.SSH_HOST }}
     steps:
+      - uses: actions/checkout@v7
+
+      # 잘못된 SHA 면 서버 파일을 바꾸기 전에 멈춘다
+      - name: 배포할 커밋 확인
+        env:
+          SHA: ${{ inputs.sha || github.sha }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha 는 40자 전체 커밋 SHA 여야 합니다: $SHA"; exit 1; }
+
       - name: 서버 접속 확인
         run: nc -z -w 5 "$SSH_HOST" 22 || { echo "::error::서버에 연결할 수 없습니다. 18시 이후면 EC2를 콘솔에서 시작한 뒤 Re-run 하세요."; exit 1; }
 
@@ -73,6 +83,62 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
+      # 서버의 DB 데이터와 로그 말고는 전부 레포와 Environment Secret 에서 매번 새로 만든다. 비밀 값은 출력하지 않는다
+      - name: 서버 설정 파일 만들기
+        env:
+          APP_ENV: ${{ vars.APP_ENV }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
+          PAYMENT_KEY_ENCRYPTION_KEY: ${{ secrets.PAYMENT_KEY_ENCRYPTION_KEY }}
+          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+          JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
+        run: |
+          umask 077
+          out="$RUNNER_TEMP/deploy-files"
+          mkdir -p "$out/jwt"
+          cp -p deploy/docker-compose.yml deploy/deploy.sh "$out/"
+
+          # 한 줄짜리 비밀. .env 뒤에 붙인다
+          keys=(DB_PASSWORD KAKAO_CLIENT_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
+
+          # 빠진 Secret 을 한 번에 다 보여 주고 실패한다
+          missing=0
+          for key in "${keys[@]}" JWT_PRIVATE_KEY JWT_PUBLIC_KEY; do
+            [[ -n "${!key}" ]] || { echo "::error::Environment $APP_ENV 에 Secret $key 가 없습니다"; missing=1; }
+          done
+          (( missing == 0 )) || exit 1
+
+          # compose 가 $ 같은 문자를 치환하지 않도록 작은따옴표로 감싼다. 그래서 값에 작은따옴표나 줄바꿈이 있으면 안 된다
+          for key in "${keys[@]}"; do
+            [[ "${!key}" != *[\'$'\n']* ]] || { echo "::error::$key 에 작은따옴표나 줄바꿈이 있습니다"; exit 1; }
+          done
+          {
+            cat "deploy/.env.$APP_ENV"
+            echo
+            echo "# 아래는 배포 때 GitHub Environment Secret 에서 붙인 값이다"
+            for key in "${keys[@]}"; do
+              printf "%s='%s'\n" "$key" "${!key}"
+            done
+            printf "POSTGRES_PASSWORD='%s'\n" "$DB_PASSWORD"
+          } > "$out/.env"
+
+          for key in JWT_PRIVATE_KEY JWT_PUBLIC_KEY; do
+            [[ "${!key}" == *BEGIN* ]] || { echo "::error::$key 가 PEM 형식이 아닙니다"; exit 1; }
+          done
+          printf '%s\n' "$JWT_PRIVATE_KEY" > "$out/jwt/private.pem"
+          printf '%s\n' "$JWT_PUBLIC_KEY" > "$out/jwt/public.pem"
+
+      # 파일 이름을 나열해 올린다 (. 을 통째로 올리면 /opt/app/<환경> 자체의 권한이 바뀐다)
+      - name: 서버에 설정 파일 올리기
+        env:
+          APP_ENV: ${{ vars.APP_ENV }}
+        run: |
+          dir="/opt/app/$APP_ENV"
+          tar -C "$RUNNER_TEMP/deploy-files" -czf - docker-compose.yml deploy.sh .env jwt \
+            | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
+              "mkdir -p $dir && tar -xzf - --no-same-owner -C $dir && chmod 700 $dir/jwt && chmod 600 $dir/.env $dir/jwt/private.pem"
+
       - name: 배포
         env:
           SHA: ${{ inputs.sha || github.sha }}
@@ -80,12 +146,11 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
         run: |
-          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha 는 40자 전체 커밋 SHA 여야 합니다: $SHA"; exit 1; }
           # 토큰은 명령줄이 아니라 stdin 으로 넘긴다. 자격증명은 이 세션만의 임시 디렉터리에 두고 끝나면 지운다
           # (dev · prod 가 같은 서버를 쓸 때 공유 ~/.docker/config.json 을 서로 지우지 않도록)
           printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
             export DOCKER_CONFIG=\$(mktemp -d)
             trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
             docker login ghcr.io -u $GHCR_USER --password-stdin > /dev/null || exit 1
-            APP_ENV=$APP_ENV IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:$SHA /opt/app/deploy.sh
+            APP_ENV=$APP_ENV IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:$SHA /opt/app/$APP_ENV/deploy.sh
           "

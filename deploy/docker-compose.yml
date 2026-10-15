@@ -1,0 +1,47 @@
+# 서버용. 배포 때 워크플로가 /opt/app/<env>/ 로 올린다 (env 마다 다른 것은 .env 뿐)
+# deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
+
+# 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  app:
+    image: ${IMAGE}
+    env_file: .env
+    ports:
+      - "127.0.0.1:${APP_PORT}:8080"     # 외부 비공개. nginx 가 80/443 으로 받아 넘긴다
+    volumes:
+      - ./jwt:/app/jwt:ro
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # deploy.sh 의 up -d --wait 가 이 healthcheck 를 기다린다. Spring 기동에 20~40초 걸린다
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+    logging: *logging
+
+  postgres:
+    image: postgres:18
+    env_file: .env
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+    # ports 없음. 외부와 다른 컨테이너 프로젝트에서 접근 불가
+
+volumes:
+  postgres-data:
