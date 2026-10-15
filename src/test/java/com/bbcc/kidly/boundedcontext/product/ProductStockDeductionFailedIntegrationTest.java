@@ -76,6 +76,23 @@ class ProductStockDeductionFailedIntegrationTest {
             });
     }
 
+    @Test
+    @DisplayName("INV-11 모자란 옵션이 여럿이면 첫 부족에서 멈추지 않고 모자란 옵션의 주문상품을 모두 재고 부족함에 담는다")
+    void includeEveryShortOptionInStockDeductionFailed() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 1);
+
+        publishInTransaction(orderCreated(ORDER_ID,
+            orderItem(11L, options.navy110(), 2),
+            orderItem(12L, options.navy120(), 2)));
+
+        assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).singleElement()
+            .satisfies(failed -> assertThat(failed.data().failures())
+                .extracting(StockDeductionFailedEvent.Failure::orderItemId, StockDeductionFailedEvent.Failure::reason)
+                .containsExactly(
+                    tuple(11L, StockDeductionFailureCode.OUT_OF_STOCK),
+                    tuple(12L, StockDeductionFailureCode.OUT_OF_STOCK)));
+    }
+
     // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다
     private void publishInTransaction(OrderCreatedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));

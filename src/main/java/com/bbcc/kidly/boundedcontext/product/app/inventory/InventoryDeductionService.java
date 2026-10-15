@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -52,7 +51,7 @@ public class InventoryDeductionService {
             inventoryDeductor.deduct(request);
         } catch (InventoryShortageException e) {
             // 차감 트랜잭션은 이미 롤백됐다. 주문상품마다 FAILED 기록을 새 트랜잭션으로 남기고 재고 부족함을 보낸다
-            recordRejected(request, request.shortageRejection(Set.of(e.optionId())), data);
+            recordRejected(request, request.shortageRejection(e.shortOptionIds()), data);
         } catch (DataIntegrityViolationException e) {
             // 차감도 함께 롤백됐으므로 다시 시도하지 않는다
             logIntegrityViolation(e, data);
