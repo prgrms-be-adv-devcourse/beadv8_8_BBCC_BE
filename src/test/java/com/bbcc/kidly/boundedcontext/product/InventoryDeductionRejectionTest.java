@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.NAVY_110_ID;
+import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.NAVY_120_ID;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.ORDER_ID;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.beforeSaleOptions;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.item;
@@ -79,6 +80,24 @@ class InventoryDeductionRejectionTest {
             .containsExactly(
                 tuple(11L, StockDeductionFailureCode.OUT_OF_STOCK),
                 tuple(13L, StockDeductionFailureCode.OUT_OF_STOCK));
+    }
+
+    @Test
+    @DisplayName("INV-11 모자란 옵션이 여럿이면 그 옵션들을 담은 주문상품을 옵션 ID가 아닌 요청 순서대로 OUT_OF_STOCK로 거절한다")
+    void outOfStockForEveryShortOptionInRequestOrder() {
+        Options options = onSaleOptions();
+        // 픽스처의 옵션 ID는 등록 순서와 반대(110이 7, 120이 3)라서, 옵션 ID 순서로 담으면 12가 먼저 나온다
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 1),
+            item(12L, options.navy120(), 1)));
+
+        InventoryDeductionRejection rejection = request.shortageRejection(Set.of(NAVY_110_ID, NAVY_120_ID));
+
+        assertThat(rejection.failures())
+            .extracting(InventoryDeductionRejection.Failure::orderItemId, InventoryDeductionRejection.Failure::reason)
+            .containsExactly(
+                tuple(11L, StockDeductionFailureCode.OUT_OF_STOCK),
+                tuple(12L, StockDeductionFailureCode.OUT_OF_STOCK));
     }
 
     @Test
