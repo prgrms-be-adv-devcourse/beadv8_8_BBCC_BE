@@ -20,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -81,6 +82,9 @@ class OrderServiceTest {
     private DeliveryRepository deliveryRepository;
 
     @Mock
+    private SellerReplicaRepository sellerReplicaRepository;
+
+    @Mock
     private EventPublisher eventPublisher;
 
     @Captor
@@ -91,7 +95,7 @@ class OrderServiceTest {
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
-            deliveryRepository, eventPublisher, POLICY);
+            deliveryRepository, sellerReplicaRepository, eventPublisher, POLICY);
     }
 
     @Nested

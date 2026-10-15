@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManagerFactory;
 import java.time.Duration;
@@ -39,6 +41,9 @@ class OrderListQueryCountIntegrationTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private SellerReplicaRepository sellerReplicaRepository;
+
+    @Autowired
     private EntityManagerFactory entityManagerFactory;
 
     private Statistics statistics;
@@ -49,32 +54,50 @@ class OrderListQueryCountIntegrationTest {
     }
 
     @Test
-    @DisplayName("주문이 1건이든 5건이든 쿼리 수가 같고, 각 주문은 자기 첫 주문상품 상품명 · 주문상품 수를 갖는다")
+    @DisplayName("주문 · 판매자가 1건이든 5건이든 쿼리 수가 같고, 각 주문은 첫 주문상품 상품명 · 판매자 상호명 · 주문상품 수를 갖는다")
     void sameQueryCountRegardlessOfOrderCount() {
-        Long singleOrderId = place(SINGLE_BUYER_ID, "단일 대표", "단일 둘째");
+        Long singleOrderId = place(SINGLE_BUYER_ID, 0, "단일 대표", "단일 둘째");
         List<Long> manyOrderIds = new ArrayList<>();
         for (int i = 0; i < MANY; i++) {
-            manyOrderIds.add(place(MANY_BUYER_ID, "대표 " + i, "둘째 " + i));
+            manyOrderIds.add(place(MANY_BUYER_ID, i, "대표 " + i, "둘째 " + i));
+        }
+        for (int i = 0; i < MANY; i++) {
+            saveSeller(firstSellerId(i), "대표 판매자 " + i);
+            saveSeller(secondSellerId(i), "둘째 판매자 " + i);
         }
 
         long singleCount = countStatements(SINGLE_BUYER_ID);
         long manyCount = countStatements(MANY_BUYER_ID);
 
         assertThat(manyCount).isEqualTo(singleCount);
-        assertThat(singleCount).as("주문 페이지 1번 + 그 페이지 주문(주문상품 포함) 1번").isEqualTo(2);
+        assertThat(singleCount).as("주문 페이지 1번 + 그 페이지 주문(주문상품 포함) 1번 + 판매자 상호명 1번").isEqualTo(3);
 
         List<OrderSummary> single = orderService.getOrders(SINGLE_BUYER_ID, 0, 20).getContent();
         assertThat(single).extracting(OrderSummary::orderId, OrderSummary::representativeProductName,
-                OrderSummary::itemCount)
-            .containsExactly(org.assertj.core.groups.Tuple.tuple(singleOrderId, "단일 대표", 2));
+                OrderSummary::itemCount, OrderSummary::sellerName)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple(singleOrderId, "단일 대표", 2, "대표 판매자 0"));
 
         List<OrderSummary> many = orderService.getOrders(MANY_BUYER_ID, 0, 20).getContent();
         assertThat(many).extracting(OrderSummary::orderId).containsExactlyElementsOf(manyOrderIds.reversed());
         for (int i = 0; i < MANY; i++) {
             OrderSummary summary = many.get(MANY - 1 - i);
             assertThat(summary.representativeProductName()).isEqualTo("대표 " + i);
+            assertThat(summary.sellerName()).isEqualTo("대표 판매자 " + i);
             assertThat(summary.itemCount()).isEqualTo(2);
         }
+    }
+
+    private void saveSeller(Long sellerId, String businessName) {
+        sellerReplicaRepository.save(ReplicaSeller.create(
+            new ReplicaSeller.Values(sellerId, businessName, "ACTIVE", LocalDateTime.now())));
+    }
+
+    private static Long firstSellerId(int index) {
+        return 200L + index;
+    }
+
+    private static Long secondSellerId(int index) {
+        return 300L + index;
     }
 
     private long countStatements(Long memberId) {
@@ -84,20 +107,20 @@ class OrderListQueryCountIntegrationTest {
     }
 
     /**
-     * 주문상품 2개(첫째 · 둘째 상품명)인 주문. 첫째가 먼저 저장되어 주문상품 ID가 더 작다.
+     * 주문상품 2개(첫째 · 둘째 상품명)인 주문. 첫째가 먼저 저장되어 주문상품 ID가 더 작다. 판매자는 주문마다 다르다.
      */
-    private Long place(Long memberId, String firstName, String secondName) {
+    private Long place(Long memberId, int index, String firstName, String secondName) {
         Order order = orderRepository.save(Order.place(memberId, List.of(
-                line(1L, firstName),
-                line(2L, secondName)),
+                line(1L, firstSellerId(index), firstName),
+                line(2L, secondSellerId(index), secondName)),
             new Order.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"),
             new Order.Policy(Duration.ofMinutes(10), Duration.ofDays(15)), LocalDateTime.now()));
         return order.getId();
     }
 
-    private static Order.RequestedItem line(Long optionId, String productName) {
+    private static Order.RequestedItem line(Long optionId, Long sellerId, String productName) {
         return new Order.RequestedItem(
-            new OrderItem.ProductSnapshot(optionId, optionId, 2L, productName, null, "110", 10_000L, 1L),
+            new OrderItem.ProductSnapshot(optionId, optionId, sellerId, productName, null, "110", 10_000L, 1L),
             true, null, 1, 10_000L);
     }
 }

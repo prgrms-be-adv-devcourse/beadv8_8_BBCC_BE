@@ -9,10 +9,13 @@ import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ProductChangedCommand;
+import com.bbcc.kidly.boundedcontext.order.app.replica.dto.SellerChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,8 +42,14 @@ class ReplicaServiceTest {
     @Mock
     private ChildReplicaRepository childReplicaRepository;
 
+    @Mock
+    private SellerReplicaRepository sellerReplicaRepository;
+
     @InjectMocks
     private ReplicaService replicaService;
+
+    @Captor
+    private ArgumentCaptor<ReplicaSeller> savedSeller;
 
     @Captor
     private ArgumentCaptor<ReplicaProduct> savedProduct;
@@ -211,6 +220,36 @@ class ReplicaServiceTest {
 
         verify(childReplicaRepository, never()).save(any());
         assertThat(output).containsPattern("WARN.*event=child.changed childId=1 reason=replica-not-found");
+    }
+
+    // ── 판매자 ──
+
+    @Test
+    @DisplayName("처음 받은 판매자는 상호명 · 상태 이름으로 복사본을 만든다")
+    void createsSellerReplica() {
+        replicaService.applySellerChanged(new SellerChangedCommand(2L, "키들리샵", "ACTIVE", OCCURRED_AT));
+
+        verify(sellerReplicaRepository).save(savedSeller.capture());
+        ReplicaSeller saved = savedSeller.getValue();
+        assertThat(saved.getSellerId()).isEqualTo(2L);
+        assertThat(saved.getBusinessName()).isEqualTo("키들리샵");
+        assertThat(saved.getStatus()).isEqualTo("ACTIVE");
+        assertThat(saved.getEventOccurredAt()).isEqualTo(OCCURRED_AT);
+    }
+
+    @Test
+    @DisplayName("있는 판매자는 늦은 이벤트만 덮어쓰고 새로 저장하지 않는다")
+    void appliesNewerSellerOnly() {
+        ReplicaSeller stored = ReplicaSeller.create(new ReplicaSeller.Values(2L, "키들리샵", "ACTIVE", OCCURRED_AT));
+        when(sellerReplicaRepository.findBySellerId(2L)).thenReturn(Optional.of(stored));
+
+        replicaService.applySellerChanged(new SellerChangedCommand(2L, "이전 이름", "ACTIVE", OCCURRED_AT));
+        replicaService.applySellerChanged(
+            new SellerChangedCommand(2L, "새 이름", "SUSPENDED", OCCURRED_AT.plusSeconds(1)));
+
+        assertThat(stored.getBusinessName()).isEqualTo("새 이름");
+        assertThat(stored.getStatus()).isEqualTo("SUSPENDED");
+        verify(sellerReplicaRepository, never()).save(any());
     }
 
     private static ProductChangedCommand product(LocalDateTime occurredAt, String status,

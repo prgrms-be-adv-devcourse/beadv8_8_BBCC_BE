@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.cart.CartItem;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -57,6 +58,9 @@ class CartServiceTest {
 
     @Mock
     private OrderRepository orderRepository;
+
+    @Mock
+    private SellerReplicaRepository sellerReplicaRepository;
 
     @InjectMocks
     private CartService cartService;
