@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -275,6 +276,35 @@ public class OrderService {
                 return OrderSummary.withoutItems(order);
             }
             return OrderSummary.from(loaded, sellerNames);
+        });
+    }
+
+    /**
+     * 관리자 전체 주문 목록. 최근 주문부터, 그 페이지 주문들의 주문상품은 한 번에 읽어 주문상품 수를 센다
+     * (주문 수와 상관없이 쿼리 수 일정). 주문상품을 읽지 못한 주문은 주문상품 수 0으로 내리고 WARN만 남긴다.
+     */
+    @Transactional(readOnly = true)
+    public Page<AdminOrderSummary> getAllOrders(int page, int size) {
+        PageRequest pageable = PageRequest.of(page, size);
+        // 저장소는 offset(page × size)이 int를 넘으면 조회하지 못하므로(500), 조회 없이 빈 페이지로 답한다
+        if (pageable.getOffset() > Integer.MAX_VALUE) {
+            return new PageImpl<>(List.of(), pageable, orderRepository.count());
+        }
+        Page<Order> orders = orderRepository.findAllByOrderByIdDesc(pageable);
+        if (orders.isEmpty()) {
+            return orders.map(AdminOrderSummary::withoutItems);
+        }
+        Map<Long, Order> withItems = orderRepository.findAllWithItemsByIdIn(
+                orders.getContent().stream().map(Order::getId).toList())
+            .stream()
+            .collect(Collectors.toMap(Order::getId, Function.identity()));
+        return orders.map(order -> {
+            Order loaded = withItems.get(order.getId());
+            if (loaded == null) {
+                log.warn("관리자 주문 목록 주문상품 없음: reason=order-items-not-found orderId={}", order.getId());
+                return AdminOrderSummary.withoutItems(order);
+            }
+            return AdminOrderSummary.from(loaded);
         });
     }
 

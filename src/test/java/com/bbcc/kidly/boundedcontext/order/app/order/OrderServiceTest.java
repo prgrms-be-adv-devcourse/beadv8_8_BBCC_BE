@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -632,6 +633,97 @@ class OrderServiceTest {
         void missingOrderIsFalse() {
             assertThat(orderService.markPaid(new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of())))
                 .isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("관리자 전체 주문 목록")
+    class GetAllOrders {
+
+        @Test
+        @DisplayName("모든 회원 주문을 저장소 순서(주문 ID 내림차순)대로, 주문상품을 한 번에 읽어 회원 · 취소 사유 · 주문상품 수와 함께 돌려준다")
+        void returnsAllOrders() {
+            Order paid = withId(placedOrderWithTwoItems(), 8L);
+            Order cancelled = withId(withItemIds(placedOrder(3L)), 7L);
+            cancelled.cancel(Order.CancelReason.PAYMENT_EXPIRED);
+            PageRequest pageable = PageRequest.of(0, 20);
+            when(orderRepository.findAllByOrderByIdDesc(pageable))
+                .thenReturn(new PageImpl<>(List.of(paid, cancelled), pageable, 2));
+            when(orderRepository.findAllWithItemsByIdIn(List.of(8L, 7L))).thenReturn(List.of(cancelled, paid));
+
+            Page<AdminOrderSummary> page = orderService.getAllOrders(0, 20);
+
+            assertThat(page.getContent()).extracting(AdminOrderSummary::orderId, AdminOrderSummary::memberId,
+                    AdminOrderSummary::status, AdminOrderSummary::cancelReason, AdminOrderSummary::itemCount)
+                .containsExactly(
+                    org.assertj.core.groups.Tuple.tuple(8L, BUYER_ID, "PENDING_PAYMENT", null, 2),
+                    org.assertj.core.groups.Tuple.tuple(7L, 3L, "CANCELLED", "PAYMENT_EXPIRED", 1));
+            assertThat(page.getContent().getFirst().totalAmount()).isEqualTo(80_000L);
+            assertThat(page.getTotalElements()).isEqualTo(2L);
+        }
+
+        @Test
+        @DisplayName("페이지에는 있는데 주문상품 조회에 없는 주문은 예외 없이 주문상품 수 0 · 나머지 값 그대로, WARN 한 줄")
+        void orderWithoutLoadedItemsHasZeroItemCount(CapturedOutput output) {
+            Order paid = withId(placedOrderWithTwoItems(), 8L);
+            Order missing = withId(withItemIds(placedOrder(3L)), 7L);
+            missing.cancel(Order.CancelReason.PAYMENT_EXPIRED);
+            PageRequest pageable = PageRequest.of(0, 20);
+            when(orderRepository.findAllByOrderByIdDesc(pageable))
+                .thenReturn(new PageImpl<>(List.of(paid, missing), pageable, 2));
+            when(orderRepository.findAllWithItemsByIdIn(List.of(8L, 7L))).thenReturn(List.of(paid));
+
+            Page<AdminOrderSummary> page = orderService.getAllOrders(0, 20);
+
+            assertThat(page.getContent()).extracting(AdminOrderSummary::orderId, AdminOrderSummary::memberId,
+                    AdminOrderSummary::status, AdminOrderSummary::cancelReason, AdminOrderSummary::totalAmount,
+                    AdminOrderSummary::itemCount)
+                .containsExactly(
+                    org.assertj.core.groups.Tuple.tuple(8L, BUYER_ID, "PENDING_PAYMENT", null, 80_000L, 2),
+                    org.assertj.core.groups.Tuple.tuple(7L, 3L, "CANCELLED", "PAYMENT_EXPIRED", 50_000L, 0));
+            assertThat(output).containsPattern("WARN.*관리자 주문 목록.*reason=order-items-not-found orderId=7");
+            assertThat(output.getAll().lines().filter(line -> line.contains("reason=order-items-not-found")).count())
+                .isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("주문이 없으면 빈 목록이고 주문상품은 읽지 않는다")
+        void emptyPageDoesNotLoadItems() {
+            PageRequest pageable = PageRequest.of(0, 20);
+            when(orderRepository.findAllByOrderByIdDesc(pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+            Page<AdminOrderSummary> page = orderService.getAllOrders(0, 20);
+
+            assertThat(page.getContent()).isEqualTo(List.of());
+            assertThat(page.getTotalElements()).isEqualTo(0L);
+            verify(orderRepository, never()).findAllWithItemsByIdIn(any());
+        }
+
+        @Test
+        @DisplayName("offset(page × size)이 int 최댓값과 정확히 같으면(page 2147483647 · size 1) 저장소에서 조회한다")
+        void offsetExactlyMaxIsQueried() {
+            PageRequest pageable = PageRequest.of(Integer.MAX_VALUE, 1);
+            when(orderRepository.findAllByOrderByIdDesc(pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 3));
+
+            Page<AdminOrderSummary> page = orderService.getAllOrders(Integer.MAX_VALUE, 1);
+
+            assertThat(page.getContent()).isEqualTo(List.of());
+            assertThat(page.getNumber()).isEqualTo(Integer.MAX_VALUE);
+            verify(orderRepository, never()).count();
+        }
+
+        @Test
+        @DisplayName("offset이 int 최댓값보다 1 크면(page 1073741824 · size 2) 조회 없이 빈 페이지, 전체 건수는 실제 값")
+        void offsetOverMaxIsEmptyWithoutQuery() {
+            when(orderRepository.count()).thenReturn(3L);
+
+            Page<AdminOrderSummary> page = orderService.getAllOrders(1_073_741_824, 2);
+
+            assertThat(page.getContent()).isEqualTo(List.of());
+            assertThat(page.getNumber()).isEqualTo(1_073_741_824);
+            assertThat(page.getTotalElements()).isEqualTo(3L);
+            assertThat(page.hasNext()).isFalse();
+            verify(orderRepository, never()).findAllByOrderByIdDesc(any());
         }
     }
 
