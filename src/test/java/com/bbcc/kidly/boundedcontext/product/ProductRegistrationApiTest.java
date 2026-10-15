@@ -14,9 +14,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -168,6 +174,49 @@ class ProductRegistrationApiTest {
         assertThat(count("Inventory")).isZero();
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidInputs")
+    @DisplayName("요청 값의 형식이나 범위가 틀리면 필드 이름을 앞에 붙인 400을 받는다")
+    void rejectInvalidInput(Consumer<Map<String, Object>> change, String detail) {
+        Map<String, Object> body = productA();
+        change.accept(body);
+
+        register(body)
+            .expectStatus().isBadRequest()
+            .expectBody()
+            .jsonPath("$.detail").isEqualTo(detail);
+    }
+
+    static Stream<Arguments> invalidInputs() {
+        return Stream.of(
+            invalid("빈 상품명", body -> body.put("name", " "), "name: 상품명을 입력해 주세요."),
+            invalid("100자를 넘는 상품명", body -> body.put("name", "가".repeat(101)),
+                "name: 상품명은 100자 이하로 입력해 주세요."),
+            invalid("255자를 넘는 브랜드", body -> body.put("brand", "가".repeat(256)),
+                "brand: 브랜드는 255자 이하로 입력해 주세요."),
+            invalid("카테고리 없음", body -> body.put("categoryId", null), "categoryId: 카테고리를 골라 주세요."),
+            invalid("이미지 목록 없음", body -> body.put("imageUrls", null), "imageUrls: 이미지 목록이 필요합니다."),
+            invalid("정보 항목 목록 없음", body -> body.put("attributes", null), "attributes: 정보 항목 목록이 필요합니다."),
+            invalid("옵션 목록 없음", body -> body.put("options", null), "options: 옵션 목록이 필요합니다."),
+            invalid("가격 목록 없음", body -> body.put("prices", null), "prices: 가격 목록이 필요합니다."),
+            invalid("실측 목록 없음", body -> body.put("sizeSpecs", null), "sizeSpecs: 실측 목록이 필요합니다."),
+            invalid("음수 초기 재고", body -> options(body).get(0).put("initialQuantity", -1),
+                "options[0].initialQuantity: 초기 재고는 0 이상이어야 합니다."),
+            invalid("255자를 넘는 SKU 코드", body -> options(body).get(0).put("skuCode", "A".repeat(256)),
+                "options[0].skuCode: SKU 코드는 255자 이하로 입력해 주세요."),
+            invalid("판매가 0", body -> prices(body).get(0).put("price", 0), "prices[0].price: 판매가는 0보다 커야 합니다."),
+            invalid("사이즈 값 없음", body -> sizeSpecs(body).get(0).put("sizeValueId", null),
+                "sizeSpecs[0].sizeValueId: 사이즈 값을 골라 주세요."),
+            invalid("권장 키 0", body -> sizeSpecs(body).get(0).put("minHeightCm", 0),
+                "sizeSpecs[0].minHeightCm: 권장 키는 0보다 커야 합니다."),
+            invalid("실측 값 0", body -> measurements(sizeSpecs(body).get(0)).put("TOTAL_LENGTH", 0),
+                "sizeSpecs[0].measurements[TOTAL_LENGTH]: 실측 값은 0보다 커야 합니다."));
+    }
+
+    private static Arguments invalid(String name, Consumer<Map<String, Object>> change, String detail) {
+        return Arguments.of(Named.of(name, change), detail);
+    }
+
     /**
      * 기획서 7.1 상품 A의 등록 요청이다. 네이비 110(초기 재고 10, SKU 있음) · 네이비 120(초기 재고 0, SKU 없음) 옵션과
      * 두 사이즈의 실측 · 권장 키를 담는다. 테스트마다 고칠 수 있게 바꿀 수 있는 Map으로 만든다.
@@ -220,6 +269,11 @@ class ProductRegistrationApiTest {
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> options(Map<String, Object> body) {
         return (List<Map<String, Object>>) body.get("options");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> prices(Map<String, Object> body) {
+        return (List<Map<String, Object>>) body.get("prices");
     }
 
     @SuppressWarnings("unchecked")
