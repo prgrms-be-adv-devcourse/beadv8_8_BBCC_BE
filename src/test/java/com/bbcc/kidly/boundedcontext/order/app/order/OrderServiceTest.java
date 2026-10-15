@@ -45,6 +45,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -540,6 +542,58 @@ class OrderServiceTest {
 
             assertThat(orderService.markPaid(commandFor(order, 999L))).isFalse();
             assertThat(order.getPaymentId()).isEqualTo(500L);
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(Order.CancelReason.class)
+        @DisplayName("취소된 주문에 결제 완료가 오면 상태는 그대로(false)이고 환불 대상 WARN 한 줄(대조보다 상태 판단이 먼저)")
+        void paidAfterCancelLogsWarn(Order.CancelReason reason, CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            order.cancel(reason);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            boolean paid = orderService.markPaid(new MarkPaidCommand(ORDER_ID, 500L, 999L, 1L, List.of()));
+
+            assertThat(paid).isFalse();
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(reason);
+            assertThat(order.getPaymentId()).isNull();
+            assertThat(paidAfterCancelLines(output, "WARN",
+                "orderId=" + ORDER_ID + " paymentId=500 amount=1 cancelReason=" + reason.name())).isEqualTo(1);
+            assertThat(paidAfterCancelLines(output, "ERROR", "orderId=" + ORDER_ID)).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("취소된 주문에 같은 결제 완료가 두 번 오면 WARN도 두 줄(중복 억제 없음)")
+        void paidAfterCancelLogsEveryTime(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+            MarkPaidCommand command = new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of());
+
+            orderService.markPaid(command);
+            orderService.markPaid(command);
+
+            assertThat(paidAfterCancelLines(output, "WARN", "orderId=" + ORDER_ID)).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("결제완료 주문에 다시 온 결제 완료는 환불 대상 WARN이 아니다(DEBUG 그대로)")
+        void duplicateOnPaidIsNotPaidAfterCancel(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.markPaid(commandFor(order, 999L));
+
+            assertThat(output).doesNotContain("paid-after-cancel");
+        }
+
+        private long paidAfterCancelLines(CapturedOutput output, String level, String text) {
+            return output.getAll().lines()
+                .filter(line -> line.contains(level) && line.contains("결제 쪽이 환불 처리, 환불 여부 확인 필요")
+                    && line.contains("event=payment.completed reason=paid-after-cancel " + text))
+                .count();
         }
 
         @Test
