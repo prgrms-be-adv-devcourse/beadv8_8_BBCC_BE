@@ -91,6 +91,22 @@ class OrderSchedulerBatchIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("자동 구매확정도 max-per-run(3)에 닿으면 주문상품 5건 중 앞의 3건만 확정하고, 다음 실행에서 나머지를 확정한다")
+    void autoConfirmStopsAtMaxPerRun() {
+        List<Long> orderIds = deliveredLongAgo(5);
+        OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS);
+
+        scheduler.autoConfirm();
+
+        assertThat(orderIds).extracting(this::itemStatusOf)
+            .containsExactly("CONFIRMED", "CONFIRMED", "CONFIRMED", "ORDERED", "ORDERED");
+
+        scheduler.autoConfirm();
+
+        assertThat(orderIds).extracting(this::itemStatusOf).containsOnly("CONFIRMED");
+    }
+
     /**
      * 결제 마감이 1분 전에 지난 결제대기 주문 count건. 주문 ID 오름차순.
      */

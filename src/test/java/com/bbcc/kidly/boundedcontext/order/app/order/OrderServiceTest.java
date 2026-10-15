@@ -671,6 +671,35 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("목록 offset(page × size)이 int 최댓값과 정확히 같으면(page 2147483647 · size 1) 저장소에서 조회한다")
+        void offsetExactlyMaxIsQueried() {
+            PageRequest pageable = PageRequest.of(Integer.MAX_VALUE, 1);
+            when(orderRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 3));
+
+            Page<OrderSummary> page = orderService.getOrders(BUYER_ID, Integer.MAX_VALUE, 1);
+
+            assertThat(page.getContent()).isEqualTo(List.of());
+            assertThat(page.getNumber()).isEqualTo(Integer.MAX_VALUE);
+            verify(orderRepository, never()).countByMemberId(any());
+        }
+
+        @Test
+        @DisplayName("목록 offset이 int 최댓값보다 1 크면(page 1073741824 · size 2) 조회 없이 빈 페이지, 전체 건수는 실제 값")
+        void offsetOverMaxIsEmptyWithoutQuery() {
+            when(orderRepository.countByMemberId(BUYER_ID)).thenReturn(3L);
+
+            Page<OrderSummary> page = orderService.getOrders(BUYER_ID, 1_073_741_824, 2);
+
+            assertThat(page.getContent()).isEqualTo(List.of());
+            assertThat(page.getNumber()).isEqualTo(1_073_741_824);
+            assertThat(page.getSize()).isEqualTo(2);
+            assertThat(page.getTotalElements()).isEqualTo(3L);
+            assertThat(page.hasNext()).isFalse();
+            verify(orderRepository, never()).findAllByMemberIdOrderByIdDesc(any(), any());
+        }
+
+        @Test
         @DisplayName("목록은 회원의 주문을 최근 주문부터 요청한 페이지로, 주문상품을 한 번에 읽어 대표 상품명 · 주문상품 수와 함께 돌려준다")
         void returnsPage() {
             Order order = withId(placedOrder(BUYER_ID), ORDER_ID);

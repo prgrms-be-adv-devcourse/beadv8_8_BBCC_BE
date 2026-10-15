@@ -194,6 +194,35 @@ class DeliveryServiceTest {
     class SellerOrders {
 
         @Test
+        @DisplayName("offset(page × size)이 int 최댓값과 정확히 같으면(page 2147483647 · size 1) 저장소에서 조회한다")
+        void offsetExactlyMaxIsQueried() {
+            PageRequest pageable = PageRequest.of(Integer.MAX_VALUE, 1);
+            when(deliveryRepository.findAllBySellerIdOrderByIdDesc(SELLER_A_ID, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 3));
+
+            Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, Integer.MAX_VALUE, 1);
+
+            assertThat(page.getContent()).isEqualTo(List.of());
+            assertThat(page.getNumber()).isEqualTo(Integer.MAX_VALUE);
+            verify(deliveryRepository, never()).countBySellerId(any());
+        }
+
+        @Test
+        @DisplayName("offset이 int 최댓값보다 1 크면(page 1073741824 · size 2) 조회 없이 빈 페이지, 전체 건수는 실제 값")
+        void offsetOverMaxIsEmptyWithoutQuery() {
+            when(deliveryRepository.countBySellerId(SELLER_A_ID)).thenReturn(3L);
+
+            Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, 1_073_741_824, 2);
+
+            assertThat(page.getContent()).isEqualTo(List.of());
+            assertThat(page.getNumber()).isEqualTo(1_073_741_824);
+            assertThat(page.getSize()).isEqualTo(2);
+            assertThat(page.getTotalElements()).isEqualTo(3L);
+            assertThat(page.hasNext()).isFalse();
+            verify(deliveryRepository, never()).findAllBySellerIdOrderByIdDesc(any(), any());
+        }
+
+        @Test
         @DisplayName("판매자의 배송을 최근 것부터 요청한 페이지로, 그 판매자 몫 주문상품 · 배송지와 함께 돌려준다")
         void onlySellersItems() {
             Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);

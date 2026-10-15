@@ -19,7 +19,6 @@ import static com.bbcc.kidly.boundedcontext.order.domain.order.OrderFixture.line
 import static com.bbcc.kidly.boundedcontext.order.domain.order.OrderFixture.productOfSellerA;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -833,7 +832,7 @@ class OrderTest {
         void duplicateKeepsFirst() {
             Order order = OrderFixture.deliveredToSellerA();
 
-            catchThrowable(() -> order.recordDelivered(SELLER_A_ID, DELIVERED_AT.plusHours(1)));
+            order.recordDelivered(SELLER_A_ID, DELIVERED_AT.plusHours(1));
 
             assertThat(itemOf(order, SELLER_A_ID).getDeliveredAt()).isEqualTo(DELIVERED_AT);
         }

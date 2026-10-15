@@ -344,7 +344,8 @@ class OrderFlowApiTest {
             .exchange()
             .expectStatus().isEqualTo(409)
             .expectBody()
-            .jsonPath("$.title").isEqualTo("선택할 수 없는 자녀입니다");
+            .jsonPath("$.title").isEqualTo("선택할 수 없는 자녀입니다")
+            .jsonPath("$.detail").isEqualTo("삭제됐거나 내 자녀가 아닌 자녀입니다. 자녀를 다시 선택해 주세요.");
     }
 
     @Test
