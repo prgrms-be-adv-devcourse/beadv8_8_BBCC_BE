@@ -26,6 +26,7 @@ import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -72,18 +73,29 @@ class RecommendedProductSelectorTest {
         assertThat(result).isEmpty();
     }
 
-    @ParameterizedTest(name = "품절 {0}, 옵션 판매 상태 {1}")
+    @ParameterizedTest(name = "키 {0}cm, 110 품절 {1}, 110 판매 상태 {2}, 판매 가능한 120 옵션 {3}")
     @CsvSource({
-        "true, ON_SALE",
-        "false, STOPPED",
+        "115.0, true, ON_SALE, false",
+        "115.0, false, STOPPED, false",
+        "112.0, true, ON_SALE, true",
+        "112.0, false, STOPPED, true",
     })
     @DisplayName("추천 사이즈가 판매 가능하지 않으면 목록에서 뺀다")
-    void excludeProductWhenRecommendedSizeIsNotSellable(boolean soldOut, OptionSaleStatus saleStatus) {
-        // 상품에는 권장 키 105 ~ 115cm인 110 옵션 하나만 있어, 키 115cm 자녀의 추천 사이즈는 110이다
-        ChildSizeInput child = childSizeInputWithHeight(115.0);
-        RecommendReplicaProduct product = productAReplicaWith(List.of(productOptionInfo("110", soldOut, saleStatus)));
+    void excludeProductWhenRecommendedSizeIsNotSellable(
+        double heightCm, boolean soldOut, OptionSaleStatus saleStatus, boolean withSellable120) {
+        // 110 옵션의 권장 키는 105 ~ 115cm이고 120 옵션의 권장 키는 115 ~ 125cm라, 두 키 모두 추천 사이즈가 110이다
+        // 판매 가능한 120 옵션을 더한 경우는 상품에 판매 가능한 옵션이 있어도 추천 사이즈를 팔 수 없으면 빼는지 확인한다
+        ChildSizeInput child = childSizeInputWithHeight(heightCm);
+        List<RecommendReplicaProduct.OptionInfo> options = new ArrayList<>();
+        options.add(productOptionInfo("110", soldOut, saleStatus));
+        if (withSellable120) {
+            options.add(productOptionInfo("120", 115, 125));
+        }
+        RecommendReplicaProduct product = productAReplicaWith(options);
         assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize())
             .isEqualTo("110");
+        assertThat(product.isSellable("110")).isFalse();
+        assertThat(product.hasSellableOption()).isEqualTo(withSellable120);
 
         List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
 
