@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -72,6 +73,9 @@ class ProductDetailApiTest {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("판매중 상품의 상세는 로그인 없이 받고, 옵션 · 상품정보 표 · 실측을 정해진 순서로 담는다")
@@ -128,6 +132,51 @@ class ProductDetailApiTest {
             .jsonPath("$.measurementItems[0].unit").isEqualTo("cm");
     }
 
+    @Test
+    @DisplayName("SALE-09 판매 가능 수량이 기준 수 5보다 많으면 수량 없이 구매 가능, 5 이하이면 수량, 0이면 품절이다")
+    void stockDisplayByAvailableQuantity() {
+        Product product = savedProductOnSale(8, 3, 0);
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.options[*].stockStatus").isEqualTo(List.of("AVAILABLE", "LOW", "SOLD_OUT"))
+            .jsonPath("$.options[0].stockQuantity").isEqualTo(null)
+            .jsonPath("$.options[1].stockQuantity").isEqualTo(3)
+            .jsonPath("$.options[2].stockQuantity").isEqualTo(null)
+            .jsonPath("$.options[*].purchasable").isEqualTo(List.of(true, true, false));
+    }
+
+    @Test
+    @DisplayName("SALE-04 · SALE-06 판매중지 옵션은 재고가 있어도 살 수 없고, 같은 상품의 판매중 옵션은 살 수 있다")
+    void stoppedOptionIsNotPurchasable() {
+        Product product = savedProductOnSale(10, 10, 10);
+        // 옵션을 판매중지하는 업무 메서드가 아직 없어서 상태 칸을 직접 바꾼다
+        changeOptionStatus(product.getOptions().get(1).getId(), "STOPPED");
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.options[*].purchasable").isEqualTo(List.of(true, false, true));
+    }
+
+    @Test
+    @DisplayName("SALE-06 판매중지 상품도 상세는 받지만 상태가 STOPPED이고 옵션은 모두 살 수 없다")
+    void stoppedProductShowsDetailButNothingPurchasable() {
+        Product product = savedProductOnSale(10, 10, 10);
+        // 상품을 판매중지하는 업무 메서드가 아직 없어서 상태 칸을 직접 바꾼다
+        jdbcTemplate.update("update product.product set status = 'STOPPED' where id = ?", product.getId());
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("STOPPED")
+            .jsonPath("$.options[*].purchasable").isEqualTo(List.of(false, false, false));
+    }
+
     // 상품 A에 네이비 110 · 네이비 120 · 오트밀 110 옵션과 110 · 120 실측을 넣어 판매를 시작하고 저장한다.
     // quantities는 옵션 순서대로의 판매 가능 수량이다. 판매자가 입력한 정보 값은 주요소재 면, 특징 기모 · 신축성이다
     private Product savedProductOnSale(int... quantities) {
@@ -160,6 +209,10 @@ class ProductDetailApiTest {
         Stream.of(color, size, mainMaterial, fabricComposition, feature).forEach(entityManager::persist);
         Stream.of(oatmeal, navy, size110, size120, cotton, brushed, stretch).forEach(entityManager::persist);
         entityManager.persist(clothingType);
+    }
+
+    private void changeOptionStatus(Long optionId, String status) {
+        jdbcTemplate.update("update product.product_option set sale_status = ? where id = ?", status, optionId);
     }
 
     private void saveCategory(Category category) {
