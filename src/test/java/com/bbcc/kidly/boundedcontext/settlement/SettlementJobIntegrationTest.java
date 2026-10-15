@@ -21,6 +21,7 @@ import com.bbcc.kidly.global.error.ErrorCode;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -96,6 +97,9 @@ class SettlementJobIntegrationTest {
         assertThat(reload(other).getStatus()).isEqualTo(SettlementItemStatus.SETTLED);
         assertThat(reload(excluded).getStatus()).isEqualTo(SettlementItemStatus.PENDING);
         assertThat(settlementCount()).isEqualTo(2);
+        assertThat(payoutSellerIds()).containsExactlyInAnyOrder(10L, 11L);
+        assertThat(payoutSettlementId(10L)).isEqualTo(sellerSettlement.getId());
+        assertThat(payoutSettlementId(11L)).isEqualTo(otherSettlement.getId());
     }
 
     @Test
@@ -107,6 +111,7 @@ class SettlementJobIntegrationTest {
         assertThat(result.successCount()).isZero();
         assertThat(result.failCount()).isZero();
         assertThat(settlementCount()).isZero();
+        assertThat(payoutSellerIds()).isEmpty();
     }
 
     @Test
@@ -178,6 +183,7 @@ class SettlementJobIntegrationTest {
         assertThat(reload(conflicted).getStatus()).isEqualTo(SettlementItemStatus.PENDING);
         assertThat(settlementOf(other).getTotalSalesAmount()).isEqualTo(1_000L);
         assertThat(settlementCount()).isEqualTo(2);
+        assertThat(payoutSellerIds()).containsExactly(11L);
     }
 
     @Test
@@ -240,6 +246,15 @@ class SettlementJobIntegrationTest {
 
     private Integer settlementCount() {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM settlement.settlement", Integer.class);
+    }
+
+    private List<Long> payoutSellerIds() {
+        return jdbcTemplate.queryForList("SELECT seller_id FROM payment.payout", Long.class);
+    }
+
+    private Long payoutSettlementId(Long sellerId) {
+        return jdbcTemplate.queryForObject("SELECT settlement_id FROM payment.payout WHERE seller_id = ?", Long.class,
+            sellerId);
     }
 
     private Integer runCount() {

@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import java.time.LocalDateTime;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.Job;
@@ -83,8 +84,9 @@ public class SettlementJobConfig {
     @StepScope
     public SettlementSellerWriter settlementSellerWriter(
         SettlementItemRepository settlementItemRepository, SettlementRepository settlementRepository,
-        SettlementProperties properties, @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
+        SettlementProperties properties, EventPublisher eventPublisher,
+        @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
         return new SettlementSellerWriter(settlementItemRepository, settlementRepository,
-            new SettlementCalculator(properties.feeRate()), SettlementPeriod.from(cutoffAt));
+            new SettlementCalculator(properties.feeRate()), SettlementPeriod.from(cutoffAt), eventPublisher);
     }
 }
