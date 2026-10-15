@@ -78,6 +78,12 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
+     * 판매대기 상품을 이어 쓸 때 받는 옵션 · 가격 · 실측 값이다. 지금 옵션 · 실측을 이 값으로 바꿔 넣는다.
+     */
+    public record SaleInputsInfo(List<OptionInfo> options, List<PriceInfo> prices, List<SizeSpecInfo> sizeSpecs) {
+    }
+
+    /**
      * 정보 항목 하나에 입력한 값이다. 목록 항목은 values에, 직접 입력 항목은 text에 값을 담는다.
      */
     public record InfoValueInfo(Attribute attribute, List<AttributeValue> values, String text) {
@@ -208,6 +214,14 @@ public class Product extends BaseTimeEntity {
      * 상품의 기본 정보와 정보 값을 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
      */
     public boolean update(UpdateInfo info) {
+        return update(info, null);
+    }
+
+    /**
+     * 기본 정보와 정보 값에 더해, 판매대기 상품이면 옵션 · 가격 · 실측도 받은 값으로 맞춘다. saleInputs가 null이면
+     * 옵션과 실측은 그대로 둔다. 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 바꾼다.
+     */
+    public boolean update(UpdateInfo info, SaleInputsInfo saleInputs) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(info.infoValues(), "infoValues는 필수입니다");
         requireNonNull(info.sellerId(), "sellerId는 필수입니다");
@@ -225,26 +239,16 @@ public class Product extends BaseTimeEntity {
         // 정보 값은 등록할 때와 같은 규칙으로 검사한다. 상품 유형은 받은 카테고리에서 꺼낸다
         ProductInfoValues.validate(info.infoValues(), info.category().productTypeToRegister());
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-        if (isSameAs(info)) {
+        boolean rewritesSaleInputs = saleInputs != null && status == ProductStatus.SALE_PENDING;
+        if (isSameAs(info) && !(rewritesSaleInputs && differsFrom(saleInputs, info.category()))) {
             return false;
         }
         // 바꿀 것이 있을 때만 version을 본다. 다른 화면이 먼저 고친 상품을 예전 값으로 덮어쓰지 않게 하기 위해서다
         if (!Objects.equals(info.version(), version)) {
             throw new BusinessException(ProductErrorCode.PRODUCT_VERSION_MISMATCH);
         }
-        // 판매를 시작한 상품은 옵션 · 실측을 여기서 바꾸지 못하므로,
-        // 지금 실측이 새 카테고리의 필수 실측을 모두 채워야 한다 (SIZE-04)
         if (status != ProductStatus.SALE_PENDING && category != info.category()) {
-            // 다른 유형으로 바꾸면 기존 옵션을 모두 보관해야 하는데, 이번에는 판매를 시작한 상품에서 하지 않는다 (OPT-06)
-            if (info.category().productTypeToRegister() != category.productTypeToRegister()) {
-                throw new BusinessException(ProductErrorCode.PRODUCT_TYPE_CHANGE_NOT_ALLOWED);
-            }
-            List<String> missing = SaleStartConditions.missingItems(
-                options, sizeSpecs, info.category(), info.category().productTypeToRegister());
-            if (!missing.isEmpty()) {
-                throw new BusinessException(
-                    ProductErrorCode.MEASUREMENTS_MISSING_FOR_CATEGORY, String.join(" ", missing));
-            }
+            validateCategoryChangeOfSoldProduct(info.category());
         }
         name = info.name();
         brand = info.brand();
@@ -255,7 +259,31 @@ public class Product extends BaseTimeEntity {
         // 정보 값은 받은 값으로 통째로 바꾸므로 이전 행을 모두 빼고 받은 값으로 다시 만든다
         infoValues.clear();
         infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
+        if (rewritesSaleInputs) {
+            ProductOptions.rewrite(options, saleInputs.options(), saleInputs.prices(),
+                info.category().productTypeToRegister());
+        }
         return true;
+    }
+
+    // 판매를 시작한 상품은 옵션 · 실측을 여기서 바꾸지 못하므로,
+    // 지금 실측이 새 카테고리의 필수 실측을 모두 채워야 한다 (SIZE-04)
+    private void validateCategoryChangeOfSoldProduct(Category newCategory) {
+        // 다른 유형으로 바꾸면 기존 옵션을 모두 보관해야 하는데, 이번에는 판매를 시작한 상품에서 하지 않는다 (OPT-06)
+        if (newCategory.productTypeToRegister() != category.productTypeToRegister()) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_TYPE_CHANGE_NOT_ALLOWED);
+        }
+        List<String> missing = SaleStartConditions.missingItems(
+            options, sizeSpecs, newCategory, newCategory.productTypeToRegister());
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ProductErrorCode.MEASUREMENTS_MISSING_FOR_CATEGORY, String.join(" ", missing));
+        }
+    }
+
+    // 받은 옵션이 지금 옵션과 다른지 본다. 상품 유형은 받은 카테고리에서 꺼낸다
+    private boolean differsFrom(SaleInputsInfo saleInputs, Category newCategory) {
+        return ProductOptions.differs(options, saleInputs.options(), saleInputs.prices(),
+            newCategory.productTypeToRegister());
     }
 
     // 정보 값은 영속성 컨텍스트의 같은 객체끼리 비교한다. 기본 정보는 값으로 비교하고 이미지는 순서까지 같아야 같다

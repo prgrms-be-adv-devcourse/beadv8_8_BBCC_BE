@@ -40,6 +40,18 @@ final class ProductUpdateFixture {
     record ProductA(
         ClothingOptions clothing, Category top, Category outer, Category bottom, Category sneakers, Product product) {
 
+        // 상품 A의 지금 값을 그대로 보내는 수정 값이다
+        Product.UpdateInfo sameUpdate() {
+            return updateWithCategory(top);
+        }
+
+        // 상품 A의 지금 실측(110 · 120의 상의 실측과 권장 키)과 같은 실측 목록이다
+        List<Product.SizeSpecInfo> currentSizeSpecs() {
+            return List.of(
+                spec(clothing.size110(), 105, 115, top110Measurements()),
+                spec(clothing.size120(), 115, 125, top120Measurements()));
+        }
+
         // 상품 A에서 카테고리만 받은 값으로 바꾸고 나머지는 지금 값 그대로 보내는 수정 값이다
         Product.UpdateInfo updateWithCategory(Category category) {
             return new Product.UpdateInfo(SELLER_ID, VERSION, category, product.getName(), product.getBrand(),

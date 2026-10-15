@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -240,6 +241,48 @@ final class ProductOptions {
             throw new BusinessException(ProductErrorCode.PRICE_GROUP_MISMATCH);
         }
         return matched.getFirst().price();
+    }
+
+    // 판매대기 상품을 이어 쓸 때 받은 옵션이 지금 옵션(보관 제외)과 다른지 본다.
+    // 값 조합이 같은 옵션은 SKU 코드와 판매가를 비교하고, 값 조합이 짝지어지지 않으면 다른 것으로 본다
+    static boolean differs(
+        List<ProductOption> current, List<OptionInfo> requested, List<PriceInfo> prices, ProductType productType) {
+        if (activeOptions(current).size() != requested.size()) {
+            return true;
+        }
+        for (OptionInfo option : requested) {
+            ProductOption matched = findActive(current, option.values());
+            if (matched == null) {
+                return true;
+            }
+            long price = findPrice(option.values(), prices, productType);
+            if (matched.getPrice() != price || !Objects.equals(matched.getSkuCode(), option.skuCode())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 받은 값으로 맞춘다
+    static void rewrite(
+        List<ProductOption> current, List<OptionInfo> requested, List<PriceInfo> prices, ProductType productType) {
+        for (OptionInfo option : requested) {
+            ProductOption matched = findActive(current, option.values());
+            if (matched != null) {
+                matched.revise(option.skuCode(), findPrice(option.values(), prices, productType));
+            }
+        }
+    }
+
+    // 값 조합이 같은 옵션(보관 제외)을 찾는다. 값 묶음은 순서와 상관없는 집합으로 비교하고, 없으면 null이다
+    private static ProductOption findActive(List<ProductOption> current, List<AttributeValue> values) {
+        Set<AttributeValue> wanted = new HashSet<>(values);
+        for (ProductOption option : activeOptions(current)) {
+            if (new HashSet<>(valuesOf(option)).equals(wanted)) {
+                return option;
+            }
+        }
+        return null;
     }
 
     // 옵션 값을 유형–항목 연결의 순서대로 늘어놓는다. 옵션 이름이 이 순서를 쓴다 (OPT-09)
