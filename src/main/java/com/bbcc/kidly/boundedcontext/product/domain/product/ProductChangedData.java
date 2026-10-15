@@ -30,7 +30,8 @@ public final class ProductChangedData {
         }
         return new ProductChangedEvent.Data(
             product.getId(), product.getSellerId(), product.getName(), product.getCategoryId(),
-            product.getStatus(), product.getThumbnailUrl(), product.getCreatedAt(), product.isSizeFree(), options);
+            product.getStatus(), product.getThumbnailUrl(), product.getCreatedAt(), product.isSizeFree(), options,
+            toInfoValueEntries(product));
     }
 
     private static ProductChangedEvent.Option toOption(
@@ -50,7 +51,34 @@ public final class ProductChangedData {
         boolean soldOut = availableQtyByOptionId.getOrDefault(option.getId(), 0) <= 0;
         return new ProductChangedEvent.Option(
             option.getId(), option.getName(), size, option.getPrice(), minHeightCm, maxHeightCm, soldOut,
-            toSaleStatus(option.getSaleStatus()));
+            toSaleStatus(option.getSaleStatus()), toOptionValueEntries(option));
+    }
+
+    // 옵션 값 조합을 항목 코드 · 값 ID · 값으로 옮긴다. 옵션 값은 모두 목록 값이라 값 ID가 있다
+    private static List<ProductChangedEvent.AttributeEntry> toOptionValueEntries(ProductOption option) {
+        List<ProductChangedEvent.AttributeEntry> entries = new ArrayList<>();
+        for (ProductOptionValue value : option.getValues()) {
+            AttributeValue attributeValue = value.getAttributeValue();
+            entries.add(new ProductChangedEvent.AttributeEntry(
+                value.getAttribute().getCode(), attributeValue.getId(), attributeValue.getName()));
+        }
+        return entries;
+    }
+
+    // 상품 정보 값을 항목 코드 · 값 ID · 값으로 옮긴다. 목록 항목은 고른 목록 값을 담고, 직접 입력 항목은 값 ID 없이 입력한 글을 담는다
+    private static List<ProductChangedEvent.AttributeEntry> toInfoValueEntries(Product product) {
+        List<ProductChangedEvent.AttributeEntry> entries = new ArrayList<>();
+        for (ProductInfoValue infoValue : product.getInfoValues()) {
+            AttributeValue attributeValue = infoValue.getAttributeValue();
+            if (attributeValue == null) {
+                entries.add(new ProductChangedEvent.AttributeEntry(
+                    infoValue.getAttribute().getCode(), null, infoValue.getTextValue()));
+                continue;
+            }
+            entries.add(new ProductChangedEvent.AttributeEntry(
+                infoValue.getAttribute().getCode(), attributeValue.getId(), attributeValue.getName()));
+        }
+        return entries;
     }
 
     // 상품 안의 옵션 상태를 이벤트의 판매 상태로 바꾼다. 상품 안에 상태가 늘면 컴파일 오류로 이곳을 고치게 한다
