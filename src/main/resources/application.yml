@@ -19,6 +19,9 @@ spring:
         # 이 설정에서는 Spring이 격리 수준을 직접 지정한 트랜잭션을 거부하므로 @Transactional에 isolation을 쓰지 않는다
         connection:
           handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
+        # 연결을 돌려주는 위 설정에서는 DB가 읽기 전용 트랜잭션의 쓰기를 거부하지 못하므로, 쓰기 SQL을 보내기 전에 막는다
+        session_factory:
+          statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
 
 springdoc:
   swagger-ui:
