@@ -2,9 +2,11 @@ package com.bbcc.kidly.boundedcontext.product.in.product;
 
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductRegistrationService;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductSaleService;
+import com.bbcc.kidly.boundedcontext.product.app.product.ProductUpdateService;
 import com.bbcc.kidly.boundedcontext.product.app.product.SellerProductService;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductRegisterRequest;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductSaleStatusRequest;
+import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductUpdateRequest;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductSaleStatusResponse;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.SellerProductDetailResponse;
@@ -39,6 +41,7 @@ public class SellerProductController {
 
     private final ProductRegistrationService productRegistrationService;
     private final ProductSaleService productSaleService;
+    private final ProductUpdateService productUpdateService;
     private final SellerProductService sellerProductService;
 
     // 정렬은 등록 최신순으로 고정이라 pageable의 sort는 무시된다
@@ -62,6 +65,15 @@ public class SellerProductController {
         ProductRegisterResponse body = ProductRegisterResponse.from(
             productRegistrationService.register(member.id(), request));
         return ResponseEntity.created(URI.create(PRODUCTS_PATH + "/" + body.productId())).body(body);
+    }
+
+    // 판매자 본인의 상품 정보를 고친다
+    @PutMapping("/{productId}")
+    public SellerProductDetailResponse update(
+        @LoginMember AuthMember member,
+        @PathVariable Long productId,
+        @Valid @RequestBody ProductUpdateRequest request) {
+        return SellerProductDetailResponse.from(productUpdateService.update(member.id(), productId, request));
     }
 
     @PutMapping("/{productId}/sale-status")
