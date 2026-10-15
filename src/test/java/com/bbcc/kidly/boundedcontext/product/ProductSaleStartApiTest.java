@@ -17,6 +17,8 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -146,6 +148,16 @@ class ProductSaleStartApiTest {
         startSale(null, ON_SALE).expectStatus().isUnauthorized();
         startSale(tokens.buyer(SELLER_ID), ON_SALE).expectStatus().isForbidden();
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"SALE_PENDING", "STOPPED", "FOO"})
+    @DisplayName("판매 시작(ON_SALE)이 아닌 판매 상태를 보내면 400이고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")
+    void rejectStatusOtherThanOnSale(String status) {
+        expectProblem(startSale(tokens.seller(SELLER_ID), Map.of("status", status)), HttpStatus.BAD_REQUEST,
+            "잘못된 요청입니다", "status: 판매 시작(ON_SALE)만 요청할 수 있습니다.");
+        assertThat(storedStatus()).isEqualTo("SALE_PENDING");
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
     // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
