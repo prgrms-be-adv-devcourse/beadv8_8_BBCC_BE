@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCh
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
@@ -15,7 +16,11 @@ import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -65,16 +70,36 @@ public class RecommendedProductService {
 
     // 요청한 페이지의 상품만 결과로 바꾼다. 시작 위치가 전체 개수를 넘으면 빈 목록이다
     private List<RecommendedProductResult> toPageContent(List<RecommendedProduct> recommended, Pageable pageable) {
-        List<RecommendedProductResult> content = new ArrayList<>();
+        List<RecommendedProduct> pageProducts = new ArrayList<>();
         long start = pageable.getOffset();
         long end = Math.min(start + pageable.getPageSize(), recommended.size());
         for (long i = start; i < end; i++) {
-            RecommendedProduct product = recommended.get((int) i);
-            // 판매자 상호는 아직 채우지 않는다
+            pageProducts.add(recommended.get((int) i));
+        }
+        if (pageProducts.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, String> businessNames = readBusinessNames(pageProducts);
+        List<RecommendedProductResult> content = new ArrayList<>();
+        for (RecommendedProduct product : pageProducts) {
             content.add(new RecommendedProductResult(
                 product.productId(), product.name(), product.thumbnailUrl(),
-                null, product.minPrice(), product.recommendedSize()));
+                businessNames.get(product.sellerId()), product.minPrice(), product.recommendedSize()));
         }
         return content;
+    }
+
+    // 이번 페이지 상품의 판매자를 중복 없이 모아 한 번에 읽는다. 복사본이 없는 판매자는 맵에 들어가지 않는다
+    private Map<Long, String> readBusinessNames(List<RecommendedProduct> pageProducts) {
+        Set<Long> sellerIds = new HashSet<>();
+        for (RecommendedProduct product : pageProducts) {
+            sellerIds.add(product.sellerId());
+        }
+        Map<Long, String> businessNames = new HashMap<>();
+        for (RecommendReplicaSeller seller : replicaSellerRepository.findAllById(sellerIds)) {
+            businessNames.put(seller.getSellerId(), seller.getBusinessName());
+        }
+        return businessNames;
     }
 }
