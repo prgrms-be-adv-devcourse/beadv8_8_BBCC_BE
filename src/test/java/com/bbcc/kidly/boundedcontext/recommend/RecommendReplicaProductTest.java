@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -83,6 +84,20 @@ class RecommendReplicaProductTest {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeWithPrices());
 
         assertThat(replica.getMinPrice()).isNull();
+    }
+
+    // FREE 옵션은 권장 키가 없어 사이즈 줄에는 들어가지 않지만, 판매할 수 있으므로 판매 가능 사이즈에는 들어가야 한다
+    @ParameterizedTest(name = "사이즈 {0} → {1}")
+    @CsvSource({"110, true", "FREE, true", "999, false"})
+    @DisplayName("옵션이 판매중이고 품절이 아니면 그 사이즈는 판매 가능이다")
+    void sellableSizeOfOnSaleOption(String size, boolean sellable) {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(false,
+            List.of(
+                productOptionInfo("110", 105, 115),
+                productOptionInfo("FREE", null, null)),
+            PRODUCT_CHANGED_AT));
+
+        assertThat(replica.isSellable(size)).isEqualTo(sellable);
     }
 
     @Test

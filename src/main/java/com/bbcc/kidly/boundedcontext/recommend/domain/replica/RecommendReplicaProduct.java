@@ -77,6 +77,14 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         joinColumns = @JoinColumn(name = "product_id"))
     private List<SizeRange> sizes = new ArrayList<>();
 
+    // 판매중이고 품절이 아닌 옵션의 사이즈다. 권장 키가 없는 사이즈 무관(FREE)도 담는다
+    @Getter(AccessLevel.NONE)
+    @ElementCollection
+    @CollectionTable(schema = "recommend", name = "replica_product_sellable_size",
+        joinColumns = @JoinColumn(name = "product_id"))
+    @Column(name = "size", nullable = false, length = 20)
+    private Set<String> sellableSizes = new HashSet<>();
+
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
         LocalDateTime occurredAt) {
@@ -135,6 +143,12 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.eventOccurredAt = info.occurredAt();
         // 컬렉션 객체를 새로 갈아 끼우지 않고 비운 뒤 다시 채운다
         this.sizes.clear();
+        this.sellableSizes.clear();
+        for (OptionInfo option : info.options()) {
+            if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {
+                this.sellableSizes.add(option.size());
+            }
+        }
         Set<String> seen = new HashSet<>();
         for (OptionInfo option : info.options()) {
             // 권장 키가 하나라도 없으면 아이 키로 고를 수 없으므로 사이즈 추천 후보로 두지 않는다
@@ -147,6 +161,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             }
             this.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
+    }
+
+    /**
+     * 그 사이즈의 옵션 중 판매중이고 품절이 아닌 것이 하나라도 있는지 돌려준다.
+     */
+    public boolean isSellable(String size) {
+        return sellableSizes.contains(size);
     }
 
     private static Long lowestPrice(List<OptionInfo> options) {
