@@ -93,6 +93,16 @@ class InventoryAdjustmentRecordTest {
         assertThat(record.changesSoldOut(availableQtyAfter)).isTrue();
     }
 
+    @ParameterizedTest(name = "증감량 {0}, 조정 뒤 판매 가능 수량 {1}")
+    @CsvSource({"3, 8", "-1, 4"})
+    @DisplayName("SALE-08 조정 전과 뒤의 판매 가능 수량이 모두 0보다 크면 품절 여부를 바꾸지 않은 조정이다")
+    void keepsSoldOutWhenNotCrossingZero(int deltaQty, int availableQtyAfter) {
+        InventoryAdjustmentRecord record = InventoryAdjustmentRecord.adjust(new InventoryAdjustmentRecord.AdjustInfo(
+            OPTION, deltaQty, InventoryAdjustmentReason.CORRECTION, SELLER_ID));
+
+        assertThat(record.changesSoldOut(availableQtyAfter)).isFalse();
+    }
+
     @ParameterizedTest(name = "{0} {1} → {2}")
     @CsvSource({
         "INITIAL, 1, true", "INITIAL, -1, false", "INITIAL, 0, false",
