@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -117,6 +118,33 @@ class InventoryAdjustmentApiTest {
             HttpStatus.NOT_FOUND, "옵션을 찾을 수 없습니다", "옵션을 다시 확인해 주세요.", MISSING_OPTION_ID);
     }
 
+    @Test
+    @DisplayName("로그인하지 않으면 401, 판매자가 아닌 회원이면 403으로 거절하고 아무것도 바꾸지 않는다")
+    void rejectWithoutSellerRole() {
+        Map<String, Object> restock = Map.of("deltaQuantity", 10, "reason", "RESTOCK");
+
+        adjust(null, option.getId(), restock).expectStatus().isUnauthorized();
+        adjust(tokens.buyer(SELLER_ID), option.getId(), restock).expectStatus().isForbidden();
+
+        assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(5);
+        assertThat(sellerAdjustments(option)).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"SALE_PENDING", "STOPPED"})
+    @DisplayName("판매를 시작하기 전이거나 판매를 멈춘 상품의 옵션도 재고를 조정할 수 있다")
+    void adjustOptionOfProductNotOnSale(String productStatus) {
+        // 판매대기로 되돌리거나 판매를 멈추는 기능이 아직 없어서 상품의 판매 상태를 DB에서 직접 바꾼다
+        jdbcTemplate.update("update product.product set status = ?"
+            + " where id = (select product_id from product.product_option where id = ?)", productStatus, option.getId());
+
+        adjust(tokens.seller(SELLER_ID), option.getId(), Map.of("deltaQuantity", 10, "reason", "RESTOCK"))
+            .expectStatus().isOk();
+
+        assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(15);
+        assertThat(sellerAdjustments(option)).containsExactly(tuple("RESTOCK", 10, SELLER_ID));
+    }
+
     static Stream<Arguments> invalidRequests() {
         return Stream.of(
             arguments(named("증감량 0", Map.of("deltaQuantity", 0, "reason", "CORRECTION")),
@@ -150,7 +178,11 @@ class InventoryAdjustmentApiTest {
 
     private ResponseSpec adjust(String token, long optionId, Map<String, Object> body) {
         return client.post().uri(adjustmentsPath(optionId))
-            .headers(headers -> headers.setBearerAuth(token))
+            .headers(headers -> {
+                if (token != null) {
+                    headers.setBearerAuth(token);
+                }
+            })
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();
