@@ -167,6 +167,30 @@ class PostgresProductSearchIntegrationTest {
         assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
     }
 
+    @ParameterizedTest(name = "page {0}, size {1} → 상품 {2}")
+    @CsvSource({
+        "0, 2, '5,4', true",
+        "1, 2, '3,2', true",
+        "2, 2, 1, false",
+        "3, 2, '', false"})
+    @DisplayName("page와 size대로 잘라 돌려주고, 전체 개수는 거른 조건으로 센다")
+    void pageProducts(int page, int size, String expectedIds, boolean hasNext) {
+        persist(
+            document(1L).build(),
+            document(2L).createdAt(CREATED_AT.plusDays(1)).build(),
+            document(3L).createdAt(CREATED_AT.plusDays(2)).build(),
+            document(4L).createdAt(CREATED_AT.plusDays(3)).build(),
+            document(5L).createdAt(CREATED_AT.plusDays(4)).build(),
+            document(6L).status(ProductStatus.STOPPED).build());
+
+        Page<ProductSearchItem> result = productSearch.search(noCondition(), PageRequest.of(page, size));
+
+        assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
+        assertThat(result.getTotalElements()).isEqualTo(5);
+        assertThat(result.getTotalPages()).isEqualTo(3);
+        assertThat(result.hasNext()).isEqualTo(hasNext);
+    }
+
     // CSV의 "COLOR:3,SIZE:15"를 항목 code별 값 ID 목록으로 묶는다
     private static Map<String, List<Long>> attributes(String spec) {
         Map<String, List<Long>> valueIdsByCode = new LinkedHashMap<>();
