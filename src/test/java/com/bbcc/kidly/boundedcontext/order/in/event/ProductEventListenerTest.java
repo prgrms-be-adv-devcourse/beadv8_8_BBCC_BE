@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.order.app.replica.ReplicaService;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ProductChangedCommand;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import java.time.LocalDateTime;
@@ -37,8 +38,10 @@ class ProductEventListenerTest {
     @DisplayName("이벤트를 커맨드로 바꿔 넘긴다: 상품 필드 · 옵션 전체 · 발생 시각")
     void convertsEvent() {
         listener.onProductChanged(event(ProductStatus.ON_SALE,
-            new ProductChangedEvent.Option(1L, "110", "네이비", "면", 25_000L, 105, 115, false),
-            new ProductChangedEvent.Option(2L, "120", "네이비", "면", 26_000L, 115, 125, true)));
+            new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
+                105, 115, false, OptionSaleStatus.ON_SALE),
+            new ProductChangedEvent.Option(2L, "색상: 네이비 / 사이즈: 120", "120", 26_000L,
+                115, 125, true, OptionSaleStatus.ON_SALE)));
 
         verify(replicaService).applyProductChanged(command.capture());
         ProductChangedCommand sent = command.getValue();
@@ -57,7 +60,8 @@ class ProductEventListenerTest {
     @DisplayName("판매 상태 enum은 이름 문자열로 넘긴다")
     void convertsStatusToName() {
         listener.onProductChanged(event(ProductStatus.STOPPED,
-            new ProductChangedEvent.Option(1L, "110", "네이비", "면", 25_000L, null, null, false)));
+            new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
+                null, null, false, OptionSaleStatus.ON_SALE)));
 
         verify(replicaService).applyProductChanged(command.capture());
         assertThat(command.getValue().productStatus()).isEqualTo("STOPPED");
