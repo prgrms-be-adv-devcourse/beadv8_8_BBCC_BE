@@ -101,6 +101,24 @@ class ProductStockDeductionFailedIntegrationTest {
     }
 
     @Test
+    @DisplayName("INV-11 모자란 옵션 뒤의 옵션은 재고가 충분하면 재고 부족함에 담지 않고, 줄였던 수량도 모두 되돌린다")
+    void excludeEnoughOptionAfterShortOption() {
+        // 옵션 ID는 navy110이 더 작아서 navy110(모자람) 다음에 navy120(충분)을 줄여 본다
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 10);
+
+        publishInTransaction(orderCreated(ORDER_ID,
+            orderItem(11L, options.navy110(), 2),
+            orderItem(12L, options.navy120(), 2)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(1);
+        assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(10);
+        assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).singleElement()
+            .satisfies(failed -> assertThat(failed.data().failures())
+                .extracting(StockDeductionFailedEvent.Failure::orderItemId, StockDeductionFailedEvent.Failure::reason)
+                .containsExactly(tuple(11L, StockDeductionFailureCode.OUT_OF_STOCK)));
+    }
+
+    @Test
     @DisplayName("INV-13 판매중이 아닌 상품의 주문이면 재고를 줄이지 않고 PRODUCT_NOT_ON_SALE를 담은 재고 부족함을 한 번 보낸다")
     void publishStockDeductionFailedWhenProductIsNotOnSale() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
