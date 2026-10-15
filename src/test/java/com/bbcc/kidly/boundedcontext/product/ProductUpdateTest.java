@@ -87,6 +87,16 @@ class ProductUpdateTest {
         assertThat(product.getName()).isEqualTo(registered.name());
     }
 
+    @Test
+    @DisplayName("바꿀 것이 없으면 version이 달라도 거절하지 않는다. 이미 반영된 요청을 다시 보낸 경우다")
+    void acceptRetryOfAppliedUpdate() {
+        Product.UpdateInfo retried = new Product.UpdateInfo(SELLER_ID, VERSION - 1, category, registered.name(),
+            registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
+            List.of(cottonMaterial(clothing)));
+
+        assertThat(product.update(retried)).isFalse();
+    }
+
     // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
     private Product.UpdateInfo sameBasicsWith(List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, VERSION, category, registered.name(), registered.brand(),
