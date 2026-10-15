@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.Options;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRejection;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import java.util.List;
@@ -27,12 +28,15 @@ import org.springframework.test.util.ReflectionTestUtils;
  */
 class InventoryDeductionRejectionTest {
 
-    @Test
-    @DisplayName("INV-13 상품이 판매중이 아니면 그 상품의 옵션을 담은 주문상품만 PRODUCT_NOT_ON_SALE로 거절한다")
-    void productNotOnSale() {
+    @ParameterizedTest(name = "옵션 {0}")
+    @EnumSource(ProductOptionStatus.class)
+    @DisplayName("INV-13 상품이 판매중이 아니면 옵션 상태와 상관없이 그 상품의 옵션을 담은 주문상품만 PRODUCT_NOT_ON_SALE로 거절한다")
+    void productNotOnSale(ProductOptionStatus optionStatus) {
+        ProductOption beforeSaleOption = beforeSaleOptions().navy120();
+        ReflectionTestUtils.setField(beforeSaleOption, "saleStatus", optionStatus);
         InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
             item(11L, onSaleOptions().navy110(), 2),
-            item(12L, beforeSaleOptions().navy120(), 1)));
+            item(12L, beforeSaleOption, 1)));
 
         InventoryDeductionRejection rejection = request.notOnSaleRejection();
 
@@ -78,7 +82,7 @@ class InventoryDeductionRejectionTest {
     }
 
     @Test
-    @DisplayName("INV-13 대표 사유는 요청 순서에서 첫 번째로 거절한 주문상품의 사유다")
+    @DisplayName("대표 사유는 요청 순서에서 첫 번째로 거절한 주문상품의 사유다")
     void representativeReasonIsFirstFailure() {
         Options options = onSaleOptions();
         ReflectionTestUtils.setField(options.navy120(), "saleStatus", ProductOptionStatus.STOPPED);
