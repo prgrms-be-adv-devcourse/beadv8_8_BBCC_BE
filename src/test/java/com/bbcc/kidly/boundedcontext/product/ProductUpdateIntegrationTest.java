@@ -93,6 +93,17 @@ class ProductUpdateIntegrationTest {
             "select count(*) from product.size_spec where product_id = ?", Long.class, productId)).isOne();
     }
 
+    @Test
+    @DisplayName("version 올리기를 부르면 상품 행의 칸이 바뀌지 않아도 저장할 때 version이 1 오른다. SKU · 판매가 · 실측만 바뀐 수정에 쓴다")
+    void incrementVersion() {
+        Long productId = savedProductA();
+        long before = version(productId);
+
+        inTransaction(() -> productRepository.incrementVersion(productRepository.findById(productId).orElseThrow()));
+
+        assertThat(version(productId)).isEqualTo(before + 1);
+    }
+
     // 상품 A의 기본 정보와 카테고리는 그대로 두고 정보 값만 받은 값으로 보내는 수정 값이다
     private Product.UpdateInfo sameBasicsWith(Product product, List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, product.getVersion(), managedCategory(), product.getName(),
@@ -119,7 +130,8 @@ class ProductUpdateIntegrationTest {
         Product product = Product.register(info);
         category = info.category();
         product.addOptions(addOptions(List.of(
-            option(clothing.navy(), clothing.size110()), option(clothing.navy(), clothing.size120()))), clothing.type());
+            option(clothing.navy(), clothing.size110()),
+            option(clothing.navy(), clothing.size120()))), clothing.type());
         product.addSizeSpecs(addSizeSpecs(List.of(
             spec(clothing.size110(), 105, 115, top110Measurements()),
             spec(clothing.size120(), 115, 125, top120Measurements()))), category, clothing.type());
