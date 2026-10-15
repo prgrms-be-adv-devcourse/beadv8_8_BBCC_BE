@@ -121,6 +121,25 @@ class InventoryRestorationIntegrationTest {
     }
 
     @Test
+    @DisplayName("INV-09 차감 기록이 없는 주문의 주문 취소됨이 먼저 오면 주문상품마다 FAILED를 남기고, 나중에 온 주문 생성됨은 차감하지 않는다")
+    void recordFailedWhenCancelledBeforeCreated() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+
+        publishInTransaction(orderCancelled(ORDER_ID,
+            cancelledItem(11L, options.navy110(), 2),
+            cancelledItem(12L, options.navy120(), 1)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
+            orderItem(11L, options.navy110(), 2),
+            orderItem(12L, options.navy120(), 1)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(5);
+        assertThat(inventoryDeductionDb.records()).containsExactlyInAnyOrder(
+            tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"),
+            tuple(ORDER_ID, 12L, options.navy120().getId(), 1, "FAILED"));
+    }
+
+    @Test
     @DisplayName("INV-09 재고 부족으로 거절해 FAILED 기록만 있는 주문의 주문 취소됨은 재고와 기록을 바꾸지 않는다")
     void keepFailedOrderAsIs() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
