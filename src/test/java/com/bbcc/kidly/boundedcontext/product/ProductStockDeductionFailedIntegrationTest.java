@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ConcurrentTasks.runRacing;
 import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.cancelledItem;
 import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.orderCancelled;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
@@ -16,6 +17,7 @@ import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -150,6 +152,22 @@ class ProductStockDeductionFailedIntegrationTest {
 
         assertThat(eventRecorder.events(StockDeductedEvent.class)).hasSize(1);
         assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("INV-10 같은 주문 생성됨을 두 스레드가 동시에 거절해도 FAILED 기록은 한 벌이고 재고 부족함은 한 번만 보낸다")
+    void publishStockDeductionFailedOnceForConcurrentRejections() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
+        OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
+
+        // 차감 기록 표를 잠근 채 두 처리를 출발시켜, 둘 다 거절한 뒤 FAILED 기록을 넣으려다 함께 기다리게 한다.
+        // 모자란 수량은 UPDATE 조건에 맞지 않아 재고 행 잠금을 기다리지 않으므로 재고 행 대신 이 표를 잠근다
+        runRacing(inventoryDeductionDb, inventoryDeductionDb.lockDeductionTable(), List.of(
+            () -> publishInTransaction(event),
+            () -> publishInTransaction(event)));
+
+        assertThat(inventoryDeductionDb.countByStatus("FAILED")).isEqualTo(1);
+        assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).hasSize(1);
     }
 
     // 주문 저장처럼 트랜잭션 안에서 주문 이벤트를 발행하고 커밋한다
