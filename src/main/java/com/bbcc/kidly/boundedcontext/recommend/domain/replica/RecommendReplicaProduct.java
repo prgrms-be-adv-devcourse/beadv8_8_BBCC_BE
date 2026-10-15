@@ -49,6 +49,10 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(nullable = false)
     private String name;
 
+    // 옵션 판매가의 최솟값이다. 옵션이 없으면 null이다
+    @Column(name = "min_price")
+    private Long minPrice;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ProductStatus status;
@@ -123,6 +127,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.sellerId = info.sellerId();
         this.categoryId = info.categoryId();
         this.name = info.name();
+        this.minPrice = lowestPrice(info.options());
         this.status = info.status();
         this.thumbnailUrl = info.thumbnailUrl();
         this.productRegisteredAt = info.registeredAt();
@@ -142,6 +147,16 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             }
             this.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
+    }
+
+    private static Long lowestPrice(List<OptionInfo> options) {
+        Long lowest = null;
+        for (OptionInfo option : options) {
+            if (lowest == null || option.price() < lowest) {
+                lowest = option.price();
+            }
+        }
+        return lowest;
     }
 
     /**

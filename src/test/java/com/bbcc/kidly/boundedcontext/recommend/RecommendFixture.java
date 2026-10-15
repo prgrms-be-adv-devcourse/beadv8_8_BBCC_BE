@@ -22,6 +22,7 @@ import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -268,6 +269,19 @@ public final class RecommendFixture {
     }
 
     /**
+     * {@link #productAChange()}와 같은 상품 변경에서 옵션만 바꾼다. 판매가마다 옵션을 하나씩 만들고 사이즈는 110부터 10씩 올린다.
+     * 판매가를 넘기지 않으면 옵션이 없는 상품 변경이 된다.
+     */
+    public static RecommendReplicaProduct.ChangeInfo productAChangeWithPrices(long... prices) {
+        List<RecommendReplicaProduct.OptionInfo> options = new ArrayList<>();
+        for (int i = 0; i < prices.length; i++) {
+            int size = 110 + 10 * i;
+            options.add(productOptionInfo(String.valueOf(size), size - 5, size + 5, prices[i]));
+        }
+        return productAChangeOf(false, options, PRODUCT_CHANGED_AT);
+    }
+
+    /**
      * {@link #productAChange()}와 같은 상품 변경에서 사이즈 무관 여부, 옵션, 발생 시각만 바꾼다.
      */
     public static RecommendReplicaProduct.ChangeInfo productAChangeOf(boolean sizeFree,
@@ -282,7 +296,15 @@ public final class RecommendFixture {
      */
     public static RecommendReplicaProduct.OptionInfo productOptionInfo(
         String size, Integer minHeightCm, Integer maxHeightCm) {
-        return new RecommendReplicaProduct.OptionInfo(size, minHeightCm, maxHeightCm, 25_000L, false,
+        return productOptionInfo(size, minHeightCm, maxHeightCm, 25_000L);
+    }
+
+    /**
+     * {@link #productOptionInfo(String, Integer, Integer)}에서 판매가만 바꾼다.
+     */
+    public static RecommendReplicaProduct.OptionInfo productOptionInfo(
+        String size, Integer minHeightCm, Integer maxHeightCm, long price) {
+        return new RecommendReplicaProduct.OptionInfo(size, minHeightCm, maxHeightCm, price, false,
             OptionSaleStatus.ON_SALE);
     }
 }

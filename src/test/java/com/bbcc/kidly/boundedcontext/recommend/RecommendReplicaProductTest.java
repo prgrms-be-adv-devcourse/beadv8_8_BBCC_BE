@@ -69,6 +69,23 @@ class RecommendReplicaProductTest {
     }
 
     @Test
+    @DisplayName("옵션 판매가가 여럿이면 가장 낮은 가격을 복사본의 가격으로 둔다")
+    void keepLowestOptionPrice() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            RecommendFixture.productAChangeWithPrices(30_000L, 25_000L, 28_000L));
+
+        assertThat(replica.getMinPrice()).isEqualTo(25_000L);
+    }
+
+    @Test
+    @DisplayName("옵션이 없으면 복사본의 가격을 비워 둔다")
+    void leaveMinPriceEmptyWithoutOption() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeWithPrices());
+
+        assertThat(replica.getMinPrice()).isNull();
+    }
+
+    @Test
     @DisplayName("색상만 다른 같은 사이즈 옵션은 한 줄로 묶고 처음 들어온 권장 키를 쓴다")
     void groupOptionsOfSameSize() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(false,
