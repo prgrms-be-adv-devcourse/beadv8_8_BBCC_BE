@@ -78,29 +78,31 @@ jobs:
             fi
           fi
 
-          COMMIT_TITLE=$(printf '%s' "$COMMIT_MSG" | head -n1)
+          # 제목은 배포한 커밋이다. PR 머지 커밋의 첫 줄은 "Merge pull request #N from 브랜치"라서 PR 알림처럼 "#N PR 제목"을 쓴다
+          TITLE=$(printf '%s' "$COMMIT_MSG" | head -n1)
+          if [[ "$TITLE" =~ ^Merge\ pull\ request\ \#([0-9]+)\  ]]; then
+            PR_TITLE=$(printf '%s' "$COMMIT_MSG" | tail -n +2 | grep -m1 -v '^[[:space:]]*$' || true)
+            if [ -n "$PR_TITLE" ]; then TITLE="#${BASH_REMATCH[1]} $PR_TITLE"; fi
+          fi
 
-          # 제목은 굵은 링크, 상세는 그 아래 한 블록에 둔다
+          # Slack 알림(slack-notify.yml)과 같은 모양: 제목은 굵은 링크, 부가 정보는 context 블록(작은 회색 글씨)에 둔다
           jq -n --arg color "$COLOR" --arg result "$RESULT" --arg env "$ENV_LABEL" --arg branch "$BRANCH" \
-            --arg sha "${SHA:0:7}" --arg commit_url "$SERVER_URL/$REPO/commit/$SHA" --arg msg "$COMMIT_TITLE" \
+            --arg sha "${SHA:0:7}" --arg commit_url "$SERVER_URL/$REPO/commit/$SHA" --arg title "$TITLE" \
             --arg actor "$ACTOR" --arg run_url "$RUN_URL" \
             --arg failed_step "$FAILED_STEP" --arg hint "$HINT" --arg manual "$MANUAL" '
             def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
-            {attachments: [{
+            ([
+              (if $failed_step != "" then "실패한 단계: \($failed_step | esc)" else empty end),
+              (if $hint != "" then ($hint | esc) else empty end),
+              (if $manual != "" then ($manual | esc) else empty end)
+            ] | join("\n")) as $notes
+            | {attachments: [{
               color: $color,
-              fallback: "\($result) | \($env) | \($branch) | \($msg)",
-              blocks: [
-                {type: "section", text: {type: "mrkdwn", text: "*<\($run_url)|\($result)>*"}},
-                {type: "section", text: {type: "mrkdwn", text: ([
-                  "*환경* \($env | esc)",
-                  "*브랜치* `\($branch | esc)`",
-                  "*커밋* <\($commit_url)|`\($sha)`> \($msg | esc)",
-                  "*실행한 사람* \($actor | esc)",
-                  (if $failed_step != "" then "*실패한 단계* \($failed_step | esc)" else empty end),
-                  (if $hint != "" then $hint else empty end),
-                  (if $manual != "" then $manual else empty end),
-                  "*실행 링크* <\($run_url)|바로가기>"
-                ] | join("\n"))}}
-              ]
+              fallback: "\($result) | \($env) | \($title)",
+              blocks: ([
+                {type: "section", text: {type: "mrkdwn", text: "*<\($run_url)|\($title | esc)>*"}},
+                {type: "context", elements: [{type: "mrkdwn",
+                  text: "\($result) · \($env | esc) · \($actor | esc) · `\($branch | esc)` · <\($commit_url)|`\($sha)`>"}]}
+              ] + (if $notes != "" then [{type: "context", elements: [{type: "mrkdwn", text: $notes}]}] else [] end))
             }]}' \
             | curl -sS -f -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"
