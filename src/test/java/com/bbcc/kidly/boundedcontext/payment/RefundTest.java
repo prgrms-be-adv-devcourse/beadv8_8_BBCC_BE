@@ -60,4 +60,17 @@ class RefundTest {
         assertThat(refund.getAmount()).isEqualTo(5_000L);
         assertThat(refund.getRefundedAt()).isNull();
     }
+
+    @Test
+    @DisplayName("주문 취소로 환불하면 주문상품 취소 없이(취소 ID null) 환불 완료로 남는다")
+    void completeForOrderCancellation() {
+        Refund refund = Refund.completeForOrderCancellation(PAYMENT_ID, PaymentFixture.ORDER_ID,
+            List.of(RefundItem.of(500L, 10_000L), RefundItem.of(501L, 5_000L)), NOW);
+
+        assertThat(refund.getStatus()).isEqualTo(RefundStatus.COMPLETED);
+        assertThat(refund.getCancellationId()).isNull();
+        assertThat(refund.getAmount()).isEqualTo(15_000L);
+        assertThat(refund.getRefundedAt()).isEqualTo(NOW);
+        assertThat(refund.getItems()).hasSize(2);
+    }
 }

@@ -20,8 +20,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 주문상품 취소에 따른 예치금 환불. 취소당 하나만 만든다(cancellation_id UK).
- * 취소 사유는 orders의 order_item_cancellation에 있으므로 복사하지 않는다.
+ * 예치금 환불. 주문상품 취소에 따른 환불은 취소당 하나만 만든다(cancellation_id UK).
+ * 주문 전체 취소(order.cancelled)에 따른 환불은 주문상품 취소가 없어 cancellation_id가 null이고, 결제당 한 번만 한다.
+ * 취소 사유는 orders에 있으므로 복사하지 않는다.
  */
 @Entity
 @Table(schema = "payment", name = "refund")
@@ -39,7 +40,8 @@ public class Refund extends BaseTimeEntity {
     @Column(nullable = false)
     private Long orderId;
 
-    @Column(nullable = false, unique = true)
+    // 주문상품 취소 ID. 주문 전체 취소로 환불하면 null
+    @Column(unique = true)
     private Long cancellationId;
 
     @Column(nullable = false)
@@ -74,6 +76,14 @@ public class Refund extends BaseTimeEntity {
         refund.refundedAt = refundedAt;
         items.forEach(refund::addItem);
         return refund;
+    }
+
+    /**
+     * 주문 전체가 취소돼(order.cancelled) 결제 금액을 돌려준다. 주문상품 취소가 없어 cancellationId는 null이다.
+     */
+    public static Refund completeForOrderCancellation(Long paymentId, Long orderId, List<RefundItem> items,
+        LocalDateTime refundedAt) {
+        return complete(paymentId, orderId, null, items, refundedAt);
     }
 
     public static Refund fail(Long paymentId, Long orderId, Long cancellationId, long amount,
