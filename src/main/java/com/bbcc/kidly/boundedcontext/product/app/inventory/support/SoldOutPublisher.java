@@ -26,6 +26,9 @@ public class SoldOutPublisher {
     private final CategoryRepository categoryRepository;
     private final ProductChangedPublisher productChangedPublisher;
 
+    // 같은 상품의 다른 옵션을 동시에 품절시키는 차감이 있으면, 늦은 쪽이 상품 행 잠금에서 앞선 차감이 커밋될 때까지 기다린다
+    // ProductChangedPublisher가 잠금을 얻은 뒤 수량을 다시 읽고 발생 시각을 정하므로, 늦은 이벤트에 두 옵션의 품절이 모두 담긴다
+    // 여기서 처음 읽는 수량은 품절된 옵션이 있는지 가리는 데만 쓴다
     public void publish(InventoryDeductionRequest request) {
         List<Long> optionIds = new ArrayList<>();
         for (InventoryDeductionRequest.OptionQuantity quantity : request.optionQuantities()) {
@@ -36,7 +39,7 @@ public class SoldOutPublisher {
         if (soldOutOptionIds.isEmpty()) {
             return;
         }
-        for (Product product : productRepository.findAllHavingOptions(soldOutOptionIds)) {
+        for (Product product : productRepository.lockAllHavingOptions(soldOutOptionIds)) {
             Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
             productChangedPublisher.publish(product, category.getProductType());
         }
