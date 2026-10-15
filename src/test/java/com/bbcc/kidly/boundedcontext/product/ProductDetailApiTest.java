@@ -26,6 +26,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -191,6 +193,38 @@ class ProductDetailApiTest {
             .jsonPath("$.options[*].optionName").isEqualTo(List.of(
                 "색상: 네이비 / 사이즈: 110", "색상: 네이비 / 사이즈: 120"))
             .jsonPath("$.optionAttributes[0].values[*].value").isEqualTo(List.of("네이비"));
+    }
+
+    @Test
+    @DisplayName("없는 상품의 상세를 찾으면 404다")
+    void missingProductIsNotFound() {
+        expectProblem("/api/v1/products/999999", HttpStatus.NOT_FOUND,
+            "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
+    }
+
+    @Test
+    @DisplayName("판매를 시작하기 전인 판매대기 상품의 상세를 찾으면 없는 상품과 같이 404다")
+    void productBeforeSaleIsNotFound() {
+        Product product = savedProductOnSale(10, 10, 10);
+        // 판매 시작 전 상품을 상세 조회하는 경우를 만들려고 상태 칸을 판매대기로 되돌린다
+        jdbcTemplate.update("update product.product set status = 'SALE_PENDING' where id = ?", product.getId());
+
+        expectProblem("/api/v1/products/" + product.getId(), HttpStatus.NOT_FOUND,
+            "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
+    }
+
+    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
+    private void expectProblem(String path, HttpStatus status, String title, String detail) {
+        client.get().uri(path)
+            .exchange()
+            .expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").isEqualTo(title)
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").isEqualTo(detail)
+            .jsonPath("$.instance").isEqualTo(path);
     }
 
     // 상품 A에 네이비 110 · 네이비 120 · 오트밀 110 옵션과 110 · 120 실측을 넣어 판매를 시작하고 저장한다.

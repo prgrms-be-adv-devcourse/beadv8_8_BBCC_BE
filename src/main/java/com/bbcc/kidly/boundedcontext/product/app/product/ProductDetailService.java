@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.Inventory;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.StockDisplay;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionValue;
@@ -19,6 +20,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
+import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,7 +42,12 @@ public class ProductDetailService {
     // 구매자가 보는 상품 상세를 돌려준다. 엔티티는 트랜잭션 안에서 지연 로딩으로 읽어 결과로 모두 바꾼다
     @Transactional(readOnly = true)
     public ProductDetailResult findDetail(Long productId) {
-        Product product = productRepository.findById(productId).orElseThrow();
+        Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        // 판매를 시작하기 전 상품은 구매자에게 보이지 않으므로 없는 상품과 같이 응답한다
+        if (product.getStatus() == ProductStatus.SALE_PENDING) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
+        }
         Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
         ProductType type = category.getProductType();
         List<ProductOption> visibleOptions = visibleOptions(product.getOptions());
