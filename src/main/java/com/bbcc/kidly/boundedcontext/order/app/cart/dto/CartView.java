@@ -20,6 +20,7 @@ public record CartView(List<Line> items, long totalAmount) {
         Long optionId,
         Long productId,
         String productName,
+        String optionName,
         String size,
         Long childId,
         int quantity,

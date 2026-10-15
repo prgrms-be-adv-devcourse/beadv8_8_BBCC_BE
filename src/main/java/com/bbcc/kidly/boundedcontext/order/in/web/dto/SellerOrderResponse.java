@@ -43,6 +43,7 @@ public record SellerOrderResponse(
             toText(item.optionId()),
             toText(item.sellerId()),
             item.productName(),
+            item.optionName(),
             item.size(),
             item.unitPrice(),
             item.quantity(),

@@ -288,7 +288,8 @@ public class OrderService {
         Order.RequestedChild child = item.childId() == null ? null : toRequestedChild(item.childId());
         return new Order.RequestedItem(
             new OrderItem.ProductSnapshot(product.getProductId(), product.getOptionId(), product.getSellerId(),
-                product.getProductName(), product.getSize(), product.unitPrice(), product.getCategoryId()),
+                product.getProductName(), product.getOptionName(), product.getSize(), product.unitPrice(),
+                product.getCategoryId()),
             product.isPurchasable(),
             child,
             item.quantity(),

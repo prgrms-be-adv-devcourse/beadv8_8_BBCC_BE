@@ -82,6 +82,19 @@ class ReplicaServiceTest {
     }
 
     @Test
+    @DisplayName("옵션 이름 · 옵션 판매 상태 이름을 그대로 저장한다")
+    void storesOptionNameAndSaleStatus() {
+        replicaService.applyProductChanged(product(OCCURRED_AT, "ON_SALE",
+            new ProductChangedCommand.Option(1L, "네이비 / 110", "110", 25_000L, false, "STOPPED")));
+
+        verify(productReplicaRepository).save(savedProduct.capture());
+        ReplicaProduct row = savedProduct.getValue();
+        assertThat(row.getOptionName()).isEqualTo("네이비 / 110");
+        assertThat(row.getOptionSaleStatus()).isEqualTo("STOPPED");
+        assertThat(row.isPurchasable()).isFalse();
+    }
+
+    @Test
     @DisplayName("이미 있는 옵션은 늦게 발생한 변경이면 그 행을 덮어쓴다")
     void updatesExistingProductRow() {
         ReplicaProduct existing = ReplicaProduct.create(productValues(1L, 25_000L, OCCURRED_AT));
@@ -180,11 +193,11 @@ class ReplicaServiceTest {
     }
 
     private static ProductChangedCommand.Option option(Long optionId, String size, long unitPrice, boolean soldOut) {
-        return new ProductChangedCommand.Option(optionId, size, unitPrice, soldOut);
+        return new ProductChangedCommand.Option(optionId, null, size, unitPrice, soldOut, "ON_SALE");
     }
 
     private static ReplicaProduct.Values productValues(Long optionId, long unitPrice, LocalDateTime occurredAt) {
-        return new ReplicaProduct.Values(optionId, 1L, 2L, "상품 A", "110", unitPrice, 1L, "ON_SALE", false,
+        return new ReplicaProduct.Values(optionId, 1L, 2L, "상품 A", null, "110", unitPrice, 1L, "ON_SALE", null, false,
             occurredAt);
     }
 

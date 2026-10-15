@@ -17,8 +17,17 @@ public final class ReplicaFixture {
 
     public static ReplicaProduct.Values product(Long optionId, long unitPrice, String status, boolean soldOut,
         LocalDateTime occurredAt) {
-        return new ReplicaProduct.Values(optionId, 1L, SELLER_ID, "상품 A", "110", unitPrice, 1L, status, soldOut,
-            occurredAt);
+        return new ReplicaProduct.Values(optionId, 1L, SELLER_ID, "상품 A", "네이비 / 110", "110", unitPrice, 1L, status,
+            "ON_SALE", soldOut, occurredAt);
+    }
+
+    /**
+     * 상품 판매 상태 · 옵션 판매 상태 · 품절을 정한 옵션(단가 25,000원).
+     */
+    public static ReplicaProduct.Values option(Long optionId, String productStatus,
+        String optionSaleStatus, boolean soldOut, LocalDateTime occurredAt) {
+        return new ReplicaProduct.Values(optionId, 1L, SELLER_ID, "상품 A", "네이비 / 110", "110", 25_000L, 1L,
+            productStatus, optionSaleStatus, soldOut, occurredAt);
     }
 
     public static ReplicaProduct.Values onSaleProduct(long unitPrice, LocalDateTime occurredAt) {

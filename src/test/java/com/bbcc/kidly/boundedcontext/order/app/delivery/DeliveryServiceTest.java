@@ -263,7 +263,7 @@ class DeliveryServiceTest {
 
     private static Order.RequestedItem line(Long productId, Long optionId, Long sellerId) {
         return new Order.RequestedItem(
-            new OrderItem.ProductSnapshot(productId, optionId, sellerId, "상품", "110", 10_000L, 1L),
+            new OrderItem.ProductSnapshot(productId, optionId, sellerId, "상품", null, "110", 10_000L, 1L),
             true, null, 1, 10_000L);
     }
 }

@@ -127,7 +127,7 @@ class DeliveryServiceQueryCountIntegrationTest {
 
     private static Order.RequestedItem line(Long sellerId, Long optionId) {
         return new Order.RequestedItem(
-            new OrderItem.ProductSnapshot(optionId, optionId, sellerId, "상품", "110", 10_000L, 1L),
+            new OrderItem.ProductSnapshot(optionId, optionId, sellerId, "상품", null, "110", 10_000L, 1L),
             true, null, 1, 10_000L);
     }
 }

@@ -22,7 +22,7 @@ public class ProductEventListener {
     }
 
     /**
-     * 판매 상태는 enum 이름 문자열로, 옵션 가격은 단가로 옮긴다.
+     * 상품 · 옵션 판매 상태는 enum 이름 문자열로, 옵션 가격은 단가로 옮긴다(in은 주문 domain을 쓰지 않음).
      */
     private ProductChangedCommand toCommand(ProductChangedEvent event) {
         ProductChangedEvent.Data data = event.data();
@@ -34,7 +34,8 @@ public class ProductEventListener {
             data.status().name(),
             data.options().stream()
                 .map(option -> new ProductChangedCommand.Option(
-                    option.optionId(), option.size(), option.price(), option.soldOut()))
+                    option.optionId(), option.optionName(), option.size(), option.price(), option.soldOut(),
+                    option.saleStatus() == null ? null : option.saleStatus().name()))
                 .toList(),
             event.occurredAt());
     }
