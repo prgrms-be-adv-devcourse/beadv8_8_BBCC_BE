@@ -1,0 +1,14 @@
+# 첫 인증서 발급 전용 설정. 아직 인증서가 없어 443 을 열 수 없으므로
+# 발급용 경로만 80 으로 연다. 발급이 끝나면 install.sh 가 kidly.conf.template 으로 바꾼다.
+server {
+    listen 80;
+    server_name api.__DOMAIN__ dev-api.__DOMAIN__;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 404;
+    }
+}
