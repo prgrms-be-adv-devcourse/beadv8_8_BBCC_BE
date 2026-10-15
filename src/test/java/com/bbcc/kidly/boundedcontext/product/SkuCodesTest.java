@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class SkuCodesTest {
 
@@ -50,6 +51,29 @@ class SkuCodesTest {
             Arguments.of(Named.of("이미 쓰는 코드와 다른 코드", List.of("A-NV-120", "A-NV-130")), Set.of("A-NV-110")),
             Arguments.of(Named.of("코드 없는 옵션과 새 코드", Arrays.asList(null, "A-NV-120", null)), Set.of()),
             Arguments.of(Named.of("대소문자만 다른 코드", List.of("a-nv-110")), Set.of("A-NV-110")));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"", " ", "\t"})
+    @DisplayName("빈 문자열이나 공백만 있는 SKU 코드는 잘못된 호출로 보고 거절한다")
+    void rejectBlankCode(String blank) {
+        assertThatThrownBy(() -> SkuCodes.validateUnique(List.of("A-NV-110", blank), Set.of()))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("nullLists")
+    @DisplayName("새 코드 목록이나 이미 쓰는 코드 목록이 null이면 거절한다")
+    void rejectNullLists(ThrowingCallable validate) {
+        assertThatThrownBy(validate)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> nullLists() {
+        return Stream.of(
+            Named.of("새 코드 목록", () -> SkuCodes.validateUnique(null, Set.of())),
+            Named.of("이미 쓰는 코드 목록", () -> SkuCodes.validateUnique(List.of("A-NV-110"), null)));
     }
 
     // 409 오류 코드로 거절하고 detail 끝에 겹친 코드를 적는지 확인한다
