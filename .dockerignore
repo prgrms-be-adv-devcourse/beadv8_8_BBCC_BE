@@ -1,0 +1,10 @@
+.git
+build
+.gradle
+.idea
+.env*
+docs
+wiki
+**/*.pem
+**/logs
+**/*.md
