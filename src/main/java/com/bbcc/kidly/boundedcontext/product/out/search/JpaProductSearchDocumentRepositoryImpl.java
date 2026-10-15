@@ -30,7 +30,7 @@ class JpaProductSearchDocumentRepositoryImpl {
     private final JsonMapper jsonMapper;
 
     // 호출한 쪽의 트랜잭션 안에서 실행한다. 바뀐 행이 1개면 반영한 것이다
-    public boolean saveIfNewer(ProductSearchDocument document) {
+    public boolean saveIfNewer(ProductSearchDocument document, LocalDateTime now) {
         int changed = entityManager.createNativeQuery(UPSERT)
             .setParameter("productId", document.getProductId())
             .setParameter("name", document.getName())
@@ -45,7 +45,7 @@ class JpaProductSearchDocumentRepositoryImpl {
             .setParameter("soldOut", document.isSoldOut())
             // jsonb 칸에는 JSON 문자열을 CAST로 넘긴다. Hibernate가 엔티티를 읽을 때 쓰는 JSON 형식과 같다
             .setParameter("attributes", jsonMapper.writeValueAsString(document.getAttributes()))
-            .setParameter("now", LocalDateTime.now())
+            .setParameter("now", now)
             .executeUpdate();
         return changed == 1;
     }

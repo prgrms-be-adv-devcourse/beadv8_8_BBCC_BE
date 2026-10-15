@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.OCCURRED_AT;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.PRODUCT_CREATED_AT;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.PRODUCT_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.changeInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.changeInfoAt;
@@ -11,8 +12,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument;
 import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocumentRepository;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -46,39 +49,49 @@ class ProductSearchDocumentRepositoryIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
+    // 저장하는 시각이다. DB에 마이크로초까지만 남으므로 초 단위로 둔다
+    private static final LocalDateTime FIRST_SAVED_AT = LocalDateTime.of(2026, 10, 15, 18, 0);
+    private static final LocalDateTime SECOND_SAVED_AT = LocalDateTime.of(2026, 10, 15, 18, 5);
+
     @Autowired
     private PlatformTransactionManager transactionManager;
 
     @Test
-    @DisplayName("처음 받은 상품이면 행을 만들고, 다시 읽은 attributes는 값 ID 목록 그대로이며 감사 칸도 채워진다")
+    @DisplayName("처음 받은 상품이면 행을 만들고, 다시 읽은 attributes는 값 ID 목록 그대로이며 감사 칸은 저장한 시각이다")
     void savesNewProductAndReadsJsonbBack() {
         ProductSearchDocument document = ProductSearchDocument.create(changeInfo(
             List.of(option(25_000L, false, OptionSaleStatus.ON_SALE, value("COLOR", 5L), value("SIZE", 12L))),
             List.of(value("MAIN_MATERIAL", 20L))));
 
-        boolean saved = transaction().execute(status -> repository.saveIfNewer(document));
+        boolean saved = saveIfNewer(document, FIRST_SAVED_AT);
 
         assertThat(saved).isTrue();
-        ProductSearchDocument stored = transaction().execute(
-            status -> entityManager.find(ProductSearchDocument.class, PRODUCT_ID));
+        ProductSearchDocument stored = stored();
         // 값 ID가 Integer로 읽히면 Long 목록과 같지 않아 실패한다
         assertThat(stored.getAttributes())
             .isEqualTo(Map.of("COLOR", List.of(5L), "SIZE", List.of(12L), "MAIN_MATERIAL", List.of(20L)));
         assertThat(stored).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(document);
-        assertThat(stored.getCreatedAt()).isNotNull();
-        assertThat(stored.getUpdatedAt()).isNotNull();
+        assertThat(stored.getCreatedAt()).isEqualTo(FIRST_SAVED_AT);
+        assertThat(stored.getUpdatedAt()).isEqualTo(FIRST_SAVED_AT);
     }
 
     @Test
-    @DisplayName("저장된 것보다 늦게 일어난 이벤트면 행 전체를 새 값으로 덮어쓴다")
+    @DisplayName("저장된 것보다 늦게 일어난 이벤트면 등록 시각만 두고 모든 칸을 새 값으로 덮어쓴다")
     void newerEventReplacesRow() {
-        save(documentAt(OCCURRED_AT, 25_000L, value("COLOR", 5L)));
-        ProductSearchDocument newer = documentAt(OCCURRED_AT.plusMinutes(1), 19_000L, value("COLOR", 3L));
+        saveIfNewer(documentAt(OCCURRED_AT, 25_000L, value("COLOR", 5L)), FIRST_SAVED_AT);
+        // 상품 ID 말고는 모든 칸이 처음 행과 다른 값이다. 덮어쓰는 SQL에서 칸 하나를 빠뜨려도 잡도록 한다
+        ProductSearchDocument newer = ProductSearchDocument.create(new ProductSearchDocument.ChangeInfo(
+            PRODUCT_ID, 8L, "상품 A 새 이름", 4L, ProductStatus.STOPPED, null, PRODUCT_CREATED_AT.plusDays(1), true,
+            List.of(option(19_000L, true, OptionSaleStatus.ON_SALE, value("COLOR", 3L))),
+            List.of(value("MAIN_MATERIAL", 21L)), OCCURRED_AT.plusMinutes(1)));
 
-        boolean saved = transaction().execute(status -> repository.saveIfNewer(newer));
+        boolean saved = saveIfNewer(newer, SECOND_SAVED_AT);
 
         assertThat(saved).isTrue();
-        assertThat(stored()).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(newer);
+        ProductSearchDocument stored = stored();
+        assertThat(stored).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(newer);
+        assertThat(stored.getCreatedAt()).isEqualTo(FIRST_SAVED_AT);
+        assertThat(stored.getUpdatedAt()).isEqualTo(SECOND_SAVED_AT);
     }
 
     @ParameterizedTest(name = "저장된 시각에서 {0}분")
@@ -86,16 +99,15 @@ class ProductSearchDocumentRepositoryIntegrationTest {
     @DisplayName("저장된 것과 같은 시각이나 더 이른 시각에 일어난 이벤트면 아무것도 바꾸지 않는다")
     void sameOrOlderEventChangesNothing(long minutes) {
         ProductSearchDocument first = documentAt(OCCURRED_AT, 25_000L, value("COLOR", 5L));
-        save(first);
-        LocalDateTime firstUpdatedAt = stored().getUpdatedAt();
+        saveIfNewer(first, FIRST_SAVED_AT);
         ProductSearchDocument late = documentAt(OCCURRED_AT.plusMinutes(minutes), 19_000L, value("COLOR", 3L));
 
-        boolean saved = transaction().execute(status -> repository.saveIfNewer(late));
+        boolean saved = saveIfNewer(late, SECOND_SAVED_AT);
 
         assertThat(saved).isFalse();
         ProductSearchDocument stored = stored();
         assertThat(stored).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(first);
-        assertThat(stored.getUpdatedAt()).isEqualTo(firstUpdatedAt);
+        assertThat(stored.getUpdatedAt()).isEqualTo(FIRST_SAVED_AT);
     }
 
     @RepeatedTest(20)
@@ -111,14 +123,16 @@ class ProductSearchDocumentRepositoryIntegrationTest {
             results = executor.invokeAll(List.of(saveAfter(ready, older), saveAfter(ready, newer)));
         }
 
-        assertThat(results).allSatisfy(result -> assertThat(result.state()).isEqualTo(Future.State.SUCCESS));
+        // 실패하면 그 예외를 보여 준다. 늦은 이벤트는 어느 쪽이 먼저 저장되든 반영된다
+        assertThat(results.get(0)).succeedsWithin(Duration.ofSeconds(10));
+        assertThat(results.get(1)).succeedsWithin(Duration.ofSeconds(10)).isEqualTo(true);
         assertThat(stored()).usingRecursiveComparison().ignoringFields("createdAt", "updatedAt").isEqualTo(newer);
     }
 
     private Callable<Boolean> saveAfter(CyclicBarrier ready, ProductSearchDocument document) {
         return () -> {
             await(ready);
-            return transaction().execute(status -> repository.saveIfNewer(document));
+            return saveIfNewer(document, FIRST_SAVED_AT);
         };
     }
 
@@ -137,8 +151,8 @@ class ProductSearchDocumentRepositoryIntegrationTest {
             List.of(option(price, false, OptionSaleStatus.ON_SALE, values)), List.of()));
     }
 
-    private void save(ProductSearchDocument document) {
-        transaction().executeWithoutResult(status -> repository.saveIfNewer(document));
+    private boolean saveIfNewer(ProductSearchDocument document, LocalDateTime now) {
+        return transaction().execute(status -> repository.saveIfNewer(document, now));
     }
 
     private ProductSearchDocument stored() {
