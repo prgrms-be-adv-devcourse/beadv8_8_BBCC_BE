@@ -8,6 +8,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.THUMBNAIL_URL;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
@@ -16,11 +17,19 @@ import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -62,6 +71,83 @@ class ProductSearchDocumentEventIntegrationTest {
                 PRODUCT_CREATED_AT, OCCURRED_AT, 25_000L, false);
         assertThat(stored.getAttributes())
             .isEqualTo(Map.of("COLOR", List.of(5L), "SIZE", List.of(12L, 13L), "MAIN_MATERIAL", List.of(20L)));
+    }
+
+    @Test
+    @DisplayName("상품 정보 변경됨을 발행한 트랜잭션이 롤백되면 검색용 표 행이 생기지 않는다")
+    void noRowWhenPublisherRollsBack() {
+        transaction().executeWithoutResult(status -> {
+            eventPublisher.publish(eventAt(OCCURRED_AT, List.of(option(11L, 25_000L, false))));
+            status.setRollbackOnly();
+        });
+
+        assertThat(stored()).isNull();
+    }
+
+    @Test
+    @DisplayName("같은 상품 정보 변경됨을 두 번 받아도 한 번만 반영하고, 두 번째에는 행을 고치지 않는다")
+    void sameEventTwiceAppliesOnce() {
+        ProductChangedEvent event = eventAt(OCCURRED_AT,
+            List.of(option(11L, 25_000L, false, entry("COLOR", 5L, "네이비"))));
+        publishInTransaction(event);
+        ProductSearchDocument first = stored();
+
+        publishInTransaction(event);
+
+        ProductSearchDocument second = stored();
+        assertThat(second).usingRecursiveComparison().isEqualTo(first);
+    }
+
+    @Test
+    @DisplayName("늦게 일어난 이벤트를 먼저 받은 뒤 더 이르게 일어난 이벤트가 늦게 도착하면 늦게 일어난 이벤트의 값이 남는다")
+    void olderEventArrivingLateIsIgnored() {
+        publishInTransaction(eventAt(OCCURRED_AT.plusMinutes(1), List.of(option(11L, 19_000L, false))));
+
+        publishInTransaction(eventAt(OCCURRED_AT, List.of(option(11L, 25_000L, false))));
+
+        assertThat(stored()).extracting(ProductSearchDocument::getMinPrice, ProductSearchDocument::getEventOccurredAt)
+            .containsExactly(19_000L, OCCURRED_AT.plusMinutes(1));
+    }
+
+    @Test
+    @DisplayName("검색용 표 갱신이 실패해도 발행한 트랜잭션은 성공하고, 검색용 표 행은 이전 값 그대로다")
+    void failedRefreshKeepsPreviousRow() {
+        publishInTransaction(eventAt(OCCURRED_AT, List.of(option(11L, 25_000L, false))));
+        ProductSearchDocument before = stored();
+        // 옵션이 없는 이벤트는 표시 가격을 정할 수 없어 검색용 표를 만들지 못한다
+        ProductChangedEvent withoutOptions = eventAt(OCCURRED_AT.plusMinutes(1), List.of());
+
+        assertThatCode(() -> publishInTransaction(withoutOptions)).doesNotThrowAnyException();
+
+        assertThat(stored()).usingRecursiveComparison().isEqualTo(before);
+    }
+
+    @RepeatedTest(20)
+    @DisplayName("같은 상품의 상품 정보 변경됨 두 개를 동시에 받아도 오류 없이 늦게 일어난 이벤트의 값이 남는다")
+    void concurrentEventsKeepNewerEvent() throws Exception {
+        ProductChangedEvent older = eventAt(OCCURRED_AT, List.of(option(11L, 25_000L, false)));
+        ProductChangedEvent newer = eventAt(OCCURRED_AT.plusMinutes(1), List.of(option(11L, 19_000L, false)));
+        // 두 발행이 같은 순간에 시작하도록 맞춰, 두 리스너가 함께 검색용 표를 고치게 한다
+        CyclicBarrier ready = new CyclicBarrier(2);
+        List<Future<Void>> results;
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            results = executor.invokeAll(List.of(publishAfter(ready, older), publishAfter(ready, newer)));
+        }
+
+        for (Future<Void> result : results) {
+            assertThat(result).succeedsWithin(Duration.ofSeconds(10));
+        }
+        assertThat(stored()).extracting(ProductSearchDocument::getMinPrice, ProductSearchDocument::getEventOccurredAt)
+            .containsExactly(19_000L, OCCURRED_AT.plusMinutes(1));
+    }
+
+    private Callable<Void> publishAfter(CyclicBarrier ready, ProductChangedEvent event) {
+        return () -> {
+            ready.await(10, TimeUnit.SECONDS);
+            publishInTransaction(event);
+            return null;
+        };
     }
 
     // 판매중인 상품 A의 상품 정보 변경됨이다. 상품 정보 값은 주요소재(목록)와 혼용률(직접 입력)이다
