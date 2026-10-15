@@ -9,6 +9,7 @@ import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.spec;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top110Measurements;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measurements;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryOpening;
@@ -27,6 +28,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -109,6 +111,37 @@ class ProductUpdateIntegrationTest {
         inTransaction(() -> productRepository.incrementVersion(productRepository.findById(productId).orElseThrow()));
 
         assertThat(version(productId)).isEqualTo(before + 1);
+    }
+
+    @Test
+    @DisplayName("version 올리기는 부르는 즉시 version을 올려, 같은 트랜잭션에서 응답에 담을 상품의 version이 커밋된 값과 같다")
+    void incrementVersionImmediately() {
+        Long productId = savedProductA();
+        long[] versionInTransaction = new long[1];
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            productRepository.incrementVersion(product);
+            productRepository.saveAndFlush(product);
+            versionInTransaction[0] = product.getVersion();
+        });
+
+        assertThat(versionInTransaction[0]).isEqualTo(version(productId));
+    }
+
+    @Test
+    @DisplayName("version 올리기를 부를 때 다른 요청이 먼저 상품을 고쳐 version이 달라졌으면 그 자리에서 충돌한다")
+    void incrementVersionConflictsWithEarlierChange() {
+        Long productId = savedProductA();
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            jdbcTemplate.update("update product.product set version = version + 1 where id = ?", productId);
+
+            assertThatThrownBy(() -> productRepository.incrementVersion(product))
+                .isInstanceOf(OptimisticLockingFailureException.class);
+            status.setRollbackOnly();
+        });
     }
 
     @Test
