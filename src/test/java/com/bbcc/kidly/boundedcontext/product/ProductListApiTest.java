@@ -74,6 +74,21 @@ class ProductListApiTest {
     }
 
     @Test
+    @DisplayName("조건에 맞는 상품이 없으면 404가 아니라 content가 빈 목록인 200을 받는다")
+    void emptyList() {
+        persist(document(1L).categoryId(1L).build());
+
+        client.get().uri(PATH + "?categoryId={categoryId}", 99)
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content").isArray()
+            .jsonPath("$.content.length()").isEqualTo(0)
+            .jsonPath("$.totalElements").isEqualTo(0)
+            .jsonPath("$.hasNext").isEqualTo(false);
+    }
+
+    @Test
     @DisplayName("카테고리 · 키워드 · 항목 값 · 정렬 · 페이지 쿼리를 함께 보내면 모두 조회에 반영된다")
     void passQueryToSearch() {
         persist(
