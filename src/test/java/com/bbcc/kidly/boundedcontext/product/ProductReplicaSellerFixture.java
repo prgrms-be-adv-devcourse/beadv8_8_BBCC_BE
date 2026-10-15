@@ -2,7 +2,9 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSeller;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 final class ProductReplicaSellerFixture {
 
@@ -28,5 +30,21 @@ final class ProductReplicaSellerFixture {
     static ProductReplicaSeller.ChangeInfo sellerChangeAt(String businessName, SellerStatus status,
         LocalDateTime occurredAt) {
         return new ProductReplicaSeller.ChangeInfo(SELLER_ID, businessName, status, occurredAt);
+    }
+
+    /**
+     * 판매자 도메인이 판매자 2를 승인할 때 보내는 판매자 정보 변경됨이다. 값은 {@link #sellerApproved()}와 같다.
+     */
+    static SellerChangedEvent sellerApprovedEvent() {
+        return sellerChangedEventAt(BUSINESS_NAME, SellerStatus.ACTIVE, SELLER_CHANGED_AT);
+    }
+
+    /**
+     * 판매자 2의 상호명 · 상태 · 발생 시각만 바꾼 판매자 정보 변경됨이다.
+     */
+    static SellerChangedEvent sellerChangedEventAt(String businessName, SellerStatus status,
+        LocalDateTime occurredAt) {
+        return new SellerChangedEvent(UUID.randomUUID(), occurredAt,
+            new SellerChangedEvent.Data(SELLER_ID, businessName, status));
     }
 }
