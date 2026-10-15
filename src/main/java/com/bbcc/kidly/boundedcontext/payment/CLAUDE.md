@@ -44,7 +44,20 @@
   - 만료 시각이 지난 PENDING 충전: EXPIRED
   - 충전 상태를 바꾸는 곳(승인 시작 · 승인 반영 · 실패 · 만료 · 취소)은 충전을 비관적 락으로 읽는다. 사용자 승인과 스케줄러가 겹쳐도 늦은 쪽이 바뀐 상태를 보고 멈춰 한 번만 입금한다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
 
-### 충전 취소 (#192)
+### 주문 취소 환불 (`app/OrderCancellationService`, #269)
+- `order.cancelled`를 받는다(기획서 2.1 ④: 결제 완료와 결제 제한 시간 만료가 겹쳐 만료가 이긴 경우). 환불 이벤트는 기획서에 없어 발행하지 않는다
+- 결제 요청과 같은 회원 지갑 락을 먼저 잡고 그 주문의 결제를 본다. 결제 · 취소가 동시에 와도 늦은 쪽이 앞의 결과를 본다
+
+| 그 주문의 결제 | 처리 |
+|---|---|
+| COMPLETED · PARTIALLY_REFUNDED | 남은 금액을 모두 지갑에 입금, 원장 `REFUND`(ref_id = 환불 ID), 환불 기록(`cancellation_id` null), 결제 REFUNDED |
+| 없음 | 취소된 주문 기록(`cancelled_order`, `order_id` UK). 그 뒤 온 `order.payment-requested`는 차감 · 발행 없이 건너뜀(WARN) |
+| FAILED · REFUNDED | 아무것도 안 함 (같은 취소가 다시 와도 한 번만 환불) |
+| 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그 |
+
+- 로컬 DB: `refund.cancellation_id`가 NOT NULL로 만들어져 있으면 `ALTER TABLE payment.refund ALTER COLUMN cancellation_id DROP NOT NULL`이 필요하다(ddl update는 제약을 고치지 않는다)
+
+## 충전 취소 (#192)
 - `POST /api/v1/wallets/me/charges/{chargeId}/cancel`. 완료(DONE) 충전만 전액 취소한다. 충전액만큼 잔액이 있어야 하고, 모자라면 409 `CHARGE_CANCEL_BALANCE_SHORT`
 - 승인처럼 트랜잭션을 나눈다
   1. `ChargeService.startCancel`: 충전 → 지갑 순서로 락을 잡고(승인 반영과 같은 순서) CANCELLING 커밋. 충전액을 이때 먼저 빼고 원장 `CHARGE_CANCEL`(ref_id = 충전 취소 ID)을 남긴다. 토스 호출 동안 그 돈으로 결제하지 못하게 하려는 것이다

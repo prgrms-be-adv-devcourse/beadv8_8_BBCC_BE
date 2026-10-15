@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.payment.app;
 
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PayOrderCommand;
+import com.bbcc.kidly.boundedcontext.payment.domain.CancelledOrderRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
@@ -14,6 +15,7 @@ import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 주문을 예치금으로 결제하고 결과를 payment.completed · payment.failed로 알린다.
  * 주문당 결제는 한 번이다. 이미 결제가 있으면 건너뛰고, 동시에 받아 확인을 통과해도 {@code payment.order_id} UK가 막는다.
  * 잔액 부족만 실패 결제를 저장한다. 금액 불일치 · 지갑 없음은 결제 대상이 아니라 ERROR 로그와 payment.failed만 남긴다.
+ * 결제 전에 취소된 주문(order.cancelled)이면 차감하지 않고 아무것도 발행하지 않는다(기획서 2.1 ④).
  */
 @Slf4j
 @Service
@@ -33,6 +36,7 @@ public class OrderPaymentService {
     private final WalletRepository walletRepository;
     private final PaymentRepository paymentRepository;
     private final WalletLedgerRepository walletLedgerRepository;
+    private final CancelledOrderRepository cancelledOrderRepository;
     private final EventPublisher eventPublisher;
 
     @Transactional
@@ -47,7 +51,14 @@ public class OrderPaymentService {
             publishFailed(command, null, PaymentFailureCode.AMOUNT_MISMATCH, now);
             return;
         }
-        walletRepository.findWithLockByMemberId(command.memberId()).ifPresentOrElse(
+        // 취소와 같은 회원 지갑 락을 잡은 뒤 취소 기록을 본다. 동시에 온 취소가 먼저 끝났으면 차감하지 않는다
+        Optional<Wallet> lockedWallet = walletRepository.findWithLockByMemberId(command.memberId());
+        if (cancelledOrderRepository.existsByOrderId(command.orderId())) {
+            log.warn("이미 취소된 주문의 결제 요청이라 차감하지 않습니다. orderId={}, memberId={}",
+                command.orderId(), command.memberId());
+            return;
+        }
+        lockedWallet.ifPresentOrElse(
             wallet -> {
                 if (wallet.canWithdraw(command.amount())) {
                     complete(command, wallet, now);

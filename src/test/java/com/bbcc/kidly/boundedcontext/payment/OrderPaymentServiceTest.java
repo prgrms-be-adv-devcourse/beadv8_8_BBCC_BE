@@ -10,6 +10,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.OrderPaymentService;
+import com.bbcc.kidly.boundedcontext.payment.domain.CancelledOrderRepository;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PayOrderCommand;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
@@ -48,6 +49,9 @@ class OrderPaymentServiceTest {
 
     @Mock
     private WalletLedgerRepository walletLedgerRepository;
+
+    @Mock
+    private CancelledOrderRepository cancelledOrderRepository;
 
     @Mock
     private EventPublisher eventPublisher;
@@ -159,5 +163,19 @@ class OrderPaymentServiceTest {
         assertThat(event.getValue().data().reasonCode()).isEqualTo(reasonCode);
         assertThat(event.getValue().data().failedAt()).isNotNull();
         return event.getValue();
+    }
+
+    @Test
+    @DisplayName("이미 취소된 주문의 결제 요청이면 차감하지 않고 아무것도 발행하지 않는다")
+    void cancelledOrder() {
+        Wallet wallet = PaymentFixture.savedWallet(20_000L);
+        given(walletRepository.findWithLockByMemberId(MEMBER_ID)).willReturn(Optional.of(wallet));
+        given(cancelledOrderRepository.existsByOrderId(ORDER_ID)).willReturn(true);
+
+        orderPaymentService.pay(COMMAND);
+
+        assertThat(wallet.getBalance()).isEqualTo(20_000L);
+        then(paymentRepository).should(never()).save(any());
+        then(eventPublisher).should(never()).publish(any());
     }
 }
