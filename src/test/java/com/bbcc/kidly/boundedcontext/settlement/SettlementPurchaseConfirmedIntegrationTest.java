@@ -44,16 +44,16 @@ class SettlementPurchaseConfirmedIntegrationTest {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(purchaseConfirmedEvent()));
 
         assertThat(settlementItemRepository.findAll())
-                .singleElement()
-                .extracting(
-                        SettlementItem::getOrderId,
-                        SettlementItem::getOrderItemId,
-                        SettlementItem::getSellerId,
-                        SettlementItem::getSalesAmount,
-                        SettlementItem::getConfirmedAt,
-                        SettlementItem::getStatus)
-                .containsExactly(ORDER_ID, ORDER_ITEM_ID, SELLER_ID, AMOUNT, CONFIRMED_AT,
-                        SettlementItemStatus.PENDING);
+            .singleElement()
+            .extracting(
+                SettlementItem::getOrderId,
+                SettlementItem::getOrderItemId,
+                SettlementItem::getSellerId,
+                SettlementItem::getSalesAmount,
+                SettlementItem::getConfirmedAt,
+                SettlementItem::getStatus)
+            .containsExactly(ORDER_ID, ORDER_ITEM_ID, SELLER_ID, AMOUNT, CONFIRMED_AT,
+                SettlementItemStatus.PENDING);
     }
 
     @Test
@@ -67,9 +67,19 @@ class SettlementPurchaseConfirmedIntegrationTest {
         assertThat(settlementItemRepository.findAll()).isEmpty();
     }
 
+    @Test
+    @DisplayName("같은 구매확정을 두 번 받아도 정산 항목은 1건이다")
+    void saveOnceForDuplicateEvent() {
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(purchaseConfirmedEvent()));
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(purchaseConfirmedEvent()));
+
+        assertThat(settlementItemRepository.findAll()).singleElement()
+            .extracting(SettlementItem::getOrderItemId).isEqualTo(ORDER_ITEM_ID);
+    }
+
     private OrderItemPurchaseConfirmedEvent purchaseConfirmedEvent() {
         return new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), CONFIRMED_AT,
-                new OrderItemPurchaseConfirmedEvent.Data(ORDER_ITEM_ID, ORDER_ID, 2L, SELLER_ID, 3L, 4L, 5L,
-                        "120", 2, AMOUNT, CONFIRMED_AT));
+            new OrderItemPurchaseConfirmedEvent.Data(ORDER_ITEM_ID, ORDER_ID, 2L, SELLER_ID, 3L, 4L, 5L,
+                "120", 2, AMOUNT, CONFIRMED_AT));
     }
 }
