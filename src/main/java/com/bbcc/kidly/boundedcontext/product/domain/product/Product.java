@@ -181,9 +181,9 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
-     * 옵션을 판매중 상태로 추가한다. 하나라도 잘못되면 하나도 추가하지 않는다.
+     * 옵션을 판매중 상태로 추가하고, 새로 만든 옵션을 요청 순서대로 돌려준다. 하나라도 잘못되면 하나도 추가하지 않는다.
      */
-    public void addOptions(AddOptionsInfo info, ProductType productType) {
+    public List<ProductOption> addOptions(AddOptionsInfo info, ProductType productType) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
         requireNonNull(info.sellerId(), "sellerId는 필수입니다");
@@ -195,14 +195,7 @@ public class Product extends BaseTimeEntity {
         if (!sellerId.equals(info.sellerId())) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
         }
-        for (OptionInfo option : info.options()) {
-            ProductOptions.validateOption(option.values(), productType);
-        }
-        List<List<AttributeValue>> valueLists = ProductOptions.valueLists(info.options(), options);
-        ProductOptions.validateSameAttributes(valueLists);
-        ProductOptions.validateNoDuplicate(valueLists);
-        ProductOptions.validateSizeFree(valueLists, productType);
-        ProductOptions.validateExistingPrices(info.prices(), options, productType);
+        ProductOptions.validateNewOptions(info, options, productType);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
             long price = ProductOptions.findPrice(option.values(), info.prices(), productType);
@@ -210,6 +203,7 @@ public class Product extends BaseTimeEntity {
             created.add(ProductOption.create(this, price, option.skuCode(), values));
         }
         options.addAll(created);
+        return Collections.unmodifiableList(created);
     }
 
     /**
@@ -228,11 +222,7 @@ public class Product extends BaseTimeEntity {
         if (!sellerId.equals(info.sellerId())) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
         }
-        ProductSizeSpecs.validateSizeRole(productType);
-        ProductSizeSpecs.validateHeightRanges(info.specs());
-        ProductSizeSpecs.validateNoDuplicate(info.specs(), sizeSpecs);
-        ProductSizeSpecs.validateMeasurementItems(info.specs(), category);
-        ProductSizeSpecs.validateSizeValuesInOptions(info.specs(), options, productType);
+        ProductSizeSpecs.validateNewSpecs(info.specs(), sizeSpecs, options, category, productType);
         for (SizeSpecInfo spec : info.specs()) {
             sizeSpecs.add(SizeSpec.create(this, spec));
         }
