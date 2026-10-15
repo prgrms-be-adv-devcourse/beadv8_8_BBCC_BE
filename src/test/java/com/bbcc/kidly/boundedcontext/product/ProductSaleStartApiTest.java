@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -31,6 +32,8 @@ class ProductSaleStartApiTest {
 
     private static final String PRODUCTS_PATH = "/api/v1/seller/products";
     private static final long SELLER_ID = 7L;
+    private static final long OTHER_SELLER_ID = 8L;
+    private static final Map<String, Object> ON_SALE = Map.of("status", "ON_SALE");
 
     @Autowired
     private RestTestClient client;
@@ -67,7 +70,7 @@ class ProductSaleStartApiTest {
     @Test
     @DisplayName("SALE-03 · SALE-08 판매대기 상품의 판매를 시작하면 판매중이 되고, 커밋 뒤 상품 정보 변경됨이 한 번 나간다")
     void startSaleOfPendingProduct() {
-        startSale(tokens.seller(SELLER_ID), Map.of("status", "ON_SALE"))
+        startSale(tokens.seller(SELLER_ID), ON_SALE)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.productId").isEqualTo(productId)
@@ -86,6 +89,76 @@ class ProductSaleStartApiTest {
                 .containsExactly(tuple("110", false, OptionSaleStatus.ON_SALE),
                     tuple("120", true, OptionSaleStatus.ON_SALE));
         });
+    }
+
+    @Test
+    @DisplayName("이미 판매중인 상품에 판매 시작을 다시 보내면 200이고, 상태 · version이 그대로이며 이벤트도 다시 나가지 않는다")
+    void startSaleAgainChangesNothing() {
+        startSale(tokens.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+        long versionAfterFirst = storedVersion();
+
+        for (int i = 0; i < 2; i++) {
+            startSale(tokens.seller(SELLER_ID), ON_SALE)
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("ON_SALE")
+                .jsonPath("$.version").isEqualTo(versionAfterFirst);
+        }
+
+        assertThat(storedVersion()).isEqualTo(versionAfterFirst);
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("SALE-03 판매 시작 조건을 채우지 못하면 빠진 항목을 적어 409로 거절하고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")
+    void rejectWhenSaleStartConditionNotMet() {
+        // 등록할 때 같은 검사를 하므로, 등록한 뒤 120 사이즈의 실측을 지워 조건을 못 채우게 한다
+        jdbcTemplate.update("delete from product.size_spec where product_id = ? and attribute_value_id = "
+            + "(select id from product.attribute_value where name = '120')", Long.valueOf(productId));
+
+        expectProblem(startSale(tokens.seller(SELLER_ID), ON_SALE), HttpStatus.CONFLICT,
+            "판매를 시작할 수 없습니다", "판매를 시작할 수 없습니다. 120 사이즈에 실측과 권장 키가 없습니다.");
+        assertThat(storedStatus()).isEqualTo("SALE_PENDING");
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("OPT-08 다른 판매자의 상품이면 403이고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")
+    void rejectOtherSellersProduct() {
+        expectProblem(startSale(tokens.seller(OTHER_SELLER_ID), ON_SALE), HttpStatus.FORBIDDEN,
+            "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
+        assertThat(storedStatus()).isEqualTo("SALE_PENDING");
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("없는 상품이면 404다")
+    void rejectMissingProduct() {
+        productId = "999999";
+
+        expectProblem(startSale(tokens.seller(SELLER_ID), ON_SALE), HttpStatus.NOT_FOUND,
+            "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
+    }
+
+    @Test
+    @DisplayName("토큰이 없으면 401, 판매자가 아닌 회원이면 403이다")
+    void rejectWithoutSellerRole() {
+        startSale(null, ON_SALE).expectStatus().isUnauthorized();
+        startSale(tokens.buyer(SELLER_ID), ON_SALE).expectStatus().isForbidden();
+        assertThat(storedStatus()).isEqualTo("SALE_PENDING");
+    }
+
+    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
+    private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
+        response
+            .expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").isEqualTo(title)
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").isEqualTo(detail)
+            .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId + "/sale-status");
     }
 
     private RestTestClient.ResponseSpec startSale(String token, Map<String, Object> body) {
