@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
@@ -30,6 +31,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 class ProductUpdateTest {
 
     private static final long VERSION = 3L;
+    private static final String BRAND = "키들리";
+    private static final String DESCRIPTION = "상품 설명";
+    private static final String THUMBNAIL_URL = "https://…/a-thumbnail.jpg";
+    private static final List<String> TWO_IMAGES = List.of("https://…/a-1.jpg", "https://…/a-2.jpg");
+    private static final String COMPOSITION = "면 100%";
 
     private final ProductFixture.Clothing clothing = ProductFixture.clothing();
     private final Product.RegisterInfo registered = productA(clothing);
@@ -186,6 +192,53 @@ class ProductUpdateTest {
         List<String> imageUrls, List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(sellerId, version, category, name, registered.brand(),
             registered.description(), registered.thumbnailUrl(), imageUrls, infoValues);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("singleFieldChanges")
+    @DisplayName("칸 하나만 바꿔도 바뀌었다고 돌려주고 반영한다. 반영한 뒤 같은 요청을 다시 보내면 바뀌지 않았다고 돌려준다")
+    void detectSingleFieldChange(Function<ProductUpdateTest, Product.UpdateInfo> changeOneField) {
+        Product detailed = detailedProduct();
+        Product.UpdateInfo info = changeOneField.apply(this);
+
+        assertThat(detailed.update(info)).isTrue();
+        assertThat(detailed.update(info)).isFalse();
+    }
+
+    static Stream<Named<Function<ProductUpdateTest, Product.UpdateInfo>>> singleFieldChanges() {
+        return Stream.of(
+            Named.of("브랜드", test -> test.detailedUpdate(
+                "새 브랜드", DESCRIPTION, THUMBNAIL_URL, TWO_IMAGES, test.clothing.cotton(), COMPOSITION)),
+            Named.of("설명", test -> test.detailedUpdate(
+                BRAND, "새 설명", THUMBNAIL_URL, TWO_IMAGES, test.clothing.cotton(), COMPOSITION)),
+            Named.of("썸네일 지우기", test -> test.detailedUpdate(
+                BRAND, DESCRIPTION, null, TWO_IMAGES, test.clothing.cotton(), COMPOSITION)),
+            Named.of("이미지 순서만", test -> test.detailedUpdate(
+                BRAND, DESCRIPTION, THUMBNAIL_URL, TWO_IMAGES.reversed(), test.clothing.cotton(), COMPOSITION)),
+            Named.of("주요소재 면 → 린넨", test -> test.detailedUpdate(
+                BRAND, DESCRIPTION, THUMBNAIL_URL, TWO_IMAGES, test.clothing.linen(), COMPOSITION)),
+            Named.of("혼용률 글만", test -> test.detailedUpdate(
+                BRAND, DESCRIPTION, THUMBNAIL_URL, TWO_IMAGES, test.clothing.cotton(), "면 95%, 폴리우레탄 5%")));
+    }
+
+    // 브랜드 · 설명 · 썸네일 · 이미지 2장 · 주요소재 · 혼용률을 모두 채운 상품이다. 칸 하나만 바꾼 수정을 확인할 때 쓴다
+    private Product detailedProduct() {
+        Product detailed = Product.register(new Product.RegisterInfo(SELLER_ID, category, "상품 A", BRAND,
+            DESCRIPTION, THUMBNAIL_URL, TWO_IMAGES, detailedInfoValues(clothing.cotton(), COMPOSITION)));
+        ReflectionTestUtils.setField(detailed, "version", VERSION);
+        return detailed;
+    }
+
+    private Product.UpdateInfo detailedUpdate(String brand, String description, String thumbnailUrl,
+        List<String> imageUrls, AttributeValue material, String composition) {
+        return new Product.UpdateInfo(SELLER_ID, VERSION, category, "상품 A", brand, description, thumbnailUrl,
+            imageUrls, detailedInfoValues(material, composition));
+    }
+
+    private List<Product.InfoValueInfo> detailedInfoValues(AttributeValue material, String composition) {
+        return List.of(
+            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(material), null),
+            new Product.InfoValueInfo(clothing.fabricComposition(), List.of(), composition));
     }
 
     // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
