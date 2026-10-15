@@ -64,6 +64,13 @@ class SocialLoginApiTest {
     }
 
     @Test
+    @DisplayName("처음 로그인인데 제공자 이메일이 없으면 400")
+    void firstLoginWithoutEmail() {
+        expectProblem(KAKAO_LOGIN_PATH, codeBody(FakeOAuthClient.NO_EMAIL_CODE),
+            HttpStatus.BAD_REQUEST, "이메일 제공이 필요합니다");
+    }
+
+    @Test
     @DisplayName("인가 코드가 비어 있으면 400")
     void blankCode() {
         expectProblem(KAKAO_LOGIN_PATH, codeBody(" "), HttpStatus.BAD_REQUEST, "잘못된 요청입니다");

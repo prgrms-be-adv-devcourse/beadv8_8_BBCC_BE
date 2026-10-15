@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.member;
 
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
@@ -14,21 +15,31 @@ public final class MemberFixture {
 
     public static final String NICKNAME = "테스트회원";
 
+    // 기본 kakaoMember()의 이메일이다
+    public static final String EMAIL = "kakao-1@example.com";
+
     private MemberFixture() {
     }
 
     public static Member kakaoMember() {
-        return Member.register(OAuthProvider.KAKAO, "kakao-1", NICKNAME, NOW);
+        return register("kakao-1", NICKNAME);
     }
 
     // 닉네임은 회원끼리 겹칠 수 없어서 소셜 사용자 ID로 만든다
     public static Member kakaoMember(String providerUserId) {
-        return Member.register(OAuthProvider.KAKAO, providerUserId, "회원-" + providerUserId, NOW);
+        return register(providerUserId, "회원-" + providerUserId);
     }
 
     // 닉네임을 직접 정해야 하는 검색 테스트용이다
     public static Member withNickname(String providerUserId, String nickname) {
-        return Member.register(OAuthProvider.KAKAO, providerUserId, nickname, NOW);
+        return register(providerUserId, nickname);
+    }
+
+    // 이메일을 받기 전에 가입한 회원은 이메일이 없다
+    public static Member withoutEmail(String providerUserId) {
+        var member = kakaoMember(providerUserId);
+        ReflectionTestUtils.setField(member, "email", null);
+        return member;
     }
 
     // ADMIN은 시드 데이터로만 부여하고 탈퇴 메서드는 아직 없어서 테스트에서는 필드를 직접 바꾼다
@@ -54,6 +65,11 @@ public final class MemberFixture {
 
     public static Member withSellerState(String providerUserId, SellerStatus status) {
         return withSellerState(kakaoMember(providerUserId), status);
+    }
+
+    private static Member register(String providerUserId, String nickname) {
+        var email = providerUserId + "@example.com";
+        return Member.register(new MemberRegisterInfo(OAuthProvider.KAKAO, providerUserId, nickname, email), NOW);
     }
 
     private static Member withRole(Member member, MemberRole role) {

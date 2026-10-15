@@ -54,6 +54,6 @@ class WalletCreationIntegrationTest {
 
     private static MemberRegisteredEvent memberRegistered(Long memberId) {
         return new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new MemberRegisteredEvent.Data(memberId));
+            new MemberRegisteredEvent.Data(memberId, "member@example.com"));
     }
 }

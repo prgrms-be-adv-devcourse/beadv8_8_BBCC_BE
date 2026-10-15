@@ -147,6 +147,62 @@ class MemberSummaryQueryIntegrationTest {
     }
 
     @Test
+    @DisplayName("목록 행에 이메일이 있다")
+    void rowHasEmail() {
+        var page = query.findAll(AdminMemberFilter.BUYER, null, PageRequest.of(0, 10));
+
+        var row = page.getContent().stream()
+            .filter(summary -> summary.id().equals(buyer.getId())).findFirst().orElseThrow();
+        assertThat(row.email()).isEqualTo(buyer.getEmail());
+    }
+
+    @Test
+    @DisplayName("이메일 일부로 회원을 찾는다")
+    void searchByEmail() {
+        var page = query.findAll(AdminMemberFilter.ALL, "2@", PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).extracting(AdminMemberSummary::id).containsExactly(seller.getId());
+    }
+
+    @Test
+    @DisplayName("이메일을 받기 전에 가입한 회원도 목록에 나오고 email은 null이다")
+    void listsMemberWithoutEmail() {
+        var noEmail = memberRepository.save(MemberFixture.withoutEmail("no-email"));
+
+        var page = query.findAll(AdminMemberFilter.ALL, null, PageRequest.of(0, 10));
+
+        var row = page.getContent().stream()
+            .filter(summary -> summary.id().equals(noEmail.getId())).findFirst().orElseThrow();
+        assertThat(row.email()).isNull();
+    }
+
+    // 이메일이 null이면 이메일 조건만 거짓이 되고 회원 번호 · 닉네임 조건은 그대로 걸린다
+    @Test
+    @DisplayName("이메일을 받기 전에 가입한 회원도 회원 번호 · 닉네임으로 찾는다")
+    void searchMemberWithoutEmail() {
+        var noEmail = memberRepository.save(MemberFixture.withoutEmail("no-email"));
+
+        var byId = query.findAll(AdminMemberFilter.ALL, String.valueOf(noEmail.getId()), PageRequest.of(0, 10));
+        var byNickname = query.findAll(AdminMemberFilter.ALL, "회원-no-email", PageRequest.of(0, 10));
+
+        assertThat(byId.getContent()).extracting(AdminMemberSummary::id).containsExactly(noEmail.getId());
+        assertThat(byNickname.getContent()).extracting(AdminMemberSummary::id).containsExactly(noEmail.getId());
+    }
+
+    // 이메일에 번호가 든 회원은 닉네임에 숫자가 없어 이메일로만 걸린다
+    @Test
+    @DisplayName("숫자만 있으면 회원 번호가 같은 회원과 이메일에 그 숫자가 든 회원을 모두 찾는다")
+    void searchByIdOrEmail() {
+        var byId = memberRepository.save(MemberFixture.withNickname("by-id", "번호없음"));
+        var byEmail = memberRepository.save(MemberFixture.withNickname("mail-" + byId.getId(), "메일회원"));
+
+        var page = query.findAll(AdminMemberFilter.ALL, String.valueOf(byId.getId()), PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).extracting(AdminMemberSummary::id)
+            .containsExactlyInAnyOrder(byId.getId(), byEmail.getId());
+    }
+
+    @Test
     @DisplayName("키워드 앞뒤 공백은 무시한다")
     void searchStripsWhitespace() {
         var page = query.findAll(AdminMemberFilter.ALL, "  회원-2  ", PageRequest.of(0, 10));

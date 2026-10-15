@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
@@ -135,7 +136,8 @@ class NicknamePolicyTest {
     // 결과는 항상 회원 닉네임 규칙을 만족한다 (규칙을 어기면 Member.register가 예외를 던진다)
     private String generate(String providerNickname) {
         var nickname = nicknamePolicy.generate(providerNickname);
-        Member.register(OAuthProvider.KAKAO, "kakao-1", nickname, MemberFixture.NOW);
+        Member.register(new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", nickname, MemberFixture.EMAIL),
+            MemberFixture.NOW);
         return nickname;
     }
 }

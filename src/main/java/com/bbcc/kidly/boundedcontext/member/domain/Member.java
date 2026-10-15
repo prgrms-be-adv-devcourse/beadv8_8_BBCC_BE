@@ -30,6 +30,7 @@ import org.springframework.util.Assert;
 /**
  * 회원. 소셜 계정으로 가입 · 로그인한다. 판매자 여부는 역할로 저장하지 않고, 이벤트로 받은 판매자 상태 복사본을 가진다.
  * 닉네임은 2~20자이고 회원끼리 겹치지 않는다.
+ * 이메일은 가입 때 받고 바꾸지 않는다.
  * 상태는 ACTIVE → SUSPENDED / WITHDRAWN으로만 바뀐다(정지 해제 없음).
  */
 @Entity
@@ -51,6 +52,9 @@ public class Member extends BaseTimeEntity {
     @Column(nullable = false)
     private String nickname;
 
+    // 가입 때 받은 이메일. 이메일을 받기 전에 가입한 회원은 null이다
+    private String email;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MemberRole role;
@@ -71,21 +75,26 @@ public class Member extends BaseTimeEntity {
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SocialAccount> socialAccounts = new ArrayList<>();
 
-    private Member(String nickname) {
+    private Member(String nickname, String email) {
         this.nickname = nickname;
+        this.email = email;
         this.role = MemberRole.USER;
         this.status = MemberStatus.ACTIVE;
     }
 
-    public static Member register(OAuthProvider provider, String providerUserId, String nickname, LocalDateTime now) {
-        Member member = new Member(requireNonNull(nickname, "nickname은 필수입니다"));
+    public static Member register(MemberRegisterInfo info, LocalDateTime now) {
+        requireNonNull(info, "info는 필수입니다");
+        Member member = new Member(
+            requireNonNull(info.nickname(), "nickname은 필수입니다"),
+            requireNonNull(info.email(), "email은 필수입니다"));
         member.socialAccounts.add(new SocialAccount(
             member,
-            requireNonNull(provider, "provider는 필수입니다"),
-            requireNonNull(providerUserId, "providerUserId는 필수입니다"),
+            requireNonNull(info.provider(), "provider는 필수입니다"),
+            requireNonNull(info.providerUserId(), "providerUserId는 필수입니다"),
             requireNonNull(now, "now는 필수입니다")));
-        validateNickname(nickname);
-        Assert.hasText(providerUserId, "providerUserId는 비어 있을 수 없습니다");
+        validateNickname(info.nickname());
+        Assert.hasText(info.providerUserId(), "providerUserId는 비어 있을 수 없습니다");
+        Assert.hasText(info.email(), "email은 비어 있을 수 없습니다");
         return member;
     }
 

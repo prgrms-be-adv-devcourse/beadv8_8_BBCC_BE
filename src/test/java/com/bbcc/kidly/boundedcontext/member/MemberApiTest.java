@@ -39,7 +39,7 @@ class MemberApiTest {
     private SellerApplicationRepository sellerApplicationRepository;
 
     @Test
-    @DisplayName("로그인한 회원의 id, 닉네임, 역할을 준다")
+    @DisplayName("로그인한 회원의 id, 닉네임, 이메일, 역할을 준다")
     void getMe() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
@@ -50,9 +50,21 @@ class MemberApiTest {
 
         assertThat(response.id()).isEqualTo(member.getId());
         assertThat(response.nickname()).isEqualTo(MemberFixture.NICKNAME);
+        assertThat(response.email()).isEqualTo(MemberFixture.EMAIL);
         assertThat(response.roles()).containsExactly(Role.BUYER);
         assertThat(response.sellerStatus()).isNull();
         assertThat(response.providers()).containsExactly("KAKAO");
+    }
+
+    @Test
+    @DisplayName("이메일을 받기 전에 가입한 회원은 email이 null이다")
+    void getMeWithoutEmail() {
+        var member = memberRepository.save(MemberFixture.withoutEmail("kakao-1"));
+
+        getMine(tokens.buyer(member.getId()))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.email").value(email -> assertThat(email).isNull());
     }
 
     @Test
@@ -99,7 +111,7 @@ class MemberApiTest {
     }
 
     @Test
-    @DisplayName("닉네임을 바꾸면 200과 바뀐 닉네임, 로그인 제공자를 주고 DB에도 반영한다")
+    @DisplayName("닉네임을 바꾸면 200과 바뀐 닉네임, 이메일, 로그인 제공자를 주고 DB에도 반영한다")
     void updateNickname() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
@@ -109,6 +121,7 @@ class MemberApiTest {
             .getResponseBody();
 
         assertThat(response.nickname()).isEqualTo("하은맘");
+        assertThat(response.email()).isEqualTo(MemberFixture.EMAIL);
         assertThat(response.providers()).containsExactly("KAKAO");
         assertThat(memberRepository.findById(member.getId()).orElseThrow().getNickname()).isEqualTo("하은맘");
     }

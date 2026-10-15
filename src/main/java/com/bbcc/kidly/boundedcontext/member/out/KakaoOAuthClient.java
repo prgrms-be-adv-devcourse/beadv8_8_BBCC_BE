@@ -36,7 +36,7 @@ public class KakaoOAuthClient implements OAuthClient {
     @Override
     public OAuthProfile fetchProfile(OAuthProvider provider, String code) {
         var user = fetchUser(fetchAccessToken(code));
-        return new OAuthProfile(String.valueOf(user.id()), user.nickname());
+        return new OAuthProfile(String.valueOf(user.id()), user.nickname(), user.email());
     }
 
     private String fetchAccessToken(String code) {
@@ -100,7 +100,7 @@ public class KakaoOAuthClient implements OAuthClient {
     record KakaoError(@JsonProperty("error_code") String errorCode) {
     }
 
-    // 닉네임은 사용자가 제공에 동의해야 온다. 동의하지 않으면 kakao_account.profile이 없다
+    // 닉네임은 사용자가 제공에 동의해야 온다. 동의하지 않으면 kakao_account.profile이 없다. 이메일도 제공에 동의해야 온다
     @JsonIgnoreProperties(ignoreUnknown = true)
     record KakaoUser(Long id, @JsonProperty("kakao_account") KakaoAccount kakaoAccount) {
 
@@ -110,10 +110,27 @@ public class KakaoOAuthClient implements OAuthClient {
             }
             return kakaoAccount.profile().nickname();
         }
+
+        String email() {
+            if (kakaoAccount == null) {
+                return null;
+            }
+            return kakaoAccount.verifiedEmail();
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record KakaoAccount(Profile profile) {
+    record KakaoAccount(Profile profile, String email,
+        @JsonProperty("is_email_valid") Boolean emailValid,
+        @JsonProperty("is_email_verified") Boolean emailVerified) {
+
+        // 만료되거나 인증하지 않은 이메일은 메일이 닿는다고 볼 수 없어 없는 것으로 본다
+        String verifiedEmail() {
+            if (Boolean.TRUE.equals(emailValid) && Boolean.TRUE.equals(emailVerified)) {
+                return email;
+            }
+            return null;
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

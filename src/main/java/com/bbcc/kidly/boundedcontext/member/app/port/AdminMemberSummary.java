@@ -7,19 +7,20 @@ import java.time.LocalDateTime;
 /**
  * 관리자 회원 목록의 한 행.
  *
+ * @param email 이메일을 받기 전에 가입한 회원은 null
  * @param status 회원 상태(MemberStatus 이름: ACTIVE · SUSPENDED)
  * @param sellerStatus 판매자가 아니면 null
  * @param suspendReason 이용 정지된 회원만 값이 있다
  * @param suspendedAt 이용 정지된 회원만 값이 있다
  */
 public record AdminMemberSummary(
-    Long id, String nickname, String status, SellerStatus sellerStatus,
+    Long id, String nickname, String email, String status, SellerStatus sellerStatus,
     String suspendReason, LocalDateTime suspendedAt, LocalDateTime createdAt) {
 
     public static AdminMemberSummary from(Member member) {
         var suspension = member.getSuspension();
-        return new AdminMemberSummary(member.getId(), member.getNickname(), member.getStatus().name(),
-            member.sellerStatus(),
+        return new AdminMemberSummary(member.getId(), member.getNickname(), member.getEmail(),
+            member.getStatus().name(), member.sellerStatus(),
             suspension == null ? null : suspension.reason(),
             suspension == null ? null : suspension.suspendedAt(),
             member.getCreatedAt());
