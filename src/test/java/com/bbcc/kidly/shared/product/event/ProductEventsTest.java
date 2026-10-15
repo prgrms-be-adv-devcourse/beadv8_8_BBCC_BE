@@ -33,13 +33,26 @@ class ProductEventsTest {
     }
 
     @Test
-    @DisplayName("상품 정보 변경 이벤트의 옵션은 옵션 이름과 판매 상태를 담고, 색상 · 소재는 담지 않는다")
+    @DisplayName("상품 정보 변경 이벤트의 옵션은 옵션 이름 · 판매 상태 · 옵션 값을 담고, 색상 · 소재 칸을 따로 두지 않는다")
     void optionCarriesNameAndSaleStatus() {
         RecordComponent[] components = ProductChangedEvent.Option.class.getRecordComponents();
 
         assertThat(components).extracting(RecordComponent::getName).containsExactly(
-            "optionId", "optionName", "size", "price", "minHeightCm", "maxHeightCm", "soldOut", "saleStatus");
+            "optionId", "optionName", "size", "price", "minHeightCm", "maxHeightCm", "soldOut", "saleStatus",
+            "values");
         assertThat(components[7].getType()).isEqualTo(OptionSaleStatus.class);
+    }
+
+    @Test
+    @DisplayName("항목 값 칸이 생기기 전의 생성자로 만들면 옵션 값과 상품 정보 값은 빈 목록이다")
+    void constructorsWithoutAttributeValuesFillEmptyLists() {
+        ProductChangedEvent.Option option = new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
+            105, 115, false, OptionSaleStatus.ON_SALE);
+        ProductChangedEvent.Data data = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(option));
+
+        assertThat(option.values()).isEmpty();
+        assertThat(data.infoValues()).isEmpty();
     }
 
     @Test
