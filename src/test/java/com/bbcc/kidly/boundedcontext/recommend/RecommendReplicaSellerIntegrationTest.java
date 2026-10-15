@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaSellerFixture.SELLER_CHANGED_AT;
-import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaSellerFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
@@ -45,7 +45,7 @@ class RecommendReplicaSellerIntegrationTest {
     void saveReplicaAfterCommit() {
         publishInTransaction(RecommendReplicaSellerFixture.sellerApprovedEvent());
 
-        assertThat(replicaSellerRepository.findById(SELLER_ID)).get()
+        assertThat(replicaSellerRepository.findById(PRODUCT_A_SELLER_ID)).get()
             .extracting(
                 RecommendReplicaSeller::getBusinessName,
                 RecommendReplicaSeller::getStatus,
@@ -61,7 +61,7 @@ class RecommendReplicaSellerIntegrationTest {
             status.setRollbackOnly();
         });
 
-        assertThat(replicaSellerRepository.findById(SELLER_ID)).isEmpty();
+        assertThat(replicaSellerRepository.findById(PRODUCT_A_SELLER_ID)).isEmpty();
     }
 
     @Test
@@ -73,7 +73,7 @@ class RecommendReplicaSellerIntegrationTest {
 
         assertThatCode(() -> publishInTransaction(withoutBusinessName)).doesNotThrowAnyException();
 
-        assertThat(replicaSellerRepository.findById(SELLER_ID)).get()
+        assertThat(replicaSellerRepository.findById(PRODUCT_A_SELLER_ID)).get()
             .extracting(
                 RecommendReplicaSeller::getBusinessName,
                 RecommendReplicaSeller::getStatus,
@@ -90,7 +90,7 @@ class RecommendReplicaSellerIntegrationTest {
         replicaSellerService.applySellerChanged(
             RecommendReplicaSellerFixture.sellerChangedEventAt("새옷장", SellerStatus.SUSPENDED, later));
 
-        assertThat(replicaSellerRepository.findById(SELLER_ID)).get()
+        assertThat(replicaSellerRepository.findById(PRODUCT_A_SELLER_ID)).get()
             .extracting(
                 RecommendReplicaSeller::getBusinessName,
                 RecommendReplicaSeller::getStatus,
@@ -109,7 +109,7 @@ class RecommendReplicaSellerIntegrationTest {
             "새옷장", SellerStatus.SUSPENDED, SELLER_CHANGED_AT.plusMinutes(minutesFromStored))))
             .doesNotThrowAnyException();
 
-        assertThat(replicaSellerRepository.findById(SELLER_ID)).get()
+        assertThat(replicaSellerRepository.findById(PRODUCT_A_SELLER_ID)).get()
             .extracting(
                 RecommendReplicaSeller::getBusinessName,
                 RecommendReplicaSeller::getStatus,

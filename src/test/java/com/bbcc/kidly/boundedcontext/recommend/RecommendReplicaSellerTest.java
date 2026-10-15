@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaSellerFixture.BUSINESS_NAME;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaSellerFixture.SELLER_CHANGED_AT;
-import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaSellerFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -30,7 +30,7 @@ class RecommendReplicaSellerTest {
                 RecommendReplicaSeller::getBusinessName,
                 RecommendReplicaSeller::getStatus,
                 RecommendReplicaSeller::getEventOccurredAt)
-            .containsExactly(SELLER_ID, "소소한옷장", SellerStatus.ACTIVE, SELLER_CHANGED_AT);
+            .containsExactly(PRODUCT_A_SELLER_ID, "소소한옷장", SellerStatus.ACTIVE, SELLER_CHANGED_AT);
     }
 
     @Test
@@ -47,7 +47,7 @@ class RecommendReplicaSellerTest {
                 RecommendReplicaSeller::getBusinessName,
                 RecommendReplicaSeller::getStatus,
                 RecommendReplicaSeller::getEventOccurredAt)
-            .containsExactly(SELLER_ID, "새옷장", SellerStatus.SUSPENDED, later);
+            .containsExactly(PRODUCT_A_SELLER_ID, "새옷장", SellerStatus.SUSPENDED, later);
     }
 
     @ParameterizedTest(name = "저장된 시각에서 {0}분")

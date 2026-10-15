@@ -1,17 +1,18 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
+
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * 판매자 복사본 테스트에 쓰는 판매자는 상품 A를 파는 판매자({@code PRODUCT_A_SELLER_ID})다.
+ * 맞춤 목록에서 상품 A에 이 판매자의 상호명을 붙일 수 있게 상품 A 복사본의 판매자 ID와 맞춘다.
+ */
 final class RecommendReplicaSellerFixture {
-
-    /**
-     * 상품 A를 파는 판매자의 ID다. 맞춤 목록에서 상품 A에 이 판매자의 상호명을 붙일 수 있게 상품 A 복사본의 판매자 ID와 맞춘다.
-     */
-    static final Long SELLER_ID = RecommendFixture.PRODUCT_A_SELLER_ID;
 
     static final String BUSINESS_NAME = "소소한옷장";
 
@@ -35,7 +36,7 @@ final class RecommendReplicaSellerFixture {
      */
     static RecommendReplicaSeller.ChangeInfo sellerChangeAt(String businessName, SellerStatus status,
         LocalDateTime occurredAt) {
-        return new RecommendReplicaSeller.ChangeInfo(SELLER_ID, businessName, status, occurredAt);
+        return new RecommendReplicaSeller.ChangeInfo(PRODUCT_A_SELLER_ID, businessName, status, occurredAt);
     }
 
     /**
@@ -51,6 +52,6 @@ final class RecommendReplicaSellerFixture {
     static SellerChangedEvent sellerChangedEventAt(String businessName, SellerStatus status,
         LocalDateTime occurredAt) {
         return new SellerChangedEvent(UUID.randomUUID(), occurredAt,
-            new SellerChangedEvent.Data(SELLER_ID, businessName, status));
+            new SellerChangedEvent.Data(PRODUCT_A_SELLER_ID, businessName, status));
     }
 }
