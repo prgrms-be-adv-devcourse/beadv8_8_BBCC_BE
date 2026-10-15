@@ -205,6 +205,9 @@ public class Product extends BaseTimeEntity {
         if (!this.sellerId.equals(info.sellerId())) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
         }
+        if (info.name().isBlank()) {
+            throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
+        }
         // 정보 값은 등록할 때와 같은 규칙으로 검사한다. 상품 유형은 받은 카테고리에서 꺼낸다
         ProductInfoValues.validate(info.infoValues(), info.category().productTypeToRegister());
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다

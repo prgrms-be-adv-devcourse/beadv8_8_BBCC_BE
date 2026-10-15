@@ -136,6 +136,18 @@ class ProductUpdateTest {
             .containsExactly(clothing.cotton());
     }
 
+    @ParameterizedTest(name = "상품명 [{0}]")
+    @ValueSource(strings = {"", "   "})
+    @DisplayName("상품명이 비어 있으면 고치지 않는다")
+    void rejectBlankName(String name) {
+        Product.UpdateInfo blankName = new Product.UpdateInfo(SELLER_ID, VERSION, category, name,
+            registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
+            List.of(cottonMaterial(clothing)));
+
+        assertThatThrownBy(() -> product.update(blankName)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(product.getName()).isEqualTo(registered.name());
+    }
+
     // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
     private Product.UpdateInfo sameBasicsWith(List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, VERSION, category, registered.name(), registered.brand(),
