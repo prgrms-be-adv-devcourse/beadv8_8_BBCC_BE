@@ -37,7 +37,7 @@ class KakaoOAuthClientTest {
     private static final String TOKEN_URL = "https://kauth.kakao.com/oauth/token";
     private static final String USER_URL = "https://kapi.kakao.com/v2/user/me";
     private static final KakaoProperties PROPERTIES =
-        new KakaoProperties("client-id", "client-secret", "http://localhost:5173/oauth/kakao");
+        new KakaoProperties("client-id", "client-secret", "http://localhost:5173/oauth/kakao/callback");
 
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -52,7 +52,7 @@ class KakaoOAuthClientTest {
                 "grant_type", "authorization_code",
                 "client_id", "client-id",
                 "client_secret", "client-secret",
-                "redirect_uri", "http://localhost:5173/oauth/kakao",
+                "redirect_uri", "http://localhost:5173/oauth/kakao/callback",
                 "code", "auth-code")))
             .andRespond(withSuccess("{\"access_token\":\"kakao-token\",\"token_type\":\"bearer\"}",
                 MediaType.APPLICATION_JSON));
