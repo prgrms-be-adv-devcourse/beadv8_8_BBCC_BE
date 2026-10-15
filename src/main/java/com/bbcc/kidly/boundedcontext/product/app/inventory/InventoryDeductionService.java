@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.product.app.inventory;
 
+import com.bbcc.kidly.boundedcontext.product.app.inventory.support.InventoryDeductionRecorder;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.support.InventoryDeductor;
+import com.bbcc.kidly.boundedcontext.product.app.inventory.support.InventoryShortageException;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
@@ -22,6 +24,7 @@ public class InventoryDeductionService {
 
     private final ProductRepository productRepository;
     private final InventoryDeductor inventoryDeductor;
+    private final InventoryDeductionRecorder inventoryDeductionRecorder;
 
     public void deduct(OrderCreatedEvent event) {
         OrderCreatedEvent.Data data = event.data();
@@ -39,6 +42,12 @@ public class InventoryDeductionService {
             items.add(new InventoryDeductionRequest.Item(
                 item.orderItemId(), optionById.get(item.optionId()), item.quantity()));
         }
-        inventoryDeductor.deduct(InventoryDeductionRequest.of(data.orderId(), items));
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(data.orderId(), items);
+        try {
+            inventoryDeductor.deduct(request);
+        } catch (InventoryShortageException e) {
+            // 차감 트랜잭션은 이미 롤백됐다. 주문상품마다 FAILED 기록을 새 트랜잭션으로 남긴다
+            inventoryDeductionRecorder.recordFailed(request);
+        }
     }
 }

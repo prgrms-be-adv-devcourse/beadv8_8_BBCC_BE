@@ -54,6 +54,22 @@ class InventoryDeductionServiceIntegrationTest {
             tuple(ORDER_ID, 13L, options.navy120().getId(), 1, "DEDUCTED"));
     }
 
+    @Test
+    @DisplayName("INV-11 한 옵션이라도 판매 가능 수량이 부족하면 먼저 줄인 옵션까지 모두 되돌리고 주문상품마다 FAILED 기록을 남긴다")
+    void rejectWhenAnyOptionIsShort() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 1);
+
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
+            item(11L, options.navy110(), 2),
+            item(12L, options.navy120(), 2)));
+
+        assertThat(availableQty(options.navy110())).isEqualTo(10);
+        assertThat(availableQty(options.navy120())).isEqualTo(1);
+        assertThat(records()).containsExactlyInAnyOrder(
+            tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"),
+            tuple(ORDER_ID, 12L, options.navy120().getId(), 2, "FAILED"));
+    }
+
     private static OrderCreatedEvent orderCreated(long orderId, OrderCreatedEvent.Item... items) {
         return new OrderCreatedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new OrderCreatedEvent.Data(orderId, MEMBER_ID, List.of(items)));

@@ -22,11 +22,14 @@ public class InventoryDeductor {
     private final InventoryDeductionRepository inventoryDeductionRepository;
 
     // 옵션 ID 오름차순으로 옵션별 수량을 줄이고, 줄인 뒤 같은 트랜잭션에서 DEDUCTED 기록을 저장한다
+    // 한 옵션이라도 모자라면 예외를 던져 먼저 줄인 옵션까지 모두 되돌린다
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public void deduct(InventoryDeductionRequest request) {
         LocalDateTime now = LocalDateTime.now();
         for (InventoryDeductionRequest.OptionQuantity quantity : request.optionQuantities()) {
-            inventoryRepository.deductIfAvailable(quantity.optionId(), quantity.qty(), now);
+            if (!inventoryRepository.deductIfAvailable(quantity.optionId(), quantity.qty(), now)) {
+                throw new InventoryShortageException(quantity.optionId(), quantity.qty());
+            }
         }
         inventoryDeductionRepository.saveAll(request.deductedRecords());
     }
