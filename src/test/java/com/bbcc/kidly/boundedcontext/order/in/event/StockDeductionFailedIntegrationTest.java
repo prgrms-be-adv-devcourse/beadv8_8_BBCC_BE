@@ -27,7 +27,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -40,6 +43,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @IntegrationTest
 @RecordApplicationEvents
+@ExtendWith(OutputCaptureExtension.class)
 class StockDeductionFailedIntegrationTest {
 
     private static final Long SECOND_OPTION_ID = 2L;
@@ -89,6 +93,19 @@ class StockDeductionFailedIntegrationTest {
         assertThat(cancelled).hasSize(1);
         assertThat(cancelled.get(0).data().reason()).isEqualTo("OUT_OF_STOCK");
         assertThat(cancelled.get(0).data().items()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("재고 차감 실패 한 건의 로그는 서비스 결과 한 줄(주문 취소 · reason=OUT_OF_STOCK)뿐이고 리스너 수신 로그는 없다")
+    void logsOneResultLine(CapturedOutput output) {
+        OrderDetail order = place();
+
+        publishFailed(order.orderId(), order.items().get(0).orderItemId(), StockDeductionFailureCode.OUT_OF_STOCK);
+
+        assertThat(output).containsPattern("INFO.*주문 취소: orderId=" + order.orderId() + " reason=OUT_OF_STOCK");
+        assertThat(output.getAll().lines()
+            .filter(line -> line.contains("주문 취소: orderId=" + order.orderId() + " ")).count()).isEqualTo(1);
+        assertThat(output).doesNotContain("재고 차감 실패 수신");
     }
 
     @Test

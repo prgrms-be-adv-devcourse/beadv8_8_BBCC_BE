@@ -67,7 +67,7 @@ class StockEventListenerTest {
     class OnStockDeductionFailed {
 
         @Test
-        @DisplayName("주문 ID와 주문상품별 사유(enum 이름)로 재고 부족 취소를 맡기고, 대표 사유는 INFO 한 줄에만 남긴다")
+        @DisplayName("주문 ID와 주문상품별 사유(enum 이름)로 재고 부족 취소를 맡기고, 리스너는 수신 로그를 남기지 않는다(결과는 서비스가 한 줄)")
         void convertsEvent(CapturedOutput output) {
             listener.onStockDeductionFailed(failed(7L, StockDeductionFailureCode.OUT_OF_STOCK, List.of(
                 new StockDeductionFailedEvent.Failure(70L, StockDeductionFailureCode.OUT_OF_STOCK),
@@ -76,7 +76,7 @@ class StockEventListenerTest {
             verify(orderService).cancelForStockDeductionFailure(new StockDeductionFailedCommand(7L, List.of(
                 new StockDeductionFailedCommand.Item(70L, "OUT_OF_STOCK"),
                 new StockDeductionFailedCommand.Item(71L, "OPTION_NOT_ON_SALE"))));
-            assertThat(output).containsPattern("INFO.*event=stock.deduction-failed orderId=7 reason=OUT_OF_STOCK");
+            assertThat(output).doesNotContain("재고 차감 실패 수신").doesNotContain("event=stock.deduction-failed");
         }
 
         @Test

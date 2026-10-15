@@ -162,6 +162,16 @@ class PaymentEventListenerTest {
             verify(orderService).cancelForPaymentFailure(ORDER_ID);
             verify(orderService, never()).markPaid(any());
         }
+
+        @Test
+        @DisplayName("리스너는 결제 실패 수신 로그를 남기지 않는다(결과는 서비스가 \"주문 취소\" 한 줄)")
+        void noReceiveLog(CapturedOutput output) {
+            listener.onPaymentFailed(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.of(2026, 10, 15, 9, 0),
+                new PaymentFailedEvent.Data(PAYMENT_ID, ORDER_ID, 1L, 50_000L, PaymentFailureCode.INSUFFICIENT_BALANCE,
+                    LocalDateTime.of(2026, 10, 15, 9, 0))));
+
+            assertThat(output).doesNotContain("결제 실패 수신").doesNotContain("event=payment.failed");
+        }
     }
 
     @Nested
