@@ -10,6 +10,8 @@ import com.bbcc.kidly.support.FunctionalTest;
 import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -142,6 +144,20 @@ class ProductListApiTest {
             .jsonPath("$.status").isEqualTo(400)
             .jsonPath("$.detail").isEqualTo(detail)
             .jsonPath("$.instance").isEqualTo(PATH);
+    }
+
+    @Test
+    @DisplayName("항목 값을 21개 이상 보내면 400을 받는다. 값마다 SQL 조건이 하나씩 늘어나므로 20개까지만 받는다")
+    void rejectTooManyAttributes() {
+        String attributes = IntStream.rangeClosed(1, 21)
+            .mapToObj(valueId -> "COLOR:" + valueId)
+            .collect(Collectors.joining(","));
+
+        client.get().uri(PATH + "?attributes={attributes}", attributes)
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectBody()
+            .jsonPath("$.detail").isEqualTo("attributes: 항목 값은 20개까지 고를 수 있습니다.");
     }
 
     @Test

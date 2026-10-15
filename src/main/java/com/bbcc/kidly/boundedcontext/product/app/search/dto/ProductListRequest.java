@@ -16,7 +16,9 @@ public record ProductListRequest(
     Long categoryId,
     @Size(max = 50, message = "검색어는 50자 이하여야 합니다.")
     String keyword,
-    // 항목 code는 대문자와 _이고, 값 ID는 Long 범위(최대 19자리)를 넘지 않는 양의 정수다
+    // 값마다 SQL 조건이 하나씩 늘어나므로 20개까지만 받는다.
+    // 항목 code는 대문자와 _이고, 값 ID는 Long 범위를 넘지 않도록 18자리까지의 양의 정수만 받는다
+    @Size(max = 20, message = "항목 값은 20개까지 고를 수 있습니다.")
     List<@Pattern(regexp = "[A-Z_]+:[1-9][0-9]{0,17}", message = "항목 값은 항목코드:값ID 형식이어야 합니다.") String>
         attributes,
     @Pattern(regexp = "NEWEST|PRICE_ASC|PRICE_DESC", message = "정렬은 NEWEST, PRICE_ASC, PRICE_DESC 중 하나여야 합니다.")
