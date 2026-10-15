@@ -33,6 +33,7 @@ import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.OptimisticLock;
 import org.hibernate.type.SqlTypes;
@@ -145,7 +146,9 @@ public class Product extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private ProductStatus status;
 
-    // 관리자가 운영 정책을 어긴 상품의 판매를 중지했는지 나타낸다. 켜져 있으면 판매자가 다시 판매를 시작할 수 없다
+    // 관리자가 운영 정책을 어긴 상품을 판매중지했는지 나타낸다. 켜져 있으면 판매자가 다시 판매를 시작할 수 없다.
+    // 상품 행이 이미 있는 표에도 칸을 더할 수 있게 DB 기본값을 false로 둔다
+    @ColumnDefault("false")
     @Column(name = "is_stopped_by_admin", nullable = false)
     private boolean stoppedByAdmin;
 
@@ -313,16 +316,16 @@ public class Product extends BaseTimeEntity {
 
     /**
      * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다. 판매중지 상품도 판매 시작 조건을 다시 검사해
-     * 판매중으로 바꾼다(판매 재개). 관리자가 멈춘 상품(운영 정책 위반으로 관리자가 판매를 중지한 상품)은 판매자가 다시 열 수 없다.
+     * 판매중으로 바꾼다(판매 재개). 관리자가 판매중지한 상품은 판매자가 다시 열 수 없다.
      */
     public boolean startSale(Long sellerId, Category category, ProductType productType) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
         requireOwner(sellerId);
-        // 관리자가 운영 정책 때문에 멈춘 상품은 판매자가 다시 열 수 없다 (SALE-11)
+        // 관리자가 운영 정책을 어긴 상품을 판매중지하면 판매자는 다시 열 수 없다 (SALE-11)
         if (stoppedByAdmin) {
-            throw new BusinessException(ProductErrorCode.STOPPED_BY_ADMIN);
+            throw new BusinessException(ProductErrorCode.SALE_STOPPED_BY_ADMIN);
         }
         return openSale(category, productType);
     }
@@ -342,7 +345,7 @@ public class Product extends BaseTimeEntity {
         return markStopped();
     }
 
-    /** 관리자가 상품의 판매를 시작하거나 다시 열고, 판매 상태가 바뀌었는지 돌려준다. 관리자가 멈춘 상품 표시도 끈다. */
+    /** 관리자가 상품의 판매를 시작하거나 다시 열고, 판매 상태가 바뀌었는지 돌려준다. 관리자 판매중지 표시도 끈다. */
     public boolean startSaleByAdmin(Category category, ProductType productType) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
@@ -351,10 +354,13 @@ public class Product extends BaseTimeEntity {
         return changed;
     }
 
-    /** 관리자가 운영 정책을 어긴 상품의 판매를 중지하고, 판매 상태가 바뀌었는지 돌려준다. */
+    /**
+     * 관리자가 운영 정책을 어긴 상품을 판매중지하고, 판매 상태가 바뀌었는지 돌려준다. 판매자가 이미 판매중지한 상품이면
+     * 판매 상태는 그대로라 false지만, 관리자 판매중지 표시는 켜지므로 상품은 바뀐다.
+     */
     public boolean stopSaleByAdmin() {
         boolean changed = markStopped();
-        // 이미 판매중지여도 판매자가 다시 열지 못하게 관리자가 멈춘 상품으로 표시한다
+        // 이미 판매중지여도 판매자가 다시 열지 못하게 관리자가 판매중지한 상품으로 표시한다
         stoppedByAdmin = true;
         return changed;
     }
