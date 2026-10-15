@@ -67,7 +67,7 @@ class ProductSearchDocumentEventIntegrationTest {
                 ProductSearchDocument::getStatus, ProductSearchDocument::isSizeFree,
                 ProductSearchDocument::getProductCreatedAt, ProductSearchDocument::getEventOccurredAt,
                 ProductSearchDocument::getMinPrice, ProductSearchDocument::isSoldOut)
-            .containsExactly(NAME, THUMBNAIL_URL, SELLER_ID, CATEGORY_ID, ProductStatus.ON_SALE, false,
+            .containsExactly(NAME, THUMBNAIL_URL, SELLER_ID, CATEGORY_ID, ProductStatus.ON_SALE, true,
                 PRODUCT_CREATED_AT, OCCURRED_AT, 25_000L, false);
         assertThat(stored.getAttributes())
             .isEqualTo(Map.of("COLOR", List.of(5L), "SIZE", List.of(12L, 13L), "MAIN_MATERIAL", List.of(20L)));
@@ -99,6 +99,21 @@ class ProductSearchDocumentEventIntegrationTest {
     }
 
     @Test
+    @DisplayName("SALE-07 행이 있는 상품에 더 늦게 일어난 이벤트가 오면 새 값으로 덮어써, 마지막 옵션이 품절되면 품절로 바뀐다")
+    void newerEventReplacesRowAndMarksSoldOut() {
+        publishInTransaction(eventAt(OCCURRED_AT, List.of(option(11L, 25_000L, false), option(12L, 22_000L, true))));
+
+        // 110 옵션까지 품절되면 모든 옵션이 품절이라, 표시 가격은 전체 옵션 중 최저가인 22,000원이 된다
+        publishInTransaction(eventAt(OCCURRED_AT.plusMinutes(1),
+            List.of(option(11L, 25_000L, true), option(12L, 22_000L, true))));
+
+        assertThat(stored())
+            .extracting(ProductSearchDocument::isSoldOut, ProductSearchDocument::getMinPrice,
+                ProductSearchDocument::getEventOccurredAt)
+            .containsExactly(true, 22_000L, OCCURRED_AT.plusMinutes(1));
+    }
+
+    @Test
     @DisplayName("늦게 일어난 이벤트를 먼저 받은 뒤 더 이르게 일어난 이벤트가 늦게 도착하면 늦게 일어난 이벤트의 값이 남는다")
     void olderEventArrivingLateIsIgnored() {
         publishInTransaction(eventAt(OCCURRED_AT.plusMinutes(1), List.of(option(11L, 19_000L, false))));
@@ -123,7 +138,7 @@ class ProductSearchDocumentEventIntegrationTest {
     }
 
     @RepeatedTest(20)
-    @DisplayName("같은 상품의 상품 정보 변경됨 두 개를 동시에 받아도 오류 없이 늦게 일어난 이벤트의 값이 남는다")
+    @DisplayName("같은 상품의 상품 정보 변경됨 두 개를 동시에 받아도 늦게 일어난 이벤트의 값이 남는다")
     void concurrentEventsKeepNewerEvent() throws Exception {
         ProductChangedEvent older = eventAt(OCCURRED_AT, List.of(option(11L, 25_000L, false)));
         ProductChangedEvent newer = eventAt(OCCURRED_AT.plusMinutes(1), List.of(option(11L, 19_000L, false)));
@@ -135,6 +150,7 @@ class ProductSearchDocumentEventIntegrationTest {
             results = executor.invokeAll(List.of(publishAfter(ready, older), publishAfter(ready, newer)));
         }
 
+        // 리스너의 예외는 커밋 뒤라 로그로만 남아 여기서 잡히지 않는다. 그래서 발행이 끝났는지와 남은 값만 본다
         for (Future<Void> result : results) {
             assertThat(result).succeedsWithin(Duration.ofSeconds(10));
         }
@@ -153,7 +169,7 @@ class ProductSearchDocumentEventIntegrationTest {
     // 판매중인 상품 A의 상품 정보 변경됨이다. 상품 정보 값은 주요소재(목록)와 혼용률(직접 입력)이다
     private static ProductChangedEvent eventAt(LocalDateTime occurredAt, List<ProductChangedEvent.Option> options) {
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
-            PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, ProductStatus.ON_SALE, THUMBNAIL_URL, PRODUCT_CREATED_AT, false,
+            PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, ProductStatus.ON_SALE, THUMBNAIL_URL, PRODUCT_CREATED_AT, true,
             options, List.of(entry("MAIN_MATERIAL", 20L, "면"), entry("FABRIC_COMPOSITION", null, "면 100%"))));
     }
 
