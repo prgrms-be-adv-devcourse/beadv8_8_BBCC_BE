@@ -1,37 +1,28 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
+import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
-import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import org.assertj.core.groups.Tuple;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 주문 생성됨을 받아 재고를 차감하는 서비스를 실제 PostgreSQL로 확인한다. 리스너 대신 서비스를 직접 부른다.
  * 서비스가 트랜잭션을 직접 열고 커밋하므로 테스트에 @Transactional을 붙이지 않는다.
+ * 테스트마다 끝난 뒤 재고 불변식을 확인한다. DB를 비우는 extension보다 @AfterEach가 먼저 실행된다.
  */
 @IntegrationTest
 class InventoryDeductionServiceIntegrationTest {
 
     private static final long ORDER_ID = 100L;
-    private static final long OTHER_ORDER_ID = 200L;
-    private static final long MEMBER_ID = 1L;
     private static final long MISSING_OPTION_ID = 999_999L;
 
     @Autowired
@@ -41,7 +32,12 @@ class InventoryDeductionServiceIntegrationTest {
     private ProductOptionSaver productOptionSaver;
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private InventoryDeductionDb inventoryDeductionDb;
+
+    @AfterEach
+    void checkInvariants() {
+        inventoryDeductionDb.assertInvariants();
+    }
 
     @Test
     @DisplayName("INV-04 재고가 충분하면 옵션별 판매 가능 수량을 줄이고 주문상품마다 DEDUCTED 기록을 남긴다. 같은 옵션의 두 줄은 합만큼 준다")
@@ -49,13 +45,13 @@ class InventoryDeductionServiceIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
 
         inventoryDeductionService.deduct(orderCreated(ORDER_ID,
-            item(11L, options.navy110(), 2),
-            item(12L, options.navy110(), 3),
-            item(13L, options.navy120(), 1)));
+            orderItem(11L, options.navy110(), 2),
+            orderItem(12L, options.navy110(), 3),
+            orderItem(13L, options.navy120(), 1)));
 
-        assertThat(availableQty(options.navy110())).isEqualTo(5);
-        assertThat(availableQty(options.navy120())).isEqualTo(4);
-        assertThat(records()).containsExactlyInAnyOrder(
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(5);
+        assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(4);
+        assertThat(inventoryDeductionDb.records()).containsExactlyInAnyOrder(
             tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"),
             tuple(ORDER_ID, 12L, options.navy110().getId(), 3, "DEDUCTED"),
             tuple(ORDER_ID, 13L, options.navy120().getId(), 1, "DEDUCTED"));
@@ -67,12 +63,12 @@ class InventoryDeductionServiceIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 1);
 
         inventoryDeductionService.deduct(orderCreated(ORDER_ID,
-            item(11L, options.navy110(), 2),
-            item(12L, options.navy120(), 2)));
+            orderItem(11L, options.navy110(), 2),
+            orderItem(12L, options.navy120(), 2)));
 
-        assertThat(availableQty(options.navy110())).isEqualTo(10);
-        assertThat(availableQty(options.navy120())).isEqualTo(1);
-        assertThat(records()).containsExactlyInAnyOrder(
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(1);
+        assertThat(inventoryDeductionDb.records()).containsExactlyInAnyOrder(
             tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"),
             tuple(ORDER_ID, 12L, options.navy120().getId(), 2, "FAILED"));
     }
@@ -81,65 +77,71 @@ class InventoryDeductionServiceIntegrationTest {
     @DisplayName("INV-13 판매중이 아닌 상품의 옵션이 든 주문은 재고를 줄이지 않고 주문상품마다 FAILED 기록을 남긴다")
     void rejectWhenNotOnSale() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-        stopSale(options.navy110());
+        inventoryDeductionDb.stopSale(options.navy110());
 
-        inventoryDeductionService.deduct(orderCreated(ORDER_ID, item(11L, options.navy110(), 2)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
-        assertThat(availableQty(options.navy110())).isEqualTo(10);
-        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.records())
+            .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
     }
 
     @Test
-    @DisplayName("INV-10 이미 차감한 주문의 주문 생성됨을 다시 받으면 재고를 한 번 더 줄이지 않고 기록도 그대로 둔다")
+    @DisplayName("INV-10 이미 차감한 주문의 주문 생성됨을 여러 번 다시 받아도 처음 한 번 받은 것과 결과가 같다")
     void ignoreRedeliveredDeductedOrder() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-        OrderCreatedEvent event = orderCreated(ORDER_ID, item(11L, options.navy110(), 2));
+        OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
         inventoryDeductionService.deduct(event);
 
         inventoryDeductionService.deduct(event);
+        inventoryDeductionService.deduct(event);
 
-        assertThat(availableQty(options.navy110())).isEqualTo(8);
-        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
+        assertThat(inventoryDeductionDb.records())
+            .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
     }
 
     @Test
     @DisplayName("INV-10 재고가 부족해 거절한 주문의 주문 생성됨을 재고를 채운 뒤 다시 받아도 차감하지 않고 FAILED 기록을 그대로 둔다")
     void ignoreRedeliveredRejectedOrder() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
-        OrderCreatedEvent event = orderCreated(ORDER_ID, item(11L, options.navy110(), 2));
+        OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
         inventoryDeductionService.deduct(event);
-        restock(options.navy110(), 10);
+        inventoryDeductionDb.restock(options.navy110(), 9);
 
         inventoryDeductionService.deduct(event);
 
-        assertThat(availableQty(options.navy110())).isEqualTo(10);
-        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.records())
+            .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
     }
 
     @Test
     @DisplayName("INV-10 차감한 뒤 판매를 멈춘 상품의 같은 주문 생성됨을 다시 받아도 판매 상태를 다시 판단하지 않아 아무것도 바뀌지 않는다")
     void ignoreRedeliveredOrderAfterSaleStopped() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-        OrderCreatedEvent event = orderCreated(ORDER_ID, item(11L, options.navy110(), 2));
+        OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
         inventoryDeductionService.deduct(event);
-        stopSale(options.navy110());
+        inventoryDeductionDb.stopSale(options.navy110());
 
         inventoryDeductionService.deduct(event);
 
-        assertThat(availableQty(options.navy110())).isEqualTo(8);
-        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
+        assertThat(inventoryDeductionDb.records())
+            .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
     }
 
     @Test
     @DisplayName("INV-10 차감한 주문상품 ID로 수량이 다른 주문 생성됨이 오면 주문 쪽 오류로 보고 예외 없이 아무것도 바꾸지 않는다")
     void ignoreOrderItemWithDifferentContent() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-        inventoryDeductionService.deduct(orderCreated(ORDER_ID, item(11L, options.navy110(), 2)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
-        inventoryDeductionService.deduct(orderCreated(ORDER_ID, item(11L, options.navy110(), 3)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 3)));
 
-        assertThat(availableQty(options.navy110())).isEqualTo(8);
-        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
+        assertThat(inventoryDeductionDb.records())
+            .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
     }
 
     @Test
@@ -148,12 +150,12 @@ class InventoryDeductionServiceIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
 
         inventoryDeductionService.deduct(orderCreated(ORDER_ID,
-            item(11L, options.navy110(), 2),
-            item(11L, options.navy120(), 1)));
+            orderItem(11L, options.navy110(), 2),
+            orderItem(11L, options.navy120(), 1)));
 
-        assertThat(availableQty(options.navy110())).isEqualTo(10);
-        assertThat(availableQty(options.navy120())).isEqualTo(5);
-        assertThat(records()).isEmpty();
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(5);
+        assertThat(inventoryDeductionDb.records()).isEmpty();
     }
 
     @Test
@@ -162,91 +164,10 @@ class InventoryDeductionServiceIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
 
         inventoryDeductionService.deduct(orderCreated(ORDER_ID,
-            item(11L, options.navy110(), 2),
+            orderItem(11L, options.navy110(), 2),
             new OrderCreatedEvent.Item(12L, MISSING_OPTION_ID, 1)));
 
-        assertThat(availableQty(options.navy110())).isEqualTo(10);
-        assertThat(records()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("INV-10 같은 주문 생성됨을 두 스레드가 동시에 처리해도 재고는 한 번만 줄고 기록은 한 벌이며, 어느 쪽도 예외를 던지지 않는다")
-    void deductSameEventConcurrently() throws Exception {
-        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-        OrderCreatedEvent event = orderCreated(ORDER_ID, item(11L, options.navy110(), 2));
-
-        runConcurrently(() -> inventoryDeductionService.deduct(event), () -> inventoryDeductionService.deduct(event));
-
-        assertThat(availableQty(options.navy110())).isEqualTo(8);
-        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
-    }
-
-    @Test
-    @DisplayName("INV-01 판매 가능 수량이 1인 옵션에 서로 다른 두 주문이 동시에 오면 한 주문만 차감되고 다른 주문은 FAILED로 남으며 수량은 0이다")
-    void deductLastStockConcurrently() throws Exception {
-        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
-
-        runConcurrently(
-            () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID, item(11L, options.navy110(), 1))),
-            () -> inventoryDeductionService.deduct(orderCreated(OTHER_ORDER_ID, item(21L, options.navy110(), 1))));
-
-        assertThat(availableQty(options.navy110())).isZero();
-        assertThat(records()).extracting(record -> record.toList().get(4))
-            .containsExactlyInAnyOrder("DEDUCTED", "FAILED");
-    }
-
-    private static OrderCreatedEvent orderCreated(long orderId, OrderCreatedEvent.Item... items) {
-        return new OrderCreatedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new OrderCreatedEvent.Data(orderId, MEMBER_ID, List.of(items)));
-    }
-
-    private static OrderCreatedEvent.Item item(long orderItemId, ProductOption option, int quantity) {
-        return new OrderCreatedEvent.Item(orderItemId, option.getId(), quantity);
-    }
-
-    // 판매 중지 기능이 아직 없어서, 옵션이 속한 상품의 판매 상태를 DB에서 직접 판매중지로 바꾼다
-    private void stopSale(ProductOption option) {
-        jdbcTemplate.update("update product.product set status = 'STOPPED'"
-            + " where id = (select product_id from product.product_option where id = ?)", option.getId());
-    }
-
-    // 재고 조정 기능이 아직 없어서, 판매 가능 수량을 DB에서 직접 바꿔 재고가 들어온 상황을 만든다
-    private void restock(ProductOption option, int availableQty) {
-        jdbcTemplate.update("update product.inventory set available_qty = ? where product_option_id = ?",
-            availableQty, option.getId());
-    }
-
-    // 두 작업을 실제 스레드 두 개에서 함께 시작하고, 둘 다 끝날 때까지 기다린다. 어느 쪽이든 예외가 나면 테스트가 실패한다
-    private static void runConcurrently(Runnable first, Runnable second) throws Exception {
-        CyclicBarrier barrier = new CyclicBarrier(2);
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            Future<?> firstResult = executor.submit(() -> {
-                barrier.await(10, TimeUnit.SECONDS);
-                first.run();
-                return null;
-            });
-            Future<?> secondResult = executor.submit(() -> {
-                barrier.await(10, TimeUnit.SECONDS);
-                second.run();
-                return null;
-            });
-            firstResult.get(30, TimeUnit.SECONDS);
-            secondResult.get(30, TimeUnit.SECONDS);
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    private int availableQty(ProductOption option) {
-        return jdbcTemplate.queryForObject(
-            "select available_qty from product.inventory where product_option_id = ?", Integer.class, option.getId());
-    }
-
-    private List<Tuple> records() {
-        return jdbcTemplate.query(
-            "select order_id, order_item_id, product_option_id, qty, status from product.inventory_deduction",
-            (rs, rowNum) -> tuple(rs.getLong("order_id"), rs.getLong("order_item_id"),
-                rs.getLong("product_option_id"), rs.getInt("qty"), rs.getString("status")));
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.records()).isEmpty();
     }
 }
