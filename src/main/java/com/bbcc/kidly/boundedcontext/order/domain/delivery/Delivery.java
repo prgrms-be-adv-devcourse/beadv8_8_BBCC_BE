@@ -84,7 +84,7 @@ public class Delivery extends BaseTimeEntity {
 
     public void ship(Carrier carrier, String trackingNumber, LocalDateTime now) {
         if (status != Status.READY) {
-            throw new BusinessException(OrderErrorCode.INVALID_DELIVERY_STATUS);
+            throw new BusinessException(OrderErrorCode.ALREADY_SHIPPED);
         }
         this.status = Status.SHIPPING;
         this.carrier = carrier;
@@ -100,7 +100,7 @@ public class Delivery extends BaseTimeEntity {
             return;
         }
         if (status != Status.SHIPPING) {
-            throw new BusinessException(OrderErrorCode.INVALID_DELIVERY_STATUS);
+            throw new BusinessException(OrderErrorCode.NOT_SHIPPED);
         }
         this.status = Status.DELIVERED;
         this.deliveredAt = now;

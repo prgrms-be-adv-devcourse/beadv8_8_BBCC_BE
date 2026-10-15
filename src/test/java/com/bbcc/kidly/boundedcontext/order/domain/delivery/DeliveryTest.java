@@ -58,26 +58,39 @@ class DeliveryTest {
     }
 
     @Test
-    @DisplayName("송장 없이 배송 완료할 수 없다 (409)")
+    @DisplayName("송장 없이 배송 완료할 수 없다 (409 NOT_SHIPPED)")
     void cannotCompleteBeforeShip() {
         Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
 
         assertThatThrownBy(() -> delivery.complete(COMPLETED_AT))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_DELIVERY_STATUS);
+            .extracting("errorCode").isEqualTo(OrderErrorCode.NOT_SHIPPED);
         assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.READY);
     }
 
     @Test
-    @DisplayName("이미 발송한 배송은 다시 발송할 수 없다 (409)")
+    @DisplayName("이미 발송한 배송은 다시 발송할 수 없다 (409 ALREADY_SHIPPED)")
     void cannotShipTwice() {
         Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
         delivery.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT);
 
         assertThatThrownBy(() -> delivery.ship(Delivery.Carrier.HANJIN, "999", SHIPPED_AT.plusHours(1)))
             .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_DELIVERY_STATUS);
+            .extracting("errorCode").isEqualTo(OrderErrorCode.ALREADY_SHIPPED);
         assertThat(delivery.getCarrier()).isEqualTo(Delivery.Carrier.CJ);
+    }
+
+    @Test
+    @DisplayName("배송 완료된 배송도 다시 발송할 수 없다 (409 ALREADY_SHIPPED, 배송 완료 그대로)")
+    void cannotShipAfterDelivered() {
+        Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+        delivery.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT);
+        delivery.complete(COMPLETED_AT);
+
+        assertThatThrownBy(() -> delivery.ship(Delivery.Carrier.HANJIN, "999", COMPLETED_AT.plusHours(1)))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(OrderErrorCode.ALREADY_SHIPPED);
+        assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.DELIVERED);
     }
 
     @Test

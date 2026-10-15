@@ -236,25 +236,75 @@ class SellerOrderApiTest {
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()
-                .jsonPath("$.title").isEqualTo("판매 주문을 찾을 수 없습니다");
+                .jsonPath("$.title").isEqualTo("판매 주문을 찾을 수 없습니다")
+                .jsonPath("$.detail").isEqualTo("없는 판매 주문입니다. 판매 주문 목록을 새로고침해 주세요.");
         }
 
         @Test
-        @DisplayName("모르는 택배사 · 빈 송장 번호면 400")
+        @DisplayName("발송을 두 번 요청하면 409 ALREADY_SHIPPED, 처음 발송 정보는 그대로")
+        void shipTwiceIsAlreadyShipped() {
+            String sellerOrderId = sellerOrderIdOf(SELLER_ID);
+            ship(sellerOrderId, "CJ", "1234567890").expectStatus().isOk();
+
+            ship(sellerOrderId, "HANJIN", "999")
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("이미 발송된 주문입니다")
+                .jsonPath("$.detail").isEqualTo("이미 발송된 주문입니다. 판매 주문 목록을 새로고침해 주세요.");
+
+            client.get().uri(SELLER_ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content[0].carrier").isEqualTo("CJ")
+                .jsonPath("$.content[0].trackingNumber").isEqualTo("1234567890");
+        }
+
+        @Test
+        @DisplayName("발송 전에 배송 완료를 요청하면 409 NOT_SHIPPED, 배송 건은 READY 그대로")
+        void deliverBeforeShipIsNotShipped() {
+            String sellerOrderId = sellerOrderIdOf(SELLER_ID);
+
+            client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/deliver")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("발송 전입니다")
+                .jsonPath("$.detail").isEqualTo("발송 처리를 먼저 해 주세요.");
+
+            client.get().uri(SELLER_ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.content[0].status").isEqualTo("READY");
+        }
+
+        @Test
+        @DisplayName("모르는 택배사면 400 INVALID_CARRIER(지원 택배사 안내), 빈 송장 번호면 400")
         void invalidShipRequest() {
             String sellerOrderId = sellerOrderIdOf(SELLER_ID);
 
-            client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
-                .body(Map.of("carrier", "UNKNOWN", "trackingNumber", "1234567890"))
-                .exchange()
-                .expectStatus().isBadRequest();
+            ship(sellerOrderId, "UNKNOWN", "1234567890")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("지원하지 않는 택배사입니다")
+                .jsonPath("$.detail").isEqualTo("지원하는 택배사는 CJ · EPOST · HANJIN · LOTTE · LOGEN입니다.");
 
             client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
                 .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
                 .body(Map.of("carrier", "CJ", "trackingNumber", ""))
                 .exchange()
                 .expectStatus().isBadRequest();
+        }
+
+        private RestTestClient.ResponseSpec ship(String sellerOrderId, String carrier, String trackingNumber) {
+            return client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
+                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .body(Map.of("carrier", carrier, "trackingNumber", trackingNumber))
+                .exchange();
         }
 
         private void deliver(String sellerOrderId) {

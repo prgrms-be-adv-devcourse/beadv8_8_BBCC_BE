@@ -32,6 +32,8 @@ class CartApiTest {
     private static final Long STOPPED_OPTION_ID = 2L;
     private static final Long OPTION_STOPPED_ID = 4L;
     private static final Long SOLD_OUT_ID = 5L;
+    private static final String NOT_PURCHASABLE_DETAIL =
+        "판매가 중지됐거나 품절된 상품이 있습니다. 장바구니에서 빼고 다시 주문해 주세요.";
 
     @Autowired
     private RestTestClient client;
@@ -158,7 +160,8 @@ class CartApiTest {
             .exchange()
             .expectStatus().isNotFound()
             .expectBody()
-            .jsonPath("$.title").isEqualTo("장바구니 상품을 찾을 수 없습니다");
+            .jsonPath("$.title").isEqualTo("장바구니 상품을 찾을 수 없습니다")
+            .jsonPath("$.detail").isEqualTo("이미 장바구니에서 빠진 상품입니다. 장바구니를 새로고침해 주세요.");
 
         client.delete().uri(CART_ITEMS_PATH + "/" + cartItemId)
             .headers(headers -> headers.setBearerAuth(tokens.buyer(OTHER_ID)))
@@ -187,7 +190,8 @@ class CartApiTest {
             .exchange()
             .expectStatus().isEqualTo(409)
             .expectBody()
-            .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다");
+            .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다")
+            .jsonPath("$.detail").isEqualTo(NOT_PURCHASABLE_DETAIL);
     }
 
     @Test
@@ -199,7 +203,8 @@ class CartApiTest {
             .exchange()
             .expectStatus().isEqualTo(409)
             .expectBody()
-            .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다");
+            .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다")
+            .jsonPath("$.detail").isEqualTo(NOT_PURCHASABLE_DETAIL);
     }
 
     @Test
@@ -211,7 +216,34 @@ class CartApiTest {
             .exchange()
             .expectStatus().isEqualTo(409)
             .expectBody()
-            .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다");
+            .jsonPath("$.title").isEqualTo("구매할 수 없는 상품입니다")
+            .jsonPath("$.detail").isEqualTo(NOT_PURCHASABLE_DETAIL);
+    }
+
+    @Test
+    @DisplayName("없는 옵션을 담으면 404 PRODUCT_OPTION_NOT_FOUND, 옵션을 다시 고르라는 안내")
+    void missingOptionIsNotFound() {
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", "999999", "quantity", 1))
+            .exchange()
+            .expectStatus().isNotFound()
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("상품 옵션을 찾을 수 없습니다")
+            .jsonPath("$.detail").isEqualTo("없는 상품 옵션입니다. 상품 화면에서 옵션을 다시 골라 주세요.");
+    }
+
+    @Test
+    @DisplayName("없는 자녀로 담으면 404 CHILD_NOT_FOUND, 자녀를 다시 선택하라는 안내")
+    void missingChildIsNotFound() {
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", "1", "childId", "999999", "quantity", 1))
+            .exchange()
+            .expectStatus().isNotFound()
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("자녀를 찾을 수 없습니다")
+            .jsonPath("$.detail").isEqualTo("없는 자녀입니다. 자녀를 다시 선택해 주세요.");
     }
 
     @Test
