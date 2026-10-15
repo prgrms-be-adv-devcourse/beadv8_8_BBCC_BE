@@ -127,6 +127,23 @@ class CartServiceTest {
     }
 
     @Test
+    @DisplayName("담기: 같은 줄 합산이 정확히 99면 담기고, 99를 1 넘으면 INVALID_QUANTITY이며 줄 수량은 그대로")
+    void addMergeUpToMaxQuantity() {
+        givenProduct(product(OPTION_ID, 25_000L, "ON_SALE", false));
+        CartItem existing = CartItem.create(BUYER_ID, OPTION_ID, null, 98);
+        when(cartItemRepository.findByMemberIdAndOptionIdAndChildId(BUYER_ID, OPTION_ID, null))
+            .thenReturn(Optional.of(existing));
+
+        assertThat(cartService.addItem(BUYER_ID, OPTION_ID, null, 1).line().quantity()).isEqualTo(99);
+
+        assertThatThrownBy(() -> cartService.addItem(BUYER_ID, OPTION_ID, null, 1))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_QUANTITY);
+        assertThat(existing.getQuantity()).isEqualTo(99);
+        assertThat(CartService.MAX_QUANTITY).isEqualTo(99);
+    }
+
+    @Test
     @DisplayName("담기: 자녀 없는 같은 줄이 있으면 수량을 더하고 created false")
     void addMergesSameLineWithoutChild() {
         givenProduct(product(OPTION_ID, 25_000L, "ON_SALE", false));
