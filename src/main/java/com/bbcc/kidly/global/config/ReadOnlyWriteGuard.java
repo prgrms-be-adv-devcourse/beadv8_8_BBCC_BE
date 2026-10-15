@@ -1,7 +1,6 @@
 package com.bbcc.kidly.global.config;
 
 import java.util.List;
-import java.util.Locale;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -21,12 +20,25 @@ public class ReadOnlyWriteGuard implements StatementInspector {
         if (!TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
             return sql;
         }
-        String head = sql.stripLeading().toLowerCase(Locale.ROOT);
+        String head = stripLeadingComments(sql);
         for (String keyword : WRITE_KEYWORDS) {
-            if (head.startsWith(keyword)) {
+            if (head.regionMatches(true, 0, keyword, 0, keyword.length())) {
                 throw new IllegalStateException("읽기 전용 트랜잭션에서는 쓰기 SQL을 보낼 수 없습니다");
             }
         }
         return sql;
+    }
+
+    // 쿼리에 주석을 달면 SQL이 /* ... */로 시작하므로, 앞의 주석을 건너뛰고 첫 키워드를 본다
+    private static String stripLeadingComments(String sql) {
+        String rest = sql.stripLeading();
+        while (rest.startsWith("/*")) {
+            int end = rest.indexOf("*/");
+            if (end < 0) {
+                return rest;
+            }
+            rest = rest.substring(end + 2).stripLeading();
+        }
+        return rest;
     }
 }
