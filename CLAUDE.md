@@ -49,7 +49,7 @@
 - 엔티티에 `@Data`, public setter 금지. 상태는 업무 메서드로만 바꾼다
 - 엔티티는 `global.entity.BaseTimeEntity`를 상속한다 (`created_at`, `updated_at` 자동 기록, `LocalDateTime`)
 - 소프트 삭제하는 엔티티는 `global.entity.BaseSoftDeleteEntity`를 상속한다 (`deleted_at`). 서비스에서 `entity.delete(LocalDateTime.now())`로 삭제하고, 삭제된 행을 조회에서 빼려면 엔티티에 `@SQLRestriction("deleted_at IS NULL")`을 붙인다
-- 마이그레이션 도구(Flyway)는 쓰지 않는다. `ddl-auto`는 로컬 update, 그 외 validate
+- 스키마는 Flyway로 바꾼다(`src/main/resources/db/migration`). 엔티티를 바꾸면 `V{다음 번호}__설명.sql`을 추가하고, 이미 적용된 파일은 고치지 않는다. `ddl-auto`는 모든 프로필 validate
 
 ## 테스트
 - 도메인 테스트는 `src/test/java/com/bbcc/kidly/boundedcontext/{도메인}`에 둔다. `app`·`domain`·`in`·`out` 하위 폴더는 만들지 않는다
