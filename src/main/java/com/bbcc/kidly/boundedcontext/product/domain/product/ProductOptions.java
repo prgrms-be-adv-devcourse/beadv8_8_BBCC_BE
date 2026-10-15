@@ -53,8 +53,20 @@ final class ProductOptions {
         }
     }
 
+    // 새 옵션을 다음 순서로 검사한다: 옵션 하나의 값, 기존 옵션과 합친 항목 구성, 중복, 사이즈 무관 규칙, 기존 옵션의 가격
+    static void validateNewOptions(AddOptionsInfo info, List<ProductOption> existing, ProductType productType) {
+        for (OptionInfo option : info.options()) {
+            validateOption(option.values(), productType);
+        }
+        List<List<AttributeValue>> valueLists = valueLists(info.options(), existing);
+        validateSameAttributes(valueLists);
+        validateNoDuplicate(valueLists);
+        validateSizeFree(valueLists, productType);
+        validateExistingPrices(info.prices(), existing, productType);
+    }
+
     // 옵션 하나의 값을 검사한다. 값은 모두 유형의 옵션 항목 값이어야 하고, 유형의 필수 옵션 항목은 모두 값이 있어야 한다 (OPT-01)
-    static void validateOption(List<AttributeValue> values, ProductType productType) {
+    private static void validateOption(List<AttributeValue> values, ProductType productType) {
         Set<Attribute> attributes = new HashSet<>();
         for (AttributeValue value : values) {
             Optional<ProductTypeAttribute> link = productType.findLink(value.getAttribute());
@@ -80,7 +92,7 @@ final class ProductOptions {
     }
 
     // 이미 있는 옵션(보관 제외)의 값 목록 뒤에 요청 옵션의 값 목록을 붙인다. OPT-02 · 03과 SIZE-02 검사가 함께 쓴다
-    static List<List<AttributeValue>> valueLists(List<OptionInfo> requested, List<ProductOption> existing) {
+    private static List<List<AttributeValue>> valueLists(List<OptionInfo> requested, List<ProductOption> existing) {
         List<List<AttributeValue>> lists = activeValueLists(existing);
         for (OptionInfo option : requested) {
             lists.add(option.values());
@@ -90,7 +102,7 @@ final class ProductOptions {
 
     // 한 상품의 옵션은 모두 같은 옵션 항목 묶음을 쓴다. 이미 있는 옵션(보관 제외)이 있으면 그 묶음에,
     // 없으면 요청의 첫 옵션 묶음에 맞춘다 (OPT-02)
-    static void validateSameAttributes(List<List<AttributeValue>> valueLists) {
+    private static void validateSameAttributes(List<List<AttributeValue>> valueLists) {
         Set<Attribute> expected = attributesOf(valueLists.getFirst());
         for (List<AttributeValue> values : valueLists) {
             if (!attributesOf(values).equals(expected)) {
@@ -108,7 +120,7 @@ final class ProductOptions {
     }
 
     // 한 상품에 FREE와 숫자 사이즈를 섞지 않는다. 이미 있는 옵션(보관 제외)과 요청의 사이즈 역할 값을 모두 본다 (SIZE-02)
-    static void validateSizeFree(List<List<AttributeValue>> valueLists, ProductType productType) {
+    private static void validateSizeFree(List<List<AttributeValue>> valueLists, ProductType productType) {
         boolean hasFree = false;
         boolean hasNumber = false;
         for (List<AttributeValue> values : valueLists) {
@@ -164,7 +176,7 @@ final class ProductOptions {
 
     // 같은 값 묶음의 옵션은 하나만 둔다. 이미 있는 옵션(보관 제외)과 요청 안의 옵션을 모두 보고,
     // 값 묶음은 순서와 상관없는 집합으로 비교한다 (OPT-03)
-    static void validateNoDuplicate(List<List<AttributeValue>> valueLists) {
+    private static void validateNoDuplicate(List<List<AttributeValue>> valueLists) {
         Set<Set<AttributeValue>> seen = new HashSet<>();
         for (List<AttributeValue> values : valueLists) {
             if (!seen.add(new HashSet<>(values))) {
@@ -202,7 +214,8 @@ final class ProductOptions {
     }
 
     // 이미 있는 옵션(보관 제외)과 같은 가격 구분 묶음의 가격은 그 옵션의 가격과 같아야 한다 (PRICE-03)
-    static void validateExistingPrices(List<PriceInfo> prices, List<ProductOption> existing, ProductType productType) {
+    private static void validateExistingPrices(
+        List<PriceInfo> prices, List<ProductOption> existing, ProductType productType) {
         for (ProductOption option : activeOptions(existing)) {
             Set<AttributeValue> group = priceGroup(valuesOf(option), productType);
             for (PriceInfo price : prices) {

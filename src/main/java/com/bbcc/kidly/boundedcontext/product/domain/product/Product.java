@@ -195,14 +195,7 @@ public class Product extends BaseTimeEntity {
         if (!sellerId.equals(info.sellerId())) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
         }
-        for (OptionInfo option : info.options()) {
-            ProductOptions.validateOption(option.values(), productType);
-        }
-        List<List<AttributeValue>> valueLists = ProductOptions.valueLists(info.options(), options);
-        ProductOptions.validateSameAttributes(valueLists);
-        ProductOptions.validateNoDuplicate(valueLists);
-        ProductOptions.validateSizeFree(valueLists, productType);
-        ProductOptions.validateExistingPrices(info.prices(), options, productType);
+        ProductOptions.validateNewOptions(info, options, productType);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
             long price = ProductOptions.findPrice(option.values(), info.prices(), productType);
@@ -228,11 +221,7 @@ public class Product extends BaseTimeEntity {
         if (!sellerId.equals(info.sellerId())) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
         }
-        ProductSizeSpecs.validateSizeRole(productType);
-        ProductSizeSpecs.validateHeightRanges(info.specs());
-        ProductSizeSpecs.validateNoDuplicate(info.specs(), sizeSpecs);
-        ProductSizeSpecs.validateMeasurementItems(info.specs(), category);
-        ProductSizeSpecs.validateSizeValuesInOptions(info.specs(), options, productType);
+        ProductSizeSpecs.validateNewSpecs(info.specs(), sizeSpecs, options, category, productType);
         for (SizeSpecInfo spec : info.specs()) {
             sizeSpecs.add(SizeSpec.create(this, spec));
         }
