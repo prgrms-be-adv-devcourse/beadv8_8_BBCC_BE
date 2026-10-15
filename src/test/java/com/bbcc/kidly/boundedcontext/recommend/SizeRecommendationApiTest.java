@@ -11,6 +11,8 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.math.BigDecimal;
@@ -80,6 +82,66 @@ class SizeRecommendationApiTest {
             .jsonPath("$.notices[1].code").isEqualTo("PREFERRED_FIT_NOT_APPLIED")
             .jsonPath("$.notices[1].message").isEqualTo("아이 체형을 먼저 고려해 선호 핏과 다른 사이즈를 추천했어요.")
             .jsonPath("$.candidateSizes").isEqualTo(List.of("110", "120"));
+    }
+
+    @Test
+    @DisplayName("INV-R04 자녀 키에 맞는 사이즈가 없으면 사이즈 · 적합도는 null, 후보는 빈 목록이고 NO_MATCHING_SIZE 안내 하나를 받는다")
+    void recommendNoMatchingSize() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+        replicaChildService.applyChildChanged(childChanged(MEMBER_1_ID, "128.0", "26.0", false));
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.notices.length()").isEqualTo(1)
+            .jsonPath("$.notices[0].code").isEqualTo("NO_MATCHING_SIZE")
+            .jsonPath("$.notices[0].message").isEqualTo("아이 키에 맞는 사이즈가 없어요.")
+            .jsonPath("$.candidateSizes.length()").isEqualTo(0)
+            .jsonPath("$").value(Map.class, body -> assertThat(body)
+                .containsEntry("recommendedSize", null)
+                .containsEntry("fit", null));
+    }
+
+    @Test
+    @DisplayName("INV-R04 사이즈 무관 상품이면 사이즈 · 적합도는 null, 후보는 빈 목록이고 SIZE_FREE 안내 하나를 받는다")
+    void recommendSizeFreeProduct() {
+        replicaProductService.applyProductChanged(productChanged(ProductStatus.ON_SALE, true,
+            List.of(RecommendFixture.productOption(1L, "FREE", null, null))));
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.notices.length()").isEqualTo(1)
+            .jsonPath("$.notices[0].code").isEqualTo("SIZE_FREE")
+            .jsonPath("$.notices[0].message").isEqualTo("사이즈 구분이 없는 상품이에요.")
+            .jsonPath("$.candidateSizes.length()").isEqualTo(0)
+            .jsonPath("$").value(Map.class, body -> assertThat(body)
+                .containsEntry("recommendedSize", null)
+                .containsEntry("fit", null));
+    }
+
+    @Test
+    @DisplayName("판매중지된 상품도 추천의 상품 복사본이 있으면 사이즈를 추천한다")
+    void recommendSizeOfStoppedProduct() {
+        replicaProductService.applyProductChanged(productChanged(ProductStatus.STOPPED, false, List.of(
+            RecommendFixture.productOption(1L, "110", 105, 115),
+            RecommendFixture.productOption(2L, "120", 115, 125))));
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.recommendedSize").isEqualTo("120");
+    }
+
+    // 상품 A의 상품 정보 변경됨에서 판매 상태 · 사이즈 무관 여부 · 옵션만 바꾼다
+    private static ProductChangedEvent productChanged(
+        ProductStatus status, boolean sizeFree, List<ProductChangedEvent.Option> options) {
+        return new ProductChangedEvent(UUID.randomUUID(), RecommendFixture.PRODUCT_CHANGED_AT,
+            new ProductChangedEvent.Data(PRODUCT_A_ID, RecommendFixture.PRODUCT_A_SELLER_ID, "데일리 맨투맨",
+                RecommendFixture.PRODUCT_A_CATEGORY_ID, status, RecommendFixture.PRODUCT_A_THUMBNAIL_URL,
+                RecommendFixture.PRODUCT_A_REGISTERED_AT, sizeFree, options));
     }
 
     // 자녀 1의 자녀 정보 변경됨에서 회원 · 키 · 몸무게 · 삭제 여부만 바꾼다. 체형 보통 · 선호 핏 여유는 그대로다
