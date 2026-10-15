@@ -59,6 +59,8 @@ public final class RecommendFixture {
 
     public static final LocalDateTime PRODUCT_A_REGISTERED_AT = LocalDateTime.of(2026, 10, 1, 9, 0);
 
+    public static final String PRODUCT_A_NAME = "데일리 맨투맨";
+
     /**
      * 상품 변경 이벤트가 일어난 시각. 늦고 이른 이벤트는 이 시각에서 분을 더하거나 빼서 만든다.
      */
@@ -225,8 +227,8 @@ public final class RecommendFixture {
      */
     public static RecommendReplicaProduct.ChangeInfo productAChange() {
         return productAChangeOf(false, List.of(
-            new RecommendReplicaProduct.OptionInfo("110", 105, 115),
-            new RecommendReplicaProduct.OptionInfo("120", 115, 125)), PRODUCT_CHANGED_AT);
+            productOptionInfo("110", 105, 115),
+            productOptionInfo("120", 115, 125)), PRODUCT_CHANGED_AT);
     }
 
     /**
@@ -252,7 +254,7 @@ public final class RecommendFixture {
     public static ProductChangedEvent productAChangedEventOf(
         boolean sizeFree, List<ProductChangedEvent.Option> options, LocalDateTime occurredAt) {
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
-            PRODUCT_A_ID, PRODUCT_A_SELLER_ID, "데일리 맨투맨", PRODUCT_A_CATEGORY_ID, ProductStatus.ON_SALE,
+            PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, PRODUCT_A_CATEGORY_ID, ProductStatus.ON_SALE,
             PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree, options));
     }
 
@@ -271,6 +273,16 @@ public final class RecommendFixture {
     public static RecommendReplicaProduct.ChangeInfo productAChangeOf(boolean sizeFree,
         List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
-            ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree, options, occurredAt);
+            PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree,
+            options, occurredAt);
+    }
+
+    /**
+     * 상품 복사본에 넣을 옵션 하나다. 판매가 · 품절 · 판매 상태는 판매할 수 있는 옵션의 값으로 정해 둔다.
+     */
+    public static RecommendReplicaProduct.OptionInfo productOptionInfo(
+        String size, Integer minHeightCm, Integer maxHeightCm) {
+        return new RecommendReplicaProduct.OptionInfo(size, minHeightCm, maxHeightCm, 25_000L, false,
+            OptionSaleStatus.ON_SALE);
     }
 }

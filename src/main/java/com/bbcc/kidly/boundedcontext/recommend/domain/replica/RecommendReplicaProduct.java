@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -45,6 +46,9 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "category_id")
     private Long categoryId;
 
+    @Column(nullable = false)
+    private String name;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ProductStatus status;
@@ -69,7 +73,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         joinColumns = @JoinColumn(name = "product_id"))
     private List<SizeRange> sizes = new ArrayList<>();
 
-    public record ChangeInfo(Long productId, Long sellerId, Long categoryId, ProductStatus status,
+    public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
         LocalDateTime occurredAt) {
     }
@@ -77,7 +81,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     /**
      * 옵션 하나의 입력 값이다. 권장 키는 이벤트에서 비어 있을 수 있어 Integer로 받는다.
      */
-    public record OptionInfo(String size, Integer minHeightCm, Integer maxHeightCm) {
+    public record OptionInfo(String size, Integer minHeightCm, Integer maxHeightCm, long price, boolean soldOut,
+        OptionSaleStatus saleStatus) {
     }
 
     public static RecommendReplicaProduct create(ChangeInfo info) {
@@ -117,6 +122,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     private void apply(ChangeInfo info) {
         this.sellerId = info.sellerId();
         this.categoryId = info.categoryId();
+        this.name = info.name();
         this.status = info.status();
         this.thumbnailUrl = info.thumbnailUrl();
         this.productRegisteredAt = info.registeredAt();

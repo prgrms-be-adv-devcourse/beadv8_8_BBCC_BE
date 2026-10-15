@@ -2,10 +2,12 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_CATEGORY_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_NAME;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_REGISTERED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_CHANGED_AT;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOptionInfo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -30,12 +32,12 @@ class RecommendReplicaProductTest {
     private static final LocalDateTime LATER = PRODUCT_CHANGED_AT.plusMinutes(1);
 
     private static final List<RecommendReplicaProduct.OptionInfo> OPTIONS =
-        List.of(new RecommendReplicaProduct.OptionInfo("130", 125, 135));
+        List.of(productOptionInfo("130", 125, 135));
 
     // 앞 옵션은 올바르므로, 값을 검사하기 전에 사이즈 줄을 고치기 시작하면 덮어쓰기 거절 테스트가 실패한다
     private static final List<RecommendReplicaProduct.OptionInfo> OPTIONS_WITH_NULL_SIZE = List.of(
-        new RecommendReplicaProduct.OptionInfo("130", 125, 135),
-        new RecommendReplicaProduct.OptionInfo(null, 135, 145));
+        productOptionInfo("130", 125, 135),
+        productOptionInfo(null, 135, 145));
 
     @Test
     @DisplayName("처음 받은 상품 정보로 복사본을 만든다")
@@ -59,13 +61,21 @@ class RecommendReplicaProductTest {
     }
 
     @Test
+    @DisplayName("상품 정보 변경 이벤트의 상품명을 복사본에 옮긴다")
+    void copyProductName() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        assertThat(replica.getName()).isEqualTo(PRODUCT_A_NAME);
+    }
+
+    @Test
     @DisplayName("색상만 다른 같은 사이즈 옵션은 한 줄로 묶고 처음 들어온 권장 키를 쓴다")
     void groupOptionsOfSameSize() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(false,
             List.of(
-                new RecommendReplicaProduct.OptionInfo("110", 105, 116),
-                new RecommendReplicaProduct.OptionInfo("110", 106, 117),
-                new RecommendReplicaProduct.OptionInfo("120", 113, 125)),
+                productOptionInfo("110", 105, 116),
+                productOptionInfo("110", 106, 117),
+                productOptionInfo("120", 113, 125)),
             PRODUCT_CHANGED_AT));
 
         assertThat(replica.toProductSizes().sizeRanges()).containsExactly(
@@ -89,9 +99,9 @@ class RecommendReplicaProductTest {
     void applyLaterChange() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
 
-        replica.applyIfNewer(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, 61L, 62L, ProductStatus.STOPPED,
-            "https://cdn.kidly.test/products/31-new.jpg", LocalDateTime.of(2026, 10, 2, 9, 0), true,
-            List.of(new RecommendReplicaProduct.OptionInfo("130", 125, 135)), LATER));
+        replica.applyIfNewer(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, 61L, 62L, PRODUCT_A_NAME,
+            ProductStatus.STOPPED, "https://cdn.kidly.test/products/31-new.jpg", LocalDateTime.of(2026, 10, 2, 9, 0),
+            true, List.of(productOptionInfo("130", 125, 135)), LATER));
 
         assertThat(replica)
             .extracting(
@@ -115,7 +125,7 @@ class RecommendReplicaProductTest {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
 
         replica.applyIfNewer(RecommendFixture.productAChangeOf(true,
-            List.of(new RecommendReplicaProduct.OptionInfo("130", 125, 135)),
+            List.of(productOptionInfo("130", 125, 135)),
             PRODUCT_CHANGED_AT.plusMinutes(minutes)));
 
         assertThat(replica.getEventOccurredAt()).isEqualTo(PRODUCT_CHANGED_AT);
@@ -128,14 +138,14 @@ class RecommendReplicaProductTest {
         return Stream.of(
             Arguments.of(
                 Named.of("사이즈 무관 상품의 FREE 옵션", true),
-                List.of(new RecommendReplicaProduct.OptionInfo("FREE", null, null)),
+                List.of(productOptionInfo("FREE", null, null)),
                 ProductSizes.of(true, List.of())),
             Arguments.of(
                 Named.of("권장 키 하한이나 상한 하나만 빠진 옵션", false),
                 List.of(
-                    new RecommendReplicaProduct.OptionInfo("110", null, 115),
-                    new RecommendReplicaProduct.OptionInfo("120", 115, null),
-                    new RecommendReplicaProduct.OptionInfo("130", 125, 135)),
+                    productOptionInfo("110", null, 115),
+                    productOptionInfo("120", 115, null),
+                    productOptionInfo("130", 125, 135)),
                 ProductSizes.of(false, List.of(SizeRange.of("130", 125, 135)))));
     }
 
@@ -210,7 +220,7 @@ class RecommendReplicaProductTest {
 
     private static RecommendReplicaProduct.ChangeInfo change(Long productId, Long sellerId, ProductStatus status,
         LocalDateTime registeredAt, List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
-        return new RecommendReplicaProduct.ChangeInfo(productId, sellerId, PRODUCT_A_CATEGORY_ID, status,
-            PRODUCT_A_THUMBNAIL_URL, registeredAt, false, options, occurredAt);
+        return new RecommendReplicaProduct.ChangeInfo(productId, sellerId, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME,
+            status, PRODUCT_A_THUMBNAIL_URL, registeredAt, false, options, occurredAt);
     }
 }
