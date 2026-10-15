@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearch;
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchCondition;
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchItem;
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -70,7 +71,38 @@ public class PostgresProductSearch implements ProductSearch {
             sql.append("AND d.name ILIKE :keyword ESCAPE '\\'\n");
             params.addValue("keyword", "%" + escapeLike(condition.keyword()) + "%");
         }
+        appendAttributeConditions(sql, condition.attributeValueIds(), params);
         return sql.toString();
+    }
+
+    // 항목 code마다 괄호 묶음 하나를 AND로 더한다. 묶음 안에서는 고른 값을 OR로 이어 하나만 맞아도 통과시킨다.
+    // JSON 문자열을 직접 만들지 않고 code와 값 ID를 모두 바인드 파라미터로 넘긴다
+    private void appendAttributeConditions(
+        StringBuilder sql, Map<String, List<Long>> attributeValueIds, MapSqlParameterSource params) {
+        if (attributeValueIds == null) {
+            return;
+        }
+        int codeIndex = 0;
+        for (Map.Entry<String, List<Long>> entry : attributeValueIds.entrySet()) {
+            List<Long> valueIds = entry.getValue();
+            if (valueIds == null || valueIds.isEmpty()) {
+                continue;
+            }
+            String codeParam = "attrCode" + codeIndex;
+            params.addValue(codeParam, entry.getKey());
+            sql.append("AND (");
+            for (int valueIndex = 0; valueIndex < valueIds.size(); valueIndex++) {
+                String valueParam = "attrValue" + codeIndex + "_" + valueIndex;
+                params.addValue(valueParam, valueIds.get(valueIndex));
+                if (valueIndex > 0) {
+                    sql.append(" OR ");
+                }
+                sql.append("d.attributes @> jsonb_build_object(CAST(:").append(codeParam)
+                    .append(" AS text), jsonb_build_array(CAST(:").append(valueParam).append(" AS bigint)))");
+            }
+            sql.append(")\n");
+            codeIndex++;
+        }
     }
 
     // LIKE에서 특별한 뜻을 가진 \, %, _를 글자 그대로 찾도록 앞에 \를 붙인다. \를 가장 먼저 바꿔야 한다

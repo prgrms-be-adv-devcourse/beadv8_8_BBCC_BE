@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.CREATED_AT;
 import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.document;
+import static com.bbcc.kidly.boundedcontext.product.ProductListFixture.value;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearch;
@@ -12,7 +13,10 @@ import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -104,6 +108,35 @@ class PostgresProductSearchIntegrationTest {
             new ProductSearchCondition(null, keyword, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20));
 
         assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
+    }
+
+    @ParameterizedTest(name = "항목 값 {0} → 상품 {1}")
+    @CsvSource({
+        "'COLOR:3', 1",
+        "'COLOR:3,COLOR:5', '2,1'",
+        "'COLOR:9', ''"})
+    @DisplayName("같은 항목에서 값을 여러 개 고르면 그중 하나만 가진 상품도 나온다")
+    void filterByValuesOfSameAttribute(String attributeSpec, String expectedIds) {
+        persist(
+            document(1L).values(value("COLOR", 3L)).build(),
+            document(2L).values(value("COLOR", 5L)).createdAt(CREATED_AT.plusDays(1)).build(),
+            document(3L).values(value("COLOR", 7L)).createdAt(CREATED_AT.plusDays(2)).build());
+
+        Page<ProductSearchItem> result = productSearch.search(
+            new ProductSearchCondition(null, null, attributes(attributeSpec), ProductSearchSort.NEWEST),
+            PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).extracting(ProductSearchItem::productId).containsExactly(ids(expectedIds));
+    }
+
+    // CSV의 "COLOR:3,SIZE:15"를 항목 code별 값 ID 목록으로 묶는다
+    private static Map<String, List<Long>> attributes(String spec) {
+        Map<String, List<Long>> valueIdsByCode = new LinkedHashMap<>();
+        for (String entry : spec.split(",")) {
+            String[] codeAndId = entry.split(":");
+            valueIdsByCode.computeIfAbsent(codeAndId[0], code -> new ArrayList<>()).add(Long.valueOf(codeAndId[1]));
+        }
+        return valueIdsByCode;
     }
 
     // CSV의 "3,2,1"을 기대하는 상품 ID 배열로 바꾼다. 빈 문자열이면 빈 배열이다
