@@ -17,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -94,6 +95,16 @@ class InventoryAdjustmentSoldOutApiTest {
         OnSaleOptions options = saveOptionsWithStock(stock, "SALE_PENDING");
 
         adjust(options.navy110(), deltaQuantity, reason).expectStatus().isOk();
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("INV-03 판매 가능 수량 5인 옵션을 6 줄여 409로 거절된 조정은 상품 정보 변경됨을 보내지 않는다")
+    void skipProductChangedWhenAdjustmentRejected() {
+        OnSaleOptions options = saveOptionsWithStock(5, "ON_SALE");
+
+        adjust(options.navy110(), -6, "LOST").expectStatus().isEqualTo(HttpStatus.CONFLICT);
 
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
