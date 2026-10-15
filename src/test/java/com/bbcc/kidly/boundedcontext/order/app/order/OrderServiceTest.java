@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -280,6 +281,108 @@ class OrderServiceTest {
                 .thenReturn(List.of(3L, 5L));
 
             assertThat(orderService.findOverduePaymentOrderIds(now, 2L, 50)).isEqualTo(List.of(3L, 5L));
+        }
+    }
+
+    @Nested
+    @DisplayName("재고 차감 실패 취소 (stock.deduction-failed)")
+    class CancelForStockDeductionFailure {
+
+        @Test
+        @DisplayName("결제대기 주문을 OUT_OF_STOCK으로 취소하고 주문상품별 사유를 남긴 뒤 order.cancelled를 한 번 발행한다")
+        void cancelsWithItemReasons() {
+            Order order = withItemIds(placedOrderWithTwoItems());
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.cancelForStockDeductionFailure(new StockDeductionFailedCommand(ORDER_ID, List.of(
+                new StockDeductionFailedCommand.Item(2L, "OPTION_NOT_ON_SALE"))));
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
+            assertThat(order.getItems()).extracting(OrderItem::getUnavailableReason)
+                .containsExactly(null, "OPTION_NOT_ON_SALE");
+            verify(eventPublisher).publish(published.capture());
+            OrderCancelledEvent cancelled = (OrderCancelledEvent) published.getValue();
+            assertThat(cancelled.data().reason()).isEqualTo("OUT_OF_STOCK");
+            assertThat(cancelled.data().items()).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("주문에 없는 주문상품 ID는 WARN 한 줄(reason=unknown-order-item)을 남기고 주문은 그대로 취소한다")
+        void warnsUnknownOrderItem(CapturedOutput output) {
+            Order order = withItemIds(placedOrderWithTwoItems());
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.cancelForStockDeductionFailure(new StockDeductionFailedCommand(ORDER_ID, List.of(
+                new StockDeductionFailedCommand.Item(99L, "OUT_OF_STOCK"),
+                new StockDeductionFailedCommand.Item(1L, "OUT_OF_STOCK"))));
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getItems()).extracting(OrderItem::getUnavailableReason)
+                .containsExactly("OUT_OF_STOCK", null);
+            assertThat(output).containsPattern("WARN.*event=stock.deduction-failed orderId=" + ORDER_ID
+                + " orderItemId=99 reason=unknown-order-item");
+            assertThat(output).doesNotContain("orderItemId=1 reason=unknown-order-item");
+        }
+
+        @Test
+        @DisplayName("이미 취소된 주문에 모르는 주문상품 ID가 와도 WARN(reason=unknown-order-item)은 수신 기준으로 한 번 남는다")
+        void warnsUnknownOrderItemOnCancelledOrder(CapturedOutput output) {
+            Order order = withItemIds(placedOrderWithTwoItems());
+            order.cancel(Order.CancelReason.PAYMENT_FAILED);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.cancelForStockDeductionFailure(new StockDeductionFailedCommand(ORDER_ID, List.of(
+                new StockDeductionFailedCommand.Item(99L, "OUT_OF_STOCK"))));
+
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_FAILED);
+            assertThat(unknownItemWarnings(output)).isEqualTo(1);
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("결제완료 주문에 모르는 주문상품 ID가 와도 WARN(reason=unknown-order-item)은 수신 기준으로 한 번 남는다")
+        void warnsUnknownOrderItemOnPaidOrder(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.cancelForStockDeductionFailure(new StockDeductionFailedCommand(ORDER_ID, List.of(
+                new StockDeductionFailedCommand.Item(99L, "OUT_OF_STOCK"))));
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(unknownItemWarnings(output)).isEqualTo(1);
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        private long unknownItemWarnings(CapturedOutput output) {
+            return output.getAll().lines()
+                .filter(line -> line.contains("WARN") && line.contains("event=stock.deduction-failed orderId="
+                    + ORDER_ID + " orderItemId=99 reason=unknown-order-item"))
+                .count();
+        }
+
+        @Test
+        @DisplayName("결제완료 주문은 취소 · 발행하지 않고 주문상품 사유도 남기지 않는다")
+        void doesNotCancelPaidOrder() {
+            Order order = placedOrder(BUYER_ID);
+            pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.cancelForStockDeductionFailure(new StockDeductionFailedCommand(ORDER_ID, List.of(
+                new StockDeductionFailedCommand.Item(1L, "OUT_OF_STOCK"))));
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(order.getItems().getFirst().getUnavailableReason()).isNull();
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("주문이 없으면 아무것도 하지 않는다")
+        void ignoresMissingOrder() {
+            orderService.cancelForStockDeductionFailure(new StockDeductionFailedCommand(ORDER_ID, List.of()));
+
+            verify(eventPublisher, never()).publish(any());
         }
     }
 

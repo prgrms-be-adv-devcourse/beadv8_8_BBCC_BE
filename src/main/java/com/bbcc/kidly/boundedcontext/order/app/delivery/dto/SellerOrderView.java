@@ -48,7 +48,8 @@ public record SellerOrderView(
         LocalDateTime deliveredAt,
         LocalDateTime confirmedAt,
         String confirmType,
-        Child child) {
+        Child child,
+        String unavailableReason) {
     }
 
     public record Child(Long childId, String name, BigDecimal heightCm, BigDecimal weightKg, String bodyType) {
@@ -109,6 +110,7 @@ public record SellerOrderView(
             item.getConfirmedAt(),
             item.getConfirmType() == null ? null : item.getConfirmType().name(),
             child == null ? null
-                : new Child(child.childId(), child.name(), child.heightCm(), child.weightKg(), child.bodyType()));
+                : new Child(child.childId(), child.name(), child.heightCm(), child.weightKg(), child.bodyType()),
+            item.getUnavailableReason());
     }
 }

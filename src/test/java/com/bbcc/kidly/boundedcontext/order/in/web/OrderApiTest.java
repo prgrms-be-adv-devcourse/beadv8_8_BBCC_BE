@@ -469,7 +469,8 @@ class OrderApiTest {
                 .jsonPath("$.orderItemId").isEqualTo(orderItemId)
                 .jsonPath("$.status").isEqualTo("CONFIRMED")
                 .jsonPath("$.confirmType").isEqualTo("DIRECT")
-                .jsonPath("$.confirmedAt").exists();
+                .jsonPath("$.confirmedAt").exists()
+                .jsonPath("$.unavailableReason").value(reason -> assertThat(reason).isNull());
             confirm(orderId, orderItemId, BUYER_ID)
                 .expectStatus().isOk()
                 .expectBody()

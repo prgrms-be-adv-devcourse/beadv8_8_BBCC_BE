@@ -26,6 +26,7 @@ import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -719,6 +720,98 @@ class OrderTest {
 
             assertThat(cancelled).isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
+        }
+    }
+
+    @Nested
+    @DisplayName("재고 차감 실패 취소 (stock.deduction-failed)")
+    class CancelForOutOfStock {
+
+        @Test
+        @DisplayName("결제대기 주문은 OUT_OF_STOCK으로 취소되고, 사유가 온 주문상품에만 그 사유를 남긴다")
+        void cancelsAndMarksOnlyFailedItems() {
+            Order order = OrderFixture.withItemIds(OrderFixture.placedOrder());
+
+            TransitionResult result = order.cancelForOutOfStock(Map.of(1L, "OUT_OF_STOCK"));
+
+            assertThat(result).isEqualTo(TransitionResult.APPLIED);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
+            assertThat(order.getItems()).extracting(OrderItem::getUnavailableReason)
+                .containsExactly("OUT_OF_STOCK", null);
+        }
+
+        @Test
+        @DisplayName("주문상품마다 다른 사유를 그대로 남긴다")
+        void keepsReasonPerItem() {
+            Order order = OrderFixture.withItemIds(OrderFixture.placedOrder());
+
+            order.cancelForOutOfStock(Map.of(1L, "PRODUCT_NOT_ON_SALE", 2L, "OPTION_NOT_ON_SALE"));
+
+            assertThat(order.getItems()).extracting(OrderItem::getUnavailableReason)
+                .containsExactly("PRODUCT_NOT_ON_SALE", "OPTION_NOT_ON_SALE");
+        }
+
+        @Test
+        @DisplayName("사유가 하나도 없어도 주문은 OUT_OF_STOCK으로 취소되고 주문상품 사유는 모두 null")
+        void cancelsWithoutItemReasons() {
+            Order order = OrderFixture.withItemIds(OrderFixture.placedOrder());
+
+            TransitionResult result = order.cancelForOutOfStock(Map.of());
+
+            assertThat(result).isEqualTo(TransitionResult.APPLIED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
+            assertThat(order.getItems()).extracting(OrderItem::getUnavailableReason).containsExactly(null, null);
+        }
+
+        @Test
+        @DisplayName("주문에 없는 주문상품 ID의 사유는 무시하고 주문은 취소한다")
+        void ignoresUnknownOrderItemId() {
+            Order order = OrderFixture.withItemIds(OrderFixture.placedOrder());
+
+            TransitionResult result = order.cancelForOutOfStock(Map.of(99L, "OUT_OF_STOCK", 2L, "OUT_OF_STOCK"));
+
+            assertThat(result).isEqualTo(TransitionResult.APPLIED);
+            assertThat(order.getItems()).extracting(OrderItem::getUnavailableReason)
+                .containsExactly(null, "OUT_OF_STOCK");
+        }
+
+        @Test
+        @DisplayName("현재 기준(결정 보류): 결제를 이미 요청한 결제대기 주문도 취소한다")
+        void cancelsEvenAfterPaymentRequested() {
+            Order order = OrderFixture.withItemIds(OrderFixture.placedOrder());
+            order.requestPayment(NOW);
+
+            TransitionResult result = order.cancelForOutOfStock(Map.of(1L, "OUT_OF_STOCK"));
+
+            assertThat(result).isEqualTo(TransitionResult.APPLIED);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+        }
+
+        @Test
+        @DisplayName("결제완료 주문은 그대로 두고(NOT_APPLICABLE) 주문상품 사유도 남기지 않는다")
+        void paidIsNotCancelled() {
+            Order order = OrderFixture.paidOrder();
+
+            TransitionResult result = order.cancelForOutOfStock(Map.of(1L, "OUT_OF_STOCK"));
+
+            assertThat(result).isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(order.getCancelReason()).isNull();
+            assertThat(order.getItems()).extracting(OrderItem::getUnavailableReason).containsExactly(null, null);
+        }
+
+        @Test
+        @DisplayName("이미 취소된 주문은 처음 사유를 유지하고(ALREADY_DONE) 주문상품 사유도 남기지 않는다")
+        void alreadyCancelledKeepsFirstReason() {
+            Order order = OrderFixture.withItemIds(OrderFixture.placedOrder());
+            order.expirePayment(NOW.plus(PAYMENT_TIMEOUT));
+
+            TransitionResult result = order.cancelForOutOfStock(Map.of(1L, "OUT_OF_STOCK"));
+
+            assertThat(result).isEqualTo(TransitionResult.ALREADY_DONE);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
+            assertThat(order.getItems()).extracting(OrderItem::getUnavailableReason).containsExactly(null, null);
         }
     }
 
