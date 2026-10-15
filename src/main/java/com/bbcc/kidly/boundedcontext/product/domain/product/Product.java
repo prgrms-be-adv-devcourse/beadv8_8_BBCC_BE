@@ -242,6 +242,11 @@ public class Product extends BaseTimeEntity {
         if (saleInputs != null && status != ProductStatus.SALE_PENDING) {
             throw new BusinessException(ProductErrorCode.SALE_INPUTS_LOCKED);
         }
+        // 판매를 시작한 상품은 카테고리를 바꾸지 않는다. 이 요청으로는 판매중 상품의 실측을 다시 쓸 수 없어서,
+        // 새 카테고리에만 있는 실측 항목을 채울 방법이 없기 때문이다
+        if (status != ProductStatus.SALE_PENDING && category != info.category()) {
+            throw new BusinessException(ProductErrorCode.CATEGORY_CHANGE_NOT_ALLOWED);
+        }
         // 판매대기 상품의 옵션 · 실측 검사는 모두 바꾸기 전에 끝낸다. 바꿔 넣을 값은 미리 만들어 둔 것을 그대로 쓴다
         ProductRevision.Previews previews = null;
         if (saleInputs != null) {
@@ -256,9 +261,6 @@ public class Product extends BaseTimeEntity {
         // 바꿀 것이 있을 때만 version을 본다. 다른 화면이 먼저 고친 상품을 예전 값으로 덮어쓰지 않게 하기 위해서다
         if (!Objects.equals(info.version(), version)) {
             throw new BusinessException(ProductErrorCode.PRODUCT_VERSION_MISMATCH);
-        }
-        if (status != ProductStatus.SALE_PENDING && category != info.category()) {
-            ProductRevision.validateSoldCategoryChange(this, info.category());
         }
         replaceInfo(info);
         if (previews != null) {
