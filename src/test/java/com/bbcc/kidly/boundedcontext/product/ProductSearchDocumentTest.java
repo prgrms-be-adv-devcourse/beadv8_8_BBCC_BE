@@ -106,10 +106,21 @@ class ProductSearchDocumentTest {
         assertThat(document)
             .extracting(ProductSearchDocument::getProductId, ProductSearchDocument::getName,
                 ProductSearchDocument::getThumbnailUrl, ProductSearchDocument::getSellerId,
-                ProductSearchDocument::getCategoryId, ProductSearchDocument::getStatus, ProductSearchDocument::isSizeFree,
-                ProductSearchDocument::getProductCreatedAt, ProductSearchDocument::getEventOccurredAt)
+                ProductSearchDocument::getCategoryId, ProductSearchDocument::getStatus,
+                ProductSearchDocument::isSizeFree, ProductSearchDocument::getProductCreatedAt,
+                ProductSearchDocument::getEventOccurredAt)
             .containsExactly(5L, "아기 모자", "https://cdn.kidly.test/hat.jpg", 9L, 4L, ProductStatus.STOPPED, true,
                 productCreatedAt, occurredAt);
+    }
+
+    @Test
+    @DisplayName("썸네일은 선택 입력이라 없어도 만들고, 썸네일 칸을 비워 둔다")
+    void createsWithoutThumbnail() {
+        ProductSearchDocument document = ProductSearchDocument.create(new ProductSearchDocument.ChangeInfo(
+            PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, ProductStatus.ON_SALE, null, PRODUCT_CREATED_AT, false,
+            List.of(option(25_000L, false, OptionSaleStatus.ON_SALE)), List.of(), OCCURRED_AT));
+
+        assertThat(document.getThumbnailUrl()).isNull();
     }
 
     @Test
@@ -121,7 +132,7 @@ class ProductSearchDocumentTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("changeInfosMissingRequiredValue")
-    @DisplayName("상품 ID · 판매자 · 이름 · 카테고리 · 판매 상태 · 등록 시각 · 이벤트 발생 시각 · 옵션 목록 · 정보 값 목록 중 하나라도 없으면 만들지 않는다")
+    @DisplayName("받은 값 · 옵션 · 항목 값의 필수 값 중 하나라도 없으면 만들지 않는다")
     void rejectsMissingRequiredValue(String field, ProductSearchDocument.ChangeInfo info) {
         assertThatNullPointerException()
             .isThrownBy(() -> ProductSearchDocument.create(info))
@@ -132,6 +143,7 @@ class ProductSearchDocumentTest {
         List<ProductSearchDocument.OptionInfo> options = List.of(option(25_000L, false, OptionSaleStatus.ON_SALE));
         ProductStatus onSale = ProductStatus.ON_SALE;
         return Stream.of(
+            arguments("info", null),
             arguments("productId", new ProductSearchDocument.ChangeInfo(null, SELLER_ID, NAME, CATEGORY_ID, onSale,
                 THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
             arguments("sellerId", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, null, NAME, CATEGORY_ID, onSale,
@@ -149,6 +161,11 @@ class ProductSearchDocumentTest {
             arguments("options", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
                 onSale, THUMBNAIL_URL, PRODUCT_CREATED_AT, false, null, List.of(), OCCURRED_AT)),
             arguments("infoValues", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
-                onSale, THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, null, OCCURRED_AT)));
+                onSale, THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, null, OCCURRED_AT)),
+            arguments("saleStatus", changeInfo(List.of(
+                new ProductSearchDocument.OptionInfo(25_000L, false, null, List.of())))),
+            arguments("values", changeInfo(List.of(
+                new ProductSearchDocument.OptionInfo(25_000L, false, OptionSaleStatus.ON_SALE, null)))),
+            arguments("code", changeInfo(options, List.of(value(null, 20L)))));
     }
 }

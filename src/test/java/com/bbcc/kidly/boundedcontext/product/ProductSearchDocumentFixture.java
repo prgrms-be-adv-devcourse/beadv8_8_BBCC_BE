@@ -27,18 +27,18 @@ final class ProductSearchDocumentFixture {
     }
 
     static ProductSearchDocument.ChangeInfo changeInfo(
-        List<ProductSearchDocument.OptionInfo> options, List<ProductSearchDocument.ValueInfo> infoValues) {
+        List<ProductSearchDocument.OptionInfo> options, List<ProductSearchDocument.AttributeEntryInfo> infoValues) {
         return new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, ProductStatus.ON_SALE,
             THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, infoValues, OCCURRED_AT);
     }
 
     // 판매가와 품절 · 판매 상태, 옵션 값 조합을 정한 옵션이다
     static ProductSearchDocument.OptionInfo option(
-        long price, boolean soldOut, OptionSaleStatus saleStatus, ProductSearchDocument.ValueInfo... values) {
+        long price, boolean soldOut, OptionSaleStatus saleStatus, ProductSearchDocument.AttributeEntryInfo... values) {
         return new ProductSearchDocument.OptionInfo(price, soldOut, saleStatus, List.of(values));
     }
 
-    static ProductSearchDocument.ValueInfo value(String code, Long valueId) {
-        return new ProductSearchDocument.ValueInfo(code, valueId);
+    static ProductSearchDocument.AttributeEntryInfo value(String code, Long valueId) {
+        return new ProductSearchDocument.AttributeEntryInfo(code, valueId);
     }
 }
