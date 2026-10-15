@@ -266,8 +266,16 @@ public final class RecommendFixture {
      * {@link #productAReplica()}와 같은 상품 A의 복사본에서 상품 ID와 등록 시각만 바꾼다. 목록의 정렬 순서를 확인할 때 쓴다.
      */
     public static RecommendReplicaProduct productReplicaRegisteredAt(Long productId, LocalDateTime registeredAt) {
+        return productReplicaRegisteredAt(productId, PRODUCT_A_SELLER_ID, registeredAt);
+    }
+
+    /**
+     * {@link #productReplicaRegisteredAt(Long, LocalDateTime)}에서 판매자 ID도 바꾼다. 목록에 상호명을 붙이는지 확인할 때 쓴다.
+     */
+    public static RecommendReplicaProduct productReplicaRegisteredAt(
+        Long productId, Long sellerId, LocalDateTime registeredAt) {
         return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId,
-            PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE,
+            sellerId, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE,
             PRODUCT_A_THUMBNAIL_URL, registeredAt, false, productAChange().options(), PRODUCT_CHANGED_AT));
     }
 
