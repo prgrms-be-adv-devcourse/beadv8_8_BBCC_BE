@@ -66,9 +66,8 @@ public class ProductRegistrationService {
         if (!request.options().isEmpty()) {
             options = product.addOptions(toAddOptionsInfo(sellerId, request, lookup), type);
             // 요청 옵션 자체의 검사를 먼저 하고, 다른 상품을 읽어야 하는 SKU 코드 검사는 그 뒤에 한다.
-            // 여기서 거절되면 트랜잭션이 롤백되어 아무것도 저장되지 않는다
-            List<String> skuCodes =
-                request.options().stream().map(ProductRegisterRequest.OptionInput::skuCode).toList();
+            // 상품은 아래에서 저장하므로 여기서 거절되면 아무것도 저장되지 않는다
+            List<String> skuCodes = options.stream().map(ProductOption::getSkuCode).toList();
             SkuCodes.validateUnique(skuCodes, productRepository.findSkuCodesInUse(sellerId, skuCodes));
         }
         if (!request.sizeSpecs().isEmpty()) {
