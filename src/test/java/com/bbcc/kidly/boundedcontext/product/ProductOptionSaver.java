@@ -95,14 +95,15 @@ class ProductOptionSaver {
             inventoryRepository.saveOpening(
                 InventoryOpening.open(second.getOptions().get(0), secondNavy110Stock, ProductFixture.SELLER_ID));
         });
-        return new TwoOnSaleProducts(
-            first.getId(), first.getOptions().get(0), second.getId(), second.getOptions().get(0));
+        return new TwoOnSaleProducts(first.getId(), first.getOptions().get(0), first.getOptions().get(1),
+            second.getId(), second.getOptions().get(0));
     }
 
     record OnSaleOptions(ProductOption navy110, ProductOption navy120) {
     }
 
-    record TwoOnSaleProducts(long firstId, ProductOption firstNavy110, long secondId, ProductOption secondNavy110) {
+    record TwoOnSaleProducts(long firstId, ProductOption firstNavy110, ProductOption firstNavy120,
+        long secondId, ProductOption secondNavy110) {
     }
 
     private static Product.RegisterInfo onSaleInfo(ClothingOptions clothing) {
