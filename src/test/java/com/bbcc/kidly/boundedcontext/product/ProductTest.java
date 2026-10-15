@@ -7,12 +7,15 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productA;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWith;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithRequired;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productAWithoutThumbnail;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.ProductFixture.Clothing;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.InfoValueInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
@@ -46,6 +49,22 @@ class ProductTest {
         assertThat(product.getDescription()).isEqualTo("상품 설명");
         assertThat(product.getThumbnailUrl()).isEqualTo("https://…/a-thumbnail.jpg");
         assertThat(product.getImageUrls()).containsExactly("https://…/a-1.jpg");
+    }
+
+    @Test
+    @DisplayName("상품을 등록한 판매자가 아니면 내 상품 상세를 볼 수 없다")
+    void rejectViewFromOtherSeller() {
+        Product product = Product.register(productA(clothing()));
+
+        assertRejected(() -> product.validateViewer(OTHER_SELLER_ID), ProductErrorCode.PRODUCT_VIEW_FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("상세를 보는 판매자 ID가 없으면 코드가 잘못 호출된 것이라 NullPointerException이다")
+    void rejectViewWithoutSellerId() {
+        Product product = Product.register(productA(clothing()));
+
+        assertThatThrownBy(() -> product.validateViewer(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test

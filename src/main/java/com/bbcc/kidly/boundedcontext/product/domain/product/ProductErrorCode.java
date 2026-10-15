@@ -22,6 +22,7 @@ public enum ProductErrorCode implements ErrorCode {
     EXISTING_OPTION_PRICE_MISMATCH(HttpStatus.CONFLICT, "이미 있는 옵션과 가격이 다릅니다",
         "같은 가격 구분 묶음의 옵션은 가격이 같아야 합니다. 이미 있는 옵션과 같은 가격을 넣어 주세요."),
     NOT_PRODUCT_OWNER(HttpStatus.FORBIDDEN, "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다."),
+    PRODUCT_VIEW_FORBIDDEN(HttpStatus.FORBIDDEN, "상품을 볼 권한이 없습니다", "본인이 등록한 상품만 볼 수 있습니다."),
     REQUIRED_OPTION_MISSING(HttpStatus.BAD_REQUEST, "필수 옵션 항목이 비어 있습니다", "필수 옵션 항목마다 값을 하나씩 넣어 주세요."),
     NOT_OPTION_ATTRIBUTE(HttpStatus.BAD_REQUEST, "이 상품 유형의 옵션 항목이 아닙니다", "상품 유형의 옵션 항목 값으로만 옵션을 만들어 주세요."),
     OPTION_VALUE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "허용되지 않은 옵션 값입니다", "이 상품 유형에서 고를 수 있는 옵션 값을 넣어 주세요."),

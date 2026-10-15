@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductRegisterRequ
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductSaleStatusRequest;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductSaleStatusResponse;
+import com.bbcc.kidly.boundedcontext.product.in.product.dto.SellerProductDetailResponse;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.SellerProductSummaryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthMember;
@@ -45,6 +46,12 @@ public class SellerProductController {
         @LoginMember AuthMember member, @PageableDefault Pageable pageable) {
         return PageResponse.from(
             sellerProductService.findMyProducts(member.id(), pageable).map(SellerProductSummaryResponse::from));
+    }
+
+    // 판매자 본인의 상품 하나의 상세를 돌려준다
+    @GetMapping("/{productId}")
+    public SellerProductDetailResponse detail(@LoginMember AuthMember member, @PathVariable Long productId) {
+        return SellerProductDetailResponse.from(sellerProductService.findMyProductDetail(member.id(), productId));
     }
 
     @PostMapping
