@@ -20,8 +20,13 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * 판매자와 관리자가 상품의 판매를 중지하거나 다시 여는 업무 메서드를 확인한다.
@@ -136,6 +141,65 @@ class ProductSaleStopTest {
 
         assertRejected(() -> product.startSale(SELLER_ID, top, clothing.type()), ProductErrorCode.STOPPED_BY_ADMIN);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.STOPPED);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("productsToStartByAdmin")
+    @DisplayName("SALE-03 · SALE-11 관리자는 판매대기 · 판매중지 상품을 판매 시작 조건 검사 뒤 판매중으로 바꾸고 관리자 표시를 끈다")
+    void startSaleByAdmin(Consumer<ProductSaleStopTest> given) {
+        given.accept(this);
+
+        boolean started = product.startSaleByAdmin(top, clothing.type());
+
+        assertThat(started).isTrue();
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+        assertThat(product.isStoppedByAdmin()).isFalse();
+    }
+
+    @Test
+    @DisplayName("관리자가 판매중 상품에 판매 시작을 다시 보내면 아무것도 바꾸지 않는다 (재시도 대비)")
+    void startSaleByAdminAgainChangesNothing() {
+        withSaleStarted();
+
+        boolean started = product.startSaleByAdmin(top, clothing.type());
+
+        assertThat(started).isFalse();
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+    }
+
+    @Test
+    @DisplayName("SALE-03 관리자도 판매 시작 조건을 채우지 못한 상품은 판매를 시작할 수 없다")
+    void rejectStartSaleByAdminWithoutSaleStartConditions() {
+        // 옵션만 넣고 실측을 넣지 않아 판매 시작 조건을 채우지 못한다
+        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
+
+        assertRejected(() -> product.startSaleByAdmin(top, clothing.type()),
+            ProductErrorCode.SALE_START_CONDITION_NOT_MET);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.SALE_PENDING);
+    }
+
+    @Test
+    @DisplayName("관리자의 판매 시작에 카테고리나 상품 유형이 없으면 코드가 잘못 호출된 것이라 NullPointerException이다")
+    void rejectStartSaleByAdminWithNull() {
+        withSaleStartInputs();
+
+        assertThatThrownBy(() -> product.startSaleByAdmin(null, clothing.type()))
+            .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> product.startSaleByAdmin(top, null))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    static Stream<Named<Consumer<ProductSaleStopTest>>> productsToStartByAdmin() {
+        return Stream.of(
+            Named.of("판매대기", test -> test.withSaleStartInputs()),
+            Named.of("판매자가 멈춘 상품", test -> {
+                test.withSaleStarted();
+                test.product.stopSale(SELLER_ID);
+            }),
+            Named.of("관리자가 멈춘 상품", test -> {
+                test.withSaleStarted();
+                test.product.stopSaleByAdmin();
+            }));
     }
 
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣고 판매를 시작한다

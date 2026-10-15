@@ -373,6 +373,24 @@ public class Product extends BaseTimeEntity {
         return true;
     }
 
+    /** 관리자가 상품의 판매를 시작하거나 다시 열고, 판매 상태가 바뀌었는지 돌려준다. 관리자가 멈춘 상품 표시도 끈다. */
+    public boolean startSaleByAdmin(Category category, ProductType productType) {
+        requireNonNull(category, "category는 필수입니다");
+        requireNonNull(productType, "productType은 필수입니다");
+        // 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
+        if (status == ProductStatus.ON_SALE) {
+            return false;
+        }
+        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ProductErrorCode.SALE_START_CONDITION_NOT_MET,
+                "판매를 시작할 수 없습니다. " + String.join(" ", missing));
+        }
+        status = ProductStatus.ON_SALE;
+        stoppedByAdmin = false;
+        return true;
+    }
+
     /** 관리자가 운영 정책을 어긴 상품의 판매를 중지하고, 판매 상태가 바뀌었는지 돌려준다. */
     public boolean stopSaleByAdmin() {
         if (status == ProductStatus.SALE_PENDING) {
