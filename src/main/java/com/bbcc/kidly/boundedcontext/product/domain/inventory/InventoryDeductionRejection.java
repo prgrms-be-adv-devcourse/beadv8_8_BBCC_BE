@@ -19,7 +19,7 @@ public record InventoryDeductionRejection(List<Failure> failures) {
         }
     }
 
-    // 대표 사유는 첫 줄의 사유다. 주문은 이 값만 읽어도 된다
+    // 대표 사유는 첫 줄의 사유다. 주문은 주문상품별 사유를 failures에서 읽고, 이 값은 로그에만 남긴다
     public StockDeductionFailureCode reason() {
         return failures.get(0).reason();
     }

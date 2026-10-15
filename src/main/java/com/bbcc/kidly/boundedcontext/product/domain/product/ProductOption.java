@@ -80,12 +80,13 @@ public class ProductOption extends BaseTimeEntity {
         return option;
     }
 
-    // 옵션을 살 수 있는지는 이 메서드 하나에서 판단한다. 상품과 옵션이 모두 판매중이어야 한다 (SALE-04)
+    // 살 수 없는 이유가 없으면 살 수 있다
     public boolean isPurchasable() {
         return notPurchasableReason().isEmpty();
     }
 
-    // 옵션을 살 수 없는 이유를 돌려준다. 상품 상태를 먼저 보고, 살 수 있으면 빈 값이다 (SALE-04)
+    // 옵션을 살 수 있는지는 이 메서드 하나에서 판단한다. 상품과 옵션이 모두 판매중이어야 한다 (SALE-04)
+    // 살 수 없는 이유를 돌려주고, 살 수 있으면 빈 값이다. 둘 다 판매중이 아니면 상품 사유를 돌려준다
     public Optional<StockDeductionFailureCode> notPurchasableReason() {
         // 상품은 지연 로딩 프록시일 수 있고, getter를 부르면 프록시가 초기화돼 실제 상태를 돌려준다
         if (product.getStatus() != ProductStatus.ON_SALE) {
