@@ -92,9 +92,6 @@ public class PostgresProductSearch implements ProductSearch {
     // JSON 문자열을 직접 만들지 않고 code와 값 ID를 모두 바인드 파라미터로 넘긴다
     private void appendAttributeConditions(
         StringBuilder sql, Map<String, List<Long>> attributeValueIds, MapSqlParameterSource params) {
-        if (attributeValueIds == null) {
-            return;
-        }
         int codeIndex = 0;
         for (Map.Entry<String, List<Long>> entry : attributeValueIds.entrySet()) {
             List<Long> valueIds = entry.getValue();
