@@ -33,6 +33,7 @@ import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.OptimisticLock;
 import org.hibernate.type.SqlTypes;
@@ -145,6 +146,12 @@ public class Product extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private ProductStatus status;
 
+    // 관리자가 운영 정책을 어긴 상품을 판매중지했는지 나타낸다. 켜져 있으면 판매자가 다시 판매를 시작할 수 없다.
+    // 상품 행이 이미 있는 표에도 칸을 더할 수 있게 DB 기본값을 false로 둔다
+    @ColumnDefault("false")
+    @Column(name = "is_stopped_by_admin", nullable = false)
+    private boolean stoppedByAdmin;
+
     // 같은 상품을 동시에 바꾸면 나중 쪽이 실패한다
     @Version
     private Long version;
@@ -211,9 +218,7 @@ public class Product extends BaseTimeEntity {
         requireNonNull(info.name(), "name은 필수입니다");
         ProductInfoValues.requireNonNullValues(info.infoValues());
         // 등록한 판매자만 상품을 고칠 수 있다. 같은 값을 보내도 다른 판매자이면 거절한다 (OPT-08)
-        if (!this.sellerId.equals(info.sellerId())) {
-            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
-        }
+        validateOwner(info.sellerId());
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
@@ -276,10 +281,7 @@ public class Product extends BaseTimeEntity {
         if (info.options().isEmpty()) {
             throw new IllegalArgumentException("옵션 목록은 비어 있을 수 없습니다");
         }
-        // 등록한 판매자만 옵션을 추가할 수 있다 (OPT-08)
-        if (!sellerId.equals(info.sellerId())) {
-            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
-        }
+        validateOwner(info.sellerId());
         ProductOptions.validateNewOptions(info, options, productType);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
@@ -303,10 +305,7 @@ public class Product extends BaseTimeEntity {
         if (info.specs().isEmpty()) {
             throw new IllegalArgumentException("실측 목록은 비어 있을 수 없습니다");
         }
-        // 등록한 판매자만 실측을 넣을 수 있다 (OPT-08)
-        if (!sellerId.equals(info.sellerId())) {
-            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
-        }
+        validateOwner(info.sellerId());
         ProductSizeSpecs.validateNewSpecs(info.specs(), sizeSpecs, options, category, productType);
         for (SizeSpecInfo spec : info.specs()) {
             sizeSpecs.add(SizeSpec.create(this, spec));
@@ -315,27 +314,18 @@ public class Product extends BaseTimeEntity {
 
     /**
      * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다. 판매중지 상품도 판매 시작 조건을 다시 검사해
-     * 판매중으로 바꾼다(판매 재개). 관리자 판매중지(SALE-11)를 만들 때 판매자가 풀 수 있게 둘지 다시 정한다.
+     * 판매중으로 바꾼다(판매 재개). 관리자가 판매중지한 상품은 판매자가 다시 열 수 없다.
      */
     public boolean startSale(Long sellerId, Category category, ProductType productType) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
-        // 등록한 판매자만 판매를 시작할 수 있다 (OPT-08)
-        if (!this.sellerId.equals(sellerId)) {
-            throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
+        validateOwner(sellerId);
+        // 관리자가 운영 정책을 어긴 상품을 판매중지하면 판매자는 다시 열 수 없다 (SALE-11)
+        if (stoppedByAdmin) {
+            throw new BusinessException(ProductErrorCode.SALE_STOPPED_BY_ADMIN);
         }
-        // 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-        if (status == ProductStatus.ON_SALE) {
-            return false;
-        }
-        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
-        if (!missing.isEmpty()) {
-            throw new BusinessException(ProductErrorCode.SALE_START_CONDITION_NOT_MET,
-                "판매를 시작할 수 없습니다. " + String.join(" ", missing));
-        }
-        status = ProductStatus.ON_SALE;
-        return true;
+        return openSale(category, productType);
     }
 
     /** 상품을 바꾸려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 바꿀 수 없다. */
@@ -344,6 +334,55 @@ public class Product extends BaseTimeEntity {
         if (!this.sellerId.equals(sellerId)) {
             throw new BusinessException(ProductErrorCode.NOT_PRODUCT_OWNER);
         }
+    }
+
+    /** 판매자가 상품의 판매를 중지해 판매중지로 바꾸고, 상태가 바뀌었는지 돌려준다. */
+    public boolean stopSale(Long sellerId) {
+        requireNonNull(sellerId, "sellerId는 필수입니다");
+        validateOwner(sellerId);
+        return markStopped();
+    }
+
+    /** 관리자가 상품의 판매를 시작하거나 다시 열고, 판매 상태가 바뀌었는지 돌려준다. 관리자 판매중지 표시도 끈다. */
+    public boolean startSaleByAdmin(Category category, ProductType productType) {
+        requireNonNull(category, "category는 필수입니다");
+        requireNonNull(productType, "productType은 필수입니다");
+        boolean changed = openSale(category, productType);
+        stoppedByAdmin = false;
+        return changed;
+    }
+
+    /**
+     * 관리자가 운영 정책을 어긴 상품을 판매중지하고, 판매 상태가 바뀌었는지 돌려준다. 판매자가 이미 판매중지한 상품이면
+     * 판매 상태는 그대로라 false지만, 관리자 판매중지 표시는 켜지므로 상품은 바뀐다.
+     */
+    public boolean stopSaleByAdmin() {
+        boolean changed = markStopped();
+        // 이미 판매중지여도 판매자가 다시 열지 못하게 관리자가 판매중지한 상품으로 표시한다
+        stoppedByAdmin = true;
+        return changed;
+    }
+
+    // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
+    private boolean openSale(Category category, ProductType productType) {
+        if (status == ProductStatus.ON_SALE) {
+            return false;
+        }
+        SaleStartConditions.requireMet(options, sizeSpecs, category, productType);
+        status = ProductStatus.ON_SALE;
+        return true;
+    }
+
+    // 판매중지로 바꾼다. 판매대기 상품은 구매자에게 보이지 않으므로 멈출 판매가 없고, 이미 판매중지면 아무것도 바꾸지 않는다
+    private boolean markStopped() {
+        if (status == ProductStatus.SALE_PENDING) {
+            throw new BusinessException(ProductErrorCode.SALE_NOT_STARTED);
+        }
+        if (status == ProductStatus.STOPPED) {
+            return false;
+        }
+        status = ProductStatus.STOPPED;
+        return true;
     }
 
     /** 내 상품 상세를 보려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 볼 수 없다. */
