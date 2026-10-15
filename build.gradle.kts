@@ -37,6 +37,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     runtimeOnly("org.postgresql:postgresql")
 
+    // 일괄 처리 (정산 실행). 실행 기록을 DB에 남겨 같은 작업의 재실행을 막는다
+    implementation("org.springframework.boot:spring-boot-starter-batch-jdbc")
+
     // QueryDSL (OpenFeign fork)
     implementation("io.github.openfeign.querydsl:querydsl-jpa:$querydslVersion")
     annotationProcessor("io.github.openfeign.querydsl:querydsl-apt:$querydslVersion:jpa")
@@ -61,6 +64,7 @@ dependencies {
     testAnnotationProcessor("org.projectlombok:lombok")
 
     // Test
+    testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-starter-security-test")
     testImplementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test")
