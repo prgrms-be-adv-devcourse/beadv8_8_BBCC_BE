@@ -34,7 +34,7 @@ class ProductEventsTest {
 
     @Test
     @DisplayName("상품 정보 변경 이벤트의 옵션은 옵션 이름 · 판매 상태 · 옵션 값을 담고, 색상 · 소재 칸을 따로 두지 않는다")
-    void optionCarriesNameAndSaleStatus() {
+    void optionCarriesNameSaleStatusAndValues() {
         RecordComponent[] components = ProductChangedEvent.Option.class.getRecordComponents();
 
         assertThat(components).extracting(RecordComponent::getName).containsExactly(
