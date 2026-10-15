@@ -60,6 +60,22 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
+     * 상품 정보를 수정할 때 받는 값이다. sellerId는 요청한 판매자이고, version은 요청한 쪽이 마지막으로 읽은 상품의 version이다.
+     * 나머지는 바꾼 뒤의 값이며, 바꾸지 않는 칸도 지금 값을 그대로 담아 보낸다.
+     */
+    public record UpdateInfo(
+        Long sellerId,
+        Long version,
+        Category category,
+        String name,
+        String brand,
+        String description,
+        String thumbnailUrl,
+        List<String> imageUrls,
+        List<InfoValueInfo> infoValues) {
+    }
+
+    /**
      * 정보 항목 하나에 입력한 값이다. 목록 항목은 values에, 직접 입력 항목은 text에 값을 담는다.
      */
     public record InfoValueInfo(Attribute attribute, List<AttributeValue> values, String text) {
@@ -178,6 +194,18 @@ public class Product extends BaseTimeEntity {
         product.status = ProductStatus.SALE_PENDING;
         product.infoValues.addAll(ProductInfoValues.create(product, info.infoValues()));
         return product;
+    }
+
+    /**
+     * 상품의 기본 정보를 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
+     */
+    public boolean update(UpdateInfo info) {
+        name = info.name();
+        brand = info.brand();
+        description = info.description();
+        thumbnailUrl = info.thumbnailUrl();
+        imageUrls = new ArrayList<>(info.imageUrls());
+        return true;
     }
 
     /**
