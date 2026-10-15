@@ -53,7 +53,8 @@ class InventoryDeductionDb {
             + " where id = (select product_id from product.product_option where id = ?)", option.getId());
     }
 
-    // 재고 조정 기능이 아직 없어서, 입고를 DB에서 직접 만든다. 수량과 입고 기록을 함께 늘려 INV-02 식을 지킨다
+    // 재고 조정 기능이 아직 없어서, 입고를 DB에서 직접 만든다. 판매 가능 수량과 입고 기록을 함께 늘려,
+    // 판매 가능 수량 + 차감 수량이 재고 조정 기록 증감량 합과 같게 유지한다
     void restock(ProductOption option, int addedQty) {
         jdbcTemplate.update(
             "update product.inventory set available_qty = available_qty + ? where product_option_id = ?",
@@ -128,22 +129,25 @@ class InventoryDeductionDb {
      * INV-10 주문상품마다 차감 기록은 한 줄이다.
      */
     void assertInvariants() {
-        List<Tuple> stock = jdbcTemplate.query("""
+        List<OptionStock> stocks = jdbcTemplate.query("""
             select i.product_option_id, i.available_qty,
                 (select coalesce(sum(d.qty), 0) from product.inventory_deduction d
                  where d.product_option_id = i.product_option_id and d.status = 'DEDUCTED') as deducted_qty,
                 (select coalesce(sum(a.delta_qty), 0) from product.inventory_adjustment_record a
                  where a.product_option_id = i.product_option_id) as adjusted_qty
             from product.inventory i
-            """, (rs, rowNum) -> tuple(rs.getLong("product_option_id"), rs.getInt("available_qty"),
+            """, (rs, rowNum) -> new OptionStock(rs.getLong("product_option_id"), rs.getInt("available_qty"),
             rs.getInt("deducted_qty"), rs.getInt("adjusted_qty")));
-        for (Tuple row : stock) {
-            List<Object> values = row.toList();
-            int available = (int) values.get(1);
-            assertThat(available).as("INV-01 옵션 %s의 판매 가능 수량", values.get(0)).isNotNegative();
-            assertThat(available + (int) values.get(2)).as("INV-02 옵션 %s", values.get(0)).isEqualTo(values.get(3));
+        for (OptionStock stock : stocks) {
+            assertThat(stock.availableQty()).as("INV-01 옵션 %s의 판매 가능 수량", stock.optionId()).isNotNegative();
+            assertThat(stock.availableQty() + stock.deductedQty())
+                .as("INV-02 옵션 %s의 판매 가능 수량 + 차감 수량", stock.optionId()).isEqualTo(stock.adjustedQty());
         }
         assertThat(jdbcTemplate.queryForList("select order_item_id from product.inventory_deduction"
             + " group by order_item_id having count(*) > 1", Long.class)).as("INV-10 주문상품마다 기록 한 줄").isEmpty();
+    }
+
+    // 옵션 하나의 판매 가능 수량, DEDUCTED 차감 수량 합, 재고 조정 기록 증감량 합이다
+    private record OptionStock(long optionId, int availableQty, int deductedQty, int adjustedQty) {
     }
 }

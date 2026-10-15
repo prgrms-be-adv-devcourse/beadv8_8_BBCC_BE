@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.ArrayList;
@@ -75,7 +76,8 @@ class InventoryDeductionConcurrencyIntegrationTest {
             deliveries.add(() -> inventoryDeductionService.deduct(event));
         }
 
-        runConcurrently(deliveries);
+        // 먼저 차감하는 110의 재고 행을 잠가, 다섯 스레드가 모두 기존 기록 확인을 지난 뒤 차감에서 겹치게 한다
+        runRacing(inventoryDeductionDb.lockInventoryRow(firstDeducted(options)), deliveries);
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
         assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(4);
@@ -85,25 +87,32 @@ class InventoryDeductionConcurrencyIntegrationTest {
     }
 
     @Test
-    @DisplayName("INV-12 두 옵션을 서로 반대 순서로 담은 주문 10개가 동시에 와도 교착 상태 없이 모두 차감된다")
+    @DisplayName("INV-12 두 옵션을 서로 반대 순서로 담은 두 주문이 동시에 와도 옵션 ID 오름차순으로 줄여 교착 상태 없이 모두 차감된다")
     void deductOppositeOptionOrdersConcurrently() throws Exception {
-        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(100, 100);
-        List<Runnable> orders = new ArrayList<>();
-        for (int i = 1; i <= 10; i++) {
-            long orderItemId = 1000L + i * 10;
-            OrderCreatedEvent event = i % 2 == 0
-                ? orderCreated(ORDER_ID + i,
-                    orderItem(orderItemId, options.navy110(), 1), orderItem(orderItemId + 1, options.navy120(), 1))
-                : orderCreated(ORDER_ID + i,
-                    orderItem(orderItemId, options.navy120(), 1), orderItem(orderItemId + 1, options.navy110(), 1));
-            orders.add(() -> inventoryDeductionService.deduct(event));
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 10);
+        OrderCreatedEvent lowFirst = orderCreated(ORDER_ID,
+            orderItem(11L, options.navy110(), 1), orderItem(12L, options.navy120(), 1));
+        OrderCreatedEvent highFirst = orderCreated(ORDER_ID + 1,
+            orderItem(21L, options.navy120(), 1), orderItem(22L, options.navy110(), 1));
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        List<Future<?>> results = new ArrayList<>();
+        try {
+            // ID가 작은 옵션의 재고 행을 잠근 채 두 주문을 차례로 출발시킨다. 담은 순서대로 줄인다면 두 번째 주문은
+            // ID가 큰 옵션을 먼저 잠그고 기다리므로, 잠금을 풀면 두 주문이 서로의 행을 기다리는 교착이 생긴다
+            try (InventoryDeductionDb.HeldLock lock = inventoryDeductionDb.lockInventoryRow(firstDeducted(options))) {
+                results.addAll(startTogether(executor, List.of(() -> inventoryDeductionService.deduct(lowFirst))));
+                inventoryDeductionDb.awaitLockWaiters(1);
+                results.addAll(startTogether(executor, List.of(() -> inventoryDeductionService.deduct(highFirst))));
+                inventoryDeductionDb.awaitLockWaiters(2);
+            }
+            awaitAll(results);
+        } finally {
+            executor.shutdown();
         }
 
-        runConcurrently(orders);
-
-        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(90);
-        assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(90);
-        assertThat(inventoryDeductionDb.countByStatus("DEDUCTED")).isEqualTo(20);
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
+        assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(8);
+        assertThat(inventoryDeductionDb.countByStatus("DEDUCTED")).isEqualTo(4);
     }
 
     @Test
@@ -133,6 +142,14 @@ class InventoryDeductionConcurrencyIntegrationTest {
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.records())
             .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
+    }
+
+    // 차감은 옵션 ID 오름차순이라 ID가 작은 옵션의 재고 행을 먼저 잠근다
+    private static ProductOption firstDeducted(OnSaleOptions options) {
+        if (options.navy110().getId() < options.navy120().getId()) {
+            return options.navy110();
+        }
+        return options.navy120();
     }
 
     // 테스트가 잠금을 쥔 채 작업을 모두 출발시키고, 모든 작업이 그 잠금을 기다리는 것을 확인한 뒤 잠금을 푼다.
