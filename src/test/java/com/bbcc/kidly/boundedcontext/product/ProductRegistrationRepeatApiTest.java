@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,7 +26,8 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * 같은 상품 등록 요청을 여러 번 보내도 상품마다 옵션별 재고 행과 초기 재고 기록이 한 벌씩만 생기는지 확인한다.
- * 등록은 멱등하지 않으므로 요청 수만큼 상품이 생기는 것이 맞다.
+ * 등록은 멱등하지 않으므로 요청 수만큼 상품이 생기는 것이 맞다. 같은 판매자의 SKU 코드가 겹치면 두 번째 요청부터
+ * 409로 거절되므로(OPT-07), 요청에서 SKU 코드를 뺀다.
  */
 @FunctionalTest
 class ProductRegistrationRepeatApiTest {
@@ -71,7 +73,7 @@ class ProductRegistrationRepeatApiTest {
     @Test
     @DisplayName("INV-02 · INV-19 같은 등록 요청을 두 번 보내면 상품이 둘 생기고, 옵션마다 재고 행이 하나씩이며 수량과 기록 합이 같다")
     void registerSameRequestTwice() {
-        Map<String, Object> body = productA(saved);
+        Map<String, Object> body = withoutSkuCodes(productA(saved));
 
         assertThat(register(body)).isEqualTo(HttpStatus.CREATED);
         assertThat(register(body)).isEqualTo(HttpStatus.CREATED);
@@ -82,7 +84,7 @@ class ProductRegistrationRepeatApiTest {
     @Test
     @DisplayName("INV-02 · INV-19 같은 등록 요청을 동시에 보내도 모두 성공하고, 옵션마다 재고 행이 하나씩이며 수량과 기록 합이 같다")
     void registerSameRequestConcurrently() throws Exception {
-        Map<String, Object> body = productA(saved);
+        Map<String, Object> body = withoutSkuCodes(productA(saved));
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_REQUESTS);
         List<Future<HttpStatusCode>> results = new ArrayList<>();
@@ -113,6 +115,12 @@ class ProductRegistrationRepeatApiTest {
         assertThat(count("select count(r) from InventoryAdjustmentRecord r")).isEqualTo(products);
         assertThat(entityManager.createQuery(AVAILABLE_AND_RECORDED_QTY, Object[].class).getResultList())
             .allSatisfy(ProductRegistrationRepeatApiTest::assertAvailableEqualsRecorded);
+    }
+
+    // 옵션의 SKU 코드를 모두 비운 요청이다
+    private static Map<String, Object> withoutSkuCodes(Map<String, Object> body) {
+        options(body).forEach(option -> option.put("skuCode", null));
+        return body;
     }
 
     private HttpStatusCode register(Map<String, Object> body) {

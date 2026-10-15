@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SizeSpecInfo
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
@@ -64,6 +65,11 @@ public class ProductRegistrationService {
         List<ProductOption> options = List.of();
         if (!request.options().isEmpty()) {
             options = product.addOptions(toAddOptionsInfo(sellerId, request, lookup), type);
+            // 요청 옵션 자체의 검사를 먼저 하고, 다른 상품을 읽어야 하는 SKU 코드 검사는 그 뒤에 한다.
+            // 여기서 거절되면 트랜잭션이 롤백되어 아무것도 저장되지 않는다
+            List<String> skuCodes =
+                request.options().stream().map(ProductRegisterRequest.OptionInput::skuCode).toList();
+            SkuCodes.validateUnique(skuCodes, productRepository.findSkuCodesInUse(sellerId, skuCodes));
         }
         if (!request.sizeSpecs().isEmpty()) {
             product.addSizeSpecs(toAddSizeSpecsInfo(sellerId, request, lookup), category, type);

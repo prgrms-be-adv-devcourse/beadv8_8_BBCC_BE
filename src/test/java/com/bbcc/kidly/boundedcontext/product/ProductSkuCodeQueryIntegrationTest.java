@@ -78,7 +78,8 @@ class ProductSkuCodeQueryIntegrationTest {
 
     // 옵션의 판매 상태를 바꾸는 업무 메서드가 아직 없어 표를 직접 고친다
     private void changeSaleStatus(String skuCode, String saleStatus) {
-        jdbcTemplate.update("update product.product_option set sale_status = ? where sku_code = ?", saleStatus, skuCode);
+        jdbcTemplate.update(
+            "update product.product_option set sale_status = ? where sku_code = ?", saleStatus, skuCode);
     }
 
     private List<String> findSkuCodesInUse(long sellerId, Collection<String> skuCodes) {
