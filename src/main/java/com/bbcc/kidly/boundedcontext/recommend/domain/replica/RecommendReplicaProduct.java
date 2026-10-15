@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -45,6 +46,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "category_id")
     private Long categoryId;
 
+    @Column(nullable = false)
+    private String name;
+
+    // 옵션 판매가의 최솟값이다. 옵션이 없으면 null이다
+    @Column(name = "min_price")
+    private Long minPrice;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ProductStatus status;
@@ -69,7 +77,15 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         joinColumns = @JoinColumn(name = "product_id"))
     private List<SizeRange> sizes = new ArrayList<>();
 
-    public record ChangeInfo(Long productId, Long sellerId, Long categoryId, ProductStatus status,
+    // 판매중이고 품절이 아닌 옵션의 사이즈다. 권장 키가 없는 사이즈 무관(FREE)도 담는다
+    @Getter(AccessLevel.NONE)
+    @ElementCollection
+    @CollectionTable(schema = "recommend", name = "replica_product_sellable_size",
+        joinColumns = @JoinColumn(name = "product_id"))
+    @Column(name = "size", nullable = false, length = 20)
+    private Set<String> sellableSizes = new HashSet<>();
+
+    public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
         LocalDateTime occurredAt) {
     }
@@ -77,7 +93,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     /**
      * 옵션 하나의 입력 값이다. 권장 키는 이벤트에서 비어 있을 수 있어 Integer로 받는다.
      */
-    public record OptionInfo(String size, Integer minHeightCm, Integer maxHeightCm) {
+    public record OptionInfo(String size, Integer minHeightCm, Integer maxHeightCm, long price, boolean soldOut,
+        OptionSaleStatus saleStatus) {
     }
 
     public static RecommendReplicaProduct create(ChangeInfo info) {
@@ -117,6 +134,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     private void apply(ChangeInfo info) {
         this.sellerId = info.sellerId();
         this.categoryId = info.categoryId();
+        this.name = info.name();
+        this.minPrice = lowestPrice(info.options());
         this.status = info.status();
         this.thumbnailUrl = info.thumbnailUrl();
         this.productRegisteredAt = info.registeredAt();
@@ -124,6 +143,12 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.eventOccurredAt = info.occurredAt();
         // 컬렉션 객체를 새로 갈아 끼우지 않고 비운 뒤 다시 채운다
         this.sizes.clear();
+        this.sellableSizes.clear();
+        for (OptionInfo option : info.options()) {
+            if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {
+                this.sellableSizes.add(option.size());
+            }
+        }
         Set<String> seen = new HashSet<>();
         for (OptionInfo option : info.options()) {
             // 권장 키가 하나라도 없으면 아이 키로 고를 수 없으므로 사이즈 추천 후보로 두지 않는다
@@ -136,6 +161,30 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             }
             this.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
+    }
+
+    /**
+     * 그 사이즈의 옵션 중 판매중이고 품절이 아닌 것이 하나라도 있는지 돌려준다.
+     */
+    public boolean isSellable(String size) {
+        return sellableSizes.contains(size);
+    }
+
+    /**
+     * 판매중이고 품절이 아닌 옵션이 하나라도 있는지 돌려준다. 사이즈 무관 상품은 사이즈가 없어 이 값으로 판매 가능을 판단한다.
+     */
+    public boolean hasSellableOption() {
+        return !sellableSizes.isEmpty();
+    }
+
+    private static Long lowestPrice(List<OptionInfo> options) {
+        Long lowest = null;
+        for (OptionInfo option : options) {
+            if (lowest == null || option.price() < lowest) {
+                lowest = option.price();
+            }
+        }
+        return lowest;
     }
 
     /**

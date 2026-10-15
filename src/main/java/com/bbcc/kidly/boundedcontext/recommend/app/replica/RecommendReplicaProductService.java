@@ -32,13 +32,14 @@ public class RecommendReplicaProductService {
     }
 
     // 이벤트의 상품 등록 시각(createdAt)은 감사 칸과 겹치지 않게 복사본의 상품 등록 시각으로 옮기고,
-    // 옵션에서는 사이즈와 권장 키만 옮긴다(옵션 이름 · 판매 상태 · 품절은 추천이 쓰지 않는다)
+    // 옵션에서는 사이즈 · 권장 키 · 가격 · 품절 · 판매 상태를 옮긴다(옵션 이름과 옵션 값은 추천이 쓰지 않는다)
     private RecommendReplicaProduct.ChangeInfo toChangeInfo(ProductChangedEvent event) {
         ProductChangedEvent.Data data = event.data();
         return new RecommendReplicaProduct.ChangeInfo(
             data.productId(),
             data.sellerId(),
             data.categoryId(),
+            data.name(),
             data.status(),
             data.thumbnailUrl(),
             data.createdAt(),
@@ -59,7 +60,8 @@ public class RecommendReplicaProductService {
                 continue;
             }
             infos.add(new RecommendReplicaProduct.OptionInfo(
-                option.size(), option.minHeightCm(), option.maxHeightCm()));
+                option.size(), option.minHeightCm(), option.maxHeightCm(),
+                option.price(), option.soldOut(), option.saleStatus()));
         }
         return infos;
     }

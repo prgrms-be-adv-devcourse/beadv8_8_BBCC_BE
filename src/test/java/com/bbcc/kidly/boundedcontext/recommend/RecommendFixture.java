@@ -22,6 +22,7 @@ import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -58,6 +59,8 @@ public final class RecommendFixture {
     public static final String PRODUCT_A_THUMBNAIL_URL = "https://cdn.kidly.test/products/31.jpg";
 
     public static final LocalDateTime PRODUCT_A_REGISTERED_AT = LocalDateTime.of(2026, 10, 1, 9, 0);
+
+    public static final String PRODUCT_A_NAME = "데일리 맨투맨";
 
     /**
      * 상품 변경 이벤트가 일어난 시각. 늦고 이른 이벤트는 이 시각에서 분을 더하거나 빼서 만든다.
@@ -225,8 +228,8 @@ public final class RecommendFixture {
      */
     public static RecommendReplicaProduct.ChangeInfo productAChange() {
         return productAChangeOf(false, List.of(
-            new RecommendReplicaProduct.OptionInfo("110", 105, 115),
-            new RecommendReplicaProduct.OptionInfo("120", 115, 125)), PRODUCT_CHANGED_AT);
+            productOptionInfo("110", 105, 115),
+            productOptionInfo("120", 115, 125)), PRODUCT_CHANGED_AT);
     }
 
     /**
@@ -252,7 +255,7 @@ public final class RecommendFixture {
     public static ProductChangedEvent productAChangedEventOf(
         boolean sizeFree, List<ProductChangedEvent.Option> options, LocalDateTime occurredAt) {
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
-            PRODUCT_A_ID, PRODUCT_A_SELLER_ID, "데일리 맨투맨", PRODUCT_A_CATEGORY_ID, ProductStatus.ON_SALE,
+            PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, PRODUCT_A_CATEGORY_ID, ProductStatus.ON_SALE,
             PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree, options));
     }
 
@@ -261,8 +264,29 @@ public final class RecommendFixture {
      */
     public static ProductChangedEvent.Option productOption(
         Long optionId, String size, Integer minHeightCm, Integer maxHeightCm) {
-        return new ProductChangedEvent.Option(optionId, "색상: 네이비 / 사이즈: " + size, size, 25_000L,
-            minHeightCm, maxHeightCm, false, OptionSaleStatus.ON_SALE);
+        return productOption(optionId, size, minHeightCm, maxHeightCm, 25_000L, false, OptionSaleStatus.ON_SALE);
+    }
+
+    /**
+     * {@link #productOption(Long, String, Integer, Integer)}에서 판매가 · 품절 · 옵션 판매 상태도 바꾼다.
+     */
+    public static ProductChangedEvent.Option productOption(Long optionId, String size, Integer minHeightCm,
+        Integer maxHeightCm, long price, boolean soldOut, OptionSaleStatus saleStatus) {
+        return new ProductChangedEvent.Option(optionId, "색상: 네이비 / 사이즈: " + size, size, price,
+            minHeightCm, maxHeightCm, soldOut, saleStatus);
+    }
+
+    /**
+     * {@link #productAChange()}와 같은 상품 변경에서 옵션만 바꾼다. 판매가마다 옵션을 하나씩 만들고 사이즈는 110부터 10씩 올린다.
+     * 판매가를 넘기지 않으면 옵션이 없는 상품 변경이 된다.
+     */
+    public static RecommendReplicaProduct.ChangeInfo productAChangeWithPrices(long... prices) {
+        List<RecommendReplicaProduct.OptionInfo> options = new ArrayList<>();
+        for (int i = 0; i < prices.length; i++) {
+            int size = 110 + 10 * i;
+            options.add(productOptionInfo(String.valueOf(size), size - 5, size + 5, prices[i]));
+        }
+        return productAChangeOf(false, options, PRODUCT_CHANGED_AT);
     }
 
     /**
@@ -271,6 +295,42 @@ public final class RecommendFixture {
     public static RecommendReplicaProduct.ChangeInfo productAChangeOf(boolean sizeFree,
         List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
-            ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree, options, occurredAt);
+            PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree,
+            options, occurredAt);
+    }
+
+    /**
+     * {@link #productAChange()}와 같은 상품 변경에서 상품명, 옵션, 발생 시각만 바꾼다.
+     */
+    public static RecommendReplicaProduct.ChangeInfo productAChangeNamed(String name,
+        List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
+            name, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, options,
+            occurredAt);
+    }
+
+    /**
+     * 상품 복사본에 넣을 옵션 하나다. 판매가 · 품절 · 판매 상태는 판매할 수 있는 옵션의 값으로 정해 둔다.
+     */
+    public static RecommendReplicaProduct.OptionInfo productOptionInfo(
+        String size, Integer minHeightCm, Integer maxHeightCm) {
+        return productOptionInfo(size, minHeightCm, maxHeightCm, 25_000L);
+    }
+
+    /**
+     * {@link #productOptionInfo(String, Integer, Integer)}에서 판매가만 바꾼다.
+     */
+    public static RecommendReplicaProduct.OptionInfo productOptionInfo(
+        String size, Integer minHeightCm, Integer maxHeightCm, long price) {
+        return new RecommendReplicaProduct.OptionInfo(size, minHeightCm, maxHeightCm, price, false,
+            OptionSaleStatus.ON_SALE);
+    }
+
+    /**
+     * {@link #productOptionInfo(String, Integer, Integer)}에서 품절 여부와 옵션 판매 상태만 바꾼다. 권장 키는 105 ~ 115cm로 둔다.
+     */
+    public static RecommendReplicaProduct.OptionInfo productOptionInfo(
+        String size, boolean soldOut, OptionSaleStatus saleStatus) {
+        return new RecommendReplicaProduct.OptionInfo(size, 105, 115, 25_000L, soldOut, saleStatus);
     }
 }
