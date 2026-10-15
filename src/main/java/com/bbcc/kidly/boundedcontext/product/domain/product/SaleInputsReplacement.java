@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product.AddSizeSpecs
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.OptionInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SaleInputsInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SizeSpecInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product.UpdateResult;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
@@ -65,10 +66,11 @@ final class SaleInputsReplacement {
         return differsOptions(currentOptions) || differsSizeSpecs(currentSizeSpecs);
     }
 
-    // 지금 옵션 · 실측을 미리 만든 값으로 바꿔 넣는다
-    void replace(List<ProductOption> currentOptions, List<SizeSpec> currentSizeSpecs) {
-        replaceOptions(currentOptions);
+    // 지금 옵션 · 실측을 미리 만든 값으로 바꿔 넣고, 뺀 옵션과 받은 순서대로 짝지은 옵션을 알려 준다
+    UpdateResult replace(List<ProductOption> currentOptions, List<SizeSpec> currentSizeSpecs) {
+        UpdateResult result = replaceOptions(currentOptions);
         replaceSizeSpecs(currentSizeSpecs);
+        return result;
     }
 
     // 지금 옵션(보관 제외)과 다른지 본다. 값 조합이 같은 옵션은 SKU 코드와 판매가를 비교하고,
@@ -108,21 +110,26 @@ final class SaleInputsReplacement {
     }
 
     // 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 맞춘다. 미리 만든 옵션에 없는 옵션(보관 제외)은 빼고,
-    // 지금 없는 값 조합은 미리 만든 객체를 그대로 넣는다.
+    // 지금 없는 값 조합은 미리 만든 객체를 그대로 넣는다. 뺀 옵션과 받은 순서대로 짝지은 옵션을 돌려준다.
     // 판매대기 상품은 주문이 없어서 지워도 이 옵션을 가리키는 주문상품이 없다 (OPT-05)
-    private void replaceOptions(List<ProductOption> current) {
+    private UpdateResult replaceOptions(List<ProductOption> current) {
         Map<Set<AttributeValue>, ProductOption> bySet = activeBySet(current);
         List<ProductOption> added = new ArrayList<>();
+        List<ProductOption> requested = new ArrayList<>();
         for (ProductOption prepared : options) {
             ProductOption matched = bySet.remove(valueSet(prepared));
             if (matched == null) {
                 added.add(prepared);
+                requested.add(prepared);
                 continue;
             }
             matched.replaceSkuAndPrice(prepared.getSkuCode(), prepared.getPrice());
+            requested.add(matched);
         }
-        current.removeAll(bySet.values());
+        List<ProductOption> removed = new ArrayList<>(bySet.values());
+        current.removeAll(removed);
         current.addAll(added);
+        return new UpdateResult(true, removed, requested);
     }
 
     // 사이즈 값이 같은 실측은 객체를 그대로 두고 권장 키와 실측 값만 맞추고, 미리 만든 실측에 없는 사이즈의 실측은 빼고,

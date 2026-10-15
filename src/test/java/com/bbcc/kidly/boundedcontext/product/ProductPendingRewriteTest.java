@@ -29,14 +29,14 @@ class ProductPendingRewriteTest {
         ProductA productA = ProductUpdateFixture.salePendingProductA();
         List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
 
-        boolean changed = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+        Product.UpdateResult result = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
             List.of(
                 new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), "A-NV-110"),
                 new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size120()), "A-NV-120")),
             clothingPrice(27_000L),
             productA.currentSizeSpecs()));
 
-        assertThat(changed).isTrue();
+        assertThat(result.changed()).isTrue();
         assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
         assertThat(productA.product().getOptions())
             .extracting(ProductOption::getSkuCode, ProductOption::getPrice)
@@ -51,13 +51,33 @@ class ProductPendingRewriteTest {
         ProductA productA = ProductUpdateFixture.salePendingProductA();
         ProductOption navy110 = productA.product().getOptions().get(0);
 
-        boolean changed = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+        Product.UpdateResult result = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
             List.of(new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null)),
             clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
             List.of(productA.currentSizeSpecs().get(0))));
 
-        assertThat(changed).isTrue();
+        assertThat(result.changed()).isTrue();
         assertThat(productA.product().getOptions()).containsExactly(navy110);
+    }
+
+    @Test
+    @DisplayName("판매대기 상품의 옵션을 바꿔 넣으면 뺀 옵션과, 받은 옵션 순서대로 짝지은 옵션(남긴 옵션 · 새 옵션)을 돌려준다")
+    void returnRemovedAndRequestedOptions() {
+        ProductA productA = ProductUpdateFixture.salePendingProductA();
+        ProductOption navy110 = productA.product().getOptions().get(0);
+        ProductOption navy120 = productA.product().getOptions().get(1);
+
+        Product.UpdateResult result = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+            List.of(
+                new Product.OptionInfo(List.of(productA.clothing().oatmeal(), productA.clothing().size110()), null),
+                new Product.OptionInfo(List.of(productA.clothing().size110(), productA.clothing().navy()), null)),
+            clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+            List.of(productA.currentSizeSpecs().get(0))));
+
+        ProductOption oatmeal110 = productA.product().getOptions().get(1);
+        assertThat(result.changed()).isTrue();
+        assertThat(result.removedOptions()).containsExactly(navy120);
+        assertThat(result.requestedOptions()).containsExactly(oatmeal110, navy110);
     }
 
     @Test
@@ -66,7 +86,7 @@ class ProductPendingRewriteTest {
         ProductA productA = ProductUpdateFixture.salePendingProductA();
         List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
 
-        boolean changed = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+        Product.UpdateResult result = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
             List.of(
                 new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null),
                 new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size120()), null),
@@ -75,7 +95,7 @@ class ProductPendingRewriteTest {
             clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
             productA.currentSizeSpecs()));
 
-        assertThat(changed).isTrue();
+        assertThat(result.changed()).isTrue();
         assertThat(productA.product().getOptions()).hasSize(3).startsWith(optionsBefore.toArray(ProductOption[]::new));
         ProductOption added = productA.product().getOptions().get(2);
         assertThat(added.getValues()).extracting(ProductOptionValue::getAttributeValue)
@@ -95,12 +115,12 @@ class ProductPendingRewriteTest {
             "CHEST_WIDTH", new BigDecimal("35"),
             "SLEEVE_LENGTH", new BigDecimal("39"));
 
-        boolean changed = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+        Product.UpdateResult result = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
             List.of(new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null)),
             clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
             List.of(SizeSpecFixture.spec(productA.clothing().size110(), 104, 114, measurements))));
 
-        assertThat(changed).isTrue();
+        assertThat(result.changed()).isTrue();
         assertThat(productA.product().getSizeSpecs()).containsExactly(spec110);
         assertThat(spec110.getMinHeightCm()).isEqualTo(104);
         assertThat(spec110.getMaxHeightCm()).isEqualTo(114);
@@ -121,10 +141,10 @@ class ProductPendingRewriteTest {
         productA.product().update(productA.sameUpdate(),
             new Product.SaleInputsInfo(List.of(navy110), price, List.of(spec110)));
 
-        boolean changed = productA.product().update(productA.sameUpdate(),
+        Product.UpdateResult result = productA.product().update(productA.sameUpdate(),
             new Product.SaleInputsInfo(List.of(navy110, navy120), price, List.of(spec110, spec120)));
 
-        assertThat(changed).isTrue();
+        assertThat(result.changed()).isTrue();
         assertThat(productA.product().getSizeSpecs())
             .extracting(SizeSpec::getMinHeightCm, SizeSpec::getMaxHeightCm, SizeSpec::getMeasurements)
             .containsExactly(
@@ -184,14 +204,14 @@ class ProductPendingRewriteTest {
         ProductA productA = ProductUpdateFixture.salePendingProductA();
         ProductUpdateFixture.Shoes shoes = productA.shoes();
 
-        boolean changed = productA.product().update(productA.updateWithCategory(shoes.sneakers()),
+        Product.UpdateResult result = productA.product().update(productA.updateWithCategory(shoes.sneakers()),
             new Product.SaleInputsInfo(
                 List.of(new Product.OptionInfo(List.of(shoes.black(), shoes.size200()), null)),
                 clothingPrice(39_000L),
                 List.of(SizeSpecFixture.spec(
                     shoes.size200(), 100, 110, Map.of("FOOT_LENGTH", new BigDecimal("200"))))));
 
-        assertThat(changed).isTrue();
+        assertThat(result.changed()).isTrue();
         assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.SNEAKERS_ID);
         assertThat(productA.product().getOptions()).singleElement()
             .satisfies(option -> assertThat(option.getValues()).extracting(ProductOptionValue::getAttributeValue)
@@ -208,14 +228,14 @@ class ProductPendingRewriteTest {
         List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
         List<SizeSpec> sizeSpecsBefore = List.copyOf(productA.product().getSizeSpecs());
 
-        boolean changed = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
+        Product.UpdateResult result = productA.product().update(productA.sameUpdate(), new Product.SaleInputsInfo(
             List.of(
                 new Product.OptionInfo(List.of(productA.clothing().size120(), productA.clothing().navy()), null),
                 new Product.OptionInfo(List.of(productA.clothing().navy(), productA.clothing().size110()), null)),
             clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
             productA.currentSizeSpecs().reversed()));
 
-        assertThat(changed).isFalse();
+        assertThat(result.changed()).isFalse();
         assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
         assertThat(productA.product().getSizeSpecs()).containsExactlyElementsOf(sizeSpecsBefore);
     }

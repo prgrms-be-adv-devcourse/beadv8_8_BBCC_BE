@@ -84,6 +84,15 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
+     * 상품을 수정한 결과다. changed는 상품이 바뀌었는지, removedOptions는 옵션을 바꿔 넣으면서 뺀 옵션,
+     * requestedOptions는 받은 옵션과 같은 순서로 짝지은 옵션(남긴 옵션이거나 새로 넣은 옵션)이다.
+     * 옵션 · 가격 · 실측을 받지 않았으면 두 목록은 비어 있다.
+     */
+    public record UpdateResult(boolean changed, List<ProductOption> removedOptions,
+        List<ProductOption> requestedOptions) {
+    }
+
+    /**
      * 정보 항목 하나에 입력한 값이다. 목록 항목은 values에, 직접 입력 항목은 text에 값을 담는다.
      */
     public record InfoValueInfo(Attribute attribute, List<AttributeValue> values, String text) {
@@ -213,7 +222,7 @@ public class Product extends BaseTimeEntity {
     /**
      * 상품의 기본 정보와 정보 값을 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
      */
-    public boolean update(UpdateInfo info) {
+    public UpdateResult update(UpdateInfo info) {
         return update(info, null);
     }
 
@@ -221,7 +230,7 @@ public class Product extends BaseTimeEntity {
      * 기본 정보와 정보 값에 더해, 판매대기 상품이면 옵션 · 가격 · 실측도 받은 값으로 맞춘다. saleInputs가 null이면
      * 옵션과 실측은 그대로 둔다. 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 바꾼다.
      */
-    public boolean update(UpdateInfo info, SaleInputsInfo saleInputs) {
+    public UpdateResult update(UpdateInfo info, SaleInputsInfo saleInputs) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(info.infoValues(), "infoValues는 필수입니다");
         requireNonNull(info.sellerId(), "sellerId는 필수입니다");
@@ -257,17 +266,17 @@ public class Product extends BaseTimeEntity {
         }
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
         if (isSameAs(info) && !(replacement != null && replacement.differsFrom(options, sizeSpecs))) {
-            return false;
+            return new UpdateResult(false, List.of(), List.of());
         }
         // 바꿀 것이 있을 때만 version을 본다. 다른 화면이 먼저 고친 상품을 예전 값으로 덮어쓰지 않게 하기 위해서다
         if (!Objects.equals(info.version(), version)) {
             throw new BusinessException(ProductErrorCode.PRODUCT_VERSION_MISMATCH);
         }
         replaceInfo(info);
-        if (replacement != null) {
-            replacement.replace(options, sizeSpecs);
+        if (replacement == null) {
+            return new UpdateResult(true, List.of(), List.of());
         }
-        return true;
+        return replacement.replace(options, sizeSpecs);
     }
 
     // 기본 정보와 정보 값을 받은 값으로 바꾼다
