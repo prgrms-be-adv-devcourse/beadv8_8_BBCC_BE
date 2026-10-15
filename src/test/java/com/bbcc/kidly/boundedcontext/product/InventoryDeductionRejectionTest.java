@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.NAVY_110_ID;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.ORDER_ID;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.beforeSaleOptions;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.item;
@@ -13,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeduction
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -54,5 +56,23 @@ class InventoryDeductionRejectionTest {
         assertThat(rejection.failures())
             .extracting(InventoryDeductionRejection.Failure::orderItemId, InventoryDeductionRejection.Failure::reason)
             .containsExactly(tuple(12L, StockDeductionFailureCode.OPTION_NOT_ON_SALE));
+    }
+
+    @Test
+    @DisplayName("INV-11 재고가 모자란 옵션을 담은 주문상품은 모두 OUT_OF_STOCK로 거절하고, 다른 옵션의 주문상품은 담지 않는다")
+    void outOfStock() {
+        Options options = onSaleOptions();
+        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
+            item(11L, options.navy110(), 2),
+            item(12L, options.navy120(), 1),
+            item(13L, options.navy110(), 1)));
+
+        InventoryDeductionRejection rejection = request.shortageRejection(Set.of(NAVY_110_ID));
+
+        assertThat(rejection.failures())
+            .extracting(InventoryDeductionRejection.Failure::orderItemId, InventoryDeductionRejection.Failure::reason)
+            .containsExactly(
+                tuple(11L, StockDeductionFailureCode.OUT_OF_STOCK),
+                tuple(13L, StockDeductionFailureCode.OUT_OF_STOCK));
     }
 }

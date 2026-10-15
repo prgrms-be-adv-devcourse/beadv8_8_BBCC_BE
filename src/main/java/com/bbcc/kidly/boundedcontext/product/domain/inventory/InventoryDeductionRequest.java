@@ -121,6 +121,18 @@ public final class InventoryDeductionRequest {
         return new InventoryDeductionRejection(failures);
     }
 
+    // 재고가 모자라 거절한 요청의 사유를 만든다. 모자란 옵션을 담은 주문상품만 요청한 순서대로 담는다 (INV-11)
+    public InventoryDeductionRejection shortageRejection(Set<Long> shortOptionIds) {
+        List<InventoryDeductionRejection.Failure> failures = new ArrayList<>();
+        for (Item item : items) {
+            if (shortOptionIds.contains(item.option().getId())) {
+                failures.add(new InventoryDeductionRejection.Failure(
+                    item.orderItemId(), StockDeductionFailureCode.OUT_OF_STOCK));
+            }
+        }
+        return new InventoryDeductionRejection(failures);
+    }
+
     // 주문상품마다 DEDUCTED 차감 기록을 하나씩, 요청한 순서대로 만든다 (INV-04)
     public List<InventoryDeduction> deductedRecords() {
         List<InventoryDeduction> records = new ArrayList<>();
