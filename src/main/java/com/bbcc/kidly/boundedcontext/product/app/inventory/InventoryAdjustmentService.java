@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmen
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentRecord.AdjustInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -30,7 +31,11 @@ public class InventoryAdjustmentService {
     // 조건부 UPDATE가 영속성 컨텍스트를 비우므로 옵션은 그 전에 읽은 값만 쓴다
     @Transactional
     public InventoryAdjustmentResult adjust(long sellerId, long optionId, InventoryAdjustmentRequest request) {
-        ProductOption option = productRepository.findOptionsWithProduct(List.of(optionId)).get(0);
+        List<ProductOption> options = productRepository.findOptionsWithProduct(List.of(optionId));
+        if (options.isEmpty()) {
+            throw new BusinessException(ProductErrorCode.OPTION_NOT_FOUND);
+        }
+        ProductOption option = options.get(0);
         option.validateOwner(sellerId);
         InventoryAdjustmentReason reason = InventoryAdjustmentReason.valueOf(request.reason());
         int deltaQuantity = request.deltaQuantity();

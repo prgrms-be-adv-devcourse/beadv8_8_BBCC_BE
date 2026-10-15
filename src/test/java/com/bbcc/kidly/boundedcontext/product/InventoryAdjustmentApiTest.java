@@ -35,6 +35,7 @@ import org.springframework.test.web.servlet.client.RestTestClient.ResponseSpec;
 class InventoryAdjustmentApiTest {
 
     private static final long OTHER_SELLER_ID = 99L;
+    private static final long MISSING_OPTION_ID = 999_999L;
 
     @Autowired
     private RestTestClient client;
@@ -106,6 +107,14 @@ class InventoryAdjustmentApiTest {
 
         assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(5);
         assertThat(sellerAdjustments(option)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("없는 옵션의 재고를 조정하면 404로 거절한다")
+    void rejectMissingOption() {
+        expectProblem(
+            adjust(tokens.seller(SELLER_ID), MISSING_OPTION_ID, Map.of("deltaQuantity", 10, "reason", "RESTOCK")),
+            HttpStatus.NOT_FOUND, "옵션을 찾을 수 없습니다", "옵션을 다시 확인해 주세요.", MISSING_OPTION_ID);
     }
 
     static Stream<Arguments> invalidRequests() {

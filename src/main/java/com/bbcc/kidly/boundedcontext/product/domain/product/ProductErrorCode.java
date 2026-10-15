@@ -17,6 +17,7 @@ public enum ProductErrorCode implements ErrorCode {
         "같은 상품 유형의 카테고리로 바꿔 주세요."),
     MEASUREMENTS_MISSING_FOR_CATEGORY(HttpStatus.CONFLICT, "바꾸려는 카테고리의 필수 실측이 없습니다",
         "판매를 시작한 상품은 지금 실측으로 필수 실측 항목이 모두 채워지는 카테고리로만 바꿀 수 있습니다."),
+    OPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "옵션을 찾을 수 없습니다", "옵션을 다시 확인해 주세요."),
     MULTIPLE_VALUES_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "값을 하나만 고를 수 있는 항목입니다", "이 항목은 값을 하나만 고를 수 있습니다."),
     DUPLICATE_INFO_VALUE(HttpStatus.BAD_REQUEST, "같은 정보 값이 두 번 들어왔습니다", "같은 항목이나 값은 한 번만 넣을 수 있습니다."),
     REQUIRED_INFO_MISSING(HttpStatus.BAD_REQUEST, "필수 정보 항목이 비어 있습니다", "필수 정보 항목에 값을 넣어 주세요."),
