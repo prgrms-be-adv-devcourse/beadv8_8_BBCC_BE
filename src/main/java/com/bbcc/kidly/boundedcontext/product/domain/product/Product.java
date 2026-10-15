@@ -197,7 +197,7 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
-     * 상품의 기본 정보를 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
+     * 상품의 기본 정보와 정보 값을 받은 값으로 바꾸고, 바뀐 것이 있는지 돌려준다. 썸네일은 null로 보내면 지운다.
      */
     public boolean update(UpdateInfo info) {
         name = info.name();
@@ -205,6 +205,9 @@ public class Product extends BaseTimeEntity {
         description = info.description();
         thumbnailUrl = info.thumbnailUrl();
         imageUrls = new ArrayList<>(info.imageUrls());
+        // 정보 값은 받은 값으로 통째로 바꾸므로 이전 행을 모두 빼고 받은 값으로 다시 만든다
+        infoValues.clear();
+        infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
         return true;
     }
 

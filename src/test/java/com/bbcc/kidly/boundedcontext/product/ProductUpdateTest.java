@@ -4,8 +4,10 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.cottonMaterial;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +40,31 @@ class ProductUpdateTest {
         assertThat(product.getDescription()).isEqualTo("새 설명");
         assertThat(product.getThumbnailUrl()).isNull();
         assertThat(product.getImageUrls()).containsExactly("https://…/a-2.jpg", "https://…/a-3.jpg");
+    }
+
+    @Test
+    @DisplayName("정보 항목 값을 받은 값으로 통째로 바꾼다. 받지 않은 이전 값은 남지 않는다")
+    void replaceInfoValues() {
+        boolean changed = product.update(sameBasicsWith(List.of(
+            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.linen()), null),
+            new Product.InfoValueInfo(clothing.feature(), List.of(clothing.brushed(), clothing.stretch()), null),
+            new Product.InfoValueInfo(clothing.fabricComposition(), List.of(), "면 95%, 폴리우레탄 5%"))));
+
+        assertThat(changed).isTrue();
+        assertThat(product.getInfoValues())
+            .extracting(
+                ProductInfoValue::getAttribute, ProductInfoValue::getAttributeValue, ProductInfoValue::getTextValue)
+            .containsExactly(
+                tuple(clothing.mainMaterial(), clothing.linen(), null),
+                tuple(clothing.feature(), clothing.brushed(), null),
+                tuple(clothing.feature(), clothing.stretch(), null),
+                tuple(clothing.fabricComposition(), null, "면 95%, 폴리우레탄 5%"));
+    }
+
+    // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
+    private Product.UpdateInfo sameBasicsWith(List<Product.InfoValueInfo> infoValues) {
+        return new Product.UpdateInfo(SELLER_ID, VERSION, category, registered.name(), registered.brand(),
+            registered.description(), registered.thumbnailUrl(), registered.imageUrls(), infoValues);
     }
 
     // 저장하지 않은 상품은 version이 없으므로 마지막으로 읽은 값을 넣어 둔다
