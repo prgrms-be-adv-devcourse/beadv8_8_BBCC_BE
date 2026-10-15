@@ -5,6 +5,8 @@ import com.bbcc.kidly.boundedcontext.recommend.in.recommended.dto.RecommendedPro
 import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,8 +27,8 @@ public class RecommendedProductController {
         @LoginMember AuthMember member,
         @PathVariable Long childId,
         @RequestParam(required = false) Long categoryId,
-        @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "20") int size) {
+        @RequestParam(defaultValue = "0") @Min(0) int page,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return PageResponse.from(
             recommendedProductService.list(member.id(), childId, categoryId, page, size)
                 .map(RecommendedProductResponse::from));
