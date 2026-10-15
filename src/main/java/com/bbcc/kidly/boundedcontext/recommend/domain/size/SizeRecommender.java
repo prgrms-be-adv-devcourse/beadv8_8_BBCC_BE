@@ -46,8 +46,17 @@ public class SizeRecommender {
         return SizeRecommendation.recommended(
                 recommendedRange.size(),
                 fitOf(recommendedRange, childHeight, bodyType),
-                noticesFor(bodyTypeDecision, candidates, recommendedRange, childSizeInput)
+                noticesFor(bodyTypeDecision, candidates, recommendedRange, childSizeInput),
+                sizesOf(candidates)
         );
+    }
+
+    private List<String> sizesOf(List<SizeRange> sizeRanges) {
+        List<String> sizes = new ArrayList<>();
+        for (SizeRange sizeRange : sizeRanges) {
+            sizes.add(sizeRange.size());
+        }
+        return sizes;
     }
 
     private BodyTypeDecision decideBodyType(ChildSizeInput childSizeInput, LocalDate today) {
