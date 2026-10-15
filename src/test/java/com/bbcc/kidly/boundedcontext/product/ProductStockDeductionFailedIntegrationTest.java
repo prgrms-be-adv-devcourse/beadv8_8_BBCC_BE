@@ -93,6 +93,25 @@ class ProductStockDeductionFailedIntegrationTest {
                     tuple(12L, StockDeductionFailureCode.OUT_OF_STOCK)));
     }
 
+    @Test
+    @DisplayName("INV-13 판매중이 아닌 상품의 주문이면 재고를 줄이지 않고 PRODUCT_NOT_ON_SALE를 담은 재고 부족함을 한 번 보낸다")
+    void publishStockDeductionFailedWhenProductIsNotOnSale() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        inventoryDeductionDb.stopSale(options.navy110());
+
+        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.countByStatus("FAILED")).isEqualTo(1);
+        assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).singleElement()
+            .satisfies(failed -> {
+                assertThat(failed.data().reason()).isEqualTo(StockDeductionFailureCode.PRODUCT_NOT_ON_SALE);
+                assertThat(failed.data().failures())
+                    .extracting(StockDeductionFailedEvent.Failure::orderItemId, StockDeductionFailedEvent.Failure::reason)
+                    .containsExactly(tuple(11L, StockDeductionFailureCode.PRODUCT_NOT_ON_SALE));
+            });
+    }
+
     // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다
     private void publishInTransaction(OrderCreatedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));

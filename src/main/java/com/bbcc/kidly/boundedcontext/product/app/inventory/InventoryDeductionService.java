@@ -42,9 +42,9 @@ public class InventoryDeductionService {
         if (request == null || shouldSkip(request, data)) {
             return;
         }
-        // 판매중이 아닌 옵션의 주문은 재고를 줄이지 않아야 하므로, 차감하기 전에 판단한다
+        // 판매중이 아닌 옵션의 주문은 재고를 줄이지 않아야 하므로, 차감하기 전에 판단하고 재고 부족함을 보낸다
         if (!request.isPurchasable()) {
-            recordFailed(request, data);
+            recordRejected(request, request.notOnSaleRejection(), data);
             return;
         }
         try {
@@ -58,16 +58,8 @@ public class InventoryDeductionService {
         }
     }
 
-    // FAILED 기록을 새 트랜잭션으로 저장한다. 같은 이벤트를 다른 쪽이 먼저 처리했으면 기록이 UNIQUE 제약에 막힌다
-    private void recordFailed(InventoryDeductionRequest request, OrderCreatedEvent.Data data) {
-        try {
-            inventoryDeductionRecorder.recordFailed(request);
-        } catch (DataIntegrityViolationException e) {
-            logIntegrityViolation(e, data);
-        }
-    }
-
-    // FAILED 기록과 재고 부족함을 새 트랜잭션으로 저장한다. 기록이 UNIQUE 제약에 막히면 재고 부족함도 나가지 않는다
+    // FAILED 기록과 재고 부족함을 새 트랜잭션으로 저장한다. 같은 이벤트를 다른 쪽이 먼저 처리했으면 기록이 UNIQUE 제약에 막히고,
+    // 그러면 재고 부족함도 나가지 않는다
     private void recordRejected(
         InventoryDeductionRequest request, InventoryDeductionRejection rejection, OrderCreatedEvent.Data data) {
         try {
