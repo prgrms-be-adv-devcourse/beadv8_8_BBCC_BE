@@ -8,6 +8,8 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.TODAY;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWith;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWithHeight;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplica;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplicaWith;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOptionInfo;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommender;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -17,9 +19,12 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class RecommendedProductSelectorTest {
 
@@ -54,6 +59,24 @@ class RecommendedProductSelectorTest {
         ChildSizeInput child = childSizeInputWithHeight(160.0);
         RecommendReplicaProduct product = productAReplica();
         assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize()).isNull();
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).isEmpty();
+    }
+
+    @ParameterizedTest(name = "품절 {0}, 옵션 판매 상태 {1}")
+    @CsvSource({
+        "true, ON_SALE",
+        "false, STOPPED",
+    })
+    @DisplayName("추천 사이즈가 판매 가능하지 않으면 목록에서 뺀다")
+    void excludeProductWhenRecommendedSizeIsNotSellable(boolean soldOut, OptionSaleStatus saleStatus) {
+        // 상품에는 권장 키 105 ~ 115cm인 110 옵션 하나만 있어, 키 115cm 자녀의 추천 사이즈는 110이다
+        ChildSizeInput child = childSizeInputWithHeight(115.0);
+        RecommendReplicaProduct product = productAReplicaWith(List.of(productOptionInfo("110", soldOut, saleStatus)));
+        assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize())
+            .isEqualTo("110");
 
         List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
 

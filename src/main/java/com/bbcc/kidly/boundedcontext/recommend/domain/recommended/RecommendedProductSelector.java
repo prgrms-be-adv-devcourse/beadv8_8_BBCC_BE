@@ -26,7 +26,8 @@ public class RecommendedProductSelector {
         for (RecommendReplicaProduct product : products) {
             SizeRecommendation recommendation =
                     sizeRecommender.recommend(childSizeInput, product.toProductSizes(), today);
-            if (recommendation.getRecommendedSize() == null) {
+            String recommendedSize = recommendation.getRecommendedSize();
+            if (recommendedSize == null || !product.isSellable(recommendedSize)) {
                 continue;
             }
             selected.add(new RecommendedProduct(
@@ -35,7 +36,7 @@ public class RecommendedProductSelector {
                     product.getName(),
                     product.getThumbnailUrl(),
                     product.getMinPrice(),
-                    recommendation.getRecommendedSize()
+                    recommendedSize
             ));
         }
         return selected;

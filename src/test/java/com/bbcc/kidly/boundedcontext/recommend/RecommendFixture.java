@@ -240,6 +240,13 @@ public final class RecommendFixture {
     }
 
     /**
+     * {@link #productAReplica()}와 같은 상품 A의 복사본에서 옵션만 바꾼다.
+     */
+    public static RecommendReplicaProduct productAReplicaWith(List<RecommendReplicaProduct.OptionInfo> options) {
+        return RecommendReplicaProduct.create(productAChangeOf(false, options, PRODUCT_CHANGED_AT));
+    }
+
+    /**
      * 판매 중인 상품 A의 상품 정보 변경됨이다. {@link #productAChange()}와 같은 값을 이벤트 칸에 담는다.
      */
     public static ProductChangedEvent productAChangedEvent() {
