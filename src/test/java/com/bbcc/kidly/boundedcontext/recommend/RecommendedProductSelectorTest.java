@@ -1,0 +1,185 @@
+package com.bbcc.kidly.boundedcontext.recommend;
+
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_NAME;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_REGISTERED_AT;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.TODAY;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWith;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWithHeight;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplica;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplicaWith;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplicaWithStatus;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productASizeFreeReplica;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productReplicaRegisteredAt;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOptionInfo;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommender;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductSelector;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+
+class RecommendedProductSelectorTest {
+
+    private final RecommendedProductSelector selector = new RecommendedProductSelector(recommender());
+
+    @Test
+    @DisplayName("맞는 사이즈가 있고 그 사이즈를 판매할 수 있는 상품은 추천 사이즈와 함께 목록에 담는다")
+    void selectProductWithSellableRecommendedSize() {
+        // 키 115cm는 110과 120 두 후보에 들고, 선호 핏이 슬림이라 둘 중 하나가 골라진다
+        ChildSizeInput child = childSizeInputWith(115.0, 20.0, BodyType.NORMAL, PreferredFit.SLIM);
+        // 상품 A의 옵션 110과 120은 모두 판매가 25,000원이라 최저가도 25,000원이다
+        RecommendReplicaProduct product = productAReplica();
+        String expectedSize = recommender()
+            .recommend(child, product.toProductSizes(), TODAY)
+            .getRecommendedSize();
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).containsExactly(new RecommendedProduct(
+            PRODUCT_A_ID,
+            PRODUCT_A_SELLER_ID,
+            PRODUCT_A_NAME,
+            PRODUCT_A_THUMBNAIL_URL,
+            25_000L,
+            expectedSize));
+    }
+
+    @Test
+    @DisplayName("맞는 사이즈가 없는 상품은 목록에서 뺀다")
+    void excludeProductWithoutMatchingSize() {
+        // 키 160cm는 110(105 ~ 115cm)과 120(115 ~ 125cm) 모두에서 2cm보다 멀어 맞는 사이즈가 없다
+        ChildSizeInput child = childSizeInputWithHeight(160.0);
+        RecommendReplicaProduct product = productAReplica();
+        assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize()).isNull();
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).isEmpty();
+    }
+
+    @ParameterizedTest(name = "키 {0}cm, 110 품절 {1}, 110 판매 상태 {2}, 판매 가능한 120 옵션 {3}")
+    @CsvSource({
+        "115.0, true, ON_SALE, false",
+        "115.0, false, STOPPED, false",
+        "112.0, true, ON_SALE, true",
+        "112.0, false, STOPPED, true",
+    })
+    @DisplayName("추천 사이즈가 판매 가능하지 않으면 목록에서 뺀다")
+    void excludeProductWhenRecommendedSizeIsNotSellable(
+        double heightCm, boolean soldOut, OptionSaleStatus saleStatus, boolean withSellable120) {
+        // 110 옵션의 권장 키는 105 ~ 115cm이고 120 옵션의 권장 키는 115 ~ 125cm라, 두 키 모두 추천 사이즈가 110이다
+        // 판매 가능한 120 옵션을 더한 경우는 상품에 판매 가능한 옵션이 있어도 추천 사이즈를 팔 수 없으면 빼는지 확인한다
+        ChildSizeInput child = childSizeInputWithHeight(heightCm);
+        List<RecommendReplicaProduct.OptionInfo> options = new ArrayList<>();
+        options.add(productOptionInfo("110", soldOut, saleStatus));
+        if (withSellable120) {
+            options.add(productOptionInfo("120", 115, 125));
+        }
+        RecommendReplicaProduct product = productAReplicaWith(options);
+        assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize())
+            .isEqualTo("110");
+        assertThat(product.isSellable("110")).isFalse();
+        assertThat(product.hasSellableOption()).isEqualTo(withSellable120);
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).isEmpty();
+    }
+
+    @ParameterizedTest(name = "상품 판매 상태 {0}")
+    @EnumSource(value = ProductStatus.class, mode = EnumSource.Mode.EXCLUDE, names = "ON_SALE")
+    @DisplayName("상품 판매 상태가 판매중이 아니면 목록에서 뺀다")
+    void excludeProductNotOnSale(ProductStatus status) {
+        // 상품 판매 상태만 다르고, 맞는 사이즈가 있고 그 사이즈 옵션도 판매할 수 있는 상품이다
+        ChildSizeInput child = childSizeInputWithHeight(115.0);
+        RecommendReplicaProduct product = productAReplicaWithStatus(status);
+        String recommendedSize = recommender()
+            .recommend(child, product.toProductSizes(), TODAY)
+            .getRecommendedSize();
+        assertThat(recommendedSize).isNotNull();
+        assertThat(product.isSellable(recommendedSize)).isTrue();
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("사이즈 무관 상품은 판매 가능한 옵션이 있으면 추천 사이즈 없이 목록에 담는다")
+    void selectSizeFreeProductWithSellableOption() {
+        ChildSizeInput child = childSizeInputWithHeight(115.0);
+        RecommendReplicaProduct product = productASizeFreeReplica();
+        assertThat(product.hasSellableOption()).isTrue();
+        assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize()).isNull();
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).containsExactly(new RecommendedProduct(
+            PRODUCT_A_ID,
+            PRODUCT_A_SELLER_ID,
+            PRODUCT_A_NAME,
+            PRODUCT_A_THUMBNAIL_URL,
+            25_000L,
+            null));
+    }
+
+    @ParameterizedTest(name = "품절 {0}, 옵션 판매 상태 {1}")
+    @CsvSource({
+        "true, ON_SALE",
+        "false, STOPPED",
+    })
+    @DisplayName("사이즈 무관 상품은 판매 가능한 옵션이 하나도 없으면 목록에서 뺀다")
+    void excludeSizeFreeProductWithoutSellableOption(boolean soldOut, OptionSaleStatus saleStatus) {
+        ChildSizeInput child = childSizeInputWithHeight(115.0);
+        RecommendReplicaProduct product = productASizeFreeReplica(soldOut, saleStatus);
+        assertThat(product.hasSellableOption()).isFalse();
+
+        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("등록 시각이 늦은 상품이 목록에서 먼저 나온다")
+    void sortByRegisteredAtDescending() {
+        // 상품 ID 순서와 등록 시각 순서를 다르게 두어, ID로 정렬하면 이 테스트가 실패하게 한다
+        LocalDateTime oldest = PRODUCT_A_REGISTERED_AT;
+        RecommendReplicaProduct oldestProduct = productReplicaRegisteredAt(1L, oldest);
+        RecommendReplicaProduct newestProduct = productReplicaRegisteredAt(2L, oldest.plusDays(2));
+        RecommendReplicaProduct middleProduct = productReplicaRegisteredAt(3L, oldest.plusDays(1));
+
+        List<RecommendedProduct> result = selector.select(childSizeInputWithHeight(115.0),
+            List.of(oldestProduct, newestProduct, middleProduct), TODAY);
+
+        assertThat(result).extracting(RecommendedProduct::productId).containsExactly(2L, 3L, 1L);
+    }
+
+    @Test
+    @DisplayName("등록 시각이 같으면 상품 ID가 큰 상품이 목록에서 먼저 나온다")
+    void sortByProductIdDescendingWhenRegisteredAtIsSame() {
+        RecommendReplicaProduct smallestId = productReplicaRegisteredAt(1L, PRODUCT_A_REGISTERED_AT);
+        RecommendReplicaProduct largestId = productReplicaRegisteredAt(3L, PRODUCT_A_REGISTERED_AT);
+        RecommendReplicaProduct middleId = productReplicaRegisteredAt(2L, PRODUCT_A_REGISTERED_AT);
+
+        List<RecommendedProduct> result = selector.select(childSizeInputWithHeight(115.0),
+            List.of(smallestId, largestId, middleId), TODAY);
+
+        assertThat(result).extracting(RecommendedProduct::productId).containsExactly(3L, 2L, 1L);
+    }
+}

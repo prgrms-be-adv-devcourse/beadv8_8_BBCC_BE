@@ -233,6 +233,54 @@ public final class RecommendFixture {
     }
 
     /**
+     * {@link #productAChange()}로 만든 상품 A의 복사본이다. 110과 120 옵션 모두 판매할 수 있다.
+     */
+    public static RecommendReplicaProduct productAReplica() {
+        return RecommendReplicaProduct.create(productAChange());
+    }
+
+    /**
+     * {@link #productAReplica()}와 같은 상품 A의 복사본에서 옵션만 바꾼다.
+     */
+    public static RecommendReplicaProduct productAReplicaWith(List<RecommendReplicaProduct.OptionInfo> options) {
+        return RecommendReplicaProduct.create(productAChangeOf(false, options, PRODUCT_CHANGED_AT));
+    }
+
+    /**
+     * 사이즈 무관 상품으로 바꾼 상품 A의 복사본이다. 권장 키가 없는 FREE 옵션 하나만 있고, 판매가 25,000원에 판매할 수 있다.
+     */
+    public static RecommendReplicaProduct productASizeFreeReplica() {
+        return productASizeFreeReplica(false, OptionSaleStatus.ON_SALE);
+    }
+
+    /**
+     * {@link #productASizeFreeReplica()}에서 FREE 옵션의 품절 여부와 옵션 판매 상태만 바꾼다.
+     */
+    public static RecommendReplicaProduct productASizeFreeReplica(boolean soldOut, OptionSaleStatus saleStatus) {
+        return RecommendReplicaProduct.create(productAChangeOf(true,
+            List.of(new RecommendReplicaProduct.OptionInfo("FREE", null, null, 25_000L, soldOut, saleStatus)),
+            PRODUCT_CHANGED_AT));
+    }
+
+    /**
+     * {@link #productAReplica()}와 같은 상품 A의 복사본에서 상품 ID와 등록 시각만 바꾼다. 목록의 정렬 순서를 확인할 때 쓴다.
+     */
+    public static RecommendReplicaProduct productReplicaRegisteredAt(Long productId, LocalDateTime registeredAt) {
+        return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId,
+            PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE,
+            PRODUCT_A_THUMBNAIL_URL, registeredAt, false, productAChange().options(), PRODUCT_CHANGED_AT));
+    }
+
+    /**
+     * {@link #productAReplica()}와 같은 상품 A의 복사본에서 상품 판매 상태만 바꾼다. 110과 120 옵션은 그대로 판매할 수 있다.
+     */
+    public static RecommendReplicaProduct productAReplicaWithStatus(ProductStatus status) {
+        return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID,
+            PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, status, PRODUCT_A_THUMBNAIL_URL,
+            PRODUCT_A_REGISTERED_AT, false, productAChange().options(), PRODUCT_CHANGED_AT));
+    }
+
+    /**
      * 판매 중인 상품 A의 상품 정보 변경됨이다. {@link #productAChange()}와 같은 값을 이벤트 칸에 담는다.
      */
     public static ProductChangedEvent productAChangedEvent() {

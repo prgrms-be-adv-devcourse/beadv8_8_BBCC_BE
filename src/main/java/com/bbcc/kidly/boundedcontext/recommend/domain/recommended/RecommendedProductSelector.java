@@ -1,0 +1,67 @@
+package com.bbcc.kidly.boundedcontext.recommend.domain.recommended;
+
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * 상품 복사본 목록에서 아이에게 추천할 상품을 골라 추천 사이즈와 함께 돌려준다.
+ */
+@RequiredArgsConstructor
+public class RecommendedProductSelector {
+
+    // 상품 등록 시각이 늦은 상품이 먼저이고, 등록 시각이 같으면 상품 ID가 큰 상품이 먼저다
+    private static final Comparator<RecommendReplicaProduct> NEWEST_FIRST =
+            Comparator.comparing(RecommendReplicaProduct::getProductRegisteredAt)
+                    .thenComparing(RecommendReplicaProduct::getProductId)
+                    .reversed();
+
+    private final SizeRecommender sizeRecommender;
+
+    public List<RecommendedProduct> select(
+            ChildSizeInput childSizeInput,
+            List<RecommendReplicaProduct> products,
+            LocalDate today
+    ) {
+        List<RecommendReplicaProduct> newestFirst = new ArrayList<>(products);
+        newestFirst.sort(NEWEST_FIRST);
+        List<RecommendedProduct> selected = new ArrayList<>();
+        for (RecommendReplicaProduct product : newestFirst) {
+            if (product.getStatus() != ProductStatus.ON_SALE) {
+                continue;
+            }
+            if (product.isSizeFree()) {
+                if (product.hasSellableOption()) {
+                    selected.add(toRecommendedProduct(product, null));
+                }
+                continue;
+            }
+            SizeRecommendation recommendation =
+                    sizeRecommender.recommend(childSizeInput, product.toProductSizes(), today);
+            String recommendedSize = recommendation.getRecommendedSize();
+            if (recommendedSize == null || !product.isSellable(recommendedSize)) {
+                continue;
+            }
+            selected.add(toRecommendedProduct(product, recommendedSize));
+        }
+        return selected;
+    }
+
+    private RecommendedProduct toRecommendedProduct(RecommendReplicaProduct product, String recommendedSize) {
+        return new RecommendedProduct(
+                product.getProductId(),
+                product.getSellerId(),
+                product.getName(),
+                product.getThumbnailUrl(),
+                product.getMinPrice(),
+                recommendedSize
+        );
+    }
+}
