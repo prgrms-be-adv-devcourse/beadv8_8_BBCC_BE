@@ -14,4 +14,8 @@ public interface JpaProductRepository extends JpaRepository<Product, Long>, Prod
     @Override
     @Query("SELECT o FROM ProductOption o JOIN FETCH o.product WHERE o.id IN :optionIds")
     List<ProductOption> findOptionsWithProduct(@Param("optionIds") Collection<Long> optionIds);
+
+    @Override
+    @Query("SELECT o.skuCode FROM ProductOption o WHERE o.product.sellerId = :sellerId AND o.skuCode IN :skuCodes")
+    List<String> findSkuCodesInUse(@Param("sellerId") Long sellerId, @Param("skuCodes") Collection<String> skuCodes);
 }

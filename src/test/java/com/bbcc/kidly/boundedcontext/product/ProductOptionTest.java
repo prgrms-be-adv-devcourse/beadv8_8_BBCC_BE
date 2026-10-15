@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductOptionTest {
 
@@ -193,6 +194,18 @@ class ProductOptionTest {
         assertThatThrownBy(() -> product.addOptions(addOptions(List.of()), clothing.type()))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("비어 있을 수 없습니다");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"", " ", "\t", "　"})
+    @DisplayName("빈 문자열이나 공백만 있는 SKU 코드로는 옵션을 만들지 않는다")
+    void rejectBlankSkuCode(String blank) {
+        Product.OptionInfo option = new Product.OptionInfo(List.of(clothing.navy(), clothing.size110()), blank);
+
+        assertThatThrownBy(() -> product.addOptions(addOptions(List.of(option)), clothing.type()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("공백만으로");
+        assertThat(product.getOptions()).isEmpty();
     }
 
     @ParameterizedTest(name = "{0}")
