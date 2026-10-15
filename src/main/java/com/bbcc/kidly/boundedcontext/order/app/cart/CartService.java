@@ -27,6 +27,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CartService {
 
+    /**
+     * 한 줄 수량 상한(담기 · 수량 변경 · 주문하기 공통, #253). 요청 DTO의 @Max(99)와 같은 값.
+     * 담기 합산 상한은 담기 경로가 이 서비스 하나뿐이라 도메인(CartItem)을 바꾸지 않고 여기서 막는다.
+     */
+    static final int MAX_QUANTITY = 99;
+
     private final CartItemRepository cartItemRepository;
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
@@ -52,6 +58,9 @@ public class CartService {
         Optional<CartItem> sameLine = cartItemRepository.findByMemberIdAndOptionIdAndChildId(
             memberId, optionId, childId);
         if (sameLine.isPresent()) {
+            if (sameLine.get().getQuantity() + quantity > MAX_QUANTITY) {
+                throw new BusinessException(OrderErrorCode.INVALID_QUANTITY);
+            }
             sameLine.get().addQuantity(quantity);
             return new AddCartItemResult(toLine(sameLine.get(), product), false);
         }

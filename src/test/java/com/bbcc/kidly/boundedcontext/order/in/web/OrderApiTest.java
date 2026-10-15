@@ -32,6 +32,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -163,6 +164,28 @@ class OrderApiTest {
                     "shippingAddress", Map.of("recipientName", "", "phone", "", "zipCode", "", "address", "")))
                 .exchange()
                 .expectStatus().isBadRequest();
+        }
+
+        @ParameterizedTest(name = "주문 수량 {0} → {1}")
+        @CsvSource({"0, 400", "1, 201", "99, 201", "100, 400", "2147483647, 400"})
+        @DisplayName("주문 수량 경계(지금 단가 그대로): 1 · 99는 201, 0 · 100 · Integer.MAX_VALUE는 400(500 아님)")
+        void quantityBoundary(int quantity, int status) {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(orderBody("1", null, quantity, 25_000))
+                .exchange()
+                .expectStatus().isEqualTo(status);
+        }
+
+        @ParameterizedTest(name = "수량 {0} · 단가 {1} → {2}")
+        @CsvSource({"2147483647, 9223372036854775807, 400", "99, 9223372036854775807, 409"})
+        @DisplayName("요청 단가가 아주 커도(지금 단가와 다름) 수량 범위 밖이면 400, 수량이 맞으면 가격 비교로 409(금액 계산 전에 거절, 500 아님)")
+        void hugeUnitPriceIsRejectedBeforeAmount(int quantity, long unitPrice, int status) {
+            client.post().uri(ORDERS_PATH)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(orderBody("1", null, quantity, unitPrice))
+                .exchange()
+                .expectStatus().isEqualTo(status);
         }
 
         @Test

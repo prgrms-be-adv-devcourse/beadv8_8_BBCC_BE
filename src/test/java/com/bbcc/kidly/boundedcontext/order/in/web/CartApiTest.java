@@ -19,6 +19,9 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -239,6 +242,76 @@ class CartApiTest {
             .body(Map.of("quantity", 3))
             .exchange()
             .expectStatus().isBadRequest();
+    }
+
+    @ParameterizedTest(name = "담기 수량 {0} → 400")
+    @ValueSource(ints = {0, 100, Integer.MAX_VALUE})
+    @DisplayName("담기 수량이 1~99 밖이면 400(500 아님)")
+    void addOutOfRangeQuantityIsBadRequest(int quantity) {
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", "1", "quantity", quantity))
+            .exchange()
+            .expectStatus().isEqualTo(400);
+    }
+
+    @ParameterizedTest(name = "담기 수량 {0} → 201")
+    @ValueSource(ints = {1, 99})
+    @DisplayName("담기 수량 1 · 99는 담긴다")
+    void addBoundaryQuantityIsCreated(int quantity) {
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", "1", "quantity", quantity))
+            .exchange()
+            .expectStatus().isCreated()
+            .expectBody()
+            .jsonPath("$.quantity").isEqualTo(quantity);
+    }
+
+    @ParameterizedTest(name = "수량 변경 {0} → {1}")
+    @CsvSource({"0, 400", "1, 200", "99, 200", "100, 400", "2147483647, 400"})
+    @DisplayName("수량 변경 경계: 1 · 99는 200, 0 · 100 · Integer.MAX_VALUE는 400(500 아님)")
+    void changeQuantityBoundary(int quantity, int status) {
+        String cartItemId = addAndReadId();
+
+        client.patch().uri(CART_ITEMS_PATH + "/" + cartItemId)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("quantity", quantity))
+            .exchange()
+            .expectStatus().isEqualTo(status);
+    }
+
+    @Test
+    @DisplayName("같은 줄에 더해 98+1 = 99는 200, 99+1은 400이고 장바구니 줄은 99 그대로")
+    void mergeUpToMaxQuantity() {
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", "1", "quantity", 98))
+            .exchange()
+            .expectStatus().isCreated();
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", "1", "quantity", 1))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.quantity").isEqualTo(99);
+
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", "1", "quantity", 1))
+            .exchange()
+            .expectStatus().isEqualTo(400)
+            .expectBody()
+            .jsonPath("$.detail").isEqualTo("수량은 1 이상 99 이하여야 합니다.");
+
+        client.get().uri(CART_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(1)
+            .jsonPath("$.items[0].quantity").isEqualTo(99);
     }
 
     private String addAndReadId() {

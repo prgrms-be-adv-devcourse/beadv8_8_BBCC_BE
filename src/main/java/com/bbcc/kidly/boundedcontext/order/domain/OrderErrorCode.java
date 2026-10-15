@@ -16,7 +16,7 @@ public enum OrderErrorCode implements ErrorCode {
 
     EMPTY_ORDER_ITEMS(HttpStatus.BAD_REQUEST, "주문상품이 없습니다", "주문할 상품을 하나 이상 골라 주세요."),
     DUPLICATE_ORDER_ITEM(HttpStatus.BAD_REQUEST, "같은 주문상품이 두 번 있습니다", "같은 옵션 · 자녀 조합은 한 줄로 주문해 주세요."),
-    INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "잘못된 수량입니다", "수량은 1 이상이어야 합니다."),
+    INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "잘못된 수량입니다", "수량은 1 이상 99 이하여야 합니다."),
     INVALID_AMOUNT(HttpStatus.BAD_REQUEST, "잘못된 금액입니다", "금액은 0 이상이어야 합니다."),
     PRICE_CHANGED(HttpStatus.CONFLICT, "가격이 바뀌었습니다", "상품 가격이 바뀌었습니다. 다시 확인해 주세요."),
     PRODUCT_NOT_PURCHASABLE(HttpStatus.CONFLICT, "구매할 수 없는 상품입니다", "판매 중인 상품이 아닙니다."),

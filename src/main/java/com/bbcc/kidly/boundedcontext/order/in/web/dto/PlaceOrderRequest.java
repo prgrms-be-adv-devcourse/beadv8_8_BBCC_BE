@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.in.web.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -22,7 +23,7 @@ public record PlaceOrderRequest(
     public record Item(
         @NotNull Long optionId,
         Long childId,
-        @NotNull @Min(1) Integer quantity,
+        @NotNull @Min(1) @Max(99) Integer quantity,
         @NotNull @PositiveOrZero Long unitPrice) {
     }
 
