@@ -16,7 +16,8 @@ class MemberEventsTest {
     @Test
     @DisplayName("회원가입 이벤트는 member.registered이고 대상은 회원이다")
     void memberRegistered() {
-        assertContract(new MemberRegisteredEvent(EVENT_ID, NOW, new MemberRegisteredEvent.Data(1L)),
+        assertContract(
+            new MemberRegisteredEvent(EVENT_ID, NOW, new MemberRegisteredEvent.Data(1L, "member@example.com")),
             "member.registered", "1");
     }
 

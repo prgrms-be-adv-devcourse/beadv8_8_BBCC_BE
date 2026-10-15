@@ -33,7 +33,7 @@ public class MemberRegistrar {
         eventPublisher.publish(new MemberRegisteredEvent(
             UUID.randomUUID(),
             now,
-            new MemberRegisteredEvent.Data(member.getId())
+            new MemberRegisteredEvent.Data(member.getId(), member.getEmail())
         ));
 
         return member;

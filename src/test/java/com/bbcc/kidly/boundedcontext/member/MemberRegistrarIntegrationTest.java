@@ -44,6 +44,7 @@ class MemberRegistrarIntegrationTest {
             .hasValueSatisfying(found -> assertThat(found.getId()).isEqualTo(member.getId()));
         assertThat(events.stream(MemberRegisteredEvent.class)).singleElement().satisfies(event -> {
             assertThat(event.data().memberId()).isEqualTo(member.getId());
+            assertThat(event.data().email()).isEqualTo(MemberFixture.EMAIL);
             assertThat(event.eventId()).isNotNull();
             assertThat(event.occurredAt()).isNotNull();
         });

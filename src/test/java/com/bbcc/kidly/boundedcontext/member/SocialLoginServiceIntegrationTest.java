@@ -48,7 +48,10 @@ class SocialLoginServiceIntegrationTest {
         assertThat(memberRepository.findById(member.memberId())).isPresent();
         assertThat(events.stream(MemberRegisteredEvent.class))
             .singleElement()
-            .satisfies(event -> assertThat(event.data().memberId()).isEqualTo(member.memberId()));
+            .satisfies(event -> {
+                assertThat(event.data().memberId()).isEqualTo(member.memberId());
+                assertThat(event.data().email()).isEqualTo(FakeOAuthClient.EMAIL);
+            });
     }
 
     @Test
