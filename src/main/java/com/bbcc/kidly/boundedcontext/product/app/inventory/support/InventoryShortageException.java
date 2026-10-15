@@ -5,7 +5,15 @@ package com.bbcc.kidly.boundedcontext.product.app.inventory.support;
  */
 public class InventoryShortageException extends RuntimeException {
 
+    private final long optionId;
+
     public InventoryShortageException(long optionId, int qty) {
         super("옵션 " + optionId + "의 판매 가능 수량이 " + qty + "보다 적습니다");
+        this.optionId = optionId;
+    }
+
+    // 재고 부족함에 담을 거절 사유를 정하려고 모자란 옵션 ID를 꺼낸다
+    public long optionId() {
+        return optionId;
     }
 }

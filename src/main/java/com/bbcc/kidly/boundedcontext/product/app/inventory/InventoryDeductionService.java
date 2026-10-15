@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.product.app.inventory.support.InventoryDedu
 import com.bbcc.kidly.boundedcontext.product.app.inventory.support.InventoryDeductor;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.support.InventoryShortageException;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeduction;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRejection;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeductionRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,8 +22,9 @@ import org.springframework.stereotype.Service;
 
 /**
  * 주문 생성됨을 받아 주문상품마다 재고를 차감하는 흐름이다. 규칙 판단은 InventoryDeductionRequest가 하고,
- * 서비스는 읽기와 호출 순서만 맡는다. 트랜잭션은 InventoryDeductor와 InventoryDeductionRecorder가 각자 새로 열어서
- * 이 클래스에는 붙이지 않는다. 바깥(리스너) 트랜잭션에서는 쓰기나 잠금을 하지 않아야 한다.
+ * 서비스는 읽기와 호출 순서만 맡는다. 재고가 모자라 거절하면 재고 부족함을 보낸다.
+ * 트랜잭션은 InventoryDeductor와 InventoryDeductionRecorder가 각자 새로 열어서 이 클래스에는 붙이지 않는다.
+ * 바깥(리스너) 트랜잭션에서는 쓰기나 잠금을 하지 않아야 한다.
  * 바깥 트랜잭션이 잡은 잠금을 같은 스레드의 안쪽 새 트랜잭션이 기다리면 PostgreSQL이 교착으로 감지하지 못하고 멈추기 때문이다.
  */
 @Slf4j
@@ -48,8 +51,8 @@ public class InventoryDeductionService {
         try {
             inventoryDeductor.deduct(request);
         } catch (InventoryShortageException e) {
-            // 차감 트랜잭션은 이미 롤백됐다. 주문상품마다 FAILED 기록을 새 트랜잭션으로 남긴다
-            recordFailed(request, data);
+            // 차감 트랜잭션은 이미 롤백됐다. 주문상품마다 FAILED 기록을 새 트랜잭션으로 남기고 재고 부족함을 보낸다
+            recordRejected(request, request.shortageRejection(Set.of(e.optionId())), data);
         } catch (DataIntegrityViolationException e) {
             // 차감도 함께 롤백됐으므로 다시 시도하지 않는다
             logIntegrityViolation(e, data);
@@ -60,6 +63,16 @@ public class InventoryDeductionService {
     private void recordFailed(InventoryDeductionRequest request, OrderCreatedEvent.Data data) {
         try {
             inventoryDeductionRecorder.recordFailed(request);
+        } catch (DataIntegrityViolationException e) {
+            logIntegrityViolation(e, data);
+        }
+    }
+
+    // FAILED 기록과 재고 부족함을 새 트랜잭션으로 저장한다. 기록이 UNIQUE 제약에 막히면 재고 부족함도 나가지 않는다
+    private void recordRejected(
+        InventoryDeductionRequest request, InventoryDeductionRejection rejection, OrderCreatedEvent.Data data) {
+        try {
+            inventoryDeductionRecorder.recordRejected(request, rejection);
         } catch (DataIntegrityViolationException e) {
             logIntegrityViolation(e, data);
         }
