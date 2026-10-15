@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
@@ -138,10 +139,90 @@ class OrderSettingsTest {
     void malformedSchedulerIntervalFails() {
         new ApplicationContextRunner()
             .withUserConfiguration(SchedulerOnly.class)
-            .withPropertyValues("kidly.order.payment-expiry-interval=1분", "kidly.order.auto-confirm.interval=PT10M")
+            .withPropertyValues("kidly.order.payment-expiry-interval=1분", "kidly.order.auto-confirm.interval=PT10M",
+                "kidly.order.scheduler.batch-size=100", "kidly.order.scheduler.max-per-run=1000")
             .run(context -> assertThat(context).getFailure()
                 .hasStackTraceContaining("1분")
                 .rootCause().isNotInstanceOf(NullPointerException.class));
+    }
+
+    @Test
+    @DisplayName("스케줄러 건수: 환경변수가 없으면 order.yml 기본값 batch-size 100 · max-per-run 1000, 주면 그 값")
+    void schedulerCountsFromOrderYml() throws IOException {
+        assertThat(schedulerOf(withOrderYml(Map.of())))
+            .isEqualTo(new OrderSchedulerProperties(100, 1000));
+        assertThat(schedulerOf(withOrderYml(Map.of("ORDER_SCHEDULER_BATCH_SIZE", "2"))))
+            .isEqualTo(new OrderSchedulerProperties(2, 1000));
+        assertThat(schedulerOf(withOrderYml(Map.of("ORDER_SCHEDULER_MAX_PER_RUN", "5"))))
+            .isEqualTo(new OrderSchedulerProperties(100, 5));
+    }
+
+    @Test
+    @DisplayName("정책값(kidly.order)과 스케줄러 건수(kidly.order.scheduler)는 같은 접두어를 써도 서로의 키를 먹지 않고 함께 묶인다")
+    void sharedPrefixBindsBoth() {
+        appWithOrderYml(Map.of("ORDER_PAYMENT_TIMEOUT", "PT2M", "ORDER_SCHEDULER_BATCH_SIZE", "7"))
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(OrderPolicyProperties.class).toOrderPolicy())
+                    .isEqualTo(new Order.Policy(Duration.ofMinutes(2), Duration.ofDays(15)));
+                assertThat(context.getBean(OrderSchedulerProperties.class))
+                    .isEqualTo(new OrderSchedulerProperties(7, 1000));
+            });
+    }
+
+    @ParameterizedTest(name = "{0}={1} → 기동 실패, 메시지에 {2}")
+    @CsvSource({
+        "ORDER_SCHEDULER_BATCH_SIZE, '', batchSize",
+        "ORDER_SCHEDULER_BATCH_SIZE, 0, batchSize",
+        "ORDER_SCHEDULER_BATCH_SIZE, -1, batchSize",
+        "ORDER_SCHEDULER_BATCH_SIZE, 백, kidly.order.scheduler.batch-size",
+        "ORDER_SCHEDULER_MAX_PER_RUN, '', maxPerRun",
+        "ORDER_SCHEDULER_MAX_PER_RUN, 0, maxPerRun",
+        "ORDER_SCHEDULER_MAX_PER_RUN, -1, maxPerRun",
+        "ORDER_SCHEDULER_MAX_PER_RUN, 천, kidly.order.scheduler.max-per-run"
+    })
+    @DisplayName("스케줄러 건수가 비었거나 0 · 음수 · 숫자가 아니면 NPE가 아니라 키 이름이 나오는 바인딩 오류로 기동 실패")
+    void invalidSchedulerCountFails(String name, String value, String key) {
+        appWithOrderYml(Map.of(name, value))
+            .run(context -> assertThat(context).getFailure()
+                .hasStackTraceContaining("kidly.order.scheduler")
+                .hasStackTraceContaining(key)
+                .rootCause().isNotInstanceOf(NullPointerException.class));
+    }
+
+    @Test
+    @DisplayName("스케줄러 건수 값이 하나도 없으면 바인딩 오류로 기동 실패")
+    void missingSchedulerCountsFail() {
+        new ApplicationContextRunner()
+            .withUserConfiguration(SchedulerPropertiesOnly.class)
+            .run(context -> assertThat(context).getFailure()
+                .hasRootCauseInstanceOf(BindValidationException.class)
+                .rootCause().hasMessageContaining("kidly.order.scheduler").hasMessageContaining("batchSize"));
+    }
+
+    @Test
+    @DisplayName("max-per-run이 batch-size보다 1 작으면 기동 실패(두 키 이름), 같으면 통과")
+    void maxPerRunAtLeastBatchSize() {
+        new ApplicationContextRunner()
+            .withUserConfiguration(SchedulerPropertiesOnly.class)
+            .withPropertyValues("kidly.order.scheduler.batch-size=10", "kidly.order.scheduler.max-per-run=9")
+            .run(context -> assertThat(context).getFailure()
+                .hasRootCauseInstanceOf(BindValidationException.class)
+                .rootCause().hasMessageContaining("kidly.order.scheduler.max-per-run")
+                .hasMessageContaining("kidly.order.scheduler.batch-size"));
+        new ApplicationContextRunner()
+            .withUserConfiguration(SchedulerPropertiesOnly.class)
+            .withPropertyValues("kidly.order.scheduler.batch-size=10", "kidly.order.scheduler.max-per-run=10")
+            .run(context -> assertThat(context.getBean(OrderSchedulerProperties.class))
+                .isEqualTo(new OrderSchedulerProperties(10, 10)));
+    }
+
+    @EnableConfigurationProperties(OrderSchedulerProperties.class)
+    static class SchedulerPropertiesOnly {
+    }
+
+    private static OrderSchedulerProperties schedulerOf(StandardEnvironment environment) {
+        return Binder.get(environment).bind("kidly.order.scheduler", OrderSchedulerProperties.class).get();
     }
 
     @EnableConfigurationProperties(OrderPolicyProperties.class)
@@ -152,6 +233,7 @@ class OrderSettingsTest {
      * 스케줄러 표현식 해석만 확인한다. 주문 서비스는 빈 결과를 돌려주는 mock.
      */
     @EnableScheduling
+    @EnableConfigurationProperties(OrderSchedulerProperties.class)
     static class SchedulerOnly {
 
         @Bean
@@ -160,8 +242,8 @@ class OrderSettingsTest {
         }
 
         @Bean
-        OrderScheduler orderScheduler(OrderService orderService) {
-            return new OrderScheduler(orderService);
+        OrderScheduler orderScheduler(OrderService orderService, OrderSchedulerProperties properties) {
+            return new OrderScheduler(orderService, properties);
         }
     }
 
