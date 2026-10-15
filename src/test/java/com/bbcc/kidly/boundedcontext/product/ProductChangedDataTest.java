@@ -39,6 +39,9 @@ class ProductChangedDataTest {
     private static final long CATEGORY_ID = 5L;
     private static final long OPTION_110_ID = 11L;
     private static final long OPTION_120_ID = 12L;
+    private static final long NAVY_ID = 21L;
+    private static final long SIZE_110_ID = 22L;
+    private static final long SIZE_120_ID = 23L;
     private static final LocalDateTime REGISTERED_AT = LocalDateTime.of(2026, 10, 1, 9, 0);
 
     private final ClothingOptions clothing = clothingOptions();
@@ -61,13 +64,33 @@ class ProductChangedDataTest {
         ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(),
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 0));
 
-        assertThat(data).isEqualTo(new ProductChangedEvent.Data(
-            PRODUCT_ID, SELLER_ID, "상품 A", CATEGORY_ID, ProductStatus.ON_SALE, product.getThumbnailUrl(),
-            REGISTERED_AT, false, List.of(
-                new ProductChangedEvent.Option(OPTION_110_ID, "색상: 네이비 / 사이즈: 110", "110", CLOTHING_PRICE,
-                    105, 115, false, OptionSaleStatus.ON_SALE),
-                new ProductChangedEvent.Option(OPTION_120_ID, "색상: 네이비 / 사이즈: 120", "120", CLOTHING_PRICE,
-                    115, 125, true, OptionSaleStatus.ON_SALE))));
+        // 옵션 값과 상품 정보 값은 다른 테스트가 확인하므로 여기서는 비교하지 않는다
+        assertThat(data).usingRecursiveComparison().ignoringFields("infoValues", "options.values")
+            .isEqualTo(new ProductChangedEvent.Data(
+                PRODUCT_ID, SELLER_ID, "상품 A", CATEGORY_ID, ProductStatus.ON_SALE, product.getThumbnailUrl(),
+                REGISTERED_AT, false, List.of(
+                    new ProductChangedEvent.Option(OPTION_110_ID, "색상: 네이비 / 사이즈: 110", "110", CLOTHING_PRICE,
+                        105, 115, false, OptionSaleStatus.ON_SALE),
+                    new ProductChangedEvent.Option(OPTION_120_ID, "색상: 네이비 / 사이즈: 120", "120", CLOTHING_PRICE,
+                        115, 125, true, OptionSaleStatus.ON_SALE))));
+    }
+
+    @Test
+    @DisplayName("SALE-08 옵션마다 옵션 값 조합을 항목 코드 · 값 ID · 값으로 담는다")
+    void carryOptionValuesWithCodes() {
+        withOptionsAndSizeSpecs110And120();
+        ReflectionTestUtils.setField(clothing.navy(), "id", NAVY_ID);
+        ReflectionTestUtils.setField(clothing.size110(), "id", SIZE_110_ID);
+        ReflectionTestUtils.setField(clothing.size120(), "id", SIZE_120_ID);
+
+        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(),
+            Map.of(OPTION_110_ID, 10, OPTION_120_ID, 10));
+
+        assertThat(data.options()).extracting(ProductChangedEvent.Option::values).containsExactly(
+            List.of(new ProductChangedEvent.AttributeEntry("COLOR", NAVY_ID, "네이비"),
+                new ProductChangedEvent.AttributeEntry("SIZE", SIZE_110_ID, "110")),
+            List.of(new ProductChangedEvent.AttributeEntry("COLOR", NAVY_ID, "네이비"),
+                new ProductChangedEvent.AttributeEntry("SIZE", SIZE_120_ID, "120")));
     }
 
     @Test

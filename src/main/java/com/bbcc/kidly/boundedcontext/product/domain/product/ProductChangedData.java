@@ -50,7 +50,18 @@ public final class ProductChangedData {
         boolean soldOut = availableQtyByOptionId.getOrDefault(option.getId(), 0) <= 0;
         return new ProductChangedEvent.Option(
             option.getId(), option.getName(), size, option.getPrice(), minHeightCm, maxHeightCm, soldOut,
-            toSaleStatus(option.getSaleStatus()));
+            toSaleStatus(option.getSaleStatus()), toOptionValueEntries(option));
+    }
+
+    // 옵션 값 조합을 항목 코드 · 값 ID · 값으로 옮긴다. 옵션 값은 모두 목록 값이라 값 ID가 있다
+    private static List<ProductChangedEvent.AttributeEntry> toOptionValueEntries(ProductOption option) {
+        List<ProductChangedEvent.AttributeEntry> entries = new ArrayList<>();
+        for (ProductOptionValue value : option.getValues()) {
+            AttributeValue attributeValue = value.getAttributeValue();
+            entries.add(new ProductChangedEvent.AttributeEntry(
+                value.getAttribute().getCode(), attributeValue.getId(), attributeValue.getName()));
+        }
+        return entries;
     }
 
     // 상품 안의 옵션 상태를 이벤트의 판매 상태로 바꾼다. 상품 안에 상태가 늘면 컴파일 오류로 이곳을 고치게 한다
