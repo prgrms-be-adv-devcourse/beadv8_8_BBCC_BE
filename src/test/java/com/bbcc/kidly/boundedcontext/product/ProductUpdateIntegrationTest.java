@@ -11,7 +11,10 @@ import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measur
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryOpening;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
@@ -40,6 +43,9 @@ class ProductUpdateIntegrationTest {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private InventoryRepository inventoryRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -104,6 +110,37 @@ class ProductUpdateIntegrationTest {
         assertThat(version(productId)).isEqualTo(before + 1);
     }
 
+    @Test
+    @DisplayName("판매대기 상품에서 뺀 옵션의 재고 행과 재고 조정 기록을 지우면, 같은 트랜잭션에서 옵션을 지워도 FK 오류 없이 저장된다")
+    void deleteInventoryOfRemovedOptions() {
+        Long productId = savedProductA();
+        List<Long> optionIds = optionIds(productId);
+        inTransaction(() -> {
+            for (ProductOption option : productRepository.findById(productId).orElseThrow().getOptions()) {
+                inventoryRepository.saveOpening(InventoryOpening.open(option, 10, SELLER_ID));
+            }
+        });
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            Product.UpdateResult result = product.update(sameBasicsWith(product, currentInfoValues()), onlyNavy110());
+            inventoryRepository.deleteByOptionIds(result.removedOptions().stream().map(ProductOption::getId).toList());
+        });
+
+        assertThat(rowCount("product.inventory", optionIds.get(1))).isZero();
+        assertThat(rowCount("product.inventory_adjustment_record", optionIds.get(1))).isZero();
+        assertThat(rowCount("product.inventory", optionIds.get(0))).isOne();
+        assertThat(rowCount("product.inventory_adjustment_record", optionIds.get(0))).isOne();
+    }
+
+    // 상품 A의 옵션 · 실측을 네이비 · 110 하나로 바꿔 넣는 값이다
+    private Product.SaleInputsInfo onlyNavy110() {
+        return new Product.SaleInputsInfo(
+            List.of(option(managed(clothing.navy()), managed(clothing.size110()))),
+            ProductOptionFixture.clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+            List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements())));
+    }
+
     // 상품 A의 기본 정보와 카테고리는 그대로 두고 정보 값만 받은 값으로 보내는 수정 값이다
     private Product.UpdateInfo sameBasicsWith(Product product, List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, product.getVersion(), managedCategory(), product.getName(),
@@ -166,6 +203,11 @@ class ProductUpdateIntegrationTest {
 
     private AttributeValue managed(AttributeValue value) {
         return entityManager.find(AttributeValue.class, value.getId());
+    }
+
+    private long rowCount(String table, Long optionId) {
+        return jdbcTemplate.queryForObject(
+            "select count(*) from " + table + " where product_option_id = ?", Long.class, optionId);
     }
 
     private long version(Long productId) {
