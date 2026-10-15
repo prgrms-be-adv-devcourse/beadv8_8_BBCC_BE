@@ -65,6 +65,11 @@ public final class InventoryDeductionRequest {
         return sums;
     }
 
+    // 재고 차감됨 이벤트에 담을 주문 ID를 돌려준다
+    public long orderId() {
+        return orderId;
+    }
+
     // 같은 주문 생성됨을 다시 받았는지를 주문상품의 기존 차감 기록으로 판단한다 (INV-10)
     // existingRecords는 이 요청의 주문상품 ID로 조회한 기록이어야 한다. 요청에 없는 주문상품의 기록은 보지 않는다
     public boolean isAlreadyHandled(List<InventoryDeduction> existingRecords) {
