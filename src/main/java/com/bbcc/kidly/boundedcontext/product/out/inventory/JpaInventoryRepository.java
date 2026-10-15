@@ -77,4 +77,23 @@ public interface JpaInventoryRepository extends JpaRepository<Inventory, Long>, 
         }
         return availableQtyByOptionId;
     }
+
+    @Override
+    default void deleteByOptionIds(Collection<Long> optionIds) {
+        if (optionIds.isEmpty()) {
+            return;
+        }
+        deleteAdjustmentRecordsOfOptions(optionIds);
+        deleteInventoriesOfOptions(optionIds);
+    }
+
+    // 조정 기록을 먼저 지우고 재고 행을 지운다. 쿼리 전에 영속성 컨텍스트를 먼저 쓰지 않고 쿼리 뒤에도 비우지 않는다.
+    // 호출한 쪽이 뺀 옵션의 삭제를 아직 쓰지 않았을 때 먼저 쓰면, 재고 행이 남은 채 옵션이 지워져 외래키 오류가 나기 때문이다
+    @Modifying
+    @Query("DELETE FROM InventoryAdjustmentRecord r WHERE r.productOption.id IN :optionIds")
+    void deleteAdjustmentRecordsOfOptions(@Param("optionIds") Collection<Long> optionIds);
+
+    @Modifying
+    @Query("DELETE FROM Inventory i WHERE i.productOption.id IN :optionIds")
+    void deleteInventoriesOfOptions(@Param("optionIds") Collection<Long> optionIds);
 }

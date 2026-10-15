@@ -171,18 +171,21 @@ public class Product extends BaseTimeEntity {
     @Version
     private Long version;
 
-    // DB에서 다시 읽어도 입력한 순서를 지키려고 id 순으로 읽는다
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    // DB에서 다시 읽어도 입력한 순서를 지키려고 id 순으로 읽는다. 상품을 고칠 때 받지 않은 정보 값은 행까지 지우고,
+    // 정보 값만 바꿔도 version이 오르도록 version 검사에 포함한다
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OptimisticLock(excluded = false)
     @OrderBy("id ASC")
     private List<ProductInfoValue> infoValues = new ArrayList<>();
 
-    // mappedBy 컬렉션은 Hibernate가 version 검사에서 빼므로, 옵션 · 실측(아래)만 추가해도 version이 오르도록 포함한다
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    // mappedBy 컬렉션은 Hibernate가 version 검사에서 빼므로, 옵션 · 실측(아래)만 추가해도 version이 오르도록 포함한다.
+    // 판매대기 상품을 고칠 때 목록에서 뺀 옵션 · 실측은 행까지 지운다
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OptimisticLock(excluded = false)
     @OrderBy("id ASC")
     private List<ProductOption> options = new ArrayList<>();
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OptimisticLock(excluded = false)
     @OrderBy("id ASC")
     private List<SizeSpec> sizeSpecs = new ArrayList<>();

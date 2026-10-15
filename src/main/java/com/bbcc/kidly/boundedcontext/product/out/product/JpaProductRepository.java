@@ -29,4 +29,12 @@ public interface JpaProductRepository extends JpaRepository<Product, Long>, Prod
     @Override
     @Query("SELECT o.skuCode FROM ProductOption o WHERE o.product.sellerId = :sellerId AND o.skuCode IN :skuCodes")
     List<String> findSkuCodesInUse(@Param("sellerId") Long sellerId, @Param("skuCodes") Collection<String> skuCodes);
+
+    @Override
+    @Query("""
+        SELECT o.skuCode FROM ProductOption o
+        WHERE o.product.sellerId = :sellerId AND o.product.id <> :productId AND o.skuCode IN :skuCodes
+        """)
+    List<String> findSkuCodesInUseByOtherProducts(@Param("sellerId") Long sellerId,
+        @Param("productId") Long productId, @Param("skuCodes") Collection<String> skuCodes);
 }

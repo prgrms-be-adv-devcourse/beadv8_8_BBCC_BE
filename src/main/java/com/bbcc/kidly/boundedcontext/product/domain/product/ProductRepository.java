@@ -28,4 +28,12 @@ public interface ProductRepository {
     // 판매자의 옵션이 이미 쓰는 SKU 코드 중 skuCodes에 든 것을 돌려준다.
     // 옵션의 판매 상태(판매중 · 판매중지 · 보관)와 상관없이 찾는다. skuCodes가 비면 빈 목록을 돌려준다
     List<String> findSkuCodesInUse(Long sellerId, Collection<String> skuCodes);
+
+    // 판매자의 다른 상품 옵션이 이미 쓰는 SKU 코드 중 skuCodes에 든 것을 돌려준다. productId 상품 자신의 옵션은 빼고 찾는다.
+    // 상품을 고칠 때 그 상품이 이미 쓰는 SKU 코드를 다시 보내도 겹친다고 보지 않게 하기 위해서다
+    List<String> findSkuCodesInUseByOtherProducts(Long sellerId, Long productId, Collection<String> skuCodes);
+
+    // 상품 행의 칸이 바뀌지 않아도 부르는 즉시 version을 1 올린다. 다른 요청이 먼저 고쳐 version이 달라졌으면 그 자리에서 충돌한다.
+    // SKU 코드 · 판매가 · 실측처럼 자식 행만 바뀐 수정에서 version을 확실히 올리려고 쓴다
+    void incrementVersion(Product product);
 }

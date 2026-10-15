@@ -1,0 +1,282 @@
+package com.bbcc.kidly.boundedcontext.product;
+
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
+import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.addSizeSpecs;
+import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.spec;
+import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top110Measurements;
+import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measurements;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryOpening;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.support.IntegrationTest;
+import jakarta.persistence.EntityManager;
+import java.util.List;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * 상품 수정으로 바꾼 상품을 저장할 때의 매핑을 실제 PostgreSQL로 확인한다. 테스트에 @Transactional을 붙이지 않고,
+ * 저장한 뒤의 상태는 다른 트랜잭션에서 JdbcTemplate으로 읽는다.
+ * 상품 A는 판매대기 상의이고 옵션 네이비 · 110과 네이비 · 120, 두 사이즈의 실측, 주요소재 면이 있다.
+ */
+@IntegrationTest
+class ProductUpdateIntegrationTest {
+
+    private final ClothingOptions clothing = clothingOptions();
+    private Category category;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private InventoryRepository inventoryRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @DisplayName("정보 값만 바꿔 저장해도 상품의 version이 오르고, 받지 않은 정보 값 행은 DB에 남지 않는다")
+    void changeInfoValuesOnly() {
+        Long productId = savedProductA();
+        AttributeValue linen = AttributeValue.create(clothing.mainMaterial(), "린넨", null);
+        inTransaction(() -> entityManager.persist(linen));
+        long before = version(productId);
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            Attribute mainMaterial = entityManager.find(Attribute.class, clothing.mainMaterial().getId());
+            product.update(sameBasicsWith(product, List.of(
+                new Product.InfoValueInfo(mainMaterial, List.of(managed(linen)), null))));
+        });
+
+        assertThat(version(productId)).isGreaterThan(before);
+        assertThat(jdbcTemplate.queryForList(
+            "select attribute_value_id from product.product_info_value where product_id = ?", Long.class, productId))
+            .containsExactly(linen.getId());
+    }
+
+    @Test
+    @DisplayName("판매대기 상품의 옵션 · 실측을 바꿔 넣고 저장하면 뺀 옵션 · 옵션 값 · 실측 행은 지워지고 남긴 옵션의 ID는 그대로다")
+    void replaceSaleInputs() {
+        Long productId = savedProductA();
+        List<Long> optionIdsBefore = optionIds(productId);
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            product.update(sameBasicsWith(product, currentInfoValues()), new Product.SaleInputsInfo(
+                List.of(option(managed(clothing.navy()), managed(clothing.size110()))),
+                ProductOptionFixture.clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+                List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements()))));
+        });
+
+        assertThat(optionIds(productId)).containsExactly(optionIdsBefore.get(0));
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from product.product_option_value where product_option_id = ?", Long.class,
+            optionIdsBefore.get(1))).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from product.size_spec where product_id = ?", Long.class, productId)).isOne();
+    }
+
+    @Test
+    @DisplayName("version 올리기를 부르면 상품 행의 칸이 바뀌지 않아도 저장할 때 version이 1 오른다. SKU · 판매가 · 실측만 바뀐 수정에 쓴다")
+    void incrementVersion() {
+        Long productId = savedProductA();
+        long before = version(productId);
+
+        inTransaction(() -> productRepository.incrementVersion(productRepository.findById(productId).orElseThrow()));
+
+        assertThat(version(productId)).isEqualTo(before + 1);
+    }
+
+    @Test
+    @DisplayName("version 올리기는 부르는 즉시 version을 올려, 같은 트랜잭션에서 응답에 담을 상품의 version이 커밋된 값과 같다")
+    void incrementVersionImmediately() {
+        Long productId = savedProductA();
+        long[] versionInTransaction = new long[1];
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            productRepository.incrementVersion(product);
+            productRepository.saveAndFlush(product);
+            versionInTransaction[0] = product.getVersion();
+        });
+
+        assertThat(versionInTransaction[0]).isEqualTo(version(productId));
+    }
+
+    @Test
+    @DisplayName("version 올리기를 부를 때 다른 요청이 먼저 상품을 고쳐 version이 달라졌으면 그 자리에서 충돌한다")
+    void incrementVersionConflictsWithEarlierChange() {
+        Long productId = savedProductA();
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            jdbcTemplate.update("update product.product set version = version + 1 where id = ?", productId);
+
+            assertThatThrownBy(() -> productRepository.incrementVersion(product))
+                .isInstanceOf(OptimisticLockingFailureException.class);
+            status.setRollbackOnly();
+        });
+    }
+
+    @Test
+    @DisplayName("판매대기 상품에서 뺀 옵션의 재고 행과 재고 조정 기록을 지우면, 같은 트랜잭션에서 옵션을 지워도 FK 오류 없이 저장된다")
+    void deleteInventoryOfRemovedOptions() {
+        Long productId = savedProductA();
+        List<Long> optionIds = optionIds(productId);
+        inTransaction(() -> {
+            for (ProductOption option : productRepository.findById(productId).orElseThrow().getOptions()) {
+                inventoryRepository.saveOpening(InventoryOpening.open(option, 10, SELLER_ID));
+            }
+        });
+
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            Product.UpdateResult result = product.update(sameBasicsWith(product, currentInfoValues()), onlyNavy110());
+            inventoryRepository.deleteByOptionIds(result.removedOptions().stream().map(ProductOption::getId).toList());
+        });
+
+        assertThat(rowCount("product.inventory", optionIds.get(1))).isZero();
+        assertThat(rowCount("product.inventory_adjustment_record", optionIds.get(1))).isZero();
+        assertThat(rowCount("product.inventory", optionIds.get(0))).isOne();
+        assertThat(rowCount("product.inventory_adjustment_record", optionIds.get(0))).isOne();
+    }
+
+    @Test
+    @DisplayName("OPT-07 SKU 코드는 같은 판매자 안에서 겹치지 않아야 하므로, 고치는 상품 자신의 옵션이 쓰는 코드는 빼고 "
+        + "같은 판매자의 다른 상품이 쓰는 코드만 찾는다")
+    void findSkuCodesInUseByOtherProducts() {
+        Long productId = savedProductA();
+        jdbcTemplate.update("update product.product_option set sku_code = 'A-110' where id = ?",
+            optionIds(productId).get(0));
+        savedProductBWithSku("B-110");
+
+        List<String> inUse = new TransactionTemplate(transactionManager).execute(status -> productRepository
+            .findSkuCodesInUseByOtherProducts(SELLER_ID, productId, List.of("A-110", "B-110", "C-110")));
+
+        assertThat(inUse).containsExactly("B-110");
+    }
+
+    // 상품 A의 옵션 · 실측을 네이비 · 110 하나로 바꿔 넣는 값이다
+    private Product.SaleInputsInfo onlyNavy110() {
+        return new Product.SaleInputsInfo(
+            List.of(option(managed(clothing.navy()), managed(clothing.size110()))),
+            ProductOptionFixture.clothingPrice(ProductOptionFixture.CLOTHING_PRICE),
+            List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements())));
+    }
+
+    // 상품 A와 같은 판매자 · 카테고리의 상품 B를 SKU 코드가 있는 네이비 · 110 옵션 하나와 함께 저장한다
+    private void savedProductBWithSku(String skuCode) {
+        inTransaction(() -> {
+            Product productB = Product.register(ProductFixture.productAWithRequired(
+                SELLER_ID, managedCategory(), "상품 B", List.of("https://…/b-1.jpg"), currentInfoValues()));
+            productB.addOptions(new Product.AddOptionsInfo(SELLER_ID, List.of(
+                    new Product.OptionInfo(List.of(managed(clothing.navy()), managed(clothing.size110())), skuCode)),
+                ProductOptionFixture.clothingPrice(ProductOptionFixture.CLOTHING_PRICE)),
+                entityManager.find(ProductType.class, clothing.type().getId()));
+            productRepository.save(productB);
+        });
+    }
+
+    // 상품 A의 기본 정보와 카테고리는 그대로 두고 정보 값만 받은 값으로 보내는 수정 값이다
+    private Product.UpdateInfo sameBasicsWith(Product product, List<Product.InfoValueInfo> infoValues) {
+        return new Product.UpdateInfo(SELLER_ID, product.getVersion(), managedCategory(), product.getName(),
+            product.getBrand(), product.getDescription(), product.getThumbnailUrl(), product.getImageUrls(),
+            infoValues);
+    }
+
+    // 상품 A의 지금 정보 값(주요소재 면)과 같은 값이다
+    private List<Product.InfoValueInfo> currentInfoValues() {
+        Attribute mainMaterial = entityManager.find(Attribute.class, clothing.mainMaterial().getId());
+        return List.of(new Product.InfoValueInfo(mainMaterial, List.of(managed(clothing.cotton())), null));
+    }
+
+    private List<Long> optionIds(Long productId) {
+        return jdbcTemplate.queryForList(
+            "select id from product.product_option where product_id = ? order by id", Long.class, productId);
+    }
+
+    // 판매대기 상품 A를 옵션 · 실측과 함께 저장하고 ID를 돌려준다.
+    // 항목 · 목록 값 · 유형 · 카테고리 · 실측 항목은 cascade되지 않아 먼저 저장한다
+    private Long savedProductA() {
+        Product.RegisterInfo info = ProductFixture.productAWith(clothing.type(), List.of(
+            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
+        Product product = Product.register(info);
+        category = info.category();
+        product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.size110()),
+            option(clothing.navy(), clothing.size120()))), clothing.type());
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), 105, 115, top110Measurements()),
+            spec(clothing.size120(), 115, 125, top120Measurements()))), category, clothing.type());
+        inTransaction(() -> {
+            saveClothingType();
+            saveCategory(category);
+            productRepository.save(product);
+        });
+        return product.getId();
+    }
+
+    private void saveClothingType() {
+        Stream.of(clothing.cotton(), clothing.stripe(), clothing.size110(), clothing.navy())
+            .map(AttributeValue::getAttribute)
+            .forEach(entityManager::persist);
+        Stream.of(clothing.cotton(), clothing.navy(), clothing.oatmeal(), clothing.size110(), clothing.size120(),
+                clothing.sizeFree(), clothing.size105(), clothing.stripe())
+            .forEach(entityManager::persist);
+        entityManager.persist(clothing.type());
+    }
+
+    private void saveCategory(Category category) {
+        entityManager.persist(category.getParent());
+        category.getMeasurementItems().forEach(link -> entityManager.persist(link.getMeasurementItem()));
+        entityManager.persist(category);
+    }
+
+    // 카테고리와 목록 값은 객체 동일성으로 비교하므로, 상품을 읽은 트랜잭션에서 다시 읽은 객체를 넘긴다
+    private Category managedCategory() {
+        return entityManager.find(Category.class, category.getId());
+    }
+
+    private AttributeValue managed(AttributeValue value) {
+        return entityManager.find(AttributeValue.class, value.getId());
+    }
+
+    private long rowCount(String table, Long optionId) {
+        return jdbcTemplate.queryForObject(
+            "select count(*) from " + table + " where product_option_id = ?", Long.class, optionId);
+    }
+
+    private long version(Long productId) {
+        return jdbcTemplate.queryForObject("select version from product.product where id = ?", Long.class, productId);
+    }
+
+    private void inTransaction(Runnable work) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> work.run());
+    }
+}

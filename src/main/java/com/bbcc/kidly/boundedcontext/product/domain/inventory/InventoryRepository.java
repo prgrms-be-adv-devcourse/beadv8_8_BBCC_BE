@@ -28,4 +28,8 @@ public interface InventoryRepository {
 
     // 옵션 ID별 판매 가능 수량을 한 번에 읽는다. 재고 행이 없는 옵션은 결과에 없다
     Map<Long, Integer> findAvailableQtyByOptionId(Collection<Long> optionIds);
+
+    // 판매대기 상품에서 뺀 옵션의 재고 행과 재고 조정 기록을 지운다. 판매대기 상품은 주문이 없어 차감 기록이 없다.
+    // 옵션 ID가 비어 있으면 아무것도 하지 않는다
+    void deleteByOptionIds(Collection<Long> optionIds);
 }
