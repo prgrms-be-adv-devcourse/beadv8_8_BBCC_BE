@@ -35,7 +35,7 @@ public class AdminSettlementController {
         @LoginMember AuthMember admin, @Valid @RequestBody SettlementRunRequest request,
         HttpServletResponse response) {
         var run = settlementRunService.runManually(request.cutoffOn(), admin.id());
-        response.setHeader(HttpHeaders.LOCATION, "/api/v1/admin/settlement-runs/" + run.id());
+        response.setHeader(HttpHeaders.LOCATION, "/api/v1/admin/settlement-runs/" + run.runId());
         return SettlementRunResponse.from(run);
     }
 

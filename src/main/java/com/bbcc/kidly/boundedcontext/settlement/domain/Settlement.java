@@ -103,14 +103,20 @@ public class Settlement extends BaseTimeEntity {
         Assert.isTrue(!periodStartOn.isAfter(periodEndOn), "정산 시작일은 종료일보다 늦을 수 없습니다");
         var total = requireNonNull(info.totalSalesAmount(), "totalSalesAmount는 필수입니다");
         Assert.isTrue(total >= 0, "판매 합계는 0 이상이어야 합니다");
-        var feeRate = requireNonNull(info.feeRate(), "feeRate는 필수입니다");
+        var feeRate = info.feeRate();
+        validateFeeRate(feeRate);
+        var feeAmount = BigDecimal.valueOf(total).multiply(feeRate)
+            .setScale(0, RoundingMode.DOWN).longValueExact();
+        return new Settlement(info, feeAmount, now);
+    }
+
+    // 0 이상 1 이하, 소수점 넷째 자리까지
+    public static void validateFeeRate(BigDecimal feeRate) {
+        requireNonNull(feeRate, "feeRate는 필수입니다");
         Assert.isTrue(
             feeRate.signum() >= 0 && feeRate.compareTo(BigDecimal.ONE) <= 0, "수수료율은 0 이상 1 이하여야 합니다");
         Assert.isTrue(
             feeRate.stripTrailingZeros().scale() <= FEE_RATE_SCALE, "수수료율은 소수점 넷째 자리까지입니다");
-        var feeAmount = BigDecimal.valueOf(total).multiply(feeRate)
-            .setScale(0, RoundingMode.DOWN).longValueExact();
-        return new Settlement(info, feeAmount, now);
     }
 
     // 결제가 같은 결과를 다시 보내도 처음 반영한 지급 시각을 유지한다

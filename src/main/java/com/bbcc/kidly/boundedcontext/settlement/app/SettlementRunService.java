@@ -1,10 +1,9 @@
 package com.bbcc.kidly.boundedcontext.settlement.app;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunResult;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementTriggerType;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
@@ -21,7 +20,9 @@ import org.springframework.batch.core.launch.JobInstanceAlreadyCompleteException
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.batch.core.launch.JobRestartException;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,17 +40,12 @@ public class SettlementRunService {
 
     // 기준일은 오늘 또는 지난 날짜. 그 날 0시 전에 확정된 대기 항목을 정산한다
     public SettlementRunResult runManually(LocalDate cutoffOn, Long adminId) {
-        requireNonNull(cutoffOn, "cutoffOn은 필수입니다");
-        if (cutoffOn.isAfter(LocalDate.now())) {
-            throw new BusinessException(SettlementErrorCode.INVALID_SETTLEMENT_CUTOFF);
-        }
-        return run(cutoffOn.atStartOfDay(), SettlementTriggerType.MANUAL, adminId);
+        var period = SettlementPeriod.manual(cutoffOn, LocalDate.now(SettlementPeriod.SERVICE_ZONE));
+        return run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
     }
 
-    // 기준은 그 달 1일 0시라 지난달 확정분을 정산한다
     public SettlementRunResult runScheduled(LocalDate today) {
-        requireNonNull(today, "today는 필수입니다");
-        return run(today.withDayOfMonth(1).atStartOfDay(), SettlementTriggerType.SCHEDULED, null);
+        return run(SettlementPeriod.monthly(today).cutoffAt(), SettlementTriggerType.SCHEDULED, null);
     }
 
     // runId는 작업 실행 ID. JDBC 저장소는 없는 ID면 EmptyResultDataAccessException을 던진다
@@ -87,7 +83,9 @@ public class SettlementRunService {
             return SettlementRunResult.from(jobOperator.start(settlementJob, builder.toJobParameters()));
         } catch (JobInstanceAlreadyCompleteException e) {
             throw new BusinessException(SettlementErrorCode.SETTLEMENT_ALREADY_RUN);
-        } catch (JobExecutionAlreadyRunningException e) {
+        } catch (JobExecutionAlreadyRunningException | DataIntegrityViolationException
+            | OptimisticLockingFailureException e) {
+            // 같은 기준일을 동시에 시작하면 작업 인스턴스 유니크 · 실행 버전 충돌로 늦은 쪽이 실패한다
             throw new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
         } catch (JobRestartException | InvalidJobParametersException e) {
             throw new IllegalStateException("정산 작업을 시작하지 못했습니다", e);

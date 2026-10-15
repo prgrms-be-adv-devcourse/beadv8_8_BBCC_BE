@@ -12,7 +12,7 @@ import org.springframework.batch.core.step.StepExecution;
 /**
  * 정산 실행 결과. 정산 작업 실행(Batch 메타데이터)에서 만든다.
  *
- * @param id 작업 실행 ID
+ * @param runId 작업 실행 ID
  * @param triggerType SCHEDULED · MANUAL
  * @param status RUNNING · COMPLETED · PARTIAL_FAILED · FAILED
  * @param successCount 정산서를 쓴 판매자 수
@@ -20,7 +20,7 @@ import org.springframework.batch.core.step.StepExecution;
  * @param requestedBy 수동 실행한 관리자 ID. 자동 실행이면 null
  * @param finishedAt 끝나기 전에는 null
  */
-public record SettlementRunResult(Long id, LocalDateTime cutoffAt, LocalDate periodStartOn, LocalDate periodEndOn,
+public record SettlementRunResult(Long runId, LocalDateTime cutoffAt, LocalDate periodStartOn, LocalDate periodEndOn,
     String triggerType, String status, int successCount, int failCount, Long requestedBy,
     LocalDateTime startedAt, LocalDateTime finishedAt) {
 

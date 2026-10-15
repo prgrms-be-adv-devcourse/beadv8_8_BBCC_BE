@@ -12,9 +12,14 @@ import org.springframework.util.Assert;
  */
 public class SettlementCalculator {
 
+    private final BigDecimal feeRate;
+
+    public SettlementCalculator(BigDecimal feeRate) {
+        this.feeRate = requireNonNull(feeRate, "feeRate는 필수입니다");
+    }
+
     // 판매 합계가 long을 넘치면 ArithmeticException
-    public Settlement calculate(
-        SettlementPeriod period, List<SettlementItem> items, BigDecimal feeRate, LocalDateTime now) {
+    public Settlement calculate(SettlementPeriod period, List<SettlementItem> items, LocalDateTime now) {
         requireNonNull(period, "period는 필수입니다");
         requireNonNull(items, "items는 필수입니다");
         Assert.notEmpty(items, "정산 대상이 없습니다");

@@ -24,6 +24,7 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
@@ -130,6 +131,20 @@ class SettlementJobIntegrationTest {
     }
 
     @Test
+    @DisplayName("실패한 실행이 있는 기준일은 다시 실행해 정산한다")
+    void rerunAfterFailure() {
+        var item = save(201L, 10L, 10_000L, CUTOFF_AT.minusDays(1));
+        failExecution(CUTOFF_AT);
+
+        var result = settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
+
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        assertThat(result.successCount()).isEqualTo(1);
+        assertThat(settlementOf(item).getTotalSalesAmount()).isEqualTo(10_000L);
+        assertThat(runCount()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("계산에 실패한 판매자만 건너뛰고 나머지는 정산해 PARTIAL_FAILED다")
     void partialFailed() {
         var overflow = save(201L, 10L, Long.MAX_VALUE, CUTOFF_AT.minusDays(2));
@@ -229,13 +244,25 @@ class SettlementJobIntegrationTest {
     }
 
     private void startExecution(LocalDateTime cutoffAt) {
-        var parameters = new JobParametersBuilder().addLocalDateTime(SettlementJobConfig.CUTOFF_AT, cutoffAt)
-            .toJobParameters();
-        var instance = jobRepository.createJobInstance(SettlementJobConfig.JOB_NAME, parameters);
-        var execution = jobRepository.createJobExecution(instance, parameters, new ExecutionContext());
+        var execution = createExecution(cutoffAt);
         execution.setStatus(BatchStatus.STARTED);
         execution.setStartTime(LocalDateTime.now());
         jobRepository.update(execution);
+    }
+
+    private void failExecution(LocalDateTime cutoffAt) {
+        var execution = createExecution(cutoffAt);
+        execution.setStatus(BatchStatus.FAILED);
+        execution.setStartTime(LocalDateTime.now().minusMinutes(1));
+        execution.setEndTime(LocalDateTime.now());
+        jobRepository.update(execution);
+    }
+
+    private JobExecution createExecution(LocalDateTime cutoffAt) {
+        var parameters = new JobParametersBuilder().addLocalDateTime(SettlementJobConfig.CUTOFF_AT, cutoffAt)
+            .toJobParameters();
+        var instance = jobRepository.createJobInstance(SettlementJobConfig.JOB_NAME, parameters);
+        return jobRepository.createJobExecution(instance, parameters, new ExecutionContext());
     }
 
     private static void assertErrorCode(ThrowingCallable call, ErrorCode errorCode) {
