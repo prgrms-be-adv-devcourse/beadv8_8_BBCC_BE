@@ -6,8 +6,10 @@ import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetail
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.Inventory;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,10 +40,16 @@ public class SellerProductService {
     // 내 상품 상세를 돌려준다. 엔티티는 트랜잭션 안에서 읽어 결과로 모두 바꾼다
     @Transactional(readOnly = true)
     public SellerProductDetailResult findMyProductDetail(Long sellerId, Long productId) {
-        Product product = productRepository.findById(productId).orElseThrow();
+        Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        product.validateViewer(sellerId);
         Map<Long, Integer> availableQtyByOptionId = availableQtyByOptionId(product.getOptions());
         List<SellerProductDetailResult.Option> options = new ArrayList<>();
         for (ProductOption option : product.getOptions()) {
+            // 보관 옵션은 판매자 화면에도 보이지 않는다 (SALE-06)
+            if (option.isArchived()) {
+                continue;
+            }
             // 재고 행이 없는 옵션은 판매 가능 수량 0으로 본다
             options.add(new SellerProductDetailResult.Option(
                 option.getId(),
