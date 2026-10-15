@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
@@ -26,7 +27,9 @@ import org.springframework.util.Assert;
 @Entity
 @Table(
     name = "settlement_item", schema = "settlement",
-    uniqueConstraints = @UniqueConstraint(name = "uk_settlement_item_order_item_id", columnNames = "order_item_id"))
+    uniqueConstraints = @UniqueConstraint(name = "uk_settlement_item_order_item_id", columnNames = "order_item_id"),
+    indexes = @Index(
+        name = "idx_settlement_item_seller_status_confirmed", columnList = "seller_id, status, confirmed_at"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SettlementItem extends BaseTimeEntity {
