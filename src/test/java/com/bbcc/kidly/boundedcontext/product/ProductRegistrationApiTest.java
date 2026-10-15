@@ -1,16 +1,20 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.attributes;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.measurements;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.prices;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.sizeSpecs;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
-import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentReason;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,7 +73,7 @@ class ProductRegistrationApiTest {
 
         URI location = client.post().uri(PATH)
             .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
-            .body(productA())
+            .body(productA(saved))
             .exchange()
             .expectStatus().isCreated()
             .expectBody()
@@ -96,7 +100,7 @@ class ProductRegistrationApiTest {
     @Test
     @DisplayName("INV-02 · INV-18 · INV-19 옵션마다 초기 재고로 재고 행을 만들고, 초기 재고가 0이 아니면 INITIAL 기록을 남긴다")
     void saveInventoryWithInitialRecord() {
-        register(productA()).expectStatus().isCreated();
+        register(productA(saved)).expectStatus().isCreated();
         List<Long> optionIds = entityManager.createQuery(
             "select o.id from ProductOption o order by o.id", Long.class).getResultList();
 
@@ -114,7 +118,7 @@ class ProductRegistrationApiTest {
     @DisplayName("로그인하지 않으면 401을 받는다")
     void rejectWithoutToken() {
         client.post().uri(PATH)
-            .body(productA())
+            .body(productA(saved))
             .exchange()
             .expectStatus().isUnauthorized();
     }
@@ -124,7 +128,7 @@ class ProductRegistrationApiTest {
     void rejectBuyer() {
         client.post().uri(PATH)
             .headers(headers -> headers.setBearerAuth(tokens.buyer(SELLER_ID)))
-            .body(productA())
+            .body(productA(saved))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -132,7 +136,7 @@ class ProductRegistrationApiTest {
     @Test
     @DisplayName("없는 카테고리로 등록하면 404를 받는다")
     void rejectUnknownCategory() {
-        Map<String, Object> body = productA();
+        Map<String, Object> body = productA(saved);
         body.put("categoryId", UNKNOWN_ID);
 
         expectProblem(register(body), HttpStatus.NOT_FOUND, "카테고리를 찾을 수 없습니다", "카테고리를 다시 확인해 주세요.");
@@ -141,7 +145,7 @@ class ProductRegistrationApiTest {
     @Test
     @DisplayName("TYPE-01 중간 카테고리로는 등록할 수 없다")
     void rejectMiddleCategory() {
-        Map<String, Object> body = productA();
+        Map<String, Object> body = productA(saved);
         body.put("categoryId", id(saved.clothingCategory().getId()));
 
         expectProblem(register(body), HttpStatus.BAD_REQUEST, "상품을 등록할 수 없는 카테고리입니다",
@@ -151,7 +155,7 @@ class ProductRegistrationApiTest {
     @Test
     @DisplayName("OPT-03 요청 안에서 같은 값 묶음의 옵션이 겹치면 409를 받는다")
     void rejectDuplicatedOptionInRequest() {
-        Map<String, Object> body = productA();
+        Map<String, Object> body = productA(saved);
         options(body).add(options(body).get(0));
 
         expectProblem(register(body), HttpStatus.CONFLICT, "이미 있는 옵션입니다",
@@ -161,7 +165,7 @@ class ProductRegistrationApiTest {
     @Test
     @DisplayName("SALE-03 옵션이 쓰는 사이즈의 실측 · 권장 키가 빠지면 빠진 것을 모두 적은 400을 받고 아무것도 저장하지 않는다")
     void rejectMissingSaleStartInputs() {
-        Map<String, Object> body = productA();
+        Map<String, Object> body = productA(saved);
         List<Map<String, Object>> specs = sizeSpecs(body);
         specs.remove(1);
         measurements(specs.get(0)).remove("SLEEVE_LENGTH");
@@ -180,7 +184,7 @@ class ProductRegistrationApiTest {
     @Test
     @DisplayName("SALE-03 옵션을 하나도 보내지 않으면 400을 받는다")
     void rejectWithoutOptions() {
-        Map<String, Object> body = productA();
+        Map<String, Object> body = productA(saved);
         options(body).clear();
         sizeSpecs(body).clear();
 
@@ -192,7 +196,7 @@ class ProductRegistrationApiTest {
     @MethodSource("unknownIds")
     @DisplayName("INFO-03 · OPT-04 카테고리 상품 유형에 없는 항목이나 값의 ID를 보내면 400을 받는다")
     void rejectIdNotInProductType(Consumer<Map<String, Object>> change, String title) {
-        Map<String, Object> body = productA();
+        Map<String, Object> body = productA(saved);
         change.accept(body);
 
         register(body)
@@ -216,7 +220,7 @@ class ProductRegistrationApiTest {
     @MethodSource("invalidInputs")
     @DisplayName("요청 값의 형식이나 범위가 틀리면 필드 이름을 앞에 붙인 400을 받는다")
     void rejectInvalidInput(Consumer<Map<String, Object>> change, String detail) {
-        Map<String, Object> body = productA();
+        Map<String, Object> body = productA(saved);
         change.accept(body);
 
         register(body)
@@ -255,31 +259,6 @@ class ProductRegistrationApiTest {
         return Arguments.of(Named.of(name, change), detail);
     }
 
-    /**
-     * 기획서 7.1 상품 A의 등록 요청이다. 네이비 110(초기 재고 10, SKU 있음) · 네이비 120(초기 재고 0, SKU 없음) 옵션과
-     * 두 사이즈의 실측 · 권장 키를 담는다. 테스트마다 고칠 수 있게 바꿀 수 있는 Map으로 만든다.
-     */
-    private Map<String, Object> productA() {
-        ClothingOptions clothing = saved.clothing();
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("name", "상품 A");
-        body.put("brand", "키들리");
-        body.put("categoryId", id(saved.top().getId()));
-        body.put("description", "상품 설명");
-        body.put("thumbnailUrl", null);
-        body.put("imageUrls", List.of("https://cdn.kidly.test/a-1.jpg"));
-        body.put("attributes", new ArrayList<>(List.of(attribute(clothing.mainMaterial().getId(),
-            List.of(id(clothing.cotton().getId()))))));
-        body.put("options", new ArrayList<>(List.of(
-            option(List.of(id(clothing.navy().getId()), id(clothing.size110().getId())), 10, "A-NV-110"),
-            option(List.of(id(clothing.navy().getId()), id(clothing.size120().getId())), 0, null))));
-        body.put("prices", new ArrayList<>(List.of(price(List.of(), 25000))));
-        body.put("sizeSpecs", new ArrayList<>(List.of(
-            sizeSpec(clothing.size110().getId(), 105, 115, 42, 30, 34, 38),
-            sizeSpec(clothing.size120().getId(), 115, 125, 45, 32, 36, 41))));
-        return body;
-    }
-
     private RestTestClient.ResponseSpec register(Map<String, Object> body) {
         return client.post().uri(PATH)
             .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
@@ -302,73 +281,5 @@ class ProductRegistrationApiTest {
 
     private long count(String entityName) {
         return entityManager.createQuery("select count(e) from " + entityName + " e", Long.class).getSingleResult();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> attributes(Map<String, Object> body) {
-        return (List<Map<String, Object>>) body.get("attributes");
-    }
-
-    @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> options(Map<String, Object> body) {
-        return (List<Map<String, Object>>) body.get("options");
-    }
-
-    @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> prices(Map<String, Object> body) {
-        return (List<Map<String, Object>>) body.get("prices");
-    }
-
-    @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> sizeSpecs(Map<String, Object> body) {
-        return (List<Map<String, Object>>) body.get("sizeSpecs");
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> measurements(Map<String, Object> sizeSpec) {
-        return (Map<String, Object>) sizeSpec.get("measurements");
-    }
-
-    private static Map<String, Object> attribute(Long attributeId, List<String> valueIds) {
-        Map<String, Object> attribute = new LinkedHashMap<>();
-        attribute.put("attributeId", id(attributeId));
-        attribute.put("valueIds", valueIds);
-        attribute.put("text", null);
-        return attribute;
-    }
-
-    private static Map<String, Object> option(List<String> valueIds, int initialQuantity, String skuCode) {
-        Map<String, Object> option = new LinkedHashMap<>();
-        option.put("valueIds", valueIds);
-        option.put("initialQuantity", initialQuantity);
-        option.put("skuCode", skuCode);
-        return option;
-    }
-
-    private static Map<String, Object> price(List<String> valueIds, long price) {
-        Map<String, Object> group = new LinkedHashMap<>();
-        group.put("valueIds", valueIds);
-        group.put("price", price);
-        return group;
-    }
-
-    private static Map<String, Object> sizeSpec(Long sizeValueId, int minHeightCm, int maxHeightCm,
-        int totalLength, int shoulderWidth, int chestWidth, int sleeveLength) {
-        Map<String, Object> measurements = new LinkedHashMap<>();
-        measurements.put("TOTAL_LENGTH", totalLength);
-        measurements.put("SHOULDER_WIDTH", shoulderWidth);
-        measurements.put("CHEST_WIDTH", chestWidth);
-        measurements.put("SLEEVE_LENGTH", sleeveLength);
-        Map<String, Object> spec = new LinkedHashMap<>();
-        spec.put("sizeValueId", id(sizeValueId));
-        spec.put("minHeightCm", minHeightCm);
-        spec.put("maxHeightCm", maxHeightCm);
-        spec.put("measurements", measurements);
-        return spec;
-    }
-
-    // 응답과 같이 요청의 ID도 문자열로 보낸다
-    private static String id(Long id) {
-        return String.valueOf(id);
     }
 }
