@@ -12,8 +12,15 @@ import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -158,6 +165,43 @@ class ProductSaleStartApiTest {
             "잘못된 요청입니다", "status: 판매 시작(ON_SALE)만 요청할 수 있습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 상품에 판매 시작 요청이 동시에 여러 개 와도 판매중으로 한 번만 바뀌고 이벤트도 한 번만 나가며, 나머지는 200이나 409다")
+    void concurrentStartSaleChangesOnce() throws Exception {
+        int requestCount = 5;
+        String token = tokens.seller(SELLER_ID);
+        // 모든 요청이 준비된 뒤 같은 순간에 출발하게 한다
+        CountDownLatch ready = new CountDownLatch(requestCount);
+        CountDownLatch go = new CountDownLatch(1);
+        List<Callable<Integer>> requests = new ArrayList<>();
+        for (int i = 0; i < requestCount; i++) {
+            requests.add(() -> {
+                ready.countDown();
+                if (!go.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("출발 신호를 기다리다 시간이 지났습니다");
+                }
+                return startSale(token, ON_SALE).returnResult(String.class).getStatus().value();
+            });
+        }
+        List<Integer> statuses = new ArrayList<>();
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(requestCount)) {
+            List<Future<Integer>> results = new ArrayList<>();
+            for (Callable<Integer> request : requests) {
+                results.add(executor.submit(request));
+            }
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            go.countDown();
+            for (Future<Integer> result : results) {
+                statuses.add(result.get(30, TimeUnit.SECONDS));
+            }
+        }
+
+        assertThat(statuses).allMatch(status -> status == 200 || status == 409).contains(200);
+        assertThat(storedStatus()).isEqualTo("ON_SALE");
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).hasSize(1);
     }
 
     // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
