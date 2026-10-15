@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementRunService;
+import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCreateInfo;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
@@ -12,10 +13,7 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItem;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRun;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRunRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementTriggerType;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
 import com.bbcc.kidly.global.error.ErrorCode;
@@ -25,6 +23,10 @@ import java.time.LocalDateTime;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.job.parameters.JobParametersBuilder;
+import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -42,7 +44,7 @@ class SettlementJobIntegrationTest {
     private SettlementRunService settlementRunService;
 
     @Autowired
-    private SettlementRunRepository settlementRunRepository;
+    private JobRepository jobRepository;
 
     @Autowired
     private SettlementItemRepository settlementItemRepository;
@@ -118,10 +120,9 @@ class SettlementJobIntegrationTest {
     }
 
     @Test
-    @DisplayName("실행 중인 정산이 있으면 SETTLEMENT_RUN_IN_PROGRESS다")
+    @DisplayName("다른 기준일 정산이 실행 중이면 SETTLEMENT_RUN_IN_PROGRESS이고 작업을 실행하지 않는다")
     void runInProgress() {
-        settlementRunRepository.save(
-            SettlementRun.start(CUTOFF_AT.minusMonths(1), SettlementTriggerType.SCHEDULED, null, LocalDateTime.now()));
+        startExecution(CUTOFF_AT.minusMonths(1));
 
         assertErrorCode(() -> settlementRunService.runManually(CUTOFF_ON, ADMIN_ID),
             SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
@@ -224,7 +225,17 @@ class SettlementJobIntegrationTest {
     }
 
     private Integer runCount() {
-        return jdbcTemplate.queryForObject("SELECT count(*) FROM settlement.settlement_run", Integer.class);
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM settlement.BATCH_JOB_EXECUTION", Integer.class);
+    }
+
+    private void startExecution(LocalDateTime cutoffAt) {
+        var parameters = new JobParametersBuilder().addLocalDateTime(SettlementJobConfig.CUTOFF_AT, cutoffAt)
+            .toJobParameters();
+        var instance = jobRepository.createJobInstance(SettlementJobConfig.JOB_NAME, parameters);
+        var execution = jobRepository.createJobExecution(instance, parameters, new ExecutionContext());
+        execution.setStatus(BatchStatus.STARTED);
+        execution.setStartTime(LocalDateTime.now());
+        jobRepository.update(execution);
     }
 
     private static void assertErrorCode(ThrowingCallable call, ErrorCode errorCode) {

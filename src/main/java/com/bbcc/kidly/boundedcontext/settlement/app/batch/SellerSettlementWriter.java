@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.settlement.app.batch;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRunRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -18,24 +18,23 @@ import org.springframework.batch.infrastructure.item.ItemWriter;
 @RequiredArgsConstructor
 public class SellerSettlementWriter implements ItemWriter<Long> {
 
-    private final SettlementRunRepository settlementRunRepository;
     private final SettlementItemRepository settlementItemRepository;
     private final SettlementRepository settlementRepository;
     private final BigDecimal feeRate;
-    private final Long runId;
+    private final LocalDateTime cutoffAt;
     private final SettlementCalculator settlementCalculator = new SettlementCalculator();
 
     @Override
     public void write(Chunk<? extends Long> sellerIds) {
-        var run = settlementRunRepository.getById(runId);
+        var period = SettlementPeriod.from(cutoffAt);
         var now = LocalDateTime.now();
         for (var sellerId : sellerIds) {
             var items = settlementItemRepository.findAllBySellerIdAndStatusAndConfirmedAtBefore(
-                sellerId, SettlementItemStatus.PENDING, run.getCutoffAt());
+                sellerId, SettlementItemStatus.PENDING, cutoffAt);
             if (items.isEmpty()) {
                 continue;
             }
-            var settlement = settlementRepository.save(settlementCalculator.calculate(run, items, feeRate, now));
+            var settlement = settlementRepository.save(settlementCalculator.calculate(period, items, feeRate, now));
             items.forEach(item -> item.settle(settlement.getId()));
         }
         settlementItemRepository.flush();

@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -16,16 +17,18 @@ import org.junit.jupiter.api.Test;
 
 class SettlementCalculatorTest {
 
+    private static final SettlementPeriod PERIOD = SettlementPeriod.from(CUTOFF_AT);
+
     private final SettlementCalculator calculator = new SettlementCalculator();
 
     @Test
-    @DisplayName("판매자의 대기 항목을 실행 기간의 정산서로 만든다")
+    @DisplayName("판매자의 대기 항목을 정산 기간의 정산서로 만든다")
     void calculate() {
         var items = List.of(
             SettlementFixture.item(1L, SELLER_ID, 10_000L, CONFIRMED_AT),
             SettlementFixture.item(2L, SELLER_ID, 5_009L, CONFIRMED_AT));
 
-        var settlement = calculator.calculate(SettlementFixture.run(), items, FEE_RATE, NOW);
+        var settlement = calculator.calculate(PERIOD, items, FEE_RATE, NOW);
 
         assertThat(settlement.getSellerId()).isEqualTo(SELLER_ID);
         assertThat(settlement.getPeriodStartOn()).isEqualTo(LocalDate.of(2026, 10, 1));
@@ -39,7 +42,7 @@ class SettlementCalculatorTest {
     @Test
     @DisplayName("정산 대상이 없으면 만들 수 없다")
     void calculateRejectsEmpty() {
-        assertThatThrownBy(() -> calculator.calculate(SettlementFixture.run(), List.of(), FEE_RATE, NOW))
+        assertThatThrownBy(() -> calculator.calculate(PERIOD, List.of(), FEE_RATE, NOW))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -50,7 +53,7 @@ class SettlementCalculatorTest {
             SettlementFixture.item(1L, 10L, 10_000L, CONFIRMED_AT),
             SettlementFixture.item(2L, 11L, 10_000L, CONFIRMED_AT));
 
-        assertThatThrownBy(() -> calculator.calculate(SettlementFixture.run(), items, FEE_RATE, NOW))
+        assertThatThrownBy(() -> calculator.calculate(PERIOD, items, FEE_RATE, NOW))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -61,7 +64,7 @@ class SettlementCalculatorTest {
         settled.settle(7L);
         var items = List.of(SettlementFixture.item(1L, SELLER_ID, 10_000L, CONFIRMED_AT), settled);
 
-        assertThatThrownBy(() -> calculator.calculate(SettlementFixture.run(), items, FEE_RATE, NOW))
+        assertThatThrownBy(() -> calculator.calculate(PERIOD, items, FEE_RATE, NOW))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -70,7 +73,7 @@ class SettlementCalculatorTest {
     void calculateRejectsAfterCutoff() {
         var items = List.of(SettlementFixture.item(1L, SELLER_ID, 10_000L, CUTOFF_AT));
 
-        assertThatThrownBy(() -> calculator.calculate(SettlementFixture.run(), items, FEE_RATE, NOW))
+        assertThatThrownBy(() -> calculator.calculate(PERIOD, items, FEE_RATE, NOW))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -81,23 +84,22 @@ class SettlementCalculatorTest {
             SettlementFixture.item(1L, SELLER_ID, Long.MAX_VALUE, CONFIRMED_AT),
             SettlementFixture.item(2L, SELLER_ID, Long.MAX_VALUE, CONFIRMED_AT));
 
-        assertThatThrownBy(() -> calculator.calculate(SettlementFixture.run(), items, FEE_RATE, NOW))
+        assertThatThrownBy(() -> calculator.calculate(PERIOD, items, FEE_RATE, NOW))
             .isInstanceOf(ArithmeticException.class);
     }
 
     @Test
     @DisplayName("필수 값이 없으면 만들 수 없다")
     void calculateRejectsNull() {
-        var run = SettlementFixture.run();
         var items = List.of(SettlementFixture.item(1L, SELLER_ID, 10_000L, CONFIRMED_AT));
 
         assertThatThrownBy(() -> calculator.calculate(null, items, FEE_RATE, NOW))
             .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> calculator.calculate(run, null, FEE_RATE, NOW))
+        assertThatThrownBy(() -> calculator.calculate(PERIOD, null, FEE_RATE, NOW))
             .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> calculator.calculate(run, items, null, NOW))
+        assertThatThrownBy(() -> calculator.calculate(PERIOD, items, null, NOW))
             .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> calculator.calculate(run, items, FEE_RATE, null))
+        assertThatThrownBy(() -> calculator.calculate(PERIOD, items, FEE_RATE, null))
             .isInstanceOf(NullPointerException.class);
     }
 }

@@ -4,8 +4,6 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCreateInfo;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItem;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemCreateInfo;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRun;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementTriggerType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -41,9 +39,5 @@ public final class SettlementFixture {
 
     public static SettlementItem item(Long orderItemId, Long sellerId, long salesAmount, LocalDateTime confirmedAt) {
         return SettlementItem.create(new SettlementItemCreateInfo(1L, orderItemId, sellerId, salesAmount, confirmedAt));
-    }
-
-    public static SettlementRun run() {
-        return SettlementRun.start(CUTOFF_AT, SettlementTriggerType.SCHEDULED, null, NOW);
     }
 }

@@ -4,7 +4,6 @@ import com.bbcc.kidly.boundedcontext.settlement.app.SettlementProperties;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSellerQuery;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRunRepository;
 import java.time.LocalDateTime;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.Job;
@@ -29,14 +28,14 @@ public class SettlementJobConfig {
     public static final String JOB_NAME = "settlementJob";
     // 같은 기준일은 같은 작업 인스턴스다
     public static final String CUTOFF_AT = "cutoffAt";
-    // 실행 기록 ID. 작업 인스턴스를 구분하는 데 쓰지 않는다
-    public static final String RUN_ID = "runId";
+    // 실행 방식 · 수동 실행한 관리자 ID. 작업 인스턴스를 구분하는 데 쓰지 않고, 자동 실행이면 관리자 ID가 없다
+    public static final String TRIGGER_TYPE = "triggerType";
+    public static final String REQUESTED_BY = "requestedBy";
     private static final String STEP_NAME = "settleSellerStep";
 
     @Bean
-    public Job settlementJob(JobRepository jobRepository, Step settleSellerStep, SettlementRunListener listener) {
+    public Job settlementJob(JobRepository jobRepository, Step settleSellerStep) {
         return new JobBuilder(JOB_NAME, jobRepository)
-            .listener(listener)
             .start(settleSellerStep)
             .build();
     }
@@ -69,10 +68,9 @@ public class SettlementJobConfig {
     @Bean
     @StepScope
     public SellerSettlementWriter sellerSettlementWriter(
-        SettlementRunRepository settlementRunRepository, SettlementItemRepository settlementItemRepository,
-        SettlementRepository settlementRepository, SettlementProperties properties,
-        @Value("#{jobParameters['" + RUN_ID + "']}") Long runId) {
+        SettlementItemRepository settlementItemRepository, SettlementRepository settlementRepository,
+        SettlementProperties properties, @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
         return new SellerSettlementWriter(
-            settlementRunRepository, settlementItemRepository, settlementRepository, properties.feeRate(), runId);
+            settlementItemRepository, settlementRepository, properties.feeRate(), cutoffAt);
     }
 }
