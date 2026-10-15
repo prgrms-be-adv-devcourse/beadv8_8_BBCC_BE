@@ -232,6 +232,7 @@ public class Product extends BaseTimeEntity {
         description = info.description();
         thumbnailUrl = info.thumbnailUrl();
         imageUrls = new ArrayList<>(info.imageUrls());
+        category = info.category();
         // 정보 값은 받은 값으로 통째로 바꾸므로 이전 행을 모두 빼고 받은 값으로 다시 만든다
         infoValues.clear();
         infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
@@ -240,7 +241,9 @@ public class Product extends BaseTimeEntity {
 
     // 정보 값은 영속성 컨텍스트의 같은 객체끼리 비교한다. 기본 정보는 값으로 비교하고 이미지는 순서까지 같아야 같다
     private boolean isSameAs(UpdateInfo info) {
-        return Objects.equals(name, info.name())
+        // 카테고리는 같은 영속성 컨텍스트의 객체라 정보 값의 항목처럼 ==로 비교한다
+        return category == info.category()
+            && Objects.equals(name, info.name())
             && Objects.equals(brand, info.brand())
             && Objects.equals(description, info.description())
             && Objects.equals(thumbnailUrl, info.thumbnailUrl())
