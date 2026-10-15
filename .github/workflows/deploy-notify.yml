@@ -1,0 +1,106 @@
+# deploy 워크플로가 끝나면 결과를 Slack 으로 알린다.
+# workflow_run 은 기본 브랜치(develop)에 있는 이 파일만 실행되므로 머지된 뒤부터 동작한다
+name: Deploy Notify
+
+on:
+  workflow_run:
+    workflows: [deploy]
+    types: [completed]
+
+jobs:
+  notify:
+    # 건너뛴 run 은 알리지 않는다
+    if: github.event.workflow_run.conclusion != 'skipped'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Send to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # {"GitHub아이디": "이름"} 형식의 Actions 변수. public 레포라 실명을 코드에 두지 않는다
+          NAME_MAP: ${{ vars.SLACK_NAME_MAP }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          COMMIT_MSG: ${{ github.event.workflow_run.head_commit.message }}
+          ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
+        run: |
+          # 매핑에 없거나 JSON이 잘못되면 GitHub 아이디를 그대로 쓴다
+          display_name() {
+            local name
+            name=$(printf '%s' "${NAME_MAP:-null}" | jq -r --arg u "$1" '.[$u] // empty' 2>/dev/null)
+            printf '%s' "${name:-$1}"
+          }
+          ACTOR=$(display_name "$ACTOR")
+
+          # 색상: 초록=성공, 빨강=실패·시간 초과, 회색=취소
+          case "$CONCLUSION" in
+            success)   COLOR="#1a7f37"; RESULT="✅ 배포 성공" ;;
+            failure)   COLOR="#cf222e"; RESULT="❌ 배포 실패" ;;
+            cancelled) COLOR="#8c959f"; RESULT="🚫 배포 취소" ;;
+            timed_out) COLOR="#cf222e"; RESULT="⏱️ 배포 시간 초과" ;;
+            *)         COLOR="#8c959f"; RESULT="❔ 배포 $CONCLUSION" ;;
+          esac
+
+          # deploy.yml 의 환경 규칙과 같다: main → prod, 그 외 → dev
+          if [ "$BRANCH" = "main" ]; then ENV_LABEL="prod"; else ENV_LABEL="dev"; fi
+          MANUAL=""
+          if [ "$RUN_EVENT" = "workflow_dispatch" ]; then
+            ENV_LABEL="$ENV_LABEL · 수동 실행(롤백 등)"
+            # 롤백이면 실제 배포된 SHA 는 입력값이라 이 payload 에 없다
+            MANUAL="수동 실행이라 실제 배포된 커밋은 입력한 SHA 일 수 있어요. 실행 링크에서 확인하세요."
+          fi
+
+          # 실패 성격이면 첫 실패 job · step 을 찾는다. API 호출이 실패해도 알림은 보낸다
+          FAILED_STEP=""
+          HINT=""
+          if [ "$CONCLUSION" != "success" ]; then
+            failed=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" --jq '
+              def bad: . == "failure" or . == "timed_out" or . == "cancelled";
+              [.jobs[] | select(.conclusion | bad)][0]
+              | select(. != null)
+              | [.name, ([.steps[]? | select(.conclusion | bad)][0].name // "")]
+              | @tsv' 2>/dev/null) || failed=""
+            if [ -n "$failed" ]; then
+              IFS=$'\t' read -r failed_job failed_step <<< "$failed"
+              if [ -n "$failed_step" ]; then FAILED_STEP="$failed_job › $failed_step"; else FAILED_STEP="$failed_job"; fi
+              if [ "$failed_step" = "서버 접속 확인" ]; then
+                HINT="18시 이후 자동 중지된 서버일 수 있어요. EC2를 켜고 Re-run 하세요."
+              fi
+            fi
+          fi
+
+          COMMIT_TITLE=$(printf '%s' "$COMMIT_MSG" | head -n1)
+
+          # 제목은 굵은 링크, 상세는 그 아래 한 블록에 둔다
+          jq -n --arg color "$COLOR" --arg result "$RESULT" --arg env "$ENV_LABEL" --arg branch "$BRANCH" \
+            --arg sha "${SHA:0:7}" --arg commit_url "$SERVER_URL/$REPO/commit/$SHA" --arg msg "$COMMIT_TITLE" \
+            --arg actor "$ACTOR" --arg run_url "$RUN_URL" \
+            --arg failed_step "$FAILED_STEP" --arg hint "$HINT" --arg manual "$MANUAL" '
+            def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+            {attachments: [{
+              color: $color,
+              fallback: "\($result) | \($env) | \($branch) | \($msg)",
+              blocks: [
+                {type: "section", text: {type: "mrkdwn", text: "*<\($run_url)|\($result)>*"}},
+                {type: "section", text: {type: "mrkdwn", text: ([
+                  "*환경* \($env | esc)",
+                  "*브랜치* `\($branch | esc)`",
+                  "*커밋* <\($commit_url)|`\($sha)`> \($msg | esc)",
+                  "*실행한 사람* \($actor | esc)",
+                  (if $failed_step != "" then "*실패한 단계* \($failed_step | esc)" else empty end),
+                  (if $hint != "" then $hint else empty end),
+                  (if $manual != "" then $manual else empty end),
+                  "*실행 링크* <\($run_url)|바로가기>"
+                ] | join("\n"))}}
+              ]
+            }]}' \
+            | curl -sS -f -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"
