@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -38,6 +39,9 @@ class OrderConfirmIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderDeliveredAtSetter deliveredAtSetter;
 
     @Autowired
     private OrderScheduler orderScheduler;
@@ -123,7 +127,7 @@ class OrderConfirmIntegrationTest {
             List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         orderService.markPaid(order.orderId(), 500L, order.totalAmount());
-        orderService.recordDelivered(order.orderId(), SELLER_ID, deliveredAt);
+        deliveredAtSetter.recordDelivered(order.orderId(), SELLER_ID, deliveredAt);
         return order;
     }
 

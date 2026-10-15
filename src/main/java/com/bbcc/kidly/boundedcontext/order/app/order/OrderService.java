@@ -121,13 +121,6 @@ public class OrderService {
     }
 
     /**
-     * 그 판매자 몫 주문상품에 배송 완료 시각을 기록한다. 이미 기록돼 있으면 그대로 둔다.
-     */
-    public void recordDelivered(Long orderId, Long sellerId, LocalDateTime at) {
-        orderRepository.findById(orderId).ifPresent(order -> order.recordDelivered(sellerId, at));
-    }
-
-    /**
      * 결제 실패로 취소한다. 결제대기가 아니면 그대로 둔다.
      */
     public void cancelForPaymentFailure(Long orderId) {

@@ -144,6 +144,41 @@ class DeliveryServiceTest {
         }
 
         @Test
+        @DisplayName("같은 처리에서 그 판매자 몫 주문상품에만 배송 완료 시각을 기록한다")
+        void recordsSellersItemsTogether() {
+            Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+            delivery.ship(Delivery.Carrier.CJ, "1234567890", NOW);
+            Order order = orderOfTwoSellers();
+            when(deliveryRepository.findByIdAndSellerId(DELIVERY_ID, SELLER_A_ID)).thenReturn(Optional.of(delivery));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            DeliveryResult result = deliveryService.complete(SELLER_A_ID, DELIVERY_ID);
+
+            assertThat(order.getItems()).filteredOn(item -> item.getProduct().sellerId().equals(SELLER_A_ID))
+                .hasSize(2)
+                .allSatisfy(item -> assertThat(item.getDeliveredAt()).isEqualTo(result.deliveredAt()));
+            assertThat(order.getItems()).filteredOn(item -> item.getProduct().sellerId().equals(SELLER_B_ID))
+                .allSatisfy(item -> assertThat(item.getDeliveredAt()).isNull());
+        }
+
+        @Test
+        @DisplayName("이미 배송 완료면 다시 불러도 배송 · 주문상품 모두 처음 시각 그대로다")
+        void repeatedCompleteKeepsFirstTime() {
+            Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+            delivery.ship(Delivery.Carrier.CJ, "1234567890", NOW);
+            Order order = orderOfTwoSellers();
+            when(deliveryRepository.findByIdAndSellerId(DELIVERY_ID, SELLER_A_ID)).thenReturn(Optional.of(delivery));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+            LocalDateTime first = deliveryService.complete(SELLER_A_ID, DELIVERY_ID).deliveredAt();
+
+            DeliveryResult again = deliveryService.complete(SELLER_A_ID, DELIVERY_ID);
+
+            assertThat(again.deliveredAt()).isEqualTo(first);
+            assertThat(order.getItems()).filteredOn(item -> item.getProduct().sellerId().equals(SELLER_A_ID))
+                .allSatisfy(item -> assertThat(item.getDeliveredAt()).isEqualTo(first));
+        }
+
+        @Test
         @DisplayName("없거나 남의 배송이면 DELIVERY_NOT_FOUND")
         void othersDeliveryIsNotFound() {
             assertThatThrownBy(() -> deliveryService.complete(SELLER_B_ID, DELIVERY_ID))

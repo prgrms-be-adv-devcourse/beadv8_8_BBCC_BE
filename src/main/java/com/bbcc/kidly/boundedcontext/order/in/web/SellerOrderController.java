@@ -1,8 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.web;
 
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
-import com.bbcc.kidly.boundedcontext.order.app.delivery.dto.DeliveryResult;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.DeliveryResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.SellerOrderResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.ShipRequest;
@@ -32,7 +30,6 @@ public class SellerOrderController {
     public static final String SELLER_ORDERS_PATH = "/api/v1/seller/orders";
 
     private final DeliveryService deliveryService;
-    private final OrderService orderService;
 
     /**
      * 최근 것부터. size는 1~100.
@@ -56,12 +53,10 @@ public class SellerOrderController {
     }
 
     /**
-     * 배송 완료 → 주문상품에 배송 완료 시각 기록 순서로 맡긴다. 이미 완료여도 200.
+     * 배송 완료와 주문상품 배송 기록을 서비스 메서드 하나(한 트랜잭션)에 맡긴다. 이미 완료여도 200.
      */
     @PostMapping("/{sellerOrderId}/deliver")
     public DeliveryResponse deliver(@LoginMember AuthMember member, @PathVariable Long sellerOrderId) {
-        DeliveryResult result = deliveryService.complete(member.id(), sellerOrderId);
-        orderService.recordDelivered(result.orderId(), result.sellerId(), result.deliveredAt());
-        return DeliveryResponse.from(result);
+        return DeliveryResponse.from(deliveryService.complete(member.id(), sellerOrderId));
     }
 }
