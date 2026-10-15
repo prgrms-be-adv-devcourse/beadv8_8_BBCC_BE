@@ -60,19 +60,11 @@ class ProductOptionSaver {
     }
 
     // 판매를 시작한 상품 A의 네이비 · 110과 네이비 · 120 옵션을 저장하고, 두 옵션의 재고를 주어진 수량으로 연다.
-    // 두 사이즈의 필수 실측과 권장 키를 넣어야 판매를 시작할 수 있다. 저장은 새 트랜잭션에서 하고 커밋한다
+    // 저장은 새 트랜잭션에서 하고 커밋한다
     OnSaleOptions saveOnSaleNavy110And120(int navy110Stock, int navy120Stock) {
         ClothingOptions clothing = clothingOptions();
-        Product.RegisterInfo info = ProductFixture.productAWith(clothing.type(), List.of(
-            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
-        Product product = Product.register(info);
-        product.addOptions(addOptions(List.of(
-            option(clothing.navy(), clothing.size110()),
-            option(clothing.navy(), clothing.size120()))), clothing.type());
-        product.addSizeSpecs(addSizeSpecs(List.of(
-            spec(clothing.size110(), 105, 115, top110Measurements()),
-            spec(clothing.size120(), 115, 125, top120Measurements()))), info.category(), clothing.type());
-        product.startSale(ProductFixture.SELLER_ID, info.category(), clothing.type());
+        Product.RegisterInfo info = onSaleInfo(clothing);
+        Product product = onSaleProduct(clothing, info);
         OnSaleOptions options = new OnSaleOptions(product.getOptions().get(0), product.getOptions().get(1));
         transactionTemplate.executeWithoutResult(status -> {
             saveClothingType(clothing);
@@ -86,7 +78,50 @@ class ProductOptionSaver {
         return options;
     }
 
+    // 같은 카테고리에서 판매를 시작한 상품 두 개를 저장하고, 상품마다 네이비 · 110 옵션의 재고를 주어진 수량으로 연다.
+    // 네이비 · 120 옵션의 재고는 열지 않는다. 저장은 새 트랜잭션에서 하고 커밋한다
+    TwoOnSaleProducts saveTwoOnSaleProducts(int firstNavy110Stock, int secondNavy110Stock) {
+        ClothingOptions clothing = clothingOptions();
+        Product.RegisterInfo info = onSaleInfo(clothing);
+        Product first = onSaleProduct(clothing, info);
+        Product second = onSaleProduct(clothing, info);
+        transactionTemplate.executeWithoutResult(status -> {
+            saveClothingType(clothing);
+            saveCategory(info.category());
+            productRepository.save(first);
+            productRepository.save(second);
+            inventoryRepository.saveOpening(
+                InventoryOpening.open(first.getOptions().get(0), firstNavy110Stock, ProductFixture.SELLER_ID));
+            inventoryRepository.saveOpening(
+                InventoryOpening.open(second.getOptions().get(0), secondNavy110Stock, ProductFixture.SELLER_ID));
+        });
+        return new TwoOnSaleProducts(
+            first.getId(), first.getOptions().get(0), second.getId(), second.getOptions().get(0));
+    }
+
     record OnSaleOptions(ProductOption navy110, ProductOption navy120) {
+    }
+
+    record TwoOnSaleProducts(long firstId, ProductOption firstNavy110, long secondId, ProductOption secondNavy110) {
+    }
+
+    private static Product.RegisterInfo onSaleInfo(ClothingOptions clothing) {
+        return ProductFixture.productAWith(clothing.type(), List.of(
+            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
+    }
+
+    // 네이비 · 110과 네이비 · 120 옵션을 붙여 판매를 시작한 상품을 만든다.
+    // 두 사이즈의 필수 실측과 권장 키를 넣어야 판매를 시작할 수 있다
+    private static Product onSaleProduct(ClothingOptions clothing, Product.RegisterInfo info) {
+        Product product = Product.register(info);
+        product.addOptions(addOptions(List.of(
+            option(clothing.navy(), clothing.size110()),
+            option(clothing.navy(), clothing.size120()))), clothing.type());
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.size110(), 105, 115, top110Measurements()),
+            spec(clothing.size120(), 115, 125, top120Measurements()))), info.category(), clothing.type());
+        product.startSale(ProductFixture.SELLER_ID, info.category(), clothing.type());
+        return product;
     }
 
     private void saveClothingType(ClothingOptions clothing) {

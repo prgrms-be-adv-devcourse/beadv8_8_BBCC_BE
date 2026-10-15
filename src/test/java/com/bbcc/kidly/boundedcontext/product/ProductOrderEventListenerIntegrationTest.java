@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
+import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.TwoOnSaleProducts;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -191,6 +192,20 @@ class ProductOrderEventListenerIntegrationTest {
                 .containsExactlyInAnyOrder(
                     tuple(options.navy110().getId(), true),
                     tuple(options.navy120().getId(), false)));
+    }
+
+    @Test
+    @DisplayName("SALE-08 한 주문으로 두 상품의 옵션이 품절되면 상품마다 상품 정보 변경됨을 한 번씩 보낸다")
+    void sendProductChangedPerSoldOutProduct() {
+        TwoOnSaleProducts products = productOptionSaver.saveTwoOnSaleProducts(1, 1);
+
+        publishInTransaction(orderCreated(ORDER_ID,
+            orderItem(11L, products.firstNavy110(), 1),
+            orderItem(12L, products.secondNavy110(), 1)));
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class))
+            .extracting(changed -> changed.data().productId())
+            .containsExactlyInAnyOrder(products.firstId(), products.secondId());
     }
 
     // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다
