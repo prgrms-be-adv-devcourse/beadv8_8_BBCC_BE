@@ -1,12 +1,9 @@
 package com.bbcc.kidly.boundedcontext.settlement;
 
-import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCreateInfo;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
@@ -19,7 +16,6 @@ class SellerSettlementApiTest {
 
     private static final String TARGETS_PATH = "/api/v1/seller/settlement-targets";
     private static final String SETTLEMENTS_PATH = "/api/v1/seller/settlements";
-    private static final Long SELLER_ID = 10L;
 
     @Autowired
     private RestTestClient client;
@@ -37,18 +33,18 @@ class SellerSettlementApiTest {
     @DisplayName("판매자는 본인의 정산 대상을 조회한다")
     void targets() {
         settlementItemRepository.save(
-            SettlementFixture.item(201L, SELLER_ID, 10_000L, LocalDateTime.of(2026, 10, 1, 10, 0)));
+            SettlementFixture.item(201L, SettlementFixture.SELLER_ID, 10_000L, LocalDateTime.of(2026, 10, 1, 10, 0)));
         settlementItemRepository.save(
             SettlementFixture.item(202L, 11L, 5_000L, LocalDateTime.of(2026, 10, 1, 11, 0)));
 
         client.get().uri(TARGETS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content.length()").isEqualTo(1)
             .jsonPath("$.content[0].orderItemId").isEqualTo(201)
-            .jsonPath("$.content[0].orderId").isEqualTo(1)
+            .jsonPath("$.content[0].orderId").isEqualTo(SettlementFixture.ORDER_ID)
             .jsonPath("$.content[0].salesAmount").isEqualTo(10_000)
             .jsonPath("$.content[0].confirmedAt").isNotEmpty()
             .jsonPath("$.totalElements").isEqualTo(1);
@@ -58,7 +54,7 @@ class SellerSettlementApiTest {
     @DisplayName("정산 대상이 없으면 빈 목록이다")
     void targetsEmpty() {
         client.get().uri(TARGETS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -70,7 +66,7 @@ class SellerSettlementApiTest {
     @DisplayName("구매자는 조회할 수 없다. 403이다")
     void targetsForbidden() {
         client.get().uri(TARGETS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(SELLER_ID)))
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(SettlementFixture.SELLER_ID)))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -78,11 +74,13 @@ class SellerSettlementApiTest {
     @Test
     @DisplayName("판매자는 본인의 정산서 목록을 조회한다")
     void settlements() {
-        settlementRepository.save(settlement(SELLER_ID));
-        settlementRepository.save(settlement(11L));
+        settlementRepository.save(SettlementFixture.settlement(
+            SettlementFixture.SELLER_ID, SettlementFixture.PERIOD_START, SettlementFixture.PERIOD_END));
+        settlementRepository.save(SettlementFixture.settlement(
+            11L, SettlementFixture.PERIOD_START, SettlementFixture.PERIOD_END));
 
         client.get().uri(SETTLEMENTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -98,10 +96,34 @@ class SellerSettlementApiTest {
     }
 
     @Test
+    @DisplayName("상태와 종료일 범위로 정산서를 거른다")
+    void settlementsFiltered() {
+        settlementRepository.save(
+            SettlementFixture.settlement(
+                SettlementFixture.SELLER_ID, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)));
+        var paid = SettlementFixture.settlement(
+            SettlementFixture.SELLER_ID, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30));
+        paid.markPaid(SettlementFixture.NOW);
+        settlementRepository.save(paid);
+        settlementRepository.save(SettlementFixture.settlement(
+            SettlementFixture.SELLER_ID, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)));
+
+        client.get().uri(SETTLEMENTS_PATH + "?status=PAID&fromOn=2026-09-01&toOn=2026-09-30")
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content.length()").isEqualTo(1)
+            .jsonPath("$.content[0].periodEndOn").isEqualTo("2026-09-30")
+            .jsonPath("$.content[0].status").isEqualTo("PAID")
+            .jsonPath("$.totalElements").isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("정산서가 없으면 빈 목록이다")
     void settlementsEmpty() {
         client.get().uri(SETTLEMENTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -112,7 +134,7 @@ class SellerSettlementApiTest {
     @DisplayName("상태 필터가 잘못되면 400이다")
     void settlementsInvalidStatus() {
         client.get().uri(SETTLEMENTS_PATH + "?status=WRONG")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -121,7 +143,7 @@ class SellerSettlementApiTest {
     @DisplayName("구매자는 정산서를 조회할 수 없다. 403이다")
     void settlementsForbidden() {
         client.get().uri(SETTLEMENTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(SELLER_ID)))
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(SettlementFixture.SELLER_ID)))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -129,12 +151,13 @@ class SellerSettlementApiTest {
     @Test
     @DisplayName("정산서 상세는 포함된 주문상품을 함께 준다")
     void settlementDetail() {
-        var settlement = settlementRepository.save(settlement(SELLER_ID));
+        var settlement = settlementRepository.save(SettlementFixture.settlement(
+            SettlementFixture.SELLER_ID, SettlementFixture.PERIOD_START, SettlementFixture.PERIOD_END));
         settle(settlement.getId(), 301L, 60_000L);
         settle(settlement.getId(), 302L, 40_000L);
 
         client.get().uri(SETTLEMENTS_PATH + "/" + settlement.getId())
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -150,23 +173,18 @@ class SellerSettlementApiTest {
     @Test
     @DisplayName("다른 판매자의 정산서 상세는 404다")
     void settlementDetailOfOther() {
-        var settlement = settlementRepository.save(settlement(11L));
+        var settlement = settlementRepository.save(SettlementFixture.settlement(
+            11L, SettlementFixture.PERIOD_START, SettlementFixture.PERIOD_END));
 
         client.get().uri(SETTLEMENTS_PATH + "/" + settlement.getId())
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
             .exchange()
             .expectStatus().isNotFound();
     }
 
-    private Settlement settlement(Long sellerId) {
-        return Settlement.create(
-            new SettlementCreateInfo(
-                sellerId, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31), 100_000L, new BigDecimal("0.1000")),
-            SettlementFixture.NOW);
-    }
-
     private void settle(Long settlementId, Long orderItemId, long salesAmount) {
-        var item = SettlementFixture.item(orderItemId, SELLER_ID, salesAmount, SettlementFixture.CONFIRMED_AT);
+        var item = SettlementFixture.item(
+            orderItemId, SettlementFixture.SELLER_ID, salesAmount, SettlementFixture.CONFIRMED_AT);
         item.settle(settlementId);
         settlementItemRepository.save(item);
     }

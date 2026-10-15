@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 public final class SettlementFixture {
 
     public static final Long SELLER_ID = 10L;
+    public static final Long ORDER_ID = 1L;
     public static final LocalDateTime CONFIRMED_AT = LocalDateTime.of(2026, 10, 1, 10, 0);
     public static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 1, 0, 0);
     public static final BigDecimal FEE_RATE = new BigDecimal("0.1000");
@@ -22,7 +23,7 @@ public final class SettlementFixture {
     }
 
     public static SettlementItemCreateInfo itemInfo(Long orderItemId) {
-        return new SettlementItemCreateInfo(1L, orderItemId, SELLER_ID, 10_000L, CONFIRMED_AT);
+        return new SettlementItemCreateInfo(ORDER_ID, orderItemId, SELLER_ID, 10_000L, CONFIRMED_AT);
     }
 
     public static SettlementItem item(Long orderItemId) {
@@ -37,7 +38,12 @@ public final class SettlementFixture {
         return Settlement.create(settlementInfo(totalSalesAmount), NOW);
     }
 
+    public static Settlement settlement(Long sellerId, LocalDate startOn, LocalDate endOn) {
+        return Settlement.create(new SettlementCreateInfo(sellerId, startOn, endOn, 100_000L, FEE_RATE), NOW);
+    }
+
     public static SettlementItem item(Long orderItemId, Long sellerId, long salesAmount, LocalDateTime confirmedAt) {
-        return SettlementItem.create(new SettlementItemCreateInfo(1L, orderItemId, sellerId, salesAmount, confirmedAt));
+        return SettlementItem.create(
+            new SettlementItemCreateInfo(ORDER_ID, orderItemId, sellerId, salesAmount, confirmedAt));
     }
 }

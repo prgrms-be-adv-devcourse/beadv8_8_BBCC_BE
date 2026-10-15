@@ -28,7 +28,6 @@ public class SellerSettlementController {
 
     private final SellerSettlementService sellerSettlementService;
 
-    // 아직 정산서에 들어가지 않은 본인의 구매확정 항목. 정렬은 확정 시각 최신순 고정
     @GetMapping("/settlement-targets")
     public PageResponse<SettlementTargetResponse> targets(
         @LoginMember AuthMember seller, @PageableDefault Pageable pageable) {
@@ -36,7 +35,6 @@ public class SellerSettlementController {
             sellerSettlementService.getTargets(seller.id(), pageable).map(SettlementTargetResponse::from));
     }
 
-    // 받은 정산서. 기간은 정산 종료일 기준이고 정렬은 종료일 최신순 고정
     @GetMapping("/settlements")
     public PageResponse<SettlementSummaryResponse> settlements(
         @LoginMember AuthMember seller, @Valid @ModelAttribute SettlementSearchRequest request,

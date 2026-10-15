@@ -4,12 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSearch;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSummaryQuery;
-import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCreateInfo;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.support.IntegrationTest;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,14 +25,18 @@ class SettlementSummaryQueryIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        settlementRepository.save(settlement(10L, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)));
-        var paid = settlement(10L, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30));
+        settlementRepository.save(SettlementFixture.settlement(
+            SettlementFixture.SELLER_ID, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)));
+        var paid = SettlementFixture.settlement(
+            SettlementFixture.SELLER_ID, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30));
         paid.markPaid(SettlementFixture.NOW);
         settlementRepository.save(paid);
-        var failed = settlement(10L, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31));
+        var failed = SettlementFixture.settlement(
+            SettlementFixture.SELLER_ID, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31));
         failed.markPaymentFailed("계좌 오류");
         settlementRepository.save(failed);
-        settlementRepository.save(settlement(11L, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)));
+        settlementRepository.save(SettlementFixture.settlement(
+            11L, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)));
     }
 
     @Test
@@ -83,12 +84,6 @@ class SettlementSummaryQueryIntegrationTest {
     }
 
     private SettlementSearch search(SettlementStatus status, LocalDate fromOn, LocalDate toOn) {
-        return new SettlementSearch(10L, status, fromOn, toOn);
-    }
-
-    private Settlement settlement(Long sellerId, LocalDate startOn, LocalDate endOn) {
-        return Settlement.create(
-            new SettlementCreateInfo(sellerId, startOn, endOn, 100_000L, new BigDecimal("0.1000")),
-            SettlementFixture.NOW);
+        return new SettlementSearch(SettlementFixture.SELLER_ID, status, fromOn, toOn);
     }
 }

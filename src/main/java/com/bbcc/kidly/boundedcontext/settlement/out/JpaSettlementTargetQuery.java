@@ -20,7 +20,6 @@ public class JpaSettlementTargetQuery implements SettlementTargetQuery {
 
     private final JPAQueryFactory queryFactory;
 
-    // 요청의 sort는 무시하고 확정 시각 최신순으로 고정한다
     @Override
     public Page<SettlementTargetRow> findPending(Long sellerId, Pageable pageable) {
         var content = queryFactory
