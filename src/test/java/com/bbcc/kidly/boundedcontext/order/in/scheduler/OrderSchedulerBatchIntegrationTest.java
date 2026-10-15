@@ -5,6 +5,7 @@ import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -28,6 +29,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @IntegrationTest
 class OrderSchedulerBatchIntegrationTest {
 
+    private static final OrderScheduleIntervals INTERVALS = new OrderScheduleIntervals(
+        java.time.Duration.ofMinutes(1), new OrderScheduleIntervals.AutoConfirm(java.time.Duration.ofMinutes(10)));
+
     private static final Long BUYER_ID = 1L;
 
     @Autowired
@@ -46,7 +50,7 @@ class OrderSchedulerBatchIntegrationTest {
         OrderService failingFirst = mock(OrderService.class, delegatesTo(orderService));
         doThrow(new IllegalStateException("계속 실패")).when(failingFirst).cancelForPaymentExpiry(ids.getFirst());
 
-        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10)).expireOverduePayments();
+        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS).expireOverduePayments();
 
         assertThat(statusOf(ids.getFirst())).isEqualTo("PENDING_PAYMENT");
         for (Long id : ids.subList(1, 5)) {
@@ -58,7 +62,7 @@ class OrderSchedulerBatchIntegrationTest {
     @DisplayName("max-per-run(3)에 닿으면 그 실행은 앞의 3건만 처리하고 멈추며, 나머지는 다음 실행에서 처리된다")
     void stopsAtMaxPerRunAndContinuesNextRun() {
         List<Long> ids = overdueOrders(5);
-        OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3));
+        OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS);
 
         scheduler.expireOverduePayments();
 
@@ -79,7 +83,7 @@ class OrderSchedulerBatchIntegrationTest {
         doThrow(new IllegalStateException("계속 실패")).when(failingFirst)
             .confirmAutomatically(orderIds.getFirst(), firstItemId);
 
-        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10)).autoConfirm();
+        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS).autoConfirm();
 
         assertThat(itemStatusOf(orderIds.getFirst())).isEqualTo("ORDERED");
         for (Long orderId : orderIds.subList(1, 4)) {

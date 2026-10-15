@@ -10,6 +10,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
@@ -26,18 +27,23 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
  * 한 실행 안의 ID 커서 · 종료 조건 · 실패 건 건너뜀. 저장소 대신 "ID 1..total이 대상"인 가짜 조회로 본다.
  */
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class OrderSchedulerTest {
+
+    private static final OrderScheduleIntervals INTERVALS = new OrderScheduleIntervals(
+        java.time.Duration.ofMinutes(1), new OrderScheduleIntervals.AutoConfirm(java.time.Duration.ofMinutes(10)));
 
     @Mock
     private OrderService orderService;
 
     private OrderScheduler scheduler(int batchSize, int maxPerRun) {
-        return new OrderScheduler(orderService, new OrderSchedulerProperties(batchSize, maxPerRun));
+        return new OrderScheduler(orderService, new OrderSchedulerProperties(batchSize, maxPerRun), INTERVALS);
     }
 
     /**
@@ -150,6 +156,16 @@ class OrderSchedulerTest {
         }
 
         @Test
+        @DisplayName("실행 로그(INFO) 한 줄에 주입받은 만료 확인 주기(PT1M)가 찍힌다")
+        void logsInjectedInterval(CapturedOutput output) {
+            givenOverdueOrders(1);
+
+            scheduler(100, 1000).expireOverduePayments();
+
+            assertThat(output).containsPattern("INFO.*job=payment-expiry targets=1 .*interval=PT1M");
+        }
+
+        @Test
         @DisplayName("대상이 없으면 한 번 조회하고 아무것도 취소하지 않는다")
         void nothingToExpire() {
             givenOverdueOrders(0);
@@ -211,6 +227,16 @@ class OrderSchedulerTest {
             verify(orderService).confirmAutomatically(2L, 20L);
             verify(orderService).confirmAutomatically(4L, 40L);
             verify(orderService, never()).confirmAutomatically(5L, 50L);
+        }
+
+        @Test
+        @DisplayName("실행 로그(INFO) 한 줄에 주입받은 자동 확정 주기(PT10M)가 찍힌다")
+        void logsInjectedInterval(CapturedOutput output) {
+            givenTargets(1);
+
+            scheduler(100, 1000).autoConfirm();
+
+            assertThat(output).containsPattern("INFO.*job=auto-confirm targets=1 .*interval=PT10M");
         }
 
         @Test

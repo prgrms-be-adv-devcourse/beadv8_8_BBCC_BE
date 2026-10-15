@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.bind.validation.BindValidationException;
@@ -108,19 +110,20 @@ class OrderSettingsTest {
     }
 
     /**
-     * 빈 주기는 스프링이 "한 번만 도는 작업"으로 보고 시작 지연이 없어 거절한다. 메시지에는 키 대신 메서드 이름이 나온다.
+     * 빈 주기는 스케줄러가 주입받는 주기 설정(OrderScheduleIntervals)의 바인딩 검증이 @Scheduled 등록보다 먼저 잡는다(#252).
+     * 그 전에는 스프링이 "한 번만 도는 작업"으로 보고 메서드 이름만 나오는 오류로 거절했다.
      */
-    @ParameterizedTest(name = "스케줄러 주기 {0}= 이면 기동 실패, 메시지에 메서드 {1}")
+    @ParameterizedTest(name = "스케줄러 주기 {0}= 이면 기동 실패, 메시지에 {1}")
     @CsvSource({
-        "ORDER_PAYMENT_EXPIRY_INTERVAL, expireOverduePayments",
+        "ORDER_PAYMENT_EXPIRY_INTERVAL, paymentExpiryInterval",
         "ORDER_AUTO_CONFIRM_INTERVAL, autoConfirm"
     })
-    @DisplayName("order.yml 위에서 스케줄러 주기 환경변수를 빈 값으로 주면 NPE가 아니라 기동 오류로 실패한다")
-    void emptySchedulerEnvironmentVariableFails(String name, String method) {
+    @DisplayName("order.yml 위에서 스케줄러 주기 환경변수를 빈 값으로 주면 NPE가 아니라 키 이름이 나오는 바인딩 오류로 실패한다")
+    void emptySchedulerEnvironmentVariableFails(String name, String field) {
         appWithOrderYml(Map.of(name, ""))
             .run(context -> assertThat(context).getFailure()
-                .hasStackTraceContaining("Encountered invalid @Scheduled method '" + method + "'")
-                .rootCause().isNotInstanceOf(NullPointerException.class));
+                .hasRootCauseInstanceOf(BindValidationException.class)
+                .rootCause().hasMessageContaining("kidly.order").hasMessageContaining(field));
     }
 
     @Test
@@ -144,6 +147,39 @@ class OrderSettingsTest {
             .run(context -> assertThat(context).getFailure()
                 .hasStackTraceContaining("1분")
                 .rootCause().isNotInstanceOf(NullPointerException.class));
+    }
+
+    @ParameterizedTest(name = "{0}={1} → 기동 실패, 메시지에 {2}")
+    @CsvSource({
+        "ORDER_PAYMENT_TIMEOUT, -PT1S, kidly.order.payment-timeout",
+        "ORDER_PAYMENT_TIMEOUT, PT0S, kidly.order.payment-timeout",
+        "ORDER_PAYMENT_TIMEOUT, PT0.999S, kidly.order.payment-timeout",
+        "ORDER_AUTO_CONFIRM_AFTER, -PT1S, kidly.order.auto-confirm.after",
+        "ORDER_AUTO_CONFIRM_AFTER, PT0S, kidly.order.auto-confirm.after",
+        "ORDER_AUTO_CONFIRM_AFTER, PT0.999S, kidly.order.auto-confirm.after",
+        "ORDER_PAYMENT_EXPIRY_INTERVAL, -PT1S, kidly.order.payment-expiry-interval",
+        "ORDER_PAYMENT_EXPIRY_INTERVAL, PT0S, kidly.order.payment-expiry-interval",
+        "ORDER_PAYMENT_EXPIRY_INTERVAL, PT0.999S, kidly.order.payment-expiry-interval",
+        "ORDER_AUTO_CONFIRM_INTERVAL, -PT1S, kidly.order.auto-confirm.interval",
+        "ORDER_AUTO_CONFIRM_INTERVAL, PT0S, kidly.order.auto-confirm.interval",
+        "ORDER_AUTO_CONFIRM_INTERVAL, PT0.999S, kidly.order.auto-confirm.interval"
+    })
+    @DisplayName("시간 설정이 1초 미만(음수 · 0 · 0.999초)이면 NPE · 메시지 없는 오류가 아니라 키 이름이 나오는 바인딩 오류로 기동 실패")
+    void timeUnderOneSecondFails(String name, String value, String key) {
+        appWithOrderYml(Map.of(name, value))
+            .run(context -> assertThat(context).getFailure()
+                .hasRootCauseInstanceOf(BindValidationException.class)
+                .rootCause().hasMessageContaining(key));
+    }
+
+    @ParameterizedTest(name = "{0}=PT1S → 기동")
+    @ValueSource(strings = {
+        "ORDER_PAYMENT_TIMEOUT", "ORDER_AUTO_CONFIRM_AFTER",
+        "ORDER_PAYMENT_EXPIRY_INTERVAL", "ORDER_AUTO_CONFIRM_INTERVAL"})
+    @DisplayName("시간 설정이 정확히 1초(PT1S)면 기동한다")
+    void timeExactlyOneSecondStarts(String name) {
+        appWithOrderYml(Map.of(name, "PT1S"))
+            .run(context -> assertThat(context).hasNotFailed());
     }
 
     @Test
@@ -233,7 +269,7 @@ class OrderSettingsTest {
      * 스케줄러 표현식 해석만 확인한다. 주문 서비스는 빈 결과를 돌려주는 mock.
      */
     @EnableScheduling
-    @EnableConfigurationProperties(OrderSchedulerProperties.class)
+    @EnableConfigurationProperties({OrderSchedulerProperties.class, OrderScheduleIntervals.class})
     static class SchedulerOnly {
 
         @Bean
@@ -242,8 +278,9 @@ class OrderSettingsTest {
         }
 
         @Bean
-        OrderScheduler orderScheduler(OrderService orderService, OrderSchedulerProperties properties) {
-            return new OrderScheduler(orderService, properties);
+        OrderScheduler orderScheduler(OrderService orderService, OrderSchedulerProperties properties,
+            OrderScheduleIntervals intervals) {
+            return new OrderScheduler(orderService, properties, intervals);
         }
     }
 
