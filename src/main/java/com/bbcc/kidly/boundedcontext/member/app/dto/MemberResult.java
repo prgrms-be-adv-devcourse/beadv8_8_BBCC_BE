@@ -10,14 +10,14 @@ import java.util.List;
  *
  * @param providers 로그인에 쓰는 소셜 제공자 이름 (예: KAKAO)
  */
-public record MemberResult(Long id, String nickname, List<Role> roles, SellerStatus sellerStatus,
+public record MemberResult(Long id, String nickname, String email, List<Role> roles, SellerStatus sellerStatus,
     List<String> providers) {
 
     public static MemberResult from(Member member) {
         var providers = member.getSocialAccounts().stream()
             .map(account -> account.getProvider().name())
             .toList();
-        return new MemberResult(member.getId(), member.getNickname(), member.roles(), member.sellerStatus(),
-            providers);
+        return new MemberResult(member.getId(), member.getNickname(), member.getEmail(), member.roles(),
+            member.sellerStatus(), providers);
     }
 }
