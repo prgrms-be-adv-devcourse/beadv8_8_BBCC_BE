@@ -25,6 +25,8 @@ public class InventoryDeductionRecorder {
     private final InventoryDeductionRepository inventoryDeductionRepository;
     private final EventPublisher eventPublisher;
 
+    // 주문 취소됨이 먼저 온 주문의 FAILED 기록만 저장한다. 이미 취소된 주문이라 재고 부족함은 보내지 않는다
+    // 차감을 거절할 때는 이 메서드 대신 recordRejected를 불러야 주문이 취소된다
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailed(InventoryDeductionRequest request) {
         inventoryDeductionRepository.saveAll(request.failedRecords());

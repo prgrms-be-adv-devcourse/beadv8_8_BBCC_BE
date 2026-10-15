@@ -6,7 +6,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepositor
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class InventoryDeductor {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deduct(InventoryDeductionRequest request) {
         LocalDateTime now = LocalDateTime.now();
-        Set<Long> shortOptionIds = new LinkedHashSet<>();
+        Set<Long> shortOptionIds = new HashSet<>();
         for (InventoryDeductionRequest.OptionQuantity quantity : request.optionQuantities()) {
             if (!inventoryRepository.deductIfAvailable(quantity.optionId(), quantity.qty(), now)) {
                 shortOptionIds.add(quantity.optionId());
