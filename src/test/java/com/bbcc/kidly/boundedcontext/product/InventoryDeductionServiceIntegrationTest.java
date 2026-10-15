@@ -123,6 +123,18 @@ class InventoryDeductionServiceIntegrationTest {
         assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
     }
 
+    @Test
+    @DisplayName("INV-10 차감한 주문상품 ID로 수량이 다른 주문 생성됨이 오면 주문 쪽 오류로 보고 예외 없이 아무것도 바꾸지 않는다")
+    void ignoreOrderItemWithDifferentContent() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, item(11L, options.navy110(), 2)));
+
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, item(11L, options.navy110(), 3)));
+
+        assertThat(availableQty(options.navy110())).isEqualTo(8);
+        assertThat(records()).containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+    }
+
     private static OrderCreatedEvent orderCreated(long orderId, OrderCreatedEvent.Item... items) {
         return new OrderCreatedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new OrderCreatedEvent.Data(orderId, MEMBER_ID, List.of(items)));

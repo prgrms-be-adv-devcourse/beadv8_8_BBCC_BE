@@ -47,8 +47,17 @@ public class InventoryDeductionService {
                 item.orderItemId(), optionById.get(item.optionId()), item.quantity()));
         }
         InventoryDeductionRequest request = InventoryDeductionRequest.of(data.orderId(), items);
+        boolean alreadyHandled;
+        try {
+            alreadyHandled = request.isAlreadyHandled(
+                inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds(data)));
+        } catch (IllegalArgumentException e) {
+            // 같은 주문상품 ID에 다른 내용이 온 주문 쪽 오류다. 다시 받아도 결과가 같으므로 재시도하지 않는다
+            log.error("기존 차감 기록과 다른 주문 생성됨이라 처리하지 않습니다. orderId={}", data.orderId(), e);
+            return;
+        }
         // 같은 주문 생성됨을 다시 받았으면 재고도 기록도 바꾸지 않는다
-        if (request.isAlreadyHandled(inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds(data)))) {
+        if (alreadyHandled) {
             log.info("이미 처리한 주문 생성됨이라 건너뜁니다. orderId={}", data.orderId());
             return;
         }
