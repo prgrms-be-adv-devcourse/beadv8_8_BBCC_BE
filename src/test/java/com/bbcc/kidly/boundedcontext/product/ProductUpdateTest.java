@@ -124,6 +124,18 @@ class ProductUpdateTest {
         assertThat(product.getName()).isEqualTo(registered.name());
     }
 
+    @Test
+    @DisplayName("INFO-01 다중 선택이 아닌 정보 항목(주요소재)에 값을 두 개 넣어 고치면 거절하고 아무것도 바꾸지 않는다")
+    void rejectMultipleValuesOnSingleInfo() {
+        Product.UpdateInfo twoMaterials = sameBasicsWith(List.of(
+            new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton(), clothing.linen()), null)));
+
+        assertThatThrownBy(() -> product.update(twoMaterials)).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED));
+        assertThat(product.getInfoValues()).extracting(ProductInfoValue::getAttributeValue)
+            .containsExactly(clothing.cotton());
+    }
+
     // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
     private Product.UpdateInfo sameBasicsWith(List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, VERSION, category, registered.name(), registered.brand(),
