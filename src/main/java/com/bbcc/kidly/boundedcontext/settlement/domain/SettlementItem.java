@@ -83,7 +83,7 @@ public class SettlementItem extends BaseTimeEntity {
     }
 
     public void settle(Long settlementId) {
-        requireNonNull(settlementId, "settlementId는 필수입니다");
+        Assert.isTrue(requireNonNull(settlementId, "settlementId는 필수입니다") > 0, "settlementId는 0보다 커야 합니다");
         Assert.state(status == SettlementItemStatus.PENDING, "대기 중인 정산 항목만 정산할 수 있습니다");
         this.settlementId = settlementId;
         this.status = SettlementItemStatus.SETTLED;
