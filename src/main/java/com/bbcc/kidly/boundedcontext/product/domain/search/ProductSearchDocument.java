@@ -97,16 +97,18 @@ public class ProductSearchDocument extends BaseTimeEntity {
         requireNonNull(info, "info는 필수입니다");
         ProductSearchDocument document = new ProductSearchDocument();
         document.productId = requireNonNull(info.productId(), "productId는 필수입니다");
-        document.name = info.name();
+        document.name = requireNonNull(info.name(), "name은 필수입니다");
         document.thumbnailUrl = info.thumbnailUrl();
-        document.sellerId = info.sellerId();
-        document.categoryId = info.categoryId();
-        document.status = info.status();
+        document.sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        document.categoryId = requireNonNull(info.categoryId(), "categoryId는 필수입니다");
+        document.status = requireNonNull(info.status(), "status는 필수입니다");
         document.sizeFree = info.sizeFree();
-        document.productCreatedAt = info.productCreatedAt();
-        document.eventOccurredAt = info.occurredAt();
-        document.minPrice = lowestPrice(info.options());
-        document.soldOut = allSoldOut(info.options());
+        document.productCreatedAt = requireNonNull(info.productCreatedAt(), "productCreatedAt은 필수입니다");
+        document.eventOccurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
+        List<OptionInfo> options = requireNonNull(info.options(), "options는 필수입니다");
+        requireNonNull(info.infoValues(), "infoValues는 필수입니다");
+        document.minPrice = lowestPrice(options);
+        document.soldOut = allSoldOut(options);
         document.attributes = collectAttributes(info);
         return document;
     }

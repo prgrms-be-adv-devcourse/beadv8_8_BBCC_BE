@@ -1,9 +1,18 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.CATEGORY_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.NAME;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.OCCURRED_AT;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.PRODUCT_CREATED_AT;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.PRODUCT_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.changeInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductSearchDocumentFixture.value;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.bbcc.kidly.boundedcontext.product.domain.search.ProductSearchDocument;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
@@ -11,8 +20,12 @@ import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * 상품 정보 변경됨에서 옮긴 값으로 검색용 표 한 행을 만들 때, 목록에 보여 줄 값을 규칙대로 계산하는지 확인한다.
@@ -96,5 +109,38 @@ class ProductSearchDocumentTest {
                 ProductSearchDocument::getProductCreatedAt, ProductSearchDocument::getEventOccurredAt)
             .containsExactly(5L, "아기 모자", "https://cdn.kidly.test/hat.jpg", 9L, 4L, ProductStatus.STOPPED, true,
                 productCreatedAt, occurredAt);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changeInfosMissingRequiredValue")
+    @DisplayName("상품 ID · 판매자 · 이름 · 카테고리 · 판매 상태 · 등록 시각 · 이벤트 발생 시각 · 옵션 목록 · 정보 값 목록 중 하나라도 없으면 만들지 않는다")
+    void rejectsMissingRequiredValue(String field, ProductSearchDocument.ChangeInfo info) {
+        assertThatNullPointerException()
+            .isThrownBy(() -> ProductSearchDocument.create(info))
+            .withMessageStartingWith(field);
+    }
+
+    static Stream<Arguments> changeInfosMissingRequiredValue() {
+        List<ProductSearchDocument.OptionInfo> options = List.of(option(25_000L, false, OptionSaleStatus.ON_SALE));
+        ProductStatus onSale = ProductStatus.ON_SALE;
+        return Stream.of(
+            arguments("productId", new ProductSearchDocument.ChangeInfo(null, SELLER_ID, NAME, CATEGORY_ID, onSale,
+                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+            arguments("sellerId", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, null, NAME, CATEGORY_ID, onSale,
+                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+            arguments("name", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, null, CATEGORY_ID, onSale,
+                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+            arguments("categoryId", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, null, onSale,
+                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+            arguments("status", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, null,
+                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+            arguments("productCreatedAt", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME,
+                CATEGORY_ID, onSale, THUMBNAIL_URL, null, false, options, List.of(), OCCURRED_AT)),
+            arguments("occurredAt", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
+                onSale, THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), null)),
+            arguments("options", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
+                onSale, THUMBNAIL_URL, PRODUCT_CREATED_AT, false, null, List.of(), OCCURRED_AT)),
+            arguments("infoValues", new ProductSearchDocument.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
+                onSale, THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, null, OCCURRED_AT)));
     }
 }
