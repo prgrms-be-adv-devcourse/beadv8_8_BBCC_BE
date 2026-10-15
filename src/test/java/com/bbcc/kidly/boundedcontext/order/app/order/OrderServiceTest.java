@@ -449,23 +449,6 @@ class OrderServiceTest {
     }
 
     @Nested
-    @DisplayName("배송 완료 기록")
-    class RecordDelivered {
-
-        @Test
-        @DisplayName("그 판매자 몫 주문상품에 배송 완료 시각을 기록한다")
-        void recordsSellersItems() {
-            Order order = placedOrder(BUYER_ID);
-            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
-            LocalDateTime at = LocalDateTime.of(2026, 10, 16, 9, 0);
-
-            orderService.recordDelivered(ORDER_ID, SELLER_ID, at);
-
-            assertThat(order.getItems()).allSatisfy(item -> assertThat(item.getDeliveredAt()).isEqualTo(at));
-        }
-    }
-
-    @Nested
     @DisplayName("주문 조회")
     class GetOrder {
 

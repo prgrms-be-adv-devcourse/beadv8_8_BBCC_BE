@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -50,6 +51,9 @@ class OrderApiTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderDeliveredAtSetter deliveredAtSetter;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -350,7 +354,7 @@ class OrderApiTest {
         private void markDelivered(String orderId) {
             orderService.markPaid(Long.valueOf(orderId), 500L,
                 orderService.getOrder(BUYER_ID, Long.valueOf(orderId)).totalAmount());
-            orderService.recordDelivered(Long.valueOf(orderId), SELLER_ID, LocalDateTime.now());
+            deliveredAtSetter.recordDelivered(Long.valueOf(orderId), SELLER_ID, LocalDateTime.now());
         }
 
         private String orderItemIdOf(String orderId) {
