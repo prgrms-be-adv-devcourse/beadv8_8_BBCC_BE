@@ -7,6 +7,8 @@ import static com.bbcc.kidly.boundedcontext.order.in.web.SellerOrderController.S
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
@@ -81,6 +83,9 @@ class OrderFlowApiTest {
 
     @Autowired
     private OrderScheduler orderScheduler;
+
+    @Autowired
+    private OrderService orderService;
 
     @Autowired
     private Order.Policy orderPolicy;
@@ -268,6 +273,54 @@ class OrderFlowApiTest {
         OrderBody order = detail(orderId);
         assertThat(order.status()).isEqualTo("CANCELLED");
         assertThat(order.cancelReason()).isEqualTo("PAYMENT_EXPIRED");
+    }
+
+    @Test
+    @DisplayName("결제 마감 만료(여러 배치): 마감이 지난 주문 3건을 batch 2로 한 실행에 끝까지 PAYMENT_EXPIRED로 취소한다")
+    void paymentExpiryAcrossBatches() {
+        List<Long> orderIds = List.of(placeOrder(), placeOrder(), placeOrder());
+        orderIds.forEach(this::expire);
+
+        smallBatchScheduler().expireOverduePayments();
+
+        for (Long orderId : orderIds) {
+            OrderBody order = detail(orderId);
+            assertThat(order.status()).isEqualTo("CANCELLED");
+            assertThat(order.cancelReason()).isEqualTo("PAYMENT_EXPIRED");
+        }
+        assertThat(recorder.events(OrderCancelledEvent.class)).extracting(event -> event.data().orderId())
+            .containsExactlyInAnyOrderElementsOf(orderIds);
+    }
+
+    @Test
+    @DisplayName("자동 구매확정(여러 배치): 기간이 지난 주문상품 4건(주문 2건 × 판매자 2명)을 batch 2로 한 실행에 끝까지 AUTO 확정한다")
+    void autoConfirmAcrossBatches() {
+        saveBuyerWallet(ORDER_AMOUNT * 2);
+        List<Long> orderIds = List.of(placeOrder(), placeOrder());
+        for (Long orderId : orderIds) {
+            publish(stockDeducted(orderId));
+            shipAndDeliver(SELLER_A_ID, orderId);
+            shipAndDeliver(SELLER_B_ID, orderId);
+            jdbcTemplate.update("update orders.order_item set delivered_at = ? where order_id = ?",
+                LocalDateTime.now().minus(orderPolicy.autoConfirmAfter()).minusMinutes(1), orderId);
+        }
+
+        smallBatchScheduler().autoConfirm();
+
+        for (Long orderId : orderIds) {
+            assertThat(detail(orderId).items()).hasSize(2).allSatisfy(item -> {
+                assertThat(item.status()).isEqualTo("CONFIRMED");
+                assertThat(item.confirmType()).isEqualTo("AUTO");
+            });
+        }
+        assertThat(recorder.events(OrderItemPurchaseConfirmedEvent.class)).hasSize(4);
+    }
+
+    /**
+     * 시연처럼 짧게: 한 번 조회 2건 · 한 실행 상한 10건. 같은 컨텍스트의 실제 서비스로 돌린다.
+     */
+    private OrderScheduler smallBatchScheduler() {
+        return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10));
     }
 
     @Test

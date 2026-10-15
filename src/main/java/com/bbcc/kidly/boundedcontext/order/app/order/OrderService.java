@@ -30,6 +30,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -45,8 +46,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class OrderService {
-
-    private static final int AUTO_CONFIRM_BATCH_SIZE = 100;
 
     private final OrderRepository orderRepository;
     private final ProductReplicaRepository productReplicaRepository;
@@ -154,15 +153,12 @@ public class OrderService {
     }
 
     /**
-     * 결제대기이고 결제 마감이 지난 주문 ID. 주문 ID 오름차순 100건.
+     * 결제대기이고 결제 마감이 now(포함) 이전인 주문 ID. afterId 다음부터 주문 ID 오름차순 limit건.
+     * now는 스케줄러가 한 실행에 한 번 정해 모든 배치에 같은 값을 넘긴다.
      */
     @Transactional(readOnly = true)
-    public List<Long> findOverduePaymentOrderIds() {
-        return orderRepository.findTop100ByStatusAndPaymentDueAtLessThanEqualOrderByIdAsc(
-                Order.Status.PENDING_PAYMENT, LocalDateTime.now())
-            .stream()
-            .map(Order::getId)
-            .toList();
+    public List<Long> findOverduePaymentOrderIds(LocalDateTime now, Long afterId, int limit) {
+        return orderRepository.findOverduePaymentOrderIds(Order.Status.PENDING_PAYMENT, now, afterId, Limit.of(limit));
     }
 
     /**
@@ -189,14 +185,14 @@ public class OrderService {
     }
 
     /**
-     * 자동 구매확정 대상을 좁힌다: 주문됨이고 (지금 − 자동 구매확정 기간) 이전에 배송 완료된 주문상품.
-     * 주문상품 ID 오름차순 100건.
+     * 자동 구매확정 대상을 좁힌다: 주문됨이고 (now − 자동 구매확정 기간) 이전(포함)에 배송 완료된 주문상품.
+     * afterId 다음부터 주문상품 ID 오름차순 limit건. now는 스케줄러가 한 실행에 한 번 정해 넘긴다.
      */
     @Transactional(readOnly = true)
-    public List<AutoConfirmTarget> findAutoConfirmTargets() {
-        LocalDateTime deliveredBefore = LocalDateTime.now().minus(orderPolicy.autoConfirmAfter());
+    public List<AutoConfirmTarget> findAutoConfirmTargets(LocalDateTime now, Long afterId, int limit) {
+        LocalDateTime deliveredBefore = now.minus(orderPolicy.autoConfirmAfter());
         return orderRepository.findAutoConfirmTargets(
-                OrderItem.Status.ORDERED, deliveredBefore, PageRequest.of(0, AUTO_CONFIRM_BATCH_SIZE))
+                OrderItem.Status.ORDERED, deliveredBefore, afterId, Limit.of(limit))
             .stream()
             .map(row -> new AutoConfirmTarget(row.getOrderId(), row.getOrderItemId()))
             .toList();

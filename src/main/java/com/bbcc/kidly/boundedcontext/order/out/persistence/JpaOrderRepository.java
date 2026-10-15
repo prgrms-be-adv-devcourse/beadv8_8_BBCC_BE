@@ -6,7 +6,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
@@ -31,11 +31,20 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
 
     @Override
     @Query("""
+        select o.id
+        from Order o
+        where o.status = :status and o.paymentDueAt <= :now and o.id > :afterId
+        order by o.id asc
+        """)
+    List<Long> findOverduePaymentOrderIds(Order.Status status, LocalDateTime now, Long afterId, Limit limit);
+
+    @Override
+    @Query("""
         select i.order.id as orderId, i.id as orderItemId
         from OrderItem i
-        where i.status = :status and i.deliveredAt <= :deliveredBefore
+        where i.status = :status and i.deliveredAt <= :deliveredBefore and i.id > :afterId
         order by i.id asc
         """)
     List<AutoConfirmRow> findAutoConfirmTargets(
-        OrderItem.Status status, LocalDateTime deliveredBefore, Pageable pageable);
+        OrderItem.Status status, LocalDateTime deliveredBefore, Long afterId, Limit limit);
 }

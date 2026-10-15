@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -45,14 +46,14 @@ public interface OrderRepository {
     Page<Order> findAllByMemberIdOrderByIdDesc(Long memberId, Pageable pageable);
 
     /**
-     * 결제 마감이 지난 주문(상태 · 마감 시각 조건). 주문 ID 오름차순 100건.
+     * 결제 마감이 지난(now 포함) 주문 ID. afterId보다 큰 ID만 주문 ID 오름차순으로 limit건(한 실행 안의 ID 커서).
      */
-    List<Order> findTop100ByStatusAndPaymentDueAtLessThanEqualOrderByIdAsc(Order.Status status, LocalDateTime now);
+    List<Long> findOverduePaymentOrderIds(Order.Status status, LocalDateTime now, Long afterId, Limit limit);
 
     /**
      * 자동 구매확정 대상을 좁힌다: 주문상품 상태가 status이고 deliveredBefore 이전(포함)에 배송 완료된 것.
-     * 주문상품 ID 오름차순, 건수는 pageable로. 확정해도 되는지 최종 판단은 주문이 한다.
+     * afterId보다 큰 주문상품 ID만 오름차순으로 limit건(ID 커서). 확정해도 되는지 최종 판단은 주문이 한다.
      */
     List<AutoConfirmRow> findAutoConfirmTargets(
-        OrderItem.Status status, LocalDateTime deliveredBefore, Pageable pageable);
+        OrderItem.Status status, LocalDateTime deliveredBefore, Long afterId, Limit limit);
 }

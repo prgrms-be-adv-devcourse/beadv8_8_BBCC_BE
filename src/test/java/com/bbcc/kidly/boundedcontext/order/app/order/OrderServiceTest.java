@@ -6,7 +6,6 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +50,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -82,9 +82,6 @@ class OrderServiceTest {
 
     @Captor
     private ArgumentCaptor<DomainEvent> published;
-
-    @Captor
-    private ArgumentCaptor<LocalDateTime> cutoff;
 
     private OrderService orderService;
 
@@ -276,13 +273,13 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("만료 대상은 결제대기 · 마감 지난 주문 ID를 저장소가 준 순서(ID 오름차순) 그대로 돌려준다")
+        @DisplayName("만료 대상은 결제대기 · 받은 기준 시각 · 커서 · 건수로 저장소에 묻고, 저장소가 준 ID 순서 그대로 돌려준다")
         void findsOverdueOrderIds() {
-            when(orderRepository.findTop100ByStatusAndPaymentDueAtLessThanEqualOrderByIdAsc(
-                eq(Order.Status.PENDING_PAYMENT), any()))
-                .thenReturn(List.of(withId(placedOrder(BUYER_ID), 3L), withId(placedOrder(BUYER_ID), 5L)));
+            LocalDateTime now = LocalDateTime.of(2026, 10, 15, 9, 0);
+            when(orderRepository.findOverduePaymentOrderIds(Order.Status.PENDING_PAYMENT, now, 2L, Limit.of(50)))
+                .thenReturn(List.of(3L, 5L));
 
-            assertThat(orderService.findOverduePaymentOrderIds()).isEqualTo(List.of(3L, 5L));
+            assertThat(orderService.findOverduePaymentOrderIds(now, 2L, 50)).isEqualTo(List.of(3L, 5L));
         }
     }
 
@@ -375,19 +372,16 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("자동 확정 대상은 지금 − 기간을 기준 시각으로 주문됨 상태 100건을 좁혀 (주문 ID, 주문상품 ID)로 돌려준다")
+        @DisplayName("자동 확정 대상은 받은 기준 시각 − 기간 · 주문됨 · 커서 · 건수로 좁혀 (주문 ID, 주문상품 ID)로 돌려준다")
         void findsAutoConfirmTargets() {
-            LocalDateTime before = LocalDateTime.now().minus(POLICY.autoConfirmAfter());
-            when(orderRepository.findAutoConfirmTargets(
-                eq(OrderItem.Status.ORDERED), any(), eq(PageRequest.of(0, 100))))
+            LocalDateTime now = LocalDateTime.of(2026, 10, 15, 9, 0);
+            when(orderRepository.findAutoConfirmTargets(OrderItem.Status.ORDERED, now.minus(POLICY.autoConfirmAfter()),
+                60L, Limit.of(50)))
                 .thenReturn(List.of(row(7L, 70L), row(8L, 80L)));
 
-            List<AutoConfirmTarget> targets = orderService.findAutoConfirmTargets();
+            List<AutoConfirmTarget> targets = orderService.findAutoConfirmTargets(now, 60L, 50);
 
-            LocalDateTime after = LocalDateTime.now().minus(POLICY.autoConfirmAfter());
             assertThat(targets).isEqualTo(List.of(new AutoConfirmTarget(7L, 70L), new AutoConfirmTarget(8L, 80L)));
-            verify(orderRepository).findAutoConfirmTargets(eq(OrderItem.Status.ORDERED), cutoff.capture(), any());
-            assertThat(cutoff.getValue()).isBetween(before, after);
         }
 
         /**
