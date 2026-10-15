@@ -44,7 +44,7 @@ class AdminSettlementApiTest {
         assertThat(body.periodEndOn()).isEqualTo(cutoffOn.minusDays(1));
         assertThat(body.successCount()).isZero();
         assertThat(body.requestedBy()).isEqualTo(ADMIN_ID);
-        assertThat(result.getResponseHeaders().getLocation().getPath()).isEqualTo(RUNS_PATH + "/" + body.id());
+        assertThat(result.getResponseHeaders().getLocation().getPath()).isEqualTo(RUNS_PATH + "/" + body.runId());
     }
 
     @Test
@@ -92,12 +92,12 @@ class AdminSettlementApiTest {
         var created = run(LocalDate.now().withDayOfMonth(1)).expectStatus().isCreated()
             .expectBody(SettlementRunResponse.class).returnResult().getResponseBody();
 
-        client.get().uri(RUNS_PATH + "/{id}", created.id())
+        client.get().uri(RUNS_PATH + "/{id}", created.runId())
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
             .exchange()
             .expectStatus().isOk()
             .expectBody(SettlementRunResponse.class)
-            .value(found -> assertThat(found.id()).isEqualTo(created.id()));
+            .value(found -> assertThat(found.runId()).isEqualTo(created.runId()));
     }
 
     @Test

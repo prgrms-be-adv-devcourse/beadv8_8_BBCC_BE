@@ -43,17 +43,17 @@ public class SettlementJobConfig {
     @Bean
     public Step settleSellerStep(
         JobRepository jobRepository, PlatformTransactionManager transactionManager, SettlementProperties properties,
-        SettlementSellerReader settlementSellerReader, SellerSettlementWriter sellerSettlementWriter) {
+        SettlementSellerReader settlementSellerReader, SettlementSellerWriter settlementSellerWriter) {
         return new StepBuilder(STEP_NAME, jobRepository)
             .<Long, Long>chunk(properties.chunkSize())
             .transactionManager(transactionManager)
             .reader(settlementSellerReader)
-            .writer(sellerSettlementWriter)
+            .writer(settlementSellerWriter)
             .faultTolerant()
             .skip(IllegalArgumentException.class, IllegalStateException.class, ArithmeticException.class,
                 OptimisticLockingFailureException.class, DataIntegrityViolationException.class)
             .skipLimit(Long.MAX_VALUE)
-            .skipListener(new SellerSettlementSkipListener())
+            .skipListener(new SettlementSellerSkipListener())
             .build();
     }
 
@@ -67,10 +67,10 @@ public class SettlementJobConfig {
 
     @Bean
     @StepScope
-    public SellerSettlementWriter sellerSettlementWriter(
+    public SettlementSellerWriter settlementSellerWriter(
         SettlementItemRepository settlementItemRepository, SettlementRepository settlementRepository,
         SettlementProperties properties, @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
-        return new SellerSettlementWriter(
+        return new SettlementSellerWriter(
             settlementItemRepository, settlementRepository, properties.feeRate(), cutoffAt);
     }
 }
