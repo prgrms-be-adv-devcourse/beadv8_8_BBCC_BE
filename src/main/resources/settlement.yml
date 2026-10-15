@@ -1,0 +1,23 @@
+# 정산 도메인 설정. application.yml이 가져온다
+kidly:
+  settlement:
+    # 수수료율(0 이상 1 이하, 소수 넷째 자리까지). 정산서를 만들 때의 값을 정산서에 저장한다. 기본 10%
+    fee-rate: ${SETTLEMENT_FEE_RATE:0.1}
+    # 자동 정산 cron (Asia/Seoul). 기본 매월 1일 0시. "-"면 자동 실행을 끈다
+    run-cron: ${SETTLEMENT_RUN_CRON:0 0 0 1 * *}
+    # 한 트랜잭션에서 처리하는 판매자 수(1 이상). 실패하면 그 묶음을 판매자 1명씩 다시 처리한다
+    chunk-size: ${SETTLEMENT_CHUNK_SIZE:100}
+
+spring:
+  batch:
+    job:
+      # 기동할 때 작업을 저절로 돌리지 않는다. 스케줄러 · 관리자 API만 실행한다
+      enabled: false
+    jdbc:
+      # Batch 메타데이터 테이블은 settlement 스키마에 둔다
+      table-prefix: settlement.BATCH_
+      schema: classpath:settlement/batch-schema-postgresql.sql
+      # 운영은 배포 전에 위 스크립트를 실행한다. local · test만 기동 때 만든다
+      initialize-schema: never
+      # Batch 기본(SERIALIZABLE)은 이 프로젝트의 Hibernate 연결 설정이 거부한다 (application.yml 참고)
+      isolation-level-for-create: default

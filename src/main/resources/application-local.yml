@@ -12,6 +12,10 @@ spring:
         format_sql: true
         hbm2ddl:
           create_namespaces: true
+  # 로컬은 기동할 때 Batch 메타데이터 테이블을 만든다 (settlement.yml)
+  batch:
+    jdbc:
+      initialize-schema: always
 
 # 로컬·테스트 전용 키. 운영은 환경 변수로 다른 키를 쓴다
 # 상대 경로라서 프로젝트 루트에서 실행해야 한다 (bootRun·테스트는 기본으로 루트)

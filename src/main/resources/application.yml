@@ -6,6 +6,7 @@ spring:
     import:
       - classpath:payment.yml
       - classpath:order.yml
+      - classpath:settlement.yml
   profiles:
     default: local
   jpa:
