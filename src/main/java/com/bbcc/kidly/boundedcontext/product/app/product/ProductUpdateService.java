@@ -4,16 +4,18 @@ import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductUpdateReques
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetailResult;
 import com.bbcc.kidly.boundedcontext.product.app.product.support.InventoryReplacer;
 import com.bbcc.kidly.boundedcontext.product.app.product.support.ProductChangedPublisher;
-import com.bbcc.kidly.boundedcontext.product.app.product.support.ProductInputReader;
 import com.bbcc.kidly.boundedcontext.product.app.product.support.ProductInputReader.InputLookup;
+import com.bbcc.kidly.boundedcontext.product.app.product.support.ProductInputReader;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
-import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product.OptionInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SaleInputsInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.UpdateInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.UpdateResult;
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
@@ -61,8 +63,19 @@ public class ProductUpdateService {
             request.thumbnailUrl(),
             request.imageUrls(),
             inputReader.toInfoValues(request.attributes(), lookup));
+        SaleInputsInfo saleInputs = toSaleInputs(request, lookup);
+        // 다른 상품과 SKU 코드가 겹치는지는 상품을 고치기 전에 본다. 고친 뒤에 조회하면 그 조회가 옵션 삭제를 먼저 flush해
+        // 재고 행이 옵션을 가리킨 채로 막힌다. 고치는 상품 자신이 이미 쓰는 코드는 겹친 것으로 보지 않는다 (OPT-07)
+        if (saleInputs != null) {
+            List<String> skuCodes = new ArrayList<>();
+            for (OptionInfo option : saleInputs.options()) {
+                skuCodes.add(option.skuCode());
+            }
+            SkuCodes.validateUnique(
+                skuCodes, productRepository.findSkuCodesInUseByOtherProducts(sellerId, productId, skuCodes));
+        }
         List<ProductOption> optionsBefore = List.copyOf(product.getOptions());
-        UpdateResult result = product.update(info, toSaleInputs(request, lookup));
+        UpdateResult result = product.update(info, saleInputs);
         // 뺀 옵션의 재고는 상품을 고친 뒤 첫 flush보다 먼저 지운다. 옵션 삭제가 먼저 반영되면 재고 행이 옵션을 가리켜 막힌다
         inventoryRepository.deleteByOptionIds(idsOf(result.removedOptions()));
         if (result.changed()) {

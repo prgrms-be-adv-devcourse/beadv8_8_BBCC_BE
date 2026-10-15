@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.option;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.sizeSpecs;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -251,6 +252,30 @@ class ProductUpdateApiTest {
         assertThat(adjustments(navy110)).containsExactly("INITIAL 10", "CORRECTION -3");
         assertThat(adjustments(oatmeal110)).containsExactly("INITIAL 5");
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("OPT-07 SKU 코드는 같은 판매자 안에서 겹치지 않아야 하므로, 같은 판매자의 다른 상품이 쓰는 SKU 코드로 바꾸면 "
+        + "409 ProblemDetail을 받고 옵션은 그대로다")
+    void rejectSkuCodeOfOtherProduct() {
+        Map<String, Object> productB = productA(saved);
+        productB.put("name", "상품 B");
+        options(productB).get(0).put("skuCode", "B-NV-110");
+        client.post().uri(PRODUCTS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(productB)
+            .exchange()
+            .expectStatus().isCreated();
+        Map<String, Object> body = productA(saved);
+        body.put("version", storedVersion());
+        options(body).get(1).put("skuCode", "B-NV-110");
+
+        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.CONFLICT, "이미 쓰는 SKU 코드입니다",
+            "같은 판매자의 다른 옵션과 겹치지 않게 SKU 코드를 넣어 주세요. 겹친 코드는 B-NV-110입니다.");
+        assertThat(jdbcTemplate.queryForList(
+            "select sku_code from product.product_option where product_id = ? order by id", String.class,
+            Long.valueOf(productId))).containsExactly("A-NV-110", null);
     }
 
     // 상품 A를 등록할 때와 같은 값에 version을 더한 수정 요청이다. 옵션 · 가격 · 실측은 보내지 않는다
