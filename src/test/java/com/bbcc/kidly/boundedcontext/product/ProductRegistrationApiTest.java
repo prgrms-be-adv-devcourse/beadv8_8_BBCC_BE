@@ -98,7 +98,7 @@ class ProductRegistrationApiTest {
     }
 
     @Test
-    @DisplayName("INV-02 · INV-18 · INV-19 옵션마다 초기 재고로 재고 행을 만들고, 초기 재고가 0이 아니면 INITIAL 기록을 남긴다")
+    @DisplayName("INV-02 · INV-18 · INV-19 옵션마다 초기 재고로 재고 행을 만들고, 0이 아니면 INITIAL 기록을 남겨 수량과 기록 합이 같다")
     void saveInventoryWithInitialRecord() {
         register(productA(saved)).expectStatus().isCreated();
         List<Long> optionIds = entityManager.createQuery(
@@ -112,6 +112,9 @@ class ProductRegistrationApiTest {
                 "select r.productOption.id, r.deltaQty, r.reason, r.adjustedBy from InventoryAdjustmentRecord r",
                 Object[].class).getResultList())
             .containsExactly(new Object[] {optionIds.get(0), 10, InventoryAdjustmentReason.INITIAL, SELLER_ID});
+        assertThat(entityManager.createQuery(ProductRegistrationRepeatApiTest.AVAILABLE_AND_RECORDED_QTY,
+                Object[].class).getResultList())
+            .allSatisfy(ProductRegistrationRepeatApiTest::assertAvailableEqualsRecorded);
     }
 
     @Test
