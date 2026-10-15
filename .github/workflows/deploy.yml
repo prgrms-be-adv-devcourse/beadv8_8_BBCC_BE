@@ -93,6 +93,8 @@ jobs:
           PAYMENT_KEY_ENCRYPTION_KEY: ${{ secrets.PAYMENT_KEY_ENCRYPTION_KEY }}
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
           JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
+          # 관리자 이메일(쉼표 구분). 개인정보라 Variable 대신 Secret 에 둔다. 없으면 관리자가 없다
+          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
         run: |
           umask 077
           out="$RUNNER_TEMP/deploy-files"
@@ -110,7 +112,7 @@ jobs:
           (( missing == 0 )) || exit 1
 
           # compose 가 $ 같은 문자를 치환하지 않도록 작은따옴표로 감싼다. 그래서 값에 작은따옴표나 줄바꿈이 있으면 안 된다
-          for key in "${keys[@]}"; do
+          for key in "${keys[@]}" ADMIN_EMAILS; do
             [[ "${!key}" != *[\'$'\n']* ]] || { echo "::error::$key 에 작은따옴표나 줄바꿈이 있습니다"; exit 1; }
           done
           {
@@ -121,6 +123,7 @@ jobs:
               printf "%s='%s'\n" "$key" "${!key}"
             done
             printf "POSTGRES_PASSWORD='%s'\n" "$DB_PASSWORD"
+            printf "ADMIN_EMAILS='%s'\n" "$ADMIN_EMAILS"
           } > "$out/.env"
 
           for key in JWT_PRIVATE_KEY JWT_PUBLIC_KEY; do
