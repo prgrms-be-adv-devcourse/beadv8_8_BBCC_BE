@@ -14,6 +14,7 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -72,6 +73,17 @@ class InventoryAdjustmentSoldOutApiTest {
                 .containsExactlyInAnyOrder(
                     tuple(options.navy110().getId(), false),
                     tuple(options.navy120().getId(), false)));
+    }
+
+    @ParameterizedTest(name = "{0} {1}")
+    @CsvSource({"RESTOCK, 3", "LOST, -1"})
+    @DisplayName("SALE-08 판매 가능 수량 5인 옵션을 조정한 뒤에도 품절이 아니면 상품 정보 변경됨을 보내지 않는다")
+    void skipProductChangedWhenSoldOutUnchanged(String reason, int deltaQuantity) {
+        OnSaleOptions options = saveOptionsWithStock(5, "ON_SALE");
+
+        adjust(options.navy110(), deltaQuantity, reason).expectStatus().isOk();
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
     // 네이비 · 110의 재고를 navy110Stock, 네이비 · 120의 재고를 10으로 연 상품을 저장하고 상품의 판매 상태를 바꾼다.
