@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -116,69 +117,47 @@ final class ProductSizeSpecs {
         }
     }
 
-    // 판매대기 상품을 이어 쓸 때 받은 실측이 지금 실측과 다른지 본다. 사이즈 값이 짝지어지지 않으면 다른 것으로 본다
-    static boolean differs(List<SizeSpec> current, List<SizeSpecInfo> requested) {
-        if (current.size() != requested.size()) {
+    // 판매대기 상품을 이어 쓸 때 미리 만든 실측이 지금 실측과 다른지 본다. 사이즈 값이 짝지어지지 않으면 다른 것으로 본다
+    static boolean differs(List<SizeSpec> current, List<SizeSpec> previews) {
+        if (current.size() != previews.size()) {
             return true;
         }
-        for (SizeSpecInfo spec : requested) {
-            SizeSpec matched = findBySize(current, spec.sizeValue());
+        Map<AttributeValue, SizeSpec> bySize = bySize(current);
+        for (SizeSpec preview : previews) {
+            SizeSpec matched = bySize.get(preview.getSizeValue());
             if (matched == null
-                || !Objects.equals(matched.getMinHeightCm(), spec.minHeightCm())
-                || !Objects.equals(matched.getMaxHeightCm(), spec.maxHeightCm())
-                || !sameMeasurements(matched.getMeasurements(), spec.measurements())) {
+                || !Objects.equals(matched.getMinHeightCm(), preview.getMinHeightCm())
+                || !Objects.equals(matched.getMaxHeightCm(), preview.getMaxHeightCm())
+                || !sameMeasurements(matched.getMeasurements(), preview.getMeasurements())) {
                 return true;
             }
         }
         return false;
     }
 
-    // 받은 실측으로 바꿔 넣은 뒤의 실측을 검사용으로 만들어 돌려준다. 상품의 실측 목록에는 붙이지 않는다
-    static List<SizeSpec> preview(Product product, List<SizeSpecInfo> requested) {
-        List<SizeSpec> previews = new ArrayList<>();
-        for (SizeSpecInfo spec : requested) {
-            previews.add(SizeSpec.create(product, spec));
-        }
-        return previews;
-    }
-
-    // 사이즈 값이 같은 실측은 객체를 그대로 두고 권장 키와 실측 값만 받은 값으로 맞추고, 받지 않은 사이즈의 실측은 뺀다
-    static void rewrite(Product product, List<SizeSpec> current, List<SizeSpecInfo> requested) {
-        List<SizeSpec> notRequested = new ArrayList<>();
-        for (SizeSpec sizeSpec : current) {
-            SizeSpecInfo matched = findRequested(requested, sizeSpec.getSizeValue());
+    // 사이즈 값이 같은 실측은 객체를 그대로 두고 권장 키와 실측 값만 미리 만든 값으로 맞추고,
+    // 미리 만든 실측에 없는 사이즈의 실측은 빼고, 지금 없는 사이즈의 실측은 미리 만든 객체를 그대로 넣는다
+    static void rewrite(List<SizeSpec> current, List<SizeSpec> previews) {
+        Map<AttributeValue, SizeSpec> bySize = bySize(current);
+        List<SizeSpec> created = new ArrayList<>();
+        for (SizeSpec preview : previews) {
+            SizeSpec matched = bySize.remove(preview.getSizeValue());
             if (matched == null) {
-                notRequested.add(sizeSpec);
+                created.add(preview);
                 continue;
             }
-            sizeSpec.revise(matched.minHeightCm(), matched.maxHeightCm(), matched.measurements());
+            matched.revise(preview.getMinHeightCm(), preview.getMaxHeightCm(), preview.getMeasurements());
         }
-        current.removeAll(notRequested);
-        // 지금 없는 사이즈의 실측은 등록할 때와 같은 방식으로 새로 만든다
-        for (SizeSpecInfo spec : requested) {
-            if (findBySize(current, spec.sizeValue()) == null) {
-                current.add(SizeSpec.create(product, spec));
-            }
-        }
+        current.removeAll(bySize.values());
+        current.addAll(created);
     }
 
-    // 사이즈 값은 같은 영속성 컨텍스트의 객체라 ==로 비교한다. 없으면 null이다
-    private static SizeSpec findBySize(List<SizeSpec> current, AttributeValue sizeValue) {
-        for (SizeSpec sizeSpec : current) {
-            if (sizeSpec.getSizeValue() == sizeValue) {
-                return sizeSpec;
-            }
+    private static Map<AttributeValue, SizeSpec> bySize(List<SizeSpec> sizeSpecs) {
+        Map<AttributeValue, SizeSpec> bySize = new HashMap<>();
+        for (SizeSpec sizeSpec : sizeSpecs) {
+            bySize.put(sizeSpec.getSizeValue(), sizeSpec);
         }
-        return null;
-    }
-
-    private static SizeSpecInfo findRequested(List<SizeSpecInfo> requested, AttributeValue sizeValue) {
-        for (SizeSpecInfo spec : requested) {
-            if (spec.sizeValue() == sizeValue) {
-                return spec;
-            }
-        }
-        return null;
+        return bySize;
     }
 
     // 실측 값은 크기로 비교한다. 42와 42.0은 같은 길이라 같은 값으로 본다. 같은 요청을 다시 보냈을 때

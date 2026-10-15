@@ -242,25 +242,15 @@ public class Product extends BaseTimeEntity {
         if (saleInputs != null && status != ProductStatus.SALE_PENDING) {
             throw new BusinessException(ProductErrorCode.SALE_INPUTS_LOCKED);
         }
-        // 판매대기 상품을 다른 유형으로 바꾸면 지금 옵션은 새 유형에 맞지 않으므로 새 옵션 · 실측을 함께 받아야 한다 (OPT-06)
-        if (saleInputs == null && info.category().productTypeToRegister() != category.productTypeToRegister()
-            && status == ProductStatus.SALE_PENDING) {
-            throw new BusinessException(ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_TYPE_CHANGE);
-        }
-        // 판매대기 상품의 카테고리만 바꿀 때도, 등록처럼 지금 옵션 · 실측이 새 카테고리의 판매 시작 입력을 채워야 한다
-        if (saleInputs == null && status == ProductStatus.SALE_PENDING && category != info.category()) {
-            List<String> missing = SaleStartConditions.missingItems(
-                options, sizeSpecs, info.category(), info.category().productTypeToRegister());
-            if (!missing.isEmpty()) {
-                throw new BusinessException(ProductErrorCode.SALE_START_INPUT_MISSING, String.join(" ", missing));
-            }
-        }
+        // 판매대기 상품의 옵션 · 실측 검사는 모두 바꾸기 전에 끝낸다. 바꿔 넣을 값은 미리 만들어 둔 것을 그대로 쓴다
+        ProductRevision.Previews previews = null;
         if (saleInputs != null) {
-            validateSaleInputs(saleInputs, info.category());
+            previews = ProductRevision.validateSaleInputs(this, saleInputs, info.category());
+        } else if (status == ProductStatus.SALE_PENDING && category != info.category()) {
+            ProductRevision.validatePendingCategoryChange(this, info.category());
         }
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-        boolean rewritesSaleInputs = saleInputs != null && status == ProductStatus.SALE_PENDING;
-        if (isSameAs(info) && !(rewritesSaleInputs && differsFrom(saleInputs, info.category()))) {
+        if (isSameAs(info) && !(previews != null && ProductRevision.differs(this, previews))) {
             return false;
         }
         // 바꿀 것이 있을 때만 version을 본다. 다른 화면이 먼저 고친 상품을 예전 값으로 덮어쓰지 않게 하기 위해서다
@@ -268,8 +258,18 @@ public class Product extends BaseTimeEntity {
             throw new BusinessException(ProductErrorCode.PRODUCT_VERSION_MISMATCH);
         }
         if (status != ProductStatus.SALE_PENDING && category != info.category()) {
-            validateCategoryChangeOfSoldProduct(info.category());
+            ProductRevision.validateSoldCategoryChange(this, info.category());
         }
+        replaceInfo(info);
+        if (previews != null) {
+            ProductOptionRevision.rewrite(options, previews.options());
+            ProductSizeSpecs.rewrite(sizeSpecs, previews.sizeSpecs());
+        }
+        return true;
+    }
+
+    // 기본 정보와 정보 값을 받은 값으로 바꾼다
+    private void replaceInfo(UpdateInfo info) {
         name = info.name();
         brand = info.brand();
         description = info.description();
@@ -279,59 +279,11 @@ public class Product extends BaseTimeEntity {
         // 정보 값은 받은 값으로 통째로 바꾸므로 이전 행을 모두 빼고 받은 값으로 다시 만든다
         infoValues.clear();
         infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
-        if (rewritesSaleInputs) {
-            ProductOptions.rewrite(this, options, saleInputs.options(), saleInputs.prices(),
-                info.category().productTypeToRegister());
-            // 실측은 옵션을 먼저 맞춘 뒤에 맞춘다
-            ProductSizeSpecs.rewrite(this, sizeSpecs, saleInputs.sizeSpecs());
-        }
-        return true;
     }
 
-    // 받은 옵션 · 가격 · 실측을 바꿔 넣기 전에 등록과 같은 규칙으로 검사한다. 지금 옵션 · 실측은 모두 갈아끼우므로 없다고 보고,
-    // 바꿔 넣은 뒤의 모습은 상품에 붙이지 않는 미리 보기로 만들어 검사한다. 거절되면 아무것도 바뀌지 않는다
-    private void validateSaleInputs(SaleInputsInfo saleInputs, Category newCategory) {
-        ProductType productType = newCategory.productTypeToRegister();
-        AddOptionsInfo addOptions = new AddOptionsInfo(sellerId, saleInputs.options(), saleInputs.prices());
-        ProductOptions.requireNonNullValues(addOptions);
-        AddSizeSpecsInfo addSizeSpecs = new AddSizeSpecsInfo(sellerId, saleInputs.sizeSpecs());
-        ProductSizeSpecs.requireNonNullValues(addSizeSpecs);
-        // 등록처럼 옵션 · 실측 목록이 비면 그 목록의 검사는 건너뛰고, 빠진 입력은 아래 판매 시작 입력 검사가 400으로 알린다
-        if (!saleInputs.options().isEmpty()) {
-            ProductOptions.validateNewOptions(addOptions, List.of(), productType);
-        }
-        List<ProductOption> previewOptions =
-            ProductOptions.preview(this, saleInputs.options(), saleInputs.prices(), productType);
-        if (!saleInputs.sizeSpecs().isEmpty()) {
-            ProductSizeSpecs.validateNewSpecs(
-                saleInputs.sizeSpecs(), List.of(), previewOptions, newCategory, productType);
-        }
-        List<String> missing = SaleStartConditions.missingItems(
-            previewOptions, ProductSizeSpecs.preview(this, saleInputs.sizeSpecs()), newCategory, productType);
-        if (!missing.isEmpty()) {
-            throw new BusinessException(ProductErrorCode.SALE_START_INPUT_MISSING, String.join(" ", missing));
-        }
-    }
-
-    // 판매를 시작한 상품은 옵션 · 실측을 여기서 바꾸지 못하므로,
-    // 지금 실측이 새 카테고리의 필수 실측을 모두 채워야 한다 (SIZE-04)
-    private void validateCategoryChangeOfSoldProduct(Category newCategory) {
-        // 다른 유형으로 바꾸면 기존 옵션을 모두 보관해야 하는데, 이번에는 판매를 시작한 상품에서 하지 않는다 (OPT-06)
-        if (newCategory.productTypeToRegister() != category.productTypeToRegister()) {
-            throw new BusinessException(ProductErrorCode.PRODUCT_TYPE_CHANGE_NOT_ALLOWED);
-        }
-        List<String> missing = SaleStartConditions.missingItems(
-            options, sizeSpecs, newCategory, newCategory.productTypeToRegister());
-        if (!missing.isEmpty()) {
-            throw new BusinessException(ProductErrorCode.MEASUREMENTS_MISSING_FOR_CATEGORY, String.join(" ", missing));
-        }
-    }
-
-    // 받은 옵션 · 실측이 지금 값과 다른지 본다. 상품 유형은 받은 카테고리에서 꺼낸다
-    private boolean differsFrom(SaleInputsInfo saleInputs, Category newCategory) {
-        return ProductOptions.differs(options, saleInputs.options(), saleInputs.prices(),
-            newCategory.productTypeToRegister())
-            || ProductSizeSpecs.differs(sizeSpecs, saleInputs.sizeSpecs());
+    // 같은 패키지의 수정 검사가 지금 카테고리를 읽을 때 쓴다. 카테고리는 다른 애그리거트라 getter는 열지 않는다
+    Category category() {
+        return category;
     }
 
     // 정보 값은 영속성 컨텍스트의 같은 객체끼리 비교한다. 기본 정보는 값으로 비교하고 이미지는 순서까지 같아야 같다
@@ -361,9 +313,7 @@ public class Product extends BaseTimeEntity {
         ProductOptions.validateNewOptions(info, options, productType);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
-            long price = ProductOptions.findPrice(option.values(), info.prices(), productType);
-            List<AttributeValue> values = ProductOptions.inTypeOrder(option.values(), productType);
-            created.add(ProductOption.create(this, price, option.skuCode(), values));
+            created.add(ProductOptions.newOption(this, option, info.prices(), productType));
         }
         options.addAll(created);
         return Collections.unmodifiableList(created);
@@ -473,10 +423,8 @@ public class Product extends BaseTimeEntity {
     public void validateSaleStartInputs(Category category, ProductType productType) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
-        List<String> missing = SaleStartConditions.missingItems(options, sizeSpecs, category, productType);
-        if (!missing.isEmpty()) {
-            throw new BusinessException(ProductErrorCode.SALE_START_INPUT_MISSING, String.join(" ", missing));
-        }
+        SaleStartConditions.requireComplete(
+            options, sizeSpecs, category, productType, ProductErrorCode.SALE_START_INPUT_MISSING);
     }
 
     public Long getCategoryId() {

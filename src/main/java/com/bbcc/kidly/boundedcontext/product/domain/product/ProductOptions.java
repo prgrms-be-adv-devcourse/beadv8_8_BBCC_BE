@@ -16,7 +16,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -196,7 +195,7 @@ final class ProductOptions {
     }
 
     // 보관한 옵션은 판매 대상이 아니라서 모든 검사에서 뺀다
-    private static List<ProductOption> activeOptions(List<ProductOption> existing) {
+    static List<ProductOption> activeOptions(List<ProductOption> existing) {
         List<ProductOption> active = new ArrayList<>();
         for (ProductOption option : existing) {
             if (option.getSaleStatus() != ProductOptionStatus.ARCHIVED) {
@@ -206,7 +205,7 @@ final class ProductOptions {
         return active;
     }
 
-    private static List<AttributeValue> valuesOf(ProductOption option) {
+    static List<AttributeValue> valuesOf(ProductOption option) {
         List<AttributeValue> values = new ArrayList<>();
         for (ProductOptionValue value : option.getValues()) {
             values.add(value.getAttributeValue());
@@ -243,83 +242,11 @@ final class ProductOptions {
         return matched.getFirst().price();
     }
 
-    // 판매대기 상품을 이어 쓸 때 받은 옵션이 지금 옵션(보관 제외)과 다른지 본다.
-    // 값 조합이 같은 옵션은 SKU 코드와 판매가를 비교하고, 값 조합이 짝지어지지 않으면 다른 것으로 본다
-    static boolean differs(
-        List<ProductOption> current, List<OptionInfo> requested, List<PriceInfo> prices, ProductType productType) {
-        if (activeOptions(current).size() != requested.size()) {
-            return true;
-        }
-        for (OptionInfo option : requested) {
-            ProductOption matched = findActive(current, option.values());
-            if (matched == null) {
-                return true;
-            }
-            long price = findPrice(option.values(), prices, productType);
-            if (matched.getPrice() != price || !Objects.equals(matched.getSkuCode(), option.skuCode())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // 받은 옵션으로 바꿔 넣은 뒤의 옵션을 검사용으로 만들어 돌려준다. 상품의 옵션 목록에는 붙이지 않는다
-    static List<ProductOption> preview(
-        Product product, List<OptionInfo> requested, List<PriceInfo> prices, ProductType productType) {
-        List<ProductOption> previews = new ArrayList<>();
-        for (OptionInfo option : requested) {
-            long price = findPrice(option.values(), prices, productType);
-            List<AttributeValue> values = inTypeOrder(option.values(), productType);
-            previews.add(ProductOption.create(product, price, option.skuCode(), values));
-        }
-        return previews;
-    }
-
-    // 값 조합이 같은 옵션은 객체를 그대로 두고 SKU 코드와 판매가만 받은 값으로 맞추고, 없는 조합은 새로 만든다
-    static void rewrite(Product product, List<ProductOption> current, List<OptionInfo> requested,
-        List<PriceInfo> prices, ProductType productType) {
-        List<ProductOption> created = new ArrayList<>();
-        for (OptionInfo option : requested) {
-            long price = findPrice(option.values(), prices, productType);
-            ProductOption matched = findActive(current, option.values());
-            if (matched != null) {
-                matched.revise(option.skuCode(), price);
-                continue;
-            }
-            // 지금 없는 값 조합은 등록할 때와 같은 방식으로 새 옵션을 만든다
-            List<AttributeValue> values = inTypeOrder(option.values(), productType);
-            created.add(ProductOption.create(product, price, option.skuCode(), values));
-        }
-        // 받은 값 조합에 없는 옵션(보관 제외)은 뺀다. 판매대기 상품은 주문이 없어서 지워도 이 옵션을 가리키는 주문상품이 없다 (OPT-05)
-        List<ProductOption> notRequested = new ArrayList<>();
-        for (ProductOption option : activeOptions(current)) {
-            if (!isRequested(option, requested)) {
-                notRequested.add(option);
-            }
-        }
-        current.removeAll(notRequested);
-        current.addAll(created);
-    }
-
-    private static boolean isRequested(ProductOption option, List<OptionInfo> requested) {
-        Set<AttributeValue> values = new HashSet<>(valuesOf(option));
-        for (OptionInfo requestedOption : requested) {
-            if (new HashSet<>(requestedOption.values()).equals(values)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // 값 조합이 같은 옵션(보관 제외)을 찾는다. 값 묶음은 순서와 상관없는 집합으로 비교하고, 없으면 null이다
-    private static ProductOption findActive(List<ProductOption> current, List<AttributeValue> values) {
-        Set<AttributeValue> wanted = new HashSet<>(values);
-        for (ProductOption option : activeOptions(current)) {
-            if (new HashSet<>(valuesOf(option)).equals(wanted)) {
-                return option;
-            }
-        }
-        return null;
+    // 받은 옵션 하나로 새 옵션을 만든다. 판매가는 가격 구분 묶음으로 찾고, 옵션 값은 유형의 항목 순서로 늘어놓는다
+    static ProductOption newOption(
+        Product product, OptionInfo option, List<PriceInfo> prices, ProductType productType) {
+        long price = findPrice(option.values(), prices, productType);
+        return ProductOption.create(product, price, option.skuCode(), inTypeOrder(option.values(), productType));
     }
 
     // 옵션 값을 유형–항목 연결의 순서대로 늘어놓는다. 옵션 이름이 이 순서를 쓴다 (OPT-09)
