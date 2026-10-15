@@ -134,6 +134,23 @@ public final class InventoryDeductionRequest {
         return quantities;
     }
 
+    // 이번 차감에서 줄일 옵션 ID를 오름차순으로 돌려준다. 같은 옵션이 여러 주문상품에 나와도 한 번만 담는다
+    public List<Long> optionIds() {
+        return List.copyOf(qtyByOptionId.keySet());
+    }
+
+    // 이번 차감으로 판매 가능 수량이 0 이하가 된 옵션 ID를 오름차순으로 돌려준다. SALE-08은 이 옵션을 품절로 보고 상품 정보 변경됨으로 알린다
+    // availableQtyByOptionId는 차감한 뒤의 수량이다. 수량이 없는 옵션은 재고 행이 없는 것이라 0으로 본다
+    public List<Long> soldOutOptionIds(Map<Long, Integer> availableQtyByOptionId) {
+        List<Long> soldOutOptionIds = new ArrayList<>();
+        for (Long optionId : qtyByOptionId.keySet()) {
+            if (availableQtyByOptionId.getOrDefault(optionId, 0) <= 0) {
+                soldOutOptionIds.add(optionId);
+            }
+        }
+        return soldOutOptionIds;
+    }
+
     public record Item(long orderItemId, ProductOption option, int qty) {
     }
 

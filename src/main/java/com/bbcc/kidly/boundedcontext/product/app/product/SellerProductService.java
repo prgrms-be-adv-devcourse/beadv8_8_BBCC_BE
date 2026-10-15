@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.product.app.product;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductQuery;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductSummary;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetailResult;
-import com.bbcc.kidly.boundedcontext.product.domain.inventory.Inventory;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
@@ -11,7 +10,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -69,10 +67,6 @@ public class SellerProductService {
         for (ProductOption option : options) {
             optionIds.add(option.getId());
         }
-        Map<Long, Integer> availableQtyByOptionId = new HashMap<>();
-        for (Inventory inventory : inventoryRepository.findAllOfOptions(optionIds)) {
-            availableQtyByOptionId.put(inventory.getProductOptionId(), inventory.getAvailableQty());
-        }
-        return availableQtyByOptionId;
+        return inventoryRepository.findAvailableQtyByOptionId(optionIds);
     }
 }

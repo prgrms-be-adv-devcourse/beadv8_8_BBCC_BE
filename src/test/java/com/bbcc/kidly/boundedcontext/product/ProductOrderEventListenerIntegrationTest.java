@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
+import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.TwoOnSaleProducts;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -165,6 +166,63 @@ class ProductOrderEventListenerIntegrationTest {
         assertThat(eventRecorder.events(StockDeductedEvent.class))
             .extracting(stockDeducted -> stockDeducted.data().orderId())
             .containsExactly(deductedOrderId);
+    }
+
+    @Test
+    @DisplayName("SALE-08 차감한 뒤에도 재고가 남으면 상품 정보 변경됨을 보내지 않는다")
+    void sendNoProductChangedWhenStockRemains() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+
+        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SALE-08 옵션의 마지막 재고를 차감하면 그 상품의 상품 정보 변경됨을 한 번 보내고, 그 옵션만 품절이다")
+    void sendProductChangedWhenOptionSellsOut() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(2, 5);
+
+        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(changed -> assertThat(changed.data().options())
+                .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+                .containsExactlyInAnyOrder(
+                    tuple(options.navy110().getId(), true),
+                    tuple(options.navy120().getId(), false)));
+    }
+
+    @Test
+    @DisplayName("SALE-08 한 주문으로 두 상품의 옵션이 품절되면 상품마다 상품 정보 변경됨을 한 번씩 보낸다")
+    void sendProductChangedPerSoldOutProduct() {
+        TwoOnSaleProducts products = productOptionSaver.saveTwoOnSaleProducts(1, 1);
+
+        publishInTransaction(orderCreated(ORDER_ID,
+            orderItem(11L, products.firstNavy110(), 1),
+            orderItem(12L, products.secondNavy110(), 1)));
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class))
+            .extracting(changed -> changed.data().productId())
+            .containsExactlyInAnyOrder(products.firstId(), products.secondId());
+    }
+
+    @Test
+    @DisplayName("SALE-08 한 주문으로 같은 상품의 두 옵션이 품절되면 그 상품의 상품 정보 변경됨을 한 번 보내고, 두 옵션 모두 품절이다")
+    void sendOneProductChangedWhenTwoOptionsOfSameProductSellOut() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 1);
+
+        publishInTransaction(orderCreated(ORDER_ID,
+            orderItem(11L, options.navy110(), 1),
+            orderItem(12L, options.navy120(), 1)));
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(changed -> assertThat(changed.data().options())
+                .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+                .containsExactlyInAnyOrder(
+                    tuple(options.navy110().getId(), true),
+                    tuple(options.navy120().getId(), true)));
     }
 
     // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다

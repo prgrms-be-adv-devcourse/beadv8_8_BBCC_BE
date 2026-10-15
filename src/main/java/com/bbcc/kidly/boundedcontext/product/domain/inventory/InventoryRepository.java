@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.List;
+import java.util.Map;
 
 public interface InventoryRepository {
 
@@ -18,6 +18,6 @@ public interface InventoryRepository {
     // 줄인 뒤에는 영속성 컨텍스트를 비우므로, 그 전에 읽은 엔티티는 다시 읽어야 한다
     boolean deductIfAvailable(long optionId, int qty, LocalDateTime now);
 
-    // 옵션들의 재고 행을 한 번에 읽는다. 재고 행이 없는 옵션은 결과에 없다
-    List<Inventory> findAllOfOptions(Collection<Long> optionIds);
+    // 옵션 ID별 판매 가능 수량을 한 번에 읽는다. 재고 행이 없는 옵션은 결과에 없다
+    Map<Long, Integer> findAvailableQtyByOptionId(Collection<Long> optionIds);
 }
