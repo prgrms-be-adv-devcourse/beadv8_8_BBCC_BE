@@ -25,10 +25,6 @@ public final class SkuCodes {
             if (code == null) {
                 continue;
             }
-            // 없는 코드는 null로만 받는다. 요청 검사가 빈 코드를 먼저 400으로 막는다
-            if (code.isBlank()) {
-                throw new IllegalArgumentException("SKU 코드는 공백만으로 넣을 수 없습니다");
-            }
             if (!seen.add(code)) {
                 duplicated.add(code);
             }

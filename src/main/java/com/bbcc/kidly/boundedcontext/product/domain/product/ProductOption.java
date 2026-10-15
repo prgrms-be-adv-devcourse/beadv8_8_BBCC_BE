@@ -63,6 +63,10 @@ public class ProductOption extends BaseTimeEntity {
         if (price <= 0) {
             throw new IllegalArgumentException("판매가는 0보다 커야 합니다");
         }
+        // SKU 코드가 없으면 null로만 받는다. 요청 검사가 빈 코드를 먼저 400으로 막고, 여기서는 다른 경로를 막는다
+        if (skuCode != null && skuCode.isBlank()) {
+            throw new IllegalArgumentException("SKU 코드는 공백만으로 넣을 수 없습니다");
+        }
         ProductOption option = new ProductOption();
         option.product = product;
         option.price = price;
