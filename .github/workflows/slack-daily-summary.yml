@@ -3,11 +3,19 @@ name: Slack Daily Summary
 on:
   schedule:
     # 평일 07:37 KST (전날 22:37 UTC라 요일은 일~목). UTC 자정 직후는 예약이 몰려 몇 시간씩 늦어지기 쉬워 피한다
+    # 예약 실행은 늦어지거나 빠질 수 있어 30분 간격으로 두 번 더 건다. 그날 처음 성공한 실행만 보낸다
     - cron: '37 22 * * 0-4'
+    - cron: '7 23 * * 0-4'
+    - cron: '37 23 * * 0-4'
   workflow_dispatch:
+
+# 예약이 겹쳐 동시에 시작돼도 앞 실행이 끝난 뒤에 돌아, 이미 보냈는지 확인할 수 있게 한다
+concurrency:
+  group: slack-daily-summary
 
 permissions:
   issues: read
+  actions: read
 
 jobs:
   summary:
@@ -22,6 +30,17 @@ jobs:
           # {"GitHub아이디": "이름"} 형식의 Actions 변수. public 레포라 실명을 코드에 두지 않는다
           NAME_MAP: ${{ vars.SLACK_NAME_MAP }}
         run: |
+          # 예약 실행은 오늘(KST) 이미 성공한 실행이 있으면 보내지 않는다. 수동 실행은 늘 보낸다
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            DAY_START=$(date -u -d "$(TZ=Asia/Seoul date +%F) 00:00 +0900" +%Y-%m-%dT%H:%M:%SZ)
+            SENT=$(gh run list -R "$REPO" --workflow slack-daily-summary.yml --status success \
+              --created ">=$DAY_START" --json databaseId --jq 'length')
+            if [ "$SENT" -gt 0 ]; then
+              echo "오늘 요약은 이미 보냈다. 건너뛴다"
+              exit 0
+            fi
+          fi
+
           # 매핑이 없거나 JSON이 잘못되면 GitHub 아이디를 그대로 쓴다
           MAP=$(printf '%s' "${NAME_MAP:-}" | jq -c 'if type == "object" then . else {} end' 2>/dev/null || true)
           [ -n "$MAP" ] || MAP='{}'
