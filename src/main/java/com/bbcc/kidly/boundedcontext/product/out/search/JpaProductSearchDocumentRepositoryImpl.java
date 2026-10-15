@@ -26,8 +26,10 @@ class JpaProductSearchDocumentRepositoryImpl {
         WHERE d.event_occurred_at < EXCLUDED.event_occurred_at
         """;
 
+    // JPA 슬라이스 테스트(@DataJpaTest)는 모든 리포지토리를 띄우지만 Jackson 빈은 띄우지 않으므로, 빈을 주입받지 않고 기본 설정으로 직접 둔다
+    private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
+
     private final EntityManager entityManager;
-    private final JsonMapper jsonMapper;
 
     // 호출한 쪽의 트랜잭션 안에서 실행한다. 바뀐 행이 1개면 반영한 것이다
     public boolean saveIfNewer(ProductSearchDocument document, LocalDateTime now) {
@@ -44,7 +46,7 @@ class JpaProductSearchDocumentRepositoryImpl {
             .setParameter("minPrice", document.getMinPrice())
             .setParameter("soldOut", document.isSoldOut())
             // jsonb 칸에는 JSON 문자열을 CAST로 넘긴다. Hibernate가 엔티티를 읽을 때 쓰는 JSON 형식과 같다
-            .setParameter("attributes", jsonMapper.writeValueAsString(document.getAttributes()))
+            .setParameter("attributes", JSON_MAPPER.writeValueAsString(document.getAttributes()))
             .setParameter("now", now)
             .executeUpdate();
         return changed == 1;
