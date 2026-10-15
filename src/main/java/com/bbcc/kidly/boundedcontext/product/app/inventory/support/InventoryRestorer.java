@@ -28,7 +28,7 @@ public class InventoryRestorer {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void restore(List<InventoryDeduction> targets) {
         LocalDateTime now = LocalDateTime.now();
-        // 복구 쿼리가 영속성 컨텍스트를 비우므로, 지연 로딩 연관을 건드리지 않게 필요한 값을 먼저 꺼내 둔다
+        // targets는 호출한 쪽에서 읽은 다른 영속성 컨텍스트의 엔티티라 값만 꺼내 쓴다
         List<Target> values = new ArrayList<>();
         for (InventoryDeduction record : targets) {
             values.add(new Target(record.getId(), record.getProductOptionId(), record.getQty()));

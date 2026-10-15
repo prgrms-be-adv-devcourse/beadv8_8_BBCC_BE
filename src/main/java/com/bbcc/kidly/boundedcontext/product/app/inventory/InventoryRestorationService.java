@@ -36,37 +36,66 @@ public class InventoryRestorationService {
 
     public void restore(OrderCancelledEvent event) {
         OrderCancelledEvent.Data data = event.data();
-        List<InventoryDeduction> records = inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds(data));
-        if (records.isEmpty()) {
+        InventoryRestoration restoration = readRestoration(data);
+        if (restoration != null && restoration.isCancelledBeforeCreated()) {
             // 주문 취소됨이 주문 생성됨보다 먼저 온 경우라, 주문상품마다 FAILED를 남겨 나중에 온 주문 생성됨을 차감하지 않게 한다 (INV-09)
-            if (recordFailed(data)) {
-                return;
-            }
-            // 기록을 읽은 뒤 같은 주문의 차감이 먼저 커밋해 FAILED가 UNIQUE 제약에 막혔다. 그 차감을 되돌리려고 다시 읽는다
-            records = inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds(data));
+            restoration = recordFailedOrReread(data);
         }
-        List<InventoryDeduction> targets = InventoryRestoration.of(records).deductedRecords();
+        if (restoration == null) {
+            return;
+        }
+        List<InventoryDeduction> targets = restoration.recordsToRestore();
         if (targets.isEmpty()) {
-            log.info("되돌릴 차감 기록이 없어 건너뜁니다. orderId={}", data.orderId());
+            logNothingToRestore(restoration, data);
             return;
         }
         inventoryRestorer.restore(targets);
     }
 
-    // 취소가 먼저 온 주문의 FAILED 기록을 새 트랜잭션으로 저장한다. 요청을 만들 수 없으면 ERROR 로그만 남긴다
-    // 저장했거나 더 할 일이 없으면 true, 그사이 커밋된 차감 기록에 막혔으면 false를 돌려준다
-    private boolean recordFailed(OrderCancelledEvent.Data data) {
+    // 주문상품의 기존 차감 기록을 읽는다. 다른 주문의 기록이 섞여 있으면 ERROR 로그를 남기고 null을 돌려준다
+    private InventoryRestoration readRestoration(OrderCancelledEvent.Data data) {
+        List<InventoryDeduction> records = inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds(data));
+        try {
+            return InventoryRestoration.of(data.orderId(), records);
+        } catch (IllegalArgumentException e) {
+            // 주문 쪽 오류다. 다시 받아도 결과가 같으므로 재시도하지 않는다
+            log.error("다른 주문의 차감 기록이 든 주문 취소됨이라 처리하지 않습니다. orderId={}", data.orderId(), e);
+            return null;
+        }
+    }
+
+    // 취소가 먼저 온 주문의 FAILED 기록을 새 트랜잭션으로 저장한다
+    // 저장했거나 더 할 일이 없으면 null을, 그사이 커밋된 기록에 막혔으면 다시 읽은 기록을 돌려준다
+    private InventoryRestoration recordFailedOrReread(OrderCancelledEvent.Data data) {
         InventoryDeductionRequest request = createRequest(data);
         if (request == null) {
-            return true;
+            return null;
         }
         try {
             inventoryDeductionRecorder.recordFailed(request);
-            return true;
+            return null;
         } catch (DataIntegrityViolationException e) {
-            log.info("같은 주문의 차감이 먼저 커밋돼 그 차감을 되돌립니다. orderId={}", data.orderId());
-            return false;
+            // Spring은 UNIQUE 위반을 다른 제약 위반과 같은 타입으로 바꾸므로, 기록을 다시 읽어 원인을 가린다
+            InventoryRestoration reread = readRestoration(data);
+            if (reread == null) {
+                return null;
+            }
+            if (reread.isCancelledBeforeCreated()) {
+                log.error("FAILED 차감 기록 저장이 제약을 어겨 처리하지 않습니다. orderId={}", data.orderId(), e);
+                return null;
+            }
+            // 차감이 먼저 커밋했으면 되돌리고, 같은 취소가 FAILED를 먼저 남겼으면 되돌릴 것이 없다
+            log.info("FAILED 차감 기록이 같은 주문상품의 기존 기록에 막혀 그 기록으로 이어 갑니다. orderId={}", data.orderId());
+            return reread;
         }
+    }
+
+    private void logNothingToRestore(InventoryRestoration restoration, OrderCancelledEvent.Data data) {
+        if (restoration.isRejected()) {
+            log.warn("거절한 주문의 주문 취소됨이라 되돌릴 재고가 없습니다. orderId={}", data.orderId());
+            return;
+        }
+        log.info("이미 되돌린 주문 취소됨이라 건너뜁니다. orderId={}", data.orderId());
     }
 
     // 이벤트의 옵션을 읽어 차감 요청을 만든다. 요청을 만들 수 없으면 ERROR 로그를 남기고 null을 돌려준다

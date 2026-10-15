@@ -15,5 +15,6 @@ public interface InventoryDeductionRepository {
 
     // DEDUCTED일 때만 RESTORED로 바꾸고, 바꿨으면 true를 돌려준다
     // 이미 RESTORED거나 FAILED면 false라 같은 복구가 두 번 일어나지 않는다 (INV-04)
+    // 바꾼 뒤에는 영속성 컨텍스트를 비우므로, 그 전에 읽은 엔티티는 다시 읽어야 한다
     boolean restoreIfDeducted(long deductionId, LocalDateTime now);
 }

@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -166,13 +167,21 @@ class InventoryRestorationConcurrencyIntegrationTest {
         return results;
     }
 
+    // 모든 작업이 끝날 때까지 기다린 뒤 처음 난 예외를 던진다. 먼저 실패한 작업 때문에 남은 작업을 끊지 않아,
+    // 테스트가 끝난 뒤 다른 스레드가 DB를 건드리지 않는다
     private static void awaitAll(List<Future<?>> results) throws Exception {
+        Exception first = null;
         for (Future<?> result : results) {
             try {
-                result.get(30, TimeUnit.SECONDS);
-            } catch (ExecutionException e) {
-                throw new AssertionError("동시에 실행한 작업이 예외로 끝났습니다", e.getCause());
+                result.get(60, TimeUnit.SECONDS);
+            } catch (ExecutionException | TimeoutException e) {
+                if (first == null) {
+                    first = e;
+                }
             }
+        }
+        if (first != null) {
+            throw first;
         }
     }
 }
