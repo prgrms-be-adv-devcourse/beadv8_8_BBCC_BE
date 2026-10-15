@@ -13,6 +13,9 @@ kakao:
   client-secret: ${KAKAO_CLIENT_SECRET}
   redirect-uri: ${KAKAO_REDIRECT_URI}
 
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
 springdoc:
   swagger-ui:
     enabled: true

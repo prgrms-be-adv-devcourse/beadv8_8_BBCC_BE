@@ -1,0 +1,79 @@
+# develop → dev 환경, main → prod 환경(Environment 승인 필요)으로 배포한다.
+# 이미지를 GHCR에 올린 뒤 서버의 /opt/app/deploy.sh 가 compose pull / up 을 한다.
+# 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 빌드 없이 그 이미지를 배포한다.
+# workflow_dispatch 를 develop · main 이 아닌 브랜치에서 실행하면 그 브랜치가 dev 환경에 배포된다 (기능 브랜치 확인용).
+name: deploy
+
+on:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 롤백용. 이미 GHCR에 있는 40자 전체 커밋 SHA. 비우면 현재 커밋을 새로 빌드한다
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# 같은 환경(dev · prod)으로 가는 배포는 한 번에 하나만 돈다. 진행 중인 배포는 취소하지 않고, 대기 중인 run 은 최신 것으로 대체된다
+concurrency:
+  group: deploy-${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # 롤백이면 이미지가 이미 있으므로 빌드를 생략한다
+    if: inputs.sha == ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # jar 는 Dockerfile 의 멀티스테이지 빌드가 만든다.
+      # GHCR 이미지 이름은 소문자여야 하는데 github.repository 에는 대문자가 있을 수 있다
+      - name: 이미지 빌드 · 푸시
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker build -t "$IMAGE:$GITHUB_SHA" .
+          docker push "$IMAGE:$GITHUB_SHA"
+
+  deploy:
+    needs: build
+    # 빌드가 성공했거나 롤백으로 생략된 경우만 배포한다
+    if: ${{ !cancelled() && needs.build.result != 'failure' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST }}
+    steps:
+      - name: 서버 접속 확인
+        run: nc -z -w 5 "$SSH_HOST" 22 || { echo "::error::서버에 연결할 수 없습니다. 18시 이후면 EC2를 콘솔에서 시작한 뒤 Re-run 하세요."; exit 1; }
+
+      - name: SSH 키 준비
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}   # 로컬에서 ssh-keyscan -H <host> 한 결과
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: 배포
+        env:
+          SHA: ${{ inputs.sha || github.sha }}
+          APP_ENV: ${{ vars.APP_ENV }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha 는 40자 전체 커밋 SHA 여야 합니다: $SHA"; exit 1; }
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
+            "APP_ENV=$APP_ENV IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:$SHA /opt/app/deploy.sh"

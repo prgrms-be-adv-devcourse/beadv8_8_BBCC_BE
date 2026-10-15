@@ -26,7 +26,8 @@ public class SecurityConfig {
         "/swagger-ui/**",
         "/swagger-ui.html",
         "/v3/api-docs/**",
-        "/error"
+        "/error",
+        "/actuator/health"
     };
 
     @Bean
@@ -74,7 +75,6 @@ public class SecurityConfig {
     }
 
     // 프론트 origin만 허용한다. 리프레시 토큰 쿠키를 고려해 credentials를 켜 둔다
-    // TODO(인프라): 운영 URL 확정되면 application-prod.yml에 cors.allowed-origins 추가
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
         @Value("${cors.allowed-origins:}") List<String> allowedOrigins) {
