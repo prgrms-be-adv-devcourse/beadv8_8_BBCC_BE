@@ -18,6 +18,7 @@ public record ProductImageUpload(ProductImageType type, long contentLength) {
     }
 
     public String key(String environment, long sellerId, UUID id) {
-        return environment + "/products/" + sellerId + "/" + id + "." + type.extension();
+        return requireNonNull(environment, "environment는 필수입니다") + "/products/" + sellerId + "/"
+            + requireNonNull(id, "id는 필수입니다") + "." + type.extension();
     }
 }

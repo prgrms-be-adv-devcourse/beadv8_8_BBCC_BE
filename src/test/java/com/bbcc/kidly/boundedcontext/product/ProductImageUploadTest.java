@@ -59,4 +59,13 @@ class ProductImageUploadTest {
         assertThatThrownBy(() -> ProductImageUpload.of(null, 1_000L))
             .isInstanceOf(NullPointerException.class);
     }
+
+    @Test
+    @DisplayName("환경이나 UUID가 없으면 객체 key를 만들지 않는다")
+    void rejectKeyWithoutEnvironmentOrId() {
+        ProductImageUpload upload = ProductImageUpload.of("image/jpeg", 1_000L);
+
+        assertThatThrownBy(() -> upload.key(null, SELLER_ID, ID)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> upload.key("dev", SELLER_ID, null)).isInstanceOf(NullPointerException.class);
+    }
 }
