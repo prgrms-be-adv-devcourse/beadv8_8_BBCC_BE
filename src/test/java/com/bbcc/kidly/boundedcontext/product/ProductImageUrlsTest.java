@@ -67,7 +67,10 @@ class ProductImageUrlsTest {
         return Stream.of(
             arguments(named("본인 경로 없음", null), List.of(), null),
             arguments(named("이미지 목록 없음", OWN_JPG), null, OWN_PREFIX),
-            arguments(named("목록에 빈 칸", null), Arrays.asList(OWN_PNG, null), OWN_PREFIX));
+            arguments(named("목록에 빈 칸", null), Arrays.asList(OWN_PNG, null), OWN_PREFIX),
+            // null 칸은 업무 검사(400)보다 먼저 확인해 잘못된 호출이 업무 오류로 가려지지 않게 한다
+            arguments(named("남의 썸네일과 목록의 빈 칸", "https://images.example.com/a.jpg"),
+                Arrays.asList(OWN_PNG, null), OWN_PREFIX));
     }
 
     @ParameterizedTest(name = "[{0}]")

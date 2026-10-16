@@ -21,6 +21,10 @@ public final class ProductImageUrls {
     public static void validate(String thumbnailUrl, List<String> imageUrls, String ownPrefix) {
         requireNonNull(imageUrls, "imageUrls는 필수입니다");
         requireNonNull(ownPrefix, "ownPrefix는 필수입니다");
+        // null 검사는 모두 업무 규칙 검사보다 앞에 둔다. null이 섞인 호출이 업무 오류(400)로 가려지지 않게 하기 위해서다
+        for (String imageUrl : imageUrls) {
+            requireNonNull(imageUrl, "imageUrls의 칸은 비어 있을 수 없습니다");
+        }
         if (!ownPrefix.endsWith("/")) {
             throw new IllegalArgumentException("본인 경로는 /로 끝나야 합니다");
         }
@@ -29,7 +33,7 @@ public final class ProductImageUrls {
             requireOwnImage(thumbnailUrl, ownPrefix);
         }
         for (String imageUrl : imageUrls) {
-            requireOwnImage(requireNonNull(imageUrl, "imageUrls의 칸은 비어 있을 수 없습니다"), ownPrefix);
+            requireOwnImage(imageUrl, ownPrefix);
         }
     }
 
