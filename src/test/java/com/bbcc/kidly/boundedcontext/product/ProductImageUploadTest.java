@@ -2,12 +2,14 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.image.ProductImageUpload;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductImageUploadTest {
 
@@ -23,5 +25,13 @@ class ProductImageUploadTest {
         ProductImageUpload upload = ProductImageUpload.of(contentType, 1_000L);
 
         assertThat(upload.key("dev", SELLER_ID, ID)).isEqualTo(expectedKey);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"image/svg+xml", "image/gif", "image/heic", "text/html", "IMAGE/JPEG", ""})
+    @DisplayName("jpeg · png · webp가 아닌 형식이면 업로드를 만들지 않는다")
+    void rejectUnsupportedType(String contentType) {
+        assertThatThrownBy(() -> ProductImageUpload.of(contentType, 1_000L))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 }
