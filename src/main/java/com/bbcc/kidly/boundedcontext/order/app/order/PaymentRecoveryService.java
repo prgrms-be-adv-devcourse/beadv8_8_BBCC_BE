@@ -37,14 +37,16 @@ public class PaymentRecoveryService {
     /**
      * 받은 결제 완료 내용과 실패 이유를 주문당 1건 보관한다(있으면 시도 +1 · 이유 갱신).
      * 리스너 트랜잭션이 되돌려져도 남도록 새 트랜잭션에서 저장한다. 그 트랜잭션이 주문 행을 바꾼 채 열려 있으므로
-     * 여기서는 주문을 읽지도 잠그지도 않는다(기록 테이블만 쓴다).
+     * 여기서는 주문을 읽지도 잠그지도 않는다(기록 테이블만 쓴다). 기존 기록은 기다리지 않는 잠금으로 읽는다: 재처리 · 취소가
+     * 그 기록을 잠근 채 이 주문 행을 기다리면, 같은 스레드의 리스너 트랜잭션이 쥔 주문 행 때문에 DB가 못 보는 순환 대기가 되므로
+     * 바로 실패해 리스너 트랜잭션을 되돌린다(재처리가 처리 중이라 보관할 필요도 없다).
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PaymentRecoveryResult recordFailure(MarkPaidCommand paid, RuntimeException error) {
         LocalDateTime now = LocalDateTime.now();
         String failureCode = PaymentFailures.failureCode(error);
         boolean retryable = PaymentFailures.isRetryable(error);
-        PaymentRecovery recovery = recoveryRepository.findByOrderId(paid.orderId())
+        PaymentRecovery recovery = recoveryRepository.findByOrderIdForUpdateNoWait(paid.orderId())
             .map(existing -> {
                 existing.recordFailure(failureCode, retryable, now);
                 return existing;

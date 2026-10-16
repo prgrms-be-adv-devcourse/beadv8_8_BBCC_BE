@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.PaymentMismatchException
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 
 /**
  * 결제 완료 반영 실패를 나눈다(#353). 결제 완료 리스너와 관리자 재처리가 같은 기준을 쓴다.
@@ -35,6 +36,13 @@ public final class PaymentFailures {
             return mismatch.getReason().code();
         }
         return error.getClass().getSimpleName();
+    }
+
+    /**
+     * 재처리 · 취소가 기록을 잠그고 있어 기록 저장이 기다리지 않고 바로 실패했다(#353). 기록은 있고 재처리 · 취소가 처리 중이다.
+     */
+    public static boolean isRecordLocked(Throwable recordError) {
+        return recordError instanceof PessimisticLockingFailureException;
     }
 
     /**

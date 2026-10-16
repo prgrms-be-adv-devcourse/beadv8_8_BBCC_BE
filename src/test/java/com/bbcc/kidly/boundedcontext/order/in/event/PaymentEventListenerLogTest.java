@@ -26,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -143,6 +144,23 @@ class PaymentEventListenerLogTest {
             .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(recordError));
 
         assertThat(output).containsPattern("ERROR.*" + FAILED_REASON + " recoveryStatus=not-saved");
+    }
+
+    @Test
+    @DisplayName("재처리 · 취소가 기록을 잠그고 있어 보관이 바로 실패하면 기록 잠김으로 남기고 원래 예외를 그대로 던진다")
+    void lockedRecordIsRecordLocked(CapturedOutput output) {
+        IllegalStateException error = new IllegalStateException("배송 생성 실패");
+        CannotAcquireLockException recordError = new CannotAcquireLockException("could not obtain lock on row");
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
+        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        when(recoveryService.recordFailure(COMMAND, error)).thenThrow(recordError);
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(recordError));
+
+        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON + " recoveryStatus=record-locked")
+            .doesNotContain("recoveryStatus=not-saved");
     }
 
     @Test

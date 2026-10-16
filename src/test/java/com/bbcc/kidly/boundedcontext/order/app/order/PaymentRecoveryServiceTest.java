@@ -96,7 +96,7 @@ class PaymentRecoveryServiceTest {
         @DisplayName("주문의 기록이 이미 있으면 새로 만들지 않고 시도 +1 · 실패 이유를 바꾼다")
         void countsExisting() {
             PaymentRecovery existing = pending();
-            when(recoveryRepository.findByOrderId(ORDER_ID)).thenReturn(Optional.of(existing));
+            when(recoveryRepository.findByOrderIdForUpdateNoWait(ORDER_ID)).thenReturn(Optional.of(existing));
 
             PaymentRecoveryResult result = service.recordFailure(PAID, new IllegalStateException("x"));
 

@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -48,6 +49,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.domain.Limit;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -375,6 +377,48 @@ class PaymentRecoveryIntegrationTest {
             .isEqualTo(Order.Status.CANCELLED);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
         assertThat(cancelledEventsOf(order.orderId())).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("재처리 · 취소가 기록을 잠그고 있으면 실패 보관은 기다리지 않고 바로 실패하고(리스너는 원래 예외 + suppressed), 기록은 그대로")
+    void recordFailureDoesNotWaitForLockedRecord() throws Exception {
+        OrderDetail order = failDelivery(BUYER_ID);
+        Long recoveryId = recoveryOf(order).getId();
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> holder = executor.submit(() -> transaction.executeWithoutResult(status -> {
+                recoveryRepository.findByIdForUpdate(recoveryId).orElseThrow();
+                locked.countDown();
+                awaitQuietly(release);
+            }));
+            assertThat(locked.await(10, TimeUnit.SECONDS)).as("A가 기록을 잠금").isTrue();
+
+            Future<?> direct = executor.submit(() -> recoveryService.recordFailure(new MarkPaidCommand(
+                order.orderId(), PAYMENT_ID, BUYER_ID, order.totalAmount(), List.of()),
+                new IllegalStateException("x")));
+            assertThatThrownBy(() -> direct.get(2, TimeUnit.SECONDS)).as("기다리지 않고 바로 실패")
+                .isInstanceOf(ExecutionException.class)
+                .hasCauseInstanceOf(PessimisticLockingFailureException.class);
+            Future<?> listener = executor.submit(() -> paymentEventListener.onPaymentCompleted(completed(order)));
+            assertThatThrownBy(() -> listener.get(2, TimeUnit.SECONDS)).as("리스너도 멈추지 않음")
+                .isInstanceOf(ExecutionException.class)
+                .cause().isInstanceOf(DataIntegrityViolationException.class)
+                .satisfies(error -> assertThat(error.getSuppressed()).singleElement()
+                    .isInstanceOf(PessimisticLockingFailureException.class));
+
+            release.countDown();
+            holder.get(10, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
+        PaymentRecovery recovery = recoveryOf(order);
+        assertThat(recovery.getAttemptCount()).isEqualTo(1);
+        assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.PENDING);
     }
 
     /**

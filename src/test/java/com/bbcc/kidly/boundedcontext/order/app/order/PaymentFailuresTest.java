@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.order.domain.order.PaymentMismatchException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 class PaymentFailuresTest {
@@ -37,6 +39,15 @@ class PaymentFailuresTest {
             .isEqualTo("DataIntegrityViolationException");
         assertThat(PaymentFailures.failureCode(new IllegalStateException("공백 있는 메시지")))
             .isEqualTo("IllegalStateException");
+    }
+
+    @Test
+    @DisplayName("기록 저장이 잠긴 기록(재처리 · 취소 중)에 걸려 바로 실패하면 기록 잠김, 그 밖은 아님")
+    void recordLocked() {
+        assertThat(PaymentFailures.isRecordLocked(new CannotAcquireLockException("could not obtain lock"))).isTrue();
+        assertThat(PaymentFailures.isRecordLocked(new PessimisticLockingFailureException("x"))).isTrue();
+        assertThat(PaymentFailures.isRecordLocked(new DataIntegrityViolationException("x"))).isFalse();
+        assertThat(PaymentFailures.isRecordLocked(new IllegalStateException("lock"))).isFalse();
     }
 
     @Test

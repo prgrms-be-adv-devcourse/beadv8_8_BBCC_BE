@@ -29,6 +29,7 @@ public class PaymentEventListener {
     private static final String MISSING_ORDER_ID = "missing-order-id";
     private static final String NOT_SAVED = "not-saved";
     private static final String ALREADY_RECORDED = "already-recorded";
+    private static final String RECORD_LOCKED = "record-locked";
 
     private final OrderService orderService;
     private final PaymentCompletion paymentCompletion;
@@ -79,7 +80,7 @@ public class PaymentEventListener {
                 // 같은 주문의 결제 완료 두 건이 동시에 실패하면 늦은 쪽은 기록 유니크에 걸려 시도 횟수가 하나 덜 셀 수 있다 —
                 // 기록은 1건으로 남고 재처리에는 지장이 없어 다시 읽어 갱신하지 않고, 로그에는 이미 보관됨으로 남긴다
                 e.addSuppressed(recordError);
-                recoveryStatus = PaymentFailures.isAlreadyRecorded(recordError) ? ALREADY_RECORDED : NOT_SAVED;
+                recoveryStatus = recoveryStatusOf(recordError);
             }
             log.error("결제 완료 처리 실패: event={} reason=processing-failed orderId={} paymentId={} "
                     + "recoveryStatus={} attemptCount={} failureCode={}",
@@ -87,6 +88,14 @@ public class PaymentEventListener {
                 saved == null ? null : saved.attemptCount(), saved == null ? null : saved.failureCode(), e);
             throw e;
         }
+    }
+
+    // 보관하지 못한 이유를 운영자가 구분하게: 이미 보관됨(동시 실패의 늦은 쪽) · 기록 잠김(재처리 · 취소 중) · 그 밖
+    private static String recoveryStatusOf(RuntimeException recordError) {
+        if (PaymentFailures.isAlreadyRecorded(recordError)) {
+            return ALREADY_RECORDED;
+        }
+        return PaymentFailures.isRecordLocked(recordError) ? RECORD_LOCKED : NOT_SAVED;
     }
 
     private static void warnIfRolledBackAtCommit(String eventType, MarkPaidCommand paid, AtomicBoolean logged) {

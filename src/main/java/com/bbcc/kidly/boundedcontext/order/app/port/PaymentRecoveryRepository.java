@@ -26,6 +26,12 @@ public interface PaymentRecoveryRepository {
     Optional<PaymentRecovery> findByOrderId(Long orderId);
 
     /**
+     * 주문의 기록을 기다리지 않는 행 쓰기 잠금으로 읽는다. 재처리 · 취소가 그 기록을 잠그고 있으면 바로 실패한다
+     * (결제 완료 리스너의 실패 보관이 주문 행을 쥔 채 기록 잠금을 기다리며 멈추지 않게).
+     */
+    Optional<PaymentRecovery> findByOrderIdForUpdateNoWait(Long orderId);
+
+    /**
      * 모든 기록. 최근 기록부터.
      */
     Page<PaymentRecovery> findAllByOrderByIdDesc(Pageable pageable);
