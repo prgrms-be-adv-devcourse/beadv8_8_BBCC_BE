@@ -57,12 +57,19 @@ class S3ProductImageStorageTest {
     }
 
     @Test
-    @DisplayName("발급한 이미지 주소는 같은 판매자의 본인 경로 검사를 통과하고 다른 판매자의 경로로는 거절된다")
-    void issuedImageUrlPassesOnlyOwnPrefix() {
+    @DisplayName("발급한 이미지 주소는 같은 판매자의 본인 경로 검사를 통과한다")
+    void issuedImageUrlPassesOwnPrefix() {
         String imageUrl = storage.issueUploadUrl(ProductImageUpload.of("image/webp", 1_000L), SELLER_ID).imageUrl();
 
         assertThatCode(() -> ProductImageUrls.validate(null, List.of(imageUrl), storage.ownImageUrlPrefix(SELLER_ID)))
             .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("발급한 이미지 주소는 다른 판매자의 본인 경로 검사로는 거절된다")
+    void issuedImageUrlFailsOtherSellersPrefix() {
+        String imageUrl = storage.issueUploadUrl(ProductImageUpload.of("image/webp", 1_000L), SELLER_ID).imageUrl();
+
         assertThatThrownBy(() -> ProductImageUrls.validate(null, List.of(imageUrl), storage.ownImageUrlPrefix(3L)))
             .isInstanceOf(BusinessException.class);
     }
