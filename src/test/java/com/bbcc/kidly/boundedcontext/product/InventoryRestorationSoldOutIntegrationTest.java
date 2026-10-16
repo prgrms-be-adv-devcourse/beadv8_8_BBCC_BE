@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryRestorationService;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -56,6 +58,9 @@ class InventoryRestorationSoldOutIntegrationTest {
 
     @Autowired
     private OrderFlowEventRecorder eventRecorder;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void clearEvents() {
@@ -133,10 +138,46 @@ class InventoryRestorationSoldOutIntegrationTest {
         assertThat(eventRecorder.events(ProductChangedEvent.class)).hasSize(1);
     }
 
+    @Test
+    @DisplayName("INV-07 품절된 두 옵션 중 두 번째 옵션의 재고를 되돌리다 실패하면 두 옵션 모두 품절인 채로 남고 상품 정보 변경됨도 보내지 않는다")
+    void sendNothingWhenRestoreFails() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 1);
+        deductAndClearEvents(orderItem(11L, options.navy110(), 1), orderItem(12L, options.navy120(), 1));
+        ProductOption first = firstInOptionIdOrder(options);
+        ProductOption second = first == options.navy110() ? options.navy120() : options.navy110();
+        // 나중에 되돌리는 옵션의 수량을 int 최댓값으로 두어, 더하는 UPDATE가 DB의 정수 범위를 넘어 실패하게 한다
+        setAvailableQty(second, Integer.MAX_VALUE);
+        try {
+            publishInTransaction(orderCancelled(ORDER_ID,
+                cancelledItem(11L, options.navy110(), 1),
+                cancelledItem(12L, options.navy120(), 1)));
+
+            assertThat(inventoryDeductionDb.availableQty(first)).isZero();
+            assertThat(inventoryDeductionDb.countByStatus("DEDUCTED")).isEqualTo(2);
+            assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+        } finally {
+            // 단언이 실패해도 끝난 뒤 재고 불변식을 확인할 수 있게 바꾼 수량을 되돌린다
+            setAvailableQty(second, 0);
+        }
+    }
+
     // 주문 생성됨으로 차감하고, 차감이 보낸 이벤트는 지워 주문 취소됨이 보낸 이벤트만 남게 한다
     private void deductAndClearEvents(OrderCreatedEvent.Item... items) {
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, items));
         eventRecorder.clear();
+    }
+
+    // 복구는 옵션 ID 오름차순이라 ID가 작은 옵션의 재고 행을 먼저 바꾼다
+    private static ProductOption firstInOptionIdOrder(OnSaleOptions options) {
+        if (options.navy110().getId() < options.navy120().getId()) {
+            return options.navy110();
+        }
+        return options.navy120();
+    }
+
+    private void setAvailableQty(ProductOption option, int qty) {
+        jdbcTemplate.update("update product.inventory set available_qty = ? where product_option_id = ?",
+            qty, option.getId());
     }
 
     // 주문 취소처럼 트랜잭션 안에서 주문 취소됨을 발행하고 커밋한다
