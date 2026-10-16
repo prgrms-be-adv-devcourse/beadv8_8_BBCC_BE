@@ -331,7 +331,8 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
-     * 지금 옵션들의 판매가에서 가격 구분 묶음과 그 가격의 목록을 만든다. 가격 구분 항목이 없는 유형은 빈 값 목록 하나다.
+     * 보관하지 않은 옵션의 판매가에서 가격 구분 묶음마다 가격 하나를 옵션 순서대로 만든다.
+     * 가격 구분 항목이 없는 유형은 빈 값 목록 묶음 하나이고, 옵션이 없으면 빈 목록이다.
      */
     public List<PriceInfo> currentPrices(ProductType productType) {
         requireNonNull(productType, "productType은 필수입니다");

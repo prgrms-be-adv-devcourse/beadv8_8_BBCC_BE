@@ -106,7 +106,7 @@ class ProductOptionPriceTest {
     }
 
     @Test
-    @DisplayName("PRICE-01 가격 구분 항목이 없는 유형은 지금 가격 묶음이 빈 값 목록 하나다")
+    @DisplayName("PRICE-01 가격 구분 항목이 없는 유형은 가격 구분 묶음이 빈 값 목록 하나이고 그 가격은 옵션 판매가다")
     void currentPricesWithoutPriceAffectingAttribute() {
         product.addOptions(new Product.AddOptionsInfo(SELLER_ID, List.of(
             option(clothing.navy(), clothing.size110()),
@@ -127,7 +127,7 @@ class ProductOptionPriceTest {
     }
 
     @Test
-    @DisplayName("SALE-06 보관한 옵션의 가격 구분 묶음은 지금 가격 묶음에 넣지 않는다")
+    @DisplayName("SALE-06 보관한 옵션의 가격 구분 묶음은 만들지 않는다")
     void currentPricesSkipArchivedOptions() {
         Product colorPricedProduct = colorPricedProductWithOptions();
         // 보관하는 업무 메서드가 아직 없어서 오트밀 · 110 옵션의 상태를 직접 바꾼다
@@ -139,7 +139,7 @@ class ProductOptionPriceTest {
     }
 
     @Test
-    @DisplayName("PRICE-01 지금 가격 묶음을 그대로 옵션 추가에 넣으면 옵션마다 원래 판매가가 들어간다")
+    @DisplayName("PRICE-01 만든 가격 구분 묶음을 그대로 옵션 추가에 넣으면 옵션마다 원래 판매가가 들어간다")
     void currentPricesCanBeSentBack() {
         List<Product.PriceInfo> currentPrices = colorPricedProductWithOptions().currentPrices(colorPriced);
         Product another = Product.register(ProductFixture.productAWith(colorPriced, List.of()));
