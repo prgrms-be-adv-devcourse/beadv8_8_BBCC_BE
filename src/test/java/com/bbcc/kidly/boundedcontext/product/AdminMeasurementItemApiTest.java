@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +43,24 @@ class AdminMeasurementItemApiTest {
             .jsonPath("$.name").isEqualTo("총장")
             .jsonPath("$.code").isEqualTo("TOTAL_LENGTH")
             .jsonPath("$.unit").isEqualTo("cm");
+    }
+
+    @Test
+    @DisplayName("실측 항목 목록은 ID 순서다")
+    void listMeasurementItems() {
+        post(tokens.admin(ADMIN_ID), Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm"))
+            .expectStatus().isCreated();
+        post(tokens.admin(ADMIN_ID), Map.of("name", "어깨너비", "code", "SHOULDER_WIDTH", "unit", "cm"))
+            .expectStatus().isCreated();
+
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$[*].code").isEqualTo(List.of("TOTAL_LENGTH", "SHOULDER_WIDTH"))
+            .jsonPath("$[*].name").isEqualTo(List.of("총장", "어깨너비"))
+            .jsonPath("$[0].measurementItemId").value(id -> assertThat(id).isInstanceOf(String.class));
     }
 
     private RestTestClient.ResponseSpec post(String token, Object body) {
