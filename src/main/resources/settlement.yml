@@ -16,7 +16,7 @@ spring:
     jdbc:
       # Batch 메타데이터 테이블은 settlement 스키마에 둔다
       table-prefix: settlement.BATCH_
-      # 메타데이터 테이블은 Flyway가 만든다 (db/migration/V2__spring_batch_schema.sql)
+      # 메타데이터 테이블은 Flyway가 만든다 (db/migration/V202610160855__spring_batch_schema.sql)
       initialize-schema: never
       # Batch 기본(SERIALIZABLE)은 이 프로젝트의 Hibernate 연결 설정이 거부한다 (application.yml 참고)
       isolation-level-for-create: default
