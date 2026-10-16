@@ -7,11 +7,13 @@ import com.bbcc.kidly.support.TestTokens;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -144,6 +146,49 @@ class AdminAttributeApiTest {
     @DisplayName("없는 항목에 목록 값을 더하면 404와 ProblemDetail을 준다")
     void rejectValueOfMissingAttribute() {
         assertProblem(post(tokens.admin(ADMIN_ID), PATH + "/999/values", Map.of("name", "레드")), HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("같은 코드의 항목을 만들면 409와 ProblemDetail을 준다")
+    void rejectDuplicateAttributeCode() {
+        createdAttributeId("COLOR", "PALETTE");
+
+        assertProblem(post(tokens.admin(ADMIN_ID), PATH, attribute("색상2", "COLOR", "PALETTE", List.of())),
+            HttpStatus.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("같은 항목에 같은 이름의 목록 값을 더하면 409와 ProblemDetail을 준다")
+    void rejectDuplicateValueName() {
+        String attributeId = createdAttributeId("COLOR", "PALETTE");
+        String valuesPath = PATH + "/" + attributeId + "/values";
+        post(tokens.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")).expectStatus().isCreated();
+
+        assertProblem(post(tokens.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")), HttpStatus.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("로그인하지 않으면 항목 API는 401을 준다")
+    void rejectAnonymous() {
+        post(null, PATH, attribute("색상", "COLOR", "PALETTE", List.of())).expectStatus().isUnauthorized();
+        client.get().uri(PATH).exchange().expectStatus().isUnauthorized();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("nonAdminTokens")
+    @DisplayName("관리자가 아니면 항목 API는 403을 준다")
+    void rejectNonAdmin(String role, Function<TestTokens, String> token) {
+        post(token.apply(tokens), PATH, attribute("색상", "COLOR", "PALETTE", List.of())).expectStatus().isForbidden();
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(token.apply(tokens)))
+            .exchange()
+            .expectStatus().isForbidden();
+    }
+
+    static Stream<Arguments> nonAdminTokens() {
+        return Stream.of(
+            Arguments.of("구매자", (Function<TestTokens, String>) tokens -> tokens.buyer(1L)),
+            Arguments.of("판매자", (Function<TestTokens, String>) tokens -> tokens.seller(2L)));
     }
 
     private static Map<String, Object> attribute(String name, String code, String inputType, List<?> values) {

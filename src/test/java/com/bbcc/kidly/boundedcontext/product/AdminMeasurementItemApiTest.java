@@ -15,6 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -91,6 +92,30 @@ class AdminMeasurementItemApiTest {
             Named.of("코드가 255자 초과", Map.of("name", "총장", "code", "T".repeat(256), "unit", "cm")),
             Named.of("단위가 빔", Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "")),
             Named.of("단위가 255자 초과", Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "c".repeat(256))));
+    }
+
+    @Test
+    @DisplayName("같은 코드의 실측 항목을 만들면 409를 준다")
+    void rejectDuplicateCode() {
+        post(tokens.admin(ADMIN_ID), Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm"))
+            .expectStatus().isCreated();
+
+        post(tokens.admin(ADMIN_ID), Map.of("name", "기장", "code", "TOTAL_LENGTH", "unit", "cm"))
+            .expectStatus().isEqualTo(HttpStatus.CONFLICT)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    @Test
+    @DisplayName("로그인하지 않으면 401, 관리자가 아니면 403을 준다")
+    void rejectNonAdmin() {
+        Map<String, Object> body = Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm");
+        post(null, body).expectStatus().isUnauthorized();
+        post(tokens.buyer(1L), body).expectStatus().isForbidden();
+        post(tokens.seller(2L), body).expectStatus().isForbidden();
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.seller(2L)))
+            .exchange()
+            .expectStatus().isForbidden();
     }
 
     private RestTestClient.ResponseSpec post(String token, Object body) {
