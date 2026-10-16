@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.boundedcontext.payment.out.JpaWalletRepository;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,5 +59,32 @@ class WalletRepositoryIntegrationTest {
 
         assertThatThrownBy(() -> walletRepository.save(Wallet.create(1L)))
             .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("지갑이 없으면 잔액 0인 지갑을 만들고, 두 번 불러도 지갑은 하나다")
+    void createIfAbsent() {
+        walletRepository.createIfAbsent(1L, LocalDateTime.now());
+        walletRepository.createIfAbsent(1L, LocalDateTime.now());
+
+        assertThat(jpaWalletRepository.findAll()).singleElement().satisfies(wallet -> {
+            assertThat(wallet.getMemberId()).isEqualTo(1L);
+            assertThat(wallet.getBalance()).isZero();
+            assertThat(wallet.getCreatedAt()).isNotNull();
+            assertThat(wallet.getUpdatedAt()).isNotNull();
+        });
+    }
+
+    @Test
+    @DisplayName("지갑이 이미 있으면 만들지 않고 잔액도 그대로 둔다")
+    void createIfAbsentKeepsExisting() {
+        Wallet saved = walletRepository.save(PaymentFixture.wallet(15_000L));
+
+        walletRepository.createIfAbsent(saved.getMemberId(), LocalDateTime.now());
+
+        assertThat(jpaWalletRepository.findAll()).singleElement().satisfies(wallet -> {
+            assertThat(wallet.getId()).isEqualTo(saved.getId());
+            assertThat(wallet.getBalance()).isEqualTo(15_000L);
+        });
     }
 }

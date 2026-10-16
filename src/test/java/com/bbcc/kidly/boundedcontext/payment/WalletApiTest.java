@@ -45,15 +45,14 @@ class WalletApiTest {
     }
 
     @Test
-    @DisplayName("지갑이 없으면 404")
-    void walletNotFound() {
+    @DisplayName("지갑이 없으면 아직 쓰지 않은 지갑이므로 잔액 0이다")
+    void balanceWithoutWallet() {
         client.get().uri(MY_WALLET_PATH)
             .headers(headers -> headers.setBearerAuth(tokens.buyer(PaymentFixture.MEMBER_ID)))
             .exchange()
-            .expectStatus().isNotFound()
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.title").isEqualTo("지갑을 찾을 수 없습니다");
+            .jsonPath("$.balance").isEqualTo(0);
     }
 
     @Test
@@ -120,12 +119,14 @@ class WalletApiTest {
     }
 
     @Test
-    @DisplayName("지갑이 없으면 원장도 404")
+    @DisplayName("지갑이 없으면 원장은 빈 목록이다")
     void ledgersWithoutWallet() {
         getLedgers("")
-            .expectStatus().isNotFound()
+            .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.title").isEqualTo("지갑을 찾을 수 없습니다");
+            .jsonPath("$.content").isEmpty()
+            .jsonPath("$.totalElements").isEqualTo(0)
+            .jsonPath("$.hasNext").isEqualTo(false);
     }
 
     @Test

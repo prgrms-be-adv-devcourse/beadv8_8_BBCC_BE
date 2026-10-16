@@ -10,8 +10,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
@@ -45,6 +47,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -92,13 +95,17 @@ class ChargeServiceTest {
     }
 
     @Test
-    @DisplayName("지갑이 없으면 충전을 요청할 수 없다")
-    void requestWithoutWallet() {
-        given(walletRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.empty());
+    @DisplayName("충전을 요청하면 지갑이 없을 때 만든 뒤 그 지갑으로 충전을 저장한다")
+    void requestCreatesWalletFirst() {
+        given(walletRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(PaymentFixture.savedWallet(0L)));
+        given(chargeRepository.save(any())).willAnswer(returnsFirstArg());
 
-        assertThatThrownBy(() -> chargeService.request(MEMBER_ID, new ChargeRequest(10_000L)))
-            .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(PaymentErrorCode.WALLET_NOT_FOUND);
+        chargeService.request(MEMBER_ID, new ChargeRequest(10_000L));
+
+        InOrder inOrder = inOrder(walletRepository, chargeRepository);
+        inOrder.verify(walletRepository).createIfAbsent(eq(MEMBER_ID), any(LocalDateTime.class));
+        inOrder.verify(walletRepository).findByMemberId(MEMBER_ID);
+        inOrder.verify(chargeRepository).save(any());
     }
 
     @Test

@@ -53,6 +53,7 @@ public class ChargeService {
 
     @Transactional
     public ChargeRequestResult request(Long memberId, ChargeRequest request) {
+        walletRepository.createIfAbsent(memberId, LocalDateTime.now());
         Wallet wallet = walletOf(memberId);
         Charge charge = chargeRepository.save(Charge.request(wallet.getId(), UUID.randomUUID().toString(),
             request.amount(), LocalDateTime.now().plus(EXPIRES_IN)));

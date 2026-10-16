@@ -5,8 +5,10 @@ import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.NOW;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.WALLET_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.SettlementPayoutService;
@@ -23,11 +25,13 @@ import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.payment.domain.PayoutFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutFailedEvent;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -143,24 +147,21 @@ class SettlementPayoutServiceTest {
     }
 
     @Test
-    @DisplayName("판매자 지갑이 없으면 지급 실패로 기록하고 payment.payout-failed(WALLET_NOT_FOUND)를 발행한다")
-    void walletNotFound() {
-        given(walletRepository.findWithLockByMemberId(MEMBER_ID)).willReturn(Optional.empty());
+    @DisplayName("판매자 지갑이 없으면 잔액 0인 지갑을 만든 뒤 락으로 읽어 입금한다")
+    void createWalletBeforePayout() {
+        Wallet wallet = PaymentFixture.savedWallet(0L);
+        given(walletRepository.findWithLockByMemberId(MEMBER_ID)).willReturn(Optional.of(wallet));
         given(payoutRepository.findBySettlementId(SETTLEMENT_ID)).willReturn(Optional.empty());
         givenPayoutSaved();
+        givenLedgerSaved();
 
         settlementPayoutService.payout(new PayoutCommand(SETTLEMENT_ID, MEMBER_ID, 270_000L));
 
-        then(walletLedgerRepository).should(never()).save(any());
-        ArgumentCaptor<Payout> payout = ArgumentCaptor.forClass(Payout.class);
-        then(payoutRepository).should().save(payout.capture());
-        assertThat(payout.getValue().getStatus()).isEqualTo(PayoutStatus.FAILED);
-        assertThat(payout.getValue().getFailureCode()).isEqualTo(PayoutFailureCode.WALLET_NOT_FOUND);
-        PaymentPayoutFailedEvent event = publishedFailed();
-        assertThat(event.data().settlementId()).isEqualTo(SETTLEMENT_ID);
-        assertThat(event.data().amount()).isEqualTo(270_000L);
-        assertThat(event.data().reasonCode()).isEqualTo(PayoutFailureCode.WALLET_NOT_FOUND);
-        assertThat(event.data().failedAt()).isEqualTo(payout.getValue().getFailedAt());
+        InOrder inOrder = inOrder(walletRepository);
+        inOrder.verify(walletRepository).createIfAbsent(eq(MEMBER_ID), any(LocalDateTime.class));
+        inOrder.verify(walletRepository).findWithLockByMemberId(MEMBER_ID);
+        assertThat(wallet.getBalance()).isEqualTo(270_000L);
+        assertThat(publishedCompleted().data().amount()).isEqualTo(270_000L);
     }
 
     private void givenLedgerSaved() {

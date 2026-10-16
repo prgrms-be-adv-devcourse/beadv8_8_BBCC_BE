@@ -10,24 +10,21 @@ import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.payment.domain.PayoutFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutFailedEvent;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 정산금액을 판매자 예치금에 입금하고 결과를 payment.payout-completed · payment.payout-failed로 알린다.
  * 정산서마다 지급 기록을 남겨 한 번만 입금한다. 기록이 있는 정산서로 요청이 다시 오면 입금 없이 저장된 결과를 다시 알린다.
- * 실패한 지급은 다시 시도하지 않는다. 지갑을 락으로 읽은 뒤 지급 기록을 보므로 같은 요청이 동시에 와도 한 번만 입금한다.
+ * 실패한 지급은 다시 시도하지 않는다. 판매자 지갑이 없으면 잔액 0으로 만들어 입금한다. 지갑을 락으로 읽은 뒤 지급 기록을 보므로 같은 요청이 동시에 와도 한 번만 입금한다.
  * 지급 기록의 정산서 ID UK와 원장 {@code (type, ref_id)} UK가 마지막으로 막는다.
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SettlementPayoutService {
@@ -40,20 +37,14 @@ public class SettlementPayoutService {
     @Transactional
     public void payout(PayoutCommand command) {
         LocalDateTime now = LocalDateTime.now();
-        Optional<Wallet> wallet = walletRepository.findWithLockByMemberId(command.sellerId());
+        walletRepository.createIfAbsent(command.sellerId(), now);
+        Wallet wallet = walletRepository.findWithLockByMemberId(command.sellerId()).orElseThrow();
         Optional<Payout> recorded = payoutRepository.findBySettlementId(command.settlementId());
         if (recorded.isPresent()) {
             publishResult(recorded.get());
             return;
         }
-        if (wallet.isEmpty()) {
-            log.error("정산금액을 입금할 판매자의 지갑이 없습니다. settlementId={}, sellerId={}",
-                command.settlementId(), command.sellerId());
-            publishResult(payoutRepository.save(Payout.fail(command.settlementId(), command.sellerId(),
-                command.amount(), PayoutFailureCode.WALLET_NOT_FOUND, now)));
-            return;
-        }
-        Long ledgerId = deposit(command, wallet.get());
+        Long ledgerId = deposit(command, wallet);
         publishResult(payoutRepository.save(Payout.complete(command.settlementId(), command.sellerId(),
             command.amount(), ledgerId, now)));
     }

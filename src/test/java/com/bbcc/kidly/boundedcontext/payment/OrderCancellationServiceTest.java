@@ -5,8 +5,10 @@ import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.ORDER_ID;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.WALLET_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.OrderCancellationService;
@@ -24,11 +26,13 @@ import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -108,6 +112,21 @@ class OrderCancellationServiceTest {
         assertThat(cancelled.getValue().getMemberId()).isEqualTo(MEMBER_ID);
         assertThat(cancelled.getValue().getReason()).isEqualTo("PAYMENT_EXPIRED");
         then(refundRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("지갑이 없어도 만든 뒤 락을 잡아, 동시에 온 결제 요청과 순서대로 처리한다")
+    void createWalletBeforeLock() {
+        given(walletRepository.findWithLockByMemberId(MEMBER_ID))
+            .willReturn(Optional.of(PaymentFixture.savedWallet(0L)));
+        given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
+
+        orderCancellationService.handle(COMMAND);
+
+        InOrder inOrder = inOrder(walletRepository, paymentRepository);
+        inOrder.verify(walletRepository).createIfAbsent(eq(MEMBER_ID), any(LocalDateTime.class));
+        inOrder.verify(walletRepository).findWithLockByMemberId(MEMBER_ID);
+        inOrder.verify(paymentRepository).findByOrderId(ORDER_ID);
     }
 
     @Test

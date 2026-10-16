@@ -5,8 +5,10 @@ import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.ORDER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.OrderPaymentService;
@@ -24,12 +26,14 @@ import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -107,16 +111,18 @@ class OrderPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("지갑이 없으면 결제를 저장하지 않고 payment.failed만 발행한다")
-    void walletNotFound() {
-        given(walletRepository.findWithLockByMemberId(MEMBER_ID)).willReturn(Optional.empty());
+    @DisplayName("지갑이 없으면 잔액 0인 지갑을 만든 뒤 락으로 읽어 결제한다")
+    void createWalletBeforePay() {
+        given(walletRepository.findWithLockByMemberId(MEMBER_ID)).willReturn(Optional.of(PaymentFixture.wallet(0L)));
+        given(paymentRepository.save(any())).willAnswer(returnsFirstArg());
 
         orderPaymentService.pay(COMMAND);
 
-        then(paymentRepository).should(never()).save(any());
-        then(walletLedgerRepository).should(never()).save(any());
-        PaymentFailedEvent event = assertFailedEvent(PaymentFailureCode.WALLET_NOT_FOUND);
-        assertThat(event.data().paymentId()).isNull();
+        InOrder inOrder = inOrder(walletRepository);
+        inOrder.verify(walletRepository).createIfAbsent(eq(MEMBER_ID), any(LocalDateTime.class));
+        inOrder.verify(walletRepository).findWithLockByMemberId(MEMBER_ID);
+        assertThat(savedPayment().getFailureCode()).isEqualTo(PaymentFailureCode.INSUFFICIENT_BALANCE);
+        assertFailedEvent(PaymentFailureCode.INSUFFICIENT_BALANCE);
     }
 
     @Test
