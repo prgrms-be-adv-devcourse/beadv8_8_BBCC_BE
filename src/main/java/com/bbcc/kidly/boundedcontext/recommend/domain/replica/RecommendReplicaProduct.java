@@ -39,6 +39,9 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     // 여러 상품의 사이즈 줄과 판매 가능 사이즈를 읽을 때 상품마다 조회하지 않고 이 개수씩 묶어서 읽는다
     private static final int BATCH_FETCH_SIZE = 100;
 
+    // 사이즈가 없는 옵션은 사이즈 무관 옵션과 같이 이 사이즈로 판매 가능 사이즈에 담는다
+    private static final String FREE_SIZE = "FREE";
+
     // 원래 상품 ID를 그대로 넣으므로 @GeneratedValue를 쓰지 않는다
     @Id
     @Column(name = "product_id")
@@ -133,7 +136,6 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         for (OptionInfo option : info.options()) {
             requireNonNull(option, "option은 필수입니다");
-            requireNonNull(option.size(), "size는 필수입니다");
         }
     }
 
@@ -145,20 +147,20 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.status = info.status();
         this.thumbnailUrl = info.thumbnailUrl();
         this.productRegisteredAt = info.registeredAt();
-        this.sizeFree = info.sizeFree();
+        this.sizeFree = info.sizeFree() || hasOnlyOptionsWithoutSize(info.options());
         this.eventOccurredAt = info.occurredAt();
         // 컬렉션 객체를 새로 갈아 끼우지 않고 비운 뒤 다시 채운다
         this.sizes.clear();
         this.sellableSizes.clear();
         for (OptionInfo option : info.options()) {
             if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {
-                this.sellableSizes.add(option.size());
+                this.sellableSizes.add(option.size() == null ? FREE_SIZE : option.size());
             }
         }
         Set<String> seen = new HashSet<>();
         for (OptionInfo option : info.options()) {
-            // 권장 키가 하나라도 없으면 아이 키로 고를 수 없으므로 사이즈 추천 후보로 두지 않는다
-            if (option.minHeightCm() == null || option.maxHeightCm() == null) {
+            // 사이즈나 권장 키가 하나라도 없으면 아이 키로 고를 수 없으므로 사이즈 추천 후보로 두지 않는다
+            if (option.size() == null || option.minHeightCm() == null || option.maxHeightCm() == null) {
                 continue;
             }
             // 색상만 다른 같은 사이즈 옵션은 권장 키가 같아야 하므로, 처음 들어온 옵션의 권장 키만 쓴다
@@ -181,6 +183,19 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
      */
     public boolean hasSellableOption() {
         return !sellableSizes.isEmpty();
+    }
+
+    // 사이즈 역할 항목이 없는 유형의 상품은 옵션 사이즈가 모두 null로 온다. 고객에게는 사이즈 무관 상품과 같으므로 사이즈 무관으로 본다
+    private static boolean hasOnlyOptionsWithoutSize(List<OptionInfo> options) {
+        if (options.isEmpty()) {
+            return false;
+        }
+        for (OptionInfo option : options) {
+            if (option.size() != null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static Long lowestPrice(List<OptionInfo> options) {

@@ -52,6 +52,16 @@ class PurchaseRecordTest {
         assertThat(PurchaseRecord.isRecordable(RecommendFixture.purchaseConfirmationFor(null))).isFalse();
     }
 
+    // 사이즈 역할 항목이 없는 유형의 상품은 구매확정의 사이즈가 null로 온다
+    @Test
+    @DisplayName("사이즈가 없는 구매확정은 사이즈 추천에 쓸 수 없어 기록하지 않는다")
+    void notRecordableWithoutSize() {
+        PurchaseRecord.RecordInfo withoutSize = new PurchaseRecord.RecordInfo(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID,
+            CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, null, PURCHASE_CONFIRMED_AT);
+
+        assertThat(PurchaseRecord.isRecordable(withoutSize)).isFalse();
+    }
+
     @Test
     @DisplayName("기록 대상을 판단할 구매확정 값이 없으면 거절한다")
     void rejectRecordableCheckWithNull() {

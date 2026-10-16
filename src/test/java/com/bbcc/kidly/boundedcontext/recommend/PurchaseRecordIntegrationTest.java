@@ -80,12 +80,12 @@ class PurchaseRecordIntegrationTest {
     @Test
     @DisplayName("구매 기록 저장이 실패해도 구매확정을 발행한 트랜잭션은 성공하고 기록은 남지 않는다")
     void noRecordWhenListenerFails() {
-        OrderItemPurchaseConfirmedEvent withoutSize = new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(),
-            PURCHASE_CONFIRMED_AT, new OrderItemPurchaseConfirmedEvent.Data(ORDER_ITEM_ID, ORDER_ID, MEMBER_1_ID,
-                SELLER_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, null, 2, 50_000L,
+        OrderItemPurchaseConfirmedEvent withoutOrderId = new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(),
+            PURCHASE_CONFIRMED_AT, new OrderItemPurchaseConfirmedEvent.Data(ORDER_ITEM_ID, null, MEMBER_1_ID,
+                SELLER_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, "120", 2, 50_000L,
                 PURCHASE_CONFIRMED_AT));
 
-        assertThatCode(() -> publishInTransaction(withoutSize)).doesNotThrowAnyException();
+        assertThatCode(() -> publishInTransaction(withoutOrderId)).doesNotThrowAnyException();
 
         assertThat(purchaseRecordRepository.findAll()).isEmpty();
     }
