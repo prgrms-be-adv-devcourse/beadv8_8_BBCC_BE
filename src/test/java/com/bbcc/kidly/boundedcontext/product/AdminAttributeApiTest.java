@@ -54,6 +54,34 @@ class AdminAttributeApiTest {
             .jsonPath("$.values[0].valueId").value(id -> assertThat(id).isInstanceOf(String.class));
     }
 
+    @Test
+    @DisplayName("항목에 목록 값을 더하면 201과 Location, 만든 값을 준다")
+    void addValue() {
+        String attributeId = createdAttributeId("COLOR", "PALETTE");
+        String valuesPath = PATH + "/" + attributeId + "/values";
+        AtomicReference<String> location = new AtomicReference<>();
+
+        post(tokens.admin(ADMIN_ID), valuesPath, Map.of("name", "오트밀", "colorCode", "#e3d3bc"))
+            .expectStatus().isCreated()
+            .expectHeader().value(HttpHeaders.LOCATION, location::set)
+            .expectBody()
+            .jsonPath("$.valueId").value(id -> assertThat(location.get()).isEqualTo(valuesPath + "/" + id))
+            .jsonPath("$.valueId").value(id -> assertThat(id).isInstanceOf(String.class))
+            .jsonPath("$.name").isEqualTo("오트밀")
+            .jsonPath("$.colorCode").isEqualTo("#e3d3bc");
+    }
+
+    // 값 없이 항목 하나를 만들고 그 ID를 돌려준다
+    private String createdAttributeId(String code, String inputType) {
+        Map<?, ?> body = post(tokens.admin(ADMIN_ID), PATH,
+            Map.of("name", code, "code", code, "inputType", inputType, "values", List.of()))
+            .expectStatus().isCreated()
+            .expectBody(Map.class)
+            .returnResult()
+            .getResponseBody();
+        return (String) body.get("attributeId");
+    }
+
     private RestTestClient.ResponseSpec post(String token, String path, Object body) {
         return client.post().uri(path)
             .headers(headers -> {

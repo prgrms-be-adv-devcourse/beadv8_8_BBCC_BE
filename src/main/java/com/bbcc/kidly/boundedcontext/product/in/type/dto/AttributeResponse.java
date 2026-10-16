@@ -14,12 +14,16 @@ public record AttributeResponse(
      * @param colorCode 팔레트 값이 아니면 null
      */
     public record Value(String valueId, String name, String colorCode) {
+
+        public static Value from(AttributeResult.Value result) {
+            return new Value(String.valueOf(result.valueId()), result.name(), result.colorCode());
+        }
     }
 
     public static AttributeResponse from(AttributeResult result) {
         List<Value> values = new ArrayList<>();
         for (AttributeResult.Value value : result.values()) {
-            values.add(new Value(String.valueOf(value.valueId()), value.name(), value.colorCode()));
+            values.add(Value.from(value));
         }
         return new AttributeResponse(
             String.valueOf(result.attributeId()), result.name(), result.code(), result.inputType(), values);

@@ -3,12 +3,14 @@ package com.bbcc.kidly.boundedcontext.product.in.type;
 import com.bbcc.kidly.boundedcontext.product.app.type.AttributeService;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeValueRequest;
 import com.bbcc.kidly.boundedcontext.product.in.type.dto.AttributeResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,5 +34,17 @@ public class AdminAttributeController {
         AttributeResult result = attributeService.create(request);
         response.setHeader(HttpHeaders.LOCATION, "/api/v1/admin/attributes/" + result.attributeId());
         return AttributeResponse.from(result);
+    }
+
+    @PostMapping("/{attributeId}/values")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AttributeResponse.Value addValue(
+        @PathVariable Long attributeId,
+        @Valid @RequestBody AttributeValueRequest request,
+        HttpServletResponse response) {
+        AttributeResult.Value result = attributeService.addValue(attributeId, request);
+        response.setHeader(
+            HttpHeaders.LOCATION, "/api/v1/admin/attributes/" + attributeId + "/values/" + result.valueId());
+        return AttributeResponse.Value.from(result);
     }
 }
