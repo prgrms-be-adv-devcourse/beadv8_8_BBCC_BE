@@ -20,6 +20,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 그 뒤에 온 결제 요청을 차감하지 않게 한다(기획서 2.1 ④). 환불 이벤트는 기획서에 없어 발행하지 않는다.
  * 결제 요청과 같은 회원 지갑 락을 먼저 잡아, 결제 · 취소가 동시에 와도 늦은 쪽이 앞의 결과를 보고 처리한다.
  * 같은 취소가 다시 오면 결제가 이미 환불(REFUNDED)됐거나 취소 기록이 있어 건너뛴다.
+ * 부르는 쪽 트랜잭션과 따로 커밋 · 롤백한다. 실패하면 부르는 쪽이 다시 처리할 취소로 남긴다.
  */
 @Slf4j
 @Service
@@ -39,7 +41,7 @@ public class OrderCancellationService {
     private final WalletLedgerRepository walletLedgerRepository;
     private final CancelledOrderRepository cancelledOrderRepository;
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handle(OrderCancelCommand command) {
         LocalDateTime now = LocalDateTime.now();
         // 지갑이 없어도 만든 뒤 락을 잡아, 동시에 온 결제 요청과 순서대로 처리한다
