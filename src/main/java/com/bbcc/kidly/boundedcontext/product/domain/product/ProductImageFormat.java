@@ -5,6 +5,9 @@ public enum ProductImageFormat {
     PNG("image/png", "png"),
     WEBP("image/webp", "webp");
 
+    // 요청 DTO의 @Pattern에 쓰는 허용 형식이다. 애노테이션은 상수만 받으므로 위 상수와 따로 적고, 둘이 같은지는 테스트로 확인한다
+    public static final String CONTENT_TYPE_PATTERN = "image/(jpeg|png|webp)";
+
     private final String contentType;
     private final String extension;
 
