@@ -93,6 +93,7 @@ jobs:
           PAYMENT_KEY_ENCRYPTION_KEY: ${{ secrets.PAYMENT_KEY_ENCRYPTION_KEY }}
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
           JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
         run: |
           umask 077
           out="$RUNNER_TEMP/deploy-files"
@@ -101,6 +102,8 @@ jobs:
 
           # 한 줄짜리 비밀. .env 뒤에 붙인다
           keys=(DB_PASSWORD KAKAO_CLIENT_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
+          # 없어도 되는 비밀. 있으면 붙이고 없으면 건너뛴다 (MAIL_PASSWORD 가 없으면 메일은 보내지 않고 로그만 남긴다)
+          optional_keys=(MAIL_PASSWORD)
 
           # 빠진 Secret 을 한 번에 다 보여 주고 실패한다
           missing=0
@@ -110,7 +113,7 @@ jobs:
           (( missing == 0 )) || exit 1
 
           # compose 가 $ 같은 문자를 치환하지 않도록 작은따옴표로 감싼다. 그래서 값에 작은따옴표나 줄바꿈이 있으면 안 된다
-          for key in "${keys[@]}"; do
+          for key in "${keys[@]}" "${optional_keys[@]}"; do
             [[ "${!key}" != *[\'$'\n']* ]] || { echo "::error::$key 에 작은따옴표나 줄바꿈이 있습니다"; exit 1; }
           done
           {
@@ -119,6 +122,9 @@ jobs:
             echo "# 아래는 배포 때 GitHub Environment Secret 에서 붙인 값이다"
             for key in "${keys[@]}"; do
               printf "%s='%s'\n" "$key" "${!key}"
+            done
+            for key in "${optional_keys[@]}"; do
+              [[ -z "${!key}" ]] || printf "%s='%s'\n" "$key" "${!key}"
             done
             printf "POSTGRES_PASSWORD='%s'\n" "$DB_PASSWORD"
           } > "$out/.env"
