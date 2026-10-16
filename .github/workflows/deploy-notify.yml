@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: read
+      checks: read
       contents: read
     steps:
       - name: Send to Slack
@@ -62,19 +63,23 @@ jobs:
           # 실패 성격이면 첫 실패 job · step 을 찾는다. API 호출이 실패해도 알림은 보낸다
           FAILED_STEP=""
           HINT=""
+          CAUSE=""
           if [ "$CONCLUSION" != "success" ]; then
             failed=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" --jq '
               def bad: . == "failure" or . == "timed_out" or . == "cancelled";
               [.jobs[] | select(.conclusion | bad)][0]
               | select(. != null)
-              | [.name, ([.steps[]? | select(.conclusion | bad)][0].name // "")]
+              | [.id, .name, ([.steps[]? | select(.conclusion | bad)][0].name // "")]
               | @tsv' 2>/dev/null) || failed=""
             if [ -n "$failed" ]; then
-              IFS=$'\t' read -r failed_job failed_step <<< "$failed"
+              IFS=$'\t' read -r failed_job_id failed_job failed_step <<< "$failed"
               if [ -n "$failed_step" ]; then FAILED_STEP="$failed_job › $failed_step"; else FAILED_STEP="$failed_job"; fi
               if [ "$failed_step" = "서버 접속 확인" ]; then
                 HINT="18시 이후 자동 중지된 서버일 수 있어요. EC2를 켜고 Re-run 하세요."
               fi
+              # deploy.yml 의 "기동 실패 원인 남기기" 단계가 남긴 주석. job id 가 check run id 다
+              CAUSE=$(gh api "repos/$REPO/check-runs/$failed_job_id/annotations" \
+                --jq '[.[] | select(.title == "앱 기동 실패")][0].message // empty' 2>/dev/null) || CAUSE=""
             fi
           fi
 
@@ -89,9 +94,11 @@ jobs:
           jq -n --arg color "$COLOR" --arg result "$RESULT" --arg env "$ENV_LABEL" --arg branch "$BRANCH" \
             --arg sha "${SHA:0:7}" --arg commit_url "$SERVER_URL/$REPO/commit/$SHA" --arg title "$TITLE" \
             --arg actor "$ACTOR" --arg run_url "$RUN_URL" \
-            --arg failed_step "$FAILED_STEP" --arg hint "$HINT" --arg manual "$MANUAL" '
+            --arg failed_step "$FAILED_STEP" --arg hint "$HINT" --arg manual "$MANUAL" --arg cause "$CAUSE" '
             def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
-            ([
+            # 앱 기동 실패 원인은 코드블록으로 붙인다. 이스케이프로 늘어난 뒤에도 Slack section 3,000자를 넘지 않게 뒤쪽만 남긴다
+            (($cause | esc) | if length > 2990 then .[-2990:] else . end) as $cause_text
+            | ([
               (if $failed_step != "" then "실패한 단계: \($failed_step | esc)" else empty end),
               (if $hint != "" then ($hint | esc) else empty end),
               (if $manual != "" then ($manual | esc) else empty end)
@@ -103,6 +110,7 @@ jobs:
                 {type: "section", text: {type: "mrkdwn", text: "*<\($run_url)|\($title | esc)>*"}},
                 {type: "context", elements: [{type: "mrkdwn",
                   text: "\($result) · \($env | esc) · \($actor | esc) · `\($branch | esc)` · <\($commit_url)|`\($sha)`>"}]}
-              ] + (if $notes != "" then [{type: "context", elements: [{type: "mrkdwn", text: $notes}]}] else [] end))
+              ] + (if $notes != "" then [{type: "context", elements: [{type: "mrkdwn", text: $notes}]}] else [] end)
+                + (if $cause != "" then [{type: "section", text: {type: "mrkdwn", text: "```\($cause_text)```"}}] else [] end))
             }]}' \
             | curl -sS -f -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"

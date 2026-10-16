@@ -140,6 +140,7 @@ jobs:
               "mkdir -p $dir && tar -xzf - --no-same-owner -C $dir && chmod 700 $dir/jwt && chmod 600 $dir/.env $dir/jwt/private.pem"
 
       - name: 배포
+        id: deploy
         env:
           SHA: ${{ inputs.sha || github.sha }}
           APP_ENV: ${{ vars.APP_ENV }}
@@ -148,9 +149,23 @@ jobs:
         run: |
           # 토큰은 명령줄이 아니라 stdin 으로 넘긴다. 자격증명은 이 세션만의 임시 디렉터리에 두고 끝나면 지운다
           # (dev · prod 가 같은 서버를 쓸 때 공유 ~/.docker/config.json 을 서로 지우지 않도록)
+          # 기동 실패 원인을 다음 단계에서 뽑도록 출력을 파일에도 남긴다
+          set -o pipefail
           printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
             export DOCKER_CONFIG=\$(mktemp -d)
             trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
             docker login ghcr.io -u $GHCR_USER --password-stdin > /dev/null || exit 1
             APP_ENV=$APP_ENV IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:$SHA /opt/app/$APP_ENV/deploy.sh
-          "
+          " 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+
+      # deploy-notify.yml 이 이 주석(title 앱 기동 실패)을 읽어 장애 채널로 원인을 보낸다. 실행 화면 맨 위에도 보인다
+      - name: 기동 실패 원인 남기기
+        if: failure() && steps.deploy.outcome == 'failure'
+        run: |
+          cause=$(.github/scripts/startup-error.sh "$RUNNER_TEMP/deploy.log")
+          [ -n "$cause" ] || exit 0
+          # 주석 메시지는 % · CR · LF 를 인코딩해야 여러 줄이 유지된다
+          cause=${cause//'%'/'%25'}
+          cause=${cause//$'\r'/'%0D'}
+          cause=${cause//$'\n'/'%0A'}
+          echo "::error title=앱 기동 실패::$cause"
