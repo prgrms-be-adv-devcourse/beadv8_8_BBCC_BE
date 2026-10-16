@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult.I
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult.SelectableValue;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryTreeResult;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSellerRepository;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ public class ProductSampleDataService {
     private final ProductRegistrationService productRegistrationService;
     private final ProductSaleService productSaleService;
     private final ProductRepository productRepository;
+    private final ProductReplicaSellerRepository productReplicaSellerRepository;
 
     /** 옵션 하나의 색상 · 사이즈 이름과 초기 재고이다. */
     private record OptionSample(String color, String size, int quantity) {
@@ -60,6 +62,11 @@ public class ProductSampleDataService {
     public void load() {
         if (productRepository.count() > 0) {
             log.info("상품이 이미 있어 상품 샘플 데이터를 넣지 않는다");
+            return;
+        }
+        // 등록 · 판매 시작 서비스는 판매자인지 보지 않으므로, 판매자 초기 데이터가 건너뛰어진 DB에서 상점 없는 상품이 생기지 않게 한다
+        if (productReplicaSellerRepository.findById(SELLER_ID).isEmpty()) {
+            log.warn("판매자 {}의 판매자 복사본이 없어 상품 샘플 데이터를 넣지 않는다", SELLER_ID);
             return;
         }
         List<Sample> samples = samples();
