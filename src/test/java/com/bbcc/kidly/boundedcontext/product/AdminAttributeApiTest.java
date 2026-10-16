@@ -124,6 +124,28 @@ class AdminAttributeApiTest {
                 List.of(Map.of("name", "레드", "colorCode", "red")))));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidValueRequests")
+    @DisplayName("목록 값 추가 요청이 잘못되면 400과 ProblemDetail을 준다")
+    void rejectInvalidValue(Map<String, Object> body) {
+        String attributeId = createdAttributeId("COLOR", "PALETTE");
+
+        assertProblem(post(tokens.admin(ADMIN_ID), PATH + "/" + attributeId + "/values", body), HttpStatus.BAD_REQUEST);
+    }
+
+    static Stream<Named<Map<String, Object>>> invalidValueRequests() {
+        return Stream.of(
+            Named.of("이름이 빔", Map.of("name", "")),
+            Named.of("이름이 255자 초과", Map.of("name", "가".repeat(256))),
+            Named.of("색 코드 형식", Map.of("name", "레드", "colorCode", "#ff00")));
+    }
+
+    @Test
+    @DisplayName("없는 항목에 목록 값을 더하면 404와 ProblemDetail을 준다")
+    void rejectValueOfMissingAttribute() {
+        assertProblem(post(tokens.admin(ADMIN_ID), PATH + "/999/values", Map.of("name", "레드")), HttpStatus.NOT_FOUND);
+    }
+
     private static Map<String, Object> attribute(String name, String code, String inputType, List<?> values) {
         return Map.of("name", name, "code", code, "inputType", inputType, "values", values);
     }

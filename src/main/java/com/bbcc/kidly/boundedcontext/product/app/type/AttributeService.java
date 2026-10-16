@@ -4,10 +4,12 @@ import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeCreateRequest
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeValueRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,7 +65,8 @@ public class AttributeService {
     // 항목에 목록 값 하나를 더한다
     @Transactional
     public AttributeResult.Value addValue(Long attributeId, AttributeValueRequest request) {
-        Attribute attribute = attributeRepository.findById(attributeId).orElseThrow();
+        Attribute attribute = attributeRepository.findById(attributeId)
+            .orElseThrow(() -> new BusinessException(AttributeErrorCode.ATTRIBUTE_NOT_FOUND));
         return saveValue(attribute, request);
     }
 
