@@ -24,9 +24,9 @@ public class JpaSettlementSummaryQuery implements SettlementSummaryQuery {
     public Page<SettlementSummaryRow> findAll(SettlementSearch search, Pageable pageable) {
         var content = queryFactory
             .select(Projections.constructor(SettlementSummaryRow.class,
-                settlement.id, settlement.periodStartOn, settlement.periodEndOn, settlement.totalSalesAmount,
-                settlement.feeRate, settlement.feeAmount, settlement.settlementAmount,
-                settlement.status.stringValue(), settlement.completedAt, settlement.paidAt))
+                settlement.id, settlement.sellerId, settlement.periodStartOn, settlement.periodEndOn,
+                settlement.totalSalesAmount, settlement.feeRate, settlement.feeAmount, settlement.settlementAmount,
+                settlement.status.stringValue(), settlement.completedAt, settlement.paidAt, settlement.failReason))
             .from(settlement)
             .where(matches(search))
             .orderBy(settlement.periodEndOn.desc(), settlement.id.desc())
@@ -42,7 +42,11 @@ public class JpaSettlementSummaryQuery implements SettlementSummaryQuery {
 
     private BooleanExpression[] matches(SettlementSearch search) {
         return new BooleanExpression[] {
-            settlement.sellerId.eq(search.sellerId()), statusEq(search), endOnFrom(search), endOnTo(search)};
+            sellerIdEq(search), statusEq(search), endOnFrom(search), endOnTo(search)};
+    }
+
+    private BooleanExpression sellerIdEq(SettlementSearch search) {
+        return search.sellerId() == null ? null : settlement.sellerId.eq(search.sellerId());
     }
 
     private BooleanExpression statusEq(SettlementSearch search) {

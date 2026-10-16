@@ -12,6 +12,11 @@ public interface SettlementRepository {
 
     Optional<Settlement> findByIdAndSellerId(Long id, Long sellerId);
 
+    // 없으면 404
+    default Settlement getById(Long id) {
+        return findById(id).orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+    }
+
     // 없거나 다른 판매자의 정산서면 404
     default Settlement getByIdAndSellerId(Long id, Long sellerId) {
         return findByIdAndSellerId(id, sellerId).orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));

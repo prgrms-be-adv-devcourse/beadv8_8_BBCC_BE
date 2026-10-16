@@ -56,6 +56,20 @@ class SettlementSummaryQueryIntegrationTest {
     }
 
     @Test
+    @DisplayName("판매자를 지정하지 않으면 모든 판매자의 정산서를 판매자 ID · 실패 사유와 함께 찾는다")
+    void findAllSellers() {
+        var page = settlementSummaryQuery.findAll(
+            new SettlementSearch(null, null, null, null), PageRequest.of(0, 10));
+
+        assertThat(page.getTotalElements()).isEqualTo(4);
+        assertThat(page.getContent()).extracting("sellerId")
+            .containsExactlyInAnyOrder(SettlementFixture.SELLER_ID, SettlementFixture.SELLER_ID,
+                SettlementFixture.SELLER_ID, 11L);
+        assertThat(page.getContent()).filteredOn(row -> row.status().equals("FAILED")).singleElement()
+            .extracting("failReason").isEqualTo("계좌 오류");
+    }
+
+    @Test
     @DisplayName("상태로 거른다")
     void byStatus() {
         var page = settlementSummaryQuery.findAll(search(SettlementStatus.PAID, null, null), PageRequest.of(0, 10));

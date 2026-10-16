@@ -2,11 +2,11 @@ package com.bbcc.kidly.boundedcontext.settlement.app.batch;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementProperties;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSellerQuery;
+import com.bbcc.kidly.boundedcontext.settlement.app.support.SettlementPayoutRequester;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import java.time.LocalDateTime;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.Job;
@@ -89,8 +89,8 @@ public class SettlementJobConfig {
     @StepScope
     public SettlementSellerWriter settlementSellerWriter(
         SettlementItemRepository settlementItemRepository, SettlementRepository settlementRepository,
-        SettlementCalculator settlementCalculator, EventPublisher eventPublisher) {
+        SettlementCalculator settlementCalculator, SettlementPayoutRequester settlementPayoutRequester) {
         return new SettlementSellerWriter(
-            settlementItemRepository, settlementRepository, settlementCalculator, eventPublisher);
+            settlementItemRepository, settlementRepository, settlementCalculator, settlementPayoutRequester);
     }
 }
