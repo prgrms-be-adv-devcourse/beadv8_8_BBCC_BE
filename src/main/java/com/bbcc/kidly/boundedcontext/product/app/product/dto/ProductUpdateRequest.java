@@ -14,6 +14,8 @@ import java.util.List;
  * 판매자가 상품을 고칠 때 보내는 값이다. 등록할 때 보내는 값에 읽어 간 version을 더한다.
  *
  * @param version 판매자가 읽어 간 상품의 version. 그 사이 다른 곳에서 고쳤으면 거절한다
+ * @param thumbnailUrl 업로드 주소 발급 API가 돌려준 판매자 본인의 imageUrl만 그대로 받는다. 썸네일이 없으면 null을 보낸다
+ * @param imageUrls 업로드 주소 발급 API가 돌려준 판매자 본인의 imageUrl만 그대로 받는다. 이미지가 없으면 빈 목록이다
  * @param options 판매대기 상품의 옵션을 바꿔 넣을 때만 보낸다. options · prices · sizeSpecs를 모두 null로 보내면
  *     옵션 · 가격 · 실측은 바꾸지 않는다
  */

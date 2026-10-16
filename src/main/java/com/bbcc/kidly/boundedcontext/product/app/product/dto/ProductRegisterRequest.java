@@ -15,6 +15,8 @@ import java.util.Map;
  * 판매자가 상품을 등록할 때 보내는 값이다. JSON의 문자열 ID("123")도 Long으로 받는다.
  *
  * @param categoryId 상품을 등록할 말단 카테고리
+ * @param thumbnailUrl 업로드 주소 발급 API가 돌려준 판매자 본인의 imageUrl만 그대로 받는다. 썸네일이 없으면 null을 보낸다
+ * @param imageUrls 업로드 주소 발급 API가 돌려준 판매자 본인의 imageUrl만 그대로 받는다. 이미지가 없으면 빈 목록이다
  * @param attributes 상품 정보 항목에 입력한 값
  * @param prices 가격 구분 묶음마다 하나씩이다. 가격 구분 항목이 없는 유형은 valueIds가 빈 목록인 하나만 보낸다
  * @param sizeSpecs 사이즈 값마다 하나씩이다. 사이즈가 없는 상품은 빈 목록이다
