@@ -153,8 +153,10 @@ class ProductTypeTest {
         List<ProductType.LinkInfo> links = List.of(requiredOption(color()), requiredOption(feature));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("옵션 항목은 팔레트나 목록 항목만");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.OPTION_NOT_SINGLE_CHOICE);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @Test

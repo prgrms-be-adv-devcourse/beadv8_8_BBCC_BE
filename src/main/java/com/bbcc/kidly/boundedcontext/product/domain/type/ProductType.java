@@ -79,7 +79,7 @@ public class ProductType extends BaseTimeEntity {
             throw new BusinessException(ProductTypeErrorCode.PRICE_AFFECTING_ON_INFO);
         }
         if (hasNonSingleChoiceOption(links)) {
-            throw new IllegalArgumentException("옵션 항목은 팔레트나 목록 항목만 될 수 있습니다");
+            throw new BusinessException(ProductTypeErrorCode.OPTION_NOT_SINGLE_CHOICE);
         }
         if (hasLinkWithoutAllowedValues(links)) {
             throw new IllegalArgumentException("모든 값 허용이 아닌 항목에는 허용 값을 하나 이상 연결해야 합니다");
