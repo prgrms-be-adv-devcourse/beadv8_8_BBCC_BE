@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.PERIOD_
 import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.PERIOD_START;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunRequest;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
@@ -11,9 +12,14 @@ import com.bbcc.kidly.boundedcontext.settlement.in.dto.SettlementRunResponse;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.job.parameters.JobParametersBuilder;
+import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -34,6 +40,9 @@ class AdminSettlementApiTest {
 
     @Autowired
     private SettlementRepository settlementRepository;
+
+    @Autowired
+    private JobRepository jobRepository;
 
     @Test
     @DisplayName("관리자가 기준일로 정산을 실행하면 201과 Location, 실행 기록을 준다")
@@ -109,6 +118,37 @@ class AdminSettlementApiTest {
     }
 
     @Test
+    @DisplayName("실행 중으로 남은 실행을 정리하면 200과 FAILED 실행 기록을 준다")
+    void recoverRun() {
+        var parameters = new JobParametersBuilder()
+            .addLocalDateTime(SettlementJobConfig.CUTOFF_AT, LocalDate.now().withDayOfMonth(1).atStartOfDay())
+            .toJobParameters();
+        var instance = jobRepository.createJobInstance(SettlementJobConfig.JOB_NAME, parameters);
+        var stuck = jobRepository.createJobExecution(instance, parameters, new ExecutionContext());
+        stuck.setStatus(BatchStatus.STARTED);
+        stuck.setStartTime(LocalDateTime.now());
+        jobRepository.update(stuck);
+
+        recover(stuck.getId()).expectStatus().isOk()
+            .expectBody(SettlementRunResponse.class)
+            .value(run -> {
+                assertThat(run.status()).isEqualTo("FAILED");
+                assertThat(run.finishedAt()).isNotNull();
+            });
+    }
+
+    @Test
+    @DisplayName("끝난 실행을 정리하면 409, 없는 실행이면 404이다")
+    void recoverRunRejected() {
+        var completed = run(LocalDate.now().withDayOfMonth(1)).expectStatus().isCreated()
+            .expectBody(SettlementRunResponse.class).returnResult().getResponseBody();
+
+        recover(completed.runId()).expectStatus().isEqualTo(409)
+            .expectBody().jsonPath("$.title").isEqualTo("정리할 수 없는 정산 실행입니다");
+        recover(999L).expectStatus().isNotFound();
+    }
+
+    @Test
     @DisplayName("없는 실행 기록은 404이다")
     void getRunNotFound() {
         client.get().uri(RUNS_PATH + "/999")
@@ -179,6 +219,12 @@ class AdminSettlementApiTest {
 
     private RestTestClient.ResponseSpec getSettlements(String uri) {
         return client.get().uri(uri)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange();
+    }
+
+    private RestTestClient.ResponseSpec recover(Long runId) {
+        return client.post().uri(RUNS_PATH + "/{id}/recover", runId)
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
             .exchange();
     }

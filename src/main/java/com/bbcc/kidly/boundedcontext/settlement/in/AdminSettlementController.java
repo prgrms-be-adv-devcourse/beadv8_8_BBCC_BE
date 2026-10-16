@@ -65,4 +65,10 @@ public class AdminSettlementController {
     public SettlementRunResponse getRun(@PathVariable Long runId) {
         return SettlementRunResponse.from(settlementRunService.getRun(runId));
     }
+
+    // 서버가 정산 도중 죽어 실행 중(RUNNING)으로 남은 실행을 FAILED로 정리한다. 서버를 다시 띄운 뒤에만 쓴다
+    @PostMapping("/settlement-runs/{runId}/recover")
+    public SettlementRunResponse recoverRun(@PathVariable Long runId) {
+        return SettlementRunResponse.from(settlementRunService.recover(runId));
+    }
 }

@@ -227,6 +227,48 @@ class SettlementJobIntegrationTest {
     }
 
     @Test
+    @DisplayName("실행 중으로 남은 작업을 정리하면 FAILED가 되고, 같은 기준일로 다시 실행하면 남은 대기 항목만 정산한다")
+    void recoverThenRerun() {
+        var existing = settlementRepository.save(Settlement.create(
+            new SettlementCreateInfo(10L, PERIOD_START, PERIOD_END, 10_000L, FEE_RATE), LocalDateTime.now()));
+        var settled = SettlementFixture.item(201L, 10L, 10_000L, CUTOFF_AT.minusDays(1));
+        settled.settle(existing.getId());
+        settlementItemRepository.save(settled);
+        var pending = save(202L, 11L, 5_000L, CUTOFF_AT.minusDays(1));
+        var stuck = startExecution(CUTOFF_AT);
+
+        var recovered = settlementRunService.recover(stuck.getId());
+
+        assertThat(recovered.status()).isEqualTo("FAILED");
+        assertThat(recovered.finishedAt()).isNotNull();
+        var result = settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        assertThat(result.successCount()).isEqualTo(1);
+        assertThat(settlementOf(pending).getSellerId()).isEqualTo(11L);
+        assertThat(reload(settled).getSettlementId()).isEqualTo(existing.getId());
+        assertThat(settlementCount()).isEqualTo(2);
+        assertThat(payoutSellerIds()).containsExactly(11L);
+    }
+
+    @Test
+    @DisplayName("끝난 실행은 정리할 수 없다. SETTLEMENT_RUN_NOT_RECOVERABLE이다")
+    void recoverNotRunning() {
+        var completed = settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
+        var failed = failExecution(CUTOFF_AT.minusMonths(1));
+
+        assertErrorCode(() -> settlementRunService.recover(completed.runId()),
+            SettlementErrorCode.SETTLEMENT_RUN_NOT_RECOVERABLE);
+        assertErrorCode(() -> settlementRunService.recover(failed.getId()),
+            SettlementErrorCode.SETTLEMENT_RUN_NOT_RECOVERABLE);
+    }
+
+    @Test
+    @DisplayName("없는 실행을 정리하면 NOT_FOUND다")
+    void recoverNotFound() {
+        assertErrorCode(() -> settlementRunService.recover(999L), CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
     @DisplayName("없는 실행을 조회하면 NOT_FOUND다")
     void getRunNotFound() {
         assertErrorCode(() -> settlementRunService.getRun(999L), CommonErrorCode.NOT_FOUND);
@@ -261,19 +303,26 @@ class SettlementJobIntegrationTest {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM settlement.BATCH_JOB_EXECUTION", Integer.class);
     }
 
-    private void startExecution(LocalDateTime cutoffAt) {
+    // 서버가 단계 도중 죽은 것처럼 작업 · 단계 실행을 STARTED로 남긴다
+    private JobExecution startExecution(LocalDateTime cutoffAt) {
         var execution = createExecution(cutoffAt);
         execution.setStatus(BatchStatus.STARTED);
         execution.setStartTime(LocalDateTime.now());
         jobRepository.update(execution);
+        var step = jobRepository.createStepExecution("settleSellerStep", execution);
+        step.setStatus(BatchStatus.STARTED);
+        step.setStartTime(LocalDateTime.now());
+        jobRepository.update(step);
+        return execution;
     }
 
-    private void failExecution(LocalDateTime cutoffAt) {
+    private JobExecution failExecution(LocalDateTime cutoffAt) {
         var execution = createExecution(cutoffAt);
         execution.setStatus(BatchStatus.FAILED);
         execution.setStartTime(LocalDateTime.now().minusMinutes(1));
         execution.setEndTime(LocalDateTime.now());
         jobRepository.update(execution);
+        return execution;
     }
 
     private JobExecution createExecution(LocalDateTime cutoffAt) {
