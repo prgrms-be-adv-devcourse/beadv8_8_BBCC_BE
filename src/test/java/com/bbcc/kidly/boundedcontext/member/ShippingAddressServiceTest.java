@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.member.app.ShippingAddressService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.ShippingAddressRequest;
 import com.bbcc.kidly.boundedcontext.member.app.dto.ShippingAddressResult;
 import com.bbcc.kidly.boundedcontext.member.domain.DefaultShippingAddress;
+import com.bbcc.kidly.boundedcontext.member.domain.DefaultShippingAddressPolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.DefaultShippingAddressRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.ShippingAddress;
@@ -22,11 +23,11 @@ import com.bbcc.kidly.boundedcontext.member.domain.ShippingAddressRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -40,8 +41,13 @@ class ShippingAddressServiceTest {
     @Mock
     private DefaultShippingAddressRepository defaultShippingAddressRepository;
 
-    @InjectMocks
     private ShippingAddressService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new ShippingAddressService(shippingAddressRepository, defaultShippingAddressRepository,
+            new DefaultShippingAddressPolicy(shippingAddressRepository, defaultShippingAddressRepository));
+    }
 
     private static ShippingAddressRequest request(boolean isDefault) {
         var info = ShippingAddressFixture.info();
@@ -88,12 +94,13 @@ class ShippingAddressServiceTest {
         stubSaveAssigningId(11L);
         var pointer = pointerTo(addressWithId(10L, MEMBER_ID));
         given(defaultShippingAddressRepository.findById(MEMBER_ID)).willReturn(Optional.of(pointer));
+        stubDefaultSaveReturningArgument();
 
         var result = service.register(MEMBER_ID, request(false));
 
         assertThat(pointer.isPointingTo(10L)).isTrue();
         assertThat(result.isDefault()).isFalse();
-        then(defaultShippingAddressRepository).should(never()).save(any());
+        then(defaultShippingAddressRepository).should().save(pointer);
     }
 
     @Test
@@ -102,6 +109,7 @@ class ShippingAddressServiceTest {
         stubSaveAssigningId(11L);
         var pointer = pointerTo(addressWithId(10L, MEMBER_ID));
         given(defaultShippingAddressRepository.findById(MEMBER_ID)).willReturn(Optional.of(pointer));
+        stubDefaultSaveReturningArgument();
 
         var result = service.register(MEMBER_ID, request(true));
 
@@ -146,6 +154,7 @@ class ShippingAddressServiceTest {
         var pointer = pointerTo(current);
         given(shippingAddressRepository.getByIdAndMemberId(2L, MEMBER_ID)).willReturn(target);
         given(defaultShippingAddressRepository.findById(MEMBER_ID)).willReturn(Optional.of(pointer));
+        stubDefaultSaveReturningArgument();
         var request = request(true);
 
         var result = service.update(MEMBER_ID, 2L, request);
@@ -163,6 +172,7 @@ class ShippingAddressServiceTest {
         var pointer = pointerTo(current);
         given(shippingAddressRepository.getByIdAndMemberId(2L, MEMBER_ID)).willReturn(target);
         given(defaultShippingAddressRepository.findById(MEMBER_ID)).willReturn(Optional.of(pointer));
+        stubDefaultSaveReturningArgument();
 
         var result = service.update(MEMBER_ID, 2L, request(false));
 
@@ -194,6 +204,7 @@ class ShippingAddressServiceTest {
         var pointer = pointerTo(current);
         given(shippingAddressRepository.getByIdAndMemberId(2L, MEMBER_ID)).willReturn(target);
         given(defaultShippingAddressRepository.findById(MEMBER_ID)).willReturn(Optional.of(pointer));
+        stubDefaultSaveReturningArgument();
 
         var result = service.changeDefault(MEMBER_ID, 2L);
 

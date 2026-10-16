@@ -4,13 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.app.SocialLoginService;
-import com.bbcc.kidly.boundedcontext.member.app.dto.LoggedInMember;
 import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
@@ -45,11 +45,11 @@ class SocialLoginServiceIntegrationTest {
     void firstLoginRegisters() {
         var member = login("kakao-1");
 
-        assertThat(memberRepository.findById(member.memberId())).isPresent();
+        assertThat(memberRepository.findById(member.getId())).isPresent();
         assertThat(events.stream(MemberRegisteredEvent.class))
             .singleElement()
             .satisfies(event -> {
-                assertThat(event.data().memberId()).isEqualTo(member.memberId());
+                assertThat(event.data().memberId()).isEqualTo(member.getId());
                 assertThat(event.data().email()).isEqualTo(FakeOAuthClient.EMAIL);
             });
     }
@@ -61,7 +61,7 @@ class SocialLoginServiceIntegrationTest {
 
         var member = login("kakao-1");
 
-        assertThat(member.memberId()).isEqualTo(saved.getId());
+        assertThat(member.getId()).isEqualTo(saved.getId());
         assertThat(jpaMemberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class)).isEmpty();
     }
@@ -82,9 +82,9 @@ class SocialLoginServiceIntegrationTest {
     void registersWithProviderProfile() {
         var member = login("kakao-1");
 
-        assertThat(memberRepository.findBySocialAccount(OAuthProvider.KAKAO, "kakao-1"))
+        assertThat(memberRepository.findBySocialAccount(new SocialIdentity(OAuthProvider.KAKAO, "kakao-1")))
             .hasValueSatisfying(found -> {
-                assertThat(found.getId()).isEqualTo(member.memberId());
+                assertThat(found.getId()).isEqualTo(member.getId());
                 assertThat(found.getNickname()).isEqualTo(FakeOAuthClient.NICKNAME);
                 assertThat(found.getEmail()).isEqualTo(FakeOAuthClient.EMAIL);
             });
@@ -107,7 +107,7 @@ class SocialLoginServiceIntegrationTest {
 
         var member = login(FakeOAuthClient.NO_EMAIL_CODE);
 
-        assertThat(member.memberId()).isEqualTo(saved.getId());
+        assertThat(member.getId()).isEqualTo(saved.getId());
         assertThat(jpaMemberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class)).isEmpty();
     }
@@ -117,7 +117,7 @@ class SocialLoginServiceIntegrationTest {
     void defaultNickname() {
         var member = login(FakeOAuthClient.NO_NICKNAME_CODE);
 
-        assertThat(memberRepository.findById(member.memberId()))
+        assertThat(memberRepository.findById(member.getId()))
             .hasValueSatisfying(found -> assertThat(found.getNickname()).matches("회원\\d{4}"));
     }
 
@@ -128,7 +128,7 @@ class SocialLoginServiceIntegrationTest {
 
         var member = login("kakao-2");
 
-        assertThat(memberRepository.findById(member.memberId()))
+        assertThat(memberRepository.findById(member.getId()))
             .hasValueSatisfying(found -> assertThat(found.getNickname()).matches(FakeOAuthClient.NICKNAME + "\\d{4}"));
     }
 
@@ -137,7 +137,7 @@ class SocialLoginServiceIntegrationTest {
     void longNicknameIsCut() {
         var member = login(FakeOAuthClient.LONG_NICKNAME_CODE_PREFIX + 1);
 
-        assertThat(memberRepository.findById(member.memberId()))
+        assertThat(memberRepository.findById(member.getId()))
             .hasValueSatisfying(found -> assertThat(found.getNickname()).isEqualTo("가".repeat(20)));
     }
 
@@ -148,7 +148,7 @@ class SocialLoginServiceIntegrationTest {
 
         var member = login(FakeOAuthClient.LONG_NICKNAME_CODE_PREFIX + 2);
 
-        assertThat(memberRepository.findById(member.memberId()))
+        assertThat(memberRepository.findById(member.getId()))
             .hasValueSatisfying(found -> assertThat(found.getNickname()).matches("가{16}\\d{4}"));
     }
 
@@ -157,7 +157,7 @@ class SocialLoginServiceIntegrationTest {
     void shortNickname() {
         var member = login(FakeOAuthClient.SHORT_NICKNAME_CODE);
 
-        assertThat(memberRepository.findById(member.memberId()))
+        assertThat(memberRepository.findById(member.getId()))
             .hasValueSatisfying(found -> assertThat(found.getNickname()).matches("회원\\d{4}"));
     }
 
@@ -170,7 +170,7 @@ class SocialLoginServiceIntegrationTest {
     }
 
     // FakeOAuthClient는 인가 코드를 그대로 providerUserId로 돌려준다
-    private LoggedInMember login(String providerUserId) {
+    private Member login(String providerUserId) {
         return socialLoginService.login("kakao", new SocialLoginRequest(providerUserId));
     }
 }

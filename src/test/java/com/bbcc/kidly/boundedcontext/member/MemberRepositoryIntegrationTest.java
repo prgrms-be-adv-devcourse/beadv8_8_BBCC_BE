@@ -6,7 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
@@ -25,7 +27,7 @@ class MemberRepositoryIntegrationTest {
     void findBySocialAccount() {
         Member saved = memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
 
-        assertThat(memberRepository.findBySocialAccount(OAuthProvider.KAKAO, "kakao-1"))
+        assertThat(memberRepository.findBySocialAccount(new SocialIdentity(OAuthProvider.KAKAO, "kakao-1")))
             .hasValueSatisfying(found -> assertThat(found.getId()).isEqualTo(saved.getId()));
     }
 
@@ -34,7 +36,7 @@ class MemberRepositoryIntegrationTest {
     void notFound() {
         memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
 
-        assertThat(memberRepository.findBySocialAccount(OAuthProvider.KAKAO, "kakao-2")).isEmpty();
+        assertThat(memberRepository.findBySocialAccount(new SocialIdentity(OAuthProvider.KAKAO, "kakao-2"))).isEmpty();
     }
 
     @Test
@@ -43,7 +45,9 @@ class MemberRepositoryIntegrationTest {
         memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
 
         assertThatThrownBy(() -> memberRepository.save(
-            Member.register(new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", "다른회원", MemberFixture.EMAIL),
+            Member.register(
+                new MemberRegisterInfo(
+                    new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"), new Nickname("다른회원"), MemberFixture.EMAIL),
                 MemberFixture.NOW)))
             .isInstanceOf(DataIntegrityViolationException.class);
     }

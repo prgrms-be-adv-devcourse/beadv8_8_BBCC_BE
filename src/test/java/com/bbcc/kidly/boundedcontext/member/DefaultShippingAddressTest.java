@@ -30,7 +30,7 @@ class DefaultShippingAddressTest {
         var defaultAddress = DefaultShippingAddress.designate(MEMBER_ID, address);
 
         assertThat(defaultAddress.getMemberId()).isEqualTo(MEMBER_ID);
-        assertThat(defaultAddress.getShippingAddress()).isSameAs(address);
+        assertThat(defaultAddress.getShippingAddressId()).isEqualTo(DEFAULT_ADDRESS_ID);
     }
 
     @Test
@@ -54,6 +54,18 @@ class DefaultShippingAddressTest {
     }
 
     @Test
+    @DisplayName("저장되지 않아 ID가 없는 배송지는 지정하거나 바꿀 수 없다")
+    void designateUnsaved() {
+        var unsaved = ShippingAddressFixture.address(MEMBER_ID);
+        var defaultAddress = defaultAddress();
+
+        assertThatThrownBy(() -> DefaultShippingAddress.designate(MEMBER_ID, unsaved))
+            .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> defaultAddress.change(unsaved))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
     @DisplayName("기본 배송지를 다른 배송지로 바꾼다")
     void change() {
         var defaultAddress = defaultAddress();
@@ -61,7 +73,7 @@ class DefaultShippingAddressTest {
 
         defaultAddress.change(newAddress);
 
-        assertThat(defaultAddress.getShippingAddress()).isSameAs(newAddress);
+        assertThat(defaultAddress.getShippingAddressId()).isEqualTo(OTHER_ADDRESS_ID);
     }
 
     @Test
@@ -82,7 +94,7 @@ class DefaultShippingAddressTest {
 
         assertThatThrownBy(() -> defaultAddress.change(otherMembers))
             .isInstanceOf(IllegalArgumentException.class);
-        assertThat(defaultAddress.getShippingAddress()).isSameAs(original);
+        assertThat(defaultAddress.getShippingAddressId()).isEqualTo(DEFAULT_ADDRESS_ID);
     }
 
     @Test

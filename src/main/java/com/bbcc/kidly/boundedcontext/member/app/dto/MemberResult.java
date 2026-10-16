@@ -15,7 +15,7 @@ public record MemberResult(Long id, String nickname, String email, List<Role> ro
 
     public static MemberResult from(Member member) {
         var providers = member.getSocialAccounts().stream()
-            .map(account -> account.getProvider().name())
+            .map(account -> account.getIdentity().provider().name())
             .toList();
         return new MemberResult(member.getId(), member.getNickname(), member.getEmail(), member.roles(),
             member.sellerStatus(), providers);

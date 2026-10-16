@@ -6,10 +6,7 @@ import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lombok.AccessLevel;
@@ -31,32 +28,32 @@ public class DefaultShippingAddress extends BaseTimeEntity {
     @Column(name = "member_id")
     private Long memberId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "shipping_address_id", nullable = false)
-    private ShippingAddress shippingAddress;
+    // 다른 애그리거트라 ID로만 가리킨다. DB FK가 삭제된 배송지를 가리키지 않게 막는다
+    @Column(name = "shipping_address_id", nullable = false)
+    private Long shippingAddressId;
 
     // id를 직접 넣으므로 Spring Data는 version이 null인지로 새 행을 판단한다. 새 행은 persist되어 같은 회원이면 PK 충돌로 실패한다
     @Version
     private Long version;
 
-    private DefaultShippingAddress(Long memberId, ShippingAddress shippingAddress) {
+    private DefaultShippingAddress(Long memberId, Long shippingAddressId) {
         this.memberId = memberId;
-        this.shippingAddress = shippingAddress;
+        this.shippingAddressId = shippingAddressId;
     }
 
     public static DefaultShippingAddress designate(Long memberId, ShippingAddress shippingAddress) {
         requireNonNull(memberId, "memberId는 필수입니다");
         validateOwner(memberId, shippingAddress);
-        return new DefaultShippingAddress(memberId, shippingAddress);
+        return new DefaultShippingAddress(memberId, shippingAddress.getId());
     }
 
     public void change(ShippingAddress shippingAddress) {
         validateOwner(memberId, shippingAddress);
-        this.shippingAddress = shippingAddress;
+        this.shippingAddressId = shippingAddress.getId();
     }
 
     public boolean isPointingTo(Long addressId) {
-        return shippingAddress.getId().equals(addressId);
+        return shippingAddressId.equals(addressId);
     }
 
     // 기본 배송지는 지울 수 없다. 배송지가 1개뿐이면 예외로 지울 수 있고, 이때 이 행도 함께 지운다
@@ -66,8 +63,10 @@ public class DefaultShippingAddress extends BaseTimeEntity {
         }
     }
 
+    // 소유자를 확인하려고 배송지 객체를 받고, 저장되어 ID가 있는 배송지만 가리킬 수 있다
     private static void validateOwner(Long memberId, ShippingAddress shippingAddress) {
         requireNonNull(shippingAddress, "shippingAddress는 필수입니다");
+        requireNonNull(shippingAddress.getId(), "shippingAddress.id는 필수입니다");
         Assert.isTrue(shippingAddress.isOwnedBy(memberId), "다른 회원의 배송지는 기본 배송지로 지정할 수 없습니다");
     }
 }

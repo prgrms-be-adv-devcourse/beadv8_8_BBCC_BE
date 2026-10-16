@@ -40,7 +40,7 @@ class SellerApprovalIntegrationTest {
         sellerApplicationService.approve(application.id(), SellerFixture.ADMIN_ID);
 
         assertThat(memberRepository.findById(member.getId()).orElseThrow().isActiveSeller()).isTrue();
-        var jwt = jwtDecoder.decode(authTokenService.issueAccessToken(member.getId()));
+        var jwt = jwtDecoder.decode(authTokenService.issueAccessToken(memberRepository.getById(member.getId())));
         assertThat(jwt.getClaimAsStringList("roles")).contains("SELLER");
     }
 }

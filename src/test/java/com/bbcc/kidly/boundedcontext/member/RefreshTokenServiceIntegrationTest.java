@@ -75,10 +75,10 @@ class RefreshTokenServiceIntegrationTest {
 
         var reissued = refreshTokenService.reissue(oldToken);
 
-        assertThat(reissued.memberId()).isEqualTo(memberId);
+        assertThat(reissued.member().getId()).isEqualTo(memberId);
         assertThat(reissued.refreshToken()).isNotEqualTo(oldToken);
         assertInvalid(() -> refreshTokenService.reissue(oldToken));
-        assertThat(refreshTokenService.reissue(reissued.refreshToken()).memberId()).isEqualTo(memberId);
+        assertThat(refreshTokenService.reissue(reissued.refreshToken()).member().getId()).isEqualTo(memberId);
     }
 
     @Test
