@@ -247,6 +247,55 @@ class TossPaymentGatewayTest {
         assertThat(result).isInstanceOf(PgResult.Unknown.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 429})
+    @DisplayName("조회 요청이 4xx로 실패하면 결제 결과가 아니므로 모르는 것으로 돌려준다")
+    void findClientError(int status) {
+        server.expect(requestTo(BASE_URL + "/v1/payments/orders/charge-1"))
+            .andRespond(withStatus(HttpStatus.valueOf(status))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(error("UNAUTHORIZED_KEY", "인증되지 않은 시크릿 키 혹은 클라이언트 키 입니다.")));
+
+        PgResult<PgApproval> result = gateway.findByOrderId("charge-1");
+
+        assertThat(result).isInstanceOf(PgResult.Unknown.class);
+    }
+
+    @Test
+    @DisplayName("취소 조회 요청이 4xx로 실패하면 결제 결과가 아니므로 모르는 것으로 돌려준다")
+    void findCancellationClientError() {
+        server.expect(requestTo(BASE_URL + "/v1/payments/orders/charge-1"))
+            .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(error("FORBIDDEN_REQUEST", "허용되지 않은 요청입니다.")));
+
+        PgResult<PgCancellation> result = gateway.findCancellationByOrderId("charge-1");
+
+        assertThat(result).isInstanceOf(PgResult.Unknown.class);
+    }
+
+    @Test
+    @DisplayName("오류 코드가 없는 4xx는 토스가 처리했는지 알 수 없으므로 승인에서도 모르는 것으로 돌려준다")
+    void confirmClientErrorWithoutCode() {
+        server.expect(requestTo(BASE_URL + "/v1/payments/confirm"))
+            .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        PgResult<PgApproval> result = gateway.confirm("pk-1", "charge-1", 10_000L, "idem-1");
+
+        assertThat(result).isInstanceOf(PgResult.Unknown.class);
+    }
+
+    @Test
+    @DisplayName("오류 코드가 없는 4xx는 취소에서도 모르는 것으로 돌려준다")
+    void cancelClientErrorWithoutCode() {
+        server.expect(requestTo(BASE_URL + "/v1/payments/pk-1/cancel"))
+            .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        PgResult<PgCancellation> result = gateway.cancel("pk-1", "단순 변심", "idem-2");
+
+        assertThat(result).isInstanceOf(PgResult.Unknown.class);
+    }
+
     private static String payment(String status, String approvedAt) {
         String approved = approvedAt == null ? "null" : "\"" + approvedAt + "\"";
         return """
