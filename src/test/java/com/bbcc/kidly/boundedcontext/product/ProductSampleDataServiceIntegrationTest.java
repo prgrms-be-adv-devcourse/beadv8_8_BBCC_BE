@@ -14,6 +14,14 @@ import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetail
 import com.bbcc.kidly.boundedcontext.product.app.search.ProductListService;
 import com.bbcc.kidly.boundedcontext.product.app.search.dto.ProductListRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.ProductReferenceDataService;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerInitialDataService;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
@@ -50,6 +58,18 @@ class ProductSampleDataServiceIntegrationTest {
 
     @Autowired
     private SellerProductService sellerProductService;
+
+    @Autowired
+    private AttributeRepository attributeRepository;
+
+    @Autowired
+    private AttributeValueRepository attributeValueRepository;
+
+    @Autowired
+    private ProductTypeRepository productTypeRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     // 앱 시작 때와 같은 순서로 회원 초기 데이터를 먼저 넣는다. 판매자 초기 데이터는 판매자가 없는 경우를 보려고 테스트마다 넣는다
     @BeforeEach
@@ -139,6 +159,38 @@ class ProductSampleDataServiceIntegrationTest {
 
         assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null)).getContent())
             .isEmpty();
+    }
+
+    @Test
+    @DisplayName("기준 데이터에 샘플 상품이 쓰는 값이 없으면 샘플 상품을 넣지 않고 앱 시작을 막지 않는다")
+    void skipWhenValueMissing() {
+        sellerInitialDataService.load();
+        saveReferenceDataWithoutNavy();
+
+        assertThatCode(() -> productSampleDataService.load()).doesNotThrowAnyException();
+
+        assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null)).getContent())
+            .isEmpty();
+    }
+
+    // 의류 > 상의 · 하의는 있지만 색상 값에 네이비가 없는 기준 데이터다
+    private void saveReferenceDataWithoutNavy() {
+        Attribute color = attributeRepository.save(ProductTypeFixture.color());
+        Attribute size = attributeRepository.save(ProductTypeFixture.size());
+        Attribute material = attributeRepository.save(ProductTypeFixture.mainMaterial());
+        attributeValueRepository.save(AttributeValue.create(color, "그레이", "#9e9e9e"));
+        attributeValueRepository.save(AttributeValue.create(size, "110", null));
+        attributeValueRepository.save(AttributeValue.create(size, "120", null));
+        attributeValueRepository.save(AttributeValue.create(material, "면", null));
+        ProductType clothingType = productTypeRepository.save(ProductType.define("의류", List.of(
+            ProductTypeFixture.requiredOption(color),
+            ProductTypeFixture.sizeOption(size),
+            ProductTypeFixture.requiredInfo(material))));
+        Category clothingCategory = categoryRepository.save(Category.createMiddle("의류", null));
+        categoryRepository.save(Category.createLeaf(
+            new Category.LeafInfo("상의", clothingCategory, clothingType, List.of())));
+        categoryRepository.save(Category.createLeaf(
+            new Category.LeafInfo("하의", clothingCategory, clothingType, List.of())));
     }
 
     private List<Integer> availableQuantities(Long productId) {

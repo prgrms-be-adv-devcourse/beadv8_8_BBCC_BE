@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSeller
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,16 +70,19 @@ public class ProductSampleDataService {
             log.warn("판매자 {}의 판매자 복사본이 없어 상품 샘플 데이터를 넣지 않는다", SELLER_ID);
             return;
         }
-        List<Sample> samples = samples();
-        // 관리자가 기준 데이터를 다르게 만든 DB에서도 앱이 시작되도록, 카테고리가 없으면 예외 대신 경고만 남긴다
-        for (Sample sample : samples) {
-            if (findLeafCategoryId(sample.categoryName()) == null) {
-                log.warn("기준 데이터에 {} 카테고리가 없어 상품 샘플 데이터를 넣지 않는다", sample.categoryName());
+        // 관리자가 기준 데이터를 다르게 만든 DB에서도 앱이 시작되도록, 샘플이 쓰는 값이 없으면 예외 대신 경고만 남긴다.
+        // 상품을 하나라도 등록한 뒤 멈추지 않게 요청을 모두 먼저 만든다
+        Map<String, Long> leafCategoryIds = findLeafCategoryIds();
+        List<ProductRegisterRequest> requests = new ArrayList<>();
+        for (Sample sample : samples()) {
+            ProductRegisterRequest request = toRequest(sample, leafCategoryIds);
+            if (request == null) {
                 return;
             }
+            requests.add(request);
         }
-        for (Sample sample : samples) {
-            ProductRegisterResult result = productRegistrationService.register(SELLER_ID, toRequest(sample));
+        for (ProductRegisterRequest request : requests) {
+            ProductRegisterResult result = productRegistrationService.register(SELLER_ID, request);
             productSaleService.changeSaleStatus(SELLER_ID, result.productId(), ProductStatus.ON_SALE);
         }
         log.info("상품 샘플 데이터를 넣었다");
@@ -99,48 +103,76 @@ public class ProductSampleDataService {
         return List.of(top, bottom);
     }
 
-    private ProductRegisterRequest toRequest(Sample sample) {
-        Long categoryId = findLeafCategoryId(sample.categoryName());
+    // 기준 데이터에서 샘플이 쓰는 값을 못 찾으면 경고를 남기고 null을 돌려준다
+    private ProductRegisterRequest toRequest(Sample sample, Map<String, Long> leafCategoryIds) {
+        Long categoryId = leafCategoryIds.get(sample.categoryName());
+        if (categoryId == null) {
+            warnMissing(sample.categoryName() + " 카테고리");
+            return null;
+        }
         CategoryInputsResult inputs = categoryService.findInputs(categoryId);
         InputAttribute material = findAttribute(inputs, "MAIN_MATERIAL");
+        InputAttribute color = findAttribute(inputs, "COLOR");
+        InputAttribute size = findAttribute(inputs, "SIZE");
+        if (material == null || color == null || size == null) {
+            return null;
+        }
+        Long materialValueId = findValueId(material, "면");
+        List<OptionInput> options = toOptions(sample, color, size);
+        List<SizeSpecInput> sizeSpecs = toSizeSpecs(sample, size);
+        if (materialValueId == null || options == null || sizeSpecs == null) {
+            return null;
+        }
         List<AttributeInput> attributes = List.of(
-            new AttributeInput(material.attributeId(), List.of(findValueId(material, "면")), null));
+            new AttributeInput(material.attributeId(), List.of(materialValueId), null));
+        return new ProductRegisterRequest(sample.name(), BRAND, categoryId, null, null, List.of(), attributes,
+            options, List.of(new PriceInput(List.of(), sample.price())), sizeSpecs);
+    }
 
+    private List<OptionInput> toOptions(Sample sample, InputAttribute color, InputAttribute size) {
         List<OptionInput> options = new ArrayList<>();
         for (OptionSample option : sample.options()) {
-            List<Long> valueIds = List.of(
-                findValueId(findAttribute(inputs, "COLOR"), option.color()),
-                findValueId(findAttribute(inputs, "SIZE"), option.size()));
-            options.add(new OptionInput(valueIds, option.quantity(), null));
+            Long colorValueId = findValueId(color, option.color());
+            Long sizeValueId = findValueId(size, option.size());
+            if (colorValueId == null || sizeValueId == null) {
+                return null;
+            }
+            options.add(new OptionInput(List.of(colorValueId, sizeValueId), option.quantity(), null));
         }
+        return options;
+    }
 
+    private List<SizeSpecInput> toSizeSpecs(Sample sample, InputAttribute size) {
         List<SizeSpecInput> sizeSpecs = new ArrayList<>();
         for (SizeSpecSample spec : sample.sizeSpecs()) {
-            Long sizeValueId = findValueId(findAttribute(inputs, "SIZE"), spec.size());
+            Long sizeValueId = findValueId(size, spec.size());
+            if (sizeValueId == null) {
+                return null;
+            }
             Map<String, BigDecimal> measurements = new LinkedHashMap<>();
             for (Map.Entry<String, Integer> entry : spec.measurements().entrySet()) {
                 measurements.put(entry.getKey(), BigDecimal.valueOf(entry.getValue()));
             }
             sizeSpecs.add(new SizeSpecInput(sizeValueId, spec.minHeightCm(), spec.maxHeightCm(), measurements));
         }
-
-        return new ProductRegisterRequest(sample.name(), BRAND, categoryId, null, null, List.of(), attributes,
-            options, List.of(new PriceInput(List.of(), sample.price())), sizeSpecs);
+        return sizeSpecs;
     }
 
-    // 최상위 「의류」 아래에서 이름으로 말단 카테고리를 찾는다. 카테고리 ID는 고정되지 않으며, 없으면 null을 돌려준다
-    private Long findLeafCategoryId(String name) {
+    // 최상위 「의류」 아래 말단 카테고리의 이름과 ID이다. 카테고리 ID는 고정되지 않는다.
+    // 같은 이름의 중간 카테고리로 입력 항목을 조회하면 오류가 나므로 말단만 담는다
+    private Map<String, Long> findLeafCategoryIds() {
+        Map<String, Long> ids = new HashMap<>();
         for (CategoryTreeResult top : categoryService.findTree()) {
             if (!top.name().equals(CLOTHES)) {
                 continue;
             }
-            for (CategoryTreeResult leaf : top.children()) {
-                if (leaf.name().equals(name)) {
-                    return leaf.categoryId();
+            for (CategoryTreeResult child : top.children()) {
+                if (child.leaf()) {
+                    ids.put(child.name(), child.categoryId());
                 }
             }
         }
-        return null;
+        return ids;
     }
 
     private InputAttribute findAttribute(CategoryInputsResult inputs, String code) {
@@ -149,7 +181,8 @@ public class ProductSampleDataService {
                 return attribute;
             }
         }
-        throw new IllegalStateException("항목을 찾을 수 없습니다: " + code);
+        warnMissing(code + " 항목");
+        return null;
     }
 
     private Long findValueId(InputAttribute attribute, String value) {
@@ -158,6 +191,11 @@ public class ProductSampleDataService {
                 return selectable.valueId();
             }
         }
-        throw new IllegalStateException("목록 값을 찾을 수 없습니다: " + attribute.code() + " " + value);
+        warnMissing(attribute.code() + " " + value);
+        return null;
+    }
+
+    private void warnMissing(String missing) {
+        log.warn("기준 데이터에 {}가 없어 상품 샘플 데이터를 넣지 않는다", missing);
     }
 }
