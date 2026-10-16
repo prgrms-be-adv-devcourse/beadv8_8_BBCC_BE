@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberSuspension;
 import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
+import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
 import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -215,6 +216,113 @@ class AdminMemberApiTest {
             .expectStatus().isForbidden();
     }
 
+    @Test
+    @DisplayName("filter=ADMIN이면 관리자만 준다")
+    void listAdmins() {
+        memberRepository.save(MemberFixture.kakaoMember("1"));
+        var admin = memberRepository.save(MemberFixture.withRole("2", MemberRole.ADMIN));
+
+        var page = list("?filter=ADMIN");
+
+        assertThat(page.content()).extracting(AdminMemberSummaryResponse::id).containsExactly(admin.getId());
+    }
+
+    @Test
+    @DisplayName("관리자로 지정하면 204이고 ADMIN 필터에 나온다")
+    void grantAdmin() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+
+        grantAdmin(member.getId()).expectStatus().isNoContent();
+
+        assertThat(memberRepository.findById(member.getId()).orElseThrow().getRole()).isEqualTo(MemberRole.ADMIN);
+        assertThat(list("?filter=ADMIN").content()).extracting(AdminMemberSummaryResponse::id)
+            .containsExactly(member.getId());
+    }
+
+    @Test
+    @DisplayName("지정된 회원은 재발급받은 토큰으로 관리자 API를 호출할 수 있다")
+    void grantedMemberGetsAdminTokenOnReissue() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+        var refreshToken = refreshTokenService.issue(member.getId());
+
+        grantAdmin(member.getId()).expectStatus().isNoContent();
+
+        var accessToken = client.post().uri("/api/v1/auth/reissue")
+            .cookie("refresh_token", refreshToken)
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(LoginResponse.class)
+            .returnResult()
+            .getResponseBody()
+            .accessToken();
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(accessToken))
+            .exchange()
+            .expectStatus().isOk();
+    }
+
+    @Test
+    @DisplayName("정지된 회원은 관리자로 지정할 수 없다. 409다")
+    void grantAdminToSuspended() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+        suspend(member.getId(), REASON).expectStatus().isNoContent();
+
+        grantAdmin(member.getId()).expectStatus().isEqualTo(HttpStatus.CONFLICT)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo(MemberErrorCode.ADMIN_NOT_GRANTABLE.title());
+    }
+
+    @Test
+    @DisplayName("없는 회원을 관리자로 지정하면 404다")
+    void grantAdminMissing() {
+        grantAdmin(999L).expectStatus().isNotFound();
+    }
+
+    @Test
+    @DisplayName("구매자는 관리자를 지정할 수 없다. 403이다")
+    void grantAdminForbiddenForBuyer() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+
+        client.post().uri(PATH + "/{id}/grant-admin", member.getId())
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
+            .exchange()
+            .expectStatus().isForbidden();
+    }
+
+    @Test
+    @DisplayName("관리자 권한을 해제하면 204이고 USER가 된다")
+    void revokeAdmin() {
+        var admin = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
+
+        revokeAdmin(admin.getId(), ADMIN_ID).expectStatus().isNoContent();
+
+        assertThat(memberRepository.findById(admin.getId()).orElseThrow().getRole()).isEqualTo(MemberRole.USER);
+    }
+
+    @Test
+    @DisplayName("본인의 관리자 권한은 해제할 수 없다. 409다")
+    void revokeOwnAdmin() {
+        var admin = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
+
+        revokeAdmin(admin.getId(), admin.getId()).expectStatus().isEqualTo(HttpStatus.CONFLICT)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo(MemberErrorCode.ADMIN_NOT_REVOCABLE.title());
+    }
+
+    @Test
+    @DisplayName("관리자가 아닌 회원은 해제할 수 없다. 409다")
+    void revokeAdminFromUser() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+
+        revokeAdmin(member.getId(), ADMIN_ID).expectStatus().isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("없는 회원의 관리자 권한을 해제하면 404다")
+    void revokeAdminMissing() {
+        revokeAdmin(999L, ADMIN_ID).expectStatus().isNotFound();
+    }
+
     private PageResponse<AdminMemberSummaryResponse> list(String query) {
         return client.get().uri(PATH + query)
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
@@ -230,6 +338,18 @@ class AdminMemberApiTest {
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new MemberSuspendRequest(reason))
+            .exchange();
+    }
+
+    private RestTestClient.ResponseSpec grantAdmin(Long memberId) {
+        return client.post().uri(PATH + "/{id}/grant-admin", memberId)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange();
+    }
+
+    private RestTestClient.ResponseSpec revokeAdmin(Long memberId, Long adminId) {
+        return client.post().uri(PATH + "/{id}/revoke-admin", memberId)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(adminId)))
             .exchange();
     }
 }

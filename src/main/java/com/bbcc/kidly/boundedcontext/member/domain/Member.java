@@ -134,6 +134,23 @@ public class Member extends BaseTimeEntity {
         return role == MemberRole.ADMIN;
     }
 
+    // ACTIVE이고 관리자가 아닌 회원만 지정한다. 역할은 대상 회원이 토큰을 새로 받을 때 반영된다
+    public void grantAdmin() {
+        if (status != MemberStatus.ACTIVE || isAdmin()) {
+            throw new BusinessException(MemberErrorCode.ADMIN_NOT_GRANTABLE);
+        }
+        this.role = MemberRole.ADMIN;
+    }
+
+    // 관리자만 해제한다. 본인은 해제할 수 없게 해 관리자가 모두 사라지는 일을 막는다. 토큰을 새로 받을 때 반영된다
+    public void revokeAdmin(Long adminId) {
+        requireNonNull(adminId, "adminId는 필수입니다");
+        if (!isAdmin() || adminId.equals(id)) {
+            throw new BusinessException(MemberErrorCode.ADMIN_NOT_REVOCABLE);
+        }
+        this.role = MemberRole.USER;
+    }
+
     // 판매자 상태 복사본을 갱신한다. 저장된 값보다 늦게 일어난 변경만 반영한다
     public void applySellerState(SellerStatus status, LocalDateTime occurredAt) {
         var changed = new SellerState(status, occurredAt);
