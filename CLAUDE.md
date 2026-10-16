@@ -29,7 +29,7 @@
     - `domain`: 다른 도메인이 복사해 두는 그 도메인 데이터의 복사본
     - `event`: 그 도메인이 발행하는 도메인 간 이벤트. record로 만들어 `DomainEvent`를 구현하고, 이름은 `발행도메인+과거형+Event`(예: `shared.payment.event.PaymentCompletedEvent`). 엔티티 대신 ID와 그 시점의 값만 `data`에 담는다
     - `out`: 다른 도메인이 그 도메인과 연결할 때 쓰는 계약
-- `com.bbcc.kidly.boundedcontext`: 도메인 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
+- `com.bbcc.kidly.boundedcontext`: 도메인 `member`, `product`, `recommend`, `order`, `payment`, `settlement`, `setting`(FE 동작 설정)
   - `app`: 유스케이스 서비스, 이벤트 리스너
     - `dto`: 유스케이스 입력 XxxRequest(Bean Validation 포함, 컨트롤러에서 `@Valid`로 검증)와 서비스가 돌려주는 결과
     - `port`: 리포지토리가 아닌 나가는 연결(토큰 발급, 외부 API, DTO 조회)의 인터페이스
@@ -40,7 +40,7 @@
     - `domain`은 `app`·`in`·`out`을, `in`은 `domain`·`out`을, `app`은 `in`·`out`을, `out`은 `in`과 `app.port` 밖의 `app`을 참조하지 않는다
     - 그래서 서비스는 엔티티 대신 `app.dto`의 결과를 돌려주고, XxxResponse는 그 결과로 만든다
   - 도메인끼리는 서로의 코드를 참조하지 않는다. `shared`의 이벤트로만 주고받는다
-- 각 도메인은 자기 DB 스키마만 쓴다: `member`, `product`, `recommend`, `orders`, `payment`, `settlement`
+- 각 도메인은 자기 DB 스키마만 쓴다: `member`, `product`, `recommend`, `orders`, `payment`, `settlement`, `setting`
 - 경계 규칙은 `src/test/java/com/bbcc/kidly/architecture/ArchitectureTest.java`에서 검사한다
 
 ## 코드 컨벤션
