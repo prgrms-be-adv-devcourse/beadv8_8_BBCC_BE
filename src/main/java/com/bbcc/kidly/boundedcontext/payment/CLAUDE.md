@@ -6,6 +6,7 @@
 - `order.payment-requested`를 받아 예치금으로 결제하고 `payment.completed` · `payment.failed`를 발행한다
 - 주문당 결제는 한 번이다. 그 주문의 결제가 이미 있으면 건너뛰고, 동시에 와도 `payment.order_id` UK가 막는다
 - 잔액을 바꿀 때는 `WalletRepository.findWithLockByMemberId`(비관적 락)로 지갑을 읽는다
+- 지갑은 가입(`member.registered`) 때 만들지만, 그 리스너가 실패해도 메워지도록 지갑을 쓰는 곳(충전 요청 · 결제 · 환불 · 정산 입금)은 `createIfAbsent`(`ON CONFLICT DO NOTHING`)로 없으면 잔액 0으로 만든 뒤 락으로 읽는다(#349). 조회(잔액 · 원장)는 만들지 않고 잔액 0 · 빈 목록을 준다
 - 결과별 처리
 
 | 경우 | 결제 저장 | 잔액 · 원장 | 발행 | 로그 |
@@ -13,7 +14,8 @@
 | 잔액 충분 | `COMPLETED` | 차감, 원장 `PAYMENT`(ref_id = 결제 ID) | `payment.completed` | - |
 | 잔액 부족 | `FAILED`(`INSUFFICIENT_BALANCE`) | 그대로 | `payment.failed` | - |
 | 요청 총액 ≠ 주문상품 금액 합 | 저장 안 함 | 그대로 | `payment.failed`(`AMOUNT_MISMATCH`, `paymentId` null) | ERROR |
-| 지갑 없음 | 저장 안 함 | 그대로 | `payment.failed`(`WALLET_NOT_FOUND`, `paymentId` null) | ERROR |
+
+- 지갑이 없으면 잔액 0으로 만들어 결제하므로 잔액 부족이다. `WALLET_NOT_FOUND`는 계약에 남아 있지만 보내지 않는다
 
 - 실패한 주문은 다시 결제하지 않는다. 충전한 뒤에도 같은 주문은 무시하고, 새 주문으로 결제한다
   - 멱등 확인은 상태와 상관없이 그 주문의 결제가 있는지만 본다. `FAILED` 결제도 다시 결제를 막는다
@@ -92,7 +94,7 @@
 
 ## 입출금 내역 (`app/WalletService`, #200)
 - `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 ID
-- 지갑이 없으면 404 `WALLET_NOT_FOUND`. 종류 · 기간 필터는 없다
+- 지갑이 없으면 빈 목록이다(잔액 조회는 0). 종류 · 기간 필터는 없다
 
 ## 관리자 결제 조회 (`app/PaymentQueryService`, #312)
 - `GET /api/v1/admin/payments`: 모든 회원의 결제를 최신순(ID 내림차순)으로 준다. `/api/v1/admin/**`라 ADMIN만 호출한다
@@ -107,9 +109,9 @@
 |---|---|---|
 | 입금 | 입금, 원장 `SETTLEMENT`(ref_id = 정산서 ID), 기록 COMPLETED | `payment.payout-completed`(ledgerId, paidAt) |
 | 0원 | 입금 · 원장 없이 기록 COMPLETED | `payment.payout-completed`(ledgerId null, paidAt) |
-| 지갑 없음 | 기록 FAILED, ERROR 로그 | `payment.payout-failed`(`WALLET_NOT_FOUND`) |
 | 이미 처리한 정산서 | 그대로 | 기록대로 완료 · 실패를 다시 발행 |
 
 - `paidAt`은 결제가 지급 완료로 처리한 시각이다. 0원도 같다
-- 지급 실패는 다시 시도하지 않는다. 지갑은 가입 때 만들어지므로 지갑 없음은 주로 탈퇴 회원이다. 처리는 탈퇴 정책과 같이 정한다
+- 판매자 지갑이 없으면 잔액 0으로 만들어 입금한다. 그래서 지금은 지급 실패가 생기지 않는다. `WALLET_NOT_FOUND`는 계약과 이전 기록에 남아 있다
+- 지급 실패는 다시 시도하지 않는다. 탈퇴 회원 처리는 탈퇴 정책과 같이 정한다
 - 도메인 간 이벤트는 스프링 이벤트라 리스너 실패 · 서버 중단 때 유실될 수 있다. 결과 유실은 정산이 같은 요청을 다시 보내면 복구된다. 요청 자체의 유실 복구와 재전송 장치는 추후 보완

@@ -88,16 +88,20 @@ class OrderPaymentIntegrationTest {
     }
 
     @Test
-    @DisplayName("지갑이 없으면 결제를 저장하지 않고 payment.failed만 발행한다")
-    void walletNotFound() {
+    @DisplayName("지갑이 없으면 잔액 0인 지갑을 만들어 잔액 부족으로 실패 결제를 남기고 payment.failed를 발행한다")
+    void payWithoutWallet() {
         publishInTransaction(paymentRequested());
 
-        assertThat(jpaPaymentRepository.findAll()).isEmpty();
-        assertThat(jpaWalletLedgerRepository.findAll()).isEmpty();
-        assertThat(events.stream(PaymentFailedEvent.class).toList()).singleElement().satisfies(failed -> {
-            assertThat(failed.data().paymentId()).isNull();
-            assertThat(failed.data().reasonCode()).isEqualTo(PaymentFailureCode.WALLET_NOT_FOUND);
+        assertThat(jpaWalletRepository.findAll()).singleElement().satisfies(wallet -> {
+            assertThat(wallet.getMemberId()).isEqualTo(MEMBER_ID);
+            assertThat(wallet.getBalance()).isZero();
         });
+        assertThat(jpaPaymentRepository.findAll()).singleElement()
+            .extracting(payment -> payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(jpaWalletLedgerRepository.findAll()).isEmpty();
+        assertThat(events.stream(PaymentFailedEvent.class).toList()).singleElement()
+            .satisfies(failed -> assertThat(failed.data().reasonCode())
+                .isEqualTo(PaymentFailureCode.INSUFFICIENT_BALANCE));
     }
 
     private void publishInTransaction(OrderPaymentRequestedEvent event) {

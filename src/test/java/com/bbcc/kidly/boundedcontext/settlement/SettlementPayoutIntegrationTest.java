@@ -62,15 +62,15 @@ class SettlementPayoutIntegrationTest {
     }
 
     @Test
-    @DisplayName("판매자 지갑이 없으면 정산서가 지급 실패가 되고 사유를 남긴다")
+    @DisplayName("판매자 지갑이 없어도 결제가 지갑을 만들어 입금하므로 정산서가 지급 완료가 된다")
     void walletMissing() {
         saveItem(1L, 10_000L);
 
         settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
 
         var settlement = onlySettlement();
-        assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.FAILED);
-        assertThat(settlement.getFailReason()).isEqualTo("WALLET_NOT_FOUND");
+        assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.PAID);
+        assertThat(settlement.getFailReason()).isNull();
     }
 
     @Test

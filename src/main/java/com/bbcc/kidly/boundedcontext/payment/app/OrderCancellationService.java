@@ -42,6 +42,8 @@ public class OrderCancellationService {
     @Transactional
     public void handle(OrderCancelCommand command) {
         LocalDateTime now = LocalDateTime.now();
+        // 지갑이 없어도 만든 뒤 락을 잡아, 동시에 온 결제 요청과 순서대로 처리한다
+        walletRepository.createIfAbsent(command.memberId(), now);
         Optional<Wallet> wallet = walletRepository.findWithLockByMemberId(command.memberId());
         paymentRepository.findByOrderId(command.orderId()).ifPresentOrElse(
             payment -> refund(command, payment, wallet, now),

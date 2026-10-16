@@ -3,17 +3,14 @@ package com.bbcc.kidly.boundedcontext.payment;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.MEMBER_ID;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.WALLET_ID;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 import com.bbcc.kidly.boundedcontext.payment.app.WalletService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.WalletLedgerEntry;
-import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedger;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
-import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -51,13 +48,13 @@ class WalletServiceTest {
     }
 
     @Test
-    @DisplayName("지갑이 없으면 WALLET_NOT_FOUND")
-    void walletNotFound() {
+    @DisplayName("지갑이 없으면 아직 쓰지 않은 지갑이므로 잔액 0을 준다")
+    void balanceWithoutWallet() {
         given(walletRepository.findByMemberId(PaymentFixture.MEMBER_ID)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> walletService.getBalance(PaymentFixture.MEMBER_ID))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(PaymentErrorCode.WALLET_NOT_FOUND));
+        var result = walletService.getBalance(PaymentFixture.MEMBER_ID);
+
+        assertThat(result.balance()).isZero();
     }
 
     @Test
@@ -76,12 +73,14 @@ class WalletServiceTest {
     }
 
     @Test
-    @DisplayName("지갑이 없으면 원장도 WALLET_NOT_FOUND")
+    @DisplayName("지갑이 없으면 원장은 빈 페이지다")
     void ledgersWithoutWallet() {
         given(walletRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> walletService.getLedgers(MEMBER_ID, 0, 20))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(PaymentErrorCode.WALLET_NOT_FOUND));
+        Page<WalletLedgerEntry> ledgers = walletService.getLedgers(MEMBER_ID, 0, 20);
+
+        assertThat(ledgers.getContent()).isEmpty();
+        assertThat(ledgers.getTotalElements()).isZero();
+        assertThat(ledgers.getSize()).isEqualTo(20);
     }
 }

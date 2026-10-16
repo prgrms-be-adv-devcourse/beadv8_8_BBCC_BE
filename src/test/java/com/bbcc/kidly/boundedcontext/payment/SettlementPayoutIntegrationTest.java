@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.MEMBER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.payment.domain.Payout;
+import com.bbcc.kidly.boundedcontext.payment.domain.PayoutRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.PayoutStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
@@ -59,6 +60,9 @@ class SettlementPayoutIntegrationTest {
     @Autowired
     private JpaPayoutRepository jpaPayoutRepository;
 
+    @Autowired
+    private PayoutRepository payoutRepository;
+
     @Test
     @DisplayName("지급 요청이면 입금하고 원장 · 지급 기록을 남긴 뒤 완료를 발행한다, 다시 오면 입금 없이 같은 결과를 다시 발행한다")
     void payoutOnce() {
@@ -93,24 +97,27 @@ class SettlementPayoutIntegrationTest {
     }
 
     @Test
-    @DisplayName("판매자 지갑이 없으면 입금하지 않고 지급 실패를 기록한 뒤 payment.payout-failed만 발행한다")
-    void walletNotFound() {
+    @DisplayName("판매자 지갑이 없으면 잔액 0인 지갑을 만들어 입금하고 payment.payout-completed를 발행한다")
+    void payoutWithoutWallet() {
         publishInTransaction(payoutRequested(270_000L));
 
-        assertThat(jpaWalletLedgerRepository.findAll()).isEmpty();
-        assertThat(jpaPayoutRepository.findAll()).singleElement()
-            .extracting(Payout::getStatus).isEqualTo(PayoutStatus.FAILED);
-        assertThat(events.stream(PaymentPayoutFailedEvent.class).toList()).singleElement().satisfies(failed -> {
-            assertThat(failed.data().settlementId()).isEqualTo(SETTLEMENT_ID);
-            assertThat(failed.data().reasonCode()).isEqualTo(PayoutFailureCode.WALLET_NOT_FOUND);
+        assertThat(jpaWalletRepository.findAll()).singleElement().satisfies(wallet -> {
+            assertThat(wallet.getMemberId()).isEqualTo(MEMBER_ID);
+            assertThat(wallet.getBalance()).isEqualTo(270_000L);
         });
+        assertThat(jpaPayoutRepository.findAll()).singleElement()
+            .extracting(Payout::getStatus).isEqualTo(PayoutStatus.COMPLETED);
+        assertThat(events.stream(PaymentPayoutCompletedEvent.class).toList()).singleElement()
+            .satisfies(completed -> assertThat(completed.data().settlementId()).isEqualTo(SETTLEMENT_ID));
+        assertThat(events.stream(PaymentPayoutFailedEvent.class).toList()).isEmpty();
     }
 
     @Test
-    @DisplayName("지갑이 없어 실패한 정산서는 지갑이 생긴 뒤 다시 요청이 와도 입금하지 않고 실패를 다시 발행한다")
+    @DisplayName("지급에 실패했던 정산서는 다시 요청이 와도 입금하지 않고 실패를 다시 발행한다")
     void failedIsFinal() {
-        publishInTransaction(payoutRequested(270_000L));
         Wallet wallet = walletRepository.save(PaymentFixture.wallet(0L));
+        payoutRepository.save(Payout.fail(SETTLEMENT_ID, MEMBER_ID, 270_000L, PayoutFailureCode.WALLET_NOT_FOUND,
+            LocalDateTime.now()));
 
         publishInTransaction(payoutRequested(270_000L));
 
@@ -118,7 +125,8 @@ class SettlementPayoutIntegrationTest {
             .extracting(Wallet::getBalance).isEqualTo(0L);
         assertThat(jpaPayoutRepository.findAll()).singleElement()
             .extracting(Payout::getStatus).isEqualTo(PayoutStatus.FAILED);
-        assertThat(events.stream(PaymentPayoutFailedEvent.class).toList()).hasSize(2);
+        assertThat(events.stream(PaymentPayoutFailedEvent.class).toList()).singleElement()
+            .satisfies(failed -> assertThat(failed.data().reasonCode()).isEqualTo(PayoutFailureCode.WALLET_NOT_FOUND));
         assertThat(events.stream(PaymentPayoutCompletedEvent.class).toList()).isEmpty();
     }
 

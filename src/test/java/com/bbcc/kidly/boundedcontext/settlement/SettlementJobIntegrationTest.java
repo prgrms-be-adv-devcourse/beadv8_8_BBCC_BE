@@ -81,8 +81,8 @@ class SettlementJobIntegrationTest {
         assertThat(sellerSettlement.getTotalSalesAmount()).isEqualTo(15_009L);
         assertThat(sellerSettlement.getFeeAmount()).isEqualTo(1_500L);
         assertThat(sellerSettlement.getSettlementAmount()).isEqualTo(13_509L);
-        // 판매자 지갑이 없어 결제가 바로 지급 실패로 돌려준다
-        assertThat(sellerSettlement.getStatus()).isEqualTo(SettlementStatus.FAILED);
+        // 판매자 지갑이 없어도 결제가 지갑을 만들어 입금하고 바로 지급 완료로 돌려준다
+        assertThat(sellerSettlement.getStatus()).isEqualTo(SettlementStatus.PAID);
         assertThat(sellerSettlement.getPeriodStartOn()).isEqualTo(PERIOD_START);
         assertThat(sellerSettlement.getPeriodEndOn()).isEqualTo(PERIOD_END);
         assertThat(reload(second).getSettlementId()).isEqualTo(sellerSettlement.getId());
