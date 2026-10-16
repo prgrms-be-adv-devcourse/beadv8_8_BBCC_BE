@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.member.app.MemberInitialDataService;
@@ -50,17 +51,18 @@ class ProductSampleDataServiceIntegrationTest {
     @Autowired
     private SellerProductService sellerProductService;
 
-    // 앱 시작 때와 같은 순서로 회원 · 판매자 · 기준 데이터를 먼저 넣는다. 판매자 2의 상품 복사본이 있어야 목록에 상점 이름이 나온다
+    // 앱 시작 때와 같은 순서로 회원 · 판매자 초기 데이터를 먼저 넣는다. 판매자 2의 상품 복사본이 있어야 목록에 상점 이름이 나온다
     @BeforeEach
     void setUp() {
         memberInitialDataService.load();
         sellerInitialDataService.load();
-        productReferenceDataService.load();
     }
 
     @Test
     @DisplayName("판매자 2의 샘플 상품 두 개를 판매 중으로 넣고, 판매 시작 이벤트로 목록에 나온다")
     void load() {
+        productReferenceDataService.load();
+
         productSampleDataService.load();
 
         List<ProductSearchItem> items = productListService.list(
@@ -107,12 +109,22 @@ class ProductSampleDataServiceIntegrationTest {
     @Test
     @DisplayName("상품이 하나라도 있으면 샘플 상품을 넣지 않는다")
     void skipWhenProductExists() {
+        productReferenceDataService.load();
         productSampleDataService.load();
 
         productSampleDataService.load();
 
         assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null)).getContent())
             .hasSize(2);
+    }
+
+    @Test
+    @DisplayName("기준 데이터에 상의 · 하의가 없으면 샘플 상품을 넣지 않고 앱 시작을 막지 않는다")
+    void skipWhenReferenceDataMissing() {
+        assertThatCode(() -> productSampleDataService.load()).doesNotThrowAnyException();
+
+        assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null)).getContent())
+            .isEmpty();
     }
 
     private List<Integer> availableQuantities(Long productId) {

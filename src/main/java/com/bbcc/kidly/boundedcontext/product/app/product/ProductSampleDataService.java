@@ -62,7 +62,15 @@ public class ProductSampleDataService {
             log.info("상품이 이미 있어 상품 샘플 데이터를 넣지 않는다");
             return;
         }
-        for (Sample sample : samples()) {
+        List<Sample> samples = samples();
+        // 관리자가 기준 데이터를 다르게 만든 DB에서도 앱이 시작되도록, 카테고리가 없으면 예외 대신 경고만 남긴다
+        for (Sample sample : samples) {
+            if (findLeafCategoryId(sample.categoryName()) == null) {
+                log.warn("기준 데이터에 {} 카테고리가 없어 상품 샘플 데이터를 넣지 않는다", sample.categoryName());
+                return;
+            }
+        }
+        for (Sample sample : samples) {
             ProductRegisterResult result = productRegistrationService.register(SELLER_ID, toRequest(sample));
             productSaleService.changeSaleStatus(SELLER_ID, result.productId(), ProductStatus.ON_SALE);
         }
@@ -113,7 +121,7 @@ public class ProductSampleDataService {
             options, List.of(new PriceInput(List.of(), sample.price())), sizeSpecs);
     }
 
-    // 최상위 「의류」 아래에서 이름으로 말단 카테고리를 찾는다. 카테고리 ID는 고정되지 않는다
+    // 최상위 「의류」 아래에서 이름으로 말단 카테고리를 찾는다. 카테고리 ID는 고정되지 않으며, 없으면 null을 돌려준다
     private Long findLeafCategoryId(String name) {
         for (CategoryTreeResult top : categoryService.findTree()) {
             if (!top.name().equals(CLOTHES)) {
@@ -125,7 +133,7 @@ public class ProductSampleDataService {
                 }
             }
         }
-        throw new IllegalStateException("카테고리를 찾을 수 없습니다: " + name);
+        return null;
     }
 
     private InputAttribute findAttribute(CategoryInputsResult inputs, String code) {
