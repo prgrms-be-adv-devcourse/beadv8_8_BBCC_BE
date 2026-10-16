@@ -279,6 +279,37 @@ class ProductRegistrationApiTest {
             .exchange();
     }
 
+    @Test
+    @DisplayName("썸네일과 이미지 목록이 판매자 본인이 올린 이미지이면 등록한다")
+    void registerWithOwnImages() {
+        Map<String, Object> body = productA(saved);
+        body.put("thumbnailUrl", ownImageUrl(SELLER_ID));
+        body.put("imageUrls", List.of(ownImageUrl(SELLER_ID)));
+
+        register(body).expectStatus().isCreated();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("notOwnImages")
+    @DisplayName("썸네일이나 이미지 목록이 판매자 본인이 올린 이미지가 아니면 400을 받고 아무것도 저장하지 않는다")
+    void rejectNotOwnImage(Consumer<Map<String, Object>> change) {
+        Map<String, Object> body = productA(saved);
+        change.accept(body);
+
+        expectProblem(register(body), HttpStatus.BAD_REQUEST, "허용되지 않은 이미지 주소입니다",
+            "상품 이미지는 업로드 주소로 올린 본인 이미지만 넣을 수 있습니다. 이미지를 업로드 주소로 올린 뒤 받은 이미지 주소를 넣어 주세요.");
+        assertThat(count("Product")).isZero();
+        assertThat(count("Inventory")).isZero();
+    }
+
+    static Stream<Arguments> notOwnImages() {
+        return Stream.of(
+            Arguments.of(Named.<Consumer<Map<String, Object>>>of("다른 판매자의 썸네일",
+                body -> body.put("thumbnailUrl", ownImageUrl(SELLER_ID + 1)))),
+            Arguments.of(Named.<Consumer<Map<String, Object>>>of("외부 이미지 목록",
+                body -> body.put("imageUrls", List.of("https://cdn.kidly.test/a-1.jpg")))));
+    }
+
     // 실패 응답이 ProblemDetail 5칸을 모두 담는지 확인한다
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
         response

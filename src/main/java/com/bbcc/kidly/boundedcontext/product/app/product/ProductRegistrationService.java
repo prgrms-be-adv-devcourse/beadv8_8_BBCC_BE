@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.app.product;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.product.ProductImageUploadUrlIssuer;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductRegisterRequest;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductRegisterResult;
 import com.bbcc.kidly.boundedcontext.product.app.product.support.ProductInputReader;
@@ -13,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product.OptionInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.PriceInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.RegisterInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.SizeSpecInfo;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUrls;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
@@ -35,6 +37,7 @@ public class ProductRegistrationService {
     private final ProductInputReader inputReader;
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
+    private final ProductImageUploadUrlIssuer uploadUrlIssuer;
 
     // 상품 · 옵션 · 실측을 판매대기 상태로 등록하고 옵션마다 초기 재고를 연다
     @Transactional
@@ -43,6 +46,9 @@ public class ProductRegistrationService {
             .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
         ProductType type = category.productTypeToRegister();
         InputLookup lookup = inputReader.readInputs(type);
+        // 썸네일과 이미지 목록은 판매자 본인이 업로드 주소로 올린 이미지만 받는다
+        ProductImageUrls.validate(
+            request.thumbnailUrl(), request.imageUrls(), uploadUrlIssuer.ownImageUrlPrefix(sellerId));
 
         Product product = Product.register(new RegisterInfo(
             sellerId,
