@@ -187,8 +187,10 @@ class ProductTypeTest {
         List<ProductType.LinkInfo> links = List.of(restrictedOption(color(), List.of()), sizeOption(size()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("허용 값을 하나 이상");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.ALLOWED_VALUES_MISSING);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @Test

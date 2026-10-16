@@ -19,7 +19,8 @@ public enum ProductTypeErrorCode implements ErrorCode {
     MULTIPLE_SIZE_ROLES(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "사이즈 역할은 항목 하나에만 둘 수 있습니다."),
     SIZE_ROLE_ON_INFO(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "사이즈 역할은 옵션 항목에만 둘 수 있습니다."),
     PRICE_AFFECTING_ON_INFO(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "가격 구분은 옵션 항목에만 둘 수 있습니다."),
-    OPTION_NOT_SINGLE_CHOICE(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "옵션 항목은 팔레트나 목록 항목만 될 수 있습니다.");
+    OPTION_NOT_SINGLE_CHOICE(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "옵션 항목은 팔레트나 목록 항목만 될 수 있습니다."),
+    ALLOWED_VALUES_MISSING(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "모든 값을 허용하지 않는 항목에는 허용 값을 하나 이상 골라 주세요.");
 
     private final HttpStatus status;
     private final String title;
