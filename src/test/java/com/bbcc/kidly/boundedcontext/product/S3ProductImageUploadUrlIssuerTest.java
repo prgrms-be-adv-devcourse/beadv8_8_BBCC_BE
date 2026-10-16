@@ -10,6 +10,9 @@ import com.bbcc.kidly.boundedcontext.product.out.product.S3ProductImageUploadUrl
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,6 +69,18 @@ class S3ProductImageUploadUrlIssuerTest {
         assertThat(issued.imageUrl())
             .matches("https://team04-kidly-s3\\.s3\\.ap-northeast-2\\.amazonaws\\.com/dev/products/2/[0-9a-f-]{36}\\.webp")
             .endsWith(URI.create(issued.uploadUrl()).getPath());
+    }
+
+    @Test
+    @DisplayName("만료 시각은 발급한 때부터 5분 뒤다")
+    void expiresAtIsFiveMinutesAfterIssue() {
+        Instant before = Instant.now();
+        ProductImageUploadUrl issued = issuer.issue(ProductImageUpload.of("image/jpeg", 1_000L), SELLER_ID);
+        Instant after = Instant.now();
+
+        assertThat(issued.expiresAt()).isBetween(
+            before.plus(Duration.ofMinutes(5)).truncatedTo(ChronoUnit.SECONDS),
+            after.plus(Duration.ofMinutes(5)));
     }
 
     private static List<String> signedHeaders(String url) {
