@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.util.List;
@@ -114,8 +116,8 @@ class CategoryRepositoryIntegrationTest {
             Category proxy = entityManager.getReference(Category.class, top.getId());
 
             assertThatThrownBy(() -> Category.createMiddle("반팔", proxy))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("말단 카테고리 아래에는");
+                .isInstanceOfSatisfying(BusinessException.class,
+                    e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.PARENT_IS_LEAF));
         });
     }
 
