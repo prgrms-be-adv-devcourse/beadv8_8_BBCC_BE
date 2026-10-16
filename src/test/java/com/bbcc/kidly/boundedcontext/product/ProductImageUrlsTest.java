@@ -7,14 +7,18 @@ import static org.junit.jupiter.api.Named.named;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageFormat;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUpload;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUrls;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -98,6 +102,17 @@ class ProductImageUrlsTest {
             arguments(named("대문자 확장자", OWN_PREFIX + id + ".JPG")),
             arguments(named("본인 경로만", OWN_PREFIX)),
             arguments(named("빈 문자열", "")));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(ProductImageFormat.class)
+    @DisplayName("업로드 주소를 만들 때 쓰는 key로 만든 이미지 주소는 통과한다")
+    void acceptImageMadeByUploadKey(ProductImageFormat format) {
+        String key = ProductImageUpload.of(format.contentType(), 1_000L).key("dev", 2L, UUID.randomUUID());
+        String imageUrl = "https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com/" + key;
+
+        assertThatCode(() -> ProductImageUrls.validate(imageUrl, List.of(imageUrl), OWN_PREFIX))
+            .doesNotThrowAnyException();
     }
 
     static Stream<Arguments> ownImages() {
