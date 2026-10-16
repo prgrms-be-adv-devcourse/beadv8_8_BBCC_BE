@@ -7,6 +7,10 @@ import com.bbcc.kidly.boundedcontext.product.app.type.CategoryService;
 import com.bbcc.kidly.boundedcontext.product.app.type.ProductReferenceDataService;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryTreeResult;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +25,12 @@ class ProductReferenceDataServiceIntegrationTest {
 
     @Autowired
     private CategoryService categoryService;
+
+    @Autowired
+    private AttributeRepository attributeRepository;
+
+    @Autowired
+    private ProductTypeRepository productTypeRepository;
 
     @Test
     @DisplayName("의류 유형과 항목 · 목록 값 · 실측 항목을 넣고, 의류와 잡화 아래에 말단 카테고리를 둔다")
@@ -61,6 +71,17 @@ class ProductReferenceDataServiceIntegrationTest {
         assertThat(measurementCodes(clothes.get(3))).containsExactly("TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH");
         assertThat(measurementCodes(goods.get(0))).containsExactly("HEAD_CIRCUMFERENCE");
         assertThat(measurementCodes(goods.get(1))).containsExactly("FOOT_LENGTH");
+    }
+
+    @Test
+    @DisplayName("상품 유형이 하나라도 있으면 기준 데이터를 넣지 않는다")
+    void skipWhenProductTypeExists() {
+        Attribute color = attributeRepository.save(ProductTypeFixture.color());
+        productTypeRepository.save(ProductType.define("신발", List.of(ProductTypeFixture.requiredOption(color))));
+
+        productReferenceDataService.load();
+
+        assertThat(categoryService.findTree()).isEmpty();
     }
 
     private List<String> measurementCodes(CategoryTreeResult category) {

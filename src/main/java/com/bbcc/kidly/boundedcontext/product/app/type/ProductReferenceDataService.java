@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 상품의 기준 데이터를 넣는다. local · dev 앱을 시작할 때 러너가 부른다.
  * 항목(색상 · 사이즈 · 주요소재 · 혼용률)과 목록 값, 상품 유형 「의류」, 실측 항목, 카테고리(의류 · 잡화와 그 아래 말단 카테고리)를 만든다.
  * 기준 데이터는 다른 도메인으로 복사되지 않으므로 이벤트를 내지 않는다.
+ * ID를 고정하지 않으므로, 이 데이터를 쓰는 코드는 이름과 코드로 찾는다.
  */
 @Slf4j
 @Service
@@ -39,8 +40,13 @@ public class ProductReferenceDataService {
     private final MeasurementItemRepository measurementItemRepository;
     private final CategoryRepository categoryRepository;
 
+    // 상품 유형이 하나라도 있으면 이미 넣었거나 관리자가 만든 것이므로 통째로 건너뛴다
     @Transactional
     public void load() {
+        if (productTypeRepository.count() > 0) {
+            log.info("상품 유형이 이미 있어 상품 기준 데이터를 넣지 않는다");
+            return;
+        }
         Attribute color = attributeRepository.save(Attribute.create("색상", "COLOR", AttributeInputType.PALETTE));
         Attribute size = attributeRepository.save(Attribute.create("사이즈", "SIZE", AttributeInputType.LIST));
         Attribute material = attributeRepository.save(
