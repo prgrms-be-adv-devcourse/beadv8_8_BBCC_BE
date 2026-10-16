@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product.domain.type;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -66,28 +67,28 @@ public class ProductType extends BaseTimeEntity {
             throw new IllegalArgumentException("유형 이름은 비어 있을 수 없습니다");
         }
         if (!hasRequiredOption(links)) {
-            throw new IllegalArgumentException("유형에는 필수 옵션 항목이 하나 이상 있어야 합니다");
+            throw new BusinessException(ProductTypeErrorCode.REQUIRED_OPTION_MISSING);
         }
         if (hasManySizeRoles(links)) {
-            throw new IllegalArgumentException("사이즈 역할 항목은 하나만 둘 수 있습니다");
+            throw new BusinessException(ProductTypeErrorCode.MULTIPLE_SIZE_ROLES);
         }
         if (hasSizeRoleOnInfo(links)) {
-            throw new IllegalArgumentException("사이즈 역할은 옵션 항목에만 둘 수 있습니다");
+            throw new BusinessException(ProductTypeErrorCode.SIZE_ROLE_ON_INFO);
         }
         if (hasPriceAffectingOnInfo(links)) {
-            throw new IllegalArgumentException("값에 따라 가격이 달라지는 항목은 옵션 항목에만 둘 수 있습니다");
+            throw new BusinessException(ProductTypeErrorCode.PRICE_AFFECTING_ON_INFO);
         }
         if (hasNonSingleChoiceOption(links)) {
-            throw new IllegalArgumentException("옵션 항목은 팔레트나 목록 항목만 될 수 있습니다");
+            throw new BusinessException(ProductTypeErrorCode.OPTION_NOT_SINGLE_CHOICE);
         }
         if (hasLinkWithoutAllowedValues(links)) {
-            throw new IllegalArgumentException("모든 값 허용이 아닌 항목에는 허용 값을 하나 이상 연결해야 합니다");
+            throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUES_MISSING);
         }
         if (hasAllowedValuesOnAllValuesAllowed(links)) {
-            throw new IllegalArgumentException("모든 값 허용 항목에는 허용 값을 연결하지 않습니다");
+            throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUES_ON_ALL_VALUES);
         }
         if (hasAllowedValueOfOtherAttribute(links)) {
-            throw new IllegalArgumentException("허용 값은 그 항목의 목록 값이어야 합니다");
+            throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUE_OF_OTHER_ATTRIBUTE);
         }
         ProductType type = new ProductType();
         type.name = name;

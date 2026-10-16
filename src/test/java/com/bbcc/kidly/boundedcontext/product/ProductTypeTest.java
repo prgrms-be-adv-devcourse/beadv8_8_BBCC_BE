@@ -27,6 +27,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAllowedValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -38,6 +40,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.HttpStatus;
 
 class ProductTypeTest {
 
@@ -66,8 +69,10 @@ class ProductTypeTest {
     @DisplayName("TYPE-02 필수 옵션 항목이 없으면 거절한다")
     void rejectTypeWithoutRequiredOptionAttribute(List<ProductType.LinkInfo> links) {
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("필수 옵션 항목");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.REQUIRED_OPTION_MISSING);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     static Stream<Named<List<ProductType.LinkInfo>>> linksWithoutRequiredOption() {
@@ -97,8 +102,10 @@ class ProductTypeTest {
             requiredOption(color()), sizeOption(size()), sizeOption(shoeSize()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("사이즈 역할 항목은 하나");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.MULTIPLE_SIZE_ROLES);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @Test
@@ -107,8 +114,10 @@ class ProductTypeTest {
         List<ProductType.LinkInfo> links = List.of(requiredOption(color()), sizeInfo(size()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("사이즈 역할은 옵션 항목");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.SIZE_ROLE_ON_INFO);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @Test
@@ -130,8 +139,10 @@ class ProductTypeTest {
             requiredOption(color()), sizeOption(size()), priceAffectingInfo(mainMaterial()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("가격이 달라지는 항목은 옵션 항목");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.PRICE_AFFECTING_ON_INFO);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @ParameterizedTest(name = "{0}")
@@ -142,8 +153,10 @@ class ProductTypeTest {
         List<ProductType.LinkInfo> links = List.of(requiredOption(color()), requiredOption(feature));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("옵션 항목은 팔레트나 목록 항목만");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.OPTION_NOT_SINGLE_CHOICE);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @Test
@@ -174,8 +187,10 @@ class ProductTypeTest {
         List<ProductType.LinkInfo> links = List.of(restrictedOption(color(), List.of()), sizeOption(size()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("허용 값을 하나 이상");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.ALLOWED_VALUES_MISSING);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @Test
@@ -186,8 +201,10 @@ class ProductTypeTest {
         List<ProductType.LinkInfo> links = List.of(restrictedOption(color(), List.of(size110)), sizeOption(size));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("허용 값은 그 항목의 목록 값");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.ALLOWED_VALUE_OF_OTHER_ATTRIBUTE);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @Test
@@ -200,8 +217,10 @@ class ProductTypeTest {
             sizeOption(size()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("모든 값 허용 항목에는 허용 값을");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.ALLOWED_VALUES_ON_ALL_VALUES);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @ParameterizedTest(name = "{0}")
