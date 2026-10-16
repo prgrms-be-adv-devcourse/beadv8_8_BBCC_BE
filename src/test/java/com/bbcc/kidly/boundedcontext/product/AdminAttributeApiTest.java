@@ -7,10 +7,15 @@ import com.bbcc.kidly.support.TestTokens;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -96,6 +101,43 @@ class AdminAttributeApiTest {
             .jsonPath("$[2].inputType").isEqualTo("TEXT")
             .jsonPath("$[2].values").isArray()
             .jsonPath("$[2].values").isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidAttributeRequests")
+    @DisplayName("항목 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
+    void rejectInvalidAttribute(Map<String, Object> body) {
+        assertProblem(post(tokens.admin(ADMIN_ID), PATH, body), HttpStatus.BAD_REQUEST);
+    }
+
+    static Stream<Named<Map<String, Object>>> invalidAttributeRequests() {
+        return Stream.of(
+            Named.of("이름이 빔", attribute("", "COLOR", "PALETTE", List.of())),
+            Named.of("이름이 255자 초과", attribute("가".repeat(256), "COLOR", "PALETTE", List.of())),
+            Named.of("코드가 빔", attribute("색상", "", "PALETTE", List.of())),
+            Named.of("코드에 소문자", attribute("색상", "color", "PALETTE", List.of())),
+            Named.of("코드가 255자 초과", attribute("색상", "C".repeat(256), "PALETTE", List.of())),
+            Named.of("없는 입력 방식", attribute("색상", "COLOR", "COLOUR", List.of())),
+            Named.of("목록 값 없음(null)", Map.of("name", "색상", "code", "COLOR", "inputType", "PALETTE")),
+            Named.of("목록 값 이름이 빔", attribute("색상", "COLOR", "PALETTE", List.of(Map.of("name", "")))),
+            Named.of("색 코드 형식", attribute("색상", "COLOR", "PALETTE",
+                List.of(Map.of("name", "레드", "colorCode", "red")))));
+    }
+
+    private static Map<String, Object> attribute(String name, String code, String inputType, List<?> values) {
+        return Map.of("name", name, "code", code, "inputType", inputType, "values", values);
+    }
+
+    // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
+    private void assertProblem(RestTestClient.ResponseSpec response, HttpStatus status) {
+        response.expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").exists()
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").exists()
+            .jsonPath("$.instance").exists();
     }
 
     // 값 없이 항목 하나를 만들고 그 ID를 돌려준다
