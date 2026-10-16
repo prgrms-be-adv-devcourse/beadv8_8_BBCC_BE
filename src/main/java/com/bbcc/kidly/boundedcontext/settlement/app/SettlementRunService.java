@@ -48,9 +48,23 @@ public class SettlementRunService {
         return run(SettlementPeriod.monthly(today).cutoffAt(), SettlementTriggerType.SCHEDULED, null);
     }
 
-    // runId는 작업 실행 ID. JDBC 저장소는 없는 ID면 EmptyResultDataAccessException을 던진다
     @Transactional(readOnly = true)
     public SettlementRunResult getRun(Long runId) {
+        return SettlementRunResult.from(findRun(runId));
+    }
+
+    // 서버가 작업 도중 죽어 실행 중으로 남은 작업을 FAILED로 정리해, 같은 기준일로 다시 실행할 수 있게 한다.
+    // 실제로 도는 작업과 구분하지 못하므로 서버를 다시 띄운 뒤에만 쓴다
+    public SettlementRunResult recover(Long runId) {
+        var execution = findRun(runId);
+        if (!execution.getStatus().isRunning()) {
+            throw new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_NOT_RECOVERABLE);
+        }
+        return SettlementRunResult.from(jobOperator.recover(execution));
+    }
+
+    // runId는 작업 실행 ID. JDBC 저장소는 없는 ID면 EmptyResultDataAccessException을 던진다
+    private JobExecution findRun(Long runId) {
         JobExecution execution;
         try {
             execution = jobRepository.getJobExecution(runId);
@@ -60,7 +74,7 @@ public class SettlementRunService {
         if (execution == null || !execution.getJobInstance().getJobName().equals(SettlementJobConfig.JOB_NAME)) {
             throw new BusinessException(CommonErrorCode.NOT_FOUND);
         }
-        return SettlementRunResult.from(execution);
+        return execution;
     }
 
     // 실행 중 확인은 조회라 동시에 온 요청이 함께 통과할 수 있다. 같은 대상은 정산서 유니크 · 낙관적 락이 막는다
