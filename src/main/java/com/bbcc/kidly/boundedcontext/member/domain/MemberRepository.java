@@ -20,4 +20,7 @@ public interface MemberRepository {
 
     // 자신을 빼고 다른 회원이 쓰는 닉네임인지
     boolean existsByNicknameAndIdNot(String nickname, Long id);
+
+    // 초기 데이터를 넣을지 판단한다
+    long count();
 }
