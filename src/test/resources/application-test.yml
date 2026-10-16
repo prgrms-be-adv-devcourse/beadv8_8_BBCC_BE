@@ -26,6 +26,9 @@ kakao:
 # 결제 마감 만료 스케줄러가 테스트 중 다른 스레드에서 저절로 돌지 않게 주기를 아주 길게 둔다.
 # 만료 테스트는 OrderScheduler.expireOverduePayments()를 직접 부른다
 kidly:
+  # 테스트에서는 실제 메일을 보내지 않는다 (로그 발송기)
+  mail:
+    enabled: false
   # 충전 정리 스케줄러도 같은 이유로 길게 둔다. 정리 테스트는 ChargeScheduler를 직접 부른다
   payment:
     charge:

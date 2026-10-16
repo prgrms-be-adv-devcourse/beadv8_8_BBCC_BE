@@ -17,6 +17,7 @@
     - 발행은 `@Transactional` 서비스 안에서 `eventPublisher.publish(new PaymentCompletedEvent(...))`. 트랜잭션 밖에서 발행하면 전달되지 않는다
     - 수신은 받는 도메인 `app`의 `@Component`에 `@DomainEventListener public void on(PaymentCompletedEvent event)`. 발행한 쪽이 커밋된 뒤 새 트랜잭션에서 실행된다
     - 리스너가 실패하면 리스너 트랜잭션만 롤백되고 예외는 ERROR 로그로만 남는다 (발행한 쪽은 이미 커밋됨)
+  - `mail`: `EmailSender`. 메일은 이것으로 `send(new Email(to, subject, text))`. 기본 켬(`MAIL_ENABLED=false`로 끔)이고, 꺼져 있거나 SMTP 계정(`MAIL_USERNAME` · `MAIL_PASSWORD`)이 없으면 보내지 않고 로그만 남긴다. 커밋 뒤(이벤트 리스너 등)에서 부른다
 - `com.bbcc.kidly.shared`: 도메인 사이 계약. 도메인 패키지와 `global`을 참조하지 않는다
   - `event.DomainEvent`: 모든 도메인 간 이벤트가 구현하는 인터페이스. 기획서 6.2 공통 형식이고, 이벤트마다 다른 내용은 `data`에 담는다
     - record가 필드로 갖는 것: `UUID eventId`(발행할 때 `UUID.randomUUID()`), `LocalDateTime occurredAt`, `Data data`(이벤트 record 안의 `Data` record)
