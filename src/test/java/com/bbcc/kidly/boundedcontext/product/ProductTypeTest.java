@@ -114,8 +114,10 @@ class ProductTypeTest {
         List<ProductType.LinkInfo> links = List.of(requiredOption(color()), sizeInfo(size()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("사이즈 역할은 옵션 항목");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.SIZE_ROLE_ON_INFO);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @Test
