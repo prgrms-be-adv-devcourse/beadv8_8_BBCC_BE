@@ -294,6 +294,25 @@ class ProductRegistrationApiTest {
         assertThat(product.getImageUrls()).containsExactly(ownImageUrl(SELLER_ID));
     }
 
+    @Test
+    @DisplayName("업로드 주소 발급 API가 돌려준 이미지 주소를 그대로 넣으면 등록한다")
+    void registerWithImageUrlFromUploadApi() {
+        AtomicReference<String> imageUrl = new AtomicReference<>();
+        client.post().uri("/api/v1/seller/product-images/upload-urls")
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("files", List.of(Map.of("contentType", "image/png", "contentLength", 1_000))))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.uploads[0].imageUrl").value(url -> imageUrl.set((String) url));
+        Map<String, Object> body = productA(saved);
+        body.put("thumbnailUrl", imageUrl.get());
+        body.put("imageUrls", List.of(imageUrl.get()));
+
+        register(body).expectStatus().isCreated();
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("notOwnImages")
     @DisplayName("썸네일이나 이미지 목록이 판매자 본인이 올린 이미지가 아니면 400을 받고 아무것도 저장하지 않는다")
