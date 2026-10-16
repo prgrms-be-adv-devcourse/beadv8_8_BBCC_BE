@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.SchedulerIdle;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -49,6 +51,9 @@ class OrderTimelineQueryCountIntegrationTest {
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    private ThreadPoolTaskScheduler taskScheduler;
 
     private Statistics statistics;
 
@@ -80,6 +85,8 @@ class OrderTimelineQueryCountIntegrationTest {
     }
 
     private long countStatements(Long orderId) {
+        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
+        SchedulerIdle.await(taskScheduler);
         statistics.clear();
         orderService.getTimeline(BUYER_ID, orderId);
         return statistics.getPrepareStatementCount();
