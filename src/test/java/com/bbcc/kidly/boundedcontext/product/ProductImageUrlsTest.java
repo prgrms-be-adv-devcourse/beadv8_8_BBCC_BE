@@ -9,12 +9,14 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUrls;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * 상품 썸네일과 이미지 목록은 판매자 본인이 업로드 주소로 올린 이미지(본인 경로의 {UUID}.{확장자})만 받는다.
@@ -51,6 +53,29 @@ class ProductImageUrlsTest {
         assertThatThrownBy(() -> ProductImageUrls.validate(OWN_JPG, List.of(OWN_PNG, imageUrl), OWN_PREFIX))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.IMAGE_URL_NOT_ALLOWED));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("missingArguments")
+    @DisplayName("이미지 목록이나 본인 경로가 없거나 목록에 빈 칸이 있으면 검사하지 않고 실패한다")
+    void rejectMissingArgument(String thumbnailUrl, List<String> imageUrls, String ownPrefix) {
+        assertThatThrownBy(() -> ProductImageUrls.validate(thumbnailUrl, imageUrls, ownPrefix))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    static Stream<Arguments> missingArguments() {
+        return Stream.of(
+            arguments(named("본인 경로 없음", null), List.of(), null),
+            arguments(named("이미지 목록 없음", OWN_JPG), null, OWN_PREFIX),
+            arguments(named("목록에 빈 칸", null), Arrays.asList(OWN_PNG, null), OWN_PREFIX));
+    }
+
+    @ParameterizedTest(name = "[{0}]")
+    @ValueSource(strings = {"https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com/dev/products/2", ""})
+    @DisplayName("본인 경로가 /로 끝나지 않으면 다른 판매자 경로와 구분할 수 없어 검사하지 않고 실패한다")
+    void rejectOwnPrefixWithoutTrailingSlash(String ownPrefix) {
+        assertThatThrownBy(() -> ProductImageUrls.validate(null, List.of(), ownPrefix))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 
     static Stream<Arguments> notOwnImages() {

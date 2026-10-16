@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -16,12 +18,17 @@ public final class ProductImageUrls {
     }
 
     public static void validate(String thumbnailUrl, List<String> imageUrls, String ownPrefix) {
+        requireNonNull(imageUrls, "imageUrls는 필수입니다");
+        requireNonNull(ownPrefix, "ownPrefix는 필수입니다");
+        if (!ownPrefix.endsWith("/")) {
+            throw new IllegalArgumentException("본인 경로는 /로 끝나야 합니다");
+        }
         // 썸네일은 없어도 된다
         if (thumbnailUrl != null) {
             requireOwnImage(thumbnailUrl, ownPrefix);
         }
         for (String imageUrl : imageUrls) {
-            requireOwnImage(imageUrl, ownPrefix);
+            requireOwnImage(requireNonNull(imageUrl, "imageUrls의 칸은 비어 있을 수 없습니다"), ownPrefix);
         }
     }
 
