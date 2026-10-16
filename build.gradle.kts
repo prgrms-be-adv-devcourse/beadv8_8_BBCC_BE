@@ -23,6 +23,7 @@ val springdocVersion = "3.1.1"
 val archunitVersion = "1.5.1"
 val springDotenvVersion = "5.1.0"
 val logstashEncoderVersion = "9.0"
+val awsSdkVersion = "2.55.16"
 
 dependencies {
     // Web
@@ -57,6 +58,9 @@ dependencies {
 
     // API 문서
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
+
+    // 상품 이미지를 브라우저가 S3에 직접 올리도록 업로드 주소(Presigned URL)를 만든다 (S3Presigner)
+    implementation("software.amazon.awssdk:s3:$awsSdkVersion")
 
     // 헬스체크 (/actuator/health). 배포 시 docker compose healthcheck가 호출한다
     implementation("org.springframework.boot:spring-boot-starter-actuator")
