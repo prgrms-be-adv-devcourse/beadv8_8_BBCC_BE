@@ -77,6 +77,18 @@ class InventoryRestorationSoldOutIntegrationTest {
                     tuple(options.navy120().getId(), false)));
     }
 
+    @Test
+    @DisplayName("SALE-08 차감한 뒤에도 재고가 남아 있던 옵션을 되돌리면 상품 정보 변경됨을 보내지 않는다")
+    void sendNothingWhenRestoredOptionWasNotSoldOut() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        deductAndClearEvents(orderItem(11L, options.navy110(), 2));
+
+        publishInTransaction(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
     // 주문 생성됨으로 차감하고, 차감이 보낸 이벤트는 지워 주문 취소됨이 보낸 이벤트만 남게 한다
     private void deductAndClearEvents(OrderCreatedEvent.Item... items) {
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, items));
