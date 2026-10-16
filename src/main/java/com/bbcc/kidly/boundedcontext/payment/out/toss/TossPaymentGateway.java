@@ -24,6 +24,7 @@ import org.springframework.web.client.RestClientException;
 /**
  * 토스페이먼츠 결제 승인·취소·조회 API 클라이언트.
  * 시간 초과와 5xx는 토스에서 처리됐는지 알 수 없으므로 실패가 아닌 모름으로 돌려준다.
+ * 조회의 4xx는 결제 결과가 아니라 조회 요청이 실패한 것이므로, 결제가 없다는 응답만 거절로 본다.
  */
 @Slf4j
 public class TossPaymentGateway implements PaymentGateway {
@@ -40,6 +41,8 @@ public class TossPaymentGateway implements PaymentGateway {
     // 4xx지만 앞선 요청이 처리됐거나 처리 중일 수 있는 오류. 조회로 확정해야 한다
     private static final Set<String> UNCERTAIN_ERROR_CODES =
         Set.of("ALREADY_PROCESSED_PAYMENT", "IDEMPOTENT_REQUEST_PROCESSING");
+    // 조회한 결제가 토스에 없다는 오류. 승인되지 않은 것으로 확정할 수 있는 유일한 조회 오류다
+    private static final String NOT_FOUND_PAYMENT = "NOT_FOUND_PAYMENT";
 
     private final RestClient restClient;
 
@@ -57,7 +60,7 @@ public class TossPaymentGateway implements PaymentGateway {
             .header(IDEMPOTENCY_KEY, idempotencyKey)
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("paymentKey", paymentKey, "orderId", orderId, "amount", amount));
-        return call(request, payment -> new PgResult.Success<>(payment.toApproval()));
+        return call(request, payment -> new PgResult.Success<>(payment.toApproval()), TossPaymentGateway::requestError);
     }
 
     @Override
@@ -68,7 +71,8 @@ public class TossPaymentGateway implements PaymentGateway {
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("cancelReason", reason));
         PgResult<PgCancellation> result =
-            call(request, payment -> new PgResult.Success<>(new PgCancellation(payment.lastCanceledAt())));
+            call(request, payment -> new PgResult.Success<>(new PgCancellation(payment.lastCanceledAt())),
+                TossPaymentGateway::requestError);
         if (result instanceof PgResult.Rejected<PgCancellation> rejected
             && ALREADY_CANCELED_PAYMENT.equals(rejected.code())) {
             return new PgResult.Success<>(new PgCancellation(null));
@@ -89,14 +93,15 @@ public class TossPaymentGateway implements PaymentGateway {
                 return new PgResult.Rejected<>(payment.status(), "승인 후 취소된 결제입니다");
             }
             return new PgResult.Rejected<>(payment.status(), "승인되지 않고 끝난 결제입니다");
-        });
+        }, TossPaymentGateway::lookupError);
     }
 
     @Override
     public PgResult<PgCancellation> findCancellationByOrderId(String orderId) {
         return call(findRequest(orderId), payment -> CANCELED.equals(payment.status())
             ? new PgResult.Success<>(new PgCancellation(payment.lastCanceledAt()))
-            : new PgResult.Rejected<>(payment.status(), "전액 취소되지 않은 결제입니다"));
+            : new PgResult.Rejected<>(payment.status(), "전액 취소되지 않은 결제입니다"),
+            TossPaymentGateway::lookupError);
     }
 
     private RestClient.RequestHeadersSpec<?> findRequest(String orderId) {
@@ -104,7 +109,8 @@ public class TossPaymentGateway implements PaymentGateway {
     }
 
     private <T> PgResult<T> call(RestClient.RequestHeadersSpec<?> request,
-                                 Function<TossPayment, PgResult<T>> onSuccess) {
+                                 Function<TossPayment, PgResult<T>> onSuccess,
+                                 Function<TossError, PgResult<T>> onClientError) {
         try {
             return request.exchange((req, response) -> {
                 HttpStatusCode status = response.getStatusCode();
@@ -114,7 +120,12 @@ public class TossPaymentGateway implements PaymentGateway {
                 if (status.is5xxServerError()) {
                     return new PgResult.Unknown<>("토스 서버 오류입니다");
                 }
-                return clientError(status, response.bodyTo(TossError.class));
+                TossError error = response.bodyTo(TossError.class);
+                if (error == null || error.code() == null) {
+                    // 프록시 · 게이트웨이가 돌려준 응답일 수 있어 토스가 처리했는지 알 수 없다
+                    return new PgResult.Unknown<>("토스 오류 응답에 코드가 없습니다. HTTP " + status.value());
+                }
+                return onClientError.apply(error);
             });
         } catch (RestClientException e) {
             // 시간 초과·연결 실패, 응답을 읽지 못한 경우
@@ -123,14 +134,19 @@ public class TossPaymentGateway implements PaymentGateway {
         }
     }
 
-    private static <T> PgResult<T> clientError(HttpStatusCode status, TossError error) {
-        if (error == null || error.code() == null) {
-            return new PgResult.Rejected<>("HTTP_" + status.value(), "토스 오류 응답에 코드가 없습니다");
-        }
+    // 승인 · 취소 요청의 4xx는 토스가 요청을 처리하지 않은 것이므로 거절로 돌려준다
+    private static <T> PgResult<T> requestError(TossError error) {
         if (UNCERTAIN_ERROR_CODES.contains(error.code())) {
             return new PgResult.Unknown<>(error.code());
         }
         return new PgResult.Rejected<>(error.code(), error.message());
+    }
+
+    private static <T> PgResult<T> lookupError(TossError error) {
+        if (NOT_FOUND_PAYMENT.equals(error.code())) {
+            return new PgResult.Rejected<>(error.code(), error.message());
+        }
+        return new PgResult.Unknown<>(error.code());
     }
 
     // 토스 인증은 시크릿 키 뒤에 콜론을 붙여 Base64로 인코딩한다 (비밀번호 없음)

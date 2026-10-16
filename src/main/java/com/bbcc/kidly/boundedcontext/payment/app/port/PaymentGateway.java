@@ -15,12 +15,12 @@ public interface PaymentGateway {
 
     /**
      * 승인 결과를 모를 때(시간 초과 등) PG의 실제 상태를 확인한다.
-     * 승인됐으면 성공, 승인되지 않고 끝났으면 거절, 아직 진행 중이면 모름을 돌려준다.
+     * 승인됐으면 성공, 승인되지 않고 끝났거나 PG에 결제가 없으면 거절, 아직 진행 중이거나 조회가 실패하면 모름을 돌려준다.
      */
     PgResult<PgApproval> findByOrderId(String orderId);
 
     /**
-     * PG에서 직접 취소된 결제를 확인한다. 전액 취소됐으면 성공, 아니면 거절(코드는 PG 결제 상태), 모르면 모름을 돌려준다.
+     * PG에서 직접 취소된 결제를 확인한다. 전액 취소됐으면 성공, 아니면 거절(코드는 PG 결제 상태), 조회가 실패하면 모름을 돌려준다.
      */
     PgResult<PgCancellation> findCancellationByOrderId(String orderId);
 }
