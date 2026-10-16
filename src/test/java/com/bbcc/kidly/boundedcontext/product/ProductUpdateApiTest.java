@@ -194,7 +194,7 @@ class ProductUpdateApiTest {
         body.put(field, field.equals("imageUrls") ? List.of(otherSellersImage) : otherSellersImage);
 
         expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST, "허용되지 않은 이미지 주소입니다",
-            "상품 이미지는 업로드 주소로 올린 본인 이미지만 넣을 수 있습니다. 이미지를 업로드 주소로 올린 뒤 받은 이미지 주소를 넣어 주세요.");
+            "이 이미지는 상품에 넣을 수 없습니다. 이미지를 다시 올려 주세요.");
         assertThat(storedVersion()).isEqualTo(version);
     }
 
