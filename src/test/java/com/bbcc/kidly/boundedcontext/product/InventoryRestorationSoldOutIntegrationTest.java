@@ -37,6 +37,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 class InventoryRestorationSoldOutIntegrationTest {
 
     private static final long ORDER_ID = 100L;
+    private static final long OTHER_ORDER_ID = 200L;
 
     @Autowired
     private EventPublisher eventPublisher;
@@ -174,6 +175,28 @@ class InventoryRestorationSoldOutIntegrationTest {
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isZero();
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SALE-08 품절된 옵션을 되돌리는 서로 다른 두 주문의 취소를 동시에 처리하면 품절이 풀린 쪽만 상품 정보 변경됨을 한 번 보내고, 그 옵션은 품절이 아니다")
+    void sendProductChangedOnceWhenTwoOrdersAreRestoredConcurrently() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(2, 5);
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 1)));
+        inventoryDeductionService.deduct(orderCreated(OTHER_ORDER_ID, orderItem(21L, options.navy110(), 1)));
+        eventRecorder.clear();
+        OrderCancelledEvent first = orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 1));
+        OrderCancelledEvent second = orderCancelled(OTHER_ORDER_ID, cancelledItem(21L, options.navy110(), 1));
+
+        // 재고 행을 잠가 두 주문이 모두 차감 기록을 RESTORED로 바꾼 뒤 같은 재고 행에서 겹치게 한다
+        runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(options.navy110()), List.of(
+            () -> inventoryRestorationService.restore(first),
+            () -> inventoryRestorationService.restore(second)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(2);
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(changed -> assertThat(changed.data().options())
+                .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+                .contains(tuple(options.navy110().getId(), false)));
     }
 
     // 주문 생성됨으로 차감하고, 차감이 보낸 이벤트는 지워 주문 취소됨이 보낸 이벤트만 남게 한다
