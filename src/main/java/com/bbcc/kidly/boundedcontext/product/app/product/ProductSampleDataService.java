@@ -17,7 +17,6 @@ import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +36,7 @@ public class ProductSampleDataService {
 
     private static final Long SELLER_ID = 2L;
     private static final String BRAND = "BBCC";
-    private static final String CLOTHES = "의류";
+    private static final String CLOTHING_CATEGORY = "의류";
 
     private final CategoryService categoryService;
     private final ProductRegistrationService productRegistrationService;
@@ -149,7 +148,7 @@ public class ProductSampleDataService {
             if (sizeValueId == null) {
                 return null;
             }
-            Map<String, BigDecimal> measurements = new LinkedHashMap<>();
+            Map<String, BigDecimal> measurements = new HashMap<>();
             for (Map.Entry<String, Integer> entry : spec.measurements().entrySet()) {
                 measurements.put(entry.getKey(), BigDecimal.valueOf(entry.getValue()));
             }
@@ -163,7 +162,7 @@ public class ProductSampleDataService {
     private Map<String, Long> findLeafCategoryIds() {
         Map<String, Long> ids = new HashMap<>();
         for (CategoryTreeResult top : categoryService.findTree()) {
-            if (!top.name().equals(CLOTHES)) {
+            if (!top.name().equals(CLOTHING_CATEGORY)) {
                 continue;
             }
             for (CategoryTreeResult child : top.children()) {

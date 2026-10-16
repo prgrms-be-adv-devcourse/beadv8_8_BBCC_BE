@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemReposito
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,10 +58,10 @@ public class ProductReferenceDataService {
         saveValues(size, List.of("90", "100", "110", "120", "130", "140", "150", "FREE"));
         saveValues(material, List.of("면", "폴리에스테르", "아크릴", "기타"));
 
-        ProductType clothing = productTypeRepository.save(
+        ProductType clothingType = productTypeRepository.save(
             ProductType.define("의류", clothingLinks(color, size, material, composition)));
         Map<String, MeasurementItem> items = saveMeasurementItems();
-        saveCategories(clothing, items);
+        saveCategories(clothingType, items);
         log.info("상품 기준 데이터를 넣었다");
     }
 
@@ -91,9 +92,9 @@ public class ProductReferenceDataService {
         return new ProductType.LinkInfo(attribute, role, required, true, sizeRole, false, List.of());
     }
 
-    // 실측 항목을 넣고 코드로 찾을 수 있게 넣은 순서대로 돌려준다
+    // 실측 항목을 넣고, 카테고리에 연결할 때 코드로 찾을 수 있게 돌려준다
     private Map<String, MeasurementItem> saveMeasurementItems() {
-        Map<String, MeasurementItem> items = new LinkedHashMap<>();
+        Map<String, MeasurementItem> items = new HashMap<>();
         saveMeasurementItem(items, "총장", "TOTAL_LENGTH");
         saveMeasurementItem(items, "어깨너비", "SHOULDER_WIDTH");
         saveMeasurementItem(items, "가슴단면", "CHEST_WIDTH");
@@ -112,17 +113,18 @@ public class ProductReferenceDataService {
     }
 
     // 중간 카테고리를 먼저 넣고 그 아래 말단 카테고리를 넣는다
-    private void saveCategories(ProductType clothing, Map<String, MeasurementItem> items) {
-        Category clothes = categoryRepository.save(Category.createMiddle("의류", null));
-        saveLeaf(clothes, clothing, items, "상의", "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH");
-        saveLeaf(clothes, clothing, items, "하의",
-            "TOTAL_LENGTH", "WAIST_WIDTH", "HIP_WIDTH", "THIGH_WIDTH", "RISE");
-        saveLeaf(clothes, clothing, items, "아우터",
+    private void saveCategories(ProductType clothingType, Map<String, MeasurementItem> items) {
+        Category clothingCategory = categoryRepository.save(Category.createMiddle("의류", null));
+        saveLeaf(clothingCategory, clothingType, items, "상의",
             "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH");
-        saveLeaf(clothes, clothing, items, "원피스", "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH");
-        Category goods = categoryRepository.save(Category.createMiddle("잡화", null));
-        saveLeaf(goods, clothing, items, "모자", "HEAD_CIRCUMFERENCE");
-        saveLeaf(goods, clothing, items, "양말", "FOOT_LENGTH");
+        saveLeaf(clothingCategory, clothingType, items, "하의",
+            "TOTAL_LENGTH", "WAIST_WIDTH", "HIP_WIDTH", "THIGH_WIDTH", "RISE");
+        saveLeaf(clothingCategory, clothingType, items, "아우터",
+            "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH");
+        saveLeaf(clothingCategory, clothingType, items, "원피스", "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH");
+        Category goodsCategory = categoryRepository.save(Category.createMiddle("잡화", null));
+        saveLeaf(goodsCategory, clothingType, items, "모자", "HEAD_CIRCUMFERENCE");
+        saveLeaf(goodsCategory, clothingType, items, "양말", "FOOT_LENGTH");
     }
 
     // 필수 실측 항목은 코드를 적은 순서대로 둔다

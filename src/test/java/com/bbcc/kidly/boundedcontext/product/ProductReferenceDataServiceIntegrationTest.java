@@ -47,23 +47,33 @@ class ProductReferenceDataServiceIntegrationTest {
         CategoryInputsResult top = categoryService.findInputs(clothes.get(0).categoryId());
         assertThat(top.productTypeName()).isEqualTo("의류");
         assertThat(top.attributes())
-            .extracting(attribute -> attribute.code(), attribute -> attribute.role(), attribute -> attribute.required())
+            .extracting(attribute -> attribute.code(), attribute -> attribute.name(),
+                attribute -> attribute.inputType(), attribute -> attribute.role(),
+                attribute -> attribute.required(), attribute -> attribute.sizeRole())
             .containsExactly(
-                tuple("COLOR", "OPTION", true),
-                tuple("SIZE", "OPTION", true),
-                tuple("MAIN_MATERIAL", "INFO", true),
-                tuple("FABRIC_COMPOSITION", "INFO", false));
-        assertThat(top.attributes().get(0).values()).hasSize(12)
-            .first().isEqualTo(new CategoryInputsResult.SelectableValue(
-                top.attributes().get(0).values().get(0).valueId(), "네이비", "#2f3e5c"));
+                tuple("COLOR", "색상", "PALETTE", "OPTION", true, false),
+                tuple("SIZE", "사이즈", "LIST", "OPTION", true, true),
+                tuple("MAIN_MATERIAL", "주요소재", "LIST", "INFO", true, false),
+                tuple("FABRIC_COMPOSITION", "혼용률", "TEXT", "INFO", false, false));
+        assertThat(top.attributes().get(0).values())
+            .extracting(CategoryInputsResult.SelectableValue::value, CategoryInputsResult.SelectableValue::colorCode)
+            .containsExactly(
+                tuple("네이비", "#2f3e5c"), tuple("그레이", "#9e9e9e"), tuple("오트밀", "#e3d3bc"),
+                tuple("코랄 핑크", "#e8a598"), tuple("화이트", "#ffffff"), tuple("블루", "#3f6fb5"),
+                tuple("베이지", "#d8c3a5"), tuple("크림", "#f3ead3"), tuple("블랙", "#222222"),
+                tuple("레드", "#d64545"), tuple("옐로", "#f2c94c"), tuple("그린", "#6aa36f"));
         assertThat(top.attributes().get(1).values()).extracting(CategoryInputsResult.SelectableValue::value)
             .containsExactly("90", "100", "110", "120", "130", "140", "150", "FREE");
         assertThat(top.attributes().get(2).values()).extracting(CategoryInputsResult.SelectableValue::value)
             .containsExactly("면", "폴리에스테르", "아크릴", "기타");
         assertThat(top.attributes().get(3).values()).isEmpty();
 
-        assertThat(measurementCodes(clothes.get(0)))
-            .containsExactly("TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH");
+        assertThat(top.measurementItems())
+            .extracting(CategoryInputsResult.Measurement::code, CategoryInputsResult.Measurement::name,
+                CategoryInputsResult.Measurement::unit)
+            .containsExactly(
+                tuple("TOTAL_LENGTH", "총장", "cm"), tuple("SHOULDER_WIDTH", "어깨너비", "cm"),
+                tuple("CHEST_WIDTH", "가슴단면", "cm"), tuple("SLEEVE_LENGTH", "소매길이", "cm"));
         assertThat(measurementCodes(clothes.get(1)))
             .containsExactly("TOTAL_LENGTH", "WAIST_WIDTH", "HIP_WIDTH", "THIGH_WIDTH", "RISE");
         assertThat(measurementCodes(clothes.get(2)))
@@ -71,6 +81,8 @@ class ProductReferenceDataServiceIntegrationTest {
         assertThat(measurementCodes(clothes.get(3))).containsExactly("TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH");
         assertThat(measurementCodes(goods.get(0))).containsExactly("HEAD_CIRCUMFERENCE");
         assertThat(measurementCodes(goods.get(1))).containsExactly("FOOT_LENGTH");
+        assertThat(categoryService.findInputs(goods.get(0).categoryId()).productTypeName()).isEqualTo("의류");
+        assertThat(categoryService.findInputs(goods.get(1).categoryId()).productTypeName()).isEqualTo("의류");
     }
 
     @Test
