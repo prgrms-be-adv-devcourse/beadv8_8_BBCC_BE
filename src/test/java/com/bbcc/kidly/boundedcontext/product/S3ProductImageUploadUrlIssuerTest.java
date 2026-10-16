@@ -38,4 +38,12 @@ class S3ProductImageUploadUrlIssuerTest {
         assertThat(uploadUrl.getHost()).isEqualTo("team04-kidly-s3.s3.ap-northeast-2.amazonaws.com");
         assertThat(uploadUrl.getPath()).matches("/dev/products/2/[0-9a-f-]{36}\\.jpg");
     }
+
+    @Test
+    @DisplayName("업로드 주소는 5분 동안 유효하다")
+    void uploadUrlExpiresInFiveMinutes() {
+        ProductImageUploadUrl issued = issuer.issue(ProductImageUpload.of("image/jpeg", 1_000L), SELLER_ID);
+
+        assertThat(issued.uploadUrl()).contains("X-Amz-Expires=300");
+    }
 }
