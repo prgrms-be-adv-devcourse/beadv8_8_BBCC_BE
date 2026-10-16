@@ -15,6 +15,12 @@ public interface PaymentRecoveryRepository {
     Optional<PaymentRecovery> findById(Long id);
 
     /**
+     * 기록을 행 쓰기 잠금으로 읽는다. 재처리 · 취소가 같은 기록을 한 번에 하나만 처리하게 해, 늦은 쪽은 앞쪽이 끝날 때까지
+     * 기다렸다가 최신 기록을 본다.
+     */
+    Optional<PaymentRecovery> findByIdForUpdate(Long id);
+
+    /**
      * 주문의 기록. 주문당 1건(order_id 유니크).
      */
     Optional<PaymentRecovery> findByOrderId(Long orderId);

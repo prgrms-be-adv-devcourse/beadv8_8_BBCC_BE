@@ -89,7 +89,7 @@ public class PaymentRecoveryService {
     @Transactional
     public PaymentRecoveryResult recover(Long recoveryId, Consumer<MarkPaidCommand> applyPaid) {
         LocalDateTime now = LocalDateTime.now();
-        PaymentRecovery recovery = find(recoveryId);
+        PaymentRecovery recovery = findForUpdate(recoveryId);
         switch (recovery.getStatus()) {
             case RECOVERED -> {
                 return PaymentRecoveryResult.from(recovery);
@@ -136,7 +136,7 @@ public class PaymentRecoveryService {
      */
     @Transactional
     public PaymentRecoveryResult cancel(Long recoveryId) {
-        PaymentRecovery recovery = find(recoveryId);
+        PaymentRecovery recovery = findForUpdate(recoveryId);
         if (recovery.getStatus() == PaymentRecovery.Status.CANCELLED) {
             return PaymentRecoveryResult.from(recovery);
         }
@@ -170,6 +170,16 @@ public class PaymentRecoveryService {
 
     private PaymentRecovery find(Long recoveryId) {
         return recoveryRepository.findById(recoveryId)
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.RECOVERY_NOT_FOUND));
+    }
+
+    /**
+     * 재처리 · 취소는 맨 처음에 기록 행을 잠가 읽는다. 재처리는 장바구니 정리 중 자동 flush로 주문 행을 기록보다 먼저 갱신하고,
+     * 취소는 커밋 때 기록 → 주문 순서로 갱신해서, 동시에 오면 잠금 순서가 엇갈려 데드락이 났다(#353 CI). 기록 잠금을 먼저
+     * 잡으면 둘이 차례로 실행되고, 늦은 쪽은 닫힌 기록을 보고 기존 상태 표대로 409로 끝난다.
+     */
+    private PaymentRecovery findForUpdate(Long recoveryId) {
+        return recoveryRepository.findByIdForUpdate(recoveryId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.RECOVERY_NOT_FOUND));
     }
 

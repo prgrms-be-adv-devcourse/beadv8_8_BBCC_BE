@@ -180,8 +180,8 @@ class PaymentRecoveryServiceTest {
         void rejected() {
             PaymentRecovery cancelled = pending();
             cancelled.cancel(LocalDateTime.now());
-            when(recoveryRepository.findById(1L)).thenReturn(Optional.of(cancelled));
-            when(recoveryRepository.findById(2L)).thenReturn(Optional.of(notRetryable()));
+            when(recoveryRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(cancelled));
+            when(recoveryRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(notRetryable()));
 
             assertError(() -> service.recover(1L, applyPaid), OrderErrorCode.RECOVERY_CLOSED);
             assertError(() -> service.recover(2L, applyPaid), OrderErrorCode.RECOVERY_NOT_RETRYABLE);
@@ -192,7 +192,7 @@ class PaymentRecoveryServiceTest {
         @Test
         @DisplayName("재처리가 다시 실패하면 시도 +1 · 실패 이유를 바꾸고 PENDING으로 남긴다(불일치면 NOT_RETRYABLE)")
         void recordsRetryFailure() {
-            givenRecovery(pending());
+            givenStoredRecovery(pending());
 
             PaymentRecoveryResult failed = service.recordRetryFailure(RECOVERY_ID, new IllegalStateException("x"));
 
@@ -212,7 +212,7 @@ class PaymentRecoveryServiceTest {
         void retryFailureKeepsClosedRecord() {
             PaymentRecovery recovery = pending();
             recovery.recover(LocalDateTime.now());
-            givenRecovery(recovery);
+            givenStoredRecovery(recovery);
 
             PaymentRecoveryResult result = service.recordRetryFailure(RECOVERY_ID, new IllegalStateException("x"));
 
@@ -229,8 +229,8 @@ class PaymentRecoveryServiceTest {
         @Test
         @DisplayName("PENDING · NOT_RETRYABLE이면 주문을 결제 실패로 취소(order.cancelled)하고 기록을 CANCELLED로 끝낸다")
         void cancelsOpenRecord() {
-            when(recoveryRepository.findById(1L)).thenReturn(Optional.of(pending()));
-            when(recoveryRepository.findById(2L)).thenReturn(Optional.of(notRetryable()));
+            when(recoveryRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(pending()));
+            when(recoveryRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(notRetryable()));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(placedOrder()));
 
             assertThat(service.cancel(1L).status()).isEqualTo("CANCELLED");
@@ -254,8 +254,8 @@ class PaymentRecoveryServiceTest {
         void rejected() {
             PaymentRecovery recovered = pending();
             recovered.recover(LocalDateTime.now());
-            when(recoveryRepository.findById(1L)).thenReturn(Optional.of(recovered));
-            when(recoveryRepository.findById(2L)).thenReturn(Optional.of(pending()));
+            when(recoveryRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(recovered));
+            when(recoveryRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(pending()));
             Order paid = placedOrder();
             paid.markPaid(PAYMENT_ID, BUYER_ID, 25_000L, List.of(new Order.PaidItem(41L, 25_000L)),
                 LocalDateTime.now());
@@ -313,6 +313,11 @@ class PaymentRecoveryServiceTest {
     }
 
     private void givenRecovery(PaymentRecovery recovery) {
+        when(recoveryRepository.findByIdForUpdate(RECOVERY_ID)).thenReturn(Optional.of(recovery));
+    }
+
+    // 재처리 실패 횟수 기록(tx2)은 잠그지 않고 읽는다
+    private void givenStoredRecovery(PaymentRecovery recovery) {
         when(recoveryRepository.findById(RECOVERY_ID)).thenReturn(Optional.of(recovery));
     }
 

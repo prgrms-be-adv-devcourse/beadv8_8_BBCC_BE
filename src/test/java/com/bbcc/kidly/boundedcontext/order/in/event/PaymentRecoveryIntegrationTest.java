@@ -32,8 +32,16 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +50,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 결제 완료 반영 실패 보관 · 재처리 · 취소로 종료(#353, 실제 PostgreSQL). 테스트에 @Transactional을 붙이지 않는다.
@@ -94,6 +104,9 @@ class PaymentRecoveryIntegrationTest {
 
     @Autowired
     private OrderFlowEventRecorder recorder;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void setUp() {
@@ -323,6 +336,105 @@ class PaymentRecoveryIntegrationTest {
             outcomes.add(recovery.name());
         }
         assertThat(outcomes).hasSize(5);
+    }
+
+    @Test
+    @DisplayName("다른 트랜잭션이 기록을 잠근 동안 취소는 기다렸다가, 그쪽이 복구로 닫고 커밋하면 409 RECOVERY_CLOSED로 끝난다(주문 취소 없음)")
+    void cancelWaitsForRecordLock() throws Exception {
+        OrderDetail order = failDelivery(BUYER_ID);
+        Long recoveryId = recoveryOf(order).getId();
+
+        Throwable cancelError = whileRecordLocked(recoveryId,
+            recovery -> recovery.recover(LocalDateTime.now()),
+            () -> recoveryService.cancel(recoveryId));
+
+        assertThat(cancelError).isInstanceOfSatisfying(BusinessException.class,
+            error -> assertThat(error.getErrorCode()).isEqualTo(OrderErrorCode.RECOVERY_CLOSED));
+        assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus())
+            .isEqualTo(Order.Status.PENDING_PAYMENT);
+        assertThat(cancelledEventsOf(order.orderId())).isZero();
+    }
+
+    @Test
+    @DisplayName("다른 트랜잭션이 기록을 잠근 동안 재처리는 기다렸다가, 그쪽이 주문을 취소하고 기록을 닫으면 409 RECOVERY_CLOSED로 끝난다(배송 0)")
+    void retryWaitsForRecordLock() throws Exception {
+        OrderDetail order = failDelivery(BUYER_ID);
+        fixSeller(order);
+        Long recoveryId = recoveryOf(order).getId();
+
+        Throwable retryError = whileRecordLocked(recoveryId,
+            recovery -> {
+                orderService.cancelForPaymentFailure(order.orderId());
+                recovery.cancel(LocalDateTime.now());
+            },
+            () -> recoveryRetry.retry(recoveryId));
+
+        assertThat(retryError).isInstanceOfSatisfying(BusinessException.class,
+            error -> assertThat(error.getErrorCode()).isEqualTo(OrderErrorCode.RECOVERY_CLOSED));
+        assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus())
+            .isEqualTo(Order.Status.CANCELLED);
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
+        assertThat(cancelledEventsOf(order.orderId())).isEqualTo(1);
+    }
+
+    /**
+     * 스레드 A가 트랜잭션 안에서 기록을 행 잠금으로 읽어 쥔 채, 스레드 B가 call을 시작한다. B가 1초 안에 끝나지 않는지(잠금 대기)
+     * 확인한 뒤 A가 close로 기록을 바꾸고 커밋하면, B가 끝나며 던진 예외를 돌려준다(끝까지 성공하면 null).
+     * 모든 대기에 제한 시간을 두고 finally에서 잠금을 풀고 스레드를 정리한다.
+     */
+    private Throwable whileRecordLocked(Long recoveryId, Consumer<PaymentRecovery> close,
+        Callable<?> call) throws Exception {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> holder = executor.submit(() -> transaction.executeWithoutResult(status -> {
+                PaymentRecovery recovery = recoveryRepository.findByIdForUpdate(recoveryId).orElseThrow();
+                locked.countDown();
+                awaitQuietly(release);
+                close.accept(recovery);
+            }));
+            assertThat(locked.await(10, TimeUnit.SECONDS)).as("A가 기록을 잠금").isTrue();
+            Future<?> waiter = executor.submit(call);
+
+            assertThatThrownBy(() -> waiter.get(1, TimeUnit.SECONDS)).as("B는 잠금이 풀릴 때까지 기다림")
+                .isInstanceOf(TimeoutException.class);
+            release.countDown();
+            holder.get(10, TimeUnit.SECONDS);
+            try {
+                waiter.get(10, TimeUnit.SECONDS);
+                return null;
+            } catch (ExecutionException e) {
+                return e.getCause();
+            }
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    private static void awaitQuietly(CountDownLatch latch) {
+        try {
+            if (!latch.await(30, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("잠금 해제 신호를 기다리다 시간 초과");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 판매자 B 주문상품의 seller_id를 NULL로 바꾼 뒤 맞는 결제 완료를 보내 배송 생성 실패로 보관한다.
+     */
+    private OrderDetail failDelivery(Long buyerId) {
+        OrderDetail order = placeWithCart(buyerId);
+        breakSeller(order);
+        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, buyerId)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        return order;
     }
 
     /**
