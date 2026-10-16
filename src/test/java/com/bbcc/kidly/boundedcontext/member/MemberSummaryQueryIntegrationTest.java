@@ -39,7 +39,7 @@ class MemberSummaryQueryIntegrationTest {
     private Member admin;
     private Member withdrawn;
 
-    // 5 · 6번(관리자 · 탈퇴)은 목록에서 빠져야 하는 회원
+    // 6번(탈퇴)은 어느 필터에도 나오지 않고, 5번(관리자)은 ADMIN에서만 나온다
     @BeforeEach
     void setUp() {
         buyer = memberRepository.save(MemberFixture.kakaoMember("1"));
@@ -90,6 +90,37 @@ class MemberSummaryQueryIntegrationTest {
             assertThat(row.suspendReason()).isEqualTo(REASON);
             assertThat(row.suspendedAt()).isEqualTo(MemberFixture.NOW);
         });
+    }
+
+    @Test
+    @DisplayName("ADMIN은 관리자 회원만 읽는다")
+    void findAdmins() {
+        var page = query.findAll(AdminMemberFilter.ADMIN, null, PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).extracting(AdminMemberSummary::id).containsExactly(admin.getId());
+    }
+
+    @Test
+    @DisplayName("ADMIN도 keyword로 검색한다")
+    void searchAdmins() {
+        var page = query.findAll(AdminMemberFilter.ADMIN, buyer.getNickname(), PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).isEmpty();
+        assertThat(query.findAll(AdminMemberFilter.ADMIN, admin.getNickname(), PageRequest.of(0, 10)).getContent())
+            .extracting(AdminMemberSummary::id).containsExactly(admin.getId());
+    }
+
+    @Test
+    @DisplayName("판매자인 관리자는 SELLER가 아니라 ADMIN에서 나온다")
+    void sellerAdminOnlyInAdmin() {
+        var sellerAdmin = MemberFixture.withSellerState("7", SellerStatus.ACTIVE);
+        sellerAdmin.grantAdmin();
+        memberRepository.save(sellerAdmin);
+
+        assertThat(query.findAll(AdminMemberFilter.SELLER, null, PageRequest.of(0, 10)).getContent())
+            .extracting(AdminMemberSummary::id).doesNotContain(sellerAdmin.getId());
+        assertThat(query.findAll(AdminMemberFilter.ADMIN, null, PageRequest.of(0, 10)).getContent())
+            .extracting(AdminMemberSummary::id).containsExactlyInAnyOrder(admin.getId(), sellerAdmin.getId());
     }
 
     @Test
@@ -256,7 +287,7 @@ class MemberSummaryQueryIntegrationTest {
     }
 
     @Test
-    @DisplayName("관리자 · 탈퇴 회원은 회원 번호로 찾아도 나오지 않는다")
+    @DisplayName("ALL에서는 관리자 · 탈퇴 회원을 회원 번호로 찾아도 나오지 않는다")
     void searchExcludesAdminAndWithdrawn() {
         var byAdminId = query.findAll(AdminMemberFilter.ALL, String.valueOf(admin.getId()), PageRequest.of(0, 10));
         var byWithdrawnId = query.findAll(AdminMemberFilter.ALL, String.valueOf(withdrawn.getId()),

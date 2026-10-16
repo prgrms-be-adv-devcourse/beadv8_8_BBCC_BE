@@ -46,18 +46,20 @@ public class JpaMemberSummaryQuery implements MemberSummaryQuery {
         return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
     }
 
-    // 관리자 · 탈퇴 회원은 관리 대상이 아니다
+    // 탈퇴 회원은 관리 대상이 아니다
     private BooleanExpression listable() {
-        return member.role.eq(MemberRole.USER).and(member.status.ne(MemberStatus.WITHDRAWN));
+        return member.status.ne(MemberStatus.WITHDRAWN);
     }
 
-    // ALL이면 조건에서 빠진다
+    // 관리자는 ADMIN에서만 나온다. 나머지는 일반 회원 중에서 거른다
     private BooleanExpression filterBy(AdminMemberFilter filter) {
+        var isUser = member.role.eq(MemberRole.USER);
         return switch (filter) {
-            case ALL -> null;
-            case BUYER -> member.sellerState.status.isNull();
-            case SELLER -> member.sellerState.status.isNotNull();
-            case SUSPENDED -> member.status.eq(MemberStatus.SUSPENDED);
+            case ALL -> isUser;
+            case BUYER -> isUser.and(member.sellerState.status.isNull());
+            case SELLER -> isUser.and(member.sellerState.status.isNotNull());
+            case SUSPENDED -> isUser.and(member.status.eq(MemberStatus.SUSPENDED));
+            case ADMIN -> member.role.eq(MemberRole.ADMIN);
         };
     }
 
