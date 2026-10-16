@@ -38,7 +38,9 @@ public enum OrderErrorCode implements ErrorCode {
         "없는 판매 주문입니다. 판매 주문 목록을 새로고침해 주세요."),
     INVALID_CARRIER(HttpStatus.BAD_REQUEST, "지원하지 않는 택배사입니다",
         "지원하는 택배사는 CJ · EPOST · HANJIN · LOTTE · LOGEN입니다."),
-    ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "주문상품을 찾을 수 없습니다", "없는 주문상품입니다. 주문 상세를 새로고침해 주세요.");
+    ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "주문상품을 찾을 수 없습니다", "없는 주문상품입니다. 주문 상세를 새로고침해 주세요."),
+    INVALID_IDEMPOTENCY_KEY(HttpStatus.BAD_REQUEST, "잘못된 요청 키입니다", "주문서를 다시 열어 주문해 주세요."),
+    IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT, "이미 다른 주문에 쓴 요청입니다", "주문서를 다시 열어 주문해 주세요.");
 
     private final HttpStatus status;
     private final String title;

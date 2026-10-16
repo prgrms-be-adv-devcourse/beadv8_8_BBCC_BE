@@ -17,6 +17,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -41,10 +42,17 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(schema = "orders", name = "orders", indexes = {
     @Index(name = "idx_orders_member_id", columnList = "member_id"),
-    @Index(name = "idx_orders_status_payment_due_at", columnList = "status, payment_due_at")})
+    @Index(name = "idx_orders_status_payment_due_at", columnList = "status, payment_due_at")},
+    uniqueConstraints = @UniqueConstraint(
+        name = Order.MEMBER_IDEMPOTENCY_KEY_UNIQUE, columnNames = {"member_id", "idempotency_key"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Order extends BaseTimeEntity {
+
+    /**
+     * 같은 회원의 같은 요청 키는 주문 하나(#351). 동시에 같은 키로 저장하면 이 제약이 나중 쪽을 막는다.
+     */
+    public static final String MEMBER_IDEMPOTENCY_KEY_UNIQUE = "uk_orders_member_idempotency_key";
 
     /**
      * 주문 상태. 결제대기에서만 바뀐다.
@@ -159,6 +167,15 @@ public class Order extends BaseTimeEntity {
 
     private Long paymentId;
 
+    /**
+     * 주문 요청 키(소문자 UUID)와 요청 비교값(SHA-256 16진수). 키 없이 만든 주문은 둘 다 null.
+     */
+    @Column(length = 36)
+    private String idempotencyKey;
+
+    @Column(length = 64)
+    private String requestHash;
+
     @Version
     private Long version;
 
@@ -199,6 +216,17 @@ public class Order extends BaseTimeEntity {
             order.totalAmount = Math.addExact(order.totalAmount, orderItem.getAmount());
         }
         return order;
+    }
+
+    /**
+     * 주문하기 직후 저장 전에 요청 키와 요청 비교값을 한 번 기록한다(#351). 두 번 부르면 프로그래밍 오류다.
+     */
+    public void recordRequestKey(String idempotencyKey, String requestHash) {
+        if (this.idempotencyKey != null) {
+            throw new IllegalStateException("요청 키는 한 번만 기록할 수 있습니다");
+        }
+        this.idempotencyKey = idempotencyKey;
+        this.requestHash = requestHash;
     }
 
     /**

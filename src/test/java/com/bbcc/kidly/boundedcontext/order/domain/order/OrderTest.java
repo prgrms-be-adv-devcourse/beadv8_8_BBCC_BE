@@ -815,6 +815,36 @@ class OrderTest {
     }
 
     @Nested
+    @DisplayName("요청 키 기록 (#351)")
+    class RecordRequestKey {
+
+        @Test
+        @DisplayName("주문하기 직후 요청 키 · 비교값을 한 번 기록한다. 키 없이 만든 주문은 둘 다 null")
+        void recordsOnce() {
+            Order order = OrderFixture.placedOrder();
+            assertThat(order.getIdempotencyKey()).isNull();
+            assertThat(order.getRequestHash()).isNull();
+
+            order.recordRequestKey("3f1c2b9a-0d4e-4c7b-9a51-1e2f3a4b5c6d", "a".repeat(64));
+
+            assertThat(order.getIdempotencyKey()).isEqualTo("3f1c2b9a-0d4e-4c7b-9a51-1e2f3a4b5c6d");
+            assertThat(order.getRequestHash()).isEqualTo("a".repeat(64));
+        }
+
+        @Test
+        @DisplayName("이미 기록한 주문에 다시 기록하면 프로그래밍 오류로 IllegalStateException(값은 그대로)")
+        void secondRecordIsRejected() {
+            Order order = OrderFixture.placedOrder();
+            order.recordRequestKey("3f1c2b9a-0d4e-4c7b-9a51-1e2f3a4b5c6d", "a".repeat(64));
+
+            assertThatThrownBy(() -> order.recordRequestKey("00000000-0000-0000-0000-000000000000", "b".repeat(64)))
+                .isInstanceOf(IllegalStateException.class);
+            assertThat(order.getIdempotencyKey()).isEqualTo("3f1c2b9a-0d4e-4c7b-9a51-1e2f3a4b5c6d");
+            assertThat(order.getRequestHash()).isEqualTo("a".repeat(64));
+        }
+    }
+
+    @Nested
     @DisplayName("배송 완료 기록 (delivery.completed)")
     class RecordDelivered {
 
