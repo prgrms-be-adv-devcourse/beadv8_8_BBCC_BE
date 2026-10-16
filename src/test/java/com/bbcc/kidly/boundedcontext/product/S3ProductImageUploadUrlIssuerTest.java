@@ -2,11 +2,15 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.app.port.product.ProductImageUploadUrl;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUpload;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUrls;
 import com.bbcc.kidly.boundedcontext.product.out.product.ProductImageS3Properties;
 import com.bbcc.kidly.boundedcontext.product.out.product.S3ProductImageUploadUrlIssuer;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +54,17 @@ class S3ProductImageUploadUrlIssuerTest {
     void ownImageUrlPrefixIsSellerDirectory() {
         assertThat(issuer.ownImageUrlPrefix(SELLER_ID))
             .isEqualTo("https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com/dev/products/2/");
+    }
+
+    @Test
+    @DisplayName("발급한 이미지 주소는 같은 판매자의 본인 경로 검사를 통과하고 다른 판매자의 경로로는 거절된다")
+    void issuedImageUrlPassesOnlyOwnPrefix() {
+        String imageUrl = issuer.issue(ProductImageUpload.of("image/webp", 1_000L), SELLER_ID).imageUrl();
+
+        assertThatCode(() -> ProductImageUrls.validate(null, List.of(imageUrl), issuer.ownImageUrlPrefix(SELLER_ID)))
+            .doesNotThrowAnyException();
+        assertThatThrownBy(() -> ProductImageUrls.validate(null, List.of(imageUrl), issuer.ownImageUrlPrefix(3L)))
+            .isInstanceOf(BusinessException.class);
     }
 
     @Test
