@@ -31,7 +31,7 @@ public class AdminMemberController {
 
     private final AdminMemberService adminMemberService;
 
-    // filter가 없으면 전체, keyword는 회원 번호 · 닉네임 · 이메일 검색. 관리자 · 탈퇴 회원은 빠진다
+    // filter가 없으면 전체 일반 회원, ADMIN이면 관리자만. keyword는 회원 번호 · 닉네임 · 이메일 검색. 탈퇴 회원은 빠진다
     @GetMapping
     public PageResponse<AdminMemberSummaryResponse> list(
         @RequestParam(defaultValue = "ALL") AdminMemberFilter filter,
@@ -46,5 +46,17 @@ public class AdminMemberController {
     public void suspend(@LoginMember AuthMember admin, @PathVariable Long memberId,
         @Valid @RequestBody MemberSuspendRequest request) {
         adminMemberService.suspend(memberId, admin.id(), request);
+    }
+
+    @PostMapping("/{memberId}/grant-admin")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void grantAdmin(@PathVariable Long memberId) {
+        adminMemberService.grantAdmin(memberId);
+    }
+
+    @PostMapping("/{memberId}/revoke-admin")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokeAdmin(@LoginMember AuthMember admin, @PathVariable Long memberId) {
+        adminMemberService.revokeAdmin(memberId, admin.id());
     }
 }
