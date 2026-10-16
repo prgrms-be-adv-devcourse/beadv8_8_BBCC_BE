@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -28,6 +29,16 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
         order by o.id asc, i.id asc
         """)
     List<Order> findAllWithItemsByIdIn(Collection<Long> ids);
+
+    @Override
+    @Query("""
+        select o
+        from Order o
+        left join fetch o.items i
+        where o.id = :id and o.memberId = :memberId
+        order by i.id asc
+        """)
+    Optional<Order> findWithItemsByIdAndMemberId(Long id, Long memberId);
 
     @Override
     @Query("""

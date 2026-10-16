@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
@@ -290,6 +291,17 @@ public class OrderService {
 
     private OrderDetail detailOf(Long orderId, Order order) {
         return OrderDetail.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId),
+            sellerNamesOf(List.of(order)));
+    }
+
+    /**
+     * 주문(주문상품 포함) · 배송 건 · 판매자 상호명을 한 번씩 읽어 타임라인을 만든다(#352). 남의 주문은 없는 주문으로 본다.
+     */
+    @Transactional(readOnly = true)
+    public OrderTimeline getTimeline(Long memberId, Long orderId) {
+        Order order = orderRepository.findWithItemsByIdAndMemberId(orderId, memberId)
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+        return OrderTimeline.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId),
             sellerNamesOf(List.of(order)));
     }
 

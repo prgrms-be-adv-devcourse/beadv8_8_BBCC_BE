@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.OrderDetailResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.OrderSummaryResponse;
+import com.bbcc.kidly.boundedcontext.order.in.web.dto.OrderTimelineResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.PlaceOrderRequest;
 import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthMember;
@@ -81,6 +82,14 @@ public class OrderController {
     @GetMapping("/{orderId}")
     public OrderDetailResponse getOrder(@LoginMember AuthMember member, @PathVariable Long orderId) {
         return OrderDetailResponse.from(orderService.getOrder(member.id(), orderId));
+    }
+
+    /**
+     * 주문 처리 타임라인(#352). 남의 · 없는 주문 404.
+     */
+    @GetMapping("/{orderId}/timeline")
+    public OrderTimelineResponse getTimeline(@LoginMember AuthMember member, @PathVariable Long orderId) {
+        return OrderTimelineResponse.from(orderService.getTimeline(member.id(), orderId));
     }
 
     private PlaceOrderCommand toCommand(PlaceOrderRequest request) {

@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
@@ -31,6 +32,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.PaymentMismatchException
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
@@ -43,6 +45,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -818,6 +821,42 @@ class OrderServiceTest {
             assertThat(page.getTotalElements()).isEqualTo(3L);
             assertThat(page.hasNext()).isFalse();
             verify(orderRepository, never()).findAllByOrderByIdDesc(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("주문 처리 타임라인 (#352)")
+    class GetTimeline {
+
+        @Test
+        @DisplayName("본인 주문을 주문상품과 함께 읽고 배송 건 · 판매자 상호명으로 타임라인을 만든다")
+        void buildsTimeline() {
+            Order order = withId(withItemIds(placedOrderWithTwoItems()), ORDER_ID);
+            when(orderRepository.findWithItemsByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
+            when(deliveryRepository.findAllByOrderIdOrderByIdAsc(ORDER_ID))
+                .thenReturn(List.of(Delivery.create(ORDER_ID, SELLER_ID)));
+            when(sellerReplicaRepository.findAllBySellerIdIn(Set.of(SELLER_ID)))
+                .thenReturn(List.of(ReplicaSeller.create(
+                    new ReplicaSeller.Values(SELLER_ID, "키들리상점", "ACTIVE", OCCURRED_AT))));
+
+            OrderTimeline timeline = orderService.getTimeline(BUYER_ID, ORDER_ID);
+
+            assertThat(timeline.orderId()).isEqualTo(ORDER_ID);
+            OrderTimeline.Step shipped = timeline.steps().stream()
+                .filter(step -> step.step() == OrderTimeline.StepName.SHIPPED).findFirst().orElseThrow();
+            assertThat(shipped.deliveries()).singleElement()
+                .isEqualTo(new OrderTimeline.DeliveryDetail(null, SELLER_ID, "키들리상점",
+                    OrderTimeline.StepStatus.WAITING, null));
+        }
+
+        @Test
+        @DisplayName("없거나 남의 주문이면 ORDER_NOT_FOUND, 배송 건은 읽지 않는다")
+        void failsWhenNotOwned() {
+            assertThatThrownBy(() -> orderService.getTimeline(BUYER_ID, ORDER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.ORDER_NOT_FOUND);
+            verify(orderRepository).findWithItemsByIdAndMemberId(ORDER_ID, BUYER_ID);
+            verify(deliveryRepository, never()).findAllByOrderIdOrderByIdAsc(any());
         }
     }
 
