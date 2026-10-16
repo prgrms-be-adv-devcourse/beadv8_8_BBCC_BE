@@ -6,11 +6,6 @@
 
     <springProperty scope="context" name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
     <property name="LOG_FILE_NAME" value="kidly"/>
-    <springProperty scope="context" name="LOGSTASH_DESTINATION" source="logging.logstash.destination"
-                    defaultValue="localhost:5000"/>
-    <!-- 종료할 때 못 보낸 로그를 기다리는 시간. 테스트에서는 짧게 넘긴다 -->
-    <springProperty scope="context" name="LOGSTASH_SHUTDOWN_GRACE_PERIOD"
-                    source="logging.logstash.shutdown-grace-period" defaultValue="1 minute"/>
 
     <!-- 요청 추적용 traceId(MDC)를 포함한 로그 패턴 (콘솔: 색상 포함 / 파일: 색상 미포함) -->
     <property name="CONSOLE_LOG_PATTERN"
@@ -25,38 +20,14 @@
         </encoder>
     </appender>
 
-    <!-- 로컬·운영: Logstash로 JSON 한 줄씩 보낸다 (MDC의 traceId 포함).
-         비동기로 보내고 연결되지 않으면 버리므로, Logstash가 없어도 앱은 그대로 동작한다 -->
-    <springProfile name="local | prod">
-        <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
-            <destination>${LOGSTASH_DESTINATION}</destination>
-            <reconnectionDelay>10 seconds</reconnectionDelay>
-            <keepAliveDuration>5 minutes</keepAliveDuration>
-            <shutdownGracePeriod>${LOGSTASH_SHUTDOWN_GRACE_PERIOD}</shutdownGracePeriod>
-            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-                <!-- LOG_PATH 같은 logback 설정값은 보내지 않는다 -->
-                <includeContext>false</includeContext>
-                <customFields>{"app":"kidly"}</customFields>
-            </encoder>
-        </appender>
-    </springProfile>
-
-    <!-- 로컬: 콘솔 + Logstash -->
-    <springProfile name="local">
-        <root level="INFO">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="LOGSTASH"/>
-        </root>
-    </springProfile>
-
-    <!-- 테스트 등 그 밖의 프로필: 콘솔만 -->
-    <springProfile name="!local &amp; !prod">
+    <!-- 로컬 · 테스트 등 운영이 아닌 프로필: 콘솔만 -->
+    <springProfile name="!prod">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>
     </springProfile>
 
-    <!-- 운영: 콘솔 + 파일(일반/에러 분리, 비동기) + Logstash -->
+    <!-- 운영: 콘솔 + 파일(일반/에러 분리, 비동기) -->
     <springProfile name="prod">
         <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
             <file>${LOG_PATH}/${LOG_FILE_NAME}.log</file>
@@ -105,7 +76,6 @@
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="ASYNC_FILE"/>
             <appender-ref ref="ASYNC_ERROR_FILE"/>
-            <appender-ref ref="LOGSTASH"/>
         </root>
     </springProfile>
 

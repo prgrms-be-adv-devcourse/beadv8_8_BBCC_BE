@@ -1,4 +1,4 @@
-# 로컬 개발용 DB + DB GUI(pgAdmin) + Logstash
+# 로컬 개발용 DB + DB GUI(pgAdmin)
 services:
   postgres:
     image: postgres:18
@@ -29,17 +29,6 @@ services:
       - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
     depends_on:
       - postgres
-
-  # 앱 로그를 JSON으로 받아 표준 출력으로 보여 준다 (docker compose logs -f logstash)
-  logstash:
-    image: logstash:9.5.3
-    container_name: kidly-logstash
-    environment:
-      LS_JAVA_OPTS: "-Xms256m -Xmx256m"
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./docker/logstash/pipeline:/usr/share/logstash/pipeline:ro
 
 volumes:
   postgres-data:
