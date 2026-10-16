@@ -2,9 +2,8 @@ package com.bbcc.kidly.boundedcontext.member.domain;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
@@ -43,20 +42,15 @@ public class SocialAccount extends BaseTimeEntity {
     @JoinColumn(name = "member_id", nullable = false, foreignKey = @ForeignKey(name = "fk_social_account_member"))
     private Member member;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "provider", nullable = false)
-    private OAuthProvider provider;
-
-    @Column(name = "provider_user_id", nullable = false)
-    private String providerUserId;
+    @Embedded
+    private SocialIdentity identity;
 
     @Column(nullable = false)
     private LocalDateTime connectedAt;
 
-    SocialAccount(Member member, OAuthProvider provider, String providerUserId, LocalDateTime connectedAt) {
+    SocialAccount(Member member, SocialIdentity identity, LocalDateTime connectedAt) {
         this.member = member;
-        this.provider = provider;
-        this.providerUserId = providerUserId;
+        this.identity = identity;
         this.connectedAt = connectedAt;
     }
 }

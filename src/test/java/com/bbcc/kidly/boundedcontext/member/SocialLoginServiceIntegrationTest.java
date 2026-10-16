@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
@@ -82,7 +83,7 @@ class SocialLoginServiceIntegrationTest {
     void registersWithProviderProfile() {
         var member = login("kakao-1");
 
-        assertThat(memberRepository.findBySocialAccount(OAuthProvider.KAKAO, "kakao-1"))
+        assertThat(memberRepository.findBySocialAccount(new SocialIdentity(OAuthProvider.KAKAO, "kakao-1")))
             .hasValueSatisfying(found -> {
                 assertThat(found.getId()).isEqualTo(member.memberId());
                 assertThat(found.getNickname()).isEqualTo(FakeOAuthClient.NICKNAME);

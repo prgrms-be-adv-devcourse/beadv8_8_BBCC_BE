@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import java.time.LocalDateTime;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -69,7 +70,8 @@ public final class MemberFixture {
 
     private static Member register(String providerUserId, String nickname) {
         var email = providerUserId + "@example.com";
-        return Member.register(new MemberRegisterInfo(OAuthProvider.KAKAO, providerUserId, nickname, email), NOW);
+        var identity = new SocialIdentity(OAuthProvider.KAKAO, providerUserId);
+        return Member.register(new MemberRegisterInfo(identity, nickname, email), NOW);
     }
 
     private static Member withRole(Member member, MemberRole role) {

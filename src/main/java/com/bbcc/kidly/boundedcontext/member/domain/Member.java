@@ -89,11 +89,9 @@ public class Member extends BaseTimeEntity {
             requireNonNull(info.email(), "email은 필수입니다"));
         member.socialAccounts.add(new SocialAccount(
             member,
-            requireNonNull(info.provider(), "provider는 필수입니다"),
-            requireNonNull(info.providerUserId(), "providerUserId는 필수입니다"),
+            requireNonNull(info.identity(), "identity는 필수입니다"),
             requireNonNull(now, "now는 필수입니다")));
         validateNickname(info.nickname());
-        Assert.hasText(info.providerUserId(), "providerUserId는 비어 있을 수 없습니다");
         Assert.hasText(info.email(), "email은 비어 있을 수 없습니다");
         return member;
     }

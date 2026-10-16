@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.global.error.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -35,8 +36,9 @@ public class SocialLoginService {
     public LoggedInMember login(String providerName, SocialLoginRequest request) {
         var provider = OAuthProvider.from(providerName);
         var profile = oauthClient.fetchProfile(provider, request.code());
-        var member = memberRepository.findBySocialAccount(provider, profile.providerUserId())
-            .orElseGet(() -> register(provider, profile));
+        var identity = new SocialIdentity(provider, profile.providerUserId());
+        var member = memberRepository.findBySocialAccount(identity)
+            .orElseGet(() -> register(identity, profile));
         if (!member.canLogin()) {
             throw new BusinessException(MemberErrorCode.LOGIN_NOT_ALLOWED);
         }
@@ -44,19 +46,17 @@ public class SocialLoginService {
     }
 
     // 같은 소셜 계정으로 동시에 처음 로그인하면 한 요청만 가입되고, 나머지는 그 회원으로 로그인한다
-    private Member register(OAuthProvider provider, OAuthProfile profile) {
+    private Member register(SocialIdentity identity, OAuthProfile profile) {
         // 이메일은 가입할 때만 필수다. 이메일을 받기 전에 가입한 회원은 이메일 없이도 로그인한다
         if (!StringUtils.hasText(profile.email())) {
             throw new BusinessException(MemberErrorCode.EMAIL_REQUIRED);
         }
         try {
             var nickname = nicknamePolicy.generate(profile.nickname());
-            return memberRegistrar.register(
-                new MemberRegisterInfo(provider, profile.providerUserId(), nickname, profile.email()));
+            return memberRegistrar.register(new MemberRegisterInfo(identity, nickname, profile.email()));
         } catch (DataIntegrityViolationException e) {
             // 닉네임이 겹쳐 실패하면 소셜 계정으로 다시 찾지 못하므로 그대로 던진다 (409)
-            return memberRepository.findBySocialAccount(provider, profile.providerUserId())
-                .orElseThrow(() -> e);
+            return memberRepository.findBySocialAccount(identity).orElseThrow(() -> e);
         }
     }
 }

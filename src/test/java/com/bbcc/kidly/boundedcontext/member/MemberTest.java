@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberSuspension;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.security.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -26,19 +27,19 @@ class MemberTest {
 
     private static final Long ADMIN_ID = 99L;
     private static final String REASON = "약관 위반";
+    private static final SocialIdentity KAKAO_1 = new SocialIdentity(OAuthProvider.KAKAO, "kakao-1");
 
     @Test
     @DisplayName("가입하면 소셜 계정 1개를 가진 활성 일반 회원이 된다")
     void register() {
-        Member member = Member.register(new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", "테스트회원", EMAIL), NOW);
+        Member member = Member.register(new MemberRegisterInfo(KAKAO_1, "테스트회원", EMAIL), NOW);
 
         assertThat(member.getNickname()).isEqualTo("테스트회원");
         assertThat(member.getEmail()).isEqualTo(EMAIL);
         assertThat(member.getRole()).isEqualTo(MemberRole.USER);
         assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
         assertThat(member.getSocialAccounts()).singleElement().satisfies(account -> {
-            assertThat(account.getProvider()).isEqualTo(OAuthProvider.KAKAO);
-            assertThat(account.getProviderUserId()).isEqualTo("kakao-1");
+            assertThat(account.getIdentity()).isEqualTo(new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"));
             assertThat(account.getConnectedAt()).isEqualTo(NOW);
             assertThat(account.getMember()).isSameAs(member);
         });
@@ -49,34 +50,28 @@ class MemberTest {
     void registerRejectsNull() {
         assertThatThrownBy(() -> Member.register(null, NOW))
             .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Member.register(new MemberRegisterInfo(null, "kakao-1", "테스트회원", EMAIL), NOW))
+        assertThatThrownBy(() -> Member.register(new MemberRegisterInfo(null, "테스트회원", EMAIL), NOW))
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(OAuthProvider.KAKAO, null, "테스트회원", EMAIL), NOW))
+            new MemberRegisterInfo(KAKAO_1, null, EMAIL), NOW))
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", null, EMAIL), NOW))
+            new MemberRegisterInfo(KAKAO_1, "테스트회원", null), NOW))
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", "테스트회원", null), NOW))
-            .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", "테스트회원", EMAIL), null))
+            new MemberRegisterInfo(KAKAO_1, "테스트회원", EMAIL), null))
             .isInstanceOf(NullPointerException.class);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", " "})
-    @DisplayName("닉네임이나 소셜 사용자 ID나 이메일이 비어 있으면 가입할 수 없다")
+    @DisplayName("닉네임이나 이메일이 비어 있으면 가입할 수 없다")
     void registerRejectsBlank(String blank) {
         assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(OAuthProvider.KAKAO, blank, "테스트회원", EMAIL), NOW))
+            new MemberRegisterInfo(KAKAO_1, blank, EMAIL), NOW))
             .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", blank, EMAIL), NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", "테스트회원", blank), NOW))
+            new MemberRegisterInfo(KAKAO_1, "테스트회원", blank), NOW))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -85,7 +80,7 @@ class MemberTest {
     @DisplayName("닉네임이 2~20자가 아니거나 앞뒤에 공백이 있으면 가입할 수 없다")
     void registerRejectsNicknameLength(String nickname) {
         assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", nickname, EMAIL), NOW))
+            new MemberRegisterInfo(KAKAO_1, nickname, EMAIL), NOW))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -93,7 +88,7 @@ class MemberTest {
     @ValueSource(strings = {"하은", "가나다라마바사아자차카타파하가나다라마바"})
     @DisplayName("닉네임이 정확히 2자이거나 20자여도 가입하고 바꿀 수 있다")
     void acceptsNicknameBoundaryLength(String nickname) {
-        var registered = Member.register(new MemberRegisterInfo(OAuthProvider.KAKAO, "kakao-1", nickname, EMAIL), NOW);
+        var registered = Member.register(new MemberRegisterInfo(KAKAO_1, nickname, EMAIL), NOW);
         var member = MemberFixture.kakaoMember();
 
         assertThat(registered.getNickname()).isEqualTo(nickname);
