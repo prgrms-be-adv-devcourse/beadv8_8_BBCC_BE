@@ -101,7 +101,13 @@ class ProductImageUrlsTest {
             arguments(named("받지 않는 확장자 gif", OWN_PREFIX + id + ".gif")),
             arguments(named("대문자 확장자", OWN_PREFIX + id + ".JPG")),
             arguments(named("본인 경로만", OWN_PREFIX)),
-            arguments(named("빈 문자열", "")));
+            arguments(named("빈 문자열", "")),
+            // 브라우저는 %2e%2e를 ..로 보고 경로를 정리하므로 다른 판매자 이미지를 가리킬 수 있다
+            arguments(named("퍼센트 인코딩한 상위 경로", OWN_PREFIX + "%2e%2e/23/" + id + ".jpg")),
+            arguments(named("프래그먼트 붙음", OWN_JPG + "#x")),
+            arguments(named("빈 경로 칸", OWN_PREFIX + "/" + id + ".jpg")),
+            arguments(named("이중 확장자", OWN_PREFIX + id + ".jpg.html")),
+            arguments(named("끝 공백", OWN_JPG + " ")));
     }
 
     @ParameterizedTest(name = "{0}")
