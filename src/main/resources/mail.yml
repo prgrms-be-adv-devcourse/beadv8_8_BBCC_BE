@@ -1,0 +1,29 @@
+# 메일 발송 설정 (global.mail.EmailSender). application.yml이 가져온다
+
+# Gmail SMTP. 팀 공용 계정과 앱 비밀번호(2단계 인증을 켠 뒤 발급)를 쓴다
+spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      # SMTP가 느려도 요청이 오래 묶이지 않게 한다 (ms)
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+# 메일 헬스체크를 끈다. SMTP 장애로 /actuator/health가 DOWN이 되면 배포 healthcheck가 실패한다
+management:
+  health:
+    mail:
+      enabled: false
+
+kidly:
+  mail:
+    # false면 보내지 않고 받는 사람 · 제목만 로그로 남긴다 (로컬 · 테스트 기본)
+    enabled: ${MAIL_ENABLED:false}
+    # 보내는 주소. 켰으면 필수 (없으면 기동 실패)
+    from: ${MAIL_FROM:${MAIL_USERNAME:}}

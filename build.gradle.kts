@@ -65,6 +65,9 @@ dependencies {
     // 헬스체크 (/actuator/health). 배포 시 docker compose healthcheck가 호출한다
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
+    // 메일 발송 (global.mail.EmailSender, Gmail SMTP). kidly.mail.enabled가 false면 보내지 않고 로그만 남긴다
+    implementation("org.springframework.boot:spring-boot-starter-mail")
+
     // Lombok
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
