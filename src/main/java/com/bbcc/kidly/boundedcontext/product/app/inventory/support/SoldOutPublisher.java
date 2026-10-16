@@ -7,13 +7,15 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 재고를 차감하거나 판매자가 재고를 조정한 뒤 품절이 된 옵션이 있으면, 그 옵션이 속한 상품마다 상품 정보 변경됨을 발행한다.
+ * 재고를 차감하거나 판매자가 재고를 조정하거나 주문 취소로 재고를 되돌린 뒤 품절 여부가 바뀐 옵션이 있으면,
+ * 그 옵션이 속한 상품마다 상품 정보 변경됨을 발행한다.
  * 재고를 바꾸는 트랜잭션 안에서 불러야 한다. 재고 변경이 커밋될 때만 상품 정보 변경됨이 나가게 하기 위해서다.
  */
 @Component
@@ -43,7 +45,17 @@ public class SoldOutPublisher {
     // 판매를 시작하기 전 상품의 품절 여부는 판매를 시작할 때 나가는 상품 정보 변경됨에 담기므로 여기서는 보내지 않는다
     // 판매 상태는 상품 행을 잠근 뒤에 읽는다. 판매 시작과 동시에 와도 잠금이 풀린 뒤의 상태를 바르게 본다
     public void publishAfterAdjustment(long optionId) {
-        for (Product product : productRepository.lockAllHavingOptions(List.of(optionId))) {
+        publishStartedSaleProducts(List.of(optionId));
+    }
+
+    // 주문 취소로 재고를 되돌려 품절이 풀린 옵션이 속한 상품의 상품 정보 변경됨을 발행한다
+    // 재고 행을 먼저 바꾸고 상품 행을 나중에 잠가, 차감 · 조정과 잠금 순서가 같다
+    public void publishAfterRestoration(Collection<Long> optionIds) {
+        publishStartedSaleProducts(optionIds);
+    }
+
+    private void publishStartedSaleProducts(Collection<Long> optionIds) {
+        for (Product product : productRepository.lockAllHavingOptions(optionIds)) {
             if (product.hasStartedSale()) {
                 publishProductChanged(product);
             }
