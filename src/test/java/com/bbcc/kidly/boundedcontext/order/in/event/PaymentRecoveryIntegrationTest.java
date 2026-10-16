@@ -305,7 +305,8 @@ class PaymentRecoveryIntegrationTest {
                 () -> recoveryService.cancel(recoveryId)),
                 PaymentRecoveryIntegrationTest::isLostOrClosed);
 
-            assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
+            int currentRound = round;
+            assertThat(outcome.unexpected()).as(() -> diagnose(currentRound, order, outcome)).isEmpty();
             PaymentRecovery.Status recovery = recoveryOf(order).getStatus();
             Order.Status orderStatus = orderRepository.findById(order.orderId()).orElseThrow().getStatus();
             long cancelled = cancelledEventsOf(order.orderId());
@@ -322,6 +323,31 @@ class PaymentRecoveryIntegrationTest {
             outcomes.add(recovery.name());
         }
         assertThat(outcomes).hasSize(5);
+    }
+
+    /**
+     * 동시성 실패를 CI 로그만으로 볼 수 있게: 그 회차의 주문 · 기록 상태 · order.cancelled 수와
+     * 허용 목록 밖 예외마다 클래스 · 메시지 · 원인 사슬 · suppressed를 남긴다.
+     */
+    private String diagnose(int round, OrderDetail order, ConcurrentCalls.Outcome outcome) {
+        StringBuilder text = new StringBuilder(round + "회차 허용 목록 밖 예외")
+            .append(" orderStatus=").append(orderRepository.findById(order.orderId())
+                .map(stored -> stored.getStatus().name()).orElse("none"))
+            .append(" recoveryStatus=").append(recoveryRepository.findByOrderId(order.orderId())
+                .map(stored -> stored.getStatus() + " attemptCount=" + stored.getAttemptCount()).orElse("none"))
+            .append(" orderCancelled=").append(cancelledEventsOf(order.orderId()))
+            .append(" deliveries=").append(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId()).size())
+            .append(" conflicts=").append(outcome.conflicts());
+        for (Throwable error : outcome.unexpected()) {
+            text.append("\n- ");
+            for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+                text.append(cause.getClass().getName()).append(": ").append(cause.getMessage()).append("\n    <- ");
+            }
+            for (Throwable suppressed : error.getSuppressed()) {
+                text.append("\n    suppressed ").append(suppressed);
+            }
+        }
+        return text.toString();
     }
 
     /**
