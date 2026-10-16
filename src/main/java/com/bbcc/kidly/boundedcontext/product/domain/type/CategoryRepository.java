@@ -5,6 +5,9 @@ import java.util.Optional;
 
 public interface CategoryRepository {
 
+    // 카테고리를 저장한다. 말단 카테고리이면 필수 실측 항목도 함께 저장한다
+    Category save(Category category);
+
     // 카테고리를 ID로 찾는다. 없으면 빈 값을 돌려준다
     Optional<Category> findById(Long id);
 
