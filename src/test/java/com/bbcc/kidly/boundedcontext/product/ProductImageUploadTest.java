@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.product.domain.image.ProductImageUpload;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -50,5 +51,12 @@ class ProductImageUploadTest {
     void rejectOutOfRangeSize(long contentLength) {
         assertThatThrownBy(() -> ProductImageUpload.of("image/jpeg", contentLength))
             .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("형식이 없으면 업로드를 만들지 않는다")
+    void rejectNullContentType() {
+        assertThatThrownBy(() -> ProductImageUpload.of(null, 1_000L))
+            .isInstanceOf(NullPointerException.class);
     }
 }
