@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOption
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
@@ -22,11 +23,21 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class ProductOptionPriceTest {
 
     private final ClothingOptions clothing = clothingOptions();
     private final Product product = productA(clothing);
+
+    private final Attribute color = ProductTypeFixture.color();
+    private final Attribute size = ProductTypeFixture.size();
+    private final AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
+    private final AttributeValue oatmeal = AttributeValue.create(color, "오트밀", "#e3d9c6");
+    private final AttributeValue size110 = AttributeValue.create(size, "110", null);
+    private final AttributeValue size120 = AttributeValue.create(size, "120", null);
+    private final ProductType colorPriced = ProductType.define("색상별 가격 의류", List.of(
+        ProductTypeFixture.priceAffectingOption(color), ProductTypeFixture.sizeOption(size)));
 
     @Test
     @DisplayName("PRICE-03 가격 구분 묶음의 가격을 그 묶음의 옵션 전체에 넣는다")
@@ -108,23 +119,32 @@ class ProductOptionPriceTest {
     @Test
     @DisplayName("PRICE-03 가격 구분 항목이 있는 유형은 옵션 순서대로 묶음마다 가격 하나를 만든다")
     void currentPricesPerPriceGroup() {
-        Attribute color = ProductTypeFixture.color();
-        Attribute size = ProductTypeFixture.size();
-        AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
-        AttributeValue oatmeal = AttributeValue.create(color, "오트밀", "#e3d9c6");
-        AttributeValue size110 = AttributeValue.create(size, "110", null);
-        AttributeValue size120 = AttributeValue.create(size, "120", null);
-        // 색상에 따라 가격이 달라지는 유형이다
-        ProductType colorPriced = ProductType.define("색상별 가격 의류", List.of(
-            ProductTypeFixture.priceAffectingOption(color), ProductTypeFixture.sizeOption(size)));
+        Product colorPricedProduct = colorPricedProductWithOptions();
+
+        assertThat(colorPricedProduct.currentPrices(colorPriced)).containsExactly(
+            new Product.PriceInfo(List.of(navy), 25_000L),
+            new Product.PriceInfo(List.of(oatmeal), 27_000L));
+    }
+
+    @Test
+    @DisplayName("SALE-06 보관한 옵션의 가격 구분 묶음은 지금 가격 묶음에 넣지 않는다")
+    void currentPricesSkipArchivedOptions() {
+        Product colorPricedProduct = colorPricedProductWithOptions();
+        // 보관하는 업무 메서드가 아직 없어서 오트밀 · 110 옵션의 상태를 직접 바꾼다
+        ProductOption oatmeal110 = colorPricedProduct.getOptions().get(1);
+        ReflectionTestUtils.setField(oatmeal110, "saleStatus", ProductOptionStatus.ARCHIVED);
+
+        assertThat(colorPricedProduct.currentPrices(colorPriced))
+            .containsExactly(new Product.PriceInfo(List.of(navy), 25_000L));
+    }
+
+    // 색상에 따라 가격이 달라지는 유형의 상품에 네이비 · 110(25,000원), 오트밀 · 110(27,000원), 네이비 · 120(25,000원)을 넣는다
+    private Product colorPricedProductWithOptions() {
         Product colorPricedProduct = Product.register(ProductFixture.productAWith(colorPriced, List.of()));
         colorPricedProduct.addOptions(new Product.AddOptionsInfo(SELLER_ID,
             List.of(option(navy, size110), option(oatmeal, size110), option(navy, size120)),
             List.of(new Product.PriceInfo(List.of(oatmeal), 27_000L), new Product.PriceInfo(List.of(navy), 25_000L))),
             colorPriced);
-
-        assertThat(colorPricedProduct.currentPrices(colorPriced)).containsExactly(
-            new Product.PriceInfo(List.of(navy), 25_000L),
-            new Product.PriceInfo(List.of(oatmeal), 27_000L));
+        return colorPricedProduct;
     }
 }

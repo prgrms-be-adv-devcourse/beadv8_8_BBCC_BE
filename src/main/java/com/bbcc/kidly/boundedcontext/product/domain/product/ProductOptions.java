@@ -264,10 +264,10 @@ final class ProductOptions {
         return sorted;
     }
 
-    // 옵션들의 가격 구분 묶음마다 그 묶음의 가격 하나를 만든다. 같은 묶음의 옵션은 가격이 같으므로(PRICE-03) 처음 나온 옵션의 가격을 쓴다
+    // 옵션들의 가격 구분 묶음마다 그 묶음의 가격 하나를 만든다. 보관 옵션은 뺀다. 같은 묶음의 옵션은 가격이 같으므로(PRICE-03) 처음 나온 옵션의 가격을 쓴다
     static List<PriceInfo> currentPrices(List<ProductOption> options, ProductType productType) {
         Map<Set<AttributeValue>, PriceInfo> groups = new LinkedHashMap<>();
-        for (ProductOption option : options) {
+        for (ProductOption option : activeOptions(options)) {
             Set<AttributeValue> group = priceGroup(valuesOf(option), productType);
             groups.putIfAbsent(group, new PriceInfo(new ArrayList<>(group), option.getPrice()));
         }
