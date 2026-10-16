@@ -85,7 +85,7 @@ public class ProductType extends BaseTimeEntity {
             throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUES_MISSING);
         }
         if (hasAllowedValuesOnAllValuesAllowed(links)) {
-            throw new IllegalArgumentException("모든 값 허용 항목에는 허용 값을 연결하지 않습니다");
+            throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUES_ON_ALL_VALUES);
         }
         if (hasAllowedValueOfOtherAttribute(links)) {
             throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUE_OF_OTHER_ATTRIBUTE);

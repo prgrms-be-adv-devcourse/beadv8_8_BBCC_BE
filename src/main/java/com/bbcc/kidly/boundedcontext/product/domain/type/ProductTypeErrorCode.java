@@ -21,7 +21,8 @@ public enum ProductTypeErrorCode implements ErrorCode {
     PRICE_AFFECTING_ON_INFO(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "가격 구분은 옵션 항목에만 둘 수 있습니다."),
     OPTION_NOT_SINGLE_CHOICE(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "옵션 항목은 팔레트나 목록 항목만 될 수 있습니다."),
     ALLOWED_VALUES_MISSING(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "모든 값을 허용하지 않는 항목에는 허용 값을 하나 이상 골라 주세요."),
-    ALLOWED_VALUE_OF_OTHER_ATTRIBUTE(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "허용 값은 그 항목의 목록 값에서 골라 주세요.");
+    ALLOWED_VALUE_OF_OTHER_ATTRIBUTE(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "허용 값은 그 항목의 목록 값에서 골라 주세요."),
+    ALLOWED_VALUES_ON_ALL_VALUES(HttpStatus.BAD_REQUEST, "상품 유형 설정이 잘못되었습니다", "모든 값을 허용하는 항목에는 허용 값을 고르지 않습니다.");
 
     private final HttpStatus status;
     private final String title;

@@ -217,8 +217,10 @@ class ProductTypeTest {
             sizeOption(size()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("모든 값 허용 항목에는 허용 값을");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.ALLOWED_VALUES_ON_ALL_VALUES);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @ParameterizedTest(name = "{0}")
