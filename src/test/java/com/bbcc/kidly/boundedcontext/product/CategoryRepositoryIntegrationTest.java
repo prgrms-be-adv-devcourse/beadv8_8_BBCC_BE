@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -116,8 +117,10 @@ class CategoryRepositoryIntegrationTest {
             Category proxy = entityManager.getReference(Category.class, top.getId());
 
             assertThatThrownBy(() -> Category.createMiddle("반팔", proxy))
-                .isInstanceOfSatisfying(BusinessException.class,
-                    e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.PARENT_IS_LEAF));
+                .isInstanceOfSatisfying(BusinessException.class, e -> {
+                    assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.PARENT_IS_LEAF);
+                    assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+                });
         });
     }
 
