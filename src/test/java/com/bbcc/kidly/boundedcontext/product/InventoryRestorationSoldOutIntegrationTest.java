@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ConcurrentTasks.runRacing;
 import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.cancelledItem;
 import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.orderCancelled;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
@@ -10,11 +11,14 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
+import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryRestorationService;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +44,9 @@ class InventoryRestorationSoldOutIntegrationTest {
 
     @Autowired
     private InventoryDeductionService inventoryDeductionService;
+
+    @Autowired
+    private InventoryRestorationService inventoryRestorationService;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -105,6 +112,25 @@ class InventoryRestorationSoldOutIntegrationTest {
                 .containsExactlyInAnyOrder(
                     tuple(options.navy110().getId(), false),
                     tuple(options.navy120().getId(), false)));
+    }
+
+    @Test
+    @DisplayName("INV-08 품절된 옵션을 되돌리는 같은 주문 취소됨을 다섯 스레드가 동시에 처리해도 재고를 한 번만 되돌리고 상품 정보 변경됨도 한 번만 보낸다")
+    void sendProductChangedOnceWhenSameEventIsRestoredConcurrently() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(2, 5);
+        deductAndClearEvents(orderItem(11L, options.navy110(), 2));
+        OrderCancelledEvent event = orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2));
+        List<Runnable> deliveries = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            deliveries.add(() -> inventoryRestorationService.restore(event));
+        }
+
+        // 재고 행을 잠가 다섯 스레드가 모두 DEDUCTED 기록을 읽은 뒤 복구에서 겹치게 한다.
+        // 한 스레드는 그 재고 행을, 나머지 넷은 그 스레드가 바꾼 차감 기록 행을 기다린다
+        runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(options.navy110()), deliveries);
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(2);
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).hasSize(1);
     }
 
     // 주문 생성됨으로 차감하고, 차감이 보낸 이벤트는 지워 주문 취소됨이 보낸 이벤트만 남게 한다
