@@ -76,7 +76,7 @@ public class ProductType extends BaseTimeEntity {
             throw new BusinessException(ProductTypeErrorCode.SIZE_ROLE_ON_INFO);
         }
         if (hasPriceAffectingOnInfo(links)) {
-            throw new IllegalArgumentException("값에 따라 가격이 달라지는 항목은 옵션 항목에만 둘 수 있습니다");
+            throw new BusinessException(ProductTypeErrorCode.PRICE_AFFECTING_ON_INFO);
         }
         if (hasNonSingleChoiceOption(links)) {
             throw new IllegalArgumentException("옵션 항목은 팔레트나 목록 항목만 될 수 있습니다");

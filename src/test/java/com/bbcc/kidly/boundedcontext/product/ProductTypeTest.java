@@ -139,8 +139,10 @@ class ProductTypeTest {
             requiredOption(color()), sizeOption(size()), priceAffectingInfo(mainMaterial()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("가격이 달라지는 항목은 옵션 항목");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.PRICE_AFFECTING_ON_INFO);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @ParameterizedTest(name = "{0}")
