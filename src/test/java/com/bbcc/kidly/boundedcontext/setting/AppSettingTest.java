@@ -9,22 +9,18 @@ import org.junit.jupiter.api.Test;
 class AppSettingTest {
 
     @Test
-    @DisplayName("기본 설정은 목 데이터 · 시연 역할 전환을 모두 켠다")
+    @DisplayName("기본 설정은 목 데이터를 켠다")
     void defaults() {
-        AppSetting setting = AppSetting.defaults();
-
-        assertThat(setting.isMockEnabled()).isTrue();
-        assertThat(setting.isDemoRoleSwitchEnabled()).isTrue();
+        assertThat(AppSetting.defaults().isMockEnabled()).isTrue();
     }
 
     @Test
-    @DisplayName("바꾸면 두 값을 받은 대로 바꾼다")
+    @DisplayName("바꾸면 받은 값으로 바꾼다")
     void change() {
         AppSetting setting = AppSetting.defaults();
 
-        setting.change(false, true);
+        setting.change(false);
 
         assertThat(setting.isMockEnabled()).isFalse();
-        assertThat(setting.isDemoRoleSwitchEnabled()).isTrue();
     }
 }

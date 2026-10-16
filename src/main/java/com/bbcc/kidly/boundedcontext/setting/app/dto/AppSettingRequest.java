@@ -3,10 +3,9 @@ package com.bbcc.kidly.boundedcontext.setting.app.dto;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * 설정 변경. 두 값을 모두 보낸다.
+ * 설정 변경.
  *
- * @param useMock        FE 목 데이터 사용
- * @param demoRoleSwitch FE 시연 역할 전환 표시
+ * @param useMock FE 목 데이터 사용
  */
-public record AppSettingRequest(@NotNull Boolean useMock, @NotNull Boolean demoRoleSwitch) {
+public record AppSettingRequest(@NotNull Boolean useMock) {
 }

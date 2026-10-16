@@ -33,18 +33,18 @@ class AppSettingServiceTest {
     @DisplayName("저장된 설정을 준다")
     void get() {
         AppSetting stored = AppSetting.defaults();
-        stored.change(false, true);
+        stored.change(false);
         given(appSettingRepository.findById(AppSetting.ID)).willReturn(Optional.of(stored));
 
-        assertThat(appSettingService.get()).isEqualTo(new AppSettingResult(false, true));
+        assertThat(appSettingService.get()).isEqualTo(new AppSettingResult(false));
     }
 
     @Test
-    @DisplayName("저장된 설정이 없으면 기본값(둘 다 켬)을 준다")
+    @DisplayName("저장된 설정이 없으면 기본값(켬)을 준다")
     void getDefaults() {
         given(appSettingRepository.findById(AppSetting.ID)).willReturn(Optional.empty());
 
-        assertThat(appSettingService.get()).isEqualTo(new AppSettingResult(true, true));
+        assertThat(appSettingService.get()).isEqualTo(new AppSettingResult(true));
     }
 
     @Test
@@ -53,11 +53,10 @@ class AppSettingServiceTest {
         AppSetting stored = AppSetting.defaults();
         given(appSettingRepository.findById(AppSetting.ID)).willReturn(Optional.of(stored));
 
-        AppSettingResult result = appSettingService.update(new AppSettingRequest(false, false));
+        AppSettingResult result = appSettingService.update(new AppSettingRequest(false));
 
-        assertThat(result).isEqualTo(new AppSettingResult(false, false));
+        assertThat(result).isEqualTo(new AppSettingResult(false));
         assertThat(stored.isMockEnabled()).isFalse();
-        assertThat(stored.isDemoRoleSwitchEnabled()).isFalse();
         then(appSettingRepository).should(never()).save(any());
     }
 
@@ -67,13 +66,12 @@ class AppSettingServiceTest {
         given(appSettingRepository.findById(AppSetting.ID)).willReturn(Optional.empty());
         given(appSettingRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 
-        AppSettingResult result = appSettingService.update(new AppSettingRequest(true, false));
+        AppSettingResult result = appSettingService.update(new AppSettingRequest(false));
 
         ArgumentCaptor<AppSetting> saved = ArgumentCaptor.forClass(AppSetting.class);
         then(appSettingRepository).should().save(saved.capture());
         assertThat(saved.getValue().getId()).isEqualTo(AppSetting.ID);
-        assertThat(saved.getValue().isMockEnabled()).isTrue();
-        assertThat(saved.getValue().isDemoRoleSwitchEnabled()).isFalse();
-        assertThat(result).isEqualTo(new AppSettingResult(true, false));
+        assertThat(saved.getValue().isMockEnabled()).isFalse();
+        assertThat(result).isEqualTo(new AppSettingResult(false));
     }
 }

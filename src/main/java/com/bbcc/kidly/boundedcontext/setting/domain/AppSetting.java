@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * FE 동작 설정. 서비스 전체에 하나뿐이라 ID가 항상 {@link #ID}다.
- * 바꾸기 전 기본값은 둘 다 켬이다 (FE 빌드 값의 기본값과 같다).
+ * 바꾸기 전 기본값은 목 데이터 켬이다 (FE 빌드 값의 기본값과 같다).
  */
 @Entity
 @Table(schema = "setting", name = "app_setting")
@@ -28,22 +28,16 @@ public class AppSetting extends BaseTimeEntity {
     @Column(name = "is_mock_enabled", nullable = false)
     private boolean mockEnabled;
 
-    // FE 시연 역할 전환(개발용 토큰으로 보호자 · 판매자 · 관리자 전환)을 보여 준다
-    @Column(name = "is_demo_role_switch_enabled", nullable = false)
-    private boolean demoRoleSwitchEnabled;
-
-    private AppSetting(boolean mockEnabled, boolean demoRoleSwitchEnabled) {
+    private AppSetting(boolean mockEnabled) {
         this.id = ID;
         this.mockEnabled = mockEnabled;
-        this.demoRoleSwitchEnabled = demoRoleSwitchEnabled;
     }
 
     public static AppSetting defaults() {
-        return new AppSetting(true, true);
+        return new AppSetting(true);
     }
 
-    public void change(boolean mockEnabled, boolean demoRoleSwitchEnabled) {
+    public void change(boolean mockEnabled) {
         this.mockEnabled = mockEnabled;
-        this.demoRoleSwitchEnabled = demoRoleSwitchEnabled;
     }
 }

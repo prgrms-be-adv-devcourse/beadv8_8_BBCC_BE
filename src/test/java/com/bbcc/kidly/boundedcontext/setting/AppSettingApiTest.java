@@ -22,14 +22,14 @@ class AppSettingApiTest {
     private TestTokens tokens;
 
     @Test
-    @DisplayName("로그인하지 않아도 설정을 조회한다. 바꾼 적이 없으면 둘 다 켜져 있다")
+    @DisplayName("로그인하지 않아도 설정을 조회한다. 바꾼 적이 없으면 목 데이터가 켜져 있다")
     void getDefaults() {
         client.get().uri(PATH)
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.useMock").isEqualTo(true)
-            .jsonPath("$.demoRoleSwitch").isEqualTo(true);
+            .jsonPath("$.demoRoleSwitch").doesNotExist();
     }
 
     @Test
@@ -39,20 +39,18 @@ class AppSettingApiTest {
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
             .contentType(MediaType.APPLICATION_JSON)
             .body("""
-                {"useMock": false, "demoRoleSwitch": true}
+                {"useMock": false}
                 """)
             .exchange()
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.useMock").isEqualTo(false)
-            .jsonPath("$.demoRoleSwitch").isEqualTo(true);
+            .jsonPath("$.useMock").isEqualTo(false);
 
         client.get().uri(PATH)
             .exchange()
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.useMock").isEqualTo(false)
-            .jsonPath("$.demoRoleSwitch").isEqualTo(true);
+            .jsonPath("$.useMock").isEqualTo(false);
     }
 
     @Test
@@ -62,7 +60,7 @@ class AppSettingApiTest {
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
             .contentType(MediaType.APPLICATION_JSON)
             .body("""
-                {"useMock": false}
+                {}
                 """)
             .exchange()
             .expectStatus().isBadRequest()
@@ -75,7 +73,7 @@ class AppSettingApiTest {
         client.put().uri(ADMIN_PATH)
             .contentType(MediaType.APPLICATION_JSON)
             .body("""
-                {"useMock": false, "demoRoleSwitch": false}
+                {"useMock": false}
                 """)
             .exchange()
             .expectStatus().isUnauthorized();
@@ -88,7 +86,7 @@ class AppSettingApiTest {
             .headers(headers -> headers.setBearerAuth(tokens.buyer(1L)))
             .contentType(MediaType.APPLICATION_JSON)
             .body("""
-                {"useMock": false, "demoRoleSwitch": false}
+                {"useMock": false}
                 """)
             .exchange()
             .expectStatus().isForbidden();
