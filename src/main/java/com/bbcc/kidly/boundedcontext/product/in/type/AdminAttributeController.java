@@ -7,9 +7,12 @@ import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeValueRequest;
 import com.bbcc.kidly.boundedcontext.product.in.type.dto.AttributeResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,6 +37,15 @@ public class AdminAttributeController {
         AttributeResult result = attributeService.create(request);
         response.setHeader(HttpHeaders.LOCATION, "/api/v1/admin/attributes/" + result.attributeId());
         return AttributeResponse.from(result);
+    }
+
+    @GetMapping
+    public List<AttributeResponse> list() {
+        List<AttributeResponse> responses = new ArrayList<>();
+        for (AttributeResult result : attributeService.findAll()) {
+            responses.add(AttributeResponse.from(result));
+        }
+        return responses;
     }
 
     @PostMapping("/{attributeId}/values")

@@ -71,6 +71,33 @@ class AdminAttributeApiTest {
             .jsonPath("$.colorCode").isEqualTo("#e3d3bc");
     }
 
+    @Test
+    @DisplayName("항목 목록은 항목과 값 모두 ID 순서이고, 값이 없는 항목은 빈 목록, 색 코드가 없는 값은 null이다")
+    void listAttributes() {
+        post(tokens.admin(ADMIN_ID), PATH, Map.of("name", "색상", "code", "COLOR", "inputType", "PALETTE",
+            "values", List.of(Map.of("name", "네이비", "colorCode", "#2f3e5c"))))
+            .expectStatus().isCreated();
+        post(tokens.admin(ADMIN_ID), PATH, Map.of("name", "사이즈", "code", "SIZE", "inputType", "LIST",
+            "values", List.of(Map.of("name", "110"), Map.of("name", "120"))))
+            .expectStatus().isCreated();
+        createdAttributeId("FABRIC_COMPOSITION", "TEXT");
+
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$[*].code").isEqualTo(List.of("COLOR", "SIZE", "FABRIC_COMPOSITION"))
+            .jsonPath("$[0].values[*].name").isEqualTo(List.of("네이비"))
+            .jsonPath("$[0].values[0].colorCode").isEqualTo("#2f3e5c")
+            .jsonPath("$[1].values[*].name").isEqualTo(List.of("110", "120"))
+            .jsonPath("$[1].values[0]")
+            .value(value -> assertThat((Map<String, Object>) value).containsEntry("colorCode", null))
+            .jsonPath("$[2].inputType").isEqualTo("TEXT")
+            .jsonPath("$[2].values").isArray()
+            .jsonPath("$[2].values").isEmpty();
+    }
+
     // 값 없이 항목 하나를 만들고 그 ID를 돌려준다
     private String createdAttributeId(String code, String inputType) {
         Map<?, ?> body = post(tokens.admin(ADMIN_ID), PATH,
