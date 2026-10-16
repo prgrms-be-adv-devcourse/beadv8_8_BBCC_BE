@@ -44,16 +44,16 @@ public class RefreshTokenService {
             .filter(refreshToken -> refreshToken.isUsable(now))
             .orElseThrow(RefreshTokenService::invalid);
         var memberId = saved.getMemberId();
-        if (!memberRepository.findById(memberId).map(Member::canLogin).orElse(false)) {
-            throw invalid();
-        }
+        var member = memberRepository.findById(memberId)
+            .filter(Member::canLogin)
+            .orElseThrow(RefreshTokenService::invalid);
         var newToken = RefreshToken.generate();
         var rotated = refreshTokenRepository.rotate(
             memberId, saved.getTokenHash(), RefreshToken.hashOf(newToken), now.plus(properties.validity()), now);
         if (rotated != 1) {
             throw invalid();
         }
-        return new ReissuedToken(memberId, newToken);
+        return new ReissuedToken(member, newToken);
     }
 
     @Transactional

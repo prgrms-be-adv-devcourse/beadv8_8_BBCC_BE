@@ -48,7 +48,7 @@ class SellerSuspensionIntegrationTest {
         sellerService.suspend(member.getId(), SellerFixture.ADMIN_ID, new SellerSuspendRequest("허위 상품 등록 신고"));
 
         assertThat(memberRepository.findById(member.getId()).orElseThrow().isActiveSeller()).isFalse();
-        var jwt = jwtDecoder.decode(authTokenService.issueAccessToken(member.getId()));
+        var jwt = jwtDecoder.decode(authTokenService.issueAccessToken(memberRepository.getById(member.getId())));
         assertThat(jwt.getClaimAsStringList("roles")).doesNotContain("SELLER");
     }
 }

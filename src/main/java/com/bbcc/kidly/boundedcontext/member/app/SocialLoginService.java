@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.member.app;
 
-import com.bbcc.kidly.boundedcontext.member.app.dto.LoggedInMember;
 import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.OAuthClient;
 import com.bbcc.kidly.boundedcontext.member.app.port.OAuthProfile;
@@ -19,7 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * 소셜 계정으로 로그인한다. 처음이면 가입시킨다. 토큰은 {@link AuthTokenService}가 발급한다.
+ * 소셜 계정으로 로그인한다. 처음이면 가입시킨다. 토큰은 {@link AuthService}가 발급한다.
  * 트랜잭션을 걸지 않는다. 동시 가입으로 가입 트랜잭션이 롤백돼도 다시 조회할 수 있어야 하기 때문이다.
  * 소셜 제공자 호출도 트랜잭션 밖이라서 제공자가 느려도 DB 커넥션을 붙잡지 않는다.
  */
@@ -33,7 +32,7 @@ public class SocialLoginService {
     private final OAuthClient oauthClient;
 
     // provider는 URL 경로의 소문자 이름(kakao)이다
-    public LoggedInMember login(String providerName, SocialLoginRequest request) {
+    public Member login(String providerName, SocialLoginRequest request) {
         var provider = OAuthProvider.from(providerName);
         var profile = oauthClient.fetchProfile(provider, request.code());
         var identity = new SocialIdentity(provider, profile.providerUserId());
@@ -42,7 +41,7 @@ public class SocialLoginService {
         if (!member.canLogin()) {
             throw new BusinessException(MemberErrorCode.LOGIN_NOT_ALLOWED);
         }
-        return new LoggedInMember(member.getId());
+        return member;
     }
 
     // 같은 소셜 계정으로 동시에 처음 로그인하면 한 요청만 가입되고, 나머지는 그 회원으로 로그인한다
