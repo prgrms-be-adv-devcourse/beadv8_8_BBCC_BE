@@ -57,7 +57,10 @@
 | FAILED · REFUNDED | 아무것도 안 함 (같은 취소가 다시 와도 한 번만 환불) |
 | 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그 |
 
-- 로컬 DB: `refund.cancellation_id`가 NOT NULL로 만들어져 있으면 `ALTER TABLE payment.refund ALTER COLUMN cancellation_id DROP NOT NULL`이 필요하다(ddl update는 제약을 고치지 않는다)
+- 처리 실패 대비(#350): 리스너 실패는 이벤트를 다시 받을 수 없어서 결제 안에서 메운다
+  - `handle`은 리스너와 다른 트랜잭션(`REQUIRES_NEW`)이다. 실패하면 처리한 것만 롤백되고, 리스너가 `order_cancellation_retry`(`order_id` UK)에 남긴다(ERROR 로그)
+  - `OrderCancellationRetryScheduler`가 주기(`kidly.payment.order-cancellation.retry-interval`, 기본 1분)마다 다시 처리한다. 성공하면 지우고, 실패하면 시도 횟수 · 마지막 오류를 남긴다. 횟수 제한은 없다
+  - 위 표대로 같은 취소는 한 번만 반영되므로 여러 번 다시 처리해도 된다
 
 ## 충전 취소 (#192)
 - `POST /api/v1/wallets/me/charges/{chargeId}/cancel`. 완료(DONE) 충전만 전액 취소한다. 충전액만큼 잔액이 있어야 하고, 모자라면 409 `CHARGE_CANCEL_BALANCE_SHORT`

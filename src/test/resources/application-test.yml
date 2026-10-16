@@ -30,6 +30,9 @@ kidly:
   payment:
     charge:
       reconcile-interval: P3650D
+    # 주문 취소 재처리 스케줄러도 같은 이유로 길게 둔다. 재처리 테스트는 OrderCancellationRetryScheduler를 직접 부른다
+    order-cancellation:
+      retry-interval: P3650D
   order:
     payment-expiry-interval: P3650D
     # 자동 구매확정 스케줄러도 같은 이유로 길게 둔다. 자동 확정 테스트는 OrderScheduler.autoConfirm()을 직접 부른다
