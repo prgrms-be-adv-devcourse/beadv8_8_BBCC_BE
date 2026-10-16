@@ -77,12 +77,13 @@ public class ProductUpdateService {
             SkuCodes.validateUnique(
                 skuCodes, productRepository.findSkuCodesInUseByOtherProducts(sellerId, productId, skuCodes));
         }
-        List<ProductOption> optionsBefore = List.copyOf(product.getOptions());
-        UpdateResult result = product.update(info, saleInputs);
-        // 이미지는 판매자 본인이 올린 것만 받는다. 다른 판매자의 요청이 403보다 400을 먼저 받지 않도록 등록한 판매자 확인(update) 뒤에
-        // 검사한다. 여기서 거절하면 트랜잭션이 되돌려 고친 내용은 저장되지 않는다
+        // 이미지는 판매자 본인이 올린 것만 받는다. 다른 판매자의 요청이 이미지 400을 먼저 받지 않도록 등록한 판매자부터 확인하고(403),
+        // 상품을 고치기 전에 검사해 잘못된 이미지로는 상품이 바뀌지 않게 한다 (update 안에서 등록한 판매자를 한 번 더 확인한다)
+        product.validateOwner(sellerId);
         ProductImageUrls.validate(
             request.thumbnailUrl(), request.imageUrls(), imageStorage.ownImageUrlPrefix(sellerId));
+        List<ProductOption> optionsBefore = List.copyOf(product.getOptions());
+        UpdateResult result = product.update(info, saleInputs);
         // 뺀 옵션의 재고는 상품을 고친 뒤 첫 flush보다 먼저 지운다. 옵션 삭제가 먼저 반영되면 재고 행이 옵션을 가리켜 막힌다
         inventoryRepository.deleteByOptionIds(idsOf(result.removedOptions()));
         if (result.changed()) {
