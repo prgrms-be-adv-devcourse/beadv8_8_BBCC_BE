@@ -27,7 +27,8 @@ final class ProductRegisterRequestFixture {
         body.put("categoryId", id(saved.top().getId()));
         body.put("description", "상품 설명");
         body.put("thumbnailUrl", null);
-        body.put("imageUrls", List.of("https://cdn.kidly.test/a-1.jpg"));
+        // 이미지는 등록한 판매자 본인 경로만 받으므로, 판매자가 테스트마다 달라도 되게 비워 둔다. 이미지 검사 테스트는 ownImageUrl로 넣는다
+        body.put("imageUrls", new ArrayList<>());
         body.put("attributes", new ArrayList<>(List.of(attribute(clothing.mainMaterial().getId(),
             List.of(id(clothing.cotton().getId()))))));
         body.put("options", new ArrayList<>(List.of(
@@ -38,6 +39,14 @@ final class ProductRegisterRequestFixture {
             sizeSpec(clothing.size110().getId(), 105, 115, 42, 30, 34, 38),
             sizeSpec(clothing.size120().getId(), 115, 125, 45, 32, 36, 41))));
         return body;
+    }
+
+    /**
+     * 판매자가 업로드 주소로 올린 이미지의 공개 주소다. 테스트 프로필은 key 경로가 test다.
+     */
+    static String ownImageUrl(long sellerId) {
+        return "https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com/test/products/" + sellerId
+            + "/0b8c1e2a-3d4f-4a5b-9c6d-7e8f9a0b1c2d.jpg";
     }
 
     @SuppressWarnings("unchecked")

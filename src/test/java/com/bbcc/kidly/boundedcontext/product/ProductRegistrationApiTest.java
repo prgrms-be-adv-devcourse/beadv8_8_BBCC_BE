@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixtur
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.measurements;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.ownImageUrl;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.prices;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.sizeSpecs;
@@ -15,6 +16,7 @@ import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -241,6 +243,8 @@ class ProductRegistrationApiTest {
                 "brand: 브랜드는 255자 이하로 입력해 주세요."),
             invalid("카테고리 없음", body -> body.put("categoryId", null), "categoryId: 카테고리를 골라 주세요."),
             invalid("이미지 목록 없음", body -> body.put("imageUrls", null), "imageUrls: 이미지 목록이 필요합니다."),
+            invalid("이미지 목록에 빈 칸", body -> body.put("imageUrls", Arrays.asList(ownImageUrl(SELLER_ID), null)),
+                "imageUrls[1]: 이미지 주소를 넣어 주세요."),
             invalid("정보 항목 목록 없음", body -> body.put("attributes", null), "attributes: 정보 항목 목록이 필요합니다."),
             invalid("옵션 목록 없음", body -> body.put("options", null), "options: 옵션 목록이 필요합니다."),
             invalid("가격 목록 없음", body -> body.put("prices", null), "prices: 가격 목록이 필요합니다."),
