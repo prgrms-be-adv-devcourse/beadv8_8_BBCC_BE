@@ -1,0 +1,68 @@
+package com.bbcc.kidly.boundedcontext.product;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.bbcc.kidly.support.FunctionalTest;
+import com.bbcc.kidly.support.TestTokens;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.client.RestTestClient;
+
+/**
+ * 관리자가 상품 항목과 목록 값을 만들고 조회하는 API를 HTTP 요청부터 응답까지 확인한다.
+ */
+@FunctionalTest
+class AdminAttributeApiTest {
+
+    private static final String PATH = "/api/v1/admin/attributes";
+    private static final Long ADMIN_ID = 3L;
+
+    @Autowired
+    private RestTestClient client;
+
+    @Autowired
+    private TestTokens tokens;
+
+    @Test
+    @DisplayName("항목을 목록 값과 함께 만들면 201과 Location, 넣은 순서대로 ID가 붙은 값을 준다")
+    void createAttribute() {
+        AtomicReference<String> location = new AtomicReference<>();
+
+        post(tokens.admin(ADMIN_ID), PATH, Map.of(
+            "name", "색상",
+            "code", "COLOR",
+            "inputType", "PALETTE",
+            "values", List.of(
+                Map.of("name", "네이비", "colorCode", "#2f3e5c"),
+                Map.of("name", "그레이", "colorCode", "#9e9e9e"))))
+            .expectStatus().isCreated()
+            .expectHeader().value(HttpHeaders.LOCATION, location::set)
+            .expectBody()
+            .jsonPath("$.attributeId").value(id -> assertThat(location.get()).isEqualTo(PATH + "/" + id))
+            .jsonPath("$.attributeId").value(id -> assertThat(id).isInstanceOf(String.class))
+            .jsonPath("$.name").isEqualTo("색상")
+            .jsonPath("$.code").isEqualTo("COLOR")
+            .jsonPath("$.inputType").isEqualTo("PALETTE")
+            .jsonPath("$.values[*].name").isEqualTo(List.of("네이비", "그레이"))
+            .jsonPath("$.values[*].colorCode").isEqualTo(List.of("#2f3e5c", "#9e9e9e"))
+            .jsonPath("$.values[0].valueId").value(id -> assertThat(id).isInstanceOf(String.class));
+    }
+
+    private RestTestClient.ResponseSpec post(String token, String path, Object body) {
+        return client.post().uri(path)
+            .headers(headers -> {
+                if (token != null) {
+                    headers.setBearerAuth(token);
+                }
+            })
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(body)
+            .exchange();
+    }
+}
