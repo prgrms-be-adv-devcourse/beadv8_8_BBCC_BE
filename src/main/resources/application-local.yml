@@ -30,6 +30,13 @@ logging:
   level:
     org.hibernate.SQL: debug
 
+# 로컬은 AWS에 접근할 수 없어 가짜 자격 증명으로 업로드 주소 형식만 만든다. 실제 업로드는 dev 서버에서 확인한다
+kidly:
+  product:
+    image:
+      s3:
+        fake-credentials: true
+
 # 카카오 로그인. 키는 카카오 개발자 콘솔에서 받아 환경 변수로 넣는다. 없어도 앱은 뜨고 로그인만 실패한다
 kakao:
   client-id: ${KAKAO_CLIENT_ID:}

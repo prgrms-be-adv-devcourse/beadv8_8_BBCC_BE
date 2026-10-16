@@ -20,6 +20,13 @@ kakao:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}
 
+# 상품 이미지 객체 key의 환경 경로. 서버는 기본값 없이 dev · prod를 반드시 넣는다(빠지면 기동 실패)
+kidly:
+  product:
+    image:
+      s3:
+        key-prefix: ${PRODUCT_IMAGE_KEY_PREFIX}
+
 springdoc:
   swagger-ui:
     enabled: true
