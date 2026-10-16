@@ -23,7 +23,8 @@ management:
 
 kidly:
   mail:
-    # false면 보내지 않고 받는 사람 · 제목만 로그로 남긴다 (로컬 · 테스트 기본)
-    enabled: ${MAIL_ENABLED:false}
-    # 보내는 주소. 켰으면 필수 (없으면 기동 실패)
-    from: ${MAIL_FROM:${MAIL_USERNAME:}}
+    # 기본 켬. false면 보내지 않고 받는 사람 · 제목만 로그로 남긴다.
+    # 켜져 있어도 계정(MAIL_USERNAME · MAIL_PASSWORD)이 없으면 보내지 않고 로그만 남긴다 (앱은 뜬다)
+    enabled: ${MAIL_ENABLED:true}
+    # 보내는 주소. 없으면 MAIL_USERNAME
+    from: ${MAIL_FROM:}

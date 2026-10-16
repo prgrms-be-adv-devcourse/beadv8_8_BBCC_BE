@@ -14,7 +14,7 @@ class EmailSenderIntegrationTest {
     private EmailSender emailSender;
 
     @Test
-    @DisplayName("기본 설정(꺼짐)에서는 로그 발송기가 등록되고, 보내도 실패하지 않는다")
+    @DisplayName("테스트 프로필(꺼짐)에서는 로그 발송기가 등록되고, 보내도 실패하지 않는다")
     void loggingByDefault() {
         assertThat(emailSender).isInstanceOf(LoggingEmailSender.class);
 
