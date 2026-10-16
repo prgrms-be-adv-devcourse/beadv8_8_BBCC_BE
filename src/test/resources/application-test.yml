@@ -1,16 +1,7 @@
 spring:
-  jpa:
-    # 테스트 컨테이너는 비어 있으므로 엔티티 기준으로 스키마를 만든다
-    hibernate:
-      ddl-auto: create-drop
-    properties:
-      hibernate:
-        hbm2ddl:
-          create_namespaces: true
-  # 테스트 컨테이너는 비어 있으므로 기동할 때 Batch 메타데이터 테이블을 만든다 (settlement.yml)
-  batch:
-    jdbc:
-      initialize-schema: always
+  # 테스트 전용 엔티티의 테이블을 함께 만든다
+  flyway:
+    locations: classpath:db/migration,classpath:db/test
 
 # 테스트는 PC마다 결과가 같아야 하므로 각자의 .env를 읽지 않는다
 springdotenv:
