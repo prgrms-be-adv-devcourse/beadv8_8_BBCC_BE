@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.settlement.domain;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -140,6 +141,13 @@ public class Settlement extends BaseTimeEntity {
         Assert.state(status == SettlementStatus.COMPLETED, "지급을 요청한 정산서만 지급 실패할 수 있습니다");
         this.status = SettlementStatus.FAILED;
         this.failReason = failReason;
+    }
+
+    // 지급 결과를 받지 못한 정산서(COMPLETED)만 같은 정산서 ID로 지급을 다시 요청할 수 있다
+    public void validatePayoutRetryable() {
+        if (status != SettlementStatus.COMPLETED) {
+            throw new BusinessException(SettlementErrorCode.SETTLEMENT_NOT_RETRYABLE);
+        }
     }
 
     // 결제가 보낸 지급 결과가 이 정산서의 판매자 · 금액과 같은지

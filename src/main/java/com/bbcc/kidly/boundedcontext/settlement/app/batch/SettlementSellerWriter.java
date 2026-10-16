@@ -2,13 +2,11 @@ package com.bbcc.kidly.boundedcontext.settlement.app.batch;
 
 import static java.util.Objects.requireNonNull;
 
+import com.bbcc.kidly.boundedcontext.settlement.app.support.SettlementPayoutRequester;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import org.springframework.batch.infrastructure.item.Chunk;
 import org.springframework.batch.infrastructure.item.ItemWriter;
 
@@ -21,15 +19,16 @@ public class SettlementSellerWriter implements ItemWriter<SettlementSellerPlan> 
     private final SettlementItemRepository settlementItemRepository;
     private final SettlementRepository settlementRepository;
     private final SettlementCalculator settlementCalculator;
-    private final EventPublisher eventPublisher;
+    private final SettlementPayoutRequester settlementPayoutRequester;
 
     public SettlementSellerWriter(
         SettlementItemRepository settlementItemRepository, SettlementRepository settlementRepository,
-        SettlementCalculator settlementCalculator, EventPublisher eventPublisher) {
+        SettlementCalculator settlementCalculator, SettlementPayoutRequester settlementPayoutRequester) {
         this.settlementItemRepository = requireNonNull(settlementItemRepository, "settlementItemRepository는 필수입니다");
         this.settlementRepository = requireNonNull(settlementRepository, "settlementRepository는 필수입니다");
         this.settlementCalculator = requireNonNull(settlementCalculator, "settlementCalculator는 필수입니다");
-        this.eventPublisher = requireNonNull(eventPublisher, "eventPublisher는 필수입니다");
+        this.settlementPayoutRequester =
+            requireNonNull(settlementPayoutRequester, "settlementPayoutRequester는 필수입니다");
     }
 
     // 계획 뒤에 대상이 바뀌었으면 IllegalStateException
@@ -44,9 +43,7 @@ public class SettlementSellerWriter implements ItemWriter<SettlementSellerPlan> 
             var settlement = settlementRepository.save(
                 settlementCalculator.create(plan.sellerId(), plan.totalSalesAmount(), now));
             items.forEach(item -> item.settle(settlement.getId()));
-            eventPublisher.publish(new SettlementPayoutRequestedEvent(UUID.randomUUID(), now,
-                new SettlementPayoutRequestedEvent.Data(settlement.getId(), settlement.getSellerId(),
-                    settlement.getSettlementAmount(), settlement.getPeriodStartOn(), settlement.getPeriodEndOn())));
+            settlementPayoutRequester.request(settlement, now);
         }
         settlementItemRepository.flush();
     }

@@ -10,7 +10,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCreateInfo;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
@@ -178,5 +180,24 @@ class SettlementTest {
         assertThat(settlement.isPayoutOf(SELLER_ID, 9_000L)).isTrue();
         assertThat(settlement.isPayoutOf(SELLER_ID + 1, 9_000L)).isFalse();
         assertThat(settlement.isPayoutOf(SELLER_ID, 9_001L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("지급 결과를 받지 못한 정산서(COMPLETED)만 지급을 다시 요청할 수 있다")
+    void validatePayoutRetryable() {
+        var completed = SettlementFixture.settlement(10_000L);
+        var paid = SettlementFixture.settlement(10_000L);
+        paid.markPaid(PAID_AT);
+        var failed = SettlementFixture.settlement(10_000L);
+        failed.markPaymentFailed("WALLET_NOT_FOUND");
+
+        completed.validatePayoutRetryable();
+        assertNotRetryable(paid);
+        assertNotRetryable(failed);
+    }
+
+    private static void assertNotRetryable(Settlement settlement) {
+        assertThatThrownBy(settlement::validatePayoutRetryable).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(SettlementErrorCode.SETTLEMENT_NOT_RETRYABLE));
     }
 }
