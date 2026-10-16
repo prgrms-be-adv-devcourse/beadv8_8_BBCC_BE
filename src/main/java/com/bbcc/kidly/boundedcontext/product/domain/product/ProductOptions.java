@@ -274,9 +274,10 @@ final class ProductOptions {
         return new ArrayList<>(groups.values());
     }
 
-    // 옵션의 값 중 값에 따라 가격이 달라지는 항목의 값을 모은다. 가격 구분 항목이 없는 유형은 빈 집합이다
+    // 옵션의 값 중 값에 따라 가격이 달라지는 항목의 값을 모은다. 가격 구분 항목이 없는 유형은 빈 집합이다.
+    // 옵션 값의 순서(유형의 항목 순서)를 지켜서, 이 묶음으로 만든 가격의 값 순서가 실행마다 같다
     private static Set<AttributeValue> priceGroup(Collection<AttributeValue> optionValues, ProductType productType) {
-        Set<AttributeValue> group = new HashSet<>();
+        Set<AttributeValue> group = new LinkedHashSet<>();
         for (AttributeValue value : optionValues) {
             if (productType.findLink(value.getAttribute()).filter(ProductTypeAttribute::isPriceAffecting).isPresent()) {
                 group.add(value);

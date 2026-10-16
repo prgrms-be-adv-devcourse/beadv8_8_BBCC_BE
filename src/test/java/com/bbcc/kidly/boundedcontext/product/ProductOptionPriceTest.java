@@ -152,6 +152,29 @@ class ProductOptionPriceTest {
             .containsExactly(25_000L, 27_000L, 25_000L);
     }
 
+    @Test
+    @DisplayName("PRICE-03 가격 구분 항목이 둘 이상이면 가격 구분 묶음의 값을 유형의 항목 순서로 담는다")
+    void currentPricesKeepTypeOrderInGroup() {
+        Attribute material = ProductTypeFixture.mainMaterial();
+        AttributeValue cotton = AttributeValue.create(material, "면", null);
+        AttributeValue polyester = AttributeValue.create(material, "폴리에스테르", null);
+        // 색상과 소재에 따라 가격이 달라지는 유형이다. 항목 순서는 색상, 소재, 사이즈다
+        ProductType colorMaterialPriced = ProductType.define("색상 · 소재별 가격 의류", List.of(
+            ProductTypeFixture.priceAffectingOption(color),
+            ProductTypeFixture.priceAffectingOption(material),
+            ProductTypeFixture.sizeOption(size)));
+        Product colorMaterialProduct = Product.register(ProductFixture.productAWith(colorMaterialPriced, List.of()));
+        colorMaterialProduct.addOptions(new Product.AddOptionsInfo(SELLER_ID,
+            List.of(option(cotton, navy, size110), option(polyester, oatmeal, size110)),
+            List.of(new Product.PriceInfo(List.of(cotton, navy), 25_000L),
+                new Product.PriceInfo(List.of(polyester, oatmeal), 27_000L))),
+            colorMaterialPriced);
+
+        assertThat(colorMaterialProduct.currentPrices(colorMaterialPriced)).containsExactly(
+            new Product.PriceInfo(List.of(navy, cotton), 25_000L),
+            new Product.PriceInfo(List.of(oatmeal, polyester), 27_000L));
+    }
+
     // 색상에 따라 가격이 달라지는 유형의 상품에 네이비 · 110(25,000원), 오트밀 · 110(27,000원), 네이비 · 120(25,000원)을 넣는다
     private Product colorPricedProductWithOptions() {
         Product colorPricedProduct = Product.register(ProductFixture.productAWith(colorPriced, List.of()));
