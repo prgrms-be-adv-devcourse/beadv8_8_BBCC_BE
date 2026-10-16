@@ -54,7 +54,7 @@ public enum ProductErrorCode implements ErrorCode {
     SALE_STOPPED_BY_ADMIN(HttpStatus.CONFLICT, "관리자가 판매중지한 상품입니다",
         "관리자가 판매중지한 상품은 판매자가 다시 판매를 시작할 수 없습니다. 관리자에게 문의해 주세요."),
     IMAGE_URL_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "허용되지 않은 이미지 주소입니다",
-        "상품 이미지는 업로드 주소로 올린 본인 이미지만 넣을 수 있습니다. 이미지를 업로드 주소로 올린 뒤 받은 이미지 주소를 넣어 주세요.");
+        "이 이미지는 상품에 넣을 수 없습니다. 이미지를 다시 올려 주세요.");
 
     private final HttpStatus status;
     private final String title;

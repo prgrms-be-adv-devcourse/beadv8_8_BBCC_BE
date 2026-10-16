@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixtur
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.measurements;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.ownImageUrl;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.prices;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.sizeSpecs;
@@ -11,10 +12,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentReason;
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -241,6 +244,8 @@ class ProductRegistrationApiTest {
                 "brand: 브랜드는 255자 이하로 입력해 주세요."),
             invalid("카테고리 없음", body -> body.put("categoryId", null), "categoryId: 카테고리를 골라 주세요."),
             invalid("이미지 목록 없음", body -> body.put("imageUrls", null), "imageUrls: 이미지 목록이 필요합니다."),
+            invalid("이미지 목록에 빈 칸", body -> body.put("imageUrls", Arrays.asList(ownImageUrl(SELLER_ID), null)),
+                "imageUrls[1]: 이미지 주소를 넣어 주세요."),
             invalid("정보 항목 목록 없음", body -> body.put("attributes", null), "attributes: 정보 항목 목록이 필요합니다."),
             invalid("옵션 목록 없음", body -> body.put("options", null), "options: 옵션 목록이 필요합니다."),
             invalid("가격 목록 없음", body -> body.put("prices", null), "prices: 가격 목록이 필요합니다."),
@@ -273,6 +278,60 @@ class ProductRegistrationApiTest {
             .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
             .body(body)
             .exchange();
+    }
+
+    @Test
+    @DisplayName("썸네일과 이미지 목록이 판매자 본인이 올린 이미지이면 등록한다")
+    void registerWithOwnImages() {
+        Map<String, Object> body = productA(saved);
+        body.put("thumbnailUrl", ownImageUrl(SELLER_ID));
+        body.put("imageUrls", List.of(ownImageUrl(SELLER_ID)));
+
+        register(body).expectStatus().isCreated();
+
+        Product product = entityManager.createQuery("select p from Product p", Product.class).getSingleResult();
+        assertThat(product.getThumbnailUrl()).isEqualTo(ownImageUrl(SELLER_ID));
+        assertThat(product.getImageUrls()).containsExactly(ownImageUrl(SELLER_ID));
+    }
+
+    @Test
+    @DisplayName("업로드 주소 발급 API가 돌려준 이미지 주소를 그대로 넣으면 등록한다")
+    void registerWithImageUrlFromUploadApi() {
+        AtomicReference<String> imageUrl = new AtomicReference<>();
+        client.post().uri("/api/v1/seller/product-images/upload-urls")
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("files", List.of(Map.of("contentType", "image/png", "contentLength", 1_000))))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.uploads[0].imageUrl").value(url -> imageUrl.set((String) url));
+        Map<String, Object> body = productA(saved);
+        body.put("thumbnailUrl", imageUrl.get());
+        body.put("imageUrls", List.of(imageUrl.get()));
+
+        register(body).expectStatus().isCreated();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("notOwnImages")
+    @DisplayName("썸네일이나 이미지 목록이 판매자 본인이 올린 이미지가 아니면 400을 받고 아무것도 저장하지 않는다")
+    void rejectNotOwnImage(Consumer<Map<String, Object>> change) {
+        Map<String, Object> body = productA(saved);
+        change.accept(body);
+
+        expectProblem(register(body), HttpStatus.BAD_REQUEST, "허용되지 않은 이미지 주소입니다",
+            "이 이미지는 상품에 넣을 수 없습니다. 이미지를 다시 올려 주세요.");
+        assertThat(count("Product")).isZero();
+        assertThat(count("Inventory")).isZero();
+    }
+
+    static Stream<Arguments> notOwnImages() {
+        return Stream.of(
+            Arguments.of(Named.<Consumer<Map<String, Object>>>of("다른 판매자의 썸네일",
+                body -> body.put("thumbnailUrl", ownImageUrl(SELLER_ID + 1)))),
+            Arguments.of(Named.<Consumer<Map<String, Object>>>of("외부 이미지 목록",
+                body -> body.put("imageUrls", List.of("https://cdn.kidly.test/a-1.jpg")))));
     }
 
     // 실패 응답이 ProblemDetail 5칸을 모두 담는지 확인한다

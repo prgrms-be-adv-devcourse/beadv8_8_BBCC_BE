@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.out.product;
 
-import com.bbcc.kidly.boundedcontext.product.app.port.product.ProductImageUploadUrlIssuer;
+import com.bbcc.kidly.boundedcontext.product.app.port.product.ProductImageStorage;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,9 +24,9 @@ public class ProductImageS3Config {
     }
 
     @Bean
-    ProductImageUploadUrlIssuer productImageUploadUrlIssuer(
+    ProductImageStorage productImageStorage(
         S3Presigner productImageS3Presigner, ProductImageS3Properties properties) {
-        return new S3ProductImageUploadUrlIssuer(productImageS3Presigner, properties);
+        return new S3ProductImageStorage(productImageS3Presigner, properties);
     }
 
     private AwsCredentialsProvider credentialsProvider(ProductImageS3Properties properties) {

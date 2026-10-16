@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.ownImageUrl;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
@@ -40,7 +41,7 @@ class SellerProductListApiTest {
         String withoutThumbnail = register(SELLER_ID, productA(saved));
         Map<String, Object> withThumbnailBody = productA(saved);
         withThumbnailBody.put("name", "상품 B");
-        withThumbnailBody.put("thumbnailUrl", "https://cdn.kidly.test/b-thumbnail.jpg");
+        withThumbnailBody.put("thumbnailUrl", ownImageUrl(SELLER_ID));
         // 같은 판매자의 옵션끼리는 SKU 코드가 겹치면 안 되므로 상품 B의 SKU 코드를 비운다
         ProductRegisterRequestFixture.options(withThumbnailBody).getFirst().put("skuCode", null);
         String withThumbnail = register(SELLER_ID, withThumbnailBody);
@@ -52,7 +53,7 @@ class SellerProductListApiTest {
             .jsonPath("$.content.length()").isEqualTo(2)
             .jsonPath("$.content[0].productId").isEqualTo(withThumbnail)
             .jsonPath("$.content[0].name").isEqualTo("상품 B")
-            .jsonPath("$.content[0].thumbnailUrl").isEqualTo("https://cdn.kidly.test/b-thumbnail.jpg")
+            .jsonPath("$.content[0].thumbnailUrl").isEqualTo(ownImageUrl(SELLER_ID))
             .jsonPath("$.content[0].status").isEqualTo("SALE_PENDING")
             .jsonPath("$.content[0].optionCount").isEqualTo(2)
             .jsonPath("$.content[0].totalAvailableQuantity").isEqualTo(10)

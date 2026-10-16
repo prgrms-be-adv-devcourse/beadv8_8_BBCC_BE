@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.product.app.port.product.ProductImageUploadUrlIssuer;
+import com.bbcc.kidly.boundedcontext.product.app.port.product.ProductImageStorage;
 import com.bbcc.kidly.boundedcontext.product.out.product.ProductImageS3Config;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,9 +28,9 @@ class ProductImageS3ConfigTest {
     }
 
     @Test
-    @DisplayName("설정이 맞으면 가짜 자격 증명으로 업로드 주소 발급기를 만든다")
-    void createsIssuerWithFakeCredentials() {
+    @DisplayName("설정이 맞으면 가짜 자격 증명으로 상품 이미지 저장소를 만든다")
+    void createsStorageWithFakeCredentials() {
         runner.withPropertyValues("kidly.product.image.s3.key-prefix=local")
-            .run(context -> assertThat(context).hasSingleBean(ProductImageUploadUrlIssuer.class));
+            .run(context -> assertThat(context).hasSingleBean(ProductImageStorage.class));
     }
 }

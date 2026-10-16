@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.ownImageUrl;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.sizeSpecs;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,6 +21,7 @@ import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -31,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -155,6 +158,47 @@ class ProductUpdateApiTest {
     }
 
     @Test
+    @DisplayName("OPT-08 다른 판매자가 원래 판매자의 이미지를 담아 고쳐도 이미지 검사(400)보다 권한 확인(403)이 먼저다")
+    void rejectOtherSellerBeforeImageCheck() {
+        Map<String, Object> body = updateBody(storedVersion());
+        body.put("imageUrls", List.of(ownImageUrl(SELLER_ID)));
+
+        expectProblem(update(tokens.seller(OTHER_SELLER_ID), body), HttpStatus.FORBIDDEN,
+            "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
+    }
+
+    @Test
+    @DisplayName("썸네일과 이미지 목록을 판매자 본인이 올린 이미지로 고치면 저장하고 version을 올린다")
+    void updateWithOwnImages() {
+        long version = storedVersion();
+        Map<String, Object> body = updateBody(version);
+        body.put("thumbnailUrl", ownImageUrl(SELLER_ID));
+        body.put("imageUrls", List.of(ownImageUrl(SELLER_ID)));
+
+        update(tokens.seller(SELLER_ID), body).expectStatus().isOk();
+
+        assertThat(storedVersion()).isGreaterThan(version);
+        assertThat(jdbcTemplate.queryForObject("select thumbnail_url from product.product where id = ?",
+            String.class, Long.valueOf(productId))).isEqualTo(ownImageUrl(SELLER_ID));
+        assertThat(jdbcTemplate.queryForObject("select image_urls::text from product.product where id = ?",
+            String.class, Long.valueOf(productId))).contains(ownImageUrl(SELLER_ID));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"thumbnailUrl", "imageUrls"})
+    @DisplayName("썸네일이나 이미지 목록을 판매자 본인이 올린 이미지가 아닌 것으로 고치면 400을 받고 상품은 바뀌지 않는다")
+    void rejectNotOwnImage(String field) {
+        long version = storedVersion();
+        Map<String, Object> body = updateBody(version);
+        String otherSellersImage = ownImageUrl(OTHER_SELLER_ID);
+        body.put(field, field.equals("imageUrls") ? List.of(otherSellersImage) : otherSellersImage);
+
+        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST, "허용되지 않은 이미지 주소입니다",
+            "이 이미지는 상품에 넣을 수 없습니다. 이미지를 다시 올려 주세요.");
+        assertThat(storedVersion()).isEqualTo(version);
+    }
+
+    @Test
     @DisplayName("없는 상품을 고치면 404를 받는다")
     void rejectMissingProduct() {
         client.put().uri(PRODUCTS_PATH + "/{productId}", 999_999L)
@@ -179,7 +223,10 @@ class ProductUpdateApiTest {
                     (Consumer<Map<String, Object>>) body -> body.put("name", "가".repeat(101))),
                 "name: 상품명은 100자 이하로 입력해 주세요."),
             Arguments.of(Named.of("version이 없음", (Consumer<Map<String, Object>>) body -> body.put("version", null)),
-                "version: version이 필요합니다."));
+                "version: version이 필요합니다."),
+            Arguments.of(Named.of("이미지 목록에 빈 칸", (Consumer<Map<String, Object>>) body ->
+                    body.put("imageUrls", Arrays.asList(ownImageUrl(SELLER_ID), null))),
+                "imageUrls[1]: 이미지 주소를 넣어 주세요."));
     }
 
     @ParameterizedTest(name = "{0}")
