@@ -4,6 +4,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.regex.Pattern;
 
 /**
@@ -41,14 +42,10 @@ public final class ProductImageUrls {
 
     // 확장자 목록은 업로드 주소를 만들 때 쓰는 ProductImageFormat에서 가져와 한곳에서만 관리한다
     private static Pattern serverMadeName() {
-        StringBuilder extensions = new StringBuilder();
+        StringJoiner extensions = new StringJoiner("|", "(", ")");
         for (ProductImageFormat format : ProductImageFormat.values()) {
-            if (!extensions.isEmpty()) {
-                extensions.append('|');
-            }
-            extensions.append(Pattern.quote(format.extension()));
+            extensions.add(Pattern.quote(format.extension()));
         }
-        return Pattern.compile(
-            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(" + extensions + ")");
+        return Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\." + extensions);
     }
 }
