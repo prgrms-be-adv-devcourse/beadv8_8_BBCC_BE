@@ -30,7 +30,7 @@ public record ProductUpdateRequest(
     String description,
     String thumbnailUrl,
     @NotNull(message = "이미지 목록이 필요합니다.")
-    List<String> imageUrls,
+    List<@NotNull(message = "이미지 주소를 넣어 주세요.") String> imageUrls,
     @NotNull(message = "정보 항목 목록이 필요합니다.")
     List<@Valid AttributeInput> attributes,
     List<@Valid OptionInput> options,

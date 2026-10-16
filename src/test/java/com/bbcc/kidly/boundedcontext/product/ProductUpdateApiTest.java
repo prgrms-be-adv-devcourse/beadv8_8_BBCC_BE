@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.ownImageUrl;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.sizeSpecs;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,6 +21,7 @@ import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -179,7 +181,10 @@ class ProductUpdateApiTest {
                     (Consumer<Map<String, Object>>) body -> body.put("name", "가".repeat(101))),
                 "name: 상품명은 100자 이하로 입력해 주세요."),
             Arguments.of(Named.of("version이 없음", (Consumer<Map<String, Object>>) body -> body.put("version", null)),
-                "version: version이 필요합니다."));
+                "version: version이 필요합니다."),
+            Arguments.of(Named.of("이미지 목록에 빈 칸", (Consumer<Map<String, Object>>) body ->
+                    body.put("imageUrls", Arrays.asList(ownImageUrl(SELLER_ID), null))),
+                "imageUrls[1]: 이미지 주소를 넣어 주세요."));
     }
 
     @ParameterizedTest(name = "{0}")
