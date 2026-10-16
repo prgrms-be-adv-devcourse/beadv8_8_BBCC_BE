@@ -24,6 +24,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -73,11 +75,16 @@ class InventoryRestorationSoldOutIntegrationTest {
         inventoryDeductionDb.assertInvariants();
     }
 
-    @Test
-    @DisplayName("SALE-08 차감으로 품절된 옵션이 주문 취소로 되돌아오면 그 상품의 상품 정보 변경됨을 한 번 보내고, 그 옵션은 품절이 아니다")
-    void sendProductChangedWhenRestoreReleasesSoldOut() {
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"ON_SALE", "STOPPED"})
+    @DisplayName("SALE-08 차감으로 품절된 옵션이 주문 취소로 되돌아오면 판매중지된 상품이어도 상품 정보 변경됨을 한 번 보내고, 그 옵션은 품절이 아니다")
+    void sendProductChangedWhenRestoreReleasesSoldOut(String status) {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(2, 5);
         deductAndClearEvents(orderItem(11L, options.navy110(), 2));
+        // 차감한 뒤에 판매중지돼도 주문이 취소되면 재고를 되돌린다 (INV-14)
+        if (status.equals("STOPPED")) {
+            inventoryDeductionDb.stopSale(options.navy110());
+        }
 
         publishInTransaction(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
 
@@ -196,7 +203,9 @@ class InventoryRestorationSoldOutIntegrationTest {
         assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
             .satisfies(changed -> assertThat(changed.data().options())
                 .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
-                .contains(tuple(options.navy110().getId(), false)));
+                .containsExactlyInAnyOrder(
+                    tuple(options.navy110().getId(), false),
+                    tuple(options.navy120().getId(), false)));
     }
 
     // 주문 생성됨으로 차감하고, 차감이 보낸 이벤트는 지워 주문 취소됨이 보낸 이벤트만 남게 한다
