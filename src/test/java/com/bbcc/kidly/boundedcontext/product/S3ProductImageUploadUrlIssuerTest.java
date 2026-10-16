@@ -46,6 +46,13 @@ class S3ProductImageUploadUrlIssuerTest {
     }
 
     @Test
+    @DisplayName("판매자 본인 경로는 버킷 공개 주소의 {환경}/products/{판매자 ID}/이다")
+    void ownImageUrlPrefixIsSellerDirectory() {
+        assertThat(issuer.ownImageUrlPrefix(SELLER_ID))
+            .isEqualTo("https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com/dev/products/2/");
+    }
+
+    @Test
     @DisplayName("업로드 주소는 5분 동안 유효하다")
     void uploadUrlExpiresInFiveMinutes() {
         ProductImageUploadUrl issued = issuer.issue(ProductImageUpload.of("image/jpeg", 1_000L), SELLER_ID);
