@@ -152,6 +152,14 @@ class InventoryRestorationTest {
     }
 
     @Test
+    @DisplayName("되돌린 옵션의 복구 뒤 수량이 없으면 품절이 풀린 옵션을 고르지 않는다")
+    void rejectMissingAvailableQty() {
+        assertThatThrownBy(() -> InventoryRestoration.soldOutReleasedOptionIds(
+            Map.of(NAVY_110_ID, 1), Map.of(NAVY_120_ID, 1)))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     @DisplayName("되돌린 수량이나 복구 뒤 수량이 없으면 품절이 풀린 옵션을 고르지 않는다")
     void rejectNullQuantities() {
         assertThatThrownBy(() -> InventoryRestoration.soldOutReleasedOptionIds(null, Map.of()))
