@@ -7,8 +7,12 @@ import com.bbcc.kidly.support.TestTokens;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -61,6 +65,32 @@ class AdminMeasurementItemApiTest {
             .jsonPath("$[*].code").isEqualTo(List.of("TOTAL_LENGTH", "SHOULDER_WIDTH"))
             .jsonPath("$[*].name").isEqualTo(List.of("총장", "어깨너비"))
             .jsonPath("$[0].measurementItemId").value(id -> assertThat(id).isInstanceOf(String.class));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidRequests")
+    @DisplayName("실측 항목 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
+    void rejectInvalidMeasurementItem(Map<String, Object> body) {
+        post(tokens.admin(ADMIN_ID), body)
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").exists()
+            .jsonPath("$.status").isEqualTo(400)
+            .jsonPath("$.detail").exists()
+            .jsonPath("$.instance").exists();
+    }
+
+    static Stream<Named<Map<String, Object>>> invalidRequests() {
+        return Stream.of(
+            Named.of("이름이 빔", Map.of("name", "", "code", "TOTAL_LENGTH", "unit", "cm")),
+            Named.of("이름이 255자 초과", Map.of("name", "가".repeat(256), "code", "TOTAL_LENGTH", "unit", "cm")),
+            Named.of("코드가 빔", Map.of("name", "총장", "code", "", "unit", "cm")),
+            Named.of("코드에 소문자", Map.of("name", "총장", "code", "total_length", "unit", "cm")),
+            Named.of("코드가 255자 초과", Map.of("name", "총장", "code", "T".repeat(256), "unit", "cm")),
+            Named.of("단위가 빔", Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "")),
+            Named.of("단위가 255자 초과", Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "c".repeat(256))));
     }
 
     private RestTestClient.ResponseSpec post(String token, Object body) {
