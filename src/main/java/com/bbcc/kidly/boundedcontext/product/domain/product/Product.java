@@ -331,6 +331,14 @@ public class Product extends BaseTimeEntity {
     }
 
     /**
+     * 지금 옵션들의 판매가에서 가격 구분 묶음과 그 가격의 목록을 만든다. 가격 구분 항목이 없는 유형은 빈 값 목록 하나다.
+     */
+    public List<PriceInfo> currentPrices(ProductType productType) {
+        requireNonNull(productType, "productType은 필수입니다");
+        return ProductOptions.currentPrices(options, productType);
+    }
+
+    /**
      * 사이즈 값마다 실측과 권장 키를 받은 순서대로 추가한다. 하나라도 잘못되면 하나도 추가하지 않는다.
      */
     public void addSizeSpecs(AddSizeSpecsInfo info, Category category, ProductType productType) {

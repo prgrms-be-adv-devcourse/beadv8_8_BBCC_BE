@@ -90,4 +90,15 @@ class ProductOptionPriceTest {
 
         assertRejected(() -> product.addOptions(info, clothing.type()), ProductErrorCode.PRICE_GROUP_MISMATCH);
     }
+
+    @Test
+    @DisplayName("PRICE-01 가격 구분 항목이 없는 유형은 지금 가격 묶음이 빈 값 목록 하나다")
+    void currentPricesWithoutPriceAffectingAttribute() {
+        product.addOptions(new Product.AddOptionsInfo(SELLER_ID, List.of(
+            option(clothing.navy(), clothing.size110()),
+            option(clothing.oatmeal(), clothing.size120())), clothingPrice(27_000L)), clothing.type());
+
+        assertThat(product.currentPrices(clothing.type()))
+            .containsExactly(new Product.PriceInfo(List.of(), 27_000L));
+    }
 }

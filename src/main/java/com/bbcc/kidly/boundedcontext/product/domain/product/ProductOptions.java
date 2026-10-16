@@ -14,8 +14,10 @@ import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -260,6 +262,16 @@ final class ProductOptions {
             }
         }
         return sorted;
+    }
+
+    // 옵션들의 가격 구분 묶음마다 그 묶음의 가격 하나를 만든다. 같은 묶음의 옵션은 가격이 같으므로(PRICE-03) 처음 나온 옵션의 가격을 쓴다
+    static List<PriceInfo> currentPrices(List<ProductOption> options, ProductType productType) {
+        Map<Set<AttributeValue>, PriceInfo> groups = new LinkedHashMap<>();
+        for (ProductOption option : options) {
+            Set<AttributeValue> group = priceGroup(valuesOf(option), productType);
+            groups.putIfAbsent(group, new PriceInfo(new ArrayList<>(group), option.getPrice()));
+        }
+        return new ArrayList<>(groups.values());
     }
 
     // 옵션의 값 중 값에 따라 가격이 달라지는 항목의 값을 모은다. 가격 구분 항목이 없는 유형은 빈 집합이다
