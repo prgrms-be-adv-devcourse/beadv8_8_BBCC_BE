@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.settlement.app.batch;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementProperties;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSellerQuery;
 import com.bbcc.kidly.boundedcontext.settlement.app.support.SettlementPayoutRequester;
+import com.bbcc.kidly.boundedcontext.settlement.app.support.SettlementSkipRecorder;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCalculator;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
@@ -48,7 +49,7 @@ public class SettlementJobConfig {
     public Step settleSellerStep(
         JobRepository jobRepository, PlatformTransactionManager transactionManager, SettlementProperties properties,
         SettlementSellerReader settlementSellerReader, SettlementSellerProcessor settlementSellerProcessor,
-        SettlementSellerWriter settlementSellerWriter) {
+        SettlementSellerWriter settlementSellerWriter, SettlementSellerSkipListener settlementSellerSkipListener) {
         return new StepBuilder(STEP_NAME, jobRepository)
             .<Long, SettlementSellerPlan>chunk(properties.chunkSize())
             .transactionManager(transactionManager)
@@ -59,7 +60,7 @@ public class SettlementJobConfig {
             .skip(IllegalArgumentException.class, IllegalStateException.class, ArithmeticException.class,
                 OptimisticLockingFailureException.class, DataIntegrityViolationException.class)
             .skipLimit(Long.MAX_VALUE)
-            .skipListener(new SettlementSellerSkipListener())
+            .skipListener(settlementSellerSkipListener)
             .build();
     }
 
@@ -69,6 +70,14 @@ public class SettlementJobConfig {
         SettlementSellerQuery settlementSellerQuery, SettlementProperties properties,
         @Value("#{jobParameters['" + CUTOFF_AT + "']}") LocalDateTime cutoffAt) {
         return new SettlementSellerReader(settlementSellerQuery, cutoffAt, properties.chunkSize());
+    }
+
+    @Bean
+    @StepScope
+    public SettlementSellerSkipListener settlementSellerSkipListener(
+        SettlementSkipRecorder settlementSkipRecorder,
+        @Value("#{stepExecution.jobExecutionId}") Long jobExecutionId) {
+        return new SettlementSellerSkipListener(settlementSkipRecorder, jobExecutionId);
     }
 
     @Bean
