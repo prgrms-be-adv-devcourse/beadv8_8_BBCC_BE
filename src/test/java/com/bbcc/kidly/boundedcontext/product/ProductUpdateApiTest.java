@@ -167,6 +167,23 @@ class ProductUpdateApiTest {
             "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
     }
 
+    @Test
+    @DisplayName("썸네일과 이미지 목록을 판매자 본인이 올린 이미지로 고치면 저장하고 version을 올린다")
+    void updateWithOwnImages() {
+        long version = storedVersion();
+        Map<String, Object> body = updateBody(version);
+        body.put("thumbnailUrl", ownImageUrl(SELLER_ID));
+        body.put("imageUrls", List.of(ownImageUrl(SELLER_ID)));
+
+        update(tokens.seller(SELLER_ID), body).expectStatus().isOk();
+
+        assertThat(storedVersion()).isGreaterThan(version);
+        assertThat(jdbcTemplate.queryForObject("select thumbnail_url from product.product where id = ?",
+            String.class, Long.valueOf(productId))).isEqualTo(ownImageUrl(SELLER_ID));
+        assertThat(jdbcTemplate.queryForObject("select image_urls::text from product.product where id = ?",
+            String.class, Long.valueOf(productId))).contains(ownImageUrl(SELLER_ID));
+    }
+
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"thumbnailUrl", "imageUrls"})
     @DisplayName("썸네일이나 이미지 목록을 판매자 본인이 올린 이미지가 아닌 것으로 고치면 400을 받고 상품은 바뀌지 않는다")

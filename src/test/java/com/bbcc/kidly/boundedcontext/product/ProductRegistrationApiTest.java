@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentReason;
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
@@ -287,6 +288,10 @@ class ProductRegistrationApiTest {
         body.put("imageUrls", List.of(ownImageUrl(SELLER_ID)));
 
         register(body).expectStatus().isCreated();
+
+        Product product = entityManager.createQuery("select p from Product p", Product.class).getSingleResult();
+        assertThat(product.getThumbnailUrl()).isEqualTo(ownImageUrl(SELLER_ID));
+        assertThat(product.getImageUrls()).containsExactly(ownImageUrl(SELLER_ID));
     }
 
     @ParameterizedTest(name = "{0}")
