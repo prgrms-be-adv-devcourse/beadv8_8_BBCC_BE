@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.cart;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.SchedulerIdle;
 import com.bbcc.kidly.boundedcontext.order.app.cart.dto.CartView;
 import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -47,6 +49,9 @@ class CartQueryCountIntegrationTest {
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    private ThreadPoolTaskScheduler taskScheduler;
 
     private Statistics statistics;
 
@@ -79,6 +84,8 @@ class CartQueryCountIntegrationTest {
     }
 
     private long countStatements(Long memberId) {
+        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
+        SchedulerIdle.await(taskScheduler);
         statistics.clear();
         cartService.getCart(memberId);
         return statistics.getPrepareStatementCount();

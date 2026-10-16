@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.SchedulerIdle;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -46,6 +48,9 @@ class OrderListQueryCountIntegrationTest {
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    private ThreadPoolTaskScheduler taskScheduler;
 
     private Statistics statistics;
 
@@ -92,6 +97,8 @@ class OrderListQueryCountIntegrationTest {
     @DisplayName("관리자 전체 주문 목록도 주문이 1건이든 5건이든 쿼리 수가 같다(주문 페이지 1번 + 주문상품 1번)")
     void adminListSameQueryCountRegardlessOfOrderCount() {
         place(SINGLE_BUYER_ID, 0, "첫 주문", "둘째");
+        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
+        SchedulerIdle.await(taskScheduler);
         statistics.clear();
         orderService.getAllOrders(0, 20);
         long singleCount = statistics.getPrepareStatementCount();
@@ -99,6 +106,8 @@ class OrderListQueryCountIntegrationTest {
         for (int i = 1; i < MANY; i++) {
             place(MANY_BUYER_ID, i, "대표 " + i, "둘째 " + i);
         }
+        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
+        SchedulerIdle.await(taskScheduler);
         statistics.clear();
         List<AdminOrderSummary> all = orderService.getAllOrders(0, 20).getContent();
         long manyCount = statistics.getPrepareStatementCount();
@@ -123,6 +132,8 @@ class OrderListQueryCountIntegrationTest {
     }
 
     private long countStatements(Long memberId) {
+        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
+        SchedulerIdle.await(taskScheduler);
         statistics.clear();
         orderService.getOrders(memberId, 0, 20);
         return statistics.getPrepareStatementCount();
