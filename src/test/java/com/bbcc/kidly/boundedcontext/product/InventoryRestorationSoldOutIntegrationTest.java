@@ -89,6 +89,24 @@ class InventoryRestorationSoldOutIntegrationTest {
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
+    @Test
+    @DisplayName("SALE-08 같은 상품의 두 옵션이 모두 품절이었다가 한 주문 취소로 되돌아오면 상품 정보 변경됨을 한 번 보내고, 두 옵션 모두 품절이 아니다")
+    void sendOneProductChangedWhenTwoOptionsOfSameProductAreReleased() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 1);
+        deductAndClearEvents(orderItem(11L, options.navy110(), 1), orderItem(12L, options.navy120(), 1));
+
+        publishInTransaction(orderCancelled(ORDER_ID,
+            cancelledItem(11L, options.navy110(), 1),
+            cancelledItem(12L, options.navy120(), 1)));
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(changed -> assertThat(changed.data().options())
+                .extracting(ProductChangedEvent.Option::optionId, ProductChangedEvent.Option::soldOut)
+                .containsExactlyInAnyOrder(
+                    tuple(options.navy110().getId(), false),
+                    tuple(options.navy120().getId(), false)));
+    }
+
     // 주문 생성됨으로 차감하고, 차감이 보낸 이벤트는 지워 주문 취소됨이 보낸 이벤트만 남게 한다
     private void deductAndClearEvents(OrderCreatedEvent.Item... items) {
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, items));
