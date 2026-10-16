@@ -44,6 +44,15 @@ class ProductImageUrlsTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.IMAGE_URL_NOT_ALLOWED));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("notOwnImages")
+    @DisplayName("이미지 목록에 판매자 본인 경로에 서버가 만든 이름으로 올린 이미지가 아닌 것이 하나라도 있으면 거절한다")
+    void rejectNotOwnImageInList(String imageUrl) {
+        assertThatThrownBy(() -> ProductImageUrls.validate(OWN_JPG, List.of(OWN_PNG, imageUrl), OWN_PREFIX))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.IMAGE_URL_NOT_ALLOWED));
+    }
+
     static Stream<Arguments> notOwnImages() {
         String id = "3f9a1c2e-5b7d-4e60-8a91-0c2d4e6f8a10";
         String bucket = "https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com";

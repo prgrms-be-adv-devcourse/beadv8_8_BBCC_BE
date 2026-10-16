@@ -16,12 +16,18 @@ public final class ProductImageUrls {
     }
 
     public static void validate(String thumbnailUrl, List<String> imageUrls, String ownPrefix) {
-        if (thumbnailUrl == null) {
-            return;
+        // 썸네일은 없어도 된다
+        if (thumbnailUrl != null) {
+            requireOwnImage(thumbnailUrl, ownPrefix);
         }
+        for (String imageUrl : imageUrls) {
+            requireOwnImage(imageUrl, ownPrefix);
+        }
+    }
+
+    private static void requireOwnImage(String url, String ownPrefix) {
         // ownPrefix가 /로 끝나므로 판매자 2의 경로(.../products/2/)는 판매자 23의 경로(.../products/23/)와 구분된다
-        if (!thumbnailUrl.startsWith(ownPrefix)
-            || !SERVER_MADE_NAME.matcher(thumbnailUrl.substring(ownPrefix.length())).matches()) {
+        if (!url.startsWith(ownPrefix) || !SERVER_MADE_NAME.matcher(url.substring(ownPrefix.length())).matches()) {
             throw new BusinessException(ProductErrorCode.IMAGE_URL_NOT_ALLOWED);
         }
     }
