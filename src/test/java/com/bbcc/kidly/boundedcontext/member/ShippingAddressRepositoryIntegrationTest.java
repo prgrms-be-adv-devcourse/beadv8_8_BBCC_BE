@@ -85,7 +85,7 @@ class ShippingAddressRepositoryIntegrationTest {
 
         var found = defaultShippingAddressRepository.findById(MEMBER_ID).orElseThrow();
 
-        assertThat(found.getShippingAddress().getId()).isEqualTo(saved.getId());
+        assertThat(found.getShippingAddressId()).isEqualTo(saved.getId());
     }
 
     @Test
@@ -136,6 +136,6 @@ class ShippingAddressRepositoryIntegrationTest {
         defaultShippingAddressRepository.save(found);
 
         var reloaded = defaultShippingAddressRepository.findById(MEMBER_ID).orElseThrow();
-        assertThat(reloaded.getShippingAddress().getId()).isEqualTo(second.getId());
+        assertThat(reloaded.getShippingAddressId()).isEqualTo(second.getId());
     }
 }

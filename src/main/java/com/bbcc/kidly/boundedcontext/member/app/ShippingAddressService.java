@@ -42,7 +42,7 @@ public class ShippingAddressService {
     @Transactional(readOnly = true)
     public List<ShippingAddressResult> getAddresses(Long memberId) {
         var defaultAddressId = defaultShippingAddressRepository.findById(memberId)
-            .map(defaultAddress -> defaultAddress.getShippingAddress().getId())
+            .map(DefaultShippingAddress::getShippingAddressId)
             .orElse(null);
         return shippingAddressRepository.findAllByMemberIdOrderByIdAsc(memberId).stream()
             .map(address -> ShippingAddressResult.of(address, address.getId().equals(defaultAddressId)))
