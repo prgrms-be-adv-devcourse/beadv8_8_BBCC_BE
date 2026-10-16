@@ -100,6 +100,8 @@ class SettlementJobIntegrationTest {
         assertThat(payoutSellerIds()).containsExactlyInAnyOrder(10L, 11L);
         assertThat(payoutSettlementId(10L)).isEqualTo(sellerSettlement.getId());
         assertThat(payoutSettlementId(11L)).isEqualTo(otherSettlement.getId());
+        assertThat(result.skippedSellers()).isEmpty();
+        assertThat(skipCount()).isZero();
     }
 
     @Test
@@ -165,6 +167,14 @@ class SettlementJobIntegrationTest {
         assertThat(settlementCount()).isEqualTo(1);
         assertThat(settlementOf(other).getSellerId()).isEqualTo(11L);
         assertThat(reload(overflow).getStatus()).isEqualTo(SettlementItemStatus.PENDING);
+        assertThat(result.skippedSellers()).singleElement().satisfies(skipped -> {
+            assertThat(skipped.sellerId()).isEqualTo(10L);
+            assertThat(skipped.phase()).isEqualTo("PROCESS");
+            assertThat(skipped.reason()).startsWith("ArithmeticException");
+        });
+        assertThat(skipCount()).isEqualTo(1);
+        assertThat(settlementRunService.getRun(result.runId()).skippedSellers())
+            .isEqualTo(result.skippedSellers());
     }
 
     @Test
@@ -184,6 +194,13 @@ class SettlementJobIntegrationTest {
         assertThat(settlementOf(other).getTotalSalesAmount()).isEqualTo(1_000L);
         assertThat(settlementCount()).isEqualTo(2);
         assertThat(payoutSellerIds()).containsExactly(11L);
+        // 묶음 저장이 롤백돼도 새 트랜잭션으로 남긴 기록은 남는다
+        assertThat(result.skippedSellers()).singleElement().satisfies(skipped -> {
+            assertThat(skipped.sellerId()).isEqualTo(10L);
+            assertThat(skipped.phase()).isEqualTo("WRITE");
+            assertThat(skipped.reason()).isNotBlank();
+        });
+        assertThat(skipCount()).isEqualTo(1);
     }
 
     @Test
@@ -288,6 +305,10 @@ class SettlementJobIntegrationTest {
 
     private Integer settlementCount() {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM settlement.settlement", Integer.class);
+    }
+
+    private Integer skipCount() {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM settlement.settlement_skip", Integer.class);
     }
 
     private List<Long> payoutSellerIds() {

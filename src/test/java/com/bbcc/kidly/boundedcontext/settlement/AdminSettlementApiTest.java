@@ -61,6 +61,7 @@ class AdminSettlementApiTest {
         assertThat(body.periodEndOn()).isEqualTo(cutoffOn.minusDays(1));
         assertThat(body.successCount()).isZero();
         assertThat(body.requestedBy()).isEqualTo(ADMIN_ID);
+        assertThat(body.skippedSellers()).isEmpty();
         assertThat(result.getResponseHeaders().getLocation().getPath()).isEqualTo(RUNS_PATH + "/" + body.runId());
     }
 
@@ -113,8 +114,10 @@ class AdminSettlementApiTest {
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
             .exchange()
             .expectStatus().isOk()
-            .expectBody(SettlementRunResponse.class)
-            .value(found -> assertThat(found.runId()).isEqualTo(created.runId()));
+            .expectBody()
+            .jsonPath("$.runId").isEqualTo(created.runId())
+            .jsonPath("$.skippedSellers").isArray()
+            .jsonPath("$.skippedSellers").isEmpty();
     }
 
     @Test
