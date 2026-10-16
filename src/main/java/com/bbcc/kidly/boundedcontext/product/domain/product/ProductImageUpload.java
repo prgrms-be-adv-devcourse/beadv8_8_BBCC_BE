@@ -8,10 +8,15 @@ public record ProductImageUpload(ProductImageFormat format, long contentLength) 
 
     public static final long MAX_CONTENT_LENGTH = 10L * 1024 * 1024;
 
-    public static ProductImageUpload of(String contentType, long contentLength) {
+    // 생성자를 직접 불러도 형식과 크기를 검사하도록 검증을 여기에 둔다
+    public ProductImageUpload {
+        requireNonNull(format, "format은 필수입니다");
         if (contentLength <= 0 || contentLength > MAX_CONTENT_LENGTH) {
             throw new IllegalArgumentException("이미지 크기는 1바이트 이상 10MB 이하여야 합니다");
         }
+    }
+
+    public static ProductImageUpload of(String contentType, long contentLength) {
         ProductImageFormat format = ProductImageFormat.fromContentType(
             requireNonNull(contentType, "contentType은 필수입니다"));
         return new ProductImageUpload(format, contentLength);

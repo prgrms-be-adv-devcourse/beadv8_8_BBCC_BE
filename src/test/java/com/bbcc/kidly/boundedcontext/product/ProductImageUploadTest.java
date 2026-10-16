@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageFormat;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUpload;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +52,21 @@ class ProductImageUploadTest {
     void rejectOutOfRangeSize(long contentLength) {
         assertThatThrownBy(() -> ProductImageUpload.of("image/jpeg", contentLength))
             .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(longs = {0L, -1L, 10_485_761L})
+    @DisplayName("생성자로 직접 만들어도 크기가 0 이하이거나 10MB를 넘으면 업로드를 만들지 않는다")
+    void rejectOutOfRangeSizeOnConstructor(long contentLength) {
+        assertThatThrownBy(() -> new ProductImageUpload(ProductImageFormat.JPEG, contentLength))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("생성자로 직접 만들어도 형식이 없으면 업로드를 만들지 않는다")
+    void rejectNullFormatOnConstructor() {
+        assertThatThrownBy(() -> new ProductImageUpload(null, 1_000L))
+            .isInstanceOf(NullPointerException.class);
     }
 
     @Test
