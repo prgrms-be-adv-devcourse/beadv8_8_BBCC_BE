@@ -161,6 +161,21 @@ class InventoryRestorationSoldOutIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("품절된 옵션을 되돌리는 주문 취소됨을 발행한 트랜잭션이 롤백되면 재고를 되돌리지 않고 상품 정보 변경됨도 보내지 않는다")
+    void sendNothingWhenPublisherRollsBack() {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(2, 5);
+        deductAndClearEvents(orderItem(11L, options.navy110(), 2));
+
+        transactionTemplate.executeWithoutResult(status -> {
+            eventPublisher.publish(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
+            status.setRollbackOnly();
+        });
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isZero();
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
     // 주문 생성됨으로 차감하고, 차감이 보낸 이벤트는 지워 주문 취소됨이 보낸 이벤트만 남게 한다
     private void deductAndClearEvents(OrderCreatedEvent.Item... items) {
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, items));
