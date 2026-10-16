@@ -85,6 +85,15 @@ class ProductImageUploadTest {
         assertThatThrownBy(() -> upload.key(environment, SELLER_ID, ID)).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(longs = {0L, -1L})
+    @DisplayName("판매자 ID가 0 이하면 객체 key를 만들지 않는다")
+    void rejectKeyWithNonPositiveSellerId(long sellerId) {
+        ProductImageUpload upload = ProductImageUpload.of("image/jpeg", 1_000L);
+
+        assertThatThrownBy(() -> upload.key("dev", sellerId, ID)).isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     @DisplayName("환경이나 UUID가 없으면 객체 key를 만들지 않는다")
     void rejectKeyWithoutEnvironmentOrId() {

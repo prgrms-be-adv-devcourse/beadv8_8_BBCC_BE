@@ -29,6 +29,9 @@ public record ProductImageUpload(ProductImageFormat format, long contentLength) 
         if (environment.isBlank() || environment.contains("/")) {
             throw new IllegalArgumentException("환경 값은 비어 있거나 /를 담을 수 없습니다");
         }
+        if (sellerId <= 0) {
+            throw new IllegalArgumentException("sellerId는 0보다 커야 합니다");
+        }
         return environment + "/products/" + sellerId + "/" + objectId + "." + format.extension();
     }
 }
