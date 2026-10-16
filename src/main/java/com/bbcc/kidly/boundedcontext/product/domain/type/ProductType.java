@@ -70,7 +70,7 @@ public class ProductType extends BaseTimeEntity {
             throw new BusinessException(ProductTypeErrorCode.REQUIRED_OPTION_MISSING);
         }
         if (hasManySizeRoles(links)) {
-            throw new IllegalArgumentException("사이즈 역할 항목은 하나만 둘 수 있습니다");
+            throw new BusinessException(ProductTypeErrorCode.MULTIPLE_SIZE_ROLES);
         }
         if (hasSizeRoleOnInfo(links)) {
             throw new IllegalArgumentException("사이즈 역할은 옵션 항목에만 둘 수 있습니다");

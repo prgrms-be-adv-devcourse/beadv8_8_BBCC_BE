@@ -102,8 +102,10 @@ class ProductTypeTest {
             requiredOption(color()), sizeOption(size()), sizeOption(shoeSize()));
 
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("사이즈 역할 항목은 하나");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.MULTIPLE_SIZE_ROLES);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     @Test
