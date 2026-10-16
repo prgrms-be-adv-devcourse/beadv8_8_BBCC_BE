@@ -15,6 +15,7 @@ import java.util.function.Function;
  * 주문 처리 타임라인(#352). 이미 저장된 시각만으로 단계를 조립한다(새 이력 없음).
  * 단계는 순서 있는 배열이다: CREATED → PAYMENT_REQUESTED → PAID → SHIPPED → DELIVERED → CONFIRMED.
  * 취소된 주문은 마지막으로 끝난 단계 뒤에 CANCELLED를 두고(결제 전 취소면 PAID 없음) 나머지를 NOT_APPLICABLE로 둔다.
+ * 결제 뒤 구매자 취소(#354)면 나머지 단계의 details에 배송 건 · 주문상품을 NOT_APPLICABLE로 나열한다(결제 전 취소는 []).
  *
  * @param currentStep 배열에서 가장 뒤의 DONE 또는 PARTIAL 단계
  * @param cancelReason 취소가 아니면 null
@@ -87,9 +88,14 @@ public record OrderTimeline(
         }
         if (cancelled) {
             steps.add(new Step(StepName.CANCELLED, StepStatus.DONE, order.getUpdatedAt(), true, List.of(), List.of()));
-            steps.add(simple(StepName.SHIPPED, StepStatus.NOT_APPLICABLE));
-            steps.add(simple(StepName.DELIVERED, StepStatus.NOT_APPLICABLE));
-            steps.add(simple(StepName.CONFIRMED, StepStatus.NOT_APPLICABLE));
+            // 결제 뒤 취소(#354)면 배송 건 · 주문상품을 해당 없음으로 나열한다(어느 판매자 · 상품이 취소됐는지 보이게). 결제 전 취소는 []
+            boolean paid = order.getPaidAt() != null;
+            List<DeliveryDetail> notShipped = paid ? notApplicable(deliveries, sellerNames) : List.of();
+            List<ItemDetail> notConfirmed = paid
+                ? order.getItems().stream().map(OrderTimeline::notApplicable).toList() : List.of();
+            steps.add(new Step(StepName.SHIPPED, StepStatus.NOT_APPLICABLE, null, false, notShipped, List.of()));
+            steps.add(new Step(StepName.DELIVERED, StepStatus.NOT_APPLICABLE, null, false, notShipped, List.of()));
+            steps.add(new Step(StepName.CONFIRMED, StepStatus.NOT_APPLICABLE, null, false, List.of(), notConfirmed));
         } else {
             long sellerCount = order.getItems().stream()
                 .map(OrderItem::getProduct)
@@ -125,6 +131,19 @@ public record OrderTimeline(
             .map(delivery -> new DeliveryDetail(delivery.getId(), delivery.getSellerId(),
                 sellerNames.get(delivery.getSellerId()), statusOf(doneAt.apply(delivery)), doneAt.apply(delivery)))
             .toList();
+    }
+
+    private static List<DeliveryDetail> notApplicable(List<Delivery> deliveries, Map<Long, String> sellerNames) {
+        return deliveries.stream()
+            .map(delivery -> new DeliveryDetail(delivery.getId(), delivery.getSellerId(),
+                sellerNames.get(delivery.getSellerId()), StepStatus.NOT_APPLICABLE, null))
+            .toList();
+    }
+
+    private static ItemDetail notApplicable(OrderItem item) {
+        OrderItem.ProductSnapshot product = item.getProduct();
+        return new ItemDetail(item.getId(), product == null ? null : product.productName(), StepStatus.NOT_APPLICABLE,
+            null, null);
     }
 
     private static ItemDetail itemDetail(OrderItem item) {

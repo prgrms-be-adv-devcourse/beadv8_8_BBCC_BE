@@ -85,6 +85,15 @@ public class OrderController {
     }
 
     /**
+     * 구매자 전체 취소(#354). 결제대기 주문, 또는 판매자 배송이 모두 발송 전인 결제완료 주문만. 200 + 취소된 주문 상세.
+     * 하나라도 발송했으면 409, 이미 취소된 주문은 그대로 200. 결제 환불 · 재고 복구는 order.cancelled를 받은 쪽이 한다.
+     */
+    @PostMapping("/{orderId}/cancel")
+    public OrderDetailResponse cancel(@LoginMember AuthMember member, @PathVariable Long orderId) {
+        return OrderDetailResponse.from(orderService.cancelByBuyer(member.id(), orderId));
+    }
+
+    /**
      * 주문 처리 타임라인(#352). 남의 · 없는 주문 404.
      */
     @GetMapping("/{orderId}/timeline")

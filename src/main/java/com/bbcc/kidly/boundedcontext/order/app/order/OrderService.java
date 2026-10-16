@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.order.TransitionResult;
@@ -155,7 +156,8 @@ public class OrderService {
      * 결제완료로 바꾼다. 결제 시각은 이벤트 값이 아니라 지금 시각을 쓴다.
      * 결제대기면 주문이 회원 · 주문상품 구성 · 금액을 대조하고, 다르면 PaymentMismatchException이 그대로 나간다.
      * 취소된 주문에 온 결제 완료는 반영하지 않는다. 환불은 결제 쪽이 처리하므로 환불 여부 확인만 WARN으로 알린다
-     * (#290, 올 때마다).
+     * (#290, 올 때마다). 단 결제완료 뒤 구매자가 취소한 주문에 같은 결제 ID로 다시 온 결제 완료는 이미 반영한 중복이라
+     * DEBUG로만 남긴다(#354-1, 그 결제의 환불은 취소 때 order.cancelled로 이미 요청됨).
      *
      * @return 이번에 결제완료로 바꿨으면 true. 주문이 없거나 결제대기가 아니면 false
      */
@@ -168,6 +170,12 @@ public class OrderService {
         TransitionResult result = order.markPaid(command.paymentId(), command.memberId(), command.amount(),
             toPaidItems(command.items()), now);
         if (result == TransitionResult.NOT_APPLICABLE && order.getStatus() == Order.Status.CANCELLED) {
+            // 결제 ID가 없으면 같은 결제인지 알 수 없으므로 중복으로 보지 않는다(환불 확인 WARN 그대로)
+            if (order.getPaidAt() != null && command.paymentId() != null
+                && Objects.equals(order.getPaymentId(), command.paymentId())) {
+                logIgnored("payment.completed", order, result);
+                return false;
+            }
             log.warn("취소된 주문에 결제 완료 — 결제 쪽이 환불 처리, 환불 여부 확인 필요: event=payment.completed "
                     + "reason=paid-after-cancel "
                     + "orderId={} paymentId={} amount={} cancelReason={}",
@@ -280,6 +288,38 @@ public class OrderService {
             .stream()
             .map(row -> new AutoConfirmTarget(row.getOrderId(), row.getOrderItemId()))
             .toList();
+    }
+
+    /**
+     * 구매자가 주문을 전체 취소한다(#354). 결제대기 주문, 또는 판매자별 배송이 모두 발송 전인 결제완료 주문만.
+     * 주문 취소 · 판매자 배송 취소 · order.cancelled 발행을 한 트랜잭션으로 한다(결제 환불 · 재고 복구는 이벤트를 받은 쪽).
+     * 판매자 발송과 동시에 오면 배송 @Version으로 한쪽만 성공한다(진 쪽은 공통 409, 다시 누르면 아래 상태 검사로 409).
+     * 이미 취소된 주문은(사유 무관) 그대로 상세를 돌려준다. 남의 주문은 없는 주문으로 본다.
+     * 배송 완료 · 구매확정은 배송이 발송된 뒤에만 일어나므로 발송 검사가 그 경합도 막는다.
+     */
+    public OrderDetail cancelByBuyer(Long memberId, Long orderId) {
+        LocalDateTime now = LocalDateTime.now();
+        Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+        List<Delivery> deliveries = deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId);
+        if (order.getStatus() != Order.Status.CANCELLED && deliveries.stream().anyMatch(OrderService::isShipped)) {
+            throw new BusinessException(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
+        }
+        TransitionResult result = order.cancel(Order.CancelReason.BUYER_CANCELLED);
+        if (result == TransitionResult.NOT_APPLICABLE) {
+            throw new BusinessException(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
+        }
+        if (result == TransitionResult.APPLIED) {
+            deliveries.forEach(Delivery::cancel);
+            publishCancelled(order, now);
+        } else {
+            logIgnored("cancel-by-buyer", order, result);
+        }
+        return OrderDetail.from(order, deliveries, sellerNamesOf(List.of(order)));
+    }
+
+    private static boolean isShipped(Delivery delivery) {
+        return delivery.getStatus() == Delivery.Status.SHIPPING || delivery.getStatus() == Delivery.Status.DELIVERED;
     }
 
     @Transactional(readOnly = true)
@@ -397,6 +437,13 @@ public class OrderService {
             logIgnored(source, order, result);
             return;
         }
+        publishCancelled(order, now);
+    }
+
+    /**
+     * order.cancelled를 주문상품 순서대로 발행하고 결과 한 줄을 남긴다(사유는 주문에 기록된 값).
+     */
+    private void publishCancelled(Order order, LocalDateTime now) {
         eventPublisher.publish(new OrderCancelledEvent(UUID.randomUUID(), now,
             new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), order.getCancelReason().name(),
                 order.getItems().stream()

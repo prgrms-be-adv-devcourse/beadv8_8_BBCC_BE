@@ -12,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -19,6 +20,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 판매자별 주문(주문 1건 × 판매자 1명). READY → SHIPPING → DELIVERED 순서로만 바뀐다.
+ * 구매자가 발송 전에 주문을 취소하면 READY → CANCELLED(#354). 발송과 취소가 동시에 오면 @Version으로 한쪽만 성공한다.
  */
 @Entity
 @Table(schema = "orders", name = "delivery", indexes = {
@@ -34,7 +36,8 @@ public class Delivery extends BaseTimeEntity {
     public enum Status {
         READY,
         SHIPPING,
-        DELIVERED
+        DELIVERED,
+        CANCELLED
     }
 
     /**
@@ -74,6 +77,9 @@ public class Delivery extends BaseTimeEntity {
 
     private LocalDateTime deliveredAt;
 
+    @Version
+    private Long version;
+
     public static Delivery create(Long orderId, Long sellerId) {
         Delivery delivery = new Delivery();
         delivery.orderId = orderId;
@@ -83,6 +89,7 @@ public class Delivery extends BaseTimeEntity {
     }
 
     public void ship(Carrier carrier, String trackingNumber, LocalDateTime now) {
+        rejectIfCancelled();
         if (status != Status.READY) {
             throw new BusinessException(OrderErrorCode.ALREADY_SHIPPED);
         }
@@ -96,6 +103,7 @@ public class Delivery extends BaseTimeEntity {
      * 배송 완료. 이미 완료면 그대로 둔다(두 번 눌러도 처음 시각 유지). 발송 전이면 409.
      */
     public void complete(LocalDateTime now) {
+        rejectIfCancelled();
         if (status == Status.DELIVERED) {
             return;
         }
@@ -104,5 +112,25 @@ public class Delivery extends BaseTimeEntity {
         }
         this.status = Status.DELIVERED;
         this.deliveredAt = now;
+    }
+
+    /**
+     * 구매자가 주문을 취소했다(#354). 발송 전(READY)만 취소할 수 있고, 이미 취소면 그대로 둔다.
+     * 발송 · 배송 완료한 배송은 서비스가 먼저 거르므로 여기 오면 불변식 위반이다.
+     */
+    public void cancel() {
+        if (status == Status.CANCELLED) {
+            return;
+        }
+        if (status != Status.READY) {
+            throw new IllegalStateException("발송 전 배송만 취소할 수 있습니다: deliveryId=" + id + " status=" + status);
+        }
+        this.status = Status.CANCELLED;
+    }
+
+    private void rejectIfCancelled() {
+        if (status == Status.CANCELLED) {
+            throw new BusinessException(OrderErrorCode.DELIVERY_CANCELLED);
+        }
     }
 }

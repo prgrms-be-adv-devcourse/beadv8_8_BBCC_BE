@@ -691,6 +691,47 @@ class OrderServiceTest {
             assertThat(output).doesNotContain("paid-after-cancel");
         }
 
+        @Test
+        @DisplayName("결제완료 뒤 구매자가 취소한 주문에 같은 결제 ID의 결제 완료가 다시 오면 WARN 없이 무시한다(이미 반영한 중복, #354-1)")
+        void duplicateOfAlreadyPaidCancelledIsIgnored(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            order.cancel(Order.CancelReason.BUYER_CANCELLED);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            boolean paid = orderService.markPaid(new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of()));
+
+            assertThat(paid).isFalse();
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(output).doesNotContain("paid-after-cancel");
+        }
+
+        @Test
+        @DisplayName("결제완료 뒤 취소한 주문이어도 다른 결제 ID의 결제 완료면 지금처럼 환불 확인 WARN을 남긴다 (#354-1)")
+        void otherPaymentOnPaidCancelledIsWarned(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            order.cancel(Order.CancelReason.BUYER_CANCELLED);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.markPaid(new MarkPaidCommand(ORDER_ID, 999L, BUYER_ID, 50_000L, List.of()));
+
+            assertThat(paidAfterCancelLines(output, "WARN", "orderId=" + ORDER_ID + " paymentId=999")).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("결제 ID 없이 결제완료된 뒤 취소한 주문에 결제 ID 없는 결제 완료가 오면 같은 결제로 볼 수 없어 WARN (#354-1)")
+        void missingPaymentIdOnBothIsWarned(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            pay(order, null, LocalDateTime.of(2026, 10, 14, 9, 1));
+            order.cancel(Order.CancelReason.BUYER_CANCELLED);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            orderService.markPaid(new MarkPaidCommand(ORDER_ID, null, BUYER_ID, 50_000L, List.of()));
+
+            assertThat(paidAfterCancelLines(output, "WARN", "orderId=" + ORDER_ID + " paymentId=null")).isEqualTo(1);
+        }
+
         private long paidAfterCancelLines(CapturedOutput output, String level, String text) {
             return output.getAll().lines()
                 .filter(line -> line.contains(level) && line.contains("결제 쪽이 환불 처리, 환불 여부 확인 필요")
@@ -821,6 +862,133 @@ class OrderServiceTest {
             assertThat(page.getTotalElements()).isEqualTo(3L);
             assertThat(page.hasNext()).isFalse();
             verify(orderRepository, never()).findAllByOrderByIdDesc(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("구매자 취소 (#354)")
+    class CancelByBuyer {
+
+        private static final Long OTHER_SELLER_ID = 3L;
+
+        @Test
+        @DisplayName("결제대기 주문이면 BUYER_CANCELLED로 취소하고 order.cancelled를 주문상품과 함께 발행, 상세를 돌려준다")
+        void cancelsPending() {
+            Order order = withId(withItemIds(placedOrderWithTwoItems()), ORDER_ID);
+            when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
+
+            OrderDetail detail = orderService.cancelByBuyer(BUYER_ID, ORDER_ID);
+
+            assertThat(detail.status()).isEqualTo("CANCELLED");
+            assertThat(detail.cancelReason()).isEqualTo("BUYER_CANCELLED");
+            assertThat(detail.deliveries()).isEmpty();
+            verify(eventPublisher).publish(published.capture());
+            OrderCancelledEvent cancelled = (OrderCancelledEvent) published.getValue();
+            assertThat(cancelled.data().reason()).isEqualTo("BUYER_CANCELLED");
+            assertThat(cancelled.data().memberId()).isEqualTo(BUYER_ID);
+            assertThat(cancelled.data().items()).extracting(OrderCancelledEvent.Item::optionId)
+                .containsExactly(OPTION_ID, 3L);
+        }
+
+        @Test
+        @DisplayName("결제완료이고 판매자별 배송이 모두 발송 전이면 주문 · 배송 모두 취소하고 order.cancelled 1건")
+        void cancelsPaidBeforeShipping() {
+            Order order = paidOrderWithId();
+            List<Delivery> deliveries = List.of(Delivery.create(ORDER_ID, SELLER_ID),
+                Delivery.create(ORDER_ID, OTHER_SELLER_ID));
+            givenOrder(order, deliveries);
+
+            OrderDetail detail = orderService.cancelByBuyer(BUYER_ID, ORDER_ID);
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(deliveries).extracting(Delivery::getStatus)
+                .containsOnly(Delivery.Status.CANCELLED);
+            assertThat(detail.deliveries()).extracting(OrderDetail.SellerDelivery::status)
+                .containsExactly("CANCELLED", "CANCELLED");
+            verify(eventPublisher).publish(any(OrderCancelledEvent.class));
+        }
+
+        @Test
+        @DisplayName("결제완료인데 배송 건이 없으면(배송 생성 이벤트 유실) 주문만 취소한다")
+        void cancelsPaidWithoutDeliveries() {
+            Order order = paidOrderWithId();
+            givenOrder(order, List.of());
+
+            assertThat(orderService.cancelByBuyer(BUYER_ID, ORDER_ID).status()).isEqualTo("CANCELLED");
+            verify(eventPublisher).publish(any(OrderCancelledEvent.class));
+        }
+
+        @ParameterizedTest(name = "다른 판매자 배송 {0}")
+        @EnumSource(value = Delivery.Status.class, names = {"SHIPPING", "DELIVERED"})
+        @DisplayName("판매자 하나라도 발송했으면 CANCEL_NOT_ALLOWED_SHIPPED, 주문 · 발송 전 배송 모두 그대로 · 발행 없음")
+        void rejectsWhenAnyShipped(Delivery.Status shipped) {
+            Order order = paidOrderWithId();
+            Delivery ready = Delivery.create(ORDER_ID, SELLER_ID);
+            Delivery other = Delivery.create(ORDER_ID, OTHER_SELLER_ID);
+            other.ship(Delivery.Carrier.CJ, "1234567890", LocalDateTime.now());
+            if (shipped == Delivery.Status.DELIVERED) {
+                other.complete(LocalDateTime.now());
+            }
+            givenOrder(order, List.of(ready, other));
+
+            assertThatThrownBy(() -> orderService.cancelByBuyer(BUYER_ID, ORDER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(ready.getStatus()).isEqualTo(Delivery.Status.READY);
+            assertThat(other.getStatus()).isEqualTo(shipped);
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("배송은 모두 발송 전인데 주문상품이 배송 완료로 기록돼 있으면(도메인 불변식) CANCEL_NOT_ALLOWED_SHIPPED")
+        void rejectsWhenDomainRefuses() {
+            Order order = paidOrderWithId();
+            order.recordDelivered(SELLER_ID, LocalDateTime.now());
+            Delivery ready = Delivery.create(ORDER_ID, SELLER_ID);
+            givenOrder(order, List.of(ready));
+
+            assertThatThrownBy(() -> orderService.cancelByBuyer(BUYER_ID, ORDER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
+            assertThat(ready.getStatus()).isEqualTo(Delivery.Status.READY);
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(Order.CancelReason.class)
+        @DisplayName("이미 취소된 주문이면(사유 무관) 처음 사유 그대로 상세를 돌려주고 다시 발행하지 않는다")
+        void alreadyCancelledIsOk(Order.CancelReason reason) {
+            Order order = withId(withItemIds(placedOrderWithTwoItems()), ORDER_ID);
+            order.cancel(reason);
+            givenOrder(order, List.of());
+
+            OrderDetail detail = orderService.cancelByBuyer(BUYER_ID, ORDER_ID);
+
+            assertThat(detail.status()).isEqualTo("CANCELLED");
+            assertThat(detail.cancelReason()).isEqualTo(reason.name());
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("없거나 남의 주문이면 ORDER_NOT_FOUND, 배송 건은 읽지 않는다")
+        void notFound() {
+            assertThatThrownBy(() -> orderService.cancelByBuyer(BUYER_ID, ORDER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.ORDER_NOT_FOUND);
+            verify(deliveryRepository, never()).findAllByOrderIdOrderByIdAsc(any());
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        private Order paidOrderWithId() {
+            Order order = withId(withItemIds(placedOrderWithTwoItems()), ORDER_ID);
+            pay(order, 500L, LocalDateTime.now());
+            return order;
+        }
+
+        private void givenOrder(Order order, List<Delivery> deliveries) {
+            when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
+            when(deliveryRepository.findAllByOrderIdOrderByIdAsc(ORDER_ID)).thenReturn(deliveries);
         }
     }
 
