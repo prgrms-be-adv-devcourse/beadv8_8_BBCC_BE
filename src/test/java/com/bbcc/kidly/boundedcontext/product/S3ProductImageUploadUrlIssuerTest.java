@@ -98,8 +98,8 @@ class S3ProductImageUploadUrlIssuerTest {
         String query = URI.create(url).getRawQuery();
         for (String pair : query.split("&")) {
             if (pair.startsWith("X-Amz-SignedHeaders=")) {
-                String value = URLDecoder.decode(pair.substring("X-Amz-SignedHeaders=".length()), StandardCharsets.UTF_8);
-                return List.of(value.split(";"));
+                String encoded = pair.substring("X-Amz-SignedHeaders=".length());
+                return List.of(URLDecoder.decode(encoded, StandardCharsets.UTF_8).split(";"));
             }
         }
         return List.of();
