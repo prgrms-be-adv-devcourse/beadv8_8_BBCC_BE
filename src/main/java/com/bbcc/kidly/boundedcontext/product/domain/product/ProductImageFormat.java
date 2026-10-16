@@ -13,6 +13,10 @@ public enum ProductImageFormat {
         this.extension = extension;
     }
 
+    public String contentType() {
+        return contentType;
+    }
+
     public String extension() {
         return extension;
     }

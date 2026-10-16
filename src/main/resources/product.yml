@@ -1,0 +1,16 @@
+# 상품 도메인 설정. application.yml이 가져온다
+# 값이 비었거나 형식이 맞지 않으면 키 이름이 나오는 오류로 기동 실패 (ProductImageS3Properties)
+
+kidly:
+  product:
+    image:
+      # 판매자가 상품 이미지를 직접 올리는 S3. 서버가 업로드 주소(Presigned URL)에 서명하고, 업로드한 이미지는 공개 주소로 보여 준다
+      s3:
+        # dev와 prod가 같은 버킷을 쓰고 key-prefix 경로로만 나눈다
+        bucket: team04-kidly-s3
+        region: ap-northeast-2
+        # 객체 key 맨 앞의 환경 경로(소문자만). 서버는 PRODUCT_IMAGE_KEY_PREFIX로 dev · prod를 넣는다(application-prod.yml)
+        key-prefix: ${PRODUCT_IMAGE_KEY_PREFIX:local}
+        # 서버는 false로 EC2 IAM 역할의 자격 증명을 쓴다. 로컬 · 테스트는 AWS에 접근할 수 없어 true로 가짜 자격 증명을 쓴다
+        # true면 주소 형식은 같지만 S3가 서명을 거절해 실제로 올라가지는 않는다
+        fake-credentials: false
