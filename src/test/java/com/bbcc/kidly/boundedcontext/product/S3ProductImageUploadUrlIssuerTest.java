@@ -58,6 +58,16 @@ class S3ProductImageUploadUrlIssuerTest {
         assertThat(signedHeaders(issued.uploadUrl())).contains("content-type", "content-length");
     }
 
+    @Test
+    @DisplayName("이미지 주소는 업로드한 객체의 공개 주소이고 서명 쿼리를 담지 않는다")
+    void imageUrlIsPublicUrlOfSameObject() {
+        ProductImageUploadUrl issued = issuer.issue(ProductImageUpload.of("image/webp", 1_000L), SELLER_ID);
+
+        assertThat(issued.imageUrl())
+            .matches("https://team04-kidly-s3\\.s3\\.ap-northeast-2\\.amazonaws\\.com/dev/products/2/[0-9a-f-]{36}\\.webp")
+            .endsWith(URI.create(issued.uploadUrl()).getPath());
+    }
+
     private static List<String> signedHeaders(String url) {
         String query = URI.create(url).getRawQuery();
         for (String pair : query.split("&")) {

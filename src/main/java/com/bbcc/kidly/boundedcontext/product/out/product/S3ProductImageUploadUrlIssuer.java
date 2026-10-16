@@ -33,6 +33,11 @@ public class S3ProductImageUploadUrlIssuer implements ProductImageUploadUrlIssue
         PresignedPutObjectRequest presigned = presigner.presignPutObject(request -> request
             .signatureDuration(SIGNATURE_DURATION)
             .putObjectRequest(putObject));
-        return new ProductImageUploadUrl(presigned.url().toString(), null, null);
+        return new ProductImageUploadUrl(presigned.url().toString(), imageUrl(key), null);
+    }
+
+    // 버킷의 상품 이미지 경로는 공개 읽기라서 서명 없는 주소로 화면에 보여 줄 수 있다
+    private String imageUrl(String key) {
+        return "https://" + properties.bucket() + ".s3." + properties.region() + ".amazonaws.com/" + key;
     }
 }
