@@ -104,6 +104,17 @@ class ProductSampleDataServiceIntegrationTest {
         assertThat(availableQuantities(bottomId)).containsExactly(5);
     }
 
+    @Test
+    @DisplayName("상품이 하나라도 있으면 샘플 상품을 넣지 않는다")
+    void skipWhenProductExists() {
+        productSampleDataService.load();
+
+        productSampleDataService.load();
+
+        assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null)).getContent())
+            .hasSize(2);
+    }
+
     private List<Integer> availableQuantities(Long productId) {
         return sellerProductService.findMyProductDetail(SELLER_ID, productId).options().stream()
             .map(SellerProductDetailResult.Option::availableQuantity)

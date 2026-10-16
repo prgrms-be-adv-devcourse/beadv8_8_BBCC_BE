@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult.InputAttribute;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult.SelectableValue;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryTreeResult;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ public class ProductSampleDataService {
     private final CategoryService categoryService;
     private final ProductRegistrationService productRegistrationService;
     private final ProductSaleService productSaleService;
+    private final ProductRepository productRepository;
 
     /** 옵션 하나의 색상 · 사이즈 이름과 초기 재고이다. */
     private record OptionSample(String color, String size, int quantity) {
@@ -53,8 +55,13 @@ public class ProductSampleDataService {
                           List<SizeSpecSample> sizeSpecs) {
     }
 
+    // 상품이 하나라도 있으면 이미 넣었거나 판매자가 등록한 것이므로 통째로 건너뛴다
     @Transactional
     public void load() {
+        if (productRepository.count() > 0) {
+            log.info("상품이 이미 있어 상품 샘플 데이터를 넣지 않는다");
+            return;
+        }
         for (Sample sample : samples()) {
             ProductRegisterResult result = productRegistrationService.register(SELLER_ID, toRequest(sample));
             productSaleService.changeSaleStatus(SELLER_ID, result.productId(), ProductStatus.ON_SALE);
