@@ -13,6 +13,8 @@ public enum MemberErrorCode implements ErrorCode {
 
     LOGIN_NOT_ALLOWED(HttpStatus.FORBIDDEN, "로그인할 수 없는 회원입니다", "정지되었거나 탈퇴한 회원입니다."),
     MEMBER_NOT_SUSPENDABLE(HttpStatus.CONFLICT, "정지할 수 없는 회원입니다", "이미 정지 · 탈퇴했거나 관리자인 회원입니다."),
+    ADMIN_NOT_GRANTABLE(HttpStatus.CONFLICT, "관리자로 지정할 수 없는 회원입니다", "정지 · 탈퇴했거나 이미 관리자인 회원입니다."),
+    ADMIN_NOT_REVOCABLE(HttpStatus.CONFLICT, "관리자 권한을 해제할 수 없는 회원입니다", "관리자가 아니거나 본인입니다."),
     UNSUPPORTED_OAUTH_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인입니다", "로그인 방법을 다시 선택해 주세요."),
     INVALID_AUTHORIZATION_CODE(HttpStatus.BAD_REQUEST, "인가 코드가 올바르지 않습니다", "소셜 로그인을 다시 시도해 주세요."),
     OAUTH_PROVIDER_ERROR(HttpStatus.BAD_GATEWAY, "소셜 로그인에 실패했습니다", "잠시 후 다시 시도해 주세요."),

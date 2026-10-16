@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class MemberTest {
 
@@ -222,6 +223,85 @@ class MemberTest {
         assertStillActive(member);
         member.suspend(ADMIN_ID, maxReason, NOW);
         assertThat(member.getSuspension().reason()).isEqualTo(maxReason);
+    }
+
+    @Test
+    @DisplayName("관리자로 지정하면 ADMIN이고 토큰 역할에 ADMIN이 들어간다")
+    void grantAdmin() {
+        var member = MemberFixture.kakaoMember();
+
+        member.grantAdmin();
+
+        assertThat(member.getRole()).isEqualTo(MemberRole.ADMIN);
+        assertThat(member.roles()).containsExactly(Role.BUYER, Role.ADMIN);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MemberStatus.class, names = {"SUSPENDED", "WITHDRAWN"})
+    @DisplayName("정지 · 탈퇴한 회원은 관리자로 지정할 수 없다")
+    void grantAdminRejectsInactive(MemberStatus status) {
+        var member = MemberFixture.withStatus(status);
+
+        assertThatThrownBy(member::grantAdmin)
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.ADMIN_NOT_GRANTABLE));
+        assertThat(member.getRole()).isEqualTo(MemberRole.USER);
+    }
+
+    @Test
+    @DisplayName("이미 관리자인 회원은 다시 지정할 수 없다")
+    void grantAdminRejectsAdmin() {
+        var member = MemberFixture.withRole(MemberRole.ADMIN);
+
+        assertThatThrownBy(member::grantAdmin)
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.ADMIN_NOT_GRANTABLE));
+        assertThat(member.getRole()).isEqualTo(MemberRole.ADMIN);
+    }
+
+    @Test
+    @DisplayName("관리자 권한을 해제하면 USER이고 토큰 역할에 ADMIN이 빠진다")
+    void revokeAdmin() {
+        var member = MemberFixture.withRole(MemberRole.ADMIN);
+        ReflectionTestUtils.setField(member, "id", 1L);
+
+        member.revokeAdmin(ADMIN_ID);
+
+        assertThat(member.getRole()).isEqualTo(MemberRole.USER);
+        assertThat(member.roles()).containsExactly(Role.BUYER);
+    }
+
+    @Test
+    @DisplayName("관리자가 아닌 회원은 해제할 수 없다")
+    void revokeAdminRejectsUser() {
+        var member = MemberFixture.kakaoMember();
+        ReflectionTestUtils.setField(member, "id", 1L);
+
+        assertThatThrownBy(() -> member.revokeAdmin(ADMIN_ID))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.ADMIN_NOT_REVOCABLE));
+        assertThat(member.getRole()).isEqualTo(MemberRole.USER);
+    }
+
+    @Test
+    @DisplayName("본인의 관리자 권한은 해제할 수 없다")
+    void revokeAdminRejectsSelf() {
+        var member = MemberFixture.withRole(MemberRole.ADMIN);
+        ReflectionTestUtils.setField(member, "id", ADMIN_ID);
+
+        assertThatThrownBy(() -> member.revokeAdmin(ADMIN_ID))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.ADMIN_NOT_REVOCABLE));
+        assertThat(member.getRole()).isEqualTo(MemberRole.ADMIN);
+    }
+
+    @Test
+    @DisplayName("해제하는 관리자가 없으면 해제할 수 없다")
+    void revokeAdminRejectsNull() {
+        var member = MemberFixture.withRole(MemberRole.ADMIN);
+
+        assertThatThrownBy(() -> member.revokeAdmin(null)).isInstanceOf(NullPointerException.class);
+        assertThat(member.getRole()).isEqualTo(MemberRole.ADMIN);
     }
 
     @Test
