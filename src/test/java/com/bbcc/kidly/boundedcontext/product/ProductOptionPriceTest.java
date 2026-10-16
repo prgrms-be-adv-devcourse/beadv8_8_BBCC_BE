@@ -14,6 +14,9 @@ import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOption
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -100,5 +103,28 @@ class ProductOptionPriceTest {
 
         assertThat(product.currentPrices(clothing.type()))
             .containsExactly(new Product.PriceInfo(List.of(), 27_000L));
+    }
+
+    @Test
+    @DisplayName("PRICE-03 가격 구분 항목이 있는 유형은 옵션 순서대로 묶음마다 가격 하나를 만든다")
+    void currentPricesPerPriceGroup() {
+        Attribute color = ProductTypeFixture.color();
+        Attribute size = ProductTypeFixture.size();
+        AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
+        AttributeValue oatmeal = AttributeValue.create(color, "오트밀", "#e3d9c6");
+        AttributeValue size110 = AttributeValue.create(size, "110", null);
+        AttributeValue size120 = AttributeValue.create(size, "120", null);
+        // 색상에 따라 가격이 달라지는 유형이다
+        ProductType colorPriced = ProductType.define("색상별 가격 의류", List.of(
+            ProductTypeFixture.priceAffectingOption(color), ProductTypeFixture.sizeOption(size)));
+        Product colorPricedProduct = Product.register(ProductFixture.productAWith(colorPriced, List.of()));
+        colorPricedProduct.addOptions(new Product.AddOptionsInfo(SELLER_ID,
+            List.of(option(navy, size110), option(oatmeal, size110), option(navy, size120)),
+            List.of(new Product.PriceInfo(List.of(oatmeal), 27_000L), new Product.PriceInfo(List.of(navy), 25_000L))),
+            colorPriced);
+
+        assertThat(colorPricedProduct.currentPrices(colorPriced)).containsExactly(
+            new Product.PriceInfo(List.of(navy), 25_000L),
+            new Product.PriceInfo(List.of(oatmeal), 27_000L));
     }
 }
