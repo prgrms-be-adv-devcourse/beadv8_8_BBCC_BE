@@ -83,6 +83,17 @@ class S3ProductImageUploadUrlIssuerTest {
             after.plus(Duration.ofMinutes(5)));
     }
 
+    @Test
+    @DisplayName("같은 판매자가 같은 형식으로 두 번 발급해도 서로 다른 객체를 가리켜 덮어쓰지 않는다")
+    void issuesDifferentObjectEachTime() {
+        ProductImageUpload upload = ProductImageUpload.of("image/jpeg", 1_000L);
+
+        ProductImageUploadUrl first = issuer.issue(upload, SELLER_ID);
+        ProductImageUploadUrl second = issuer.issue(upload, SELLER_ID);
+
+        assertThat(first.imageUrl()).isNotEqualTo(second.imageUrl());
+    }
+
     private static List<String> signedHeaders(String url) {
         String query = URI.create(url).getRawQuery();
         for (String pair : query.split("&")) {
