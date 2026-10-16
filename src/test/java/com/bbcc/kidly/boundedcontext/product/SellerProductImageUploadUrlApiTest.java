@@ -71,6 +71,15 @@ class SellerProductImageUploadUrlApiTest {
             .jsonPath("$.instance").isEqualTo(PATH);
     }
 
+    @Test
+    @DisplayName("로그인하지 않으면 401, 판매자가 아닌 회원이면 403으로 거절한다")
+    void rejectWithoutSellerRole() {
+        Map<String, Object> body = files(file("image/jpeg", 1_000));
+
+        issue(null, body).expectStatus().isUnauthorized();
+        issue(tokens.buyer(SELLER_ID), body).expectStatus().isForbidden();
+    }
+
     static Stream<Arguments> invalidRequests() {
         String format = "files[0].contentType: jpeg, png, webp 이미지만 올릴 수 있습니다.";
         String size = "files[0].contentLength: 이미지는 한 장에 1바이트 이상 10MB 이하로 올려 주세요.";
