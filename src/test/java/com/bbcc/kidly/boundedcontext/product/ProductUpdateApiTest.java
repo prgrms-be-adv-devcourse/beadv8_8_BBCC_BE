@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -154,6 +155,30 @@ class ProductUpdateApiTest {
     void rejectOtherSeller() {
         expectProblem(update(tokens.seller(OTHER_SELLER_ID), updateBody(storedVersion())), HttpStatus.FORBIDDEN,
             "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
+    }
+
+    @Test
+    @DisplayName("OPT-08 다른 판매자가 원래 판매자의 이미지를 담아 고쳐도 이미지 검사(400)보다 권한 확인(403)이 먼저다")
+    void rejectOtherSellerBeforeImageCheck() {
+        Map<String, Object> body = updateBody(storedVersion());
+        body.put("imageUrls", List.of(ownImageUrl(SELLER_ID)));
+
+        expectProblem(update(tokens.seller(OTHER_SELLER_ID), body), HttpStatus.FORBIDDEN,
+            "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"thumbnailUrl", "imageUrls"})
+    @DisplayName("썸네일이나 이미지 목록을 판매자 본인이 올린 이미지가 아닌 것으로 고치면 400을 받고 상품은 바뀌지 않는다")
+    void rejectNotOwnImage(String field) {
+        long version = storedVersion();
+        Map<String, Object> body = updateBody(version);
+        String otherSellersImage = ownImageUrl(OTHER_SELLER_ID);
+        body.put(field, field.equals("imageUrls") ? List.of(otherSellersImage) : otherSellersImage);
+
+        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST, "허용되지 않은 이미지 주소입니다",
+            "상품 이미지는 업로드 주소로 올린 본인 이미지만 넣을 수 있습니다. 이미지를 업로드 주소로 올린 뒤 받은 이미지 주소를 넣어 주세요.");
+        assertThat(storedVersion()).isEqualTo(version);
     }
 
     @Test

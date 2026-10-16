@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.app.product;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.product.ProductImageUploadUrlIssuer;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductUpdateRequest;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetailResult;
 import com.bbcc.kidly.boundedcontext.product.app.product.support.InventoryReplacer;
@@ -13,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product.UpdateInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.UpdateResult;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUrls;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
@@ -42,6 +44,7 @@ public class ProductUpdateService {
     private final InventoryReplacer inventoryReplacer;
     private final ProductChangedPublisher productChangedPublisher;
     private final SellerProductService sellerProductService;
+    private final ProductImageUploadUrlIssuer uploadUrlIssuer;
 
     // 상품을 고치고, 바뀌었으면 version을 올려 저장한 뒤 판매대기가 아닌 상품이면 상품 정보 변경됨을 발행한다
     @Transactional
@@ -76,6 +79,10 @@ public class ProductUpdateService {
         }
         List<ProductOption> optionsBefore = List.copyOf(product.getOptions());
         UpdateResult result = product.update(info, saleInputs);
+        // 이미지는 판매자 본인이 올린 것만 받는다. 다른 판매자의 요청이 403보다 400을 먼저 받지 않도록 등록한 판매자 확인(update) 뒤에
+        // 검사한다. 여기서 거절하면 트랜잭션이 되돌려 고친 내용은 저장되지 않는다
+        ProductImageUrls.validate(
+            request.thumbnailUrl(), request.imageUrls(), uploadUrlIssuer.ownImageUrlPrefix(sellerId));
         // 뺀 옵션의 재고는 상품을 고친 뒤 첫 flush보다 먼저 지운다. 옵션 삭제가 먼저 반영되면 재고 행이 옵션을 가리켜 막힌다
         inventoryRepository.deleteByOptionIds(idsOf(result.removedOptions()));
         if (result.changed()) {
