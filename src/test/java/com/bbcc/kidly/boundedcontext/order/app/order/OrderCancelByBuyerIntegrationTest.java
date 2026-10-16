@@ -15,13 +15,16 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
+import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.event.PaymentEventListener;
+import com.bbcc.kidly.boundedcontext.order.in.web.PaymentRecoveryRetry;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -83,6 +86,15 @@ class OrderCancelByBuyerIntegrationTest {
 
     @Autowired
     private OrderFlowEventRecorder recorder;
+
+    @Autowired
+    private PaymentRecoveryRepository recoveryRepository;
+
+    @Autowired
+    private PaymentRecoveryService recoveryService;
+
+    @Autowired
+    private PaymentRecoveryRetry recoveryRetry;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -221,7 +233,64 @@ class OrderCancelByBuyerIntegrationTest {
                 assertThat(deliveries).extracting(Delivery::getStatus).containsOnly(Delivery.Status.CANCELLED);
                 assertThat(cancelledEvents(orderId)).isEqualTo(1);
             }
+            // 진 쪽 결제 완료는 낙관적 락(동시 중복에서 진 쪽) 또는 취소된 주문이라 반영 안 함이어서 실패 보관이 없다(#353)
+            assertThat(recoveryCount(orderId)).as("%d회차 결제 반영 실패 기록", round).isZero();
         }
+    }
+
+    @Test
+    @DisplayName("결제 반영 실패 기록이 재처리 대기인 주문을 구매자가 취소하면 200, 그 뒤 관리자 재처리는 기록만 CANCELLED로 닫는다(이벤트 1 그대로)")
+    void buyerCancelThenAdminRetry() {
+        Long buyerId = 8_000L;
+        Long orderId = place(buyerId, true);
+        Long recoveryId = pendingRecovery(orderId, buyerId);
+
+        assertThat(orderService.cancelByBuyer(buyerId, orderId).status()).isEqualTo("CANCELLED");
+        assertThat(cancelledEvents(orderId)).isEqualTo(1);
+
+        assertThat(recoveryRetry.retry(recoveryId).status()).isEqualTo("CANCELLED");
+
+        Order order = orderRepository.findById(orderId).orElseThrow();
+        assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+        assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.BUYER_CANCELLED);
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId)).isEmpty();
+        assertThat(cancelledEvents(orderId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("결제대기 주문에 구매자 취소와 관리자 기록 취소가 동시에 와도 order.cancelled는 1건, 진 쪽은 낙관적 락 · RECOVERY_CLOSED뿐")
+    void buyerCancelVersusAdminRecoveryCancel() throws InterruptedException {
+        for (int round = 1; round <= REPEAT; round++) {
+            Long buyerId = 8_100L + round;
+            Long orderId = place(buyerId, true);
+            Long recoveryId = pendingRecovery(orderId, buyerId);
+
+            ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
+                () -> orderService.cancelByBuyer(buyerId, orderId),
+                () -> recoveryService.cancel(recoveryId)),
+                error -> error instanceof BusinessException business
+                    && business.getErrorCode() == OrderErrorCode.RECOVERY_CLOSED);
+
+            assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
+            assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(cancelledEvents(orderId)).as("%d회차 order.cancelled", round).isEqualTo(1);
+        }
+    }
+
+    /**
+     * 결제대기 주문에 재처리 대기(PENDING) 결제 반영 실패 기록을 만든다(#353 리스너 실패 보관과 같은 모양).
+     */
+    private Long pendingRecovery(Long orderId, Long buyerId) {
+        OrderDetail order = orderService.getOrder(buyerId, orderId);
+        return recoveryRepository.save(PaymentRecovery.open(orderId, 500L, buyerId, order.totalAmount(),
+            order.items().stream()
+                .map(item -> new PaymentRecovery.PaidItem(item.orderItemId(), item.amount())).toList(),
+            "DataIntegrityViolationException", true, LocalDateTime.now())).getId();
+    }
+
+    private long recoveryCount(Long orderId) {
+        return jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
+            Long.class, orderId);
     }
 
     @Test
