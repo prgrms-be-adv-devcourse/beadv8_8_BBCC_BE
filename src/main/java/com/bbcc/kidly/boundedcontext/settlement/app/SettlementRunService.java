@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunResult;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementSkipRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementTriggerType;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
@@ -36,6 +37,7 @@ public class SettlementRunService {
     private final JobOperator jobOperator;
     private final JobRepository jobRepository;
     private final Job settlementJob;
+    private final SettlementSkipRepository settlementSkipRepository;
 
     // 기준일은 오늘 또는 지난 날짜. 그 날 0시 전에 확정된 대기 항목을 정산한다
     public SettlementRunResult runManually(LocalDate cutoffOn, Long adminId) {
@@ -49,7 +51,7 @@ public class SettlementRunService {
 
     @Transactional(readOnly = true)
     public SettlementRunResult getRun(Long runId) {
-        return SettlementRunResult.from(findRun(runId));
+        return resultOf(findRun(runId));
     }
 
     // 서버가 작업 도중 죽어 실행 중으로 남은 작업을 FAILED로 정리해, 같은 기준일로 다시 실행할 수 있게 한다.
@@ -59,7 +61,7 @@ public class SettlementRunService {
         if (!execution.getStatus().isRunning()) {
             throw new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_NOT_RECOVERABLE);
         }
-        return SettlementRunResult.from(jobOperator.recover(execution));
+        return resultOf(jobOperator.recover(execution));
     }
 
     // runId는 작업 실행 ID. JDBC 저장소는 없는 ID면 EmptyResultDataAccessException을 던진다
@@ -92,12 +94,15 @@ public class SettlementRunService {
         if (requestedBy != null) {
             builder.addLong(SettlementJobConfig.REQUESTED_BY, requestedBy, false);
         }
+        // 시작만 감싼다. 끝난 뒤의 조회 실패를 경쟁으로 잘못 판단하지 않게 한다
+        JobExecution execution;
         try {
-            return SettlementRunResult.from(jobOperator.start(settlementJob, builder.toJobParameters()));
+            execution = jobOperator.start(settlementJob, builder.toJobParameters());
         } catch (JobInstanceAlreadyCompleteException | JobExecutionAlreadyRunningException | JobRestartException
             | InvalidJobParametersException | RuntimeException e) {
             throw conflictOr(cutoff, e);
         }
+        return resultOf(execution);
     }
 
     // 같은 기준일을 동시에 시작하면 늦은 쪽은 Batch 안 어디서 끼었는지에 따라 다른 예외로 실패한다
@@ -116,5 +121,10 @@ public class SettlementRunService {
             }
         }
         return e instanceof RuntimeException runtime ? runtime : new IllegalStateException("정산 작업을 시작하지 못했습니다", e);
+    }
+
+    private SettlementRunResult resultOf(JobExecution execution) {
+        return SettlementRunResult.of(
+            execution, settlementSkipRepository.findAllByJobExecutionIdOrderByIdAsc(execution.getId()));
     }
 }
