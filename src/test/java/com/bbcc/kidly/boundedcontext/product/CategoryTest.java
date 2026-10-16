@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.http.HttpStatus;
 
 class CategoryTest {
 
@@ -57,8 +58,10 @@ class CategoryTest {
         Category top = CategoryFixture.top(clothing, clothingType);
 
         assertThatThrownBy(createUnder.apply(top))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("말단 카테고리 아래에는");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.PARENT_IS_LEAF);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     static Stream<Named<Function<Category, ThrowingCallable>>> categoriesUnderLeaf() {

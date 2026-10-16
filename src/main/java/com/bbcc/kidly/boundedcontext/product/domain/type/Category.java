@@ -106,7 +106,7 @@ public class Category extends BaseTimeEntity {
     // 부모가 지연 로딩 프록시이면 필드가 비어 있으므로 getter로 읽는다
     private static void rejectLeafParent(Category parent) {
         if (parent != null && parent.getProductType() != null) {
-            throw new IllegalArgumentException("말단 카테고리 아래에는 카테고리를 만들 수 없습니다");
+            throw new BusinessException(CategoryErrorCode.PARENT_IS_LEAF);
         }
     }
 
