@@ -76,6 +76,15 @@ class ProductImageUploadTest {
             .isInstanceOf(NullPointerException.class);
     }
 
+    @ParameterizedTest(name = "[{0}]")
+    @ValueSource(strings = {"", " ", "dev/", "/dev", "de/v"})
+    @DisplayName("환경 값이 비었거나 /를 담으면 객체 key를 만들지 않는다")
+    void rejectKeyWithInvalidEnvironment(String environment) {
+        ProductImageUpload upload = ProductImageUpload.of("image/jpeg", 1_000L);
+
+        assertThatThrownBy(() -> upload.key(environment, SELLER_ID, ID)).isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     @DisplayName("환경이나 UUID가 없으면 객체 key를 만들지 않는다")
     void rejectKeyWithoutEnvironmentOrId() {

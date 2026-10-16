@@ -23,7 +23,12 @@ public record ProductImageUpload(ProductImageFormat format, long contentLength) 
     }
 
     public String key(String environment, long sellerId, UUID objectId) {
-        return requireNonNull(environment, "environment는 필수입니다") + "/products/" + sellerId + "/"
-            + requireNonNull(objectId, "objectId는 필수입니다") + "." + format.extension();
+        requireNonNull(environment, "environment는 필수입니다");
+        requireNonNull(objectId, "objectId는 필수입니다");
+        // dev와 prod가 한 버킷을 경로로만 나눠 쓰므로, 환경 값이 경로를 바꾸지 못하게 막는다
+        if (environment.isBlank() || environment.contains("/")) {
+            throw new IllegalArgumentException("환경 값은 비어 있거나 /를 담을 수 없습니다");
+        }
+        return environment + "/products/" + sellerId + "/" + objectId + "." + format.extension();
     }
 }
