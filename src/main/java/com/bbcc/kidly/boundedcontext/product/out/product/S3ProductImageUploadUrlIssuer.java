@@ -27,6 +27,8 @@ public class S3ProductImageUploadUrlIssuer implements ProductImageUploadUrlIssue
         PutObjectRequest putObject = PutObjectRequest.builder()
             .bucket(properties.bucket())
             .key(key)
+            .contentType(upload.format().contentType())
+            .contentLength(upload.contentLength())
             .build();
         PresignedPutObjectRequest presigned = presigner.presignPutObject(request -> request
             .signatureDuration(SIGNATURE_DURATION)

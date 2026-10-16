@@ -8,6 +8,9 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUpload;
 import com.bbcc.kidly.boundedcontext.product.out.product.ProductImageS3Properties;
 import com.bbcc.kidly.boundedcontext.product.out.product.S3ProductImageUploadUrlIssuer;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -45,5 +48,24 @@ class S3ProductImageUploadUrlIssuerTest {
         ProductImageUploadUrl issued = issuer.issue(ProductImageUpload.of("image/jpeg", 1_000L), SELLER_ID);
 
         assertThat(issued.uploadUrl()).contains("X-Amz-Expires=300");
+    }
+
+    @Test
+    @DisplayName("업로드 주소의 서명에 Content-Type과 Content-Length를 넣어 다른 형식이나 크기의 파일은 올라가지 않는다")
+    void uploadUrlSignsContentTypeAndLength() {
+        ProductImageUploadUrl issued = issuer.issue(ProductImageUpload.of("image/png", 1_234_567L), SELLER_ID);
+
+        assertThat(signedHeaders(issued.uploadUrl())).contains("content-type", "content-length");
+    }
+
+    private static List<String> signedHeaders(String url) {
+        String query = URI.create(url).getRawQuery();
+        for (String pair : query.split("&")) {
+            if (pair.startsWith("X-Amz-SignedHeaders=")) {
+                String value = URLDecoder.decode(pair.substring("X-Amz-SignedHeaders=".length()), StandardCharsets.UTF_8);
+                return List.of(value.split(";"));
+            }
+        }
+        return List.of();
     }
 }
