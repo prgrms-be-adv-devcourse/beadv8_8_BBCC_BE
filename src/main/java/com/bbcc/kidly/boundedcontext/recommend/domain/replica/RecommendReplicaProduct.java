@@ -133,7 +133,6 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         for (OptionInfo option : info.options()) {
             requireNonNull(option, "option은 필수입니다");
-            requireNonNull(option.size(), "size는 필수입니다");
         }
     }
 
@@ -145,7 +144,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.status = info.status();
         this.thumbnailUrl = info.thumbnailUrl();
         this.productRegisteredAt = info.registeredAt();
-        this.sizeFree = info.sizeFree();
+        this.sizeFree = info.sizeFree() || hasOnlyOptionsWithoutSize(info.options());
         this.eventOccurredAt = info.occurredAt();
         // 컬렉션 객체를 새로 갈아 끼우지 않고 비운 뒤 다시 채운다
         this.sizes.clear();
@@ -181,6 +180,19 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
      */
     public boolean hasSellableOption() {
         return !sellableSizes.isEmpty();
+    }
+
+    // 사이즈 역할 항목이 없는 유형의 상품은 옵션 사이즈가 모두 null로 온다. 고객에게는 사이즈 무관 상품과 같으므로 사이즈 무관으로 본다
+    private static boolean hasOnlyOptionsWithoutSize(List<OptionInfo> options) {
+        if (options.isEmpty()) {
+            return false;
+        }
+        for (OptionInfo option : options) {
+            if (option.size() != null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static Long lowestPrice(List<OptionInfo> options) {

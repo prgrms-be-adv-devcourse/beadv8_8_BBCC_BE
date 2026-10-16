@@ -41,11 +41,6 @@ class RecommendReplicaProductTest {
         productOptionInfo("110", 105, 115),
         productOptionInfo("FREE", null, null));
 
-    // 앞 옵션은 올바르므로, 값을 검사하기 전에 사이즈 줄을 고치기 시작하면 덮어쓰기 거절 테스트가 실패한다
-    private static final List<RecommendReplicaProduct.OptionInfo> OPTIONS_WITH_NULL_SIZE = List.of(
-        productOptionInfo("130", 125, 135),
-        productOptionInfo(null, 135, 145));
-
     @Test
     @DisplayName("처음 받은 상품 정보로 복사본을 만든다")
     void createWithFirstChange() {
@@ -204,6 +199,16 @@ class RecommendReplicaProductTest {
         assertThat(replica.toProductSizes()).isEqualTo(expected);
     }
 
+    // 사이즈 역할 항목이 없는 유형의 상품은 옵션 사이즈가 null로 오고, 이벤트의 사이즈 무관 값은 false로 온다
+    @Test
+    @DisplayName("옵션 사이즈가 모두 없으면 사이즈 무관 상품으로 본다")
+    void treatProductWithoutSizeAsSizeFree() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(false,
+            List.of(productOptionInfo(null, null, null), productOptionInfo(null, null, null)), PRODUCT_CHANGED_AT));
+
+        assertThat(replica.toProductSizes()).isEqualTo(ProductSizes.of(true, List.of()));
+    }
+
     @Test
     @DisplayName("INV-R01 더 늦게 일어난 상품 변경으로 덮어쓰고 사이즈 줄도 새 옵션으로 바꾼다")
     void applyLaterChange() {
@@ -314,9 +319,6 @@ class RecommendReplicaProductTest {
             Named.of("옵션 목록", () -> RecommendReplicaProduct.create(
                 change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, null,
                     LATER))),
-            Named.of("옵션의 사이즈", () -> RecommendReplicaProduct.create(
-                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT,
-                    OPTIONS_WITH_NULL_SIZE, LATER))),
             Named.of("이벤트 발생 시각", () -> RecommendReplicaProduct.create(
                 change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, OPTIONS,
                     null))));
@@ -354,8 +356,6 @@ class RecommendReplicaProductTest {
                 change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, null, OPTIONS, LATER)),
             Named.of("옵션 목록",
                 change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, null, LATER)),
-            Named.of("옵션의 사이즈", change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE,
-                PRODUCT_A_REGISTERED_AT, OPTIONS_WITH_NULL_SIZE, LATER)),
             Named.of("이벤트 발생 시각", change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE,
                 PRODUCT_A_REGISTERED_AT, OPTIONS, null)));
     }
