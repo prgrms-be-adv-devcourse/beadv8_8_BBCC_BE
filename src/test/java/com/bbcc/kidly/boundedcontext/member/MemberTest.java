@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberSuspension;
+import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -32,7 +33,7 @@ class MemberTest {
     @Test
     @DisplayName("가입하면 소셜 계정 1개를 가진 활성 일반 회원이 된다")
     void register() {
-        Member member = Member.register(new MemberRegisterInfo(KAKAO_1, "테스트회원", EMAIL), NOW);
+        Member member = Member.register(new MemberRegisterInfo(KAKAO_1, new Nickname("테스트회원"), EMAIL), NOW);
 
         assertThat(member.getNickname()).isEqualTo("테스트회원");
         assertThat(member.getEmail()).isEqualTo(EMAIL);
@@ -50,37 +51,25 @@ class MemberTest {
     void registerRejectsNull() {
         assertThatThrownBy(() -> Member.register(null, NOW))
             .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Member.register(new MemberRegisterInfo(null, "테스트회원", EMAIL), NOW))
+        assertThatThrownBy(() -> Member.register(new MemberRegisterInfo(null, new Nickname("테스트회원"), EMAIL), NOW))
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Member.register(
             new MemberRegisterInfo(KAKAO_1, null, EMAIL), NOW))
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(KAKAO_1, "테스트회원", null), NOW))
+            new MemberRegisterInfo(KAKAO_1, new Nickname("테스트회원"), null), NOW))
             .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(KAKAO_1, "테스트회원", EMAIL), null))
+            new MemberRegisterInfo(KAKAO_1, new Nickname("테스트회원"), EMAIL), null))
             .isInstanceOf(NullPointerException.class);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", " "})
-    @DisplayName("닉네임이나 이메일이 비어 있으면 가입할 수 없다")
+    @DisplayName("이메일이 비어 있으면 가입할 수 없다")
     void registerRejectsBlank(String blank) {
         assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(KAKAO_1, blank, EMAIL), NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(KAKAO_1, "테스트회원", blank), NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"가", "가나다라마바사아자차카타파하가나다라마바사", " 하은맘", "하은맘 "})
-    @DisplayName("닉네임이 2~20자가 아니거나 앞뒤에 공백이 있으면 가입할 수 없다")
-    void registerRejectsNicknameLength(String nickname) {
-        assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(KAKAO_1, nickname, EMAIL), NOW))
+            new MemberRegisterInfo(KAKAO_1, new Nickname("테스트회원"), blank), NOW))
             .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -88,11 +77,11 @@ class MemberTest {
     @ValueSource(strings = {"하은", "가나다라마바사아자차카타파하가나다라마바"})
     @DisplayName("닉네임이 정확히 2자이거나 20자여도 가입하고 바꿀 수 있다")
     void acceptsNicknameBoundaryLength(String nickname) {
-        var registered = Member.register(new MemberRegisterInfo(KAKAO_1, nickname, EMAIL), NOW);
+        var registered = Member.register(new MemberRegisterInfo(KAKAO_1, new Nickname(nickname), EMAIL), NOW);
         var member = MemberFixture.kakaoMember();
 
         assertThat(registered.getNickname()).isEqualTo(nickname);
-        assertThat(member.changeNickname(nickname)).isTrue();
+        assertThat(member.changeNickname(new Nickname(nickname))).isTrue();
         assertThat(member.getNickname()).isEqualTo(nickname);
     }
 
@@ -101,7 +90,7 @@ class MemberTest {
     void changeNickname() {
         var member = MemberFixture.kakaoMember();
 
-        assertThat(member.changeNickname("하은맘")).isTrue();
+        assertThat(member.changeNickname(new Nickname("하은맘"))).isTrue();
         assertThat(member.getNickname()).isEqualTo("하은맘");
     }
 
@@ -110,17 +99,15 @@ class MemberTest {
     void changeToSameNickname() {
         var member = MemberFixture.kakaoMember();
 
-        assertThat(member.changeNickname(MemberFixture.NICKNAME)).isFalse();
+        assertThat(member.changeNickname(new Nickname(MemberFixture.NICKNAME))).isFalse();
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"", " ", "가", "가나다라마바사아자차카타파하가나다라마바사", " 하은맘", "하은맘 "})
-    @DisplayName("비어 있거나 2~20자가 아니거나 앞뒤에 공백이 있는 닉네임으로는 바꿀 수 없다")
-    void changeNicknameRejectsInvalid(String nickname) {
+    @Test
+    @DisplayName("바꿀 닉네임이 null이면 바꿀 수 없다")
+    void changeNicknameRejectsNull() {
         var member = MemberFixture.kakaoMember();
 
-        assertThatThrownBy(() -> member.changeNickname(nickname))
-            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> member.changeNickname(null)).isInstanceOf(NullPointerException.class);
         assertThat(member.getNickname()).isEqualTo(MemberFixture.NICKNAME);
     }
 

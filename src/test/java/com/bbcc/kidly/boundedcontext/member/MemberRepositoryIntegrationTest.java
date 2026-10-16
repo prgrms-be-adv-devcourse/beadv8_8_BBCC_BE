@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -46,7 +47,7 @@ class MemberRepositoryIntegrationTest {
         assertThatThrownBy(() -> memberRepository.save(
             Member.register(
                 new MemberRegisterInfo(
-                    new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"), "다른회원", MemberFixture.EMAIL),
+                    new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"), new Nickname("다른회원"), MemberFixture.EMAIL),
                 MemberFixture.NOW)))
             .isInstanceOf(DataIntegrityViolationException.class);
     }

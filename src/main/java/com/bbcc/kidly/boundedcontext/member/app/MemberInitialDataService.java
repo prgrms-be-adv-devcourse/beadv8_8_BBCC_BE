@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,7 @@ public class MemberInitialDataService {
     // 소셜 계정 ID는 카카오 회원번호(숫자)와 겹치지 않게 seed-번호로 둔다
     private Member register(int number, String nickname, String email) {
         return memberRegistrar.register(
-            new MemberRegisterInfo(new SocialIdentity(OAuthProvider.KAKAO, "seed-" + number), nickname, email));
+            new MemberRegisterInfo(new SocialIdentity(OAuthProvider.KAKAO, "seed-" + number),
+                new Nickname(nickname), email));
     }
 }

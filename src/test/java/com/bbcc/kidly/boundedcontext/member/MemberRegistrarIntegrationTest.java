@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
@@ -39,7 +40,8 @@ class MemberRegistrarIntegrationTest {
     @DisplayName("가입하면 회원을 저장하고 가입 이벤트를 발행한다")
     void register() {
         Member member = memberRegistrar.register(
-            new MemberRegisterInfo(new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"), "테스트회원", MemberFixture.EMAIL));
+            new MemberRegisterInfo(
+                new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"), new Nickname("테스트회원"), MemberFixture.EMAIL));
 
         assertThat(memberRepository.findBySocialAccount(new SocialIdentity(OAuthProvider.KAKAO, "kakao-1")))
             .hasValueSatisfying(found -> assertThat(found.getId()).isEqualTo(member.getId()));
@@ -57,7 +59,8 @@ class MemberRegistrarIntegrationTest {
         memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
 
         assertThatThrownBy(() -> memberRegistrar.register(
-            new MemberRegisterInfo(new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"), "다른회원", MemberFixture.EMAIL)))
+            new MemberRegisterInfo(
+                new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"), new Nickname("다른회원"), MemberFixture.EMAIL)))
             .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jpaMemberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class)).isEmpty();

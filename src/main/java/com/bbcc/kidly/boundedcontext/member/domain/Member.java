@@ -29,7 +29,7 @@ import org.springframework.util.Assert;
 
 /**
  * 회원. 소셜 계정으로 가입 · 로그인한다. 판매자 여부는 역할로 저장하지 않고, 이벤트로 받은 판매자 상태 복사본을 가진다.
- * 닉네임은 2~20자이고 회원끼리 겹치지 않는다.
+ * 닉네임 규칙은 {@link Nickname}. 회원끼리 겹치지 않는지는 {@link NicknamePolicy}가 확인하고, DB 유니크 제약이 마지막으로 막는다.
  * 이메일은 가입 때 받고 바꾸지 않는다.
  * 상태는 ACTIVE → SUSPENDED / WITHDRAWN으로만 바뀐다(정지 해제 없음).
  */
@@ -41,9 +41,6 @@ import org.springframework.util.Assert;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member extends BaseTimeEntity {
-
-    public static final int NICKNAME_MIN_LENGTH = 2;
-    public static final int NICKNAME_MAX_LENGTH = 20;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -85,33 +82,24 @@ public class Member extends BaseTimeEntity {
     public static Member register(MemberRegisterInfo info, LocalDateTime now) {
         requireNonNull(info, "info는 필수입니다");
         Member member = new Member(
-            requireNonNull(info.nickname(), "nickname은 필수입니다"),
+            requireNonNull(info.nickname(), "nickname은 필수입니다").value(),
             requireNonNull(info.email(), "email은 필수입니다"));
         member.socialAccounts.add(new SocialAccount(
             member,
             requireNonNull(info.identity(), "identity는 필수입니다"),
             requireNonNull(now, "now는 필수입니다")));
-        validateNickname(info.nickname());
         Assert.hasText(info.email(), "email은 비어 있을 수 없습니다");
         return member;
     }
 
-    // 닉네임이 바뀌면 true. 같은 값이면 바꾸지 않는다. 다른 회원과 겹치는지는 서비스와 DB 유니크 제약이 막는다
-    public boolean changeNickname(String nickname) {
+    // 닉네임이 바뀌면 true. 같은 값이면 바꾸지 않는다. 다른 회원과 겹치는지는 NicknamePolicy가 확인하고, DB 유니크 제약이 마지막으로 막는다
+    public boolean changeNickname(Nickname nickname) {
         requireNonNull(nickname, "nickname은 필수입니다");
-        validateNickname(nickname);
-        if (this.nickname.equals(nickname)) {
+        if (this.nickname.equals(nickname.value())) {
             return false;
         }
-        this.nickname = nickname;
+        this.nickname = nickname.value();
         return true;
-    }
-
-    private static void validateNickname(String nickname) {
-        Assert.hasText(nickname, "nickname은 비어 있을 수 없습니다");
-        Assert.isTrue(nickname.equals(nickname.strip()), "닉네임 앞뒤에 공백을 둘 수 없습니다");
-        Assert.isTrue(nickname.length() >= NICKNAME_MIN_LENGTH && nickname.length() <= NICKNAME_MAX_LENGTH,
-            "닉네임은 2~20자여야 합니다");
     }
 
     // ACTIVE 회원만 정지할 수 있다. 관리자는 정지하면 되돌릴 방법이 없어 막는다(해제 없음)

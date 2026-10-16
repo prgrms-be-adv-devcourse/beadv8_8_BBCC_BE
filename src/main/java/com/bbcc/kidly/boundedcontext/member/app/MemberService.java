@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.member.app;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberResult;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
@@ -33,7 +34,7 @@ public class MemberService {
     @Transactional
     public MemberResult update(Long memberId, MemberUpdateRequest request) {
         var member = memberRepository.getById(memberId);
-        if (nicknamePolicy.changeNickname(member, request.nickname())) {
+        if (nicknamePolicy.changeNickname(member, new Nickname(request.nickname()))) {
             eventPublisher.publish(new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
                 new MemberChangedEvent.Data(memberId, member.getNickname())));
         }
