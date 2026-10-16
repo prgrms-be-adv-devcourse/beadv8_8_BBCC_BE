@@ -34,4 +34,12 @@ class ProductImageUploadTest {
         assertThatThrownBy(() -> ProductImageUpload.of(contentType, 1_000L))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(longs = {0L, -1L, 10_485_761L})
+    @DisplayName("크기가 0 이하이거나 10MB를 넘으면 업로드를 만들지 않는다")
+    void rejectOutOfRangeSize(long contentLength) {
+        assertThatThrownBy(() -> ProductImageUpload.of("image/jpeg", contentLength))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }
