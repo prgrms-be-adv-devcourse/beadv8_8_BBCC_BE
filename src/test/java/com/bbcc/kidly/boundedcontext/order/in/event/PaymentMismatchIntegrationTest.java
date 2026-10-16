@@ -12,9 +12,11 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.PaymentMismatchException;
+import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
@@ -68,6 +70,9 @@ class PaymentMismatchIntegrationTest {
     @Autowired
     private OrderFlowEventRecorder recorder;
 
+    @Autowired
+    private PaymentRecoveryRepository recoveryRepository;
+
     @BeforeEach
     void setUp() {
         // 테스트마다 주문 ID가 1부터 다시 시작해(RESTART IDENTITY) 다른 테스트의 같은 orderId 이벤트가 섞이지 않게 비운다
@@ -102,6 +107,11 @@ class PaymentMismatchIntegrationTest {
         assertThat(recorder.events(OrderCancelledEvent.class))
             .filteredOn(cancelled -> cancelled.data().orderId().equals(order.orderId()))
             .isEmpty();
+        // #353: 결제 내용 불일치는 재처리할 수 없는 기록으로 남는다(만료 대상 그대로 → 만료 취소 · 환불)
+        PaymentRecovery recovery = recoveryRepository.findByOrderId(order.orderId()).orElseThrow();
+        assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.NOT_RETRYABLE);
+        assertThat(recovery.getFailureCode()).isEqualTo(reason.code());
+        assertThat(recovery.getAttemptCount()).isEqualTo(1);
     }
 
     /**

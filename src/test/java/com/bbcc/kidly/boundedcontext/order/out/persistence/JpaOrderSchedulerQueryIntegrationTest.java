@@ -3,11 +3,14 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
+import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -30,6 +33,9 @@ class JpaOrderSchedulerQueryIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PaymentRecoveryRepository recoveryRepository;
 
     @Nested
     @DisplayName("결제 마감이 지난 주문 ID")
@@ -64,6 +70,67 @@ class JpaOrderSchedulerQueryIntegrationTest {
             assertThat(orderRepository.findOverduePaymentOrderIds(
                 Order.Status.PENDING_PAYMENT, now, ids.get(3), Limit.of(2)))
                 .isEqualTo(List.of());
+        }
+    }
+
+    @Nested
+    @DisplayName("결제 마감이 지난 주문 ID · 결제 반영 실패 기록 (#353)")
+    class OverduePaymentWithRecovery {
+
+        @Test
+        @DisplayName("재처리 대기 기록이 있는 주문만 빠지고, 재처리 불가 · 복구됨 · 취소로 종료 · 기록 없음은 마감 경계 그대로")
+        void excludesOnlyPendingRecovery() {
+            LocalDateTime now = LocalDateTime.now().withNano(0);
+            List<Long> expected = new ArrayList<>();
+            for (LocalDateTime dueAt : List.of(now.minusSeconds(1), now, now.plusSeconds(1))) {
+                boolean overdue = !dueAt.isAfter(now);
+                saveRecovery(placeDueAt(dueAt), null);
+                for (PaymentRecovery.Status status : List.of(PaymentRecovery.Status.NOT_RETRYABLE,
+                    PaymentRecovery.Status.RECOVERED, PaymentRecovery.Status.CANCELLED)) {
+                    Long orderId = placeDueAt(dueAt);
+                    saveRecovery(orderId, status);
+                    if (overdue) {
+                        expected.add(orderId);
+                    }
+                }
+                Long withoutRecovery = placeDueAt(dueAt);
+                if (overdue) {
+                    expected.add(withoutRecovery);
+                }
+            }
+
+            assertThat(orderRepository.findOverduePaymentOrderIds(Order.Status.PENDING_PAYMENT, now, 0L, Limit.of(20)))
+                .containsExactlyElementsOf(expected);
+        }
+
+        @Test
+        @DisplayName("빠진 재처리 대기 주문이 사이에 있어도 ID 커서 · limit은 남은 대상 기준으로 이어진다")
+        void cursorSkipsPendingRecovery() {
+            LocalDateTime now = LocalDateTime.now().withNano(0);
+            Long first = placeDueAt(now.minusMinutes(1));
+            saveRecovery(placeDueAt(now.minusMinutes(1)), null);
+            Long third = placeDueAt(now.minusMinutes(1));
+
+            assertThat(orderRepository.findOverduePaymentOrderIds(Order.Status.PENDING_PAYMENT, now, 0L, Limit.of(1)))
+                .containsExactly(first);
+            assertThat(orderRepository.findOverduePaymentOrderIds(
+                Order.Status.PENDING_PAYMENT, now, first, Limit.of(1)))
+                .containsExactly(third);
+        }
+
+        /**
+         * @param closeAs null이면 PENDING 그대로, 그 밖이면 그 상태로 만든다
+         */
+        private void saveRecovery(Long orderId, PaymentRecovery.Status closeAs) {
+            boolean retryable = closeAs != PaymentRecovery.Status.NOT_RETRYABLE;
+            PaymentRecovery recovery = PaymentRecovery.open(orderId, 500L, BUYER_ID, 25_000L, List.of(),
+                retryable ? "IllegalStateException" : "member-mismatch", retryable, LocalDateTime.now());
+            if (closeAs == PaymentRecovery.Status.RECOVERED) {
+                recovery.recover(LocalDateTime.now());
+            } else if (closeAs == PaymentRecovery.Status.CANCELLED) {
+                recovery.cancel(LocalDateTime.now());
+            }
+            recoveryRepository.save(recovery);
         }
     }
 
