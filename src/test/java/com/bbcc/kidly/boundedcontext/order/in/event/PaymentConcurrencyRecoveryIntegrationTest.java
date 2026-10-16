@@ -111,6 +111,7 @@ class PaymentConcurrencyRecoveryIntegrationTest {
             long cancelledEvents = cancelledEventsOf(order.orderId());
             LOG.info("[#137] 결제 완료 ×2 + 만료 {}회차: 결과 {}, 진 쪽(낙관적 락 · 배송 유니크) {}회",
                 round, stored.getStatus(), outcome.conflicts());
+            assertThat(recoveryCountOf(order.orderId())).as("진 쪽은 보관하지 않음(%d회차)", round).isZero();
 
             if (stored.getStatus() == Order.Status.PAID) {
                 paid++;
@@ -147,6 +148,7 @@ class PaymentConcurrencyRecoveryIntegrationTest {
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId()))
             .extracting(Delivery::getId).containsExactly(existing.getId());
         assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(buyerId)).hasSize(2);
+        assertThat(recoveryCountOf(order.orderId())).as("배송 유니크 위반은 진 쪽이라 보관하지 않음").isZero();
 
         jdbcTemplate.update("delete from orders.delivery where id = ?", existing.getId());
         paymentEventListener.onPaymentCompleted(event);
@@ -188,6 +190,11 @@ class PaymentConcurrencyRecoveryIntegrationTest {
             }
         }
         return false;
+    }
+
+    private long recoveryCountOf(Long orderId) {
+        return jdbcTemplate.queryForObject(
+            "select count(*) from orders.payment_recovery where order_id = ?", Long.class, orderId);
     }
 
     private long cancelledEventsOf(Long orderId) {

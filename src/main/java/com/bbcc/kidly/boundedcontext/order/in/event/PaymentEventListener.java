@@ -1,9 +1,10 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
-import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
-import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
 import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
@@ -11,15 +12,13 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * payment.completed를 받아 결제완료 → 판매자별 주문 만들기 → 장바구니 정리를 차례로 맡긴다.
- * 리스너 트랜잭션 하나로 묶여 중간에 실패하면 모두 되돌린다.
+ * 리스너 트랜잭션 하나로 묶여 중간에 실패하면 모두 되돌리고, 받은 결제 완료와 실패 이유는 따로 보관한다(#353).
  * payment.failed를 받아 결제 실패 취소를 맡긴다. 이벤트 필드가 바뀌면 여기 변환만 고친다.
  */
 @Slf4j
@@ -27,17 +26,19 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @RequiredArgsConstructor
 public class PaymentEventListener {
 
-    private static final String DELIVERY_UNIQUE = "uk_delivery_order_seller";
     private static final String MISSING_ORDER_ID = "missing-order-id";
+    private static final String NOT_SAVED = "not-saved";
+    private static final String ALREADY_RECORDED = "already-recorded";
+    private static final String RECORD_LOCKED = "record-locked";
 
     private final OrderService orderService;
-    private final DeliveryService deliveryService;
-    private final CartService cartService;
+    private final PaymentCompletion paymentCompletion;
+    private final PaymentRecoveryService recoveryService;
 
     /**
      * 처리 중 예외는 분류해 로그를 남긴 뒤 그대로 다시 던진다(트랜잭션은 그대로 되돌려짐).
      * 낙관적 락 · 배송 (order_id, seller_id) 유니크 위반 = 동시 중복 처리에서 진 쪽(이긴 쪽이 이미 처리함) → WARN,
-     * 그 밖 = 돈은 빠졌는데 결제완료가 안 됨 → ERROR(결제 환불 연결 뒤 WARN으로 내릴 예정).
+     * 그 밖 = 돈은 빠졌는데 결제완료가 안 됨 → 재처리용으로 보관하고(결제 불일치는 재처리 불가) 보관 결과를 붙여 ERROR 한 줄.
      * 주문 버전 충돌은 메서드가 끝난 뒤 커밋 때 나므로, 트랜잭션 완료 콜백에서 되돌려졌으면 WARN을 남긴다
      * (본문에서 이미 로그를 남긴 경우는 제외).
      */
@@ -60,23 +61,41 @@ public class PaymentEventListener {
         AtomicBoolean logged = new AtomicBoolean(false);
         warnIfRolledBackAtCommit(eventType, paid, logged);
         try {
-            if (!orderService.markPaid(paid)) {
-                return;
-            }
-            deliveryService.createFor(paid.orderId());
-            cartService.clearOrdered(paid.orderId());
+            paymentCompletion.apply(paid);
         } catch (RuntimeException e) {
             logged.set(true);
-            if (isLostConcurrentDuplicate(e)) {
+            if (PaymentFailures.isLostConcurrentDuplicate(e)) {
                 log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event={} "
                     + "reason=lost-concurrent-duplicate orderId={} paymentId={}",
                     eventType, paid.orderId(), paid.paymentId(), e);
-            } else {
-                log.error("결제 완료 처리 실패: event={} reason=processing-failed orderId={} paymentId={}",
-                    eventType, paid.orderId(), paid.paymentId(), e);
+                throw e;
             }
+            PaymentRecoveryResult saved = null;
+            String recoveryStatus;
+            try {
+                saved = recoveryService.recordFailure(paid, e);
+                recoveryStatus = saved.status();
+            } catch (RuntimeException recordError) {
+                // 보관이 실패해도 원래 예외를 그대로 던지도록 보관 오류는 원래 예외에 붙인다(suppressed).
+                // 같은 주문의 결제 완료 두 건이 동시에 실패하면 늦은 쪽은 기록 유니크에 걸려 시도 횟수가 하나 덜 셀 수 있다 —
+                // 기록은 1건으로 남고 재처리에는 지장이 없어 다시 읽어 갱신하지 않고, 로그에는 이미 보관됨으로 남긴다
+                e.addSuppressed(recordError);
+                recoveryStatus = recoveryStatusOf(recordError);
+            }
+            log.error("결제 완료 처리 실패: event={} reason=processing-failed orderId={} paymentId={} "
+                    + "recoveryStatus={} attemptCount={} failureCode={}",
+                eventType, paid.orderId(), paid.paymentId(), recoveryStatus,
+                saved == null ? null : saved.attemptCount(), saved == null ? null : saved.failureCode(), e);
             throw e;
         }
+    }
+
+    // 보관하지 못한 이유를 운영자가 구분하게: 이미 보관됨(동시 실패의 늦은 쪽) · 기록 잠김(재처리 · 취소 중) · 그 밖
+    private static String recoveryStatusOf(RuntimeException recordError) {
+        if (PaymentFailures.isAlreadyRecorded(recordError)) {
+            return ALREADY_RECORDED;
+        }
+        return PaymentFailures.isRecordLocked(recordError) ? RECORD_LOCKED : NOT_SAVED;
     }
 
     private static void warnIfRolledBackAtCommit(String eventType, MarkPaidCommand paid, AtomicBoolean logged) {
@@ -93,21 +112,6 @@ public class PaymentEventListener {
                 }
             }
         });
-    }
-
-    private static boolean isLostConcurrentDuplicate(RuntimeException error) {
-        if (error instanceof OptimisticLockingFailureException) {
-            return true;
-        }
-        if (!(error instanceof DataIntegrityViolationException)) {
-            return false;
-        }
-        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
-            if (cause.getMessage() != null && cause.getMessage().contains(DELIVERY_UNIQUE)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

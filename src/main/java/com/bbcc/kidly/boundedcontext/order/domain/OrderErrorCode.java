@@ -40,7 +40,17 @@ public enum OrderErrorCode implements ErrorCode {
         "지원하는 택배사는 CJ · EPOST · HANJIN · LOTTE · LOGEN입니다."),
     ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "주문상품을 찾을 수 없습니다", "없는 주문상품입니다. 주문 상세를 새로고침해 주세요."),
     INVALID_IDEMPOTENCY_KEY(HttpStatus.BAD_REQUEST, "잘못된 요청 키입니다", "주문서를 다시 열어 주문해 주세요."),
-    IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT, "이미 다른 주문에 쓴 요청입니다", "주문서를 다시 열어 주문해 주세요.");
+    IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT, "이미 다른 주문에 쓴 요청입니다", "주문서를 다시 열어 주문해 주세요."),
+    RECOVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 반영 실패 기록을 찾을 수 없습니다",
+        "없는 기록입니다. 결제 반영 실패 목록을 새로고침해 주세요."),
+    RECOVERY_NOT_RETRYABLE(HttpStatus.CONFLICT, "재처리할 수 없는 기록입니다",
+        "결제 내용이 주문과 달라 재처리할 수 없습니다. 취소로 종료해 환불해 주세요."),
+    RECOVERY_CLOSED(HttpStatus.CONFLICT, "이미 종료된 기록입니다",
+        "이미 복구됐거나 취소로 종료된 주문입니다. 결제 반영 실패 목록을 새로고침해 주세요."),
+    RECOVERY_ORDER_PAID(HttpStatus.CONFLICT, "이미 결제가 반영된 주문입니다",
+        "이미 결제가 반영된 주문입니다. 재처리를 눌러 복구를 마무리해 주세요."),
+    INVALID_RECOVERY_STATUS(HttpStatus.BAD_REQUEST, "지원하지 않는 기록 상태입니다",
+        "상태는 PENDING · RECOVERED · CANCELLED · NOT_RETRYABLE 중 하나로 보내 주세요.");
 
     private final HttpStatus status;
     private final String title;

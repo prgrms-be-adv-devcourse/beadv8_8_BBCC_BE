@@ -2,25 +2,31 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -54,11 +60,20 @@ class PaymentEventListenerLogTest {
     @Mock
     private CartService cartService;
 
-    @InjectMocks
+    @Mock
+    private PaymentRecoveryService recoveryService;
+
     private PaymentEventListener listener;
 
+    // 결제 완료 반영 순서는 실제 PaymentCompletion으로 두고, 그 안의 서비스만 mock으로 둔다
+    @BeforeEach
+    void setUp() {
+        listener = new PaymentEventListener(orderService,
+            new PaymentCompletion(orderService, deliveryService, cartService), recoveryService);
+    }
+
     @Test
-    @DisplayName("배송 (order_id, seller_id) 유니크 위반이면 WARN을 남기고 같은 예외를 다시 던진다")
+    @DisplayName("배송 (order_id, seller_id) 유니크 위반이면 WARN을 남기고 같은 예외를 다시 던진다(보관하지 않음)")
     void deliveryUniqueViolationIsWarn(CapturedOutput output) {
         DataIntegrityViolationException error = new DataIntegrityViolationException(
             "duplicate key value violates unique constraint \"uk_delivery_order_seller\"");
@@ -68,10 +83,11 @@ class PaymentEventListenerLogTest {
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
         assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
+        verify(recoveryService, never()).recordFailure(any(), any());
     }
 
     @Test
-    @DisplayName("낙관적 락 충돌이면 WARN을 남기고 같은 예외를 다시 던진다")
+    @DisplayName("낙관적 락 충돌이면 WARN을 남기고 같은 예외를 다시 던진다(보관하지 않음)")
     void optimisticLockIsWarn(CapturedOutput output) {
         ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", ORDER_ID);
         when(orderService.markPaid(COMMAND)).thenThrow(error);
@@ -79,31 +95,90 @@ class PaymentEventListenerLogTest {
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
         assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
+        verify(recoveryService, never()).recordFailure(any(), any());
     }
 
     @Test
-    @DisplayName("다른 제약 위반은 진 쪽이 아니므로 ERROR를 남기고 같은 예외를 다시 던진다")
+    @DisplayName("다른 제약 위반은 진 쪽이 아니므로 보관하고, 보관 결과를 붙인 ERROR 한 줄을 남긴 뒤 같은 예외를 다시 던진다")
     void otherConstraintViolationIsError(CapturedOutput output) {
         DataIntegrityViolationException error = new DataIntegrityViolationException(
             "duplicate key value violates unique constraint \"uk_cart_item\"");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
         doThrow(error).when(cartService).clearOrdered(ORDER_ID);
+        when(recoveryService.recordFailure(COMMAND, error)).thenReturn(saved("DataIntegrityViolationException"));
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
-        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON).doesNotContain("lost-concurrent-duplicate");
+        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON
+                + " recoveryStatus=PENDING attemptCount=1 failureCode=DataIntegrityViolationException")
+            .doesNotContain("lost-concurrent-duplicate");
+        assertThat(output.getOut()).containsOnlyOnce("reason=processing-failed");
     }
 
     @Test
-    @DisplayName("그 밖의 예외는 ERROR를 남기고 같은 예외를 다시 던진다")
+    @DisplayName("그 밖의 예외는 보관하고 ERROR 한 줄을 남긴 뒤 같은 예외를 다시 던진다")
     void otherErrorIsError(CapturedOutput output) {
         IllegalStateException error = new IllegalStateException("배송 생성 실패");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
         doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        when(recoveryService.recordFailure(COMMAND, error)).thenReturn(saved("IllegalStateException"));
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
-        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON).doesNotContain("lost-concurrent-duplicate");
+        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON
+                + " recoveryStatus=PENDING attemptCount=1 failureCode=IllegalStateException")
+            .doesNotContain("lost-concurrent-duplicate");
+    }
+
+    @Test
+    @DisplayName("보관이 실패해도 원래 예외를 그대로 던지고(보관 오류는 suppressed), 로그에는 보관하지 못했다고 남긴다")
+    void recordFailureErrorKeepsOriginal(CapturedOutput output) {
+        IllegalStateException error = new IllegalStateException("배송 생성 실패");
+        IllegalStateException recordError = new IllegalStateException("기록 저장 실패");
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
+        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        when(recoveryService.recordFailure(COMMAND, error)).thenThrow(recordError);
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(recordError));
+
+        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON + " recoveryStatus=not-saved");
+    }
+
+    @Test
+    @DisplayName("재처리 · 취소가 기록을 잠그고 있어 보관이 바로 실패하면 기록 잠김으로 남기고 원래 예외를 그대로 던진다")
+    void lockedRecordIsRecordLocked(CapturedOutput output) {
+        IllegalStateException error = new IllegalStateException("배송 생성 실패");
+        CannotAcquireLockException recordError = new CannotAcquireLockException("could not obtain lock on row");
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
+        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        when(recoveryService.recordFailure(COMMAND, error)).thenThrow(recordError);
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(recordError));
+
+        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON + " recoveryStatus=record-locked")
+            .doesNotContain("recoveryStatus=not-saved");
+    }
+
+    @Test
+    @DisplayName("같은 주문의 결제 완료가 동시에 실패해 늦은 쪽 보관이 기록 유니크에 걸리면 이미 보관됨으로 남긴다(기록은 1건 있음)")
+    void lateRecordIsAlreadyRecorded(CapturedOutput output) {
+        IllegalStateException error = new IllegalStateException("배송 생성 실패");
+        DataIntegrityViolationException recordError = new DataIntegrityViolationException(
+            "duplicate key value violates unique constraint \"uk_payment_recovery_order\"");
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
+        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        when(recoveryService.recordFailure(COMMAND, error)).thenThrow(recordError);
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(recordError));
+
+        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON + " recoveryStatus=already-recorded")
+            .doesNotContain("recoveryStatus=not-saved");
     }
 
     @Test
@@ -146,6 +221,12 @@ class PaymentEventListenerLogTest {
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
+    }
+
+    private static PaymentRecoveryResult saved(String failureCode) {
+        LocalDateTime now = LocalDateTime.now();
+        return new PaymentRecoveryResult(1L, ORDER_ID, PAYMENT_ID, 1L, AMOUNT, List.of(), "PENDING", failureCode, 1,
+            now, now);
     }
 
     private PaymentCompletedEvent event() {

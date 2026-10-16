@@ -30,6 +30,10 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
         """)
     List<Order> findAllWithItemsByIdIn(Collection<Long> ids);
 
+    /**
+     * 결제 완료 반영 실패로 재처리를 기다리는 주문(기록 PENDING)은 빼서 만료 취소 · 환불하지 않는다(#353).
+     * 재처리 불가 · 복구됨 · 취소로 종료 기록은 그대로 대상이다. 기록은 주문당 1건(order_id 유니크 인덱스가 받침).
+     */
     @Override
     @Query("""
         select o
@@ -45,6 +49,11 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
         select o.id
         from Order o
         where o.status = :status and o.paymentDueAt <= :now and o.id > :afterId
+          and not exists (
+            select r.id
+            from PaymentRecovery r
+            where r.orderId = o.id
+              and r.status = com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery.Status.PENDING)
         order by o.id asc
         """)
     List<Long> findOverduePaymentOrderIds(Order.Status status, LocalDateTime now, Long afterId, Limit limit);

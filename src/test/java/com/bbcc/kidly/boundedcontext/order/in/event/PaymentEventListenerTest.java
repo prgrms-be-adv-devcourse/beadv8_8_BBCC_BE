@@ -12,17 +12,18 @@ import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -45,8 +46,17 @@ class PaymentEventListenerTest {
     @Mock
     private CartService cartService;
 
-    @InjectMocks
+    @Mock
+    private PaymentRecoveryService recoveryService;
+
     private PaymentEventListener listener;
+
+    // 결제 완료 반영 순서는 실제 PaymentCompletion으로 두고, 그 안의 서비스만 mock으로 둔다
+    @BeforeEach
+    void setUp() {
+        listener = new PaymentEventListener(orderService,
+            new PaymentCompletion(orderService, deliveryService, cartService), recoveryService);
+    }
 
     @Nested
     @DisplayName("결제 완료 이벤트")
