@@ -138,6 +138,20 @@ class ProductOptionPriceTest {
             .containsExactly(new Product.PriceInfo(List.of(navy), 25_000L));
     }
 
+    @Test
+    @DisplayName("PRICE-01 지금 가격 묶음을 그대로 옵션 추가에 넣으면 옵션마다 원래 판매가가 들어간다")
+    void currentPricesCanBeSentBack() {
+        List<Product.PriceInfo> currentPrices = colorPricedProductWithOptions().currentPrices(colorPriced);
+        Product another = Product.register(ProductFixture.productAWith(colorPriced, List.of()));
+
+        another.addOptions(new Product.AddOptionsInfo(SELLER_ID,
+            List.of(option(navy, size110), option(oatmeal, size110), option(navy, size120)), currentPrices),
+            colorPriced);
+
+        assertThat(another.getOptions()).extracting(ProductOption::getPrice)
+            .containsExactly(25_000L, 27_000L, 25_000L);
+    }
+
     // 색상에 따라 가격이 달라지는 유형의 상품에 네이비 · 110(25,000원), 오트밀 · 110(27,000원), 네이비 · 120(25,000원)을 넣는다
     private Product colorPricedProductWithOptions() {
         Product colorPricedProduct = Product.register(ProductFixture.productAWith(colorPriced, List.of()));
