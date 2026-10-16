@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
@@ -30,6 +31,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -67,13 +69,51 @@ public class OrderService {
      * Order.place가 한다. 저장 뒤 order.created를 발행한다.
      */
     public OrderDetail place(Long memberId, PlaceOrderCommand command) {
+        return create(memberId, command, null, null);
+    }
+
+    /**
+     * 요청 키(#351)가 있으면 같은 회원 · 같은 키의 주문을 먼저 찾는다. 같은 요청이면 그 주문의 지금 상세를, 다른 요청이면 409.
+     * 없으면 키 · 비교값을 기록해 만든다. 동시에 같은 키로 만들면 한쪽은 유니크 제약에 걸리고 OrderPlacement가 다시 읽는다.
+     */
+    public PlaceOrderResult placeIdempotently(Long memberId, PlaceOrderCommand command, String idempotencyKey,
+        String requestHash) {
+        if (idempotencyKey != null) {
+            Optional<PlaceOrderResult> existing = replay(memberId, idempotencyKey, requestHash);
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
+        return new PlaceOrderResult(create(memberId, command, idempotencyKey, requestHash), true);
+    }
+
+    /**
+     * 같은 회원 · 같은 키로 이미 만든 주문을 읽는다. 비교값이 다르면 IDEMPOTENCY_KEY_REUSED.
+     */
+    @Transactional(readOnly = true)
+    public Optional<PlaceOrderResult> replay(Long memberId, String idempotencyKey, String requestHash) {
+        return orderRepository.findByMemberIdAndIdempotencyKey(memberId, idempotencyKey)
+            .map(order -> {
+                if (!order.getRequestHash().equals(requestHash)) {
+                    throw new BusinessException(OrderErrorCode.IDEMPOTENCY_KEY_REUSED);
+                }
+                log.debug("주문 요청 반복: orderId={} result=same-request", order.getId());
+                return new PlaceOrderResult(detailOf(order.getId(), order), false);
+            });
+    }
+
+    private OrderDetail create(Long memberId, PlaceOrderCommand command, String idempotencyKey, String requestHash) {
         LocalDateTime now = LocalDateTime.now();
         List<Order.RequestedItem> requested = command.items().stream().map(this::toRequestedItem).toList();
         PlaceOrderCommand.ShippingAddress address = command.shippingAddress();
 
-        Order order = orderRepository.save(Order.place(memberId, requested,
+        Order placed = Order.place(memberId, requested,
             new Order.ShippingAddress(address.recipientName(), address.phone(), address.zipCode(), address.address()),
-            orderPolicy, now));
+            orderPolicy, now);
+        if (idempotencyKey != null) {
+            placed.recordRequestKey(idempotencyKey, requestHash);
+        }
+        Order order = orderRepository.save(placed);
 
         eventPublisher.publish(new OrderCreatedEvent(UUID.randomUUID(), now, new OrderCreatedEvent.Data(
             order.getId(),
@@ -244,9 +284,13 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderDetail getOrder(Long memberId, Long orderId) {
         return orderRepository.findByIdAndMemberId(orderId, memberId)
-            .map(order -> OrderDetail.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId),
-                sellerNamesOf(List.of(order))))
+            .map(order -> detailOf(orderId, order))
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+    }
+
+    private OrderDetail detailOf(Long orderId, Order order) {
+        return OrderDetail.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId),
+            sellerNamesOf(List.of(order)));
     }
 
     /**

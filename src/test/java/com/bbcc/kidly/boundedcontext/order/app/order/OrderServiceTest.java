@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
@@ -161,6 +162,99 @@ class OrderServiceTest {
                 .extracting("errorCode").isEqualTo(expected);
             verify(orderRepository, never()).save(any());
             verify(eventPublisher, never()).publish(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("주문하기 · 요청 키 (#351)")
+    class PlaceWithKey {
+
+        private static final String KEY = "3f1c2b9a-0d4e-4c7b-9a51-1e2f3a4b5c6d";
+        private static final String HASH = "a".repeat(64);
+        private static final String OTHER_HASH = "b".repeat(64);
+
+        @Test
+        @DisplayName("키가 있고 처음이면 키 · 비교값을 기록해 저장하고 order.created를 발행한다(created true)")
+        void firstRequestCreates() {
+            givenProduct();
+            givenChild();
+            when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            PlaceOrderResult result = orderService.placeIdempotently(BUYER_ID, command(25_000L), KEY, HASH);
+
+            ArgumentCaptor<Order> saved = ArgumentCaptor.forClass(Order.class);
+            verify(orderRepository).save(saved.capture());
+            assertThat(saved.getValue().getIdempotencyKey()).isEqualTo(KEY);
+            assertThat(saved.getValue().getRequestHash()).isEqualTo(HASH);
+            verify(eventPublisher).publish(any(OrderCreatedEvent.class));
+            assertThat(result.created()).isTrue();
+            assertThat(result.detail().status()).isEqualTo("PENDING_PAYMENT");
+        }
+
+        @Test
+        @DisplayName("같은 회원 · 같은 키 · 같은 비교값의 주문이 있으면 만들지 않고 그 주문의 지금 상세를 돌려준다(created false)")
+        void sameKeySameRequestReplays() {
+            Order existing = withId(placedOrderWithTwoItems(), ORDER_ID);
+            existing.recordRequestKey(KEY, HASH);
+            when(orderRepository.findByMemberIdAndIdempotencyKey(BUYER_ID, KEY)).thenReturn(Optional.of(existing));
+            when(deliveryRepository.findAllByOrderIdOrderByIdAsc(ORDER_ID))
+                .thenReturn(List.of(Delivery.create(ORDER_ID, SELLER_ID)));
+
+            PlaceOrderResult result = orderService.placeIdempotently(BUYER_ID, command(25_000L), KEY, HASH);
+
+            assertThat(result.created()).isFalse();
+            assertThat(result.detail().orderId()).isEqualTo(ORDER_ID);
+            assertThat(result.detail().deliveries()).hasSize(1);
+            verify(orderRepository, never()).save(any());
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("같은 키인데 비교값이 다르면 IDEMPOTENCY_KEY_REUSED, 저장 · 발행하지 않는다")
+        void sameKeyDifferentRequestIsRejected() {
+            Order existing = withId(placedOrderWithTwoItems(), ORDER_ID);
+            existing.recordRequestKey(KEY, HASH);
+            when(orderRepository.findByMemberIdAndIdempotencyKey(BUYER_ID, KEY)).thenReturn(Optional.of(existing));
+
+            assertThatThrownBy(() -> orderService.placeIdempotently(BUYER_ID, command(25_000L), KEY, OTHER_HASH))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.IDEMPOTENCY_KEY_REUSED);
+            verify(orderRepository, never()).save(any());
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("키가 없으면 기존 주문을 찾지 않고 만들며 키 · 비교값은 null이다(created true)")
+        void noKeyCreatesWithoutLookup() {
+            givenProduct();
+            givenChild();
+            when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            PlaceOrderResult result = orderService.placeIdempotently(BUYER_ID, command(25_000L), null, null);
+
+            ArgumentCaptor<Order> saved = ArgumentCaptor.forClass(Order.class);
+            verify(orderRepository).save(saved.capture());
+            assertThat(saved.getValue().getIdempotencyKey()).isNull();
+            assertThat(saved.getValue().getRequestHash()).isNull();
+            verify(orderRepository, never()).findByMemberIdAndIdempotencyKey(any(), any());
+            assertThat(result.created()).isTrue();
+        }
+
+        @Test
+        @DisplayName("다시 읽기: 같은 비교값이면 상세(created false), 다르면 IDEMPOTENCY_KEY_REUSED, 그 회원 · 키의 주문이 없으면 비어 있다")
+        void replay() {
+            Order existing = withId(placedOrderWithTwoItems(), ORDER_ID);
+            existing.recordRequestKey(KEY, HASH);
+            when(orderRepository.findByMemberIdAndIdempotencyKey(BUYER_ID, KEY)).thenReturn(Optional.of(existing));
+
+            assertThat(orderService.replay(BUYER_ID, KEY, HASH)).hasValueSatisfying(result -> {
+                assertThat(result.created()).isFalse();
+                assertThat(result.detail().orderId()).isEqualTo(ORDER_ID);
+            });
+            assertThatThrownBy(() -> orderService.replay(BUYER_ID, KEY, OTHER_HASH))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.IDEMPOTENCY_KEY_REUSED);
+            assertThat(orderService.replay(99L, KEY, HASH)).isEmpty();
         }
     }
 

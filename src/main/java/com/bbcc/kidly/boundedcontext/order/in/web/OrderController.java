@@ -1,7 +1,9 @@
 package com.bbcc.kidly.boundedcontext.order.in.web;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacement;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.OrderDetailResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.OrderSummaryResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.PlaceOrderRequest;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,17 +34,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     public static final String ORDERS_PATH = "/api/v1/orders";
+    public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
     private final OrderService orderService;
+    private final OrderPlacement orderPlacement;
 
     /**
      * 201 + Location + 주문 상세. 결과(결제완료 · 취소)는 주문 상세로 확인한다.
+     * Idempotency-Key(UUID)로 같은 요청을 다시 보내면 새로 만들지 않고 200 + 그 주문의 지금 상세(Location 없음).
      */
     @PostMapping
     public ResponseEntity<OrderDetailResponse> place(
         @LoginMember AuthMember member,
+        @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey,
         @Valid @RequestBody PlaceOrderRequest request) {
-        OrderDetailResponse body = OrderDetailResponse.from(orderService.place(member.id(), toCommand(request)));
+        PlaceOrderResult result = orderPlacement.place(member.id(), toCommand(request), idempotencyKey);
+        OrderDetailResponse body = OrderDetailResponse.from(result.detail());
+        if (!result.created()) {
+            return ResponseEntity.ok(body);
+        }
         return ResponseEntity.created(URI.create(ORDERS_PATH + "/" + body.orderId())).body(body);
     }
 

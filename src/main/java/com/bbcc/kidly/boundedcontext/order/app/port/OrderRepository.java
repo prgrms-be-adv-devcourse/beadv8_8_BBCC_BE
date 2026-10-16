@@ -35,6 +35,11 @@ public interface OrderRepository {
     Optional<Order> findByIdAndMemberId(Long id, Long memberId);
 
     /**
+     * 회원이 같은 요청 키로 만든 주문(#351). 키는 회원마다 하나의 주문에만 쓰인다(유니크 제약).
+     */
+    Optional<Order> findByMemberIdAndIdempotencyKey(Long memberId, String idempotencyKey);
+
+    /**
      * ID 목록의 주문을 주문상품과 함께 한 번에 읽는다(목록 화면의 건마다 조회 방지). 순서는 보장하지 않으므로 ID로 찾는다.
      * 주문상품은 ID 오름차순. 없는 ID는 결과에서 빠진다.
      */

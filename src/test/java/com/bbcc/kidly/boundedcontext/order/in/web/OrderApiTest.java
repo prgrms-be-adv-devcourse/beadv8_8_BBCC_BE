@@ -315,6 +315,112 @@ class OrderApiTest {
     }
 
     @Nested
+    @DisplayName("주문하기 · 요청 키 (#351)")
+    class PlaceWithKey {
+
+        private static final String KEY = "3f1c2b9a-0d4e-4c7b-9a51-1e2f3a4b5c6d";
+
+        @Test
+        @DisplayName("같은 키로 같은 요청을 다시 보내면 200, Location 없이 같은 주문의 지금 상세(취소됨)를 돌려준다")
+        void sameKeyReplaysCurrentState() {
+            String orderId = placeWithKey(BUYER_ID, KEY, orderBody("1", null, 1, 25_000))
+                .expectStatus().isCreated()
+                .expectBody(PlacedOrder.class).returnResult().getResponseBody().orderId();
+            orderService.cancelForPaymentFailure(Long.valueOf(orderId));
+
+            placeWithKey(BUYER_ID, KEY, orderBody("1", null, 1, 25_000))
+                .expectStatus().isOk()
+                .expectHeader().doesNotExist("Location")
+                .expectBody()
+                .jsonPath("$.orderId").isEqualTo(orderId)
+                .jsonPath("$.status").isEqualTo("CANCELLED");
+            assertThat(orderService.getOrders(BUYER_ID, 0, 20).getTotalElements()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("같은 키로 items 순서만 바꿔 보내도 같은 요청으로 보고 200, 같은 주문")
+        void itemsOrderDoesNotMatter() {
+            Map<String, Object> withChild = Map.of("optionId", "1", "childId", "1", "quantity", 1, "unitPrice", 25_000);
+            Map<String, Object> withoutChild = Map.of("optionId", "1", "quantity", 2, "unitPrice", 25_000);
+            String orderId = placeWithKey(BUYER_ID, KEY,
+                Map.of("items", List.of(withChild, withoutChild), "shippingAddress", ADDRESS))
+                .expectStatus().isCreated()
+                .expectBody(PlacedOrder.class).returnResult().getResponseBody().orderId();
+
+            placeWithKey(BUYER_ID, KEY, Map.of("items", List.of(withoutChild, withChild), "shippingAddress", ADDRESS))
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.orderId").isEqualTo(orderId);
+        }
+
+        @Test
+        @DisplayName("같은 키로 다른 요청(수량)을 보내면 409 IDEMPOTENCY_KEY_REUSED, 주문은 하나")
+        void sameKeyDifferentRequestIsConflict() {
+            placeWithKey(BUYER_ID, KEY, orderBody("1", null, 1, 25_000)).expectStatus().isCreated();
+
+            placeWithKey(BUYER_ID, KEY, orderBody("1", null, 2, 25_000))
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("이미 다른 주문에 쓴 요청입니다")
+                .jsonPath("$.detail").isEqualTo("주문서를 다시 열어 주문해 주세요.");
+            assertThat(orderService.getOrders(BUYER_ID, 0, 20).getTotalElements()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("실패한 요청(가격 변경 409)의 키는 남지 않아 같은 키로 고쳐 보내면 201")
+        void failedRequestDoesNotKeepKey() {
+            placeWithKey(BUYER_ID, KEY, orderBody("1", null, 1, 24_999)).expectStatus().isEqualTo(409);
+
+            placeWithKey(BUYER_ID, KEY, orderBody("1", null, 1, 25_000)).expectStatus().isCreated();
+        }
+
+        @Test
+        @DisplayName("다른 회원이 같은 키를 쓰면 각자 201로 주문이 만들어진다")
+        void keyIsPerMember() {
+            placeWithKey(BUYER_ID, KEY, orderBody("1", null, 1, 25_000)).expectStatus().isCreated();
+
+            placeWithKey(OTHER_ID, KEY, orderBody("1", null, 1, 25_000)).expectStatus().isCreated();
+        }
+
+        @Test
+        @DisplayName("대문자로 쓴 같은 키는 같은 키로 보고 200, 같은 주문")
+        void upperCaseKeyIsSameKey() {
+            String orderId = placeWithKey(BUYER_ID, KEY, orderBody("1", null, 1, 25_000))
+                .expectStatus().isCreated()
+                .expectBody(PlacedOrder.class).returnResult().getResponseBody().orderId();
+
+            placeWithKey(BUYER_ID, KEY.toUpperCase(), orderBody("1", null, 1, 25_000))
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.orderId").isEqualTo(orderId);
+        }
+
+        @ParameterizedTest(name = "키 {0}")
+        @ValueSource(strings = {"abc", "1-1-1-1-1", "3f1c2b9a0d4e4c7b9a511e2f3a4b5c6d",
+            "3f1c2b9a-0d4e-4c7b-9a51-1e2f3a4b5c6g", "", "{3f1c2b9a-0d4e-4c7b-9a51-1e2f3a4b5c6d}",
+            "3f1c2b9a-0d4e-4c7b-9a51-1e2f3a4 5c6d", "3f1c2b9a0-d4e-4c7b-9a51-1e2f3a4b5c6d"})
+        @DisplayName("UUID 표준 표기(8-4-4-4-12, 36자)가 아닌 키는 400 INVALID_IDEMPOTENCY_KEY, 주문을 만들지 않는다")
+        void invalidKeyIsBadRequest(String key) {
+            placeWithKey(BUYER_ID, key, orderBody("1", null, 1, 25_000))
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("잘못된 요청 키입니다")
+                .jsonPath("$.detail").isEqualTo("주문서를 다시 열어 주문해 주세요.");
+            assertThat(orderService.getOrders(BUYER_ID, 0, 20).getTotalElements()).isZero();
+        }
+
+        private RestTestClient.ResponseSpec placeWithKey(Long memberId, String key, Map<String, Object> body) {
+            return client.post().uri(ORDERS_PATH)
+                .headers(headers -> {
+                    headers.setBearerAuth(tokens.buyer(memberId));
+                    headers.set("Idempotency-Key", key);
+                })
+                .body(body)
+                .exchange();
+        }
+    }
+
+    @Nested
     @DisplayName("주문 조회")
     class GetOrders {
 
@@ -715,6 +821,9 @@ class OrderApiTest {
     }
 
     private record OrderItemRow(String orderItemId) {
+    }
+
+    private record PlacedOrder(String orderId) {
     }
 
     private record OrderTimes(LocalDateTime orderedAt, LocalDateTime paymentDueAt) {
