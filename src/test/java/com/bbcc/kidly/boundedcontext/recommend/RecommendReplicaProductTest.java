@@ -199,12 +199,13 @@ class RecommendReplicaProductTest {
         assertThat(replica.toProductSizes()).isEqualTo(expected);
     }
 
-    // 사이즈 역할 항목이 없는 유형의 상품은 옵션 사이즈가 null로 오고, 이벤트의 사이즈 무관 값은 false로 온다
+    // 사이즈 역할 항목이 없는 유형의 상품은 옵션 사이즈가 null로 오고, 이벤트의 사이즈 무관 값은 false로 온다.
+    // 권장 키가 실려 와도 사이즈가 없으면 아이 키로 고를 사이즈가 아니므로 사이즈 줄에 넣지 않는다
     @Test
     @DisplayName("옵션 사이즈가 모두 없으면 사이즈 무관 상품으로 본다")
     void treatProductWithoutSizeAsSizeFree() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChangeOf(false,
-            List.of(productOptionInfo(null, null, null), productOptionInfo(null, null, null)), PRODUCT_CHANGED_AT));
+            List.of(productOptionInfo(null, null, null), productOptionInfo(null, 105, 115)), PRODUCT_CHANGED_AT));
 
         assertThat(replica.toProductSizes()).isEqualTo(ProductSizes.of(true, List.of()));
     }

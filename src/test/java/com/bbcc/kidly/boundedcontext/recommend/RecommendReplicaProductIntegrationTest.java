@@ -110,6 +110,19 @@ class RecommendReplicaProductIntegrationTest {
         assertThat(sizes.sizeRanges()).isEmpty();
     }
 
+    // 사이즈 역할 항목이 없는 유형의 상품은 옵션 사이즈가 null로 오고, 이벤트의 사이즈 무관 값은 false로 온다
+    @Test
+    @DisplayName("사이즈 없는 상품의 상품 정보 변경됨을 받으면 사이즈 무관으로 저장되고 판매 가능한 옵션이 있는 상품이 된다")
+    void saveReplicaOfProductWithoutSize() {
+        publishInTransaction(RecommendFixture.productAChangedEventOf(
+            false, List.of(productOption(3L, null, null, null)), PRODUCT_CHANGED_AT));
+
+        assertThat(sizesOf(PRODUCT_A_ID).isSizeFree()).isTrue();
+        Boolean hasSellableOption = transactionTemplate.execute(
+            status -> replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow().hasSellableOption());
+        assertThat(hasSellableOption).isTrue();
+    }
+
     @Test
     @DisplayName("상품 정보 변경됨을 발행한 트랜잭션이 롤백되면 상품 복사본이 생기지 않는다")
     void noReplicaAfterRollback() {
@@ -125,10 +138,9 @@ class RecommendReplicaProductIntegrationTest {
     @DisplayName("상품 복사본 반영이 실패해도 발행한 트랜잭션은 성공하고 복사본은 이전 값 그대로다")
     void keepReplicaWhenListenerFails() {
         publishInTransaction(RecommendFixture.productAChangedEvent());
-        ProductChangedEvent withoutSize = RecommendFixture.productAChangedEventAt(
-            List.of(productOption(3L, null, 125, 135)), LATER);
+        ProductChangedEvent withoutOptions = RecommendFixture.productAChangedEventAt(null, LATER);
 
-        assertThatCode(() -> publishInTransaction(withoutSize)).doesNotThrowAnyException();
+        assertThatCode(() -> publishInTransaction(withoutOptions)).doesNotThrowAnyException();
 
         assertThat(replicaProductRepository.findById(PRODUCT_A_ID)).get()
             .extracting(RecommendReplicaProduct::getEventOccurredAt).isEqualTo(PRODUCT_CHANGED_AT);
