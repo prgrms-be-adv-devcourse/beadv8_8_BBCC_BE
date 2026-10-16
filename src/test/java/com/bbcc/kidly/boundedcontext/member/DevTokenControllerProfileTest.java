@@ -30,6 +30,13 @@ class DevTokenControllerProfileTest {
     }
 
     @Test
+    @DisplayName("dev 서버(prod,dev 프로필)에서는 테스트 토큰 API가 등록된다")
+    void registeredInDev() {
+        runner.withPropertyValues("spring.profiles.active=prod,dev")
+            .run(context -> assertThat(context).hasSingleBean(DevTokenController.class));
+    }
+
+    @Test
     @DisplayName("prod 프로필에서는 테스트 토큰 API가 등록되지 않는다")
     void notRegisteredInProd() {
         runner.withPropertyValues("spring.profiles.active=prod")

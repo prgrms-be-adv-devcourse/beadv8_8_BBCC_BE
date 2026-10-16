@@ -17,6 +17,9 @@ public interface ChildProfileRepository {
     // 등록 순. 성장 이력을 함께 읽는다
     List<ChildProfile> findAllByMemberId(Long memberId);
 
+    // 초기 데이터를 넣을지 판단한다
+    long count();
+
     default ChildProfile getByIdAndMemberId(Long id, Long memberId) {
         return findByIdAndMemberId(id, memberId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
