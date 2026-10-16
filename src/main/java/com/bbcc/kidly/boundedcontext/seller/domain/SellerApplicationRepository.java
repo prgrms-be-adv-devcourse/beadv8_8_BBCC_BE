@@ -19,6 +19,9 @@ public interface SellerApplicationRepository {
 
     boolean existsByApplicantIdAndStatus(Long applicantId, SellerApplicationStatus status);
 
+    // 초기 데이터를 넣을지 판단한다
+    long count();
+
     default SellerApplication getById(Long id) {
         return findById(id).orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }
