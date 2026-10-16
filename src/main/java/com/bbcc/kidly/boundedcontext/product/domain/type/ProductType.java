@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product.domain.type;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -66,7 +67,7 @@ public class ProductType extends BaseTimeEntity {
             throw new IllegalArgumentException("유형 이름은 비어 있을 수 없습니다");
         }
         if (!hasRequiredOption(links)) {
-            throw new IllegalArgumentException("유형에는 필수 옵션 항목이 하나 이상 있어야 합니다");
+            throw new BusinessException(ProductTypeErrorCode.REQUIRED_OPTION_MISSING);
         }
         if (hasManySizeRoles(links)) {
             throw new IllegalArgumentException("사이즈 역할 항목은 하나만 둘 수 있습니다");

@@ -27,6 +27,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAllowedValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -38,6 +40,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.HttpStatus;
 
 class ProductTypeTest {
 
@@ -66,8 +69,10 @@ class ProductTypeTest {
     @DisplayName("TYPE-02 필수 옵션 항목이 없으면 거절한다")
     void rejectTypeWithoutRequiredOptionAttribute(List<ProductType.LinkInfo> links) {
         assertThatThrownBy(() -> ProductType.define("의류", links))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("필수 옵션 항목");
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.REQUIRED_OPTION_MISSING);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
     }
 
     static Stream<Named<List<ProductType.LinkInfo>>> linksWithoutRequiredOption() {
