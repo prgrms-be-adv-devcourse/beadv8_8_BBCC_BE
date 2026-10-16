@@ -7,10 +7,11 @@ import java.lang.annotation.Target;
 import org.springframework.context.annotation.Profile;
 
 /**
- * local · test 프로필에서만 빈으로 등록한다. 운영에 열리면 안 되는 개발용 기능(예: 테스트 토큰 발급)에 붙인다.
+ * local · test · dev 프로필에서만 빈으로 등록한다. 운영에 열리면 안 되는 개발용 기능(예: 테스트 토큰 발급)에 붙인다.
+ * dev 서버는 버려도 되는 데이터라서 초기 데이터 회원으로 로그인할 수 있게 연다.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@Profile({"local", "test"})
+@Profile({"local", "test", "dev"})
 public @interface DevOnly {
 }
