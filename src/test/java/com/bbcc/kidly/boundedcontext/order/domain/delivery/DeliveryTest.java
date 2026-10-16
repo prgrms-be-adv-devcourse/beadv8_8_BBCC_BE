@@ -105,4 +105,48 @@ class DeliveryTest {
         assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.DELIVERED);
         assertThat(delivery.getDeliveredAt()).isEqualTo(COMPLETED_AT);
     }
+
+    @Test
+    @DisplayName("발송 전이면 구매자 취소로 CANCELLED가 되고, 다시 취소해도 그대로다 (#354)")
+    void cancelReady() {
+        Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+
+        delivery.cancel();
+        delivery.cancel();
+
+        assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.CANCELLED);
+        assertThat(delivery.getCarrier()).isNull();
+        assertThat(delivery.getShippedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("발송 · 배송 완료한 배송은 취소할 수 없다(서비스가 먼저 거르므로 여기 오면 불변식 위반) (#354)")
+    void cannotCancelShipped() {
+        Delivery shipping = Delivery.create(ORDER_ID, SELLER_A_ID);
+        shipping.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT);
+        Delivery delivered = Delivery.create(ORDER_ID, SELLER_A_ID);
+        delivered.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT);
+        delivered.complete(COMPLETED_AT);
+
+        assertThatThrownBy(shipping::cancel).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(delivered::cancel).isInstanceOf(IllegalStateException.class);
+        assertThat(shipping.getStatus()).isEqualTo(Delivery.Status.SHIPPING);
+        assertThat(delivered.getStatus()).isEqualTo(Delivery.Status.DELIVERED);
+    }
+
+    @Test
+    @DisplayName("구매자가 취소한 배송은 발송 · 배송 완료할 수 없다 (409 DELIVERY_CANCELLED, 취소 그대로) (#354)")
+    void cancelledCannotShipOrComplete() {
+        Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+        delivery.cancel();
+
+        assertThatThrownBy(() -> delivery.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(OrderErrorCode.DELIVERY_CANCELLED);
+        assertThatThrownBy(() -> delivery.complete(COMPLETED_AT))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(OrderErrorCode.DELIVERY_CANCELLED);
+        assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.CANCELLED);
+        assertThat(delivery.getCarrier()).isNull();
+    }
 }

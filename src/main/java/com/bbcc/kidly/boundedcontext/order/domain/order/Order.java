@@ -69,7 +69,8 @@ public class Order extends BaseTimeEntity {
     public enum CancelReason {
         OUT_OF_STOCK,
         PAYMENT_FAILED,
-        PAYMENT_EXPIRED
+        PAYMENT_EXPIRED,
+        BUYER_CANCELLED
     }
 
     /**
@@ -319,21 +320,28 @@ public class Order extends BaseTimeEntity {
     }
 
     /**
-     * 결제대기일 때만 주어진 사유로 취소한다. 결제 마감 만료는 expirePayment를 쓴다.
-     * 결제완료 · 이미 취소된 주문은 그대로 둔다(처음 사유 유지).
+     * 결제대기일 때 주어진 사유로 취소한다. 결제 마감 만료는 expirePayment를 쓴다.
+     * 구매자 취소(BUYER_CANCELLED, #354)만 결제완료 주문도 취소한다 — 배송 완료 · 구매확정된 주문상품이 없을 때만.
+     * 판매자 발송 여부는 배송이 알고 서비스가 먼저 거른다. 이미 취소된 주문은 그대로 둔다(처음 사유 유지).
      *
-     * @return APPLIED 이번에 취소함 · ALREADY_DONE 이미 취소됨(사유와 상관없이) · NOT_APPLICABLE 결제완료
+     * @return APPLIED 이번에 취소함 · ALREADY_DONE 이미 취소됨(사유와 상관없이) ·
+     *     NOT_APPLICABLE 결제완료(구매자 취소가 아니거나, 배송 완료 · 구매확정된 주문상품이 있음)
      */
     public TransitionResult cancel(CancelReason reason) {
         if (status == Status.CANCELLED) {
             return TransitionResult.ALREADY_DONE;
         }
-        if (status != Status.PENDING_PAYMENT) {
+        if (status == Status.PAID && !canBuyerCancelPaid(reason)) {
             return TransitionResult.NOT_APPLICABLE;
         }
         this.status = Status.CANCELLED;
         this.cancelReason = reason;
         return TransitionResult.APPLIED;
+    }
+
+    private boolean canBuyerCancelPaid(CancelReason reason) {
+        return reason == CancelReason.BUYER_CANCELLED
+            && items.stream().allMatch(item -> item.getDeliveredAt() == null && item.getConfirmedAt() == null);
     }
 
     /**

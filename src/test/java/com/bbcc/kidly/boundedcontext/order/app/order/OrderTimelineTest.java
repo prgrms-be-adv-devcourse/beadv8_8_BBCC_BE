@@ -242,6 +242,59 @@ class OrderTimelineTest {
     }
 
     @Nested
+    @DisplayName("결제 뒤 구매자 취소 (#354)")
+    class CancelledAfterPayment {
+
+        @Test
+        @DisplayName("PAID → CANCELLED(approximate) 순서, 배송 · 확정 단계와 그 details(배송 건 · 주문상품)는 NOT_APPLICABLE")
+        void buyerCancelAfterPayment() {
+            Order order = paid();
+            List<Delivery> deliveries = deliveries();
+            order.cancel(Order.CancelReason.BUYER_CANCELLED);
+            deliveries.forEach(Delivery::cancel);
+            setTime(order, "updatedAt", ORDERED_AT.plusMinutes(30));
+
+            OrderTimeline timeline = OrderTimeline.from(order, deliveries, SELLER_NAMES);
+
+            assertThat(timeline.status()).isEqualTo("CANCELLED");
+            assertThat(timeline.cancelReason()).isEqualTo("BUYER_CANCELLED");
+            assertThat(timeline.paymentDueAt()).isNull();
+            assertThat(timeline.currentStep()).isEqualTo(StepName.CANCELLED);
+            assertThat(timeline.steps()).extracting(Step::step).containsExactly(StepName.CREATED,
+                StepName.PAYMENT_REQUESTED, StepName.PAID, StepName.CANCELLED, StepName.SHIPPED, StepName.DELIVERED,
+                StepName.CONFIRMED);
+            assertStep(timeline, StepName.PAID, StepStatus.DONE, ORDERED_AT.plusSeconds(2));
+            assertStep(timeline, StepName.CANCELLED, StepStatus.DONE, ORDERED_AT.plusMinutes(30));
+            assertThat(step(timeline, StepName.CANCELLED).approximate()).isTrue();
+            for (StepName name : List.of(StepName.SHIPPED, StepName.DELIVERED)) {
+                assertStep(timeline, name, StepStatus.NOT_APPLICABLE, null);
+                assertThat(step(timeline, name).deliveries()).as(name.name()).containsExactly(
+                    new DeliveryDetail(31L, SELLER_A, "키들리상점", StepStatus.NOT_APPLICABLE, null),
+                    new DeliveryDetail(32L, SELLER_B, "꼬마옷장", StepStatus.NOT_APPLICABLE, null));
+            }
+            assertStep(timeline, StepName.CONFIRMED, StepStatus.NOT_APPLICABLE, null);
+            assertThat(step(timeline, StepName.CONFIRMED).items()).containsExactly(
+                new ItemDetail(41L, "아동 티셔츠", StepStatus.NOT_APPLICABLE, null, null),
+                new ItemDetail(42L, "아동 바지", StepStatus.NOT_APPLICABLE, null, null));
+        }
+
+        @Test
+        @DisplayName("결제 뒤 취소인데 배송 건이 없으면(배송 생성 유실) 배송 단계 details는 [], 확정은 주문상품별 NOT_APPLICABLE")
+        void buyerCancelAfterPaymentWithoutDeliveries() {
+            Order order = paid();
+            order.cancel(Order.CancelReason.BUYER_CANCELLED);
+
+            OrderTimeline timeline = OrderTimeline.from(order, List.of(), SELLER_NAMES);
+
+            assertStep(timeline, StepName.SHIPPED, StepStatus.NOT_APPLICABLE, null);
+            assertNoDetails(step(timeline, StepName.SHIPPED));
+            assertNoDetails(step(timeline, StepName.DELIVERED));
+            assertThat(step(timeline, StepName.CONFIRMED).items()).hasSize(2)
+                .extracting(ItemDetail::status).containsOnly(StepStatus.NOT_APPLICABLE);
+        }
+    }
+
+    @Nested
     @DisplayName("빠진 데이터 방어")
     class MissingData {
 

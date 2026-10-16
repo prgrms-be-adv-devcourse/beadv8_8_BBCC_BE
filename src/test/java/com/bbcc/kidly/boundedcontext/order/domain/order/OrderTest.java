@@ -29,6 +29,8 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Order 상태 전이 규칙(주문 정리 5.1 · 5.2).
@@ -719,6 +721,68 @@ class OrderTest {
 
             assertThat(cancelled).isEqualTo(TransitionResult.ALREADY_DONE);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
+        }
+
+        @Test
+        @DisplayName("구매자 취소는 결제대기 주문을 BUYER_CANCELLED로 취소한다 (#354)")
+        void buyerCancelsPending() {
+            Order order = OrderFixture.placedOrder();
+
+            assertThat(order.cancel(Order.CancelReason.BUYER_CANCELLED)).isEqualTo(TransitionResult.APPLIED);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.BUYER_CANCELLED);
+        }
+
+        @Test
+        @DisplayName("구매자 취소만 결제완료 주문도 취소한다(배송 완료 · 구매확정된 주문상품이 없을 때) (#354)")
+        void buyerCancelsPaid() {
+            Order order = OrderFixture.paidOrder();
+
+            assertThat(order.cancel(Order.CancelReason.BUYER_CANCELLED)).isEqualTo(TransitionResult.APPLIED);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.BUYER_CANCELLED);
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(value = Order.CancelReason.class, names = "BUYER_CANCELLED", mode = EnumSource.Mode.EXCLUDE)
+        @DisplayName("구매자 취소가 아닌 사유는 결제완료 주문을 취소하지 않는다 (#354 뒤에도 그대로)")
+        void otherReasonsDoNotCancelPaid(Order.CancelReason reason) {
+            Order order = OrderFixture.paidOrder();
+
+            assertThat(order.cancel(reason)).isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(order.getCancelReason()).isNull();
+        }
+
+        @Test
+        @DisplayName("배송 완료된 주문상품이 하나라도 있으면 구매자 취소도 결제완료 주문을 취소하지 않는다 (#354)")
+        void buyerCannotCancelDelivered() {
+            Order order = OrderFixture.deliveredToSellerA();
+
+            assertThat(order.cancel(Order.CancelReason.BUYER_CANCELLED)).isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(order.getCancelReason()).isNull();
+        }
+
+        @Test
+        @DisplayName("구매확정된 주문상품이 하나라도 있으면 구매자 취소도 결제완료 주문을 취소하지 않는다 (#354)")
+        void buyerCannotCancelConfirmed() {
+            Order order = OrderFixture.deliveredToSellerA();
+            OrderItem sellerAItem = itemOf(order, SELLER_A_ID);
+            order.confirmItem(sellerAItem.getId(), DELIVERED_AT.plusDays(1));
+
+            assertThat(order.cancel(Order.CancelReason.BUYER_CANCELLED)).isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+        }
+
+        @Test
+        @DisplayName("이미 취소된 주문은 구매자 취소여도 처음 사유를 유지한다 (#354)")
+        void buyerCancelKeepsFirstReason() {
+            Order order = OrderFixture.placedOrder();
+            order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
+
+            assertThat(order.cancel(Order.CancelReason.BUYER_CANCELLED)).isEqualTo(TransitionResult.ALREADY_DONE);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
         }
     }
 
