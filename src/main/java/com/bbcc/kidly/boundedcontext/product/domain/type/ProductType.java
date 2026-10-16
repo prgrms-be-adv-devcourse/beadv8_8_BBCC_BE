@@ -88,7 +88,7 @@ public class ProductType extends BaseTimeEntity {
             throw new IllegalArgumentException("모든 값 허용 항목에는 허용 값을 연결하지 않습니다");
         }
         if (hasAllowedValueOfOtherAttribute(links)) {
-            throw new IllegalArgumentException("허용 값은 그 항목의 목록 값이어야 합니다");
+            throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUE_OF_OTHER_ATTRIBUTE);
         }
         ProductType type = new ProductType();
         type.name = name;
