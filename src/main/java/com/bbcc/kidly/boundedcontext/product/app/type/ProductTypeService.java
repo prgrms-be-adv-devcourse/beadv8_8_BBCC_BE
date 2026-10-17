@@ -1,8 +1,10 @@
 package com.bbcc.kidly.boundedcontext.product.app.type;
 
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeChangeRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeResult;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
@@ -26,15 +28,22 @@ public class ProductTypeService {
     private final ProductTypeRepository productTypeRepository;
     private final AttributeRepository attributeRepository;
     private final AttributeValueRepository attributeValueRepository;
+    private final ProductRepository productRepository;
 
     // 항목과 허용 값을 읽어 유형을 만든다. 유형 규칙의 검사는 도메인이 한다
     @Transactional
     public ProductTypeResult create(ProductTypeCreateRequest request) {
-        List<ProductType.LinkInfo> links = new ArrayList<>();
-        for (ProductTypeCreateRequest.Link link : request.attributes()) {
-            links.add(toLinkInfo(link));
-        }
+        List<ProductType.LinkInfo> links = toLinkInfos(request.attributes());
         ProductType productType = productTypeRepository.save(ProductType.define(request.name(), links));
+        return toResult(productType);
+    }
+
+    // 상품 유형의 연결을 받은 목록으로 바꾼다. 받을 수 있는 변경인지는 유형이 판단한다
+    @Transactional
+    public ProductTypeResult change(Long productTypeId, ProductTypeChangeRequest request) {
+        ProductType productType = productTypeRepository.getById(productTypeId);
+        List<ProductType.LinkInfo> links = toLinkInfos(request.attributes());
+        productType.change(links, productRepository.existsByCategoryProductType(productType));
         return toResult(productType);
     }
 
@@ -46,6 +55,14 @@ public class ProductTypeService {
             results.add(toResult(productType));
         }
         return results;
+    }
+
+    private List<ProductType.LinkInfo> toLinkInfos(List<ProductTypeCreateRequest.Link> requestLinks) {
+        List<ProductType.LinkInfo> links = new ArrayList<>();
+        for (ProductTypeCreateRequest.Link link : requestLinks) {
+            links.add(toLinkInfo(link));
+        }
+        return links;
     }
 
     private ProductType.LinkInfo toLinkInfo(ProductTypeCreateRequest.Link link) {
