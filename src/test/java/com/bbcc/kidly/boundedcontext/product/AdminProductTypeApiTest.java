@@ -179,14 +179,22 @@ class AdminProductTypeApiTest {
     }
 
     @Test
-    @DisplayName("같은 이름의 유형을 만들거나 한 유형에 같은 항목을 두 번 연결하면 409를 준다")
+    @DisplayName("같은 이름의 유형을 만들면 409를 준다")
     void rejectDuplicateProductType() {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
         Map<String, Object> colorLink = link(color.id(), "OPTION", true, true, false, false, List.of());
         post(tokens.admin(ADMIN_ID), type("의류", List.of(colorLink))).expectStatus().isCreated();
 
         assertProblem(post(tokens.admin(ADMIN_ID), type("의류", List.of(colorLink))), HttpStatus.CONFLICT);
-        assertProblem(post(tokens.admin(ADMIN_ID), type("잡화", List.of(colorLink, colorLink))), HttpStatus.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("TYPE-13 한 유형에 같은 항목을 두 번 연결하면 400을 준다")
+    void rejectDuplicateLink() {
+        CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
+        Map<String, Object> colorLink = link(color.id(), "OPTION", true, true, false, false, List.of());
+
+        assertProblem(post(tokens.admin(ADMIN_ID), type("잡화", List.of(colorLink, colorLink))), HttpStatus.BAD_REQUEST);
     }
 
     @ParameterizedTest(name = "{0}")

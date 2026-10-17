@@ -132,7 +132,7 @@ class CategoryChangeTest {
     }
 
     @Test
-    @DisplayName("같은 실측 항목을 두 번 넣으면 만들 때도 바꿀 때도 400으로 거절한다")
+    @DisplayName("TYPE-13 같은 실측 항목을 두 번 넣으면 만들 때도 바꿀 때도 400으로 거절한다")
     void rejectDuplicatedMeasurementItems() {
         Category category = top();
         List<MeasurementItem> duplicated = List.of(TOTAL_LENGTH, TOTAL_LENGTH);

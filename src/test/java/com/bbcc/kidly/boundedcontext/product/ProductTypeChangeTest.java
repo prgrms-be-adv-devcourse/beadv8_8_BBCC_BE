@@ -171,7 +171,7 @@ class ProductTypeChangeTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("duplicatedLinks")
-    @DisplayName("같은 항목을 두 번 연결하거나 같은 허용 값을 두 번 고르면 상품이 없어도 400으로 거절한다")
+    @DisplayName("TYPE-13 같은 항목을 두 번 연결하거나 같은 허용 값을 두 번 고르면 상품이 없어도 400으로 거절한다")
     void rejectDuplicatedLinks(List<ProductType.LinkInfo> links, ProductTypeErrorCode errorCode) {
         ProductType type = typeInUse();
 
