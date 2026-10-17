@@ -100,6 +100,24 @@ class SellerProductDetailApiTest {
     }
 
     @Test
+    @DisplayName("브랜드 · 설명 · 썸네일이 없으면 null이고 이미지가 없으면 빈 목록이다")
+    void detailHasNullAndEmptyForMissingValues() {
+        Map<String, Object> body = productA(saved);
+        body.put("brand", null);
+        body.put("description", null);
+        ProductRegisterResponse registered = register(body);
+
+        detail(tokens.seller(SELLER_ID), registered.productId())
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.brand").isEqualTo(null)
+            .jsonPath("$.description").isEqualTo(null)
+            .jsonPath("$.thumbnailUrl").isEqualTo(null)
+            .jsonPath("$.imageUrls").isArray()
+            .jsonPath("$.imageUrls.length()").isEqualTo(0);
+    }
+
+    @Test
     @DisplayName("SALE-06 보관 옵션은 상세에 보이지 않고, 판매중지 옵션은 STOPPED로 보인다")
     void detailHidesArchivedOptions() {
         // 상품 A에 오트밀 110 옵션을 더해 옵션 세 개로 등록하고, 네이비 120은 판매중지, 오트밀 110은 보관으로 바꾼다
