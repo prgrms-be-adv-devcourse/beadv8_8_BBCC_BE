@@ -118,13 +118,12 @@ class ReferenceDataChangeIntegrationTest {
         ProductFixture.Clothing clothing = ProductFixture.clothing();
         Product.RegisterInfo info = ProductFixture.productA(clothing);
         Category usedCategory = info.category();
-        Attribute color = ProductTypeFixture.color();
-        ProductType unusedType = ProductType.define("잡화", List.of(ProductTypeFixture.requiredOption(color)));
+        ProductType unusedType = ProductType.define("잡화", List.of(ProductTypeFixture.requiredOption(clothing.color())));
         Category unusedCategory = Category.createLeaf(
             new Category.LeafInfo("모자", usedCategory.getParent(), unusedType, List.of()));
         inTransaction(() -> {
             List.of(clothing.color(), clothing.mainMaterial(), clothing.fabricComposition(), clothing.feature(),
-                clothing.type().getAttributes().get(1).getAttribute(), color).forEach(entityManager::persist);
+                clothing.type().getAttributes().get(1).getAttribute()).forEach(entityManager::persist);
             List.of(clothing.cotton(), clothing.other(), clothing.linen(), clothing.brushed(), clothing.stretch())
                 .forEach(entityManager::persist);
             entityManager.persist(clothing.type());
