@@ -1,20 +1,55 @@
 package com.bbcc.kidly.boundedcontext.product.app.product.dto;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 판매자가 보는 내 상품 상세이다.
  *
+ * @param brand 없으면 null
+ * @param description 없으면 null
+ * @param thumbnailUrl 없으면 null
+ * @param imageUrls 저장된 순서대로 담고, 없으면 빈 목록
+ * @param attributes 정보 항목마다 한 칸이고, 항목이 처음 나온 순서대로 담는다
  * @param options 상품에 저장된 순서대로 담는다
+ * @param prices 가격 구분 묶음마다 하나이고, 가격 구분 항목이 없는 유형은 빈 값 목록 하나다
+ * @param sizeSpecs 저장된 순서대로 담는다
  */
 public record SellerProductDetailResult(
-    Long productId, String name, String status, Long version, List<Option> options) {
+    Long productId, String name, String status, Long version,
+    String brand, Long categoryId, String description, String thumbnailUrl, List<String> imageUrls,
+    List<Attribute> attributes, List<Option> options, List<Price> prices, List<SizeSpec> sizeSpecs) {
 
     /**
+     * @param valueIds 고른 목록 값의 ID를 저장된 순서대로 담는다. 직접 입력 항목이면 빈 목록
+     * @param text 직접 입력 항목의 글. 목록 항목이면 null
+     */
+    public record Attribute(Long attributeId, List<Long> valueIds, String text) {
+    }
+
+    /**
+     * @param valueIds 옵션 값의 ID를 저장된 순서대로 담는다
      * @param availableQuantity 옵션의 판매 가능 수량. 재고 행이 없으면 0
      * @param skuCode 없으면 null
      */
     public record Option(
-        Long optionId, String optionName, long price, int availableQuantity, String saleStatus, String skuCode) {
+        Long optionId, String optionName, List<Long> valueIds, long price,
+        int availableQuantity, String saleStatus, String skuCode) {
+    }
+
+    /**
+     * @param valueIds 가격 구분 묶음의 값 ID. 가격 구분 항목이 없는 유형이면 빈 목록
+     */
+    public record Price(List<Long> valueIds, long price) {
+    }
+
+    /**
+     * @param minHeightCm 권장 키가 비어 있으면 null
+     * @param maxHeightCm 권장 키가 비어 있으면 null
+     * @param measurements 키는 실측 항목 코드이고 값은 cm다
+     */
+    public record SizeSpec(
+        Long sizeValueId, Integer minHeightCm, Integer maxHeightCm, Map<String, BigDecimal> measurements) {
     }
 }
