@@ -45,6 +45,10 @@ public class SettlementPayoutService {
             return;
         }
         Long ledgerId = deposit(command, wallet);
+        PaymentActionLog.record(PaymentAction.PAYOUT_COMPLETED,
+            "memberId={} walletId={} settlementId={} amount={} ledgerId={} balance={}",
+            command.sellerId(), wallet.getId(), command.settlementId(), command.amount(), ledgerId,
+            wallet.getBalance());
         publishResult(payoutRepository.save(Payout.complete(command.settlementId(), command.sellerId(),
             command.amount(), ledgerId, now)));
     }
