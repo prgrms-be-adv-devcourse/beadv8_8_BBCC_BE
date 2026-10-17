@@ -130,4 +130,21 @@ class CategoryChangeTest {
             Named.of("필수 실측 목록", new Change(GOODS_TYPE, null)),
             Named.of("필수 실측 항목", new Change(GOODS_TYPE, Arrays.asList(TOTAL_LENGTH, null))));
     }
+
+    @Test
+    @DisplayName("같은 실측 항목을 두 번 넣으면 만들 때도 바꿀 때도 400으로 거절한다")
+    void rejectDuplicatedMeasurementItems() {
+        Category category = top();
+        List<MeasurementItem> duplicated = List.of(TOTAL_LENGTH, TOTAL_LENGTH);
+
+        assertThatThrownBy(() -> Category.createLeaf(
+            new Category.LeafInfo("하의", CategoryFixture.clothing(), CLOTHING_TYPE, duplicated)))
+            .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                .isEqualTo(CategoryErrorCode.DUPLICATE_MEASUREMENT_ITEM));
+        assertThatThrownBy(() -> category.change(CLOTHING_TYPE, duplicated, false))
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.DUPLICATE_MEASUREMENT_ITEM);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
+    }
 }

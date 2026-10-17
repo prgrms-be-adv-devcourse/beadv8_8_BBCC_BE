@@ -31,6 +31,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
 
@@ -110,7 +111,8 @@ class ProductTypeChangeTest {
             Named.of("모든 값 허용을 허용 값만으로",
                 List.of(color, restrictedSizeOption(SIZE, List.of(SIZE_110)), material, composition)),
             Named.of("옵션 항목 추가", List.of(color, size, material, composition, optionalOption(PATTERN))),
-            Named.of("필수 정보 항목 추가", List.of(color, size, material, composition, requiredInfo(SEASON))));
+            Named.of("필수 정보 항목 추가", List.of(color, size, material, composition, requiredInfo(SEASON))),
+            Named.of("옵션 항목 순서 변경", List.of(size, color, material, composition)));
     }
 
     @Test
@@ -164,6 +166,31 @@ class ProductTypeChangeTest {
             Named.of("필수 항목을 선택으로", List.of(color, size,
                 new ProductType.LinkInfo(MATERIAL, AttributeRole.INFO, false, true, false, false, List.of()),
                 composition)),
-            Named.of("순서 변경", List.of(size, color, composition, material)));
+            Named.of("정보 항목 순서 변경", List.of(color, size, composition, material)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("duplicatedLinks")
+    @DisplayName("같은 항목을 두 번 연결하거나 같은 허용 값을 두 번 고르면 상품이 없어도 400으로 거절한다")
+    void rejectDuplicatedLinks(List<ProductType.LinkInfo> links, ProductTypeErrorCode errorCode) {
+        ProductType type = typeInUse();
+
+        assertThatThrownBy(() -> type.change(links, false))
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(errorCode);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
+    }
+
+    static Stream<Arguments> duplicatedLinks() {
+        ProductType.LinkInfo size = sizeOption(SIZE);
+        ProductType.LinkInfo material = requiredInfo(MATERIAL);
+        return Stream.of(
+            Arguments.of(Named.of("같은 항목 두 번", List.of(requiredOption(COLOR), size,
+                    new ProductType.LinkInfo(SIZE, AttributeRole.INFO, false, true, false, false, List.of()))),
+                ProductTypeErrorCode.DUPLICATE_ATTRIBUTE),
+            Arguments.of(Named.of("같은 허용 값 두 번",
+                    List.of(restrictedOption(COLOR, List.of(NAVY, NAVY)), size, material)),
+                ProductTypeErrorCode.DUPLICATE_ALLOWED_VALUE));
     }
 }
