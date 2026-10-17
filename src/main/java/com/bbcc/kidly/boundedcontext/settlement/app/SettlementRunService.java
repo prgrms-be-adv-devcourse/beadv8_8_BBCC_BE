@@ -14,15 +14,14 @@ import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.parameters.InvalidJobParametersException;
+import org.springframework.batch.core.job.parameters.JobParameters;
 import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.launch.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.batch.core.launch.JobRestartException;
 import org.springframework.batch.core.repository.JobRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -95,14 +94,27 @@ public class SettlementRunService {
         }
         try {
             return SettlementRunResult.from(jobOperator.start(settlementJob, builder.toJobParameters()));
-        } catch (JobInstanceAlreadyCompleteException e) {
-            throw new BusinessException(SettlementErrorCode.SETTLEMENT_ALREADY_RUN);
-        } catch (JobExecutionAlreadyRunningException | DataIntegrityViolationException
-            | OptimisticLockingFailureException e) {
-            // 같은 기준일을 동시에 시작하면 작업 인스턴스 유니크 · 실행 버전 충돌로 늦은 쪽이 실패한다
-            throw new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
-        } catch (JobRestartException | InvalidJobParametersException e) {
-            throw new IllegalStateException("정산 작업을 시작하지 못했습니다", e);
+        } catch (JobInstanceAlreadyCompleteException | JobExecutionAlreadyRunningException | JobRestartException
+            | InvalidJobParametersException | RuntimeException e) {
+            throw conflictOr(cutoff, e);
         }
+    }
+
+    // 같은 기준일을 동시에 시작하면 늦은 쪽은 Batch 안 어디서 끼었는지에 따라 다른 예외로 실패한다
+    // (인스턴스 확인 Assert · 인스턴스 유니크 · 실행 버전 충돌 등). 예외 종류 대신 그 기준일 작업의 상태로
+    // 경쟁에서 졌는지 판단하고, 상태로 설명되지 않으면 원래 예외를 던진다
+    private RuntimeException conflictOr(JobParameters cutoff, Exception e) {
+        var instance = jobRepository.getJobInstance(SettlementJobConfig.JOB_NAME, cutoff);
+        if (instance != null) {
+            var last = jobRepository.getLastJobExecution(instance);
+            // 실행이 없으면 다른 요청이 인스턴스를 만들고 실행을 만드는 중이다
+            if (last == null || last.getStatus().isRunning()) {
+                return new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
+            }
+            if (last.getStatus() == BatchStatus.COMPLETED) {
+                return new BusinessException(SettlementErrorCode.SETTLEMENT_ALREADY_RUN);
+            }
+        }
+        return e instanceof RuntimeException runtime ? runtime : new IllegalStateException("정산 작업을 시작하지 못했습니다", e);
     }
 }
