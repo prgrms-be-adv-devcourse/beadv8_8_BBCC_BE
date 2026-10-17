@@ -50,6 +50,72 @@ class AdminCategoryApiTest {
             .jsonPath("$.measurementItems").isEmpty();
     }
 
+    @Test
+    @DisplayName("말단 카테고리를 만들면 부모와 상품 유형, 넘긴 순서의 필수 실측 항목을 준다")
+    void createLeafCategory() {
+        String parentId = createdCategoryId(category("의류", null, null, List.of()));
+        String productTypeId = createProductType("의류", "COLOR");
+        String totalLength = createMeasurementItem("총장", "TOTAL_LENGTH");
+        String shoulderWidth = createMeasurementItem("어깨너비", "SHOULDER_WIDTH");
+
+        // 실측 항목은 ID 순서와 다르게 어깨너비를 먼저 넘긴다
+        post(tokens.admin(ADMIN_ID), category("상의", parentId, productTypeId, List.of(shoulderWidth, totalLength)))
+            .expectStatus().isCreated()
+            .expectBody()
+            .jsonPath("$.name").isEqualTo("상의")
+            .jsonPath("$.parentId").isEqualTo(parentId)
+            .jsonPath("$.leaf").isEqualTo(true)
+            .jsonPath("$.productTypeId").isEqualTo(productTypeId)
+            .jsonPath("$.productTypeName").isEqualTo("의류")
+            .jsonPath("$.measurementItems[*].measurementItemId").isEqualTo(List.of(shoulderWidth, totalLength))
+            .jsonPath("$.measurementItems[*].code").isEqualTo(List.of("SHOULDER_WIDTH", "TOTAL_LENGTH"))
+            .jsonPath("$.measurementItems[0].name").isEqualTo("어깨너비")
+            .jsonPath("$.measurementItems[0].unit").isEqualTo("cm");
+    }
+
+    private String createdCategoryId(Map<String, Object> body) {
+        return createdId(post(tokens.admin(ADMIN_ID), body), "categoryId");
+    }
+
+    // 항목 코드가 겹치지 않게 유형마다 다른 코드를 받는다. 그 항목의 값을 모두 허용하는 필수 옵션 항목 하나로 유형을 만든다
+    private String createProductType(String name, String attributeCode) {
+        String attributeId = createdId(postTo("/api/v1/admin/attributes", Map.of(
+            "name", attributeCode, "code", attributeCode, "inputType", "LIST",
+            "values", List.of(Map.of("name", "네이비")))), "attributeId");
+        Map<String, Object> link = new HashMap<>();
+        link.put("attributeId", attributeId);
+        link.put("role", "OPTION");
+        link.put("required", true);
+        link.put("allValuesAllowed", true);
+        link.put("sizeRole", false);
+        link.put("priceAffecting", false);
+        link.put("allowedValueIds", List.of());
+        return createdId(postTo("/api/v1/admin/product-types", Map.of("name", name, "attributes", List.of(link))),
+            "productTypeId");
+    }
+
+    private String createMeasurementItem(String name, String code) {
+        return createdId(postTo("/api/v1/admin/measurement-items", Map.of("name", name, "code", code, "unit", "cm")),
+            "measurementItemId");
+    }
+
+    // 만들기 응답에서 ID 칸을 읽는다
+    private static String createdId(RestTestClient.ResponseSpec response, String idField) {
+        Map<?, ?> body = response.expectStatus().isCreated()
+            .expectBody(Map.class)
+            .returnResult()
+            .getResponseBody();
+        return (String) body.get(idField);
+    }
+
+    private RestTestClient.ResponseSpec postTo(String path, Object body) {
+        return client.post().uri(path)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(body)
+            .exchange();
+    }
+
     private static Map<String, Object> category(
         String name, String parentId, String productTypeId, List<String> measurementItemIds) {
         Map<String, Object> category = new HashMap<>();
