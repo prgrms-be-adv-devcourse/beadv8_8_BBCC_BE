@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.attribute;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.attributes;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
@@ -8,11 +10,23 @@ import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixtur
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
+import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +35,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 판매자 내 상품 상세 API를 HTTP 요청부터 응답까지 확인한다. 상품은 등록 API로 만든다. 테스트에 @Transactional을 붙이지 않는다.
@@ -43,6 +59,12 @@ class SellerProductDetailApiTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private SavedClothingTop saved;
 
@@ -118,6 +140,37 @@ class SellerProductDetailApiTest {
     }
 
     @Test
+    @DisplayName("INFO-01 정보 항목은 항목마다 한 칸이고, 다중 선택 값은 valueIds에 모으고 직접 입력 값은 text에 담는다")
+    void detailHasAttributesInRequestShape() {
+        FeatureTop featureTop = saveFeatureTop();
+        Map<String, Object> body = productA(saved);
+        body.put("categoryId", id(featureTop.category().getId()));
+        Map<String, Object> composition = new LinkedHashMap<>();
+        composition.put("attributeId", id(featureTop.composition().getId()));
+        composition.put("valueIds", List.of());
+        composition.put("text", "면 95%, 스판 5%");
+        attributes(body).add(attribute(featureTop.feature().getId(),
+            List.of(id(featureTop.brushed().getId()), id(featureTop.stretch().getId()))));
+        attributes(body).add(composition);
+        ProductRegisterResponse registered = register(body);
+
+        detail(tokens.seller(SELLER_ID), registered.productId())
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.attributes.length()").isEqualTo(3)
+            .jsonPath("$.attributes[0].attributeId").isEqualTo(id(saved.clothing().mainMaterial().getId()))
+            .jsonPath("$.attributes[0].valueIds").isEqualTo(List.of(id(saved.clothing().cotton().getId())))
+            .jsonPath("$.attributes[0].text").isEqualTo(null)
+            .jsonPath("$.attributes[1].attributeId").isEqualTo(id(featureTop.feature().getId()))
+            .jsonPath("$.attributes[1].valueIds").isEqualTo(
+                List.of(id(featureTop.brushed().getId()), id(featureTop.stretch().getId())))
+            .jsonPath("$.attributes[1].text").isEqualTo(null)
+            .jsonPath("$.attributes[2].attributeId").isEqualTo(id(featureTop.composition().getId()))
+            .jsonPath("$.attributes[2].valueIds").isEqualTo(List.of())
+            .jsonPath("$.attributes[2].text").isEqualTo("면 95%, 스판 5%");
+    }
+
+    @Test
     @DisplayName("SALE-06 보관 옵션은 상세에 보이지 않고, 판매중지 옵션은 STOPPED로 보인다")
     void detailHidesArchivedOptions() {
         // 상품 A에 오트밀 110 옵션을 더해 옵션 세 개로 등록하고, 네이비 120은 판매중지, 오트밀 110은 보관으로 바꾼다
@@ -182,6 +235,44 @@ class SellerProductDetailApiTest {
             .expectStatus().isCreated()
             .returnResult(ProductRegisterResponse.class)
             .getResponseBody();
+    }
+
+    /**
+     * 특징(다중 선택)과 혼용률(직접 입력) 정보 항목이 있는 유형의 말단 카테고리다.
+     */
+    private record FeatureTop(
+        Category category, Attribute feature, AttributeValue brushed, AttributeValue stretch, Attribute composition) {
+    }
+
+    // 상의와 같은 옵션 · 주요소재 · 실측 항목에 특징과 혼용률 정보 항목을 더한 유형으로 의류 아래 말단 카테고리를 저장한다
+    private FeatureTop saveFeatureTop() {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            ClothingOptions clothing = saved.clothing();
+            Attribute feature = Attribute.create("특징", "FEATURE", AttributeInputType.MULTI_LIST);
+            Attribute composition = ProductTypeFixture.fabricComposition();
+            AttributeValue brushed = AttributeValue.create(feature, "기모", null);
+            AttributeValue stretch = AttributeValue.create(feature, "신축성", null);
+            ProductType type = ProductType.define("특징 의류", List.of(
+                ProductTypeFixture.requiredOption(reference(clothing.navy().getAttribute())),
+                ProductTypeFixture.sizeOption(reference(clothing.size110().getAttribute())),
+                ProductTypeFixture.requiredInfo(reference(clothing.mainMaterial())),
+                ProductTypeFixture.optionalTextInfo(composition),
+                new ProductType.LinkInfo(feature, AttributeRole.INFO, false, true, false, false, List.of())));
+            List<MeasurementItem> measurementItems = new ArrayList<>();
+            for (CategoryMeasurementItem link : saved.top().getMeasurementItems()) {
+                measurementItems.add(
+                    entityManager.getReference(MeasurementItem.class, link.getMeasurementItem().getId()));
+            }
+            Category category = Category.createLeaf(new Category.LeafInfo("특징 상의",
+                entityManager.getReference(Category.class, saved.clothingCategory().getId()), type,
+                measurementItems));
+            Stream.of(feature, composition, brushed, stretch, type, category).forEach(entityManager::persist);
+            return new FeatureTop(category, feature, brushed, stretch, composition);
+        });
+    }
+
+    private Attribute reference(Attribute attribute) {
+        return entityManager.getReference(Attribute.class, attribute.getId());
     }
 
     // 옵션의 판매 상태를 바꾸는 업무 메서드가 아직 없어 표를 직접 고친다

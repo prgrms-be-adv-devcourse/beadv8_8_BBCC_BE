@@ -6,10 +6,13 @@ import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetail
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -60,7 +63,29 @@ public class SellerProductService {
         return new SellerProductDetailResult(
             product.getId(), product.getName(), product.getStatus().name(), product.getVersion(),
             product.getBrand(), product.getCategoryId(), product.getDescription(), product.getThumbnailUrl(),
-            new ArrayList<>(product.getImageUrls()), options);
+            new ArrayList<>(product.getImageUrls()), attributes(product), options);
+    }
+
+    // 상품의 정보 값을 정보 항목마다 한 칸으로 모은다. 칸은 항목이 처음 나온 순서, 목록 값 ID는 저장된 순서다
+    private List<SellerProductDetailResult.Attribute> attributes(Product product) {
+        Map<Long, List<Long>> valueIdsByAttributeId = new LinkedHashMap<>();
+        Map<Long, String> textByAttributeId = new HashMap<>();
+        for (ProductInfoValue infoValue : product.getInfoValues()) {
+            Long attributeId = infoValue.getAttribute().getId();
+            List<Long> valueIds = valueIdsByAttributeId.computeIfAbsent(attributeId, id -> new ArrayList<>());
+            if (infoValue.getAttributeValue() != null) {
+                valueIds.add(infoValue.getAttributeValue().getId());
+            }
+            if (infoValue.getTextValue() != null) {
+                textByAttributeId.put(attributeId, infoValue.getTextValue());
+            }
+        }
+        List<SellerProductDetailResult.Attribute> attributes = new ArrayList<>();
+        for (Map.Entry<Long, List<Long>> entry : valueIdsByAttributeId.entrySet()) {
+            attributes.add(new SellerProductDetailResult.Attribute(
+                entry.getKey(), entry.getValue(), textByAttributeId.get(entry.getKey())));
+        }
+        return attributes;
     }
 
     // 옵션들의 재고를 한 번에 읽어 옵션 ID별 판매 가능 수량으로 묶는다

@@ -11,12 +11,20 @@ import java.util.List;
  * @param description 없으면 null
  * @param thumbnailUrl 없으면 null
  * @param imageUrls 저장된 순서대로 담고, 없으면 빈 목록
+ * @param attributes 정보 항목마다 한 칸이고, 항목이 처음 나온 순서대로 담는다
  * @param options 상품에 저장된 순서대로 담는다
  */
 public record SellerProductDetailResponse(
     String productId, String name, String status, Long version,
     String brand, String categoryId, String description, String thumbnailUrl, List<String> imageUrls,
-    List<Option> options) {
+    List<Attribute> attributes, List<Option> options) {
+
+    /**
+     * @param valueIds 고른 목록 값의 ID를 저장된 순서대로 담는다. 직접 입력 항목이면 빈 목록
+     * @param text 직접 입력 항목의 글. 목록 항목이면 null
+     */
+    public record Attribute(String attributeId, List<String> valueIds, String text) {
+    }
 
     /**
      * @param skuCode 없으면 null
@@ -26,6 +34,14 @@ public record SellerProductDetailResponse(
     }
 
     public static SellerProductDetailResponse from(SellerProductDetailResult result) {
+        List<Attribute> attributes = new ArrayList<>();
+        for (SellerProductDetailResult.Attribute attribute : result.attributes()) {
+            List<String> valueIds = new ArrayList<>();
+            for (Long valueId : attribute.valueIds()) {
+                valueIds.add(String.valueOf(valueId));
+            }
+            attributes.add(new Attribute(String.valueOf(attribute.attributeId()), valueIds, attribute.text()));
+        }
         List<Option> options = new ArrayList<>();
         for (SellerProductDetailResult.Option option : result.options()) {
             options.add(new Option(
@@ -39,6 +55,6 @@ public record SellerProductDetailResponse(
         return new SellerProductDetailResponse(
             String.valueOf(result.productId()), result.name(), result.status(), result.version(),
             result.brand(), String.valueOf(result.categoryId()), result.description(), result.thumbnailUrl(),
-            result.imageUrls(), options);
+            result.imageUrls(), attributes, options);
     }
 }
