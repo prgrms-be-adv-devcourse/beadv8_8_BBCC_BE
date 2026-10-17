@@ -26,7 +26,7 @@ public class AppSettingService {
     public AppSettingResult update(AppSettingRequest request) {
         AppSetting setting = appSettingRepository.findById(AppSetting.ID)
             .orElseGet(() -> appSettingRepository.save(AppSetting.defaults()));
-        setting.change(request.useMock());
+        setting.change(request.useMock(), request.demoRoleSwitch());
         return AppSettingResult.from(setting);
     }
 }

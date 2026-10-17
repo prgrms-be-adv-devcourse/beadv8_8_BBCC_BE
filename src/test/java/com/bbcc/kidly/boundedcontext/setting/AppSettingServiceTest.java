@@ -33,10 +33,10 @@ class AppSettingServiceTest {
     @DisplayName("저장된 설정을 준다")
     void get() {
         AppSetting stored = AppSetting.defaults();
-        stored.change(false);
+        stored.change(false, true);
         given(appSettingRepository.findById(AppSetting.ID)).willReturn(Optional.of(stored));
 
-        assertThat(appSettingService.get()).isEqualTo(new AppSettingResult(false));
+        assertThat(appSettingService.get()).isEqualTo(new AppSettingResult(false, true));
     }
 
     @Test
@@ -44,7 +44,7 @@ class AppSettingServiceTest {
     void getDefaults() {
         given(appSettingRepository.findById(AppSetting.ID)).willReturn(Optional.empty());
 
-        assertThat(appSettingService.get()).isEqualTo(new AppSettingResult(true));
+        assertThat(appSettingService.get()).isEqualTo(new AppSettingResult(true, true));
     }
 
     @Test
@@ -53,11 +53,22 @@ class AppSettingServiceTest {
         AppSetting stored = AppSetting.defaults();
         given(appSettingRepository.findById(AppSetting.ID)).willReturn(Optional.of(stored));
 
-        AppSettingResult result = appSettingService.update(new AppSettingRequest(false));
+        AppSettingResult result = appSettingService.update(new AppSettingRequest(false, null));
 
-        assertThat(result).isEqualTo(new AppSettingResult(false));
+        assertThat(result).isEqualTo(new AppSettingResult(false, true));
         assertThat(stored.isMockEnabled()).isFalse();
         then(appSettingRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("보낸 값만 바꾸고 나머지는 그대로 둔다")
+    void updateOnlyGiven() {
+        AppSetting stored = AppSetting.defaults();
+        given(appSettingRepository.findById(AppSetting.ID)).willReturn(Optional.of(stored));
+
+        AppSettingResult result = appSettingService.update(new AppSettingRequest(null, false));
+
+        assertThat(result).isEqualTo(new AppSettingResult(true, false));
     }
 
     @Test
@@ -66,12 +77,12 @@ class AppSettingServiceTest {
         given(appSettingRepository.findById(AppSetting.ID)).willReturn(Optional.empty());
         given(appSettingRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 
-        AppSettingResult result = appSettingService.update(new AppSettingRequest(false));
+        AppSettingResult result = appSettingService.update(new AppSettingRequest(false, null));
 
         ArgumentCaptor<AppSetting> saved = ArgumentCaptor.forClass(AppSetting.class);
         then(appSettingRepository).should().save(saved.capture());
         assertThat(saved.getValue().getId()).isEqualTo(AppSetting.ID);
         assertThat(saved.getValue().isMockEnabled()).isFalse();
-        assertThat(result).isEqualTo(new AppSettingResult(false));
+        assertThat(result).isEqualTo(new AppSettingResult(false, true));
     }
 }
