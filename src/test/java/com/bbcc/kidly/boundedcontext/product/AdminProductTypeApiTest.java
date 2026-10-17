@@ -128,6 +128,38 @@ class AdminProductTypeApiTest {
                 type("의류", List.of(link("1", "OPTION", true, false, false, false, Arrays.asList((String) null))))));
     }
 
+    @Test
+    @DisplayName("TYPE-02 필수 옵션 항목이 없는 유형을 만들면 400을 준다")
+    void rejectTypeWithoutRequiredOption() {
+        CreatedAttribute material = createAttribute("MAIN_MATERIAL", "LIST", List.of("면"));
+        CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
+
+        RestTestClient.ResponseSpec response = post(tokens.admin(ADMIN_ID), type("의류", List.of(
+            link(material.id(), "INFO", true, true, false, false, List.of()),
+            link(color.id(), "OPTION", false, true, false, false, List.of()))));
+
+        assertProblem(response, HttpStatus.BAD_REQUEST);
+        response.expectBody()
+            .jsonPath("$.title").isEqualTo("상품 유형 설정이 잘못되었습니다")
+            .jsonPath("$.detail").isEqualTo("필수 옵션 항목을 하나 이상 연결해 주세요.");
+    }
+
+    @Test
+    @DisplayName("TYPE-06 다른 항목의 값을 허용 값으로 넘기면 400을 준다")
+    void rejectAllowedValueOfOtherAttribute() {
+        CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
+        CreatedAttribute size = createAttribute("SIZE", "LIST", List.of("110"));
+
+        RestTestClient.ResponseSpec response = post(tokens.admin(ADMIN_ID), type("의류", List.of(
+            link(color.id(), "OPTION", true, false, false, false, List.of(size.valueId("110"))),
+            link(size.id(), "OPTION", true, true, true, false, List.of()))));
+
+        assertProblem(response, HttpStatus.BAD_REQUEST);
+        response.expectBody()
+            .jsonPath("$.title").isEqualTo("상품 유형 설정이 잘못되었습니다")
+            .jsonPath("$.detail").isEqualTo("허용 값은 그 항목의 목록 값에서 골라 주세요.");
+    }
+
     private static Map<String, Object> type(String name, List<?> attributes) {
         Map<String, Object> type = new HashMap<>();
         type.put("name", name);
