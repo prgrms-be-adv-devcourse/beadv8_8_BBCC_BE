@@ -14,6 +14,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeOption;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
@@ -43,6 +44,7 @@ class ProductTypeChangeTest {
     private static final Attribute SEASON = Attribute.create("계절", "SEASON", AttributeInputType.LIST);
     private static final AttributeValue NAVY = AttributeValue.create(COLOR, "네이비", "#2f3e5c");
     private static final AttributeValue GRAY = AttributeValue.create(COLOR, "그레이", "#9e9e9e");
+    private static final AttributeValue WHITE = AttributeValue.create(COLOR, "화이트", "#ffffff");
     private static final AttributeValue SIZE_110 = AttributeValue.create(SIZE, "110", null);
 
     // 기준 데이터의 의류와 같은 연결: 색상 · 사이즈 필수 옵션, 주요소재 필수 정보, 혼용률 선택 정보
@@ -109,5 +111,59 @@ class ProductTypeChangeTest {
                 List.of(color, restrictedSizeOption(SIZE, List.of(SIZE_110)), material, composition)),
             Named.of("옵션 항목 추가", List.of(color, size, material, composition, optionalOption(PATTERN))),
             Named.of("필수 정보 항목 추가", List.of(color, size, material, composition, requiredInfo(SEASON))));
+    }
+
+    @Test
+    @DisplayName("상품이 없어도 필수 옵션 항목이 없는 연결 목록이면 거절하고 연결을 그대로 둔다")
+    void rejectInvalidLinksWithoutProducts() {
+        ProductType type = clothing();
+
+        assertThatThrownBy(() -> type.change(List.of(optionalOption(COLOR), requiredInfo(MATERIAL)), false))
+            .isInstanceOfSatisfying(BusinessException.class, e ->
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.REQUIRED_OPTION_MISSING));
+        assertThat(type.getAttributes())
+            .extracting(link -> link.getAttribute().getCode())
+            .containsExactly("COLOR", "SIZE", "MAIN_MATERIAL", "FABRIC_COMPOSITION");
+    }
+
+    @Test
+    @DisplayName("연결 목록이 null이면 거절한다")
+    void rejectNullLinks() {
+        ProductType type = clothing();
+
+        assertThatNullPointerException().isThrownBy(() -> type.change(null, false));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesKeepingProducts")
+    @DisplayName("TYPE-07 상품이 있어도 기존 상품을 깨지 않는 변경은 받아 연결을 바꾼다")
+    void acceptChangeKeepingProducts(List<ProductType.LinkInfo> links) {
+        ProductType type = typeInUse();
+
+        type.change(links, true);
+
+        assertThat(type.getAttributes())
+            .extracting(link -> link.getAttribute().getCode(), ProductTypeAttribute::isRequired,
+                ProductTypeAttribute::isAllValuesAllowed)
+            .containsExactlyElementsOf(links.stream()
+                .map(link -> tuple(link.attribute().getCode(), link.required(), link.allValuesAllowed()))
+                .toList());
+    }
+
+    static Stream<Named<List<ProductType.LinkInfo>>> changesKeepingProducts() {
+        ProductType.LinkInfo color = restrictedOption(COLOR, List.of(NAVY, GRAY));
+        ProductType.LinkInfo size = sizeOption(SIZE);
+        ProductType.LinkInfo material = requiredInfo(MATERIAL);
+        ProductType.LinkInfo composition = optionalTextInfo(COMPOSITION);
+        return Stream.of(
+            Named.of("허용 값 추가",
+                List.of(restrictedOption(COLOR, List.of(NAVY, GRAY, WHITE)), size, material, composition)),
+            Named.of("허용 값만을 모든 값 허용으로", List.of(requiredOption(COLOR), size, material, composition)),
+            Named.of("선택 정보 항목 추가", List.of(color, size, material, composition,
+                new ProductType.LinkInfo(SEASON, AttributeRole.INFO, false, true, false, false, List.of()))),
+            Named.of("필수 항목을 선택으로", List.of(color, size,
+                new ProductType.LinkInfo(MATERIAL, AttributeRole.INFO, false, true, false, false, List.of()),
+                composition)),
+            Named.of("순서 변경", List.of(size, color, composition, material)));
     }
 }
