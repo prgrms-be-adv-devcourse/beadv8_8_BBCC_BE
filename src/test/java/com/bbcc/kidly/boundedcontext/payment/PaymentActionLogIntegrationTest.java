@@ -7,10 +7,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeCancelService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeConfirmService;
+import com.bbcc.kidly.boundedcontext.payment.app.ChargeReconcileService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequestResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ConfirmChargeRequest;
+import com.bbcc.kidly.boundedcontext.payment.domain.Charge;
+import com.bbcc.kidly.boundedcontext.payment.domain.ChargeRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.boundedcontext.payment.out.JpaPaymentRepository;
@@ -53,6 +56,15 @@ class PaymentActionLogIntegrationTest {
     private ChargeCancelService chargeCancelService;
 
     @Autowired
+    private ChargeReconcileService chargeReconcileService;
+
+    @Autowired
+    private ChargeRepository chargeRepository;
+
+    @Autowired
+    private FakePaymentGateway fakePaymentGateway;
+
+    @Autowired
     private WalletRepository walletRepository;
 
     @Autowired
@@ -73,6 +85,7 @@ class PaymentActionLogIntegrationTest {
     @AfterEach
     void tearDown() {
         capture.close();
+        fakePaymentGateway.reset();
     }
 
     @Test
@@ -125,6 +138,36 @@ class PaymentActionLogIntegrationTest {
     }
 
     @Test
+    @DisplayName("만료 시각이 지난 대기 충전을 만료로 바꾸면 지갑과 충전 ID를 남긴다")
+    void chargeExpired() {
+        Wallet wallet = walletRepository.save(PaymentFixture.wallet(0L));
+        Charge charge = chargeRepository.save(Charge.request(wallet.getId(), UUID.randomUUID().toString(), 10_000L,
+            LocalDateTime.now().minusMinutes(1)));
+
+        chargeReconcileService.expire(charge.getId());
+
+        assertThat(capture.messages()).containsExactly(
+            "action=CHARGE_EXPIRED walletId=%d chargeId=%d".formatted(wallet.getId(), charge.getId()));
+    }
+
+    @Test
+    @DisplayName("토스에서 직접 취소된 충전을 반영하면 회수한 금액 · 못 회수한 금액 · 바뀐 잔액을 남긴다")
+    void chargeCancelledExternally() {
+        Wallet wallet = walletRepository.save(PaymentFixture.wallet(5_000L));
+        ChargeRequestResult requested = chargeService.request(MEMBER_ID, new ChargeRequest(10_000L));
+        chargeConfirmService.confirm(MEMBER_ID, new ConfirmChargeRequest(PAYMENT_KEY, requested.orderId(), 10_000L));
+        fakePaymentGateway.willFindCancelled(requested.orderId());
+
+        chargeReconcileService.reconcileExternalCancel(requested.orderId());
+
+        assertThat(actions()).endsWith("CHARGE_CONFIRMED", "CHARGE_CANCELLED_EXTERNALLY");
+        assertThat(capture.messages().getLast()).isEqualTo(
+            ("action=CHARGE_CANCELLED_EXTERNALLY memberId=%d walletId=%d chargeId=%d amount=10000 "
+                + "recoveredAmount=10000 shortfallAmount=0 balance=5000")
+                .formatted(MEMBER_ID, wallet.getId(), requested.chargeId()));
+    }
+
+    @Test
     @DisplayName("주문 결제와 취소 환불을 한 번씩 남긴다. 같은 취소가 다시 와도 환불 로그는 하나다")
     void orderPaidThenRefunded() {
         Wallet wallet = walletRepository.save(PaymentFixture.wallet(20_000L));
@@ -163,6 +206,22 @@ class PaymentActionLogIntegrationTest {
 
         assertThat(actions()).containsExactly("ORDER_PAYMENT_FAILED");
         assertThat(capture.messages().getFirst()).contains("orderId=" + ORDER_ID, "reasonCode=INSUFFICIENT_BALANCE");
+    }
+
+    @Test
+    @DisplayName("결제 요청 금액이 주문상품 금액의 합과 다르면 결제 ID 없이 주문 결제 실패를 남긴다")
+    void orderPaymentAmountMismatch() {
+        walletRepository.save(PaymentFixture.wallet(20_000L));
+
+        publishInTransaction(new OrderPaymentRequestedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new OrderPaymentRequestedEvent.Data(ORDER_ID, MEMBER_ID, 15_000L, List.of(
+                new OrderPaymentRequestedEvent.Item(1000L, 10_000L),
+                new OrderPaymentRequestedEvent.Item(1001L, 4_000L)))));
+
+        assertThat(capture.messages()).containsExactly(
+            ("action=ORDER_PAYMENT_FAILED memberId=%d orderId=%d paymentId=null amount=15000 "
+                + "reasonCode=AMOUNT_MISMATCH")
+                .formatted(MEMBER_ID, ORDER_ID));
     }
 
     @Test
