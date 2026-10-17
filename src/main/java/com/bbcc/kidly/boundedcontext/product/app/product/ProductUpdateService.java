@@ -19,7 +19,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
-import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -49,10 +48,8 @@ public class ProductUpdateService {
     // 상품을 고치고, 바뀌었으면 version을 올려 저장한 뒤 판매대기가 아닌 상품이면 상품 정보 변경됨을 발행한다
     @Transactional
     public SellerProductDetailResult update(Long sellerId, Long productId, ProductUpdateRequest request) {
-        Product product = productRepository.findById(productId)
-            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
-        Category category = categoryRepository.findById(request.categoryId())
-            .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        Product product = productRepository.getById(productId);
+        Category category = categoryRepository.getById(request.categoryId());
         ProductType type = category.productTypeToRegister();
         InputLookup lookup = inputReader.readInputs(type);
 

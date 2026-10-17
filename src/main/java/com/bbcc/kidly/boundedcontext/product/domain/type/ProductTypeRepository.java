@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,4 +17,9 @@ public interface ProductTypeRepository {
 
     // 저장된 상품 유형의 수를 돌려준다
     long count();
+
+    // 상품 유형을 ID로 찾는다. 없으면 404 오류(PRODUCT_TYPE_NOT_FOUND)를 던진다
+    default ProductType getById(Long id) {
+        return findById(id).orElseThrow(() -> new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_NOT_FOUND));
+    }
 }

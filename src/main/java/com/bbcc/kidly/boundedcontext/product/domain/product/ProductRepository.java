@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -39,4 +40,9 @@ public interface ProductRepository {
     // 상품 행의 칸이 바뀌지 않아도 부르는 즉시 version을 1 올린다. 다른 요청이 먼저 고쳐 version이 달라졌으면 그 자리에서 충돌한다.
     // SKU 코드 · 판매가 · 실측처럼 자식 행만 바뀐 수정에서 version을 확실히 올리려고 쓴다
     void incrementVersion(Product product);
+
+    // 상품을 ID로 찾는다. 없으면 404 오류(PRODUCT_NOT_FOUND)를 던진다
+    default Product getById(Long id) {
+        return findById(id).orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+    }
 }

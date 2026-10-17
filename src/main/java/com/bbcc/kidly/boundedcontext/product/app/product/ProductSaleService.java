@@ -3,13 +3,10 @@ package com.bbcc.kidly.boundedcontext.product.app.product;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductSaleStatusResult;
 import com.bbcc.kidly.boundedcontext.product.app.product.support.ProductChangedPublisher;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
-import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
-import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -68,13 +65,11 @@ public class ProductSaleService {
     }
 
     private Product findProduct(Long productId) {
-        return productRepository.findById(productId)
-            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        return productRepository.getById(productId);
     }
 
     private Category findCategory(Product product) {
-        return categoryRepository.findById(product.getCategoryId())
-            .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        return categoryRepository.getById(product.getCategoryId());
     }
 
     private ProductSaleStatusResult toResult(Product product) {

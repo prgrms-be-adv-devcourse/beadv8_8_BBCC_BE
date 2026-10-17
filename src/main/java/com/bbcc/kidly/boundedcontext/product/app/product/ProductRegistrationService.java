@@ -19,10 +19,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
-import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -42,8 +40,7 @@ public class ProductRegistrationService {
     // 상품 · 옵션 · 실측을 판매대기 상태로 등록하고 옵션마다 초기 재고를 연다
     @Transactional
     public ProductRegisterResult register(Long sellerId, ProductRegisterRequest request) {
-        Category category = categoryRepository.findById(request.categoryId())
-            .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        Category category = categoryRepository.getById(request.categoryId());
         ProductType type = category.productTypeToRegister();
         InputLookup lookup = inputReader.readInputs(type);
         // 썸네일과 이미지 목록은 판매자 본인이 업로드 주소로 올린 이미지만 받는다

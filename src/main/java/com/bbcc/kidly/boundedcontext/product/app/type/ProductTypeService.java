@@ -4,7 +4,6 @@ import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeResult;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
-import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
@@ -13,7 +12,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAllowedValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
-import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -51,12 +49,10 @@ public class ProductTypeService {
     }
 
     private ProductType.LinkInfo toLinkInfo(ProductTypeCreateRequest.Link link) {
-        Attribute attribute = attributeRepository.findById(link.attributeId())
-            .orElseThrow(() -> new BusinessException(AttributeErrorCode.ATTRIBUTE_NOT_FOUND));
+        Attribute attribute = attributeRepository.getById(link.attributeId());
         List<AttributeValue> allowedValues = new ArrayList<>();
         for (Long valueId : link.allowedValueIds()) {
-            allowedValues.add(attributeValueRepository.findById(valueId)
-                .orElseThrow(() -> new BusinessException(AttributeErrorCode.ATTRIBUTE_VALUE_NOT_FOUND)));
+            allowedValues.add(attributeValueRepository.getById(valueId));
         }
         return new ProductType.LinkInfo(
             attribute,
