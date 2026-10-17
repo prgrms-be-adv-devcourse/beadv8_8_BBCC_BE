@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.app.type.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,4 +21,10 @@ public record CategoryCreateRequest(
     Long productTypeId,
     @NotNull(message = "실측 항목 ID를 보내 주세요. 없으면 빈 목록을 보내 주세요.")
     List<@NotNull(message = "실측 항목 ID를 넣어 주세요.") Long> measurementItemIds) {
+
+    // 중간 카테고리는 실측 항목을 갖지 않는다. 목록이 null이면 위의 @NotNull이 따로 거절한다
+    @AssertTrue(message = "실측 항목은 상품 유형을 고른 카테고리에만 넣어 주세요.")
+    public boolean isMeasurementItemsOnlyForLeaf() {
+        return productTypeId != null || measurementItemIds == null || measurementItemIds.isEmpty();
+    }
 }
