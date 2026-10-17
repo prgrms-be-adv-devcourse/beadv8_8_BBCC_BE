@@ -65,7 +65,8 @@ class CategoryRepositoryIntegrationTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("duplicates")
-    @DisplayName("같은 부모 아래 같은 이름의 카테고리나, 한 카테고리에 두 번 연결한 같은 실측 항목은 DB UNIQUE가 거절한다")
+    // 한 카테고리에 같은 실측 항목을 두 번 넣는 경우는 도메인이 저장 전에 400으로 막아 DB까지 가지 않는다(CategoryChangeTest)
+    @DisplayName("같은 부모 아래 같은 이름의 카테고리는 DB UNIQUE가 거절한다")
     void uniqueConstraintsRejectDuplicates(Duplicate duplicate) {
         // EntityManager로 바로 저장하므로 Spring이 바꾸지 않은 Hibernate의 제약 위반 예외가 나온다
         assertThatThrownBy(() -> inTransaction(() -> duplicate.persist(this)))
@@ -79,14 +80,6 @@ class CategoryRepositoryIntegrationTest {
                 test.entityManager.persist(clothing);
                 test.entityManager.persist(Category.createMiddle("상의", clothing));
                 test.entityManager.persist(Category.createMiddle("상의", clothing));
-            }),
-            Named.of("상의에 총장 두 번", test -> {
-                MeasurementItem totalLength = CategoryFixture.totalLength();
-                Category clothing = Category.createMiddle("의류", null);
-                test.entityManager.persist(totalLength);
-                test.entityManager.persist(clothing);
-                test.entityManager.persist(Category.createLeaf(new Category.LeafInfo(
-                    "상의", clothing, test.savedType(), List.of(totalLength, totalLength))));
             }));
     }
 
