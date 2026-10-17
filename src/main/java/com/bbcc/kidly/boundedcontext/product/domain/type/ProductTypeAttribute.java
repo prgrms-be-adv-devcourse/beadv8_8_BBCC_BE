@@ -73,4 +73,14 @@ public class ProductTypeAttribute extends BaseTimeEntity {
         link.priceAffecting = info.priceAffecting();
         return link;
     }
+
+    // 같은 항목의 연결을 그 자리에서 고친다. 연결 행을 지우고 다시 넣으면 UNIQUE 제약에 걸린다
+    void change(ProductType.LinkInfo info, int sortOrder) {
+        this.role = info.role();
+        this.required = info.required();
+        this.allValuesAllowed = info.allValuesAllowed();
+        this.sortOrder = sortOrder;
+        this.sizeRole = info.sizeRole();
+        this.priceAffecting = info.priceAffecting();
+    }
 }

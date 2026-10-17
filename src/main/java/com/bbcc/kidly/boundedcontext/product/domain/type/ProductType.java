@@ -50,22 +50,81 @@ public class ProductType extends BaseTimeEntity {
     @Column(nullable = false, unique = true)
     private String name;
 
-    @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<ProductTypeAttribute> attributes = new ArrayList<>();
 
-    @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductTypeAllowedValue> allowedValues = new ArrayList<>();
 
     public static ProductType define(String name, List<LinkInfo> links) {
         requireNonNull(name, "name은 필수입니다");
+        requireNonNullLinks(links);
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("유형 이름은 비어 있을 수 없습니다");
+        }
+        requireValidLinks(links);
+        ProductType type = new ProductType();
+        type.name = name;
+        type.addLinks(links);
+        return type;
+    }
+
+    // 상품이 없는 유형의 연결 목록을 받은 목록으로 바꾼다. 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
+    public void change(List<LinkInfo> links, boolean hasProducts) {
+        requireNonNullLinks(links);
+        requireValidLinks(links);
+        List<ProductTypeAttribute> changedAttributes = new ArrayList<>();
+        List<ProductTypeAllowedValue> changedAllowedValues = new ArrayList<>();
+        for (int i = 0; i < links.size(); i++) {
+            LinkInfo link = links.get(i);
+            changedAttributes.add(changeOrCreateLink(link, i + 1));
+            for (AttributeValue value : link.allowedValues()) {
+                changedAllowedValues.add(findOrCreateAllowedValue(value));
+            }
+        }
+        attributes.clear();
+        attributes.addAll(changedAttributes);
+        allowedValues.clear();
+        allowedValues.addAll(changedAllowedValues);
+    }
+
+    private ProductTypeAttribute changeOrCreateLink(LinkInfo info, int sortOrder) {
+        Optional<ProductTypeAttribute> existing = findLink(info.attribute());
+        if (existing.isEmpty()) {
+            return ProductTypeAttribute.create(this, info, sortOrder);
+        }
+        existing.get().change(info, sortOrder);
+        return existing.get();
+    }
+
+    private ProductTypeAllowedValue findOrCreateAllowedValue(AttributeValue value) {
+        for (ProductTypeAllowedValue allowed : allowedValues) {
+            if (allowed.getAttributeValue() == value) {
+                return allowed;
+            }
+        }
+        return ProductTypeAllowedValue.create(this, value);
+    }
+
+    private void addLinks(List<LinkInfo> links) {
+        for (int i = 0; i < links.size(); i++) {
+            LinkInfo link = links.get(i);
+            attributes.add(ProductTypeAttribute.create(this, link, i + 1));
+            for (AttributeValue value : link.allowedValues()) {
+                allowedValues.add(ProductTypeAllowedValue.create(this, value));
+            }
+        }
+    }
+
+    private static void requireNonNullLinks(List<LinkInfo> links) {
         requireNonNull(links, "links는 필수입니다");
         for (LinkInfo link : links) {
             requireNonNullValues(link);
         }
-        if (name.isBlank()) {
-            throw new IllegalArgumentException("유형 이름은 비어 있을 수 없습니다");
-        }
+    }
+
+    private static void requireValidLinks(List<LinkInfo> links) {
         if (!hasRequiredOption(links)) {
             throw new BusinessException(ProductTypeErrorCode.REQUIRED_OPTION_MISSING);
         }
@@ -90,16 +149,6 @@ public class ProductType extends BaseTimeEntity {
         if (hasAllowedValueOfOtherAttribute(links)) {
             throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUE_OF_OTHER_ATTRIBUTE);
         }
-        ProductType type = new ProductType();
-        type.name = name;
-        for (int i = 0; i < links.size(); i++) {
-            LinkInfo link = links.get(i);
-            type.attributes.add(ProductTypeAttribute.create(type, link, i + 1));
-            for (AttributeValue value : link.allowedValues()) {
-                type.allowedValues.add(ProductTypeAllowedValue.create(type, value));
-            }
-        }
-        return type;
     }
 
     private static void requireNonNullValues(LinkInfo link) {
