@@ -49,15 +49,10 @@ public class ChargeCancelService {
      */
     public void resume(ChargeCancelTarget target) {
         switch (requestCancel(target)) {
-            case PgResult.Success<PgCancellation> success -> {
+            case PgResult.Success<PgCancellation> success ->
                 chargeService.completeCancel(target.chargeId(), success.value());
-                log.info("취소 중 충전을 다시 취소해 완료했습니다. chargeId={}", target.chargeId());
-            }
-            case PgResult.Rejected<PgCancellation> rejected -> {
+            case PgResult.Rejected<PgCancellation> rejected ->
                 chargeService.failCancel(target.chargeId(), rejected.code());
-                log.info("취소 중 충전의 취소가 거절돼 되돌렸습니다. chargeId={}, code={}",
-                    target.chargeId(), rejected.code());
-            }
             case PgResult.Unknown<PgCancellation> unknown ->
                 log.info("충전 취소 결과를 아직 알 수 없어 다음에 다시 봅니다. chargeId={}, reason={}",
                     target.chargeId(), unknown.reason());

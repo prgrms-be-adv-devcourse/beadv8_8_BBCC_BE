@@ -56,12 +56,8 @@ public class ChargeReconcileService {
                     return;
                 }
                 chargeService.approve(target.chargeId(), success.value());
-                log.info("승인 중 충전을 토스 조회로 승인했습니다. chargeId={}", target.chargeId());
             }
-            case PgResult.Rejected<PgApproval> rejected -> {
-                chargeService.fail(target.chargeId(), rejected.code());
-                log.info("승인 중 충전을 토스 조회로 실패 처리했습니다. chargeId={}, code={}", target.chargeId(), rejected.code());
-            }
+            case PgResult.Rejected<PgApproval> rejected -> chargeService.fail(target.chargeId(), rejected.code());
             case PgResult.Unknown<PgApproval> unknown ->
                 log.info("충전 승인 결과를 아직 알 수 없어 다음에 다시 봅니다. chargeId={}, reason={}",
                     target.chargeId(), unknown.reason());
@@ -81,10 +77,8 @@ public class ChargeReconcileService {
         }
         Long chargeId = found.get().getId();
         switch (paymentGateway.findCancellationByOrderId(tossOrderId)) {
-            case PgResult.Success<PgCancellation> success -> {
+            case PgResult.Success<PgCancellation> success ->
                 chargeService.applyExternalCancel(chargeId, success.value());
-                log.info("토스에서 직접 취소된 충전을 반영했습니다. chargeId={}", chargeId);
-            }
             case PgResult.Rejected<PgCancellation> rejected
                 when PaymentGateway.PARTIAL_CANCELED.equals(rejected.code()) ->
                 log.error("토스에서 부분 취소된 충전은 아직 반영하지 않습니다. 운영자가 확인해야 합니다. chargeId={}", chargeId);
