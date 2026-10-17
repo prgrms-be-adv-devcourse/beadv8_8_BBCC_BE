@@ -1,7 +1,10 @@
 package com.bbcc.kidly.boundedcontext.product.app.type;
 
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryTreeResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.MeasurementItemResult;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
@@ -10,9 +13,14 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.global.error.CommonErrorCode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +35,76 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final AttributeValueRepository attributeValueRepository;
+    private final ProductTypeRepository productTypeRepository;
+    private final MeasurementItemRepository measurementItemRepository;
+
+    // 카테고리를 만들어 저장한다. 부모가 있으면 먼저 읽고, 상품 유형이 있으면 말단 카테고리로 만든다
+    @Transactional
+    public CategoryResult create(CategoryCreateRequest request) {
+        Category parent = null;
+        if (request.parentId() != null) {
+            parent = categoryRepository.findById(request.parentId())
+                .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        }
+        // 최상위 카테고리끼리의 이름 중복은 DB UNIQUE가 막지 못하므로 먼저 찾아 본다. 같은 부모 아래 중복은 UNIQUE가 409로 막는다
+        if (parent == null && categoryRepository.findTopLevelByName(request.name()).isPresent()) {
+            throw new BusinessException(CommonErrorCode.CONFLICT);
+        }
+        Category category = categoryRepository.save(newCategory(request, parent));
+        return toResult(category);
+    }
+
+    // 모든 카테고리를 ID 순서로 평평하게 돌려준다
+    @Transactional(readOnly = true)
+    public List<CategoryResult> findAll() {
+        List<CategoryResult> results = new ArrayList<>();
+        for (Category category : categoryRepository.findAll()) {
+            results.add(toResult(category));
+        }
+        return results;
+    }
+
+    private Category newCategory(CategoryCreateRequest request, Category parent) {
+        if (request.productTypeId() == null) {
+            return Category.createMiddle(request.name(), parent);
+        }
+        ProductType productType = productTypeRepository.findById(request.productTypeId())
+            .orElseThrow(() -> new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_NOT_FOUND));
+        List<MeasurementItem> measurementItems = new ArrayList<>();
+        for (Long measurementItemId : request.measurementItemIds()) {
+            measurementItems.add(measurementItemRepository.findById(measurementItemId)
+                .orElseThrow(() -> new BusinessException(MeasurementItemErrorCode.MEASUREMENT_ITEM_NOT_FOUND)));
+        }
+        return Category.createLeaf(new Category.LeafInfo(request.name(), parent, productType, measurementItems));
+    }
+
+    private CategoryResult toResult(Category category) {
+        Long parentId = null;
+        if (category.getParent() != null) {
+            // 부모는 지연 로딩 프록시이므로 ID만 읽는다
+            parentId = category.getParent().getId();
+        }
+        Long productTypeId = null;
+        String productTypeName = null;
+        if (category.isLeaf()) {
+            productTypeId = category.getProductType().getId();
+            productTypeName = category.getProductType().getName();
+        }
+        List<MeasurementItemResult> measurementItems = new ArrayList<>();
+        for (CategoryMeasurementItem link : category.getMeasurementItems()) {
+            MeasurementItem item = link.getMeasurementItem();
+            measurementItems.add(new MeasurementItemResult(
+                item.getId(), item.getName(), item.getCode(), item.getUnit()));
+        }
+        return new CategoryResult(
+            category.getId(),
+            category.getName(),
+            parentId,
+            category.isLeaf(),
+            productTypeId,
+            productTypeName,
+            measurementItems);
+    }
 
     // 최상위 카테고리부터 하위 카테고리까지 계층으로 돌려준다. 같은 부모 아래에서는 ID 순서다
     @Transactional(readOnly = true)
