@@ -100,9 +100,7 @@ public class Category extends BaseTimeEntity {
     public void change(ProductType productType, List<MeasurementItem> measurementItems, boolean hasProducts) {
         requireNonNull(productType, "productType은 필수입니다");
         requireNonNull(measurementItems, "measurementItems는 필수입니다");
-        for (MeasurementItem item : measurementItems) {
-            requireNonNull(item, "measurementItem은 필수입니다");
-        }
+        measurementItems.forEach(item -> requireNonNull(item, "measurementItem은 필수입니다"));
         // 중간 카테고리는 상품 유형과 필수 실측 항목을 가지지 않으므로 바꿀 것이 없다 (TYPE-01)
         if (!isLeaf()) {
             throw new BusinessException(CategoryErrorCode.MIDDLE_CATEGORY_NOT_CHANGEABLE);
@@ -125,30 +123,29 @@ public class Category extends BaseTimeEntity {
             return true;
         }
         for (MeasurementItem item : newItems) {
-            if (!hasMeasurementItem(item)) {
+            if (findLink(item) == null) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean hasMeasurementItem(MeasurementItem item) {
+    private CategoryMeasurementItem findLink(MeasurementItem item) {
         for (CategoryMeasurementItem link : measurementItems) {
             if (link.getMeasurementItem() == item) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private CategoryMeasurementItem changeOrCreateMeasurementItem(MeasurementItem item, int sortOrder) {
-        for (CategoryMeasurementItem link : measurementItems) {
-            if (link.getMeasurementItem() == item) {
-                link.changeSortOrder(sortOrder);
                 return link;
             }
         }
-        return CategoryMeasurementItem.create(this, item, sortOrder);
+        return null;
+    }
+
+    private CategoryMeasurementItem changeOrCreateMeasurementItem(MeasurementItem item, int sortOrder) {
+        CategoryMeasurementItem link = findLink(item);
+        if (link == null) {
+            return CategoryMeasurementItem.create(this, item, sortOrder);
+        }
+        link.changeSortOrder(sortOrder);
+        return link;
     }
 
     private static void rejectBlankName(String name) {

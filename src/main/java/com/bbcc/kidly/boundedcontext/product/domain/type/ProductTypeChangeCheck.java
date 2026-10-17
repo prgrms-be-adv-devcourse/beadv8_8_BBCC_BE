@@ -12,17 +12,16 @@ final class ProductTypeChangeCheck {
     }
 
     // 새 연결 목록이 기존 상품을 깨면 true를 돌려준다
-    static boolean breaksProducts(
-        List<ProductTypeAttribute> current, List<ProductTypeAllowedValue> currentAllowed,
-        List<ProductType.LinkInfo> links) {
-        for (ProductTypeAttribute link : current) {
+    static boolean breaksProducts(ProductType type, List<ProductType.LinkInfo> links) {
+        for (ProductTypeAttribute link : type.getAttributes()) {
             ProductType.LinkInfo info = findInfo(links, link.getAttribute());
-            if (info == null || breaksLink(link, info, currentAllowed)) {
+            if (info == null || breaksLink(link, info, type.getAllowedValues())) {
                 return true;
             }
         }
         for (ProductType.LinkInfo info : links) {
-            if (isNewLink(current, info) && (info.role() != AttributeRole.INFO || info.required())) {
+            if (type.findLink(info.attribute()).isEmpty()
+                && (info.role() != AttributeRole.INFO || info.required())) {
                 return true;
             }
         }
@@ -62,14 +61,5 @@ final class ProductTypeChangeCheck {
             }
         }
         return null;
-    }
-
-    private static boolean isNewLink(List<ProductTypeAttribute> current, ProductType.LinkInfo info) {
-        for (ProductTypeAttribute link : current) {
-            if (link.getAttribute() == info.attribute()) {
-                return false;
-            }
-        }
-        return true;
     }
 }

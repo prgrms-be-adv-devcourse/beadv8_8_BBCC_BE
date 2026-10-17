@@ -65,12 +65,7 @@ public class ProductTypeAttribute extends BaseTimeEntity {
         ProductTypeAttribute link = new ProductTypeAttribute();
         link.productType = productType;
         link.attribute = info.attribute();
-        link.role = info.role();
-        link.required = info.required();
-        link.allValuesAllowed = info.allValuesAllowed();
-        link.sortOrder = sortOrder;
-        link.sizeRole = info.sizeRole();
-        link.priceAffecting = info.priceAffecting();
+        link.change(info, sortOrder);
         return link;
     }
 
