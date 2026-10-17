@@ -13,7 +13,9 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
@@ -30,8 +32,10 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final AttributeValueRepository attributeValueRepository;
+    private final ProductTypeRepository productTypeRepository;
+    private final MeasurementItemRepository measurementItemRepository;
 
-    // 카테고리를 만들어 저장한다. 부모가 있으면 먼저 읽는다
+    // 카테고리를 만들어 저장한다. 부모가 있으면 먼저 읽고, 상품 유형이 있으면 말단 카테고리로 만든다
     @Transactional
     public CategoryResult create(CategoryCreateRequest request) {
         Category parent = null;
@@ -39,8 +43,20 @@ public class CategoryService {
             parent = categoryRepository.findById(request.parentId())
                 .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
         }
-        Category category = categoryRepository.save(Category.createMiddle(request.name(), parent));
+        Category category = categoryRepository.save(newCategory(request, parent));
         return toResult(category);
+    }
+
+    private Category newCategory(CategoryCreateRequest request, Category parent) {
+        if (request.productTypeId() == null) {
+            return Category.createMiddle(request.name(), parent);
+        }
+        ProductType productType = productTypeRepository.findById(request.productTypeId()).orElseThrow();
+        List<MeasurementItem> measurementItems = new ArrayList<>();
+        for (Long measurementItemId : request.measurementItemIds()) {
+            measurementItems.add(measurementItemRepository.findById(measurementItemId).orElseThrow());
+        }
+        return Category.createLeaf(new Category.LeafInfo(request.name(), parent, productType, measurementItems));
     }
 
     private CategoryResult toResult(Category category) {
