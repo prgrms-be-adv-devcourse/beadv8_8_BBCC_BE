@@ -66,7 +66,7 @@ class SettlementRunResultTest {
     @DisplayName("건너뛴 판매자를 판매자 ID · 단계 · 사유로 담는다")
     void skippedSellers() {
         var skip = SettlementSkip.create(new SettlementSkipCreateInfo(
-            RUN_ID, 10L, SettlementSkipPhase.WRITE, new IllegalStateException("정산 대상이 바뀌었습니다")));
+            RUN_ID, 10L, SettlementSkipPhase.WRITE, "IllegalStateException: 정산 대상이 바뀌었습니다"));
 
         var result = SettlementRunResult.of(execution(BatchStatus.COMPLETED, 1, 1, 3L), List.of(skip));
 
