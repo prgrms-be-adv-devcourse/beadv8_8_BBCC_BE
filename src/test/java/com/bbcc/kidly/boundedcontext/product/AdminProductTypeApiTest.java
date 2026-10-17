@@ -160,6 +160,22 @@ class AdminProductTypeApiTest {
             .jsonPath("$.detail").isEqualTo("허용 값은 그 항목의 목록 값에서 골라 주세요.");
     }
 
+    @Test
+    @DisplayName("없는 항목 ID나 없는 값 ID를 넘기면 404를 준다")
+    void rejectUnknownAttributeOrValue() {
+        CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
+
+        RestTestClient.ResponseSpec unknownAttribute = post(tokens.admin(ADMIN_ID), type("의류", List.of(
+            link("999999", "OPTION", true, true, false, false, List.of()))));
+        RestTestClient.ResponseSpec unknownValue = post(tokens.admin(ADMIN_ID), type("의류", List.of(
+            link(color.id(), "OPTION", true, false, false, false, List.of("999999")))));
+
+        assertProblem(unknownAttribute, HttpStatus.NOT_FOUND);
+        unknownAttribute.expectBody().jsonPath("$.title").isEqualTo("항목을 찾을 수 없습니다");
+        assertProblem(unknownValue, HttpStatus.NOT_FOUND);
+        unknownValue.expectBody().jsonPath("$.title").isEqualTo("목록 값을 찾을 수 없습니다");
+    }
+
     private static Map<String, Object> type(String name, List<?> attributes) {
         Map<String, Object> type = new HashMap<>();
         type.put("name", name);
