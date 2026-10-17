@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # 읽기 전용: 코드를 고치거나 push하지 않고 댓글만 남긴다
+    # Claude GitHub App 대신 이 job의 GITHUB_TOKEN(아래 권한만 가짐)으로 댓글을 남긴다. 댓글 작성자는 github-actions[bot]
     permissions:
       contents: read
       pull-requests: write
-      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -32,6 +32,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
