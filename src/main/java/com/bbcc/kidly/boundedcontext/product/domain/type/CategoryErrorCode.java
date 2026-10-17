@@ -21,6 +21,7 @@ public enum CategoryErrorCode implements ErrorCode {
     PARENT_IS_LEAF(HttpStatus.BAD_REQUEST, "카테고리를 만들 수 없는 위치입니다", "가장 아래 단계가 아닌 카테고리를 부모로 골라 주세요."),
     MIDDLE_CATEGORY_NOT_CHANGEABLE(HttpStatus.BAD_REQUEST, "설정을 바꿀 수 없는 카테고리입니다",
         "상품 유형과 필수 실측 항목은 가장 아래 단계의 카테고리에서만 바꿀 수 있습니다."),
+    DUPLICATE_MEASUREMENT_ITEM(HttpStatus.BAD_REQUEST, "카테고리 설정이 잘못되었습니다", "같은 실측 항목은 한 번만 넣어 주세요."),
     CHANGE_BREAKS_PRODUCTS(HttpStatus.CONFLICT, "상품이 있는 카테고리는 바꿀 수 없는 설정입니다",
         "상품이 있는 카테고리는 필수 실측 항목 빼기와 순서 변경만 할 수 있습니다.");
 

@@ -15,8 +15,10 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -116,6 +118,12 @@ public class ProductType extends BaseTimeEntity {
     }
 
     private static void requireValidLinks(List<LinkInfo> links) {
+        if (hasDuplicatedAttribute(links)) {
+            throw new BusinessException(ProductTypeErrorCode.DUPLICATE_ATTRIBUTE);
+        }
+        if (hasDuplicatedAllowedValue(links)) {
+            throw new BusinessException(ProductTypeErrorCode.DUPLICATE_ALLOWED_VALUE);
+        }
         if (!hasRequiredOption(links)) {
             throw new BusinessException(ProductTypeErrorCode.REQUIRED_OPTION_MISSING);
         }
@@ -150,6 +158,25 @@ public class ProductType extends BaseTimeEntity {
         for (AttributeValue value : link.allowedValues()) {
             requireNonNull(value, "allowedValue는 필수입니다");
         }
+    }
+
+    private static boolean hasDuplicatedAttribute(List<LinkInfo> links) {
+        Set<Attribute> attributes = new HashSet<>();
+        for (LinkInfo link : links) {
+            if (!attributes.add(link.attribute())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasDuplicatedAllowedValue(List<LinkInfo> links) {
+        for (LinkInfo link : links) {
+            if (new HashSet<>(link.allowedValues()).size() != link.allowedValues().size()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasRequiredOption(List<LinkInfo> links) {

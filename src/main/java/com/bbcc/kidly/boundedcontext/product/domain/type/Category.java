@@ -19,6 +19,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -83,6 +84,7 @@ public class Category extends BaseTimeEntity {
         requireNonNull(info.productType(), "productType은 필수입니다");
         requireNonNull(info.measurementItems(), "measurementItems는 필수입니다");
         info.measurementItems().forEach(item -> requireNonNull(item, "measurementItem은 필수입니다"));
+        rejectDuplicatedMeasurementItems(info.measurementItems());
         rejectBlankName(info.name());
         rejectLeafParent(info.parent());
         Category category = new Category();
@@ -101,6 +103,7 @@ public class Category extends BaseTimeEntity {
         requireNonNull(productType, "productType은 필수입니다");
         requireNonNull(measurementItems, "measurementItems는 필수입니다");
         measurementItems.forEach(item -> requireNonNull(item, "measurementItem은 필수입니다"));
+        rejectDuplicatedMeasurementItems(measurementItems);
         // 중간 카테고리는 상품 유형과 필수 실측 항목을 가지지 않으므로 바꿀 것이 없다 (TYPE-01)
         if (!isLeaf()) {
             throw new BusinessException(CategoryErrorCode.MIDDLE_CATEGORY_NOT_CHANGEABLE);
@@ -146,6 +149,12 @@ public class Category extends BaseTimeEntity {
         }
         link.changeSortOrder(sortOrder);
         return link;
+    }
+
+    private static void rejectDuplicatedMeasurementItems(List<MeasurementItem> items) {
+        if (new HashSet<>(items).size() != items.size()) {
+            throw new BusinessException(CategoryErrorCode.DUPLICATE_MEASUREMENT_ITEM);
+        }
     }
 
     private static void rejectBlankName(String name) {
