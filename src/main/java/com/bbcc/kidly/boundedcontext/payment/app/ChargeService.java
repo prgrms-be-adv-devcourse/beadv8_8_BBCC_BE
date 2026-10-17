@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.payment.app;
 
+import com.bbcc.kidly.boundedcontext.payment.app.dto.AbandonChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmResult;
@@ -102,6 +103,19 @@ public class ChargeService {
         walletLedgerRepository.save(WalletLedger.record(
             wallet.getId(), WalletLedgerType.CHARGE, charge.getAmount(), wallet.getBalance(), charge.getId()));
         return ChargeConfirmResult.done(charge.getId(), charge.getAmount(), wallet.getBalance());
+    }
+
+    /**
+     * 결제창이 실패 · 취소로 끝난 충전을 실패로 바꾼다. 30분 만료를 기다리지 않고 바로 끝낸다.
+     */
+    @Transactional
+    public ChargeDetail abandon(Long memberId, AbandonChargeRequest request) {
+        Wallet wallet = walletOf(memberId);
+        Charge charge = chargeRepository.findWithLockByTossOrderId(request.orderId())
+            .filter(found -> found.getWalletId().equals(wallet.getId()))
+            .orElseThrow(() -> new BusinessException(PaymentErrorCode.CHARGE_NOT_FOUND));
+        charge.abandon(request.code());
+        return ChargeDetail.from(charge);
     }
 
     @Transactional

@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.payment.in;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeCancelService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeConfirmService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.AbandonChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeCancelResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequest;
@@ -60,6 +61,14 @@ public class ChargeController {
         return result.confirming()
             ? ResponseEntity.accepted().body(body)
             : ResponseEntity.ok(body);
+    }
+
+    /**
+     * 결제창이 실패 · 취소로 끝나 failUrl로 돌아온 충전을 실패로 끝낸다. 이미 실패한 충전이면 그대로 200이다.
+     */
+    @PostMapping("/fail")
+    public ChargeDetailResponse fail(@LoginMember AuthMember member, @Valid @RequestBody AbandonChargeRequest request) {
+        return ChargeDetailResponse.from(chargeService.abandon(member.id(), request));
     }
 
     /**
