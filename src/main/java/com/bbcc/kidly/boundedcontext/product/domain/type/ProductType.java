@@ -70,10 +70,13 @@ public class ProductType extends BaseTimeEntity {
         return type;
     }
 
-    // 상품이 없는 유형의 연결 목록을 받은 목록으로 바꾼다. 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
+    // 연결 목록을 받은 목록으로 바꾼다. 상품이 있는 유형은 기존 상품을 깨지 않는 변경만 받는다. 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
     public void change(List<LinkInfo> links, boolean hasProducts) {
         requireNonNullLinks(links);
         requireValidLinks(links);
+        if (hasProducts && ProductTypeChangeCheck.breaksProducts(attributes, allowedValues, links)) {
+            throw new BusinessException(ProductTypeErrorCode.CHANGE_BREAKS_PRODUCTS);
+        }
         List<ProductTypeAttribute> changedAttributes = new ArrayList<>();
         List<ProductTypeAllowedValue> changedAllowedValues = new ArrayList<>();
         for (int i = 0; i < links.size(); i++) {
