@@ -13,8 +13,10 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -61,10 +63,12 @@ public class CategoryService {
         if (request.productTypeId() == null) {
             return Category.createMiddle(request.name(), parent);
         }
-        ProductType productType = productTypeRepository.findById(request.productTypeId()).orElseThrow();
+        ProductType productType = productTypeRepository.findById(request.productTypeId())
+            .orElseThrow(() -> new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_NOT_FOUND));
         List<MeasurementItem> measurementItems = new ArrayList<>();
         for (Long measurementItemId : request.measurementItemIds()) {
-            measurementItems.add(measurementItemRepository.findById(measurementItemId).orElseThrow());
+            measurementItems.add(measurementItemRepository.findById(measurementItemId)
+                .orElseThrow(() -> new BusinessException(MeasurementItemErrorCode.MEASUREMENT_ITEM_NOT_FOUND)));
         }
         return Category.createLeaf(new Category.LeafInfo(request.name(), parent, productType, measurementItems));
     }
