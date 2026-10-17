@@ -10,8 +10,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,12 +19,13 @@ import org.springframework.util.Assert;
 
 /**
  * 정산 실행에서 건너뛴 판매자 한 명. 그 판매자의 대상은 대기로 남아 다음 실행에서 다시 정산된다.
- * 기록 시각은 created_at이다.
+ * 한 실행에서 판매자는 한 번만 건너뛴다. 기록 시각은 created_at이다.
  */
 @Entity
 @Table(
     name = "settlement_skip", schema = "settlement",
-    indexes = @Index(name = "idx_settlement_skip_job_execution_id", columnList = "job_execution_id"))
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_settlement_skip_job_execution_seller", columnNames = {"job_execution_id", "seller_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SettlementSkip extends BaseTimeEntity {
@@ -46,7 +47,7 @@ public class SettlementSkip extends BaseTimeEntity {
     @Column(name = "phase", nullable = false, length = 20)
     private SettlementSkipPhase phase;
 
-    // 예외 이름: 메시지. 200자에서 자른다
+    // 200자를 넘으면 자른다
     @Column(name = "reason", nullable = false, length = REASON_MAX_LENGTH)
     private String reason;
 
@@ -63,13 +64,10 @@ public class SettlementSkip extends BaseTimeEntity {
         Assert.isTrue(jobExecutionId > 0, "jobExecutionId는 0보다 커야 합니다");
         var sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
         Assert.isTrue(sellerId > 0, "sellerId는 0보다 커야 합니다");
-        return new SettlementSkip(jobExecutionId, sellerId, requireNonNull(info.phase(), "phase는 필수입니다"),
-            reasonOf(requireNonNull(info.error(), "error는 필수입니다")));
-    }
-
-    private static String reasonOf(Throwable error) {
-        var name = error.getClass().getSimpleName();
-        var reason = error.getMessage() == null ? name : name + ": " + error.getMessage();
-        return reason.length() <= REASON_MAX_LENGTH ? reason : reason.substring(0, REASON_MAX_LENGTH);
+        var phase = requireNonNull(info.phase(), "phase는 필수입니다");
+        var reason = info.reason();
+        Assert.hasText(reason, "reason은 필수입니다");
+        return new SettlementSkip(jobExecutionId, sellerId, phase,
+            reason.length() <= REASON_MAX_LENGTH ? reason : reason.substring(0, REASON_MAX_LENGTH));
     }
 }
