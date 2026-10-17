@@ -55,7 +55,8 @@ public class ProductTypeService {
             .orElseThrow(() -> new BusinessException(AttributeErrorCode.ATTRIBUTE_NOT_FOUND));
         List<AttributeValue> allowedValues = new ArrayList<>();
         for (Long valueId : link.allowedValueIds()) {
-            allowedValues.add(attributeValueRepository.findById(valueId).orElseThrow());
+            allowedValues.add(attributeValueRepository.findById(valueId)
+                .orElseThrow(() -> new BusinessException(AttributeErrorCode.ATTRIBUTE_VALUE_NOT_FOUND)));
         }
         return new ProductType.LinkInfo(
             attribute,
