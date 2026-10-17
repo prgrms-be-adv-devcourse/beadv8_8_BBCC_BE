@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Collection;
 import java.util.List;
@@ -18,6 +20,12 @@ public interface ProductRepository {
 
     // 저장된 상품의 수를 돌려준다
     long count();
+
+    // 그 카테고리에 등록된 상품이 하나라도 있는지 본다. 카테고리 설정을 바꿀 때 기존 상품을 깨는지 판단하는 데 쓴다
+    boolean existsByCategory(Category category);
+
+    // 그 유형을 쓰는 카테고리에 등록된 상품이 하나라도 있는지 본다. 유형 설정을 바꿀 때 기존 상품을 깨는지 판단하는 데 쓴다
+    boolean existsByCategoryProductType(ProductType productType);
 
     // 재고를 차감할 옵션을 ID 목록으로 상품과 함께 찾는다. 없는 ID는 결과에서 빠진다.
     // 호출한 쪽에 바깥 트랜잭션이 없으면 조회 직후 옵션이 준영속이 되므로, 판매 가능 여부를 판단할 수 있게 상품을 함께 읽어 둔다.
