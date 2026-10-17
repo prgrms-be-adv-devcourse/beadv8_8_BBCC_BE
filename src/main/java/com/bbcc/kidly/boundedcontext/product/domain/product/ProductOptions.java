@@ -14,14 +14,16 @@ import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * 옵션 목록 전체를 함께 보는 검사와 계산(보관 제외 옵션, 사이즈 값, FREE 판단)을 모은다.
- * Product.addOptions, SaleInputsReplacement, ProductSizeSpecs, SaleStartConditions가 쓴다.
+ * 옵션 목록 전체를 함께 보는 검사와 계산(보관 제외 옵션, 사이즈 값, FREE 판단, 가격 구분 묶음의 가격)을 모은다.
+ * Product.addOptions, Product.currentPrices, SaleInputsReplacement, ProductSizeSpecs, SaleStartConditions가 쓴다.
  */
 final class ProductOptions {
 
@@ -262,9 +264,20 @@ final class ProductOptions {
         return sorted;
     }
 
-    // 옵션의 값 중 값에 따라 가격이 달라지는 항목의 값을 모은다. 가격 구분 항목이 없는 유형은 빈 집합이다
+    // 옵션들의 가격 구분 묶음마다 그 묶음의 가격 하나를 만든다. 보관 옵션은 뺀다. 같은 묶음의 옵션은 가격이 같으므로(PRICE-03) 처음 나온 옵션의 가격을 쓴다
+    static List<PriceInfo> currentPrices(List<ProductOption> options, ProductType productType) {
+        Map<Set<AttributeValue>, PriceInfo> groups = new LinkedHashMap<>();
+        for (ProductOption option : activeOptions(options)) {
+            Set<AttributeValue> group = priceGroup(valuesOf(option), productType);
+            groups.putIfAbsent(group, new PriceInfo(new ArrayList<>(group), option.getPrice()));
+        }
+        return new ArrayList<>(groups.values());
+    }
+
+    // 옵션의 값 중 값에 따라 가격이 달라지는 항목의 값을 모은다. 가격 구분 항목이 없는 유형은 빈 집합이다.
+    // 옵션 값의 순서(유형의 항목 순서)를 지켜서, 이 묶음으로 만든 가격의 값 순서가 실행마다 같다
     private static Set<AttributeValue> priceGroup(Collection<AttributeValue> optionValues, ProductType productType) {
-        Set<AttributeValue> group = new HashSet<>();
+        Set<AttributeValue> group = new LinkedHashSet<>();
         for (AttributeValue value : optionValues) {
             if (productType.findLink(value.getAttribute()).filter(ProductTypeAttribute::isPriceAffecting).isPresent()) {
                 group.add(value);
