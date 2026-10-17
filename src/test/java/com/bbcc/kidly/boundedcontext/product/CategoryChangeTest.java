@@ -5,29 +5,41 @@ import static com.bbcc.kidly.boundedcontext.product.CategoryFixture.shoulderWidt
 import static com.bbcc.kidly.boundedcontext.product.CategoryFixture.sleeveLength;
 import static com.bbcc.kidly.boundedcontext.product.CategoryFixture.totalLength;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.http.HttpStatus;
 
 class CategoryChangeTest {
 
-    private final ProductType clothingType = ProductType.define("의류", ProductTypeFixture.clothingLinks());
-    private final ProductType goodsType = ProductType.define("잡화", ProductTypeFixture.clothingLinks());
-    private final MeasurementItem totalLength = totalLength();
-    private final MeasurementItem shoulderWidth = shoulderWidth();
-    private final MeasurementItem chestWidth = chestWidth();
-    private final MeasurementItem sleeveLength = sleeveLength();
+    private static final ProductType CLOTHING_TYPE = ProductType.define("의류", ProductTypeFixture.clothingLinks());
+    private static final ProductType GOODS_TYPE = ProductType.define("잡화", ProductTypeFixture.clothingLinks());
+    private static final MeasurementItem TOTAL_LENGTH = totalLength();
+    private static final MeasurementItem SHOULDER_WIDTH = shoulderWidth();
+    private static final MeasurementItem CHEST_WIDTH = chestWidth();
+    private static final MeasurementItem SLEEVE_LENGTH = sleeveLength();
 
-    // 상의처럼 총장 · 어깨너비 · 가슴단면을 필수 실측으로 가진 말단 카테고리
-    private Category top() {
-        return Category.createLeaf(new Category.LeafInfo("상의", CategoryFixture.clothing(), clothingType,
-            List.of(totalLength, shoulderWidth, chestWidth)));
+    /** 카테고리에 넘길 새 설정이다. */
+    record Change(ProductType productType, List<MeasurementItem> measurementItems) {
+    }
+
+    // 상의처럼 의류 유형과 총장 · 어깨너비 · 가슴단면 필수 실측을 가진 말단 카테고리
+    private static Category top() {
+        return Category.createLeaf(new Category.LeafInfo("상의", CategoryFixture.clothing(), CLOTHING_TYPE,
+            List.of(TOTAL_LENGTH, SHOULDER_WIDTH, CHEST_WIDTH)));
     }
 
     @Test
@@ -35,11 +47,37 @@ class CategoryChangeTest {
     void changeTypeAndMeasurementItemsWithoutProducts() {
         Category category = top();
 
-        category.change(goodsType, List.of(sleeveLength, totalLength), false);
+        category.change(GOODS_TYPE, List.of(SLEEVE_LENGTH, TOTAL_LENGTH), false);
 
-        assertThat(category.getProductType()).isSameAs(goodsType);
+        assertThat(category.getProductType()).isSameAs(GOODS_TYPE);
         assertThat(category.getMeasurementItems())
             .extracting(CategoryMeasurementItem::getMeasurementItem, CategoryMeasurementItem::getSortOrder)
-            .containsExactly(tuple(sleeveLength, 1), tuple(totalLength, 2));
+            .containsExactly(tuple(SLEEVE_LENGTH, 1), tuple(TOTAL_LENGTH, 2));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesBreakingProducts")
+    @DisplayName("TYPE-07 상품이 있으면 유형 바꾸기 · 필수 실측 더하기는 409로 거절하고 설정을 그대로 둔다")
+    void rejectChangeBreakingProducts(Change change) {
+        Category category = top();
+
+        assertThatThrownBy(() -> category.change(change.productType(), change.measurementItems(), true))
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.CHANGE_BREAKS_PRODUCTS);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.CONFLICT);
+            });
+        assertThat(category.getProductType()).isSameAs(CLOTHING_TYPE);
+        assertThat(category.getMeasurementItems()).extracting(CategoryMeasurementItem::getMeasurementItem)
+            .containsExactly(TOTAL_LENGTH, SHOULDER_WIDTH, CHEST_WIDTH);
+    }
+
+    static Stream<Named<Change>> changesBreakingProducts() {
+        List<MeasurementItem> sameItems = List.of(TOTAL_LENGTH, SHOULDER_WIDTH, CHEST_WIDTH);
+        return Stream.of(
+            Named.of("유형 바꾸기", new Change(GOODS_TYPE, sameItems)),
+            Named.of("필수 실측 더하기",
+                new Change(CLOTHING_TYPE, List.of(TOTAL_LENGTH, SHOULDER_WIDTH, CHEST_WIDTH, SLEEVE_LENGTH))),
+            Named.of("필수 실측 하나를 다른 것으로 바꾸기",
+                new Change(CLOTHING_TYPE, List.of(TOTAL_LENGTH, SHOULDER_WIDTH, SLEEVE_LENGTH))));
     }
 }
