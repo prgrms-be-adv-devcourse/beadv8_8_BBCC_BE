@@ -13,8 +13,12 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @IntegrationTest
@@ -81,8 +85,40 @@ class ProductReferenceDataServiceIntegrationTest {
         assertThat(measurementCodes(clothes.get(3))).containsExactly("TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH");
         assertThat(measurementCodes(goods.get(0))).containsExactly("HEAD_CIRCUMFERENCE");
         assertThat(measurementCodes(goods.get(1))).containsExactly("FOOT_LENGTH");
-        assertThat(categoryService.findInputs(goods.get(0).categoryId()).productTypeName()).isEqualTo("의류");
-        assertThat(categoryService.findInputs(goods.get(1).categoryId()).productTypeName()).isEqualTo("의류");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("goodsTypes")
+    @DisplayName("모자 · 양말 카테고리는 의류 사이즈 대신 각자의 사이즈 항목을 쓰는 유형을 가리킨다")
+    void loadGoodsTypes(String categoryName, String sizeCode, String sizeName, List<String> sizeValues) {
+        productReferenceDataService.load();
+
+        CategoryTreeResult goods = categoryService.findTree().get(1);
+        CategoryTreeResult category = goods.children().stream()
+            .filter(child -> child.name().equals(categoryName))
+            .findFirst()
+            .orElseThrow();
+        CategoryInputsResult inputs = categoryService.findInputs(category.categoryId());
+        assertThat(inputs.productTypeName()).isEqualTo(categoryName);
+        assertThat(inputs.attributes())
+            .extracting(attribute -> attribute.code(), attribute -> attribute.name(),
+                attribute -> attribute.inputType(), attribute -> attribute.role(),
+                attribute -> attribute.required(), attribute -> attribute.sizeRole())
+            .containsExactly(
+                tuple("COLOR", "색상", "PALETTE", "OPTION", true, false),
+                tuple(sizeCode, sizeName, "LIST", "OPTION", true, true),
+                tuple("MAIN_MATERIAL", "주요소재", "LIST", "INFO", true, false),
+                tuple("FABRIC_COMPOSITION", "혼용률", "TEXT", "INFO", false, false));
+        assertThat(inputs.attributes().get(1).values()).extracting(CategoryInputsResult.SelectableValue::value)
+            .containsExactlyElementsOf(sizeValues);
+    }
+
+    static Stream<Arguments> goodsTypes() {
+        return Stream.of(
+            Arguments.of("모자", "HAT_SIZE", "모자 사이즈",
+                List.of("44cm", "46cm", "48cm", "50cm", "52cm", "54cm", "FREE")),
+            Arguments.of("양말", "SOCK_SIZE", "양말 사이즈",
+                List.of("100-120mm", "130-150mm", "160-180mm", "190-210mm", "FREE")));
     }
 
     @Test
