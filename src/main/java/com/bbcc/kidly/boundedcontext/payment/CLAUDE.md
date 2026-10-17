@@ -37,6 +37,8 @@
 | 모름(시간 초과 · 5xx) | CONFIRMING 유지 | 그대로 | 202. 실패로 처리하지 않는다(돈이 빠져나갔을 수 있다) |
 
 - 남의 지갑 충전은 없는 충전처럼 404 `CHARGE_NOT_FOUND`
+- 결제창이 실패 · 취소로 끝나면(failUrl) `POST /api/v1/wallets/me/charges/fail`(`orderId`, `code`)로 PENDING 충전을 바로 FAILED로 바꾼다(#437). 토스 오류 코드는 `failure_code`에 남긴다. 이미 FAILED면 그대로 200, 그 밖의 상태는 409. 실패로 바꾼 충전은 승인할 수 없다
+  - 결제창이 아예 돌아오지 않는 경우(카카오페이 자동 충전 뒤 등)는 화면이 충전 목록의 PENDING · `expiresAt`으로 안내하고, 사용자가 그만두면 같은 API를 부른다
 - 충전 목록 `GET /api/v1/wallets/me/charges`(#186)는 상태와 상관없이 내 지갑의 충전을 모두 최신순(ID 내림차순)으로 준다. 상태 필터는 없다
 - paymentKey는 `app.port.PaymentKeyCipher`(AES-256-GCM, `out.crypto`)로 암호화한다. 키는 환경 변수 `PAYMENT_KEY_ENCRYPTION_KEY`(Base64 32바이트)이고, 없으면 앱이 뜨지 않는다. 로컬 · 테스트는 프로필 설정의 개발용 키를 쓴다
 - 통합 · 기능 테스트는 토스 대신 `FakePaymentGateway`(결제 테스트 폴더, paymentKey로 결과 선택)를 쓴다
