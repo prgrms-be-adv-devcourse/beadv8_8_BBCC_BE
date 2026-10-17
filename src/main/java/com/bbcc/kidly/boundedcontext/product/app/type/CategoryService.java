@@ -20,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.global.error.CommonErrorCode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +45,10 @@ public class CategoryService {
         if (request.parentId() != null) {
             parent = categoryRepository.findById(request.parentId())
                 .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        }
+        // 최상위 카테고리끼리의 이름 중복은 DB UNIQUE가 막지 못하므로 먼저 찾아 본다. 같은 부모 아래 중복은 UNIQUE가 409로 막는다
+        if (parent == null && categoryRepository.findTopLevelByName(request.name()).isPresent()) {
+            throw new BusinessException(CommonErrorCode.CONFLICT);
         }
         Category category = categoryRepository.save(newCategory(request, parent));
         return toResult(category);
