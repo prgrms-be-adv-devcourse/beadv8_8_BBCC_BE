@@ -55,6 +55,23 @@ class SellerProductDetailRoundTripApiTest {
         assertThat(after).isEqualTo(before);
     }
 
+    @Test
+    @DisplayName("판매중 상품은 상세를 옮기고 옵션 · 가격 · 실측만 null로 보낸 수정 요청이 200이고, 수정 응답이 상세와 같다")
+    void resubmitOnSaleProductDetailWithoutSaleInputs() {
+        ProductRegisterResponse registered = register(productA(saved));
+        startSale(registered.productId());
+        Map<String, Object> before = detail(registered.productId());
+        Map<String, Object> body = updateBodyFrom(before);
+        // 옵션 · 가격 · 실측은 판매대기 상품에서만 바꿀 수 있어 판매중 상품은 셋 다 보내지 않는다
+        body.put("options", null);
+        body.put("prices", null);
+        body.put("sizeSpecs", null);
+
+        Map<String, Object> after = update(registered.productId(), body);
+
+        assertThat(after).isEqualTo(before);
+    }
+
     // 상세 응답에서 수정 요청이 받는 칸만 옮긴다. 옵션의 초기 재고는 판매 가능 수량으로 넣는다
     private static Map<String, Object> updateBodyFrom(Map<String, Object> detail) {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -89,6 +106,15 @@ class SellerProductDetailRoundTripApiTest {
             .expectStatus().isCreated()
             .returnResult(ProductRegisterResponse.class)
             .getResponseBody();
+    }
+
+    private void startSale(String productId) {
+        client.put().uri(PRODUCTS_PATH + "/{productId}/sale-status", productId)
+            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("status", "ON_SALE"))
+            .exchange()
+            .expectStatus().isOk();
     }
 
     @SuppressWarnings("unchecked")
