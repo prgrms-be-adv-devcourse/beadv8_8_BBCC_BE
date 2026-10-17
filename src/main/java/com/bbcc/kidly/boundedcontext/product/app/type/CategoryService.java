@@ -47,6 +47,16 @@ public class CategoryService {
         return toResult(category);
     }
 
+    // 모든 카테고리를 ID 순서로 평평하게 돌려준다
+    @Transactional(readOnly = true)
+    public List<CategoryResult> findAll() {
+        List<CategoryResult> results = new ArrayList<>();
+        for (Category category : categoryRepository.findAll()) {
+            results.add(toResult(category));
+        }
+        return results;
+    }
+
     private Category newCategory(CategoryCreateRequest request, Category parent) {
         if (request.productTypeId() == null) {
             return Category.createMiddle(request.name(), parent);
