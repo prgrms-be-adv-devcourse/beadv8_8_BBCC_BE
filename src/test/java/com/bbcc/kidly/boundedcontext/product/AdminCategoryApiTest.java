@@ -174,7 +174,8 @@ class AdminCategoryApiTest {
         createdCategoryId(category("의류", null, null, List.of()));
 
         assertProblem(post(tokens.admin(ADMIN_ID), category("의류", null, null, List.of())), HttpStatus.CONFLICT);
-        assertProblem(post(tokens.admin(ADMIN_ID), category("의류", null, productTypeId, List.of())), HttpStatus.CONFLICT);
+        assertProblem(
+            post(tokens.admin(ADMIN_ID), category("의류", null, productTypeId, List.of())), HttpStatus.CONFLICT);
     }
 
     @ParameterizedTest(name = "{0}")
