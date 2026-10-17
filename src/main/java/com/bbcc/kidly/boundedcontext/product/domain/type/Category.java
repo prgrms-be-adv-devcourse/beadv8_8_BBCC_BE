@@ -103,6 +103,10 @@ public class Category extends BaseTimeEntity {
         for (MeasurementItem item : measurementItems) {
             requireNonNull(item, "measurementItem은 필수입니다");
         }
+        // 중간 카테고리는 상품 유형과 필수 실측 항목을 가지지 않으므로 바꿀 것이 없다 (TYPE-01)
+        if (!isLeaf()) {
+            throw new BusinessException(CategoryErrorCode.MIDDLE_CATEGORY_NOT_CHANGEABLE);
+        }
         if (hasProducts && breaksProducts(productType, measurementItems)) {
             throw new BusinessException(CategoryErrorCode.CHANGE_BREAKS_PRODUCTS);
         }
