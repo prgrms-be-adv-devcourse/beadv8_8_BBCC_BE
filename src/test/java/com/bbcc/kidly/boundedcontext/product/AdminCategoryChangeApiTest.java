@@ -27,11 +27,11 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 관리자가 카테고리 · 상품 유형 설정을 바꾸는 API를 HTTP 요청부터 응답까지 확인한다.
+ * 관리자가 카테고리 설정을 바꾸는 API를 HTTP 요청부터 응답까지 확인한다.
  * 기준 데이터와 상품은 리포지토리 없이 EntityManager로 저장한다.
  */
 @FunctionalTest
-class AdminReferenceDataChangeApiTest {
+class AdminCategoryChangeApiTest {
 
     private static final Long ADMIN_ID = 3L;
 
