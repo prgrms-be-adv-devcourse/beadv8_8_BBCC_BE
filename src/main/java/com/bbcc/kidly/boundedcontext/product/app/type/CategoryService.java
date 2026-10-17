@@ -1,10 +1,12 @@
 package com.bbcc.kidly.boundedcontext.product.app.type;
 
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryChangeRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryTreeResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.MeasurementItemResult;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
@@ -34,6 +36,7 @@ public class CategoryService {
     private final AttributeValueRepository attributeValueRepository;
     private final ProductTypeRepository productTypeRepository;
     private final MeasurementItemRepository measurementItemRepository;
+    private final ProductRepository productRepository;
 
     // 카테고리를 만들어 저장한다. 부모가 있으면 먼저 읽고, 상품 유형이 있으면 말단 카테고리로 만든다
     @Transactional
@@ -47,6 +50,16 @@ public class CategoryService {
             throw new BusinessException(CommonErrorCode.CONFLICT);
         }
         Category category = categoryRepository.save(newCategory(request, parent));
+        return toResult(category);
+    }
+
+    // 말단 카테고리의 상품 유형과 필수 실측 항목을 바꾼다. 받을 수 있는 변경인지는 카테고리가 판단한다
+    @Transactional
+    public CategoryResult change(Long categoryId, CategoryChangeRequest request) {
+        Category category = categoryRepository.getById(categoryId);
+        ProductType productType = productTypeRepository.getById(request.productTypeId());
+        List<MeasurementItem> measurementItems = findMeasurementItems(request.measurementItemIds());
+        category.change(productType, measurementItems, productRepository.existsByCategory(category));
         return toResult(category);
     }
 
@@ -65,11 +78,16 @@ public class CategoryService {
             return Category.createMiddle(request.name(), parent);
         }
         ProductType productType = productTypeRepository.getById(request.productTypeId());
+        List<MeasurementItem> measurementItems = findMeasurementItems(request.measurementItemIds());
+        return Category.createLeaf(new Category.LeafInfo(request.name(), parent, productType, measurementItems));
+    }
+
+    private List<MeasurementItem> findMeasurementItems(List<Long> measurementItemIds) {
         List<MeasurementItem> measurementItems = new ArrayList<>();
-        for (Long measurementItemId : request.measurementItemIds()) {
+        for (Long measurementItemId : measurementItemIds) {
             measurementItems.add(measurementItemRepository.getById(measurementItemId));
         }
-        return Category.createLeaf(new Category.LeafInfo(request.name(), parent, productType, measurementItems));
+        return measurementItems;
     }
 
     private CategoryResult toResult(Category category) {

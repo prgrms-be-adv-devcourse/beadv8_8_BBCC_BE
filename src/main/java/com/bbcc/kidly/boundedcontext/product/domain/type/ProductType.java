@@ -15,8 +15,10 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -50,21 +52,77 @@ public class ProductType extends BaseTimeEntity {
     @Column(nullable = false, unique = true)
     private String name;
 
-    @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<ProductTypeAttribute> attributes = new ArrayList<>();
 
-    @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductTypeAllowedValue> allowedValues = new ArrayList<>();
 
     public static ProductType define(String name, List<LinkInfo> links) {
         requireNonNull(name, "name은 필수입니다");
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("유형 이름은 비어 있을 수 없습니다");
+        }
+        ProductType type = new ProductType();
+        type.name = name;
+        type.change(links, false);
+        return type;
+    }
+
+    // 연결 목록을 받은 목록으로 바꾼다. 상품이 있는 유형은 기존 상품을 깨지 않는 변경만 받는다. 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
+    public void change(List<LinkInfo> links, boolean hasProducts) {
+        requireNonNullLinks(links);
+        requireValidLinks(links);
+        if (hasProducts && ProductTypeChangeCheck.breaksProducts(this, links)) {
+            throw new BusinessException(ProductTypeErrorCode.CHANGE_BREAKS_PRODUCTS);
+        }
+        List<ProductTypeAttribute> changedAttributes = new ArrayList<>();
+        List<ProductTypeAllowedValue> changedAllowedValues = new ArrayList<>();
+        for (int i = 0; i < links.size(); i++) {
+            LinkInfo link = links.get(i);
+            changedAttributes.add(changeOrCreateLink(link, i + 1));
+            for (AttributeValue value : link.allowedValues()) {
+                changedAllowedValues.add(findOrCreateAllowedValue(value));
+            }
+        }
+        attributes.clear();
+        attributes.addAll(changedAttributes);
+        allowedValues.clear();
+        allowedValues.addAll(changedAllowedValues);
+    }
+
+    private ProductTypeAttribute changeOrCreateLink(LinkInfo info, int sortOrder) {
+        ProductTypeAttribute link = findLink(info.attribute()).orElse(null);
+        if (link == null) {
+            return ProductTypeAttribute.create(this, info, sortOrder);
+        }
+        link.change(info, sortOrder);
+        return link;
+    }
+
+    private ProductTypeAllowedValue findOrCreateAllowedValue(AttributeValue value) {
+        for (ProductTypeAllowedValue allowed : allowedValues) {
+            if (allowed.getAttributeValue() == value) {
+                return allowed;
+            }
+        }
+        return ProductTypeAllowedValue.create(this, value);
+    }
+
+    private static void requireNonNullLinks(List<LinkInfo> links) {
         requireNonNull(links, "links는 필수입니다");
         for (LinkInfo link : links) {
             requireNonNullValues(link);
         }
-        if (name.isBlank()) {
-            throw new IllegalArgumentException("유형 이름은 비어 있을 수 없습니다");
+    }
+
+    private static void requireValidLinks(List<LinkInfo> links) {
+        if (hasDuplicatedAttribute(links)) {
+            throw new BusinessException(ProductTypeErrorCode.DUPLICATE_ATTRIBUTE);
+        }
+        if (hasDuplicatedAllowedValue(links)) {
+            throw new BusinessException(ProductTypeErrorCode.DUPLICATE_ALLOWED_VALUE);
         }
         if (!hasRequiredOption(links)) {
             throw new BusinessException(ProductTypeErrorCode.REQUIRED_OPTION_MISSING);
@@ -90,16 +148,6 @@ public class ProductType extends BaseTimeEntity {
         if (hasAllowedValueOfOtherAttribute(links)) {
             throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUE_OF_OTHER_ATTRIBUTE);
         }
-        ProductType type = new ProductType();
-        type.name = name;
-        for (int i = 0; i < links.size(); i++) {
-            LinkInfo link = links.get(i);
-            type.attributes.add(ProductTypeAttribute.create(type, link, i + 1));
-            for (AttributeValue value : link.allowedValues()) {
-                type.allowedValues.add(ProductTypeAllowedValue.create(type, value));
-            }
-        }
-        return type;
     }
 
     private static void requireNonNullValues(LinkInfo link) {
@@ -110,6 +158,25 @@ public class ProductType extends BaseTimeEntity {
         for (AttributeValue value : link.allowedValues()) {
             requireNonNull(value, "allowedValue는 필수입니다");
         }
+    }
+
+    private static boolean hasDuplicatedAttribute(List<LinkInfo> links) {
+        Set<Attribute> attributes = new HashSet<>();
+        for (LinkInfo link : links) {
+            if (!attributes.add(link.attribute())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasDuplicatedAllowedValue(List<LinkInfo> links) {
+        for (LinkInfo link : links) {
+            if (new HashSet<>(link.allowedValues()).size() != link.allowedValues().size()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasRequiredOption(List<LinkInfo> links) {

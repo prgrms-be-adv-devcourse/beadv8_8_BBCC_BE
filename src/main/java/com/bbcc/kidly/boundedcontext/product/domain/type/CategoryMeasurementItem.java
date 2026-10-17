@@ -50,4 +50,9 @@ public class CategoryMeasurementItem extends BaseTimeEntity {
         link.sortOrder = sortOrder;
         return link;
     }
+
+    // 같은 실측 항목의 연결을 그 자리에서 고친다. 연결 행을 지우고 다시 넣으면 UNIQUE 제약에 걸린다
+    void changeSortOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
+    }
 }

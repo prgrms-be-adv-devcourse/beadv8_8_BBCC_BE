@@ -19,6 +19,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -63,7 +64,7 @@ public class Category extends BaseTimeEntity {
     @JoinColumn(name = "product_type_id")
     private ProductType productType;
 
-    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<CategoryMeasurementItem> measurementItems = new ArrayList<>();
 
@@ -83,6 +84,7 @@ public class Category extends BaseTimeEntity {
         requireNonNull(info.productType(), "productType은 필수입니다");
         requireNonNull(info.measurementItems(), "measurementItems는 필수입니다");
         info.measurementItems().forEach(item -> requireNonNull(item, "measurementItem은 필수입니다"));
+        rejectDuplicatedMeasurementItems(info.measurementItems());
         rejectBlankName(info.name());
         rejectLeafParent(info.parent());
         Category category = new Category();
@@ -94,6 +96,65 @@ public class Category extends BaseTimeEntity {
                 CategoryMeasurementItem.create(category, info.measurementItems().get(i), i + 1));
         }
         return category;
+    }
+
+    // 상품 유형과 필수 실측 항목을 받은 값으로 바꾼다. 상품이 있으면 기존 상품을 깨지 않는 변경만 받는다. 실측 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
+    public void change(ProductType productType, List<MeasurementItem> measurementItems, boolean hasProducts) {
+        requireNonNull(productType, "productType은 필수입니다");
+        requireNonNull(measurementItems, "measurementItems는 필수입니다");
+        measurementItems.forEach(item -> requireNonNull(item, "measurementItem은 필수입니다"));
+        rejectDuplicatedMeasurementItems(measurementItems);
+        // 중간 카테고리는 상품 유형과 필수 실측 항목을 가지지 않으므로 바꿀 것이 없다 (TYPE-01)
+        if (!isLeaf()) {
+            throw new BusinessException(CategoryErrorCode.MIDDLE_CATEGORY_NOT_CHANGEABLE);
+        }
+        if (hasProducts && breaksProducts(productType, measurementItems)) {
+            throw new BusinessException(CategoryErrorCode.CHANGE_BREAKS_PRODUCTS);
+        }
+        List<CategoryMeasurementItem> changed = new ArrayList<>();
+        for (int i = 0; i < measurementItems.size(); i++) {
+            changed.add(changeOrCreateMeasurementItem(measurementItems.get(i), i + 1));
+        }
+        this.productType = productType;
+        this.measurementItems.clear();
+        this.measurementItems.addAll(changed);
+    }
+
+    // 상품이 있는 카테고리는 상품 유형을 그대로 두고 필수 실측 항목을 빼거나 순서만 바꿀 수 있다 (TYPE-07)
+    private boolean breaksProducts(ProductType newType, List<MeasurementItem> newItems) {
+        if (newType != productType) {
+            return true;
+        }
+        for (MeasurementItem item : newItems) {
+            if (findLink(item) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private CategoryMeasurementItem findLink(MeasurementItem item) {
+        for (CategoryMeasurementItem link : measurementItems) {
+            if (link.getMeasurementItem() == item) {
+                return link;
+            }
+        }
+        return null;
+    }
+
+    private CategoryMeasurementItem changeOrCreateMeasurementItem(MeasurementItem item, int sortOrder) {
+        CategoryMeasurementItem link = findLink(item);
+        if (link == null) {
+            return CategoryMeasurementItem.create(this, item, sortOrder);
+        }
+        link.changeSortOrder(sortOrder);
+        return link;
+    }
+
+    private static void rejectDuplicatedMeasurementItems(List<MeasurementItem> items) {
+        if (new HashSet<>(items).size() != items.size()) {
+            throw new BusinessException(CategoryErrorCode.DUPLICATE_MEASUREMENT_ITEM);
+        }
     }
 
     private static void rejectBlankName(String name) {
