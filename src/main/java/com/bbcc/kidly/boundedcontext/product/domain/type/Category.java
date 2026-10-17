@@ -96,12 +96,15 @@ public class Category extends BaseTimeEntity {
         return category;
     }
 
-    // 상품 유형과 필수 실측 항목을 받은 값으로 바꾼다. 실측 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
+    // 상품 유형과 필수 실측 항목을 받은 값으로 바꾼다. 상품이 있으면 기존 상품을 깨지 않는 변경만 받는다. 실측 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
     public void change(ProductType productType, List<MeasurementItem> measurementItems, boolean hasProducts) {
         requireNonNull(productType, "productType은 필수입니다");
         requireNonNull(measurementItems, "measurementItems는 필수입니다");
         for (MeasurementItem item : measurementItems) {
             requireNonNull(item, "measurementItem은 필수입니다");
+        }
+        if (hasProducts && breaksProducts(productType, measurementItems)) {
+            throw new BusinessException(CategoryErrorCode.CHANGE_BREAKS_PRODUCTS);
         }
         List<CategoryMeasurementItem> changed = new ArrayList<>();
         for (int i = 0; i < measurementItems.size(); i++) {
@@ -110,6 +113,28 @@ public class Category extends BaseTimeEntity {
         this.productType = productType;
         this.measurementItems.clear();
         this.measurementItems.addAll(changed);
+    }
+
+    // 상품이 있는 카테고리는 상품 유형을 그대로 두고 필수 실측 항목을 빼거나 순서만 바꿀 수 있다 (TYPE-07)
+    private boolean breaksProducts(ProductType newType, List<MeasurementItem> newItems) {
+        if (newType != productType) {
+            return true;
+        }
+        for (MeasurementItem item : newItems) {
+            if (!hasMeasurementItem(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasMeasurementItem(MeasurementItem item) {
+        for (CategoryMeasurementItem link : measurementItems) {
+            if (link.getMeasurementItem() == item) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private CategoryMeasurementItem changeOrCreateMeasurementItem(MeasurementItem item, int sortOrder) {
