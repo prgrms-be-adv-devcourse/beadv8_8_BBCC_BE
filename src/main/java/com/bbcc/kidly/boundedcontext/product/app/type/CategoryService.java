@@ -1,7 +1,10 @@
 package com.bbcc.kidly.boundedcontext.product.app.type;
 
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryTreeResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.MeasurementItemResult;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
@@ -27,6 +30,46 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final AttributeValueRepository attributeValueRepository;
+
+    // 카테고리를 만들어 저장한다. 부모가 있으면 먼저 읽는다
+    @Transactional
+    public CategoryResult create(CategoryCreateRequest request) {
+        Category parent = null;
+        if (request.parentId() != null) {
+            parent = categoryRepository.findById(request.parentId())
+                .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        }
+        Category category = categoryRepository.save(Category.createMiddle(request.name(), parent));
+        return toResult(category);
+    }
+
+    private CategoryResult toResult(Category category) {
+        Long parentId = null;
+        if (category.getParent() != null) {
+            // 부모는 지연 로딩 프록시이므로 ID만 읽는다
+            parentId = category.getParent().getId();
+        }
+        Long productTypeId = null;
+        String productTypeName = null;
+        if (category.isLeaf()) {
+            productTypeId = category.getProductType().getId();
+            productTypeName = category.getProductType().getName();
+        }
+        List<MeasurementItemResult> measurementItems = new ArrayList<>();
+        for (CategoryMeasurementItem link : category.getMeasurementItems()) {
+            MeasurementItem item = link.getMeasurementItem();
+            measurementItems.add(new MeasurementItemResult(
+                item.getId(), item.getName(), item.getCode(), item.getUnit()));
+        }
+        return new CategoryResult(
+            category.getId(),
+            category.getName(),
+            parentId,
+            category.isLeaf(),
+            productTypeId,
+            productTypeName,
+            measurementItems);
+    }
 
     // 최상위 카테고리부터 하위 카테고리까지 계층으로 돌려준다. 같은 부모 아래에서는 ID 순서다
     @Transactional(readOnly = true)
