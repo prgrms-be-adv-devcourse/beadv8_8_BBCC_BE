@@ -124,6 +124,38 @@ class AdminCategoryApiTest {
             Named.of("중간 카테고리에 실측 항목", category("의류", null, null, List.of("1"))));
     }
 
+    @Test
+    @DisplayName("TYPE-01 말단 카테고리 아래에 카테고리를 만들면 400을 준다")
+    void rejectCategoryUnderLeaf() {
+        String productTypeId = createProductType("의류", "COLOR");
+        String topId = createdCategoryId(category("상의", null, productTypeId, List.of()));
+
+        RestTestClient.ResponseSpec response = post(tokens.admin(ADMIN_ID), category("반팔", topId, null, List.of()));
+
+        assertProblem(response, HttpStatus.BAD_REQUEST);
+        response.expectBody().jsonPath("$.title").isEqualTo("카테고리를 만들 수 없는 위치입니다");
+    }
+
+    @Test
+    @DisplayName("없는 부모 · 상품 유형 · 실측 항목 ID를 넘기면 404를 준다")
+    void rejectUnknownReferences() {
+        String productTypeId = createProductType("의류", "COLOR");
+
+        RestTestClient.ResponseSpec unknownParent =
+            post(tokens.admin(ADMIN_ID), category("의류", "999999", null, List.of()));
+        RestTestClient.ResponseSpec unknownType =
+            post(tokens.admin(ADMIN_ID), category("상의", null, "999999", List.of()));
+        RestTestClient.ResponseSpec unknownItem =
+            post(tokens.admin(ADMIN_ID), category("상의", null, productTypeId, List.of("999999")));
+
+        assertProblem(unknownParent, HttpStatus.NOT_FOUND);
+        unknownParent.expectBody().jsonPath("$.title").isEqualTo("카테고리를 찾을 수 없습니다");
+        assertProblem(unknownType, HttpStatus.NOT_FOUND);
+        unknownType.expectBody().jsonPath("$.title").isEqualTo("상품 유형을 찾을 수 없습니다");
+        assertProblem(unknownItem, HttpStatus.NOT_FOUND);
+        unknownItem.expectBody().jsonPath("$.title").isEqualTo("실측 항목을 찾을 수 없습니다");
+    }
+
     // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
     private void assertProblem(RestTestClient.ResponseSpec response, HttpStatus status) {
         response.expectStatus().isEqualTo(status)
