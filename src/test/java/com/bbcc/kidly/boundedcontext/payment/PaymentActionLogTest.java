@@ -26,11 +26,11 @@ class PaymentActionLogTest {
     }
 
     @Test
-    @DisplayName("트랜잭션 밖에서는 바로 action 뒤에 필드를 key=value로 이어 남긴다")
+    @DisplayName("트랜잭션 밖에서는 바로 한글 설명 · action 뒤에 필드를 key=value로 이어 남긴다")
     void recordNow() {
         PaymentActionLog.record(PaymentAction.ORDER_PAID, "memberId={} amount={}", 1L, 15_000L);
 
-        assertThat(capture.messages()).containsExactly("action=ORDER_PAID memberId=1 amount=15000");
+        assertThat(capture.messages()).containsExactly("주문 결제 완료 action=ORDER_PAID memberId=1 amount=15000");
     }
 
     @Test
@@ -38,7 +38,7 @@ class PaymentActionLogTest {
     void recordNull() {
         PaymentActionLog.record(PaymentAction.ORDER_PAYMENT_FAILED, "paymentId={}", (Object) null);
 
-        assertThat(capture.messages()).containsExactly("action=ORDER_PAYMENT_FAILED paymentId=null");
+        assertThat(capture.messages()).containsExactly("주문 결제 실패 action=ORDER_PAYMENT_FAILED paymentId=null");
     }
 
     @Test
@@ -50,7 +50,7 @@ class PaymentActionLogTest {
 
         assertThat(capture.messages()).isEmpty();
         TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
-        assertThat(capture.messages()).containsExactly("action=ORDER_PAID memberId=1");
+        assertThat(capture.messages()).containsExactly("주문 결제 완료 action=ORDER_PAID memberId=1");
     }
 
     @Test

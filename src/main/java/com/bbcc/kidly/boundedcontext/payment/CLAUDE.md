@@ -121,7 +121,7 @@
 
 ## 행동 로그 (`app/PaymentActionLog` · `app/PaymentAction`)
 - 예치금 · 충전 · 결제 상태가 바뀐 일을 로거 `action.payment`에 INFO 한 줄로 남긴다. 조회는 남기지 않는다(요청 로그 `RequestLoggingFilter`가 있다)
-- `PaymentActionLog.record(PaymentAction.X, "memberId={} amount={}", memberId, amount)`. 한 줄은 `action=ORDER_PAID memberId=1 amount=15000`처럼 action 뒤에 key=value를 잇는다
+- `PaymentActionLog.record(PaymentAction.X, "memberId={} amount={}", memberId, amount)`. 한 줄은 `주문 결제 완료 action=ORDER_PAID memberId=1 amount=15000`처럼 한글 설명(`PaymentAction.description`) · action 뒤에 key=value를 잇는다. 사람은 한글로 읽고, 검색 · 파싱은 영문 key=value로 한다
 - 트랜잭션 안에서 부르면 커밋된 뒤에 남긴다. 롤백된 일은 남기지 않는다
   - 바깥 트랜잭션의 커밋 뒤 콜백(`afterCommit`, 일반 `@TransactionalEventListener`) 안에서 새 트랜잭션 없이 부르면 남지 않는다. 결제 서비스는 자기 트랜잭션 안에서 부른다
 - `action.payment`의 INFO를 끄면 아무것도 하지 않는다

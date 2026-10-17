@@ -43,6 +43,7 @@ class PaymentActionLogIntegrationTest {
 
     private static final String PAYMENT_KEY = "tgen_20261017120000abcdefghij";
     private static final Long SETTLEMENT_ID = 900L;
+    private static final String ACTION_KEY = "action=";
 
     private ActionLogCapture capture;
 
@@ -99,10 +100,10 @@ class PaymentActionLogIntegrationTest {
         assertThat(actions()).containsExactly("CHARGE_REQUESTED", "CHARGE_CONFIRM_STARTED", "CHARGE_CONFIRMED",
             "CHARGE_CANCEL_REQUESTED", "CHARGE_CANCELLED");
         assertThat(capture.messages().get(1)).isEqualTo(
-            "action=CHARGE_CONFIRM_STARTED memberId=%d walletId=%d chargeId=%d amount=10000"
+            "충전 승인 시작 action=CHARGE_CONFIRM_STARTED memberId=%d walletId=%d chargeId=%d amount=10000"
                 .formatted(MEMBER_ID, wallet.getId(), requested.chargeId()));
         assertThat(capture.messages().get(2)).isEqualTo(
-            "action=CHARGE_CONFIRMED memberId=%d walletId=%d chargeId=%d amount=10000 balance=15000"
+            "충전 승인 action=CHARGE_CONFIRMED memberId=%d walletId=%d chargeId=%d amount=10000 balance=15000"
                 .formatted(MEMBER_ID, wallet.getId(), requested.chargeId()));
     }
 
@@ -147,7 +148,7 @@ class PaymentActionLogIntegrationTest {
         chargeReconcileService.expire(charge.getId());
 
         assertThat(capture.messages()).containsExactly(
-            "action=CHARGE_EXPIRED walletId=%d chargeId=%d".formatted(wallet.getId(), charge.getId()));
+            "충전 만료 action=CHARGE_EXPIRED walletId=%d chargeId=%d".formatted(wallet.getId(), charge.getId()));
     }
 
     @Test
@@ -162,7 +163,7 @@ class PaymentActionLogIntegrationTest {
 
         assertThat(actions()).endsWith("CHARGE_CONFIRMED", "CHARGE_CANCELLED_EXTERNALLY");
         assertThat(capture.messages().getLast()).isEqualTo(
-            ("action=CHARGE_CANCELLED_EXTERNALLY memberId=%d walletId=%d chargeId=%d amount=10000 "
+            ("토스 직접 취소 반영 action=CHARGE_CANCELLED_EXTERNALLY memberId=%d walletId=%d chargeId=%d amount=10000 "
                 + "recoveredAmount=10000 shortfallAmount=0 balance=5000")
                 .formatted(MEMBER_ID, wallet.getId(), requested.chargeId()));
     }
@@ -179,7 +180,7 @@ class PaymentActionLogIntegrationTest {
         Long paymentId = jpaPaymentRepository.findAll().getFirst().getId();
         assertThat(actions()).containsExactly("ORDER_PAID", "ORDER_REFUNDED");
         assertThat(capture.messages().getFirst()).isEqualTo(
-            "action=ORDER_PAID memberId=%d walletId=%d orderId=%d paymentId=%d amount=15000 balance=5000"
+            "주문 결제 완료 action=ORDER_PAID memberId=%d walletId=%d orderId=%d paymentId=%d amount=15000 balance=5000"
                 .formatted(MEMBER_ID, wallet.getId(), ORDER_ID, paymentId));
         assertThat(capture.messages().get(1)).contains("paymentId=" + paymentId, "amount=15000", "balance=20000");
     }
@@ -193,7 +194,7 @@ class PaymentActionLogIntegrationTest {
         publishInTransaction(paymentRequested());
 
         assertThat(capture.messages()).containsExactly(
-            "action=ORDER_CANCEL_RECORDED memberId=%d orderId=%d reason=PAYMENT_EXPIRED"
+            "결제 전 주문 취소 기록 action=ORDER_CANCEL_RECORDED memberId=%d orderId=%d reason=PAYMENT_EXPIRED"
                 .formatted(MEMBER_ID, ORDER_ID));
     }
 
@@ -219,7 +220,7 @@ class PaymentActionLogIntegrationTest {
                 new OrderPaymentRequestedEvent.Item(1001L, 4_000L)))));
 
         assertThat(capture.messages()).containsExactly(
-            ("action=ORDER_PAYMENT_FAILED memberId=%d orderId=%d paymentId=null amount=15000 "
+            ("주문 결제 실패 action=ORDER_PAYMENT_FAILED memberId=%d orderId=%d paymentId=null amount=15000 "
                 + "reasonCode=AMOUNT_MISMATCH")
                 .formatted(MEMBER_ID, ORDER_ID));
     }
@@ -240,7 +241,7 @@ class PaymentActionLogIntegrationTest {
 
     private List<String> actions() {
         return capture.messages().stream()
-            .map(message -> message.substring("action=".length()).split(" ")[0])
+            .map(message -> message.substring(message.indexOf(ACTION_KEY) + ACTION_KEY.length()).split(" ")[0])
             .toList();
     }
 
