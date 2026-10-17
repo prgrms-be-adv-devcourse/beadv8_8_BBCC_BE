@@ -9,11 +9,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -154,6 +156,48 @@ class AdminCategoryApiTest {
         unknownType.expectBody().jsonPath("$.title").isEqualTo("상품 유형을 찾을 수 없습니다");
         assertProblem(unknownItem, HttpStatus.NOT_FOUND);
         unknownItem.expectBody().jsonPath("$.title").isEqualTo("실측 항목을 찾을 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("같은 부모 아래 같은 이름의 카테고리를 만들면 409를 준다")
+    void rejectDuplicateNameUnderSameParent() {
+        String clothingId = createdCategoryId(category("의류", null, null, List.of()));
+        createdCategoryId(category("아동복", clothingId, null, List.of()));
+
+        assertProblem(post(tokens.admin(ADMIN_ID), category("아동복", clothingId, null, List.of())), HttpStatus.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("최상위 카테고리끼리 같은 이름이면 409를 준다")
+    void rejectDuplicateTopLevelName() {
+        String productTypeId = createProductType("의류", "COLOR");
+        createdCategoryId(category("의류", null, null, List.of()));
+
+        assertProblem(post(tokens.admin(ADMIN_ID), category("의류", null, null, List.of())), HttpStatus.CONFLICT);
+        assertProblem(post(tokens.admin(ADMIN_ID), category("의류", null, productTypeId, List.of())), HttpStatus.CONFLICT);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("nonAdminTokens")
+    @DisplayName("관리자가 아니면 카테고리를 만들거나 조회할 수 없다")
+    void rejectNonAdmin(String role, Function<TestTokens, String> token, HttpStatus status) {
+        post(token.apply(tokens), category("의류", null, null, List.of())).expectStatus().isEqualTo(status);
+        client.get().uri(PATH)
+            .headers(headers -> {
+                String value = token.apply(tokens);
+                if (value != null) {
+                    headers.setBearerAuth(value);
+                }
+            })
+            .exchange()
+            .expectStatus().isEqualTo(status);
+    }
+
+    static Stream<Arguments> nonAdminTokens() {
+        return Stream.of(
+            Arguments.of("비로그인은 401", (Function<TestTokens, String>) tokens -> null, HttpStatus.UNAUTHORIZED),
+            Arguments.of("구매자는 403", (Function<TestTokens, String>) tokens -> tokens.buyer(1L), HttpStatus.FORBIDDEN),
+            Arguments.of("판매자는 403", (Function<TestTokens, String>) tokens -> tokens.seller(2L), HttpStatus.FORBIDDEN));
     }
 
     // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
