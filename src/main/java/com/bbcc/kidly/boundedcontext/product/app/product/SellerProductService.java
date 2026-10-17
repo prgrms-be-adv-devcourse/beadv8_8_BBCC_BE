@@ -8,7 +8,14 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionValue;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +38,7 @@ public class SellerProductService {
     private final SellerProductQuery sellerProductQuery;
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
+    private final CategoryRepository categoryRepository;
 
     // 정렬은 등록 최신순으로 고정이라 pageable의 sort는 무시된다
     @Transactional(readOnly = true)
@@ -55,6 +63,7 @@ public class SellerProductService {
             options.add(new SellerProductDetailResult.Option(
                 option.getId(),
                 option.getName(),
+                optionValueIds(option),
                 option.getPrice(),
                 availableQtyByOptionId.getOrDefault(option.getId(), 0),
                 option.getSaleStatus().name(),
@@ -63,7 +72,8 @@ public class SellerProductService {
         return new SellerProductDetailResult(
             product.getId(), product.getName(), product.getStatus().name(), product.getVersion(),
             product.getBrand(), product.getCategoryId(), product.getDescription(), product.getThumbnailUrl(),
-            new ArrayList<>(product.getImageUrls()), attributes(product), options);
+            new ArrayList<>(product.getImageUrls()), attributes(product), options,
+            prices(product), sizeSpecs(product));
     }
 
     // 상품의 정보 값을 정보 항목마다 한 칸으로 모은다. 칸은 항목이 처음 나온 순서, 목록 값 ID는 저장된 순서다
@@ -86,6 +96,44 @@ public class SellerProductService {
                 entry.getKey(), entry.getValue(), textByAttributeId.get(entry.getKey())));
         }
         return attributes;
+    }
+
+    // 옵션 값의 ID를 저장된 순서대로 모은다
+    private List<Long> optionValueIds(ProductOption option) {
+        List<Long> valueIds = new ArrayList<>();
+        for (ProductOptionValue value : option.getValues()) {
+            valueIds.add(value.getAttributeValue().getId());
+        }
+        return valueIds;
+    }
+
+    // 상품 유형으로 보관하지 않은 옵션의 판매가에서 가격 구분 묶음별 가격을 만든다
+    private List<SellerProductDetailResult.Price> prices(Product product) {
+        Category category = categoryRepository.findById(product.getCategoryId())
+            .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        ProductType productType = category.productTypeToRegister();
+        List<SellerProductDetailResult.Price> prices = new ArrayList<>();
+        for (Product.PriceInfo price : product.currentPrices(productType)) {
+            List<Long> valueIds = new ArrayList<>();
+            for (AttributeValue value : price.values()) {
+                valueIds.add(value.getId());
+            }
+            prices.add(new SellerProductDetailResult.Price(valueIds, price.price()));
+        }
+        return prices;
+    }
+
+    // 상품의 실측을 저장된 순서대로 결과로 바꾼다. 실측 값 맵은 복사해서 담는다
+    private List<SellerProductDetailResult.SizeSpec> sizeSpecs(Product product) {
+        List<SellerProductDetailResult.SizeSpec> sizeSpecs = new ArrayList<>();
+        for (SizeSpec sizeSpec : product.getSizeSpecs()) {
+            sizeSpecs.add(new SellerProductDetailResult.SizeSpec(
+                sizeSpec.getSizeValue().getId(),
+                sizeSpec.getMinHeightCm(),
+                sizeSpec.getMaxHeightCm(),
+                new LinkedHashMap<>(sizeSpec.getMeasurements())));
+        }
+        return sizeSpecs;
     }
 
     // 옵션들의 재고를 한 번에 읽어 옵션 ID별 판매 가능 수량으로 묶는다

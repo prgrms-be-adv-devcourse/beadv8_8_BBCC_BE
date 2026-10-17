@@ -7,6 +7,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixtur
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.ownImageUrl;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
@@ -22,6 +23,7 @@ import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterRespo
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -171,6 +173,38 @@ class SellerProductDetailApiTest {
     }
 
     @Test
+    @DisplayName("상품을 고칠 때 다시 보낼 옵션 값 · 가격 구분 묶음 · 실측을 수정 요청과 같은 모양으로 돌려준다")
+    void detailHasSaleInputsInRequestShape() {
+        // 상품 A는 네이비 110 · 네이비 120 옵션이고, 의류는 가격 구분 항목이 없어 가격 구분 묶음은 빈 값 목록 하나(25,000원)다.
+        // 실측은 110이 권장 키 105 ~ 115cm · 총장 42 · 어깨너비 30 · 가슴단면 34 · 소매길이 38, 120이 115 ~ 125cm · 45 · 32 · 36 · 41이다
+        ClothingOptions clothing = saved.clothing();
+        ProductRegisterResponse registered = register(productA(saved));
+
+        detail(tokens.seller(SELLER_ID), registered.productId())
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.options[0].valueIds").isEqualTo(
+                List.of(id(clothing.navy().getId()), id(clothing.size110().getId())))
+            .jsonPath("$.options[1].valueIds").isEqualTo(
+                List.of(id(clothing.navy().getId()), id(clothing.size120().getId())))
+            .jsonPath("$.prices.length()").isEqualTo(1)
+            .jsonPath("$.prices[0].valueIds").isEqualTo(List.of())
+            .jsonPath("$.prices[0].price").isEqualTo(25000)
+            .jsonPath("$.sizeSpecs.length()").isEqualTo(2)
+            .jsonPath("$.sizeSpecs[0].sizeValueId").isEqualTo(id(clothing.size110().getId()))
+            .jsonPath("$.sizeSpecs[0].minHeightCm").isEqualTo(105)
+            .jsonPath("$.sizeSpecs[0].maxHeightCm").isEqualTo(115)
+            .jsonPath("$.sizeSpecs[0].measurements.TOTAL_LENGTH").value(cm -> assertCm(cm, "42"))
+            .jsonPath("$.sizeSpecs[0].measurements.SHOULDER_WIDTH").value(cm -> assertCm(cm, "30"))
+            .jsonPath("$.sizeSpecs[0].measurements.CHEST_WIDTH").value(cm -> assertCm(cm, "34"))
+            .jsonPath("$.sizeSpecs[0].measurements.SLEEVE_LENGTH").value(cm -> assertCm(cm, "38"))
+            .jsonPath("$.sizeSpecs[1].sizeValueId").isEqualTo(id(clothing.size120().getId()))
+            .jsonPath("$.sizeSpecs[1].minHeightCm").isEqualTo(115)
+            .jsonPath("$.sizeSpecs[1].maxHeightCm").isEqualTo(125)
+            .jsonPath("$.sizeSpecs[1].measurements.TOTAL_LENGTH").value(cm -> assertCm(cm, "45"));
+    }
+
+    @Test
     @DisplayName("SALE-06 보관 옵션은 상세에 보이지 않고, 판매중지 옵션은 STOPPED로 보인다")
     void detailHidesArchivedOptions() {
         // 상품 A에 오트밀 110 옵션을 더해 옵션 세 개로 등록하고, 네이비 120은 판매중지, 오트밀 110은 보관으로 바꾼다
@@ -269,6 +303,11 @@ class SellerProductDetailApiTest {
             Stream.of(feature, composition, brushed, stretch, type, category).forEach(entityManager::persist);
             return new FeatureTop(category, feature, brushed, stretch, composition);
         });
+    }
+
+    // 실측 값은 소수점 표기와 상관없이 같은 cm인지 본다
+    private static void assertCm(Object actual, String expectedCm) {
+        assertThat(new BigDecimal(String.valueOf(actual))).isEqualByComparingTo(expectedCm);
     }
 
     private Attribute reference(Attribute attribute) {
