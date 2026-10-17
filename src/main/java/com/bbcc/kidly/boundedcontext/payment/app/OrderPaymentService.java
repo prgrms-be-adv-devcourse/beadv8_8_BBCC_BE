@@ -74,6 +74,10 @@ public class OrderPaymentService {
             now));
         walletLedgerRepository.save(WalletLedger.record(
             wallet.getId(), WalletLedgerType.PAYMENT, payment.getAmount(), wallet.getBalance(), payment.getId()));
+        PaymentActionLog.record(PaymentAction.ORDER_PAID,
+            "memberId={} walletId={} orderId={} paymentId={} amount={} balance={}",
+            payment.getMemberId(), wallet.getId(), payment.getOrderId(), payment.getId(), payment.getAmount(),
+            wallet.getBalance());
 
         eventPublisher.publish(new PaymentCompletedEvent(UUID.randomUUID(), now, new PaymentCompletedEvent.Data(
             payment.getId(),
@@ -97,6 +101,9 @@ public class OrderPaymentService {
      */
     private void publishFailed(PayOrderCommand command, Long paymentId, PaymentFailureCode reasonCode,
         LocalDateTime now) {
+        PaymentActionLog.record(PaymentAction.ORDER_PAYMENT_FAILED,
+            "memberId={} orderId={} paymentId={} amount={} reasonCode={}",
+            command.memberId(), command.orderId(), paymentId, command.amount(), reasonCode);
         eventPublisher.publish(new PaymentFailedEvent(UUID.randomUUID(), now, new PaymentFailedEvent.Data(
             paymentId,
             command.orderId(),

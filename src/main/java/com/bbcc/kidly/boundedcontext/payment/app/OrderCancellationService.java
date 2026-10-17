@@ -76,8 +76,10 @@ public class OrderCancellationService {
         found.deposit(refund.getAmount());
         walletLedgerRepository.save(WalletLedger.record(
             found.getId(), WalletLedgerType.REFUND, refund.getAmount(), found.getBalance(), refund.getId()));
-        log.info("취소된 주문의 결제를 환불했습니다. orderId={}, paymentId={}, amount={}, reason={}",
-            command.orderId(), payment.getId(), refund.getAmount(), command.reason());
+        PaymentActionLog.record(PaymentAction.ORDER_REFUNDED,
+            "memberId={} walletId={} orderId={} paymentId={} refundId={} amount={} balance={} reason={}",
+            command.memberId(), found.getId(), command.orderId(), payment.getId(), refund.getId(), refund.getAmount(),
+            found.getBalance(), command.reason());
     }
 
     private void rememberCancelled(OrderCancelCommand command, LocalDateTime now) {
@@ -85,5 +87,7 @@ public class OrderCancellationService {
             return;
         }
         cancelledOrderRepository.save(CancelledOrder.of(command.orderId(), command.memberId(), command.reason(), now));
+        PaymentActionLog.record(PaymentAction.ORDER_CANCEL_RECORDED, "memberId={} orderId={} reason={}",
+            command.memberId(), command.orderId(), command.reason());
     }
 }

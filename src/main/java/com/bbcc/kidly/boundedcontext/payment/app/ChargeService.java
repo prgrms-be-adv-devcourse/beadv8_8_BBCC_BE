@@ -57,6 +57,8 @@ public class ChargeService {
         Wallet wallet = walletOf(memberId);
         Charge charge = chargeRepository.save(Charge.request(wallet.getId(), UUID.randomUUID().toString(),
             request.amount(), LocalDateTime.now().plus(EXPIRES_IN)));
+        PaymentActionLog.record(PaymentAction.CHARGE_REQUESTED, "memberId={} walletId={} chargeId={} amount={}",
+            memberId, wallet.getId(), charge.getId(), charge.getAmount());
         return ChargeRequestResult.from(charge);
     }
 
@@ -86,6 +88,8 @@ public class ChargeService {
             .filter(found -> found.getWalletId().equals(wallet.getId()))
             .orElseThrow(() -> new BusinessException(PaymentErrorCode.CHARGE_NOT_FOUND));
         charge.startConfirming(request.amount(), LocalDateTime.now());
+        PaymentActionLog.record(PaymentAction.CHARGE_CONFIRM_STARTED, "memberId={} walletId={} chargeId={} amount={}",
+            memberId, wallet.getId(), charge.getId(), charge.getAmount());
         return new ChargeConfirmTarget(charge.getId(), charge.getTossOrderId(), charge.getAmount());
     }
 
@@ -101,12 +105,18 @@ public class ChargeService {
         wallet.deposit(charge.getAmount());
         walletLedgerRepository.save(WalletLedger.record(
             wallet.getId(), WalletLedgerType.CHARGE, charge.getAmount(), wallet.getBalance(), charge.getId()));
+        PaymentActionLog.record(PaymentAction.CHARGE_CONFIRMED,
+            "memberId={} walletId={} chargeId={} amount={} balance={}",
+            wallet.getMemberId(), wallet.getId(), charge.getId(), charge.getAmount(), wallet.getBalance());
         return ChargeConfirmResult.done(charge.getId(), charge.getAmount(), wallet.getBalance());
     }
 
     @Transactional
     public void fail(Long chargeId, String failureCode) {
-        chargeOf(chargeId).fail(failureCode);
+        Charge charge = chargeOf(chargeId);
+        charge.fail(failureCode);
+        PaymentActionLog.record(PaymentAction.CHARGE_FAILED, "walletId={} chargeId={} failureCode={}",
+            charge.getWalletId(), charge.getId(), failureCode);
     }
 
     /**
@@ -128,6 +138,10 @@ public class ChargeService {
         wallet.withdraw(cancellation.getAmount());
         walletLedgerRepository.save(WalletLedger.record(wallet.getId(), WalletLedgerType.CHARGE_CANCEL,
             cancellation.getAmount(), wallet.getBalance(), cancellation.getId()));
+        PaymentActionLog.record(PaymentAction.CHARGE_CANCEL_REQUESTED,
+            "memberId={} walletId={} chargeId={} cancellationId={} amount={} balance={}",
+            memberId, wallet.getId(), charge.getId(), cancellation.getId(), cancellation.getAmount(),
+            wallet.getBalance());
         return ChargeCancelTarget.from(charge);
     }
 
@@ -138,6 +152,9 @@ public class ChargeService {
             .orElseThrow(() -> new BusinessException(PaymentErrorCode.WALLET_NOT_FOUND));
         LocalDateTime cancelledAt = cancellation.cancelledAt();
         charge.completeCancel(cancelledAt == null ? LocalDateTime.now() : cancelledAt);
+        PaymentActionLog.record(PaymentAction.CHARGE_CANCELLED,
+            "memberId={} walletId={} chargeId={} amount={} balance={}",
+            wallet.getMemberId(), wallet.getId(), charge.getId(), charge.getAmount(), wallet.getBalance());
         return ChargeCancelResult.cancelled(charge.getId(), charge.getAmount(), wallet.getBalance());
     }
 
@@ -154,6 +171,10 @@ public class ChargeService {
         wallet.deposit(cancellation.getAmount());
         walletLedgerRepository.save(WalletLedger.record(wallet.getId(), WalletLedgerType.CHARGE_CANCEL_REVERT,
             cancellation.getAmount(), wallet.getBalance(), cancellation.getId()));
+        PaymentActionLog.record(PaymentAction.CHARGE_CANCEL_FAILED,
+            "memberId={} walletId={} chargeId={} cancellationId={} failureCode={} amount={} balance={}",
+            wallet.getMemberId(), wallet.getId(), charge.getId(), cancellation.getId(), failureCode,
+            cancellation.getAmount(), wallet.getBalance());
     }
 
     /**
@@ -182,6 +203,10 @@ public class ChargeService {
                 recovered, wallet.getBalance(), charge.getLastCancellation().getId()));
         }
         long shortfall = charge.getAmount() - recovered;
+        PaymentActionLog.record(PaymentAction.CHARGE_CANCELLED_EXTERNALLY,
+            "memberId={} walletId={} chargeId={} amount={} recoveredAmount={} shortfallAmount={} balance={}",
+            wallet.getMemberId(), wallet.getId(), charge.getId(), charge.getAmount(), recovered, shortfall,
+            wallet.getBalance());
         if (shortfall > 0) {
             log.error("토스에서 직접 취소된 충전액을 다 회수하지 못했습니다. chargeId={}, walletId={}, shortfall={}",
                 charge.getId(), wallet.getId(), shortfall);

@@ -120,6 +120,10 @@ public class ChargeReconcileService {
         LocalDateTime now = LocalDateTime.now();
         chargeRepository.findWithLockById(chargeId)
             .filter(charge -> charge.getStatus() == ChargeStatus.PENDING && charge.getExpiresAt().isBefore(now))
-            .ifPresent(Charge::expire);
+            .ifPresent(charge -> {
+                charge.expire();
+                PaymentActionLog.record(PaymentAction.CHARGE_EXPIRED, "walletId={} chargeId={}",
+                    charge.getWalletId(), charge.getId());
+            });
     }
 }

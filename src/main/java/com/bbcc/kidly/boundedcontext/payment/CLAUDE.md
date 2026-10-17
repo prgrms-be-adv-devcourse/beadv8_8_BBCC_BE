@@ -118,3 +118,29 @@
 - 판매자 지갑이 없으면 잔액 0으로 만들어 입금한다. 그래서 지금은 지급 실패가 생기지 않는다. `WALLET_NOT_FOUND`는 계약과 이전 기록에 남아 있다
 - 지급 실패는 다시 시도하지 않는다. 탈퇴 회원 처리는 탈퇴 정책과 같이 정한다
 - 도메인 간 이벤트는 스프링 이벤트라 리스너 실패 · 서버 중단 때 유실될 수 있다. 결과 유실은 정산이 같은 요청을 다시 보내면 복구된다. 요청 자체의 유실 복구와 재전송 장치는 추후 보완
+
+## 행동 로그 (`app/PaymentActionLog` · `app/PaymentAction`)
+- 예치금 · 충전 · 결제 상태가 바뀐 일을 로거 `action.payment`에 INFO 한 줄로 남긴다. 조회는 남기지 않는다(요청 로그 `RequestLoggingFilter`가 있다)
+- `PaymentActionLog.record(PaymentAction.X, "memberId={} amount={}", memberId, amount)`. 한 줄은 `action=ORDER_PAID memberId=1 amount=15000`처럼 action 뒤에 key=value를 잇는다
+- 트랜잭션 안에서 부르면 커밋된 뒤에 남긴다. 롤백된 일은 남기지 않는다
+  - 바깥 트랜잭션의 커밋 뒤 콜백(`afterCommit`, 일반 `@TransactionalEventListener`) 안에서 새 트랜잭션 없이 부르면 남지 않는다. 결제 서비스는 자기 트랜잭션 안에서 부른다
+- `action.payment`의 INFO를 끄면 아무것도 하지 않는다
+- 운영 파일 로그(`ASYNC_FILE`)는 큐가 80% 넘게 차면 INFO를 버린다(logback 기본값). 금액의 기준은 원장(`wallet_ledger`)이고, 행동 로그는 추적용이다
+- 필드 이름: `memberId` · `walletId` · 대상 ID(`chargeId` · `cancellationId` · `orderId` · `paymentId` · `refundId` · `settlementId` · `ledgerId`) · `amount` · `balance`(바뀐 뒤 잔액) · `failureCode` / `reasonCode`
+
+| action | 남기는 곳 | 필드 |
+|---|---|---|
+| `CHARGE_REQUESTED` | `ChargeService.request` | memberId, walletId, chargeId, amount |
+| `CHARGE_CONFIRM_STARTED` | `ChargeService.startConfirming` (CONFIRMING 커밋) | memberId, walletId, chargeId, amount |
+| `CHARGE_CONFIRMED` | `ChargeService.approve` (사용자 승인 · 스케줄러 조회) | memberId, walletId, chargeId, amount, balance |
+| `CHARGE_FAILED` | `ChargeService.fail` | walletId, chargeId, failureCode |
+| `CHARGE_EXPIRED` | `ChargeReconcileService.expire` | walletId, chargeId |
+| `CHARGE_CANCEL_REQUESTED` | `ChargeService.startCancel` (충전액 먼저 뺌) | memberId, walletId, chargeId, cancellationId, amount, balance |
+| `CHARGE_CANCELLED` | `ChargeService.completeCancel` | memberId, walletId, chargeId, amount, balance |
+| `CHARGE_CANCEL_FAILED` | `ChargeService.failCancel` (다시 입금) | memberId, walletId, chargeId, cancellationId, failureCode, amount, balance |
+| `CHARGE_CANCELLED_EXTERNALLY` | `ChargeService.applyExternalCancel` | memberId, walletId, chargeId, amount, recoveredAmount, shortfallAmount, balance |
+| `ORDER_PAID` | `OrderPaymentService` | memberId, walletId, orderId, paymentId, amount, balance |
+| `ORDER_PAYMENT_FAILED` | `OrderPaymentService` (잔액 부족 · 금액 불일치) | memberId, orderId, paymentId(불일치면 null), amount, reasonCode |
+| `ORDER_CANCEL_RECORDED` | `OrderCancellationService` (결제 전 취소, `cancelled_order` 저장) | memberId, orderId, reason |
+| `ORDER_REFUNDED` | `OrderCancellationService` | memberId, walletId, orderId, paymentId, refundId, amount, balance, reason |
+| `PAYOUT_COMPLETED` | `SettlementPayoutService` (처음 처리한 정산서만, 0원 포함) | memberId(판매자), walletId, settlementId, amount, ledgerId, balance |
