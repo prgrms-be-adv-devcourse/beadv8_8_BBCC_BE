@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
+import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.ownImageUrl;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
@@ -74,6 +75,28 @@ class SellerProductDetailApiTest {
             .jsonPath("$.options[1].optionName").isEqualTo("색상: 네이비 / 사이즈: 120")
             .jsonPath("$.options[1].availableQuantity").isEqualTo(0)
             .jsonPath("$.options[1].skuCode").isEqualTo(null);
+    }
+
+    @Test
+    @DisplayName("상품을 고칠 때 다시 보낼 기본 정보와 이미지를 수정 요청과 같은 모양으로 돌려준다")
+    void detailHasBasicInfoAndImages() {
+        String thumbnail = ownImageUrl(SELLER_ID);
+        String secondImage = thumbnail.replace("0b8c1e2a", "1a2b3c4d");
+        Map<String, Object> body = productA(saved);
+        body.put("thumbnailUrl", thumbnail);
+        body.put("imageUrls", List.of(secondImage, thumbnail));
+        ProductRegisterResponse registered = register(body);
+
+        detail(tokens.seller(SELLER_ID), registered.productId())
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.brand").isEqualTo("키들리")
+            .jsonPath("$.categoryId").isEqualTo(String.valueOf(saved.top().getId()))
+            .jsonPath("$.description").isEqualTo("상품 설명")
+            .jsonPath("$.thumbnailUrl").isEqualTo(thumbnail)
+            .jsonPath("$.imageUrls.length()").isEqualTo(2)
+            .jsonPath("$.imageUrls[0]").isEqualTo(secondImage)
+            .jsonPath("$.imageUrls[1]").isEqualTo(thumbnail);
     }
 
     @Test

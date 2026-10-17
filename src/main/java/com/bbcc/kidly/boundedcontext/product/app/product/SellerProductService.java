@@ -58,7 +58,9 @@ public class SellerProductService {
                 option.getSkuCode()));
         }
         return new SellerProductDetailResult(
-            product.getId(), product.getName(), product.getStatus().name(), product.getVersion(), options);
+            product.getId(), product.getName(), product.getStatus().name(), product.getVersion(),
+            product.getBrand(), product.getCategoryId(), product.getDescription(), product.getThumbnailUrl(),
+            new ArrayList<>(product.getImageUrls()), options);
     }
 
     // 옵션들의 재고를 한 번에 읽어 옵션 ID별 판매 가능 수량으로 묶는다
