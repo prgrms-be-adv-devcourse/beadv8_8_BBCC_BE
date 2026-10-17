@@ -121,6 +121,41 @@ class ChargeTest {
     }
 
     @Test
+    @DisplayName("결제창이 끝나지 않은 대기 중 충전은 실패 상태가 되고 결제창 오류 코드가 남는다")
+    void abandonMarksFailed() {
+        Charge charge = PaymentFixture.charge(10_000L);
+
+        charge.abandon("PAY_PROCESS_CANCELED");
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.FAILED);
+        assertThat(charge.getFailureCode()).isEqualTo("PAY_PROCESS_CANCELED");
+    }
+
+    @Test
+    @DisplayName("이미 실패한 충전을 다시 끝내도 그대로 둔다")
+    void abandonFailedChargeKeepsIt() {
+        Charge charge = PaymentFixture.charge(10_000L);
+        charge.abandon("PAY_PROCESS_CANCELED");
+
+        charge.abandon("PAY_PROCESS_ABORTED");
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.FAILED);
+        assertThat(charge.getFailureCode()).isEqualTo("PAY_PROCESS_CANCELED");
+    }
+
+    @Test
+    @DisplayName("승인 중인 충전은 결제창 실패로 끝낼 수 없다")
+    void abandonRejectsConfirmingCharge() {
+        Charge charge = PaymentFixture.charge(10_000L);
+        charge.startConfirming(10_000L, NOW);
+
+        assertThatThrownBy(() -> charge.abandon("PAY_PROCESS_CANCELED"))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.INVALID_CHARGE_STATUS);
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.CONFIRMING);
+    }
+
+    @Test
     @DisplayName("완료된 충전의 취소를 요청하면 취소 중 상태가 되고 전액 취소 요청이 남는다")
     void requestCancelStartsCancelling() {
         Charge charge = PaymentFixture.approvedCharge(10_000L);
