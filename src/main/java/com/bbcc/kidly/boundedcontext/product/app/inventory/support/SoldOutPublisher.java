@@ -63,7 +63,7 @@ public class SoldOutPublisher {
     }
 
     private void publishProductChanged(Product product) {
-        Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
+        Category category = categoryRepository.getById(product.getCategoryId());
         productChangedPublisher.publish(product, category.getProductType());
     }
 }

@@ -9,14 +9,11 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
-import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
-import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -43,8 +40,7 @@ public class CategoryService {
     public CategoryResult create(CategoryCreateRequest request) {
         Category parent = null;
         if (request.parentId() != null) {
-            parent = categoryRepository.findById(request.parentId())
-                .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+            parent = categoryRepository.getById(request.parentId());
         }
         // 최상위 카테고리끼리의 이름 중복은 DB UNIQUE가 막지 못하므로 먼저 찾아 본다. 같은 부모 아래 중복은 UNIQUE가 409로 막는다
         if (parent == null && categoryRepository.findTopLevelByName(request.name()).isPresent()) {
@@ -68,12 +64,10 @@ public class CategoryService {
         if (request.productTypeId() == null) {
             return Category.createMiddle(request.name(), parent);
         }
-        ProductType productType = productTypeRepository.findById(request.productTypeId())
-            .orElseThrow(() -> new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_NOT_FOUND));
+        ProductType productType = productTypeRepository.getById(request.productTypeId());
         List<MeasurementItem> measurementItems = new ArrayList<>();
         for (Long measurementItemId : request.measurementItemIds()) {
-            measurementItems.add(measurementItemRepository.findById(measurementItemId)
-                .orElseThrow(() -> new BusinessException(MeasurementItemErrorCode.MEASUREMENT_ITEM_NOT_FOUND)));
+            measurementItems.add(measurementItemRepository.getById(measurementItemId));
         }
         return Category.createLeaf(new Category.LeafInfo(request.name(), parent, productType, measurementItems));
     }
@@ -140,8 +134,7 @@ public class CategoryService {
     // 말단 카테고리의 상품 등록 입력 항목을 돌려준다. 중간 카테고리이면 도메인이 거절한다
     @Transactional(readOnly = true)
     public CategoryInputsResult findInputs(Long categoryId) {
-        Category category = categoryRepository.findById(categoryId)
-            .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        Category category = categoryRepository.getById(categoryId);
         ProductType type = category.productTypeToRegister();
         List<ProductTypeAttribute> links = type.inputAttributes();
         Map<Long, List<AttributeValue>> valuesByAttributeId = selectableValuesByAttributeId(type, links);

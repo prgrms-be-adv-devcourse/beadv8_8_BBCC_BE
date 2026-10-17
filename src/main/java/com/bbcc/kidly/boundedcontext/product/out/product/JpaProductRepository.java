@@ -13,6 +13,12 @@ import org.springframework.data.repository.query.Param;
 
 public interface JpaProductRepository extends JpaRepository<Product, Long>, ProductRepository {
 
+    // JpaRepository.getById(프록시 반환)와 충돌하므로 도메인 쪽 getById(404)를 명시적으로 고른다
+    @Override
+    default Product getById(Long id) {
+        return ProductRepository.super.getById(id);
+    }
+
     @Override
     @Query("SELECT o FROM ProductOption o JOIN FETCH o.product WHERE o.id IN :optionIds")
     List<ProductOption> findOptionsWithProduct(@Param("optionIds") Collection<Long> optionIds);

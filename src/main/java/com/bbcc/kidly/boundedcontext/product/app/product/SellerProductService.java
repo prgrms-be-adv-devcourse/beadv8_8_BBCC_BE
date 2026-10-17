@@ -5,7 +5,6 @@ import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductSumma
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetailResult;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
-import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionValue;
@@ -13,10 +12,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
-import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -49,8 +46,7 @@ public class SellerProductService {
     // 내 상품 상세를 돌려준다. 엔티티는 트랜잭션 안에서 읽어 결과로 모두 바꾼다
     @Transactional(readOnly = true)
     public SellerProductDetailResult findMyProductDetail(Long sellerId, Long productId) {
-        Product product = productRepository.findById(productId)
-            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        Product product = productRepository.getById(productId);
         product.validateViewer(sellerId);
         Map<Long, Integer> availableQtyByOptionId = availableQtyByOptionId(product.getOptions());
         List<SellerProductDetailResult.Option> options = new ArrayList<>();
@@ -109,8 +105,7 @@ public class SellerProductService {
 
     // 상품 유형으로 보관하지 않은 옵션의 판매가에서 가격 구분 묶음별 가격을 만든다
     private List<SellerProductDetailResult.Price> prices(Product product) {
-        Category category = categoryRepository.findById(product.getCategoryId())
-            .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        Category category = categoryRepository.getById(product.getCategoryId());
         ProductType productType = category.productTypeToRegister();
         List<SellerProductDetailResult.Price> prices = new ArrayList<>();
         for (Product.PriceInfo price : product.currentPrices(productType)) {

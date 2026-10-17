@@ -41,13 +41,12 @@ public class ProductDetailService {
     // 구매자가 보는 상품 상세를 돌려준다. 엔티티는 트랜잭션 안에서 지연 로딩으로 읽어 결과로 모두 바꾼다
     @Transactional(readOnly = true)
     public ProductDetailResult findDetail(Long productId) {
-        Product product = productRepository.findById(productId)
-            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+        Product product = productRepository.getById(productId);
         // 판매를 시작하기 전 상품은 구매자에게 보이지 않으므로 없는 상품과 같이 응답한다
         if (product.getStatus() == ProductStatus.SALE_PENDING) {
             throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
         }
-        Category category = categoryRepository.findById(product.getCategoryId()).orElseThrow();
+        Category category = categoryRepository.getById(product.getCategoryId());
         ProductType type = category.getProductType();
         List<ProductOption> visibleOptions = visibleOptions(product.getOptions());
         List<ProductDetailResult.Option> options = toOptions(visibleOptions);
