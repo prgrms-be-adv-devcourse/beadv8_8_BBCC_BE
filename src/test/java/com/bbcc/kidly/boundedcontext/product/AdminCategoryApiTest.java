@@ -4,14 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -99,6 +105,35 @@ class AdminCategoryApiTest {
             .jsonPath("$[1].productTypeId").isEqualTo(productTypeId)
             .jsonPath("$[1].productTypeName").isEqualTo("의류")
             .jsonPath("$[1].measurementItems[*].code").isEqualTo(List.of("TOTAL_LENGTH"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidRequests")
+    @DisplayName("카테고리 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
+    void rejectInvalidCategory(Map<String, Object> body) {
+        assertProblem(post(tokens.admin(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
+    }
+
+    // 요청 검증에서 막히므로 부모 · 유형 · 실측 항목 ID는 실제로 없는 값이어도 된다
+    static Stream<Named<Map<String, Object>>> invalidRequests() {
+        return Stream.of(
+            Named.of("이름이 빔", category("", null, null, List.of())),
+            Named.of("이름이 255자 초과", category("가".repeat(256), null, null, List.of())),
+            Named.of("실측 항목 목록이 없음", category("상의", null, "1", null)),
+            Named.of("실측 항목 목록에 null", category("상의", null, "1", Arrays.asList((String) null))),
+            Named.of("중간 카테고리에 실측 항목", category("의류", null, null, List.of("1"))));
+    }
+
+    // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
+    private void assertProblem(RestTestClient.ResponseSpec response, HttpStatus status) {
+        response.expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").exists()
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").exists()
+            .jsonPath("$.instance").exists();
     }
 
     private String createdCategoryId(Map<String, Object> body) {
