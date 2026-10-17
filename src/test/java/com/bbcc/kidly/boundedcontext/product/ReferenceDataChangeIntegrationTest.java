@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.product;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
@@ -30,6 +32,9 @@ class ReferenceDataChangeIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private ProductRepository productRepository;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -105,6 +110,38 @@ class ReferenceDataChangeIntegrationTest {
                 .containsExactly(tuple("CHEST_WIDTH", 1), tuple("TOTAL_LENGTH", 2));
         });
         assertThat(countRows("product.category_measurement_item")).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("상품이 있는 카테고리 · 유형만 상품이 있다고 찾는다")
+    void findsWhetherCategoryOrTypeHasProducts() {
+        ProductFixture.Clothing clothing = ProductFixture.clothing();
+        Product.RegisterInfo info = ProductFixture.productA(clothing);
+        Category usedCategory = info.category();
+        Attribute color = ProductTypeFixture.color();
+        ProductType unusedType = ProductType.define("잡화", List.of(ProductTypeFixture.requiredOption(color)));
+        Category unusedCategory = Category.createLeaf(
+            new Category.LeafInfo("모자", usedCategory.getParent(), unusedType, List.of()));
+        inTransaction(() -> {
+            List.of(clothing.color(), clothing.mainMaterial(), clothing.fabricComposition(), clothing.feature(),
+                clothing.type().getAttributes().get(1).getAttribute(), color).forEach(entityManager::persist);
+            List.of(clothing.cotton(), clothing.other(), clothing.linen(), clothing.brushed(), clothing.stretch())
+                .forEach(entityManager::persist);
+            entityManager.persist(clothing.type());
+            entityManager.persist(unusedType);
+            entityManager.persist(usedCategory.getParent());
+            usedCategory.getMeasurementItems().forEach(link -> entityManager.persist(link.getMeasurementItem()));
+            entityManager.persist(usedCategory);
+            entityManager.persist(unusedCategory);
+            productRepository.save(Product.register(info));
+        });
+
+        inTransaction(() -> {
+            assertThat(productRepository.existsByCategory(managed(usedCategory))).isTrue();
+            assertThat(productRepository.existsByCategory(managed(unusedCategory))).isFalse();
+            assertThat(productRepository.existsByCategoryProductType(managed(clothing.type()))).isTrue();
+            assertThat(productRepository.existsByCategoryProductType(managed(unusedType))).isFalse();
+        });
     }
 
     // 모든 값 허용이 아니어서 allowedValues에 넣은 값만 고를 수 있는 필수 정보 항목
