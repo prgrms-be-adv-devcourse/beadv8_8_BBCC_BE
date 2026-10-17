@@ -5,14 +5,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -69,6 +75,76 @@ class AdminProductTypeApiTest {
             .jsonPath("$.attributes[1].allowedValues[*].valueId")
             .isEqualTo(List.of(color.valueId("네이비"), color.valueId("오트밀")))
             .jsonPath("$.attributes[1].allowedValues[*].colorCode").isEqualTo(List.of("#000001", "#000003"));
+    }
+
+    @Test
+    @DisplayName("유형 목록은 ID 순서이고, 모든 값 허용 연결의 허용 값은 빈 배열이다")
+    void listProductTypes() {
+        CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비", "그레이"));
+        CreatedAttribute size = createAttribute("SIZE", "LIST", List.of("110"));
+        post(tokens.admin(ADMIN_ID), Map.of("name", "의류", "attributes", List.of(
+            link(color.id(), "OPTION", true, false, false, false, List.of(color.valueId("그레이"))),
+            link(size.id(), "OPTION", true, true, true, false, List.of()))))
+            .expectStatus().isCreated();
+        post(tokens.admin(ADMIN_ID), Map.of("name", "잡화", "attributes", List.of(
+            link(color.id(), "OPTION", true, true, false, false, List.of()))))
+            .expectStatus().isCreated();
+
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$[*].name").isEqualTo(List.of("의류", "잡화"))
+            .jsonPath("$[0].productTypeId").value(id -> assertThat(id).isInstanceOf(String.class))
+            .jsonPath("$[0].attributes[*].code").isEqualTo(List.of("COLOR", "SIZE"))
+            .jsonPath("$[0].attributes[0].allowedValues[*].name").isEqualTo(List.of("그레이"))
+            .jsonPath("$[0].attributes[1].allowedValues").isEmpty()
+            .jsonPath("$[1].attributes[*].code").isEqualTo(List.of("COLOR"))
+            .jsonPath("$[1].attributes[0].allowedValues").isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidRequests")
+    @DisplayName("유형 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
+    void rejectInvalidProductType(Map<String, Object> body) {
+        assertProblem(post(tokens.admin(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
+    }
+
+    // 요청 검증에서 막히므로 항목 ID는 실제로 없는 값이어도 된다
+    static Stream<Named<Map<String, Object>>> invalidRequests() {
+        Map<String, Object> validLink = link("1", "OPTION", true, true, false, false, List.of());
+        return Stream.of(
+            Named.of("이름이 빔", type("", List.of(validLink))),
+            Named.of("이름이 255자 초과", type("가".repeat(256), List.of(validLink))),
+            Named.of("연결 목록이 없음", type("의류", null)),
+            Named.of("연결 목록에 null", type("의류", Arrays.asList((Object) null))),
+            Named.of("항목 ID가 없음", type("의류", List.of(link(null, "OPTION", true, true, false, false, List.of())))),
+            Named.of("역할이 OPTION · INFO가 아님",
+                type("의류", List.of(link("1", "SIZE", true, true, false, false, List.of())))),
+            Named.of("역할이 없음", type("의류", List.of(link("1", null, true, true, false, false, List.of())))),
+            Named.of("허용 값 목록이 없음", type("의류", List.of(link("1", "OPTION", true, true, false, false, null)))),
+            Named.of("허용 값 목록에 null",
+                type("의류", List.of(link("1", "OPTION", true, false, false, false, Arrays.asList((String) null))))));
+    }
+
+    private static Map<String, Object> type(String name, List<?> attributes) {
+        Map<String, Object> type = new HashMap<>();
+        type.put("name", name);
+        type.put("attributes", attributes);
+        return type;
+    }
+
+    // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
+    private void assertProblem(RestTestClient.ResponseSpec response, HttpStatus status) {
+        response.expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").exists()
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").exists()
+            .jsonPath("$.instance").exists();
     }
 
     // 유형에 연결할 항목 하나의 설정이다
