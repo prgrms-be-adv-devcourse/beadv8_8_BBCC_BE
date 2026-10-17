@@ -5,32 +5,57 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.fabricCom
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.mainMaterial;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.optionalOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.optionalTextInfo;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.priceAffectingOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredInfo;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredOption;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.restrictedOption;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.restrictedSizeOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeOption;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.http.HttpStatus;
 
 class ProductTypeChangeTest {
 
-    private final Attribute color = color();
-    private final Attribute size = size();
-    private final Attribute material = mainMaterial();
-    private final Attribute composition = fabricComposition();
+    private static final Attribute COLOR = color();
+    private static final Attribute SIZE = size();
+    private static final Attribute MATERIAL = mainMaterial();
+    private static final Attribute COMPOSITION = fabricComposition();
+    private static final Attribute PATTERN = Attribute.create("패턴", "PATTERN", AttributeInputType.LIST);
+    private static final Attribute SEASON = Attribute.create("계절", "SEASON", AttributeInputType.LIST);
+    private static final AttributeValue NAVY = AttributeValue.create(COLOR, "네이비", "#2f3e5c");
+    private static final AttributeValue GRAY = AttributeValue.create(COLOR, "그레이", "#9e9e9e");
+    private static final AttributeValue SIZE_110 = AttributeValue.create(SIZE, "110", null);
 
     // 기준 데이터의 의류와 같은 연결: 색상 · 사이즈 필수 옵션, 주요소재 필수 정보, 혼용률 선택 정보
-    private ProductType clothing() {
+    private static ProductType clothing() {
         return ProductType.define("의류", List.of(
-            requiredOption(color), sizeOption(size), requiredInfo(material), optionalTextInfo(composition)));
+            requiredOption(COLOR), sizeOption(SIZE), requiredInfo(MATERIAL), optionalTextInfo(COMPOSITION)));
+    }
+
+    // 상품이 있는 유형으로 쓴다. 색상은 네이비 · 그레이만 허용하고, 나머지는 의류와 같다
+    private static ProductType typeInUse() {
+        return ProductType.define("의류", List.of(
+            restrictedOption(COLOR, List.of(NAVY, GRAY)), sizeOption(SIZE), requiredInfo(MATERIAL),
+            optionalTextInfo(COMPOSITION)));
     }
 
     @Test
@@ -38,7 +63,7 @@ class ProductTypeChangeTest {
     void replaceLinksWithoutProducts() {
         ProductType type = clothing();
 
-        type.change(List.of(sizeOption(size), requiredOption(material), optionalOption(color)), false);
+        type.change(List.of(sizeOption(SIZE), requiredOption(MATERIAL), optionalOption(COLOR)), false);
 
         assertThat(type.getAttributes())
             .extracting(link -> link.getAttribute().getCode(), ProductTypeAttribute::getRole,
@@ -47,5 +72,42 @@ class ProductTypeChangeTest {
                 tuple("SIZE", AttributeRole.OPTION, true, true, 1),
                 tuple("MAIN_MATERIAL", AttributeRole.OPTION, true, false, 2),
                 tuple("COLOR", AttributeRole.OPTION, false, false, 3));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesBreakingProducts")
+    @DisplayName("TYPE-07 상품이 있으면 기존 상품을 깨는 변경은 409로 거절하고 연결을 그대로 둔다")
+    void rejectChangeBreakingProducts(List<ProductType.LinkInfo> links) {
+        ProductType type = typeInUse();
+
+        assertThatThrownBy(() -> type.change(links, true))
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.CHANGE_BREAKS_PRODUCTS);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.CONFLICT);
+            });
+        assertThat(type.getAttributes())
+            .extracting(link -> link.getAttribute().getCode())
+            .containsExactly("COLOR", "SIZE", "MAIN_MATERIAL", "FABRIC_COMPOSITION");
+        assertThat(type.getAllowedValues()).extracting(allowed -> allowed.getAttributeValue().getName())
+            .containsExactly("네이비", "그레이");
+    }
+
+    static Stream<Named<List<ProductType.LinkInfo>>> changesBreakingProducts() {
+        ProductType.LinkInfo color = restrictedOption(COLOR, List.of(NAVY, GRAY));
+        ProductType.LinkInfo size = sizeOption(SIZE);
+        ProductType.LinkInfo material = requiredInfo(MATERIAL);
+        ProductType.LinkInfo composition = optionalTextInfo(COMPOSITION);
+        return Stream.of(
+            Named.of("연결 빼기", List.of(color, size, material)),
+            Named.of("정보 항목을 옵션으로", List.of(color, size, requiredOption(MATERIAL), composition)),
+            Named.of("사이즈 역할 빼기", List.of(color, requiredOption(SIZE), material, composition)),
+            Named.of("가격 구분 더하기", List.of(priceAffectingOption(COLOR), size, material, composition)),
+            Named.of("선택 항목을 필수로", List.of(color, size, material,
+                new ProductType.LinkInfo(COMPOSITION, AttributeRole.INFO, true, false, false, false, List.of()))),
+            Named.of("허용 값 빼기", List.of(restrictedOption(COLOR, List.of(NAVY)), size, material, composition)),
+            Named.of("모든 값 허용을 허용 값만으로",
+                List.of(color, restrictedSizeOption(SIZE, List.of(SIZE_110)), material, composition)),
+            Named.of("옵션 항목 추가", List.of(color, size, material, composition, optionalOption(PATTERN))),
+            Named.of("필수 정보 항목 추가", List.of(color, size, material, composition, requiredInfo(SEASON))));
     }
 }
