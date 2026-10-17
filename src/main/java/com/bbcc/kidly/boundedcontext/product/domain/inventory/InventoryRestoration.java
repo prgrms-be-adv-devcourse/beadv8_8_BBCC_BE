@@ -5,10 +5,11 @@ import static java.util.Objects.requireNonNull;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 주문 취소됨 하나로 되돌릴 재고 복구 대상이다. 주문상품의 차감 기록으로 취소가 먼저 온 주문인지, 거절한 주문인지,
- * 되돌릴 기록이 무엇인지를 판단한다.
+ * 되돌릴 기록이 무엇인지를 판단한다. 되돌린 뒤에는 복구로 품절이 풀린 옵션이 무엇인지도 판단한다.
  */
 public final class InventoryRestoration {
 
@@ -62,5 +63,26 @@ public final class InventoryRestoration {
         targets.sort(Comparator.comparing(InventoryDeduction::getProductOptionId)
             .thenComparing(InventoryDeduction::getOrderItemId));
         return targets;
+    }
+
+    // 되돌린 수량을 받아, 복구 전에 품절(판매 가능 수량 0 이하)이었다가 복구로 품절이 풀린 옵션 ID를 오름차순으로 돌려준다 (SALE-08)
+    // 복구 전 수량은 복구 뒤 수량에서 되돌린 수량을 빼서 구한다. 되돌린 옵션마다 복구 뒤 수량이 있어야 한다
+    public static List<Long> soldOutReleasedOptionIds(
+            Map<Long, Integer> restoredQtyByOptionId, Map<Long, Integer> availableQtyByOptionId) {
+        requireNonNull(restoredQtyByOptionId, "restoredQtyByOptionId는 필수입니다");
+        requireNonNull(availableQtyByOptionId, "availableQtyByOptionId는 필수입니다");
+        List<Long> optionIds = new ArrayList<>();
+        for (Map.Entry<Long, Integer> entry : restoredQtyByOptionId.entrySet()) {
+            Integer availableQtyAfter = availableQtyByOptionId.get(entry.getKey());
+            if (availableQtyAfter == null) {
+                throw new IllegalArgumentException("옵션 " + entry.getKey() + "의 복구 뒤 판매 가능 수량이 없습니다");
+            }
+            int availableQtyBefore = availableQtyAfter - entry.getValue();
+            if (availableQtyBefore <= 0) {
+                optionIds.add(entry.getKey());
+            }
+        }
+        optionIds.sort(Comparator.naturalOrder());
+        return optionIds;
     }
 }

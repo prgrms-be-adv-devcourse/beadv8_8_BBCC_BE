@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryDeduction
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRestoration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -117,6 +118,53 @@ class InventoryRestorationTest {
     @DisplayName("차감 기록 목록이 없으면 복구 대상을 만들지 않는다")
     void rejectNullRecords() {
         assertThatThrownBy(() -> InventoryRestoration.of(ORDER_ID, null))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    @ParameterizedTest(name = "되돌린 수량 {0}, 복구 뒤 수량 {1}")
+    @CsvSource({"1, 1", "3, 3"})
+    @DisplayName("SALE-08 복구 전 판매 가능 수량이 0이던 옵션은 복구로 품절이 풀린 옵션으로 고른다")
+    void pickOptionReleasedFromSoldOut(int restoredQty, int availableQtyAfter) {
+        List<Long> released = InventoryRestoration.soldOutReleasedOptionIds(
+            Map.of(NAVY_110_ID, restoredQty), Map.of(NAVY_110_ID, availableQtyAfter));
+
+        assertThat(released).containsExactly(NAVY_110_ID);
+    }
+
+    @ParameterizedTest(name = "되돌린 수량 {0}, 복구 뒤 수량 {1}")
+    @CsvSource({"1, 2", "2, 5"})
+    @DisplayName("SALE-08 복구 전에도 판매 가능 수량이 남아 있던 옵션은 고르지 않는다")
+    void skipOptionNotSoldOutBeforeRestore(int restoredQty, int availableQtyAfter) {
+        List<Long> released = InventoryRestoration.soldOutReleasedOptionIds(
+            Map.of(NAVY_110_ID, restoredQty), Map.of(NAVY_110_ID, availableQtyAfter));
+
+        assertThat(released).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SALE-08 여러 옵션을 되돌리면 품절이 풀린 옵션만 옵션 ID 오름차순으로 고른다")
+    void pickReleasedOptionsInOptionIdOrder() {
+        List<Long> released = InventoryRestoration.soldOutReleasedOptionIds(
+            Map.of(30L, 1, 10L, 2, 20L, 1),
+            Map.of(30L, 1, 10L, 2, 20L, 4));
+
+        assertThat(released).containsExactly(10L, 30L);
+    }
+
+    @Test
+    @DisplayName("되돌린 옵션의 복구 뒤 수량이 없으면 품절이 풀린 옵션을 고르지 않는다")
+    void rejectMissingAvailableQty() {
+        assertThatThrownBy(() -> InventoryRestoration.soldOutReleasedOptionIds(
+            Map.of(NAVY_110_ID, 1), Map.of(NAVY_120_ID, 1)))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("되돌린 수량이나 복구 뒤 수량이 없으면 품절이 풀린 옵션을 고르지 않는다")
+    void rejectNullQuantities() {
+        assertThatThrownBy(() -> InventoryRestoration.soldOutReleasedOptionIds(null, Map.of()))
+            .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> InventoryRestoration.soldOutReleasedOptionIds(Map.of(), null))
             .isInstanceOf(NullPointerException.class);
     }
 
