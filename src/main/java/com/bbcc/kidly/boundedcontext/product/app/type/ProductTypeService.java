@@ -40,6 +40,16 @@ public class ProductTypeService {
         return toResult(productType);
     }
 
+    // 모든 상품 유형을 ID 순서로 돌려준다
+    @Transactional(readOnly = true)
+    public List<ProductTypeResult> findAll() {
+        List<ProductTypeResult> results = new ArrayList<>();
+        for (ProductType productType : productTypeRepository.findAll()) {
+            results.add(toResult(productType));
+        }
+        return results;
+    }
+
     private ProductType.LinkInfo toLinkInfo(ProductTypeCreateRequest.Link link) {
         Attribute attribute = attributeRepository.findById(link.attributeId())
             .orElseThrow(() -> new BusinessException(AttributeErrorCode.ATTRIBUTE_NOT_FOUND));

@@ -6,9 +6,12 @@ import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeResult;
 import com.bbcc.kidly.boundedcontext.product.in.type.dto.ProductTypeResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,5 +35,14 @@ public class AdminProductTypeController {
         ProductTypeResult result = productTypeService.create(request);
         response.setHeader(HttpHeaders.LOCATION, "/api/v1/admin/product-types/" + result.productTypeId());
         return ProductTypeResponse.from(result);
+    }
+
+    @GetMapping
+    public List<ProductTypeResponse> list() {
+        List<ProductTypeResponse> responses = new ArrayList<>();
+        for (ProductTypeResult result : productTypeService.findAll()) {
+            responses.add(ProductTypeResponse.from(result));
+        }
+        return responses;
     }
 }
