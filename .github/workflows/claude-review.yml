@@ -1,0 +1,58 @@
+name: Claude Review
+
+# PR을 열거나 Ready for review로 바꿀 때 한 번 리뷰한다. 커밋마다 돌지 않는다
+# 다시 리뷰받으려면 PR 댓글에 @claude를 쓴다 (claude.yml)
+on:
+  pull_request:
+    types: [opened, ready_for_review, reopened]
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Claude 코드 리뷰
+    # 초안은 건너뛴다. 포크에서 온 PR은 시크릿을 받을 수 없어 건너뛴다
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # 읽기 전용: 코드를 고치거나 push하지 않고 댓글만 남긴다
+    # Claude GitHub App 대신 이 job의 GITHUB_TOKEN(아래 권한만 가짐)으로 댓글을 남긴다. 댓글 작성자는 github-actions[bot]
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: 리뷰
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            이 PR을 리뷰해 주세요. 기준은 루트 CLAUDE.md와, 바뀐 파일이 속한 도메인 폴더의 CLAUDE.md(있으면)예요.
+
+            다음 순서로 중요하게 봐 주세요.
+            1. 버그 · 데이터 정합성: 금액 · 재고 · 상태 전이, 동시성(락 · 유니크 키), 트랜잭션 경계, 커밋 뒤 실행되는 이벤트 리스너(@DomainEventListener)
+            2. 보안: 인증 · 인가 누락, 남의 데이터 접근, 로그에 민감 정보(토큰 · 키 · paymentKey) 노출
+            3. 구조 규칙: 도메인끼리 코드를 직접 참조하지 않고 shared 이벤트로만 주고받는지, 계층 의존(in → app → domain, out → app.port · domain)
+            4. 테스트: 바뀐 동작에 맞는 단위 · 통합 · 기능 테스트가 있는지, 빠진 경우
+            5. DB: 이미 적용된 Flyway 파일을 고쳤는지, 명명 규칙(CLAUDE.md DB 명명)
+            6. API 응답 규칙(CLAUDE.md API 응답)
+
+            지켜 주세요.
+            - 코드 스타일 · 포매팅은 Checkstyle이, 빌드 · 테스트 실행은 CI가 하니 지적하거나 실행하지 마세요
+            - 구체적인 문제는 해당 줄에 인라인 댓글로 남기고, 무엇이 왜 문제인지와 고치는 방법을 적어 주세요
+            - 확실하지 않은 것은 단정하지 말고 질문으로 남겨 주세요
+            - 마지막에 요약 댓글 하나를 남겨 주세요. 문제가 없으면 짧게 그렇다고만 적어 주세요
+            - 모든 댓글은 한국어 해요체로 써 주세요
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"
