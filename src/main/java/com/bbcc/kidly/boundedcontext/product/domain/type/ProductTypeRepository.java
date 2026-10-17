@@ -1,9 +1,14 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
+import java.util.List;
+
 public interface ProductTypeRepository {
 
     // 상품 유형을 저장한다. 연결된 항목과 허용 값도 함께 저장한다
     ProductType save(ProductType productType);
+
+    // 모든 상품 유형을 ID 순서로 돌려준다
+    List<ProductType> findAll();
 
     // 저장된 상품 유형의 수를 돌려준다
     long count();
