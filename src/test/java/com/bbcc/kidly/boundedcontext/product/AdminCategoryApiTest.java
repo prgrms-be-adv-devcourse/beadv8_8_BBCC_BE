@@ -73,6 +73,34 @@ class AdminCategoryApiTest {
             .jsonPath("$.measurementItems[0].unit").isEqualTo("cm");
     }
 
+    @Test
+    @DisplayName("카테고리 목록은 ID 순서의 평면 배열이고, 중간 카테고리는 유형이 null이고 실측 항목이 빈 배열이다")
+    void listCategories() {
+        String clothingId = createdCategoryId(category("의류", null, null, List.of()));
+        String productTypeId = createProductType("의류", "COLOR");
+        String totalLength = createMeasurementItem("총장", "TOTAL_LENGTH");
+        String topId = createdCategoryId(category("상의", clothingId, productTypeId, List.of(totalLength)));
+        String goodsId = createdCategoryId(category("잡화", null, null, List.of()));
+
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$[*].categoryId").isEqualTo(List.of(clothingId, topId, goodsId))
+            .jsonPath("$[*].name").isEqualTo(List.of("의류", "상의", "잡화"))
+            .jsonPath("$[0].parentId").value(id -> assertThat(id).isNull())
+            .jsonPath("$[0].leaf").isEqualTo(false)
+            .jsonPath("$[0].productTypeId").value(id -> assertThat(id).isNull())
+            .jsonPath("$[0].productTypeName").value(name -> assertThat(name).isNull())
+            .jsonPath("$[0].measurementItems").isEmpty()
+            .jsonPath("$[1].parentId").isEqualTo(clothingId)
+            .jsonPath("$[1].leaf").isEqualTo(true)
+            .jsonPath("$[1].productTypeId").isEqualTo(productTypeId)
+            .jsonPath("$[1].productTypeName").isEqualTo("의류")
+            .jsonPath("$[1].measurementItems[*].code").isEqualTo(List.of("TOTAL_LENGTH"));
+    }
+
     private String createdCategoryId(Map<String, Object> body) {
         return createdId(post(tokens.admin(ADMIN_ID), body), "categoryId");
     }
