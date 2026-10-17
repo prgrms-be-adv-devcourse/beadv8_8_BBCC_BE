@@ -63,7 +63,7 @@ public class Category extends BaseTimeEntity {
     @JoinColumn(name = "product_type_id")
     private ProductType productType;
 
-    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<CategoryMeasurementItem> measurementItems = new ArrayList<>();
 
@@ -94,6 +94,32 @@ public class Category extends BaseTimeEntity {
                 CategoryMeasurementItem.create(category, info.measurementItems().get(i), i + 1));
         }
         return category;
+    }
+
+    // 상품 유형과 필수 실측 항목을 받은 값으로 바꾼다. 실측 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
+    public void change(ProductType productType, List<MeasurementItem> measurementItems, boolean hasProducts) {
+        requireNonNull(productType, "productType은 필수입니다");
+        requireNonNull(measurementItems, "measurementItems는 필수입니다");
+        for (MeasurementItem item : measurementItems) {
+            requireNonNull(item, "measurementItem은 필수입니다");
+        }
+        List<CategoryMeasurementItem> changed = new ArrayList<>();
+        for (int i = 0; i < measurementItems.size(); i++) {
+            changed.add(changeOrCreateMeasurementItem(measurementItems.get(i), i + 1));
+        }
+        this.productType = productType;
+        this.measurementItems.clear();
+        this.measurementItems.addAll(changed);
+    }
+
+    private CategoryMeasurementItem changeOrCreateMeasurementItem(MeasurementItem item, int sortOrder) {
+        for (CategoryMeasurementItem link : measurementItems) {
+            if (link.getMeasurementItem() == item) {
+                link.changeSortOrder(sortOrder);
+                return link;
+            }
+        }
+        return CategoryMeasurementItem.create(this, item, sortOrder);
     }
 
     private static void rejectBlankName(String name) {
