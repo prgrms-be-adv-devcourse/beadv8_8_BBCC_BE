@@ -24,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 상품의 기준 데이터를 넣는다. local · dev 앱을 시작할 때 러너가 부른다.
- * 항목(색상 · 사이즈 · 주요소재 · 혼용률)과 목록 값, 상품 유형 「의류」, 실측 항목, 카테고리(의류 · 잡화와 그 아래 말단 카테고리)를 만든다.
+ * 항목(색상 · 사이즈 · 모자 사이즈 · 양말 사이즈 · 주요소재 · 혼용률)과 목록 값, 상품 유형(의류 · 모자 · 양말), 실측 항목,
+ * 카테고리(의류 · 잡화와 그 아래 말단 카테고리)를 만든다.
+ * 유아 모자는 머리둘레 cm, 양말은 발 길이 mm 범위로 팔기 때문에 의류 사이즈와 따로 모자 · 양말 사이즈를 둔다.
  * 기준 데이터는 다른 도메인으로 복사되지 않으므로 이벤트를 내지 않는다.
  * ID를 고정하지 않으므로, 이 데이터를 쓰는 코드는 이름과 코드로 찾는다.
  */
@@ -49,19 +51,24 @@ public class ProductReferenceDataService {
             return;
         }
         Attribute color = attributeRepository.save(Attribute.create("색상", "COLOR", AttributeInputType.PALETTE));
-        Attribute size = attributeRepository.save(Attribute.create("사이즈", "SIZE", AttributeInputType.LIST));
         Attribute material = attributeRepository.save(
             Attribute.create("주요소재", "MAIN_MATERIAL", AttributeInputType.LIST));
         Attribute composition = attributeRepository.save(
             Attribute.create("혼용률", "FABRIC_COMPOSITION", AttributeInputType.TEXT));
         saveColors(color);
-        saveValues(size, List.of("90", "100", "110", "120", "130", "140", "150", "FREE"));
         saveValues(material, List.of("면", "폴리에스테르", "아크릴", "기타"));
 
-        ProductType clothingType = productTypeRepository.save(
-            ProductType.define("의류", clothingLinks(color, size, material, composition)));
+        Attribute size = saveSize("사이즈", "SIZE", List.of("90", "100", "110", "120", "130", "140", "150", "FREE"));
+        Attribute hatSize = saveSize("모자 사이즈", "HAT_SIZE",
+            List.of("44cm", "46cm", "48cm", "50cm", "52cm", "54cm", "FREE"));
+        Attribute sockSize = saveSize("양말 사이즈", "SOCK_SIZE",
+            List.of("100-120mm", "130-150mm", "160-180mm", "190-210mm", "FREE"));
+
+        ProductType clothingType = saveType("의류", links(color, size, material, composition));
+        ProductType hatType = saveType("모자", links(color, hatSize, material, composition));
+        ProductType sockType = saveType("양말", links(color, sockSize, material, composition));
         Map<String, MeasurementItem> items = saveMeasurementItems();
-        saveCategories(clothingType, items);
+        saveCategories(clothingType, hatType, sockType, items);
         log.info("상품 기준 데이터를 넣었다");
     }
 
@@ -72,6 +79,17 @@ public class ProductReferenceDataService {
         }
     }
 
+    // 사이즈 항목을 만들고 목록 값을 넣는다. 넣는 순서가 값 순서다
+    private Attribute saveSize(String name, String code, List<String> values) {
+        Attribute size = attributeRepository.save(Attribute.create(name, code, AttributeInputType.LIST));
+        saveValues(size, values);
+        return size;
+    }
+
+    private ProductType saveType(String name, List<ProductType.LinkInfo> links) {
+        return productTypeRepository.save(ProductType.define(name, links));
+    }
+
     private void saveValues(Attribute attribute, List<String> names) {
         for (String name : names) {
             attributeValueRepository.save(AttributeValue.create(attribute, name, null));
@@ -79,7 +97,7 @@ public class ProductReferenceDataService {
     }
 
     // 연결 순서가 등록 화면의 표시 순서가 된다. 모든 연결이 모든 값을 허용하고 가격을 바꾸지 않는다
-    private List<ProductType.LinkInfo> clothingLinks(
+    private List<ProductType.LinkInfo> links(
         Attribute color, Attribute size, Attribute material, Attribute composition) {
         return List.of(
             link(color, AttributeRole.OPTION, true, false),
@@ -113,7 +131,8 @@ public class ProductReferenceDataService {
     }
 
     // 중간 카테고리를 먼저 넣고 그 아래 말단 카테고리를 넣는다
-    private void saveCategories(ProductType clothingType, Map<String, MeasurementItem> items) {
+    private void saveCategories(ProductType clothingType, ProductType hatType, ProductType sockType,
+        Map<String, MeasurementItem> items) {
         Category clothingCategory = categoryRepository.save(Category.createMiddle("의류", null));
         saveLeaf(clothingCategory, clothingType, items, "상의",
             "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH");
@@ -123,8 +142,8 @@ public class ProductReferenceDataService {
             "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH");
         saveLeaf(clothingCategory, clothingType, items, "원피스", "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH");
         Category goodsCategory = categoryRepository.save(Category.createMiddle("잡화", null));
-        saveLeaf(goodsCategory, clothingType, items, "모자", "HEAD_CIRCUMFERENCE");
-        saveLeaf(goodsCategory, clothingType, items, "양말", "FOOT_LENGTH");
+        saveLeaf(goodsCategory, hatType, items, "모자", "HEAD_CIRCUMFERENCE");
+        saveLeaf(goodsCategory, sockType, items, "양말", "FOOT_LENGTH");
     }
 
     // 필수 실측 항목은 코드를 적은 순서대로 둔다
