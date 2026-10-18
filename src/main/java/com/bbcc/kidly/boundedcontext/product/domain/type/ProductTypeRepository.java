@@ -15,6 +15,9 @@ public interface ProductTypeRepository {
     // 모든 상품 유형을 ID 순서로 돌려준다
     List<ProductType> findAll();
 
+    // 지우지 않은 상품 유형만 ID 순서로 돌려준다. 선택지 조회에 쓴다 (TYPE-09)
+    List<ProductType> findAllByDeletedAtIsNullOrderByIdAsc();
+
     // 저장된 상품 유형의 수를 돌려준다
     long count();
 

@@ -24,11 +24,11 @@ public class MeasurementItemService {
         return new MeasurementItemResult(item.getId(), item.getName(), item.getCode(), item.getUnit());
     }
 
-    // 모든 실측 항목을 ID 순서로 돌려준다
+    // 지우지 않은 모든 실측 항목을 ID 순서로 돌려준다
     @Transactional(readOnly = true)
     public List<MeasurementItemResult> findAll() {
         List<MeasurementItemResult> results = new ArrayList<>();
-        for (MeasurementItem item : measurementItemRepository.findAll()) {
+        for (MeasurementItem item : measurementItemRepository.findAllByDeletedAtIsNullOrderByIdAsc()) {
             results.add(new MeasurementItemResult(item.getId(), item.getName(), item.getCode(), item.getUnit()));
         }
         return results;

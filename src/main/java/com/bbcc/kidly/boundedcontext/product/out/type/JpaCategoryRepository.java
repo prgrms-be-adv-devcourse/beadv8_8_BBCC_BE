@@ -17,7 +17,7 @@ public interface JpaCategoryRepository extends JpaRepository<Category, Long>, Ca
     }
 
     @Override
-    @Query("select c from Category c where c.parent is null and c.name = :name")
+    @Query("select c from Category c where c.parent is null and c.name = :name and c.deletedAt is null")
     Optional<Category> findTopLevelByName(@Param("name") String name);
 
     @Override

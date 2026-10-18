@@ -36,15 +36,17 @@ public class AttributeService {
             attribute.getId(), attribute.getName(), attribute.getCode(), attribute.getInputType().name(), values);
     }
 
-    // 모든 항목을 ID 순서로 돌려준다. 목록 값은 한 번의 조회로 가져와 항목별로 묶는다
+    // 지우지 않은 모든 항목을 ID 순서로 돌려준다. 목록 값은 한 번의 조회로 가져와 항목별로 묶는다
     @Transactional(readOnly = true)
     public List<AttributeResult> findAll() {
-        List<Attribute> attributes = attributeRepository.findAll();
+        List<Attribute> attributes = attributeRepository.findAllByDeletedAtIsNullOrderByIdAsc();
         if (attributes.isEmpty()) {
             return List.of();
         }
         Map<Long, List<AttributeResult.Value>> valuesByAttributeId = new HashMap<>();
-        for (AttributeValue value : attributeValueRepository.findAllOfAttributes(attributes)) {
+        List<AttributeValue> values =
+            attributeValueRepository.findAllByAttributeInAndDeletedAtIsNullOrderByIdAsc(attributes);
+        for (AttributeValue value : values) {
             valuesByAttributeId.computeIfAbsent(value.getAttribute().getId(), id -> new ArrayList<>())
                 .add(new AttributeResult.Value(value.getId(), value.getName(), value.getColorCode()));
         }

@@ -15,6 +15,9 @@ public interface AttributeRepository {
     // 모든 항목을 ID 순서로 돌려준다
     List<Attribute> findAll();
 
+    // 지우지 않은 항목만 ID 순서로 돌려준다. 선택지 조회에 쓴다 (TYPE-09)
+    List<Attribute> findAllByDeletedAtIsNullOrderByIdAsc();
+
     // 항목을 ID로 찾는다. 없으면 404 오류(ATTRIBUTE_NOT_FOUND)를 던진다
     default Attribute getById(Long id) {
         return findById(id).orElseThrow(() -> new BusinessException(AttributeErrorCode.ATTRIBUTE_NOT_FOUND));
