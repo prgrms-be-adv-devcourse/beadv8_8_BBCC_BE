@@ -16,10 +16,8 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -74,7 +72,7 @@ public class ProductType extends BaseSoftDeleteEntity {
     // 연결 목록을 받은 목록으로 바꾼다. 상품이 있는 유형은 기존 상품을 깨지 않는 변경만 받는다. 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
     public void change(List<LinkInfo> links, boolean hasProducts) {
         requireNonNullLinks(links);
-        requireValidLinks(links);
+        ProductTypeLinkCheck.requireValid(links);
         if (hasProducts && ProductTypeChangeCheck.breaksProducts(this, links)) {
             throw new BusinessException(ProductTypeErrorCode.CHANGE_BREAKS_PRODUCTS);
         }
@@ -118,39 +116,6 @@ public class ProductType extends BaseSoftDeleteEntity {
         }
     }
 
-    private static void requireValidLinks(List<LinkInfo> links) {
-        if (hasDuplicatedAttribute(links)) {
-            throw new BusinessException(ProductTypeErrorCode.DUPLICATE_ATTRIBUTE);
-        }
-        if (hasDuplicatedAllowedValue(links)) {
-            throw new BusinessException(ProductTypeErrorCode.DUPLICATE_ALLOWED_VALUE);
-        }
-        if (!hasRequiredOption(links)) {
-            throw new BusinessException(ProductTypeErrorCode.REQUIRED_OPTION_MISSING);
-        }
-        if (hasManySizeRoles(links)) {
-            throw new BusinessException(ProductTypeErrorCode.MULTIPLE_SIZE_ROLES);
-        }
-        if (hasSizeRoleOnInfo(links)) {
-            throw new BusinessException(ProductTypeErrorCode.SIZE_ROLE_ON_INFO);
-        }
-        if (hasPriceAffectingOnInfo(links)) {
-            throw new BusinessException(ProductTypeErrorCode.PRICE_AFFECTING_ON_INFO);
-        }
-        if (hasNonSingleChoiceOption(links)) {
-            throw new BusinessException(ProductTypeErrorCode.OPTION_NOT_SINGLE_CHOICE);
-        }
-        if (hasLinkWithoutAllowedValues(links)) {
-            throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUES_MISSING);
-        }
-        if (hasAllowedValuesOnAllValuesAllowed(links)) {
-            throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUES_ON_ALL_VALUES);
-        }
-        if (hasAllowedValueOfOtherAttribute(links)) {
-            throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUE_OF_OTHER_ATTRIBUTE);
-        }
-    }
-
     private static void requireNonNullValues(LinkInfo link) {
         requireNonNull(link, "link는 필수입니다");
         requireNonNull(link.attribute(), "attribute는 필수입니다");
@@ -159,66 +124,6 @@ public class ProductType extends BaseSoftDeleteEntity {
         for (AttributeValue value : link.allowedValues()) {
             requireNonNull(value, "allowedValue는 필수입니다");
         }
-    }
-
-    private static boolean hasDuplicatedAttribute(List<LinkInfo> links) {
-        Set<Attribute> attributes = new HashSet<>();
-        for (LinkInfo link : links) {
-            if (!attributes.add(link.attribute())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean hasDuplicatedAllowedValue(List<LinkInfo> links) {
-        for (LinkInfo link : links) {
-            if (new HashSet<>(link.allowedValues()).size() != link.allowedValues().size()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean hasRequiredOption(List<LinkInfo> links) {
-        return links.stream().anyMatch(link -> link.role() == AttributeRole.OPTION && link.required());
-    }
-
-    private static boolean hasManySizeRoles(List<LinkInfo> links) {
-        return links.stream().filter(LinkInfo::sizeRole).count() > 1;
-    }
-
-    private static boolean hasSizeRoleOnInfo(List<LinkInfo> links) {
-        return links.stream().anyMatch(link -> link.sizeRole() && link.role() != AttributeRole.OPTION);
-    }
-
-    private static boolean hasPriceAffectingOnInfo(List<LinkInfo> links) {
-        return links.stream().anyMatch(link -> link.priceAffecting() && link.role() != AttributeRole.OPTION);
-    }
-
-    private static boolean hasNonSingleChoiceOption(List<LinkInfo> links) {
-        return links.stream().anyMatch(link -> link.role() == AttributeRole.OPTION && !isSingleChoice(link));
-    }
-
-    private static boolean isSingleChoice(LinkInfo link) {
-        AttributeInputType inputType = link.attribute().getInputType();
-        return inputType == AttributeInputType.PALETTE || inputType == AttributeInputType.LIST;
-    }
-
-    private static boolean hasLinkWithoutAllowedValues(List<LinkInfo> links) {
-        return links.stream().anyMatch(link ->
-            link.attribute().getInputType() != AttributeInputType.TEXT
-                && !link.allValuesAllowed()
-                && link.allowedValues().isEmpty());
-    }
-
-    private static boolean hasAllowedValuesOnAllValuesAllowed(List<LinkInfo> links) {
-        return links.stream().anyMatch(link -> link.allValuesAllowed() && !link.allowedValues().isEmpty());
-    }
-
-    private static boolean hasAllowedValueOfOtherAttribute(List<LinkInfo> links) {
-        return links.stream().anyMatch(link ->
-            link.allowedValues().stream().anyMatch(value -> value.getAttribute() != link.attribute()));
     }
 
     // 이 유형에서 그 항목의 연결을 찾는다. 유형에 연결되지 않은 항목이면 비어 있다

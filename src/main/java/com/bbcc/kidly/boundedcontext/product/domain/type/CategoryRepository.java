@@ -18,9 +18,6 @@ public interface CategoryRepository {
     // (TYPE-11: 지운 카테고리와 같은 이름은 만들 수 있다)
     Optional<Category> findTopLevelByName(String name);
 
-    // 모든 카테고리를 ID 순서로 돌려준다
-    List<Category> findAll();
-
     // 지우지 않은 카테고리만 ID 순서로 돌려준다. 선택지 조회에 쓴다 (TYPE-09)
     List<Category> findAllByDeletedAtIsNullOrderByIdAsc();
 

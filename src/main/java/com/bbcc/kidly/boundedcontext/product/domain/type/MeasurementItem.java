@@ -58,10 +58,7 @@ public class MeasurementItem extends BaseSoftDeleteEntity {
         return item;
     }
 
-    /**
-     * 실측 항목을 지운다. 지우지 않은 카테고리가 필수로 연결한 실측 항목은 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다).
-     * inUse는 서비스가 리포지토리로 읽어 넘긴다.
-     */
+    // 지우지 않은 카테고리가 필수로 연결한 실측 항목(inUse)은 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다)
     public void delete(LocalDateTime now, boolean inUse) {
         requireNonNull(now, "now는 필수입니다");
         if (inUse) {

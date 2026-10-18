@@ -186,10 +186,7 @@ public class Category extends BaseSoftDeleteEntity {
         return Collections.unmodifiableList(measurementItems);
     }
 
-    /**
-     * 카테고리를 지운다. 지우지 않은 하위 카테고리가 있는 카테고리는 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다).
-     * inUse는 서비스가 리포지토리로 읽어 넘긴다.
-     */
+    // 지우지 않은 하위 카테고리가 있는 카테고리(inUse)는 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다)
     public void delete(LocalDateTime now, boolean inUse) {
         requireNonNull(now, "now는 필수입니다");
         if (inUse) {
