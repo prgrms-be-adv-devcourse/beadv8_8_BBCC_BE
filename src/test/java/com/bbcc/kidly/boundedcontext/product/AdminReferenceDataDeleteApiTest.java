@@ -59,7 +59,7 @@ class AdminReferenceDataDeleteApiTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("deletions")
-    @DisplayName("쓰이지 않는 기준 데이터를 지우면 204를 주고 지운 시각을 남긴다")
+    @DisplayName("TYPE-09 쓰이지 않는 기준 데이터를 지우면 204를 주고 행을 지우지 않은 채 지운 시각을 남긴다")
     void deleteReferenceData(Deletion deletion) {
         SavedClothingTop saved = clothingTopSaver.save();
         inTransaction(() -> deletion.deletedFirst().apply(saved).forEach(entity -> managed(entity).delete(PAST)));

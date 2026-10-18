@@ -56,15 +56,6 @@ class ReferenceDataDeleteTest {
         assertThat(deletion.target().isDeleted()).isFalse();
     }
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("deletionsInUse")
-    @DisplayName("쓰이지 않는 항목 · 상품 유형 · 카테고리 · 실측 항목은 지운 시각을 남겨 지운다")
-    void deleteNotInUse(Deletion<?> deletion, ErrorCode ignored) {
-        deletion.run(false);
-
-        assertThat(deletion.target().getDeletedAt()).isEqualTo(NOW);
-    }
-
     @Test
     @DisplayName("TYPE-09 지운 목록 값은 모든 값 허용 항목이어도 고를 수 없고 선택지에서 빠진다")
     void deletedValueIsNotSelectable() {
