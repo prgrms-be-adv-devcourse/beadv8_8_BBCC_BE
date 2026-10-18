@@ -18,6 +18,7 @@ import lombok.NoArgsConstructor;
 /**
  * 총장 · 어깨너비처럼 상품을 재는 실측 항목이다. 말단 카테고리가 어떤 실측 항목을 필수로 받는지 정할 때 쓴다.
  * 코드는 실측 값의 키로 쓰이므로 바꾸지 않는다.
+ * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
  */
 @Entity
 @Table(schema = "product", name = "measurement_item")

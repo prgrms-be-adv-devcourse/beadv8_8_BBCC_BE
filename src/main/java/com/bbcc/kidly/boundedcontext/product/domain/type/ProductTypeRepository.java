@@ -12,7 +12,7 @@ public interface ProductTypeRepository {
     // ID로 상품 유형을 찾는다
     Optional<ProductType> findById(Long id);
 
-    // 지우지 않은 상품 유형만 ID 순서로 돌려준다. 선택지 조회에 쓴다 (TYPE-09)
+    // 지우지 않은 상품 유형만 ID 순서로 돌려준다. 관리자 목록에 쓴다 (TYPE-09)
     List<ProductType> findAllByDeletedAtIsNullOrderByIdAsc();
 
     // 저장된 상품 유형의 수를 돌려준다

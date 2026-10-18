@@ -12,6 +12,7 @@ import java.util.Set;
  * 옵션 항목은 값을 하나 고르는 입력 방식이어야 한다.
  * 모든 값을 허용하지 않는 항목(텍스트 제외)은 허용 값이 있어야 하고, 모든 값을 허용하는 항목은 허용 값이 없어야 하며,
  * 허용 값은 그 항목의 목록 값이어야 한다.
+ * 지운 항목은 연결할 수 없고, 지운 허용 값은 지금 연결에 없던 것을 새로 넣을 때만 거절한다(TYPE-10).
  */
 final class ProductTypeLinkCheck {
 
@@ -50,6 +51,32 @@ final class ProductTypeLinkCheck {
         if (hasAllowedValueOfOtherAttribute(links)) {
             throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUE_OF_OTHER_ATTRIBUTE);
         }
+        for (ProductType.LinkInfo link : links) {
+            if (link.attribute().isDeleted()) {
+                throw new BusinessException(ProductTypeErrorCode.DELETED_REFERENCE);
+            }
+        }
+    }
+
+    // 지금 연결에 없던 지운 값을 허용 값으로 새로 넣으면 거절한다. 이미 연결된 값이 나중에 지워진 것은 그대로 받는다
+    static void requireNoNewDeletedAllowedValue(
+        List<ProductType.LinkInfo> links, List<ProductTypeAllowedValue> currentAllowed) {
+        for (ProductType.LinkInfo link : links) {
+            for (AttributeValue value : link.allowedValues()) {
+                if (value.isDeleted() && !isCurrentlyAllowed(value, currentAllowed)) {
+                    throw new BusinessException(ProductTypeErrorCode.DELETED_REFERENCE);
+                }
+            }
+        }
+    }
+
+    private static boolean isCurrentlyAllowed(AttributeValue value, List<ProductTypeAllowedValue> currentAllowed) {
+        for (ProductTypeAllowedValue allowed : currentAllowed) {
+            if (allowed.getAttributeValue() == value) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasDuplicatedAttribute(List<ProductType.LinkInfo> links) {

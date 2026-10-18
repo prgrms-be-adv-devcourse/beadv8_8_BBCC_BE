@@ -24,6 +24,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 상품 유형이다. 의류처럼 종류마다 옵션 항목과 정보 항목을 정해 둔다.
+ * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
  */
 @Entity
 @Table(schema = "product", name = "product_type")
@@ -74,6 +75,7 @@ public class ProductType extends BaseSoftDeleteEntity {
     public void change(List<LinkInfo> links, boolean hasProducts) {
         requireNonNullLinks(links);
         ProductTypeLinkCheck.requireValid(links);
+        ProductTypeLinkCheck.requireNoNewDeletedAllowedValue(links, allowedValues);
         if (hasProducts && ProductTypeChangeCheck.breaksProducts(this, links)) {
             throw new BusinessException(ProductTypeErrorCode.CHANGE_BREAKS_PRODUCTS);
         }

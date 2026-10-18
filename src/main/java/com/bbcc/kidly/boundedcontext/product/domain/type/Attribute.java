@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 색상 · 사이즈 · 주요소재 같은 항목이다. 코드는 검색 키로 쓰이므로 바꾸지 않는다.
+ * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
  */
 @Entity
 @Table(schema = "product", name = "attribute")

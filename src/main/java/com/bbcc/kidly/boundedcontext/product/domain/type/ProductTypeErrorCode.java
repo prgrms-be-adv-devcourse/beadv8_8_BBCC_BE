@@ -29,6 +29,7 @@ public enum ProductTypeErrorCode implements ErrorCode {
     CHANGE_BREAKS_PRODUCTS(HttpStatus.CONFLICT, "상품이 있는 유형은 바꿀 수 없는 설정입니다",
         "상품이 있는 유형은 허용 값 추가, 모든 값 허용으로 넓히기, 선택 정보 항목 추가, 필수 항목을 선택으로 바꾸기, "
             + "옵션 항목이 아닌 순서 변경만 할 수 있습니다."),
+    DELETED_REFERENCE(HttpStatus.BAD_REQUEST, "고를 수 없는 기준 데이터입니다", "지운 항목이나 목록 값은 연결할 수 없습니다."),
     PRODUCT_TYPE_NOT_FOUND(HttpStatus.NOT_FOUND, "상품 유형을 찾을 수 없습니다", "상품 유형을 다시 확인해 주세요."),
     PRODUCT_TYPE_IN_USE(HttpStatus.CONFLICT, "지울 수 없는 상품 유형입니다",
         "카테고리가 가리키는 상품 유형은 지울 수 없습니다. 카테고리의 유형을 먼저 바꿔 주세요.");

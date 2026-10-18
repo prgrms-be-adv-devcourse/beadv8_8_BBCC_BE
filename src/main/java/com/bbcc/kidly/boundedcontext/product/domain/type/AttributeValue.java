@@ -18,6 +18,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 항목에서 고르는 값이다(예: 사이즈 110). 팔레트 값은 색 코드도 가진다.
+ * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
  */
 @Entity
 @Table(schema = "product", name = "attribute_value")

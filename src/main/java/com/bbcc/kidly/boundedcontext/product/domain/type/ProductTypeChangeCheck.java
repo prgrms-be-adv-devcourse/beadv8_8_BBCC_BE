@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * 상품이 있는 유형은 기존 상품을 깨지 않는 변경만 받는다는 규칙을 검사한다.
- * 받는 변경은 허용 값 추가, 선택 정보 항목 추가, 필수 항목을 선택으로 바꾸기, 모든 값 허용으로 넓히기,
+ * 받는 변경은 허용 값 추가, 지운 허용 값 빼기, 선택 정보 항목 추가, 필수 항목을 선택으로 바꾸기, 모든 값 허용으로 넓히기,
  * 옵션 항목끼리의 순서는 그대로 두고 정보 항목의 순서를 바꾸는 것뿐이다.
  * 옵션 이름은 연결 순서로 만들어지므로, 옵션 항목끼리의 순서가 바뀌면 같은 상품 안에서 옵션 이름의 순서가 섞인다.
  */
@@ -67,6 +67,10 @@ final class ProductTypeChangeCheck {
         Attribute attribute, List<ProductTypeAllowedValue> currentAllowed, ProductType.LinkInfo info) {
         for (ProductTypeAllowedValue allowed : currentAllowed) {
             AttributeValue value = allowed.getAttributeValue();
+            // 지운 값은 새 상품이 고를 수 없고 이미 쓰는 상품은 그대로 두므로 빼도 상품이 깨지지 않는다
+            if (value.isDeleted()) {
+                continue;
+            }
             if (value.getAttribute() == attribute && !info.allowedValues().contains(value)) {
                 return true;
             }

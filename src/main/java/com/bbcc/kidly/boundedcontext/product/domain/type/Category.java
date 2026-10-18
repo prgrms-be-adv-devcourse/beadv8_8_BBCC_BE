@@ -28,6 +28,7 @@ import lombok.NoArgsConstructor;
 /**
  * 상품을 분류하는 카테고리다. 카테고리는 계층을 이루며, 말단 카테고리만 상품 유형과 필수 실측 항목을 가지고
  * 중간 카테고리는 둘 다 없다.
+ * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
  */
 @Entity
 @Table(schema = "product", name = "category")
@@ -70,6 +71,7 @@ public class Category extends BaseSoftDeleteEntity {
         requireNonNull(name, "name은 필수입니다");
         rejectBlankName(name);
         rejectLeafParent(parent);
+        rejectDeletedReferences(parent, null, List.of());
         Category category = new Category();
         category.name = name;
         category.parent = parent;
@@ -85,6 +87,7 @@ public class Category extends BaseSoftDeleteEntity {
         rejectDuplicatedMeasurementItems(info.measurementItems());
         rejectBlankName(info.name());
         rejectLeafParent(info.parent());
+        rejectDeletedReferences(info.parent(), info.productType(), info.measurementItems());
         Category category = new Category();
         category.name = info.name();
         category.parent = info.parent();
@@ -106,6 +109,7 @@ public class Category extends BaseSoftDeleteEntity {
         if (!isLeaf()) {
             throw new BusinessException(CategoryErrorCode.MIDDLE_CATEGORY_NOT_CHANGEABLE);
         }
+        rejectDeletedReferences(null, productType, measurementItems);
         if (hasProducts && breaksProducts(productType, measurementItems)) {
             throw new BusinessException(CategoryErrorCode.CHANGE_BREAKS_PRODUCTS);
         }
@@ -158,6 +162,23 @@ public class Category extends BaseSoftDeleteEntity {
     private static void rejectBlankName(String name) {
         if (name.isBlank()) {
             throw new IllegalArgumentException("카테고리 이름은 비어 있을 수 없습니다");
+        }
+    }
+
+    // 지운 부모 카테고리 · 상품 유형 · 실측 항목은 새로 고를 수 없다(TYPE-10: 지운 기준 데이터는 새로 연결하지 않는다).
+    // 부모와 유형은 지연 로딩 프록시일 수 있으므로 메서드로 읽는다
+    private static void rejectDeletedReferences(
+        Category parent, ProductType productType, List<MeasurementItem> measurementItems) {
+        if (parent != null && parent.isDeleted()) {
+            throw new BusinessException(CategoryErrorCode.DELETED_REFERENCE);
+        }
+        if (productType != null && productType.isDeleted()) {
+            throw new BusinessException(CategoryErrorCode.DELETED_REFERENCE);
+        }
+        for (MeasurementItem item : measurementItems) {
+            if (item.isDeleted()) {
+                throw new BusinessException(CategoryErrorCode.DELETED_REFERENCE);
+            }
         }
     }
 
