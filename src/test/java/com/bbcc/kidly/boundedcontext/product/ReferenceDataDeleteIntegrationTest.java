@@ -1,8 +1,14 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
@@ -13,8 +19,11 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -80,6 +89,41 @@ class ReferenceDataDeleteIntegrationTest {
                 (test, saved) -> test.categoryRepository.existsByMeasurementItemsMeasurementItemAndDeletedAtIsNull(
                     saved.top().getMeasurementItems().get(0).getMeasurementItem()),
                 SavedClothingTop::top)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("recreations")
+    @DisplayName("TYPE-11 지운 목록 값 · 카테고리와 같은 이름은 같은 항목 · 부모 아래에 다시 만들 수 있다")
+    void recreateWithNameOfDeleted(Function<SavedClothingTop, BaseSoftDeleteEntity> deleted,
+        Function<SavedClothingTop, Object> sameName) {
+        SavedClothingTop saved = clothingTopSaver.save();
+        inTransaction(() -> managed(deleted.apply(saved)).delete(NOW));
+
+        assertThatCode(() -> inTransaction(() -> entityManager.persist(sameName.apply(saved))))
+            .doesNotThrowAnyException();
+    }
+
+    static Stream<Arguments> recreations() {
+        return Stream.of(
+            Arguments.of(Named.of("목록 값 네이비", (Function<SavedClothingTop, BaseSoftDeleteEntity>)
+                    saved -> saved.clothing().navy()),
+                (Function<SavedClothingTop, Object>) saved -> AttributeValue.create(
+                    saved.clothing().navy().getAttribute(), "네이비", "#2f3e5c")),
+            Arguments.of(Named.of("의류 아래 상의", (Function<SavedClothingTop, BaseSoftDeleteEntity>)
+                    SavedClothingTop::top),
+                (Function<SavedClothingTop, Object>) saved -> Category.createMiddle("상의", saved.clothingCategory())));
+    }
+
+    @Test
+    @DisplayName("TYPE-11 항목 코드는 지운 항목과 같아도 거절한다")
+    void rejectCodeOfDeletedAttribute() {
+        SavedClothingTop saved = clothingTopSaver.save();
+        Attribute stripe = saved.clothing().stripe().getAttribute();
+        inTransaction(() -> managed(stripe).delete(NOW));
+
+        assertThatThrownBy(() -> inTransaction(() -> entityManager.persist(
+            Attribute.create("무늬", stripe.getCode(), AttributeInputType.LIST))))
+            .isInstanceOf(ConstraintViolationException.class);
     }
 
     // 엔티티를 바꾸는 트랜잭션에서 다시 읽은 객체를 돌려준다
