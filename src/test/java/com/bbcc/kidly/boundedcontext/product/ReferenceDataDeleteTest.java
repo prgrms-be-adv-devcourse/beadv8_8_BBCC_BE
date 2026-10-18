@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeErrorCode;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
@@ -15,10 +16,12 @@ import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.ErrorCode;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -57,6 +60,21 @@ class ReferenceDataDeleteTest {
         deletion.run(false);
 
         assertThat(deletion.target().getDeletedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("TYPE-09 지운 목록 값은 모든 값 허용 항목이어도 고를 수 없고 선택지에서 빠진다")
+    void deletedValueIsNotSelectable() {
+        Attribute color = ProductTypeFixture.color();
+        AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
+        AttributeValue red = AttributeValue.create(color, "레드", "#d64545");
+        ProductType type = ProductType.define("의류", List.of(ProductTypeFixture.requiredOption(color)));
+
+        red.delete(NOW);
+
+        assertThat(type.allows(red)).isFalse();
+        assertThat(type.allows(navy)).isTrue();
+        assertThat(type.selectableValues(List.of(navy, red))).containsExactly(navy);
     }
 
     static Stream<Arguments> deletionsInUse() {
