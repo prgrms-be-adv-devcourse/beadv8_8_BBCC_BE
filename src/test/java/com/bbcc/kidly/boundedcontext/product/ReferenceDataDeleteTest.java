@@ -50,6 +50,15 @@ class ReferenceDataDeleteTest {
         assertThat(deletion.target().isDeleted()).isFalse();
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("deletionsInUse")
+    @DisplayName("쓰이지 않는 항목 · 상품 유형 · 카테고리 · 실측 항목은 지운 시각을 남겨 지운다")
+    void deleteNotInUse(Deletion<?> deletion, ErrorCode ignored) {
+        deletion.run(false);
+
+        assertThat(deletion.target().getDeletedAt()).isEqualTo(NOW);
+    }
+
     static Stream<Arguments> deletionsInUse() {
         return Stream.of(
             Arguments.of(named("유형에 연결된 항목", new Deletion<>(ProductTypeFixture.color(),
