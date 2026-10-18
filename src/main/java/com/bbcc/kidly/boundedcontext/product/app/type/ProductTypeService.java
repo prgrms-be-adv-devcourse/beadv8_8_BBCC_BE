@@ -70,7 +70,8 @@ public class ProductTypeService {
     }
 
     private ProductType.LinkInfo toLinkInfo(ProductTypeCreateRequest.Link link) {
-        Attribute attribute = attributeRepository.getById(link.attributeId());
+        // 지우는 요청이 커밋되기 전이면 기다렸다가, 지운 것이면 400으로 거절한다(TYPE-10)
+        Attribute attribute = attributeRepository.getByIdForShare(link.attributeId());
         List<AttributeValue> allowedValues = new ArrayList<>();
         for (Long valueId : link.allowedValueIds()) {
             allowedValues.add(attributeValueRepository.getById(valueId));
@@ -124,7 +125,8 @@ public class ProductTypeService {
     // 상품 유형을 지운다. 지우지 않은 카테고리가 가리키는지는 읽어 넘기고, 지울 수 있는지는 유형이 판단한다 (TYPE-10)
     @Transactional
     public void delete(Long productTypeId) {
-        ProductType productType = productTypeRepository.getById(productTypeId);
+        // 쓰이는 중인지 읽은 뒤 지우기 전에 다른 요청이 연결하지 못하게 한다(TYPE-10)
+        ProductType productType = productTypeRepository.getByIdForUpdate(productTypeId);
         boolean inUse = categoryRepository.existsByProductTypeAndDeletedAtIsNull(productType);
         productType.delete(LocalDateTime.now(), inUse);
     }

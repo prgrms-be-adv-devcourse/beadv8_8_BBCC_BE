@@ -40,7 +40,8 @@ public class MeasurementItemService {
     // 실측 항목을 지운다. 지우지 않은 카테고리가 필수로 연결했는지는 읽어 넘기고, 지울 수 있는지는 실측 항목이 판단한다 (TYPE-10)
     @Transactional
     public void delete(Long measurementItemId) {
-        MeasurementItem item = measurementItemRepository.getById(measurementItemId);
+        // 쓰이는 중인지 읽은 뒤 지우기 전에 다른 요청이 연결하지 못하게 한다(TYPE-10)
+        MeasurementItem item = measurementItemRepository.getByIdForUpdate(measurementItemId);
         boolean inUse = categoryRepository.existsByMeasurementItemsMeasurementItemAndDeletedAtIsNull(item);
         item.delete(LocalDateTime.now(), inUse);
     }
