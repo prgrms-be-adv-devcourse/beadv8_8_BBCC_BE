@@ -5,16 +5,26 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
+import com.bbcc.kidly.boundedcontext.product.app.type.AttributeService;
+import com.bbcc.kidly.boundedcontext.product.app.type.CategoryService;
+import com.bbcc.kidly.boundedcontext.product.app.type.MeasurementItemService;
+import com.bbcc.kidly.boundedcontext.product.app.type.ProductTypeService;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryCreateRequest;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.MeasurementItemResult;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -46,6 +56,18 @@ class ReferenceDataDeleteIntegrationTest {
 
     @Autowired
     private CategoryRepository categoryRepository;
+
+    @Autowired
+    private CategoryService categoryService;
+
+    @Autowired
+    private AttributeService attributeService;
+
+    @Autowired
+    private ProductTypeService productTypeService;
+
+    @Autowired
+    private MeasurementItemService measurementItemService;
 
     @Autowired
     private EntityManager entityManager;
@@ -124,6 +146,39 @@ class ReferenceDataDeleteIntegrationTest {
         assertThatThrownBy(() -> inTransaction(() -> entityManager.persist(
             Attribute.create("무늬", stripe.getCode(), AttributeInputType.LIST))))
             .isInstanceOf(ConstraintViolationException.class);
+    }
+
+    @Test
+    @DisplayName("TYPE-09 관리자 목록과 카테고리 트리는 지운 유형 · 항목 · 목록 값 · 실측 항목 · 카테고리를 뺀다")
+    void listsExcludeDeleted() {
+        SavedClothingTop saved = clothingTopSaver.save();
+        MeasurementItem totalLength = saved.top().getMeasurementItems().get(0).getMeasurementItem();
+        inTransaction(() -> Stream.of(saved.clothing().oatmeal(), saved.clothing().stripe().getAttribute(),
+                saved.top(), saved.clothing().type(), totalLength)
+            .forEach(entity -> managed(entity).delete(NOW)));
+
+        assertThat(categoryService.findTree()).singleElement()
+            .satisfies(clothing -> assertThat(clothing.children()).isEmpty());
+        assertThat(categoryService.findAll()).extracting(CategoryResult::name).containsExactly("의류");
+        assertThat(productTypeService.findAll()).isEmpty();
+        assertThat(measurementItemService.findAll()).extracting(MeasurementItemResult::code)
+            .doesNotContain(totalLength.getCode());
+        List<AttributeResult> attributes = attributeService.findAll();
+        assertThat(attributes).extracting(AttributeResult::code)
+            .doesNotContain(saved.clothing().stripe().getAttribute().getCode());
+        assertThat(attributes).filteredOn(attribute -> attribute.code().equals("COLOR")).singleElement()
+            .satisfies(color -> assertThat(color.values()).extracting(AttributeResult.Value::name)
+                .contains("네이비").doesNotContain("오트밀"));
+    }
+
+    @Test
+    @DisplayName("TYPE-11 지운 최상위 카테고리와 같은 이름의 최상위 카테고리는 다시 만들 수 있다")
+    void recreateTopLevelCategoryWithNameOfDeleted() {
+        SavedClothingTop saved = clothingTopSaver.save();
+        inTransaction(() -> managed(saved.clothingCategory()).delete(NOW));
+
+        assertThatCode(() -> categoryService.create(new CategoryCreateRequest("의류", null, null, List.of())))
+            .doesNotThrowAnyException();
     }
 
     // 엔티티를 바꾸는 트랜잭션에서 다시 읽은 객체를 돌려준다
