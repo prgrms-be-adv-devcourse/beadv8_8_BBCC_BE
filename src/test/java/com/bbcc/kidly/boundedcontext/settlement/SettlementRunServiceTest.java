@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementRunService;
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementSkipRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDate;
 import java.util.Set;
@@ -42,6 +44,9 @@ class SettlementRunServiceTest {
 
     @Mock
     private Job settlementJob;
+
+    @Mock
+    private SettlementSkipRepository settlementSkipRepository;
 
     @InjectMocks
     private SettlementRunService settlementRunService;
@@ -103,6 +108,25 @@ class SettlementRunServiceTest {
         var failure = new DataAccessResourceFailureException("DB 연결 실패");
         startFails(failure);
         givenLastExecution(BatchStatus.FAILED);
+
+        assertThatThrownBy(this::runScheduled).isSameAs(failure);
+    }
+
+    @Test
+    @DisplayName("작업이 끝난 뒤 결과 조회가 실패하면 경쟁으로 판단하지 않고 그 예외를 던진다")
+    void resultLookupFailure() throws Exception {
+        given(jobRepository.getLastJobExecution(eq(SettlementJobConfig.JOB_NAME), any(JobParameters.class)))
+            .willReturn(null);
+        given(jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME)).willReturn(Set.of());
+        var completed = new JobExecution(1L, INSTANCE, new JobParameters());
+        completed.setStatus(BatchStatus.COMPLETED);
+        given(jobOperator.start(eq(settlementJob), any(JobParameters.class))).willReturn(completed);
+        var failure = new DataAccessResourceFailureException("DB 연결 실패");
+        given(settlementSkipRepository.findAllByJobExecutionIdOrderByIdAsc(1L)).willThrow(failure);
+        // 경쟁으로 판단했다면 이 상태를 읽고 SETTLEMENT_ALREADY_RUN을 던졌을 것이다
+        lenient().when(jobRepository.getJobInstance(eq(SettlementJobConfig.JOB_NAME), any(JobParameters.class)))
+            .thenReturn(INSTANCE);
+        lenient().when(jobRepository.getLastJobExecution(INSTANCE)).thenReturn(completed);
 
         assertThatThrownBy(this::runScheduled).isSameAs(failure);
     }
