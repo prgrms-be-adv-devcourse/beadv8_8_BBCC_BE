@@ -13,6 +13,7 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -23,6 +24,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -146,6 +148,52 @@ class ReplicaEventIntegrationTest {
             "event_occurred_at", Timestamp.valueOf(OCCURRED_AT.plusMinutes(1))));
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.replica_seller", Long.class))
             .isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("같은 product · child · seller 이벤트가 두 번 와도 복사본 행 수 · 값(갱신 시각 포함)이 첫 번째 반영 그대로")
+    void sameEventsTwiceKeepReplicas() {
+        ProductChangedEvent product = new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+            new ProductChangedEvent.Data(1L, SELLER_ID, "상품 A", 1L, ProductStatus.ON_SALE, null,
+                OCCURRED_AT.minusDays(1), false, List.of(
+                    new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
+                        null, null, false, OptionSaleStatus.ON_SALE),
+                    new ProductChangedEvent.Option(2L, "색상: 네이비 / 사이즈: 120", "120", 25_000L,
+                        null, null, true, OptionSaleStatus.ON_SALE))));
+        ChildChangedEvent child = new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+            new ChildChangedEvent.Data(1L, BUYER_ID, new BigDecimal("115.0"), new BigDecimal("20.0"),
+                Gender.MALE, LocalDate.of(2019, 1, 1), BodyType.NORMAL, PreferredFit.LOOSE, false));
+        SellerChangedEvent seller = new SellerChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+            new SellerChangedEvent.Data(SELLER_ID, "키들리샵", SellerStatus.ACTIVE));
+
+        publishAll(product, child, seller);
+        List<Map<String, Object>> first = replicaRows();
+        publishAll(product, child, seller);
+
+        assertThat(replicaRows()).isEqualTo(first);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.replica_product", Long.class))
+            .isEqualTo(2L);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.replica_child", Long.class))
+            .isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.replica_seller", Long.class))
+            .isEqualTo(1L);
+    }
+
+    private void publishAll(DomainEvent... events) {
+        transactionTemplate.executeWithoutResult(status -> {
+            for (DomainEvent event : events) {
+                eventPublisher.publish(event);
+            }
+        });
+    }
+
+    // 세 복사본 테이블의 모든 행 · 모든 칼럼
+    private List<Map<String, Object>> replicaRows() {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        rows.addAll(jdbcTemplate.queryForList("select * from orders.replica_product order by option_id"));
+        rows.addAll(jdbcTemplate.queryForList("select * from orders.replica_child order by child_id"));
+        rows.addAll(jdbcTemplate.queryForList("select * from orders.replica_seller order by seller_id"));
+        return rows;
     }
 
     private Map<String, Object> storedSeller() {

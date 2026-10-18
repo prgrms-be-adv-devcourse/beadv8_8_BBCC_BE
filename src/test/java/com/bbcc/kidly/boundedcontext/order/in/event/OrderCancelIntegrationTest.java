@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
@@ -78,6 +79,9 @@ class OrderCancelIntegrationTest {
     @Autowired
     private DeliveryRepository deliveryRepository;
 
+    @Autowired
+    private OrderStatusHistoryRepository historyRepository;
+
     @BeforeEach
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
@@ -102,6 +106,27 @@ class OrderCancelIntegrationTest {
         assertThat(cancelled.get(0).data().items().get(0).orderItemId())
             .isEqualTo(order.items().get(0).orderItemId());
         assertThat(cancelled.get(0).data().items().get(0).quantity()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("같은 결제 실패 이벤트가 두 번 와도 취소 1번 · order.cancelled 1건 · 사유 PAYMENT_FAILED 그대로 · 취소 이력 1줄")
+    void duplicatePaymentFailureCancelsOnce() {
+        OrderDetail order = place();
+        PaymentFailedEvent failed = new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentFailedEvent.Data(500L, order.orderId(), BUYER_ID, order.totalAmount(),
+                PaymentFailureCode.INSUFFICIENT_BALANCE, LocalDateTime.now()));
+
+        publish(failed);
+        long version = versionOf(order.orderId());
+        publish(failed);
+
+        assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_FAILED);
+        assertThat(versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
+        List<OrderCancelledEvent> cancelled = events.stream(OrderCancelledEvent.class).toList();
+        assertThat(cancelled).hasSize(1);
+        assertThat(cancelled.get(0).data().reason()).isEqualTo("PAYMENT_FAILED");
+        assertThat(cancelRows(order.orderId()))
+            .containsExactly("PENDING_PAYMENT>CANCELLED PAYMENT_FAILED payment.failed");
     }
 
     @Test
@@ -131,6 +156,23 @@ class OrderCancelIntegrationTest {
         List<OrderCancelledEvent> cancelled = events.stream(OrderCancelledEvent.class).toList();
         assertThat(cancelled).hasSize(1);
         assertThat(cancelled.get(0).data().reason()).isEqualTo("PAYMENT_EXPIRED");
+    }
+
+    @Test
+    @DisplayName("결제 마감 만료 스케줄러를 두 번 실행해도 취소 1번 · order.cancelled 1건 · 취소 이력 1줄")
+    void expiryRunTwiceCancelsOnce() {
+        OrderDetail order = place();
+        makeOverdue(order.orderId());
+
+        orderScheduler.expireOverduePayments();
+        long version = versionOf(order.orderId());
+        orderScheduler.expireOverduePayments();
+
+        assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
+        assertThat(versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(events.stream(OrderCancelledEvent.class).toList()).hasSize(1);
+        assertThat(cancelRows(order.orderId()))
+            .containsExactly("PENDING_PAYMENT>CANCELLED PAYMENT_EXPIRED scheduler:payment-expiry");
     }
 
     @Test
@@ -206,6 +248,19 @@ class OrderCancelIntegrationTest {
     private void makeOverdue(Long orderId) {
         jdbcTemplate.update("update orders.orders set payment_due_at = ? where id = ?",
             LocalDateTime.now().minusMinutes(1), orderId);
+    }
+
+    private long versionOf(Long orderId) {
+        return jdbcTemplate.queryForObject("select version from orders.orders where id = ?", Long.class, orderId);
+    }
+
+    // 주문의 상태 이력 중 취소 줄만 "이전>다음 사유 출처"로
+    private List<String> cancelRows(Long orderId) {
+        return historyRepository.findAllByOrderIdOrderByOccurredAtAscIdAsc(orderId).stream()
+            .filter(history -> "CANCELLED".equals(String.valueOf(history.getToStatus())))
+            .map(history -> history.getFromStatus() + ">" + history.getToStatus() + " " + history.getReason() + " "
+                + history.getSource())
+            .toList();
     }
 
     private void assertCancelled(Long orderId, Order.CancelReason reason) {
