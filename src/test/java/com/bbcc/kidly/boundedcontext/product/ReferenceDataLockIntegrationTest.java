@@ -6,15 +6,23 @@ import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductRegistrationService;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductRegisterRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.CategoryService;
+import com.bbcc.kidly.boundedcontext.product.app.type.ProductTypeService;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryChangeRequest;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeChangeRequest;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAllowedValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -47,6 +55,9 @@ class ReferenceDataLockIntegrationTest {
 
     @Autowired
     private CategoryService categoryService;
+
+    @Autowired
+    private ProductTypeService productTypeService;
 
     @Autowired
     private EntityManager entityManager;
@@ -101,6 +112,21 @@ class ReferenceDataLockIntegrationTest {
 
         assertThat(outcome.waited()).isFalse();
         assertThat(outcome.error()).isNull();
+    }
+
+    @Test
+    @DisplayName("TYPE-07 첫 상품 등록이 커밋되기 전이면 유형에 필수 정보 항목을 더하는 변경은 등록을 기다렸다가 409로 거절된다")
+    void productTypeChangeWaitsForFirstRegistration() throws Exception {
+        SavedClothingTop saved = clothingTopSaver.save();
+        ProductTypeChangeRequest addRequiredInfo = linksWithRequiredSeason(saved);
+
+        Outcome outcome = race(
+            () -> productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)),
+            () -> productTypeService.change(saved.clothing().type().getId(), addRequiredInfo));
+
+        assertThat(outcome.waited()).isTrue();
+        assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.CHANGE_BREAKS_PRODUCTS));
     }
 
     // 앞의 작업을 바깥 트랜잭션에서 실행하고 커밋 직전에 멈춘 채 뒤의 작업을 시작한다. 뒤의 작업이 끝나지 않는지 본 뒤 앞을 커밋한다
@@ -158,6 +184,29 @@ class ReferenceDataLockIntegrationTest {
             ProductType otherType = ProductType.define("다른 유형", List.of(ProductTypeFixture.requiredOption(color)));
             entityManager.persist(otherType);
             return otherType;
+        });
+    }
+
+    // 의류 유형의 지금 연결을 그대로 두고 필수 정보 항목 「계절」을 끝에 더하는 변경 요청이다. 계절 항목은 여기서 저장한다
+    private ProductTypeChangeRequest linksWithRequiredSeason(SavedClothingTop saved) {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            Attribute season = Attribute.create("계절", "SEASON", AttributeInputType.LIST);
+            entityManager.persist(season);
+            ProductType type = entityManager.find(ProductType.class, saved.clothing().type().getId());
+            List<ProductTypeCreateRequest.Link> links = new ArrayList<>();
+            for (ProductTypeAttribute link : type.getAttributes()) {
+                List<Long> allowedValueIds = new ArrayList<>();
+                for (ProductTypeAllowedValue allowed : type.getAllowedValues()) {
+                    if (allowed.getAttributeValue().getAttribute() == link.getAttribute()) {
+                        allowedValueIds.add(allowed.getAttributeValue().getId());
+                    }
+                }
+                links.add(new ProductTypeCreateRequest.Link(link.getAttribute().getId(), link.getRole().name(),
+                    link.isRequired(), link.isAllValuesAllowed(), link.isSizeRole(), link.isPriceAffecting(),
+                    allowedValueIds));
+            }
+            links.add(new ProductTypeCreateRequest.Link(season.getId(), "INFO", true, true, false, false, List.of()));
+            return new ProductTypeChangeRequest(links);
         });
     }
 
