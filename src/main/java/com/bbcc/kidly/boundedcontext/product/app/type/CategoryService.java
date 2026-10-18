@@ -20,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -202,5 +203,13 @@ public class CategoryService {
             link.isSizeRole(),
             link.isPriceAffecting(),
             values);
+    }
+
+    // 카테고리를 지운다. 지우지 않은 하위 카테고리가 있는지는 읽어 넘기고, 지울 수 있는지는 카테고리가 판단한다 (TYPE-10)
+    @Transactional
+    public void delete(Long categoryId) {
+        Category category = categoryRepository.getById(categoryId);
+        boolean inUse = categoryRepository.existsByParentAndDeletedAtIsNull(category);
+        category.delete(LocalDateTime.now(), inUse);
     }
 }

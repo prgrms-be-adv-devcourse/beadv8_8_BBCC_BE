@@ -4,10 +4,14 @@ import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeCreateRequest
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeValueRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
+import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
+import com.bbcc.kidly.global.error.BusinessException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,6 +26,7 @@ public class AttributeService {
 
     private final AttributeRepository attributeRepository;
     private final AttributeValueRepository attributeValueRepository;
+    private final ProductTypeRepository productTypeRepository;
 
     // 항목을 저장하고 목록 값을 요청한 순서대로 저장한다. 그래서 값 ID가 넣은 순서대로 붙는다
     @Transactional
@@ -73,5 +78,23 @@ public class AttributeService {
         AttributeValue value = attributeValueRepository.save(
             AttributeValue.create(attribute, input.name(), input.colorCode()));
         return new AttributeResult.Value(value.getId(), value.getName(), value.getColorCode());
+    }
+
+    // 항목을 지운다. 지우지 않은 상품 유형에 연결된 항목인지는 읽어 넘기고, 지울 수 있는지는 항목이 판단한다 (TYPE-10)
+    @Transactional
+    public void delete(Long attributeId) {
+        Attribute attribute = attributeRepository.getById(attributeId);
+        boolean inUse = productTypeRepository.existsByAttributesAttributeAndDeletedAtIsNull(attribute);
+        attribute.delete(LocalDateTime.now(), inUse);
+    }
+
+    // 목록 값을 지운다. 다른 항목의 값이면 없는 값으로 본다. 목록 값은 막는 경우가 없다
+    @Transactional
+    public void deleteValue(Long attributeId, Long valueId) {
+        AttributeValue value = attributeValueRepository.getById(valueId);
+        if (!value.getAttribute().getId().equals(attributeId)) {
+            throw new BusinessException(AttributeErrorCode.ATTRIBUTE_VALUE_NOT_FOUND);
+        }
+        value.delete(LocalDateTime.now());
     }
 }

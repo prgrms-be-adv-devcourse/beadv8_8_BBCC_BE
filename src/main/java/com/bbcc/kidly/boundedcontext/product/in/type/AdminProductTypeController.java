@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +23,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 상품 유형 API. 유형과 그 유형에 연결할 항목을 만들고 바꾼다.
+ * 관리자 상품 유형 API. 유형과 그 유형에 연결할 항목을 만들고 바꾸고 지운다.
  */
 @RestController
 @RequestMapping("/api/v1/admin/product-types")
@@ -53,5 +54,11 @@ public class AdminProductTypeController {
             responses.add(ProductTypeResponse.from(result));
         }
         return responses;
+    }
+
+    @DeleteMapping("/{productTypeId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long productTypeId) {
+        productTypeService.delete(productTypeId);
     }
 }

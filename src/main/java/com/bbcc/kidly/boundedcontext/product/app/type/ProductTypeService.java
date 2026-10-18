@@ -10,10 +10,12 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValueRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAllowedValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -29,6 +31,7 @@ public class ProductTypeService {
     private final AttributeRepository attributeRepository;
     private final AttributeValueRepository attributeValueRepository;
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
 
     // 항목과 허용 값을 읽어 유형을 만든다. 유형 규칙의 검사는 도메인이 한다
     @Transactional
@@ -115,5 +118,13 @@ public class ProductTypeService {
             results.add(new AttributeResult.Value(value.getId(), value.getName(), value.getColorCode()));
         }
         return results;
+    }
+
+    // 상품 유형을 지운다. 지우지 않은 카테고리가 가리키는지는 읽어 넘기고, 지울 수 있는지는 유형이 판단한다 (TYPE-10)
+    @Transactional
+    public void delete(Long productTypeId) {
+        ProductType productType = productTypeRepository.getById(productTypeId);
+        boolean inUse = categoryRepository.existsByProductTypeAndDeletedAtIsNull(productType);
+        productType.delete(LocalDateTime.now(), inUse);
     }
 }

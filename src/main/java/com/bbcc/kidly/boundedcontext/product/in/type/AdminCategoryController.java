@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +23,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 카테고리 API. 카테고리를 만들고 조회하고 바꾼다.
+ * 관리자 카테고리 API. 카테고리를 만들고 조회하고 바꾸고 지운다.
  */
 @RestController
 @RequestMapping("/api/v1/admin/categories")
@@ -53,5 +54,11 @@ public class AdminCategoryController {
             responses.add(CategoryResponse.from(result));
         }
         return responses;
+    }
+
+    @DeleteMapping("/{categoryId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long categoryId) {
+        categoryService.delete(categoryId);
     }
 }
