@@ -109,6 +109,18 @@ class AdminCategoryChangeApiTest {
     }
 
     @Test
+    @DisplayName("TYPE-07 상품이 있는 카테고리도 상품 유형을 그대로 두고 필수 실측 항목만 빼면 200으로 받는다")
+    void acceptSameTypeChangeWithProducts() {
+        Category top = savedProductCategory();
+
+        put(categoryPath(top), categoryChange(clothing.type().getId(), List.of()))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.productTypeId").isEqualTo(String.valueOf(clothing.type().getId()))
+            .jsonPath("$.measurementItems").isEmpty();
+    }
+
+    @Test
     @DisplayName("없는 카테고리 · 상품 유형 · 실측 항목이면 404로 거절한다")
     void rejectUnknownCategoryReferences() {
         String unknownCategoryPath = "/api/v1/admin/categories/999999";
