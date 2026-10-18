@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
@@ -13,9 +14,11 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -92,9 +95,47 @@ class AdminReferenceDataDeleteApiTest {
                 saved -> List.of(saved.top()))));
     }
 
+    @Test
+    @DisplayName("TYPE-10 카테고리가 가리키는 상품 유형을 지우면 409로 거절한다")
+    void rejectDeletingInUse() {
+        SavedClothingTop saved = clothingTopSaver.save();
+
+        assertProblem(delete("/api/v1/admin/product-types/" + saved.clothing().type().getId()), HttpStatus.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("없는 기준 데이터나 경로의 항목에 속하지 않은 목록 값을 지우면 404로 거절한다")
+    void rejectUnknownTarget() {
+        SavedClothingTop saved = clothingTopSaver.save();
+        Long colorId = saved.clothing().navy().getAttribute().getId();
+
+        assertProblem(delete("/api/v1/admin/categories/999999"), HttpStatus.NOT_FOUND);
+        assertProblem(delete("/api/v1/admin/attributes/" + colorId + "/values/" + saved.clothing().size110().getId()),
+            HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("관리자가 아니면 기준 데이터를 지울 수 없다. 비로그인은 401, 구매자 · 판매자는 403이다")
+    void rejectNonAdmin() {
+        SavedClothingTop saved = clothingTopSaver.save();
+        String path = "/api/v1/admin/categories/" + saved.top().getId();
+
+        deleteWith(null, path).expectStatus().isUnauthorized();
+        deleteWith(tokens.buyer(1L), path).expectStatus().isForbidden();
+        deleteWith(tokens.seller(2L), path).expectStatus().isForbidden();
+    }
+
     private RestTestClient.ResponseSpec delete(String path) {
+        return deleteWith(tokens.admin(ADMIN_ID), path);
+    }
+
+    private RestTestClient.ResponseSpec deleteWith(String token, String path) {
         return client.delete().uri(path)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(headers -> {
+                if (token != null) {
+                    headers.setBearerAuth(token);
+                }
+            })
             .exchange();
     }
 
