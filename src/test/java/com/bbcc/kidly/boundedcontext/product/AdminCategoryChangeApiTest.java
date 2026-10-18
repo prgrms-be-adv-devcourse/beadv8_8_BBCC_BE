@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
@@ -158,18 +159,6 @@ class AdminCategoryChangeApiTest {
         body.put("measurementItemIds", measurementItemIds == null ? null
             : measurementItemIds.stream().map(id -> id == null ? null : String.valueOf(id)).toList());
         return body;
-    }
-
-    // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
-    private void assertProblem(RestTestClient.ResponseSpec response, HttpStatus status) {
-        response.expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").exists()
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").exists()
-            .jsonPath("$.instance").exists();
     }
 
     private static String categoryPath(Category category) {
