@@ -5,7 +5,6 @@ import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductRegisterRequ
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeChangeRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
-import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
@@ -63,7 +62,7 @@ class ReferenceDataLockSaver {
 
     // 정보 항목으로 연결할 「계절」 목록 항목을 저장한다
     Attribute saveSeason() {
-        return save(Attribute.create("계절", "SEASON", AttributeInputType.LIST));
+        return save(ProductTypeFixture.season());
     }
 
     <T> T save(T entity) {

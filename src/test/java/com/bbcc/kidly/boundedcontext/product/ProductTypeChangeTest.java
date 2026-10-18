@@ -10,6 +10,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredI
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.requiredOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.restrictedOption;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.restrictedSizeOption;
+import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.season;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeOption;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,7 +43,7 @@ class ProductTypeChangeTest {
     private static final Attribute MATERIAL = mainMaterial();
     private static final Attribute COMPOSITION = fabricComposition();
     private static final Attribute PATTERN = Attribute.create("패턴", "PATTERN", AttributeInputType.LIST);
-    private static final Attribute SEASON = Attribute.create("계절", "SEASON", AttributeInputType.LIST);
+    private static final Attribute SEASON = season();
     private static final AttributeValue NAVY = AttributeValue.create(COLOR, "네이비", "#2f3e5c");
     private static final AttributeValue GRAY = AttributeValue.create(COLOR, "그레이", "#9e9e9e");
     private static final AttributeValue WHITE = AttributeValue.create(COLOR, "화이트", "#ffffff");

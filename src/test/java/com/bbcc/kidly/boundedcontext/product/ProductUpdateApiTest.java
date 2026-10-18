@@ -11,15 +11,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
-import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
-import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem;
-import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
-import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
-import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -39,8 +34,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 판매자가 상품을 고치는 API를 HTTP 요청부터 응답까지 확인한다.
@@ -70,10 +63,7 @@ class ProductUpdateApiTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private EntityManager entityManager;
-
-    @Autowired
-    private PlatformTransactionManager transactionManager;
+    private ReferenceDataLockSaver saver;
 
     private SavedClothingTop saved;
 
@@ -265,7 +255,7 @@ class ProductUpdateApiTest {
     void rejectCategoryChangeAfterSaleStart() {
         startSale();
         Map<String, Object> body = updateBody(storedVersion());
-        body.put("categoryId", id(savedOuter()));
+        body.put("categoryId", id(saver.saveOuter(saved).getId()));
 
         expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.CONFLICT,
             "판매를 시작한 상품은 카테고리를 바꿀 수 없습니다", "판매를 시작한 상품은 지금 카테고리를 그대로 보내 주세요.");
@@ -385,22 +375,6 @@ class ProductUpdateApiTest {
             .exchange()
             .expectStatus().isOk();
         eventRecorder.clear();
-    }
-
-    // 상의와 같은 유형 · 같은 필수 실측 항목을 쓰는 아우터 카테고리를 저장하고 ID를 돌려준다
-    private Long savedOuter() {
-        return new TransactionTemplate(transactionManager).execute(status -> {
-            Category top = entityManager.find(Category.class, saved.top().getId());
-            List<MeasurementItem> items = new ArrayList<>();
-            for (CategoryMeasurementItem link : top.getMeasurementItems()) {
-                items.add(link.getMeasurementItem());
-            }
-            Category outer = Category.createLeaf(new Category.LeafInfo("아우터",
-                entityManager.find(Category.class, saved.clothingCategory().getId()),
-                entityManager.find(ProductType.class, saved.clothing().type().getId()), items));
-            entityManager.persist(outer);
-            return outer.getId();
-        });
     }
 
     private List<Long> optionIds() {

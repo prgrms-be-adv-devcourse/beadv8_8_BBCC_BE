@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ReferenceDataLockSaver.infoLink;
 import static com.bbcc.kidly.boundedcontext.product.ReferenceDataLockSaver.registerRequest;
+import static com.bbcc.kidly.boundedcontext.product.TransactionRace.assertWaitedThenRejected;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
@@ -19,11 +20,17 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.global.error.ErrorCode;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -54,34 +61,89 @@ class ProductRegistrationLockIntegrationTest {
     @Autowired
     private ProductTypeService productTypeService;
 
-    @Test
-    @DisplayName("TYPE-07 첫 상품 등록이 커밋되기 전이면 카테고리 유형 변경은 등록을 기다렸다가 409로 거절된다")
-    void categoryChangeWaitsForFirstRegistration() throws Exception {
-        SavedClothingTop saved = clothingTopSaver.save();
-        ProductType otherType = saver.saveOtherType(saved);
-
-        TransactionRace.Outcome outcome = race.run(
-            () -> productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)),
-            () -> categoryService.change(saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())));
-
-        assertThat(outcome.waited()).isTrue();
-        assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
-            e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.CHANGE_BREAKS_PRODUCTS));
+    /**
+     * 앞의 작업과 그 커밋을 기다리는 뒤의 작업이다.
+     */
+    record Overlap(Runnable first, Runnable second) {
     }
 
-    @Test
-    @DisplayName("TYPE-07 카테고리 유형 변경이 커밋되기 전이면 상품 등록은 변경을 기다렸다가 바뀐 유형으로 검사해 400으로 거절된다")
-    void registrationWaitsForCategoryChange() throws Exception {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesDuringFirstRegistration")
+    @DisplayName("TYPE-07 첫 상품 등록이 커밋되기 전이면 카테고리 유형 변경 · 유형 필수 정보 항목 추가는 "
+        + "등록을 기다렸다가 409로 거절된다")
+    void changeWaitsForFirstRegistration(
+        BiFunction<ProductRegistrationLockIntegrationTest, SavedClothingTop, Overlap> scenario,
+        ErrorCode errorCode) throws Exception {
         SavedClothingTop saved = clothingTopSaver.save();
-        ProductType otherType = saver.saveOtherType(saved);
+        Overlap overlap = scenario.apply(this, saved);
 
-        TransactionRace.Outcome outcome = race.run(
-            () -> categoryService.change(saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())),
-            () -> productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)));
+        TransactionRace.Outcome outcome = race.run(overlap.first(), overlap.second());
 
-        assertThat(outcome.waited()).isTrue();
-        assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
-            e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_INFO_ATTRIBUTE));
+        assertWaitedThenRejected(outcome, errorCode);
+    }
+
+    static Stream<Arguments> changesDuringFirstRegistration() {
+        return Stream.of(
+            scenario("카테고리 유형 변경", (test, saved) -> {
+                ProductType otherType = test.saver.saveOtherType(saved);
+                return new Overlap(
+                    () -> test.productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)),
+                    () -> test.categoryService.change(
+                        saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())));
+            }, CategoryErrorCode.CHANGE_BREAKS_PRODUCTS),
+            scenario("유형에 필수 정보 항목 추가", (test, saved) -> {
+                ProductTypeChangeRequest addRequiredInfo =
+                    test.saver.linksPlus(saved, infoLink(test.saver.saveSeason(), true));
+                return new Overlap(
+                    () -> test.productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)),
+                    () -> test.productTypeService.change(saved.clothing().type().getId(), addRequiredInfo));
+            }, ProductTypeErrorCode.CHANGE_BREAKS_PRODUCTS));
+    }
+
+    private static Arguments scenario(String name,
+        BiFunction<ProductRegistrationLockIntegrationTest, SavedClothingTop, Overlap> scenario,
+        ErrorCode errorCode) {
+        return Arguments.of(Named.of(name, scenario), errorCode);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("registrationsDuringCategoryChange")
+    @DisplayName("TYPE-07 카테고리 유형 변경이 커밋되기 전이면 상품 등록 · 상품을 그 카테고리로 옮기는 수정은 "
+        + "변경을 기다렸다가 바뀐 유형으로 검사해 400으로 거절된다")
+    void registrationWaitsForCategoryChange(
+        BiFunction<ProductRegistrationLockIntegrationTest, SavedClothingTop, Overlap> scenario) throws Exception {
+        SavedClothingTop saved = clothingTopSaver.save();
+        Overlap overlap = scenario.apply(this, saved);
+
+        TransactionRace.Outcome outcome = race.run(overlap.first(), overlap.second());
+
+        assertWaitedThenRejected(outcome, ProductErrorCode.NOT_INFO_ATTRIBUTE);
+    }
+
+    static Stream<Named<BiFunction<ProductRegistrationLockIntegrationTest, SavedClothingTop, Overlap>>>
+        registrationsDuringCategoryChange() {
+        return Stream.of(
+            Named.of("상품 등록", (test, saved) -> {
+                ProductType otherType = test.saver.saveOtherType(saved);
+                return new Overlap(
+                    () -> test.categoryService.change(
+                        saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())),
+                    () -> test.productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)));
+            }),
+            Named.of("카테고리 이동", (test, saved) -> {
+                ProductType otherType = test.saver.saveOtherType(saved);
+                Category outer = test.saver.saveOuter(saved);
+                ProductRegisterRequest register = registerRequest(saved);
+                ProductRegisterResult product =
+                    test.productRegistrationService.register(ProductFixture.SELLER_ID, register);
+                ProductUpdateRequest moveToOuter = new ProductUpdateRequest(product.version(), register.name(),
+                    register.brand(), outer.getId(), null, null, List.of(), register.attributes(),
+                    register.options(), register.prices(), register.sizeSpecs());
+                return new Overlap(
+                    () -> test.categoryService.change(
+                        outer.getId(), new CategoryChangeRequest(otherType.getId(), List.of())),
+                    () -> test.productUpdateService.update(ProductFixture.SELLER_ID, product.productId(), moveToOuter));
+            }));
     }
 
     @Test
@@ -95,41 +157,5 @@ class ProductRegistrationLockIntegrationTest {
 
         assertThat(outcome.waited()).isFalse();
         assertThat(outcome.error()).isNull();
-    }
-
-    @Test
-    @DisplayName("TYPE-07 첫 상품 등록이 커밋되기 전이면 유형에 필수 정보 항목을 더하는 변경은 등록을 기다렸다가 409로 거절된다")
-    void productTypeChangeWaitsForFirstRegistration() throws Exception {
-        SavedClothingTop saved = clothingTopSaver.save();
-        ProductTypeChangeRequest addRequiredInfo = saver.linksPlus(saved, infoLink(saver.saveSeason(), true));
-
-        TransactionRace.Outcome outcome = race.run(
-            () -> productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)),
-            () -> productTypeService.change(saved.clothing().type().getId(), addRequiredInfo));
-
-        assertThat(outcome.waited()).isTrue();
-        assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
-            e -> assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.CHANGE_BREAKS_PRODUCTS));
-    }
-
-    @Test
-    @DisplayName("TYPE-07 카테고리 유형 변경이 커밋되기 전이면 상품을 그 카테고리로 옮기는 수정은 기다렸다가 바뀐 유형으로 검사해 400으로 거절된다")
-    void categoryMoveWaitsForCategoryChange() throws Exception {
-        SavedClothingTop saved = clothingTopSaver.save();
-        ProductType otherType = saver.saveOtherType(saved);
-        Category outer = saver.saveOuter(saved);
-        ProductRegisterRequest register = registerRequest(saved);
-        ProductRegisterResult product = productRegistrationService.register(ProductFixture.SELLER_ID, register);
-        ProductUpdateRequest moveToOuter = new ProductUpdateRequest(product.version(), register.name(),
-            register.brand(), outer.getId(), null, null, List.of(), register.attributes(), register.options(),
-            register.prices(), register.sizeSpecs());
-
-        TransactionRace.Outcome outcome = race.run(
-            () -> categoryService.change(outer.getId(), new CategoryChangeRequest(otherType.getId(), List.of())),
-            () -> productUpdateService.update(ProductFixture.SELLER_ID, product.productId(), moveToOuter));
-
-        assertThat(outcome.waited()).isTrue();
-        assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
-            e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_INFO_ATTRIBUTE));
     }
 }

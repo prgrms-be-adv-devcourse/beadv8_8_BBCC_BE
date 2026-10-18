@@ -32,6 +32,10 @@ final class ProductTypeFixture {
         return Attribute.create("혼용률", "FABRIC_COMPOSITION", AttributeInputType.TEXT);
     }
 
+    static Attribute season() {
+        return Attribute.create("계절", "SEASON", AttributeInputType.LIST);
+    }
+
     // 기준 데이터의 의류: 색상 · 사이즈는 필수 옵션 항목, 주요소재는 필수 정보 항목, 혼용률은 선택 정보 항목
     static List<ProductType.LinkInfo> clothingLinks() {
         return List.of(

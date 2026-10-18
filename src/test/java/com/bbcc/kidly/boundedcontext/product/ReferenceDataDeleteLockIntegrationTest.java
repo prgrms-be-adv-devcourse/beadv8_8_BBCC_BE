@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ReferenceDataLockSaver.infoLink;
-import static org.assertj.core.api.Assertions.assertThat;
+import static com.bbcc.kidly.boundedcontext.product.TransactionRace.assertWaitedThenRejected;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.app.type.AttributeService;
@@ -19,7 +19,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
-import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.ErrorCode;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
@@ -72,9 +71,7 @@ class ReferenceDataDeleteLockIntegrationTest {
             () -> categoryService.create(new CategoryCreateRequest(
                 "모자", saved.clothingCategory().getId(), otherType.getId(), List.of())));
 
-        assertThat(outcome.waited()).isTrue();
-        assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
-            e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.DELETED_REFERENCE));
+        assertWaitedThenRejected(outcome, CategoryErrorCode.DELETED_REFERENCE);
     }
 
     /**
@@ -94,9 +91,7 @@ class ReferenceDataDeleteLockIntegrationTest {
 
         TransactionRace.Outcome outcome = race.run(linkAndDelete.link(), linkAndDelete.delete());
 
-        assertThat(outcome.waited()).isTrue();
-        assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
-            e -> assertThat(e.getErrorCode()).isEqualTo(errorCode));
+        assertWaitedThenRejected(outcome, errorCode);
     }
 
     static Stream<Arguments> linksAndDeletes() {
@@ -124,7 +119,7 @@ class ReferenceDataDeleteLockIntegrationTest {
             }, CategoryErrorCode.CATEGORY_IN_USE),
             scenario("카테고리가 필수로 연결하는 실측 항목", (test, saved) -> {
                 MeasurementItem headCircumference =
-                    test.saver.save(MeasurementItem.create("머리둘레", "HEAD_CIRCUMFERENCE", "cm"));
+                    test.saver.save(CategoryFixture.headCircumference());
                 return new LinkAndDelete(
                     () -> test.categoryService.change(saved.top().getId(), new CategoryChangeRequest(
                         saved.clothing().type().getId(), List.of(headCircumference.getId()))),

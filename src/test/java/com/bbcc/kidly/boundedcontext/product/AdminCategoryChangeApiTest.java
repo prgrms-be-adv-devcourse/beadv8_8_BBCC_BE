@@ -64,7 +64,7 @@ class AdminCategoryChangeApiTest {
         Attribute hatSize = Attribute.create("모자 사이즈", "HAT_SIZE", AttributeInputType.LIST);
         hatType = ProductType.define("모자", List.of(
             ProductTypeFixture.requiredOption(clothing.color()), ProductTypeFixture.sizeOption(hatSize)));
-        headCircumference = MeasurementItem.create("머리둘레", "HEAD_CIRCUMFERENCE", "cm");
+        headCircumference = CategoryFixture.headCircumference();
         goods = Category.createMiddle("잡화", null);
         hat = Category.createLeaf(new Category.LeafInfo("모자", goods, clothing.type(), List.of(headCircumference)));
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
