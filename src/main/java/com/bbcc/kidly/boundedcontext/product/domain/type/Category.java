@@ -16,7 +16,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,11 +30,9 @@ import lombok.NoArgsConstructor;
  * 중간 카테고리는 둘 다 없다.
  */
 @Entity
-@Table(
-    schema = "product",
-    name = "category",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"parent_id", "name"}))
-// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 제약이 막지 못한다. UNIQUE는 null끼리 같은 값으로 보지 않는다
+@Table(schema = "product", name = "category")
+// 같은 부모 아래의 이름 중복은 지우지 않은 행끼리만 막는다. 마이그레이션이 부분 UNIQUE 인덱스를 만든다
+// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 인덱스가 막지 못한다. UNIQUE는 null끼리 같은 값으로 보지 않는다
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Category extends BaseSoftDeleteEntity {
