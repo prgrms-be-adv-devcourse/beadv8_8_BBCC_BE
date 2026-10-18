@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.product.app.product.ProductRegistrationServ
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductRegisterRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.CategoryService;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryChangeRequest;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
@@ -63,15 +64,30 @@ class ReferenceDataLockIntegrationTest {
     @DisplayName("TYPE-07 첫 상품 등록이 커밋되기 전이면 카테고리 유형 변경은 등록을 기다렸다가 409로 거절된다")
     void categoryChangeWaitsForFirstRegistration() throws Exception {
         SavedClothingTop saved = clothingTopSaver.save();
-        ProductType hatType = savedHatType(saved);
+        ProductType otherType = savedOtherType(saved);
 
         Outcome outcome = race(
             () -> productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)),
-            () -> categoryService.change(saved.top().getId(), new CategoryChangeRequest(hatType.getId(), List.of())));
+            () -> categoryService.change(saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())));
 
         assertThat(outcome.waited()).isTrue();
         assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
             e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.CHANGE_BREAKS_PRODUCTS));
+    }
+
+    @Test
+    @DisplayName("TYPE-07 카테고리 유형 변경이 커밋되기 전이면 상품 등록은 변경을 기다렸다가 바뀐 유형으로 검사해 400으로 거절된다")
+    void registrationWaitsForCategoryChange() throws Exception {
+        SavedClothingTop saved = clothingTopSaver.save();
+        ProductType otherType = savedOtherType(saved);
+
+        Outcome outcome = race(
+            () -> categoryService.change(saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())),
+            () -> productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)));
+
+        assertThat(outcome.waited()).isTrue();
+        assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_INFO_ATTRIBUTE));
     }
 
     // 앞의 작업을 바깥 트랜잭션에서 실행하고 커밋 직전에 멈춘 채 뒤의 작업을 시작한다. 뒤의 작업이 끝나지 않는지 본 뒤 앞을 커밋한다
@@ -122,13 +138,13 @@ class ReferenceDataLockIntegrationTest {
         }
     }
 
-    // 색상만 필수 옵션 항목으로 둔 모자 유형을 저장한다. 의류 상품의 정보 값 · 사이즈와 맞지 않는 유형이다
-    private ProductType savedHatType(SavedClothingTop saved) {
+    // 상의 카테고리의 의류 유형과 다른 유형을 저장한다. 색상만 필수 옵션 항목이라 의류 상품의 정보 값 · 사이즈와 맞지 않는다
+    private ProductType savedOtherType(SavedClothingTop saved) {
         return new TransactionTemplate(transactionManager).execute(status -> {
             Attribute color = entityManager.find(Attribute.class, saved.clothing().navy().getAttribute().getId());
-            ProductType hatType = ProductType.define("모자", List.of(ProductTypeFixture.requiredOption(color)));
-            entityManager.persist(hatType);
-            return hatType;
+            ProductType otherType = ProductType.define("다른 유형", List.of(ProductTypeFixture.requiredOption(color)));
+            entityManager.persist(otherType);
+            return otherType;
         });
     }
 
