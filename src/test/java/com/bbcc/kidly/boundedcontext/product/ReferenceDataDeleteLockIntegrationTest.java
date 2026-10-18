@@ -26,7 +26,6 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -60,36 +59,62 @@ class ReferenceDataDeleteLockIntegrationTest {
     @Autowired
     private MeasurementItemService measurementItemService;
 
-    @Test
-    @DisplayName("TYPE-10 상품 유형 삭제가 커밋되기 전이면 그 유형으로 카테고리를 만드는 요청은 기다렸다가 400으로 거절된다")
-    void linkWaitsForDelete() throws Exception {
-        SavedClothingTop saved = clothingTopSaver.save();
-        ProductType otherType = saver.saveOtherType(saved);
+    /**
+     * 앞의 작업과 그 커밋을 기다리는 뒤의 작업이다.
+     */
+    record Overlap(Runnable first, Runnable second) {
+    }
 
-        TransactionRace.Outcome outcome = race.run(
-            () -> productTypeService.delete(otherType.getId()),
-            () -> categoryService.create(new CategoryCreateRequest(
-                "모자", saved.clothingCategory().getId(), otherType.getId(), List.of())));
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("deletesAndLinks")
+    @DisplayName("TYPE-10 상품 유형 · 중간 카테고리 삭제가 커밋되기 전이면 그것을 연결하는 카테고리 생성 · 변경은 "
+        + "삭제를 기다렸다가 400으로 거절된다")
+    void linkWaitsForDelete(
+        BiFunction<ReferenceDataDeleteLockIntegrationTest, SavedClothingTop, Overlap> scenario) throws Exception {
+        SavedClothingTop saved = clothingTopSaver.save();
+        Overlap overlap = scenario.apply(this, saved);
+
+        TransactionRace.Outcome outcome = race.run(overlap.first(), overlap.second());
 
         assertWaitedThenRejected(outcome, CategoryErrorCode.DELETED_REFERENCE);
     }
 
-    /**
-     * 연결을 만드는 앞의 작업과 그 대상을 지우는 뒤의 작업이다.
-     */
-    record LinkAndDelete(Runnable link, Runnable delete) {
+    static Stream<Named<BiFunction<ReferenceDataDeleteLockIntegrationTest, SavedClothingTop, Overlap>>>
+        deletesAndLinks() {
+        return Stream.of(
+            Named.of("지우는 유형으로 카테고리 만들기", (test, saved) -> {
+                ProductType otherType = test.saver.saveOtherType(saved);
+                return new Overlap(
+                    () -> test.productTypeService.delete(otherType.getId()),
+                    () -> test.categoryService.create(new CategoryCreateRequest(
+                        "모자", saved.clothingCategory().getId(), otherType.getId(), List.of())));
+            }),
+            Named.of("카테고리를 지우는 유형으로 바꾸기", (test, saved) -> {
+                ProductType otherType = test.saver.saveOtherType(saved);
+                return new Overlap(
+                    () -> test.productTypeService.delete(otherType.getId()),
+                    () -> test.categoryService.change(
+                        saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())));
+            }),
+            Named.of("지우는 중간 카테고리 아래 카테고리 만들기", (test, saved) -> {
+                Category goods = test.saver.save(Category.createMiddle("잡화", null));
+                return new Overlap(
+                    () -> test.categoryService.delete(goods.getId()),
+                    () -> test.categoryService.create(
+                        new CategoryCreateRequest("모자", goods.getId(), null, List.of())));
+            }));
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("linksAndDeletes")
     @DisplayName("TYPE-10 연결이 커밋되기 전이면 항목 · 상품 유형 · 중간 카테고리 · 실측 항목 삭제는 연결을 기다렸다가 409로 거절된다")
     void deleteWaitsForLink(
-        BiFunction<ReferenceDataDeleteLockIntegrationTest, SavedClothingTop, LinkAndDelete> scenario,
+        BiFunction<ReferenceDataDeleteLockIntegrationTest, SavedClothingTop, Overlap> scenario,
         ErrorCode errorCode) throws Exception {
         SavedClothingTop saved = clothingTopSaver.save();
-        LinkAndDelete linkAndDelete = scenario.apply(this, saved);
+        Overlap overlap = scenario.apply(this, saved);
 
-        TransactionRace.Outcome outcome = race.run(linkAndDelete.link(), linkAndDelete.delete());
+        TransactionRace.Outcome outcome = race.run(overlap.first(), overlap.second());
 
         assertWaitedThenRejected(outcome, errorCode);
     }
@@ -98,21 +123,22 @@ class ReferenceDataDeleteLockIntegrationTest {
         return Stream.of(
             scenario("유형에 연결하는 항목", (test, saved) -> {
                 Attribute season = test.saver.saveSeason();
-                ProductTypeChangeRequest request = test.saver.linksPlus(saved, infoLink(season, false));
-                return new LinkAndDelete(
+                ProductTypeChangeRequest request =
+                    test.saver.linksPlus(saved.clothing().type().getId(), infoLink(season, false));
+                return new Overlap(
                     () -> test.productTypeService.change(saved.clothing().type().getId(), request),
                     () -> test.attributeService.delete(season.getId()));
             }, AttributeErrorCode.ATTRIBUTE_IN_USE),
             scenario("카테고리가 가리키는 상품 유형", (test, saved) -> {
                 ProductType otherType = test.saver.saveOtherType(saved);
-                return new LinkAndDelete(
+                return new Overlap(
                     () -> test.categoryService.create(new CategoryCreateRequest(
                         "모자", saved.clothingCategory().getId(), otherType.getId(), List.of())),
                     () -> test.productTypeService.delete(otherType.getId()));
             }, ProductTypeErrorCode.PRODUCT_TYPE_IN_USE),
             scenario("자식을 만드는 중간 카테고리", (test, saved) -> {
                 Category goods = test.saver.save(Category.createMiddle("잡화", null));
-                return new LinkAndDelete(
+                return new Overlap(
                     () -> test.categoryService.create(
                         new CategoryCreateRequest("모자", goods.getId(), null, List.of())),
                     () -> test.categoryService.delete(goods.getId()));
@@ -120,7 +146,7 @@ class ReferenceDataDeleteLockIntegrationTest {
             scenario("카테고리가 필수로 연결하는 실측 항목", (test, saved) -> {
                 MeasurementItem headCircumference =
                     test.saver.save(CategoryFixture.headCircumference());
-                return new LinkAndDelete(
+                return new Overlap(
                     () -> test.categoryService.change(saved.top().getId(), new CategoryChangeRequest(
                         saved.clothing().type().getId(), List.of(headCircumference.getId()))),
                     () -> test.measurementItemService.delete(headCircumference.getId()));
@@ -128,7 +154,7 @@ class ReferenceDataDeleteLockIntegrationTest {
     }
 
     private static Arguments scenario(String name,
-        BiFunction<ReferenceDataDeleteLockIntegrationTest, SavedClothingTop, LinkAndDelete> scenario,
+        BiFunction<ReferenceDataDeleteLockIntegrationTest, SavedClothingTop, Overlap> scenario,
         ErrorCode errorCode) {
         return Arguments.of(Named.of(name, scenario), errorCode);
     }

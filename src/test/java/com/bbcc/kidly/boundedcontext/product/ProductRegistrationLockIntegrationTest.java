@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.product.app.type.CategoryService;
 import com.bbcc.kidly.boundedcontext.product.app.type.ProductTypeService;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryChangeRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeChangeRequest;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.ProductTypeCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
@@ -93,7 +94,7 @@ class ProductRegistrationLockIntegrationTest {
             }, CategoryErrorCode.CHANGE_BREAKS_PRODUCTS),
             scenario("유형에 필수 정보 항목 추가", (test, saved) -> {
                 ProductTypeChangeRequest addRequiredInfo =
-                    test.saver.linksPlus(saved, infoLink(test.saver.saveSeason(), true));
+                    test.saver.linksPlus(saved.clothing().type().getId(), infoLink(test.saver.saveSeason(), true));
                 return new Overlap(
                     () -> test.productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)),
                     () -> test.productTypeService.change(saved.clothing().type().getId(), addRequiredInfo));
@@ -136,14 +137,39 @@ class ProductRegistrationLockIntegrationTest {
                 ProductRegisterRequest register = registerRequest(saved);
                 ProductRegisterResult product =
                     test.productRegistrationService.register(ProductFixture.SELLER_ID, register);
-                ProductUpdateRequest moveToOuter = new ProductUpdateRequest(product.version(), register.name(),
-                    register.brand(), outer.getId(), null, null, List.of(), register.attributes(),
-                    register.options(), register.prices(), register.sizeSpecs());
                 return new Overlap(
                     () -> test.categoryService.change(
                         outer.getId(), new CategoryChangeRequest(otherType.getId(), List.of())),
-                    () -> test.productUpdateService.update(ProductFixture.SELLER_ID, product.productId(), moveToOuter));
+                    () -> test.productUpdateService.update(
+                        ProductFixture.SELLER_ID, product.productId(), moveRequest(product, register, outer)));
             }));
+    }
+
+    @Test
+    @DisplayName("TYPE-07 유형에 필수 정보 항목을 더하는 변경이 커밋되기 전이면 상품을 그 유형의 카테고리로 옮기는 수정은 "
+        + "변경을 기다렸다가 바뀐 설정으로 검사해 400으로 거절된다")
+    void moveWaitsForProductTypeChange() throws Exception {
+        SavedClothingTop saved = clothingTopSaver.save();
+        Long copiedTypeId = productTypeService.create(new ProductTypeCreateRequest(
+            "의류 사본", saver.linksOf(saved.clothing().type().getId()))).productTypeId();
+        Category outer = saver.saveOuter(saved, copiedTypeId);
+        ProductTypeChangeRequest addRequiredInfo = saver.linksPlus(copiedTypeId, infoLink(saver.saveSeason(), true));
+        ProductRegisterRequest register = registerRequest(saved);
+        ProductRegisterResult product = productRegistrationService.register(ProductFixture.SELLER_ID, register);
+
+        TransactionRace.Outcome outcome = race.run(
+            () -> productTypeService.change(copiedTypeId, addRequiredInfo),
+            () -> productUpdateService.update(
+                ProductFixture.SELLER_ID, product.productId(), moveRequest(product, register, outer)));
+
+        assertWaitedThenRejected(outcome, ProductErrorCode.REQUIRED_INFO_MISSING);
+    }
+
+    // 등록한 상품의 값을 그대로 두고 카테고리만 옮기는 수정 요청이다
+    private static ProductUpdateRequest moveRequest(
+        ProductRegisterResult product, ProductRegisterRequest register, Category to) {
+        return new ProductUpdateRequest(product.version(), register.name(), register.brand(), to.getId(), null, null,
+            List.of(), register.attributes(), register.options(), register.prices(), register.sizeSpecs());
     }
 
     @Test

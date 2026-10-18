@@ -47,14 +47,19 @@ class ReferenceDataLockSaver {
 
     // 상의와 같은 의류 유형 · 필수 실측을 쓰는 의류 > 아우터를 저장한다. 상품을 옮겨 갈 카테고리다
     Category saveOuter(SavedClothingTop saved) {
+        return saveOuter(saved, saved.clothing().type().getId());
+    }
+
+    // 상의와 같은 필수 실측에 주어진 유형을 쓰는 의류 > 아우터를 저장한다
+    Category saveOuter(SavedClothingTop saved, Long productTypeId) {
         return transactionTemplate.execute(status -> {
             Category top = entityManager.find(Category.class, saved.top().getId());
+            ProductType type = entityManager.find(ProductType.class, productTypeId);
             List<MeasurementItem> items = new ArrayList<>();
             for (CategoryMeasurementItem link : top.getMeasurementItems()) {
                 items.add(link.getMeasurementItem());
             }
-            Category outer = Category.createLeaf(
-                new Category.LeafInfo("아우터", top.getParent(), top.getProductType(), items));
+            Category outer = Category.createLeaf(new Category.LeafInfo("아우터", top.getParent(), type, items));
             entityManager.persist(outer);
             return outer;
         });
@@ -70,10 +75,17 @@ class ReferenceDataLockSaver {
         return entity;
     }
 
-    // 의류 유형의 지금 연결을 그대로 두고 연결 하나를 끝에 더하는 변경 요청이다
-    ProductTypeChangeRequest linksPlus(SavedClothingTop saved, ProductTypeCreateRequest.Link extra) {
+    // 유형의 지금 연결을 그대로 두고 연결 하나를 끝에 더하는 변경 요청이다
+    ProductTypeChangeRequest linksPlus(Long productTypeId, ProductTypeCreateRequest.Link extra) {
+        List<ProductTypeCreateRequest.Link> links = linksOf(productTypeId);
+        links.add(extra);
+        return new ProductTypeChangeRequest(links);
+    }
+
+    // 유형의 지금 연결을 요청에 쓰는 연결 목록으로 옮긴다. 돌려준 목록에 연결을 더할 수 있다
+    List<ProductTypeCreateRequest.Link> linksOf(Long productTypeId) {
         return transactionTemplate.execute(status -> {
-            ProductType type = entityManager.find(ProductType.class, saved.clothing().type().getId());
+            ProductType type = entityManager.find(ProductType.class, productTypeId);
             List<ProductTypeCreateRequest.Link> links = new ArrayList<>();
             for (ProductTypeAttribute link : type.getAttributes()) {
                 List<Long> allowedValueIds = new ArrayList<>();
@@ -86,8 +98,7 @@ class ReferenceDataLockSaver {
                     link.isRequired(), link.isAllValuesAllowed(), link.isSizeRole(), link.isPriceAffecting(),
                     allowedValueIds));
             }
-            links.add(extra);
-            return new ProductTypeChangeRequest(links);
+            return links;
         });
     }
 
