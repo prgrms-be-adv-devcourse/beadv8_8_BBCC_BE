@@ -22,6 +22,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -125,7 +126,7 @@ class ReferenceDataDeleteIntegrationTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("recreations")
-    @DisplayName("TYPE-11 지운 목록 값 · 카테고리와 같은 이름은 같은 항목 · 부모 아래에 다시 만들 수 있다")
+    @DisplayName("TYPE-11 지운 목록 값 · 카테고리 · 상품 유형과 같은 이름은 다시 만들 수 있다")
     void recreateWithNameOfDeleted(Function<SavedClothingTop, BaseSoftDeleteEntity> deleted,
         Function<SavedClothingTop, Object> sameName) {
         SavedClothingTop saved = clothingTopSaver.save();
@@ -143,7 +144,11 @@ class ReferenceDataDeleteIntegrationTest {
                     saved.clothing().navy().getAttribute(), "네이비", "#2f3e5c")),
             Arguments.of(Named.of("의류 아래 상의", (Function<SavedClothingTop, BaseSoftDeleteEntity>)
                     SavedClothingTop::top),
-                (Function<SavedClothingTop, Object>) saved -> Category.createMiddle("상의", saved.clothingCategory())));
+                (Function<SavedClothingTop, Object>) saved -> Category.createMiddle("상의", saved.clothingCategory())),
+            Arguments.of(Named.of("상품 유형 의류", (Function<SavedClothingTop, BaseSoftDeleteEntity>)
+                    saved -> saved.clothing().type()),
+                (Function<SavedClothingTop, Object>) saved -> ProductType.define("의류",
+                    List.of(ProductTypeFixture.requiredOption(saved.clothing().navy().getAttribute())))));
     }
 
     @Test
