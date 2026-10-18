@@ -56,6 +56,19 @@ class SettlementRunServiceTest {
     }
 
     @Test
+    @DisplayName("시작이 실패한 뒤 작업 상태 조회도 실패하면 원래 예외를 던지고 조회 예외는 함께 붙여 둔다")
+    void lookupFailureKeepsCause() throws Exception {
+        var failure = new DataAccessResourceFailureException("DB 연결 실패");
+        startFails(failure);
+        var lookupFailure = new DataAccessResourceFailureException("상태 조회 실패");
+        given(jobRepository.getJobInstance(eq(SettlementJobConfig.JOB_NAME), any(JobParameters.class)))
+            .willThrow(lookupFailure);
+
+        assertThatThrownBy(this::runScheduled).isSameAs(failure)
+            .satisfies(e -> assertThat(e.getSuppressed()).containsExactly(lookupFailure));
+    }
+
+    @Test
     @DisplayName("시작이 실패했는데 그 기준일 작업이 실행 중이면 경쟁에서 진 것이라 SETTLEMENT_RUN_IN_PROGRESS다")
     void lostToRunning() throws Exception {
         startFails(new IllegalStateException("JobInstance must not already exist"));

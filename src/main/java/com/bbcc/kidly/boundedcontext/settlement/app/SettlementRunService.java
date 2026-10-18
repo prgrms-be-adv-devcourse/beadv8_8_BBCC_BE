@@ -104,17 +104,24 @@ public class SettlementRunService {
     // (인스턴스 확인 Assert · 인스턴스 유니크 · 실행 버전 충돌 등). 예외 종류 대신 그 기준일 작업의 상태로
     // 경쟁에서 졌는지 판단하고, 상태로 설명되지 않으면 원래 예외를 던진다
     private RuntimeException conflictOr(JobParameters cutoff, Exception e) {
-        var instance = jobRepository.getJobInstance(SettlementJobConfig.JOB_NAME, cutoff);
-        if (instance != null) {
-            var last = jobRepository.getLastJobExecution(instance);
-            // 실행이 없으면 다른 요청이 인스턴스를 만들고 실행을 만드는 중이다
-            if (last == null || last.getStatus().isRunning()) {
-                return new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
+        var failure = e instanceof RuntimeException runtime
+            ? runtime : new IllegalStateException("정산 작업을 시작하지 못했습니다", e);
+        try {
+            var instance = jobRepository.getJobInstance(SettlementJobConfig.JOB_NAME, cutoff);
+            if (instance != null) {
+                var last = jobRepository.getLastJobExecution(instance);
+                // 실행이 없으면 다른 요청이 인스턴스를 만들고 실행을 만드는 중이다
+                if (last == null || last.getStatus().isRunning()) {
+                    return new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
+                }
+                if (last.getStatus() == BatchStatus.COMPLETED) {
+                    return new BusinessException(SettlementErrorCode.SETTLEMENT_ALREADY_RUN);
+                }
             }
-            if (last.getStatus() == BatchStatus.COMPLETED) {
-                return new BusinessException(SettlementErrorCode.SETTLEMENT_ALREADY_RUN);
-            }
+        } catch (RuntimeException lookupFailure) {
+            // DB 장애로 시작이 실패했다면 상태 조회도 함께 실패하기 쉽다. 조회 예외가 처음 원인을 덮지 않게 붙여 둔다
+            failure.addSuppressed(lookupFailure);
         }
-        return e instanceof RuntimeException runtime ? runtime : new IllegalStateException("정산 작업을 시작하지 못했습니다", e);
+        return failure;
     }
 }
