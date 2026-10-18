@@ -21,6 +21,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ public class ProductUpdateService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductTypeRepository productTypeRepository;
     private final ProductInputReader inputReader;
     private final InventoryRepository inventoryRepository;
     private final InventoryReplacer inventoryReplacer;
@@ -49,8 +51,9 @@ public class ProductUpdateService {
     @Transactional
     public SellerProductDetailResult update(Long sellerId, Long productId, ProductUpdateRequest request) {
         Product product = productRepository.getById(productId);
-        Category category = categoryRepository.getById(request.categoryId());
-        ProductType type = category.productTypeToRegister();
+        // 관리자 설정 변경이 커밋되기 전이면 기다렸다가 바뀐 설정으로 검사한다(TYPE-07). 잠금 순서는 카테고리 → 유형이다
+        Category category = categoryRepository.getByIdForShare(request.categoryId());
+        ProductType type = productTypeRepository.getByIdForShare(category.productTypeToRegister().getId());
         InputLookup lookup = inputReader.readInputs(type);
 
         UpdateInfo info = new UpdateInfo(
