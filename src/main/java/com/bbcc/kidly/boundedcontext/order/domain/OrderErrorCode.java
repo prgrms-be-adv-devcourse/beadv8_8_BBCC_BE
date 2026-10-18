@@ -51,6 +51,9 @@ public enum OrderErrorCode implements ErrorCode {
         "이미 결제가 반영된 주문입니다. 재처리를 눌러 복구를 마무리해 주세요."),
     INVALID_RECOVERY_STATUS(HttpStatus.BAD_REQUEST, "지원하지 않는 기록 상태입니다",
         "상태는 PENDING · RECOVERED · CANCELLED · NOT_RETRYABLE 중 하나로 보내 주세요."),
+    INVALID_STUCK_KIND(HttpStatus.BAD_REQUEST, "지원하지 않는 멈춘 주문 종류입니다",
+        "kind는 STOCK_CHECK_STALE · PAYMENT_EXPIRY_MISSED · PAID_WITHOUT_DELIVERY · RECOVERY_PENDING_STALE · "
+            + "SHIPPING_DELAYED · AUTO_CONFIRM_MISSED 중 하나를 대문자 그대로 보내 주세요."),
     CANCEL_NOT_ALLOWED_SHIPPED(HttpStatus.CONFLICT, "이미 발송된 상품이 있습니다",
         "판매자가 발송을 시작해 취소할 수 없습니다. 판매자에게 문의해 주세요."),
     DELIVERY_CANCELLED(HttpStatus.CONFLICT, "구매자가 취소한 주문입니다", "구매자가 취소한 주문입니다. 발송하지 마세요.");
