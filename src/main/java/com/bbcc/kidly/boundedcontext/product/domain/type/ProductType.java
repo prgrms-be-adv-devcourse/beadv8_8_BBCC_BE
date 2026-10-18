@@ -48,7 +48,8 @@ public class ProductType extends BaseSoftDeleteEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    // 지우지 않은 유형끼리만 이름이 겹치지 않는다. 마이그레이션이 부분 UNIQUE 인덱스를 만든다 (TYPE-11)
+    @Column(nullable = false)
     private String name;
 
     @OneToMany(mappedBy = "productType", cascade = CascadeType.ALL, orphanRemoval = true)
