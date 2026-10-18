@@ -150,6 +150,64 @@ class CartApiTest {
     }
 
     @Test
+    @DisplayName("같은 수량으로 두 번 바꾸면 두 번 다 200 · 같은 응답이고 장바구니 줄은 1개 · 그 수량 그대로")
+    void changeQuantityTwiceWithSameValue() {
+        String cartItemId = addAndReadId();
+
+        for (int call = 1; call <= 2; call++) {
+            client.patch().uri(CART_ITEMS_PATH + "/" + cartItemId)
+                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .body(Map.of("quantity", 3))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.cartItemId").isEqualTo(cartItemId)
+                .jsonPath("$.quantity").isEqualTo(3)
+                .jsonPath("$.lineAmount").isEqualTo(75_000);
+        }
+
+        client.get().uri(CART_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(1)
+            .jsonPath("$.items[0].quantity").isEqualTo(3)
+            .jsonPath("$.totalAmount").isEqualTo(75_000);
+    }
+
+    @Test
+    @DisplayName("같은 줄을 두 번 빼면 첫 번째 204, 두 번째는 404 CART_ITEM_NOT_FOUND(지금 동작)이고 다른 줄은 그대로")
+    void removeItemTwice() {
+        String cartItemId = addAndReadId();
+        client.post().uri(CART_ITEMS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .body(Map.of("optionId", "1", "childId", "1", "quantity", 1))
+            .exchange()
+            .expectStatus().isCreated();
+
+        client.delete().uri(CART_ITEMS_PATH + "/" + cartItemId)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isNoContent();
+        client.delete().uri(CART_ITEMS_PATH + "/" + cartItemId)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isNotFound()
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("장바구니 상품을 찾을 수 없습니다")
+            .jsonPath("$.detail").isEqualTo("이미 장바구니에서 빠진 상품입니다. 장바구니를 새로고침해 주세요.");
+
+        client.get().uri(CART_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(1)
+            .jsonPath("$.items[0].childId").isEqualTo("1");
+    }
+
+    @Test
     @DisplayName("로그인하지 않으면 401")
     void unauthorized() {
         client.get().uri(CART_PATH)
