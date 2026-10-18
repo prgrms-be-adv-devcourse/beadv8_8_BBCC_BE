@@ -21,6 +21,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProductRegistrationService {
 
     private final CategoryRepository categoryRepository;
+    private final ProductTypeRepository productTypeRepository;
     private final ProductInputReader inputReader;
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
@@ -40,8 +42,9 @@ public class ProductRegistrationService {
     // 상품 · 옵션 · 실측을 판매대기 상태로 등록하고 옵션마다 초기 재고를 연다
     @Transactional
     public ProductRegisterResult register(Long sellerId, ProductRegisterRequest request) {
-        Category category = categoryRepository.getById(request.categoryId());
-        ProductType type = category.productTypeToRegister();
+        // 관리자 설정 변경이 커밋되기 전이면 기다렸다가 바뀐 설정으로 검사한다(TYPE-07). 잠금 순서는 카테고리, 유형이다
+        Category category = categoryRepository.getByIdForShare(request.categoryId());
+        ProductType type = productTypeRepository.getByIdForShare(category.productTypeToRegister().getId());
         InputLookup lookup = inputReader.readInputs(type);
         // 썸네일과 이미지 목록은 판매자 본인이 업로드 주소로 올린 이미지만 받는다
         ProductImageUrls.validate(

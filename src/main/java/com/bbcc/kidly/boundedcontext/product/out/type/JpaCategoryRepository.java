@@ -2,8 +2,10 @@ package com.bbcc.kidly.boundedcontext.product.out.type;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
+import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -20,8 +22,13 @@ public interface JpaCategoryRepository extends JpaRepository<Category, Long>, Ca
     Optional<Category> findTopLevelByName(@Param("name") String name);
 
     @Override
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select c from Category c where c.id = :id")
+    Optional<Category> findByIdForShare(@Param("id") Long id);
+
     // PESSIMISTIC_WRITE는 PostgreSQL에서 FOR NO KEY UPDATE가 되어, 상품 insert가 외래 키 검사로 거는 KEY SHARE와 충돌하지 않는다.
     // 첫 상품 등록의 커밋을 기다려야 하므로 FOR UPDATE를 직접 쓴다
+    @Override
     @Query(value = "select * from product.category where id = :id for update", nativeQuery = true)
     Optional<Category> findByIdForUpdate(@Param("id") Long id);
 }
