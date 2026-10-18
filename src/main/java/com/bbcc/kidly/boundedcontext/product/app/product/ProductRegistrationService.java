@@ -42,7 +42,7 @@ public class ProductRegistrationService {
     // 상품 · 옵션 · 실측을 판매대기 상태로 등록하고 옵션마다 초기 재고를 연다
     @Transactional
     public ProductRegisterResult register(Long sellerId, ProductRegisterRequest request) {
-        // 관리자 설정 변경이 커밋되기 전이면 기다렸다가 바뀐 설정으로 검사한다(TYPE-07). 잠금 순서는 카테고리, 유형이다
+        // 관리자 설정 변경이 커밋되기 전이면 기다렸다가 바뀐 설정으로 검사한다(TYPE-07). 잠금 순서는 카테고리 → 유형이다
         Category category = categoryRepository.getByIdForShare(request.categoryId());
         ProductType type = productTypeRepository.getByIdForShare(category.productTypeToRegister().getId());
         InputLookup lookup = inputReader.readInputs(type);
