@@ -24,6 +24,7 @@ import lombok.NoArgsConstructor;
 /**
  * 토스 결제창으로 예치금을 충전하는 요청.
  * PENDING → CONFIRMING → DONE 순서로 승인되고, DONE에서 CANCELLING을 거쳐 CANCELLED로 취소된다.
+ * 결제창이 끝나지 않으면 PENDING에서 바로 FAILED가 된다.
  * 토스에서 직접 취소된 충전은 DONE에서 바로 CANCELLED가 된다.
  * 상태를 바꿀 때는 리포지토리에서 비관적 락(SELECT ... FOR UPDATE)으로 읽어, 사용자 승인과 정리 스케줄러가 겹쳐도 순서대로 처리한다.
  */
@@ -108,6 +109,18 @@ public class Charge extends BaseTimeEntity {
 
     public void fail(String failureCode) {
         requireStatus(ChargeStatus.CONFIRMING);
+        this.failureCode = failureCode;
+        this.status = ChargeStatus.FAILED;
+    }
+
+    /**
+     * 결제창이 실패 · 취소로 끝나 승인 요청이 오지 않을 충전을 실패로 끝낸다. 이미 실패했으면 그대로 둔다.
+     */
+    public void abandon(String failureCode) {
+        if (status == ChargeStatus.FAILED) {
+            return;
+        }
+        requireStatus(ChargeStatus.PENDING);
         this.failureCode = failureCode;
         this.status = ChargeStatus.FAILED;
     }

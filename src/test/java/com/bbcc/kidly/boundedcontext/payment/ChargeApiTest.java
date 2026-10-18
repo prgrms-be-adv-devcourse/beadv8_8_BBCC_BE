@@ -22,6 +22,7 @@ class ChargeApiTest {
 
     private static final String CHARGES_PATH = "/api/v1/wallets/me/charges";
     private static final String CONFIRM_PATH = CHARGES_PATH + "/confirm";
+    private static final String FAIL_PATH = CHARGES_PATH + "/fail";
     private static final Long OTHER_MEMBER_ID = 2L;
 
     @Autowired
@@ -56,6 +57,7 @@ class ChargeApiTest {
             .jsonPath("$.amount").isEqualTo(10_000)
             .jsonPath("$.status").isEqualTo("PENDING")
             .jsonPath("$.approvedAt").isEmpty()
+            .jsonPath("$.expiresAt").isNotEmpty()
             .jsonPath("$.createdAt").isNotEmpty();
     }
 
@@ -158,6 +160,7 @@ class ChargeApiTest {
             .jsonPath("$.content[0].amount").isEqualTo(20_000)
             .jsonPath("$.content[0].status").isEqualTo("PENDING")
             .jsonPath("$.content[0].approvedAt").isEmpty()
+            .jsonPath("$.content[0].expiresAt").isNotEmpty()
             .jsonPath("$.content[0].createdAt").isNotEmpty()
             .jsonPath("$.page").isEqualTo(0)
             .jsonPath("$.size").isEqualTo(1)
@@ -289,6 +292,73 @@ class ChargeApiTest {
     }
 
     @Test
+    @DisplayName("결제창이 끝나지 않은 충전을 실패로 바꾸면 200과 실패 상태를 주고, 다시 보내도 200이다")
+    void fail() {
+        RequestedCharge charge = requestCharge(10_000);
+
+        fail(MEMBER_ID, charge.orderId(), "PAY_PROCESS_CANCELED")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.chargeId").isEqualTo(charge.chargeId())
+            .jsonPath("$.status").isEqualTo("FAILED");
+        fail(MEMBER_ID, charge.orderId(), "PAY_PROCESS_CANCELED")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("FAILED");
+        expectBalance(0);
+    }
+
+    @Test
+    @DisplayName("실패로 바꾼 충전은 승인할 수 없다")
+    void confirmAfterFail() {
+        RequestedCharge charge = requestCharge(10_000);
+        fail(MEMBER_ID, charge.orderId(), "PAY_PROCESS_CANCELED").expectStatus().isOk();
+
+        confirm(MEMBER_ID, "payment-key", charge.orderId(), 10_000)
+            .expectStatus().isEqualTo(409);
+        expectBalance(0);
+    }
+
+    @Test
+    @DisplayName("완료된 충전을 실패로 바꾸면 409 INVALID_CHARGE_STATUS")
+    void failDoneCharge() {
+        RequestedCharge charge = confirmedCharge("payment-key", 10_000);
+
+        fail(MEMBER_ID, charge.orderId(), "PAY_PROCESS_CANCELED")
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("처리할 수 없는 충전 상태입니다");
+        expectStatus(charge, "DONE");
+    }
+
+    @Test
+    @DisplayName("남의 충전을 실패로 바꾸면 404 CHARGE_NOT_FOUND")
+    void failOthersCharge() {
+        walletRepository.save(Wallet.create(OTHER_MEMBER_ID));
+        RequestedCharge charge = requestCharge(10_000);
+
+        fail(OTHER_MEMBER_ID, charge.orderId(), "PAY_PROCESS_CANCELED")
+            .expectStatus().isNotFound()
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("충전을 찾을 수 없습니다");
+        expectStatus(charge, "PENDING");
+    }
+
+    @Test
+    @DisplayName("결제창 오류 코드가 없으면 400")
+    void failWithoutCode() {
+        RequestedCharge charge = requestCharge(10_000);
+
+        client.post().uri(FAIL_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("orderId", charge.orderId()))
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    @Test
     @DisplayName("로그인하지 않으면 401")
     void withoutToken() {
         client.post().uri(CHARGES_PATH)
@@ -326,6 +396,14 @@ class ChargeApiTest {
             .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("paymentKey", paymentKey, "orderId", orderId, "amount", amount))
+            .exchange();
+    }
+
+    private RestTestClient.ResponseSpec fail(Long memberId, String orderId, String code) {
+        return client.post().uri(FAIL_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("orderId", orderId, "code", code))
             .exchange();
     }
 
