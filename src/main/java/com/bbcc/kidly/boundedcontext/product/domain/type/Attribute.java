@@ -2,7 +2,8 @@ package com.bbcc.kidly.boundedcontext.product.domain.type;
 
 import static java.util.Objects.requireNonNull;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,6 +12,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,7 +24,7 @@ import lombok.NoArgsConstructor;
 @Table(schema = "product", name = "attribute")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Attribute extends BaseTimeEntity {
+public class Attribute extends BaseSoftDeleteEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -53,5 +55,17 @@ public class Attribute extends BaseTimeEntity {
         attribute.code = code;
         attribute.inputType = inputType;
         return attribute;
+    }
+
+    /**
+     * 항목을 지운다. 지우지 않은 상품 유형에 연결된 항목은 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다).
+     * inUse는 서비스가 리포지토리로 읽어 넘긴다.
+     */
+    public void delete(LocalDateTime now, boolean inUse) {
+        requireNonNull(now, "now는 필수입니다");
+        if (inUse) {
+            throw new BusinessException(AttributeErrorCode.ATTRIBUTE_IN_USE);
+        }
+        delete(now);
     }
 }

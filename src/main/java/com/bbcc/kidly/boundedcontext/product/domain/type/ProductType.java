@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.domain.type;
 
 import static java.util.Objects.requireNonNull;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -30,7 +31,7 @@ import lombok.NoArgsConstructor;
 @Table(schema = "product", name = "product_type")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ProductType extends BaseTimeEntity {
+public class ProductType extends BaseSoftDeleteEntity {
 
     /**
      * 유형에 항목 하나를 연결하는 설정이다. allowedValues는 allValuesAllowed가 false일 때 고를 수 있는 값이다.
@@ -293,5 +294,14 @@ public class ProductType extends BaseTimeEntity {
 
     public List<ProductTypeAllowedValue> getAllowedValues() {
         return Collections.unmodifiableList(allowedValues);
+    }
+
+    // 지우지 않은 카테고리가 가리키는 유형(inUse)은 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다)
+    public void delete(LocalDateTime now, boolean inUse) {
+        requireNonNull(now, "now는 필수입니다");
+        if (inUse) {
+            throw new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_IN_USE);
+        }
+        delete(now);
     }
 }

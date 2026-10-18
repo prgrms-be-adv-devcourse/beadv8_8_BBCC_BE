@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.domain.type;
 
 import static java.util.Objects.requireNonNull;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -17,6 +17,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -37,7 +38,7 @@ import lombok.NoArgsConstructor;
 // 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 제약이 막지 못한다. UNIQUE는 null끼리 같은 값으로 보지 않는다
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Category extends BaseTimeEntity {
+public class Category extends BaseSoftDeleteEntity {
 
     /**
      * 말단 카테고리를 만드는 값이다. 최상위 카테고리이면 parent는 null이다.
@@ -186,5 +187,17 @@ public class Category extends BaseTimeEntity {
 
     public List<CategoryMeasurementItem> getMeasurementItems() {
         return Collections.unmodifiableList(measurementItems);
+    }
+
+    /**
+     * 카테고리를 지운다. 지우지 않은 하위 카테고리가 있는 카테고리는 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다).
+     * inUse는 서비스가 리포지토리로 읽어 넘긴다.
+     */
+    public void delete(LocalDateTime now, boolean inUse) {
+        requireNonNull(now, "now는 필수입니다");
+        if (inUse) {
+            throw new BusinessException(CategoryErrorCode.CATEGORY_IN_USE);
+        }
+        delete(now);
     }
 }
