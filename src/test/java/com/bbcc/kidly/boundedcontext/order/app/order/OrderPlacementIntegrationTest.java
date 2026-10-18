@@ -105,6 +105,10 @@ class OrderPlacementIntegrationTest {
             assertThat(results).as("%d회차 응답", round).hasSize(2)
                 .extracting(result -> result.detail().orderId()).containsOnly(results.get(0).detail().orderId());
             assertThat(results).filteredOn(PlaceOrderResult::created).as("%d회차 새로 만든 응답", round).hasSize(1);
+            // 진 쪽 트랜잭션은 되돌려지므로 그 주문하기 이력도 남지 않는다(#442, 이력에는 주문 FK가 없어 주체로 센다)
+            assertThat(jdbcTemplate.queryForObject("select count(*) from orders.order_status_history "
+                + "where actor_id = ? and source = 'POST /api/v1/orders'", Long.class, buyerId))
+                .as("%d회차 주문하기 이력", round).isEqualTo(1);
             assertThat(createdEventsOf(buyerId)).as("%d회차 order.created", round).isEqualTo(1);
         }
     }

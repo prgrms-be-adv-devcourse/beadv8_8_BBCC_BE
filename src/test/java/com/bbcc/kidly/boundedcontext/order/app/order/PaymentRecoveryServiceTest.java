@@ -8,9 +8,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -43,6 +45,7 @@ import org.springframework.data.domain.PageRequest;
 class PaymentRecoveryServiceTest {
 
     private static final Long RECOVERY_ID = 3L;
+    private static final Long ADMIN_ID = 9_000L;
     private static final Long ORDER_ID = 12L;
     private static final Long BUYER_ID = 1L;
     private static final Long PAYMENT_ID = 500L;
@@ -60,13 +63,16 @@ class PaymentRecoveryServiceTest {
     private OrderService orderService;
 
     @Mock
+    private OrderStatusHistoryRepository historyRepository;
+
+    @Mock
     private Consumer<MarkPaidCommand> applyPaid;
 
     private PaymentRecoveryService service;
 
     @BeforeEach
     void setUp() {
-        service = new PaymentRecoveryService(recoveryRepository, orderRepository, orderService);
+        service = new PaymentRecoveryService(recoveryRepository, orderRepository, orderService, historyRepository);
     }
 
     @Nested
@@ -129,7 +135,7 @@ class PaymentRecoveryServiceTest {
             givenRecovery(pending());
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(placedOrder()));
 
-            PaymentRecoveryResult result = service.recover(RECOVERY_ID, applyPaid);
+            PaymentRecoveryResult result = service.recover(RECOVERY_ID, ADMIN_ID, applyPaid);
 
             verify(applyPaid).accept(PAID);
             assertThat(result.status()).isEqualTo("RECOVERED");
@@ -143,7 +149,7 @@ class PaymentRecoveryServiceTest {
             order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            PaymentRecoveryResult result = service.recover(RECOVERY_ID, applyPaid);
+            PaymentRecoveryResult result = service.recover(RECOVERY_ID, ADMIN_ID, applyPaid);
 
             assertThat(result.status()).isEqualTo("CANCELLED");
             verifyNoInteractions(applyPaid);
@@ -158,7 +164,7 @@ class PaymentRecoveryServiceTest {
                 LocalDateTime.now());
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            PaymentRecoveryResult result = service.recover(RECOVERY_ID, applyPaid);
+            PaymentRecoveryResult result = service.recover(RECOVERY_ID, ADMIN_ID, applyPaid);
 
             assertThat(result.status()).isEqualTo("RECOVERED");
             verifyNoInteractions(applyPaid);
@@ -171,7 +177,7 @@ class PaymentRecoveryServiceTest {
             recovery.recover(LocalDateTime.now());
             givenRecovery(recovery);
 
-            assertThat(service.recover(RECOVERY_ID, applyPaid).status()).isEqualTo("RECOVERED");
+            assertThat(service.recover(RECOVERY_ID, ADMIN_ID, applyPaid).status()).isEqualTo("RECOVERED");
             verifyNoInteractions(orderRepository, applyPaid);
         }
 
@@ -183,9 +189,9 @@ class PaymentRecoveryServiceTest {
             when(recoveryRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(cancelled));
             when(recoveryRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(notRetryable()));
 
-            assertError(() -> service.recover(1L, applyPaid), OrderErrorCode.RECOVERY_CLOSED);
-            assertError(() -> service.recover(2L, applyPaid), OrderErrorCode.RECOVERY_NOT_RETRYABLE);
-            assertError(() -> service.recover(99L, applyPaid), OrderErrorCode.RECOVERY_NOT_FOUND);
+            assertError(() -> service.recover(1L, ADMIN_ID, applyPaid), OrderErrorCode.RECOVERY_CLOSED);
+            assertError(() -> service.recover(2L, ADMIN_ID, applyPaid), OrderErrorCode.RECOVERY_NOT_RETRYABLE);
+            assertError(() -> service.recover(99L, ADMIN_ID, applyPaid), OrderErrorCode.RECOVERY_NOT_FOUND);
             verifyNoInteractions(applyPaid);
         }
 
@@ -194,14 +200,15 @@ class PaymentRecoveryServiceTest {
         void recordsRetryFailure() {
             givenStoredRecovery(pending());
 
-            PaymentRecoveryResult failed = service.recordRetryFailure(RECOVERY_ID, new IllegalStateException("x"));
+            PaymentRecoveryResult failed = service.recordRetryFailure(RECOVERY_ID, ADMIN_ID,
+                new IllegalStateException("x"));
 
             assertThat(failed.status()).isEqualTo("PENDING");
             assertThat(failed.attemptCount()).isEqualTo(2);
             assertThat(failed.failureCode()).isEqualTo("IllegalStateException");
 
-            PaymentRecoveryResult mismatch = service.recordRetryFailure(RECOVERY_ID, new PaymentMismatchException(
-                ORDER_ID, PaymentMismatchException.Reason.ITEM_MISSING, "orderItemId=41"));
+            PaymentRecoveryResult mismatch = service.recordRetryFailure(RECOVERY_ID, ADMIN_ID,
+                new PaymentMismatchException(ORDER_ID, PaymentMismatchException.Reason.ITEM_MISSING, "orderItemId=41"));
 
             assertThat(mismatch.status()).isEqualTo("NOT_RETRYABLE");
             assertThat(mismatch.attemptCount()).isEqualTo(3);
@@ -214,7 +221,8 @@ class PaymentRecoveryServiceTest {
             recovery.recover(LocalDateTime.now());
             givenStoredRecovery(recovery);
 
-            PaymentRecoveryResult result = service.recordRetryFailure(RECOVERY_ID, new IllegalStateException("x"));
+            PaymentRecoveryResult result = service.recordRetryFailure(RECOVERY_ID, ADMIN_ID,
+                new IllegalStateException("x"));
 
             assertThat(result.status()).isEqualTo("RECOVERED");
             assertThat(result.attemptCount()).isEqualTo(1);
@@ -233,9 +241,10 @@ class PaymentRecoveryServiceTest {
             when(recoveryRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(notRetryable()));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(placedOrder()));
 
-            assertThat(service.cancel(1L).status()).isEqualTo("CANCELLED");
-            assertThat(service.cancel(2L).status()).isEqualTo("CANCELLED");
-            verify(orderService, org.mockito.Mockito.times(2)).cancelForPaymentFailure(ORDER_ID);
+            assertThat(service.cancel(1L, ADMIN_ID).status()).isEqualTo("CANCELLED");
+            assertThat(service.cancel(2L, ADMIN_ID).status()).isEqualTo("CANCELLED");
+            verify(orderService, org.mockito.Mockito.times(2))
+                .cancelForPaymentFailure(ORDER_ID, OrderActor.admin(ADMIN_ID, OrderActor.RECOVERY_CANCEL));
         }
 
         @Test
@@ -245,7 +254,7 @@ class PaymentRecoveryServiceTest {
             recovery.cancel(LocalDateTime.now());
             givenRecovery(recovery);
 
-            assertThat(service.cancel(RECOVERY_ID).status()).isEqualTo("CANCELLED");
+            assertThat(service.cancel(RECOVERY_ID, ADMIN_ID).status()).isEqualTo("CANCELLED");
             verifyNoInteractions(orderService);
         }
 
@@ -261,9 +270,9 @@ class PaymentRecoveryServiceTest {
                 LocalDateTime.now());
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(paid));
 
-            assertError(() -> service.cancel(1L), OrderErrorCode.RECOVERY_CLOSED);
-            assertError(() -> service.cancel(2L), OrderErrorCode.RECOVERY_ORDER_PAID);
-            assertError(() -> service.cancel(99L), OrderErrorCode.RECOVERY_NOT_FOUND);
+            assertError(() -> service.cancel(1L, ADMIN_ID), OrderErrorCode.RECOVERY_CLOSED);
+            assertError(() -> service.cancel(2L, ADMIN_ID), OrderErrorCode.RECOVERY_ORDER_PAID);
+            assertError(() -> service.cancel(99L, ADMIN_ID), OrderErrorCode.RECOVERY_NOT_FOUND);
             verifyNoInteractions(orderService);
         }
     }

@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.order.app.delivery.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -51,6 +52,9 @@ class DeliveryServiceTest {
 
     @Mock
     private OrderRepository orderRepository;
+
+    @Mock
+    private OrderStatusHistoryRepository historyRepository;
 
     @InjectMocks
     private DeliveryService deliveryService;

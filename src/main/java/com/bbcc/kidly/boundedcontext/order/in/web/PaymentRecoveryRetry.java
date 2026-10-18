@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.web;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
@@ -25,16 +26,17 @@ public class PaymentRecoveryRetry {
      * 업무 오류(없음 · 종료됨 · 재처리 불가)와 동시 처리에서 진 쪽(낙관적 락 · 배송 유니크)은 시도 횟수를 세지 않고
      * 그대로 던진다(진 쪽은 이긴 쪽이 처리했으므로 409). 그 밖의 실패는 센 기록을 돌려준다(200, 상태 PENDING).
      */
-    public PaymentRecoveryResult retry(Long recoveryId) {
+    public PaymentRecoveryResult retry(Long recoveryId, Long adminId) {
         try {
-            return recoveryService.recover(recoveryId, paymentCompletion::apply);
+            return recoveryService.recover(recoveryId, adminId,
+                paid -> paymentCompletion.apply(paid, OrderActor.admin(adminId, OrderActor.RECOVERY_RETRY)));
         } catch (BusinessException e) {
             throw e;
         } catch (RuntimeException e) {
             if (PaymentFailures.isLostConcurrentDuplicate(e)) {
                 throw e;
             }
-            return recoveryService.recordRetryFailure(recoveryId, e);
+            return recoveryService.recordRetryFailure(recoveryId, adminId, e);
         }
     }
 }

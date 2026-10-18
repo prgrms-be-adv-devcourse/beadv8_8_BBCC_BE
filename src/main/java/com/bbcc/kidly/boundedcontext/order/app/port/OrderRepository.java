@@ -29,6 +29,8 @@ public interface OrderRepository {
 
     Optional<Order> findById(Long id);
 
+    boolean existsById(Long id);
+
     /**
      * 회원의 주문 1건. 남의 주문이면 없는 것으로 본다.
      */

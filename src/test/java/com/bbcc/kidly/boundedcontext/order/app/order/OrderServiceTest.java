@@ -22,6 +22,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCom
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
@@ -90,6 +91,9 @@ class OrderServiceTest {
     private SellerReplicaRepository sellerReplicaRepository;
 
     @Mock
+    private OrderStatusHistoryRepository historyRepository;
+
+    @Mock
     private EventPublisher eventPublisher;
 
     @Captor
@@ -100,7 +104,7 @@ class OrderServiceTest {
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
-            deliveryRepository, sellerReplicaRepository, eventPublisher, POLICY);
+            deliveryRepository, sellerReplicaRepository, historyRepository, eventPublisher, POLICY);
     }
 
     @Nested

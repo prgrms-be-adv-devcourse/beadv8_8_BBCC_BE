@@ -56,6 +56,7 @@ class OrderCancelByBuyerIntegrationTest {
 
     private static final Long OTHER_SELLER_ID = 3L;
     private static final int REPEAT = 10;
+    private static final Long ADMIN_ID = 9_000L;
 
     @Autowired
     private OrderService orderService;
@@ -248,7 +249,7 @@ class OrderCancelByBuyerIntegrationTest {
         assertThat(orderService.cancelByBuyer(buyerId, orderId).status()).isEqualTo("CANCELLED");
         assertThat(cancelledEvents(orderId)).isEqualTo(1);
 
-        assertThat(recoveryRetry.retry(recoveryId).status()).isEqualTo("CANCELLED");
+        assertThat(recoveryRetry.retry(recoveryId, ADMIN_ID).status()).isEqualTo("CANCELLED");
 
         Order order = orderRepository.findById(orderId).orElseThrow();
         assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
@@ -267,7 +268,7 @@ class OrderCancelByBuyerIntegrationTest {
 
             ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
                 () -> orderService.cancelByBuyer(buyerId, orderId),
-                () -> recoveryService.cancel(recoveryId)),
+                () -> recoveryService.cancel(recoveryId, ADMIN_ID)),
                 error -> error instanceof BusinessException business
                     && business.getErrorCode() == OrderErrorCode.RECOVERY_CLOSED);
 
@@ -286,6 +287,11 @@ class OrderCancelByBuyerIntegrationTest {
             order.items().stream()
                 .map(item -> new PaymentRecovery.PaidItem(item.orderItemId(), item.amount())).toList(),
             "DataIntegrityViolationException", true, LocalDateTime.now())).getId();
+    }
+
+    private long historyCount(Long orderId, String targetType, String toStatus) {
+        return jdbcTemplate.queryForObject("select count(*) from orders.order_status_history "
+            + "where order_id = ? and target_type = ? and to_status = ?", Long.class, orderId, targetType, toStatus);
     }
 
     private long recoveryCount(Long orderId) {
@@ -309,6 +315,8 @@ class OrderCancelByBuyerIntegrationTest {
             assertThat(cancelledEvents(orderId)).as("%d회차 order.cancelled", round).isEqualTo(1);
             assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId)).extracting(Delivery::getStatus)
                 .containsOnly(Delivery.Status.CANCELLED);
+            assertThat(historyCount(orderId, "ORDER", "CANCELLED")).as("%d회차 주문 취소 이력", round).isEqualTo(1);
+            assertThat(historyCount(orderId, "DELIVERY", "CANCELLED")).as("%d회차 배송 취소 이력", round).isEqualTo(2);
         }
     }
 

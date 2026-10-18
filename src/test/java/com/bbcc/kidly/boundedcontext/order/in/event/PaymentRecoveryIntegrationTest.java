@@ -69,6 +69,7 @@ class PaymentRecoveryIntegrationTest {
     private static final Long BUYER_ID = 6_000L;
     private static final Long OTHER_SELLER_ID = 3L;
     private static final Long PAYMENT_ID = 500L;
+    private static final Long ADMIN_ID = 9_000L;
     private static final String FAILURE = "DataIntegrityViolationException";
 
     @Autowired
@@ -178,14 +179,14 @@ class PaymentRecoveryIntegrationTest {
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryOf(order).getId();
 
-        PaymentRecoveryResult stillBroken = recoveryRetry.retry(recoveryId);
+        PaymentRecoveryResult stillBroken = recoveryRetry.retry(recoveryId, ADMIN_ID);
         assertThat(stillBroken.status()).isEqualTo("PENDING");
         assertThat(stillBroken.attemptCount()).isEqualTo(2);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
 
         fixSeller(order);
-        PaymentRecoveryResult recovered = recoveryRetry.retry(recoveryId);
-        PaymentRecoveryResult again = recoveryRetry.retry(recoveryId);
+        PaymentRecoveryResult recovered = recoveryRetry.retry(recoveryId, ADMIN_ID);
+        PaymentRecoveryResult again = recoveryRetry.retry(recoveryId, ADMIN_ID);
 
         assertThat(recovered.status()).isEqualTo("RECOVERED");
         assertThat(again.status()).isEqualTo("RECOVERED");
@@ -205,8 +206,8 @@ class PaymentRecoveryIntegrationTest {
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryOf(order).getId();
 
-        assertThat(recoveryService.cancel(recoveryId).status()).isEqualTo("CANCELLED");
-        assertThat(recoveryService.cancel(recoveryId).status()).isEqualTo("CANCELLED");
+        assertThat(recoveryService.cancel(recoveryId, ADMIN_ID).status()).isEqualTo("CANCELLED");
+        assertThat(recoveryService.cancel(recoveryId, ADMIN_ID).status()).isEqualTo("CANCELLED");
 
         Order stored = orderRepository.findById(order.orderId()).orElseThrow();
         assertThat(stored.getStatus()).isEqualTo(Order.Status.CANCELLED);
@@ -226,8 +227,8 @@ class PaymentRecoveryIntegrationTest {
             orderService.cancelForPaymentFailure(order.orderId());
         }
 
-        assertThat(recoveryRetry.retry(recoveryOf(first).getId()).status()).isEqualTo("CANCELLED");
-        assertThat(recoveryService.cancel(recoveryOf(second).getId()).status()).isEqualTo("CANCELLED");
+        assertThat(recoveryRetry.retry(recoveryOf(first).getId(), ADMIN_ID).status()).isEqualTo("CANCELLED");
+        assertThat(recoveryService.cancel(recoveryOf(second).getId(), ADMIN_ID).status()).isEqualTo("CANCELLED");
 
         for (OrderDetail order : List.of(first, second)) {
             assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus())
@@ -284,8 +285,8 @@ class PaymentRecoveryIntegrationTest {
             List<PaymentRecoveryResult> results = new CopyOnWriteArrayList<>();
 
             ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
-                () -> results.add(recoveryRetry.retry(recoveryId)),
-                () -> results.add(recoveryRetry.retry(recoveryId))),
+                () -> results.add(recoveryRetry.retry(recoveryId, ADMIN_ID)),
+                () -> results.add(recoveryRetry.retry(recoveryId, ADMIN_ID))),
                 PaymentFailures::isLostConcurrentDuplicate);
 
             assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
@@ -298,6 +299,10 @@ class PaymentRecoveryIntegrationTest {
                 .isEqualTo(Order.Status.PAID);
             assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).as("%d회차 배송", round)
                 .hasSize(2);
+            assertThat(historyCount(order.orderId(), "PAYMENT_RECOVERY", "RECOVERED")).as("%d회차 복구 이력", round)
+                .isEqualTo(1);
+            assertThat(historyCount(order.orderId(), "ORDER", "PAID")).as("%d회차 결제완료 이력", round).isEqualTo(1);
+            assertThat(historyCount(order.orderId(), "DELIVERY", "READY")).as("%d회차 배송 생성 이력", round).isEqualTo(2);
             assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(buyerId)).isEmpty();
         }
     }
@@ -316,8 +321,8 @@ class PaymentRecoveryIntegrationTest {
             Long recoveryId = recoveryOf(order).getId();
 
             ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
-                () -> recoveryRetry.retry(recoveryId),
-                () -> recoveryService.cancel(recoveryId)),
+                () -> recoveryRetry.retry(recoveryId, ADMIN_ID),
+                () -> recoveryService.cancel(recoveryId, ADMIN_ID)),
                 PaymentRecoveryIntegrationTest::isLostOrClosed);
 
             int currentRound = round;
@@ -348,7 +353,7 @@ class PaymentRecoveryIntegrationTest {
 
         Throwable cancelError = whileRecordLocked(recoveryId,
             recovery -> recovery.recover(LocalDateTime.now()),
-            () -> recoveryService.cancel(recoveryId));
+            () -> recoveryService.cancel(recoveryId, ADMIN_ID));
 
         assertThat(cancelError).isInstanceOfSatisfying(BusinessException.class,
             error -> assertThat(error.getErrorCode()).isEqualTo(OrderErrorCode.RECOVERY_CLOSED));
@@ -369,7 +374,7 @@ class PaymentRecoveryIntegrationTest {
                 orderService.cancelForPaymentFailure(order.orderId());
                 recovery.cancel(LocalDateTime.now());
             },
-            () -> recoveryRetry.retry(recoveryId));
+            () -> recoveryRetry.retry(recoveryId, ADMIN_ID));
 
         assertThat(retryError).isInstanceOfSatisfying(BusinessException.class,
             error -> assertThat(error.getErrorCode()).isEqualTo(OrderErrorCode.RECOVERY_CLOSED));
@@ -535,6 +540,11 @@ class PaymentRecoveryIntegrationTest {
     private void fixSeller(OrderDetail order) {
         jdbcTemplate.update("update orders.order_item set seller_id = ? where order_id = ? and seller_id is null",
             OTHER_SELLER_ID, order.orderId());
+    }
+
+    private long historyCount(Long orderId, String targetType, String toStatus) {
+        return jdbcTemplate.queryForObject("select count(*) from orders.order_status_history "
+            + "where order_id = ? and target_type = ? and to_status = ?", Long.class, orderId, targetType, toStatus);
     }
 
     private PaymentRecovery recoveryOf(OrderDetail order) {

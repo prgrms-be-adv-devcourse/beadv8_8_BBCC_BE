@@ -1,9 +1,11 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderStatusHistoryResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -12,10 +14,12 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCom
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.order.TransitionResult;
@@ -63,6 +67,7 @@ public class OrderService {
     private final ChildReplicaRepository childReplicaRepository;
     private final DeliveryRepository deliveryRepository;
     private final SellerReplicaRepository sellerReplicaRepository;
+    private final OrderStatusHistoryRepository historyRepository;
     private final EventPublisher eventPublisher;
     private final Order.Policy orderPolicy;
 
@@ -116,6 +121,9 @@ public class OrderService {
             placed.recordRequestKey(idempotencyKey, requestHash);
         }
         Order order = orderRepository.save(placed);
+        historyRepository.save(OrderActor.buyer(memberId, OrderActor.PLACE)
+            .history(order.getId(), OrderStatusHistory.TargetType.ORDER, order.getId(), null, order.getStatus(), null,
+                now));
 
         eventPublisher.publish(new OrderCreatedEvent(UUID.randomUUID(), now, new OrderCreatedEvent.Data(
             order.getId(),
@@ -162,11 +170,19 @@ public class OrderService {
      * @return 이번에 결제완료로 바꿨으면 true. 주문이 없거나 결제대기가 아니면 false
      */
     public boolean markPaid(MarkPaidCommand command) {
+        return markPaid(command, OrderActor.event(OrderActor.PAYMENT_COMPLETED));
+    }
+
+    /**
+     * 이벤트가 아닌 주체(관리자 재처리)가 결제완료로 바꾼다. 상태 이력에 그 주체를 남긴다(#442).
+     */
+    public boolean markPaid(MarkPaidCommand command, OrderActor actor) {
         LocalDateTime now = LocalDateTime.now();
         Order order = findForEvent(command.orderId(), "payment.completed");
         if (order == null) {
             return false;
         }
+        Order.Status from = order.getStatus();
         TransitionResult result = order.markPaid(command.paymentId(), command.memberId(), command.amount(),
             toPaidItems(command.items()), now);
         if (result == TransitionResult.NOT_APPLICABLE && order.getStatus() == Order.Status.CANCELLED) {
@@ -186,6 +202,8 @@ public class OrderService {
             logIgnored("payment.completed", order, result);
             return false;
         }
+        historyRepository.save(actor.history(order.getId(), OrderStatusHistory.TargetType.ORDER, order.getId(), from,
+            order.getStatus(), null, now));
         log.info("결제완료: orderId={} paymentId={}", order.getId(), command.paymentId());
         return true;
     }
@@ -206,7 +224,14 @@ public class OrderService {
      * 결제 실패로 취소한다. 결제대기가 아니면 그대로 둔다.
      */
     public void cancelForPaymentFailure(Long orderId) {
-        cancel(orderId, "payment.failed", order -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
+        cancelForPaymentFailure(orderId, OrderActor.event(OrderActor.PAYMENT_FAILED));
+    }
+
+    /**
+     * 이벤트가 아닌 주체(관리자 결제 반영 취소)가 결제 실패 사유로 취소한다. 상태 이력에 그 주체를 남긴다(#442).
+     */
+    public void cancelForPaymentFailure(Long orderId, OrderActor actor) {
+        cancel(orderId, "payment.failed", actor, order -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
     }
 
     /**
@@ -217,7 +242,8 @@ public class OrderService {
         Map<Long, String> reasons = command.items().stream()
             .collect(Collectors.toMap(StockDeductionFailedCommand.Item::orderItemId,
                 StockDeductionFailedCommand.Item::reason, (first, last) -> last));
-        cancel(command.orderId(), "stock.deduction-failed", order -> {
+        cancel(command.orderId(), "stock.deduction-failed", OrderActor.event(OrderActor.STOCK_DEDUCTION_FAILED),
+            order -> {
             warnUnknownOrderItems(command.orderId(), order, reasons);
             return order.cancelForOutOfStock(reasons);
         });
@@ -237,7 +263,8 @@ public class OrderService {
      */
     public void cancelForPaymentExpiry(Long orderId) {
         LocalDateTime now = LocalDateTime.now();
-        cancel(orderId, "payment-expiry", order -> order.expirePayment(now));
+        cancel(orderId, "payment-expiry", OrderActor.system(OrderActor.PAYMENT_EXPIRY),
+            order -> order.expirePayment(now));
     }
 
     /**
@@ -256,7 +283,8 @@ public class OrderService {
         LocalDateTime now = LocalDateTime.now();
         Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-        confirm(order, orderItemId, "confirm-by-buyer", target -> target.confirmItem(orderItemId, now));
+        confirm(order, orderItemId, "confirm-by-buyer", OrderActor.buyer(memberId, OrderActor.BUYER_CONFIRM),
+            target -> target.confirmItem(orderItemId, now));
         OrderItem item = findItem(order, orderItemId);
         String sellerName = sellerReplicaRepository.findBySellerId(item.getProduct().sellerId())
             .map(ReplicaSeller::getBusinessName)
@@ -273,7 +301,8 @@ public class OrderService {
         if (order == null) {
             return;
         }
-        confirm(order, orderItemId, "auto-confirm", target -> target.autoConfirmItem(orderItemId, orderPolicy, now));
+        confirm(order, orderItemId, "auto-confirm", OrderActor.system(OrderActor.AUTO_CONFIRM),
+            target -> target.autoConfirmItem(orderItemId, orderPolicy, now));
     }
 
     /**
@@ -305,12 +334,22 @@ public class OrderService {
         if (order.getStatus() != Order.Status.CANCELLED && deliveries.stream().anyMatch(OrderService::isShipped)) {
             throw new BusinessException(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
         }
+        Order.Status from = order.getStatus();
         TransitionResult result = order.cancel(Order.CancelReason.BUYER_CANCELLED);
         if (result == TransitionResult.NOT_APPLICABLE) {
             throw new BusinessException(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
         }
         if (result == TransitionResult.APPLIED) {
-            deliveries.forEach(Delivery::cancel);
+            OrderActor actor = OrderActor.buyer(memberId, OrderActor.BUYER_CANCEL);
+            String reason = order.getCancelReason().name();
+            historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.ORDER, orderId, from,
+                order.getStatus(), reason, now));
+            for (Delivery delivery : deliveries) {
+                Delivery.Status deliveryFrom = delivery.getStatus();
+                delivery.cancel();
+                historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.DELIVERY, delivery.getId(),
+                    deliveryFrom, delivery.getStatus(), reason, now));
+            }
             publishCancelled(order, now);
         } else {
             logIgnored("cancel-by-buyer", order, result);
@@ -343,6 +382,19 @@ public class OrderService {
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
         return OrderTimeline.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId),
             sellerNamesOf(List.of(order)));
+    }
+
+    /**
+     * 관리자용 주문 상태 이력(#442). 오래된 것부터(같은 시각은 저장 순서). 주문이 없으면 404, 이력이 없으면 빈 목록.
+     */
+    @Transactional(readOnly = true)
+    public List<OrderStatusHistoryResult> getHistory(Long orderId) {
+        if (!orderRepository.existsById(orderId)) {
+            throw new BusinessException(OrderErrorCode.ORDER_NOT_FOUND);
+        }
+        return historyRepository.findAllByOrderIdOrderByOccurredAtAscIdAsc(orderId).stream()
+            .map(OrderStatusHistoryResult::from)
+            .toList();
     }
 
     /**
@@ -424,19 +476,23 @@ public class OrderService {
      * 주문상품 순서 그대로).
      *
      * @param source 취소를 일으킨 이벤트 · 작업 이름(로그용)
+     * @param actor 상태 이력에 남길 주체
      * @param change 주문을 취소하는 도메인 메서드. 이번에 취소했으면 APPLIED
      */
-    private void cancel(Long orderId, String source, Function<Order, TransitionResult> change) {
+    private void cancel(Long orderId, String source, OrderActor actor, Function<Order, TransitionResult> change) {
         LocalDateTime now = LocalDateTime.now();
         Order order = findForEvent(orderId, source);
         if (order == null) {
             return;
         }
+        Order.Status from = order.getStatus();
         TransitionResult result = change.apply(order);
         if (result != TransitionResult.APPLIED) {
             logIgnored(source, order, result);
             return;
         }
+        historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.ORDER, orderId, from,
+            order.getStatus(), order.getCancelReason().name(), now));
         publishCancelled(order, now);
     }
 
@@ -472,9 +528,16 @@ public class OrderService {
      * 이번에 확정했을 때만 order-item.purchase-confirmed를 발행한다.
      *
      * @param source 확정을 일으킨 요청 이름(로그용)
+     * @param actor 상태 이력에 남길 주체
      * @param change 주문상품을 확정하는 도메인 메서드. 이번에 확정했으면 APPLIED
      */
-    private void confirm(Order order, Long orderItemId, String source, Function<Order, TransitionResult> change) {
+    private void confirm(Order order, Long orderItemId, String source, OrderActor actor,
+        Function<Order, TransitionResult> change) {
+        OrderItem.Status from = order.getItems().stream()
+            .filter(item -> Objects.equals(item.getId(), orderItemId))
+            .map(OrderItem::getStatus)
+            .findFirst()
+            .orElse(null);
         TransitionResult result = change.apply(order);
         if (result != TransitionResult.APPLIED) {
             log.debug("이벤트 무시: event={} orderId={} orderItemId={} result={} status={}",
@@ -482,6 +545,8 @@ public class OrderService {
             return;
         }
         OrderItem item = findItem(order, orderItemId);
+        historyRepository.save(actor.history(order.getId(), OrderStatusHistory.TargetType.ORDER_ITEM, item.getId(),
+            from, item.getStatus(), item.getConfirmType().name(), item.getConfirmedAt()));
         OrderItem.ProductSnapshot product = item.getProduct();
         eventPublisher.publish(new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), item.getConfirmedAt(),
             new OrderItemPurchaseConfirmedEvent.Data(

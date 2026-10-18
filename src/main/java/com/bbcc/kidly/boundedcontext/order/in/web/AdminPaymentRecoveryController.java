@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.in.web;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.boundedcontext.order.in.web.dto.PaymentRecoveryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
+import com.bbcc.kidly.global.security.AuthMember;
+import com.bbcc.kidly.global.security.LoginMember;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -43,15 +45,15 @@ public class AdminPaymentRecoveryController {
      * 이미 복구됐으면 그대로 200.
      */
     @PostMapping("/{recoveryId}/retry")
-    public PaymentRecoveryResponse retry(@PathVariable Long recoveryId) {
-        return PaymentRecoveryResponse.from(recoveryRetry.retry(recoveryId));
+    public PaymentRecoveryResponse retry(@PathVariable Long recoveryId, @LoginMember AuthMember admin) {
+        return PaymentRecoveryResponse.from(recoveryRetry.retry(recoveryId, admin.id()));
     }
 
     /**
      * 주문을 취소해(결제 환불 · 재고 복구) 기록을 CANCELLED로 끝낸다. 이미 취소로 종료됐으면 그대로 200.
      */
     @PostMapping("/{recoveryId}/cancel")
-    public PaymentRecoveryResponse cancel(@PathVariable Long recoveryId) {
-        return PaymentRecoveryResponse.from(recoveryService.cancel(recoveryId));
+    public PaymentRecoveryResponse cancel(@PathVariable Long recoveryId, @LoginMember AuthMember admin) {
+        return PaymentRecoveryResponse.from(recoveryService.cancel(recoveryId, admin.id()));
     }
 }
