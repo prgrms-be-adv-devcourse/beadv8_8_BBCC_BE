@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
+import com.bbcc.kidly.boundedcontext.product.app.product.SellerProductService;
+import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetailResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.AttributeService;
 import com.bbcc.kidly.boundedcontext.product.app.type.CategoryService;
 import com.bbcc.kidly.boundedcontext.product.app.type.MeasurementItemService;
@@ -13,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.product.app.type.dto.AttributeResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryCreateRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.MeasurementItemResult;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
@@ -27,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.hibernate.exception.ConstraintViolationException;
@@ -56,6 +60,12 @@ class ReferenceDataDeleteIntegrationTest {
 
     @Autowired
     private CategoryRepository categoryRepository;
+
+    @Autowired
+    private ProductOptionSaver productOptionSaver;
+
+    @Autowired
+    private SellerProductService sellerProductService;
 
     @Autowired
     private CategoryService categoryService;
@@ -181,6 +191,25 @@ class ReferenceDataDeleteIntegrationTest {
             .doesNotThrowAnyException();
     }
 
+    @Test
+    @DisplayName("TYPE-09 지운 목록 값 · 카테고리를 이미 쓰는 상품은 판매자 상세에서 그대로 읽힌다")
+    void existingProductKeepsDeletedReferenceData() {
+        ProductOption navy110 = productOptionSaver.saveNavy110();
+        Long productId = inTransaction(() -> entityManager
+            .createQuery("select p.id from Product p", Long.class).getSingleResult());
+        inTransaction(() -> {
+            managed(navy110.getValues().get(0).getAttributeValue()).delete(NOW);
+            entityManager.createQuery("select p.category from Product p", Category.class).getSingleResult()
+                .delete(NOW);
+        });
+
+        SellerProductDetailResult detail =
+            sellerProductService.findMyProductDetail(ProductFixture.SELLER_ID, productId);
+
+        assertThat(detail.options()).extracting(SellerProductDetailResult.Option::optionName)
+            .containsExactly("색상: 네이비 / 사이즈: 110");
+    }
+
     // 엔티티를 바꾸는 트랜잭션에서 다시 읽은 객체를 돌려준다
     private BaseSoftDeleteEntity managed(BaseSoftDeleteEntity entity) {
         Object id = entityManager.getEntityManagerFactory().getPersistenceUnitUtil().getIdentifier(entity);
@@ -189,5 +218,9 @@ class ReferenceDataDeleteIntegrationTest {
 
     private void inTransaction(Runnable work) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> work.run());
+    }
+
+    private <T> T inTransaction(Supplier<T> work) {
+        return new TransactionTemplate(transactionManager).execute(status -> work.get());
     }
 }
