@@ -90,6 +90,19 @@ class ReferenceDataLockIntegrationTest {
             e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_INFO_ATTRIBUTE));
     }
 
+    @Test
+    @DisplayName("같은 카테고리에 상품을 등록하는 판매자끼리는 서로 기다리지 않는다")
+    void registrationsDoNotWaitForEachOther() throws Exception {
+        SavedClothingTop saved = clothingTopSaver.save();
+
+        Outcome outcome = race(
+            () -> productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)),
+            () -> productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)));
+
+        assertThat(outcome.waited()).isFalse();
+        assertThat(outcome.error()).isNull();
+    }
+
     // 앞의 작업을 바깥 트랜잭션에서 실행하고 커밋 직전에 멈춘 채 뒤의 작업을 시작한다. 뒤의 작업이 끝나지 않는지 본 뒤 앞을 커밋한다
     private Outcome race(Runnable first, Runnable second) throws Exception {
         CountDownLatch held = new CountDownLatch(1);
