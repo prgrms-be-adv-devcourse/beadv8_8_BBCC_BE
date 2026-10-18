@@ -22,4 +22,7 @@ public interface ProductTypeRepository {
     default ProductType getById(Long id) {
         return findById(id).orElseThrow(() -> new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_NOT_FOUND));
     }
+
+    // 지우지 않은 유형 중 그 항목을 연결한 유형이 있는지 본다. 유형에 연결된 항목은 지우지 않는다 (TYPE-10)
+    boolean existsByAttributesAttributeAndDeletedAtIsNull(Attribute attribute);
 }

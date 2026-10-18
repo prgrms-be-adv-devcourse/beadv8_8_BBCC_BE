@@ -23,4 +23,15 @@ public interface CategoryRepository {
     default Category getById(Long id) {
         return findById(id).orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
     }
+
+    // 아래 셋은 지우지 않은 카테고리만 본다. 지운 카테고리가 가리키는 유형 · 부모 · 실측 항목은 지울 수 있다 (TYPE-10)
+
+    // 그 유형을 가리키는 카테고리가 있는지 본다
+    boolean existsByProductTypeAndDeletedAtIsNull(ProductType productType);
+
+    // 그 카테고리를 부모로 둔 카테고리가 있는지 본다
+    boolean existsByParentAndDeletedAtIsNull(Category parent);
+
+    // 그 실측 항목을 필수로 연결한 카테고리가 있는지 본다
+    boolean existsByMeasurementItemsMeasurementItemAndDeletedAtIsNull(MeasurementItem measurementItem);
 }
