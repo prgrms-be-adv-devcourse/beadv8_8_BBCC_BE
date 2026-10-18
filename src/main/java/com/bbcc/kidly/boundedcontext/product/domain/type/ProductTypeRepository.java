@@ -32,6 +32,15 @@ public interface ProductTypeRepository {
             .orElseThrow(() -> new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_NOT_FOUND));
     }
 
+    // 상품 유형을 행 잠금(FOR UPDATE)으로 ID로 찾는다. 없으면 빈 값을 돌려준다
+    Optional<ProductType> findByIdForUpdate(Long id);
+
+    // 상품 유형을 행 잠금(FOR UPDATE)으로 ID로 찾는다. 없으면 404 오류(PRODUCT_TYPE_NOT_FOUND)를 던진다
+    default ProductType getByIdForUpdate(Long id) {
+        return findByIdForUpdate(id)
+            .orElseThrow(() -> new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_NOT_FOUND));
+    }
+
     // 지우지 않은 유형 중 그 항목을 연결한 유형이 있는지 본다. 유형에 연결된 항목은 지우지 않는다 (TYPE-10)
     boolean existsByAttributesAttributeAndDeletedAtIsNull(Attribute attribute);
 }

@@ -44,7 +44,8 @@ public class ProductTypeService {
     // 상품 유형의 연결을 받은 목록으로 바꾼다. 받을 수 있는 변경인지는 유형이 판단한다
     @Transactional
     public ProductTypeResult change(Long productTypeId, ProductTypeChangeRequest request) {
-        ProductType productType = productTypeRepository.getById(productTypeId);
+        // 상품 유무를 읽은 뒤 바꾸기 전에 첫 상품 등록이 끼어들지 못하도록 유형 행을 먼저 잠근다(TYPE-07)
+        ProductType productType = productTypeRepository.getByIdForUpdate(productTypeId);
         List<ProductType.LinkInfo> links = toLinkInfos(request.attributes());
         productType.change(links, productRepository.existsByCategoryProductType(productType));
         return toResult(productType);
