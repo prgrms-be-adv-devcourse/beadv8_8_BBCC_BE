@@ -12,8 +12,8 @@ public interface ProductTypeRepository {
     // ID로 상품 유형을 찾는다
     Optional<ProductType> findById(Long id);
 
-    // 모든 상품 유형을 ID 순서로 돌려준다
-    List<ProductType> findAll();
+    // 지우지 않은 상품 유형만 ID 순서로 돌려준다. 관리자 목록에 쓴다 (TYPE-09)
+    List<ProductType> findAllByDeletedAtIsNullOrderByIdAsc();
 
     // 저장된 상품 유형의 수를 돌려준다
     long count();
@@ -22,4 +22,7 @@ public interface ProductTypeRepository {
     default ProductType getById(Long id) {
         return findById(id).orElseThrow(() -> new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_NOT_FOUND));
     }
+
+    // 지우지 않은 유형 중 그 항목을 연결한 유형이 있는지 본다. 유형에 연결된 항목은 지우지 않는다 (TYPE-10)
+    boolean existsByAttributesAttributeAndDeletedAtIsNull(Attribute attribute);
 }

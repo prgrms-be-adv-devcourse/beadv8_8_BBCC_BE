@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.support.FunctionalTest;
@@ -226,18 +227,6 @@ class AdminProductTypeApiTest {
         type.put("name", name);
         type.put("attributes", attributes);
         return type;
-    }
-
-    // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
-    private void assertProblem(RestTestClient.ResponseSpec response, HttpStatus status) {
-        response.expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").exists()
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").exists()
-            .jsonPath("$.instance").exists();
     }
 
     // 유형에 연결할 항목 하나의 설정이다

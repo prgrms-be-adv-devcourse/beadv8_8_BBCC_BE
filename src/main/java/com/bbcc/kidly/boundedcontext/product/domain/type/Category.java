@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.domain.type;
 
 import static java.util.Objects.requireNonNull;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -16,7 +16,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -28,16 +28,15 @@ import lombok.NoArgsConstructor;
 /**
  * 상품을 분류하는 카테고리다. 카테고리는 계층을 이루며, 말단 카테고리만 상품 유형과 필수 실측 항목을 가지고
  * 중간 카테고리는 둘 다 없다.
+ * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
  */
 @Entity
-@Table(
-    schema = "product",
-    name = "category",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"parent_id", "name"}))
-// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 제약이 막지 못한다. UNIQUE는 null끼리 같은 값으로 보지 않는다
+@Table(schema = "product", name = "category")
+// 같은 부모 아래의 이름 중복은 지우지 않은 행끼리만 막는다. 마이그레이션이 부분 UNIQUE 인덱스를 만든다
+// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 인덱스가 막지 못한다. UNIQUE는 null끼리 같은 값으로 보지 않는다
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Category extends BaseTimeEntity {
+public class Category extends BaseSoftDeleteEntity {
 
     /**
      * 말단 카테고리를 만드는 값이다. 최상위 카테고리이면 parent는 null이다.
@@ -72,6 +71,7 @@ public class Category extends BaseTimeEntity {
         requireNonNull(name, "name은 필수입니다");
         rejectBlankName(name);
         rejectLeafParent(parent);
+        rejectDeletedReferences(parent, null, List.of());
         Category category = new Category();
         category.name = name;
         category.parent = parent;
@@ -87,6 +87,7 @@ public class Category extends BaseTimeEntity {
         rejectDuplicatedMeasurementItems(info.measurementItems());
         rejectBlankName(info.name());
         rejectLeafParent(info.parent());
+        rejectDeletedReferences(info.parent(), info.productType(), info.measurementItems());
         Category category = new Category();
         category.name = info.name();
         category.parent = info.parent();
@@ -108,6 +109,7 @@ public class Category extends BaseTimeEntity {
         if (!isLeaf()) {
             throw new BusinessException(CategoryErrorCode.MIDDLE_CATEGORY_NOT_CHANGEABLE);
         }
+        rejectDeletedReferences(null, productType, measurementItems);
         if (hasProducts && breaksProducts(productType, measurementItems)) {
             throw new BusinessException(CategoryErrorCode.CHANGE_BREAKS_PRODUCTS);
         }
@@ -163,6 +165,23 @@ public class Category extends BaseTimeEntity {
         }
     }
 
+    // 지운 부모 카테고리 · 상품 유형 · 실측 항목은 새로 고를 수 없다(TYPE-10: 지운 기준 데이터는 새로 연결하지 않는다).
+    // 부모와 유형은 지연 로딩 프록시일 수 있으므로 메서드로 읽는다
+    private static void rejectDeletedReferences(
+        Category parent, ProductType productType, List<MeasurementItem> measurementItems) {
+        if (parent != null && parent.isDeleted()) {
+            throw new BusinessException(CategoryErrorCode.DELETED_REFERENCE);
+        }
+        if (productType != null && productType.isDeleted()) {
+            throw new BusinessException(CategoryErrorCode.DELETED_REFERENCE);
+        }
+        for (MeasurementItem item : measurementItems) {
+            if (item.isDeleted()) {
+                throw new BusinessException(CategoryErrorCode.DELETED_REFERENCE);
+            }
+        }
+    }
+
     // 유형을 가진 카테고리 아래에 카테고리를 만들면, 그 부모가 유형을 가진 중간 카테고리가 되어 TYPE-01을 어긴다.
     // 부모가 지연 로딩 프록시이면 필드가 비어 있으므로 getter로 읽는다
     private static void rejectLeafParent(Category parent) {
@@ -186,5 +205,14 @@ public class Category extends BaseTimeEntity {
 
     public List<CategoryMeasurementItem> getMeasurementItems() {
         return Collections.unmodifiableList(measurementItems);
+    }
+
+    // 지우지 않은 하위 카테고리가 있는 카테고리(inUse)는 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다)
+    public void delete(LocalDateTime now, boolean inUse) {
+        requireNonNull(now, "now는 필수입니다");
+        if (inUse) {
+            throw new BusinessException(CategoryErrorCode.CATEGORY_IN_USE);
+        }
+        delete(now);
     }
 }

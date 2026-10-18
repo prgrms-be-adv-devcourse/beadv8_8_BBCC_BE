@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.support.FunctionalTest;
@@ -199,18 +200,6 @@ class AdminCategoryApiTest {
             Arguments.of("비로그인은 401", (Function<TestTokens, String>) tokens -> null, HttpStatus.UNAUTHORIZED),
             Arguments.of("구매자는 403", (Function<TestTokens, String>) tokens -> tokens.buyer(1L), HttpStatus.FORBIDDEN),
             Arguments.of("판매자는 403", (Function<TestTokens, String>) tokens -> tokens.seller(2L), HttpStatus.FORBIDDEN));
-    }
-
-    // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
-    private void assertProblem(RestTestClient.ResponseSpec response, HttpStatus status) {
-        response.expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").exists()
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").exists()
-            .jsonPath("$.instance").exists();
     }
 
     private String createdCategoryId(Map<String, Object> body) {

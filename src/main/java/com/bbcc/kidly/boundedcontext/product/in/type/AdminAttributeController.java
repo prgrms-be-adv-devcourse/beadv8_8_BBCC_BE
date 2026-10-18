@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 항목 API. 항목과 그 목록 값을 만들고 조회한다.
+ * 관리자 항목 API. 항목과 그 목록 값을 만들고 조회하고 지운다.
  */
 @RestController
 @RequestMapping("/api/v1/admin/attributes")
@@ -58,5 +59,17 @@ public class AdminAttributeController {
         response.setHeader(
             HttpHeaders.LOCATION, "/api/v1/admin/attributes/" + attributeId + "/values/" + result.valueId());
         return AttributeResponse.Value.from(result);
+    }
+
+    @DeleteMapping("/{attributeId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long attributeId) {
+        attributeService.delete(attributeId);
+    }
+
+    @DeleteMapping("/{attributeId}/values/{valueId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteValue(@PathVariable Long attributeId, @PathVariable Long valueId) {
+        attributeService.deleteValue(attributeId, valueId);
     }
 }

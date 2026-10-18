@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 
 /**
  * 카테고리에서 생기는 업무 오류다.
- * 상품이 있는 카테고리를 기존 상품과 어긋나게 바꾸는 요청은 카테고리의 현재 상태와 충돌하므로 409로 알린다.
+ * 상품이 있는 카테고리를 기존 상품과 어긋나게 바꾸는 요청과 하위 카테고리가 있는 카테고리를 지우는 요청은 카테고리의 현재 상태와 충돌하므로 409로 알린다.
  * domain.product가 domain.type을 참조하므로, 반대 방향 참조를 만들지 않으려고 ProductErrorCode와 따로 둔다.
  */
 @Getter
@@ -23,7 +23,12 @@ public enum CategoryErrorCode implements ErrorCode {
         "상품 유형과 필수 실측 항목은 가장 아래 단계의 카테고리에서만 바꿀 수 있습니다."),
     DUPLICATE_MEASUREMENT_ITEM(HttpStatus.BAD_REQUEST, "카테고리 설정이 잘못되었습니다", "같은 실측 항목은 한 번만 넣어 주세요."),
     CHANGE_BREAKS_PRODUCTS(HttpStatus.CONFLICT, "상품이 있는 카테고리는 바꿀 수 없는 설정입니다",
-        "상품이 있는 카테고리는 필수 실측 항목 빼기와 순서 변경만 할 수 있습니다.");
+        "상품이 있는 카테고리는 필수 실측 항목 빼기와 순서 변경만 할 수 있습니다."),
+    DELETED_REFERENCE(HttpStatus.BAD_REQUEST, "고를 수 없는 기준 데이터입니다",
+        "지운 부모 카테고리 · 상품 유형 · 실측 항목은 고를 수 없습니다."),
+    CATEGORY_DELETED(HttpStatus.BAD_REQUEST, "고를 수 없는 카테고리입니다", "지운 카테고리입니다. 다른 카테고리를 골라 주세요."),
+    CATEGORY_IN_USE(HttpStatus.CONFLICT, "지울 수 없는 카테고리입니다",
+        "하위 카테고리가 있는 카테고리는 지울 수 없습니다. 하위 카테고리를 먼저 지워 주세요.");
 
     private final HttpStatus status;
     private final String title;

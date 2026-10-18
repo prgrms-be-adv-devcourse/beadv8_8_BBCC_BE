@@ -2,13 +2,15 @@ package com.bbcc.kidly.boundedcontext.product.domain.type;
 
 import static java.util.Objects.requireNonNull;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -16,12 +18,13 @@ import lombok.NoArgsConstructor;
 /**
  * 총장 · 어깨너비처럼 상품을 재는 실측 항목이다. 말단 카테고리가 어떤 실측 항목을 필수로 받는지 정할 때 쓴다.
  * 코드는 실측 값의 키로 쓰이므로 바꾸지 않는다.
+ * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
  */
 @Entity
 @Table(schema = "product", name = "measurement_item")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MeasurementItem extends BaseTimeEntity {
+public class MeasurementItem extends BaseSoftDeleteEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -54,5 +57,14 @@ public class MeasurementItem extends BaseTimeEntity {
         item.code = code;
         item.unit = unit;
         return item;
+    }
+
+    // 지우지 않은 카테고리가 필수로 연결한 실측 항목(inUse)은 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다)
+    public void delete(LocalDateTime now, boolean inUse) {
+        requireNonNull(now, "now는 필수입니다");
+        if (inUse) {
+            throw new BusinessException(MeasurementItemErrorCode.MEASUREMENT_ITEM_IN_USE);
+        }
+        delete(now);
     }
 }

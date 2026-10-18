@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.support.FunctionalTest;
@@ -193,18 +194,6 @@ class AdminAttributeApiTest {
 
     private static Map<String, Object> attribute(String name, String code, String inputType, List<?> values) {
         return Map.of("name", name, "code", code, "inputType", inputType, "values", values);
-    }
-
-    // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
-    private void assertProblem(RestTestClient.ResponseSpec response, HttpStatus status) {
-        response.expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").exists()
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").exists()
-            .jsonPath("$.instance").exists();
     }
 
     // 값 없이 항목 하나를 만들고 그 ID를 돌려준다

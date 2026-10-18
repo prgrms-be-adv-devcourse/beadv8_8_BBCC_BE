@@ -20,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,11 +64,11 @@ public class CategoryService {
         return toResult(category);
     }
 
-    // 모든 카테고리를 ID 순서로 평평하게 돌려준다
+    // 지우지 않은 모든 카테고리를 ID 순서로 평평하게 돌려준다
     @Transactional(readOnly = true)
     public List<CategoryResult> findAll() {
         List<CategoryResult> results = new ArrayList<>();
-        for (Category category : categoryRepository.findAll()) {
+        for (Category category : categoryRepository.findAllByDeletedAtIsNullOrderByIdAsc()) {
             results.add(toResult(category));
         }
         return results;
@@ -118,12 +119,12 @@ public class CategoryService {
             measurementItems);
     }
 
-    // 최상위 카테고리부터 하위 카테고리까지 계층으로 돌려준다. 같은 부모 아래에서는 ID 순서다
+    // 지우지 않은 최상위 카테고리부터 하위 카테고리까지 계층으로 돌려준다. 같은 부모 아래에서는 ID 순서다
     @Transactional(readOnly = true)
     public List<CategoryTreeResult> findTree() {
         List<Category> topLevel = new ArrayList<>();
         Map<Long, List<Category>> childrenByParentId = new HashMap<>();
-        for (Category category : categoryRepository.findAll()) {
+        for (Category category : categoryRepository.findAllByDeletedAtIsNullOrderByIdAsc()) {
             // 부모는 지연 로딩 프록시이므로 ID만 읽는다. 프록시를 초기화하지 않아 쿼리가 늘지 않는다
             Category parent = category.getParent();
             if (parent == null) {
@@ -202,5 +203,13 @@ public class CategoryService {
             link.isSizeRole(),
             link.isPriceAffecting(),
             values);
+    }
+
+    // 카테고리를 지운다. 지우지 않은 하위 카테고리가 있는지는 읽어 넘기고, 지울 수 있는지는 카테고리가 판단한다 (TYPE-10)
+    @Transactional
+    public void delete(Long categoryId) {
+        Category category = categoryRepository.getById(categoryId);
+        boolean inUse = categoryRepository.existsByParentAndDeletedAtIsNull(category);
+        category.delete(LocalDateTime.now(), inUse);
     }
 }

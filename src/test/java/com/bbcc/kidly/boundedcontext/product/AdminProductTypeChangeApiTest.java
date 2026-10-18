@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
@@ -160,18 +161,6 @@ class AdminProductTypeChangeApiTest {
     // 의류 유형의 두 번째 연결이 사이즈 항목이다
     private static Attribute sizeOf(ProductFixture.Clothing clothing) {
         return clothing.type().getAttributes().get(1).getAttribute();
-    }
-
-    // 실패 응답이 ProblemDetail 5필드를 담은 application/problem+json인지 확인한다
-    private void assertProblem(RestTestClient.ResponseSpec response, HttpStatus status) {
-        response.expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").exists()
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").exists()
-            .jsonPath("$.instance").exists();
     }
 
     private static String typePath(ProductType type) {

@@ -12,8 +12,8 @@ public interface AttributeRepository {
     // ID로 항목을 찾는다
     Optional<Attribute> findById(Long id);
 
-    // 모든 항목을 ID 순서로 돌려준다
-    List<Attribute> findAll();
+    // 지우지 않은 항목만 ID 순서로 돌려준다. 관리자 목록에 쓴다 (TYPE-09)
+    List<Attribute> findAllByDeletedAtIsNullOrderByIdAsc();
 
     // 항목을 ID로 찾는다. 없으면 404 오류(ATTRIBUTE_NOT_FOUND)를 던진다
     default Attribute getById(Long id) {

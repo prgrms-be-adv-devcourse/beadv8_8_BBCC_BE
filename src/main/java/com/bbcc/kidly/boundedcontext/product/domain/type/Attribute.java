@@ -2,7 +2,8 @@ package com.bbcc.kidly.boundedcontext.product.domain.type;
 
 import static java.util.Objects.requireNonNull;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,18 +12,20 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
  * 색상 · 사이즈 · 주요소재 같은 항목이다. 코드는 검색 키로 쓰이므로 바꾸지 않는다.
+ * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
  */
 @Entity
 @Table(schema = "product", name = "attribute")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Attribute extends BaseTimeEntity {
+public class Attribute extends BaseSoftDeleteEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -53,5 +56,14 @@ public class Attribute extends BaseTimeEntity {
         attribute.code = code;
         attribute.inputType = inputType;
         return attribute;
+    }
+
+    // 지우지 않은 상품 유형에 연결된 항목(inUse)은 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다)
+    public void delete(LocalDateTime now, boolean inUse) {
+        requireNonNull(now, "now는 필수입니다");
+        if (inUse) {
+            throw new BusinessException(AttributeErrorCode.ATTRIBUTE_IN_USE);
+        }
+        delete(now);
     }
 }
