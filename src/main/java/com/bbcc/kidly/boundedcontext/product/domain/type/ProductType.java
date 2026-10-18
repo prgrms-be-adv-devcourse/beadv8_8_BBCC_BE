@@ -249,6 +249,10 @@ public class ProductType extends BaseSoftDeleteEntity {
 
     // 목록 값을 이 유형에서 고를 수 있는지 본다. 모든 값 허용 항목이면 그 항목의 값은 모두 고를 수 있고, 아니면 허용 값만 고를 수 있다
     public boolean allows(AttributeValue value) {
+        // 지운 값은 새 등록 · 수정에서 고를 수 없다 (TYPE-09)
+        if (value.isDeleted()) {
+            return false;
+        }
         Optional<ProductTypeAttribute> link = findLink(value.getAttribute());
         if (link.isEmpty()) {
             return false;
