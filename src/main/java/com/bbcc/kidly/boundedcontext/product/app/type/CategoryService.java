@@ -57,7 +57,8 @@ public class CategoryService {
     // 말단 카테고리의 상품 유형과 필수 실측 항목을 바꾼다. 받을 수 있는 변경인지는 카테고리가 판단한다
     @Transactional
     public CategoryResult change(Long categoryId, CategoryChangeRequest request) {
-        Category category = categoryRepository.getById(categoryId);
+        // 상품 유무를 읽은 뒤 바꾸기 전에 첫 상품 등록이 끼어들지 못하도록 카테고리 행을 먼저 잠근다(TYPE-07)
+        Category category = categoryRepository.getByIdForUpdate(categoryId);
         ProductType productType = productTypeRepository.getById(request.productTypeId());
         List<MeasurementItem> measurementItems = findMeasurementItems(request.measurementItemIds());
         category.change(productType, measurementItems, productRepository.existsByCategory(category));

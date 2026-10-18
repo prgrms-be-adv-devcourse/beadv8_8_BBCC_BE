@@ -18,4 +18,10 @@ public interface JpaCategoryRepository extends JpaRepository<Category, Long>, Ca
     @Override
     @Query("select c from Category c where c.parent is null and c.name = :name and c.deletedAt is null")
     Optional<Category> findTopLevelByName(@Param("name") String name);
+
+    @Override
+    // PESSIMISTIC_WRITE는 PostgreSQL에서 FOR NO KEY UPDATE가 되어, 상품 insert가 외래 키 검사로 거는 KEY SHARE와 충돌하지 않는다.
+    // 첫 상품 등록의 커밋을 기다려야 하므로 FOR UPDATE를 직접 쓴다
+    @Query(value = "select * from product.category where id = :id for update", nativeQuery = true)
+    Optional<Category> findByIdForUpdate(@Param("id") Long id);
 }
