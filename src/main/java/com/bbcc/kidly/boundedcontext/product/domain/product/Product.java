@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -207,6 +208,7 @@ public class Product extends BaseTimeEntity {
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
+        rejectDeletedCategory(info.category());
         ProductType productType = info.category().productTypeToRegister();
         ProductInfoValues.validate(info.infoValues(), productType);
         Product product = new Product();
@@ -248,6 +250,9 @@ public class Product extends BaseTimeEntity {
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
+        if (category != info.category()) {
+            rejectDeletedCategory(info.category());
+        }
         // 정보 값은 등록할 때와 같은 규칙으로 검사한다. 상품 유형은 받은 카테고리에서 꺼낸다
         ProductInfoValues.validate(info.infoValues(), info.category().productTypeToRegister());
         // 옵션 · 가격 · 실측은 주문이 없는 판매대기 상품에서만 바꿔 넣는다. 같은 값을 보내도 거절한다
@@ -282,6 +287,14 @@ public class Product extends BaseTimeEntity {
             return new UpdateResult(true, List.of(), List.of());
         }
         return replacement.replace(options, sizeSpecs);
+    }
+
+    // 지운 카테고리는 새로 고를 수 없다(TYPE-09). 지운 카테고리에 이미 있는 상품은 그대로 팔고 고칠 수 있어야 하므로
+    // 새로 등록하거나 다른 카테고리로 옮길 때만 부른다
+    private static void rejectDeletedCategory(Category category) {
+        if (category.isDeleted()) {
+            throw new BusinessException(CategoryErrorCode.CATEGORY_DELETED);
+        }
     }
 
     // 기본 정보와 정보 값을 받은 값으로 바꾼다

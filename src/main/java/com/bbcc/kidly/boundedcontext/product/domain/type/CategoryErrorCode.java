@@ -24,6 +24,7 @@ public enum CategoryErrorCode implements ErrorCode {
     DUPLICATE_MEASUREMENT_ITEM(HttpStatus.BAD_REQUEST, "카테고리 설정이 잘못되었습니다", "같은 실측 항목은 한 번만 넣어 주세요."),
     CHANGE_BREAKS_PRODUCTS(HttpStatus.CONFLICT, "상품이 있는 카테고리는 바꿀 수 없는 설정입니다",
         "상품이 있는 카테고리는 필수 실측 항목 빼기와 순서 변경만 할 수 있습니다."),
+    CATEGORY_DELETED(HttpStatus.BAD_REQUEST, "고를 수 없는 카테고리입니다", "지운 카테고리입니다. 다른 카테고리를 골라 주세요."),
     CATEGORY_IN_USE(HttpStatus.CONFLICT, "지울 수 없는 카테고리입니다",
         "하위 카테고리가 있는 카테고리는 지울 수 없습니다. 하위 카테고리를 먼저 지워 주세요.");
 
