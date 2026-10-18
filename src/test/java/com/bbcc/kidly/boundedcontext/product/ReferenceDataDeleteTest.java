@@ -1,8 +1,10 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
@@ -19,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -75,6 +78,37 @@ class ReferenceDataDeleteTest {
         assertThat(type.allows(red)).isFalse();
         assertThat(type.allows(navy)).isTrue();
         assertThat(type.selectableValues(List.of(navy, red))).containsExactly(navy);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("choosingDeletedCategory")
+    @DisplayName("TYPE-09 지운 카테고리를 새로 고르면 400으로 거절한다")
+    void rejectChoosingDeletedCategory(ThrowingCallable choose) {
+        assertThatThrownBy(choose)
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.CATEGORY_DELETED);
+                assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
+    }
+
+    static Stream<Named<ThrowingCallable>> choosingDeletedCategory() {
+        Product.RegisterInfo register = ProductFixture.productA(ProductFixture.clothing());
+        register.category().delete(NOW, false);
+        ProductUpdateFixture.ProductA productA = ProductUpdateFixture.salePendingProductA();
+        productA.outer().delete(NOW, false);
+        return Stream.of(
+            Named.of("새 등록", () -> Product.register(register)),
+            Named.of("다른 카테고리로 옮기기", () -> productA.product()
+                .update(productA.updateWithCategory(productA.outer()), productA.currentSaleInputs())));
+    }
+
+    @Test
+    @DisplayName("TYPE-09 지운 카테고리에 이미 있는 상품은 같은 카테고리 안에서 고칠 수 있다")
+    void updateProductInDeletedCategory() {
+        ProductUpdateFixture.ProductA productA = ProductUpdateFixture.salePendingProductA();
+        productA.top().delete(NOW, false);
+
+        assertThatCode(() -> productA.product().update(productA.sameUpdate())).doesNotThrowAnyException();
     }
 
     static Stream<Arguments> deletionsInUse() {
