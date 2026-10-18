@@ -1,16 +1,20 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +37,7 @@ public class PaymentRecoveryService {
     private final PaymentRecoveryRepository recoveryRepository;
     private final OrderRepository orderRepository;
     private final OrderService orderService;
+    private final OrderStatusHistoryRepository historyRepository;
 
     /**
      * 받은 결제 완료 내용과 실패 이유를 주문당 1건 보관한다(있으면 시도 +1 · 이유 갱신).
@@ -46,13 +51,19 @@ public class PaymentRecoveryService {
         LocalDateTime now = LocalDateTime.now();
         String failureCode = PaymentFailures.failureCode(error);
         boolean retryable = PaymentFailures.isRetryable(error);
-        PaymentRecovery recovery = recoveryRepository.findByOrderIdForUpdateNoWait(paid.orderId())
-            .map(existing -> {
-                existing.recordFailure(failureCode, retryable, now);
-                return existing;
+        Optional<PaymentRecovery> existing = recoveryRepository.findByOrderIdForUpdateNoWait(paid.orderId());
+        PaymentRecovery.Status from = existing.map(PaymentRecovery::getStatus).orElse(null);
+        PaymentRecovery recovery = existing
+            .map(found -> {
+                found.recordFailure(failureCode, retryable, now);
+                return found;
             })
             .orElseGet(() -> recoveryRepository.save(PaymentRecovery.open(paid.orderId(), paid.paymentId(),
                 paid.memberId(), paid.amount(), toPaidItems(paid.items()), failureCode, retryable, now)));
+        // 상태가 바뀔 때(새 기록 · NOT_RETRYABLE로)만 이력을 남긴다. 시도 횟수만 늘면 남기지 않는다
+        if (recovery.getStatus() != from) {
+            recordHistory(OrderActor.event(OrderActor.PAYMENT_COMPLETED), recovery, from, failureCode, now);
+        }
         return PaymentRecoveryResult.from(recovery);
     }
 
@@ -89,8 +100,7 @@ public class PaymentRecoveryService {
      * @param applyPaid 결제 완료 반영(결제완료 → 배송 생성 → 장바구니 정리). 기능끼리 서로 부르지 않으므로 in이 넘긴다
      */
     @Transactional
-    public PaymentRecoveryResult recover(Long recoveryId, Consumer<MarkPaidCommand> applyPaid) {
-        LocalDateTime now = LocalDateTime.now();
+    public PaymentRecoveryResult recover(Long recoveryId, Long adminId, Consumer<MarkPaidCommand> applyPaid) {
         PaymentRecovery recovery = findForUpdate(recoveryId);
         switch (recovery.getStatus()) {
             case RECOVERED -> {
@@ -102,14 +112,18 @@ public class PaymentRecoveryService {
             }
         }
         Order.Status orderStatus = orderStatusOf(recovery);
+        if (orderStatus == Order.Status.PENDING_PAYMENT) {
+            applyPaid.accept(toCommand(recovery));
+        }
+        // 결제 완료 반영 뒤의 시각: 이력에서 기록 종료가 주문 결제완료 · 배송 생성 다음에 오게 한다
+        LocalDateTime now = LocalDateTime.now();
+        PaymentRecovery.Status from = recovery.getStatus();
         if (orderStatus == Order.Status.CANCELLED) {
             recovery.cancel(now);
         } else {
-            if (orderStatus == Order.Status.PENDING_PAYMENT) {
-                applyPaid.accept(toCommand(recovery));
-            }
             recovery.recover(now);
         }
+        recordHistory(OrderActor.admin(adminId, OrderActor.RECOVERY_RETRY), recovery, from, null, now);
         log.info("결제 반영 재처리: recoveryId={} orderId={} result={}",
             recovery.getId(), recovery.getOrderId(), recovery.getStatus());
         return PaymentRecoveryResult.from(recovery);
@@ -119,13 +133,18 @@ public class PaymentRecoveryService {
      * 재처리가 다시 실패했다. 아직 종료되지 않은 기록만 시도 +1 · 이유를 바꾼다(동시에 다른 재처리가 복구했으면 그대로 둠).
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public PaymentRecoveryResult recordRetryFailure(Long recoveryId, RuntimeException error) {
+    public PaymentRecoveryResult recordRetryFailure(Long recoveryId, Long adminId, RuntimeException error) {
         PaymentRecovery recovery = find(recoveryId);
         if (recovery.isClosed()) {
             return PaymentRecoveryResult.from(recovery);
         }
-        recovery.recordFailure(PaymentFailures.failureCode(error), PaymentFailures.isRetryable(error),
-            LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        PaymentRecovery.Status from = recovery.getStatus();
+        recovery.recordFailure(PaymentFailures.failureCode(error), PaymentFailures.isRetryable(error), now);
+        if (recovery.getStatus() != from) {
+            recordHistory(OrderActor.admin(adminId, OrderActor.RECOVERY_RETRY), recovery, from,
+                recovery.getFailureCode(), now);
+        }
         log.info("결제 반영 재처리: recoveryId={} orderId={} result={} attemptCount={} failureCode={}",
             recovery.getId(), recovery.getOrderId(), recovery.getStatus(), recovery.getAttemptCount(),
             recovery.getFailureCode());
@@ -137,7 +156,7 @@ public class PaymentRecoveryService {
      * 주문이 이미 취소됐으면 다시 취소하지 않는다(이벤트 없음). 이미 결제가 반영된 주문은 취소하지 않는다(409).
      */
     @Transactional
-    public PaymentRecoveryResult cancel(Long recoveryId) {
+    public PaymentRecoveryResult cancel(Long recoveryId, Long adminId) {
         PaymentRecovery recovery = findForUpdate(recoveryId);
         if (recovery.getStatus() == PaymentRecovery.Status.CANCELLED) {
             return PaymentRecoveryResult.from(recovery);
@@ -149,13 +168,23 @@ public class PaymentRecoveryService {
         if (orderStatus == Order.Status.PAID) {
             throw new BusinessException(OrderErrorCode.RECOVERY_ORDER_PAID);
         }
+        OrderActor admin = OrderActor.admin(adminId, OrderActor.RECOVERY_CANCEL);
         if (orderStatus == Order.Status.PENDING_PAYMENT) {
-            orderService.cancelForPaymentFailure(recovery.getOrderId());
+            orderService.cancelForPaymentFailure(recovery.getOrderId(), admin);
         }
-        recovery.cancel(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        PaymentRecovery.Status from = recovery.getStatus();
+        recovery.cancel(now);
+        recordHistory(admin, recovery, from, null, now);
         log.info("결제 반영 취소로 종료: recoveryId={} orderId={} result={}",
             recovery.getId(), recovery.getOrderId(), recovery.getStatus());
         return PaymentRecoveryResult.from(recovery);
+    }
+
+    private void recordHistory(OrderActor actor, PaymentRecovery recovery, PaymentRecovery.Status from, String reason,
+        LocalDateTime now) {
+        historyRepository.save(actor.history(recovery.getOrderId(), OrderStatusHistory.TargetType.PAYMENT_RECOVERY,
+            recovery.getId(), from, recovery.getStatus(), reason, now));
     }
 
     // in은 도메인 enum을 쓰지 않으므로 상태 이름은 여기서 바꾼다. 이름이 정확히 같아야 한다(소문자 · 모르는 값은 400)

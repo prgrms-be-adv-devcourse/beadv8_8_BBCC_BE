@@ -1,11 +1,14 @@
 package com.bbcc.kidly.boundedcontext.order.app.delivery;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
@@ -34,15 +37,29 @@ public class DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
     private final OrderRepository orderRepository;
+    private final OrderStatusHistoryRepository historyRepository;
 
     /**
      * 주문상품을 판매자로 묶어 판매자마다 배송 준비 1건을 만든다. 주문이 없으면 만들지 않는다.
      */
     public void createFor(Long orderId) {
+        createFor(orderId, OrderActor.event(OrderActor.PAYMENT_COMPLETED));
+    }
+
+    /**
+     * 이벤트가 아닌 주체(관리자 재처리)가 만든다. 상태 이력에 그 주체를 남긴다(#442).
+     */
+    public void createFor(Long orderId, OrderActor actor) {
+        LocalDateTime now = LocalDateTime.now();
         orderRepository.findById(orderId).ifPresent(order -> order.getItems().stream()
             .map(item -> item.getProduct().sellerId())
             .distinct()
-            .forEach(sellerId -> deliveryRepository.save(Delivery.create(orderId, sellerId))));
+            .map(sellerId -> Delivery.create(orderId, sellerId))
+            .forEach(delivery -> {
+                deliveryRepository.save(delivery);
+                historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.DELIVERY, delivery.getId(),
+                    null, delivery.getStatus(), null, now));
+            }));
     }
 
     /**
@@ -51,7 +68,11 @@ public class DeliveryService {
     public DeliveryResult ship(Long memberId, Long deliveryId, String carrier, String trackingNumber) {
         Delivery.Carrier parsed = toCarrier(carrier);
         Delivery delivery = findOwned(memberId, deliveryId);
-        delivery.ship(parsed, trackingNumber, LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        Delivery.Status from = delivery.getStatus();
+        delivery.ship(parsed, trackingNumber, now);
+        historyRepository.save(OrderActor.seller(memberId, OrderActor.SELLER_SHIP).history(delivery.getOrderId(),
+            OrderStatusHistory.TargetType.DELIVERY, delivery.getId(), from, delivery.getStatus(), null, now));
         log.info("발송: orderId={} deliveryId={} sellerId={} carrier={}",
             delivery.getOrderId(), delivery.getId(), delivery.getSellerId(), parsed);
         return DeliveryResult.from(delivery);
@@ -64,14 +85,18 @@ public class DeliveryService {
      */
     public DeliveryResult complete(Long memberId, Long deliveryId) {
         Delivery delivery = findOwned(memberId, deliveryId);
-        boolean alreadyDelivered = delivery.getStatus() == Delivery.Status.DELIVERED;
-        delivery.complete(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        Delivery.Status from = delivery.getStatus();
+        boolean alreadyDelivered = from == Delivery.Status.DELIVERED;
+        delivery.complete(now);
         orderRepository.findById(delivery.getOrderId())
             .ifPresent(order -> order.recordDelivered(delivery.getSellerId(), delivery.getDeliveredAt()));
         if (alreadyDelivered) {
             log.debug("요청 무시: event=deliver orderId={} deliveryId={} result=ALREADY_DONE",
                 delivery.getOrderId(), delivery.getId());
         } else {
+            historyRepository.save(OrderActor.seller(memberId, OrderActor.SELLER_DELIVER).history(delivery.getOrderId(),
+                OrderStatusHistory.TargetType.DELIVERY, delivery.getId(), from, delivery.getStatus(), null, now));
             log.info("배송 완료: orderId={} deliveryId={} sellerId={}",
                 delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
         }
