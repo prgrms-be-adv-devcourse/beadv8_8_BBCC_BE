@@ -1,0 +1,30 @@
+{
+  "apiVersion": "logsdrilldown.grafana.app/v1beta1",
+  "kind": "LogsDrilldownDefaultColumns",
+  "metadata": {
+    "name": "loki"
+  },
+  "spec": {
+    "records": [
+      {
+        "labels": [
+          {
+            "key": "service_name",
+            "value": "kidly"
+          }
+        ],
+        "columns": [
+          "http_request_method",
+          "http_route",
+          "url_path",
+          "http_response_status_code",
+          "duration_ms",
+          "client_ip",
+          "memberId",
+          "traceId",
+          "message"
+        ]
+      }
+    ]
+  }
+}

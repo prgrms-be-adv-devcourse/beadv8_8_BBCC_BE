@@ -111,7 +111,29 @@ curl -s 127.0.0.1:9090/api/v1/targets | grep -o '"scrapeUrl":"[^"]*"'
 
 Kidly 폴더의 **Kidly 로그** 대시보드에서 상태 코드별 요청 수 · 요청 로그 · ERROR 로그 · 느린 요청(1초 넘음) · 요청 상세 표(시간 · method · route · status · duration · IP · memberId · traceId)를 봅니다.
 직접 찾을 때는 Grafana → Explore → 데이터소스 Loki 에서 검색합니다. 결과 위의 **Table** 을 누르면 줄마다 한 행으로 필드를 열로 봅니다.
-쿼리 없이 둘러볼 때는 Grafana → Drilldown → Logs → kidly 를 엽니다.
+
+### Drilldown 으로 찾기
+
+쿼리 없이 찾을 때는 Grafana → Drilldown → Logs → kidly 의 **Show logs** 를 누릅니다. 위 **Fields** 칸에서 필드 · 연산자 · 값을 골라 거르고, 여러 개를 넣으면 모두 맞는 줄만 나옵니다.
+
+| 찾을 것 | Fields 칸 | 메모 |
+| --- | --- | --- |
+| 5xx | `http_response_status_code` `>= 500` (또는 `=~ 5..`) | 숫자 비교 · 정규식 둘 다 됩니다 |
+| 특정 상태 | `http_response_status_code` `= 401` | |
+| URL | `url_path` 또는 `http_route` `=~ .*orders.*` | 정규식은 값 전체와 맞아야 해서 부분 일치는 앞뒤에 `.*` |
+| 회원 | 줄을 펼쳐 `memberId` 옆 돋보기(+) | 구조화 메타데이터라 `\| json` 앞에서 걸러 가볍습니다. Fields 칸의 `memberId = 7` 도 됩니다 |
+| 한 요청 | 표의 `traceId` 를 누르면 "같은 요청 로그 보기"(Explore). 줄을 펼쳐 `traceId` 옆 돋보기(+) 도 됩니다 | |
+
+위 **Line filter** 칸은 줄 전체에서 글자를 찾습니다(특정 필드가 아님).
+결과 위 **Table** 을 누르면 아래 열이 기본으로 골라져 있습니다. 필터를 바꿔도 열은 그대로입니다. 앞의 Time · Line · detected_level 은 Drilldown 이 늘 붙이는 열입니다.
+
+`http_request_method` · `http_route` · `url_path` · `http_response_status_code` · `duration_ms` · `client_ip` · `memberId` · `traceId` · `message`
+
+기본 열의 원본은 `grafana/logs-drilldown-default-columns.json`(데이터소스 `loki`, `service_name=kidly`)입니다. 배포 때 `deploy.sh` 가 Grafana API 로 넣으므로 화면(관리 → 플러그인 → Logs Drilldown → Default fields)에서 바꾼 것은 다음 배포 때 파일 내용으로 돌아갑니다.
+각자 열을 더 고르면 그 브라우저에만 남습니다. 이 기능은 Grafana 12.4 이상 · 기능 플래그 `kubernetesLogsDrilldown`(compose 의 `GF_FEATURE_TOGGLES_ENABLE`)이 있어야 합니다.
+Logs Drilldown 앱 버전은 compose 의 `GF_PLUGINS_PREINSTALL` 로 고정합니다. 앱은 Grafana 가 뜬 뒤 백그라운드로 받아 오므로, 받지 못하면 배포는 성공하고 `::warning::` 만 남습니다(기본 열이 안 보이면 monitoring-deploy 를 다시 돌림).
+
+**Grafana 를 올릴 때 확인**: 앱 버전(`GF_PLUGINS_PREINSTALL`), 기능 플래그 `kubernetesLogsDrilldown`(실험 기능), 기본 열 API 경로 `apis/logsdrilldown.grafana.app/v1beta1/.../logsdrilldowndefaultcolumns`(`deploy.sh`). 경로가 바뀌면 `deploy.sh` 가 실패해 `#4팀-알림` 에 모니터링 배포 실패가 옵니다 — 컨테이너는 이미 새로 떠 있어 수집 · 알림은 그대로입니다.
 
 서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(항상 `kidly`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
 로그 줄을 펼치면 traceId 옆 "같은 요청 로그 보기" 링크로 그 요청의 로그를 모두 엽니다(Explore, 최근 24시간).
