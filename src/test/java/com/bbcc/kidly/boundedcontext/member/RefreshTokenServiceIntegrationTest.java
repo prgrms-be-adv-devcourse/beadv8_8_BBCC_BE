@@ -15,10 +15,12 @@ import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
+import java.util.ArrayList;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 @IntegrationTest
 class RefreshTokenServiceIntegrationTest {
+
+    private static final int THREAD_COUNT = 20;
 
     @Autowired
     private RefreshTokenService refreshTokenService;
@@ -157,30 +161,39 @@ class RefreshTokenServiceIntegrationTest {
         assertThat(refreshTokenService.reissue(loginToken).member().getId()).isEqualTo(memberId);
     }
 
-    // 어느 쪽이 먼저든 결과는 같다: 한 요청만 교체하고 다른 요청은 바뀐 해시를 보고 거절된다
+    // 어느 쪽이 먼저든 결과는 같다: 한 요청만 교체하고 나머지는 바뀐 해시를 보고 거절된다
+    // 거절된 요청은 직전 토큰을 보낸 셈이지만 유예 시간 안이라 토큰을 지우지 않는다
     @Test
-    @DisplayName("같은 토큰으로 동시에 재발급하면 한 요청만 성공한다")
+    @DisplayName("같은 토큰으로 20개가 동시에 재발급하면 한 요청만 성공하고 그 토큰은 계속 쓸 수 있다")
     void concurrentReissue() throws Exception {
         var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
         var token = refreshTokenService.issue(memberId);
         var start = new CountDownLatch(1);
-        Callable<Boolean> reissue = () -> {
+        Callable<String> reissue = () -> {
             start.await();
             try {
-                refreshTokenService.reissue(token);
-                return true;
+                return refreshTokenService.reissue(token).refreshToken();
             } catch (BusinessException e) {
-                return false;
+                assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.INVALID_REFRESH_TOKEN);
+                return null;
             }
         };
 
-        try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(reissue);
-            var second = executor.submit(reissue);
+        var results = new ArrayList<String>();
+        try (var executor = Executors.newFixedThreadPool(THREAD_COUNT)) {
+            var futures = new ArrayList<Future<String>>();
+            for (var i = 0; i < THREAD_COUNT; i++) {
+                futures.add(executor.submit(reissue));
+            }
             start.countDown();
-
-            assertThat(List.of(first.get(), second.get())).containsExactlyInAnyOrder(true, false);
+            for (var future : futures) {
+                results.add(future.get());
+            }
         }
+
+        var reissued = results.stream().filter(Objects::nonNull).toList();
+        assertThat(reissued).hasSize(1);
+        assertThat(refreshTokenService.reissue(reissued.getFirst()).member().getId()).isEqualTo(memberId);
     }
 
     @Test
