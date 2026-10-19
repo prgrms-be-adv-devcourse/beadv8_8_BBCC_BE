@@ -111,8 +111,9 @@ curl -s 127.0.0.1:9090/api/v1/targets | grep -o '"scrapeUrl":"[^"]*"'
 
 Kidly 폴더의 **Kidly 로그** 대시보드에서 상태 코드별 요청 수 · 요청 로그 · ERROR 로그 · 느린 요청(1초 넘음)을 봅니다.
 직접 찾을 때는 Grafana → Explore → 데이터소스 Loki 에서 검색합니다.
+쿼리 없이 둘러볼 때는 Grafana → Drilldown → Logs → kidly 를 엽니다.
 
-서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` 이고, `traceId` 는 구조화 메타데이터라 `| traceId="..."` 로 거릅니다.
+서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(항상 `kidly`)이고, `traceId` 는 구조화 메타데이터라 `| traceId="..."` 로 거릅니다.
 로그 줄을 펼치면 traceId 옆 "같은 요청 로그 보기" 링크로 그 요청의 로그를 모두 엽니다(Explore, 최근 24시간).
 나머지 필드는 `| json` 으로 펼쳐 거릅니다. 점은 `_` 로 바뀝니다.
 

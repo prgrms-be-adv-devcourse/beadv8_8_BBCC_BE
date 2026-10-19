@@ -59,6 +59,13 @@ loki.process "kidly_app" {
 		}
 	}
 
+	// Drilldown → Logs 가 서비스 이름으로 묶는다. 없으면 Loki 가 unknown_service 를 붙인다
+	stage.static_labels {
+		values = {
+			service_name = "kidly",
+		}
+	}
+
 	// traceId 는 값 종류가 끝이 없어 라벨이 아니라 구조화 메타데이터로 둔다. {env="dev"} | traceId="..." 로 거른다
 	stage.structured_metadata {
 		values = {
