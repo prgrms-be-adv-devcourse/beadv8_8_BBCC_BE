@@ -68,6 +68,10 @@ Slack 메시지 형식은 `grafana/provisioning/alerting/templates.yml` 에 있�
 앱 메트릭을 2분 넘게 못 읽었습니다 (앱 다운 또는 /actuator/prometheus 없음)
 규칙 보기 · 일시정지
 
+🟠 ERROR 로그 · dev
+최근 5분 ERROR 로그 3건
+규칙 보기 · 일시정지 · 로그 보기
+
 🟢 해결 · 앱 다운 · dev                  ← 초록
 정상으로 돌아왔습니다
 규칙 보기
@@ -76,6 +80,7 @@ Slack 메시지 형식은 `grafana/provisioning/alerting/templates.yml` 에 있�
 Prometheus 조회가 실패하면 알림 이름이 `DatasourceError` 로 오는데, 제목에는 규칙 이름을 써서 `🔴 앱 다운 · 조회 실패` 로 보입니다(데이터가 없을 때는 `· 데이터 없음`).
 
 "일시정지" 는 그 알림의 라벨로 silence 를 만드는 화면을 엽니다.
+5xx 증가 · ERROR 로그 알림에는 "로그 보기" 가 더 붙습니다. 그 환경의 최근 15분 5xx 요청 로그 · ERROR 로그를 Explore 로 엽니다(규칙의 `logs_url`).
 
 ## 설정 바꾸기
 

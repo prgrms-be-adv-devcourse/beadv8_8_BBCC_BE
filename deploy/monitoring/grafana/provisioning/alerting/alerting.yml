@@ -24,6 +24,8 @@ policies:
     repeat_interval: 4h
 
 # 규칙의 annotations 는 환경 변수로 바뀌지 않는다. 템플릿은 $labels · $values 를 그대로 쓴다 ($$ 는 템플릿 오류)
+# logs_url: 그 env 의 최근 15분 로그를 여는 Explore 주소. Slack 본문에 "로그 보기" 로 붙는다(templates.yml)
+# Explore 패널 JSON(datasources.yml 의 traceId 링크와 같은 형식)에 env 를 넣고 urlquery 로 인코딩한다
 groups:
   - orgId: 1
     name: kidly
@@ -89,6 +91,7 @@ groups:
           severity: warning
         annotations:
           summary: '최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
+          logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_response_status_code >= 500","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
 
       # 최근 5분 ERROR 로그. increase 는 외삽해 0.9 같은 값이 나오므로 0.5 초과(= 1건 이상)로 본다
       - uid: kidly-error-log
@@ -117,4 +120,4 @@ groups:
           severity: warning
         annotations:
           summary: '최근 5분 ERROR 로그 {{ with $values.A }}{{ printf "%.0f" .Value }}{{ end }}건'
-          description: 'Grafana Explore → Loki 에서 {env="{{ $labels.env }}", level="ERROR"} 로 내용을 봅니다'
+          logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\", level=\"ERROR\"}","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
