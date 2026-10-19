@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.domain.SellerState;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -12,14 +11,6 @@ import org.junit.jupiter.api.Test;
 class SellerStateTest {
 
     private static final LocalDateTime APPROVED_AT = LocalDateTime.of(2026, 10, 13, 9, 0);
-
-    @Test
-    @DisplayName("필수 값이 없으면 만들 수 없다")
-    void rejectNull() {
-        assertThatThrownBy(() -> new SellerState(null, APPROVED_AT)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new SellerState(SellerStatus.ACTIVE, null))
-            .isInstanceOf(NullPointerException.class);
-    }
 
     @Test
     @DisplayName("ACTIVE면 판매자로 본다")

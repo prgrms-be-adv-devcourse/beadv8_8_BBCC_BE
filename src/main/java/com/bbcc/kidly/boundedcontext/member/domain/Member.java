@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.member.domain;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.security.Role;
@@ -25,7 +23,6 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.util.Assert;
 
 /**
  * 회원. 소셜 계정으로 가입 · 로그인한다. 판매자 여부는 역할로 저장하지 않고, 이벤트로 받은 판매자 상태 복사본을 가진다.
@@ -84,21 +81,13 @@ public class Member extends BaseTimeEntity {
     }
 
     public static Member register(MemberRegisterInfo info, LocalDateTime now) {
-        requireNonNull(info, "info는 필수입니다");
-        Member member = new Member(
-            requireNonNull(info.nickname(), "nickname은 필수입니다").value(),
-            requireNonNull(info.email(), "email은 필수입니다"));
-        member.socialAccounts.add(new SocialAccount(
-            member,
-            requireNonNull(info.identity(), "identity는 필수입니다"),
-            requireNonNull(now, "now는 필수입니다")));
-        Assert.hasText(info.email(), "email은 비어 있을 수 없습니다");
+        Member member = new Member(info.nickname().value(), info.email());
+        member.socialAccounts.add(new SocialAccount(member, info.identity(), now));
         return member;
     }
 
     // 닉네임이 바뀌면 true. 같은 값이면 바꾸지 않는다. 다른 회원과 겹치는지는 NicknamePolicy가 확인하고, DB 유니크 제약이 마지막으로 막는다
     public boolean changeNickname(Nickname nickname) {
-        requireNonNull(nickname, "nickname은 필수입니다");
         // 탈퇴 뒤에도 Access Token은 만료될 때까지 쓸 수 있어 막는다
         if (status == MemberStatus.WITHDRAWN) {
             throw new BusinessException(MemberErrorCode.LOGIN_NOT_ALLOWED);
@@ -112,17 +101,15 @@ public class Member extends BaseTimeEntity {
 
     // ACTIVE 회원만 정지할 수 있다. 관리자는 정지하면 되돌릴 방법이 없어 막는다(해제 없음)
     public void suspend(Long adminId, String reason, LocalDateTime now) {
-        var suspension = new MemberSuspension(reason, adminId, now);
         if (status != MemberStatus.ACTIVE || isAdmin()) {
             throw new BusinessException(MemberErrorCode.MEMBER_NOT_SUSPENDABLE);
         }
         this.status = MemberStatus.SUSPENDED;
-        this.suspension = suspension;
+        this.suspension = new MemberSuspension(reason, adminId, now);
     }
 
     // ACTIVE이고 관리자가 아닌 회원만 탈퇴한다. 관리자는 권한을 해제한 뒤 탈퇴한다
     public void withdraw(LocalDateTime now) {
-        requireNonNull(now, "now는 필수입니다");
         if (status != MemberStatus.ACTIVE || isAdmin()) {
             throw new BusinessException(MemberErrorCode.MEMBER_NOT_WITHDRAWABLE);
         }
@@ -151,7 +138,6 @@ public class Member extends BaseTimeEntity {
 
     // 관리자만 해제한다. 본인은 해제할 수 없게 해 관리자가 모두 사라지는 일을 막는다. 토큰을 새로 받을 때 반영된다
     public void revokeAdmin(Long adminId) {
-        requireNonNull(adminId, "adminId는 필수입니다");
         if (!isAdmin() || adminId.equals(id)) {
             throw new BusinessException(MemberErrorCode.ADMIN_NOT_REVOCABLE);
         }

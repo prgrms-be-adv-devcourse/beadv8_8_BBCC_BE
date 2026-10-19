@@ -5,10 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.member.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberPolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberSuspension;
 import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
 import com.bbcc.kidly.global.response.PageResponse;
@@ -199,7 +199,7 @@ class AdminMemberApiTest {
     void suspendLongReason() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
-        suspend(member.getId(), "가".repeat(MemberSuspension.REASON_MAX_LENGTH + 1))
+        suspend(member.getId(), "가".repeat(MemberPolicy.SUSPEND_REASON_MAX_LENGTH + 1))
             .expectStatus().isBadRequest();
     }
 

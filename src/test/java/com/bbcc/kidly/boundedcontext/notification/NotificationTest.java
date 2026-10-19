@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.notification.domain.EmailNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
+import com.bbcc.kidly.boundedcontext.notification.domain.NotificationPolicy;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import java.time.LocalDateTime;
@@ -140,7 +141,7 @@ class NotificationTest {
 
         notification.startSending(NOW.plusMinutes(10));
         notification.markFailed("연결 실패", true, NOW);
-        assertThat(notification.getAttemptCount()).isEqualTo(Notification.MAX_ATTEMPTS);
+        assertThat(notification.getAttemptCount()).isEqualTo(NotificationPolicy.MAX_ATTEMPTS);
         assertThat(notification.getNextAttemptAt()).isNull();
         assertThat(notification.willRetry()).isFalse();
     }

@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.childprofile.app.dto;
 
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfilePolicy;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRegisterInfo;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileUpdateInfo;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
@@ -23,11 +24,13 @@ import java.time.LocalDate;
  * @param preferredFit 비우면 null
  */
 public record ChildProfileRequest(
-    @NotBlank @Size(max = 50) String name,
+    @NotBlank @Size(max = ChildProfilePolicy.NAME_MAX_LENGTH) String name,
     @NotNull @PastOrPresent LocalDate birthDate,
     @NotNull Gender gender,
-    @NotNull @DecimalMin("40.0") @DecimalMax("200.0") @Digits(integer = 3, fraction = 1) BigDecimal heightCm,
-    @NotNull @DecimalMin("2.0") @DecimalMax("150.0") @Digits(integer = 3, fraction = 1) BigDecimal weightKg,
+    @NotNull @DecimalMin(ChildProfilePolicy.HEIGHT_CM_MIN) @DecimalMax(ChildProfilePolicy.HEIGHT_CM_MAX)
+    @Digits(integer = 3, fraction = 1) BigDecimal heightCm,
+    @NotNull @DecimalMin(ChildProfilePolicy.WEIGHT_KG_MIN) @DecimalMax(ChildProfilePolicy.WEIGHT_KG_MAX)
+    @Digits(integer = 3, fraction = 1) BigDecimal weightKg,
     BodyType bodyType,
     PreferredFit preferredFit) {
 

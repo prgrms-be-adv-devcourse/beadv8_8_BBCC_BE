@@ -46,33 +46,6 @@ class MemberTest {
         });
     }
 
-    @Test
-    @DisplayName("가입에 필요한 값이 하나라도 null이면 가입할 수 없다")
-    void registerRejectsNull() {
-        assertThatThrownBy(() -> Member.register(null, NOW))
-            .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Member.register(new MemberRegisterInfo(null, new Nickname("테스트회원"), EMAIL), NOW))
-            .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(KAKAO_1, null, EMAIL), NOW))
-            .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(KAKAO_1, new Nickname("테스트회원"), null), NOW))
-            .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(KAKAO_1, new Nickname("테스트회원"), EMAIL), null))
-            .isInstanceOf(NullPointerException.class);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"", " "})
-    @DisplayName("이메일이 비어 있으면 가입할 수 없다")
-    void registerRejectsBlank(String blank) {
-        assertThatThrownBy(() -> Member.register(
-            new MemberRegisterInfo(KAKAO_1, new Nickname("테스트회원"), blank), NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
     @ParameterizedTest
     @ValueSource(strings = {"하은", "가나다라마바사아자차카타파하가나다라마바"})
     @DisplayName("닉네임이 정확히 2자이거나 20자여도 가입하고 바꿀 수 있다")
@@ -185,41 +158,6 @@ class MemberTest {
     }
 
     @Test
-    @DisplayName("정지한 관리자 · 사유 · 시각이 없으면 정지할 수 없다")
-    void suspendRejectsNull() {
-        var member = MemberFixture.kakaoMember();
-
-        assertThatThrownBy(() -> member.suspend(null, REASON, NOW)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> member.suspend(ADMIN_ID, null, NOW)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> member.suspend(ADMIN_ID, REASON, null)).isInstanceOf(NullPointerException.class);
-        assertStillActive(member);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"", "   "})
-    @DisplayName("정지 사유가 비어 있으면 정지할 수 없다")
-    void suspendRejectsBlankReason(String reason) {
-        var member = MemberFixture.kakaoMember();
-
-        assertThatThrownBy(() -> member.suspend(ADMIN_ID, reason, NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-        assertStillActive(member);
-    }
-
-    @Test
-    @DisplayName("정지 사유는 200자까지다")
-    void suspendRejectsLongReason() {
-        var member = MemberFixture.kakaoMember();
-        var maxReason = "가".repeat(MemberSuspension.REASON_MAX_LENGTH);
-
-        assertThatThrownBy(() -> member.suspend(ADMIN_ID, maxReason + "가", NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-        assertStillActive(member);
-        member.suspend(ADMIN_ID, maxReason, NOW);
-        assertThat(member.getSuspension().reason()).isEqualTo(maxReason);
-    }
-
-    @Test
     @DisplayName("탈퇴하면 WITHDRAWN이고 탈퇴 시각이 남으며 닉네임 · 이메일 · 소셜 계정이 지워진다")
     void withdraw() {
         var member = MemberFixture.kakaoMember();
@@ -258,15 +196,6 @@ class MemberTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_WITHDRAWABLE));
         assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
         assertThat(member.getSocialAccounts()).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("탈퇴 시각이 없으면 탈퇴할 수 없다")
-    void withdrawRejectsNull() {
-        var member = MemberFixture.kakaoMember();
-
-        assertThatThrownBy(() -> member.withdraw(null)).isInstanceOf(NullPointerException.class);
-        assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
     }
 
     @Test
@@ -396,16 +325,6 @@ class MemberTest {
 
         assertThat(member.getSellerState().status()).isEqualTo(SellerStatus.SUSPENDED);
         assertThat(member.getSellerState().changedAt()).isEqualTo(NOW);
-    }
-
-    @Test
-    @DisplayName("판매자 상태가 null이면 반영할 수 없다")
-    void applySellerStateRejectsNull() {
-        Member member = MemberFixture.kakaoMember();
-
-        assertThatThrownBy(() -> member.applySellerState(null, NOW)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> member.applySellerState(SellerStatus.ACTIVE, null))
-            .isInstanceOf(NullPointerException.class);
     }
 
     @Test

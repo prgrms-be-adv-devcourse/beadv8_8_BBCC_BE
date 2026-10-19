@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.member.domain;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,7 +11,6 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
 /**
@@ -29,13 +26,6 @@ import org.springframework.util.StringUtils;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ShippingAddress extends BaseTimeEntity {
 
-    public static final int RECIPIENT_NAME_MAX_LENGTH = 50;
-    public static final String RECIPIENT_PHONE_REGEX = "0[0-9]{1,2}-[0-9]{3,4}-[0-9]{4}";
-    public static final int ZIP_CODE_MAX_LENGTH = 10;
-    public static final int ROAD_ADDRESS_MAX_LENGTH = 200;
-    public static final int DETAIL_ADDRESS_MAX_LENGTH = 100;
-    private static final int RECIPIENT_PHONE_MAX_LENGTH = 13;
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -43,19 +33,19 @@ public class ShippingAddress extends BaseTimeEntity {
     @Column(name = "member_id", nullable = false, updatable = false)
     private Long memberId;
 
-    @Column(name = "recipient_name", nullable = false, length = RECIPIENT_NAME_MAX_LENGTH)
+    @Column(name = "recipient_name", nullable = false, length = MemberPolicy.RECIPIENT_NAME_MAX_LENGTH)
     private String recipientName;
 
-    @Column(name = "recipient_phone", nullable = false, length = RECIPIENT_PHONE_MAX_LENGTH)
+    @Column(name = "recipient_phone", nullable = false, length = MemberPolicy.RECIPIENT_PHONE_MAX_LENGTH)
     private String recipientPhone;
 
-    @Column(name = "zip_code", nullable = false, length = ZIP_CODE_MAX_LENGTH)
+    @Column(name = "zip_code", nullable = false, length = MemberPolicy.ZIP_CODE_MAX_LENGTH)
     private String zipCode;
 
-    @Column(name = "road_address", nullable = false, length = ROAD_ADDRESS_MAX_LENGTH)
+    @Column(name = "road_address", nullable = false, length = MemberPolicy.ROAD_ADDRESS_MAX_LENGTH)
     private String roadAddress;
 
-    @Column(name = "detail_address", length = DETAIL_ADDRESS_MAX_LENGTH)
+    @Column(name = "detail_address", length = MemberPolicy.DETAIL_ADDRESS_MAX_LENGTH)
     private String detailAddress;
 
     private ShippingAddress(Long memberId) {
@@ -63,27 +53,13 @@ public class ShippingAddress extends BaseTimeEntity {
     }
 
     public static ShippingAddress register(Long memberId, ShippingAddressInfo info) {
-        var address = new ShippingAddress(requireNonNull(memberId, "memberId는 필수입니다"));
+        var address = new ShippingAddress(memberId);
         address.update(info);
         return address;
     }
 
-    // 모든 값을 받는 전체 교체다. 검증을 모두 통과한 뒤에만 값을 바꾼다
+    // 모든 값을 받는 전체 교체다
     public void update(ShippingAddressInfo info) {
-        requireNonNull(info, "info는 필수입니다");
-        requireNonNull(info.recipientName(), "recipientName은 필수입니다");
-        requireNonNull(info.recipientPhone(), "recipientPhone은 필수입니다");
-        requireNonNull(info.zipCode(), "zipCode는 필수입니다");
-        requireNonNull(info.roadAddress(), "roadAddress는 필수입니다");
-        Assert.hasText(info.recipientName(), "recipientName은 비어 있을 수 없습니다");
-        Assert.isTrue(info.recipientName().length() <= RECIPIENT_NAME_MAX_LENGTH, "recipientName은 50자 이하여야 합니다");
-        Assert.isTrue(info.recipientPhone().matches(RECIPIENT_PHONE_REGEX), "recipientPhone은 010-1234-5678 형식이어야 합니다");
-        Assert.hasText(info.zipCode(), "zipCode는 비어 있을 수 없습니다");
-        Assert.isTrue(info.zipCode().length() <= ZIP_CODE_MAX_LENGTH, "zipCode는 10자 이하여야 합니다");
-        Assert.hasText(info.roadAddress(), "roadAddress는 비어 있을 수 없습니다");
-        Assert.isTrue(info.roadAddress().length() <= ROAD_ADDRESS_MAX_LENGTH, "roadAddress는 200자 이하여야 합니다");
-        Assert.isTrue(info.detailAddress() == null || info.detailAddress().length() <= DETAIL_ADDRESS_MAX_LENGTH,
-            "detailAddress는 100자 이하여야 합니다");
         this.recipientName = info.recipientName();
         this.recipientPhone = info.recipientPhone();
         this.zipCode = info.zipCode();

@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.seller.domain;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -32,7 +30,7 @@ public class Seller extends BaseTimeEntity {
     @Id
     private Long id;
 
-    @Column(nullable = false, length = SellerApplication.NAME_MAX_LENGTH)
+    @Column(nullable = false, length = SellerPolicy.NAME_MAX_LENGTH)
     private String businessName;
 
     @Enumerated(EnumType.STRING)
@@ -54,17 +52,15 @@ public class Seller extends BaseTimeEntity {
     }
 
     public static Seller from(SellerApplication application) {
-        requireNonNull(application, "application은 필수입니다");
         Assert.state(application.isApproved(), "승인된 신청으로만 판매자를 만들 수 있습니다");
         return new Seller(application.getApplicantId(), application.getBusinessName());
     }
 
     public void suspend(Long adminId, String reason, LocalDateTime now) {
-        var suspension = new SellerSuspension(reason, adminId, now);
         if (status != SellerStatus.ACTIVE) {
             throw new BusinessException(SellerErrorCode.SELLER_ALREADY_SUSPENDED);
         }
         this.status = SellerStatus.SUSPENDED;
-        this.suspension = suspension;
+        this.suspension = new SellerSuspension(reason, adminId, now);
     }
 }

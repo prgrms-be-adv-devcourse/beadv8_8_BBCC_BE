@@ -13,8 +13,6 @@ import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class SellerTest {
 
@@ -66,41 +64,6 @@ class SellerTest {
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(SellerErrorCode.SELLER_ALREADY_SUSPENDED));
         assertThat(seller.getSuspension()).isEqualTo(new SellerSuspension(REASON, ADMIN_ID, NOW));
-    }
-
-    @Test
-    @DisplayName("정지한 관리자 · 사유 · 시각이 없으면 정지할 수 없다")
-    void suspendRejectsNull() {
-        var seller = SellerFixture.activeSeller(APPLICANT_ID);
-
-        assertThatThrownBy(() -> seller.suspend(null, REASON, NOW)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> seller.suspend(ADMIN_ID, null, NOW)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> seller.suspend(ADMIN_ID, REASON, null)).isInstanceOf(NullPointerException.class);
-        assertStillActive(seller);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"", "   "})
-    @DisplayName("정지 사유가 비어 있으면 정지할 수 없다")
-    void suspendRejectsBlankReason(String reason) {
-        var seller = SellerFixture.activeSeller(APPLICANT_ID);
-
-        assertThatThrownBy(() -> seller.suspend(ADMIN_ID, reason, NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-        assertStillActive(seller);
-    }
-
-    @Test
-    @DisplayName("정지 사유는 200자까지다")
-    void suspendRejectsLongReason() {
-        var seller = SellerFixture.activeSeller(APPLICANT_ID);
-        var maxReason = "가".repeat(SellerSuspension.REASON_MAX_LENGTH);
-
-        assertThatThrownBy(() -> seller.suspend(ADMIN_ID, maxReason + "가", NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-        assertStillActive(seller);
-        seller.suspend(ADMIN_ID, maxReason, NOW);
-        assertThat(seller.getSuspension().reason()).isEqualTo(maxReason);
     }
 
     private void assertStillActive(Seller seller) {
