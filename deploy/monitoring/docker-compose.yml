@@ -68,6 +68,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
+      # 사용자가 따로 언어를 고르지 않으면 한국어로 보인다
+      GF_USERS_DEFAULT_LANGUAGE: ko-KR
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       # provisioning/alerting 의 Slack 연결점이 읽는다
