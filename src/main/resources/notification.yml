@@ -1,0 +1,7 @@
+# 알림 도메인 설정. application.yml이 가져온다
+kidly:
+  notification:
+    # 메일 본문에 넣는 사이트 주소. 서버는 deploy/.env.<환경>의 값을 쓴다
+    site-url: ${NOTIFICATION_SITE_URL:http://localhost:5173}
+    # 실패 · 멈춘 알림을 다시 보내는 주기
+    retry-interval: PT1M

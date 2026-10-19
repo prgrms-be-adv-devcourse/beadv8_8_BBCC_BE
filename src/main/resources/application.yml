@@ -9,6 +9,7 @@ spring:
       - classpath:settlement.yml
       - classpath:product.yml
       - classpath:mail.yml
+      - classpath:notification.yml
   profiles:
     default: local
   # 스키마는 Flyway가 만들고 Hibernate는 엔티티와 맞는지 검사만 한다 (db/migration)
