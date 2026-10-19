@@ -114,7 +114,7 @@ Kidly 폴더의 **Kidly 로그** 대시보드에서 상태 코드별 요청 수 
 | JSON 키 | `\| json` 뒤 이름 | 예 |
 | --- | --- | --- |
 | `log.level` · `log.logger` | `log_level` · `log_logger` | `ERROR` · `com.bbcc.kidly...` |
-| `message` | `message` | `<<< GET /api/products - 200 (2ms)` |
+| `message` | `message` | `GET /api/products - 200 (2ms)` |
 | `http.request.method` | `http_request_method` | `GET` |
 | `url.path` | `url_path` | `/api/products` |
 | `http.response.status_code` | `http_response_status_code` | `200` |
@@ -122,15 +122,17 @@ Kidly 폴더의 **Kidly 로그** 대시보드에서 상태 코드별 요청 수 
 | `error.type` · `error.message` · `error.stack_trace` | `error_type` · `error_message` · `error_stack_trace` | 예외가 있을 때 |
 | `process.thread.name` | `process_thread_name` | `http-nio-8080-exec-1` |
 
-요청 필드(method · path · status · duration)는 요청 끝 로그(`<<<`)에만 있습니다. `traceId` 는 요청 안에서 남긴 로그에만 있습니다.
+요청 로그는 요청이 끝날 때 `RequestLoggingFilter` 가 한 줄 남기고, 요청 필드(method · path · status · duration)는 이 줄에만 있습니다. `traceId` 는 요청 안에서 남긴 로그에만 있습니다.
+요청 로그 쿼리는 로거 이름으로 먼저 좁혀(`|= "RequestLoggingFilter"`) `| json` 할 줄을 줄이고, 요청 필드가 있는 줄만 고릅니다(`http_request_method != ""`).
 
 ```
 {env="dev", level="ERROR"}                                        # ERROR 로그 (스택 트레이스 포함)
 {env="dev"} | traceId="3e81d408-302d-44fa-8ee3-bcc817933f7b"      # 한 요청의 로그 전부
-{env="dev"} |= "<<<" | json | http_response_status_code >= 500    # 5xx 요청
-{env="dev"} |= "<<<" | json | duration_ms > 1000                  # 1초 넘은 요청
-{env="dev"} |= "<<<" | json | url_path = "/api/products"
-sum by (http_response_status_code) (count_over_time({env="dev"} |= "<<<" | json | __error__="" [5m]))
+{env="dev"} |= "RequestLoggingFilter" | json | __error__="" | http_request_method != ""         # 요청 로그
+{env="dev"} |= "RequestLoggingFilter" | json | __error__="" | http_response_status_code >= 500  # 5xx 요청
+{env="dev"} |= "RequestLoggingFilter" | json | __error__="" | duration_ms > 1000                # 1초 넘은 요청
+{env="dev"} |= "RequestLoggingFilter" | json | __error__="" | url_path = "/api/products"
+sum by (http_response_status_code) (count_over_time({env="dev"} |= "RequestLoggingFilter" | json | __error__="" | http_request_method != "" [5m]))
 ```
 
 수를 세는 쿼리(`count_over_time` 등)는 `| json` 뒤에 `__error__=""` 를 붙입니다. JSON 이 아닌 줄(기동 배너, JSON 이전 이미지의 텍스트 로그)이 섞이면 쿼리가 실패합니다.

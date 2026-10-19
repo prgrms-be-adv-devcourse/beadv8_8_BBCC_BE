@@ -42,17 +42,16 @@ class RequestLoggingFilterTest {
     }
 
     @Test
-    @DisplayName("일반 요청은 시작 · 끝 로그를 남기고, 끝 로그에 요청 필드와 traceId를 붙인다")
+    @DisplayName("일반 요청은 끝날 때 로그 한 줄을 남기고, 요청 필드와 traceId를 붙인다")
     void logsRequestWithFields() throws Exception {
         var request = new MockHttpServletRequest("GET", "/api/products");
         var response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, respondWith(201));
 
-        assertThat(appender.list).hasSize(2);
-        assertThat(appender.list.get(0).getFormattedMessage()).isEqualTo(">>> GET /api/products");
-        var end = appender.list.get(1);
-        assertThat(end.getFormattedMessage()).matches("<<< GET /api/products - 201 \\(\\d+ms\\)");
+        assertThat(appender.list).hasSize(1);
+        var end = appender.list.getFirst();
+        assertThat(end.getFormattedMessage()).matches("GET /api/products - 201 \\(\\d+ms\\)");
         assertThat(end.getKeyValuePairs())
             .extracting(pair -> pair.key, pair -> pair.value == null ? null : pair.value.getClass())
             .containsExactly(
@@ -64,8 +63,7 @@ class RequestLoggingFilterTest {
             .startsWith("GET", "/api/products", 201);
         var traceId = response.getHeader("X-Request-Id");
         assertThat(traceId).isNotBlank();
-        assertThat(appender.list).allSatisfy(event ->
-            assertThat(event.getMDCPropertyMap()).containsEntry(RequestLoggingFilter.TRACE_ID_MDC_KEY, traceId));
+        assertThat(end.getMDCPropertyMap()).containsEntry(RequestLoggingFilter.TRACE_ID_MDC_KEY, traceId);
         assertThat(MDC.get(RequestLoggingFilter.TRACE_ID_MDC_KEY)).isNull();
     }
 
@@ -82,7 +80,7 @@ class RequestLoggingFilterTest {
     }
 
     @Test
-    @DisplayName("actuator 요청이 2xx가 아니면 끝 로그 한 줄만 남긴다")
+    @DisplayName("actuator 요청이 2xx가 아니면 로그 한 줄만 남긴다")
     void logsFailedActuatorRequestOnce() throws Exception {
         var request = new MockHttpServletRequest("GET", "/actuator/health");
         var response = new MockHttpServletResponse();
@@ -91,7 +89,7 @@ class RequestLoggingFilterTest {
 
         assertThat(appender.list).singleElement()
             .extracting(ILoggingEvent::getFormattedMessage).asString()
-            .startsWith("<<< GET /actuator/health - 503");
+            .startsWith("GET /actuator/health - 503");
     }
 
     @Test
@@ -102,10 +100,9 @@ class RequestLoggingFilterTest {
 
         filter.doFilter(request, response, respondWith(200));
 
-        assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
-            .satisfiesExactly(
-                start -> assertThat(start).isEqualTo(">>> GET /actuatorx"),
-                end -> assertThat(end).startsWith("<<< GET /actuatorx - 200"));
+        assertThat(appender.list).singleElement()
+            .extracting(ILoggingEvent::getFormattedMessage).asString()
+            .startsWith("GET /actuatorx - 200");
     }
 
     private static FilterChain respondWith(int status) {

@@ -74,9 +74,9 @@ class LoggingProfileTest {
             new MockHttpServletRequest("GET", "/api/products"), response, new MockFilterChain());
 
         assertThat(consoleEncoder()).isInstanceOf(StructuredLogEncoder.class);
-        var json = lineContaining(output, "<<< GET /api/products");
+        var json = lineContaining(output, "GET /api/products");
         assertThat(JsonPath.<String>read(json, "$.log.level")).isEqualTo("INFO");
-        assertThat(JsonPath.<String>read(json, "$.message")).startsWith("<<< GET /api/products - 200");
+        assertThat(JsonPath.<String>read(json, "$.message")).startsWith("GET /api/products - 200");
         assertThat(JsonPath.<String>read(json, "$.service.name")).isEqualTo("kidly");
         assertThat(JsonPath.<String>read(json, "$.traceId")).isEqualTo(response.getHeader("X-Request-Id"));
         assertThat(JsonPath.<String>read(json, "$.http.request.method")).isEqualTo("GET");

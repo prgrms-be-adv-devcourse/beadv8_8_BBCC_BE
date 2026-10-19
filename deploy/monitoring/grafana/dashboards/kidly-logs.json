@@ -40,7 +40,7 @@
       "id": 1,
       "type": "timeseries",
       "title": "상태 코드별 요청 수",
-      "description": "요청 끝 로그(<<<)를 상태 코드별로 센다. actuator 정상 요청은 로그를 남기지 않아 빠진다",
+      "description": "요청 로그(RequestLoggingFilter)를 상태 코드별로 센다. actuator 정상 요청은 로그를 남기지 않아 빠진다",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -85,7 +85,7 @@
           },
           "queryType": "range",
           "legendFormat": "{{http_response_status_code}}",
-          "expr": "sum by (http_response_status_code) (count_over_time({env=\"$env\"} |= \"<<<\" | json | __error__=\"\" | http_response_status_code != \"\" [$__auto]))"
+          "expr": "sum by (http_response_status_code) (count_over_time({env=\"$env\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_request_method != \"\" [$__auto]))"
         }
       ]
     },
@@ -121,7 +121,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{env=\"$env\"} |= \"<<<\" | json | http_request_method != \"\" | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
+          "expr": "{env=\"$env\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_request_method != \"\" | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
           "queryType": "range"
         }
       ]
@@ -195,7 +195,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{env=\"$env\"} |= \"<<<\" | json | duration_ms > 1000 | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
+          "expr": "{env=\"$env\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_request_method != \"\" | duration_ms > 1000 | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
           "queryType": "range"
         }
       ]
