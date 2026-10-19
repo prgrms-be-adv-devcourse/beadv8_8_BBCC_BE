@@ -11,6 +11,7 @@ import ch.qos.logback.core.OutputStreamAppender;
 import ch.qos.logback.core.encoder.Encoder;
 import com.bbcc.kidly.global.filter.RequestLoggingFilter;
 import com.jayway.jsonpath.JsonPath;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.boot.Banner;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -83,6 +85,37 @@ class LoggingProfileTest {
         assertThat(JsonPath.<String>read(json, "$.url.path")).isEqualTo("/api/products");
         assertThat(JsonPath.<Integer>read(json, "$.http.response.status_code")).isEqualTo(200);
         assertThat(JsonPath.<Number>read(json, "$.duration_ms")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("운영 프로필 콘솔은 요청 상세(헤더 · 본문 · IP · 회원 ID)를 가린 채 JSON 객체로 남긴다")
+    void prodConsoleWritesRequestDetails(CapturedOutput output) throws Exception {
+        startLogging("prod");
+        var request = new MockHttpServletRequest("POST", "/api/v1/orders");
+        request.setQueryString("page=1&token=abc");
+        request.addHeader("Authorization", "Bearer secret-token");
+        request.addHeader("User-Agent", "Mozilla/5.0");
+        request.setContentType("application/json");
+        request.setContent("{\"recipientPhone\":\"010-1234-5678\",\"amount\":1000}".getBytes(StandardCharsets.UTF_8));
+
+        new RequestLoggingFilter().doFilter(request, new MockHttpServletResponse(), (req, res) -> {
+            req.getInputStream().readAllBytes();
+            MDC.put(RequestLoggingFilter.MEMBER_ID_MDC_KEY, "7");
+            res.setContentType("application/json");
+            res.getWriter().write("{\"orderId\":\"o-1\"}");
+        });
+
+        var json = lineContaining(output, "POST /api/v1/orders");
+        assertThat(json).doesNotContain("secret-token", "010-1234-5678", "token=abc");
+        assertThat(JsonPath.<String>read(json, "$.memberId")).isEqualTo("7");
+        assertThat(JsonPath.<String>read(json, "$.client.ip")).isEqualTo("127.0.0.1");
+        assertThat(JsonPath.<String>read(json, "$.url.query")).isEqualTo("page=1&token=***");
+        assertThat(JsonPath.<String>read(json, "$.user_agent.original")).isEqualTo("Mozilla/5.0");
+        assertThat(JsonPath.<String>read(json, "$.http.request.method")).isEqualTo("POST");
+        assertThat(JsonPath.<String>read(json, "$.http.request.headers.authorization")).isEqualTo("***");
+        assertThat(JsonPath.<String>read(json, "$.http.request.body.content"))
+            .isEqualTo("{\"recipientPhone\":\"***\",\"amount\":1000}");
+        assertThat(JsonPath.<String>read(json, "$.http.response.body.content")).isEqualTo("{\"orderId\":\"o-1\"}");
     }
 
     @Test

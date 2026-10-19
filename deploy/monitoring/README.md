@@ -109,11 +109,11 @@ curl -s 127.0.0.1:9090/api/v1/targets | grep -o '"scrapeUrl":"[^"]*"'
 
 ## 로그 보기
 
-Kidly 폴더의 **Kidly 로그** 대시보드에서 상태 코드별 요청 수 · 요청 로그 · ERROR 로그 · 느린 요청(1초 넘음)을 봅니다.
-직접 찾을 때는 Grafana → Explore → 데이터소스 Loki 에서 검색합니다.
+Kidly 폴더의 **Kidly 로그** 대시보드에서 상태 코드별 요청 수 · 요청 로그 · ERROR 로그 · 느린 요청(1초 넘음) · 요청 상세 표(시간 · method · route · status · duration · IP · memberId · traceId)를 봅니다.
+직접 찾을 때는 Grafana → Explore → 데이터소스 Loki 에서 검색합니다. 결과 위의 **Table** 을 누르면 줄마다 한 행으로 필드를 열로 봅니다.
 쿼리 없이 둘러볼 때는 Grafana → Drilldown → Logs → kidly 를 엽니다.
 
-서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(항상 `kidly`)이고, `traceId` 는 구조화 메타데이터라 `| traceId="..."` 로 거릅니다.
+서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(항상 `kidly`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
 로그 줄을 펼치면 traceId 옆 "같은 요청 로그 보기" 링크로 그 요청의 로그를 모두 엽니다(Explore, 최근 24시간).
 나머지 필드는 `| json` 으로 펼쳐 거릅니다. 점은 `_` 로 바뀝니다.
 
@@ -125,10 +125,19 @@ Kidly 폴더의 **Kidly 로그** 대시보드에서 상태 코드별 요청 수 
 | `url.path` | `url_path` | `/api/products` |
 | `http.response.status_code` | `http_response_status_code` | `200` |
 | `duration_ms` | `duration_ms` | `2` |
+| `http.route` | `http_route` | `/api/v1/products/{id}` |
+| `url.query` | `url_query` | `page=1&token=***` |
+| `client.ip` | `client_ip` | `203.0.113.7` |
+| `user_agent.original` | `user_agent_original` | `Mozilla/5.0 ...` |
+| `http.request.headers.<이름>` · `http.response.headers.<이름>` | `http_request_headers_<이름>` · `http_response_headers_<이름>` | 헤더 이름은 소문자 |
+| `http.request.body.content` · `http.response.body.content` | `http_request_body_content` · `http_response_body_content` | JSON 본문, 각 UTF-8 3,000바이트 |
+| `memberId` | (구조화 메타데이터) | `7` |
 | `error.type` · `error.message` · `error.stack_trace` | `error_type` · `error_message` · `error_stack_trace` | 예외가 있을 때 |
 | `process.thread.name` | `process_thread_name` | `http-nio-8080-exec-1` |
 
-요청 로그는 요청이 끝날 때 `RequestLoggingFilter` 가 한 줄 남기고, 요청 필드(method · path · status · duration)는 이 줄에만 있습니다. `traceId` 는 요청 안에서 남긴 로그에만 있습니다.
+요청 로그는 요청이 끝날 때 `RequestLoggingFilter` 가 한 줄 남기고, 요청 필드(method · path · status · duration · IP · 헤더 · 본문 등)는 이 줄에만 있습니다. `traceId` 는 요청 안에서 남긴 로그에만, `memberId` 는 로그인한 요청 안에서 남긴 로그에만 있습니다.
+가림: 헤더 `Authorization` · `Cookie` · `Set-Cookie` · `Proxy-Authorization` 과 이름에 아래 말이 든 헤더(`X-Auth-Token` · `X-Api-Key` 등), 쿼리 · JSON 본문의 비밀값(password · token · secret · apiKey · paymentKey · uploadUrl · 사업자등록번호 registrationNumber 계열), 연락처 · 주소(phone · email · address · zipCode 계열), 자녀 생년월일 · 키 · 몸무게(`birthDate` · `heightCm` · `weightKg`, 이름이 같을 때만) 값은 `***` 입니다. 이름 · ID · 금액은 남깁니다.
+본문을 남기지 않는 것: `/api/v1/auth/**` · `/api/v1/dev/tokens` · `/api/v1/webhooks/toss`, JSON 이 아닌 본문(텍스트는 가릴 방법이 없어 생략, multipart · 바이너리), 비동기 응답. 64KB 가 넘는 응답 본문은 `(N바이트, 생략)` 만 남깁니다. 본문은 UTF-8 3,000바이트(`…(잘림, 전체 N바이트)`), 헤더 값은 300자(`…(잘림, 전체 N자)`)를 넘으면 잘립니다.
 요청 로그 쿼리는 로거 이름으로 먼저 좁혀(`|= "RequestLoggingFilter"`) `| json` 할 줄을 줄이고, 요청 필드가 있는 줄만 고릅니다(`http_request_method != ""`).
 
 ```
@@ -138,8 +147,13 @@ Kidly 폴더의 **Kidly 로그** 대시보드에서 상태 코드별 요청 수 
 {env="dev"} |= "RequestLoggingFilter" | json | __error__="" | http_response_status_code >= 500  # 5xx 요청
 {env="dev"} |= "RequestLoggingFilter" | json | __error__="" | duration_ms > 1000                # 1초 넘은 요청
 {env="dev"} |= "RequestLoggingFilter" | json | __error__="" | url_path = "/api/products"
-sum by (http_response_status_code) (count_over_time({env="dev"} |= "RequestLoggingFilter" | json | __error__="" | http_request_method != "" [5m]))
+{env="dev"} |= "RequestLoggingFilter" | json | __error__="" | http_route = "/api/v1/products/{id}"
+{env="dev"} |= "RequestLoggingFilter" | json | __error__="" | client_ip = "203.0.113.7"     # 한 IP 의 요청
+{env="dev"} | memberId="7"                                                                 # 한 회원의 로그 전부
+sum by (http_response_status_code) (count_over_time({env="dev"} |= "RequestLoggingFilter" | json http_request_method="http.request.method", http_response_status_code="http.response.status_code" | __error__="" | http_request_method != "" [5m]))
 ```
+
+인자 없는 `| json` 은 헤더 · 본문까지 모든 필드를 펼칩니다. 한 줄을 찾아 볼 때는 편하지만, 많은 줄을 세거나 대시보드처럼 자주 도는 쿼리는 필요한 필드만 뽑습니다(`| json 이름="JSON.경로", ...`, 위 마지막 줄 · Kidly 로그 대시보드).
 
 수를 세는 쿼리(`count_over_time` 등)는 `| json` 뒤에 `__error__=""` 를 붙입니다. JSON 이 아닌 줄(기동 배너, JSON 이전 이미지의 텍스트 로그)이 섞이면 쿼리가 실패합니다.
 JSON 이전 이미지의 텍스트 로그도 `level` 라벨로는 그대로 찾을 수 있고, 스택 트레이스는 로그 한 건으로 묶여 있습니다.

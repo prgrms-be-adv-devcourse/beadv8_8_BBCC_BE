@@ -40,11 +40,13 @@ loki.process "kidly_app" {
 		max_wait_time = "3s"
 	}
 
-	// 예: {"@timestamp":"...","log":{"level":"ERROR",...},...,"traceId":"..."} — traceId 는 요청 안에서만 있다
+	// 예: {"@timestamp":"...","log":{"level":"ERROR",...},...,"traceId":"...","memberId":"7"}
+	// traceId 는 요청 안에서만, memberId 는 로그인한 요청 안에서만 있다
 	stage.json {
 		expressions = {
-			level   = "log.level",
-			traceId = "",
+			level    = "log.level",
+			traceId  = "",
+			memberId = "",
 		}
 	}
 
@@ -66,10 +68,11 @@ loki.process "kidly_app" {
 		}
 	}
 
-	// traceId 는 값 종류가 끝이 없어 라벨이 아니라 구조화 메타데이터로 둔다. {env="dev"} | traceId="..." 로 거른다
+	// traceId · memberId 는 값 종류가 끝이 없어 라벨이 아니라 구조화 메타데이터로 둔다. {env="dev"} | traceId="..." 로 거른다
 	stage.structured_metadata {
 		values = {
-			traceId = "",
+			traceId  = "",
+			memberId = "",
 		}
 	}
 
