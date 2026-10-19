@@ -30,7 +30,8 @@ templates:
       {{ with .Annotations.description }}{{ . }}
       {{ end -}}
       {{ end -}}
-      {{ with index .Alerts.Firing 0 }}<{{ .GeneratorURL }}|규칙 보기> · <{{ .SilenceURL }}|일시정지>{{ end }}
+      {{ with index .Alerts.Firing 0 }}<{{ .GeneratorURL }}|규칙 보기> · <{{ .SilenceURL }}|일시정지>
+      {{- with .Annotations.logs_url }} · <{{ . }}|로그 보기>{{ end }}{{ end }}
       {{- else -}}
       정상으로 돌아왔습니다
       {{ with index .Alerts 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ end }}

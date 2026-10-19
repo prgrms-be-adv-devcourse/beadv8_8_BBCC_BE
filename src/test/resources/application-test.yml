@@ -17,6 +17,10 @@ payment:
   key-encryption:
     key: KIeLA4Q8UtNSoUDGDN4LsHMvk1JvINovlqKzRlonMaI=
 
+# CORS 기능 테스트가 보내는 프론트 origin
+cors:
+  allowed-origins: http://localhost:5173
+
 # 테스트는 카카오를 호출하지 않는다 (support.FakeOAuthClient). 빈 생성에만 쓰인다
 kakao:
   client-id: test-client-id

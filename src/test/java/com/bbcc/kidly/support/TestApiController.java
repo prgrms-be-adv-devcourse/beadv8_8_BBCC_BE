@@ -3,8 +3,11 @@ package com.bbcc.kidly.support;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import com.bbcc.kidly.global.security.PublicApi;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -21,6 +24,7 @@ public class TestApiController {
     public static final String PUBLIC_PATH = "/api/v1/test/public";
     public static final String PUBLIC_ITEM_PATH = "/api/v1/test/items/{id}";
     public static final String PRIVATE_ITEM_PATH = "/api/v1/test/items/mine";
+    public static final String ECHO_PATH = "/api/v1/test/echo";
 
     @GetMapping(AUTH_PATH)
     void auth() {
@@ -51,5 +55,11 @@ public class TestApiController {
     @GetMapping(LOGIN_MEMBER_PATH)
     AuthMember loginMember(@LoginMember AuthMember member) {
         return member;
+    }
+
+    @PublicApi
+    @PostMapping(ECHO_PATH)
+    Map<String, Object> echo(@RequestBody Map<String, Object> body) {
+        return body;
     }
 }
