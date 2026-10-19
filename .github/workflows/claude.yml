@@ -39,6 +39,9 @@ jobs:
           fetch-depth: 1
 
       - name: 응답
+        id: claude
+        # 실패해도 다음 단계에서 사용량 초과인지 보고 결과를 정한다
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -46,3 +49,26 @@ jobs:
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"
             --disallowedTools "Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git push:*)"
             --append-system-prompt "이 저장소에서는 읽기 전용으로 리뷰와 질문 답변만 해요. 코드를 고치거나 커밋 · push하지 말고, 고칠 방법은 댓글로 제안해 주세요. 기준은 루트 CLAUDE.md와 바뀐 도메인 폴더의 CLAUDE.md이고, 댓글은 한국어 해요체로 써 주세요."
+
+      # 구독 사용량을 넘어 실패했으면 건너뛴 것으로 두고 PR에 알린다. 그 밖의 실패는 그대로 실패로 남긴다
+      # 판별: 실행 기록에 사용량 거절(rate_limit_event rejected) 또는 assistant 오류 rate_limit가 있는지
+      - name: 사용량 초과 확인
+        if: steps.claude.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          EXECUTION_FILE: ${{ runner.temp }}/claude-execution-output.json
+        run: |
+          limited=$(jq '[.[] | select((.type == "rate_limit_event" and .rate_limit_info.status == "rejected") or (.type == "assistant" and .error == "rate_limit"))] | length' "$EXECUTION_FILE" 2>/dev/null || echo 0)
+          if [ "$limited" = "0" ]; then
+            echo "::error::Claude 응답이 실패했어요. 위 단계 로그를 확인해 주세요"
+            exit 1
+          fi
+          resets=$(jq -r '[.[] | select(.type == "rate_limit_event") | .rate_limit_info.resetsAt // empty] | last // empty' "$EXECUTION_FILE")
+          when=""
+          if [ -n "$resets" ]; then
+            [ "$resets" -gt 100000000000 ] && resets=$((resets / 1000))
+            when=" $(TZ=Asia/Seoul date -d "@$resets" '+%m/%d %H:%M') 이후 다시 쓸 수 있어요."
+          fi
+          echo "::warning::Claude 구독 사용량을 넘어 응답을 건너뛰었어요.$when"
+          gh pr comment "$NUMBER" -R "$GITHUB_REPOSITORY" --body "Claude 구독 사용량을 넘어 이번 응답은 건너뛰었어요.$when 다시 받으려면 \`@claude 리뷰해 주세요\`라고 댓글을 달아 주세요."
