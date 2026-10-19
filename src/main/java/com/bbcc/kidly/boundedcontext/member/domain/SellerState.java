@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.member.domain;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
@@ -19,11 +17,6 @@ public record SellerState(
     SellerStatus status,
     @Column(name = "seller_status_changed_at")
     LocalDateTime changedAt) {
-
-    public SellerState {
-        requireNonNull(status, "status는 필수입니다");
-        requireNonNull(changedAt, "changedAt은 필수입니다");
-    }
 
     public boolean isActive() {
         return status == SellerStatus.ACTIVE;

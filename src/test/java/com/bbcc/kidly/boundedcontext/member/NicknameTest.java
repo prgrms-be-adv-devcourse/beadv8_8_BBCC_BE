@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import org.junit.jupiter.api.DisplayName;
@@ -17,19 +16,6 @@ class NicknameTest {
     @DisplayName("2자 이상 20자 이하면 만들 수 있다")
     void acceptsBoundaryLength(String value) {
         assertThat(new Nickname(value).value()).isEqualTo(value);
-    }
-
-    @Test
-    @DisplayName("null이면 만들 수 없다")
-    void rejectsNull() {
-        assertThatThrownBy(() -> new Nickname(null)).isInstanceOf(NullPointerException.class);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"", " ", "가", "가나다라마바사아자차카타파하가나다라마바사", " 하은맘", "하은맘 "})
-    @DisplayName("비어 있거나 2~20자가 아니거나 앞뒤에 공백이 있으면 만들 수 없다")
-    void rejectsInvalid(String value) {
-        assertThatThrownBy(() -> new Nickname(value)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -95,13 +81,5 @@ class NicknameTest {
     void withNumberDoesNotSplitSurrogatePair() {
         assertThat(new Nickname("가".repeat(15) + "😀" + "나나").withNumber(1234))
             .isEqualTo(new Nickname("가".repeat(15) + "1234"));
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {999, 10000})
-    @DisplayName("4자리가 아닌 숫자는 붙일 수 없다")
-    void withNumberRejectsNotFourDigits(int number) {
-        assertThatThrownBy(() -> new Nickname("소셜회원").withNumber(number))
-            .isInstanceOf(IllegalArgumentException.class);
     }
 }

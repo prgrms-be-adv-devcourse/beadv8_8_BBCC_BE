@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.member.domain;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
@@ -42,7 +40,6 @@ public class DefaultShippingAddress extends BaseTimeEntity {
     }
 
     public static DefaultShippingAddress designate(Long memberId, ShippingAddress shippingAddress) {
-        requireNonNull(memberId, "memberId는 필수입니다");
         validateOwner(memberId, shippingAddress);
         return new DefaultShippingAddress(memberId, shippingAddress.getId());
     }
@@ -63,10 +60,8 @@ public class DefaultShippingAddress extends BaseTimeEntity {
         }
     }
 
-    // 소유자를 확인하려고 배송지 객체를 받고, 저장되어 ID가 있는 배송지만 가리킬 수 있다
+    // 소유자를 확인하려고 배송지 객체를 받는다
     private static void validateOwner(Long memberId, ShippingAddress shippingAddress) {
-        requireNonNull(shippingAddress, "shippingAddress는 필수입니다");
-        requireNonNull(shippingAddress.getId(), "shippingAddress.id는 필수입니다");
         Assert.isTrue(shippingAddress.isOwnedBy(memberId), "다른 회원의 배송지는 기본 배송지로 지정할 수 없습니다");
     }
 }

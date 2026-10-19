@@ -43,29 +43,6 @@ class DefaultShippingAddressTest {
     }
 
     @Test
-    @DisplayName("회원 ID나 배송지가 null이면 지정할 수 없다")
-    void designateNull() {
-        var address = ShippingAddressFixture.addressWithId(DEFAULT_ADDRESS_ID, MEMBER_ID);
-
-        assertThatThrownBy(() -> DefaultShippingAddress.designate(null, address))
-            .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> DefaultShippingAddress.designate(MEMBER_ID, null))
-            .isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
-    @DisplayName("저장되지 않아 ID가 없는 배송지는 지정하거나 바꿀 수 없다")
-    void designateUnsaved() {
-        var unsaved = ShippingAddressFixture.address(MEMBER_ID);
-        var defaultAddress = defaultAddress();
-
-        assertThatThrownBy(() -> DefaultShippingAddress.designate(MEMBER_ID, unsaved))
-            .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> defaultAddress.change(unsaved))
-            .isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
     @DisplayName("기본 배송지를 다른 배송지로 바꾼다")
     void change() {
         var defaultAddress = defaultAddress();
