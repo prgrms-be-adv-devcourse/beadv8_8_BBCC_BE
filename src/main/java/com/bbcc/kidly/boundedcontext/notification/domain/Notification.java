@@ -31,6 +31,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Notification extends BaseTimeEntity {
 
+    // 만들어진 뒤 이만큼 PENDING이면 비동기로 넘기기 전에 서버가 멈춘 것으로 본다
+    public static final Duration PENDING_TIMEOUT = Duration.ofMinutes(1);
+
     // 발송을 맡은 채로 이보다 오래 끝나지 않으면 서버가 발송 중에 멈춘 것으로 보고 다시 맡는다
     public static final Duration SENDING_TIMEOUT = Duration.ofMinutes(5);
     private static final List<Duration> RETRY_DELAYS =
