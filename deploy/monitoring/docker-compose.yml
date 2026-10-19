@@ -20,6 +20,8 @@ services:
       - --web.listen-address=127.0.0.1:9090
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # 앱 배포가 쓰는 수집 대상 파일. 모니터링 배포가 지우는 설정 폴더 밖에 둔다
+      - ./targets:/etc/prometheus/targets:ro
       - prometheus-data:/prometheus
     restart: unless-stopped
     logging: *logging

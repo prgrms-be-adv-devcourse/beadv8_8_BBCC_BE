@@ -26,13 +26,13 @@ groups:
     folder: Kidly
     interval: 1m
     rules:
-      # Prometheus 가 앱을 2분 넘게 못 읽으면(up=0). 대상이 사라져 데이터가 없으면 noDataState 로,
-      # Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
+      # Prometheus 가 앱을 2분 넘게 못 읽으면(up=0). Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
+      # 데이터가 없다는 건 등록된 수집 대상이 없다는 뜻(앱 배포가 targets 파일을 쓰기 전)이라 알리지 않는다
       - uid: kidly-app-down
         title: 앱 다운
         condition: B
         for: 2m
-        noDataState: Alerting
+        noDataState: OK
         execErrState: Error
         data:
           - refId: A

@@ -60,13 +60,15 @@ jobs:
           )
 
       # 설정 폴더는 지우고 새로 풀어 레포에서 지운 파일이 서버에 남지 않게 한다. 데이터는 docker 볼륨이라 그대로다
+      # targets 는 앱 배포(deploy/deploy.sh)가 쓰는 수집 대상이라 지우지 않는다.
+      # 없는 채로 compose 를 올리면 docker 가 root 소유로 만들어 앱 배포가 못 쓰므로 deploy 유저로 먼저 만든다
       - name: 서버에 설정 파일 올리기
         run: |
           dir=/opt/app/monitoring
           tar -C "$RUNNER_TEMP/monitoring" -czf - docker-compose.yml deploy.sh .env prometheus loki alloy grafana \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
               set -e
-              mkdir -p $dir
+              mkdir -p $dir/targets
               cd $dir
               rm -rf prometheus loki alloy grafana
               tar -xzf - --no-same-owner
