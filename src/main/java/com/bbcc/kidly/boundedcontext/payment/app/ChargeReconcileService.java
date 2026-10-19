@@ -57,6 +57,10 @@ public class ChargeReconcileService {
                 }
                 chargeService.approve(target.chargeId(), success.value());
             }
+            case PgResult.Rejected<PgApproval> rejected
+                when PaymentGateway.PARTIAL_CANCELED.equals(rejected.code()) ->
+                log.error("승인 중인 충전이 토스에서 부분 취소돼 반영하지 않습니다. 운영자가 확인해야 합니다. chargeId={}",
+                    target.chargeId());
             case PgResult.Rejected<PgApproval> rejected -> chargeService.fail(target.chargeId(), rejected.code());
             case PgResult.Unknown<PgApproval> unknown ->
                 log.info("충전 승인 결과를 아직 알 수 없어 다음에 다시 봅니다. chargeId={}, reason={}",

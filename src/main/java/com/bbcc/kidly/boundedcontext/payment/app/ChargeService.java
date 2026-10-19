@@ -121,7 +121,12 @@ public class ChargeService {
         Charge charge = chargeRepository.findWithLockByTossOrderId(request.orderId())
             .filter(found -> found.getWalletId().equals(wallet.getId()))
             .orElseThrow(() -> new BusinessException(PaymentErrorCode.CHARGE_NOT_FOUND));
+        boolean alreadyFailed = charge.getStatus() == ChargeStatus.FAILED;
         charge.abandon(request.code());
+        if (!alreadyFailed) {
+            PaymentActionLog.record(PaymentAction.CHARGE_FAILED, "walletId={} chargeId={} failureCode={}",
+                charge.getWalletId(), charge.getId(), charge.getFailureCode());
+        }
         return ChargeDetail.from(charge);
     }
 
