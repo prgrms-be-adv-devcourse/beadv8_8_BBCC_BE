@@ -1,7 +1,8 @@
 # develop → dev 환경, main → prod 환경(Environment 승인 필요)으로 배포한다.
 # 이미지를 GHCR에 올리고, deploy/ (compose · deploy.sh · .env.<환경> + Secret) 를 서버 /opt/app/<환경>/ 에 올린 뒤 그 deploy.sh 가 compose pull / up 을 한다.
 # 패키지가 private이라 배포 때마다 GITHUB_TOKEN으로 GHCR에 로그인한다. 자격증명은 세션 임시 디렉터리에만 두고 끝나면 지운다.
-# 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 빌드 없이 그 이미지를 배포한다.
+# 배포 전에 CI(ci.yml)를 이미지 빌드와 동시에 돌리고, 둘 다 성공해야 서버에 올린다.
+# 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 CI · 빌드 없이 그 이미지를 배포한다.
 # 롤백 때도 compose · .env 는 실행한 브랜치의 현재 것이 올라간다. 설정 키가 바뀐 커밋으로 되돌릴 땐 주의한다.
 # workflow_dispatch 를 develop · main 이 아닌 브랜치에서 실행하면 그 브랜치가 dev 환경에 배포된다 (기능 브랜치 확인용).
 name: deploy
@@ -9,6 +10,15 @@ name: deploy
 on:
   push:
     branches: [develop, main]
+    # 앱 이미지 · 서버 설정과 상관없는 변경만 있으면 앱을 다시 띄우지 않는다 (재기동 중 잠깐 끊김)
+    # 모니터링은 monitoring-deploy.yml 이, 루트 docker/ · docker-compose.yml 은 로컬 개발용이다. .md 는 .dockerignore 로 이미지에도 안 들어간다
+    paths-ignore:
+      - deploy/monitoring/**
+      - docker/**
+      - docker-compose.yml
+      - docs/**
+      - wiki/**
+      - '**.md'
   workflow_dispatch:
     inputs:
       sha:
@@ -25,6 +35,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # PR 때 돈 CI 는 그때의 develop 기준이라, 머지된 커밋을 다시 검사한다. 롤백이면 이미 배포됐던 커밋이라 생략한다
+  ci:
+    if: inputs.sha == ''
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
   build:
     # 롤백이면 이미지가 이미 있으므로 빌드를 생략한다
     if: inputs.sha == ''
@@ -50,9 +67,9 @@ jobs:
           docker push "$IMAGE:$GITHUB_SHA"
 
   deploy:
-    needs: build
-    # 빌드가 성공했거나 롤백으로 생략된 경우만 배포한다
-    if: ${{ !cancelled() && needs.build.result != 'failure' }}
+    needs: [ci, build]
+    # CI 와 빌드가 모두 성공했거나 롤백(둘 다 생략)인 경우만 배포한다
+    if: ${{ !cancelled() && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
