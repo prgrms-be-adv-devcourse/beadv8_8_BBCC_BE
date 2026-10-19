@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
+import com.bbcc.kidly.boundedcontext.member.in.RefreshTokenCookies;
 import com.bbcc.kidly.boundedcontext.member.in.dto.MemberResponse;
 import com.bbcc.kidly.boundedcontext.seller.SellerFixture;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
@@ -11,6 +14,7 @@ import com.bbcc.kidly.global.security.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
+import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -210,6 +214,50 @@ class MemberApiTest {
     void updateWithoutToken() {
         patchMine(null, new MemberUpdateRequest("하은맘"))
             .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 204이고 Refresh Token 쿠키를 지우며 회원은 WITHDRAWN이 된다")
+    void withdraw() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+
+        deleteMine(tokens.buyer(member.getId()))
+            .expectStatus().isNoContent()
+            .expectCookie().maxAge(RefreshTokenCookies.NAME, Duration.ZERO)
+            .expectCookie().path(RefreshTokenCookies.NAME, "/api/v1/auth");
+
+        assertThat(memberRepository.findById(member.getId()).orElseThrow().getStatus())
+            .isEqualTo(MemberStatus.WITHDRAWN);
+    }
+
+    @Test
+    @DisplayName("관리자가 탈퇴하면 409")
+    void withdrawAdmin() {
+        var member = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
+
+        deleteMine(tokens.admin(member.getId()))
+            .expectStatus().isEqualTo(HttpStatus.CONFLICT)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody().jsonPath("$.title").isEqualTo("탈퇴할 수 없는 회원입니다");
+        assertThat(memberRepository.findById(member.getId()).orElseThrow().getStatus())
+            .isEqualTo(MemberStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("탈퇴할 때 로그인하지 않으면 401")
+    void withdrawWithoutToken() {
+        deleteMine(null)
+            .expectStatus().isUnauthorized();
+    }
+
+    private RestTestClient.ResponseSpec deleteMine(String token) {
+        return client.delete().uri(ME_PATH)
+            .headers(headers -> {
+                if (token != null) {
+                    headers.setBearerAuth(token);
+                }
+            })
+            .exchange();
     }
 
     private RestTestClient.ResponseSpec patchMine(String token, Object body) {

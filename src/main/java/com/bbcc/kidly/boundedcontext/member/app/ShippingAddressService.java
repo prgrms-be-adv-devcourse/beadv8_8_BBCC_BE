@@ -70,6 +70,13 @@ public class ShippingAddressService {
         shippingAddressRepository.delete(address);
     }
 
+    // 회원이 탈퇴하면 기본 배송지와 배송지를 모두 지운다. FK 때문에 기본 배송지 행을 먼저 지운다
+    @Transactional
+    public void deleteAll(Long memberId) {
+        defaultShippingAddressRepository.findById(memberId).ifPresent(defaultShippingAddressRepository::delete);
+        shippingAddressRepository.deleteAllByMemberId(memberId);
+    }
+
     // 기본 배송지 행이 이미 있으면 영속 상태라 save는 merge만 하고 INSERT하지 않는다
     private ShippingAddressResult saveDefault(ShippingAddress address, boolean requested) {
         var defaultAddress = defaultShippingAddressRepository.save(
