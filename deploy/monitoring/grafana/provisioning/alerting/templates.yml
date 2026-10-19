@@ -1,0 +1,46 @@
+apiVersion: 1
+
+# slack-ops 연결점(alerting.yml)의 제목 · 본문 · 색. 한 그룹은 같은 규칙 · 같은 env 다 (group_by: [alertname, env])
+# provisioning 파일은 $ 를 환경 변수로 바꿀 수 있어 템플릿 변수($)를 쓰지 않는다
+templates:
+  - orgId: 1
+    name: kidly-slack
+    template: |
+      {{ define "kidly.slack.title" -}}
+      {{ if eq .Status "firing" -}}
+      {{ if eq .CommonLabels.severity "warning" }}🟠{{ else }}🔴{{ end }} {{ template "kidly.slack.name" . }}
+      {{- if gt (len .Alerts.Firing) 1 }} ({{ len .Alerts.Firing }}건){{ end }}
+      {{- else -}}
+      🟢 해결 · {{ template "kidly.slack.name" . }}
+      {{- end }}
+      {{- end }}
+
+      {{/* 규칙 조회가 실패하거나(DatasourceError) 데이터가 없으면(DatasourceNoData) alertname 대신 규칙 이름(rulename)을 쓴다 */}}
+      {{ define "kidly.slack.name" -}}
+      {{ if eq .CommonLabels.alertname "DatasourceError" }}{{ .CommonLabels.rulename }} · 조회 실패
+      {{- else if eq .CommonLabels.alertname "DatasourceNoData" }}{{ .CommonLabels.rulename }} · 데이터 없음
+      {{- else }}{{ .CommonLabels.alertname }}{{ end }}
+      {{- with .CommonLabels.env }} · {{ . }}{{ end }}
+      {{- end }}
+
+      {{ define "kidly.slack.text" -}}
+      {{ if eq .Status "firing" -}}
+      {{ range .Alerts.Firing -}}
+      {{ .Annotations.summary }}
+      {{ with .Annotations.description }}{{ . }}
+      {{ end -}}
+      {{ end -}}
+      {{ with index .Alerts.Firing 0 }}<{{ .GeneratorURL }}|규칙 보기> · <{{ .SilenceURL }}|일시정지>{{ end }}
+      {{- else -}}
+      정상으로 돌아왔습니다
+      {{ with index .Alerts 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ end }}
+      {{- end }}
+      {{- end }}
+
+      {{ define "kidly.slack.color" -}}
+      {{ if eq .Status "firing" -}}
+      {{ if eq .CommonLabels.severity "warning" }}#d4a72c{{ else }}#cf222e{{ end }}
+      {{- else -}}
+      #1a7f37
+      {{- end }}
+      {{- end }}

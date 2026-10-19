@@ -9,6 +9,10 @@ contactPoints:
         type: slack
         settings:
           url: ${SLACK_OPS_WEBHOOK_URL}
+          # 메시지 형식은 templates.yml
+          title: '{{ template "kidly.slack.title" . }}'
+          text: '{{ template "kidly.slack.text" . }}'
+          color: '{{ template "kidly.slack.color" . }}'
 
 # 같은 알림 · 같은 환경은 묶어서 보내고, 계속 울리면 4시간마다 다시 보낸다
 policies:
@@ -53,7 +57,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: '{{ $labels.env }} 앱 메트릭을 2분 넘게 못 읽었습니다 (앱 다운 또는 /actuator/prometheus 없음)'
+          summary: '앱 메트릭을 2분 넘게 못 읽었습니다 (앱 다운 또는 /actuator/prometheus 없음)'
 
       # 최근 5분 요청 중 5xx 비율. 요청이 없으면 계산하지 않는다
       # /actuator 요청(Prometheus 수집 · docker healthcheck)은 분자 · 분모에서 뺀다
@@ -84,7 +88,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: '{{ $labels.env }} 최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
+          summary: '최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
 
       # 최근 5분 ERROR 로그. increase 는 외삽해 0.9 같은 값이 나오므로 0.5 초과(= 1건 이상)로 본다
       - uid: kidly-error-log
@@ -112,5 +116,5 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: '{{ $labels.env }} 최근 5분 ERROR 로그 {{ with $values.A }}{{ printf "%.0f" .Value }}{{ end }}건'
+          summary: '최근 5분 ERROR 로그 {{ with $values.A }}{{ printf "%.0f" .Value }}{{ end }}건'
           description: 'Grafana Explore → Loki 에서 {env="{{ $labels.env }}", level="ERROR"} 로 내용을 봅니다'
