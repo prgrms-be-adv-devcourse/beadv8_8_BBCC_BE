@@ -83,7 +83,8 @@ public class AttributeService {
     // 항목을 지운다. 지우지 않은 상품 유형에 연결된 항목인지는 읽어 넘기고, 지울 수 있는지는 항목이 판단한다 (TYPE-10)
     @Transactional
     public void delete(Long attributeId) {
-        Attribute attribute = attributeRepository.getById(attributeId);
+        // 쓰이는 중인지 읽은 뒤 지우기 전에 다른 요청이 연결하지 못하게 한다(TYPE-10)
+        Attribute attribute = attributeRepository.getByIdForUpdate(attributeId);
         boolean inUse = productTypeRepository.existsByAttributesAttributeAndDeletedAtIsNull(attribute);
         attribute.delete(LocalDateTime.now(), inUse);
     }

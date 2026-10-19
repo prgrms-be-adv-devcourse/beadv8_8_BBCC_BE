@@ -44,7 +44,8 @@ public class CategoryService {
     public CategoryResult create(CategoryCreateRequest request) {
         Category parent = null;
         if (request.parentId() != null) {
-            parent = categoryRepository.getById(request.parentId());
+            // 지우는 요청이 커밋되기 전이면 기다렸다가, 지운 것이면 400으로 거절한다(TYPE-10)
+            parent = categoryRepository.getByIdForShare(request.parentId());
         }
         // 최상위 카테고리끼리의 이름 중복은 DB UNIQUE가 막지 못하므로 먼저 찾아 본다. 같은 부모 아래 중복은 UNIQUE가 409로 막는다
         if (parent == null && categoryRepository.findTopLevelByName(request.name()).isPresent()) {
@@ -57,8 +58,9 @@ public class CategoryService {
     // 말단 카테고리의 상품 유형과 필수 실측 항목을 바꾼다. 받을 수 있는 변경인지는 카테고리가 판단한다
     @Transactional
     public CategoryResult change(Long categoryId, CategoryChangeRequest request) {
-        Category category = categoryRepository.getById(categoryId);
-        ProductType productType = productTypeRepository.getById(request.productTypeId());
+        // 상품 유무를 읽은 뒤 바꾸기 전에 첫 상품 등록이 끼어들지 못하도록 카테고리 행을 먼저 잠근다(TYPE-07)
+        Category category = categoryRepository.getByIdForUpdate(categoryId);
+        ProductType productType = productTypeRepository.getByIdForShare(request.productTypeId());
         List<MeasurementItem> measurementItems = findMeasurementItems(request.measurementItemIds());
         category.change(productType, measurementItems, productRepository.existsByCategory(category));
         return toResult(category);
@@ -78,7 +80,7 @@ public class CategoryService {
         if (request.productTypeId() == null) {
             return Category.createMiddle(request.name(), parent);
         }
-        ProductType productType = productTypeRepository.getById(request.productTypeId());
+        ProductType productType = productTypeRepository.getByIdForShare(request.productTypeId());
         List<MeasurementItem> measurementItems = findMeasurementItems(request.measurementItemIds());
         return Category.createLeaf(new Category.LeafInfo(request.name(), parent, productType, measurementItems));
     }
@@ -86,7 +88,7 @@ public class CategoryService {
     private List<MeasurementItem> findMeasurementItems(List<Long> measurementItemIds) {
         List<MeasurementItem> measurementItems = new ArrayList<>();
         for (Long measurementItemId : measurementItemIds) {
-            measurementItems.add(measurementItemRepository.getById(measurementItemId));
+            measurementItems.add(measurementItemRepository.getByIdForShare(measurementItemId));
         }
         return measurementItems;
     }
@@ -208,7 +210,8 @@ public class CategoryService {
     // 카테고리를 지운다. 지우지 않은 하위 카테고리가 있는지는 읽어 넘기고, 지울 수 있는지는 카테고리가 판단한다 (TYPE-10)
     @Transactional
     public void delete(Long categoryId) {
-        Category category = categoryRepository.getById(categoryId);
+        // 쓰이는 중인지 읽은 뒤 지우기 전에 다른 요청이 연결하지 못하게 한다(TYPE-10)
+        Category category = categoryRepository.getByIdForUpdate(categoryId);
         boolean inUse = categoryRepository.existsByParentAndDeletedAtIsNull(category);
         category.delete(LocalDateTime.now(), inUse);
     }

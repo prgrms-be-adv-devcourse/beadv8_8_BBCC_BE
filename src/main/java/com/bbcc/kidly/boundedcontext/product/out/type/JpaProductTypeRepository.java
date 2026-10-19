@@ -2,7 +2,12 @@ package com.bbcc.kidly.boundedcontext.product.out.type;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
+import jakarta.persistence.LockModeType;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface JpaProductTypeRepository extends JpaRepository<ProductType, Long>, ProductTypeRepository {
 
@@ -11,4 +16,16 @@ public interface JpaProductTypeRepository extends JpaRepository<ProductType, Lon
     default ProductType getById(Long id) {
         return ProductTypeRepository.super.getById(id);
     }
+
+    // Hibernate 7의 PESSIMISTIC_WRITE는 PostgreSQL에서 FOR NO KEY UPDATE가 되어, 다른 표에서 FK로 이 행을
+    // 가리키는 행을 넣을 때 거는 KEY SHARE와 충돌하지 않는다. 연결하는 쪽이 모두 FOR SHARE를 걸지만,
+    // FOR UPDATE로 두면 공유 잠금을 빠뜨린 연결 경로가 생겨도 FK 검사만으로 그 커밋을 기다리게 하는 방어선이 된다
+    @Override
+    @Query(value = "select * from product.product_type where id = :id for update", nativeQuery = true)
+    Optional<ProductType> findByIdForUpdate(@Param("id") Long id);
+
+    @Override
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select p from ProductType p where p.id = :id")
+    Optional<ProductType> findByIdForShare(@Param("id") Long id);
 }

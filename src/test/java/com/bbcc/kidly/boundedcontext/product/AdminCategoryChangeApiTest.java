@@ -64,7 +64,7 @@ class AdminCategoryChangeApiTest {
         Attribute hatSize = Attribute.create("모자 사이즈", "HAT_SIZE", AttributeInputType.LIST);
         hatType = ProductType.define("모자", List.of(
             ProductTypeFixture.requiredOption(clothing.color()), ProductTypeFixture.sizeOption(hatSize)));
-        headCircumference = MeasurementItem.create("머리둘레", "HEAD_CIRCUMFERENCE", "cm");
+        headCircumference = CategoryFixture.headCircumference();
         goods = Category.createMiddle("잡화", null);
         hat = Category.createLeaf(new Category.LeafInfo("모자", goods, clothing.type(), List.of(headCircumference)));
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
@@ -106,6 +106,18 @@ class AdminCategoryChangeApiTest {
         Category top = savedProductCategory();
 
         assertProblem(put(categoryPath(top), categoryChange(hatType.getId(), List.of())), HttpStatus.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("TYPE-07 상품이 있는 카테고리도 상품 유형을 그대로 두고 필수 실측 항목만 빼면 200으로 받는다")
+    void acceptSameTypeChangeWithProducts() {
+        Category top = savedProductCategory();
+
+        put(categoryPath(top), categoryChange(clothing.type().getId(), List.of()))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.productTypeId").isEqualTo(String.valueOf(clothing.type().getId()))
+            .jsonPath("$.measurementItems").isEmpty();
     }
 
     @Test

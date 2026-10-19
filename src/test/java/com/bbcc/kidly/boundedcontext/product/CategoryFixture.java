@@ -26,6 +26,10 @@ final class CategoryFixture {
         return MeasurementItem.create("소매길이", "SLEEVE_LENGTH", "cm");
     }
 
+    static MeasurementItem headCircumference() {
+        return MeasurementItem.create("머리둘레", "HEAD_CIRCUMFERENCE", "cm");
+    }
+
     // 기준 데이터의 최상위 중간 카테고리 의류다
     static Category clothing() {
         return Category.createMiddle("의류", null);

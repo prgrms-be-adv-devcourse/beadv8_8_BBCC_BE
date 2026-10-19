@@ -26,6 +26,24 @@ public interface CategoryRepository {
         return findById(id).orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
     }
 
+    // 카테고리를 행 잠금(FOR UPDATE)으로 ID로 찾는다. 없으면 빈 값을 돌려준다
+    Optional<Category> findByIdForUpdate(Long id);
+
+    // 카테고리를 행 잠금(FOR UPDATE)으로 ID로 찾는다. 없으면 404 오류(CATEGORY_NOT_FOUND)를 던진다
+    // 같은 트랜잭션에서 이 엔티티를 이미 읽었으면 잠그기만 하고 값은 다시 읽지 않으므로, 트랜잭션에서 처음 읽을 때 쓴다.
+    default Category getByIdForUpdate(Long id) {
+        return findByIdForUpdate(id).orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+    }
+
+    // 카테고리를 공유 잠금(FOR SHARE)으로 ID로 찾는다. 없으면 빈 값을 돌려준다
+    Optional<Category> findByIdForShare(Long id);
+
+    // 카테고리를 공유 잠금(FOR SHARE)으로 ID로 찾는다. 없으면 404 오류(CATEGORY_NOT_FOUND)를 던진다
+    // 같은 트랜잭션에서 이 엔티티를 이미 읽었으면 잠그기만 하고 값은 다시 읽지 않으므로, 트랜잭션에서 처음 읽을 때 쓴다.
+    default Category getByIdForShare(Long id) {
+        return findByIdForShare(id).orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+    }
+
     // 아래 셋은 지우지 않은 카테고리만 본다. 지운 카테고리가 가리키는 유형 · 부모 · 실측 항목은 지울 수 있다 (TYPE-10)
 
     // 그 유형을 가리키는 카테고리가 있는지 본다
