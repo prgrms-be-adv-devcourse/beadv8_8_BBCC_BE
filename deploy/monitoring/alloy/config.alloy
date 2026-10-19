@@ -1,0 +1,60 @@
+// dev · prod 앱 컨테이너(compose 서비스 app) 로그를 Loki 로 보낸다
+// env 라벨은 compose 프로젝트 이름(dev · prod), level 라벨은 logback 줄에서 뽑는다
+
+discovery.docker "containers" {
+	host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "kidly_app" {
+	targets = discovery.docker.containers.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "app"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		regex         = "dev|prod"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		target_label  = "env"
+	}
+}
+
+loki.source.docker "kidly_app" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.kidly_app.output
+	forward_to = [loki.process.kidly_app.receiver]
+}
+
+loki.process "kidly_app" {
+	// 스택 트레이스 여러 줄을 로그 한 건으로 묶는다 (로그 줄은 날짜로 시작한다)
+	stage.multiline {
+		firstline     = "^\\d{4}-\\d{2}-\\d{2} "
+		max_wait_time = "3s"
+	}
+
+	// 예: 2026-10-16 17:33:04.385 ERROR [traceId] ...
+	stage.regex {
+		expression = "^\\S+ \\S+\\s+(?P<level>[A-Z]+) "
+	}
+
+	stage.labels {
+		values = {
+			level = "",
+		}
+	}
+
+	forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+	endpoint {
+		url = "http://127.0.0.1:3100/loki/api/v1/push"
+	}
+}

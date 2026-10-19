@@ -1,0 +1,15 @@
+# 앱의 /actuator/prometheus 를 수집한다. env 라벨로 dev · prod 를 나눈다
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: kidly
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["127.0.0.1:8081"]
+        labels:
+          env: dev
+      # prod 는 main 배포가 아직 없어 앱이 없다. 첫 prod 배포 때 아래를 넣는다 (없는 대상은 "앱 다운"이 계속 울린다)
+      # - targets: ["127.0.0.1:8080"]
+      #   labels:
+      #     env: prod

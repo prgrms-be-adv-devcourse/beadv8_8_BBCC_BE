@@ -1,0 +1,87 @@
+# 서버용 모니터링 스택. install.sh 가 /opt/monitoring 으로 올리고 -p monitoring 으로 띄운다
+# 모두 host 네트워크에서 127.0.0.1 에만 연다. 앱(127.0.0.1:8080 · 8081)을 그대로 부르고 외부에는 열리지 않는다
+# 외부에서는 nginx 의 grafana.<도메인> 으로 Grafana 만 보인다 (deploy/nginx)
+# 비밀(GRAFANA_ADMIN_PASSWORD, SLACK_OPS_WEBHOOK_URL)은 서버의 /opt/monitoring/.env 에만 있다
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    network_mode: host
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.listen-address=127.0.0.1:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    logging: *logging
+
+  loki:
+    image: grafana/loki:3.5.3
+    network_mode: host
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+    logging: *logging
+
+  # 앱 컨테이너 로그를 docker 에서 읽어 Loki 로 보낸다. 앱의 로그 설정은 바꾸지 않는다
+  alloy:
+    image: grafana/alloy:v1.10.1
+    network_mode: host
+    command:
+      - run
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      - loki
+    restart: unless-stopped
+    logging: *logging
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    network_mode: host
+    environment:
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: "3000"
+      GF_SERVER_ROOT_URL: https://grafana.kidly.kro.kr
+      # nginx 가 https 로만 받으므로 로그인 쿠키를 https 에서만 보낸다
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_ADMIN_USER: admin
+      # 처음 만들 때만 쓰인다. 바꾸려면 Grafana 화면에서 바꾼다
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # provisioning/alerting 의 Slack 연결점이 읽는다
+      SLACK_OPS_WEBHOOK_URL: ${SLACK_OPS_WEBHOOK_URL}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  prometheus-data:
+  loki-data:
+  alloy-data:
+  grafana-data:
