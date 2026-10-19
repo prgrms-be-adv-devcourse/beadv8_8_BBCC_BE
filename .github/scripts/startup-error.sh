@@ -21,6 +21,16 @@ section=$(awk '
   END { printf "%s", buf }' "$log_file")
 [ -n "$section" ] || exit 0
 
+# 서버 콘솔은 ECS JSON 한 줄이다(logback-spring.xml prod). 아래 규칙이 읽을 수 있게 텍스트 로그 모양
+# (날짜 레벨 [traceId] logger : message, 다음 줄부터 스택 트레이스)으로 펼친다. JSON 이 아닌 줄(배너 · 텍스트 로그)은 그대로
+section=$(printf '%s\n' "$section" | jq -Rr '
+  (if startswith("{") then (fromjson? // null) else null end) as $log
+  | if ($log | type) == "object" and ($log | has("@timestamp")) then
+      ($log["@timestamp"] | sub("T"; " ") | .[0:23]) + " " + $log.log.level
+        + " [" + ($log.traceId // "N/A") + "] " + $log.log.logger + " : " + $log.message
+        + (if $log.error.stack_trace then "\n" + ($log.error.stack_trace | sub("\n+$"; "")) else "" end)
+    else . end')
+
 attempt=$(printf '%s\n' "$section" | awk '
   /Starting [A-Za-z]+Application/ { if (failed) last = buf; buf = ""; failed = 0 }
   { buf = buf $0 "\n" }

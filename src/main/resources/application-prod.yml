@@ -37,3 +37,9 @@ springdoc:
 logging:
   file:
     path: ${LOG_PATH:./logs}
+  # 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘으면 나뉘어 Loki 에서 JSON 으로 못 읽는다. 예외마다 프레임 수만 줄인다
+  # max-length 는 쓰지 않는다: 앞에서부터 잘라 마지막 Caused by(기동 실패 원인, .github/scripts/startup-error.sh)가 사라진다
+  structured:
+    json:
+      stacktrace:
+        max-throwable-depth: 30

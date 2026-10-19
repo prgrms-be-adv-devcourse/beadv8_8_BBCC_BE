@@ -1,5 +1,6 @@
 // dev · prod 앱 컨테이너(compose 서비스 app) 로그를 Loki 로 보낸다
-// env 라벨은 compose 프로젝트 이름(dev · prod), level 라벨은 logback 줄에서 뽑는다
+// env 라벨은 compose 프로젝트 이름(dev · prod), level 라벨은 로그 줄에서 뽑는다
+// 서버 콘솔은 ECS JSON 한 줄이다. 텍스트 줄은 JSON 이전 이미지가 남긴 것이라 전환 기간에만 쓰인다
 
 discovery.docker "containers" {
 	host = "unix:///var/run/docker.sock"
@@ -33,20 +34,35 @@ loki.source.docker "kidly_app" {
 }
 
 loki.process "kidly_app" {
-	// 스택 트레이스 여러 줄을 로그 한 건으로 묶는다 (로그 줄은 날짜로 시작한다)
+	// 텍스트 줄의 스택 트레이스 여러 줄을 로그 한 건으로 묶는다 (로그 줄은 날짜 또는 JSON 의 { 로 시작한다)
 	stage.multiline {
-		firstline     = "^\\d{4}-\\d{2}-\\d{2} "
+		firstline     = "^(\\d{4}-\\d{2}-\\d{2} |\\{)"
 		max_wait_time = "3s"
 	}
 
-	// 예: 2026-10-16 17:33:04.385 ERROR [traceId] ...
+	// 예: {"@timestamp":"...","log":{"level":"ERROR",...},...,"traceId":"..."} — traceId 는 요청 안에서만 있다
+	stage.json {
+		expressions = {
+			level   = "log.level",
+			traceId = "",
+		}
+	}
+
+	// 예: 2026-10-16 17:33:04.385 ERROR [traceId] ... — 날짜로 시작하는 텍스트 줄에만 맞는다
 	stage.regex {
-		expression = "^\\S+ \\S+\\s+(?P<level>[A-Z]+) "
+		expression = "^\\d{4}-\\d{2}-\\d{2} \\S+\\s+(?P<level>[A-Z]+) "
 	}
 
 	stage.labels {
 		values = {
 			level = "",
+		}
+	}
+
+	// traceId 는 값 종류가 끝이 없어 라벨이 아니라 구조화 메타데이터로 둔다. {env="dev"} | traceId="..." 로 거른다
+	stage.structured_metadata {
+		values = {
+			traceId = "",
 		}
 	}
 

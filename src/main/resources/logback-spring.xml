@@ -13,22 +13,29 @@
     <property name="FILE_LOG_PATTERN"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{traceId:-N/A}] ${PID:- } --- [%15.15t] %-40.40logger{39} : %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
 
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-    </appender>
-
-    <!-- 로컬 · 테스트 등 운영이 아닌 프로필: 콘솔만 -->
+    <!-- 로컬 · 테스트 등 운영이 아닌 프로필: 콘솔(텍스트)만 -->
     <springProfile name="!prod">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>
     </springProfile>
 
-    <!-- 운영: 콘솔 + 파일(일반/에러 분리, 비동기) -->
+    <!-- 운영(dev · prod 서버): 콘솔은 ECS JSON 한 줄(Loki 수집용), 파일은 텍스트(일반/에러 분리, 비동기) -->
     <springProfile name="prod">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+                <format>ecs</format>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
         <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
             <file>${LOG_PATH}/${LOG_FILE_NAME}.log</file>
             <encoder>
