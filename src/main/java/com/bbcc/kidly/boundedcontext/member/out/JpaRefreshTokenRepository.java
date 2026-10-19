@@ -16,10 +16,12 @@ public interface JpaRefreshTokenRepository extends JpaRepository<RefreshToken, L
     @Transactional
     @Modifying
     @Query(value = """
-        INSERT INTO member.refresh_token (member_id, token_hash, expires_at, created_at, updated_at)
-        VALUES (:memberId, :tokenHash, :expiresAt, :now, :now)
+        INSERT INTO member.refresh_token
+            (member_id, token_hash, expires_at, previous_token_hash, rotated_at, created_at, updated_at)
+        VALUES (:memberId, :tokenHash, :expiresAt, NULL, NULL, :now, :now)
         ON CONFLICT (member_id) DO UPDATE
-        SET token_hash = EXCLUDED.token_hash, expires_at = EXCLUDED.expires_at, updated_at = EXCLUDED.updated_at
+        SET token_hash = EXCLUDED.token_hash, expires_at = EXCLUDED.expires_at,
+            previous_token_hash = NULL, rotated_at = NULL, updated_at = EXCLUDED.updated_at
         """, nativeQuery = true)
     void upsert(@Param("memberId") Long memberId, @Param("tokenHash") String tokenHash,
         @Param("expiresAt") LocalDateTime expiresAt, @Param("now") LocalDateTime now);
@@ -30,7 +32,8 @@ public interface JpaRefreshTokenRepository extends JpaRepository<RefreshToken, L
     @Modifying(clearAutomatically = true)
     @Query("""
         UPDATE RefreshToken t
-        SET t.tokenHash = :newTokenHash, t.expiresAt = :expiresAt, t.updatedAt = :now
+        SET t.tokenHash = :newTokenHash, t.expiresAt = :expiresAt,
+            t.previousTokenHash = :oldTokenHash, t.rotatedAt = :now, t.updatedAt = :now
         WHERE t.memberId = :memberId AND t.tokenHash = :oldTokenHash
         """)
     int rotate(@Param("memberId") Long memberId, @Param("oldTokenHash") String oldTokenHash,
@@ -42,6 +45,12 @@ public interface JpaRefreshTokenRepository extends JpaRepository<RefreshToken, L
     @Modifying(clearAutomatically = true)
     @Query("DELETE FROM RefreshToken t WHERE t.tokenHash = :tokenHash")
     void deleteByTokenHash(@Param("tokenHash") String tokenHash);
+
+    @Override
+    @Transactional
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM RefreshToken t WHERE t.memberId = :memberId")
+    void deleteByMemberId(@Param("memberId") Long memberId);
 
     @Override
     @Transactional
