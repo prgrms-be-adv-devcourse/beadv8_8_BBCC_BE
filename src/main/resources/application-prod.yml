@@ -26,6 +26,9 @@ kidly:
     image:
       s3:
         key-prefix: ${PRODUCT_IMAGE_KEY_PREFIX}
+  # 메일 본문의 사이트 주소. 서버는 기본값 없이 반드시 넣는다 (빠지면 기동 실패)
+  notification:
+    site-url: ${NOTIFICATION_SITE_URL}
 
 springdoc:
   swagger-ui:
