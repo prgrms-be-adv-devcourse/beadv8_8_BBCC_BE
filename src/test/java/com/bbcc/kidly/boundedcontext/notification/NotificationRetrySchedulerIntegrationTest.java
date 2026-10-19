@@ -25,11 +25,11 @@ class NotificationRetrySchedulerIntegrationTest {
     private NotificationRepository notificationRepository;
 
     @Autowired
-    private FakeEmailSender fakeEmailSender;
+    private FakeNotificationEmailSender fakeNotificationEmailSender;
 
     @AfterEach
     void tearDown() {
-        fakeEmailSender.reset();
+        fakeNotificationEmailSender.reset();
     }
 
     @Test
@@ -45,7 +45,7 @@ class NotificationRetrySchedulerIntegrationTest {
 
         AsyncWait.until(() -> statusOf(due) == NotificationStatus.SENT);
         assertThat(statusOf(gaveUpId)).isEqualTo(NotificationStatus.FAILED);
-        assertThat(fakeEmailSender.sent()).filteredOn((Email email) -> EMAIL.equals(email.to())).hasSize(1);
+        assertThat(fakeNotificationEmailSender.sent()).filteredOn((Email email) -> EMAIL.equals(email.to())).hasSize(1);
     }
 
     @Test

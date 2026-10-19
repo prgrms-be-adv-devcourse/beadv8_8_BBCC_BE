@@ -23,7 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * member.registered가 커밋되면 환영 메일을 저장하고 별도 스레드에서 보낸다.
  * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않는다.
- * FakeEmailSender는 컨텍스트를 함께 쓰는 다른 테스트의 늦은 발송도 받으므로, 이 테스트의 받는 사람으로 걸러 본다.
+ * FakeNotificationEmailSender는 컨텍스트를 함께 쓰는 다른 테스트의 늦은 발송도 받으므로, 이 테스트의 받는 사람으로 걸러 본다.
  */
 @IntegrationTest
 class WelcomeEmailIntegrationTest {
@@ -40,11 +40,11 @@ class WelcomeEmailIntegrationTest {
     private JpaNotificationRepository jpaNotificationRepository;
 
     @Autowired
-    private FakeEmailSender fakeEmailSender;
+    private FakeNotificationEmailSender fakeNotificationEmailSender;
 
     @AfterEach
     void tearDown() {
-        fakeEmailSender.reset();
+        fakeNotificationEmailSender.reset();
     }
 
     @Test
@@ -100,7 +100,7 @@ class WelcomeEmailIntegrationTest {
     }
 
     private List<Email> sentTo(String recipient) {
-        return fakeEmailSender.sent().stream().filter(email -> email.to().equals(recipient)).toList();
+        return fakeNotificationEmailSender.sent().stream().filter(email -> email.to().equals(recipient)).toList();
     }
 
     private void publishInTransaction(MemberRegisteredEvent event) {

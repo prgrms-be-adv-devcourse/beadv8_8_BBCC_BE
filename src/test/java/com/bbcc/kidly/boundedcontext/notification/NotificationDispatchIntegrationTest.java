@@ -26,11 +26,11 @@ class NotificationDispatchIntegrationTest {
     private NotificationRepository notificationRepository;
 
     @Autowired
-    private FakeEmailSender fakeEmailSender;
+    private FakeNotificationEmailSender fakeNotificationEmailSender;
 
     @AfterEach
     void tearDown() {
-        fakeEmailSender.reset();
+        fakeNotificationEmailSender.reset();
     }
 
     @Test
@@ -42,7 +42,7 @@ class NotificationDispatchIntegrationTest {
         notificationDispatcher.dispatch(id);
 
         assertThat(find(id).getStatus()).isEqualTo(NotificationStatus.SENT);
-        assertThat(fakeEmailSender.sent()).singleElement().satisfies(email -> {
+        assertThat(fakeNotificationEmailSender.sent()).singleElement().satisfies(email -> {
             assertThat(email.to()).isEqualTo(EMAIL);
             assertThat(email.subject()).isEqualTo(NotificationFixture.TITLE);
             assertThat(email.text()).isEqualTo(NotificationFixture.BODY);
@@ -60,13 +60,13 @@ class NotificationDispatchIntegrationTest {
 
         assertThat(find(noRecipient).getStatus()).isEqualTo(NotificationStatus.SKIPPED);
         assertThat(find(reserved).getStatus()).isEqualTo(NotificationStatus.SKIPPED);
-        assertThat(fakeEmailSender.sent()).isEmpty();
+        assertThat(fakeNotificationEmailSender.sent()).isEmpty();
     }
 
     @Test
     @DisplayName("다시 보낼 수 있는 실패는 FAILED와 다음 시도 시각을 남긴다")
     void retryableFailure() {
-        Long id = save(FakeEmailSender.RETRYABLE_FAILURE);
+        Long id = save(FakeNotificationEmailSender.RETRYABLE_FAILURE);
 
         notificationDispatcher.dispatch(id);
 
@@ -80,7 +80,7 @@ class NotificationDispatchIntegrationTest {
     @Test
     @DisplayName("다시 보내도 같은 실패면 다음 시도 시각을 두지 않는다")
     void permanentFailure() {
-        Long id = save(FakeEmailSender.PERMANENT_FAILURE);
+        Long id = save(FakeNotificationEmailSender.PERMANENT_FAILURE);
 
         notificationDispatcher.dispatch(id);
 

@@ -10,11 +10,11 @@ import org.springframework.stereotype.Component;
 
 /**
  * 통합 · 기능 테스트에서 SMTP 대신 쓴다. 보낸 메일을 모아 두고, 정해 둔 주소로는 실패를 던진다.
- * 비동기 스레드에서도 불리므로 스레드 안전한 목록을 쓴다. `global.mail` 연동은 GlobalEmailSenderAdapterTest가 확인한다.
+ * 비동기 스레드에서도 불리므로 스레드 안전한 목록을 쓴다. `global.mail` 연동은 NotificationEmailSenderAdapterTest가 확인한다.
  */
 @Primary
 @Component
-public class FakeEmailSender implements NotificationEmailSender {
+public class FakeNotificationEmailSender implements NotificationEmailSender {
 
     public static final String RETRYABLE_FAILURE = "retryable-failure@kidly.co.kr";
     public static final String PERMANENT_FAILURE = "permanent-failure@kidly.co.kr";
