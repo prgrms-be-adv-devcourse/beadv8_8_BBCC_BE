@@ -80,7 +80,7 @@ class ProductDetailApiTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("판매중 상품의 상세는 로그인 없이 받고, 옵션 · 상품정보 표 · 실측을 정해진 순서로 담는다")
+    @DisplayName("판매중 상품의 상세는 로그인 없이 받고, 설명과 옵션 · 상품정보 표 · 실측을 정해진 순서로 담는다")
     void getDetailOfProductOnSale() {
         Product product = savedProductOnSale(10, 10, 10);
 
@@ -92,6 +92,7 @@ class ProductDetailApiTest {
             .jsonPath("$.name").isEqualTo("상품 A")
             .jsonPath("$.brand").isEqualTo("키들리")
             .jsonPath("$.categoryId").isEqualTo(String.valueOf(product.getCategoryId()))
+            .jsonPath("$.description").isEqualTo("상품 설명")
             .jsonPath("$.status").isEqualTo("ON_SALE")
             .jsonPath("$.sizeFree").isEqualTo(false)
             .jsonPath("$.minPrice").isEqualTo(25_000)
@@ -132,6 +133,21 @@ class ProductDetailApiTest {
             .isEqualTo(List.of("TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH"))
             .jsonPath("$.measurementItems[0].name").isEqualTo("총장")
             .jsonPath("$.measurementItems[0].unit").isEqualTo("cm");
+    }
+
+    @Test
+    @DisplayName("판매자가 설명을 입력하지 않은 상품은 설명 칸을 빼지 않고 null로 담는다")
+    void descriptionIsNullWhenSellerLeftItEmpty() {
+        Product product = savedProductOnSale(10, 10, 10);
+        // 상품 A 등록 정보에는 설명이 있어서, 설명 없이 등록한 상품을 만들려고 설명 칸을 비운다
+        jdbcTemplate.update("update product.product set description = null where id = ?", product.getId());
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.description").hasJsonPath()
+            .jsonPath("$.description").isEqualTo(null);
     }
 
     @Test
