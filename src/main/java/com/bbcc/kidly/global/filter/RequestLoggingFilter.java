@@ -29,7 +29,7 @@ import org.springframework.web.util.pattern.PathPatternParser;
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
     public static final String TRACE_ID_MDC_KEY = "traceId";
-    private static final String TRACE_ID_HEADER = "X-Request-Id";
+    public static final String TRACE_ID_HEADER = "X-Request-Id";
     private static final Pattern TRACE_ID_PATTERN =
         Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
     private static final PathPattern ACTUATOR_PATH = PathPatternParser.defaultInstance.parse("/actuator/**");

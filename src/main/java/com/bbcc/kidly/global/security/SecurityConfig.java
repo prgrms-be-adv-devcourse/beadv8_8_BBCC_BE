@@ -1,5 +1,6 @@
 package com.bbcc.kidly.global.security;
 
+import com.bbcc.kidly.global.filter.RequestLoggingFilter;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -83,6 +84,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
+        // 프론트가 오류 문의에 traceId를 붙일 수 있게 응답 헤더를 JS에 보여 준다
+        config.setExposedHeaders(List.of(RequestLoggingFilter.TRACE_ID_HEADER));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
