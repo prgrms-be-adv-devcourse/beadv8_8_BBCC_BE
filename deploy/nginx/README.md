@@ -1,20 +1,24 @@
 # nginx + HTTPS 설정
 
-EC2 한 대에서 nginx 가 443 을 받아 운영 앱(`127.0.0.1:8080`)과 개발 앱(`127.0.0.1:8081`)으로 넘깁니다.
-인증서는 Let's Encrypt 에서 무료로 받고, certbot 도커 이미지로 발급·갱신합니다.
+EC2 한 대에서 nginx 가 443 을 받아 운영 앱(`127.0.0.1:8080`), 개발 앱(`127.0.0.1:8081`), Grafana(`127.0.0.1:3000`)로 넘깁니다.
+`/actuator` 와 그 아래 경로는 `/actuator/health` 만 밖으로 열고 나머지는 404 입니다.
+인증서는 ZeroSSL 에서 무료로 받고(ACME), certbot 도커 이미지로 발급·갱신합니다.
+`kro.kr` 은 공용 접미사 목록(PSL)에 없어 Let's Encrypt 의 "등록 도메인당 주 50장" 한도를 모든 `kro.kr` 사용자와 나눠 쓰기 때문에 자주 막힙니다.
 
 | 주소 | 연결되는 곳 |
 | --- | --- |
 | `https://api.<도메인>` | 운영 앱 (8080) |
 | `https://dev-api.<도메인>` | 개발 앱 (8081) |
+| `https://grafana.<도메인>` | Grafana (3000, `deploy/monitoring`) |
 | IP 로 직접 접속, 모르는 호스트 | 응답 없이 끊음 |
 
 ## 준비
 
 1. 도메인을 삽니다.
-2. DNS 에 A 레코드 두 개를 만듭니다. 값은 둘 다 EC2 의 탄력적 IP 입니다.
+2. DNS 에 A 레코드 세 개를 만듭니다. 값은 모두 EC2 의 탄력적 IP 입니다.
    - `api` → 탄력적 IP
    - `dev-api` → 탄력적 IP
+   - `grafana` → 탄력적 IP
    - `dig +short api.<도메인>` 이 탄력적 IP 를 돌려주면 준비된 것입니다.
 3. 보안 그룹에서 80, 443 이 열려 있어야 합니다. 80 은 인증서 발급·갱신에 씁니다.
 4. 서버에 docker 가 설치되어 있어야 합니다.
@@ -35,9 +39,16 @@ sudo ./install.sh <도메인> <이메일>
 # 예) sudo ./install.sh kidly.example team@kidly.example
 ```
 
-여러 번 실행해도 됩니다. 인증서가 이미 있으면 발급은 건너뜁니다.
+여러 번 실행해도 됩니다. 인증서 이름이 그대로면 발급은 건너뜁니다.
+이미 설치한 서버에서 이름을 추가할 때도 install.sh 를 다시 실행하면 됩니다.
 
-`--agree-tos` 로 [Let's Encrypt 가입자 약관](https://letsencrypt.org/repository/)에 동의하게 됩니다.
+새 서버처럼 ZeroSSL 계정이 없으면 EAB 키가 필요합니다. ZeroSSL 대시보드 > Developer 에서 만들어 환경 변수로 넘깁니다(처음 한 번).
+
+```bash
+sudo ZEROSSL_EAB_KID=<kid> ZEROSSL_EAB_HMAC_KEY=<hmac> ./install.sh <도메인> <이메일>
+```
+
+`--agree-tos` 로 [ZeroSSL 약관](https://zerossl.com/terms/)에 동의하게 됩니다.
 실행 전에 한 번 읽어 보세요.
 
 ## 확인
@@ -45,6 +56,7 @@ sudo ./install.sh <도메인> <이메일>
 ```bash
 curl -I https://dev-api.<도메인>/actuator/health
 curl -I https://api.<도메인>/actuator/health
+curl -I https://grafana.<도메인>/api/health
 ```
 
 ## 자동 갱신
