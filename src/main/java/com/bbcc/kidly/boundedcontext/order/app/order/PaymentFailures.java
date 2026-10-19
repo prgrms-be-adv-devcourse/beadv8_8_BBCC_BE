@@ -53,8 +53,8 @@ public final class PaymentFailures {
         return violates(recordError, PaymentRecovery.ORDER_UNIQUE);
     }
 
-    // 제약 이름은 DB 오류 메시지로만 알 수 있어 원인 사슬의 메시지에서 찾는다
-    private static boolean violates(Throwable error, String constraintName) {
+    // 제약 이름은 DB 오류 메시지로만 알 수 있어 원인 사슬의 메시지에서 찾는다. 이벤트 처리 실패 보관(#449)도 같이 쓴다
+    static boolean violates(Throwable error, String constraintName) {
         if (!(error instanceof DataIntegrityViolationException)) {
             return false;
         }

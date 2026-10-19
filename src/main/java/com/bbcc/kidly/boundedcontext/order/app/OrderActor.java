@@ -18,6 +18,7 @@ public record OrderActor(OrderStatusHistory.ActorType type, Long id, String sour
     public static final String SELLER_DELIVER = "POST /api/v1/seller/orders/{sellerOrderId}/deliver";
     public static final String RECOVERY_RETRY = "POST /api/v1/admin/orders/recoveries/{id}/retry";
     public static final String RECOVERY_CANCEL = "POST /api/v1/admin/orders/recoveries/{id}/cancel";
+    public static final String EVENT_FAILURE_RETRY = "POST /api/v1/admin/orders/event-failures/{id}/retry";
     public static final String PAYMENT_EXPIRY = "scheduler:payment-expiry";
     public static final String AUTO_CONFIRM = "scheduler:auto-confirm";
     public static final String PAYMENT_COMPLETED = "payment.completed";

@@ -51,6 +51,12 @@ public enum OrderErrorCode implements ErrorCode {
         "이미 결제가 반영된 주문입니다. 재처리를 눌러 복구를 마무리해 주세요."),
     INVALID_RECOVERY_STATUS(HttpStatus.BAD_REQUEST, "지원하지 않는 기록 상태입니다",
         "상태는 PENDING · RECOVERED · CANCELLED · NOT_RETRYABLE 중 하나로 보내 주세요."),
+    EVENT_FAILURE_NOT_FOUND(HttpStatus.NOT_FOUND, "이벤트 처리 실패 기록을 찾을 수 없습니다",
+        "없는 기록입니다. 이벤트 처리 실패 목록을 새로고침해 주세요."),
+    EVENT_FAILURE_CLOSED(HttpStatus.CONFLICT, "이미 종료된 기록입니다",
+        "이미 복구됐거나 종료된 기록입니다. 이벤트 처리 실패 목록을 새로고침해 주세요."),
+    INVALID_EVENT_FAILURE_STATUS(HttpStatus.BAD_REQUEST, "지원하지 않는 기록 상태입니다",
+        "상태는 PENDING · RECOVERED · CANCELLED 중 하나로 보내 주세요."),
     INVALID_STUCK_KIND(HttpStatus.BAD_REQUEST, "지원하지 않는 멈춘 주문 종류입니다",
         "kind는 STOCK_CHECK_STALE · PAYMENT_EXPIRY_MISSED · PAID_WITHOUT_DELIVERY · RECOVERY_PENDING_STALE · "
             + "SHIPPING_DELAYED · AUTO_CONFIRM_MISSED 중 하나를 대문자 그대로 보내 주세요."),

@@ -29,6 +29,11 @@ public interface OrderRepository {
 
     Optional<Order> findById(Long id);
 
+    /**
+     * 바뀐 주문을 지금 DB에 반영한다(#449). 받은 이벤트 처리 실패를 리스너 안에서 잡아 보관하려고 쓴다.
+     */
+    void flush();
+
     boolean existsById(Long id);
 
     /**

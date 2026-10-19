@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
@@ -34,6 +35,7 @@ public class PaymentEventListener {
     private final OrderService orderService;
     private final PaymentCompletion paymentCompletion;
     private final PaymentRecoveryService recoveryService;
+    private final OrderEventFailureService failureService;
 
     /**
      * 처리 중 예외는 분류해 로그를 남긴 뒤 그대로 다시 던진다(트랜잭션은 그대로 되돌려짐).
@@ -128,7 +130,7 @@ public class PaymentEventListener {
 
     /**
      * 실패 사유(reasonCode)는 주문에 넘기지 않고 로그에도 남기지 않는다(결제 기록 · 관리자 결제 조회에서 확인).
-     * 취소 결과는 서비스가 "주문 취소" 한 줄로 남긴다.
+     * 취소 결과는 서비스가 "주문 취소" 한 줄로 남긴다. 처리에 실패하면 재처리용으로 보관한다(#449).
      */
     @DomainEventListener
     public void onPaymentFailed(PaymentFailedEvent event) {
@@ -136,7 +138,8 @@ public class PaymentEventListener {
         if (!EventGuard.accept("결제", event, orderId == null ? MISSING_ORDER_ID : null)) {
             return;
         }
-        orderService.cancelForPaymentFailure(orderId);
+        EventFailureKeeper.run(event.eventType(), orderId, () -> orderService.cancelForPaymentFailure(orderId),
+            error -> failureService.recordPaymentFailedFailure(orderId, error));
     }
 
     private Long toOrderId(PaymentFailedEvent event) {

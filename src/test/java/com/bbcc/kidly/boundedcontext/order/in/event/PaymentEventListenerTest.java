@@ -1,8 +1,10 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -10,8 +12,10 @@ import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderEventFailureResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -49,13 +53,16 @@ class PaymentEventListenerTest {
     @Mock
     private PaymentRecoveryService recoveryService;
 
+    @Mock
+    private OrderEventFailureService failureService;
+
     private PaymentEventListener listener;
 
     // 결제 완료 반영 순서는 실제 PaymentCompletion으로 두고, 그 안의 서비스만 mock으로 둔다
     @BeforeEach
     void setUp() {
         listener = new PaymentEventListener(orderService,
-            new PaymentCompletion(orderService, deliveryService, cartService), recoveryService);
+            new PaymentCompletion(orderService, deliveryService, cartService), recoveryService, failureService);
     }
 
     @Nested
@@ -181,6 +188,24 @@ class PaymentEventListenerTest {
                     LocalDateTime.of(2026, 10, 15, 9, 0))));
 
             assertThat(output).doesNotContain("결제 실패 수신").doesNotContain("event=payment.failed");
+        }
+
+        @Test
+        @DisplayName("결제 실패 취소가 실패하면 주문 ID로 보관하고(#449) ERROR 한 줄 뒤 원래 예외를 그대로 던진다")
+        void keepsFailure(CapturedOutput output) {
+            LocalDateTime at = LocalDateTime.of(2026, 10, 15, 9, 0);
+            IllegalStateException error = new IllegalStateException("x");
+            doThrow(error).when(orderService).cancelForPaymentFailure(ORDER_ID);
+            when(failureService.recordPaymentFailedFailure(ORDER_ID, error)).thenReturn(new OrderEventFailureResult(
+                1L, "PAYMENT_FAILED", ORDER_ID, List.of(), "PENDING", "IllegalStateException", 2, at, at));
+
+            assertThatThrownBy(() -> listener.onPaymentFailed(new PaymentFailedEvent(UUID.randomUUID(), at,
+                new PaymentFailedEvent.Data(PAYMENT_ID, ORDER_ID, 1L, 50_000L, PaymentFailureCode.INSUFFICIENT_BALANCE,
+                    at)))).isSameAs(error);
+
+            verify(failureService).recordPaymentFailedFailure(ORDER_ID, error);
+            assertThat(output).containsPattern("ERROR.*event=payment.failed reason=processing-failed orderId="
+                + ORDER_ID + " failureStatus=PENDING attemptCount=2");
         }
     }
 
