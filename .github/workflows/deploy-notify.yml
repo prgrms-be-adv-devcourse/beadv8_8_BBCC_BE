@@ -1,10 +1,10 @@
-# deploy 워크플로가 끝나면 결과를 Slack 으로 알린다.
+# deploy · monitoring-deploy 워크플로가 끝나면 결과를 Slack 으로 알린다.
 # workflow_run 은 기본 브랜치(develop)에 있는 이 파일만 실행되므로 머지된 뒤부터 동작한다
 name: Deploy Notify
 
 on:
   workflow_run:
-    workflows: [deploy]
+    workflows: [deploy, monitoring-deploy]
     types: [completed]
 
 jobs:
@@ -25,6 +25,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
           RUN_EVENT: ${{ github.event.workflow_run.event }}
@@ -51,10 +52,13 @@ jobs:
             *)         COLOR="#8c959f"; RESULT="❔ 배포 $CONCLUSION" ;;
           esac
 
-          # deploy.yml 의 환경 규칙과 같다: main → prod, 그 외 → dev
-          if [ "$BRANCH" = "main" ]; then ENV_LABEL="prod"; else ENV_LABEL="dev"; fi
+          # 모니터링 배포는 환경 자리에 "모니터링"을 쓴다. 앱 배포는 deploy.yml 의 환경 규칙과 같다: main → prod, 그 외 → dev
+          if [ "$WORKFLOW" = "monitoring-deploy" ]; then ENV_LABEL="모니터링"
+          elif [ "$BRANCH" = "main" ]; then ENV_LABEL="prod"
+          else ENV_LABEL="dev"; fi
           MANUAL=""
-          if [ "$RUN_EVENT" = "workflow_dispatch" ]; then
+          # 롤백 안내는 앱 배포에만 붙인다
+          if [ "$WORKFLOW" = "deploy" ] && [ "$RUN_EVENT" = "workflow_dispatch" ]; then
             ENV_LABEL="$ENV_LABEL · 수동 실행(롤백 등)"
             # 롤백이면 실제 배포된 SHA 는 입력값이라 이 payload 에 없다
             MANUAL="수동 실행이라 실제 배포된 커밋은 입력한 SHA 일 수 있어요. 실행 링크에서 확인하세요."
