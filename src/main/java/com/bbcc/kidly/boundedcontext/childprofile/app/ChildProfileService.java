@@ -62,6 +62,16 @@ public class ChildProfileService {
         publish(child, true, now);
     }
 
+    // 회원이 탈퇴하면 자녀를 모두 삭제한다. 자녀마다 삭제 이벤트를 발행한다
+    @Transactional
+    public void deleteAll(Long memberId) {
+        var now = LocalDateTime.now();
+        for (var child : childProfileRepository.findAllByMemberId(memberId)) {
+            child.delete(now);
+            publish(child, true, now);
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<GrowthRecordResult> getGrowthRecords(Long memberId, Long childId) {
         return childProfileRepository.getByIdAndMemberId(childId, memberId).getGrowthRecords().stream()
