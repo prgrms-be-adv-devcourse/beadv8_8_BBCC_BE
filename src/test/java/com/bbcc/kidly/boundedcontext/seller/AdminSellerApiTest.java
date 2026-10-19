@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerSuspendRequest;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerErrorCode;
+import com.bbcc.kidly.boundedcontext.seller.domain.SellerPolicy;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
-import com.bbcc.kidly.boundedcontext.seller.domain.SellerSuspension;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerResponse;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -85,7 +85,7 @@ class AdminSellerApiTest {
     void suspendLongReason() {
         var seller = sellerRepository.save(SellerFixture.activeSeller(1L));
 
-        suspend(seller.getId(), "가".repeat(SellerSuspension.REASON_MAX_LENGTH + 1))
+        suspend(seller.getId(), "가".repeat(SellerPolicy.SUSPEND_REASON_MAX_LENGTH + 1))
             .expectStatus().isBadRequest();
     }
 

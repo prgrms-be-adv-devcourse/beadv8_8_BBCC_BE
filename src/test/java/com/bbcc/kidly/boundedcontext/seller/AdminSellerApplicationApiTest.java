@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRejectRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
-import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplication;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerErrorCode;
+import com.bbcc.kidly.boundedcontext.seller.domain.SellerPolicy;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationSummaryResponse;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationResponse;
 import com.bbcc.kidly.global.response.PageResponse;
@@ -217,7 +217,7 @@ class AdminSellerApplicationApiTest {
     void rejectLongReason() {
         var applicationId = apply(1L);
 
-        reject(applicationId, "가".repeat(SellerApplication.REJECT_REASON_MAX_LENGTH + 1))
+        reject(applicationId, "가".repeat(SellerPolicy.REJECT_REASON_MAX_LENGTH + 1))
             .expectStatus().isBadRequest();
     }
 
