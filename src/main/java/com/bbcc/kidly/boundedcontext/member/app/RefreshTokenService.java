@@ -36,15 +36,21 @@ public class RefreshTokenService {
     }
 
     // 토큰을 새 값으로 바꾼다. 같은 토큰으로 동시에 요청하면 한 요청만 바꾸고 나머지는 거절한다
-    @Transactional
+    // 재사용을 감지해 지운 것은 401을 던져도 남아야 해서 업무 예외로는 롤백하지 않는다
+    @Transactional(noRollbackFor = BusinessException.class)
     public ReissuedToken reissue(String token) {
         if (token == null) {
             throw invalid();
         }
         var now = LocalDateTime.now();
-        var saved = refreshTokenRepository.findByTokenHash(RefreshToken.hashOf(token))
-            .filter(refreshToken -> refreshToken.isUsable(now))
-            .orElseThrow(RefreshTokenService::invalid);
+        var tokenHash = RefreshToken.hashOf(token);
+        var current = refreshTokenRepository.findByTokenHash(tokenHash)
+            .filter(refreshToken -> refreshToken.isUsable(now));
+        if (current.isEmpty()) {
+            revokeIfReused(tokenHash, now);
+            throw invalid();
+        }
+        var saved = current.get();
         var memberId = saved.getMemberId();
         var member = memberRepository.findById(memberId)
             .filter(Member::canLogin)
@@ -57,6 +63,16 @@ public class RefreshTokenService {
             throw invalid();
         }
         return new ReissuedToken(member, newToken);
+    }
+
+    // 이미 교체된 직전 토큰이 유예 시간 뒤에 오면 탈취로 보고 그 회원의 토큰을 지운다
+    private void revokeIfReused(String tokenHash, LocalDateTime now) {
+        refreshTokenRepository.findByPreviousTokenHash(tokenHash)
+            .filter(refreshToken -> refreshToken.isReused(now))
+            .ifPresent(refreshToken -> {
+                refreshTokenRepository.deleteByMemberId(refreshToken.getMemberId());
+                log.warn("Refresh Token 재사용 감지로 폐기: memberId={}", refreshToken.getMemberId());
+            });
     }
 
     @Transactional

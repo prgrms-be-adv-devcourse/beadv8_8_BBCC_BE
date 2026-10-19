@@ -23,6 +23,7 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @IntegrationTest
 class RefreshTokenServiceIntegrationTest {
@@ -38,6 +39,9 @@ class RefreshTokenServiceIntegrationTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("발급하면 원문은 돌려주고 DB에는 14일짜리 해시만 저장한다")
@@ -112,6 +116,47 @@ class RefreshTokenServiceIntegrationTest {
         assertInvalid(() -> refreshTokenService.reissue(token));
     }
 
+    @Test
+    @DisplayName("교체되고 10초가 지난 직전 토큰이 오면 탈취로 보고 회원의 토큰을 지운다")
+    void reusedTokenRevokes() {
+        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
+        var oldToken = refreshTokenService.issue(memberId);
+        var newToken = refreshTokenService.reissue(oldToken).refreshToken();
+        rotatedSecondsAgo(memberId, 11);
+
+        assertInvalid(() -> refreshTokenService.reissue(oldToken));
+
+        assertInvalid(() -> refreshTokenService.reissue(newToken));
+        assertThat(jpaRefreshTokenRepository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("교체 직후 직전 토큰이 오면 동시 재발급으로 보고 거절만 한다")
+    void reusedWithinGraceOnlyRejects() {
+        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
+        var oldToken = refreshTokenService.issue(memberId);
+        var newToken = refreshTokenService.reissue(oldToken).refreshToken();
+
+        assertInvalid(() -> refreshTokenService.reissue(oldToken));
+
+        assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
+        assertThat(refreshTokenService.reissue(newToken).member().getId()).isEqualTo(memberId);
+    }
+
+    @Test
+    @DisplayName("다시 로그인한 뒤 옛 토큰이 오면 거절만 하고 새로 받은 토큰은 쓸 수 있다")
+    void reusedAfterLoginOnlyRejects() {
+        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
+        var oldToken = refreshTokenService.issue(memberId);
+        refreshTokenService.reissue(oldToken);
+        rotatedSecondsAgo(memberId, 11);
+        var loginToken = refreshTokenService.issue(memberId);
+
+        assertInvalid(() -> refreshTokenService.reissue(oldToken));
+
+        assertThat(refreshTokenService.reissue(loginToken).member().getId()).isEqualTo(memberId);
+    }
+
     // 어느 쪽이 먼저든 결과는 같다: 한 요청만 교체하고 다른 요청은 바뀐 해시를 보고 거절된다
     @Test
     @DisplayName("같은 토큰으로 동시에 재발급하면 한 요청만 성공한다")
@@ -147,6 +192,13 @@ class RefreshTokenServiceIntegrationTest {
         refreshTokenService.revoke(token);
 
         assertThat(jpaRefreshTokenRepository.count()).isZero();
+    }
+
+    // 10초를 기다리지 않도록 교체 시각을 과거로 돌린다
+    private void rotatedSecondsAgo(Long memberId, int seconds) {
+        jdbcTemplate.update(
+            "UPDATE member.refresh_token SET rotated_at = rotated_at - make_interval(secs => ?) WHERE member_id = ?",
+            seconds, memberId);
     }
 
     private static void assertInvalid(ThrowingCallable call) {
