@@ -7,6 +7,7 @@ import java.util.Map;
 /**
  * 구매자가 보는 상품 상세다.
  *
+ * @param businessName 판매자 복사본이 없는 판매자의 상품이면 null이다
  * @param description 판매자가 입력하지 않았으면 null이다
  * @param status 상품 상태의 이름
  * @param minPrice 옵션 판매가 중 가장 낮은 값. 옵션이 없으면 null이다
@@ -20,6 +21,7 @@ public record ProductDetailResult(
     Long productId,
     String name,
     String brand,
+    String businessName,
     Long categoryId,
     String description,
     String status,

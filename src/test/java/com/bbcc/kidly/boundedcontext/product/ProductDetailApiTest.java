@@ -12,6 +12,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryOpening;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSeller;
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSellerRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
@@ -69,6 +71,9 @@ class ProductDetailApiTest {
 
     @Autowired
     private InventoryRepository inventoryRepository;
+
+    @Autowired
+    private ProductReplicaSellerRepository productReplicaSellerRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -148,6 +153,21 @@ class ProductDetailApiTest {
             .expectBody()
             .jsonPath("$.description").hasJsonPath()
             .jsonPath("$.description").isEqualTo(null);
+    }
+
+    @Test
+    @DisplayName("판매자 복사본이 있는 판매자의 상품은 상세에 판매자 상호명을 담는다")
+    void businessNameFromReplicaSeller() {
+        Product product = savedProductOnSale(10, 10, 10);
+        // 상품 A의 판매자 2가 승인되어 판매자 정보 변경됨을 받은 상태를 만든다
+        inTransaction(() -> productReplicaSellerRepository.save(
+            ProductReplicaSeller.create(ProductReplicaSellerFixture.sellerApproved())));
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.businessName").isEqualTo("테스트상점");
     }
 
     @Test
