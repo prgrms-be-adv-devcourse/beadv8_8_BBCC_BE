@@ -40,3 +40,34 @@ fi
 . ./.env
 printf '%s' "$GRAFANA_ADMIN_PASSWORD" | compose exec -T grafana grafana cli admin reset-admin-password --password-from-stdin > /dev/null
 echo "Grafana 관리자 비밀번호를 Secret 에 맞췄습니다"
+
+# Logs Drilldown 표 기본 열. 원본은 grafana/logs-drilldown-default-columns.json 이고 화면에서 바꾼 것은 여기서 파일 내용으로 돌아간다
+# server-side apply 라 없으면 만들고 있으면 덮어쓴다. 관리자 계정은 curl 설정(stdin)으로만 넘겨 명령줄 · 출력에 남지 않는다
+# 기능 플래그로 켜는 API 가 Grafana 보다 늦게 뜰 수 있어 몇 번 다시 시도한다(apply 라 여러 번 보내도 같다)
+password=${GRAFANA_ADMIN_PASSWORD//\\/\\\\}
+password=${password//\"/\\\"}
+if ! result=$(printf 'user = "admin:%s"\n' "$password" | curl -sS --fail-with-body --retry 5 --retry-all-errors --retry-delay 2 -K - -X PATCH \
+    -H 'Content-Type: application/apply-patch+yaml' \
+    --data-binary @grafana/logs-drilldown-default-columns.json \
+    'http://127.0.0.1:3000/apis/logsdrilldown.grafana.app/v1beta1/namespaces/default/logsdrilldowndefaultcolumns/loki?fieldManager=deploy&force=true' 2>&1); then
+    echo "::error::Logs Drilldown 기본 열을 넣지 못했습니다"
+    echo "$result"
+    exit 1
+fi
+echo "Logs Drilldown 기본 열을 맞췄습니다"
+
+# Logs Drilldown 앱은 Grafana 가 뜬 뒤 백그라운드로 받아 온다. 받지 못하면 옛 버전이 남아 기본 열만 조용히 빠지므로 경고로 알린다(배포는 계속)
+expected=$(sed -n 's/.*grafana-lokiexplore-app@\([0-9.]*\).*/\1/p' docker-compose.yml)
+installed=""
+for _ in $(seq 30); do
+    installed=$(printf 'user = "admin:%s"\n' "$password" \
+        | curl -sS -K - http://127.0.0.1:3000/api/plugins/grafana-lokiexplore-app/settings 2>/dev/null \
+        | python3 -c 'import sys, json; print(json.load(sys.stdin)["info"]["version"])' 2>/dev/null) || true
+    [[ "$installed" == "$expected" ]] && break
+    sleep 2
+done
+if [[ "$installed" == "$expected" ]]; then
+    echo "Logs Drilldown 앱 $installed"
+else
+    echo "::warning::Logs Drilldown 앱이 ${installed:-알 수 없음} 입니다(기대 $expected). 플러그인 저장소에 닿지 못했을 수 있습니다. 기본 열이 보이지 않으면 monitoring-deploy 를 다시 돌리세요"
+fi
