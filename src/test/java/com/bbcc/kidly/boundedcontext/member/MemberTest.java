@@ -103,6 +103,18 @@ class MemberTest {
     }
 
     @Test
+    @DisplayName("탈퇴한 회원은 닉네임을 바꿀 수 없다")
+    void changeNicknameRejectsWithdrawn() {
+        var member = MemberFixture.kakaoMember();
+        member.withdraw(NOW);
+
+        assertThatThrownBy(() -> member.changeNickname(new Nickname("하은맘")))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.LOGIN_NOT_ALLOWED));
+        assertThat(member.getNickname()).isNull();
+    }
+
+    @Test
     @DisplayName("바꿀 닉네임이 null이면 바꿀 수 없다")
     void changeNicknameRejectsNull() {
         var member = MemberFixture.kakaoMember();
@@ -205,6 +217,56 @@ class MemberTest {
         assertStillActive(member);
         member.suspend(ADMIN_ID, maxReason, NOW);
         assertThat(member.getSuspension().reason()).isEqualTo(maxReason);
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 WITHDRAWN이고 탈퇴 시각이 남으며 닉네임 · 이메일 · 소셜 계정이 지워진다")
+    void withdraw() {
+        var member = MemberFixture.kakaoMember();
+
+        member.withdraw(NOW);
+
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
+        assertThat(member.canLogin()).isFalse();
+        assertThat(member.getWithdrawnAt()).isEqualTo(NOW);
+        assertThat(member.getNickname()).isNull();
+        assertThat(member.getEmail()).isNull();
+        assertThat(member.getSocialAccounts()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MemberStatus.class, names = {"SUSPENDED", "WITHDRAWN"})
+    @DisplayName("정지 · 탈퇴한 회원은 탈퇴할 수 없다")
+    void withdrawRejectsInactive(MemberStatus status) {
+        var member = MemberFixture.withStatus(status);
+
+        assertThatThrownBy(() -> member.withdraw(NOW))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_WITHDRAWABLE));
+        assertThat(member.getStatus()).isEqualTo(status);
+        assertThat(member.getWithdrawnAt()).isNull();
+        assertThat(member.getNickname()).isEqualTo(MemberFixture.NICKNAME);
+    }
+
+    @Test
+    @DisplayName("관리자는 탈퇴할 수 없다")
+    void withdrawRejectsAdmin() {
+        var member = MemberFixture.withRole(MemberRole.ADMIN);
+
+        assertThatThrownBy(() -> member.withdraw(NOW))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_WITHDRAWABLE));
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+        assertThat(member.getSocialAccounts()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("탈퇴 시각이 없으면 탈퇴할 수 없다")
+    void withdrawRejectsNull() {
+        var member = MemberFixture.kakaoMember();
+
+        assertThatThrownBy(() -> member.withdraw(null)).isInstanceOf(NullPointerException.class);
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
     }
 
     @Test

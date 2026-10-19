@@ -44,7 +44,7 @@ public final class MemberFixture {
         return member;
     }
 
-    // 관리자 지정 규칙(ACTIVE만 가능)을 거치지 않고, 탈퇴 메서드는 아직 없어서 테스트에서는 필드를 직접 바꾼다
+    // 관리자 지정 · 탈퇴 규칙(ACTIVE만 가능)을 거치지 않도록 테스트에서는 필드를 직접 바꾼다
     public static Member withRole(MemberRole role) {
         return withRole(kakaoMember(), role);
     }
