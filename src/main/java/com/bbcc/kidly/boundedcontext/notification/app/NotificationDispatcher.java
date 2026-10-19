@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
+import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
 import com.bbcc.kidly.boundedcontext.notification.app.port.EmailSendException;
 import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationEmailSender;
-import com.bbcc.kidly.global.mail.Email;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,5 +1,6 @@
-package com.bbcc.kidly.global.mail;
+package com.bbcc.kidly.boundedcontext.notification.out.mail;
 
+import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationEmailSender;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,17 +11,17 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.util.StringUtils;
 
 /**
- * 메일 발송기를 고른다. 기본은 켬(kidly.mail.enabled=true)이고, 끄려면 MAIL_ENABLED=false로 둔다.
+ * 알림 메일 발송기를 고른다. 기본은 켬(kidly.mail.enabled=true)이고, 끄려면 MAIL_ENABLED=false로 둔다.
  * 켜져 있어도 SMTP 계정(MAIL_USERNAME · MAIL_PASSWORD)이 없으면 앱은 그대로 띄우고 로그 발송기를 쓴다 (계정이 없는 로컬 · 서버)
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties(MailProperties.class)
-public class MailConfig {
+@EnableConfigurationProperties(NotificationMailProperties.class)
+public class NotificationMailConfig {
 
     @Bean
-    EmailSender emailSender(
-        MailProperties properties,
+    public NotificationEmailSender notificationEmailSender(
+        NotificationMailProperties properties,
         ObjectProvider<JavaMailSender> javaMailSender,
         @Value("${spring.mail.username:}") String username,
         @Value("${spring.mail.password:}") String password) {

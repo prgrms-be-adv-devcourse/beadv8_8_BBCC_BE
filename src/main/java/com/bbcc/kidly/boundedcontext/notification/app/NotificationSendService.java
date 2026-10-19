@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
+import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
-import com.bbcc.kidly.global.mail.Email;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;

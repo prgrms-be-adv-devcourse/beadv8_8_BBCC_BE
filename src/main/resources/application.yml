@@ -8,7 +8,6 @@ spring:
       - classpath:order.yml
       - classpath:settlement.yml
       - classpath:product.yml
-      - classpath:mail.yml
       - classpath:notification.yml
   profiles:
     default: local

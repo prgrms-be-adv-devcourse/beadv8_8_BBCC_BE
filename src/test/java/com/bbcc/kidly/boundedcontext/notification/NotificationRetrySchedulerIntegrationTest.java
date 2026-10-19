@@ -3,11 +3,11 @@ package com.bbcc.kidly.boundedcontext.notification;
 import static com.bbcc.kidly.boundedcontext.notification.NotificationFixture.EMAIL;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.in.scheduler.NotificationRetryScheduler;
-import com.bbcc.kidly.global.mail.Email;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;

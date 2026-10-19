@@ -2,13 +2,13 @@ package com.bbcc.kidly.boundedcontext.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.global.mail.Email;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
