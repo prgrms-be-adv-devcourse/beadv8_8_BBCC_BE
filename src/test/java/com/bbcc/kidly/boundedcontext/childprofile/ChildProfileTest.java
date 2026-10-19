@@ -6,7 +6,6 @@ import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.NOW
 import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.WEIGHT;
 import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.updateInfo;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRegisterInfo;
@@ -17,8 +16,6 @@ import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class ChildProfileTest {
 
@@ -92,74 +89,6 @@ class ChildProfileTest {
         assertThat(child.getGrowthRecords()).hasSize(1);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"39.9", "200.1", "115.25", "115.00"})
-    @DisplayName("키가 40.0~200.0을 벗어나거나 소수 둘째 자리가 있으면 등록할 수 없다")
-    void registerRejectsInvalidHeight(String height) {
-        assertThatThrownBy(() -> ChildProfile.register(register(new BigDecimal(height), WEIGHT, null), NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"1.9", "150.1", "20.05", "20.00"})
-    @DisplayName("몸무게가 2.0~150.0을 벗어나거나 소수 둘째 자리가 있으면 등록할 수 없다")
-    void registerRejectsInvalidWeight(String weight) {
-        assertThatThrownBy(() -> ChildProfile.register(register(HEIGHT, new BigDecimal(weight), null), NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    @DisplayName("생년월일이 미래면 등록할 수 없다")
-    void registerRejectsFutureBirthDate() {
-        var info = new ChildProfileRegisterInfo(MEMBER_ID, "첫째", NOW.toLocalDate().plusDays(1), Gender.MALE,
-            HEIGHT, WEIGHT, null, null);
-
-        assertThatThrownBy(() -> ChildProfile.register(info, NOW)).isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {" ", "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"})
-    @DisplayName("이름이 비어 있거나 50자를 넘으면 등록할 수 없다")
-    void registerRejectsInvalidName(String name) {
-        var info = new ChildProfileRegisterInfo(MEMBER_ID, name, BIRTH_DATE, Gender.MALE, HEIGHT, WEIGHT, null, null);
-
-        assertThatThrownBy(() -> ChildProfile.register(info, NOW)).isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    @DisplayName("필수 값이 null이면 등록할 수 없다")
-    void registerRejectsNull() {
-        assertRejectsNull(new ChildProfileRegisterInfo(
-            null, "첫째", BIRTH_DATE, Gender.MALE, HEIGHT, WEIGHT, null, null));
-        assertRejectsNull(new ChildProfileRegisterInfo(
-            MEMBER_ID, null, BIRTH_DATE, Gender.MALE, HEIGHT, WEIGHT, null, null));
-        assertRejectsNull(new ChildProfileRegisterInfo(
-            MEMBER_ID, "첫째", null, Gender.MALE, HEIGHT, WEIGHT, null, null));
-        assertRejectsNull(new ChildProfileRegisterInfo(
-            MEMBER_ID, "첫째", BIRTH_DATE, null, HEIGHT, WEIGHT, null, null));
-        assertRejectsNull(new ChildProfileRegisterInfo(
-            MEMBER_ID, "첫째", BIRTH_DATE, Gender.MALE, null, WEIGHT, null, null));
-        assertRejectsNull(new ChildProfileRegisterInfo(
-            MEMBER_ID, "첫째", BIRTH_DATE, Gender.MALE, HEIGHT, null, null, null));
-        assertThatThrownBy(() -> ChildProfile.register(null, NOW)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> ChildProfile.register(ChildProfileFixture.registerInfo(MEMBER_ID), null))
-            .isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
-    @DisplayName("수정도 같은 검증을 한다")
-    void updateValidates() {
-        var child = ChildProfileFixture.child(MEMBER_ID);
-
-        assertThatThrownBy(() -> child.update(updateInfo("첫째", new BigDecimal("300.0"), WEIGHT, null, null), NOW))
-            .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> child.update(updateInfo("첫째", null, WEIGHT, null, null), NOW))
-            .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> child.update(null, NOW)).isInstanceOf(NullPointerException.class);
-        assertThat(child.getHeightCm()).isEqualByComparingTo(HEIGHT);
-        assertThat(child.getGrowthRecords()).hasSize(1);
-    }
-
     @Test
     @DisplayName("삭제하면 삭제 시각이 남고 값은 그대로다")
     void delete() {
@@ -175,9 +104,5 @@ class ChildProfileTest {
     private static ChildProfileRegisterInfo register(BigDecimal heightCm, BigDecimal weightKg, BodyType bodyType) {
         return new ChildProfileRegisterInfo(
             MEMBER_ID, "첫째", BIRTH_DATE, Gender.MALE, heightCm, weightKg, bodyType, null);
-    }
-
-    private static void assertRejectsNull(ChildProfileRegisterInfo info) {
-        assertThatThrownBy(() -> ChildProfile.register(info, NOW)).isInstanceOf(NullPointerException.class);
     }
 }

@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.childprofile.domain;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -29,7 +27,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
-import org.springframework.util.Assert;
 
 /**
  * 자녀 프로필. 보호자(memberId)는 바뀌지 않는다. 등록할 때와 키 · 체형이 바뀔 때 성장 이력이 1건 쌓인다.
@@ -45,12 +42,6 @@ import org.springframework.util.Assert;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChildProfile extends BaseSoftDeleteEntity {
 
-    private static final int NAME_MAX_LENGTH = 50;
-    private static final BigDecimal MIN_HEIGHT = new BigDecimal("40.0");
-    private static final BigDecimal MAX_HEIGHT = new BigDecimal("200.0");
-    private static final BigDecimal MIN_WEIGHT = new BigDecimal("2.0");
-    private static final BigDecimal MAX_WEIGHT = new BigDecimal("150.0");
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -58,7 +49,7 @@ public class ChildProfile extends BaseSoftDeleteEntity {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    @Column(nullable = false, length = NAME_MAX_LENGTH)
+    @Column(nullable = false, length = ChildProfilePolicy.NAME_MAX_LENGTH)
     private String name;
 
     @Column(name = "birth_date", nullable = false)
@@ -92,21 +83,19 @@ public class ChildProfile extends BaseSoftDeleteEntity {
     }
 
     public static ChildProfile register(ChildProfileRegisterInfo info, LocalDateTime now) {
-        requireNonNull(info, "info는 필수입니다");
-        var child = new ChildProfile(requireNonNull(info.memberId(), "memberId는 필수입니다"));
+        var child = new ChildProfile(info.memberId());
         child.change(info.name(), info.birthDate(), info.gender(), info.heightCm(), info.weightKg(),
-            info.bodyType(), info.preferredFit(), now);
+            info.bodyType(), info.preferredFit());
         child.growthRecords.add(new GrowthRecord(child, info.heightCm(), info.bodyType(), now));
         return child;
     }
 
     // 모든 필드를 받는 전체 교체다. 키(값 비교) 또는 체형(null ↔ 값 포함)이 바뀌면 성장 이력을 1건 추가한다
     public void update(ChildProfileUpdateInfo info, LocalDateTime now) {
-        requireNonNull(info, "info는 필수입니다");
-        boolean grown = this.heightCm.compareTo(requireNonNull(info.heightCm(), "heightCm는 필수입니다")) != 0
+        boolean grown = this.heightCm.compareTo(info.heightCm()) != 0
             || !Objects.equals(this.bodyType, info.bodyType());
         change(info.name(), info.birthDate(), info.gender(), info.heightCm(), info.weightKg(),
-            info.bodyType(), info.preferredFit(), now);
+            info.bodyType(), info.preferredFit());
         if (grown) {
             growthRecords.add(new GrowthRecord(this, info.heightCm(), info.bodyType(), now));
         }
@@ -124,24 +113,8 @@ public class ChildProfile extends BaseSoftDeleteEntity {
         return Collections.unmodifiableList(growthRecords);
     }
 
-    // 검증을 모두 통과한 뒤에만 값을 바꾼다. 검증에 걸리면 이전 값이 남는다
     private void change(String name, LocalDate birthDate, Gender gender, BigDecimal heightCm, BigDecimal weightKg,
-        BodyType bodyType, PreferredFit preferredFit, LocalDateTime now) {
-        requireNonNull(name, "name은 필수입니다");
-        requireNonNull(birthDate, "birthDate는 필수입니다");
-        requireNonNull(gender, "gender는 필수입니다");
-        requireNonNull(heightCm, "heightCm는 필수입니다");
-        requireNonNull(weightKg, "weightKg는 필수입니다");
-        requireNonNull(now, "now는 필수입니다");
-        Assert.hasText(name, "name은 비어 있을 수 없습니다");
-        Assert.isTrue(name.length() <= NAME_MAX_LENGTH, "name은 50자 이하여야 합니다");
-        Assert.isTrue(!birthDate.isAfter(now.toLocalDate()), "생년월일은 미래일 수 없습니다");
-        Assert.isTrue(heightCm.scale() <= 1, "키는 소수 첫째 자리까지만 입력할 수 있습니다");
-        Assert.isTrue(heightCm.compareTo(MIN_HEIGHT) >= 0 && heightCm.compareTo(MAX_HEIGHT) <= 0,
-            "키는 40.0cm 이상 200.0cm 이하여야 합니다");
-        Assert.isTrue(weightKg.scale() <= 1, "몸무게는 소수 첫째 자리까지만 입력할 수 있습니다");
-        Assert.isTrue(weightKg.compareTo(MIN_WEIGHT) >= 0 && weightKg.compareTo(MAX_WEIGHT) <= 0,
-            "몸무게는 2.0kg 이상 150.0kg 이하여야 합니다");
+        BodyType bodyType, PreferredFit preferredFit) {
         this.name = name;
         this.birthDate = birthDate;
         this.gender = gender;
