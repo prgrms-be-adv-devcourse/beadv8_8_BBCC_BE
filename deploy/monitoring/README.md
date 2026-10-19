@@ -16,29 +16,38 @@ JVM 대시보드(`grafana/dashboards/jvm-micrometer.json`)는 커뮤니티 대�
 
 ## 준비
 
-1. `deploy/nginx` 를 설치해 `grafana.<도메인>` 주소와 인증서를 만듭니다. DNS 에 `grafana` A 레코드가 있어야 합니다.
+**이 기능을 처음 develop 에 머지하기 전에** 1 · 2 를 끝냅니다. 머지하면 앱이 바로 dev 에 배포되는데, nginx 가 옛 설정이면 그 사이 `/actuator/prometheus` 가 밖에 열립니다.
+
+1. `deploy/nginx` 를 설치(이미 있으면 다시 실행)해 `/actuator` 를 막고 `grafana.<도메인>` 주소와 인증서를 만듭니다. DNS 에 `grafana` A 레코드가 있어야 합니다.
 2. Slack `#4팀-운영이슈` 의 Incoming Webhook URL 을 받습니다.
 3. 서버에 docker 와 compose 플러그인이 설치되어 있어야 합니다.
 
 ## 설치
 
-로컬에서 폴더를 서버로 복사합니다. 서버에 옛 폴더가 있으면 지운 파일이 남지 않도록 먼저 지웁니다.
+`.github/workflows/monitoring-deploy.yml` 이 이 폴더를 서버 `/opt/monitoring` 에 올리고 `deploy.sh` 로 컨테이너를 다시 만듭니다.
+서버 `.env` 는 Environment `dev` 의 Secret 으로 배포마다 새로 만듭니다. 데이터(docker 볼륨)는 그대로 남습니다.
+
+### 처음 한 번
+
+서버의 `deploy` 유저는 sudo 가 없으므로 폴더를 만들어 넘겨 줍니다.
 
 ```bash
-ssh ec2-user@<탄력적 IP> 'rm -rf ~/monitoring'
-scp -r deploy/monitoring ec2-user@<탄력적 IP>:~/
+sudo mkdir -p /opt/monitoring && sudo chown deploy:deploy /opt/monitoring
 ```
 
-서버에 접속해 실행합니다. 처음에는 `/opt/monitoring/.env` 만 만들고 멈춥니다.
+Secret 두 개를 등록합니다. 값을 물어보면 붙여 넣습니다(명령줄 · 화면에 남지 않습니다).
 
 ```bash
-sudo ~/monitoring/install.sh
-sudo vi /opt/monitoring/.env    # GRAFANA_ADMIN_PASSWORD, SLACK_OPS_WEBHOOK_URL 을 채운다
-sudo ~/monitoring/install.sh
+gh secret set SLACK_OPS_WEBHOOK_URL --env dev
+gh secret set GRAFANA_ADMIN_PASSWORD --env dev
 ```
 
-값에 `$` 가 있으면 `GRAFANA_ADMIN_PASSWORD='값'` 처럼 작은따옴표로 감쌉니다. 감싸지 않으면 compose 가 변수로 읽습니다.
-`GRAFANA_ADMIN_PASSWORD` 는 Grafana 를 처음 만들 때만 쓰입니다. 그 뒤에 바꾸려면 Grafana 화면에서 바꿉니다.
+값에 작은따옴표 · 줄바꿈은 쓸 수 없습니다(워크플로가 멈춥니다). `$` 등 다른 문자는 그대로 쓰입니다.
+
+### 이후
+
+`develop` 에 `deploy/monitoring/**` 변경이 머지되면 자동으로 배포됩니다.
+손으로 돌리려면 GitHub Actions → monitoring-deploy → Run workflow 를 누릅니다(`gh workflow run monitoring-deploy.yml --ref develop`).
 
 ## 확인
 
@@ -55,19 +64,16 @@ curl -s 127.0.0.1:3000/api/health
 
 ## 설정 바꾸기
 
-레포의 파일을 고친 뒤 다시 복사하고 install.sh 를 실행합니다. `.env` 와 데이터(볼륨)는 그대로 남습니다.
+레포의 파일을 고쳐 `develop` 에 머지하면 워크플로가 다시 배포합니다. 레포에서 지운 설정 파일은 서버에서도 지워집니다.
 
-```bash
-ssh ec2-user@<탄력적 IP> 'rm -rf ~/monitoring'
-scp -r deploy/monitoring ec2-user@<탄력적 IP>:~/
-sudo ~/monitoring/install.sh
-```
+비밀을 바꿀 때는 Secret 을 고친 뒤(`gh secret set ... --env dev`) 워크플로를 손으로 실행합니다.
+**Grafana 관리자 비밀번호는 Secret 이 원본입니다. Grafana 화면에서 바꾸지 마세요.** 배포마다 Secret 값으로 맞춰지므로 화면에서 바꾼 비밀번호는 다음 배포 때 되돌아갑니다.
 
-Grafana 화면에서 고친 대시보드 · 알림 규칙은 저장되지 않거나 다음 설치 때 파일 내용으로 돌아갑니다. 바꿀 것은 레포에서 고칩니다.
+Grafana 화면에서 고친 대시보드 · 알림 규칙은 저장되지 않거나 다음 배포 때 파일 내용으로 돌아갑니다. 바꿀 것은 레포에서 고칩니다.
 
 ## prod 추가
 
-prod 앱이 처음 배포되면 `prometheus/prometheus.yml` 의 주석으로 둔 `127.0.0.1:8080` 대상을 풀고 다시 설치합니다.
+prod 앱이 처음 배포되면 `prometheus/prometheus.yml` 의 주석으로 둔 `127.0.0.1:8080` 대상을 풀어 `develop` 에 머지합니다.
 없는 대상을 미리 넣으면 "앱 다운" 알림이 계속 울립니다. 로그는 Alloy 가 prod 앱 컨테이너를 알아서 찾습니다.
 
 ## 로그 보기
@@ -78,3 +84,9 @@ Grafana → Explore → 데이터소스 Loki 에서 검색합니다. 스택 트�
 {env="dev", level="ERROR"}
 {env="dev"} |= "traceId 값"
 ```
+
+## 알려진 한계
+
+- **모니터링 자체가 죽으면 알림도 멈춥니다.** Grafana 가 알림을 보내므로 Grafana · Prometheus 가 죽거나 EC2 가 꺼지면 알릴 수 없습니다. 감지되는 것은 `monitoring-deploy` 실패 알림(`#4팀-알림`)뿐입니다.
+- **앱이 막 재시작한 직후의 ERROR 는 건수 알림에서 빠질 수 있습니다.** 첫 수집(15초) 전에 난 ERROR 는 카운터에 잡히지 않습니다. 로그(Loki)에는 남습니다.
+- **Alloy 는 로그를 읽으려고 `/var/run/docker.sock` 을 마운트합니다.** `:ro` 여도 Docker API 는 막지 못해, Alloy 가 침해되면 서버 root 와 같은 권한이 됩니다. 127.0.0.1 에만 열고 원격 설정을 쓰지 않는 것으로 위험을 줄였습니다. 더 줄이려면 `docker-socket-proxy` 로 `containers` · `events` 만 열 수 있습니다.

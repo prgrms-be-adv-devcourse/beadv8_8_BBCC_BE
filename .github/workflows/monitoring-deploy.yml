@@ -1,0 +1,95 @@
+# 모니터링 스택(deploy/monitoring)을 서버의 /opt/monitoring 에 올리고 그 deploy.sh 가 compose pull / up 을 한다.
+# 설정의 원본은 레포, 비밀의 원본은 Environment dev 의 Secret(SLACK_OPS_WEBHOOK_URL, GRAFANA_ADMIN_PASSWORD)이다. 서버 .env 는 매번 새로 만든다
+# 서버 준비(처음 한 번): deploy 유저는 sudo 가 없으므로 사람이 폴더를 만들어 넘겨 준다
+#   sudo mkdir -p /opt/monitoring && sudo chown deploy:deploy /opt/monitoring
+# nginx(deploy/nginx)는 여기서 다루지 않는다
+name: monitoring-deploy
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - deploy/monitoring/**
+      # 문서만 고쳐서 스택을 다시 띄우지(수집 공백) 않는다
+      - '!deploy/monitoring/README.md'
+      - .github/workflows/monitoring-deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 한 번에 하나만 돈다. 진행 중인 배포는 취소하지 않는다
+concurrency:
+  group: monitoring-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # SSH 접속 정보(SSH_HOST · SSH_KNOWN_HOSTS · SSH_PRIVATE_KEY)가 dev 에 있다. 모니터링도 같은 서버다
+    environment: dev
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 서버 접속 확인
+        run: nc -z -w 5 "$SSH_HOST" 22 || { echo "::error::서버에 연결할 수 없습니다. 18시 이후면 EC2를 콘솔에서 시작한 뒤 Re-run 하세요."; exit 1; }
+
+      - name: SSH 키 준비
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # 비밀 값은 출력하지 않는다
+      - name: 서버 설정 파일 만들기
+        env:
+          SLACK_OPS_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK_URL }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: |
+          out="$RUNNER_TEMP/monitoring"
+          mkdir -p "$out"
+          cp -r deploy/monitoring/{docker-compose.yml,deploy.sh,prometheus,loki,alloy,grafana} "$out/"
+
+          keys=(SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD)
+          # 빠진 Secret 을 한 번에 다 보여 주고 실패한다
+          missing=0
+          for key in "${keys[@]}"; do
+            [[ -n "${!key}" ]] || { echo "::error::Environment dev 에 Secret $key 가 없습니다"; missing=1; }
+          done
+          (( missing == 0 )) || exit 1
+
+          # compose 와 deploy.sh(bash)가 $ 같은 문자를 바꾸지 않도록 작은따옴표로 감싼다. 그래서 값에 작은따옴표나 줄바꿈이 있으면 안 된다
+          for key in "${keys[@]}"; do
+            [[ "${!key}" != *[\'$'\n']* ]] || { echo "::error::$key 에 작은따옴표나 줄바꿈이 있습니다"; exit 1; }
+          done
+          (
+            umask 077
+            for key in "${keys[@]}"; do
+              printf "%s='%s'\n" "$key" "${!key}"
+            done > "$out/.env"
+          )
+
+      # 설정 폴더는 지우고 새로 풀어 레포에서 지운 파일이 서버에 남지 않게 한다. 데이터는 docker 볼륨이라 그대로다
+      - name: 서버에 설정 파일 올리기
+        run: |
+          dir=/opt/monitoring
+          tar -C "$RUNNER_TEMP/monitoring" -czf - docker-compose.yml deploy.sh .env prometheus loki alloy grafana \
+            | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
+              set -e
+              [ -d $dir ] && [ -w $dir ] || { echo '::error::$dir 가 없거나 deploy 가 쓸 수 없습니다. 서버에서 sudo mkdir -p $dir && sudo chown deploy:deploy $dir'; exit 1; }
+              cd $dir
+              rm -rf prometheus loki alloy grafana
+              tar -xzf - --no-same-owner
+              chmod 600 .env
+              # 컨테이너 사용자(nobody 등)가 설정을 읽을 수 있게 한다
+              chmod -R a+rX docker-compose.yml prometheus loki alloy grafana
+            "
+
+      - name: 배포
+        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" /opt/monitoring/deploy.sh
