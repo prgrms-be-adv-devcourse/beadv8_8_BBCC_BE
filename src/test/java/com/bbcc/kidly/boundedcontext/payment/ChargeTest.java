@@ -247,4 +247,15 @@ class ChargeTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(PaymentErrorCode.INVALID_CHARGE_STATUS);
     }
+
+    @Test
+    @DisplayName("100자가 넘는 오류 코드는 100자까지만 남긴다")
+    void failTruncatesLongCode() {
+        Charge charge = PaymentFixture.charge(10_000L);
+        charge.startConfirming(10_000L, NOW);
+
+        charge.fail("X".repeat(150));
+
+        assertThat(charge.getFailureCode()).isEqualTo("X".repeat(100));
+    }
 }

@@ -70,6 +70,17 @@ class TossPaymentGatewayTest {
     }
 
     @Test
+    @DisplayName("승인 응답이 완료(DONE)가 아니면(입금 대기 등) 결과를 모르는 것으로 돌려준다")
+    void confirmNotDone() {
+        server.expect(requestTo(BASE_URL + "/v1/payments/confirm"))
+            .andRespond(withSuccess(payment("WAITING_FOR_DEPOSIT", null), MediaType.APPLICATION_JSON));
+
+        PgResult<PgApproval> result = gateway.confirm("pk-1", "charge-1", 10_000L, "idem-1");
+
+        assertThat(result).isInstanceOf(PgResult.Unknown.class);
+    }
+
+    @Test
     @DisplayName("토스가 승인을 거절하면 토스 오류 코드를 실패 코드로 돌려준다")
     void confirmRejected() {
         server.expect(requestTo(BASE_URL + "/v1/payments/confirm"))

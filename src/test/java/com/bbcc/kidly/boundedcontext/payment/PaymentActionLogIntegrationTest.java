@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.payment.app.ChargeCancelService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeConfirmService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeReconcileService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.AbandonChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequestResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ConfirmChargeRequest;
@@ -120,6 +121,20 @@ class PaymentActionLogIntegrationTest {
         assertThat(actions()).containsExactly("CHARGE_REQUESTED", "CHARGE_CONFIRM_STARTED", "CHARGE_FAILED");
         assertThat(capture.messages().get(2))
             .contains("chargeId=" + requested.chargeId(), "failureCode=" + FakePaymentGateway.REJECTED_CODE);
+    }
+
+    @Test
+    @DisplayName("결제창이 실패로 끝나 충전을 실패로 바꾸면 충전 실패를 결제창 오류 코드와 함께 한 번만 남긴다")
+    void chargeAbandoned() {
+        walletRepository.save(PaymentFixture.wallet(0L));
+        ChargeRequestResult requested = chargeService.request(MEMBER_ID, new ChargeRequest(10_000L));
+
+        chargeService.abandon(MEMBER_ID, new AbandonChargeRequest(requested.orderId(), "PAY_PROCESS_CANCELED"));
+        chargeService.abandon(MEMBER_ID, new AbandonChargeRequest(requested.orderId(), "PAY_PROCESS_CANCELED"));
+
+        assertThat(actions()).containsExactly("CHARGE_REQUESTED", "CHARGE_FAILED");
+        assertThat(capture.messages().get(1))
+            .contains("chargeId=" + requested.chargeId(), "failureCode=PAY_PROCESS_CANCELED");
     }
 
     @Test
