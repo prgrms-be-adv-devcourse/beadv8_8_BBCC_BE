@@ -24,16 +24,10 @@ JVM 대시보드(`grafana/dashboards/jvm-micrometer.json`)는 커뮤니티 대�
 
 ## 설치
 
-`.github/workflows/monitoring-deploy.yml` 이 이 폴더를 서버 `/opt/monitoring` 에 올리고 `deploy.sh` 로 컨테이너를 다시 만듭니다.
+`.github/workflows/monitoring-deploy.yml` 이 이 폴더를 서버 `/opt/app/monitoring` 에 올리고 `deploy.sh` 로 컨테이너를 다시 만듭니다.
 서버 `.env` 는 Environment `dev` 의 Secret 으로 배포마다 새로 만듭니다. 데이터(docker 볼륨)는 그대로 남습니다.
 
 ### 처음 한 번
-
-서버의 `deploy` 유저는 sudo 가 없으므로 폴더를 만들어 넘겨 줍니다.
-
-```bash
-sudo mkdir -p /opt/monitoring && sudo chown deploy:deploy /opt/monitoring
-```
 
 Secret 두 개를 등록합니다. 값을 물어보면 붙여 넣습니다(명령줄 · 화면에 남지 않습니다).
 

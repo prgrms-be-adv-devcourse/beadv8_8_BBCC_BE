@@ -1,7 +1,5 @@
-# 모니터링 스택(deploy/monitoring)을 서버의 /opt/monitoring 에 올리고 그 deploy.sh 가 compose pull / up 을 한다.
+# 모니터링 스택(deploy/monitoring)을 서버의 /opt/app/monitoring 에 올리고 그 deploy.sh 가 compose pull / up 을 한다.
 # 설정의 원본은 레포, 비밀의 원본은 Environment dev 의 Secret(SLACK_OPS_WEBHOOK_URL, GRAFANA_ADMIN_PASSWORD)이다. 서버 .env 는 매번 새로 만든다
-# 서버 준비(처음 한 번): deploy 유저는 sudo 가 없으므로 사람이 폴더를 만들어 넘겨 준다
-#   sudo mkdir -p /opt/monitoring && sudo chown deploy:deploy /opt/monitoring
 # nginx(deploy/nginx)는 여기서 다루지 않는다
 name: monitoring-deploy
 
@@ -64,11 +62,11 @@ jobs:
       # 설정 폴더는 지우고 새로 풀어 레포에서 지운 파일이 서버에 남지 않게 한다. 데이터는 docker 볼륨이라 그대로다
       - name: 서버에 설정 파일 올리기
         run: |
-          dir=/opt/monitoring
+          dir=/opt/app/monitoring
           tar -C "$RUNNER_TEMP/monitoring" -czf - docker-compose.yml deploy.sh .env prometheus loki alloy grafana \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
               set -e
-              [ -d $dir ] && [ -w $dir ] || { echo '::error::$dir 가 없거나 deploy 가 쓸 수 없습니다. 서버에서 sudo mkdir -p $dir && sudo chown deploy:deploy $dir'; exit 1; }
+              mkdir -p $dir
               cd $dir
               rm -rf prometheus loki alloy grafana
               tar -xzf - --no-same-owner
@@ -78,4 +76,4 @@ jobs:
             "
 
       - name: 배포
-        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" /opt/monitoring/deploy.sh
+        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" /opt/app/monitoring/deploy.sh

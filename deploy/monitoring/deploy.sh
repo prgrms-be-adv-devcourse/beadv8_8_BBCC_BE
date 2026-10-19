@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 서버에서 실행한다. 워크플로(.github/workflows/monitoring-deploy.yml)가 이 폴더(/opt/monitoring)에 설정과 .env 를 올린 뒤 부른다
+# 서버에서 실행한다. 워크플로(.github/workflows/monitoring-deploy.yml)가 이 폴더(/opt/app/monitoring)에 설정과 .env 를 올린 뒤 부른다
 set -euo pipefail
 cd "$(dirname "$0")"
 
