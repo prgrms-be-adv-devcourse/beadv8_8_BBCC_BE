@@ -171,6 +171,19 @@ class ProductDetailApiTest {
     }
 
     @Test
+    @DisplayName("판매자 정보 변경됨을 아직 받지 못해 판매자 복사본이 없으면 상호명 칸을 빼지 않고 null로 담는다")
+    void businessNameIsNullWithoutReplicaSeller() {
+        Product product = savedProductOnSale(10, 10, 10);
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.businessName").hasJsonPath()
+            .jsonPath("$.businessName").isEqualTo(null);
+    }
+
+    @Test
     @DisplayName("SALE-09 판매 가능 수량이 기준 수 5보다 많으면 수량 없이 구매 가능, 5 이하이면 수량, 0이면 품절이다")
     void stockDisplayByAvailableQuantity() {
         Product product = savedProductOnSale(8, 3, 0);
