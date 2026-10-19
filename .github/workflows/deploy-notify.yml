@@ -78,7 +78,8 @@ jobs:
             if [ -n "$failed" ]; then
               IFS=$'\t' read -r failed_job_id failed_job failed_step <<< "$failed"
               if [ -n "$failed_step" ]; then FAILED_STEP="$failed_job › $failed_step"; else FAILED_STEP="$failed_job"; fi
-              if [ "$failed_step" = "서버 접속 확인" ]; then
+              # 두 배포 워크플로가 .github/actions/server-ssh 를 부르는 step 이름이다. jobs API 는 composite action 의 안쪽 step 대신 이 바깥 step 을 알려 준다
+              if [ "$failed_step" = "서버 접속 확인 · SSH 키 준비" ]; then
                 HINT="18시 이후 자동 중지된 서버일 수 있어요. EC2를 켜고 Re-run 하세요."
               fi
               # deploy.yml 의 "기동 실패 원인 남기기" 단계가 남긴 주석. job id 가 check run id 다

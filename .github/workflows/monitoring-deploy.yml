@@ -13,6 +13,9 @@ on:
       # 문서만 고쳐서 스택을 다시 띄우지(수집 공백) 않는다
       - '!deploy/monitoring/README.md'
       - .github/workflows/monitoring-deploy.yml
+      # 같이 쓰는 SSH · Secret 단계가 바뀌어도 한 번 돌려 확인한다
+      - .github/actions/server-ssh/**
+      - .github/scripts/env-lines.sh
   workflow_dispatch:
 
 permissions:
@@ -33,18 +36,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: 서버 접속 확인
-        run: nc -z -w 5 "$SSH_HOST" 22 || { echo "::error::서버에 연결할 수 없습니다. 18시 이후면 EC2를 콘솔에서 시작한 뒤 Re-run 하세요."; exit 1; }
-
-      - name: SSH 키 준비
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      # deploy-notify.yml 이 이 step 이름으로 "18시 이후 서버 꺼짐" 안내를 붙인다
+      - name: 서버 접속 확인 · SSH 키 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}
 
       # 비밀 값은 출력하지 않는다
       - name: 서버 설정 파일 만들기
@@ -56,23 +54,11 @@ jobs:
           mkdir -p "$out"
           cp -r deploy/monitoring/{docker-compose.yml,deploy.sh,prometheus,loki,alloy,grafana} "$out/"
 
-          keys=(SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD)
-          # 빠진 Secret 을 한 번에 다 보여 주고 실패한다
-          missing=0
-          for key in "${keys[@]}"; do
-            [[ -n "${!key}" ]] || { echo "::error::Environment dev 에 Secret $key 가 없습니다"; missing=1; }
-          done
-          (( missing == 0 )) || exit 1
-
-          # compose 와 deploy.sh(bash)가 $ 같은 문자를 바꾸지 않도록 작은따옴표로 감싼다. 그래서 값에 작은따옴표나 줄바꿈이 있으면 안 된다
-          for key in "${keys[@]}"; do
-            [[ "${!key}" != *[\'$'\n']* ]] || { echo "::error::$key 에 작은따옴표나 줄바꿈이 있습니다"; exit 1; }
-          done
+          # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다
+          secret_lines=$(.github/scripts/env-lines.sh dev SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD)
           (
             umask 077
-            for key in "${keys[@]}"; do
-              printf "%s='%s'\n" "$key" "${!key}"
-            done > "$out/.env"
+            printf '%s\n' "$secret_lines" > "$out/.env"
           )
 
       # 설정 폴더는 지우고 새로 풀어 레포에서 지운 파일이 서버에 남지 않게 한다. 데이터는 docker 볼륨이라 그대로다
