@@ -1,10 +1,10 @@
 name: Claude Review
 
-# PR을 열거나 Ready for review로 바꿀 때 한 번 리뷰한다. 커밋마다 돌지 않는다
-# 다시 리뷰받으려면 PR 댓글에 @claude를 쓴다 (claude.yml)
+# PR을 열거나 Ready for review로 바꿀 때, 커밋을 push할 때 리뷰한다
+# 연달아 push하면 앞선 리뷰를 취소하고 마지막 커밋만 리뷰한다(concurrency). 그 밖에 다시 받으려면 PR 댓글에 @claude를 쓴다 (claude.yml)
 on:
   pull_request:
-    types: [opened, ready_for_review, reopened]
+    types: [opened, synchronize, ready_for_review, reopened]
     branches: [main, develop]
 
 concurrency:
@@ -53,6 +53,7 @@ jobs:
             - 구체적인 문제는 해당 줄에 인라인 댓글로 남기고, 무엇이 왜 문제인지와 고치는 방법을 적어 주세요
             - 확실하지 않은 것은 단정하지 말고 질문으로 남겨 주세요
             - 마지막에 요약 댓글 하나를 남겨 주세요. 문제가 없으면 짧게 그렇다고만 적어 주세요
+            - 커밋이 추가돼 다시 리뷰하는 경우면, 먼저 `gh pr view --comments`로 이전 리뷰 요약을 읽어 주세요. 이미 지적한 것은 인라인 댓글로 다시 남기지 말고, 요약에 고쳐졌는지 · 아직 남았는지만 적어 주세요
             - 모든 댓글은 한국어 해요체로 써 주세요
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"
