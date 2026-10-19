@@ -4,10 +4,13 @@ import static com.bbcc.kidly.boundedcontext.notification.NotificationFixture.EMA
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.notification.domain.EmailNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
+import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,6 +30,30 @@ class NotificationTest {
         assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
         assertThat(notification.getAttemptCount()).isZero();
         assertThat(notification.getNextAttemptAt()).isNull();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\n"})
+    @DisplayName("이메일 알림은 제목이 비어 있으면 만들 수 없다")
+    void blankTitle(String title) {
+        var info = new EmailNotificationInfo(
+            UUID.randomUUID(), NotificationFixture.MEMBER_ID, NotificationType.WELCOME, EMAIL, title,
+            NotificationFixture.BODY);
+
+        assertThatThrownBy(() -> Notification.email(info)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\n"})
+    @DisplayName("이메일 알림은 본문이 비어 있으면 만들 수 없다")
+    void blankBody(String body) {
+        var info = new EmailNotificationInfo(
+            UUID.randomUUID(), NotificationFixture.MEMBER_ID, NotificationType.WELCOME, EMAIL,
+            NotificationFixture.TITLE, body);
+
+        assertThatThrownBy(() -> Notification.email(info)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

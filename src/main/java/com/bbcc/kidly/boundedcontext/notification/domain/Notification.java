@@ -19,6 +19,7 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.util.Assert;
 
 /**
  * 보낼 알림 한 건. 채널 하나에 한 건이고, 같은 이벤트 · 같은 채널은 한 건만 만든다((event_id, channel) 유니크).
@@ -94,6 +95,9 @@ public class Notification extends BaseTimeEntity {
     private Long version;
 
     public static Notification email(EmailNotificationInfo info) {
+        // 비어 있으면 발송할 때 메일을 만들지 못해 같은 알림을 계속 다시 맡게 된다
+        Assert.hasText(info.title(), "이메일 알림의 제목은 비어 있을 수 없습니다");
+        Assert.hasText(info.body(), "이메일 알림의 본문은 비어 있을 수 없습니다");
         var notification = new Notification();
         notification.eventId = info.eventId();
         notification.channel = NotificationChannel.EMAIL;
