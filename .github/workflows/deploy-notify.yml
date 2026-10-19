@@ -52,8 +52,9 @@ jobs:
             *)         COLOR="#8c959f"; RESULT="❔ 배포 $CONCLUSION" ;;
           esac
 
-          # 모니터링 배포는 환경 자리에 "모니터링"을 쓴다. 앱 배포는 deploy.yml 의 환경 규칙과 같다: main → prod, 그 외 → dev
-          if [ "$WORKFLOW" = "monitoring-deploy" ]; then ENV_LABEL="모니터링"
+          # 모니터링 배포는 같은 머지에서 앱 배포보다 먼저 끝나므로, 앱 배포 결과로 읽히지 않게 결과 문구에 "모니터링"을 넣는다
+          # 환경 자리는 모니터링이 도는 서버(dev 서버)다. 앱 배포는 deploy.yml 의 환경 규칙과 같다: main → prod, 그 외 → dev
+          if [ "$WORKFLOW" = "monitoring-deploy" ]; then RESULT="${RESULT/배포/모니터링 배포}"; ENV_LABEL="dev 서버"
           elif [ "$BRANCH" = "main" ]; then ENV_LABEL="prod"
           else ENV_LABEL="dev"; fi
           MANUAL=""
