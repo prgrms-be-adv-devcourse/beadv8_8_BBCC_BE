@@ -45,7 +45,7 @@ services:
   # http://localhost:3000 (로그인 없이 관리자로 열린다). 대시보드는 운영과 같은 파일을 쓴다
   # 로그(Loki)와 Slack 알림은 로컬에 없다. "Kidly 로그" 대시보드는 데이터소스가 없어 비어 있다
   grafana:
-    image: grafana/grafana:12.1.1
+    image: grafana/grafana:12.4.12
     container_name: kidly-grafana
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"

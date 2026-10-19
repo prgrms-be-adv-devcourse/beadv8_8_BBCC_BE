@@ -55,7 +55,7 @@ services:
     logging: *logging
 
   grafana:
-    image: grafana/grafana:12.1.1
+    image: grafana/grafana:12.4.12
     network_mode: host
     environment:
       GF_SERVER_HTTP_ADDR: 127.0.0.1
@@ -72,6 +72,8 @@ services:
       GF_USERS_DEFAULT_LANGUAGE: ko-KR
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # Logs Drilldown 앱 버전 고정. 없으면 처음 설치할 때의 최신을 받고 그 뒤로는 올리지 않아 서버마다 버전이 달라진다(12.1 때 받은 1.0.41 이 남는다)
+      GF_PLUGINS_PREINSTALL: grafana-lokiexplore-app@2.6.0
       # provisioning/alerting 의 Slack 연결점이 읽는다
       SLACK_OPS_WEBHOOK_URL: ${SLACK_OPS_WEBHOOK_URL}
     volumes:
