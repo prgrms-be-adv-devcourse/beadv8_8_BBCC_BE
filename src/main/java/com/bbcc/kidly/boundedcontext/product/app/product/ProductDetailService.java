@@ -10,6 +10,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionValue;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSeller;
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSellerRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
@@ -37,6 +39,7 @@ public class ProductDetailService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final InventoryRepository inventoryRepository;
+    private final ProductReplicaSellerRepository replicaSellerRepository;
 
     // 구매자가 보는 상품 상세를 돌려준다. 엔티티는 트랜잭션 안에서 지연 로딩으로 읽어 결과로 모두 바꾼다
     @Transactional(readOnly = true)
@@ -54,6 +57,7 @@ public class ProductDetailService {
             product.getId(),
             product.getName(),
             product.getBrand(),
+            findBusinessName(product.getSellerId()),
             product.getCategoryId(),
             product.getDescription(),
             product.getStatus().name(),
@@ -65,6 +69,15 @@ public class ProductDetailService {
             toProductInfo(product.getInfoValues(), type),
             toSizeSpecs(product.getSizeSpecs()),
             toMeasurements(category));
+    }
+
+    // 판매자 상태와 관계없이 상호명을 담는다. 판매자 복사본이 없으면 null이다
+    private String findBusinessName(Long sellerId) {
+        ProductReplicaSeller seller = replicaSellerRepository.findById(sellerId).orElse(null);
+        if (seller == null) {
+            return null;
+        }
+        return seller.getBusinessName();
     }
 
     // 보관 옵션은 상세에 보이지 않으므로 옵션 목록과 옵션 항목의 값에서 뺀다
