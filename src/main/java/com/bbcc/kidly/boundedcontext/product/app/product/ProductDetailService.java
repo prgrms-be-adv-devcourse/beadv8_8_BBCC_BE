@@ -55,6 +55,7 @@ public class ProductDetailService {
             product.getName(),
             product.getBrand(),
             product.getCategoryId(),
+            product.getDescription(),
             product.getStatus().name(),
             product.isSizeFree(),
             minPrice(options),

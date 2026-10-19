@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * @param description 없으면 null
  * @param minPrice 옵션이 없으면 null
  * @param optionAttributes 상품 유형에 연결한 옵션 항목 순서대로 담는다
  * @param productInfo 상품 유형에 연결한 정보 항목 순서대로 담는다
@@ -17,6 +18,7 @@ public record ProductDetailResponse(
     String name,
     String brand,
     String categoryId,
+    String description,
     String status,
     boolean sizeFree,
     Long minPrice,
@@ -118,6 +120,7 @@ public record ProductDetailResponse(
             result.name(),
             result.brand(),
             String.valueOf(result.categoryId()),
+            result.description(),
             result.status(),
             result.sizeFree(),
             result.minPrice(),
