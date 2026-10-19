@@ -70,18 +70,13 @@ jobs:
         run: |
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha 는 40자 전체 커밋 SHA 여야 합니다: $SHA"; exit 1; }
 
-      - name: 서버 접속 확인
-        run: nc -z -w 5 "$SSH_HOST" 22 || { echo "::error::서버에 연결할 수 없습니다. 18시 이후면 EC2를 콘솔에서 시작한 뒤 Re-run 하세요."; exit 1; }
-
-      - name: SSH 키 준비
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}   # 로컬에서 ssh-keyscan -H <host> 한 결과
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      # deploy-notify.yml 이 이 step 이름으로 "18시 이후 서버 꺼짐" 안내를 붙인다
+      - name: 서버 접속 확인 · SSH 키 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}   # 로컬에서 ssh-keyscan -H <host> 한 결과
 
       # 서버의 DB 데이터와 로그 말고는 전부 레포와 Environment Secret 에서 매번 새로 만든다. 비밀 값은 출력하지 않는다
       - name: 서버 설정 파일 만들기
@@ -103,29 +98,22 @@ jobs:
           # 한 줄짜리 비밀. .env 뒤에 붙인다
           keys=(DB_PASSWORD KAKAO_CLIENT_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
           # 없어도 되는 비밀. 있으면 붙이고 없으면 건너뛴다 (MAIL_PASSWORD 가 없으면 메일은 보내지 않고 로그만 남긴다)
-          optional_keys=(MAIL_PASSWORD)
+          [[ -z "$MAIL_PASSWORD" ]] || keys+=(MAIL_PASSWORD)
+          # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다
+          secret_lines=$(.github/scripts/env-lines.sh "$APP_ENV" "${keys[@]}")
 
-          # 빠진 Secret 을 한 번에 다 보여 주고 실패한다
+          # 여러 줄 PEM 이라 따로 검사한다
           missing=0
-          for key in "${keys[@]}" JWT_PRIVATE_KEY JWT_PUBLIC_KEY; do
+          for key in JWT_PRIVATE_KEY JWT_PUBLIC_KEY; do
             [[ -n "${!key}" ]] || { echo "::error::Environment $APP_ENV 에 Secret $key 가 없습니다"; missing=1; }
           done
           (( missing == 0 )) || exit 1
 
-          # compose 가 $ 같은 문자를 치환하지 않도록 작은따옴표로 감싼다. 그래서 값에 작은따옴표나 줄바꿈이 있으면 안 된다
-          for key in "${keys[@]}" "${optional_keys[@]}"; do
-            [[ "${!key}" != *[\'$'\n']* ]] || { echo "::error::$key 에 작은따옴표나 줄바꿈이 있습니다"; exit 1; }
-          done
           {
             cat "deploy/.env.$APP_ENV"
             echo
             echo "# 아래는 배포 때 GitHub Environment Secret 에서 붙인 값이다"
-            for key in "${keys[@]}"; do
-              printf "%s='%s'\n" "$key" "${!key}"
-            done
-            for key in "${optional_keys[@]}"; do
-              [[ -z "${!key}" ]] || printf "%s='%s'\n" "$key" "${!key}"
-            done
+            printf '%s\n' "$secret_lines"
             printf "POSTGRES_PASSWORD='%s'\n" "$DB_PASSWORD"
           } > "$out/.env"
 

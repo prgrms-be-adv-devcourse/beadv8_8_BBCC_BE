@@ -61,6 +61,9 @@ dependencies {
     // 헬스체크 (/actuator/health). 배포 시 docker compose healthcheck가 호출한다
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
+    // 메트릭 (/actuator/prometheus). 서버의 Prometheus 가 127.0.0.1 로 수집한다. 외부는 nginx 가 막는다
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+
     // 메일 발송 (global.mail.EmailSender, Gmail SMTP). kidly.mail.enabled가 false면 보내지 않고 로그만 남긴다
     implementation("org.springframework.boot:spring-boot-starter-mail")
 

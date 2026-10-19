@@ -1,0 +1,116 @@
+apiVersion: 1
+
+# Slack #4팀-운영이슈. 웹훅은 서버 .env 의 SLACK_OPS_WEBHOOK_URL
+contactPoints:
+  - orgId: 1
+    name: slack-ops
+    receivers:
+      - uid: slack-ops
+        type: slack
+        settings:
+          url: ${SLACK_OPS_WEBHOOK_URL}
+
+# 같은 알림 · 같은 환경은 묶어서 보내고, 계속 울리면 4시간마다 다시 보낸다
+policies:
+  - orgId: 1
+    receiver: slack-ops
+    group_by: [alertname, env]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+
+# 규칙의 annotations 는 환경 변수로 바뀌지 않는다. 템플릿은 $labels · $values 를 그대로 쓴다 ($$ 는 템플릿 오류)
+groups:
+  - orgId: 1
+    name: kidly
+    folder: Kidly
+    interval: 1m
+    rules:
+      # Prometheus 가 앱을 2분 넘게 못 읽으면(up=0). Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
+      # 데이터가 없다는 건 등록된 수집 대상이 없다는 뜻(앱 배포가 targets 파일을 쓰기 전)이라 알리지 않는다
+      - uid: kidly-app-down
+        title: 앱 다운
+        condition: B
+        for: 2m
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 300, to: 0}
+            model:
+              refId: A
+              expr: up{job="kidly"}
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [1]}
+        labels:
+          severity: critical
+        annotations:
+          summary: '{{ $labels.env }} 앱 메트릭을 2분 넘게 못 읽었습니다 (앱 다운 또는 /actuator/prometheus 없음)'
+
+      # 최근 5분 요청 중 5xx 비율. 요청이 없으면 계산하지 않는다
+      # /actuator 요청(Prometheus 수집 · docker healthcheck)은 분자 · 분모에서 뺀다
+      - uid: kidly-5xx-rate
+        title: 5xx 증가
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: KeepLast
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              expr: >-
+                sum by (env) (rate(http_server_requests_seconds_count{job="kidly", status=~"5..", uri!~"/actuator.*"}[5m]))
+                / sum by (env) (rate(http_server_requests_seconds_count{job="kidly", uri!~"/actuator.*"}[5m]))
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0.05]}
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.env }} 최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
+
+      # 최근 5분 ERROR 로그. increase 는 외삽해 0.9 같은 값이 나오므로 0.5 초과(= 1건 이상)로 본다
+      - uid: kidly-error-log
+        title: ERROR 로그
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: KeepLast
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              expr: sum by (env) (increase(logback_events_total{job="kidly", level="error"}[5m]))
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0.5]}
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.env }} 최근 5분 ERROR 로그 {{ with $values.A }}{{ printf "%.0f" .Value }}{{ end }}건'
+          description: 'Grafana Explore → Loki 에서 {env="{{ $labels.env }}", level="ERROR"} 로 내용을 봅니다'

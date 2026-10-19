@@ -1,7 +1,7 @@
 # Kidly API 리버스 프록시. install.sh 가 __DOMAIN__ 을 실제 도메인으로 바꿔
 # /etc/nginx/conf.d/kidly.conf 로 설치한다.
 
-# 아래 server 블록들이 함께 쓰는 설정 (인증서 하나에 api · dev-api 두 이름이 들어 있다)
+# 아래 server 블록들이 함께 쓰는 설정 (인증서 하나에 api · dev-api · grafana 세 이름이 들어 있다)
 ssl_certificate     /etc/letsencrypt/live/kidly/fullchain.pem;
 ssl_certificate_key /etc/letsencrypt/live/kidly/privkey.pem;
 ssl_protocols       TLSv1.2 TLSv1.3;
@@ -29,7 +29,7 @@ server {
 # HTTP: 인증서 발급·갱신용 경로만 열고 나머지는 https 로 보낸다
 server {
     listen 80;
-    server_name api.__DOMAIN__ dev-api.__DOMAIN__;
+    server_name api.__DOMAIN__ dev-api.__DOMAIN__ grafana.__DOMAIN__;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -46,6 +46,15 @@ server {
     http2 on;
     server_name api.__DOMAIN__;
 
+    # actuator 는 서버 안(Prometheus)에서만 쓴다. 외부에는 헬스체크만 연다
+    location /actuator {
+        return 404;
+    }
+
+    location = /actuator/health {
+        proxy_pass http://127.0.0.1:8080;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:8080;
     }
@@ -57,7 +66,27 @@ server {
     http2 on;
     server_name dev-api.__DOMAIN__;
 
+    # actuator 는 서버 안(Prometheus)에서만 쓴다. 외부에는 헬스체크만 연다
+    location /actuator {
+        return 404;
+    }
+
+    location = /actuator/health {
+        proxy_pass http://127.0.0.1:8081;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:8081;
+    }
+}
+
+# 모니터링 (deploy/monitoring). Grafana 가 로그인을 받는다
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name grafana.__DOMAIN__;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
     }
 }

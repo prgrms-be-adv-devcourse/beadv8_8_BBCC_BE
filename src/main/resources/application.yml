@@ -47,3 +47,10 @@ jwt:
 
 refresh-token:
   validity: 14d
+
+# 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다 (deploy/nginx)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus

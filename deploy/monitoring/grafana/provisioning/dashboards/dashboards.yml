@@ -1,0 +1,11 @@
+apiVersion: 1
+
+# 레포의 grafana/dashboards 를 읽는다. 화면에서 고친 내용은 저장되지 않는다
+providers:
+  - name: kidly
+    folder: Kidly
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

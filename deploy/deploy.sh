@@ -14,6 +14,18 @@ if ! docker compose -p "$APP_ENV" --env-file .env --env-file image.env up -d --w
   echo "::endgroup::"
   exit 1
 fi
+# 모니터링(deploy/monitoring)의 Prometheus 가 읽는 수집 대상을 써 둔다. 기동에 실패하면 위에서 끝나 이전 파일이 남는다
+# 모니터링 때문에 앱 배포가 실패하면 안 되므로 못 쓰면 경고만 남긴다. Prometheus 가 반쯤 쓴 파일을 읽지 않게 .tmp 에 쓰고 옮긴다
+port=$(sed -n 's/^APP_PORT=//p' .env | tail -n 1)
+targets=../monitoring/targets
+if [[ -z "$port" ]]; then
+  echo "::warning::.env 에 APP_PORT 가 없어 모니터링 수집 대상을 등록하지 않았습니다"
+elif ! { mkdir -p "$targets" \
+  && printf '# deploy/deploy.sh 가 배포마다 쓴다. Prometheus(deploy/monitoring)가 읽는다\n- targets: ["127.0.0.1:%s"]\n  labels:\n    env: %s\n' "$port" "$APP_ENV" > "$targets/$APP_ENV.tmp" \
+  && chmod 644 "$targets/$APP_ENV.tmp" \
+  && mv "$targets/$APP_ENV.tmp" "$targets/$APP_ENV.yml"; }; then
+  echo "::warning::모니터링 수집 대상($targets/$APP_ENV.yml)을 쓰지 못했습니다"
+fi
 # 배포마다 이미지가 쌓여 디스크가 차므로 최신 3개만 남기고 지운다
 # 다른 환경 컨테이너가 쓰는 이미지는 docker 가 삭제를 거부해서 남는다 (-f 를 쓰지 않는다)
 # 지운 이미지로 롤백할 때는 GHCR 에서 다시 받는다

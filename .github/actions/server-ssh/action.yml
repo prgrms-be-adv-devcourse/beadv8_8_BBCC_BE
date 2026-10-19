@@ -1,0 +1,35 @@
+# 서버의 22번 포트가 열렸는지 확인하고, 다음 단계들의 ssh 가 쓸 키와 known_hosts 를 ~/.ssh 에 둔다. deploy.yml · monitoring-deploy.yml 이 쓴다
+# deploy-notify.yml 은 바깥 step 이름("서버 접속 확인 · SSH 키 준비")으로 18시 이후 서버 꺼짐 안내를 붙인다. 부르는 쪽 step 이름을 바꾸면 거기도 맞춘다
+name: server-ssh
+description: 서버 접속 확인 · SSH 키 준비
+
+inputs:
+  host:
+    description: 서버 주소
+    required: true
+  private-key:
+    description: deploy 유저의 SSH 개인 키
+    required: true
+  known-hosts:
+    description: 로컬에서 ssh-keyscan -H <host> 한 결과
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: 서버 접속 확인
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.host }}
+      run: nc -z -w 5 "$SSH_HOST" 22 || { echo "::error::서버에 연결할 수 없습니다. 18시 이후면 EC2를 콘솔에서 시작한 뒤 Re-run 하세요."; exit 1; }
+
+    - name: SSH 키 준비
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.private-key }}
+        SSH_KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        mkdir -p ~/.ssh
+        printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts

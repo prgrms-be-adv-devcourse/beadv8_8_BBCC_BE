@@ -1,0 +1,81 @@
+# 모니터링 스택(deploy/monitoring)을 서버의 /opt/app/monitoring 에 올리고 그 deploy.sh 가 compose pull / up 을 한다.
+# 설정의 원본은 레포, 비밀의 원본은 Environment dev 의 Secret(SLACK_OPS_WEBHOOK_URL, GRAFANA_ADMIN_PASSWORD)이다. 서버 .env 는 매번 새로 만든다
+# nginx(deploy/nginx)는 여기서 다루지 않는다
+name: monitoring-deploy
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - deploy/monitoring/**
+      # 문서만 고쳐서 스택을 다시 띄우지(수집 공백) 않는다
+      - '!deploy/monitoring/README.md'
+      - .github/workflows/monitoring-deploy.yml
+      # 같이 쓰는 SSH · Secret 단계가 바뀌어도 한 번 돌려 확인한다
+      - .github/actions/server-ssh/**
+      - .github/scripts/env-lines.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 한 번에 하나만 돈다. 진행 중인 배포는 취소하지 않는다
+concurrency:
+  group: monitoring-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # SSH 접속 정보(SSH_HOST · SSH_KNOWN_HOSTS · SSH_PRIVATE_KEY)가 dev 에 있다. 모니터링도 같은 서버다
+    environment: dev
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # deploy-notify.yml 이 이 step 이름으로 "18시 이후 서버 꺼짐" 안내를 붙인다
+      - name: 서버 접속 확인 · SSH 키 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}
+
+      # 비밀 값은 출력하지 않는다
+      - name: 서버 설정 파일 만들기
+        env:
+          SLACK_OPS_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK_URL }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: |
+          out="$RUNNER_TEMP/monitoring"
+          mkdir -p "$out"
+          cp -r deploy/monitoring/{docker-compose.yml,deploy.sh,prometheus,loki,alloy,grafana} "$out/"
+
+          # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다
+          secret_lines=$(.github/scripts/env-lines.sh dev SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD)
+          (
+            umask 077
+            printf '%s\n' "$secret_lines" > "$out/.env"
+          )
+
+      # 설정 폴더는 지우고 새로 풀어 레포에서 지운 파일이 서버에 남지 않게 한다. 데이터는 docker 볼륨이라 그대로다
+      # targets 는 앱 배포(deploy/deploy.sh)가 쓰는 수집 대상이라 지우지 않는다.
+      # 없는 채로 compose 를 올리면 docker 가 root 소유로 만들어 앱 배포가 못 쓰므로 deploy 유저로 먼저 만든다
+      - name: 서버에 설정 파일 올리기
+        run: |
+          dir=/opt/app/monitoring
+          tar -C "$RUNNER_TEMP/monitoring" -czf - docker-compose.yml deploy.sh .env prometheus loki alloy grafana \
+            | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
+              set -e
+              mkdir -p $dir/targets
+              cd $dir
+              rm -rf prometheus loki alloy grafana
+              tar -xzf - --no-same-owner
+              chmod 600 .env
+              # 컨테이너 사용자(nobody 등)가 설정을 읽을 수 있게 한다
+              chmod -R a+rX docker-compose.yml prometheus loki alloy grafana
+            "
+
+      - name: 배포
+        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" /opt/app/monitoring/deploy.sh

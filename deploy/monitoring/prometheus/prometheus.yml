@@ -1,0 +1,11 @@
+# 앱의 /actuator/prometheus 를 수집한다. env 라벨로 dev · prod 를 나눈다
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: kidly
+    metrics_path: /actuator/prometheus
+    # 수집 대상은 앱 배포(deploy/deploy.sh)가 기동에 성공할 때마다 targets/<환경>.yml 로 써 둔다. 파일이 바뀌면 다시 읽는다
+    # 배포된 적 없는 환경은 파일이 없어 수집하지 않는다 (없는 대상을 넣으면 "앱 다운"이 계속 울린다)
+    file_sd_configs:
+      - files: [/etc/prometheus/targets/*.yml]
