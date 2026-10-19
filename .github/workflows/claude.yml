@@ -19,6 +19,11 @@ jobs:
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+    # 같은 PR에서 @claude를 연달아 부르면 앞선 실행이 끝난 뒤 돈다. 질문마다 답해야 하므로 취소하지 않는다
+    # job에 둬서 if를 통과한 실행만 묶는다(워크플로에 두면 @claude 없는 댓글이 기다리던 실행을 밀어낸다)
+    concurrency:
+      group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # 댓글은 Claude GitHub App 토큰으로 남긴다(작성자 claude[bot]). id-token으로 App 토큰을 받는다
