@@ -100,6 +100,19 @@ class LoggingProfileTest {
     }
 
     @Test
+    @DisplayName("운영 프로필 콘솔은 예외마다 스택 프레임을 30개까지만 남기고 Caused by는 남긴다")
+    void prodConsoleLimitsStackFrames(CapturedOutput output) {
+        startLogging("prod");
+
+        LoggerFactory.getLogger(LoggingProfileTest.class)
+            .error("깊은 스택", new IllegalStateException("바깥", deepException(200)));
+
+        var stackTrace = JsonPath.<String>read(lineContaining(output, "깊은 스택"), "$.error.stack_trace");
+        assertThat(stackTrace).contains("Caused by: java.lang.IllegalArgumentException: 안쪽");
+        assertThat(stackTrace.lines().filter(line -> line.startsWith("\tat "))).hasSizeLessThanOrEqualTo(60);
+    }
+
+    @Test
     @DisplayName("테스트 프로필은 콘솔에만 남긴다")
     void testLogsToConsole() {
         startLogging("test");
@@ -134,6 +147,10 @@ class LoggingProfileTest {
     private static Logger rootLogger() {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         return context.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+    }
+
+    private static RuntimeException deepException(int depth) {
+        return depth == 0 ? new IllegalArgumentException("안쪽") : deepException(depth - 1);
     }
 
     private static String lineContaining(CapturedOutput output, String text) {
