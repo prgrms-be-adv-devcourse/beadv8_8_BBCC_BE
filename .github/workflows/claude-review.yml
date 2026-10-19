@@ -18,11 +18,12 @@ jobs:
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # 읽기 전용: 코드를 고치거나 push하지 않고 댓글만 남긴다
-    # Claude GitHub App 대신 이 job의 GITHUB_TOKEN(아래 권한만 가짐)으로 댓글을 남긴다. 댓글 작성자는 github-actions[bot]
+    # 댓글은 Claude GitHub App 토큰으로 남긴다(작성자 claude[bot]). id-token으로 App 토큰을 받는다
+    # App 토큰은 아래 권한에 묶이지 않으므로, 읽기 전용은 허용 도구와 --disallowedTools로 지킨다
     permissions:
       contents: read
       pull-requests: write
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -32,7 +33,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
@@ -56,3 +56,4 @@ jobs:
             - 모든 댓글은 한국어 해요체로 써 주세요
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"
+            --disallowedTools "Bash(git add:*),Bash(git commit:*),Bash(git rm:*),Bash(git push:*)"
