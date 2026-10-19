@@ -1,9 +1,9 @@
-package com.bbcc.kidly.global.mail;
+package com.bbcc.kidly.boundedcontext.notification.app.port;
 
 import org.springframework.util.StringUtils;
 
 /**
- * 보낼 메일 한 통 (일반 텍스트).
+ * 보낼 알림 메일 한 통 (일반 텍스트).
  *
  * @param to      받는 사람 주소
  * @param subject 제목

@@ -1,7 +1,8 @@
-package com.bbcc.kidly.global.mail;
+package com.bbcc.kidly.boundedcontext.notification;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;

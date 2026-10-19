@@ -1,12 +1,12 @@
-# 메일 발송 설정 (global.mail.EmailSender). application.yml이 가져온다
+# 알림 도메인 설정. application.yml이 가져온다
 #
-# 환경 변수                   필수 여부                              뜻
+# 메일 발송 환경 변수         필수 여부                              뜻
 # MAIL_USERNAME   실제로 보내려면 필수 (없으면 로그만)   Gmail SMTP 로그인 아이디 = 공용 Gmail 주소. 기본 보내는 주소
 # MAIL_PASSWORD   실제로 보내려면 필수 (없으면 로그만)   Gmail 앱 비밀번호 16자리 (공백 없이). 비밀 값: 로컬 .env · GitHub Secret에만 둔다
 # MAIL_ENABLED    선택 (기본 true)                       false면 계정이 있어도 보내지 않고 로그만 남긴다
 # MAIL_FROM       선택 (기본 MAIL_USERNAME)              받는 사람에게 보이는 보내는 주소
 
-# Gmail SMTP. 팀 공용 계정과 앱 비밀번호(2단계 인증을 켠 뒤 발급)를 쓴다
+# 알림 메일 발송용 Gmail SMTP. 팀 공용 계정과 앱 비밀번호(2단계 인증을 켠 뒤 발급)를 쓴다
 spring:
   mail:
     host: smtp.gmail.com
@@ -34,3 +34,8 @@ kidly:
     enabled: ${MAIL_ENABLED:true}
     # 보내는 주소. 없으면 MAIL_USERNAME
     from: ${MAIL_FROM:}
+  notification:
+    # 메일 본문에 넣는 사이트 주소. 서버는 deploy/.env.<환경>의 값을 쓴다
+    site-url: ${NOTIFICATION_SITE_URL:http://localhost:5173}
+    # 실패 · 멈춘 알림을 다시 보내는 주기
+    retry-interval: PT1M
