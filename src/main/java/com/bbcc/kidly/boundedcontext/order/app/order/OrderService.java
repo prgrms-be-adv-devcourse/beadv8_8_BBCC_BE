@@ -152,6 +152,8 @@ public class OrderService {
             logIgnored("stock.deducted", order, result);
             return;
         }
+        // 주문 UPDATE 실패가 커밋 때가 아니라 여기서 나야 리스너가 잡아 보관한다(#449)
+        orderRepository.flush();
         eventPublisher.publish(new OrderPaymentRequestedEvent(UUID.randomUUID(), now,
             new OrderPaymentRequestedEvent.Data(order.getId(), order.getMemberId(), order.getTotalAmount(),
                 order.getItems().stream()
@@ -239,10 +241,17 @@ public class OrderService {
      * 주문에 없는 주문상품 ID는 주문이 무시하므로 여기서 WARN만 남긴다.
      */
     public void cancelForStockDeductionFailure(StockDeductionFailedCommand command) {
+        cancelForStockDeductionFailure(command, OrderActor.event(OrderActor.STOCK_DEDUCTION_FAILED));
+    }
+
+    /**
+     * 이벤트가 아닌 주체(관리자 이벤트 처리 실패 재처리, #449)가 재고 차감 실패로 취소한다. 상태 이력에 그 주체를 남긴다.
+     */
+    public void cancelForStockDeductionFailure(StockDeductionFailedCommand command, OrderActor actor) {
         Map<Long, String> reasons = command.items().stream()
             .collect(Collectors.toMap(StockDeductionFailedCommand.Item::orderItemId,
                 StockDeductionFailedCommand.Item::reason, (first, last) -> last));
-        cancel(command.orderId(), "stock.deduction-failed", OrderActor.event(OrderActor.STOCK_DEDUCTION_FAILED),
+        cancel(command.orderId(), "stock.deduction-failed", actor,
             order -> {
             warnUnknownOrderItems(command.orderId(), order, reasons);
             return order.cancelForOutOfStock(reasons);
@@ -491,6 +500,8 @@ public class OrderService {
             logIgnored(source, order, result);
             return;
         }
+        // 주문 UPDATE 실패가 커밋 때가 아니라 여기서 나야 리스너가 잡아 보관한다(#449)
+        orderRepository.flush();
         historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.ORDER, orderId, from,
             order.getStatus(), order.getCancelReason().name(), now));
         publishCancelled(order, now);

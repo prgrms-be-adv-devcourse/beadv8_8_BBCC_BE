@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
@@ -24,15 +25,17 @@ public class StockEventListener {
     private static final String MISSING_ORDER_ID = "missing-order-id";
 
     private final OrderService orderService;
+    private final OrderEventFailureService failureService;
 
     /**
-     * 주문 ID가 없으면 찾을 주문이 없으므로 WARN만 남기고 무시한다.
+     * 주문 ID가 없으면 찾을 주문이 없으므로 WARN만 남기고 무시한다. 처리에 실패하면 재처리용으로 보관한다(#449).
      */
     @DomainEventListener
     public void onStockDeducted(StockDeductedEvent event) {
         Long orderId = toOrderId(event);
         if (EventGuard.accept("재고", event, orderId == null ? MISSING_ORDER_ID : null)) {
-            orderService.requestPayment(orderId);
+            EventFailureKeeper.run(event.eventType(), orderId, () -> orderService.requestPayment(orderId),
+                error -> failureService.recordStockDeductedFailure(orderId, error));
         }
     }
 
@@ -40,6 +43,7 @@ public class StockEventListener {
      * 재고 차감 실패를 받아 재고 부족 취소를 맡긴다. 대표 사유(data.reason)는 쓰지 않는다(주문상품별 사유가 저장되고,
      * 결과는 서비스가 "주문 취소" 한 줄로 남긴다). 주문 ID가 없으면 무시(WARN). 주문상품 목록이 없으면 빈 목록,
      * 빈 줄 · 주문상품 ID 없는 줄 · 사유 없는 줄은 그 줄만 건너뛴다(WARN). 같은 주문상품 ID가 두 번 오면 마지막 사유를 쓴다(WARN).
+     * 처리에 실패하면 거른 주문상품별 사유와 함께 재처리용으로 보관한다(#449).
      */
     @DomainEventListener
     public void onStockDeductionFailed(StockDeductionFailedEvent event) {
@@ -48,8 +52,11 @@ public class StockEventListener {
         if (!EventGuard.accept("재고", event, missingOrderId ? MISSING_ORDER_ID : null)) {
             return;
         }
-        orderService.cancelForStockDeductionFailure(new StockDeductionFailedCommand(
-            data.orderId(), toItems(event.eventType(), data.orderId(), data.failures())));
+        StockDeductionFailedCommand command = new StockDeductionFailedCommand(
+            data.orderId(), toItems(event.eventType(), data.orderId(), data.failures()));
+        EventFailureKeeper.run(event.eventType(), data.orderId(),
+            () -> orderService.cancelForStockDeductionFailure(command),
+            error -> failureService.recordStockDeductionFailedFailure(command, error));
     }
 
     private static List<StockDeductionFailedCommand.Item> toItems(String eventType, Long orderId,

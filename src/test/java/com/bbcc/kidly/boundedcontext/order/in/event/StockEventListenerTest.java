@@ -1,10 +1,15 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderEventFailureResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
@@ -22,6 +27,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class StockEventListenerTest {
@@ -31,8 +38,82 @@ class StockEventListenerTest {
     @Mock
     private OrderService orderService;
 
+    @Mock
+    private OrderEventFailureService failureService;
+
     @InjectMocks
     private StockEventListener listener;
+
+    @Nested
+    @DisplayName("처리 실패 보관(#449)")
+    class KeepsFailure {
+
+        @Test
+        @DisplayName("결제 요청이 실패하면 주문 ID로 보관하고 ERROR 한 줄(보관 결과 포함) 뒤 원래 예외를 그대로 던진다")
+        void stockDeducted(CapturedOutput output) {
+            IllegalStateException error = new IllegalStateException("x");
+            doThrow(error).when(orderService).requestPayment(7L);
+            when(failureService.recordStockDeductedFailure(7L, error)).thenReturn(saved("STOCK_DEDUCTED"));
+
+            assertThatThrownBy(() -> listener.onStockDeducted(new StockDeductedEvent(UUID.randomUUID(), OCCURRED_AT,
+                new StockDeductedEvent.Data(7L)))).isSameAs(error);
+
+            verify(failureService).recordStockDeductedFailure(7L, error);
+            assertThat(output).containsPattern("ERROR.*event=stock.deducted reason=processing-failed orderId=7 "
+                + "failureStatus=PENDING attemptCount=1 failureCode=IllegalStateException");
+        }
+
+        @Test
+        @DisplayName("재고 부족 취소가 실패하면 거른 주문상품별 사유 그대로 보관한다")
+        void stockDeductionFailed() {
+            IllegalStateException error = new IllegalStateException("x");
+            StockDeductionFailedCommand command = new StockDeductionFailedCommand(7L, List.of(
+                new StockDeductionFailedCommand.Item(70L, "OUT_OF_STOCK")));
+            doThrow(error).when(orderService).cancelForStockDeductionFailure(command);
+            when(failureService.recordStockDeductionFailedFailure(command, error))
+                .thenReturn(saved("STOCK_DEDUCTION_FAILED"));
+
+            assertThatThrownBy(() -> listener.onStockDeductionFailed(new StockDeductionFailedEvent(UUID.randomUUID(),
+                OCCURRED_AT, new StockDeductionFailedEvent.Data(7L, StockDeductionFailureCode.OUT_OF_STOCK, List.of(
+                    new StockDeductionFailedEvent.Failure(70L, StockDeductionFailureCode.OUT_OF_STOCK))))))
+                .isSameAs(error);
+
+            verify(failureService).recordStockDeductionFailedFailure(command, error);
+        }
+
+        @Test
+        @DisplayName("동시 처리에서 진 쪽(낙관적 락)은 보관하지 않고 WARN 뒤 그대로 던진다")
+        void lostIsNotKept(CapturedOutput output) {
+            ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", 7L);
+            doThrow(error).when(orderService).requestPayment(7L);
+
+            assertThatThrownBy(() -> listener.onStockDeducted(new StockDeductedEvent(UUID.randomUUID(), OCCURRED_AT,
+                new StockDeductedEvent.Data(7L)))).isSameAs(error);
+
+            verifyNoInteractions(failureService);
+            assertThat(output).containsPattern("WARN.*event=stock.deducted reason=lost-concurrent-duplicate orderId=7");
+        }
+
+        @Test
+        @DisplayName("보관도 실패하면 보관 오류를 원래 예외의 suppressed로 붙여 원래 예외를 던진다(기록 잠김은 record-locked)")
+        void recordFailureIsSuppressed(CapturedOutput output) {
+            IllegalStateException error = new IllegalStateException("x");
+            PessimisticLockingFailureException locked = new PessimisticLockingFailureException("locked");
+            doThrow(error).when(orderService).requestPayment(7L);
+            when(failureService.recordStockDeductedFailure(7L, error)).thenThrow(locked);
+
+            assertThatThrownBy(() -> listener.onStockDeducted(new StockDeductedEvent(UUID.randomUUID(), OCCURRED_AT,
+                new StockDeductedEvent.Data(7L)))).isSameAs(error);
+
+            assertThat(error.getSuppressed()).containsExactly(locked);
+            assertThat(output).containsPattern("ERROR.*orderId=7 failureStatus=record-locked attemptCount=null");
+        }
+
+        private OrderEventFailureResult saved(String eventType) {
+            return new OrderEventFailureResult(1L, eventType, 7L, List.of(), "PENDING", "IllegalStateException", 1,
+                OCCURRED_AT, OCCURRED_AT);
+        }
+    }
 
     @Test
     @DisplayName("재고 차감 이벤트의 주문 ID로 결제 요청을 맡긴다")
