@@ -1,0 +1,12 @@
+# 로컬 Prometheus. bootRun 으로 띄운 앱(호스트 8080)의 /actuator/prometheus 를 수집한다
+# 대시보드가 env 라벨로 환경을 고르므로 local 을 붙인다
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: kidly
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [host.docker.internal:8080]
+        labels:
+          env: local

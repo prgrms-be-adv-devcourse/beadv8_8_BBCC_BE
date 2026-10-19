@@ -1,0 +1,10 @@
+apiVersion: 1
+
+# 로컬은 로그(Loki)가 없어 Prometheus 만 둔다. 대시보드가 uid 로 찾으므로 운영과 같은 uid 를 쓴다
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true

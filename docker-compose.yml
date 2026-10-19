@@ -30,6 +30,42 @@ services:
     depends_on:
       - postgres
 
+  # bootRun 으로 띄운 앱의 메트릭을 수집한다 (http://localhost:9090)
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: kidly-prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  # http://localhost:3000 (로그인 없이 관리자로 열린다). 대시보드는 운영과 같은 파일을 쓴다
+  # 로그(Loki)와 Slack 알림은 로컬에 없다. "Kidly 로그" 대시보드는 데이터소스가 없어 비어 있다
+  grafana:
+    image: grafana/grafana:12.1.1
+    container_name: kidly-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_LANGUAGE: ko-KR
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./docker/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   postgres-data:
   pgadmin-data:
+  prometheus-data:
+  grafana-data:
