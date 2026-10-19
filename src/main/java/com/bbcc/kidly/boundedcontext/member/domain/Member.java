@@ -32,6 +32,7 @@ import org.springframework.util.Assert;
  * 닉네임 규칙은 {@link Nickname}. 회원끼리 겹치지 않는지는 {@link NicknamePolicy}가 확인하고, DB 유니크 제약이 마지막으로 막는다.
  * 이메일은 가입 때 받고 바꾸지 않는다.
  * 상태는 ACTIVE → SUSPENDED / WITHDRAWN으로만 바뀐다(정지 해제 없음).
+ * 탈퇴하면 닉네임 · 이메일을 지우고 소셜 계정 연결을 끊는다. 같은 소셜 계정으로 다시 가입하면 새 회원이 된다.
  */
 @Entity
 @Table(
@@ -46,7 +47,7 @@ public class Member extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    // 탈퇴한 회원은 null이다
     private String nickname;
 
     // 가입 때 받은 이메일. 이메일을 받기 전에 가입한 회원은 null이다
@@ -67,6 +68,9 @@ public class Member extends BaseTimeEntity {
     // 정지된 회원만 값이 있다
     @Embedded
     private MemberSuspension suspension;
+
+    // 탈퇴한 회원만 값이 있다
+    private LocalDateTime withdrawnAt;
 
     // 나중에 같은 사람의 여러 소셜 계정을 한 회원으로 통합할 수 있게 1:N으로 둔다
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -95,6 +99,10 @@ public class Member extends BaseTimeEntity {
     // 닉네임이 바뀌면 true. 같은 값이면 바꾸지 않는다. 다른 회원과 겹치는지는 NicknamePolicy가 확인하고, DB 유니크 제약이 마지막으로 막는다
     public boolean changeNickname(Nickname nickname) {
         requireNonNull(nickname, "nickname은 필수입니다");
+        // 탈퇴 뒤에도 Access Token은 만료될 때까지 쓸 수 있어 막는다
+        if (status == MemberStatus.WITHDRAWN) {
+            throw new BusinessException(MemberErrorCode.LOGIN_NOT_ALLOWED);
+        }
         if (this.nickname.equals(nickname.value())) {
             return false;
         }
@@ -110,6 +118,19 @@ public class Member extends BaseTimeEntity {
         }
         this.status = MemberStatus.SUSPENDED;
         this.suspension = suspension;
+    }
+
+    // ACTIVE이고 관리자가 아닌 회원만 탈퇴한다. 관리자는 권한을 해제한 뒤 탈퇴한다
+    public void withdraw(LocalDateTime now) {
+        requireNonNull(now, "now는 필수입니다");
+        if (status != MemberStatus.ACTIVE || isAdmin()) {
+            throw new BusinessException(MemberErrorCode.MEMBER_NOT_WITHDRAWABLE);
+        }
+        this.status = MemberStatus.WITHDRAWN;
+        this.withdrawnAt = now;
+        this.nickname = null;
+        this.email = null;
+        this.socialAccounts.clear();
     }
 
     public boolean canLogin() {

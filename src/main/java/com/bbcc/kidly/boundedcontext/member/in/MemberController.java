@@ -5,12 +5,16 @@ import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.in.dto.MemberResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -22,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MemberController {
 
     private final MemberService memberService;
+    private final RefreshTokenCookies refreshTokenCookies;
 
     @GetMapping
     public MemberResponse getMine(@LoginMember AuthMember member) {
@@ -32,5 +37,13 @@ public class MemberController {
     @PatchMapping
     public MemberResponse update(@LoginMember AuthMember member, @Valid @RequestBody MemberUpdateRequest request) {
         return MemberResponse.from(memberService.update(member.id(), request));
+    }
+
+    // 탈퇴하면 Refresh Token 쿠키도 지운다. 이미 받은 Access Token은 만료될 때까지 쓸 수 있다
+    @DeleteMapping
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdraw(@LoginMember AuthMember member, HttpServletResponse response) {
+        memberService.withdraw(member.id());
+        refreshTokenCookies.expire(response);
     }
 }
