@@ -11,12 +11,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.server.PathContainer;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.pattern.PathPattern;
+import org.springframework.web.util.pattern.PathPatternParser;
 
 /**
  * 요청마다 traceId를 MDC에 넣고 요청 시작·종료를 로그로 남긴다.
  * 클라이언트가 UUID 형식의 X-Request-Id를 보내면 그 값을 이어서 쓴다.
+ * actuator 요청(헬스체크 · 메트릭 수집)은 2xx가 아닐 때만 종료 로그를 남긴다.
  */
 @Slf4j
 @Component
@@ -27,6 +32,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     private static final String TRACE_ID_HEADER = "X-Request-Id";
     private static final Pattern TRACE_ID_PATTERN =
         Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+    private static final PathPattern ACTUATOR_PATH = PathPatternParser.defaultInstance.parse("/actuator/**");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -35,16 +41,30 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         MDC.put(TRACE_ID_MDC_KEY, traceId);
         response.setHeader(TRACE_ID_HEADER, traceId);
 
+        boolean actuator = ACTUATOR_PATH.matches(PathContainer.parsePath(request.getRequestURI()));
         long startTime = System.currentTimeMillis();
-        log.info(">>> {} {}", request.getMethod(), request.getRequestURI());
+        if (!actuator) {
+            log.info(">>> {} {}", request.getMethod(), request.getRequestURI());
+        }
         try {
             filterChain.doFilter(request, response);
         } finally {
             long duration = System.currentTimeMillis() - startTime;
-            log.info("<<< {} {} - {} ({}ms)",
-                request.getMethod(), request.getRequestURI(), response.getStatus(), duration);
+            int status = response.getStatus();
+            if (!actuator || !HttpStatusCode.valueOf(status).is2xxSuccessful()) {
+                logEnd(request, status, duration);
+            }
             MDC.remove(TRACE_ID_MDC_KEY);
         }
+    }
+
+    private void logEnd(HttpServletRequest request, int status, long duration) {
+        log.atInfo()
+            .addKeyValue("http.request.method", request.getMethod())
+            .addKeyValue("url.path", request.getRequestURI())
+            .addKeyValue("http.response.status_code", status)
+            .addKeyValue("duration_ms", duration)
+            .log("<<< {} {} - {} ({}ms)", request.getMethod(), request.getRequestURI(), status, duration);
     }
 
     private String resolveTraceId(HttpServletRequest request) {
