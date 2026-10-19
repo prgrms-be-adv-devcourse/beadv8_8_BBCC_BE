@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 
 import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
+import com.bbcc.kidly.boundedcontext.notification.domain.NotificationPolicy;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -67,7 +68,7 @@ public class NotificationSendService {
     @Transactional(readOnly = true)
     public List<Long> findRetryTargets() {
         var now = LocalDateTime.now();
-        return notificationRepository.findRetryTargetIds(now, now.minus(Notification.PENDING_TIMEOUT),
-            now.minus(Notification.SENDING_TIMEOUT), PageRequest.of(0, RETRY_BATCH_SIZE));
+        return notificationRepository.findRetryTargetIds(now, now.minus(NotificationPolicy.PENDING_TIMEOUT),
+            now.minus(NotificationPolicy.SENDING_TIMEOUT), PageRequest.of(0, RETRY_BATCH_SIZE));
     }
 }
