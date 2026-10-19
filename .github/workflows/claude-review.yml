@@ -33,6 +33,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -51,7 +52,7 @@ jobs:
             - 코드 스타일 · 포매팅은 Checkstyle이, 빌드 · 테스트 실행은 CI가 하니 지적하거나 실행하지 마세요
             - 구체적인 문제는 해당 줄에 인라인 댓글로 남기고, 무엇이 왜 문제인지와 고치는 방법을 적어 주세요
             - 확실하지 않은 것은 단정하지 말고 질문으로 남겨 주세요
-            - 마지막에 `gh pr comment`로 요약 댓글 하나를 남겨 주세요. 문제가 없으면 짧게 그렇다고만 적어 주세요
+            - 마지막에 요약 댓글 하나를 남겨 주세요. 문제가 없으면 짧게 그렇다고만 적어 주세요
             - 커밋이 추가돼 다시 리뷰하는 경우면, 먼저 `gh pr view --comments`로 이전 리뷰 요약을 읽어 주세요. 이미 지적한 것은 인라인 댓글로 다시 남기지 말고, 요약에 고쳐졌는지 · 아직 남았는지만 적어 주세요
             - 모든 댓글은 한국어 해요체로 써 주세요
           claude_args: |
