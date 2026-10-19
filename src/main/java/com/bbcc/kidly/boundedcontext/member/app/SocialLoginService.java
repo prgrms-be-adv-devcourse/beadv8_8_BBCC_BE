@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.global.error.BusinessException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -22,6 +23,7 @@ import org.springframework.util.StringUtils;
  * 트랜잭션을 걸지 않는다. 동시 가입으로 가입 트랜잭션이 롤백돼도 다시 조회할 수 있어야 하기 때문이다.
  * 소셜 제공자 호출도 트랜잭션 밖이라서 제공자가 느려도 DB 커넥션을 붙잡지 않는다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SocialLoginService {
@@ -39,6 +41,7 @@ public class SocialLoginService {
         var member = memberRepository.findBySocialAccount(identity)
             .orElseGet(() -> register(identity, profile));
         if (!member.canLogin()) {
+            log.warn("로그인 거절: memberId={} reason=login-not-allowed", member.getId());
             throw new BusinessException(MemberErrorCode.LOGIN_NOT_ALLOWED);
         }
         return member;
@@ -52,10 +55,15 @@ public class SocialLoginService {
         }
         try {
             var nickname = nicknamePolicy.generate(profile.nickname());
-            return memberRegistrar.register(new MemberRegisterInfo(identity, nickname, profile.email()));
+            var member = memberRegistrar.register(new MemberRegisterInfo(identity, nickname, profile.email()));
+            log.info("회원 가입: memberId={} provider={}", member.getId(), identity.provider());
+            return member;
         } catch (DataIntegrityViolationException e) {
             // 닉네임이 겹쳐 실패하면 소셜 계정으로 다시 찾지 못하므로 그대로 던진다 (409)
-            return memberRepository.findBySocialAccount(identity).orElseThrow(() -> e);
+            var member = memberRepository.findBySocialAccount(identity).orElseThrow(() -> e);
+            log.warn("동시 가입에서 진 요청을 기존 회원으로 로그인: memberId={} provider={}",
+                member.getId(), identity.provider());
+            return member;
         }
     }
 }

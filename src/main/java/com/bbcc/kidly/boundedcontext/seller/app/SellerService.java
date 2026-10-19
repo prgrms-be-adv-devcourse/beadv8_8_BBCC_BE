@@ -8,12 +8,14 @@ import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 판매자 정보 조회 · 자격 정지. 정지는 SellerChangedEvent를 발행하고, 회원의 역할은 다음 토큰 재발급부터 바뀐다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SellerService {
@@ -33,6 +35,7 @@ public class SellerService {
         seller.suspend(adminId, request.reason(), now);
         eventPublisher.publish(new SellerChangedEvent(UUID.randomUUID(), now,
             new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
+        log.info("판매자 정지: sellerId={} adminId={}", sellerId, adminId);
         return SellerResult.from(seller);
     }
 }

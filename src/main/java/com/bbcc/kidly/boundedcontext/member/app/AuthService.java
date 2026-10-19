@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.member.app;
 import com.bbcc.kidly.boundedcontext.member.app.dto.AuthTokens;
 import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
  * 트랜잭션을 걸지 않는다. 소셜 로그인은 트랜잭션 밖에서 동시 가입 실패 뒤 다시 조회해야 하고,
  * 소셜 제공자 호출이 DB 커넥션을 붙잡지 않아야 한다. 각 단계의 트랜잭션은 하위 서비스가 건다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -22,6 +24,7 @@ public class AuthService {
     public AuthTokens login(String providerName, SocialLoginRequest request) {
         var member = socialLoginService.login(providerName, request);
         var refreshToken = refreshTokenService.issue(member.getId());
+        log.info("로그인: memberId={} provider={}", member.getId(), providerName);
         return new AuthTokens(authTokenService.issueAccessToken(member), refreshToken);
     }
 

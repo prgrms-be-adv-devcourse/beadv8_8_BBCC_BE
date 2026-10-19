@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 등록 · 수정 때는 바뀐 뒤 전체 값으로, 삭제 때는 삭제 직전 값에 {@code deleted = true}를 붙여 {@link ChildChangedEvent}를 발행한다.
  * 추천 · 주문이 복사본을 갱신한다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChildProfileService {
@@ -31,6 +33,7 @@ public class ChildProfileService {
         var now = LocalDateTime.now();
         var child = childProfileRepository.save(ChildProfile.register(request.toRegisterInfo(memberId), now));
         publish(child, false, now);
+        log.info("자녀 등록: memberId={} childId={}", memberId, child.getId());
         return ChildProfileResult.from(child);
     }
 
@@ -51,6 +54,7 @@ public class ChildProfileService {
         var child = childProfileRepository.getByIdAndMemberId(childId, memberId);
         child.update(request.toUpdateInfo(), now);
         publish(child, false, now);
+        log.info("자녀 수정: memberId={} childId={}", memberId, childId);
         return ChildProfileResult.from(child);
     }
 
@@ -60,16 +64,19 @@ public class ChildProfileService {
         var child = childProfileRepository.getByIdAndMemberId(childId, memberId);
         child.delete(now);
         publish(child, true, now);
+        log.info("자녀 삭제: memberId={} childId={}", memberId, childId);
     }
 
     // 회원이 탈퇴하면 자녀를 모두 삭제한다. 자녀마다 삭제 이벤트를 발행한다
     @Transactional
     public void deleteAll(Long memberId) {
         var now = LocalDateTime.now();
-        for (var child : childProfileRepository.findAllByMemberId(memberId)) {
+        var children = childProfileRepository.findAllByMemberId(memberId);
+        for (var child : children) {
             child.delete(now);
             publish(child, true, now);
         }
+        log.info("탈퇴 회원 자녀 삭제: memberId={} count={}", memberId, children.size());
     }
 
     @Transactional(readOnly = true)

@@ -11,12 +11,14 @@ import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 회원 본인의 정보를 조회 · 수정하고 탈퇴한다. 역할은 토큰이 아니라 DB의 현재 값으로 계산하므로 판매자 승인 직후 재발급 전에도 SELLER가 보인다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MemberService {
@@ -38,6 +40,7 @@ public class MemberService {
         if (nicknamePolicy.changeNickname(member, new Nickname(request.nickname()))) {
             eventPublisher.publish(new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
                 new MemberChangedEvent.Data(memberId, member.getNickname())));
+            log.info("닉네임 변경: memberId={}", memberId);
         }
         return MemberResult.from(member);
     }
@@ -55,5 +58,6 @@ public class MemberService {
         member.withdraw(now);
         eventPublisher.publish(
             new MemberWithdrawnEvent(UUID.randomUUID(), now, new MemberWithdrawnEvent.Data(memberId)));
+        log.info("회원 탈퇴: memberId={}", memberId);
     }
 }
