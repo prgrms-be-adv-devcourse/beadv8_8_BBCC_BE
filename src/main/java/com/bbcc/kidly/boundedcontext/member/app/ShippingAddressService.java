@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.DefaultShippingAddressReposit
 import com.bbcc.kidly.boundedcontext.member.domain.ShippingAddress;
 import com.bbcc.kidly.boundedcontext.member.domain.ShippingAddressRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ import java.util.List;
  * 배송지가 있으면 기본 배송지는 정확히 1개라는 규칙은 {@link DefaultShippingAddressPolicy}가 지킨다.
  * 동시 요청을 DB(PK · FK · version)가 막으면 전역 핸들러가 409로 응답한다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShippingAddressService {
@@ -75,6 +77,7 @@ public class ShippingAddressService {
     public void deleteAll(Long memberId) {
         defaultShippingAddressRepository.findById(memberId).ifPresent(defaultShippingAddressRepository::delete);
         shippingAddressRepository.deleteAllByMemberId(memberId);
+        log.info("탈퇴 회원 배송지 삭제: memberId={}", memberId);
     }
 
     // 기본 배송지 행이 이미 있으면 영속 상태라 save는 merge만 하고 INSERT하지 않는다

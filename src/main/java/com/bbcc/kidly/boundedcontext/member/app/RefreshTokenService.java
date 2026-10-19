@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.RefreshTokenRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Refresh Token을 발급 · 재발급 · 폐기한다. 원문은 쿠키로만 내려주고 DB에는 해시만 둔다.
  * Access Token은 {@link AuthTokenService}가 발급한다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RefreshTokenService {
@@ -51,6 +53,7 @@ public class RefreshTokenService {
         var rotated = refreshTokenRepository.rotate(
             memberId, saved.getTokenHash(), RefreshToken.hashOf(newToken), now.plus(properties.validity()), now);
         if (rotated != 1) {
+            log.warn("Refresh Token 재발급 거절: memberId={} reason=concurrent-rotation", memberId);
             throw invalid();
         }
         return new ReissuedToken(member, newToken);

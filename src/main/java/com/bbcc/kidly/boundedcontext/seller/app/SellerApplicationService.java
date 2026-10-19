@@ -18,6 +18,7 @@ import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 거절은 신청만 REJECTED로 바꾼다. 판매자를 만들지 않으므로 이벤트를 발행하지 않는다.
  * 회원이 닉네임을 바꾸면 그 회원의 신청에 반영한다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SellerApplicationService {
@@ -49,8 +51,10 @@ public class SellerApplicationService {
             applicantId, SellerApplicationStatus.PENDING)) {
             throw new BusinessException(SellerErrorCode.APPLICATION_ALREADY_PENDING);
         }
-        var application = SellerApplication.submit(request.toSubmitInfo(applicantId, applicantNickname));
-        return SellerApplicationResult.from(sellerApplicationRepository.save(application));
+        var application = sellerApplicationRepository.save(
+            SellerApplication.submit(request.toSubmitInfo(applicantId, applicantNickname)));
+        log.info("판매자 신청: applicationId={} applicantId={}", application.getId(), applicantId);
+        return SellerApplicationResult.from(application);
     }
 
     @Transactional(readOnly = true)
@@ -72,11 +76,14 @@ public class SellerApplicationService {
         var application = sellerApplicationRepository.getById(applicationId);
         application.approve(adminId, now);
         if (sellerRepository.existsById(application.getApplicantId())) {
+            log.warn("판매자 신청 승인 거절: applicationId={} applicantId={} reason=already-seller",
+                applicationId, application.getApplicantId());
             throw new BusinessException(SellerErrorCode.ALREADY_SELLER);
         }
         var seller = sellerRepository.save(Seller.from(application));
         eventPublisher.publish(new SellerChangedEvent(UUID.randomUUID(), now,
             new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
+        log.info("판매자 승인: applicationId={} sellerId={} adminId={}", applicationId, seller.getId(), adminId);
         return SellerApplicationSummary.from(application);
     }
 
@@ -84,6 +91,7 @@ public class SellerApplicationService {
     public SellerApplicationSummary reject(Long applicationId, Long adminId, SellerApplicationRejectRequest request) {
         var application = sellerApplicationRepository.getById(applicationId);
         application.reject(adminId, request.reason(), LocalDateTime.now());
+        log.info("판매자 신청 거절: applicationId={} adminId={}", applicationId, adminId);
         return SellerApplicationSummary.from(application);
     }
 
