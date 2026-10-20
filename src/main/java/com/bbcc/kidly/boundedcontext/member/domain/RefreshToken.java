@@ -10,6 +10,7 @@ import jakarta.persistence.UniqueConstraint;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -28,7 +29,9 @@ import org.springframework.security.crypto.keygen.StringKeyGenerator;
     name = "refresh_token",
     schema = "member",
     uniqueConstraints = @UniqueConstraint(name = "uk_refresh_token_token_hash", columnNames = "token_hash"),
-    indexes = @Index(name = "idx_refresh_token_expires_at", columnList = "expires_at"))
+    indexes = {
+        @Index(name = "idx_refresh_token_expires_at", columnList = "expires_at"),
+        @Index(name = "idx_refresh_token_previous_token_hash", columnList = "previous_token_hash")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken extends BaseTimeEntity {
@@ -36,6 +39,9 @@ public class RefreshToken extends BaseTimeEntity {
     // 원문은 의미 없는 256비트(32바이트) 랜덤 값이다. 쿠키에 그대로 넣을 수 있게 URL-safe Base64(43자)로 만든다
     private static final StringKeyGenerator GENERATOR =
         new Base64StringKeyGenerator(Base64.getUrlEncoder().withoutPadding(), 32);
+
+    // 교체 직후 직전 토큰이 오는 것은 탭 여러 개가 동시에 재발급한 것이라 이 시간 안에는 탈취로 보지 않는다
+    private static final Duration REUSE_GRACE = Duration.ofSeconds(10);
 
     @Id
     @Column(name = "member_id")
@@ -46,6 +52,12 @@ public class RefreshToken extends BaseTimeEntity {
 
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
+
+    @Column(name = "previous_token_hash", length = 64)
+    private String previousTokenHash;
+
+    @Column(name = "rotated_at")
+    private LocalDateTime rotatedAt;
 
     public static String generate() {
         return GENERATOR.generateKey();
@@ -63,5 +75,9 @@ public class RefreshToken extends BaseTimeEntity {
 
     public boolean isUsable(LocalDateTime now) {
         return now.isBefore(expiresAt);
+    }
+
+    public boolean isReused(LocalDateTime now) {
+        return rotatedAt != null && now.isAfter(rotatedAt.plus(REUSE_GRACE));
     }
 }
