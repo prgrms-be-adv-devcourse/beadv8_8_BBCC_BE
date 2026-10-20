@@ -25,7 +25,7 @@ public class RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final MemberRepository memberRepository;
     private final RefreshTokenProperties properties;
-    private final AccessTokenRevoker accessTokenRevoker;
+    private final AccessTokenRevocationService accessTokenRevocationService;
 
     // 로그인할 때 발급한다. 이미 있으면 새 값으로 바꾸므로 다른 기기의 토큰은 다음 재발급 때 거절된다
     @Transactional
@@ -72,7 +72,7 @@ public class RefreshTokenService {
             .filter(refreshToken -> refreshToken.isReused(now))
             .ifPresent(refreshToken -> {
                 refreshTokenRepository.deleteByMemberId(refreshToken.getMemberId());
-                accessTokenRevoker.revoke(refreshToken.getMemberId(), now);
+                accessTokenRevocationService.revoke(refreshToken.getMemberId(), now);
                 log.warn("Refresh Token 재사용 감지로 폐기: memberId={}", refreshToken.getMemberId());
             });
     }

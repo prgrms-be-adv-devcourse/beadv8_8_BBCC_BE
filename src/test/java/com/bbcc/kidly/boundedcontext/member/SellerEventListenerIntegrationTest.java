@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationCache;
+import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -31,7 +31,7 @@ class SellerEventListenerIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private AccessTokenRevocationCache accessTokenRevocationCache;
+    private AccessTokenRevocationService accessTokenRevocationService;
 
     @Test
     @DisplayName("판매자가 승인되면 회원에 상태 복사본을 저장하고, 늦은 변경만 반영한다")
@@ -92,7 +92,7 @@ class SellerEventListenerIntegrationTest {
     }
 
     private boolean isRevoked(Long memberId) {
-        return accessTokenRevocationCache.isRevoked(memberId, Instant.now().minusSeconds(60));
+        return accessTokenRevocationService.isRevoked(memberId, Instant.now().minusSeconds(60));
     }
 
     // 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행된다

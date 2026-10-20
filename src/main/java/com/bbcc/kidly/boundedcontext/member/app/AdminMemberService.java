@@ -24,7 +24,7 @@ public class AdminMemberService {
 
     private final MemberRepository memberRepository;
     private final MemberSummaryQuery memberSummaryQuery;
-    private final AccessTokenRevoker accessTokenRevoker;
+    private final AccessTokenRevocationService accessTokenRevocationService;
 
     @Transactional(readOnly = true)
     public Page<AdminMemberSummary> getMembers(AdminMemberFilter filter, String keyword, Pageable pageable) {
@@ -36,7 +36,7 @@ public class AdminMemberService {
     public void suspend(Long memberId, Long adminId, MemberSuspendRequest request) {
         var now = LocalDateTime.now();
         memberRepository.getById(memberId).suspend(adminId, request.reason(), now);
-        accessTokenRevoker.revoke(memberId, now);
+        accessTokenRevocationService.revoke(memberId, now);
         log.info("회원 정지: memberId={} adminId={}", memberId, adminId);
     }
 
@@ -50,7 +50,7 @@ public class AdminMemberService {
     @Transactional
     public void revokeAdmin(Long memberId, Long adminId) {
         memberRepository.getById(memberId).revokeAdmin(adminId);
-        accessTokenRevoker.revoke(memberId, LocalDateTime.now());
+        accessTokenRevocationService.revoke(memberId, LocalDateTime.now());
         log.info("관리자 해제: memberId={} adminId={}", memberId, adminId);
     }
 }

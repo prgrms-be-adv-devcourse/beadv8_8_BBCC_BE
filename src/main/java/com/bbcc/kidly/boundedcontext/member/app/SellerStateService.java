@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SellerStateService {
 
     private final MemberRepository memberRepository;
-    private final AccessTokenRevoker accessTokenRevoker;
+    private final AccessTokenRevocationService accessTokenRevocationService;
 
     @Transactional
     public void apply(Long sellerId, SellerStatus status, LocalDateTime occurredAt) {
@@ -27,7 +27,7 @@ public class SellerStateService {
             .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         // SELLER 역할을 잃었으면 지금 토큰의 SELLER도 바로 막는다
         if (member.applySellerState(status, occurredAt)) {
-            accessTokenRevoker.revoke(sellerId, LocalDateTime.now());
+            accessTokenRevocationService.revoke(sellerId, LocalDateTime.now());
         }
         log.info("판매자 상태 반영: memberId={} status={}", sellerId, status);
     }

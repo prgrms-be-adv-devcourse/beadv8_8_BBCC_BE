@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationCache;
+import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
@@ -50,7 +50,7 @@ class RefreshTokenServiceIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private AccessTokenRevocationCache accessTokenRevocationCache;
+    private AccessTokenRevocationService accessTokenRevocationService;
 
     @Test
     @DisplayName("발급하면 원문은 돌려주고 DB에는 14일짜리 해시만 저장한다")
@@ -149,7 +149,7 @@ class RefreshTokenServiceIntegrationTest {
 
         assertInvalid(() -> refreshTokenService.reissue(oldToken));
 
-        assertThat(accessTokenRevocationCache.isRevoked(memberId, Instant.now().minusSeconds(60))).isTrue();
+        assertThat(accessTokenRevocationService.isRevoked(memberId, Instant.now().minusSeconds(60))).isTrue();
     }
 
     @Test
@@ -163,7 +163,7 @@ class RefreshTokenServiceIntegrationTest {
 
         assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
         assertThat(refreshTokenService.reissue(newToken).member().getId()).isEqualTo(memberId);
-        assertThat(accessTokenRevocationCache.isRevoked(memberId, Instant.now().minusSeconds(60))).isFalse();
+        assertThat(accessTokenRevocationService.isRevoked(memberId, Instant.now().minusSeconds(60))).isFalse();
     }
 
     @Test

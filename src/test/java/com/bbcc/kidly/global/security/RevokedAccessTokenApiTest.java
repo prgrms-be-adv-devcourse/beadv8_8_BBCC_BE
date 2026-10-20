@@ -3,7 +3,7 @@ package com.bbcc.kidly.global.security;
 import static com.bbcc.kidly.support.TestApiController.AUTH_PATH;
 import static com.bbcc.kidly.support.TestApiController.PUBLIC_PATH;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevoker;
+import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.time.LocalDateTime;
@@ -27,7 +27,7 @@ class RevokedAccessTokenApiTest {
     private TransactionTemplate transactionTemplate;
 
     @Autowired
-    private AccessTokenRevoker revoker;
+    private AccessTokenRevocationService revocationService;
 
     @Test
     @DisplayName("무효화된 회원의 토큰이면 401 ProblemDetail로 응답한다")
@@ -60,7 +60,7 @@ class RevokedAccessTokenApiTest {
     }
 
     private void revoke(Long memberId) {
-        transactionTemplate.executeWithoutResult(status -> revoker.revoke(memberId, LocalDateTime.now()));
+        transactionTemplate.executeWithoutResult(status -> revocationService.revoke(memberId, LocalDateTime.now()));
     }
 
     private void expectUnauthorized(String path, String token) {

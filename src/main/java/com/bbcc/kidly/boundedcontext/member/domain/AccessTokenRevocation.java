@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 회원별 Access Token 무효화 기준 시각. 이 시각(초) 이전에 발급된 Access Token은 거절한다.
- * 회원당 1행이고, Access Token 유효 기간이 지나면 의미가 없어 지운다({@code AccessTokenRevocationCleaner}).
+ * 회원당 1행이고, Access Token 유효 기간이 지나면 의미가 없어 지운다({@code AccessTokenRevocationScheduler}).
  */
 @Entity
 @Table(
