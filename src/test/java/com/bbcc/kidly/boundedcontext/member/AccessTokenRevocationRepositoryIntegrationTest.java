@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.AccessTokenRevocation;
 import com.bbcc.kidly.boundedcontext.member.domain.AccessTokenRevocationRepository;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +15,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 @IntegrationTest
 class AccessTokenRevocationRepositoryIntegrationTest {
 
-    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 20, 14, 0);
+    // Cleaner가 테스트 도중 돌아도 지워지지 않도록 지금 시각 기준으로 잡는다. DB 정밀도(마이크로초)에 맞춘다
+    private static final LocalDateTime NOW = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
 
     @Autowired
     private AccessTokenRevocationRepository repository;

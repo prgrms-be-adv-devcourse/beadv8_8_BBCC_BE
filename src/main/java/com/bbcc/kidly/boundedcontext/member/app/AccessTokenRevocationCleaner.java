@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 /**
  * Access Token 유효 기간(+ 시계 오차)이 지난 무효화 기록을 10분마다 지운다. 그 전에 발급된 토큰은 이미 만료돼 기록이 필요 없다.
  * 캐시도 유효 기간이 지난 기록은 보지 않으므로 정리가 늦어도 동작은 같다.
+ * 시작할 때 캐시가 유효한 기록만 읽으므로 첫 정리는 10분 뒤에 한다.
  */
 @Slf4j
 @Component
@@ -22,7 +23,7 @@ public class AccessTokenRevocationCleaner {
     private final AccessTokenRevocationCache cache;
     private final JwtProperties jwtProperties;
 
-    @Scheduled(fixedDelayString = "PT10M")
+    @Scheduled(initialDelayString = "PT10M", fixedDelayString = "PT10M")
     public void deleteExpired() {
         var deleted = repository.deleteRevokedBefore(LocalDateTime.now().minus(jwtProperties.revocationRetention()));
         cache.evictExpired(Instant.now());
