@@ -30,7 +30,6 @@ class AccessTokenRevocationCleanerIntegrationTest {
         cleaner.deleteExpired();
 
         // 메모리 정리는 isRevoked 동작으로 드러나지 않는다(만료된 기록은 어차피 거절하지 않음). DB 삭제만 확인한다
-
         assertThat(repository.findAllRevokedAfter(now.minusDays(1)))
             .extracting(AccessTokenRevocation::getMemberId)
             .containsExactly(2L);

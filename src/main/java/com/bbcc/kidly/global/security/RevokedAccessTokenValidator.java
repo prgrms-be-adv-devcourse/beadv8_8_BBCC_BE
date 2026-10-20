@@ -9,7 +9,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
 /**
- * 무효화된 회원의 Access Token이면 거절한다. 서명 · 만료 검사 뒤에 실행된다.
+ * 무효화된 회원의 Access Token이면 거절한다. 서명 검증 뒤 기본 검사(만료 등)와 함께 실행된다.
  */
 @Component
 @RequiredArgsConstructor
