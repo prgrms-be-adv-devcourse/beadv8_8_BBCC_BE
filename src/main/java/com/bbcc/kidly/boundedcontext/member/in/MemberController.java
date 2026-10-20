@@ -39,7 +39,7 @@ public class MemberController {
         return MemberResponse.from(memberService.update(member.id(), request));
     }
 
-    // 탈퇴하면 Refresh Token 쿠키도 지운다. 이미 받은 Access Token은 만료될 때까지 쓸 수 있다
+    // 탈퇴하면 Refresh Token 쿠키도 지운다. 이미 받은 Access Token은 탈퇴할 때 무효화된다
     @DeleteMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void withdraw(@LoginMember AuthMember member, HttpServletResponse response) {

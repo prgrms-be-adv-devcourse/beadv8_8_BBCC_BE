@@ -11,6 +11,8 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
@@ -61,10 +63,14 @@ public class SecurityConfig {
             .build();
     }
 
-    // 발급은 회원 도메인(개인키), 검증은 여기서 공개키로만 한다
+    // 발급은 회원 도메인(개인키), 검증은 여기서 공개키로만 한다.
+    // 기본 검사(typ · 만료 등, 시계 오차는 CLOCK_SKEW) 뒤 무효화된 회원인지 본다
     @Bean
-    public JwtDecoder jwtDecoder(JwtProperties jwtProperties) {
-        return NimbusJwtDecoder.withPublicKey(jwtProperties.rsaPublicKey()).build();
+    public JwtDecoder jwtDecoder(JwtProperties jwtProperties, RevokedAccessTokenValidator revokedValidator) {
+        var decoder = NimbusJwtDecoder.withPublicKey(jwtProperties.rsaPublicKey()).build();
+        decoder.setJwtValidator(JwtValidators.createDefaultWithValidators(
+            new JwtTimestampValidator(JwtProperties.CLOCK_SKEW), revokedValidator));
+        return decoder;
     }
 
     // roles 클레임(BUYER · SELLER · ADMIN)을 ROLE_ 권한으로 바꾼다. 클레임 이름은 JwtAccessTokenIssuer와 같아야 한다

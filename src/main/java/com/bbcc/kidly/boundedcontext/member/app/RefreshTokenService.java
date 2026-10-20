@@ -25,6 +25,7 @@ public class RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final MemberRepository memberRepository;
     private final RefreshTokenProperties properties;
+    private final AccessTokenRevoker accessTokenRevoker;
 
     // 로그인할 때 발급한다. 이미 있으면 새 값으로 바꾸므로 다른 기기의 토큰은 다음 재발급 때 거절된다
     @Transactional
@@ -65,12 +66,13 @@ public class RefreshTokenService {
         return new ReissuedToken(member, newToken);
     }
 
-    // 이미 교체된 직전 토큰이 유예 시간 뒤에 오면 탈취로 보고 그 회원의 토큰을 지운다
+    // 이미 교체된 직전 토큰이 유예 시간 뒤에 오면 탈취로 보고 그 회원의 Refresh Token을 지우고 Access Token도 무효화한다
     private void revokeIfReused(String tokenHash, LocalDateTime now) {
         refreshTokenRepository.findByPreviousTokenHash(tokenHash)
             .filter(refreshToken -> refreshToken.isReused(now))
             .ifPresent(refreshToken -> {
                 refreshTokenRepository.deleteByMemberId(refreshToken.getMemberId());
+                accessTokenRevoker.revoke(refreshToken.getMemberId(), now);
                 log.warn("Refresh Token 재사용 감지로 폐기: memberId={}", refreshToken.getMemberId());
             });
     }

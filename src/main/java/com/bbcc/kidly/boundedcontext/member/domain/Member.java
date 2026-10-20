@@ -88,7 +88,7 @@ public class Member extends BaseTimeEntity {
 
     // 닉네임이 바뀌면 true. 같은 값이면 바꾸지 않는다. 다른 회원과 겹치는지는 NicknamePolicy가 확인하고, DB 유니크 제약이 마지막으로 막는다
     public boolean changeNickname(Nickname nickname) {
-        // 탈퇴 뒤에도 Access Token은 만료될 때까지 쓸 수 있어 막는다
+        // 탈퇴한 회원은 닉네임을 바꿀 수 없다
         if (status == MemberStatus.WITHDRAWN) {
             throw new BusinessException(MemberErrorCode.LOGIN_NOT_ALLOWED);
         }
@@ -136,7 +136,8 @@ public class Member extends BaseTimeEntity {
         this.role = MemberRole.ADMIN;
     }
 
-    // 관리자만 해제한다. 본인은 해제할 수 없게 해 관리자가 모두 사라지는 일을 막는다. 토큰을 새로 받을 때 반영된다
+    // 관리자만 해제한다. 본인은 해제할 수 없게 해 관리자가 모두 사라지는 일을 막는다
+    // 바로 반영되도록 호출한 서비스가 Access Token을 무효화한다
     public void revokeAdmin(Long adminId) {
         if (!isAdmin() || adminId.equals(id)) {
             throw new BusinessException(MemberErrorCode.ADMIN_NOT_REVOCABLE);
@@ -145,11 +146,14 @@ public class Member extends BaseTimeEntity {
     }
 
     // 판매자 상태 복사본을 갱신한다. 저장된 값보다 늦게 일어난 변경만 반영한다
-    public void applySellerState(SellerStatus status, LocalDateTime occurredAt) {
+    // SELLER 역할을 잃었으면(활성 판매자였다가 아니게 됐으면) true
+    public boolean applySellerState(SellerStatus status, LocalDateTime occurredAt) {
+        var wasActiveSeller = isActiveSeller();
         var changed = new SellerState(status, occurredAt);
         if (sellerState == null || sellerState.isOlderThan(changed)) {
             this.sellerState = changed;
         }
+        return wasActiveSeller && !isActiveSeller();
     }
 
     public boolean isActiveSeller() {

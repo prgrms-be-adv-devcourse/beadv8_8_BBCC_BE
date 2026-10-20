@@ -31,6 +31,7 @@ class AdminMemberApiTest {
 
     private static final String PATH = "/api/v1/admin/members";
     private static final String REASON = "욕설이 담긴 리뷰로 신고가 접수되었어요.";
+    private static final String ME_PATH = "/api/v1/members/me";
     private static final Long ADMIN_ID = 100L;
 
     @Autowired
@@ -153,6 +154,24 @@ class AdminMemberApiTest {
 
         client.post().uri("/api/v1/auth/reissue")
             .cookie("refresh_token", refreshToken)
+            .exchange()
+            .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @DisplayName("정지하면 정지 전에 발급된 Access Token은 바로 401이다")
+    void suspendRevokesAccessToken() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+        var accessToken = tokens.buyer(member.getId());
+        client.get().uri(ME_PATH)
+            .headers(headers -> headers.setBearerAuth(accessToken))
+            .exchange()
+            .expectStatus().isOk();
+
+        suspend(member.getId(), REASON).expectStatus().isNoContent();
+
+        client.get().uri(ME_PATH)
+            .headers(headers -> headers.setBearerAuth(accessToken))
             .exchange()
             .expectStatus().isUnauthorized();
     }
@@ -297,6 +316,24 @@ class AdminMemberApiTest {
         revokeAdmin(admin.getId(), ADMIN_ID).expectStatus().isNoContent();
 
         assertThat(memberRepository.findById(admin.getId()).orElseThrow().getRole()).isEqualTo(MemberRole.USER);
+    }
+
+    @Test
+    @DisplayName("관리자 권한을 해제하면 그 관리자가 가진 Access Token은 바로 401이다")
+    void revokeAdminRevokesAccessToken() {
+        var admin = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
+        var accessToken = tokens.admin(admin.getId());
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(accessToken))
+            .exchange()
+            .expectStatus().isOk();
+
+        revokeAdmin(admin.getId(), ADMIN_ID).expectStatus().isNoContent();
+
+        client.get().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(accessToken))
+            .exchange()
+            .expectStatus().isUnauthorized();
     }
 
     @Test

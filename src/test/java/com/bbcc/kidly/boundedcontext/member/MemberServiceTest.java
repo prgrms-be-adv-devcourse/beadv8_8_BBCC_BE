@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevoker;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
@@ -33,11 +34,15 @@ class MemberServiceTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    @Mock
+    private AccessTokenRevoker accessTokenRevoker;
+
     private MemberService memberService;
 
     @BeforeEach
     void setUp() {
-        memberService = new MemberService(memberRepository, new NicknamePolicy(memberRepository), eventPublisher);
+        memberService = new MemberService(memberRepository, new NicknamePolicy(memberRepository), eventPublisher,
+            accessTokenRevoker);
     }
 
     @Test

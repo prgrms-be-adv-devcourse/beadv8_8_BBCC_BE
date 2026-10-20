@@ -9,11 +9,12 @@ import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerService;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerSuspendRequest;
+import com.bbcc.kidly.global.security.JwtProperties;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 @IntegrationTest
 class SellerSuspensionIntegrationTest {
@@ -31,7 +32,7 @@ class SellerSuspensionIntegrationTest {
     private AuthTokenService authTokenService;
 
     @Autowired
-    private JwtDecoder jwtDecoder;
+    private JwtProperties jwtProperties;
 
     // 트랜잭션 없이 호출해야 커밋 뒤에 실행되는 회원 리스너가 돈다
     @Test
@@ -48,7 +49,9 @@ class SellerSuspensionIntegrationTest {
         sellerService.suspend(member.getId(), SellerFixture.ADMIN_ID, new SellerSuspendRequest("허위 상품 등록 신고"));
 
         assertThat(memberRepository.findById(member.getId()).orElseThrow().isActiveSeller()).isFalse();
-        var jwt = jwtDecoder.decode(authTokenService.issueAccessToken(memberRepository.getById(member.getId())));
+        // 역할만 확인한다. 무효화 검증이 있는 jwtDecoder는 같은 초에 발급한 토큰을 거절하므로 쓰지 않는다
+        var claimsDecoder = NimbusJwtDecoder.withPublicKey(jwtProperties.rsaPublicKey()).build();
+        var jwt = claimsDecoder.decode(authTokenService.issueAccessToken(memberRepository.getById(member.getId())));
         assertThat(jwt.getClaimAsStringList("roles")).doesNotContain("SELLER");
     }
 }

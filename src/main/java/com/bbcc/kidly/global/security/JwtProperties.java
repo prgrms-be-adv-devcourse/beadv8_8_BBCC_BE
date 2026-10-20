@@ -18,6 +18,14 @@ import org.springframework.security.converter.RsaKeyConverters;
 @ConfigurationProperties("jwt")
 public record JwtProperties(Resource publicKey, Resource privateKey, Duration accessTokenValidity) {
 
+    // JWT 만료 검증이 허용하는 시계 오차. SecurityConfig와 무효화 보존 기간이 함께 쓴다
+    public static final Duration CLOCK_SKEW = Duration.ofSeconds(60);
+
+    // 무효화 기록이 의미 있는 기간. 토큰은 만료 + 시계 오차까지 통과하므로 그만큼 들고 있는다
+    public Duration revocationRetention() {
+        return accessTokenValidity.plus(CLOCK_SKEW);
+    }
+
     public RSAPublicKey rsaPublicKey() {
         return read(publicKey, RsaKeyConverters.x509());
     }

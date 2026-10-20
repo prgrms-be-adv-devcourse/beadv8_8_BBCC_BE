@@ -26,6 +26,7 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final NicknamePolicy nicknamePolicy;
     private final EventPublisher eventPublisher;
+    private final AccessTokenRevoker accessTokenRevoker;
 
     @Transactional(readOnly = true)
     public MemberResult getMine(Long memberId) {
@@ -50,12 +51,12 @@ public class MemberService {
     // TODO 예치금 잔액이 0원인지 확인한다 (결제 도메인)
     // TODO 진행 중인 주문이 없는지 확인한다 (주문 도메인)
     // TODO 판매자인 회원의 판매자 · 상품을 처리한다 (판매자 · 상품 도메인)
-    // TODO 이미 발급된 Access Token을 즉시 무효화한다. 지금은 만료될 때까지 쓸 수 있다
     @Transactional
     public void withdraw(Long memberId) {
         var now = LocalDateTime.now();
         var member = memberRepository.getById(memberId);
         member.withdraw(now);
+        accessTokenRevoker.revoke(memberId, now);
         eventPublisher.publish(
             new MemberWithdrawnEvent(UUID.randomUUID(), now, new MemberWithdrawnEvent.Data(memberId)));
         log.info("회원 탈퇴: memberId={}", memberId);
