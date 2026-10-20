@@ -47,8 +47,8 @@ public class ChargeCancellation extends BaseTimeEntity {
 
     private LocalDateTime cancelledAt;
 
-    // PG 취소 실패 시 토스 오류 코드
-    @Column(length = 50)
+    // PG 취소 실패 시 토스 오류 코드. Charge.FAILURE_CODE_LENGTH자를 넘으면 잘라 남긴다
+    @Column(length = Charge.FAILURE_CODE_LENGTH)
     private String failureCode;
 
     private ChargeCancellation(Charge charge, long amount, String reason) {
@@ -68,7 +68,7 @@ public class ChargeCancellation extends BaseTimeEntity {
     }
 
     void fail(String failureCode) {
-        this.failureCode = failureCode;
+        this.failureCode = Charge.limitFailureCode(failureCode);
         this.status = ChargeCancellationStatus.FAILED;
     }
 }

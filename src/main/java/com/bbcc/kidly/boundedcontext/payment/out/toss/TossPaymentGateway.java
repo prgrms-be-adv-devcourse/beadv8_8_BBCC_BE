@@ -60,7 +60,11 @@ public class TossPaymentGateway implements PaymentGateway {
             .header(IDEMPOTENCY_KEY, idempotencyKey)
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("paymentKey", paymentKey, "orderId", orderId, "amount", amount));
-        return call(request, payment -> new PgResult.Success<>(payment.toApproval()), TossPaymentGateway::requestError);
+        // 승인 응답이 완료가 아니면(가상계좌 입금 대기 등) 아직 돈이 들어오지 않았다. 스케줄러가 조회로 확정한다
+        return call(request, payment -> DONE.equals(payment.status())
+            ? new PgResult.Success<>(payment.toApproval())
+            : new PgResult.Unknown<>("승인 응답이 완료 상태가 아닙니다: " + payment.status()),
+            TossPaymentGateway::requestError);
     }
 
     @Override

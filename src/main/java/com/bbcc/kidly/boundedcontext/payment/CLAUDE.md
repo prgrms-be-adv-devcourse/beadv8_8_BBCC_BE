@@ -32,9 +32,9 @@
 
 | 토스 결과 | 충전 | 지갑 · 원장 | 응답 |
 |---|---|---|---|
-| 승인 | DONE, paymentKey 암호화 저장 | 락으로 읽어 입금, 원장 `CHARGE`(ref_id = 충전 ID) | 200 |
-| 거절 | FAILED, 토스 오류 코드 저장 | 그대로 | 400 `CHARGE_REJECTED`(detail은 토스 메시지) |
-| 모름(시간 초과 · 5xx) | CONFIRMING 유지 | 그대로 | 202. 실패로 처리하지 않는다(돈이 빠져나갔을 수 있다) |
+| 승인(토스 결제 상태 `DONE`) | DONE, paymentKey 암호화 저장 | 락으로 읽어 입금, 원장 `CHARGE`(ref_id = 충전 ID) | 200 |
+| 거절 | FAILED, 토스 오류 코드 저장(`failure_code` 100자, 넘으면 잘라 저장) | 그대로 | 400 `CHARGE_REJECTED`(detail은 토스 메시지) |
+| 모름(시간 초과 · 5xx · 승인 응답이 `DONE`이 아님) | CONFIRMING 유지 | 그대로 | 202. 실패로 처리하지 않는다(돈이 빠져나갔을 수 있다). 입금 대기(`WAITING_FOR_DEPOSIT`) 같은 응답은 스케줄러 조회가 `DONE`일 때 입금한다(#485) |
 
 - 남의 지갑 충전은 없는 충전처럼 404 `CHARGE_NOT_FOUND`
 - 결제창이 실패 · 취소로 끝나면(failUrl) `POST /api/v1/wallets/me/charges/fail`(`orderId`, `code`)로 PENDING 충전을 바로 FAILED로 바꾼다(#437). 토스 오류 코드는 `failure_code`에 남긴다. 이미 FAILED면 그대로 200, 그 밖의 상태는 409. 실패로 바꾼 충전은 승인할 수 없다
@@ -44,6 +44,7 @@
 - 통합 · 기능 테스트는 토스 대신 `FakePaymentGateway`(결제 테스트 폴더, paymentKey로 결과 선택)를 쓴다
 - 끝나지 않은 충전은 `in.scheduler.ChargeScheduler`가 정리한다(#158). 주기 `kidly.payment.charge.reconcile-interval`(기본 1분)
   - 승인 중으로 `confirming-stale-after`(기본 5분) 넘게 남은 충전: 토스 조회로 승인 → 입금 / 승인 안 됨 → FAILED / 모름 → 다음 실행. 승인 금액이 다르면 반영하지 않고 ERROR
+    - 그사이 토스에서 부분 취소됐으면(`PARTIAL_CANCELED`) 반영하지 않고 승인 중으로 둔 채 ERROR를 남긴다(#485). 실패로 바꾸면 남은 결제액이 입금되지 않는다. 부분 취소는 운영자가 처리한다(웹훅과 같다)
   - 취소 중으로 `cancelling-stale-after`(기본 5분) 넘게 남은 충전: 같은 멱등 키로 토스 취소를 다시 불러 아래 취소 표대로 반영 / 모름 → 다음 실행
   - 만료 시각이 지난 PENDING 충전: EXPIRED
   - 충전 상태를 바꾸는 곳(승인 시작 · 승인 반영 · 실패 · 만료 · 취소)은 충전을 비관적 락으로 읽는다. 사용자 승인과 스케줄러가 겹쳐도 늦은 쪽이 바뀐 상태를 보고 멈춰 한 번만 입금한다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
@@ -135,7 +136,7 @@
 | `CHARGE_REQUESTED` | `ChargeService.request` | memberId, walletId, chargeId, amount |
 | `CHARGE_CONFIRM_STARTED` | `ChargeService.startConfirming` (CONFIRMING 커밋) | memberId, walletId, chargeId, amount |
 | `CHARGE_CONFIRMED` | `ChargeService.approve` (사용자 승인 · 스케줄러 조회) | memberId, walletId, chargeId, amount, balance |
-| `CHARGE_FAILED` | `ChargeService.fail` | walletId, chargeId, failureCode |
+| `CHARGE_FAILED` | `ChargeService.fail` · `abandon`(결제창 실패, 이미 실패면 남기지 않음) | walletId, chargeId, failureCode |
 | `CHARGE_EXPIRED` | `ChargeReconcileService.expire` | walletId, chargeId |
 | `CHARGE_CANCEL_REQUESTED` | `ChargeService.startCancel` (충전액 먼저 뺌) | memberId, walletId, chargeId, cancellationId, amount, balance |
 | `CHARGE_CANCELLED` | `ChargeService.completeCancel` | memberId, walletId, chargeId, amount, balance |

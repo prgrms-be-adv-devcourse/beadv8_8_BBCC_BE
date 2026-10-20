@@ -34,6 +34,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Charge extends BaseTimeEntity {
 
+    // 충전 · 충전 취소의 실패 코드 컬럼 길이
+    static final int FAILURE_CODE_LENGTH = 100;
+
+
     static final long MIN_AMOUNT = 1_000L;
     static final long MAX_AMOUNT = 1_000_000L;
 
@@ -64,8 +68,8 @@ public class Charge extends BaseTimeEntity {
 
     private LocalDateTime approvedAt;
 
-    // PG 승인 실패 시 토스 오류 코드
-    @Column(length = 50)
+    // PG 승인 실패 시 토스 오류 코드. FAILURE_CODE_LENGTH자를 넘으면 잘라 남긴다
+    @Column(length = FAILURE_CODE_LENGTH)
     private String failureCode;
 
     @OneToMany(mappedBy = "charge", cascade = CascadeType.ALL)
@@ -109,7 +113,7 @@ public class Charge extends BaseTimeEntity {
 
     public void fail(String failureCode) {
         requireStatus(ChargeStatus.CONFIRMING);
-        this.failureCode = failureCode;
+        this.failureCode = limitFailureCode(failureCode);
         this.status = ChargeStatus.FAILED;
     }
 
@@ -121,7 +125,7 @@ public class Charge extends BaseTimeEntity {
             return;
         }
         requireStatus(ChargeStatus.PENDING);
-        this.failureCode = failureCode;
+        this.failureCode = limitFailureCode(failureCode);
         this.status = ChargeStatus.FAILED;
     }
 
@@ -175,5 +179,11 @@ public class Charge extends BaseTimeEntity {
         if (status != expected) {
             throw new BusinessException(PaymentErrorCode.INVALID_CHARGE_STATUS);
         }
+    }
+
+    static String limitFailureCode(String failureCode) {
+        return failureCode != null && failureCode.length() > FAILURE_CODE_LENGTH
+            ? failureCode.substring(0, FAILURE_CODE_LENGTH)
+            : failureCode;
     }
 }

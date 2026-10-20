@@ -131,6 +131,18 @@ class ChargeReconcileServiceTest {
     }
 
     @Test
+    @DisplayName("승인 중에 토스에서 부분 취소됐으면 실패로 바꾸지 않고 그대로 둔다 (운영자 확인)")
+    void reconcilePartialCanceled() {
+        given(paymentGateway.findByOrderId(TOSS_ORDER_ID)).willReturn(
+            new PgResult.Rejected<>(PaymentGateway.PARTIAL_CANCELED, "승인 후 취소된 결제입니다"));
+
+        chargeReconcileService.reconcile(TARGET);
+
+        then(chargeService).should(never()).approve(any(), any());
+        then(chargeService).should(never()).fail(any(), any());
+    }
+
+    @Test
     @DisplayName("아직 결과를 모르면 아무것도 바꾸지 않는다")
     void reconcileUnknown() {
         given(paymentGateway.findByOrderId(TOSS_ORDER_ID)).willReturn(new PgResult.Unknown<>("timeout"));
