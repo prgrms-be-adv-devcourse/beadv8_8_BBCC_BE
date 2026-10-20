@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.member;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationCache;
+import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.ShippingAddressService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.ShippingAddressRequest;
@@ -56,7 +56,7 @@ class MemberServiceIntegrationTest {
     private ApplicationEvents events;
 
     @Autowired
-    private AccessTokenRevocationCache accessTokenRevocationCache;
+    private AccessTokenRevocationService accessTokenRevocationService;
 
     @Test
     @DisplayName("탈퇴하면 소셜 계정을 지우고 탈퇴 이벤트를 발행하며, 이벤트를 받아 배송지 · 기본 배송지를 지운다")
@@ -90,7 +90,7 @@ class MemberServiceIntegrationTest {
 
         memberService.withdraw(memberId);
 
-        assertThat(accessTokenRevocationCache.isRevoked(memberId, Instant.now().minusSeconds(60))).isTrue();
+        assertThat(accessTokenRevocationService.isRevoked(memberId, Instant.now().minusSeconds(60))).isTrue();
     }
 
     @Test

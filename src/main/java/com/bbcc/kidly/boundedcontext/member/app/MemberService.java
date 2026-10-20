@@ -26,7 +26,7 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final NicknamePolicy nicknamePolicy;
     private final EventPublisher eventPublisher;
-    private final AccessTokenRevoker accessTokenRevoker;
+    private final AccessTokenRevocationService accessTokenRevocationService;
 
     @Transactional(readOnly = true)
     public MemberResult getMine(Long memberId) {
@@ -56,7 +56,7 @@ public class MemberService {
         var now = LocalDateTime.now();
         var member = memberRepository.getById(memberId);
         member.withdraw(now);
-        accessTokenRevoker.revoke(memberId, now);
+        accessTokenRevocationService.revoke(memberId, now);
         eventPublisher.publish(
             new MemberWithdrawnEvent(UUID.randomUUID(), now, new MemberWithdrawnEvent.Data(memberId)));
         log.info("회원 탈퇴: memberId={}", memberId);

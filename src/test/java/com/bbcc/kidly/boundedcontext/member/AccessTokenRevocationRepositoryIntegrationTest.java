@@ -15,7 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 @IntegrationTest
 class AccessTokenRevocationRepositoryIntegrationTest {
 
-    // Cleaner가 테스트 도중 돌아도 지워지지 않도록 지금 시각 기준으로 잡는다. DB 정밀도(마이크로초)에 맞춘다
+    // 정리 스케줄러가 테스트 도중 돌아도 지워지지 않도록 지금 시각 기준으로 잡는다. DB 정밀도(마이크로초)에 맞춘다
     private static final LocalDateTime NOW = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
 
     @Autowired
