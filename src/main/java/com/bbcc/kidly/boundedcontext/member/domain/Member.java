@@ -146,11 +146,14 @@ public class Member extends BaseTimeEntity {
     }
 
     // 판매자 상태 복사본을 갱신한다. 저장된 값보다 늦게 일어난 변경만 반영한다
-    public void applySellerState(SellerStatus status, LocalDateTime occurredAt) {
+    // SELLER 역할을 잃었으면(활성 판매자였다가 아니게 됐으면) true
+    public boolean applySellerState(SellerStatus status, LocalDateTime occurredAt) {
+        var wasActiveSeller = isActiveSeller();
         var changed = new SellerState(status, occurredAt);
         if (sellerState == null || sellerState.isOlderThan(changed)) {
             this.sellerState = changed;
         }
+        return wasActiveSeller && !isActiveSeller();
     }
 
     public boolean isActiveSeller() {

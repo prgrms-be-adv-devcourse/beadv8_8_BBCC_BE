@@ -25,10 +25,8 @@ public class SellerStateService {
     public void apply(Long sellerId, SellerStatus status, LocalDateTime occurredAt) {
         var member = memberRepository.findById(sellerId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        var wasActiveSeller = member.isActiveSeller();
-        member.applySellerState(status, occurredAt);
         // SELLER 역할을 잃었으면 지금 토큰의 SELLER도 바로 막는다
-        if (wasActiveSeller && !member.isActiveSeller()) {
+        if (member.applySellerState(status, occurredAt)) {
             accessTokenRevoker.revoke(sellerId, LocalDateTime.now());
         }
         log.info("판매자 상태 반영: memberId={} status={}", sellerId, status);

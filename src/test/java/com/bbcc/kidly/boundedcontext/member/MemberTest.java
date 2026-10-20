@@ -316,6 +316,24 @@ class MemberTest {
     }
 
     @Test
+    @DisplayName("활성 판매자가 정지되면 SELLER 역할을 잃었으니 true를 돌려준다")
+    void applySellerStateReturnsTrueWhenRoleLost() {
+        Member member = MemberFixture.withSellerState(SellerStatus.ACTIVE);
+
+        assertThat(member.applySellerState(SellerStatus.SUSPENDED, NOW.plusDays(1))).isTrue();
+    }
+
+    @Test
+    @DisplayName("승인 · 이미 정지 · 무시되는 오래된 이벤트는 SELLER 역할을 잃은 게 아니라 false를 돌려준다")
+    void applySellerStateReturnsFalseWhenRoleNotLost() {
+        assertThat(MemberFixture.kakaoMember().applySellerState(SellerStatus.ACTIVE, NOW)).isFalse();
+        assertThat(MemberFixture.withSellerState(SellerStatus.SUSPENDED)
+            .applySellerState(SellerStatus.SUSPENDED, NOW.plusDays(1))).isFalse();
+        assertThat(MemberFixture.withSellerState(SellerStatus.ACTIVE)
+            .applySellerState(SellerStatus.SUSPENDED, NOW.minusDays(1))).isFalse();
+    }
+
+    @Test
     @DisplayName("저장된 값보다 이르거나 같은 시각의 판매자 상태 변경은 무시한다")
     void applySellerStateIgnoresEarlierOrEqual() {
         Member member = MemberFixture.withSellerState(SellerStatus.SUSPENDED);
