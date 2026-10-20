@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
+import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationCache;
 import com.bbcc.kidly.boundedcontext.member.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
@@ -13,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.RefreshTokenRepository;
 import com.bbcc.kidly.boundedcontext.member.out.JpaRefreshTokenRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -46,6 +48,9 @@ class RefreshTokenServiceIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private AccessTokenRevocationCache accessTokenRevocationCache;
 
     @Test
     @DisplayName("발급하면 원문은 돌려주고 DB에는 14일짜리 해시만 저장한다")
@@ -135,6 +140,19 @@ class RefreshTokenServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("재사용을 감지하면 이미 발급된 Access Token도 바로 무효화한다")
+    void reusedTokenRevokesAccessToken() {
+        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
+        var oldToken = refreshTokenService.issue(memberId);
+        refreshTokenService.reissue(oldToken);
+        rotatedSecondsAgo(memberId, 11);
+
+        assertInvalid(() -> refreshTokenService.reissue(oldToken));
+
+        assertThat(accessTokenRevocationCache.isRevoked(memberId, Instant.now().minusSeconds(60))).isTrue();
+    }
+
+    @Test
     @DisplayName("교체 직후 직전 토큰이 오면 동시 재발급으로 보고 거절만 한다")
     void reusedWithinGraceOnlyRejects() {
         var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
@@ -145,6 +163,7 @@ class RefreshTokenServiceIntegrationTest {
 
         assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
         assertThat(refreshTokenService.reissue(newToken).member().getId()).isEqualTo(memberId);
+        assertThat(accessTokenRevocationCache.isRevoked(memberId, Instant.now().minusSeconds(60))).isFalse();
     }
 
     @Test
