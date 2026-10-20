@@ -85,15 +85,12 @@ class SettlementItemTest {
     }
 
     @Test
-    @DisplayName("이미 정산했거나 제외한 항목은 다시 정산하지 않는다")
+    @DisplayName("이미 정산한 항목은 다시 정산하지 않는다")
     void settleRejectsNotPending() {
         var settled = SettlementFixture.item(101L);
         settled.settle(7L);
-        var excluded = SettlementFixture.item(102L);
-        excluded.exclude();
 
         assertThatThrownBy(() -> settled.settle(8L)).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> excluded.settle(8L)).isInstanceOf(IllegalStateException.class);
         assertThat(settled.getSettlementId()).isEqualTo(7L);
     }
 
@@ -101,27 +98,6 @@ class SettlementItemTest {
     @DisplayName("정산서 ID 없이 정산하지 않는다")
     void settleRejectsNull() {
         assertThatThrownBy(() -> SettlementFixture.item(101L).settle(null)).isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
-    @DisplayName("대기 항목을 제외하고, 다시 제외해도 그대로다")
-    void exclude() {
-        var item = SettlementFixture.item(101L);
-
-        item.exclude();
-        item.exclude();
-
-        assertThat(item.getStatus()).isEqualTo(SettlementItemStatus.EXCLUDED);
-    }
-
-    @Test
-    @DisplayName("정산된 항목은 제외하지 않는다")
-    void excludeRejectsSettled() {
-        var item = SettlementFixture.item(101L);
-        item.settle(7L);
-
-        assertThatThrownBy(item::exclude).isInstanceOf(IllegalStateException.class);
-        assertThat(item.getStatus()).isEqualTo(SettlementItemStatus.SETTLED);
     }
 
     @Test

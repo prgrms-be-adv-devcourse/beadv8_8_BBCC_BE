@@ -93,13 +93,4 @@ public class SettlementItem extends BaseTimeEntity {
         this.settlementId = settlementId;
         this.status = SettlementItemStatus.SETTLED;
     }
-
-    // 같은 제외가 다시 와도 그대로 둔다. 정산서에 들어간 항목은 제외할 수 없다
-    public void exclude() {
-        if (status == SettlementItemStatus.EXCLUDED) {
-            return;
-        }
-        Assert.state(status == SettlementItemStatus.PENDING, "정산된 항목은 제외할 수 없습니다");
-        this.status = SettlementItemStatus.EXCLUDED;
-    }
 }

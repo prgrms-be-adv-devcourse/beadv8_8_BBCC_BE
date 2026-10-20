@@ -5,6 +5,5 @@ package com.bbcc.kidly.boundedcontext.settlement.domain;
  */
 public enum SettlementItemStatus {
     PENDING,
-    SETTLED,
-    EXCLUDED
+    SETTLED
 }
