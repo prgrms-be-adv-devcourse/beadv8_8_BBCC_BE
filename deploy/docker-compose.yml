@@ -41,7 +41,8 @@ services:
       retries: 10
     restart: unless-stopped
     logging: *logging
-    # ports 없음. 외부와 다른 컨테이너 프로젝트에서 접근 불가
+    ports:
+      - "127.0.0.1:${DB_PORT}:5432"     # 외부 비공개. 팀원이 SSH 터널로 IntelliJ 에서 붙는다
 
 volumes:
   postgres-data:
