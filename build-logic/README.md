@@ -10,12 +10,13 @@
 |---|---|---|
 | `kidly.java-conventions` | 모든 모듈 (아래 플러그인이 포함) | Java 25 toolchain, Checkstyle(루트 `config/checkstyle`), Lombok, Boot BOM, 단위 테스트 의존, `-parameters` 컴파일, JUnit Platform |
 | `kidly.library` | `shared`, `common` | `java-library`. 공개 시그니처에 나오는 의존을 `api`로 넘길 수 있게 한다 |
-| `kidly.domain` | `domains/*` | `kidly.library` + `common` · `shared` + 도메인 공통 스택(webmvc · validation · data-jpa · QueryDSL) + `java-test-fixtures` |
+| `kidly.domain` | `domains/*` | `kidly.library` + `kidly.arch-test` + `common` · `shared` + 도메인 공통 스택(webmvc · validation · data-jpa · QueryDSL) + `java-test-fixtures`. 다른 도메인 모듈에 의존하면 빌드가 실패한다 |
+| `kidly.arch-test` | `domains/*`, `apps/kidly-app` | `archTest` 태스크(ArchUnit 테스트 `com.bbcc.kidly.architecture.*`만 실행, `test`에서는 뺌)와 `:architecture` 공통 규칙 의존 |
 | `kidly.boot-app` | `apps/*` | Spring Boot 플러그인(`bootJar` · `bootRun`), 테스트 태스크 분리(`test` · `integrationTest` · `functionalTest`), 실행 · 테스트 작업 디렉터리를 루트로 |
 
 - 버전은 루트의 `gradle/libs.versions.toml`(version catalog) 한 곳에 있다. 이 빌드도 `settings.gradle.kts`에서 같은 파일을 읽는다
 - 저장소는 루트 `settings.gradle.kts`의 `dependencyResolutionManagement`에서만 선언한다. 모듈 빌드 파일에 `repositories {}`를 넣으면 빌드가 실패한다(`FAIL_ON_PROJECT_REPOS`)
-- `archTest`는 플러그인이 아니라 `apps/kidly-app/build.gradle.kts`에 있다 (아래 4)
+- `archTest`는 `kidly.arch-test`가 넣는다 (아래 4)
 
 ## 왜 이렇게 했나
 
@@ -54,7 +55,7 @@
 |---|---|---|
 | `test` | 모든 모듈 | 단위 테스트. 도메인 모듈의 `test`는 태그를 빼지 않는다: 태그 붙은 테스트가 도메인 모듈에 잘못 들어오면 돌릴 태스크가 없어 조용히 빠지기보다 `test`에서 드러나는 편이 낫다 |
 | `integrationTest` · `functionalTest` (태그) | `kidly.boot-app` | 전체 컨텍스트 · 마이그레이션 · test 리소스가 있는 앱(서비스)에서만 돈다. 앱의 `test`는 이 태그를 뺀다 |
-| `archTest` | `apps/kidly-app/build.gradle.kts` | 모든 모듈 코드가 모이는 앱에서 경계 규칙을 검사한다. 플러그인에 두면 테스트가 없는 서비스 모듈의 `check`가 `No tests found`로 실패한다 |
+| `archTest` | `kidly.arch-test` (`domains/*`, `apps/kidly-app`) | 도메인 모듈은 자기 안의 계층 규칙(`LayerRules`)을, `kidly-app`은 모듈 사이 경계 규칙(`ArchitectureTest`)을 검사한다. 테스트가 있는데 규칙 테스트가 없으면 `No tests found`로 실패한다. 그래서 `kidly.boot-app`에는 넣지 않는다(규칙 테스트가 없는 서비스 모듈이 실패한다) |
 
 CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `functionalTest`를 부른다. 이름으로 부르면 그 태스크가 있는 모듈에서만 돈다.
 
@@ -73,6 +74,7 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
 | Fixture · 테스트 헬퍼 중 **단위 테스트가 쓰는 것** (와 그것이 쓰는 헬퍼) | 같은 곳 | `domains/{d}/src/testFixtures/java/...` |
 | 도메인 전용 리소스 (`{d}.yml`, `data/{d}/**`) | `apps/kidly-app/src/main/resources` | `domains/{d}/src/main/resources` |
 | 통합 · 기능 테스트(`@IntegrationTest` · `@FunctionalTest`)와 그것만 쓰는 헬퍼 | | 앱에 남긴다 |
+| 계층 규칙 테스트 | `domains/member/src/test/java/com/bbcc/kidly/architecture/LayerArchitectureTest.java` | `domains/{d}/src/test/java/com/bbcc/kidly/architecture/`에 **복사**한다. 빠뜨리면 `archTest`가 `No tests found`로 실패한다 |
 
 - 앱에 남는 것: `KidlyApplication`, `application*.yml`, `logback-spring.xml`, `db/migration`(기존 파일), `support` · `scenario` · `architecture` 테스트, test 리소스
 - 테스트 Fixture는 `src/testFixtures`에 두면 그 도메인 단위 테스트와 앱(나중엔 서비스)의 통합 테스트가 같이 쓴다. 앱은 모든 도메인의 `testFixtures(...)`를 이미 의존한다
@@ -146,6 +148,8 @@ Flyway 파일이 전부 `kidly-app`에 있어 서비스는 자기 테이블을 �
   모듈 빌드 파일(`common/build.gradle.kts` 등)에서는 `libs.querydsl.jpa`처럼 그냥 쓴다
 - QueryDSL apt의 `:jpa` classifier는 catalog에 넣을 수 없어 쓰는 곳에서 붙인다: `variantOf(libs.querydsl.apt) { classifier("jpa") }`
 - `common`이 `api`로 내보내는 의존(webmvc · data-jpa · resource-server)은 도메인 모듈 컴파일 클래스패스에도 들어간다
+- 경계 검사는 둘로 나뉜다. **도메인 사이 참조는 Gradle 의존으로 막고**(`kidly.domain`이 다른 `:domains:*` 의존을 거부한다), **모듈 안의 계층 규칙은 도메인 모듈마다 ArchUnit으로** 검사한다(`:architecture`의 `LayerRules`). 서비스를 떼어 앱에서 도메인을 빼도 검사가 도메인 모듈과 함께 남는다
+- `LayerRules`의 계층 규칙은 계층이 없는 도메인을 위해 빈 대상을 허용한다. 대신 `DOMAIN_CLASSES_EXIST`가 도메인 클래스가 하나도 없으면 실패시켜 검사가 조용히 빠지지 않게 한다
 - ArchUnit은 테스트 클래스패스의 모듈 jar까지 검사하므로 도메인 모듈 코드도 앱의 `archTest`에서 검사된다. `*-test-fixtures.jar`는 `DoNotIncludeTestFixtures`로 뺀다(테스트 코드라서)
 - Boot 플러그인이 없는 모듈은 `-parameters` 없이 컴파일되어 `@PathVariable` · `@Query`의 이름 생략 바인딩이 실패하므로 `kidly.java-conventions`가 넣는다
 - 설정의 상대 경로(`file:config/jwt/...`, `.env`)가 루트 기준이라 `bootRun`과 테스트는 루트에서 실행된다(`kidly.boot-app`)
