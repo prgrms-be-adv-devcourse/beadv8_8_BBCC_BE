@@ -1,6 +1,6 @@
 .git
-build
-.gradle
+**/build
+**/.gradle
 .idea
 .env*
 docs

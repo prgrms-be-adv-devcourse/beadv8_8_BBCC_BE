@@ -47,7 +47,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: reports-unit
-          path: build/reports/
+          path: '**/build/reports/'
           retention-days: 7
 
   integration:
@@ -71,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: reports-integration
-          path: build/reports/
+          path: '**/build/reports/'
           retention-days: 7
 
   functional:
@@ -95,7 +95,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: reports-functional
-          path: build/reports/
+          path: '**/build/reports/'
           retention-days: 7
 
   # 브랜치 보호의 필수 검사(build). 세 job이 모두 성공해야 통과한다 (하나라도 실패 · 취소면 실패)

@@ -1,9 +1,11 @@
 # 빌드 스테이지
 FROM eclipse-temurin:25-jdk AS build
 WORKDIR /workspace
+# 빌드할 앱 모듈(apps/ 아래 폴더 이름). 다른 서비스는 --build-arg APP=xxx-service
+ARG APP=kidly-app
 COPY . .
-RUN ./gradlew bootJar --no-daemon \
-    && cp build/libs/*.jar app.jar
+RUN ./gradlew :apps:${APP}:bootJar --no-daemon \
+    && cp apps/${APP}/build/libs/*.jar app.jar
 
 # 실행 스테이지
 FROM eclipse-temurin:25-jre
