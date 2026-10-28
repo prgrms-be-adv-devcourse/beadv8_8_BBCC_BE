@@ -2,8 +2,8 @@
 FROM eclipse-temurin:25-jdk AS build
 WORKDIR /workspace
 COPY . .
-RUN ./gradlew bootJar --no-daemon \
-    && cp build/libs/*.jar app.jar
+RUN ./gradlew :apps:kidly-app:bootJar --no-daemon \
+    && cp apps/kidly-app/build/libs/*.jar app.jar
 
 # 실행 스테이지
 FROM eclipse-temurin:25-jre
