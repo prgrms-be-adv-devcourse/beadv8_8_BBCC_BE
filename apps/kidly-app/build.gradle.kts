@@ -5,6 +5,16 @@ plugins {
 dependencies {
     implementation(project(":common"))
     implementation(project(":shared"))
+    implementation(project(":domains:member"))
+    implementation(project(":domains:seller"))
+    implementation(project(":domains:childprofile"))
+    implementation(project(":domains:setting"))
+    implementation(project(":domains:notification"))
+    implementation(project(":domains:product"))
+    implementation(project(":domains:recommend"))
+    implementation(project(":domains:order"))
+    implementation(project(":domains:payment"))
+    implementation(project(":domains:settlement"))
 
     // Web
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
