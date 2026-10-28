@@ -5,16 +5,15 @@ plugins {
 dependencies {
     implementation(project(":common"))
     implementation(project(":shared"))
-    implementation(project(":domains:member"))
-    implementation(project(":domains:seller"))
-    implementation(project(":domains:childprofile"))
-    implementation(project(":domains:setting"))
-    implementation(project(":domains:notification"))
-    implementation(project(":domains:product"))
-    implementation(project(":domains:recommend"))
-    implementation(project(":domains:order"))
-    implementation(project(":domains:payment"))
-    implementation(project(":domains:settlement"))
+
+    // 도메인 모듈과 그 Fixture(src/testFixtures). 통합 · 기능 테스트가 도메인 Fixture를 쓴다
+    listOf(
+        "member", "seller", "childprofile", "setting", "notification",
+        "product", "recommend", "order", "payment", "settlement",
+    ).forEach { domain ->
+        implementation(project(":domains:$domain"))
+        testImplementation(testFixtures(project(":domains:$domain")))
+    }
 
     // Web
     implementation("org.springframework.boot:spring-boot-starter-webmvc")

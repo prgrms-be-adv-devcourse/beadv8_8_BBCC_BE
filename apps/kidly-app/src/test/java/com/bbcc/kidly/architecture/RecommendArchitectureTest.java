@@ -15,7 +15,8 @@ import org.springframework.http.HttpStatus;
  * 추천 모듈 안의 계층 규칙.
  * 모듈 사이 규칙과 계층 의존 방향은 {@link ArchitectureTest}가 검사한다.
  */
-@AnalyzeClasses(packages = "com.bbcc.kidly", importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = "com.bbcc.kidly",
+    importOptions = {ImportOption.DoNotIncludeTests.class, DoNotIncludeTestFixtures.class})
 class RecommendArchitectureTest {
 
     private static final String DOMAIN = "com.bbcc.kidly.boundedcontext.recommend.domain..";

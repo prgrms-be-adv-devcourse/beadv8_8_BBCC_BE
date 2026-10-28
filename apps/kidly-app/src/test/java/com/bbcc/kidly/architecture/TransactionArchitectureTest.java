@@ -23,7 +23,8 @@ import org.springframework.transaction.support.DefaultTransactionDefinition;
  * 트랜잭션이 끝나면 DB 연결을 돌려주는 Hibernate 설정(application.yml) 아래에서 실행할 때 실패하는 코드를 빌드에서 막는다.
  * 이 설정에서는 Spring이 트랜잭션을 시작할 때 DB 연결을 미리 준비하지 못해, 격리 수준을 지정한 트랜잭션을 거부한다.
  */
-@AnalyzeClasses(packages = "com.bbcc.kidly", importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = "com.bbcc.kidly",
+    importOptions = {ImportOption.DoNotIncludeTests.class, DoNotIncludeTestFixtures.class})
 class TransactionArchitectureTest {
 
     @ArchTest

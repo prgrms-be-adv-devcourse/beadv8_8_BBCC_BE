@@ -27,7 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
  *         └──▶ app/port ◀── out (포트 구현)
  * </pre>
  */
-@AnalyzeClasses(packages = "com.bbcc.kidly", importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = "com.bbcc.kidly",
+    importOptions = {ImportOption.DoNotIncludeTests.class, DoNotIncludeTestFixtures.class})
 class OrderArchitectureTest {
 
     private static final String ORDER = "com.bbcc.kidly.boundedcontext.order";

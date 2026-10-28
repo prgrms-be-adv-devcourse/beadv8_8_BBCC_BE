@@ -19,7 +19,8 @@ import java.util.stream.Stream;
  * 모듈러 모놀리스의 경계를 지킨다.
  * 도메인끼리는 서로의 코드를 참조하지 않고, shared의 계약(이벤트)으로만 주고받는다.
  */
-@AnalyzeClasses(packages = "com.bbcc.kidly", importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = "com.bbcc.kidly",
+    importOptions = {ImportOption.DoNotIncludeTests.class, DoNotIncludeTestFixtures.class})
 class ArchitectureTest {
 
     private static final String BASE = "com.bbcc.kidly";
