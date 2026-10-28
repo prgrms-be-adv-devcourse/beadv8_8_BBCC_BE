@@ -7,7 +7,8 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
       properties:
-        # 브로커가 꺼져 있으면 send가 메타데이터를 기다리며 기본 60초 멈춘다. 커밋 뒤 요청 스레드에서 보내므로 짧게 둔다
+        # 브로커가 꺼져 있으면 send가 메타데이터를 기다리며 기본 60초 멈춘다. 커밋 뒤 요청 스레드에서 이벤트마다 기다리므로 짧게 둔다.
+        # 1초는 안 된다: 아직 없는 토픽에 처음 보낼 때는 브로커가 토픽을 만드는 동안(테스트에서 1.7초) 기다려야 한다
         max.block.ms: 3000
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer

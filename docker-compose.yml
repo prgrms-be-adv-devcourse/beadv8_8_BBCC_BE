@@ -46,6 +46,8 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # 메시지 보존 7일(기본값을 명시). 주말에 EC2가 멈춰도 남고, 이벤트의 개인정보(가입 이메일 등)도 7일 뒤 지워진다
+      KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_HEAP_OPTS: -Xms256m -Xmx256m
     ports:
       - "9092:9092"
