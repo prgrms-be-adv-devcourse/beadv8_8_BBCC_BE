@@ -42,7 +42,7 @@
     - 그래서 서비스는 엔티티 대신 `app.dto`의 결과를 돌려주고, XxxResponse는 그 결과로 만든다
   - 도메인끼리는 서로의 코드를 참조하지 않는다. `shared`의 이벤트로만 주고받는다
 - 각 도메인은 자기 DB 스키마만 쓴다: `member`, `product`, `recommend`, `orders`, `payment`, `settlement`, `setting`
-- 경계 규칙은 `src/test/java/com/bbcc/kidly/architecture/ArchitectureTest.java`에서 검사한다
+- 경계 규칙: 도메인 사이 참조는 Gradle 의존으로 막고(`kidly.domain`), 모듈 사이 규칙은 `apps/kidly-app`의 `ArchitectureTest`, 모듈 안의 계층 규칙은 도메인 모듈마다 `LayerArchitectureTest`(`architecture` 모듈의 `LayerRules`)가 검사한다
 
 ## 코드 컨벤션
 - TDD (RED → GREEN → REFACTOR)
@@ -77,7 +77,7 @@
 
 - 통과한 검사는 새 변경 · 실패 · 미해결 우려가 없으면 다시 돌리지 않는다. 환경 때문에 못 돌린 검사는 미검증으로, 부분 통과는 부분 통과로 보고한다.
 - 검사 실패 시: 환경 문제(Docker · 네트워크 · DB 연결)는 고치려 하지 않고 미검증으로 보고한다. 의존성 충돌은 `[승인 요청]`. 범위 안의 코드 오류는 스스로 고치되, 같은 원인으로 2회 연속 실패하면 멈추고 시도한 내용과 원인을 보고한다.
-- ArchUnit은 `구조` 절의 경계 · 계층 의존 규칙을 검사하며(`ArchitectureTest`), 신규 클래스가 검사 대상에 실제 포함되는지 확인한다. 예외를 추가하지 않는다.
+- ArchUnit은 `구조` 절의 경계 · 계층 의존 규칙을 검사하며(`ArchitectureTest` · `LayerRules`), 신규 클래스가 검사 대상에 실제 포함되는지 확인한다. 예외를 추가하지 않는다.
 - Java 25 · Spring Boot 4.1 · PostgreSQL 18과 기존 Gradle 설정을 유지한다. 새 의존성 · 검사 기준 · 외부 서비스는 승인 후 도입한다.
 
 ## DB 명명

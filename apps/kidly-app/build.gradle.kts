@@ -1,5 +1,7 @@
 plugins {
     id("kidly.boot-app")
+    // 모듈 사이 경계 규칙(ArchitectureTest)을 검사한다. 모듈 안의 계층 규칙은 도메인 모듈마다 검사한다
+    id("kidly.arch-test")
 }
 
 dependencies {
@@ -46,24 +48,4 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
-    testImplementation(libs.archunit.junit5)
-}
-
-// ArchUnit 경계 규칙은 모든 모듈 코드가 모이는 이 앱에서만 검사한다. archTest로 분리해 CI에서 단계별로 실패 원인을 구분한다
-val architecturePackage = "com.bbcc.kidly.architecture.*"
-
-val archTest = tasks.register<Test>("archTest") {
-    description = "ArchUnit으로 모듈 경계 규칙을 검사한다"
-    group = "verification"
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
-    filter.includeTestsMatching(architecturePackage)
-}
-
-tasks.test {
-    filter.excludeTestsMatching(architecturePackage)
-}
-
-tasks.check {
-    dependsOn(archTest)
 }

@@ -8,7 +8,7 @@ import com.tngtech.archunit.core.importer.Location;
  * {@link ImportOption.DoNotIncludeTests}는 test 출력 폴더만 알아서 *-test-fixtures.jar는 운영 코드로 들어온다.
  * 규칙 예외가 아니라 원래 범위(테스트 코드 제외)를 되돌리는 것이다.
  */
-class DoNotIncludeTestFixtures implements ImportOption {
+public class DoNotIncludeTestFixtures implements ImportOption {
 
     @Override
     public boolean includes(Location location) {
