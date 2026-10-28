@@ -29,9 +29,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
 
-    // 일괄 처리 (정산 실행): settlement가 옮겨지면 지운다
-    implementation("org.springframework.boot:spring-boot-starter-batch-jdbc")
-
     // 상품 이미지 업로드 주소(S3Presigner): product가 옮겨지면 지운다
     implementation(libs.aws.s3)
 
