@@ -736,6 +736,50 @@ class OrderServiceTest {
             assertThat(paidAfterCancelLines(output, "WARN", "orderId=" + ORDER_ID + " paymentId=null")).isEqualTo(1);
         }
 
+        @Test
+        @DisplayName("동시 변경에 진 결제 완료: 다시 읽은 주문이 취소됐으면 환불 확인 WARN 한 줄을 남기고 true (#519)")
+        void lostToCancelLogsPaidAfterCancel(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            order.cancel(Order.CancelReason.OUT_OF_STOCK);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            boolean warned = orderService.warnIfPaidAfterCancel(
+                new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of()));
+
+            assertThat(warned).isTrue();
+            assertThat(paidAfterCancelLines(output, "WARN",
+                "orderId=" + ORDER_ID + " paymentId=500 amount=50000 cancelReason=OUT_OF_STOCK")).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("동시 변경에 진 결제 완료: 다시 읽은 주문이 취소가 아니면(이긴 쪽이 결제완료) 로그 없이 false (#519)")
+        void lostToPaidLogsNothing(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            boolean warned = orderService.warnIfPaidAfterCancel(
+                new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of()));
+
+            assertThat(warned).isFalse();
+            assertThat(output).doesNotContain("paid-after-cancel");
+        }
+
+        @Test
+        @DisplayName("동시 변경에 진 결제 완료: 같은 결제 ID로 결제완료된 뒤 취소된 주문이면 이미 반영한 중복이라 WARN 없이 false (#519)")
+        void lostToPaidThenCancelledLogsNothing(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
+            order.cancel(Order.CancelReason.BUYER_CANCELLED);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            boolean warned = orderService.warnIfPaidAfterCancel(
+                new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of()));
+
+            assertThat(warned).isFalse();
+            assertThat(output).doesNotContain("paid-after-cancel");
+        }
+
         private long paidAfterCancelLines(CapturedOutput output, String level, String text) {
             return output.getAll().lines()
                 .filter(line -> line.contains(level) && line.contains("결제 쪽이 환불 처리, 환불 여부 확인 필요")

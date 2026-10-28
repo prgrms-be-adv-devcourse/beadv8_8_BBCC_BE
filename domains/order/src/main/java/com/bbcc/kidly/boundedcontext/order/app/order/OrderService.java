@@ -49,6 +49,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -188,16 +189,11 @@ public class OrderService {
         TransitionResult result = order.markPaid(command.paymentId(), command.memberId(), command.amount(),
             toPaidItems(command.items()), now);
         if (result == TransitionResult.NOT_APPLICABLE && order.getStatus() == Order.Status.CANCELLED) {
-            // 결제 ID가 없으면 같은 결제인지 알 수 없으므로 중복으로 보지 않는다(환불 확인 WARN 그대로)
-            if (order.getPaidAt() != null && command.paymentId() != null
-                && Objects.equals(order.getPaymentId(), command.paymentId())) {
+            if (isAlreadyPaidBy(order, command)) {
                 logIgnored("payment.completed", order, result);
                 return false;
             }
-            log.warn("취소된 주문에 결제 완료 — 결제 쪽이 환불 처리, 환불 여부 확인 필요: event=payment.completed "
-                    + "reason=paid-after-cancel "
-                    + "orderId={} paymentId={} amount={} cancelReason={}",
-                command.orderId(), command.paymentId(), command.amount(), order.getCancelReason());
+            warnPaidAfterCancel(command, order);
             return false;
         }
         if (result != TransitionResult.APPLIED) {
@@ -208,6 +204,36 @@ public class OrderService {
             order.getStatus(), null, now));
         log.info("결제완료: orderId={} paymentId={}", order.getId(), command.paymentId());
         return true;
+    }
+
+    /**
+     * 결제 완료 반영이 동시 변경에 져 되돌려질 때(#519), 이긴 쪽이 주문을 취소했으면 취소된 주문에 온 결제 완료와 같으므로
+     * 환불 확인 WARN을 남긴다. 진 쪽이 읽어 둔 주문은 낡았고 그 트랜잭션은 되돌려지므로 새 트랜잭션에서 다시 읽는다.
+     *
+     * @return 환불 확인 WARN을 남겼으면 true. 주문이 없거나 취소가 아니거나 이미 반영한 결제면 false(로그 없음)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public boolean warnIfPaidAfterCancel(MarkPaidCommand command) {
+        Order order = orderRepository.findById(command.orderId()).orElse(null);
+        if (order == null || order.getStatus() != Order.Status.CANCELLED || isAlreadyPaidBy(order, command)) {
+            return false;
+        }
+        warnPaidAfterCancel(command, order);
+        return true;
+    }
+
+    // 결제완료 뒤 취소된 주문에 같은 결제 ID로 다시 온 결제 완료 = 이미 반영한 중복(#354-1).
+    // 결제 ID가 없으면 같은 결제인지 알 수 없으므로 중복으로 보지 않는다(환불 확인 WARN 그대로)
+    private static boolean isAlreadyPaidBy(Order order, MarkPaidCommand command) {
+        return order.getPaidAt() != null && command.paymentId() != null
+            && Objects.equals(order.getPaymentId(), command.paymentId());
+    }
+
+    private static void warnPaidAfterCancel(MarkPaidCommand command, Order order) {
+        log.warn("취소된 주문에 결제 완료 — 결제 쪽이 환불 처리, 환불 여부 확인 필요: event=payment.completed "
+                + "reason=paid-after-cancel "
+                + "orderId={} paymentId={} amount={} cancelReason={}",
+            command.orderId(), command.paymentId(), command.amount(), order.getCancelReason());
     }
 
     /**
