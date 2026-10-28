@@ -4,3 +4,5 @@ plugins {
 }
 
 rootProject.name = "kidly"
+
+include("apps:kidly-app")
