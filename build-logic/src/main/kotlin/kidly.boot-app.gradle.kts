@@ -1,22 +1,45 @@
-// 실행 가능한 앱 모듈: Boot 플러그인(bootJar · bootRun) + 경계 규칙 검사(archTest)
+// 실행 가능한 앱(서비스) 모듈: Boot 플러그인(bootJar · bootRun) + 테스트 종류별 태스크
+// 통합 · 기능 테스트는 전체 컨텍스트 · 마이그레이션이 있는 앱(서비스) 모듈에 산다
 plugins {
     id("kidly.java-conventions")
     id("org.springframework.boot")
 }
 
-// ArchUnit 경계 규칙은 archTest로 분리해 CI에서 단계별로 실패 원인을 구분한다
-val architecturePackage = "com.bbcc.kidly.architecture.*"
+// 테스트 종류는 JUnit 태그로 나눈다. test는 Docker 없이 도는 단위 테스트만 실행한다
+val integrationTag = "integration"
+val functionalTag = "functional"
 
-val archTest = tasks.register<Test>("archTest") {
-    description = "ArchUnit으로 모듈 경계 규칙을 검사한다"
+tasks.test {
+    description = "단위 테스트를 실행한다 (스프링·DB 없음)"
+    useJUnitPlatform {
+        excludeTags(integrationTag, functionalTag)
+    }
+}
+
+val integrationTest = tasks.register<Test>("integrationTest") {
+    description = "통합 테스트를 실행한다 (스프링 + Testcontainers)"
     group = "verification"
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
-    filter.includeTestsMatching(architecturePackage)
+    useJUnitPlatform {
+        includeTags(integrationTag)
+    }
+    shouldRunAfter(tasks.test)
+}
+
+val functionalTest = tasks.register<Test>("functionalTest") {
+    description = "기능 테스트를 실행한다 (실제 포트 + Testcontainers)"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform {
+        includeTags(functionalTag)
+    }
+    shouldRunAfter(integrationTest)
 }
 
 tasks.check {
-    dependsOn(archTest)
+    dependsOn(integrationTest, functionalTest)
 }
 
 // 설정의 상대 경로(file:config/jwt/..., .env)는 루트 기준이라 실행 · 테스트를 루트에서 한다

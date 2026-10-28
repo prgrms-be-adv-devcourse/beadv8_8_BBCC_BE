@@ -1,4 +1,4 @@
-// 모든 모듈이 공통으로 쓰는 설정: Java 25 · Checkstyle · Lombok · Boot BOM · 테스트 태스크 분리
+// 모든 모듈이 공통으로 쓰는 설정: Java 25 · Checkstyle · Lombok · Boot BOM · JUnit
 plugins {
     java
     checkstyle
@@ -46,47 +46,9 @@ tasks.withType<JavaCompile> {
     options.compilerArgs.add("-parameters")
 }
 
+// 테스트 종류별 태스크(integrationTest · functionalTest)는 앱 모듈에만 있다 (kidly.boot-app).
+// 여기서 태그를 빼지 않는다: 태그 붙은 테스트가 라이브러리 · 도메인 모듈에 잘못 들어오면 돌릴 태스크가 없어
+// 조용히 빠지기보다 test에서 드러나는 편이 낫다
 tasks.withType<Test> {
     useJUnitPlatform()
-}
-
-// ArchUnit 경계 규칙은 앱 모듈의 archTest에서만 돈다 (kidly.boot-app)
-val architecturePackage = "com.bbcc.kidly.architecture.*"
-
-// 테스트 종류는 JUnit 태그로 나눈다. test는 Docker 없이 도는 단위 테스트만 실행한다
-val integrationTag = "integration"
-val functionalTag = "functional"
-
-tasks.test {
-    description = "단위 테스트를 실행한다 (스프링·DB 없음)"
-    filter.excludeTestsMatching(architecturePackage)
-    useJUnitPlatform {
-        excludeTags(integrationTag, functionalTag)
-    }
-}
-
-val integrationTest = tasks.register<Test>("integrationTest") {
-    description = "통합 테스트를 실행한다 (스프링 + Testcontainers)"
-    group = "verification"
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
-    useJUnitPlatform {
-        includeTags(integrationTag)
-    }
-    shouldRunAfter(tasks.test)
-}
-
-val functionalTest = tasks.register<Test>("functionalTest") {
-    description = "기능 테스트를 실행한다 (실제 포트 + Testcontainers)"
-    group = "verification"
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
-    useJUnitPlatform {
-        includeTags(functionalTag)
-    }
-    shouldRunAfter(integrationTest)
-}
-
-tasks.check {
-    dependsOn(integrationTest, functionalTest)
 }
