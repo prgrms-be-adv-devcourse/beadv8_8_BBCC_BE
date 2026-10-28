@@ -22,6 +22,8 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
+import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
+import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,9 +31,12 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -41,6 +46,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 반복마다 구매자를 바꿔 새 주문 · 새 장바구니로 시작하고, 이벤트는 그 주문 ID로 걸러 센다.
  */
 @IntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class PaymentConcurrencyRecoveryIntegrationTest {
 
     private static final Logger LOG = LoggerFactory.getLogger(PaymentConcurrencyRecoveryIntegrationTest.class);
@@ -50,6 +56,9 @@ class PaymentConcurrencyRecoveryIntegrationTest {
 
     @Autowired
     private PaymentEventListener paymentEventListener;
+
+    @Autowired
+    private StockEventListener stockEventListener;
 
     @Autowired
     private OrderService orderService;
@@ -133,6 +142,64 @@ class PaymentConcurrencyRecoveryIntegrationTest {
     }
 
     @Test
+    @DisplayName("재고 차감 실패와 결제 완료가 동시에 오면 하나로 수렴: 취소(OUT_OF_STOCK · 배송 0 · 취소 이벤트 1 · 환불 확인 WARN) "
+        + "또는 결제완료(판매자별 배송 1 · 취소 안 됨)")
+    void stockDeductionFailedVersusPaymentCompleted(CapturedOutput output) throws InterruptedException {
+        int paid = 0;
+        int cancelled = 0;
+        for (int round = 1; round <= REPEAT; round++) {
+            Long buyerId = 3_000L + round;
+            OrderDetail order = placeWithCart(buyerId);
+            PaymentCompletedEvent completed = paymentCompleted(order, buyerId);
+            Long firstItemId = order.items().get(0).orderItemId();
+            StockDeductionFailedEvent failed = new StockDeductionFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
+                new StockDeductionFailedEvent.Data(order.orderId(), StockDeductionFailureCode.OUT_OF_STOCK,
+                    List.of(new StockDeductionFailedEvent.Failure(firstItemId,
+                        StockDeductionFailureCode.OUT_OF_STOCK))));
+
+            // 진 쪽 정상 예외: 낙관적 락(둘 다 결제대기로 읽고 늦게 커밋한 쪽)
+            ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
+                () -> stockEventListener.onStockDeductionFailed(failed),
+                () -> paymentEventListener.onPaymentCompleted(completed)));
+
+            assertThat(outcome.unexpected()).as("낙관적 락 말고 다른 예외(%d회차)", round).isEmpty();
+            Order stored = orderRepository.findById(order.orderId()).orElseThrow();
+            List<Delivery> deliveries = deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId());
+            int cartLines = cartItemRepository.findAllByMemberIdOrderByIdDesc(buyerId).size();
+            long cancelledEvents = cancelledEventsOf(order.orderId());
+            LOG.info("[#446] 재고 차감 실패 × 결제 완료 {}회차: 결과 {}, 진 쪽(낙관적 락) {}회",
+                round, stored.getStatus(), outcome.conflicts());
+            assertThat(cancelledEvents).as("order.cancelled 1건 이하(%d회차)", round).isLessThanOrEqualTo(1);
+            assertThat(recoveryCountOf(order.orderId())).as("진 쪽은 보관하지 않음(%d회차)", round).isZero();
+
+            if (stored.getStatus() == Order.Status.PAID) {
+                paid++;
+                assertThat(deliveries).extracting(Delivery::getSellerId)
+                    .containsExactlyInAnyOrder(SELLER_ID, OTHER_SELLER_ID);
+                assertThat(cartLines).isZero();
+                assertThat(cancelledEvents).isZero();
+                assertThat(stored.getCancelReason()).isNull();
+                assertThat(historyCount(order.orderId(), "PAID")).isEqualTo(1);
+                assertThat(historyCount(order.orderId(), "CANCELLED")).isZero();
+            } else if (stored.getStatus() == Order.Status.CANCELLED) {
+                cancelled++;
+                assertThat(stored.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
+                assertThat(stored.getPaidAt()).isNull();
+                assertThat(deliveries).isEmpty();
+                assertThat(cartLines).isEqualTo(2);
+                assertThat(cancelledEvents).isEqualTo(1);
+                assertThat(historyCount(order.orderId(), "CANCELLED")).isEqualTo(1);
+                assertThat(historyCount(order.orderId(), "PAID")).isZero();
+                assertThat(refundCheckWarns(output, order.orderId()))
+                    .as("돈은 빠졌는데 취소됨 → 환불 확인 WARN(%d회차)", round).isEqualTo(1);
+            } else {
+                fail("결제완료도 취소도 아님(%d회차): %s", round, stored.getStatus());
+            }
+        }
+        LOG.info("[#446] 재고 차감 실패 × 결제 완료 {}회: PAID {} · CANCELLED {}", REPEAT, paid, cancelled);
+    }
+
+    @Test
     @DisplayName("결제 완료 처리 중 배송 생성이 실패하면 결제완료 · 배송 · 장바구니 정리가 모두 되돌려지고, 같은 이벤트로 다시 처리된다")
     void rollsBackAndRetries() {
         Long buyerId = 2_000L;
@@ -195,6 +262,19 @@ class PaymentConcurrencyRecoveryIntegrationTest {
     private long recoveryCountOf(Long orderId) {
         return jdbcTemplate.queryForObject(
             "select count(*) from orders.payment_recovery where order_id = ?", Long.class, orderId);
+    }
+
+    private long historyCount(Long orderId, String toStatus) {
+        return jdbcTemplate.queryForObject("select count(*) from orders.order_status_history "
+            + "where order_id = ? and target_type = 'ORDER' and to_status = ?", Long.class, orderId, toStatus);
+    }
+
+    // 취소된 주문에 온 결제 완료의 환불 확인 WARN(paid-after-cancel) 줄 수
+    private static long refundCheckWarns(CapturedOutput output, Long orderId) {
+        return output.getAll().lines()
+            .filter(line -> line.contains(" WARN ")
+                && line.contains("reason=paid-after-cancel orderId=" + orderId + " "))
+            .count();
     }
 
     private long cancelledEventsOf(Long orderId) {

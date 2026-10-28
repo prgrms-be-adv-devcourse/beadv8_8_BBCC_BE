@@ -39,7 +39,8 @@ public class PaymentEventListener {
 
     /**
      * 처리 중 예외는 분류해 로그를 남긴 뒤 그대로 다시 던진다(트랜잭션은 그대로 되돌려짐).
-     * 낙관적 락 · 배송 (order_id, seller_id) 유니크 위반 = 동시 중복 처리에서 진 쪽(이긴 쪽이 이미 처리함) → WARN,
+     * 낙관적 락 · 배송 (order_id, seller_id) 유니크 위반 = 동시 중복 처리에서 진 쪽(이긴 쪽이 이미 처리함) → WARN
+     * (이긴 쪽이 주문을 취소했으면 대신 환불 확인 WARN, #519),
      * 그 밖 = 돈은 빠졌는데 결제완료가 안 됨 → 재처리용으로 보관하고(결제 불일치는 재처리 불가) 보관 결과를 붙여 ERROR 한 줄.
      * 주문 버전 충돌은 메서드가 끝난 뒤 커밋 때 나므로, 트랜잭션 완료 콜백에서 되돌려졌으면 WARN을 남긴다
      * (본문에서 이미 로그를 남긴 경우는 제외).
@@ -67,6 +68,9 @@ public class PaymentEventListener {
         } catch (RuntimeException e) {
             logged.set(true);
             if (PaymentFailures.isLostConcurrentDuplicate(e)) {
+                if (warnedPaidAfterCancel(paid, e)) {
+                    throw e;
+                }
                 log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event={} "
                     + "reason=lost-concurrent-duplicate orderId={} paymentId={}",
                     eventType, paid.orderId(), paid.paymentId(), e);
@@ -89,6 +93,17 @@ public class PaymentEventListener {
                 eventType, paid.orderId(), paid.paymentId(), recoveryStatus,
                 saved == null ? null : saved.attemptCount(), saved == null ? null : saved.failureCode(), e);
             throw e;
+        }
+    }
+
+    // 이긴 쪽이 주문을 취소했으면 돈은 빠졌는데 취소된 것이므로 서비스가 환불 확인 WARN을 남긴다(#519).
+    // 다시 읽기가 실패해도 원래 예외를 그대로 던지도록 읽기 오류는 원래 예외에 붙이고(suppressed) 진 쪽 WARN으로 남긴다
+    private boolean warnedPaidAfterCancel(MarkPaidCommand paid, RuntimeException e) {
+        try {
+            return orderService.warnIfPaidAfterCancel(paid);
+        } catch (RuntimeException readError) {
+            e.addSuppressed(readError);
+            return false;
         }
     }
 

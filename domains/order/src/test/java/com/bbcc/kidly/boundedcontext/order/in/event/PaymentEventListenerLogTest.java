@@ -103,6 +103,47 @@ class PaymentEventListenerLogTest {
     }
 
     @Test
+    @DisplayName("진 쪽인데 이긴 쪽이 주문을 취소했으면 환불 확인 WARN(서비스)만 남기고 진 쪽 WARN은 남기지 않은 채 같은 예외를 다시 던진다 (#519)")
+    void lostToCancelLeavesRefundCheckOnly(CapturedOutput output) {
+        ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", ORDER_ID);
+        when(orderService.markPaid(COMMAND)).thenThrow(error);
+        when(orderService.warnIfPaidAfterCancel(COMMAND)).thenReturn(true);
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
+
+        assertThat(output).doesNotContain("lost-concurrent-duplicate").doesNotContain("ERROR");
+        verify(recoveryService, never()).recordFailure(any(), any());
+    }
+
+    @Test
+    @DisplayName("진 쪽인데 다시 읽은 주문이 취소가 아니면 진 쪽 WARN을 그대로 남기고 같은 예외를 다시 던진다 (#519)")
+    void lostToOtherKeepsLostWarn(CapturedOutput output) {
+        ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", ORDER_ID);
+        when(orderService.markPaid(COMMAND)).thenThrow(error);
+        when(orderService.warnIfPaidAfterCancel(COMMAND)).thenReturn(false);
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
+
+        assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
+        verify(orderService).warnIfPaidAfterCancel(COMMAND);
+    }
+
+    @Test
+    @DisplayName("진 쪽 주문을 다시 읽다 실패해도 원래 예외를 그대로 던지고(읽기 오류는 suppressed) 진 쪽 WARN을 남긴다 (#519)")
+    void rereadFailureKeepsOriginal(CapturedOutput output) {
+        ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", ORDER_ID);
+        IllegalStateException readError = new IllegalStateException("주문 다시 읽기 실패");
+        when(orderService.markPaid(COMMAND)).thenThrow(error);
+        when(orderService.warnIfPaidAfterCancel(COMMAND)).thenThrow(readError);
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(readError));
+
+        assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
+    }
+
+    @Test
     @DisplayName("다른 제약 위반은 진 쪽이 아니므로 보관하고, 보관 결과를 붙인 ERROR 한 줄을 남긴 뒤 같은 예외를 다시 던진다")
     void otherConstraintViolationIsError(CapturedOutput output) {
         DataIntegrityViolationException error = new DataIntegrityViolationException(
