@@ -15,24 +15,7 @@ dependencies {
         testImplementation(testFixtures(project(":domains:$domain")))
     }
 
-    // --- 아래는 아직 앱에 남은 도메인 코드(boundedcontext/*) 때문에 있다. 적힌 도메인이 옮겨지면 지운다 ---
-
-    // Web · 검증 · JPA · QueryDSL: 모든 도메인이 옮겨지면 지운다 (도메인 모듈은 kidly.domain이 넣는다)
-    implementation("org.springframework.boot:spring-boot-starter-webmvc")
-    implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation(libs.querydsl.jpa)
-    annotationProcessor(variantOf(libs.querydsl.apt) { classifier("jpa") })
-    annotationProcessor("jakarta.persistence:jakarta.persistence-api")
-
-    // JWT 발급 · Refresh Token 생성: member가 옮겨지면 지운다 (검증 설정은 common에 있다)
-    implementation("org.springframework.boot:spring-boot-starter-security")
-    implementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
-
-    // 메일 발송 (Gmail SMTP): notification이 옮겨지면 지운다
-    implementation("org.springframework.boot:spring-boot-starter-mail")
-
-    // --- 아래는 도메인이 다 옮겨진 뒤에도 앱(서비스)에 남는다 ---
+    // --- 앱(서비스)에 남는 것 ---
 
     // DB 드라이버
     runtimeOnly("org.postgresql:postgresql")
