@@ -8,23 +8,10 @@ spring:
       hibernate:
         format_sql: true
 
-# 로컬·테스트 전용 키. 운영은 환경 변수로 다른 키를 쓴다
-# 상대 경로라서 프로젝트 루트에서 실행해야 한다 (bootRun·테스트는 기본으로 루트)
-jwt:
-  public-key: file:config/jwt/local-public.pem
-  private-key: file:config/jwt/local-private.pem
-
 # 로컬 개발용 paymentKey 암호화 키. 운영은 환경 변수로 다른 키를 쓴다
 payment:
   key-encryption:
     key: ${PAYMENT_KEY_ENCRYPTION_KEY:KIeLA4Q8UtNSoUDGDN4LsHMvk1JvINovlqKzRlonMaI=}
-
-cors:
-  allowed-origins: http://localhost:5173
-
-# 로컬은 http라서 Secure 쿠키를 브라우저가 보내지 않는다. 운영은 기본값(true)을 쓴다
-refresh-token:
-  secure-cookie: false
 
 logging:
   level:
@@ -36,9 +23,3 @@ kidly:
     image:
       s3:
         fake-credentials: true
-
-# 카카오 로그인. 키는 카카오 개발자 콘솔에서 받아 환경 변수로 넣는다. 없어도 앱은 뜨고 로그인만 실패한다
-kakao:
-  client-id: ${KAKAO_CLIENT_ID:}
-  client-secret: ${KAKAO_CLIENT_SECRET:}
-  redirect-uri: ${KAKAO_REDIRECT_URI:}
