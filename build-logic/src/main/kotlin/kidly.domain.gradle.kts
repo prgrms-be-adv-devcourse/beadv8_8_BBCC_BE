@@ -3,10 +3,23 @@ plugins {
     id("kidly.library")
     // Fixture · 테스트 헬퍼(src/testFixtures/java)를 이 모듈 단위 테스트와 앱(서비스) 모듈 테스트가 같이 쓴다
     `java-test-fixtures`
+    // 모듈 안의 계층 규칙(in → app → domain, out → app.port · domain)은 도메인마다 archTest로 검사한다
+    id("kidly.arch-test")
 }
 
 // precompiled script에서는 libs 접근자가 생기지 않아 catalog를 이름으로 찾는다
 val libs = the<VersionCatalogsExtension>().named("libs")
+
+// 도메인 사이 참조는 의존으로 막는다. 다른 도메인 모듈에 의존하지 않으면 그 코드를 쓸 때 컴파일이 안 된다
+val modulePath = path
+configurations.configureEach {
+    dependencies.withType<ProjectDependency>().configureEach {
+        if (path.startsWith(":domains:") && path != modulePath) {
+            throw GradleException(
+                "$modulePath 가 다른 도메인 모듈 $path 에 의존한다. 도메인 사이는 shared의 이벤트로만 주고받는다")
+        }
+    }
+}
 
 dependencies {
     implementation(project(":common"))
