@@ -36,18 +36,18 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-batch-jdbc")
 
     // QueryDSL (OpenFeign fork)
-    implementation("io.github.openfeign.querydsl:querydsl-jpa:${Versions.QUERYDSL}")
-    annotationProcessor("io.github.openfeign.querydsl:querydsl-apt:${Versions.QUERYDSL}:jpa")
+    implementation(libs.querydsl.jpa)
+    annotationProcessor(variantOf(libs.querydsl.apt) { classifier("jpa") })
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
 
     // .env 읽기 (따옴표 · export 등 .env 문법 지원). 테스트 프로필에서는 끈다
-    implementation("me.paulschwarz:springboot4-dotenv:${Versions.SPRING_DOTENV}")
+    implementation(libs.spring.dotenv)
 
     // API 문서
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${Versions.SPRINGDOC}")
+    implementation(libs.springdoc.openapi.webmvc.ui)
 
     // 상품 이미지를 브라우저가 S3에 직접 올리도록 업로드 주소(Presigned URL)를 만든다 (S3Presigner)
-    implementation("software.amazon.awssdk:s3:${Versions.AWS_SDK}")
+    implementation(libs.aws.s3)
 
     // 헬스체크 (/actuator/health). 배포 시 docker compose healthcheck가 호출한다
     implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -68,5 +68,5 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
-    testImplementation("com.tngtech.archunit:archunit-junit5:${Versions.ARCHUNIT}")
+    testImplementation(libs.archunit.junit5)
 }

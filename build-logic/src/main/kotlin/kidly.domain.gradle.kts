@@ -3,6 +3,9 @@ plugins {
     id("kidly.library")
 }
 
+// precompiled script에서는 libs 접근자가 생기지 않아 catalog를 이름으로 찾는다
+val libs = the<VersionCatalogsExtension>().named("libs")
+
 dependencies {
     implementation(project(":common"))
     implementation(project(":shared"))
@@ -19,10 +22,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
     // QueryDSL (OpenFeign fork)
-    implementation("io.github.openfeign.querydsl:querydsl-jpa:${Versions.QUERYDSL}")
-    annotationProcessor("io.github.openfeign.querydsl:querydsl-apt:${Versions.QUERYDSL}:jpa")
+    implementation(libs.findLibrary("querydsl-jpa").get())
+    annotationProcessor(variantOf(libs.findLibrary("querydsl-apt").get()) { classifier("jpa") })
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
 
     // API 문서
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${Versions.SPRINGDOC}")
+    implementation(libs.findLibrary("springdoc-openapi-webmvc-ui").get())
 }

@@ -13,10 +13,10 @@ dependencies {
     api("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
 
     implementation("org.springframework.boot:spring-boot-starter-security")
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${Versions.SPRINGDOC}")
+    implementation(libs.springdoc.openapi.webmvc.ui)
 
     // QueryDSL. BaseTimeEntity · BaseSoftDeleteEntity의 Q 클래스를 여기서 만들어야 도메인 Q 클래스가 상속할 수 있다
-    implementation("io.github.openfeign.querydsl:querydsl-jpa:${Versions.QUERYDSL}")
-    annotationProcessor("io.github.openfeign.querydsl:querydsl-apt:${Versions.QUERYDSL}:jpa")
+    implementation(libs.querydsl.jpa)
+    annotationProcessor(variantOf(libs.querydsl.apt) { classifier("jpa") })
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
 }
