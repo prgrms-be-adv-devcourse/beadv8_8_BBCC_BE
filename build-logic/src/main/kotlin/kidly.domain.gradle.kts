@@ -50,7 +50,7 @@ configurations.testFixturesImplementation {
 }
 
 // 테스트가 하나도 없으면 archTest가 NO-SOURCE로 건너뛰어 계층 규칙 검사가 조용히 빠진다.
-// 도메인 코드가 있는데 규칙 테스트 파일이 없으면 실패시킨다
+// 도메인 코드가 있는데 규칙 테스트 파일이 없거나 LayerRules를 돌리지 않으면 실패시킨다
 val mainJava = sourceSets.main.get().java.sourceDirectories
 val layerArchitectureTest = layout.projectDirectory
     .file("src/test/java/com/bbcc/kidly/architecture/LayerArchitectureTest.java").asFile
@@ -58,9 +58,11 @@ val checkLayerArchitectureTest = tasks.register("checkLayerArchitectureTest") {
     description = "도메인 코드가 있으면 계층 규칙 테스트(LayerArchitectureTest)가 있는지 확인한다"
     group = "verification"
     doLast {
-        if (!mainJava.asFileTree.isEmpty && !layerArchitectureTest.exists()) {
+        val runsLayerRules = layerArchitectureTest.exists() &&
+            layerArchitectureTest.readText().contains("ArchTests.in(LayerRules.class)")
+        if (!mainJava.asFileTree.isEmpty && !runsLayerRules) {
             throw GradleException(
-                "$modulePath 에 계층 규칙 테스트가 없다. " +
+                "$modulePath 에 계층 규칙 테스트가 없다(LayerArchitectureTest가 ArchTests.in(LayerRules.class)를 돌려야 한다). " +
                     "domains/member의 LayerArchitectureTest.java를 같은 경로로 복사한다")
         }
     }

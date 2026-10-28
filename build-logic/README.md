@@ -55,7 +55,7 @@
 |---|---|---|
 | `test` | 모든 모듈 | 단위 테스트. 도메인 모듈의 `test`는 태그를 빼지 않는다: 태그 붙은 테스트가 도메인 모듈에 잘못 들어오면 돌릴 태스크가 없어 조용히 빠지기보다 `test`에서 드러나는 편이 낫다 |
 | `integrationTest` · `functionalTest` (태그) | `kidly.boot-app` | 전체 컨텍스트 · 마이그레이션 · test 리소스가 있는 앱(서비스)에서만 돈다. 앱의 `test`는 이 태그를 뺀다 |
-| `archTest` | `kidly.arch-test` (`domains/*`, `apps/kidly-app`) | 도메인 모듈은 자기 안의 계층 규칙(`LayerRules`)을, `kidly-app`은 모듈 사이 경계 규칙(`ArchitectureTest`)을 검사한다. 테스트가 있는데 규칙 테스트가 없으면 `No tests found`로 실패한다. 그래서 `kidly.boot-app`에는 넣지 않는다(규칙 테스트가 없는 서비스 모듈이 실패한다) |
+| `archTest` | `kidly.arch-test` (`domains/*`, `apps/kidly-app`) | 도메인 모듈은 자기 안의 계층 규칙(`LayerRules`)을, `kidly-app`은 모듈 사이 경계 규칙(`ArchitectureTest`)을 검사한다. 도메인 모듈은 규칙 테스트가 없거나 `LayerRules`를 돌리지 않으면 `checkLayerArchitectureTest`가 먼저 실패한다(테스트가 하나도 없어도). 규칙 테스트가 없는 모듈은 `No tests found`로 실패하므로 `kidly.boot-app`에는 넣지 않는다(규칙 테스트가 없는 서비스 모듈이 실패한다) |
 
 CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `functionalTest`를 부른다. 이름으로 부르면 그 태스크가 있는 모듈에서만 돈다.
 
