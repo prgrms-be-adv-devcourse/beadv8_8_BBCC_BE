@@ -3,6 +3,9 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":common"))
+    implementation(project(":shared"))
+
     // Web
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-validation")
