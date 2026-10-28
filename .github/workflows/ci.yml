@@ -31,7 +31,7 @@ jobs:
         run: ./gradlew compileJava compileTestJava
 
       - name: 코드 스타일 검사 (Checkstyle)
-        run: ./gradlew checkstyleMain checkstyleTest
+        run: ./gradlew checkstyleMain checkstyleTest checkstyleTestFixtures
 
       - name: 모듈 경계 검사 (ArchUnit)
         run: ./gradlew archTest
