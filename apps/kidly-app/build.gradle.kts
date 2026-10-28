@@ -43,7 +43,7 @@ dependencies {
     // DB 드라이버
     runtimeOnly("org.postgresql:postgresql")
 
-    // 스키마 마이그레이션 (src/main/resources/db/migration)
+    // 스키마 마이그레이션. 기존 파일은 이 앱의 db/migration, 새 파일은 도메인 모듈의 db/migration/{스키마}/ (Flyway가 모든 jar의 하위 폴더까지 읽는다)
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
 

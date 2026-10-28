@@ -44,8 +44,10 @@ class MigrationNamingTest {
         assertThat(versions).doesNotHaveDuplicates().isNotEmpty();
     }
 
+    // 앱의 db/migration과 도메인 모듈 jar의 db/migration/{스키마}/를 모두 본다 (classpath*: 모든 jar, **: 하위 폴더)
     private static List<String> migrationFileNames() throws IOException {
-        Resource[] resources = new PathMatchingResourcePatternResolver().getResources("classpath:db/migration/*.sql");
+        Resource[] resources = new PathMatchingResourcePatternResolver()
+            .getResources("classpath*:db/migration/**/*.sql");
         return Arrays.stream(resources).map(Resource::getFilename).filter(Objects::nonNull).toList();
     }
 }
