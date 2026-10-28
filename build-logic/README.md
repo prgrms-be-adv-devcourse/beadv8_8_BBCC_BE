@@ -88,6 +88,47 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
 - Flyway는 `spring.flyway.locations: classpath:db/migration`으로 모든 jar(`bootJar`의 `BOOT-INF/lib/*.jar` 포함)의 `db/migration`과 그 하위 폴더를 읽는다. 버전은 폴더와 상관없이 전체에서 하나로 정렬된다
 - `MigrationNamingTest`는 `classpath*:db/migration/**/*.sql`로 같은 범위의 이름 · 버전 중복을 검사한다
 
+## 서비스 모듈 만드는 법 (도메인을 따로 띄울 때)
+
+도메인 모듈은 고치지 않는다. 아래 절차는 `member`를 `member-service`로 떼는 리허설(2026-10-28)로 확인했다: 단독 JVM 기동 · health UP · 다른 도메인 라우트 없음 · `docker build --build-arg APP=member-service` 성공.
+
+1. **모듈**: `apps/{d}-service/build.gradle.kts`
+
+   ```kotlin
+   plugins { id("kidly.boot-app") }
+
+   dependencies {
+       implementation(project(":common"))
+       implementation(project(":shared"))
+       implementation(project(":domains:{d}"))
+       testImplementation(testFixtures(project(":domains:{d}")))
+
+       // 서비스가 뜨는 데 필요한 런타임 (kidly-app의 "남는 것"과 같다)
+       runtimeOnly("org.postgresql:postgresql")
+       implementation("org.springframework.boot:spring-boot-starter-flyway")
+       runtimeOnly("org.flywaydb:flyway-database-postgresql")
+       implementation("org.springframework.boot:spring-boot-starter-actuator")
+       runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+       implementation(libs.spring.dotenv)
+   }
+   ```
+
+   루트 `settings.gradle.kts`에 `include("apps:{d}-service")`. 서비스가 둘 이상이 되면 위 런타임 묶음을 `kidly.boot-app`으로 올린다
+2. **메인 클래스**: `apps/{d}-service/src/main/java/com/bbcc/kidly/{D}Application.java`. 패키지는 `com.bbcc.kidly`여야 한다. 컴포넌트 · 엔티티 · `@ConfigurationProperties` 스캔이 이 패키지 아래의 클래스패스(의존한 도메인 jar)만 훑어, 의존하지 않은 도메인은 뜨지 않는다
+3. **설정**: `apps/{d}-service/src/main/resources/application.yml`. `kidly-app`의 것에서 그 서비스에 필요한 것만 가져온다(`spring.application.name`, Flyway `schemas`는 자기 스키마만, JWT는 **공개키만**(개인키는 member-service만), `config.import`는 자기 도메인 yml만)
+4. **마이그레이션 분리** (아래 "서비스를 뗄 때 마이그레이션")
+5. **kidly-app에서 빼기**: `apps/kidly-app/build.gradle.kts`의 `domains` 목록에서 `{d}`를 지우고, `application.yml`의 `config.import`에서 `{d}.yml`을 지운다. kidly-app의 Flyway는 빠진 마이그레이션을 무시하게 `spring.flyway.ignore-migration-patterns: "*:missing"`을 둔다
+6. **이미지 · 배포**: `docker build --build-arg APP={d}-service .`. compose · nginx 라우팅 · Prometheus 수집 대상 추가는 `wiki/멀티모듈 분리와 MSA 전환 가이드.md` 4단계
+7. **확인**: `./gradlew :apps:{d}-service:build`, 기동 후 `/actuator/health`, 그 서비스에 없는 도메인 API가 404 · 401인지, DB에 자기 스키마만 생기는지
+
+## 서비스를 뗄 때 마이그레이션
+
+Flyway 파일이 전부 `kidly-app`에 있어 서비스는 자기 테이블을 만들 줄 모른다. 리허설에서 처음 기동은 `Schema validation: missing table [member.access_token_revocation]`로 실패했다. 서비스 하나를 뗄 때마다 한 번씩 한다.
+
+- **새 DB(로컬 · 테스트)**: `apps/kidly-app/.../db/migration`에서 그 스키마를 다루는 파일 · 구문만 `apps/{d}-service/src/main/resources/db/migration/`으로 가져온다. `init.sql`은 10개 스키마가 한 파일이라 **그 스키마 구문만 뽑아** 같은 버전 이름으로 만든다(member는 229개 구문 중 21개). 스키마 사이 FK가 없어 구문 단위로 나뉜다. 가져온 파일은 `kidly-app`에 그대로 둔다(이미 적용된 파일은 고치지 않는다)
+- **운영 DB(이미 적용됨)**: 서비스의 Flyway는 자기 이력 테이블을 따로 쓴다(`spring.flyway.table: flyway_schema_history_{d}`). 첫 기동 때 `baseline-on-migrate: true` + `baseline-version`을 지금 적용된 최신 버전으로 두면 기존 파일은 건너뛰고 그 뒤 버전만 적용한다. 운영 DB 덤프로 로컬에서 먼저 리허설한다
+- **그 뒤부터**: 그 도메인 새 마이그레이션은 "마이그레이션 위치"대로 `domains/{d}/.../db/migration/{스키마}/`에 두면 서비스 jar에 들어간다
+
 ## IntelliJ
 
 - 앱 실행은 공유 실행 구성 `KidlyApplication`(`.run/KidlyApplication.run.xml`)을 쓴다. 작업 디렉터리가 프로젝트 루트라 `config/jwt` · `.env`를 찾는다. 새로 만든 구성은 작업 디렉터리가 모듈 폴더(`apps/kidly-app`)가 되어 실패한다
@@ -117,6 +158,6 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
 | BOM 밖 라이브러리 추가 | `libs.versions.toml`의 `[libraries]`에 넣고 쓰는 모듈 빌드 파일에서 `libs.xxx` |
 | 한 도메인만 쓰는 의존 추가 | 그 도메인의 `build.gradle.kts` (예: `domains/product`의 S3) |
 | 모든 도메인에 의존 추가 | `kidly.domain.gradle.kts` |
-| 서비스(실행 모듈) 추가 | `apps/xxx-service/build.gradle.kts`에 `id("kidly.boot-app")`, 도메인 모듈 `implementation`과 `testImplementation(testFixtures(...))`, 런타임 의존(postgresql · flyway · actuator 등). 루트 `settings.gradle.kts`에 `include`. 이미지는 `docker build --build-arg APP=xxx-service .` |
+| 서비스(실행 모듈) 추가 | "서비스 모듈 만드는 법" |
 
 빌드 설정 파일은 git 규칙에 따라 프로젝트 관리자가 고친다. 바꿔야 하면 먼저 알린다.
