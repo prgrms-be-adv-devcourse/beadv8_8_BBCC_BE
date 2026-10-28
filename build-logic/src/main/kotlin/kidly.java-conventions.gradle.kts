@@ -14,10 +14,6 @@ java {
     }
 }
 
-repositories {
-    mavenCentral()
-}
-
 // Boot 플러그인이 없는 라이브러리 모듈도 앱과 같은 버전을 쓰도록 Boot BOM을 가져온다
 dependencyManagement {
     imports {
@@ -41,7 +37,7 @@ dependencies {
 checkstyle {
     toolVersion = "14.3.0"
     maxWarnings = 0
-    configDirectory = rootProject.layout.projectDirectory.dir("config/checkstyle")
+    configDirectory = layout.settingsDirectory.dir("config/checkstyle")
 }
 
 // 파라미터 이름을 class 파일에 남긴다. Boot 플러그인이 있는 앱 모듈은 플러그인이 넣어 주지만,

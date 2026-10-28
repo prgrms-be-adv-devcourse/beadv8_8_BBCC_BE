@@ -8,6 +8,14 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
+// 저장소는 여기서만 선언한다. 모듈 빌드 파일이 저장소를 따로 넣으면 실패한다
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+    repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
+}
+
 rootProject.name = "kidly"
 
 include("shared")
