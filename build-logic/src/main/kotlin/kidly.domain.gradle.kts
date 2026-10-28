@@ -16,10 +16,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
-    // Security (member가 JWT를 발급한다)
-    implementation("org.springframework.boot:spring-boot-starter-security")
-    implementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
-
     // DB
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
@@ -27,9 +23,6 @@ dependencies {
     implementation(libs.findLibrary("querydsl-jpa").get())
     annotationProcessor(variantOf(libs.findLibrary("querydsl-apt").get()) { classifier("jpa") })
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
-
-    // API 문서
-    implementation(libs.findLibrary("springdoc-openapi-webmvc-ui").get())
 
     // Fixture: ReflectionTestUtils(spring-test)로 id를 넣고, 검증 헬퍼는 AssertJ를 쓴다
     testFixturesCompileOnly("org.projectlombok:lombok")

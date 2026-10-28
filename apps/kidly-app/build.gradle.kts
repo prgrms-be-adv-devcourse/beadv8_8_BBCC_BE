@@ -15,47 +15,49 @@ dependencies {
         testImplementation(testFixtures(project(":domains:$domain")))
     }
 
-    // Web
+    // --- 아래는 아직 앱에 남은 도메인 코드(boundedcontext/*) 때문에 있다. 적힌 도메인이 옮겨지면 지운다 ---
+
+    // Web · 검증 · JPA · QueryDSL: 모든 도메인이 옮겨지면 지운다 (도메인 모듈은 kidly.domain이 넣는다)
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation(libs.querydsl.jpa)
+    annotationProcessor(variantOf(libs.querydsl.apt) { classifier("jpa") })
+    annotationProcessor("jakarta.persistence:jakarta.persistence-api")
 
-    // Security (JWT RS256 검증)
+    // JWT 발급 · Refresh Token 생성: member가 옮겨지면 지운다 (검증 설정은 common에 있다)
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
 
-    // DB
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    // 일괄 처리 (정산 실행): settlement가 옮겨지면 지운다
+    implementation("org.springframework.boot:spring-boot-starter-batch-jdbc")
+
+    // 상품 이미지 업로드 주소(S3Presigner): product가 옮겨지면 지운다
+    implementation(libs.aws.s3)
+
+    // 메일 발송 (Gmail SMTP): notification이 옮겨지면 지운다
+    implementation("org.springframework.boot:spring-boot-starter-mail")
+
+    // --- 아래는 도메인이 다 옮겨진 뒤에도 앱(서비스)에 남는다 ---
+
+    // DB 드라이버
     runtimeOnly("org.postgresql:postgresql")
 
     // 스키마 마이그레이션 (src/main/resources/db/migration)
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
 
-    // 일괄 처리 (정산 실행). 실행 기록을 DB에 남겨 같은 작업의 재실행을 막는다
-    implementation("org.springframework.boot:spring-boot-starter-batch-jdbc")
-
-    // QueryDSL (OpenFeign fork)
-    implementation(libs.querydsl.jpa)
-    annotationProcessor(variantOf(libs.querydsl.apt) { classifier("jpa") })
-    annotationProcessor("jakarta.persistence:jakarta.persistence-api")
-
     // .env 읽기 (따옴표 · export 등 .env 문법 지원). 테스트 프로필에서는 끈다
     implementation(libs.spring.dotenv)
 
-    // API 문서
+    // API 문서 (Swagger UI). 실행되는 앱(서비스)이 화면을 연다
     implementation(libs.springdoc.openapi.webmvc.ui)
-
-    // 상품 이미지를 브라우저가 S3에 직접 올리도록 업로드 주소(Presigned URL)를 만든다 (S3Presigner)
-    implementation(libs.aws.s3)
 
     // 헬스체크 (/actuator/health). 배포 시 docker compose healthcheck가 호출한다
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // 메트릭 (/actuator/prometheus). 서버의 Prometheus 가 127.0.0.1 로 수집한다. 외부는 nginx 가 막는다
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
-
-    // 메일 발송 (global.mail.EmailSender, Gmail SMTP). kidly.mail.enabled가 false면 보내지 않고 로그만 남긴다
-    implementation("org.springframework.boot:spring-boot-starter-mail")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")
