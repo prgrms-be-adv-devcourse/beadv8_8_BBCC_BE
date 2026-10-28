@@ -4,6 +4,7 @@ spring:
   # 도메인별 설정 파일. 서비스를 나누면 각 파일이 그 서비스의 application.yml이 된다
   config:
     import:
+      - classpath:auth.yml
       - classpath:payment.yml
       - classpath:order.yml
       - classpath:settlement.yml
@@ -41,12 +42,6 @@ springdoc:
   swagger-ui:
     operations-sorter: method
     tags-sorter: alpha
-
-jwt:
-  access-token-validity: 30m
-
-refresh-token:
-  validity: 14d
 
 # 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다 (deploy/nginx)
 management:
