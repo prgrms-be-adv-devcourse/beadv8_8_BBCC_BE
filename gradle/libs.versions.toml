@@ -19,4 +19,4 @@ aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
 
 # build-logic이 convention plugin에서 id로 적용할 Gradle 플러그인
 spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "spring-boot" }
-dependency-management-plugin = { module = "io.spring.gradle:dependency-management-plugin", version.ref = "dependency-management" }
+spring-dependency-management-gradle-plugin = { module = "io.spring.gradle:dependency-management-plugin", version.ref = "dependency-management" }
