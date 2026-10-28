@@ -74,7 +74,7 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
 | Fixture · 테스트 헬퍼 중 **단위 테스트가 쓰는 것** (와 그것이 쓰는 헬퍼) | 같은 곳 | `domains/{d}/src/testFixtures/java/...` |
 | 도메인 전용 리소스 (`{d}.yml`, `data/{d}/**`) | `apps/kidly-app/src/main/resources` | `domains/{d}/src/main/resources` |
 | 통합 · 기능 테스트(`@IntegrationTest` · `@FunctionalTest`)와 그것만 쓰는 헬퍼 | | 앱에 남긴다 |
-| 계층 규칙 테스트 | `domains/member/src/test/java/com/bbcc/kidly/architecture/LayerArchitectureTest.java` | `domains/{d}/src/test/java/com/bbcc/kidly/architecture/`에 **복사**한다. 빠뜨리면 `archTest`가 `No tests found`로 실패한다 |
+| 계층 규칙 테스트 | `domains/member/src/test/java/com/bbcc/kidly/architecture/LayerArchitectureTest.java` | `domains/{d}/src/test/java/com/bbcc/kidly/architecture/`에 **복사**한다. 빠뜨리면 `archTest`가 실패한다(`checkLayerArchitectureTest`: 그 도메인에 테스트가 하나도 없어도 실패) |
 
 - 앱에 남는 것: `KidlyApplication`, `application*.yml`, `logback-spring.xml`, `db/migration`(기존 파일), `support` · `scenario` · `architecture` 테스트, test 리소스
 - 테스트 Fixture는 `src/testFixtures`에 두면 그 도메인 단위 테스트와 앱(나중엔 서비스)의 통합 테스트가 같이 쓴다. 앱은 모든 도메인의 `testFixtures(...)`를 이미 의존한다
