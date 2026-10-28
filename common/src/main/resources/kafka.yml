@@ -1,0 +1,22 @@
+# 도메인 간 이벤트(Kafka) 설정. 모든 서비스의 application.yml이 가져온다
+# 서버는 compose의 SPRING_KAFKA_BOOTSTRAP_SERVERS(kafka:9092)가 주소를 덮어쓴다
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      properties:
+        # 브로커가 꺼져 있으면 send가 메타데이터를 기다리며 기본 60초 멈춘다. 커밋 뒤 요청 스레드에서 보내므로 짧게 둔다
+        max.block.ms: 3000
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # 읽을 수 없는 메시지에서 멈춰 같은 메시지를 계속 읽지 않도록 감싼다. 실패는 KafkaListenerConfig가 로그로 남긴다
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      # group이 처음 뜰 때 토픽에 남은 메시지부터 읽는다. 구독을 Kafka로 옮기는 날에는 이미 스프링 이벤트로 처리한 메시지를
+      # 다시 읽지 않도록 배포 전에 그 group의 offset을 끝으로 잡는다 (#527 전환 가이드)
+      auto-offset-reset: earliest
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        # 보내는 쪽이 넣은 타입 헤더(__TypeId__)의 클래스로 읽는다. 우리 패키지 클래스만 허용한다
+        spring.json.trusted.packages: com.bbcc.kidly.*

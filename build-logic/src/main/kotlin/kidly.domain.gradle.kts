@@ -32,6 +32,9 @@ dependencies {
     // DB
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
+    // 도메인 간 이벤트 수신(@KafkaListener). 설정은 common과 앱이 한다
+    implementation("org.springframework.kafka:spring-kafka")
+
     // QueryDSL (OpenFeign fork)
     implementation(libs.findLibrary("querydsl-jpa").get())
     annotationProcessor(variantOf(libs.findLibrary("querydsl-apt").get()) { classifier("jpa") })

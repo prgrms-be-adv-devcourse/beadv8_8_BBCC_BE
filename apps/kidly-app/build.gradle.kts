@@ -48,4 +48,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("org.testcontainers:testcontainers-kafka")
+    // Kafka 통합 테스트의 테스트 리스너가 ConsumerRecord를 받는다
+    testImplementation("org.springframework.kafka:spring-kafka")
+    // Kafka로 받는 처리는 비동기라 결과가 나올 때까지 기다린다
+    testImplementation("org.awaitility:awaitility")
 }
