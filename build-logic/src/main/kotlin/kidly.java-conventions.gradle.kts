@@ -44,6 +44,12 @@ checkstyle {
     configDirectory = rootProject.layout.projectDirectory.dir("config/checkstyle")
 }
 
+// 파라미터 이름을 class 파일에 남긴다. Boot 플러그인이 있는 앱 모듈은 플러그인이 넣어 주지만,
+// 도메인 모듈은 없어서 빠지면 @PathVariable · @RequestParam · @Query의 이름 생략 바인딩이 실패한다
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-parameters")
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
 }
