@@ -1,10 +1,12 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import static com.bbcc.kidly.boundedcontext.order.OrderRows.PLACED;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.OrderRows;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -43,6 +45,9 @@ import org.springframework.test.context.event.RecordApplicationEvents;
 @IntegrationTest
 @RecordApplicationEvents
 class OrderPaymentRequestIntegrationTest {
+
+    @Autowired
+    private OrderRows orderRows;
 
     @Autowired
     private OrderEventDelivery eventDelivery;
@@ -100,15 +105,16 @@ class OrderPaymentRequestIntegrationTest {
         StockDeductedEvent stockDeducted = stockDeducted(order.orderId());
         eventDelivery.deliver(stockDeducted);
         assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("CANCELLED");
-        long version = versionOf(order.orderId());
+        long version = orderRows.versionOf(order.orderId());
 
         eventDelivery.deliver(stockDeducted);
 
         assertThat(events.stream(OrderPaymentRequestedEvent.class).toList()).hasSize(1);
         assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("CANCELLED");
-        assertThat(versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
         assertThat(events.stream(OrderCancelledEvent.class).toList()).hasSize(1);
-        assertThat(historyRows(order.orderId())).containsExactly("PENDING_PAYMENT>CANCELLED payment.failed");
+        assertThat(orderRows.historyRows(order.orderId()))
+            .containsExactly(PLACED, "ORDER PENDING_PAYMENT>CANCELLED PAYMENT_FAILED payment.failed");
     }
 
     @Test
@@ -121,15 +127,17 @@ class OrderPaymentRequestIntegrationTest {
         StockDeductedEvent stockDeducted = stockDeducted(order.orderId());
         eventDelivery.deliver(stockDeducted);
         assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PAID");
-        long version = versionOf(order.orderId());
+        long version = orderRows.versionOf(order.orderId());
 
         eventDelivery.deliver(stockDeducted);
 
         assertThat(events.stream(OrderPaymentRequestedEvent.class).toList()).hasSize(1);
         assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PAID");
-        assertThat(versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
         assertThat(events.stream(OrderCancelledEvent.class).toList()).isEmpty();
-        assertThat(historyRows(order.orderId())).containsExactly("PENDING_PAYMENT>PAID payment.completed");
+        assertThat(orderRows.historyRows(order.orderId()))
+            .containsExactly(PLACED, "ORDER PENDING_PAYMENT>PAID payment.completed",
+                "DELIVERY null>READY payment.completed");
     }
 
     @Test
@@ -140,7 +148,7 @@ class OrderPaymentRequestIntegrationTest {
         LocalDateTime requestedAt = LocalDateTime.of(2026, 10, 14, 9, 0);
         jdbcTemplate.update("update orders.orders set payment_requested_at = ? where id = ?",
             requestedAt, order.orderId());
-        long version = versionOf(order.orderId());
+        long version = orderRows.versionOf(order.orderId());
 
         eventDelivery.deliver(stockDeducted(order.orderId()));
 
@@ -148,8 +156,8 @@ class OrderPaymentRequestIntegrationTest {
         assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
         assertThat(jdbcTemplate.queryForObject("select payment_requested_at from orders.orders where id = ?",
             LocalDateTime.class, order.orderId())).isEqualTo(requestedAt);
-        assertThat(versionOf(order.orderId())).isEqualTo(version);
-        assertThat(historyRows(order.orderId())).isEmpty();
+        assertThat(orderRows.versionOf(order.orderId())).isEqualTo(version);
+        assertThat(orderRows.historyRows(order.orderId())).containsExactly(PLACED);
     }
 
     /**
@@ -159,17 +167,6 @@ class OrderPaymentRequestIntegrationTest {
         return orderService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
-    }
-
-    private long versionOf(Long orderId) {
-        return jdbcTemplate.queryForObject("select version from orders.orders where id = ?", Long.class, orderId);
-    }
-
-    // 주문 단위 상태 이력을 "이전>다음 출처"로(주문하기 줄은 제외)
-    private List<String> historyRows(Long orderId) {
-        return jdbcTemplate.queryForList("select from_status || '>' || to_status || ' ' || source "
-            + "from orders.order_status_history where order_id = ? and target_type = 'ORDER' "
-            + "and from_status is not null order by id", String.class, orderId);
     }
 
     private <T> T single(Class<T> type) {

@@ -1,17 +1,18 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import static com.bbcc.kidly.boundedcontext.order.OrderRows.PLACED;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.OrderRows;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
@@ -48,6 +49,9 @@ import org.springframework.test.context.event.RecordApplicationEvents;
 class OrderCancelIntegrationTest {
 
     @Autowired
+    private OrderRows orderRows;
+
+    @Autowired
     private OrderEventDelivery eventDelivery;
 
     @Autowired
@@ -73,9 +77,6 @@ class OrderCancelIntegrationTest {
 
     @Autowired
     private DeliveryRepository deliveryRepository;
-
-    @Autowired
-    private OrderStatusHistoryRepository historyRepository;
 
     @BeforeEach
     void setUp() {
@@ -113,16 +114,16 @@ class OrderCancelIntegrationTest {
                 PaymentFailureCode.INSUFFICIENT_BALANCE, LocalDateTime.now()));
 
         eventDelivery.deliver(failed);
-        long version = versionOf(order.orderId());
+        long version = orderRows.versionOf(order.orderId());
         eventDelivery.deliver(failed);
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_FAILED);
-        assertThat(versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
         List<OrderCancelledEvent> cancelled = events.stream(OrderCancelledEvent.class).toList();
         assertThat(cancelled).hasSize(1);
         assertThat(cancelled.get(0).data().reason()).isEqualTo("PAYMENT_FAILED");
-        assertThat(cancelRows(order.orderId()))
-            .containsExactly("PENDING_PAYMENT>CANCELLED PAYMENT_FAILED payment.failed");
+        assertThat(orderRows.historyRows(order.orderId()))
+            .containsExactly(PLACED, "ORDER PENDING_PAYMENT>CANCELLED PAYMENT_FAILED payment.failed");
     }
 
     @Test
@@ -162,14 +163,14 @@ class OrderCancelIntegrationTest {
         makeOverdue(order.orderId());
 
         orderScheduler.expireOverduePayments();
-        long version = versionOf(order.orderId());
+        long version = orderRows.versionOf(order.orderId());
         orderScheduler.expireOverduePayments();
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
-        assertThat(versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
         assertThat(events.stream(OrderCancelledEvent.class).toList()).hasSize(1);
-        assertThat(cancelRows(order.orderId()))
-            .containsExactly("PENDING_PAYMENT>CANCELLED PAYMENT_EXPIRED scheduler:payment-expiry");
+        assertThat(orderRows.historyRows(order.orderId()))
+            .containsExactly(PLACED, "ORDER PENDING_PAYMENT>CANCELLED PAYMENT_EXPIRED scheduler:payment-expiry");
     }
 
     @Test
@@ -202,8 +203,8 @@ class OrderCancelIntegrationTest {
         OrderDetail order = place();
         makeOverdue(order.orderId());
         orderScheduler.expireOverduePayments();
-        long version = versionOf(order.orderId());
-        List<String> historyBefore = historyRows(order.orderId());
+        long version = orderRows.versionOf(order.orderId());
+        List<String> historyBefore = orderRows.historyRows(order.orderId());
 
         eventDelivery.deliver(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new PaymentCompletedEvent.Data(
@@ -211,8 +212,9 @@ class OrderCancelIntegrationTest {
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
-        assertThat(versionOf(order.orderId())).as("늦게 온 결제 완료는 주문을 바꾸지 않음").isEqualTo(version);
-        assertThat(historyRows(order.orderId())).isEqualTo(historyBefore).noneMatch(row -> row.endsWith(">PAID"));
+        assertThat(orderRows.versionOf(order.orderId())).as("늦게 온 결제 완료는 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.historyRows(order.orderId()))
+            .isEqualTo(historyBefore).noneMatch(row -> row.contains(">PAID "));
         assertThat(events.stream(OrderCancelledEvent.class).toList()).hasSize(1);
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
             Long.class, order.orderId())).as("취소된 주문의 결제 완료는 실패로 보관하지 않음").isZero();
@@ -254,26 +256,6 @@ class OrderCancelIntegrationTest {
     private void makeOverdue(Long orderId) {
         jdbcTemplate.update("update orders.orders set payment_due_at = ? where id = ?",
             LocalDateTime.now().minusMinutes(1), orderId);
-    }
-
-    private long versionOf(Long orderId) {
-        return jdbcTemplate.queryForObject("select version from orders.orders where id = ?", Long.class, orderId);
-    }
-
-    // 주문의 상태 이력 전체를 "이전>다음"으로
-    private List<String> historyRows(Long orderId) {
-        return historyRepository.findAllByOrderIdOrderByOccurredAtAscIdAsc(orderId).stream()
-            .map(history -> history.getFromStatus() + ">" + history.getToStatus())
-            .toList();
-    }
-
-    // 주문의 상태 이력 중 취소 줄만 "이전>다음 사유 출처"로
-    private List<String> cancelRows(Long orderId) {
-        return historyRepository.findAllByOrderIdOrderByOccurredAtAscIdAsc(orderId).stream()
-            .filter(history -> "CANCELLED".equals(String.valueOf(history.getToStatus())))
-            .map(history -> history.getFromStatus() + ">" + history.getToStatus() + " " + history.getReason() + " "
-                + history.getSource())
-            .toList();
     }
 
     private void assertCancelled(Long orderId, Order.CancelReason reason) {

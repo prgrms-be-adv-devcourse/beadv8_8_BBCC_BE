@@ -1,11 +1,13 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import static com.bbcc.kidly.boundedcontext.order.OrderRows.PLACED;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.OrderRows;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -45,6 +47,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class PaymentCompletedIntegrationTest {
 
     private static final Long OTHER_SELLER_ID = 3L;
+
+    @Autowired
+    private OrderRows orderRows;
 
     @Autowired
     private OrderEventDelivery eventDelivery;
@@ -113,32 +118,23 @@ class PaymentCompletedIntegrationTest {
         assertThat(remaining.get(0).getOptionId()).isEqualTo(1L);
         assertThat(remaining.get(0).getChildId()).isNull();
 
-        long version = versionOf(order.orderId());
+        long version = orderRows.versionOf(order.orderId());
         eventDelivery.deliver(completed);
 
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
         assertThat(orderRepository.findById(order.orderId())).get()
             .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
-        assertThat(versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
         assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).hasSize(1);
-        assertThat(historyRows(order.orderId())).containsExactly("PENDING_PAYMENT>PAID payment.completed");
+        assertThat(orderRows.historyRows(order.orderId()))
+            .containsExactly(PLACED, "ORDER PENDING_PAYMENT>PAID payment.completed",
+                "DELIVERY null>READY payment.completed", "DELIVERY null>READY payment.completed");
         assertThat(recorder.events(OrderPaymentRequestedEvent.class))
             .filteredOn(event -> event.data().orderId().equals(order.orderId())).hasSize(1);
         assertThat(recorder.events(OrderCancelledEvent.class))
             .filteredOn(event -> event.data().orderId().equals(order.orderId())).isEmpty();
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
             Long.class, order.orderId())).as("다시 온 쪽은 실패로 보관하지 않음").isZero();
-    }
-
-    private long versionOf(Long orderId) {
-        return jdbcTemplate.queryForObject("select version from orders.orders where id = ?", Long.class, orderId);
-    }
-
-    // 주문 단위 상태 이력을 "이전>다음 출처"로(주문하기 줄은 제외)
-    private List<String> historyRows(Long orderId) {
-        return jdbcTemplate.queryForList("select from_status || '>' || to_status || ' ' || source "
-            + "from orders.order_status_history where order_id = ? and target_type = 'ORDER' "
-            + "and from_status is not null order by id", String.class, orderId);
     }
 
     private PaymentCompletedEvent paymentCompleted(OrderDetail order) {
