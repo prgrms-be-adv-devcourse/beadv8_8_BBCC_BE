@@ -1,4 +1,4 @@
-# 로컬 개발용 DB + DB GUI(pgAdmin)
+# 로컬 개발용 DB + DB GUI(pgAdmin) + Kafka
 services:
   postgres:
     image: postgres:18
@@ -29,6 +29,30 @@ services:
       - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
     depends_on:
       - postgres
+
+  # 도메인 간 이벤트를 전달한다 (localhost:9092). KRaft 단일 브로커라 복제 계수는 1
+  kafka:
+    image: apache/kafka:4.2.2
+    container_name: kidly-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # 메시지 보존 7일(기본값을 명시). 주말에 EC2가 멈춰도 남고, 이벤트의 개인정보(가입 이메일 등)도 7일 뒤 지워진다
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx256m
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
 
   # bootRun 으로 띄운 앱의 메트릭을 수집한다 (http://localhost:9090)
   prometheus:
@@ -69,3 +93,4 @@ volumes:
   pgadmin-data:
   prometheus-data:
   grafana-data:
+  kafka-data:

@@ -12,6 +12,8 @@ services:
   app:
     image: ${IMAGE}
     env_file: .env
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "127.0.0.1:${APP_PORT}:8080"     # 외부 비공개. nginx 가 80/443 으로 받아 넘긴다
     volumes:
@@ -44,5 +46,36 @@ services:
     ports:
       - "127.0.0.1:${DB_PORT}:5432"     # 외부 비공개. 팀원이 SSH 터널로 IntelliJ 에서 붙는다
 
+  # 도메인 간 이벤트를 전달한다. 환경(-p <env>)마다 따로 뜨고 같은 compose 네트워크의 app 만 kafka:9092 로 붙는다(포트 비공개)
+  # KRaft 단일 브로커라 복제 계수는 1. EC2 가 멈췄다 켜져도 쌓인 메시지가 남도록 데이터는 볼륨에 둔다
+  kafka:
+    image: apache/kafka:4.2.2
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # 메시지 보존 7일(기본값을 명시). 주말에 EC2가 멈춰도 남고, 이벤트의 개인정보(가입 이메일 등)도 7일 뒤 지워진다
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx256m
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    logging: *logging
+
 volumes:
   postgres-data:
+  kafka-data:
