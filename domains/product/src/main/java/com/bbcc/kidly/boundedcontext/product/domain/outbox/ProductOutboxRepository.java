@@ -2,13 +2,10 @@ package com.bbcc.kidly.boundedcontext.product.domain.outbox;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 public interface ProductOutboxRepository {
 
     ProductOutboxMessage save(ProductOutboxMessage message);
-
-    boolean existsByEventId(UUID eventId);
 
     /**
      * 아직 보내지 않은 메시지를 id 오름차순으로 최대 limit건 찾는다.

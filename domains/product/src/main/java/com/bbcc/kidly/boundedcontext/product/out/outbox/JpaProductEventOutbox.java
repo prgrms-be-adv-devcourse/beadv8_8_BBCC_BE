@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.product.out.outbox;
 
 import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventOutbox;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
-import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -14,14 +13,14 @@ import tools.jackson.databind.json.JsonMapper;
  * 키는 correlationId라 같은 대상의 이벤트가 같은 파티션에 순서대로 쌓이고, 본문은 {@link ProductEventEnvelope} JSON이다.
  */
 @Component
-public class ProductOutboxWriter implements ProductEventOutbox {
+public class JpaProductEventOutbox implements ProductEventOutbox {
 
     static final String TOPIC = "kidly.product.events";
 
-    private final ProductOutboxRepository outboxRepository;
+    private final JpaProductOutboxRepository outboxRepository;
     private final JsonMapper jsonMapper;
 
-    public ProductOutboxWriter(ProductOutboxRepository outboxRepository, JsonMapper jsonMapper) {
+    public JpaProductEventOutbox(JpaProductOutboxRepository outboxRepository, JsonMapper jsonMapper) {
         this.outboxRepository = outboxRepository;
         this.jsonMapper = jsonMapper;
     }

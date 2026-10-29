@@ -12,6 +12,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 업무가 롤백되면 메시지도 남지 않고, 저장이 실패하면 업무도 커밋되지 않는다.
  * 한 앱에 도메인이 여럿이라 상품이 발행한 이벤트만 저장한다.
  * 트랜잭션 밖에서 발행한 이벤트는 이 리스너가 불리지 않는다(@DomainEventListener와 같은 조건).
+ * 다른 커밋 직전 리스너나 커밋 때의 flush 중에 발행한 이벤트도 저장되지 않는다. 커밋 직전 단계는 시작할 때 등록돼 있던 리스너만 부르기 때문이다.
  */
 @Component
 @RequiredArgsConstructor
