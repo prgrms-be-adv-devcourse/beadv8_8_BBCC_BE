@@ -88,6 +88,28 @@ class ProductOutboxMessageTest {
         assertThat(message.getLastError()).isEqualTo("가".repeat(500));
     }
 
+    @Test
+    @DisplayName("보낸 시각 없이 보냈다고 기록하면 거절하고, 시도 횟수와 보낸 시각을 바꾸지 않는다")
+    void rejectMarkSentWithoutTime() {
+        ProductOutboxMessage message = ProductOutboxMessage.create(ProductOutboxMessageFixture.productChanged());
+
+        assertThatThrownBy(() -> message.markSent(null)).isInstanceOf(NullPointerException.class);
+        assertThat(message)
+            .extracting(ProductOutboxMessage::getAttemptCount, ProductOutboxMessage::getSentAt)
+            .containsExactly(0, null);
+    }
+
+    @Test
+    @DisplayName("오류 없이 보내지 못했다고 기록하면 거절하고, 시도 횟수와 마지막 오류를 바꾸지 않는다")
+    void rejectRecordFailureWithoutError() {
+        ProductOutboxMessage message = ProductOutboxMessage.create(ProductOutboxMessageFixture.productChanged());
+
+        assertThatThrownBy(() -> message.recordFailure(null)).isInstanceOf(NullPointerException.class);
+        assertThat(message)
+            .extracting(ProductOutboxMessage::getAttemptCount, ProductOutboxMessage::getLastError)
+            .containsExactly(0, null);
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("createInfosWithoutRequiredValue")
     @DisplayName("필수 값이 없으면 메시지를 만들지 않는다")

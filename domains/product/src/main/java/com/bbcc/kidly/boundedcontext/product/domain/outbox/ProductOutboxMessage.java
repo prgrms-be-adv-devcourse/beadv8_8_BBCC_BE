@@ -74,9 +74,10 @@ public class ProductOutboxMessage extends BaseTimeEntity {
 
     /**
      * Kafka로 보냈다. 시도 횟수를 1 늘리고 보낸 시각을 기록한다.
-     * 이미 보낸 메시지는 바꾸지 않으므로, 같은 메시지를 두 번 처리해도 처음 기록이 남는다.
+     * 이미 보낸 메시지는 바꾸지 않으므로, 같은 객체에 두 번 불러도 처음 기록이 남는다.
      */
     public void markSent(LocalDateTime now) {
+        requireNonNull(now, "now는 필수입니다");
         if (sentAt != null) {
             return;
         }
@@ -89,6 +90,7 @@ public class ProductOutboxMessage extends BaseTimeEntity {
      * 오류가 칸 길이보다 길면 앞부분만 남긴다. 길이를 넘기면 이 기록을 저장하는 UPDATE가 실패하기 때문이다.
      */
     public void recordFailure(String error) {
+        requireNonNull(error, "error는 필수입니다");
         this.attemptCount++;
         if (error.length() > LAST_ERROR_LENGTH) {
             this.lastError = error.substring(0, LAST_ERROR_LENGTH);
