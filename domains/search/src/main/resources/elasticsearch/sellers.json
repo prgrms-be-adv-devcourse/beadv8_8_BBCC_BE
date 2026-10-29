@@ -1,0 +1,10 @@
+{
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "sellerId": { "type": "long" },
+      "businessName": { "type": "keyword" },
+      "occurredAt": { "type": "date" }
+    }
+  }
+}
