@@ -1,13 +1,13 @@
 # 모니터링 (Prometheus · Loki · Grafana)
 
-EC2 안에서 앱의 메트릭과 로그를 모으고 Grafana 로 봅니다. 앱 다운 · 5xx 증가 · ERROR 로그는 Slack `#4팀-운영이슈` 로 알립니다.
+EC2 안에서 앱의 메트릭과 로그, 호스트 · 컨테이너 자원 사용량을 모으고 Grafana 로 봅니다. 앱 다운 · 5xx 증가 · ERROR 로그는 Slack `#4팀-운영이슈` 로 알립니다.
 모두 host 네트워크에서 `127.0.0.1` 에만 열립니다. 밖에서는 nginx 의 `https://grafana.<도메인>` 으로 Grafana 만 보입니다.
 
 | 이름 | 주소 (서버 안) | 하는 일 | 보관 |
 | --- | --- | --- | --- |
-| Prometheus | `127.0.0.1:9090` | 앱 `/actuator/prometheus` 를 15초마다 수집 (배포된 환경만, 아래 수집 대상) | 15일 |
+| Prometheus | `127.0.0.1:9090` | 앱 `/actuator/prometheus` 를 15초마다 수집 (배포된 환경만, 아래 수집 대상). Alloy 가 보내는 호스트 · 컨테이너 메트릭을 remote write 로 받음 | 15일 |
 | Loki | `127.0.0.1:3100` | 앱 컨테이너 로그 저장 | 14일 |
-| Alloy | `127.0.0.1:12345` | docker 에서 dev · prod 앱 로그를 읽어 Loki 로 보냄 | - |
+| Alloy | `127.0.0.1:12345` | docker 에서 dev · prod 앱 로그를 읽어 Loki 로 보냄. 내장 node_exporter · cAdvisor 로 호스트(CPU · 메모리 · 디스크 · 네트워크) · 컨테이너별 자원을 15초마다 Prometheus 로 보냄 | - |
 | Grafana | `127.0.0.1:3000` | 대시보드 · 로그 검색 · 알림 | - |
 
 데이터소스 · 대시보드 · 알림 규칙 · Slack 연결은 `grafana/` 아래 파일로 관리합니다.
@@ -16,6 +16,7 @@ JVM 대시보드(`grafana/dashboards/jvm-micrometer.json`)는 커뮤니티 대�
 Spring Boot 대시보드(`grafana/dashboards/spring-boot.json`, HikariCP · HTTP · GC · Logback)는 커뮤니티 대시보드 [19004](https://grafana.com/grafana/dashboards/19004) 리비전 1 을 받아
 데이터소스를 uid `prometheus` 로 고정하고, 이 앱에 없는 `application` · `namespace` 변수와 `instance` 변수를 빼고 `env` 변수 하나로 거르게(`job="kidly", env="$env"`) 바꾼 것입니다.
 INFO logs 패널에 섞여 있던 전체 레벨 누적값 쿼리도 뺐습니다.
+서버 대시보드(`grafana/dashboards/kidly-server.json`)는 호스트 CPU · 메모리 · 디스크 · 업타임과 디스크 I/O · 네트워크, 컨테이너별(앱 · Postgres · Kafka · 모니터링) CPU · 메모리를 한 화면에 보여 줍니다. 변수 없이 고정 패널입니다.
 
 ## 준비
 
@@ -96,7 +97,7 @@ Grafana 화면에서 고친 대시보드 · 알림 규칙은 저장되지 않거
 앱 배포(`deploy/deploy.sh`)가 앱이 healthy 로 뜰 때마다 `/opt/app/monitoring/targets/<환경>.yml` 에 `127.0.0.1:<APP_PORT>` 와 `env` 라벨을 써 둡니다.
 Prometheus 는 이 폴더를 읽어 대상을 바꾸므로 손으로 고칠 것이 없습니다. prod 도 첫 배포 때 수집 · 알림이 시작됩니다.
 기동에 실패한 배포는 파일을 바꾸지 않습니다. 이미 있던 환경이면 "앱 다운" 이 그대로 울립니다.
-로그는 Alloy 가 앱 컨테이너를 알아서 찾습니다.
+로그는 Alloy 가 앱 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 
 이 방식으로 바뀐 뒤 첫 앱 배포가 dev 를 등록합니다. 그 전에는 수집 대상이 없어 아무 알림도 오지 않습니다.
 
@@ -184,4 +185,5 @@ JSON 이전 이미지의 텍스트 로그도 `level` 라벨로는 그대로 찾�
 
 - **모니터링 자체가 죽으면 알림도 멈춥니다.** Grafana 가 알림을 보내므로 Grafana · Prometheus 가 죽거나 EC2 가 꺼지면 알릴 수 없습니다. 감지되는 것은 `monitoring-deploy` 실패 알림(`#4팀-알림`)뿐입니다.
 - **앱이 막 재시작한 직후의 ERROR 는 건수 알림에서 빠질 수 있습니다.** 첫 수집(15초) 전에 난 ERROR 는 카운터에 잡히지 않습니다. 로그(Loki)에는 남습니다.
-- **Alloy 는 로그를 읽으려고 `/var/run/docker.sock` 을 마운트합니다.** `:ro` 여도 Docker API 는 막지 못해, Alloy 가 침해되면 서버 root 와 같은 권한이 됩니다. 127.0.0.1 에만 열고 원격 설정을 쓰지 않는 것으로 위험을 줄였습니다. 더 줄이려면 `docker-socket-proxy` 로 `containers` · `events` 만 열 수 있습니다.
+- **Alloy 는 로그를 읽으려고 `/var/run/docker.sock` 을 마운트합니다.** `:ro` 여도 Docker API 는 막지 못해, Alloy 가 침해되면 서버 root 와 같은 권한이 됩니다. 127.0.0.1 에만 열고 원격 설정을 쓰지 않는 것으로 위험을 줄였습니다. 더 줄이려면 `docker-socket-proxy` 로 `containers` · `events` 만 열 수 있습니다. 컨테이너 메트릭(cAdvisor)을 위해 `privileged` 로 돌고 호스트 `/` · `/proc` · `/sys` 를 읽기 전용으로 마운트하는데, docker.sock 으로 이미 같은 권한이라 더 넓어지는 것은 아닙니다.
+- **컨테이너 메트릭은 로컬(Docker Desktop)에서는 안 나옵니다.** Docker Desktop 은 containerd 이미지 저장소를 써서 cAdvisor 가 컨테이너를 못 읽습니다(`failed to identify the read-write layer ID`). 서버(overlay2)에서는 나옵니다. 호스트 메트릭은 로컬에서도 Docker VM 기준으로 나옵니다.

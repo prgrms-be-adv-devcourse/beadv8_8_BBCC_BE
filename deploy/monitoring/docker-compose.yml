@@ -18,6 +18,8 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=15d
       - --web.listen-address=127.0.0.1:9090
+      # Alloy 가 호스트 · 컨테이너 메트릭을 remote write 로 넣는다 (alloy/config.alloy)
+      - --web.enable-remote-write-receiver
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       # 앱 배포가 쓰는 수집 대상 파일. 모니터링 배포가 지우는 설정 폴더 밖에 둔다
@@ -36,10 +38,12 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # 앱 컨테이너 로그를 docker 에서 읽어 Loki 로 보낸다. 앱의 로그 설정은 바꾸지 않는다
+  # 앱 컨테이너 로그를 docker 에서 읽어 Loki 로 보내고, 호스트 · 컨테이너 자원 사용량을 Prometheus 로 보낸다. 앱의 로그 설정은 바꾸지 않는다
   alloy:
     image: grafana/alloy:v1.10.1
     network_mode: host
+    # 내장 cAdvisor 가 cgroup · 디스크 장치를 읽으려면 필요하다 (docker.sock 을 이미 가진 터라 권한이 더 넓어지는 건 아니다)
+    privileged: true
     command:
       - run
       - --server.http.listen-addr=127.0.0.1:12345
@@ -49,8 +53,15 @@ services:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - alloy-data:/var/lib/alloy/data
+      # 호스트 · 컨테이너 메트릭. /sys 는 cAdvisor 가 cgroup 을 읽는 자리라 컨테이너의 /sys 를 호스트 것으로 덮는다
+      - /proc:/host/proc:ro
+      - /sys:/sys:ro
+      - /:/rootfs:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
     depends_on:
       - loki
+      - prometheus
     restart: unless-stopped
     logging: *logging
 

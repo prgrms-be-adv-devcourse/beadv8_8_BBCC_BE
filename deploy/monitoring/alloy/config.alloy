@@ -84,3 +84,36 @@ loki.write "local" {
 		url = "http://127.0.0.1:3100/loki/api/v1/push"
 	}
 }
+
+// 호스트(EC2)와 컨테이너별 자원 사용량. 새 컨테이너 없이 Alloy 내장 exporter 로 모아 Prometheus 에 remote write 한다
+// 호스트 경로는 docker-compose.yml 이 읽기 전용으로 마운트한다
+prometheus.exporter.unix "host" {
+	procfs_path = "/host/proc"
+	rootfs_path = "/rootfs"
+}
+
+// 컨테이너 라벨은 compose 프로젝트(dev · prod · monitoring) · 서비스(app · postgres · kafka)만 가져온다
+prometheus.exporter.cadvisor "containers" {
+	docker_only                  = true
+	store_container_labels       = false
+	allowlisted_container_labels = ["com.docker.compose.project", "com.docker.compose.service"]
+}
+
+// 앱 메트릭(prometheus/prometheus.yml)과 같은 15초 간격
+prometheus.scrape "host" {
+	targets         = prometheus.exporter.unix.host.targets
+	forward_to      = [prometheus.remote_write.local.receiver]
+	scrape_interval = "15s"
+}
+
+prometheus.scrape "containers" {
+	targets         = prometheus.exporter.cadvisor.containers.targets
+	forward_to      = [prometheus.remote_write.local.receiver]
+	scrape_interval = "15s"
+}
+
+prometheus.remote_write "local" {
+	endpoint {
+		url = "http://127.0.0.1:9090/api/v1/write"
+	}
+}
