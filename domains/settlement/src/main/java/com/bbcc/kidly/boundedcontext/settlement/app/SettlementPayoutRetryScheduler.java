@@ -63,15 +63,13 @@ public class SettlementPayoutRetryScheduler {
         try {
             adminSettlementService.retryPayout(settlementId);
             return true;
-        } catch (BusinessException e) {
-            if (e.getErrorCode() == SettlementErrorCode.SETTLEMENT_NOT_RETRYABLE) {
+        } catch (RuntimeException e) {
+            if (e instanceof BusinessException b
+                && b.getErrorCode() == SettlementErrorCode.SETTLEMENT_NOT_RETRYABLE) {
                 log.debug("이미 지급 결과를 받은 정산서라 건너뜁니다. settlementId={}", settlementId);
             } else {
                 log.error("정산서 지급 재요청에 실패했습니다. settlementId={}", settlementId, e);
             }
-            return false;
-        } catch (RuntimeException e) {
-            log.error("정산서 지급 재요청에 실패했습니다. settlementId={}", settlementId, e);
             return false;
         }
     }
