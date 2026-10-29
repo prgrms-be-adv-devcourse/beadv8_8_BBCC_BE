@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.payment.app;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentEventSender;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -15,8 +16,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 같은 커밋 뒤에 도는 다른 리스너(@DomainEventListener, 순서 LOWEST_PRECEDENCE)보다 먼저 전송 대기열에 넣는다.
  * 그 리스너가 새로 발행한 결제 이벤트보다 이 이벤트가 먼저 나가야 같은 키의 순서가 맞는다.
  * 실제 전송은 PaymentEventSender가 다른 스레드에서 하므로, 브로커가 죽어 있어도 뒤의 리스너를 늦추지 않는다.
+ * kidly.kafka.producer.enabled가 false면 만들지 않는다(Kafka 없이 도는 테스트). 값이 없으면 보낸다.
  */
 @Component
+@ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class PaymentEventRelay {
 

@@ -17,7 +17,7 @@ import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutFailedEvent;
 import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
-import com.bbcc.kidly.support.IntegrationTest;
+import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -47,7 +47,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 받는 쪽(주문 · 정산)이 Spring 이벤트로 받는 것은 기존 테스트가 본다.
  * 다른 테스트의 결제 이벤트도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
  */
-@IntegrationTest
+@KafkaIntegrationTest
 @RecordApplicationEvents
 class PaymentKafkaPublishIntegrationTest {
 
