@@ -73,10 +73,6 @@ class SettlementRepositoryIntegrationTest {
         });
     }
 
-    private Settlement saveCompleted(Long sellerId) {
-        return settlementRepository.save(SettlementFixture.settlement(sellerId, PERIOD_START, PERIOD_END));
-    }
-
     @Test
     @DisplayName("기간 안의 COMPLETED만 id 순으로 limit만큼 찾는다")
     void findStuck() {
@@ -117,5 +113,9 @@ class SettlementRepositoryIntegrationTest {
             SettlementStatus.COMPLETED, NOW.plusSeconds(1))).isEqualTo(2);
         assertThat(settlementRepository.countByStatusAndCompletedAtBefore(
             SettlementStatus.COMPLETED, NOW)).isZero();
+    }
+
+    private Settlement saveCompleted(Long sellerId) {
+        return settlementRepository.save(SettlementFixture.settlement(sellerId, PERIOD_START, PERIOD_END));
     }
 }

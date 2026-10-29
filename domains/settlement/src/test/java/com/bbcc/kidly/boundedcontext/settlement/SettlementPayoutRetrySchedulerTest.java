@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.times;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.AdminSettlementService;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementPayoutRetryScheduler;
@@ -75,7 +76,20 @@ class SettlementPayoutRetrySchedulerTest {
 
         assertThat(count).isEqualTo(1);
         then(adminSettlementService).should().retryPayout(2L);
-        then(adminSettlementService).should(org.mockito.Mockito.times(2)).retryPayout(anyLong());
+        then(adminSettlementService).should(times(2)).retryPayout(anyLong());
+    }
+
+    @Test
+    @DisplayName("7일 넘게 결과를 못 받은 정산서 건수를 센다")
+    void countsExpired() {
+        givenStuck();
+        given(settlementRepository.countByStatusAndCompletedAtBefore(
+            SettlementStatus.COMPLETED, NOW.minusDays(7))).willReturn(3L);
+
+        scheduler.retryStuckPayouts(NOW);
+
+        then(settlementRepository).should().countByStatusAndCompletedAtBefore(
+            SettlementStatus.COMPLETED, NOW.minusDays(7));
     }
 
     private void givenStuck(Settlement... settlements) {
