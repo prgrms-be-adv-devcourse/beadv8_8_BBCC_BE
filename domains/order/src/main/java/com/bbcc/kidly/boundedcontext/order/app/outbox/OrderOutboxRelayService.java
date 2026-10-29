@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,9 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 주문 이벤트 아웃박스를 Kafka로 보낸다(#540). 업무는 이 결과와 상관없이 이미 커밋돼 있다.
  * 로그: 보내지 못하면 WARN(메시지 ID · 이벤트 ID · 종류 · 시도 · 오류). 본문은 개인 정보가 있을 수 있어 남기지 않는다.
+ * kidly.kafka.producer.enabled가 false면 만들지 않는다(Kafka 없이 도는 테스트). 값이 없으면 만든다.
+ * 그때도 업무의 아웃박스 저장(OrderEventOutbox)과 정리(OrderOutboxCleanupService)는 그대로다.
  */
 @Slf4j
 @Service
+@ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class OrderOutboxRelayService {
 
@@ -51,15 +55,5 @@ public class OrderOutboxRelayService {
             sent++;
         }
         return new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, unsent.size(), sent);
-    }
-
-    /**
-     * 보관 기간보다 먼저 보낸 메시지를 지운다. 안 보낸 메시지는 남긴다.
-     *
-     * @return 지운 건수
-     */
-    @Transactional
-    public int cleanUp() {
-        return outboxRepository.deleteSentBefore(LocalDateTime.now().minus(properties.retention()));
     }
 }

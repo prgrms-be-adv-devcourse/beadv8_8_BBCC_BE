@@ -16,15 +16,16 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.ProducerFactory;
 
 /**
- * 주문 전용 Producer 설정(#540). Boot가 만든 ProducerFactory(연결 정보 · 보안 포함)를 설정만 덮어 복사해 쓰고,
- * 보내기 한 번이 기다리는 시간을 묶는다. 실제 전송은 통합 테스트에서 확인한다.
+ * 주문 전용 Producer 설정(#540). Boot가 만든 ProducerFactory(주소 · acks=all · 멱등 등 앱 spring.kafka)를
+ * 직렬화 · 대기 시간만 덮어 복사해 쓰고, 보내기 한 번이 기다리는 시간을 묶는다. 실제 전송은 Kafka 통합 테스트에서 확인한다.
  */
 class KafkaOrderEventSenderTest {
 
     @Test
-    @DisplayName("Boot ProducerFactory를 acks=all · 멱등 · 문자열 직렬화 · 대기 5초/전달 10초로 덮어 복사한다(Boot 빈은 그대로)")
-    void copiesBootFactoryWithOverrides() {
-        ProducerFactory<?, ?> bootFactory = mock(ProducerFactory.class);
+    @DisplayName("Boot ProducerFactory를 문자열 직렬화 · 대기 5초 · 요청 5초 · 전달 10초로만 덮어 복사한다(acks · 멱등은 앱 설정 그대로)")
+    void copiesBootFactoryWithTimeoutsOnly() {
+        @SuppressWarnings("unchecked")
+        ProducerFactory<String, String> bootFactory = mock(ProducerFactory.class);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> overrides = ArgumentCaptor.forClass(Map.class);
         when(bootFactory.copyWithConfigurationOverride(any())).thenAnswer(invocation -> mock(ProducerFactory.class));
@@ -33,8 +34,6 @@ class KafkaOrderEventSenderTest {
 
         verify(bootFactory).copyWithConfigurationOverride(overrides.capture());
         assertThat(overrides.getValue()).containsExactlyInAnyOrderEntriesOf(Map.of(
-            ProducerConfig.ACKS_CONFIG, "all",
-            ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true,
             ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
             ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
             ProducerConfig.MAX_BLOCK_MS_CONFIG, 5_000,
@@ -51,7 +50,8 @@ class KafkaOrderEventSenderTest {
     @Test
     @DisplayName("앱이 끝날 때 복사한 팩토리를 닫는다(Producer 종료). Boot 빈은 Boot가 닫는다")
     void destroysCopiedFactory() {
-        ProducerFactory<?, ?> bootFactory = mock(ProducerFactory.class);
+        @SuppressWarnings("unchecked")
+        ProducerFactory<String, String> bootFactory = mock(ProducerFactory.class);
         DefaultKafkaProducerFactory<?, ?> copied = mock(DefaultKafkaProducerFactory.class);
         when(bootFactory.copyWithConfigurationOverride(any())).thenAnswer(invocation -> copied);
 

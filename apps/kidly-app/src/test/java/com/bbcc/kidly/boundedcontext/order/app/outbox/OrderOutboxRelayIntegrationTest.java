@@ -6,16 +6,18 @@ import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
-import com.bbcc.kidly.support.IntegrationTest;
+import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -23,10 +25,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 선언하지 않은 토픽(자동 생성 꺼짐)으로 메시지를 둔다: 메타데이터 대기(max.block 5초) 뒤 실패한다.
  * 스케줄러는 테스트 설정으로 멈춰 두고 릴레이를 직접 부른다.
  */
-@IntegrationTest
+@KafkaIntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class OrderOutboxRelayIntegrationTest {
 
     private static final Duration ONE_RUN_LIMIT = Duration.ofSeconds(8);
+    private static final String SECRET_PAYLOAD = "{\"shippingAddress\":\"비밀 주소\"}";
 
     @Autowired
     private OrderOutboxRelayService relayService;
@@ -55,6 +59,17 @@ class OrderOutboxRelayIntegrationTest {
     }
 
     @Test
+    @DisplayName("보내지 못해도 로그에 본문을 남기지 않는다(KafkaTemplate 기본 실패 로그 포함)")
+    void failureLogHasNoPayload(CapturedOutput output) {
+        saveToUndeclaredTopic();
+
+        relayService.relay();
+
+        assertThat(output).contains("아웃박스 전송 실패");
+        assertThat(output).doesNotContain("비밀 주소");
+    }
+
+    @Test
     @DisplayName("두 릴레이가 동시에 돌면 잠금을 얻은 하나만 보내고 다른 하나는 아무것도 하지 않는다")
     void onlyOneRelayRunsAtATime() throws InterruptedException {
         Long id = saveToUndeclaredTopic();
@@ -70,28 +85,8 @@ class OrderOutboxRelayIntegrationTest {
             Integer.class, id)).as("보내기를 시도한 릴레이는 하나").isOne();
     }
 
-    @Test
-    @DisplayName("정리는 보관 기간(order.yml 기본 7일)보다 먼저 보낸 메시지만 지우고, 최근에 보낸 것 · 안 보낸 것은 남긴다")
-    void cleanUpDeletesSentOlderThanRetention() {
-        Long old = saveToUndeclaredTopic();
-        Long recent = saveToUndeclaredTopic();
-        Long unsent = saveToUndeclaredTopic();
-        LocalDateTime now = LocalDateTime.now();
-        jdbcTemplate.update("update orders.order_outbox set sent_at = ? where id = ?", now.minusDays(7).minusMinutes(1),
-            old);
-        jdbcTemplate.update("update orders.order_outbox set sent_at = ? where id = ?", now.minusDays(7).plusMinutes(1),
-            recent);
-        jdbcTemplate.update("update orders.order_outbox set created_at = ? where id = ?", now.minusDays(30), unsent);
-
-        int deleted = relayService.cleanUp();
-
-        assertThat(deleted).isOne();
-        assertThat(jdbcTemplate.queryForList("select id from orders.order_outbox order by id", Long.class))
-            .containsExactly(recent, unsent);
-    }
-
     private Long saveToUndeclaredTopic() {
         return outboxRepository.save(OrderOutboxMessage.create(UUID.randomUUID(), "order.created",
-            "undeclared-" + UUID.randomUUID(), "1024", "{}")).getId();
+            "undeclared-" + UUID.randomUUID(), "1024", SECRET_PAYLOAD)).getId();
     }
 }

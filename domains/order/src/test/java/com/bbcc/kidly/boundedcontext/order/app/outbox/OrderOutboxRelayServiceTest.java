@@ -15,7 +15,6 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -139,26 +138,6 @@ class OrderOutboxRelayServiceTest {
             assertThat(output).contains("아웃박스 전송 실패: outboxId=7 eventId=" + failing.getEventId()
                 + " eventType=order.created attempt=1 error=IllegalStateException: broker down");
             assertThat(output).doesNotContain("비밀 주소");
-        }
-    }
-
-    @Nested
-    @DisplayName("정리")
-    class CleanUp {
-
-        @Test
-        @DisplayName("보관 기간(7일) 전보다 먼저 보낸 메시지를 지운다")
-        void deletesSentBeforeRetention() {
-            when(outboxRepository.deleteSentBefore(any())).thenReturn(3);
-            LocalDateTime before = LocalDateTime.now().minusDays(7);
-
-            int deleted = relayService.cleanUp();
-
-            LocalDateTime after = LocalDateTime.now().minusDays(7);
-            ArgumentCaptor<LocalDateTime> cutoff = ArgumentCaptor.forClass(LocalDateTime.class);
-            verify(outboxRepository).deleteSentBefore(cutoff.capture());
-            assertThat(cutoff.getValue()).isBetween(before, after);
-            assertThat(deleted).isEqualTo(3);
         }
     }
 

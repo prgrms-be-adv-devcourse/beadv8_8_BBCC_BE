@@ -12,17 +12,22 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.support.ProducerListener;
 import org.springframework.stereotype.Component;
 
 /**
  * 아웃박스 메시지를 Kafka로 보낸다(#540). 헤더 eventType · eventId를 붙이고 브로커가 받았다고 답할 때까지 기다린다.
- * Boot가 만든 ProducerFactory(연결 정보 · 보안 · 테스트 컨테이너 연결 포함)를 설정만 덮어 복사한 주문 전용 팩토리를 쓴다.
- * 복사본과 KafkaTemplate은 빈이 아니라 이 객체 안에만 있어, 다른 도메인은 Boot 기본 설정을 그대로 쓴다(spring.kafka.*도 그대로).
- * 보내기 한 번은 최대 SEND_TIMEOUT까지 기다린다: 릴레이는 스케줄러 스레드(1개) · DB 트랜잭션을 쥔 채 보내므로 오래 막히지 않게 한다.
+ * 주문 전용 템플릿은 Boot 프로듀서 설정(주소 · acks=all · 멱등, 앱 spring.kafka)을 그대로 쓰고 직렬화 · 대기 시간만 덮어쓴다.
+ * 빈으로 등록하지 않으므로 Boot 기본 KafkaTemplate과 앱 spring.kafka 설정은 그대로다.
+ * 대기 시간을 줄이는 이유: 릴레이는 스케줄러 스레드(앱 전체 1개) · DB 트랜잭션 · 릴레이 잠금을 쥔 채 보내고 기다린다.
+ * 기본값(max.block 60초 · delivery 120초)이면 브로커가 죽었을 때 한 주기가 몇 분씩 다른 스케줄러와 DB 연결을 붙잡는다.
+ * kidly.kafka.producer.enabled가 false면 만들지 않는다(Kafka 없이 도는 테스트). 값이 없으면 만든다.
  */
 @Component
+@ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)
 class KafkaOrderEventSender implements OrderEventSender, DisposableBean {
 
     private static final int MAX_BLOCK_MS = 5_000;
@@ -34,26 +39,23 @@ class KafkaOrderEventSender implements OrderEventSender, DisposableBean {
     static final Duration SEND_TIMEOUT = Duration.ofMillis(MAX_BLOCK_MS + DELIVERY_TIMEOUT_MS);
 
     /**
-     * acks=all · 멱등: 브로커가 받은 메시지는 잃지 않고, Producer 재시도로 중복되지 않는다.
+     * 본문은 이미 JSON 문자열이라 문자열 그대로 보낸다(앱 기본도 String이지만 이 템플릿의 타입이므로 명시한다).
      * delivery.timeout은 request.timeout(+ linger 0) 이상이어야 한다.
      */
     private static final Map<String, Object> PRODUCER_OVERRIDES = Map.of(
-        ProducerConfig.ACKS_CONFIG, "all",
-        ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true,
         ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
         ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
         ProducerConfig.MAX_BLOCK_MS_CONFIG, MAX_BLOCK_MS,
         ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 5_000,
         ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, DELIVERY_TIMEOUT_MS);
 
-    private final ProducerFactory<String, String> producerFactory;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    @SuppressWarnings("unchecked")
-    KafkaOrderEventSender(ProducerFactory<?, ?> bootProducerFactory) {
-        this.producerFactory = (ProducerFactory<String, String>) bootProducerFactory
-            .copyWithConfigurationOverride(PRODUCER_OVERRIDES);
-        this.kafkaTemplate = new KafkaTemplate<>(producerFactory);
+    KafkaOrderEventSender(ProducerFactory<String, String> producerFactory) {
+        this.kafkaTemplate = new KafkaTemplate<>(producerFactory, PRODUCER_OVERRIDES);
+        // 기본 LoggingProducerListener는 실패 로그에 본문을 찍는다. 실패는 릴레이가 본문 없이 남긴다
+        this.kafkaTemplate.setProducerListener(new ProducerListener<>() {
+        });
     }
 
     @Override
@@ -76,15 +78,12 @@ class KafkaOrderEventSender implements OrderEventSender, DisposableBean {
         }
     }
 
+    /**
+     * 주문 전용 템플릿이 만든 Producer를 닫는다(빈이 아니므로 직접 닫는다). Boot 빈은 Boot가 닫는다.
+     */
     @Override
     public void destroy() {
-        if (producerFactory instanceof DisposableBean disposable) {
-            try {
-                disposable.destroy();
-            } catch (Exception e) {
-                throw new IllegalStateException("주문 Kafka Producer를 닫지 못했습니다", e);
-            }
-        }
+        kafkaTemplate.destroy();
     }
 
     /**

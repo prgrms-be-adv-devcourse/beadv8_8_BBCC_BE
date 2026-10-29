@@ -9,12 +9,16 @@ import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
+import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderOutboxCleanupScheduler;
+import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderOutboxRelayScheduler;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
@@ -29,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -63,6 +68,9 @@ class OrderOutboxIntegrationTest {
 
     @Autowired
     private JsonMapper jsonMapper;
+
+    @Autowired
+    private ApplicationContext context;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -142,6 +150,16 @@ class OrderOutboxIntegrationTest {
 
         assertThatThrownBy(() -> outbox.append(event)).isInstanceOf(IllegalTransactionStateException.class);
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.order_outbox", Long.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("Kafka 보내기가 꺼진 컨텍스트에는 sender · 릴레이 · 릴레이 스케줄러가 없어도 아웃박스 저장 · 정리는 있다")
+    void relayBeansAbsentWithoutKafka() {
+        assertThat(context.getBeanNamesForType(OrderEventSender.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(OrderOutboxRelayService.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(OrderOutboxRelayScheduler.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(OrderEventOutbox.class)).hasSize(1);
+        assertThat(context.getBeanNamesForType(OrderOutboxCleanupScheduler.class)).hasSize(1);
     }
 
     private OrderDetail place() {

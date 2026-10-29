@@ -13,12 +13,14 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderOutboxRelayScheduler;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
@@ -27,7 +29,8 @@ import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
-import com.bbcc.kidly.support.IntegrationTest;
+import com.bbcc.kidly.support.AsyncWait;
+import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -51,6 +54,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -60,7 +64,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 앱은 Boot 연결 정보(@ServiceConnection)로 보내고, 테스트는 컨테이너 주소로 직접 읽는다: 연결이 컨테이너를 가리키지 않으면 도착하지 않는다.
  * 토픽은 컨테이너 수명 동안 남고 DB는 테스트마다 비워져 주문 ID가 겹치므로, 메시지는 이벤트 ID로 골라 읽는다.
  */
-@IntegrationTest
+@KafkaIntegrationTest
 class OrderOutboxKafkaIntegrationTest {
 
     private static final String TOPIC = "kidly.order.events";
@@ -99,11 +103,22 @@ class OrderOutboxKafkaIntegrationTest {
     @Autowired
     private JsonMapper jsonMapper;
 
+    @Autowired
+    private ApplicationContext context;
+
     @BeforeEach
     void setUp() {
         recorder.clear();
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
+    }
+
+    @Test
+    @DisplayName("Kafka 통합 테스트에서는 주문 sender · 릴레이 · 릴레이 스케줄러를 만든다")
+    void relayBeansPresentWithKafka() {
+        assertThat(context.getBeanNamesForType(OrderEventSender.class)).hasSize(1);
+        assertThat(context.getBeanNamesForType(OrderOutboxRelayService.class)).hasSize(1);
+        assertThat(context.getBeanNamesForType(OrderOutboxRelayScheduler.class)).hasSize(1);
     }
 
     @Test
@@ -173,7 +188,7 @@ class OrderOutboxKafkaIntegrationTest {
     }
 
     /**
-     * 토픽의 모든 파티션을 처음부터 읽어 원하는 이벤트 ID가 모두 모일 때까지(최대 READ_TIMEOUT) 모은다.
+     * 토픽의 모든 파티션을 처음부터 읽어 원하는 이벤트 ID가 모두 모일 때까지(최대 READ_TIMEOUT) 모은다. 다 못 모으면 실패한다.
      */
     private Map<String, ConsumerRecord<String, String>> read(String topic, Set<String> eventIds) {
         Map<String, ConsumerRecord<String, String>> found = new HashMap<>();
@@ -186,15 +201,15 @@ class OrderOutboxKafkaIntegrationTest {
                 .toList();
             consumer.assign(partitions);
             consumer.seekToBeginning(partitions);
-            long deadline = System.nanoTime() + READ_TIMEOUT.toNanos();
-            while (found.size() < eventIds.size() && System.nanoTime() < deadline) {
+            AsyncWait.until(READ_TIMEOUT, () -> {
                 for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
                     String eventId = header(record, "eventId");
                     if (eventIds.contains(eventId)) {
                         found.put(eventId, record);
                     }
                 }
-            }
+                return found.size() == eventIds.size();
+            });
         }
         return found;
     }
