@@ -1,0 +1,12 @@
+# 검색 도메인 설정. 검색 서비스(apps/search-service)의 application.yml이 가져온다
+# 값이 비었거나 형식이 맞지 않으면 키 이름이 나오는 오류로 기동 실패 (SearchIndexProperties)
+
+spring:
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+
+kidly:
+  search:
+    index:
+      # 색인 이름 맨 앞의 환경 이름(소문자만). dev와 prod가 Elasticsearch 하나를 색인 이름으로만 나눠 쓸 수 있다
+      prefix: ${SEARCH_INDEX_PREFIX:local}

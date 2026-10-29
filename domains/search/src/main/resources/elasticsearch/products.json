@@ -1,0 +1,19 @@
+{
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "productId": { "type": "long" },
+      "name": { "type": "text", "analyzer": "nori" },
+      "thumbnailUrl": { "type": "keyword", "index": false },
+      "sellerId": { "type": "long" },
+      "categoryId": { "type": "long" },
+      "status": { "type": "keyword" },
+      "sizeFree": { "type": "boolean" },
+      "productCreatedAt": { "type": "date" },
+      "minPrice": { "type": "long" },
+      "soldOut": { "type": "boolean" },
+      "attributeValues": { "type": "keyword" },
+      "occurredAt": { "type": "date" }
+    }
+  }
+}
