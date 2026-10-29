@@ -67,9 +67,10 @@ kidly:
     retry-interval: P3650D
     # 각자의 OS 환경 변수(NOTIFICATION_SITE_URL)와 상관없이 같은 주소를 쓴다
     site-url: http://localhost:5173
-  # 자동 정산 스케줄러는 끈다. 정산 테스트는 SettlementRunService를 직접 부른다
+  # 자동 정산 · 지급 재요청 스케줄러는 끈다. 정산 테스트는 SettlementRunService를 직접 부른다
   settlement:
     run-cron: "-"
+    payout-retry-cron: "-"
   # 테스트는 AWS에 접근하지 않는다. 가짜 자격 증명으로 업로드 주소 형식만 만든다
   product:
     image:
