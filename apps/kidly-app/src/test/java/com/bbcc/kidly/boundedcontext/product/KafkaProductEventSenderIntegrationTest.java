@@ -2,7 +2,10 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSendException;
 import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSender;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -21,7 +24,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.testcontainers.kafka.KafkaContainer;
 
 /**
@@ -29,6 +35,7 @@ import org.testcontainers.kafka.KafkaContainer;
  * 다른 테스트의 메시지도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
  */
 @KafkaIntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class KafkaProductEventSenderIntegrationTest {
 
     private static final String TOPIC = "kidly.product.events";
@@ -73,6 +80,22 @@ class KafkaProductEventSenderIntegrationTest {
         assertThat(header(record, "eventType")).isEqualTo("product.changed");
         assertThat(record.value()).isEqualTo(ProductOutboxMessageFixture.PAYLOAD);
         assertThat(consumer.partitionsFor(TOPIC)).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("없는 토픽으로 보내면 몇 초 안에 전송 예외가 나고, 로그와 예외 메시지에 본문을 남기지 않는다")
+    void failFastWithoutBodyInLogs(CapturedOutput output) {
+        // 브로커의 토픽 자동 생성이 꺼져 있어 선언하지 않은 토픽에는 보내지 못한다
+        UUID eventId = UUID.randomUUID();
+        ProductOutboxMessage message = ProductOutboxMessage.create(new ProductOutboxMessage.CreateInfo(
+            eventId, "product.changed", "kidly.product.missing-" + eventId, "1", ProductOutboxMessageFixture.PAYLOAD));
+
+        assertTimeoutPreemptively(Duration.ofSeconds(15), () -> assertThatThrownBy(
+            () -> productEventSender.send(message))
+            .isInstanceOf(ProductEventSendException.class)
+            .hasMessageContaining("eventId=" + eventId)
+            .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD));
+        assertThat(output.getAll()).doesNotContain(ProductOutboxMessageFixture.PAYLOAD);
     }
 
     private ConsumerRecord<String, String> awaitRecord(UUID eventId) {
