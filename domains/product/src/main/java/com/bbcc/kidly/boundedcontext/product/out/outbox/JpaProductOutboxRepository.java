@@ -8,9 +8,10 @@ import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
- * 상품 아웃박스 메시지를 JPA로 저장하고 조회한다.
+ * 상품 아웃박스 메시지를 JPA로 저장 · 조회 · 삭제한다.
  */
 public interface JpaProductOutboxRepository
     extends JpaRepository<ProductOutboxMessage, Long>, ProductOutboxRepository {
@@ -26,5 +27,5 @@ public interface JpaProductOutboxRepository
     @Override
     @Modifying
     @Query("delete from ProductOutboxMessage m where m.sentAt < :cutoff")
-    int deleteSentBefore(LocalDateTime cutoff);
+    int deleteSentBefore(@Param("cutoff") LocalDateTime cutoff);
 }
