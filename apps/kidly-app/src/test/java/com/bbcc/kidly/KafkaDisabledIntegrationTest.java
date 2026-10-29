@@ -30,4 +30,10 @@ class KafkaDisabledIntegrationTest {
     void noKafkaRelay() {
         assertThat(context.containsBean("paymentEventRelay")).isFalse();
     }
+
+    @Test
+    @DisplayName("일반 통합 테스트에서는 커밋 뒤 Kafka로 보내는 회원 빈을 만들지 않는다")
+    void noMemberKafkaRelay() {
+        assertThat(context.containsBean("memberEventRelay")).isFalse();
+    }
 }
