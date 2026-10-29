@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.search.out;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
 import co.elastic.clients.elasticsearch.indices.ExistsRequest;
 import jakarta.annotation.PostConstruct;
@@ -21,6 +22,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class SearchIndexInitializer {
+
+    private static final String ALREADY_EXISTS = "resource_already_exists_exception";
 
     private final ElasticsearchClient client;
     private final SearchIndexProperties properties;
@@ -43,6 +46,12 @@ public class SearchIndexInitializer {
                 client.indices().create(CreateIndexRequest.of(builder -> builder.index(index).withJson(settings)));
             }
             log.info("검색 색인을 만들었습니다. index={}", index);
+        } catch (ElasticsearchException e) {
+            // 확인과 생성 사이에 다른 인스턴스가 먼저 만들었으면 이미 있는 것이므로 그대로 기동한다
+            if (!ALREADY_EXISTS.equals(e.error().type())) {
+                throw e;
+            }
+            log.info("다른 인스턴스가 먼저 검색 색인을 만들었습니다. index={}", index);
         } catch (IOException e) {
             throw new UncheckedIOException("검색 색인을 만들지 못했습니다. index=" + index, e);
         }

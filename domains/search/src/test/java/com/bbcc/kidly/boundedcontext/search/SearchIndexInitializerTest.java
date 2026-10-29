@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -8,6 +10,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.ElasticsearchException;
+import co.elastic.clients.elasticsearch._types.ErrorResponse;
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
 import co.elastic.clients.elasticsearch.indices.ElasticsearchIndicesClient;
 import co.elastic.clients.elasticsearch.indices.ExistsRequest;
@@ -73,5 +77,30 @@ class SearchIndexInitializerTest {
         initializer.createMissingIndexes();
 
         verify(indices, never()).create(any(CreateIndexRequest.class));
+    }
+
+    @Test
+    @DisplayName("확인한 뒤 다른 인스턴스가 먼저 만들어 이미 있다는 오류가 나면 무시하고 기동한다")
+    void ignoresIndexCreatedByAnotherInstance() throws IOException {
+        when(indices.exists(any(ExistsRequest.class))).thenReturn(new BooleanResponse(false));
+        when(indices.create(any(CreateIndexRequest.class)))
+            .thenThrow(error(400, "resource_already_exists_exception"));
+
+        assertThatCode(() -> initializer.createMissingIndexes()).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("그 밖의 색인 생성 오류(예: nori 플러그인 없음)는 그대로 던져 기동에 실패한다")
+    void rethrowsOtherCreateErrors() throws IOException {
+        when(indices.exists(any(ExistsRequest.class))).thenReturn(new BooleanResponse(false));
+        when(indices.create(any(CreateIndexRequest.class))).thenThrow(error(400, "illegal_argument_exception"));
+
+        assertThatThrownBy(() -> initializer.createMissingIndexes()).isInstanceOf(ElasticsearchException.class);
+    }
+
+    private static ElasticsearchException error(int status, String type) {
+        return new ElasticsearchException("indices.create", ErrorResponse.of(response -> response
+            .status(status)
+            .error(cause -> cause.type(type).reason(type))));
     }
 }
