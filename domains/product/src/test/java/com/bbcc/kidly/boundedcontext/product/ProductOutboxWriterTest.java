@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
