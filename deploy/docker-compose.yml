@@ -22,8 +22,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
     # deploy.sh 의 up -d --wait 가 이 healthcheck 를 기다린다. Spring 기동에 20~40초 걸린다
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]

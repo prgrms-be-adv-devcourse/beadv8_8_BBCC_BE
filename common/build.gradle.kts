@@ -13,9 +13,6 @@ dependencies {
     api("org.springframework.boot:spring-boot-starter-data-jpa")
     api("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
 
-    // EventPublisher가 커밋 뒤 Kafka로도 보낸다. 받는 쪽 공통 설정(에러 핸들러)도 여기 있다
-    implementation("org.springframework.boot:spring-boot-starter-kafka")
-
     // SwaggerConfig(OpenAPI 정의)
     implementation(libs.springdoc.openapi.webmvc.ui)
 
