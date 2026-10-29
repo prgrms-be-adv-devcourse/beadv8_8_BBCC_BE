@@ -231,8 +231,7 @@ class DomainEventListenerTest {
 
         @Bean
         EventPublisher eventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-            // 이 테스트는 스프링 이벤트 쪽만 본다
-            return new EventPublisher(applicationEventPublisher, event -> { });
+            return new EventPublisher(applicationEventPublisher);
         }
 
         @Bean

@@ -5,7 +5,6 @@ spring:
   config:
     import:
       - classpath:auth.yml
-      - classpath:kafka.yml
       - classpath:payment.yml
       - classpath:order.yml
       - classpath:settlement.yml
