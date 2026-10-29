@@ -48,4 +48,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    // 테스트용 Kafka 컨테이너와 그 확인 테스트의 Producer · Admin (버전은 Boot BOM)
+    testImplementation("org.testcontainers:testcontainers-kafka")
+    testImplementation("org.apache.kafka:kafka-clients")
 }
