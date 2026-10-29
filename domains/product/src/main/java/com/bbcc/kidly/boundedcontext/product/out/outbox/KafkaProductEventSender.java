@@ -10,13 +10,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.kafka.core.KafkaTemplate;
 
 /**
  * 아웃박스 메시지를 저장된 토픽과 키 그대로 Kafka로 보낸다. 본문은 저장할 때 만든 JSON을 바꾸지 않고 보낸다.
  * 헤더는 eventType과 eventId 두 개만 붙인다.
  */
-public class KafkaProductEventSender implements ProductEventSender {
+public class KafkaProductEventSender implements ProductEventSender, DisposableBean {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final Duration sendTimeout;
@@ -63,5 +64,11 @@ public class KafkaProductEventSender implements ProductEventSender {
             "상품 이벤트를 Kafka로 보내지 못했습니다. eventType=%s eventId=%s reason=%s"
                 .formatted(message.getEventType(), message.getEventId(), reason),
             cause);
+    }
+
+    // 상품 전용 템플릿은 빈이 아니라 Spring이 닫아 주지 않으므로, 앱이 내려갈 때 직접 닫는다
+    @Override
+    public void destroy() {
+        kafkaTemplate.destroy();
     }
 }
