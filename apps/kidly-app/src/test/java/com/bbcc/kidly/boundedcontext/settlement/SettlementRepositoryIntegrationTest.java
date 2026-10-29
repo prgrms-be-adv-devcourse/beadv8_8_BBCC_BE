@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Limit;
 
 @IntegrationTest
 class SettlementRepositoryIntegrationTest {
@@ -70,5 +71,51 @@ class SettlementRepositoryIntegrationTest {
             assertThat(found.getStatus()).isEqualTo(SettlementStatus.PAID);
             assertThat(found.getPaidAt()).isEqualTo(NOW.plusMinutes(5));
         });
+    }
+
+    private Settlement saveCompleted(Long sellerId) {
+        return settlementRepository.save(SettlementFixture.settlement(sellerId, PERIOD_START, PERIOD_END));
+    }
+
+    @Test
+    @DisplayName("기간 안의 COMPLETED만 id 순으로 limit만큼 찾는다")
+    void findStuck() {
+        var first = saveCompleted(1L);
+        var second = saveCompleted(2L);
+        saveCompleted(3L);
+        var paid = saveCompleted(4L);
+        paid.markPaid(NOW.plusMinutes(5));
+        settlementRepository.save(paid);
+
+        var found = settlementRepository.findByStatusAndCompletedAtBetweenOrderByIdAsc(
+            SettlementStatus.COMPLETED, NOW.minusMinutes(1), NOW.plusMinutes(1), Limit.of(2));
+
+        assertThat(found).extracting(Settlement::getId).containsExactly(first.getId(), second.getId());
+    }
+
+    @Test
+    @DisplayName("기간 양끝과 같은 완료 시각도 포함한다")
+    void findStuckBoundaries() {
+        var saved = saveCompleted(1L);
+
+        var found = settlementRepository.findByStatusAndCompletedAtBetweenOrderByIdAsc(
+            SettlementStatus.COMPLETED, NOW, NOW, Limit.of(10));
+
+        assertThat(found).extracting(Settlement::getId).containsExactly(saved.getId());
+    }
+
+    @Test
+    @DisplayName("기준 시각 이전에 완료된 COMPLETED 건수를 센다")
+    void countBefore() {
+        saveCompleted(1L);
+        saveCompleted(2L);
+        var paid = saveCompleted(3L);
+        paid.markPaid(NOW.plusMinutes(5));
+        settlementRepository.save(paid);
+
+        assertThat(settlementRepository.countByStatusAndCompletedAtBefore(
+            SettlementStatus.COMPLETED, NOW.plusSeconds(1))).isEqualTo(2);
+        assertThat(settlementRepository.countByStatusAndCompletedAtBefore(
+            SettlementStatus.COMPLETED, NOW)).isZero();
     }
 }
