@@ -26,6 +26,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -166,6 +170,31 @@ class KafkaPaymentEventSenderTest {
     }
 
     @Test
+    @DisplayName("대기열이 가득 차면 넘친 이벤트는 버리고 ERROR 로그를 남긴다. 이미 받은 것은 보낸다")
+    void queueFull(CapturedOutput output) {
+        CountDownLatch brokerDown = new CountDownLatch(1);
+        given(kafkaTemplate.send(any(ProducerRecord.class))).willAnswer(invocation -> {
+            brokerDown.await();
+            return CompletableFuture.completedFuture(null);
+        });
+        // 운영과 같은 모양(스레드 1 · 크기 제한 대기열)에 대기열만 1칸으로 줄인다
+        ExecutorService oneSlot = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(1));
+        KafkaPaymentEventSender sender = sender(oneSlot);
+        PaymentPayoutCompletedEvent queued = payoutCompleted();
+        sender.send(payoutCompleted());
+        await(() -> ((ThreadPoolExecutor) oneSlot).getActiveCount() == 1);
+        sender.send(queued);
+
+        assertThatCode(() -> sender.send(COMPLETED)).doesNotThrowAnyException();
+
+        assertFailureLogged(output);
+        brokerDown.countDown();
+        sender.destroy();
+        then(kafkaTemplate).should(times(2)).send(any(ProducerRecord.class));
+    }
+
+    @Test
     @DisplayName("보내기 전에 실패해도 본문 없이 ERROR 로그를 남긴다")
     void logImmediateFailure(CapturedOutput output) {
         given(kafkaTemplate.send(any(ProducerRecord.class))).willThrow(new KafkaException("브로커 없음"));
@@ -201,6 +230,17 @@ class KafkaPaymentEventSenderTest {
         ArgumentCaptor<ProducerRecord<String, String>> captor = ArgumentCaptor.forClass(ProducerRecord.class);
         then(kafkaTemplate).should().send(captor.capture());
         return captor.getValue();
+    }
+
+    // 전송 스레드가 첫 이벤트를 잡을 때까지 기다린다(최대 1초)
+    private static void await(BooleanSupplier condition) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(1).toNanos();
+        while (!condition.getAsBoolean()) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("1초 안에 전송 스레드가 시작하지 않았습니다");
+            }
+            Thread.onSpinWait();
+        }
     }
 
     private KafkaPaymentEventSender sender(ExecutorService executor) {
