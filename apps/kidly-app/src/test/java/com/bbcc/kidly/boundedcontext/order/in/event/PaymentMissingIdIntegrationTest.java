@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -41,7 +42,7 @@ class PaymentMissingIdIntegrationTest {
     private static final Long BUYER_ID = 5_100L;
 
     @Autowired
-    private PaymentEventListener paymentEventListener;
+    private OrderEventDelivery eventDelivery;
 
     @Autowired
     private OrderService orderService;
@@ -64,7 +65,7 @@ class PaymentMissingIdIntegrationTest {
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         LocalDateTime now = LocalDateTime.now();
 
-        paymentEventListener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(), now,
+        eventDelivery.invoke(new PaymentCompletedEvent(UUID.randomUUID(), now,
             new PaymentCompletedEvent.Data(null, order.orderId(), BUYER_ID, order.totalAmount(),
                 order.items().stream()
                     .map(item -> new PaymentCompletedEvent.Item(item.orderItemId(), item.amount()))
@@ -87,7 +88,7 @@ class PaymentMissingIdIntegrationTest {
         OrderDetail order = placeOrder();
         LocalDateTime now = LocalDateTime.now();
 
-        paymentEventListener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(), now,
+        eventDelivery.invoke(new PaymentCompletedEvent(UUID.randomUUID(), now,
             new PaymentCompletedEvent.Data(500L, order.orderId(), BUYER_ID, order.totalAmount(), itemsOf(order),
                 null)));
 
@@ -123,7 +124,7 @@ class PaymentMissingIdIntegrationTest {
             default -> itemsOf(order);
         };
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(
+        assertThatThrownBy(() -> eventDelivery.invoke(
             new PaymentCompletedEvent(UUID.randomUUID(), now,
                 new PaymentCompletedEvent.Data(500L, order.orderId(), memberId, order.totalAmount(), items, now))))
             .isInstanceOfSatisfying(PaymentMismatchException.class, e -> assertThat(e.getReason()).isEqualTo(expected));

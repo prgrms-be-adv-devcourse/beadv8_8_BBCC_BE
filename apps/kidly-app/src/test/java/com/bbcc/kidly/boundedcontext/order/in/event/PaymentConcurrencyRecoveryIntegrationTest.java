@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
@@ -55,10 +56,7 @@ class PaymentConcurrencyRecoveryIntegrationTest {
     private static final String DELIVERY_UNIQUE = "uk_delivery_order_seller";
 
     @Autowired
-    private PaymentEventListener paymentEventListener;
-
-    @Autowired
-    private StockEventListener stockEventListener;
+    private OrderEventDelivery eventDelivery;
 
     @Autowired
     private OrderService orderService;
@@ -108,8 +106,8 @@ class PaymentConcurrencyRecoveryIntegrationTest {
             // 진 쪽 정상 예외: 낙관적 락 · 배송 (order_id, seller_id) 유니크 위반.
             // 배송은 저장 즉시 INSERT되고 주문 버전 검사는 커밋 때라, 결제 완료끼리 겹치면 진 쪽이 유니크 위반으로 먼저 끝난다(전부 되돌려짐).
             ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
-                () -> paymentEventListener.onPaymentCompleted(event),
-                () -> paymentEventListener.onPaymentCompleted(event),
+                () -> eventDelivery.invoke(event),
+                () -> eventDelivery.invoke(event),
                 () -> orderService.cancelForPaymentExpiry(order.orderId())),
                 PaymentConcurrencyRecoveryIntegrationTest::isDeliveryUniqueViolation);
 
@@ -159,8 +157,8 @@ class PaymentConcurrencyRecoveryIntegrationTest {
 
             // 진 쪽 정상 예외: 낙관적 락(둘 다 결제대기로 읽고 늦게 커밋한 쪽)
             ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
-                () -> stockEventListener.onStockDeductionFailed(failed),
-                () -> paymentEventListener.onPaymentCompleted(completed)));
+                () -> eventDelivery.invoke(failed),
+                () -> eventDelivery.invoke(completed)));
 
             assertThat(outcome.unexpected()).as("낙관적 락 말고 다른 예외(%d회차)", round).isEmpty();
             Order stored = orderRepository.findById(order.orderId()).orElseThrow();
@@ -207,7 +205,7 @@ class PaymentConcurrencyRecoveryIntegrationTest {
         Delivery existing = deliveryRepository.save(Delivery.create(order.orderId(), SELLER_ID));
         PaymentCompletedEvent event = paymentCompleted(order, buyerId);
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(event))
+        assertThatThrownBy(() -> eventDelivery.invoke(event))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus())
@@ -218,7 +216,7 @@ class PaymentConcurrencyRecoveryIntegrationTest {
         assertThat(recoveryCountOf(order.orderId())).as("배송 유니크 위반은 진 쪽이라 보관하지 않음").isZero();
 
         jdbcTemplate.update("delete from orders.delivery where id = ?", existing.getId());
-        paymentEventListener.onPaymentCompleted(event);
+        eventDelivery.invoke(event);
 
         assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus())
             .isEqualTo(Order.Status.PAID);

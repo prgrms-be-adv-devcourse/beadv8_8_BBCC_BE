@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
@@ -71,10 +72,7 @@ class OrderEventFailureIntegrationTest {
     private static final String FAILURE = "DataIntegrityViolationException";
 
     @Autowired
-    private StockEventListener stockEventListener;
-
-    @Autowired
-    private PaymentEventListener paymentEventListener;
+    private OrderEventDelivery eventDelivery;
 
     @Autowired
     private OrderEventFailureRetry failureRetry;
@@ -122,11 +120,11 @@ class OrderEventFailureIntegrationTest {
         OrderDetail paymentFailed = place(BUYER_ID + 2);
         breakOrders(deducted, outOfStock, paymentFailed);
 
-        assertThatThrownBy(() -> stockEventListener.onStockDeducted(stockDeducted(deducted)))
+        assertThatThrownBy(() -> eventDelivery.invoke(stockDeducted(deducted)))
             .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> stockEventListener.onStockDeductionFailed(stockDeductionFailed(outOfStock)))
+        assertThatThrownBy(() -> eventDelivery.invoke(stockDeductionFailed(outOfStock)))
             .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentFailed(paymentFailed(paymentFailed)))
+        assertThatThrownBy(() -> eventDelivery.invoke(paymentFailed(paymentFailed)))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         Order deductedOrder = orderRepository.findById(deducted.orderId()).orElseThrow();
@@ -151,11 +149,11 @@ class OrderEventFailureIntegrationTest {
     void secondFailureCounts() {
         OrderDetail order = place(BUYER_ID);
         breakOrders(order);
-        assertThatThrownBy(() -> stockEventListener.onStockDeductionFailed(stockDeductionFailed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(stockDeductionFailed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         LocalDateTime first = failureOf(order, OrderEventFailure.EventType.STOCK_DEDUCTION_FAILED).lastAttemptedAt();
 
-        assertThatThrownBy(() -> stockEventListener.onStockDeductionFailed(stockDeductionFailed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(stockDeductionFailed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         assertThat(failureCount(order.orderId())).isEqualTo(1);
@@ -335,7 +333,7 @@ class OrderEventFailureIntegrationTest {
             assertThat(locked.await(10, TimeUnit.SECONDS)).as("A가 기록을 잠금").isTrue();
 
             Future<?> listener = executor.submit(
-                () -> stockEventListener.onStockDeductionFailed(stockDeductionFailed(order)));
+                () -> eventDelivery.invoke(stockDeductionFailed(order)));
             assertThatThrownBy(() -> listener.get(2, TimeUnit.SECONDS)).as("리스너는 멈추지 않음")
                 .isInstanceOf(ExecutionException.class)
                 .cause().isInstanceOf(DataIntegrityViolationException.class)
@@ -374,10 +372,10 @@ class OrderEventFailureIntegrationTest {
     private Long failAndGetId(OrderDetail order, OrderEventFailure.EventType eventType) {
         breakOrders(order);
         Consumer<OrderDetail> send = switch (eventType) {
-            case STOCK_DEDUCTED -> target -> stockEventListener.onStockDeducted(stockDeducted(target));
-            case STOCK_DEDUCTION_FAILED -> target -> stockEventListener.onStockDeductionFailed(
+            case STOCK_DEDUCTED -> target -> eventDelivery.invoke(stockDeducted(target));
+            case STOCK_DEDUCTION_FAILED -> target -> eventDelivery.invoke(
                 stockDeductionFailed(target));
-            case PAYMENT_FAILED -> target -> paymentEventListener.onPaymentFailed(paymentFailed(target));
+            case PAYMENT_FAILED -> target -> eventDelivery.invoke(paymentFailed(target));
         };
         assertThatThrownBy(() -> send.accept(order)).isInstanceOf(DataIntegrityViolationException.class);
         return failureOf(order, eventType).failureId();

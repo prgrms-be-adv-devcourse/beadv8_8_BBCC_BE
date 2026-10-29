@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -23,8 +24,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -37,7 +36,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 주문 → stock.deducted → payment.completed → 결제완료 · 판매자별 배송 · 장바구니 정리.
@@ -49,16 +47,13 @@ class PaymentCompletedIntegrationTest {
     private static final Long OTHER_SELLER_ID = 3L;
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private OrderService orderService;
 
     @Autowired
     private CartService cartService;
-
-    @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -101,11 +96,11 @@ class PaymentCompletedIntegrationTest {
         OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L), new PlaceOrderCommand.Item(2L, null, 1, 30_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
-        publish(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
+        eventDelivery.deliver(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductedEvent.Data(order.orderId())));
 
         PaymentCompletedEvent completed = paymentCompleted(order);
-        publish(completed);
+        eventDelivery.deliver(completed);
 
         assertThat(orderRepository.findById(order.orderId())).get()
             .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
@@ -119,7 +114,7 @@ class PaymentCompletedIntegrationTest {
         assertThat(remaining.get(0).getChildId()).isNull();
 
         long version = versionOf(order.orderId());
-        publish(completed);
+        eventDelivery.deliver(completed);
 
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
         assertThat(orderRepository.findById(order.orderId())).get()
@@ -164,7 +159,4 @@ class PaymentCompletedIntegrationTest {
         walletRepository.save(wallet);
     }
 
-    private void publish(DomainEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
-    }
 }

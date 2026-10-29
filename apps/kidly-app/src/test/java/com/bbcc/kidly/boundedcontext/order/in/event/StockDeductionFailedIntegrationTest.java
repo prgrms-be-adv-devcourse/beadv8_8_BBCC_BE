@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -13,8 +14,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
@@ -34,7 +33,6 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * stock.deduction-failed를 받아 주문이 OUT_OF_STOCK으로 취소되고 주문상품별 사유가 저장되는지,
@@ -49,6 +47,9 @@ class StockDeductionFailedIntegrationTest {
     private static final Long SECOND_OPTION_ID = 2L;
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private ApplicationEvents events;
 
     @Autowired
@@ -56,12 +57,6 @@ class StockDeductionFailedIntegrationTest {
 
     @Autowired
     private OrderScheduler orderScheduler;
-
-    @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -148,7 +143,7 @@ class StockDeductionFailedIntegrationTest {
         OrderDetail order = place();
         publishFailed(order.orderId(), order.items().get(0).orderItemId(), StockDeductionFailureCode.OUT_OF_STOCK);
 
-        publish(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
+        eventDelivery.deliver(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductedEvent.Data(order.orderId())));
 
         assertCancelled(order.orderId(), Order.CancelReason.OUT_OF_STOCK);
@@ -166,7 +161,7 @@ class StockDeductionFailedIntegrationTest {
     }
 
     private void publishFailed(Long orderId, Long orderItemId, StockDeductionFailureCode reason) {
-        publish(new StockDeductionFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
+        eventDelivery.deliver(new StockDeductionFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductionFailedEvent.Data(orderId, reason,
                 List.of(new StockDeductionFailedEvent.Failure(orderItemId, reason)))));
     }
@@ -198,7 +193,4 @@ class StockDeductionFailedIntegrationTest {
         assertThat(order.getCancelReason()).isEqualTo(reason);
     }
 
-    private void publish(DomainEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
-    }
 }

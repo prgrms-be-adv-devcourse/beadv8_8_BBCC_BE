@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
@@ -47,7 +48,7 @@ class PaymentMismatchIntegrationTest {
     private static final Long OTHER_SELLER_ID = 3L;
 
     @Autowired
-    private PaymentEventListener paymentEventListener;
+    private OrderEventDelivery eventDelivery;
 
     @Autowired
     private OrderService orderService;
@@ -93,7 +94,7 @@ class PaymentMismatchIntegrationTest {
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         PaymentCompletedEvent event = mismatched(order, reason);
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(event))
+        assertThatThrownBy(() -> eventDelivery.invoke(event))
             .isInstanceOfSatisfying(PaymentMismatchException.class, e -> assertThat(e.getReason()).isEqualTo(reason));
 
         assertThat(output).containsPattern(

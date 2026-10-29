@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -17,8 +18,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -37,7 +36,6 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 결제 실패 · 결제 마감 만료로 주문이 취소되고 order.cancelled가 한 번 발행되는지, 만료 뒤 온 결제 완료는 무시되는지.
@@ -50,6 +48,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 class OrderCancelIntegrationTest {
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private ApplicationEvents events;
 
     @Autowired
@@ -57,12 +58,6 @@ class OrderCancelIntegrationTest {
 
     @Autowired
     private OrderScheduler orderScheduler;
-
-    @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -93,9 +88,10 @@ class OrderCancelIntegrationTest {
     void cancelsOnPaymentFailure() {
         OrderDetail order = place();
 
-        publish(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentFailedEvent.Data(
-            500L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
-            LocalDateTime.now())));
+        eventDelivery.deliver(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentFailedEvent.Data(
+                500L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
+                LocalDateTime.now())));
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_FAILED);
         List<OrderCancelledEvent> cancelled = events.stream(OrderCancelledEvent.class).toList();
@@ -116,9 +112,9 @@ class OrderCancelIntegrationTest {
             new PaymentFailedEvent.Data(500L, order.orderId(), BUYER_ID, order.totalAmount(),
                 PaymentFailureCode.INSUFFICIENT_BALANCE, LocalDateTime.now()));
 
-        publish(failed);
+        eventDelivery.deliver(failed);
         long version = versionOf(order.orderId());
-        publish(failed);
+        eventDelivery.deliver(failed);
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_FAILED);
         assertThat(versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
@@ -134,9 +130,10 @@ class OrderCancelIntegrationTest {
     void paymentFailureLogsOneResultLine(CapturedOutput output) {
         OrderDetail order = place();
 
-        publish(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentFailedEvent.Data(
-            500L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
-            LocalDateTime.now())));
+        eventDelivery.deliver(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentFailedEvent.Data(
+                500L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
+                LocalDateTime.now())));
 
         assertThat(output).containsPattern("INFO.*주문 취소: orderId=" + order.orderId() + " reason=PAYMENT_FAILED");
         assertThat(output.getAll().lines()
@@ -208,8 +205,9 @@ class OrderCancelIntegrationTest {
         long version = versionOf(order.orderId());
         List<String> historyBefore = historyRows(order.orderId());
 
-        publish(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
-            500L, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), LocalDateTime.now())));
+        eventDelivery.deliver(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentCompletedEvent.Data(
+                500L, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), LocalDateTime.now())));
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
@@ -230,8 +228,9 @@ class OrderCancelIntegrationTest {
         makeOverdue(order.orderId());
         orderScheduler.expireOverduePayments();
 
-        publish(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
-            null, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), null)));
+        eventDelivery.deliver(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentCompletedEvent.Data(
+                null, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), null)));
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
         assertThat(lines(output, "WARN", "reason=paid-after-cancel orderId=" + order.orderId() + " paymentId=null"))
@@ -283,7 +282,4 @@ class OrderCancelIntegrationTest {
         assertThat(order.getCancelReason()).isEqualTo(reason);
     }
 
-    private void publish(DomainEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
-    }
 }

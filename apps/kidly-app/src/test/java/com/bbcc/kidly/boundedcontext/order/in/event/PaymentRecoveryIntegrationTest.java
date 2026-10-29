@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
@@ -73,7 +74,7 @@ class PaymentRecoveryIntegrationTest {
     private static final String FAILURE = "DataIntegrityViolationException";
 
     @Autowired
-    private PaymentEventListener paymentEventListener;
+    private OrderEventDelivery eventDelivery;
 
     @Autowired
     private PaymentRecoveryRetry recoveryRetry;
@@ -125,7 +126,7 @@ class PaymentRecoveryIntegrationTest {
         OrderDetail order = placeWithCart(BUYER_ID);
         breakSeller(order);
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         Order stored = orderRepository.findById(order.orderId()).orElseThrow();
@@ -155,11 +156,11 @@ class PaymentRecoveryIntegrationTest {
     void secondFailureCounts() {
         OrderDetail order = placeWithCart(BUYER_ID);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         LocalDateTime firstAttempt = recoveryOf(order).getLastAttemptedAt();
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
@@ -175,7 +176,7 @@ class PaymentRecoveryIntegrationTest {
     void retryRecovers() {
         OrderDetail order = placeWithCart(BUYER_ID);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryOf(order).getId();
 
@@ -202,7 +203,7 @@ class PaymentRecoveryIntegrationTest {
     void cancelCloses() {
         OrderDetail order = placeWithCart(BUYER_ID);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryOf(order).getId();
 
@@ -222,7 +223,7 @@ class PaymentRecoveryIntegrationTest {
         OrderDetail second = placeWithCart(BUYER_ID + 1);
         for (OrderDetail order : List.of(first, second)) {
             breakSeller(order);
-            assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, buyerOf(order))))
+            assertThatThrownBy(() -> eventDelivery.invoke(completed(order, buyerOf(order))))
                 .isInstanceOf(DataIntegrityViolationException.class);
             orderService.cancelForPaymentFailure(order.orderId());
         }
@@ -246,13 +247,13 @@ class PaymentRecoveryIntegrationTest {
         OrderDetail nullItemId = placeWithCart(BUYER_ID + 2);
         LocalDateTime now = LocalDateTime.now();
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(),
+        assertThatThrownBy(() -> eventDelivery.invoke(new PaymentCompletedEvent(UUID.randomUUID(),
             now, new PaymentCompletedEvent.Data(null, noMember.orderId(), null, noMember.totalAmount(),
             itemsOf(noMember), null)))).isInstanceOf(RuntimeException.class);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(),
+        assertThatThrownBy(() -> eventDelivery.invoke(new PaymentCompletedEvent(UUID.randomUUID(),
             now, new PaymentCompletedEvent.Data(PAYMENT_ID, noItems.orderId(), BUYER_ID + 1, noItems.totalAmount(),
             null, now)))).isInstanceOf(RuntimeException.class);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(),
+        assertThatThrownBy(() -> eventDelivery.invoke(new PaymentCompletedEvent(UUID.randomUUID(),
             now, new PaymentCompletedEvent.Data(PAYMENT_ID, nullItemId.orderId(), BUYER_ID + 2,
             nullItemId.totalAmount(), List.of(new PaymentCompletedEvent.Item(null, nullItemId.totalAmount())),
             now)))).isInstanceOf(RuntimeException.class);
@@ -278,7 +279,7 @@ class PaymentRecoveryIntegrationTest {
             Long buyerId = 7_000L + round;
             OrderDetail order = placeWithCart(buyerId);
             breakSeller(order);
-            assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, buyerId)))
+            assertThatThrownBy(() -> eventDelivery.invoke(completed(order, buyerId)))
                 .isInstanceOf(DataIntegrityViolationException.class);
             fixSeller(order);
             Long recoveryId = recoveryOf(order).getId();
@@ -315,7 +316,7 @@ class PaymentRecoveryIntegrationTest {
             Long buyerId = 8_000L + round;
             OrderDetail order = placeWithCart(buyerId);
             breakSeller(order);
-            assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, buyerId)))
+            assertThatThrownBy(() -> eventDelivery.invoke(completed(order, buyerId)))
                 .isInstanceOf(DataIntegrityViolationException.class);
             fixSeller(order);
             Long recoveryId = recoveryOf(order).getId();
@@ -407,7 +408,7 @@ class PaymentRecoveryIntegrationTest {
             assertThatThrownBy(() -> direct.get(2, TimeUnit.SECONDS)).as("기다리지 않고 바로 실패")
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(PessimisticLockingFailureException.class);
-            Future<?> listener = executor.submit(() -> paymentEventListener.onPaymentCompleted(completed(order)));
+            Future<?> listener = executor.submit(() -> eventDelivery.invoke(completed(order)));
             assertThatThrownBy(() -> listener.get(2, TimeUnit.SECONDS)).as("리스너도 멈추지 않음")
                 .isInstanceOf(ExecutionException.class)
                 .cause().isInstanceOf(DataIntegrityViolationException.class)
@@ -481,7 +482,7 @@ class PaymentRecoveryIntegrationTest {
     private OrderDetail failDelivery(Long buyerId) {
         OrderDetail order = placeWithCart(buyerId);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, buyerId)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order, buyerId)))
             .isInstanceOf(DataIntegrityViolationException.class);
         return order;
     }

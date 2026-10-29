@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.order.in.web.AdminOrderController.AD
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -14,7 +15,6 @@ import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.order.in.event.PaymentEventListener;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
@@ -44,13 +44,13 @@ class AdminPaymentRecoveryApiTest {
     private static final Long PAYMENT_ID = 500L;
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private RestTestClient client;
 
     @Autowired
     private TestTokens tokens;
-
-    @Autowired
-    private PaymentEventListener paymentEventListener;
 
     @Autowired
     private OrderService orderService;
@@ -301,7 +301,7 @@ class AdminPaymentRecoveryApiTest {
 
     private void failWith(OrderDetail order, Long paymentId, Long memberId) {
         LocalDateTime now = LocalDateTime.now();
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(),
+        assertThatThrownBy(() -> eventDelivery.invoke(new PaymentCompletedEvent(UUID.randomUUID(),
             now, new PaymentCompletedEvent.Data(paymentId, order.orderId(), memberId, order.totalAmount(),
             order.items().stream().map(item -> new PaymentCompletedEvent.Item(item.orderItemId(), item.amount()))
                 .toList(), now)))).isInstanceOf(RuntimeException.class);

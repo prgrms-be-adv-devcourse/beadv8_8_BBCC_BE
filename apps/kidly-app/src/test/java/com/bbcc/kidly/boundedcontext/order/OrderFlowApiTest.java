@@ -14,7 +14,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -49,7 +48,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 주문 전 구간 흐름: ④ 주문 · 결제 → ⑤ 배송 → ⑥ 구매확정.
@@ -73,16 +71,13 @@ class OrderFlowApiTest {
         "recipientName", "홍길동", "phone", "010-0000-0000", "zipCode", "12345", "address", "서울시 테스트로 1");
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private RestTestClient client;
 
     @Autowired
     private TestTokens tokens;
-
-    @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -125,7 +120,7 @@ class OrderFlowApiTest {
         assertThat(created.data().items()).extracting(OrderCreatedEvent.Item::optionId).containsExactly(1L, 2L);
         assertThat(created.data().items()).extracting(OrderCreatedEvent.Item::quantity).containsExactly(2, 1);
 
-        publish(stockDeducted(orderId));
+        eventDelivery.deliver(stockDeducted(orderId));
 
         OrderPaymentRequestedEvent requested = single(OrderPaymentRequestedEvent.class, orderId);
         assertThat(fieldNames(OrderPaymentRequestedEvent.Data.class))
@@ -198,7 +193,7 @@ class OrderFlowApiTest {
     void autoConfirm() {
         saveBuyerWallet(ORDER_AMOUNT);
         Long orderId = placeOrder();
-        publish(stockDeducted(orderId));
+        eventDelivery.deliver(stockDeducted(orderId));
         shipAndDeliver(SELLER_A_ID, orderId);
         ItemRow itemOfA = itemOfSeller(detail(orderId), SELLER_A_ID);
         jdbcTemplate.update("update orders.order_item set delivered_at = ? where id = ?",
@@ -224,7 +219,7 @@ class OrderFlowApiTest {
         List<Long> orderItemIds = single(OrderCreatedEvent.class, orderId).data().items().stream()
             .map(OrderCreatedEvent.Item::orderItemId).toList();
 
-        publish(stockDeducted(orderId));
+        eventDelivery.deliver(stockDeducted(orderId));
 
         assertThat(recorder.events(PaymentFailedEvent.class))
             .filteredOn(event -> event.data().orderId().equals(orderId)).hasSize(1);
@@ -253,7 +248,7 @@ class OrderFlowApiTest {
         List<Long> orderItemIds = single(OrderCreatedEvent.class, orderId).data().items().stream()
             .map(OrderCreatedEvent.Item::orderItemId).toList();
 
-        publish(new StockDeductionFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
+        eventDelivery.deliver(new StockDeductionFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductionFailedEvent.Data(orderId, StockDeductionFailureCode.OUT_OF_STOCK,
                 List.of(new StockDeductionFailedEvent.Failure(
                     orderItemIds.get(1), StockDeductionFailureCode.OUT_OF_STOCK)))));
@@ -275,7 +270,7 @@ class OrderFlowApiTest {
             .containsExactlyElementsOf(orderItemIds);
         assertThat(cart()).hasSize(2);
 
-        publish(stockDeducted(orderId));
+        eventDelivery.deliver(stockDeducted(orderId));
 
         assertThat(recorder.events(OrderPaymentRequestedEvent.class))
             .filteredOn(event -> event.data().orderId().equals(orderId)).isEmpty();
@@ -303,8 +298,9 @@ class OrderFlowApiTest {
         assertThat(expired.cancelReason()).isEqualTo("PAYMENT_EXPIRED");
         assertThat(single(OrderCancelledEvent.class, orderId).data().reason()).isEqualTo("PAYMENT_EXPIRED");
 
-        publish(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
-            999L, orderId, BUYER_ID, ORDER_AMOUNT, List.of(), LocalDateTime.now())));
+        eventDelivery.deliver(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentCompletedEvent.Data(
+                999L, orderId, BUYER_ID, ORDER_AMOUNT, List.of(), LocalDateTime.now())));
 
         OrderBody after = detail(orderId);
         assertThat(after.status()).isEqualTo("CANCELLED");
@@ -319,7 +315,7 @@ class OrderFlowApiTest {
         expire(orderId);
         orderScheduler.expireOverduePayments();
 
-        publish(stockDeducted(orderId));
+        eventDelivery.deliver(stockDeducted(orderId));
 
         assertThat(recorder.events(OrderPaymentRequestedEvent.class))
             .filteredOn(event -> event.data().orderId().equals(orderId)).isEmpty();
@@ -331,9 +327,10 @@ class OrderFlowApiTest {
     @Test
     @DisplayName("키 · 몸무게 없는 자녀 삭제 이벤트도 반영돼, 그 자녀로 주문하면 기존처럼 409 CHILD_NOT_ORDERABLE")
     void deletedChildWithoutBodyValuesCannotBeOrdered() {
-        publish(new ChildChangedEvent(UUID.randomUUID(), LocalDateTime.now().plusMinutes(1), new ChildChangedEvent.Data(
-            CHILD_ID, BUYER_ID, null, null, Gender.MALE, LocalDate.now().minusYears(7), BodyType.NORMAL,
-            PreferredFit.LOOSE, true)));
+        eventDelivery.deliver(new ChildChangedEvent(UUID.randomUUID(), LocalDateTime.now().plusMinutes(1),
+            new ChildChangedEvent.Data(
+                CHILD_ID, BUYER_ID, null, null, Gender.MALE, LocalDate.now().minusYears(7), BodyType.NORMAL,
+                PreferredFit.LOOSE, true)));
 
         client.post().uri(ORDERS_PATH)
             .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
@@ -371,7 +368,7 @@ class OrderFlowApiTest {
         saveBuyerWallet(ORDER_AMOUNT * 2);
         List<Long> orderIds = List.of(placeOrder(), placeOrder());
         for (Long orderId : orderIds) {
-            publish(stockDeducted(orderId));
+            eventDelivery.deliver(stockDeducted(orderId));
             shipAndDeliver(SELLER_A_ID, orderId);
             shipAndDeliver(SELLER_B_ID, orderId);
             jdbcTemplate.update("update orders.order_item set delivered_at = ? where order_id = ?",
@@ -403,15 +400,15 @@ class OrderFlowApiTest {
         Long orderId = placeOrder();
         StockDeductedEvent stockDeducted = stockDeducted(orderId);
 
-        publish(stockDeducted);
-        publish(stockDeducted);
+        eventDelivery.deliver(stockDeducted);
+        eventDelivery.deliver(stockDeducted);
 
         assertThat(recorder.events(OrderPaymentRequestedEvent.class))
             .filteredOn(event -> event.data().orderId().equals(orderId)).hasSize(1);
         List<PaymentCompletedEvent> completed = paymentCompleted(orderId);
         assertThat(completed).hasSize(1);
 
-        publish(completed.get(0));
+        eventDelivery.deliver(completed.get(0));
 
         OrderBody order = detail(orderId);
         assertThat(order.status()).isEqualTo("PAID");
@@ -423,7 +420,7 @@ class OrderFlowApiTest {
     @DisplayName("사이즈 없는 상품(size null): 담기 → 주문 → 결제 완료 → 배송 완료 → 구매확정까지 500 없이 되고, 응답 · 이벤트의 size는 null")
     void sizeNullProductFlow() {
         LocalDateTime now = LocalDateTime.now();
-        publish(new ProductChangedEvent(UUID.randomUUID(), now, new ProductChangedEvent.Data(
+        eventDelivery.deliver(new ProductChangedEvent(UUID.randomUUID(), now, new ProductChangedEvent.Data(
             3L, SELLER_A_ID, "양말", 1L, ProductStatus.ON_SALE, null, now.minusDays(1), true,
             List.of(new ProductChangedEvent.Option(30L, "색상: 흰색", null, 5_000L,
                 null, null, false, OptionSaleStatus.ON_SALE)))));
@@ -449,7 +446,7 @@ class OrderFlowApiTest {
             .getResponseHeaders().getLocation();
         assertThat(location).isNotNull();
         Long orderId = Long.valueOf(location.getPath().substring((ORDERS_PATH + "/").length()));
-        publish(stockDeducted(orderId));
+        eventDelivery.deliver(stockDeducted(orderId));
 
         assertThat(detail(orderId).status()).isEqualTo("PAID");
         client.get().uri(ORDERS_PATH + "/" + orderId)
@@ -485,15 +482,15 @@ class OrderFlowApiTest {
      */
     private void publishReplicaEvents() {
         LocalDateTime now = LocalDateTime.now();
-        publish(new ProductChangedEvent(UUID.randomUUID(), now, new ProductChangedEvent.Data(
+        eventDelivery.deliver(new ProductChangedEvent(UUID.randomUUID(), now, new ProductChangedEvent.Data(
             1L, SELLER_A_ID, "상품 A", 1L, ProductStatus.ON_SALE, null, now.minusDays(1), false,
             List.of(new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
                 null, null, false, OptionSaleStatus.ON_SALE)))));
-        publish(new ProductChangedEvent(UUID.randomUUID(), now, new ProductChangedEvent.Data(
+        eventDelivery.deliver(new ProductChangedEvent(UUID.randomUUID(), now, new ProductChangedEvent.Data(
             2L, SELLER_B_ID, "상품 B", 2L, ProductStatus.ON_SALE, null, now.minusDays(1), false,
             List.of(new ProductChangedEvent.Option(2L, "색상: 그레이 / 사이즈: 120", "120", 30_000L,
                 null, null, false, OptionSaleStatus.ON_SALE)))));
-        publish(new ChildChangedEvent(UUID.randomUUID(), now, new ChildChangedEvent.Data(
+        eventDelivery.deliver(new ChildChangedEvent(UUID.randomUUID(), now, new ChildChangedEvent.Data(
             CHILD_ID, BUYER_ID, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE,
             LocalDate.now().minusYears(7), BodyType.NORMAL, PreferredFit.LOOSE, false)));
     }
@@ -632,10 +629,6 @@ class OrderFlowApiTest {
 
     private static List<String> fieldNames(Class<? extends Record> type) {
         return Arrays.stream(type.getRecordComponents()).map(RecordComponent::getName).toList();
-    }
-
-    private void publish(DomainEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 
     private record OrderBody(
