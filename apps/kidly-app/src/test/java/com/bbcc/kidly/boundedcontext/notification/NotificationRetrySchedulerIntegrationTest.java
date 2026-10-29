@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.in.scheduler.NotificationRetryScheduler;
+import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;

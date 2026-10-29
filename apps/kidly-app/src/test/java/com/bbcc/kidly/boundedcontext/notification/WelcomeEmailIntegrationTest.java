@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;

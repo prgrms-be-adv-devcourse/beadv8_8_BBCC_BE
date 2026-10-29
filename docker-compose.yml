@@ -51,6 +51,8 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       # 메시지 보존 7일(기본값을 명시). 주말에 EC2가 멈춰도 남고, 이벤트의 개인정보(가입 이메일 등)도 7일 뒤 지워진다
       KAFKA_LOG_RETENTION_HOURS: 168
+      # 메시지 · 책갈피를 볼륨(kafka-data)에 쓴다. 이미지 기본값은 컨테이너 안 /tmp라서, 없으면 컨테이너를 다시 만들 때 모두 사라진다
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_HEAP_OPTS: -Xms256m -Xmx256m
     ports:
       - "9092:9092"

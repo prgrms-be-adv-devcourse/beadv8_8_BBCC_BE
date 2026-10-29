@@ -3,7 +3,7 @@ package com.bbcc.kidly;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.support.IntegrationTest;
+import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,14 +22,15 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.testcontainers.kafka.KafkaContainer;
 
 /**
- * 테스트용 Kafka(TestcontainersConfiguration)가 뜨고, 운영처럼 토픽 자동 생성이 꺼져 있는지(#538).
+ * 테스트용 Kafka(KafkaTestcontainersConfiguration)가 뜨고, 운영처럼 토픽 자동 생성이 꺼져 있는지(#538).
  * 토픽은 보내는 쪽이 선언해야 하므로, 선언하지 않은 토픽으로 보내면 메타데이터를 못 찾아 실패해야 한다.
- * 아직 spring-kafka(KafkaTemplate)가 없어 kafka-clients로 Producer · Admin을 직접 만든다.
+ * @KafkaIntegrationTest에서는 테스트에서 꺼 둔 커밋 뒤 Kafka 보내기가 켜져 있어야 한다(대조군은 KafkaDisabledIntegrationTest).
  */
-@IntegrationTest
+@KafkaIntegrationTest
 class TestKafkaIntegrationTest {
 
     // 선언하지 않은 토픽은 메타데이터가 오지 않으므로 기다리는 시간을 짧게 둔다(테스트 시간을 늘리지 않게)
@@ -37,6 +38,15 @@ class TestKafkaIntegrationTest {
 
     @Autowired
     private KafkaContainer kafka;
+
+    @Autowired
+    private ApplicationContext context;
+
+    @Test
+    @DisplayName("Kafka 통합 테스트에서는 커밋 뒤 Kafka로 보내는 결제 빈을 만든다")
+    void kafkaRelayEnabled() {
+        assertThat(context.containsBean("paymentEventRelay")).isTrue();
+    }
 
     @Test
     @DisplayName("선언하지 않은 토픽으로 보내면 토픽이 자동으로 생기지 않아 메타데이터 대기 시간 초과로 실패한다")
