@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.app.stuck;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.port.StuckOrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.dto.StuckOrderResult;
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.Duration;

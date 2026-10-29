@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.domain.history;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
     indexes = @Index(name = "idx_order_status_history_order", columnList = "order_id, occurred_at, id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OrderStatusHistory extends BaseTimeEntity {
+public class OrderStatusHistory extends OrderTimeEntity {
 
     public enum TargetType {
         ORDER,

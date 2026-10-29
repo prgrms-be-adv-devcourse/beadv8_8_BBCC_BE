@@ -1,8 +1,6 @@
 package com.bbcc.kidly.architecture;
 
 import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue;
-import static com.tngtech.archunit.base.DescribedPredicate.not;
-import static com.tngtech.archunit.core.domain.JavaClass.Predicates.equivalentTo;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
@@ -14,7 +12,6 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
-import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -43,13 +40,21 @@ class OrderArchitectureTest {
 
     /**
      * domain은 jakarta.persistence까지만 안다.
-     * 예외: 팀 공통 ErrorCode 계약이 HttpStatus를 요구하므로 OrderErrorCode의 HttpStatus만 허용한다(결정필요 E23).
      */
     @ArchTest
     static final ArchRule DOMAIN_DOES_NOT_USE_SPRING = noClasses()
         .that().resideInAPackage(DOMAIN)
-        .should().dependOnClassesThat(
-            resideInAPackage("org.springframework..").and(not(equivalentTo(HttpStatus.class))))
+        .should().dependOnClassesThat().resideInAPackage("org.springframework..")
+        .allowEmptyShould(true);
+
+    /**
+     * domain은 공통 모듈(global)을 쓰지 않는다. 시간 기록 · 규칙 위반 예외는 domain 안에 두고,
+     * 오류 코드 변환은 app이 한다(#531).
+     */
+    @ArchTest
+    static final ArchRule DOMAIN_DOES_NOT_USE_GLOBAL = noClasses()
+        .that().resideInAPackage(DOMAIN)
+        .should().dependOnClassesThat().resideInAPackage("com.bbcc.kidly.global..")
         .allowEmptyShould(true);
 
     /**

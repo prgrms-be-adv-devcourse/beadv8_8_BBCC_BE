@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
@@ -17,7 +19,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -115,9 +117,13 @@ public class OrderService {
         List<Order.RequestedItem> requested = command.items().stream().map(this::toRequestedItem).toList();
         PlaceOrderCommand.ShippingAddress address = command.shippingAddress();
 
-        Order placed = Order.place(memberId, requested,
-            new Order.ShippingAddress(address.recipientName(), address.phone(), address.zipCode(), address.address()),
-            orderPolicy, now);
+        Order placed;
+        try {
+            placed = Order.place(memberId, requested, new Order.ShippingAddress(
+                address.recipientName(), address.phone(), address.zipCode(), address.address()), orderPolicy, now);
+        } catch (OrderRuleViolationException e) {
+            throw OrderErrors.toBusiness(e);
+        }
         if (idempotencyKey != null) {
             placed.recordRequestKey(idempotencyKey, requestHash);
         }
@@ -318,8 +324,12 @@ public class OrderService {
         LocalDateTime now = LocalDateTime.now();
         Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-        confirm(order, orderItemId, "confirm-by-buyer", OrderActor.buyer(memberId, OrderActor.BUYER_CONFIRM),
-            target -> target.confirmItem(orderItemId, now));
+        try {
+            confirm(order, orderItemId, "confirm-by-buyer", OrderActor.buyer(memberId, OrderActor.BUYER_CONFIRM),
+                target -> target.confirmItem(orderItemId, now));
+        } catch (OrderRuleViolationException e) {
+            throw OrderErrors.toBusiness(e);
+        }
         OrderItem item = findItem(order, orderItemId);
         String sellerName = sellerReplicaRepository.findBySellerId(item.getProduct().sellerId())
             .map(ReplicaSeller::getBusinessName)

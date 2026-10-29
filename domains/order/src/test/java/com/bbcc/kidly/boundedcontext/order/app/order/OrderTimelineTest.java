@@ -8,10 +8,10 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.ItemDetai
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.Step;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.StepName;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.StepStatus;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -434,7 +434,7 @@ class OrderTimelineTest {
     }
 
     private static void setTime(Order order, String name, LocalDateTime value) {
-        setField(BaseTimeEntity.class, order, name, value);
+        setField(OrderTimeEntity.class, order, name, value);
     }
 
     private static void setField(Class<?> type, Object target, String name, Object value) {

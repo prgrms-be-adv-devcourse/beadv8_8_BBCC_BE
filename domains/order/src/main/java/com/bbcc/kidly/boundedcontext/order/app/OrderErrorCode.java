@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.domain;
+package com.bbcc.kidly.boundedcontext.order.app;
 
 import com.bbcc.kidly.global.error.ErrorCode;
 import lombok.Getter;

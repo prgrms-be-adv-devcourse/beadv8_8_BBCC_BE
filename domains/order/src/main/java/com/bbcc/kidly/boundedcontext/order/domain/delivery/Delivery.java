@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.domain.delivery;
 
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -28,7 +28,7 @@ import lombok.NoArgsConstructor;
     @Index(name = "idx_delivery_seller_id", columnList = "seller_id")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Delivery extends BaseTimeEntity {
+public class Delivery extends OrderTimeEntity {
 
     /**
      * 배송 상태.
@@ -91,7 +91,7 @@ public class Delivery extends BaseTimeEntity {
     public void ship(Carrier carrier, String trackingNumber, LocalDateTime now) {
         rejectIfCancelled();
         if (status != Status.READY) {
-            throw new BusinessException(OrderErrorCode.ALREADY_SHIPPED);
+            throw new OrderRuleViolationException(Rule.ALREADY_SHIPPED);
         }
         this.status = Status.SHIPPING;
         this.carrier = carrier;
@@ -108,7 +108,7 @@ public class Delivery extends BaseTimeEntity {
             return;
         }
         if (status != Status.SHIPPING) {
-            throw new BusinessException(OrderErrorCode.NOT_SHIPPED);
+            throw new OrderRuleViolationException(Rule.NOT_SHIPPED);
         }
         this.status = Status.DELIVERED;
         this.deliveredAt = now;
@@ -130,7 +130,7 @@ public class Delivery extends BaseTimeEntity {
 
     private void rejectIfCancelled() {
         if (status == Status.CANCELLED) {
-            throw new BusinessException(OrderErrorCode.DELIVERY_CANCELLED);
+            throw new OrderRuleViolationException(Rule.DELIVERY_CANCELLED);
         }
     }
 }

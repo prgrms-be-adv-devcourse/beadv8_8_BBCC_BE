@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.domain.cart;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -32,8 +32,8 @@ class CartItemTest {
     @DisplayName("수량은 1 이상이어야 한다")
     void requiresPositiveQuantity() {
         assertThatThrownBy(() -> CartItem.create(BUYER_ID, OPTION_ID, null, 0))
-            .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_QUANTITY);
+            .isInstanceOf(OrderRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.INVALID_QUANTITY);
     }
 
     @Test
@@ -80,8 +80,8 @@ class CartItemTest {
         CartItem item = CartItem.create(BUYER_ID, OPTION_ID, CHILD_ID, 2);
 
         assertThatThrownBy(() -> item.changeQuantity(0))
-            .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_QUANTITY);
+            .isInstanceOf(OrderRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.INVALID_QUANTITY);
         assertThat(item.getQuantity()).isEqualTo(2);
     }
 }

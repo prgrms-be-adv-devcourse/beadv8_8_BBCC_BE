@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.domain.delivery;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,8 +63,8 @@ class DeliveryTest {
         Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
 
         assertThatThrownBy(() -> delivery.complete(COMPLETED_AT))
-            .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.NOT_SHIPPED);
+            .isInstanceOf(OrderRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.NOT_SHIPPED);
         assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.READY);
     }
 
@@ -75,8 +75,8 @@ class DeliveryTest {
         delivery.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT);
 
         assertThatThrownBy(() -> delivery.ship(Delivery.Carrier.HANJIN, "999", SHIPPED_AT.plusHours(1)))
-            .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.ALREADY_SHIPPED);
+            .isInstanceOf(OrderRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.ALREADY_SHIPPED);
         assertThat(delivery.getCarrier()).isEqualTo(Delivery.Carrier.CJ);
     }
 
@@ -88,8 +88,8 @@ class DeliveryTest {
         delivery.complete(COMPLETED_AT);
 
         assertThatThrownBy(() -> delivery.ship(Delivery.Carrier.HANJIN, "999", COMPLETED_AT.plusHours(1)))
-            .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.ALREADY_SHIPPED);
+            .isInstanceOf(OrderRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.ALREADY_SHIPPED);
         assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.DELIVERED);
     }
 
@@ -141,11 +141,11 @@ class DeliveryTest {
         delivery.cancel();
 
         assertThatThrownBy(() -> delivery.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT))
-            .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.DELIVERY_CANCELLED);
+            .isInstanceOf(OrderRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.DELIVERY_CANCELLED);
         assertThatThrownBy(() -> delivery.complete(COMPLETED_AT))
-            .isInstanceOf(BusinessException.class)
-            .extracting("errorCode").isEqualTo(OrderErrorCode.DELIVERY_CANCELLED);
+            .isInstanceOf(OrderRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.DELIVERY_CANCELLED);
         assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.CANCELLED);
         assertThat(delivery.getCarrier()).isNull();
     }

@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.domain.recovery;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -34,7 +34,7 @@ import lombok.NoArgsConstructor;
     @Index(name = "idx_order_event_failure_status", columnList = "status")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OrderEventFailure extends BaseTimeEntity {
+public class OrderEventFailure extends OrderTimeEntity {
 
     public static final String ORDER_EVENT_UNIQUE = "uk_order_event_failure_order_event";
 

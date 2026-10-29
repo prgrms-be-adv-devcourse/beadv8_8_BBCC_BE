@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.domain.cart;
 
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
     unique = true))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CartItem extends BaseTimeEntity {
+public class CartItem extends OrderTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -68,7 +68,7 @@ public class CartItem extends BaseTimeEntity {
 
     private static void requirePositive(int quantity) {
         if (quantity < 1) {
-            throw new BusinessException(OrderErrorCode.INVALID_QUANTITY);
+            throw new OrderRuleViolationException(Rule.INVALID_QUANTITY);
         }
     }
 }

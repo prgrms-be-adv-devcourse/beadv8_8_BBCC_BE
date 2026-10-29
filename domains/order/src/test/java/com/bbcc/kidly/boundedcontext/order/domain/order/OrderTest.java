@@ -20,8 +20,8 @@ import static com.bbcc.kidly.boundedcontext.order.domain.order.OrderFixture.prod
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -125,16 +125,16 @@ class OrderTest {
         @DisplayName("주문상품 없이는 주문할 수 없다")
         void requiresLines() {
             assertThatThrownBy(() -> OrderFixture.place(List.of()))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.EMPTY_ORDER_ITEMS);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.EMPTY_ORDER_ITEMS);
         }
 
         @Test
         @DisplayName("수량은 1 이상이어야 한다")
         void requiresPositiveQuantity() {
             assertThatThrownBy(() -> OrderFixture.place(List.of(line(productOfSellerA(), null, 0))))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_QUANTITY);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.INVALID_QUANTITY);
         }
 
         @Test
@@ -165,8 +165,8 @@ class OrderTest {
             for (long requested : new long[] {current + 1, current - 1}) {
                 assertThatThrownBy(() -> OrderFixture.place(List.of(
                     OrderFixture.lineWithRequestedPrice(productOfSellerA(), requested))))
-                    .isInstanceOf(BusinessException.class)
-                    .extracting("errorCode").isEqualTo(OrderErrorCode.PRICE_CHANGED);
+                    .isInstanceOf(OrderRuleViolationException.class)
+                    .extracting("rule").isEqualTo(Rule.PRICE_CHANGED);
             }
         }
 
@@ -175,8 +175,8 @@ class OrderTest {
         void priceChanged() {
             assertThatThrownBy(() -> OrderFixture.place(List.of(
                 OrderFixture.lineWithRequestedPrice(productOfSellerA(), 18_000L))))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.PRICE_CHANGED);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.PRICE_CHANGED);
         }
 
         @Test
@@ -184,8 +184,8 @@ class OrderTest {
         void notPurchasable() {
             assertThatThrownBy(() -> OrderFixture.place(List.of(
                 line(OrderFixture.notPurchasableProduct(), null, 1))))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.PRODUCT_NOT_PURCHASABLE);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.PRODUCT_NOT_PURCHASABLE);
         }
 
         @Test
@@ -193,8 +193,8 @@ class OrderTest {
         void ownProduct() {
             assertThatThrownBy(() -> Order.place(SELLER_A_ID, List.of(line(productOfSellerA(), null, 1)),
                 ADDRESS, POLICY, NOW))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.OWN_PRODUCT);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.OWN_PRODUCT);
         }
 
         @Test
@@ -202,8 +202,8 @@ class OrderTest {
         void otherMembersChild() {
             assertThatThrownBy(() -> OrderFixture.place(List.of(
                 line(productOfSellerA(), child(OTHER_MEMBER_ID, false), 1))))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.CHILD_NOT_ORDERABLE);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.CHILD_NOT_ORDERABLE);
         }
 
         @Test
@@ -211,8 +211,8 @@ class OrderTest {
         void deletedChild() {
             assertThatThrownBy(() -> OrderFixture.place(List.of(
                 line(productOfSellerA(), child(BUYER_ID, true), 1))))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.CHILD_NOT_ORDERABLE);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.CHILD_NOT_ORDERABLE);
         }
 
         @Test
@@ -221,8 +221,8 @@ class OrderTest {
             assertThatThrownBy(() -> OrderFixture.place(List.of(
                 line(productOfSellerA(), child(), 1),
                 line(productOfSellerA(), child(), 2))))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.DUPLICATE_ORDER_ITEM);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.DUPLICATE_ORDER_ITEM);
         }
     }
 
@@ -365,8 +365,8 @@ class OrderTest {
             Long itemId = itemOf(order, SELLER_B_ID).getId();
 
             assertThatThrownBy(() -> order.confirmItem(itemId, confirmedAt))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.NOT_DELIVERED);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.NOT_DELIVERED);
         }
 
         @Test
@@ -375,8 +375,8 @@ class OrderTest {
             Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
 
             assertThatThrownBy(() -> order.confirmItem(999L, confirmedAt))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(OrderErrorCode.ORDER_ITEM_NOT_FOUND);
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.ORDER_ITEM_NOT_FOUND);
         }
     }
 

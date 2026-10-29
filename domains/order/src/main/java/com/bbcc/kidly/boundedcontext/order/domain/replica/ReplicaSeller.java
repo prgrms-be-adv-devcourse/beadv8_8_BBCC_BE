@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.domain.replica;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 @Table(schema = "orders", name = "replica_seller")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ReplicaSeller extends BaseTimeEntity {
+public class ReplicaSeller extends OrderTimeEntity {
 
     /**
      * 복사본 입력 값.
