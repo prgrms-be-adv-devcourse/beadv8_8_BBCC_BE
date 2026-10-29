@@ -32,6 +32,9 @@ dependencies {
     // DB
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
+    // 도메인 간 이벤트 (Kafka). spring-kafka만 넣으면 Boot 4에서 Kafka 자동 설정이 잡히지 않는다
+    implementation("org.springframework.boot:spring-boot-starter-kafka")
+
     // QueryDSL (OpenFeign fork)
     implementation(libs.findLibrary("querydsl-jpa").get())
     annotationProcessor(variantOf(libs.findLibrary("querydsl-apt").get()) { classifier("jpa") })
