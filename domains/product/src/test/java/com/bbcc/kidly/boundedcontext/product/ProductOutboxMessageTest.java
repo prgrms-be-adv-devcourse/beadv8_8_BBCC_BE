@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class ProductOutboxMessageTest {
@@ -77,15 +78,15 @@ class ProductOutboxMessageTest {
                 1, "TimeoutException: Topic kidly.product.events not present in metadata after 5000 ms.", null);
     }
 
-    @Test
-    @DisplayName("오류가 500자를 넘으면 칸 길이에 맞춰 앞 500자만 남긴다")
-    void recordFailureTruncatesLongError() {
+    @ParameterizedTest(name = "오류 {0}자 → {1}자")
+    @CsvSource({"500, 500", "501, 500", "510, 500"})
+    @DisplayName("오류는 칸 길이(500자)까지 그대로 남기고, 넘으면 앞 500자만 남긴다")
+    void recordFailureKeepsErrorWithinColumnLength(int errorLength, int keptLength) {
         ProductOutboxMessage message = ProductOutboxMessage.create(ProductOutboxMessageFixture.productChanged());
-        String error = "가".repeat(500) + "나".repeat(10);
 
-        message.recordFailure(error);
+        message.recordFailure("가".repeat(errorLength));
 
-        assertThat(message.getLastError()).isEqualTo("가".repeat(500));
+        assertThat(message.getLastError()).isEqualTo("가".repeat(keptLength));
     }
 
     @Test
