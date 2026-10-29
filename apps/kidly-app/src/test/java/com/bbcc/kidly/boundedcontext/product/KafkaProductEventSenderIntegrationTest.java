@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSendException;
 import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSender;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
+import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -94,22 +95,25 @@ class KafkaProductEventSenderIntegrationTest {
             () -> productEventSender.send(message))
             .isInstanceOf(ProductEventSendException.class)
             .hasMessageContaining("eventId=" + eventId)
+            // 사유는 Spring이 감싼 문구가 아니라 Kafka 클라이언트가 알려 준 원인이어야 한다(문구는 브로커 상태에 따라 다르다)
+            .hasMessageNotContaining("reason=Send failed")
+            .hasMessageNotContaining("reason=Failed to send")
             .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD));
         assertThat(output.getAll()).doesNotContain(ProductOutboxMessageFixture.PAYLOAD);
     }
 
     private ConsumerRecord<String, String> awaitRecord(UUID eventId) {
-        long deadline = System.nanoTime() + TIMEOUT.toNanos();
-        while (System.nanoTime() < deadline) {
+        AsyncWait.until(TIMEOUT, () -> {
             consumer.poll(Duration.ofMillis(200)).forEach(received::add);
-            Optional<ConsumerRecord<String, String>> found = received.stream()
-                .filter(record -> eventId.toString().equals(header(record, "eventId")))
-                .findFirst();
-            if (found.isPresent()) {
-                return found.get();
-            }
-        }
-        throw new AssertionError(TIMEOUT.toSeconds() + "초 안에 eventId=" + eventId + " 메시지가 오지 않았습니다");
+            return findRecord(eventId).isPresent();
+        });
+        return findRecord(eventId).orElseThrow();
+    }
+
+    private Optional<ConsumerRecord<String, String>> findRecord(UUID eventId) {
+        return received.stream()
+            .filter(record -> eventId.toString().equals(header(record, "eventId")))
+            .findFirst();
     }
 
     private static String header(ConsumerRecord<String, String> record, String name) {

@@ -11,11 +11,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.kafka.core.KafkaTemplate;
 
 /**
  * 아웃박스 메시지를 저장된 토픽과 키 그대로 Kafka로 보낸다. 본문은 저장할 때 만든 JSON을 바꾸지 않고 보낸다.
  * 헤더는 eventType과 eventId 두 개만 붙인다.
+ * 릴레이가 결과를 보고 보낸 기록이나 실패 기록을 남기므로, 브로커 응답을 sendTimeout까지 기다린다.
  */
 public class KafkaProductEventSender implements ProductEventSender, DisposableBean {
 
@@ -36,33 +38,23 @@ public class KafkaProductEventSender implements ProductEventSender, DisposableBe
             .add("eventId", message.getEventId().toString().getBytes(UTF_8));
         try {
             kafkaTemplate.send(record).get(sendTimeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (ExecutionException e) {
-            Throwable cause = rootCause(e);
-            throw failure(message, cause.getMessage(), cause);
         } catch (TimeoutException e) {
             throw failure(message, "응답 대기 시간 %dms 초과".formatted(sendTimeout.toMillis()), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw failure(message, e.getMessage(), e);
-        } catch (RuntimeException e) {
-            throw failure(message, e.getMessage(), e);
+            throw failure(message, "응답 대기 중 인터럽트", e);
+        } catch (ExecutionException | RuntimeException e) {
+            // 보내기 전 실패는 "Send failed", 보낸 뒤 실패는 "Failed to send"로 Spring이 감싸므로 Kafka 클라이언트 예외를 꺼낸다
+            Throwable cause = NestedExceptionUtils.getMostSpecificCause(e);
+            throw failure(message, cause.getMessage(), cause);
         }
     }
 
-    // Spring이 감싼 예외(KafkaProducerException)가 아니라 Kafka 클라이언트가 알려 준 가장 안쪽 원인을 찾는다
-    private static Throwable rootCause(Throwable error) {
-        Throwable current = error;
-        while (current.getCause() != null && current.getCause() != current) {
-            current = current.getCause();
-        }
-        return current;
-    }
-
-    // 예외 메시지는 로그에 남으므로 본문 대신 eventType · eventId와 원인만 담는다
+    // 예외 메시지는 로그에 남으므로 본문 대신 eventType · eventId · 키와 원인만 담는다
     private ProductEventSendException failure(ProductOutboxMessage message, String reason, Throwable cause) {
         return new ProductEventSendException(
-            "상품 이벤트를 Kafka로 보내지 못했습니다. eventType=%s eventId=%s reason=%s"
-                .formatted(message.getEventType(), message.getEventId(), reason),
+            "상품 이벤트를 Kafka로 보냈는지 확인하지 못했습니다. eventType=%s eventId=%s key=%s reason=%s"
+                .formatted(message.getEventType(), message.getEventId(), message.getMessageKey(), reason),
             cause);
     }
 

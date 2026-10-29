@@ -57,15 +57,35 @@ class KafkaProductEventSenderTest {
     }
 
     @Test
-    @DisplayName("보내기 전에 실패하면 원인을 담은 전송 예외를 던지고, 예외 메시지에 본문을 넣지 않는다")
+    @DisplayName("보내기 전에 실패하면 Spring이 감싼 Kafka 클라이언트 원인과 키를 담은 전송 예외를 던지고, 본문은 넣지 않는다")
     @SuppressWarnings("unchecked")
     void throwWhenSendFailsBeforeSending() {
-        given(kafkaTemplate.send(any(ProducerRecord.class))).willThrow(new KafkaException("브로커 연결 실패"));
+        // 메타데이터를 기다리다 시간이 지나면 KafkaTemplate은 클라이언트 예외를 "Send failed"로 감싸 바로 던진다
+        given(kafkaTemplate.send(any(ProducerRecord.class))).willThrow(new KafkaException("Send failed",
+            new TimeoutException("Topic kidly.product.events not present in metadata after 5000 ms.")));
 
         assertThatThrownBy(() -> sender().send(MESSAGE))
             .isInstanceOf(ProductEventSendException.class)
-            .hasMessageContaining("브로커 연결 실패")
+            .hasMessageContaining("Topic kidly.product.events not present in metadata after 5000 ms.")
+            .hasMessageContaining("key=1")
             .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD);
+    }
+
+    @Test
+    @DisplayName("응답을 기다리다 인터럽트되면 인터럽트 표시를 남기고, 사유를 적은 전송 예외를 던진다")
+    @SuppressWarnings("unchecked")
+    void throwWhenInterruptedWhileWaiting() {
+        given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(new CompletableFuture<>());
+        Thread.currentThread().interrupt();
+        try {
+            assertThatThrownBy(() -> sender().send(MESSAGE))
+                .isInstanceOf(ProductEventSendException.class)
+                .hasMessageContaining("응답 대기 중 인터럽트");
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally {
+            // 다음 테스트가 인터럽트된 스레드에서 돌지 않게 표시를 지운다
+            Thread.interrupted();
+        }
     }
 
     @Test
