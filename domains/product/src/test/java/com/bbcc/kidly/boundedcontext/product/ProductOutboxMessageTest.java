@@ -105,8 +105,8 @@ class ProductOutboxMessageTest {
                 new ProductOutboxMessage.CreateInfo(EVENT_ID, null, "kidly.product.events", "1", PAYLOAD)),
             Named.of("topic 없음",
                 new ProductOutboxMessage.CreateInfo(EVENT_ID, "product.changed", null, "1", PAYLOAD)),
-            Named.of("messageKey 없음",
-                new ProductOutboxMessage.CreateInfo(EVENT_ID, "product.changed", "kidly.product.events", null, PAYLOAD)),
+            Named.of("messageKey 없음", new ProductOutboxMessage.CreateInfo(
+                EVENT_ID, "product.changed", "kidly.product.events", null, PAYLOAD)),
             Named.of("payload 없음",
                 new ProductOutboxMessage.CreateInfo(EVENT_ID, "product.changed", "kidly.product.events", "1", null)));
     }
