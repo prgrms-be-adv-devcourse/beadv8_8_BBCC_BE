@@ -1,7 +1,10 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSeller;
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSellerRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
@@ -17,10 +20,12 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -42,6 +47,10 @@ class ProductOutboxRecorderIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    // 아웃박스 저장이 실패할 때 같은 트랜잭션의 업무가 남는지 보려고, 상품 스키마의 판매자 복사본을 업무 저장으로 쓴다
+    @Autowired
+    private ProductReplicaSellerRepository replicaSellerRepository;
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("productEvents")
     @DisplayName("상품 이벤트를 발행한 트랜잭션이 커밋되면 그 이벤트의 종류 · 키로 아웃박스 행이 하나 남는다")
@@ -53,6 +62,42 @@ class ProductOutboxRecorderIntegrationTest {
             .containsEntry("event_type", eventType)
             .containsEntry("topic", "kidly.product.events")
             .containsEntry("message_key", messageKey));
+    }
+
+    @Test
+    @DisplayName("상품 이벤트를 발행한 트랜잭션이 롤백되면 아웃박스 행이 남지 않는다")
+    void recordNothingOnRollback() {
+        transactionTemplate.executeWithoutResult(status -> {
+            eventPublisher.publish(productChanged());
+            status.setRollbackOnly();
+        });
+
+        assertThat(outboxRows()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("다른 도메인이 발행한 이벤트는 같은 트랜잭션에서 커밋돼도 아웃박스에 저장하지 않는다")
+    void ignoreOtherDomainEvent() {
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(
+            ProductReplicaSellerFixture.sellerApprovedEvent()));
+
+        assertThat(outboxRows()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("아웃박스 저장이 실패하면 같은 트랜잭션의 업무도 커밋되지 않는다")
+    void rollBackBusinessWhenRecordFails() {
+        ProductChangedEvent event = productChanged();
+
+        // 같은 이벤트를 두 번 발행하면 두 번째 저장이 event_id UNIQUE에 걸려 커밋 직전에 실패한다
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            replicaSellerRepository.save(ProductReplicaSeller.create(ProductReplicaSellerFixture.sellerApproved()));
+            eventPublisher.publish(event);
+            eventPublisher.publish(event);
+        })).isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(replicaSellerRepository.findById(ProductReplicaSellerFixture.SELLER_ID)).isEmpty();
+        assertThat(outboxRows()).isEmpty();
     }
 
     static Stream<Arguments> productEvents() {
