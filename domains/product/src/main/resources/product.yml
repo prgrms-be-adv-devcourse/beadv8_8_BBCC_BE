@@ -1,5 +1,5 @@
 # 상품 도메인 설정. application.yml이 가져온다
-# 값이 비었거나 형식이 맞지 않으면 키 이름이 나오는 오류로 기동 실패 (ProductImageS3Properties)
+# 값이 비었거나 형식이 맞지 않으면 키 이름이 나오는 오류로 기동 실패 (ProductImageS3Properties, ProductOutboxProperties)
 
 kidly:
   product:
