@@ -92,11 +92,10 @@ prometheus.exporter.unix "host" {
 	rootfs_path = "/rootfs"
 }
 
-// 컨테이너 라벨은 compose 프로젝트(dev · prod · monitoring) · 서비스(app · postgres · kafka)만 가져온다
+// 컨테이너는 name 라벨(dev-app-1 처럼 compose 프로젝트가 앞에 붙은 컨테이너 이름)로 구분한다. docker 라벨 · 환경 변수는 가져오지 않는다
 prometheus.exporter.cadvisor "containers" {
-	docker_only                  = true
-	store_container_labels       = false
-	allowlisted_container_labels = ["com.docker.compose.project", "com.docker.compose.service"]
+	docker_only            = true
+	store_container_labels = false
 }
 
 // 앱 메트릭(prometheus/prometheus.yml)과 같은 15초 간격
