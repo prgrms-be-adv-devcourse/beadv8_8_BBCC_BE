@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
@@ -22,6 +23,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -96,6 +98,9 @@ class OrderServiceTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    @Mock
+    private OrderEventOutbox outbox;
+
     @Captor
     private ArgumentCaptor<DomainEvent> published;
 
@@ -104,7 +109,7 @@ class OrderServiceTest {
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
-            deliveryRepository, sellerReplicaRepository, historyRepository, eventPublisher, POLICY);
+            deliveryRepository, sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY);
     }
 
     @Nested
@@ -122,6 +127,7 @@ class OrderServiceTest {
 
             verify(orderRepository).save(any());
             verify(eventPublisher).publish(published.capture());
+            verify(outbox).append(published.getValue());
             OrderCreatedEvent created = (OrderCreatedEvent) published.getValue();
             assertThat(created.data().memberId()).isEqualTo(BUYER_ID);
             assertThat(created.data().items()).hasSize(1);
@@ -279,6 +285,7 @@ class OrderServiceTest {
 
             assertThat(order.getPaymentRequestedAt()).isNotNull();
             verify(eventPublisher).publish(published.capture());
+            verify(outbox).append(published.getValue());
             OrderPaymentRequestedEvent requested = (OrderPaymentRequestedEvent) published.getValue();
             assertThat(requested.data().memberId()).isEqualTo(BUYER_ID);
             assertThat(requested.data().items()).hasSize(2);
@@ -299,6 +306,7 @@ class OrderServiceTest {
             orderService.requestPayment(ORDER_ID);
 
             verify(eventPublisher, never()).publish(any());
+            verifyNoInteractions(outbox);
         }
 
         @Test
@@ -325,6 +333,7 @@ class OrderServiceTest {
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_FAILED);
             verify(eventPublisher).publish(published.capture());
+            verify(outbox).append(published.getValue());
             OrderCancelledEvent cancelled = (OrderCancelledEvent) published.getValue();
             assertThat(cancelled.data().memberId()).isEqualTo(BUYER_ID);
             assertThat(cancelled.data().reason()).isEqualTo("PAYMENT_FAILED");
@@ -513,6 +522,7 @@ class OrderServiceTest {
             assertThat(item.confirmType()).isEqualTo("DIRECT");
             assertThat(item.confirmedAt()).isNotNull();
             verify(eventPublisher).publish(published.capture());
+            verify(outbox).append(published.getValue());
             OrderItemPurchaseConfirmedEvent.Data data = ((OrderItemPurchaseConfirmedEvent) published.getValue()).data();
             assertThat(data.orderItemId()).isEqualTo(ORDER_ITEM_ID);
             assertThat(data.memberId()).isEqualTo(BUYER_ID);

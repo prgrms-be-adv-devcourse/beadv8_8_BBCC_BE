@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -30,6 +31,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
@@ -72,6 +74,7 @@ public class OrderService {
     private final SellerReplicaRepository sellerReplicaRepository;
     private final OrderStatusHistoryRepository historyRepository;
     private final EventPublisher eventPublisher;
+    private final OrderEventOutbox outbox;
     private final Order.Policy orderPolicy;
 
     /**
@@ -132,7 +135,7 @@ public class OrderService {
             .history(order.getId(), OrderStatusHistory.TargetType.ORDER, order.getId(), null, order.getStatus(), null,
                 now));
 
-        eventPublisher.publish(new OrderCreatedEvent(UUID.randomUUID(), now, new OrderCreatedEvent.Data(
+        publish(new OrderCreatedEvent(UUID.randomUUID(), now, new OrderCreatedEvent.Data(
             order.getId(),
             order.getMemberId(),
             order.getItems().stream()
@@ -161,7 +164,7 @@ public class OrderService {
         }
         // 주문 UPDATE 실패가 커밋 때가 아니라 여기서 나야 리스너가 잡아 보관한다(#449)
         orderRepository.flush();
-        eventPublisher.publish(new OrderPaymentRequestedEvent(UUID.randomUUID(), now,
+        publish(new OrderPaymentRequestedEvent(UUID.randomUUID(), now,
             new OrderPaymentRequestedEvent.Data(order.getId(), order.getMemberId(), order.getTotalAmount(),
                 order.getItems().stream()
                     .map(item -> new OrderPaymentRequestedEvent.Item(item.getId(), item.getAmount()))
@@ -547,7 +550,7 @@ public class OrderService {
      * order.cancelled를 주문상품 순서대로 발행하고 결과 한 줄을 남긴다(사유는 주문에 기록된 값).
      */
     private void publishCancelled(Order order, LocalDateTime now) {
-        eventPublisher.publish(new OrderCancelledEvent(UUID.randomUUID(), now,
+        publish(new OrderCancelledEvent(UUID.randomUUID(), now,
             new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), order.getCancelReason().name(),
                 order.getItems().stream()
                     .map(item -> new OrderCancelledEvent.Item(
@@ -595,7 +598,7 @@ public class OrderService {
         historyRepository.save(actor.history(order.getId(), OrderStatusHistory.TargetType.ORDER_ITEM, item.getId(),
             from, item.getStatus(), item.getConfirmType().name(), item.getConfirmedAt()));
         OrderItem.ProductSnapshot product = item.getProduct();
-        eventPublisher.publish(new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), item.getConfirmedAt(),
+        publish(new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), item.getConfirmedAt(),
             new OrderItemPurchaseConfirmedEvent.Data(
                 item.getId(),
                 order.getId(),
@@ -610,6 +613,15 @@ public class OrderService {
                 item.getConfirmedAt())));
         log.info("구매확정: orderId={} orderItemId={} confirmType={}",
             order.getId(), item.getId(), item.getConfirmType());
+    }
+
+    /**
+     * 이벤트를 Spring 이벤트로 발행하고, 같은 트랜잭션에서 Kafka로 보낼 메시지로도 저장한다(#540, 아웃박스).
+     * 주문이 발행하는 이벤트는 모두 여기로 보낸다.
+     */
+    private void publish(DomainEvent event) {
+        eventPublisher.publish(event);
+        outbox.append(event);
     }
 
     private OrderItem findItem(Order order, Long orderItemId) {
