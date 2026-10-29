@@ -152,6 +152,9 @@
 - 결제가 발행한 이벤트(`payment.*`)를 커밋 뒤 토픽 `kidly.payment.events`로도 보낸다. 롤백되거나 트랜잭션 밖에서 발행하면 보내지 않는다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
 - 키 = `correlationId`(결제는 주문 ID, 정산 지급은 정산서 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
 - 받는 쪽(주문 · 정산)은 아직 Spring 이벤트(`@DomainEventListener`)로 받는다. Kafka로 옮기는 건 받는 도메인이 하고, 그때 이미 쌓인 메시지는 처리된 것이므로 첫 배포에서 오프셋을 끝으로 옮긴다
-- 보내지 못하면 예외 없이 본문 없는 ERROR 로그만 남긴다. Outbox가 없어 커밋 뒤 전송 전에 죽거나 브로커가 꺼져 있으면 Kafka 쪽 메시지는 잃는다
-- 설정은 결제 안(`out.kafka.PaymentKafkaConfig`)에만 둔다: 토픽 선언(파티션 3 · 복제 1, 파티션 수는 바꾸지 않는다)과 결제 전용 템플릿. 템플릿은 Boot 프로듀서 설정(주소)에 직렬화 · `max.block.ms`(3초)만 덮어쓰고 본문을 찍는 기본 실패 로그를 끈다. 빈으로 두지 않아 앱 `spring.kafka`와 Boot 기본 `KafkaTemplate`은 그대로다
-- 로컬 `bootRun`은 `docker compose up -d`로 Kafka를 함께 띄운다. 없으면 결제 이벤트마다 최대 3초 기다린 뒤 ERROR 로그를 남긴다
+- 전송은 결제 전용 스레드 하나(`payment-kafka-sender`)에서 한다. 브로커가 죽어 `send`가 `max.block.ms`만큼 멈춰도 커밋 뒤 요청 스레드(같은 커밋 뒤의 주문 · 정산 리스너, API 응답)는 기다리지 않는다
+  - 스레드가 하나라 받은 순서대로 보낸다. Relay는 `HIGHEST_PRECEDENCE`로 다른 커밋 뒤 리스너보다 먼저 대기열에 넣어, 그 리스너가 새로 발행한 결제 이벤트보다 먼저 나가게 한다
+  - 대기열은 10,000건까지다. 넘치면 버리고 ERROR 로그를 남긴다. 앱이 내려갈 때는 남은 전송을 10초까지 기다리고, 못 보낸 건수를 ERROR로 남긴다
+- 보내지 못하면 예외 없이 본문 없는 ERROR 로그만 남긴다. Outbox가 없어 대기열에 있는 동안 앱이 죽거나 브로커가 꺼져 있으면 Kafka 쪽 메시지는 잃는다
+- 설정은 결제 안(`out.kafka.PaymentKafkaConfig`)에만 둔다: 토픽 선언(파티션 3 · 복제 1, 파티션 수는 바꾸지 않는다), 결제 전용 템플릿, 전송 스레드. 템플릿은 Boot 프로듀서 설정(주소)에 직렬화 · `max.block.ms`(3초)만 덮어쓰고 본문을 찍는 기본 실패 로그를 끈다. 빈으로 두지 않아 앱 `spring.kafka`와 Boot 기본 `KafkaTemplate`은 그대로다
+- 로컬 `bootRun`은 `docker compose up -d`로 Kafka를 함께 띄운다. 없으면 결제 이벤트마다 전송 스레드가 최대 3초 기다린 뒤 ERROR 로그를 남긴다(요청은 기다리지 않는다)
