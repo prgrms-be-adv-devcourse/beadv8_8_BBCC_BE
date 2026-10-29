@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 주문하기부터 결제완료 또는 재고 부족 취소까지를 실제 상품 재고 차감으로 잇는다.
@@ -48,6 +49,9 @@ class ProductOrderFlowIntegrationTest {
     @Autowired
     private InventoryDeductionDb inventoryDeductionDb;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @AfterEach
     void checkInvariants() {
         inventoryDeductionDb.assertInvariants();
@@ -68,6 +72,7 @@ class ProductOrderFlowIntegrationTest {
         assertThat(inventoryDeductionDb.countByStatus("DEDUCTED")).isEqualTo(1);
         assertThat(orderRepository.findById(order.orderId())).get()
             .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
+        assertThat(outboxEventTypes(order.orderId())).containsExactly("stock.deducted");
     }
 
     @Test
@@ -83,6 +88,14 @@ class ProductOrderFlowIntegrationTest {
         assertThat(order.status()).isEqualTo("CANCELLED");
         assertThat(order.cancelReason()).isEqualTo("OUT_OF_STOCK");
         assertThat(order.items()).extracting(OrderDetail.Item::unavailableReason).containsExactly("OUT_OF_STOCK");
+        assertThat(outboxEventTypes(placed.orderId())).containsExactly("stock.deduction-failed");
+    }
+
+    // 재고 결과 이벤트는 주문 ID를 키로 Kafka에 보내려고 아웃박스에 저장된다
+    private List<String> outboxEventTypes(Long orderId) {
+        return jdbcTemplate.queryForList(
+            "select event_type from product.product_outbox where message_key = ? order by id", String.class,
+            String.valueOf(orderId));
     }
 
     // 주문이 판매중으로 보도록, 상품 쪽에 저장한 옵션과 같은 옵션 ID와 판매가로 주문의 상품 복사본을 만든다

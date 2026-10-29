@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -137,13 +138,19 @@ class ProductOutboxRelayKafkaIntegrationTest {
         return Stream.of(
             Arguments.of(Named.of("상품 정보 변경됨", new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
                 new ProductChangedEvent.Data(1L, 2L, "데일리 맨투맨", 3L, ProductStatus.ON_SALE, null, OCCURRED_AT,
-                    false, List.of()))), "product.changed", "1"),
+                    false, List.of(navy110())))), "product.changed", "1"),
             Arguments.of(Named.of("재고 차감됨", new StockDeductedEvent(UUID.randomUUID(), OCCURRED_AT,
                 new StockDeductedEvent.Data(77L))), "stock.deducted", "77"),
             Arguments.of(Named.of("재고 차감 실패", new StockDeductionFailedEvent(UUID.randomUUID(), OCCURRED_AT,
                 new StockDeductionFailedEvent.Data(78L, StockDeductionFailureCode.OUT_OF_STOCK, List.of(
                     new StockDeductionFailedEvent.Failure(781L, StockDeductionFailureCode.OUT_OF_STOCK))))),
                 "stock.deduction-failed", "78"));
+    }
+
+    // 상품 자신의 검색용 표 리스너가 옵션 없는 상품을 오류로 남기지 않게 옵션을 하나 둔다
+    private static ProductChangedEvent.Option navy110() {
+        return new ProductChangedEvent.Option(11L, "네이비 110", "110", 39_000L, 105, 115, false,
+            OptionSaleStatus.ON_SALE);
     }
 
     private Map<String, Object> outboxRow(UUID eventId) {
