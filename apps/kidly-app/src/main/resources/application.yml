@@ -37,6 +37,23 @@ spring:
         # 연결을 돌려주는 위 설정에서는 DB가 읽기 전용 트랜잭션의 쓰기를 거부하지 못하므로, 쓰기 SQL을 보내기 전에 막는다
         session_factory:
           statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
+  # Kafka. 앱 전체에 하나뿐인 값만 둔다. 도메인 yml에는 spring.kafka를 넣지 않는다(나중에 불러온 값이 앞의 값을 덮어씀)
+  # 구독 그룹 · 재시도 · DLT는 받는 도메인이 자기 리스너 설정에 둔다. max.block.ms 등 나머지는 기본값(회의 10-29 안건 2)
+  kafka:
+    # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS(kafka:9092)로, 테스트는 Testcontainers가 덮어쓴다
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). 처음 Kafka로 옮길 때
+      # 이미 Spring 이벤트로 처리한 메시지를 다시 읽지 않는다. 대신 책갈피가 없는 동안 들어온 메시지는 건너뛴다
+      auto-offset-reset: latest
 
 springdoc:
   swagger-ui:
