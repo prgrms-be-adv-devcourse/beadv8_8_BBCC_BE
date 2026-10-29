@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.domain.order;
 
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -47,7 +47,7 @@ import lombok.NoArgsConstructor;
         name = Order.MEMBER_IDEMPOTENCY_KEY_UNIQUE, columnNames = {"member_id", "idempotency_key"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Order extends BaseTimeEntity {
+public class Order extends OrderTimeEntity {
 
     /**
      * 같은 회원의 같은 요청 키는 주문 하나(#351). 동시에 같은 키로 저장하면 이 제약이 나중 쪽을 막는다.

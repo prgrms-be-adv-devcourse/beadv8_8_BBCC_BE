@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.domain.replica;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
     @Index(name = "idx_replica_product_product_id", columnList = "product_id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ReplicaProduct extends BaseTimeEntity {
+public class ReplicaProduct extends OrderTimeEntity {
 
     /**
      * 복사본 입력 값(옵션 1개).

@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.domain.order;
 
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
@@ -34,7 +34,7 @@ import lombok.NoArgsConstructor;
     @Index(name = "idx_order_item_status_delivered_at", columnList = "status, delivered_at")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OrderItem extends BaseTimeEntity {
+public class OrderItem extends OrderTimeEntity {
 
     /**
      * 주문상품 상태. 배송 완료 후 한 번만 구매확정된다.

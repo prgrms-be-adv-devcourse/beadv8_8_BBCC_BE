@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.domain.cart;
 
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
     unique = true))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CartItem extends BaseTimeEntity {
+public class CartItem extends OrderTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

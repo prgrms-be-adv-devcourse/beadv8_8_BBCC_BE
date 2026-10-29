@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.domain.delivery;
 
 import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
-import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -28,7 +28,7 @@ import lombok.NoArgsConstructor;
     @Index(name = "idx_delivery_seller_id", columnList = "seller_id")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Delivery extends BaseTimeEntity {
+public class Delivery extends OrderTimeEntity {
 
     /**
      * 배송 상태.
