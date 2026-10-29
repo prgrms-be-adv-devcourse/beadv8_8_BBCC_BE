@@ -38,4 +38,17 @@ class ProductOutboxSchedulerTest {
         assertThat(output.getAll()).contains("WARN").contains("DataIntegrityViolationException")
             .doesNotContain("비밀 본문");
     }
+
+    @Test
+    @DisplayName("정리가 예외로 끝나도 스케줄러 밖으로 던지지 않고, 로그에는 예외 종류만 남긴다")
+    void cleanUpKeepsExceptionMessageOutOfLogs(CapturedOutput output) {
+        willThrow(new DataIntegrityViolationException("Failing row contains (비밀 본문)"))
+            .given(cleanupService).cleanUp();
+        ProductOutboxScheduler scheduler = new ProductOutboxScheduler(relayService, cleanupService);
+
+        assertThatCode(scheduler::cleanUp).doesNotThrowAnyException();
+
+        assertThat(output.getAll()).contains("WARN").contains("DataIntegrityViolationException")
+            .doesNotContain("비밀 본문");
+    }
 }

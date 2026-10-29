@@ -19,7 +19,7 @@ public class ProductOutboxCleanupService {
     private final ProductOutboxRepository outboxRepository;
     private final ProductOutboxProperties properties;
 
-    // deleteSentBefore는 벌크 DELETE라 트랜잭션 안에서만 돈다. 리포지토리에는 트랜잭션을 붙이지 않으므로 여기서 경계를 정한다
+    // deleteSentBefore는 벌크 DELETE라 트랜잭션 안에서만 돈다. 리포지토리에는 트랜잭션을 붙이지 않으므로 여기서 경계를 정한다.
     @Transactional
     public void cleanUp() {
         int deleted = outboxRepository.deleteSentBefore(LocalDateTime.now().minus(properties.retention()));
