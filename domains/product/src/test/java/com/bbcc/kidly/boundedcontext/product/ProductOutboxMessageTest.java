@@ -3,11 +3,16 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductOutboxMessageFixture.EVENT_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOutboxMessageFixture.PAYLOAD;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import java.time.LocalDateTime;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ProductOutboxMessageTest {
 
@@ -81,5 +86,28 @@ class ProductOutboxMessageTest {
         message.recordFailure(error);
 
         assertThat(message.getLastError()).isEqualTo("가".repeat(500));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("createInfosWithoutRequiredValue")
+    @DisplayName("필수 값이 없으면 메시지를 만들지 않는다")
+    void rejectCreateWithoutRequiredValue(ProductOutboxMessage.CreateInfo info) {
+        assertThatThrownBy(() -> ProductOutboxMessage.create(info))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    static Stream<Named<ProductOutboxMessage.CreateInfo>> createInfosWithoutRequiredValue() {
+        return Stream.of(
+            Named.of("info 없음", null),
+            Named.of("eventId 없음",
+                new ProductOutboxMessage.CreateInfo(null, "product.changed", "kidly.product.events", "1", PAYLOAD)),
+            Named.of("eventType 없음",
+                new ProductOutboxMessage.CreateInfo(EVENT_ID, null, "kidly.product.events", "1", PAYLOAD)),
+            Named.of("topic 없음",
+                new ProductOutboxMessage.CreateInfo(EVENT_ID, "product.changed", null, "1", PAYLOAD)),
+            Named.of("messageKey 없음",
+                new ProductOutboxMessage.CreateInfo(EVENT_ID, "product.changed", "kidly.product.events", null, PAYLOAD)),
+            Named.of("payload 없음",
+                new ProductOutboxMessage.CreateInfo(EVENT_ID, "product.changed", "kidly.product.events", "1", null)));
     }
 }

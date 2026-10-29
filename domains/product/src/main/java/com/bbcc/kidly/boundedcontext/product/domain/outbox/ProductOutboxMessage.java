@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.outbox;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -60,12 +62,13 @@ public class ProductOutboxMessage extends BaseTimeEntity {
      * 아직 보내지 않은 메시지(시도 0회)를 만든다.
      */
     public static ProductOutboxMessage create(CreateInfo info) {
+        requireNonNull(info, "info는 필수입니다");
         ProductOutboxMessage message = new ProductOutboxMessage();
-        message.eventId = info.eventId();
-        message.eventType = info.eventType();
-        message.topic = info.topic();
-        message.messageKey = info.messageKey();
-        message.payload = info.payload();
+        message.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        message.eventType = requireNonNull(info.eventType(), "eventType은 필수입니다");
+        message.topic = requireNonNull(info.topic(), "topic은 필수입니다");
+        message.messageKey = requireNonNull(info.messageKey(), "messageKey는 필수입니다");
+        message.payload = requireNonNull(info.payload(), "payload는 필수입니다");
         return message;
     }
 
