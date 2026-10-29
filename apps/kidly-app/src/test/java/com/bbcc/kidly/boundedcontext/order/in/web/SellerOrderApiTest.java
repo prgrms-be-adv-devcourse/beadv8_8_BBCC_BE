@@ -7,6 +7,7 @@ import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_
 import static com.bbcc.kidly.boundedcontext.order.in.web.SellerOrderController.SELLER_ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
@@ -16,8 +17,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
@@ -45,13 +44,13 @@ class SellerOrderApiTest {
         "recipientName", "홍길동", "phone", "010-0000-0000", "zipCode", "12345", "address", "서울시 테스트로 1");
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private RestTestClient client;
 
     @Autowired
     private TestTokens tokens;
-
-    @Autowired
-    private EventPublisher eventPublisher;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -500,7 +499,8 @@ class SellerOrderApiTest {
         assertThat(location).isNotNull();
         Long id = Long.valueOf(location.getPath().substring((ORDERS_PATH + "/").length()));
 
-        publish(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(), new StockDeductedEvent.Data(id)));
+        eventDelivery.deliver(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new StockDeductedEvent.Data(id)));
         return String.valueOf(id);
     }
 
@@ -523,10 +523,6 @@ class SellerOrderApiTest {
         Wallet wallet = Wallet.create(BUYER_ID);
         wallet.deposit(balance);
         walletRepository.save(wallet);
-    }
-
-    private void publish(DomainEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 
     private record SellerOrderPage(List<SellerOrderRow> content) {

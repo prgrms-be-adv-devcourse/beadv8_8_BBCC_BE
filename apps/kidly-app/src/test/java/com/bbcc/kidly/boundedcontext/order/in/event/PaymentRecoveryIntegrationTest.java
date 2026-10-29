@@ -1,10 +1,12 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
+import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
@@ -20,6 +22,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
@@ -73,7 +76,7 @@ class PaymentRecoveryIntegrationTest {
     private static final String FAILURE = "DataIntegrityViolationException";
 
     @Autowired
-    private PaymentEventListener paymentEventListener;
+    private OrderEventDelivery eventDelivery;
 
     @Autowired
     private PaymentRecoveryRetry recoveryRetry;
@@ -125,7 +128,7 @@ class PaymentRecoveryIntegrationTest {
         OrderDetail order = placeWithCart(BUYER_ID);
         breakSeller(order);
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         Order stored = orderRepository.findById(order.orderId()).orElseThrow();
@@ -151,16 +154,87 @@ class PaymentRecoveryIntegrationTest {
     }
 
     @Test
+    @DisplayName("리스너 트랜잭션 없이 받아도 배송 생성이 실패하면 주문 · 배송 · 장바구니는 되돌려지고 결제 완료가 PENDING · 시도 1로 남는다 (#532)")
+    void failureIsKeptWithoutListenerTransaction() {
+        OrderDetail order = placeWithCart(BUYER_ID);
+        breakSeller(order);
+
+        assertThatThrownBy(() -> eventDelivery.invokeWithoutListenerTransaction(completed(order)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+
+        Order stored = orderRepository.findById(order.orderId()).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+        assertThat(stored.getPaidAt()).isNull();
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
+        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).hasSize(2);
+        assertThat(historyCount(order.orderId(), "ORDER", "PAID")).isZero();
+        PaymentRecovery recovery = recoveryOf(order);
+        assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.PENDING);
+        assertThat(recovery.getAttemptCount()).isEqualTo(1);
+        assertThat(recovery.getFailureCode()).isEqualTo(FAILURE);
+    }
+
+    @Test
+    @DisplayName("리스너 트랜잭션 없이 받아도 결제완료 · 판매자별 배송 · 장바구니 정리가 함께 반영되고 보관은 없다 (#532)")
+    void paidWithoutListenerTransaction() {
+        OrderDetail order = placeWithCart(BUYER_ID);
+
+        eventDelivery.invokeWithoutListenerTransaction(completed(order));
+
+        assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus()).isEqualTo(Order.Status.PAID);
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).extracting(Delivery::getSellerId)
+            .containsExactlyInAnyOrder(SELLER_ID, OTHER_SELLER_ID);
+        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).isEmpty();
+        assertThat(historyCount(order.orderId(), "ORDER", "PAID")).isEqualTo(1);
+        assertThat(recoveryRepository.findByOrderId(order.orderId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("결제 완료 반영은 받는 쪽 트랜잭션과 따로 커밋까지 끝낸다: 바깥 트랜잭션이 되돌려져도 결제완료 · 배송 · 장바구니 정리가 남는다 "
+        + "(커밋 단계 실패도 리스너 분류로 오는 근거, #532)")
+    void appliedInItsOwnTransaction() {
+        OrderDetail order = placeWithCart(BUYER_ID);
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(outer -> {
+            eventDelivery.invokeWithoutListenerTransaction(completed(order));
+            outer.setRollbackOnly();
+        });
+
+        assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus()).isEqualTo(Order.Status.PAID);
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
+        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).isEmpty();
+    }
+
+    @Test
     @DisplayName("같은 주문이 두 번 실패하면 기록은 1건, 시도 2 · 마지막 시도 시각 갱신")
     void secondFailureCounts() {
         OrderDetail order = placeWithCart(BUYER_ID);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         LocalDateTime firstAttempt = recoveryOf(order).getLastAttemptedAt();
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
+            Long.class, order.orderId())).isEqualTo(1L);
+        PaymentRecovery recovery = recoveryOf(order);
+        assertThat(recovery.getAttemptCount()).isEqualTo(2);
+        assertThat(recovery.getLastAttemptedAt()).isAfterOrEqualTo(firstAttempt);
+        assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.PENDING);
+    }
+
+    @Test
+    @DisplayName("같은 결제 완료(같은 이벤트 객체)가 다시 와서 또 실패해도 기록은 1건, 시도 2 · 마지막 시도 시각 갱신 (#532)")
+    void sameEventFailingAgainCounts() {
+        OrderDetail order = placeWithCart(BUYER_ID);
+        breakSeller(order);
+        PaymentCompletedEvent event = completed(order);
+        assertThatThrownBy(() -> eventDelivery.invoke(event)).isInstanceOf(DataIntegrityViolationException.class);
+        LocalDateTime firstAttempt = recoveryOf(order).getLastAttemptedAt();
+
+        assertThatThrownBy(() -> eventDelivery.invoke(event)).isInstanceOf(DataIntegrityViolationException.class);
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
             Long.class, order.orderId())).isEqualTo(1L);
@@ -175,7 +249,7 @@ class PaymentRecoveryIntegrationTest {
     void retryRecovers() {
         OrderDetail order = placeWithCart(BUYER_ID);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryOf(order).getId();
 
@@ -202,7 +276,7 @@ class PaymentRecoveryIntegrationTest {
     void cancelCloses() {
         OrderDetail order = placeWithCart(BUYER_ID);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryOf(order).getId();
 
@@ -222,7 +296,7 @@ class PaymentRecoveryIntegrationTest {
         OrderDetail second = placeWithCart(BUYER_ID + 1);
         for (OrderDetail order : List.of(first, second)) {
             breakSeller(order);
-            assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, buyerOf(order))))
+            assertThatThrownBy(() -> eventDelivery.invoke(completed(order, buyerOf(order))))
                 .isInstanceOf(DataIntegrityViolationException.class);
             orderService.cancelForPaymentFailure(order.orderId());
         }
@@ -246,13 +320,13 @@ class PaymentRecoveryIntegrationTest {
         OrderDetail nullItemId = placeWithCart(BUYER_ID + 2);
         LocalDateTime now = LocalDateTime.now();
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(),
+        assertThatThrownBy(() -> eventDelivery.invoke(new PaymentCompletedEvent(UUID.randomUUID(),
             now, new PaymentCompletedEvent.Data(null, noMember.orderId(), null, noMember.totalAmount(),
             itemsOf(noMember), null)))).isInstanceOf(RuntimeException.class);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(),
+        assertThatThrownBy(() -> eventDelivery.invoke(new PaymentCompletedEvent(UUID.randomUUID(),
             now, new PaymentCompletedEvent.Data(PAYMENT_ID, noItems.orderId(), BUYER_ID + 1, noItems.totalAmount(),
             null, now)))).isInstanceOf(RuntimeException.class);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(),
+        assertThatThrownBy(() -> eventDelivery.invoke(new PaymentCompletedEvent(UUID.randomUUID(),
             now, new PaymentCompletedEvent.Data(PAYMENT_ID, nullItemId.orderId(), BUYER_ID + 2,
             nullItemId.totalAmount(), List.of(new PaymentCompletedEvent.Item(null, nullItemId.totalAmount())),
             now)))).isInstanceOf(RuntimeException.class);
@@ -278,7 +352,7 @@ class PaymentRecoveryIntegrationTest {
             Long buyerId = 7_000L + round;
             OrderDetail order = placeWithCart(buyerId);
             breakSeller(order);
-            assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, buyerId)))
+            assertThatThrownBy(() -> eventDelivery.invoke(completed(order, buyerId)))
                 .isInstanceOf(DataIntegrityViolationException.class);
             fixSeller(order);
             Long recoveryId = recoveryOf(order).getId();
@@ -315,7 +389,7 @@ class PaymentRecoveryIntegrationTest {
             Long buyerId = 8_000L + round;
             OrderDetail order = placeWithCart(buyerId);
             breakSeller(order);
-            assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, buyerId)))
+            assertThatThrownBy(() -> eventDelivery.invoke(completed(order, buyerId)))
                 .isInstanceOf(DataIntegrityViolationException.class);
             fixSeller(order);
             Long recoveryId = recoveryOf(order).getId();
@@ -407,7 +481,7 @@ class PaymentRecoveryIntegrationTest {
             assertThatThrownBy(() -> direct.get(2, TimeUnit.SECONDS)).as("기다리지 않고 바로 실패")
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(PessimisticLockingFailureException.class);
-            Future<?> listener = executor.submit(() -> paymentEventListener.onPaymentCompleted(completed(order)));
+            Future<?> listener = executor.submit(() -> eventDelivery.invoke(completed(order)));
             assertThatThrownBy(() -> listener.get(2, TimeUnit.SECONDS)).as("리스너도 멈추지 않음")
                 .isInstanceOf(ExecutionException.class)
                 .cause().isInstanceOf(DataIntegrityViolationException.class)
@@ -481,7 +555,7 @@ class PaymentRecoveryIntegrationTest {
     private OrderDetail failDelivery(Long buyerId) {
         OrderDetail order = placeWithCart(buyerId);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, buyerId)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order, buyerId)))
             .isInstanceOf(DataIntegrityViolationException.class);
         return order;
     }

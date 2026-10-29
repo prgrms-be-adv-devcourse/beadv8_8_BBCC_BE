@@ -10,11 +10,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -29,7 +29,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 판매자 상호명(sellerName) 표시: 장바구니 · 주문 상세 · 주문 목록(대표 주문상품) · 구매확정 응답.
@@ -42,16 +41,13 @@ class SellerNameApiTest {
         "recipientName", "홍길동", "phone", "010-0000-0000", "zipCode", "12345", "address", "서울시 테스트로 1");
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private RestTestClient client;
 
     @Autowired
     private TestTokens tokens;
-
-    @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -146,7 +142,7 @@ class SellerNameApiTest {
     }
 
     private void publishSeller(LocalDateTime occurredAt, String businessName) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new SellerChangedEvent(
-            UUID.randomUUID(), occurredAt, new SellerChangedEvent.Data(SELLER_ID, businessName, SellerStatus.ACTIVE))));
+        eventDelivery.deliver(new SellerChangedEvent(
+            UUID.randomUUID(), occurredAt, new SellerChangedEvent.Data(SELLER_ID, businessName, SellerStatus.ACTIVE)));
     }
 }

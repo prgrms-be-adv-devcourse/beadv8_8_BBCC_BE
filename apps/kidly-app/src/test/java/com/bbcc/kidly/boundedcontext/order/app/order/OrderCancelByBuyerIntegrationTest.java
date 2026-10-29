@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
@@ -23,7 +24,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.order.in.event.PaymentEventListener;
 import com.bbcc.kidly.boundedcontext.order.in.web.PaymentRecoveryRetry;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
@@ -59,6 +59,9 @@ class OrderCancelByBuyerIntegrationTest {
     private static final Long ADMIN_ID = 9_000L;
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private OrderService orderService;
 
     @Autowired
@@ -66,9 +69,6 @@ class OrderCancelByBuyerIntegrationTest {
 
     @Autowired
     private CartService cartService;
-
-    @Autowired
-    private PaymentEventListener paymentEventListener;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -214,7 +214,7 @@ class OrderCancelByBuyerIntegrationTest {
 
             ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
                 () -> orderService.cancelByBuyer(buyerId, orderId),
-                () -> paymentEventListener.onPaymentCompleted(completed)),
+                () -> eventDelivery.invoke(completed)),
                 OrderCancelByBuyerIntegrationTest::isRejectedByState);
 
             assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();

@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.order.in.web.AdminOrderController.AD
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -14,8 +15,6 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.OrderEventFailure;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.order.in.event.PaymentEventListener;
-import com.bbcc.kidly.boundedcontext.order.in.event.StockEventListener;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
@@ -48,16 +47,13 @@ class AdminOrderEventFailureApiTest {
     private static final Long ADMIN_ID = 99L;
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private RestTestClient client;
 
     @Autowired
     private TestTokens tokens;
-
-    @Autowired
-    private StockEventListener stockEventListener;
-
-    @Autowired
-    private PaymentEventListener paymentEventListener;
 
     @Autowired
     private OrderService orderService;
@@ -259,7 +255,7 @@ class AdminOrderEventFailureApiTest {
 
     private void failStockDeduction(OrderDetail order) {
         breakOrder(order);
-        assertThatThrownBy(() -> stockEventListener.onStockDeductionFailed(new StockDeductionFailedEvent(
+        assertThatThrownBy(() -> eventDelivery.invoke(new StockDeductionFailedEvent(
             UUID.randomUUID(), LocalDateTime.now(), new StockDeductionFailedEvent.Data(order.orderId(),
             StockDeductionFailureCode.OUT_OF_STOCK, List.of(new StockDeductionFailedEvent.Failure(
                 order.items().get(0).orderItemId(), StockDeductionFailureCode.OUT_OF_STOCK))))))
@@ -269,7 +265,7 @@ class AdminOrderEventFailureApiTest {
     private void failPayment(OrderDetail order) {
         breakOrder(order);
         LocalDateTime now = LocalDateTime.now();
-        assertThatThrownBy(() -> paymentEventListener.onPaymentFailed(new PaymentFailedEvent(UUID.randomUUID(), now,
+        assertThatThrownBy(() -> eventDelivery.invoke(new PaymentFailedEvent(UUID.randomUUID(), now,
             new PaymentFailedEvent.Data(null, order.orderId(), BUYER_ID, order.totalAmount(),
                 PaymentFailureCode.WALLET_NOT_FOUND, now)))).isInstanceOf(RuntimeException.class);
     }

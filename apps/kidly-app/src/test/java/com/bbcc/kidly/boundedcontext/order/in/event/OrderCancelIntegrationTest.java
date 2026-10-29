@@ -1,24 +1,24 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import static com.bbcc.kidly.boundedcontext.order.OrderRows.PLACED;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.OrderRows;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -37,7 +37,6 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 결제 실패 · 결제 마감 만료로 주문이 취소되고 order.cancelled가 한 번 발행되는지, 만료 뒤 온 결제 완료는 무시되는지.
@@ -50,6 +49,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 class OrderCancelIntegrationTest {
 
     @Autowired
+    private OrderRows orderRows;
+
+    @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private ApplicationEvents events;
 
     @Autowired
@@ -57,12 +62,6 @@ class OrderCancelIntegrationTest {
 
     @Autowired
     private OrderScheduler orderScheduler;
-
-    @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -79,9 +78,6 @@ class OrderCancelIntegrationTest {
     @Autowired
     private DeliveryRepository deliveryRepository;
 
-    @Autowired
-    private OrderStatusHistoryRepository historyRepository;
-
     @BeforeEach
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
@@ -93,9 +89,10 @@ class OrderCancelIntegrationTest {
     void cancelsOnPaymentFailure() {
         OrderDetail order = place();
 
-        publish(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentFailedEvent.Data(
-            500L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
-            LocalDateTime.now())));
+        eventDelivery.deliver(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentFailedEvent.Data(
+                500L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
+                LocalDateTime.now())));
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_FAILED);
         List<OrderCancelledEvent> cancelled = events.stream(OrderCancelledEvent.class).toList();
@@ -116,17 +113,17 @@ class OrderCancelIntegrationTest {
             new PaymentFailedEvent.Data(500L, order.orderId(), BUYER_ID, order.totalAmount(),
                 PaymentFailureCode.INSUFFICIENT_BALANCE, LocalDateTime.now()));
 
-        publish(failed);
-        long version = versionOf(order.orderId());
-        publish(failed);
+        eventDelivery.deliver(failed);
+        long version = orderRows.versionOf(order.orderId());
+        eventDelivery.deliver(failed);
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_FAILED);
-        assertThat(versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
         List<OrderCancelledEvent> cancelled = events.stream(OrderCancelledEvent.class).toList();
         assertThat(cancelled).hasSize(1);
         assertThat(cancelled.get(0).data().reason()).isEqualTo("PAYMENT_FAILED");
-        assertThat(cancelRows(order.orderId()))
-            .containsExactly("PENDING_PAYMENT>CANCELLED PAYMENT_FAILED payment.failed");
+        assertThat(orderRows.historyRows(order.orderId()))
+            .containsExactly(PLACED, "ORDER PENDING_PAYMENT>CANCELLED PAYMENT_FAILED payment.failed");
     }
 
     @Test
@@ -134,9 +131,10 @@ class OrderCancelIntegrationTest {
     void paymentFailureLogsOneResultLine(CapturedOutput output) {
         OrderDetail order = place();
 
-        publish(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentFailedEvent.Data(
-            500L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
-            LocalDateTime.now())));
+        eventDelivery.deliver(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentFailedEvent.Data(
+                500L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
+                LocalDateTime.now())));
 
         assertThat(output).containsPattern("INFO.*주문 취소: orderId=" + order.orderId() + " reason=PAYMENT_FAILED");
         assertThat(output.getAll().lines()
@@ -165,14 +163,14 @@ class OrderCancelIntegrationTest {
         makeOverdue(order.orderId());
 
         orderScheduler.expireOverduePayments();
-        long version = versionOf(order.orderId());
+        long version = orderRows.versionOf(order.orderId());
         orderScheduler.expireOverduePayments();
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
-        assertThat(versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.versionOf(order.orderId())).as("두 번째는 주문을 바꾸지 않음").isEqualTo(version);
         assertThat(events.stream(OrderCancelledEvent.class).toList()).hasSize(1);
-        assertThat(cancelRows(order.orderId()))
-            .containsExactly("PENDING_PAYMENT>CANCELLED PAYMENT_EXPIRED scheduler:payment-expiry");
+        assertThat(orderRows.historyRows(order.orderId()))
+            .containsExactly(PLACED, "ORDER PENDING_PAYMENT>CANCELLED PAYMENT_EXPIRED scheduler:payment-expiry");
     }
 
     @Test
@@ -205,16 +203,18 @@ class OrderCancelIntegrationTest {
         OrderDetail order = place();
         makeOverdue(order.orderId());
         orderScheduler.expireOverduePayments();
-        long version = versionOf(order.orderId());
-        List<String> historyBefore = historyRows(order.orderId());
+        long version = orderRows.versionOf(order.orderId());
+        List<String> historyBefore = orderRows.historyRows(order.orderId());
 
-        publish(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
-            500L, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), LocalDateTime.now())));
+        eventDelivery.deliver(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentCompletedEvent.Data(
+                500L, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), LocalDateTime.now())));
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
-        assertThat(versionOf(order.orderId())).as("늦게 온 결제 완료는 주문을 바꾸지 않음").isEqualTo(version);
-        assertThat(historyRows(order.orderId())).isEqualTo(historyBefore).noneMatch(row -> row.endsWith(">PAID"));
+        assertThat(orderRows.versionOf(order.orderId())).as("늦게 온 결제 완료는 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.historyRows(order.orderId()))
+            .isEqualTo(historyBefore).noneMatch(row -> row.contains(">PAID "));
         assertThat(events.stream(OrderCancelledEvent.class).toList()).hasSize(1);
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
             Long.class, order.orderId())).as("취소된 주문의 결제 완료는 실패로 보관하지 않음").isZero();
@@ -230,8 +230,9 @@ class OrderCancelIntegrationTest {
         makeOverdue(order.orderId());
         orderScheduler.expireOverduePayments();
 
-        publish(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
-            null, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), null)));
+        eventDelivery.deliver(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentCompletedEvent.Data(
+                null, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), null)));
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
         assertThat(lines(output, "WARN", "reason=paid-after-cancel orderId=" + order.orderId() + " paymentId=null"))
@@ -257,33 +258,10 @@ class OrderCancelIntegrationTest {
             LocalDateTime.now().minusMinutes(1), orderId);
     }
 
-    private long versionOf(Long orderId) {
-        return jdbcTemplate.queryForObject("select version from orders.orders where id = ?", Long.class, orderId);
-    }
-
-    // 주문의 상태 이력 전체를 "이전>다음"으로
-    private List<String> historyRows(Long orderId) {
-        return historyRepository.findAllByOrderIdOrderByOccurredAtAscIdAsc(orderId).stream()
-            .map(history -> history.getFromStatus() + ">" + history.getToStatus())
-            .toList();
-    }
-
-    // 주문의 상태 이력 중 취소 줄만 "이전>다음 사유 출처"로
-    private List<String> cancelRows(Long orderId) {
-        return historyRepository.findAllByOrderIdOrderByOccurredAtAscIdAsc(orderId).stream()
-            .filter(history -> "CANCELLED".equals(String.valueOf(history.getToStatus())))
-            .map(history -> history.getFromStatus() + ">" + history.getToStatus() + " " + history.getReason() + " "
-                + history.getSource())
-            .toList();
-    }
-
     private void assertCancelled(Long orderId, Order.CancelReason reason) {
         Order order = orderRepository.findById(orderId).orElseThrow();
         assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
         assertThat(order.getCancelReason()).isEqualTo(reason);
     }
 
-    private void publish(DomainEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
-    }
 }

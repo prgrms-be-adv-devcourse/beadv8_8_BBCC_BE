@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
@@ -22,6 +23,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.web.OrderEventFailureRetry;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
@@ -48,6 +50,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -71,10 +75,7 @@ class OrderEventFailureIntegrationTest {
     private static final String FAILURE = "DataIntegrityViolationException";
 
     @Autowired
-    private StockEventListener stockEventListener;
-
-    @Autowired
-    private PaymentEventListener paymentEventListener;
+    private OrderEventDelivery eventDelivery;
 
     @Autowired
     private OrderEventFailureRetry failureRetry;
@@ -122,11 +123,11 @@ class OrderEventFailureIntegrationTest {
         OrderDetail paymentFailed = place(BUYER_ID + 2);
         breakOrders(deducted, outOfStock, paymentFailed);
 
-        assertThatThrownBy(() -> stockEventListener.onStockDeducted(stockDeducted(deducted)))
+        assertThatThrownBy(() -> eventDelivery.invoke(stockDeducted(deducted)))
             .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> stockEventListener.onStockDeductionFailed(stockDeductionFailed(outOfStock)))
+        assertThatThrownBy(() -> eventDelivery.invoke(stockDeductionFailed(outOfStock)))
             .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentFailed(paymentFailed(paymentFailed)))
+        assertThatThrownBy(() -> eventDelivery.invoke(paymentFailed(paymentFailed)))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         Order deductedOrder = orderRepository.findById(deducted.orderId()).orElseThrow();
@@ -146,20 +147,58 @@ class OrderEventFailureIntegrationTest {
         assertThat(recorder.events(OrderCancelledEvent.class)).isEmpty();
     }
 
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(OrderEventFailure.EventType.class)
+    @DisplayName("리스너 트랜잭션 없이 받아도 주문 UPDATE가 실패하면 주문은 그대로, 기록이 PENDING · 시도 1로 1건 남는다 (#532)")
+    void keptWithoutListenerTransaction(OrderEventFailure.EventType eventType) {
+        OrderDetail order = place(BUYER_ID);
+        breakOrders(order);
+
+        assertThatThrownBy(() -> eventDelivery.invokeWithoutListenerTransaction(eventOf(order, eventType)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+
+        Order stored = orderRepository.findById(order.orderId()).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+        assertThat(stored.getPaymentRequestedAt()).isNull();
+        assertThat(recorder.events(OrderPaymentRequestedEvent.class)).isEmpty();
+        assertThat(recorder.events(OrderCancelledEvent.class)).isEmpty();
+        assertThat(failureCount(order.orderId())).isEqualTo(1);
+        assertKept(failureOf(order, eventType));
+    }
+
     @Test
     @DisplayName("같은 주문의 같은 이벤트가 두 번 실패하면 기록은 1건, 시도 2 · 마지막 시도 시각 갱신")
     void secondFailureCounts() {
         OrderDetail order = place(BUYER_ID);
         breakOrders(order);
-        assertThatThrownBy(() -> stockEventListener.onStockDeductionFailed(stockDeductionFailed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(stockDeductionFailed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         LocalDateTime first = failureOf(order, OrderEventFailure.EventType.STOCK_DEDUCTION_FAILED).lastAttemptedAt();
 
-        assertThatThrownBy(() -> stockEventListener.onStockDeductionFailed(stockDeductionFailed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(stockDeductionFailed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         assertThat(failureCount(order.orderId())).isEqualTo(1);
         OrderEventFailureResult failure = failureOf(order, OrderEventFailure.EventType.STOCK_DEDUCTION_FAILED);
+        assertThat(failure.attemptCount()).isEqualTo(2);
+        assertThat(failure.lastAttemptedAt()).isAfterOrEqualTo(first);
+        assertThat(failure.status()).isEqualTo("PENDING");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(OrderEventFailure.EventType.class)
+    @DisplayName("같은 이벤트(같은 이벤트 객체)가 다시 와서 또 실패해도 기록은 종류별 1건, 시도 2 · 마지막 시도 시각 갱신 (#532)")
+    void sameEventFailingAgainCounts(OrderEventFailure.EventType eventType) {
+        OrderDetail order = place(BUYER_ID);
+        breakOrders(order);
+        DomainEvent event = eventOf(order, eventType);
+        assertThatThrownBy(() -> eventDelivery.invoke(event)).isInstanceOf(DataIntegrityViolationException.class);
+        LocalDateTime first = failureOf(order, eventType).lastAttemptedAt();
+
+        assertThatThrownBy(() -> eventDelivery.invoke(event)).isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(failureCount(order.orderId())).isEqualTo(1);
+        OrderEventFailureResult failure = failureOf(order, eventType);
         assertThat(failure.attemptCount()).isEqualTo(2);
         assertThat(failure.lastAttemptedAt()).isAfterOrEqualTo(first);
         assertThat(failure.status()).isEqualTo("PENDING");
@@ -335,7 +374,7 @@ class OrderEventFailureIntegrationTest {
             assertThat(locked.await(10, TimeUnit.SECONDS)).as("A가 기록을 잠금").isTrue();
 
             Future<?> listener = executor.submit(
-                () -> stockEventListener.onStockDeductionFailed(stockDeductionFailed(order)));
+                () -> eventDelivery.invoke(stockDeductionFailed(order)));
             assertThatThrownBy(() -> listener.get(2, TimeUnit.SECONDS)).as("리스너는 멈추지 않음")
                 .isInstanceOf(ExecutionException.class)
                 .cause().isInstanceOf(DataIntegrityViolationException.class)
@@ -374,10 +413,10 @@ class OrderEventFailureIntegrationTest {
     private Long failAndGetId(OrderDetail order, OrderEventFailure.EventType eventType) {
         breakOrders(order);
         Consumer<OrderDetail> send = switch (eventType) {
-            case STOCK_DEDUCTED -> target -> stockEventListener.onStockDeducted(stockDeducted(target));
-            case STOCK_DEDUCTION_FAILED -> target -> stockEventListener.onStockDeductionFailed(
+            case STOCK_DEDUCTED -> target -> eventDelivery.invoke(stockDeducted(target));
+            case STOCK_DEDUCTION_FAILED -> target -> eventDelivery.invoke(
                 stockDeductionFailed(target));
-            case PAYMENT_FAILED -> target -> paymentEventListener.onPaymentFailed(paymentFailed(target));
+            case PAYMENT_FAILED -> target -> eventDelivery.invoke(paymentFailed(target));
         };
         assertThatThrownBy(() -> send.accept(order)).isInstanceOf(DataIntegrityViolationException.class);
         return failureOf(order, eventType).failureId();
@@ -433,6 +472,14 @@ class OrderEventFailureIntegrationTest {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
+    }
+
+    private static DomainEvent eventOf(OrderDetail order, OrderEventFailure.EventType eventType) {
+        return switch (eventType) {
+            case STOCK_DEDUCTED -> stockDeducted(order);
+            case STOCK_DEDUCTION_FAILED -> stockDeductionFailed(order);
+            case PAYMENT_FAILED -> paymentFailed(order);
+        };
     }
 
     private static StockDeductedEvent stockDeducted(OrderDetail order) {

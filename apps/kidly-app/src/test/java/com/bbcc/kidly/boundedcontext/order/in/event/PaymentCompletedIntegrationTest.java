@@ -1,10 +1,13 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import static com.bbcc.kidly.boundedcontext.order.OrderRows.PLACED;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.OrderRows;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -23,8 +26,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -37,7 +38,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 주문 → stock.deducted → payment.completed → 결제완료 · 판매자별 배송 · 장바구니 정리.
@@ -49,16 +49,16 @@ class PaymentCompletedIntegrationTest {
     private static final Long OTHER_SELLER_ID = 3L;
 
     @Autowired
+    private OrderRows orderRows;
+
+    @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private OrderService orderService;
 
     @Autowired
     private CartService cartService;
-
-    @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -101,11 +101,11 @@ class PaymentCompletedIntegrationTest {
         OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L), new PlaceOrderCommand.Item(2L, null, 1, 30_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
-        publish(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
+        eventDelivery.deliver(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductedEvent.Data(order.orderId())));
 
         PaymentCompletedEvent completed = paymentCompleted(order);
-        publish(completed);
+        eventDelivery.deliver(completed);
 
         assertThat(orderRepository.findById(order.orderId())).get()
             .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
@@ -118,32 +118,23 @@ class PaymentCompletedIntegrationTest {
         assertThat(remaining.get(0).getOptionId()).isEqualTo(1L);
         assertThat(remaining.get(0).getChildId()).isNull();
 
-        long version = versionOf(order.orderId());
-        publish(completed);
+        long version = orderRows.versionOf(order.orderId());
+        eventDelivery.deliver(completed);
 
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
         assertThat(orderRepository.findById(order.orderId())).get()
             .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
-        assertThat(versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
         assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).hasSize(1);
-        assertThat(historyRows(order.orderId())).containsExactly("PENDING_PAYMENT>PAID payment.completed");
+        assertThat(orderRows.historyRows(order.orderId()))
+            .containsExactly(PLACED, "ORDER PENDING_PAYMENT>PAID payment.completed",
+                "DELIVERY null>READY payment.completed", "DELIVERY null>READY payment.completed");
         assertThat(recorder.events(OrderPaymentRequestedEvent.class))
             .filteredOn(event -> event.data().orderId().equals(order.orderId())).hasSize(1);
         assertThat(recorder.events(OrderCancelledEvent.class))
             .filteredOn(event -> event.data().orderId().equals(order.orderId())).isEmpty();
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
             Long.class, order.orderId())).as("다시 온 쪽은 실패로 보관하지 않음").isZero();
-    }
-
-    private long versionOf(Long orderId) {
-        return jdbcTemplate.queryForObject("select version from orders.orders where id = ?", Long.class, orderId);
-    }
-
-    // 주문 단위 상태 이력을 "이전>다음 출처"로(주문하기 줄은 제외)
-    private List<String> historyRows(Long orderId) {
-        return jdbcTemplate.queryForList("select from_status || '>' || to_status || ' ' || source "
-            + "from orders.order_status_history where order_id = ? and target_type = 'ORDER' "
-            + "and from_status is not null order by id", String.class, orderId);
     }
 
     private PaymentCompletedEvent paymentCompleted(OrderDetail order) {
@@ -164,7 +155,4 @@ class PaymentCompletedIntegrationTest {
         walletRepository.save(wallet);
     }
 
-    private void publish(DomainEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
-    }
 }

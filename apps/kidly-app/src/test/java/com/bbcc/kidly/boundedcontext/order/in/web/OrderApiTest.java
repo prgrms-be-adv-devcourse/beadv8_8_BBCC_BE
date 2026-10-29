@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -15,7 +16,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
@@ -38,7 +38,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.springframework.transaction.support.TransactionTemplate;
 
 @FunctionalTest
 class OrderApiTest {
@@ -50,22 +49,19 @@ class OrderApiTest {
         "recipientName", "홍길동", "phone", "010-0000-0000", "zipCode", "12345", "address", "서울시 테스트로 1");
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private RestTestClient client;
 
     @Autowired
     private TestTokens tokens;
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
     private OrderService orderService;
 
     @Autowired
     private OrderDeliveredAtSetter deliveredAtSetter;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -619,10 +615,10 @@ class OrderApiTest {
          * 주문 뒤 상품 1의 이름을 바꾸는 product.changed. 복사본은 바뀌고 주문상품 스냅샷은 그대로여야 한다.
          */
         private void publishRenamedFirstProduct() {
-            transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new ProductChangedEvent(
+            eventDelivery.deliver(new ProductChangedEvent(
                 UUID.randomUUID(), OCCURRED_AT.plusDays(1), new ProductChangedEvent.Data(1L, SELLER_ID, "바뀐 상품명", 1L,
                     ProductStatus.ON_SALE, null, OCCURRED_AT, false, List.of(new ProductChangedEvent.Option(1L,
-                        "네이비 / 110", "110", 25_000L, null, null, false, OptionSaleStatus.ON_SALE))))));
+                        "네이비 / 110", "110", 25_000L, null, null, false, OptionSaleStatus.ON_SALE)))));
             assertThat(productReplicaRepository.findByOptionId(1L)).get()
                 .extracting(ReplicaProduct::getProductName).isEqualTo("바뀐 상품명");
         }
@@ -670,9 +666,9 @@ class OrderApiTest {
         @DisplayName("결제 실패로 취소된 주문은 상세에 CANCELLED와 취소 사유가 보인다")
         void cancelledOrder() {
             String orderId = placeAndReadId();
-            transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new PaymentFailedEvent(
+            eventDelivery.deliver(new PaymentFailedEvent(
                 UUID.randomUUID(), LocalDateTime.now(), new PaymentFailedEvent.Data(500L, Long.valueOf(orderId),
-                    BUYER_ID, 25_000L, PaymentFailureCode.INSUFFICIENT_BALANCE, LocalDateTime.now()))));
+                    BUYER_ID, 25_000L, PaymentFailureCode.INSUFFICIENT_BALANCE, LocalDateTime.now())));
 
             client.get().uri(ORDERS_PATH + "/" + orderId)
                 .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))

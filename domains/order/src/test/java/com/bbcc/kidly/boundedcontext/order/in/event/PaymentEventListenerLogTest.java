@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.PaymentCompletionService;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
@@ -30,12 +31,10 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 결제 완료 처리 중 예외의 로그 분류: 동시 중복 처리에서 진 쪽은 WARN, 그 밖은 ERROR. 어느 쪽이든 예외는 그대로 다시 던진다.
- * 커밋 단계 되돌림은 트랜잭션 완료 콜백으로 WARN(본문에서 이미 남겼으면 생략).
+ * 반영은 커밋까지 끝낸 뒤 돌아오므로 커밋 단계 실패도 같은 기준으로 나눈다(#532, 커밋 단계 전용 경고 없음).
  */
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class PaymentEventListenerLogTest {
@@ -48,9 +47,6 @@ class PaymentEventListenerLogTest {
         "event=payment.completed reason=lost-concurrent-duplicate orderId=" + ORDER_ID + " paymentId=" + PAYMENT_ID;
     private static final String FAILED_REASON =
         "event=payment.completed reason=processing-failed orderId=" + ORDER_ID + " paymentId=" + PAYMENT_ID;
-    private static final String ROLLED_BACK_MESSAGE = "커밋 단계에서 되돌려짐";
-    private static final String ROLLED_BACK_REASON =
-        "event=payment.completed reason=rolled-back-at-commit orderId=" + ORDER_ID + " paymentId=" + PAYMENT_ID;
 
     @Mock
     private OrderService orderService;
@@ -67,13 +63,16 @@ class PaymentEventListenerLogTest {
     @Mock
     private OrderEventFailureService failureService;
 
+    @Mock
+    private PaymentCompletionService completion;
+
     private PaymentEventListener listener;
 
-    // 결제 완료 반영 순서는 실제 PaymentCompletion으로 두고, 그 안의 서비스만 mock으로 둔다
+    // 결제 완료 반영 순서는 실제 PaymentCompletionService로 두고, 그 안의 서비스만 mock으로 둔다
     @BeforeEach
     void setUp() {
         listener = new PaymentEventListener(orderService,
-            new PaymentCompletion(orderService, deliveryService, cartService), recoveryService, failureService);
+            new PaymentCompletionService(orderService, deliveryService, cartService), recoveryService, failureService);
     }
 
     @Test
@@ -227,45 +226,37 @@ class PaymentEventListenerLogTest {
     }
 
     @Test
-    @DisplayName("본문은 끝났는데 커밋 단계에서 되돌려지면 WARN을 한 번 남긴다(커밋되면 남기지 않음)")
-    void rolledBackAtCommitIsWarnOnce(CapturedOutput output) {
-        when(orderService.markPaid(COMMAND)).thenReturn(true);
+    @DisplayName("반영이 커밋 단계에서 진 쪽(낙관적 락)으로 실패해도 본문과 같이 진 쪽 WARN 한 줄만 남기고 같은 예외를 다시 던진다 (#532)")
+    void lostAtCommitIsLostWarn(CapturedOutput output) {
+        ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", ORDER_ID);
+        when(completion.applyForEvent(COMMAND)).thenThrow(error);
 
-        List<TransactionSynchronization> rolledBack = runInSynchronization(() -> listener.onPaymentCompleted(event()));
-        rolledBack.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
-        List<TransactionSynchronization> committed = runInSynchronization(() -> listener.onPaymentCompleted(event()));
-        committed.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+        assertThatThrownBy(() -> listenerWith(completion).onPaymentCompleted(event())).isSameAs(error);
 
-        assertThat(output.getOut()).containsOnlyOnce(ROLLED_BACK_REASON).doesNotContain("ERROR");
-        assertThat(output).containsPattern("WARN.*" + ROLLED_BACK_MESSAGE + ".*" + ROLLED_BACK_REASON);
+        assertThat(output.getOut()).containsOnlyOnce(LOST_REASON).doesNotContain("ERROR")
+            .doesNotContain("rolled-back-at-commit");
+        verify(recoveryService, never()).recordFailure(any(), any());
     }
 
     @Test
-    @DisplayName("본문에서 이미 분류 · 로그한 예외로 되돌려지면 커밋 단계 WARN은 남기지 않는다(중복 금지)")
-    void noDuplicateWhenBodyAlreadyLogged(CapturedOutput output) {
+    @DisplayName("반영이 커밋 단계에서 그 밖의 이유로 실패하면 본문과 같이 보관하고 보관 결과를 붙인 ERROR 한 줄 뒤 같은 예외를 다시 던진다 (#532)")
+    void otherFailureAtCommitIsKept(CapturedOutput output) {
         DataIntegrityViolationException error = new DataIntegrityViolationException(
-            "duplicate key value violates unique constraint \"uk_delivery_order_seller\"");
-        when(orderService.markPaid(COMMAND)).thenReturn(true);
-        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+            "duplicate key value violates unique constraint \"uk_cart_item\"");
+        when(completion.applyForEvent(COMMAND)).thenThrow(error);
+        when(recoveryService.recordFailure(COMMAND, error)).thenReturn(saved("DataIntegrityViolationException"));
 
-        List<TransactionSynchronization> synchronizations = runInSynchronization(() ->
-            assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error));
-        synchronizations.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        assertThatThrownBy(() -> listenerWith(completion).onPaymentCompleted(event())).isSameAs(error);
 
-        assertThat(output.getOut()).containsOnlyOnce(LOST_REASON).doesNotContain("reason=rolled-back-at-commit");
+        assertThat(output).containsPattern("ERROR.*" + FAILED_REASON
+            + " recoveryStatus=PENDING attemptCount=1 failureCode=DataIntegrityViolationException");
+        assertThat(output.getOut()).containsOnlyOnce("reason=processing-failed")
+            .doesNotContain("rolled-back-at-commit");
     }
 
-    /**
-     * 트랜잭션 동기화를 켠 채로 실행하고, 그동안 등록된 완료 콜백을 돌려준다(완료 신호는 테스트가 직접 보낸다).
-     */
-    private static List<TransactionSynchronization> runInSynchronization(Runnable action) {
-        TransactionSynchronizationManager.initSynchronization();
-        try {
-            action.run();
-            return TransactionSynchronizationManager.getSynchronizations();
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
+    // 반영 서비스를 통째로 mock으로 두어, 커밋까지 끝낸 반영이 예외로 돌아오는 경우를 만든다
+    private PaymentEventListener listenerWith(PaymentCompletionService paymentCompletion) {
+        return new PaymentEventListener(orderService, paymentCompletion, recoveryService, failureService);
     }
 
     private static PaymentRecoveryResult saved(String failureCode) {

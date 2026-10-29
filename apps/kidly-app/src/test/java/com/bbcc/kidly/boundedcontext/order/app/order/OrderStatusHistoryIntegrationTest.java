@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
+import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -21,7 +22,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.PaymentMismatchException;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.order.in.event.PaymentEventListener;
 import com.bbcc.kidly.boundedcontext.order.in.web.PaymentRecoveryRetry;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -52,6 +52,9 @@ class OrderStatusHistoryIntegrationTest {
     private static final Long PAYMENT_ID = 500L;
 
     @Autowired
+    private OrderEventDelivery eventDelivery;
+
+    @Autowired
     private OrderService orderService;
 
     @Autowired
@@ -65,9 +68,6 @@ class OrderStatusHistoryIntegrationTest {
 
     @Autowired
     private PaymentRecoveryRetry recoveryRetry;
-
-    @Autowired
-    private PaymentEventListener paymentEventListener;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -112,8 +112,8 @@ class OrderStatusHistoryIntegrationTest {
     void paymentCompleted() {
         OrderDetail order = place(true);
 
-        paymentEventListener.onPaymentCompleted(completed(order));
-        paymentEventListener.onPaymentCompleted(completed(order));
+        eventDelivery.invoke(completed(order));
+        eventDelivery.invoke(completed(order));
 
         List<Delivery> deliveries = deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId());
         assertThat(rows(order.orderId())).containsExactly(
@@ -211,7 +211,7 @@ class OrderStatusHistoryIntegrationTest {
         OrderDetail order = place(true);
         breakSeller(order);
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         Long recoveryId = recoveryRepository.findByOrderId(order.orderId()).orElseThrow().getId();
@@ -226,7 +226,7 @@ class OrderStatusHistoryIntegrationTest {
     void recoveryRetried() {
         OrderDetail order = place(true);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryRepository.findByOrderId(order.orderId()).orElseThrow().getId();
 
@@ -249,7 +249,7 @@ class OrderStatusHistoryIntegrationTest {
     void recoveryCancelled() {
         OrderDetail order = place(true);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryRepository.findByOrderId(order.orderId()).orElseThrow().getId();
 
@@ -267,7 +267,7 @@ class OrderStatusHistoryIntegrationTest {
     void retryAfterOrderCancelled() {
         OrderDetail order = place(true);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryRepository.findByOrderId(order.orderId()).orElseThrow().getId();
         orderService.cancelByBuyer(BUYER_ID, order.orderId());
@@ -285,7 +285,7 @@ class OrderStatusHistoryIntegrationTest {
     void mismatchRecordedAsNotRetryable() {
         OrderDetail order = place(false);
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order, BUYER_ID + 1)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order, BUYER_ID + 1)))
             .isInstanceOf(PaymentMismatchException.class);
 
         Long recoveryId = recoveryRepository.findByOrderId(order.orderId()).orElseThrow().getId();
@@ -298,11 +298,11 @@ class OrderStatusHistoryIntegrationTest {
     void secondFailureAddsNoRow() {
         OrderDetail order = place(true);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         int before = rows(order.orderId()).size();
 
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
 
         assertThat(recoveryRepository.findByOrderId(order.orderId()).orElseThrow().getAttemptCount()).isEqualTo(2);
@@ -314,7 +314,7 @@ class OrderStatusHistoryIntegrationTest {
     void retryFailureRecordedOnlyOnStatusChange() {
         OrderDetail order = place(true);
         breakSeller(order);
-        assertThatThrownBy(() -> paymentEventListener.onPaymentCompleted(completed(order)))
+        assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryRepository.findByOrderId(order.orderId()).orElseThrow().getId();
 
@@ -380,7 +380,7 @@ class OrderStatusHistoryIntegrationTest {
 
     private Long placeAndPay(boolean twoSellers) {
         OrderDetail order = place(twoSellers);
-        paymentEventListener.onPaymentCompleted(completed(order));
+        eventDelivery.invoke(completed(order));
         return order.orderId();
     }
 
