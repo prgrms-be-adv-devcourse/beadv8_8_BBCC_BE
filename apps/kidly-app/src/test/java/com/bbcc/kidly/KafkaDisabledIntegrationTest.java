@@ -42,4 +42,10 @@ class KafkaDisabledIntegrationTest {
     void noSellerKafkaRelay() {
         assertThat(context.containsBean("sellerEventRelay")).isFalse();
     }
+
+    @Test
+    @DisplayName("일반 통합 테스트에서는 커밋 뒤 Kafka로 보내는 자녀 프로필 빈을 만들지 않는다")
+    void noChildProfileKafkaRelay() {
+        assertThat(context.containsBean("childProfileEventRelay")).isFalse();
+    }
 }
