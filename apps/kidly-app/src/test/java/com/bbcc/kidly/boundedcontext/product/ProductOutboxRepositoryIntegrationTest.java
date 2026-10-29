@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -28,6 +29,10 @@ class ProductOutboxRepositoryIntegrationTest {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
+    // 지운 뒤 남은 행은 요청서에 전체 조회가 없어 표를 직접 읽어 확인한다
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     @DisplayName("보내지 않은 메시지만 저장한 순서(id 오름차순)대로 요청한 건수까지 찾는다")
     void findUnsentInIdOrder() {
@@ -43,6 +48,21 @@ class ProductOutboxRepositoryIntegrationTest {
         assertThat(found).containsExactly(first, third);
     }
 
+    @Test
+    @DisplayName("기준 시각보다 먼저 보낸 메시지만 지우고, 보내지 않은 메시지와 기준 시각 이후에 보낸 메시지는 남긴다")
+    void deleteSentBefore() {
+        saveSent(SENT_AT);
+        UUID sentAtCutoff = saveSent(SENT_AT.plusDays(1));
+        UUID sentLater = saveSent(SENT_AT.plusDays(2));
+        UUID unsent = saveUnsent();
+
+        Integer deleted = transactionTemplate.execute(status -> outboxRepository.deleteSentBefore(SENT_AT.plusDays(1)));
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForList("select event_id from product.product_outbox", UUID.class))
+            .containsExactlyInAnyOrder(sentAtCutoff, sentLater, unsent);
+    }
+
     private UUID saveUnsent() {
         UUID eventId = UUID.randomUUID();
         transactionTemplate.executeWithoutResult(status -> outboxRepository.save(
@@ -50,12 +70,18 @@ class ProductOutboxRepositoryIntegrationTest {
         return eventId;
     }
 
-    private void saveSent() {
+    private UUID saveSent() {
+        return saveSent(SENT_AT);
+    }
+
+    private UUID saveSent(LocalDateTime sentAt) {
+        UUID eventId = UUID.randomUUID();
         transactionTemplate.executeWithoutResult(status -> {
             ProductOutboxMessage message = ProductOutboxMessage.create(
-                ProductOutboxMessageFixture.productChanged(UUID.randomUUID()));
-            message.markSent(SENT_AT);
+                ProductOutboxMessageFixture.productChanged(eventId));
+            message.markSent(sentAt);
             outboxRepository.save(message);
         });
+        return eventId;
     }
 }
