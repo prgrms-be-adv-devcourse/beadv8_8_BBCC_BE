@@ -2,10 +2,12 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSendException;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import com.bbcc.kidly.boundedcontext.product.out.outbox.KafkaProductEventSender;
 import java.time.Duration;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.core.KafkaTemplate;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +51,18 @@ class KafkaProductEventSenderTest {
             .containsExactly("eventType", "eventId");
         assertThat(header(record, "eventType")).isEqualTo("product.changed");
         assertThat(header(record, "eventId")).isEqualTo(ProductOutboxMessageFixture.EVENT_ID.toString());
+    }
+
+    @Test
+    @DisplayName("보내기 전에 실패하면 원인을 담은 전송 예외를 던지고, 예외 메시지에 본문을 넣지 않는다")
+    @SuppressWarnings("unchecked")
+    void throwWhenSendFailsBeforeSending() {
+        given(kafkaTemplate.send(any(ProducerRecord.class))).willThrow(new KafkaException("브로커 연결 실패"));
+
+        assertThatThrownBy(() -> sender().send(MESSAGE))
+            .isInstanceOf(ProductEventSendException.class)
+            .hasMessageContaining("브로커 연결 실패")
+            .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD);
     }
 
     private KafkaProductEventSender sender() {

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.out.outbox;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSendException;
 import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSender;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import java.time.Duration;
@@ -29,6 +30,18 @@ public class KafkaProductEventSender implements ProductEventSender {
         record.headers()
             .add("eventType", message.getEventType().getBytes(UTF_8))
             .add("eventId", message.getEventId().toString().getBytes(UTF_8));
-        kafkaTemplate.send(record);
+        try {
+            kafkaTemplate.send(record);
+        } catch (RuntimeException e) {
+            throw failure(message, e);
+        }
+    }
+
+    // 예외 메시지는 로그에 남으므로 본문 대신 eventType · eventId와 원인만 담는다
+    private ProductEventSendException failure(ProductOutboxMessage message, Throwable cause) {
+        return new ProductEventSendException(
+            "상품 이벤트를 Kafka로 보내지 못했습니다. eventType=%s eventId=%s reason=%s"
+                .formatted(message.getEventType(), message.getEventId(), cause.getMessage()),
+            cause);
     }
 }
