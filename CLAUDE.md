@@ -62,8 +62,11 @@
 | 단위 | 엔티티 업무 메서드, 값 객체, 서비스 로직 | `XxxTest` | 없음. 서비스는 `@ExtendWith(MockitoExtension.class)` + `@Mock` |
 | 통합 | 리포지토리 쿼리, 서비스 + DB, 이벤트 발행 → 수신 | `XxxIntegrationTest` | `support.IntegrationTest` |
 | 기능 | API 하나를 HTTP 요청부터 응답까지 | `XxxApiTest` | `support.FunctionalTest` + `RestTestClient` 주입 |
+| Kafka | Kafka로 보내거나 받는 것을 실제 브로커로 | `XxxIntegrationTest` | `support.KafkaIntegrationTest` |
 
-- `@IntegrationTest`·`@FunctionalTest`에 설정(`@MockitoBean`, `@TestPropertySource` 등)을 더하지 않는다. 설정이 다르면 스프링 컨텍스트를 새로 띄워 느려진다
+- `@IntegrationTest`·`@FunctionalTest`·`@KafkaIntegrationTest`에 설정(`@MockitoBean`, `@TestPropertySource` 등)을 더하지 않는다. 설정이 다르면 스프링 컨텍스트를 새로 띄워 느려진다
+- Kafka 컨테이너는 `@KafkaIntegrationTest`에서만 뜬다. 다른 테스트에서는 커밋 뒤 Kafka 보내기(`kidly.kafka.producer.enabled`)와 기동 때 토픽 생성을 끈다. 커밋 뒤 Kafka로 보내는 빈에는 `@ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)`를 붙인다
+- 비동기 결과(메일, Kafka 수신)는 `support.AsyncWait.until(...)`로 기다린다. Awaitility는 쓰지 않는다
 - 통합·기능 테스트는 끝날 때마다 모든 테이블을 비운다(`DatabaseCleanerExtension`). 테스트에 `@Transactional`을 붙여 롤백하지 않는다 (커밋되지 않으면 `@DomainEventListener`가 실행되지 않는다)
 - 테스트용 엔티티는 도메인별 `XxxFixture`의 정적 메서드로 만든다
 

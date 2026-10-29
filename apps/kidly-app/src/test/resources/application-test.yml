@@ -8,6 +8,9 @@ spring:
   kafka:
     listener:
       auto-startup: false
+    # Kafka 컨테이너는 @KafkaIntegrationTest에서만 뜬다. 다른 테스트는 기동할 때 토픽을 만들려고 Kafka에 붙지 않는다
+    admin:
+      auto-create: false
 
 # 테스트는 PC마다 결과가 같아야 하므로 각자의 .env를 읽지 않는다
 springdotenv:
@@ -39,6 +42,10 @@ kidly:
   # 테스트에서는 실제 메일을 보내지 않는다 (로그 발송기)
   mail:
     enabled: false
+  # 커밋 뒤 Kafka로 보내지 않는다(메일과 같은 방식). Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
+  kafka:
+    producer:
+      enabled: false
   # 충전 정리 스케줄러도 같은 이유로 길게 둔다. 정리 테스트는 ChargeScheduler를 직접 부른다
   payment:
     charge:
