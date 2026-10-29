@@ -172,6 +172,25 @@ class PaymentRecoveryIntegrationTest {
     }
 
     @Test
+    @DisplayName("같은 결제 완료(같은 이벤트 객체)가 다시 와서 또 실패해도 기록은 1건, 시도 2 · 마지막 시도 시각 갱신 (#532)")
+    void sameEventFailingAgainCounts() {
+        OrderDetail order = placeWithCart(BUYER_ID);
+        breakSeller(order);
+        PaymentCompletedEvent event = completed(order);
+        assertThatThrownBy(() -> eventDelivery.invoke(event)).isInstanceOf(DataIntegrityViolationException.class);
+        LocalDateTime firstAttempt = recoveryOf(order).getLastAttemptedAt();
+
+        assertThatThrownBy(() -> eventDelivery.invoke(event)).isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
+            Long.class, order.orderId())).isEqualTo(1L);
+        PaymentRecovery recovery = recoveryOf(order);
+        assertThat(recovery.getAttemptCount()).isEqualTo(2);
+        assertThat(recovery.getLastAttemptedAt()).isAfterOrEqualTo(firstAttempt);
+        assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.PENDING);
+    }
+
+    @Test
     @DisplayName("원인을 고친 뒤 재처리하면 결제완료 · 판매자별 배송 · 장바구니 정리 · RECOVERED, 다시 눌러도 그대로(배송 중복 없음)")
     void retryRecovers() {
         OrderDetail order = placeWithCart(BUYER_ID);

@@ -23,6 +23,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.web.OrderEventFailureRetry;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
@@ -49,6 +50,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -158,6 +161,25 @@ class OrderEventFailureIntegrationTest {
 
         assertThat(failureCount(order.orderId())).isEqualTo(1);
         OrderEventFailureResult failure = failureOf(order, OrderEventFailure.EventType.STOCK_DEDUCTION_FAILED);
+        assertThat(failure.attemptCount()).isEqualTo(2);
+        assertThat(failure.lastAttemptedAt()).isAfterOrEqualTo(first);
+        assertThat(failure.status()).isEqualTo("PENDING");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(OrderEventFailure.EventType.class)
+    @DisplayName("같은 이벤트(같은 이벤트 객체)가 다시 와서 또 실패해도 기록은 종류별 1건, 시도 2 · 마지막 시도 시각 갱신 (#532)")
+    void sameEventFailingAgainCounts(OrderEventFailure.EventType eventType) {
+        OrderDetail order = place(BUYER_ID);
+        breakOrders(order);
+        DomainEvent event = eventOf(order, eventType);
+        assertThatThrownBy(() -> eventDelivery.invoke(event)).isInstanceOf(DataIntegrityViolationException.class);
+        LocalDateTime first = failureOf(order, eventType).lastAttemptedAt();
+
+        assertThatThrownBy(() -> eventDelivery.invoke(event)).isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(failureCount(order.orderId())).isEqualTo(1);
+        OrderEventFailureResult failure = failureOf(order, eventType);
         assertThat(failure.attemptCount()).isEqualTo(2);
         assertThat(failure.lastAttemptedAt()).isAfterOrEqualTo(first);
         assertThat(failure.status()).isEqualTo("PENDING");
@@ -431,6 +453,14 @@ class OrderEventFailureIntegrationTest {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
+    }
+
+    private static DomainEvent eventOf(OrderDetail order, OrderEventFailure.EventType eventType) {
+        return switch (eventType) {
+            case STOCK_DEDUCTED -> stockDeducted(order);
+            case STOCK_DEDUCTION_FAILED -> stockDeductionFailed(order);
+            case PAYMENT_FAILED -> paymentFailed(order);
+        };
     }
 
     private static StockDeductedEvent stockDeducted(OrderDetail order) {
