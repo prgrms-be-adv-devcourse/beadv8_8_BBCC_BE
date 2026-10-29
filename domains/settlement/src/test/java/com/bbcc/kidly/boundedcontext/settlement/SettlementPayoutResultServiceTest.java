@@ -2,10 +2,8 @@ package com.bbcc.kidly.boundedcontext.settlement;
 
 import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.times;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementPayoutResultService;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
@@ -48,28 +46,30 @@ class SettlementPayoutResultServiceTest {
     }
 
     @Test
-    @DisplayName("정산서가 없으면 아무것도 바꾸지 않는다")
+    @DisplayName("정산서가 없으면 예외를 던진다")
     void settlementMissing() {
         given(settlementRepository.findById(1L)).willReturn(Optional.empty());
 
-        assertThatNoException().isThrownBy(() -> {
-            service.markPaid(completed(1L, SELLER_ID, AMOUNT));
-            service.markPaymentFailed(failed(1L, SELLER_ID, AMOUNT));
-        });
-
-        then(settlementRepository).should(times(2)).findById(1L);
-        then(settlementRepository).shouldHaveNoMoreInteractions();
+        assertThatThrownBy(() -> service.markPaid(completed(1L, SELLER_ID, AMOUNT)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("settlementId=");
+        assertThatThrownBy(() -> service.markPaymentFailed(failed(1L, SELLER_ID, AMOUNT)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("settlementId=");
     }
 
     @Test
-    @DisplayName("금액이나 판매자가 다르면 상태를 그대로 둔다")
+    @DisplayName("금액이나 판매자가 다르면 예외를 던지고 상태를 그대로 둔다")
     void mismatch() {
         var settlement = SettlementFixture.settlement(10_000L);
         given(settlementRepository.findById(1L)).willReturn(Optional.of(settlement));
 
-        service.markPaid(completed(1L, SELLER_ID, AMOUNT + 1));
-        service.markPaid(completed(1L, SELLER_ID + 1, AMOUNT));
-        service.markPaymentFailed(failed(1L, SELLER_ID, AMOUNT + 1));
+        assertThatThrownBy(() -> service.markPaid(completed(1L, SELLER_ID, AMOUNT + 1)))
+            .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.markPaid(completed(1L, SELLER_ID + 1, AMOUNT)))
+            .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.markPaymentFailed(failed(1L, SELLER_ID, AMOUNT + 1)))
+            .isInstanceOf(IllegalStateException.class);
 
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.COMPLETED);
         assertThat(settlement.getPaidAt()).isNull();
