@@ -115,11 +115,16 @@ class StockDeductionFailedIntegrationTest {
         Long first = order.items().get(0).orderItemId();
 
         publishFailed(order.orderId(), first, StockDeductionFailureCode.OUT_OF_STOCK);
+        long version = versionOf(order.orderId());
         publishFailed(order.orderId(), first, StockDeductionFailureCode.PRODUCT_NOT_ON_SALE);
 
         assertCancelled(order.orderId(), Order.CancelReason.OUT_OF_STOCK);
         assertThat(storedReasons(order.orderId())).containsExactly("OUT_OF_STOCK", null);
         assertThat(events.stream(OrderCancelledEvent.class).toList()).hasSize(1);
+        assertThat(versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(historyRows(order.orderId()))
+            .containsExactly("PENDING_PAYMENT>CANCELLED OUT_OF_STOCK stock.deduction-failed");
+        assertThat(eventFailureCount(order.orderId())).as("다시 온 쪽은 실패로 보관하지 않음").isZero();
     }
 
     @Test
@@ -169,6 +174,22 @@ class StockDeductionFailedIntegrationTest {
     private List<String> storedReasons(Long orderId) {
         return jdbcTemplate.queryForList(
             "select unavailable_reason from orders.order_item where order_id = ? order by id", String.class, orderId);
+    }
+
+    private long versionOf(Long orderId) {
+        return jdbcTemplate.queryForObject("select version from orders.orders where id = ?", Long.class, orderId);
+    }
+
+    // 주문 단위 상태 이력을 "이전>다음 사유 출처"로(주문하기 줄은 제외)
+    private List<String> historyRows(Long orderId) {
+        return jdbcTemplate.queryForList("select from_status || '>' || to_status || ' ' || reason || ' ' || source "
+            + "from orders.order_status_history where order_id = ? and target_type = 'ORDER' "
+            + "and from_status is not null order by id", String.class, orderId);
+    }
+
+    private long eventFailureCount(Long orderId) {
+        return jdbcTemplate.queryForObject(
+            "select count(*) from orders.order_event_failure where order_id = ?", Long.class, orderId);
     }
 
     private void assertCancelled(Long orderId, Order.CancelReason reason) {

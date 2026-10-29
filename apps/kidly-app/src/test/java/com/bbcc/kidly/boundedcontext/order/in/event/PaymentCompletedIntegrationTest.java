@@ -22,8 +22,11 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
+import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -33,6 +36,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -74,9 +78,17 @@ class PaymentCompletedIntegrationTest {
     @Autowired
     private WalletRepository walletRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private OrderFlowEventRecorder recorder;
+
     @Test
-    @DisplayName("결제가 완료되면 결제완료 · 판매자별 배송 · 장바구니 정리, 같은 이벤트가 다시 와도 배송이 늘지 않는다")
+    @DisplayName("결제가 완료되면 결제완료 · 판매자별 배송 · 장바구니 정리, 커밋 뒤 같은 이벤트가 다시 와도 "
+        + "주문 · 배송 · 장바구니 · 상태 이력 · 발행 이벤트가 1회분이고 실패로 보관하지 않는다")
     void paidOnce() {
+        recorder.clear();
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
         productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
             2L, 2L, OTHER_SELLER_ID, "상품 B", null, "120", 30_000L, 2L, "ON_SALE", null, false, OCCURRED_AT)));
@@ -92,7 +104,8 @@ class PaymentCompletedIntegrationTest {
         publish(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductedEvent.Data(order.orderId())));
 
-        publish(paymentCompleted(order));
+        PaymentCompletedEvent completed = paymentCompleted(order);
+        publish(completed);
 
         assertThat(orderRepository.findById(order.orderId())).get()
             .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
@@ -105,9 +118,32 @@ class PaymentCompletedIntegrationTest {
         assertThat(remaining.get(0).getOptionId()).isEqualTo(1L);
         assertThat(remaining.get(0).getChildId()).isNull();
 
-        publish(paymentCompleted(order));
+        long version = versionOf(order.orderId());
+        publish(completed);
 
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
+        assertThat(orderRepository.findById(order.orderId())).get()
+            .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
+        assertThat(versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).hasSize(1);
+        assertThat(historyRows(order.orderId())).containsExactly("PENDING_PAYMENT>PAID payment.completed");
+        assertThat(recorder.events(OrderPaymentRequestedEvent.class))
+            .filteredOn(event -> event.data().orderId().equals(order.orderId())).hasSize(1);
+        assertThat(recorder.events(OrderCancelledEvent.class))
+            .filteredOn(event -> event.data().orderId().equals(order.orderId())).isEmpty();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
+            Long.class, order.orderId())).as("다시 온 쪽은 실패로 보관하지 않음").isZero();
+    }
+
+    private long versionOf(Long orderId) {
+        return jdbcTemplate.queryForObject("select version from orders.orders where id = ?", Long.class, orderId);
+    }
+
+    // 주문 단위 상태 이력을 "이전>다음 출처"로(주문하기 줄은 제외)
+    private List<String> historyRows(Long orderId) {
+        return jdbcTemplate.queryForList("select from_status || '>' || to_status || ' ' || source "
+            + "from orders.order_status_history where order_id = ? and target_type = 'ORDER' "
+            + "and from_status is not null order by id", String.class, orderId);
     }
 
     private PaymentCompletedEvent paymentCompleted(OrderDetail order) {
