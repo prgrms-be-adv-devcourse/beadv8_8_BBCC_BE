@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * 재고 차감됨 · 재고 차감 실패 · 결제 실패 처리를 실행하고, 실패하면 재처리용으로 보관한다(#449).
- * 결제 완료 리스너(#353)와 같은 기준: 처리 중 예외는 분류해 로그를 남긴 뒤 그대로 다시 던진다(리스너 트랜잭션은 되돌려짐).
+ * 결제 완료 리스너(#353)와 같은 기준: 처리 중 예외는 분류해 로그를 남긴 뒤 그대로 다시 던진다(처리 트랜잭션은 되돌려짐).
  * 낙관적 락 = 동시 처리에서 진 쪽(이긴 쪽이 이미 처리함) → 보관하지 않고 WARN, 그 밖 → 보관하고 보관 결과를 붙여 ERROR 한 줄.
  */
 @Slf4j
@@ -23,7 +23,7 @@ final class EventFailureKeeper {
 
     /**
      * @param eventType 받은 이벤트 타입(로그용)
-     * @param process 이벤트 처리. 리스너 트랜잭션 안에서 실행된다
+     * @param process 이벤트 처리. 리스너 트랜잭션이 있으면 거기에 합류하고, 없으면 서비스 트랜잭션에서 커밋까지 끝낸다(#532)
      * @param record 실패를 새 트랜잭션에 보관한다
      */
     static void run(String eventType, Long orderId, Runnable process,

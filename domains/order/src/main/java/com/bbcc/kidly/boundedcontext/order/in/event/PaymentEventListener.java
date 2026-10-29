@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import com.bbcc.kidly.boundedcontext.order.app.PaymentCompletionService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
@@ -10,16 +11,13 @@ import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * payment.completed를 받아 결제완료 → 판매자별 주문 만들기 → 장바구니 정리를 차례로 맡긴다.
- * 리스너 트랜잭션 하나로 묶여 중간에 실패하면 모두 되돌리고, 받은 결제 완료와 실패 이유는 따로 보관한다(#353).
+ * payment.completed를 받아 결제완료 → 판매자별 주문 만들기 → 장바구니 정리를 맡긴다. 셋은 반영 서비스의 트랜잭션 하나로
+ * 묶여 중간에 실패하면 모두 되돌려지고, 받은 결제 완료와 실패 이유는 따로 보관한다(#353). 리스너 트랜잭션에 기대지 않는다(#532).
  * payment.failed를 받아 결제 실패 취소를 맡긴다. 이벤트 필드가 바뀌면 여기 변환만 고친다.
  */
 @Slf4j
@@ -33,17 +31,16 @@ public class PaymentEventListener {
     private static final String RECORD_LOCKED = "record-locked";
 
     private final OrderService orderService;
-    private final PaymentCompletion paymentCompletion;
+    private final PaymentCompletionService paymentCompletion;
     private final PaymentRecoveryService recoveryService;
     private final OrderEventFailureService failureService;
 
     /**
-     * 처리 중 예외는 분류해 로그를 남긴 뒤 그대로 다시 던진다(트랜잭션은 그대로 되돌려짐).
+     * 처리 중 예외는 분류해 로그를 남긴 뒤 그대로 다시 던진다(반영 트랜잭션은 되돌려짐). 반영은 커밋까지 끝낸 뒤 돌아오므로
+     * 커밋 단계 실패(주문 버전 충돌 등)도 여기서 같은 기준으로 나눈다(#532).
      * 낙관적 락 · 배송 (order_id, seller_id) 유니크 위반 = 동시 중복 처리에서 진 쪽(이긴 쪽이 이미 처리함) → WARN
      * (이긴 쪽이 주문을 취소했으면 대신 환불 확인 WARN, #519),
      * 그 밖 = 돈은 빠졌는데 결제완료가 안 됨 → 재처리용으로 보관하고(결제 불일치는 재처리 불가) 보관 결과를 붙여 ERROR 한 줄.
-     * 주문 버전 충돌은 메서드가 끝난 뒤 커밋 때 나므로, 트랜잭션 완료 콜백에서 되돌려졌으면 WARN을 남긴다
-     * (본문에서 이미 로그를 남긴 경우는 제외).
      */
     @DomainEventListener
     public void onPaymentCompleted(PaymentCompletedEvent event) {
@@ -61,12 +58,9 @@ public class PaymentEventListener {
             // 결제 시각은 이벤트 값이 아니라 처리 시각(now)을 쓰므로 막지 않는다. 결제 쪽 계약 위반이라 ERROR(사유별 한 줄)
             log.error("결제 완료 결제 시각 없음: event={} reason=missing-paid-at orderId={}", eventType, paid.orderId());
         }
-        AtomicBoolean logged = new AtomicBoolean(false);
-        warnIfRolledBackAtCommit(eventType, paid, logged);
         try {
-            paymentCompletion.apply(paid);
+            paymentCompletion.applyForEvent(paid);
         } catch (RuntimeException e) {
-            logged.set(true);
             if (PaymentFailures.isLostConcurrentDuplicate(e)) {
                 if (warnedPaidAfterCancel(paid, e)) {
                     throw e;
@@ -113,22 +107,6 @@ public class PaymentEventListener {
             return ALREADY_RECORDED;
         }
         return PaymentFailures.isRecordLocked(recordError) ? RECORD_LOCKED : NOT_SAVED;
-    }
-
-    private static void warnIfRolledBackAtCommit(String eventType, MarkPaidCommand paid, AtomicBoolean logged) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK && !logged.get()) {
-                    log.warn("커밋 단계에서 되돌려짐 — 동시 처리에서 진 쪽일 가능성: event={} "
-                        + "reason=rolled-back-at-commit orderId={} paymentId={}",
-                        eventType, paid.orderId(), paid.paymentId());
-                }
-            }
-        });
     }
 
     /**

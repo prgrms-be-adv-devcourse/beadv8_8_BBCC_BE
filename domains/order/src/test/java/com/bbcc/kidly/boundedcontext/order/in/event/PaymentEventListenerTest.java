@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.PaymentCompletionService;
 import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
@@ -58,11 +59,11 @@ class PaymentEventListenerTest {
 
     private PaymentEventListener listener;
 
-    // 결제 완료 반영 순서는 실제 PaymentCompletion으로 두고, 그 안의 서비스만 mock으로 둔다
+    // 결제 완료 반영 순서는 실제 PaymentCompletionService로 두고, 그 안의 서비스만 mock으로 둔다
     @BeforeEach
     void setUp() {
         listener = new PaymentEventListener(orderService,
-            new PaymentCompletion(orderService, deliveryService, cartService), recoveryService, failureService);
+            new PaymentCompletionService(orderService, deliveryService, cartService), recoveryService, failureService);
     }
 
     @Nested

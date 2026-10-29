@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
+import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -21,6 +22,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
@@ -149,6 +151,58 @@ class PaymentRecoveryIntegrationTest {
             order.orderId());
         assertThat(orderRepository.findOverduePaymentOrderIds(Order.Status.PENDING_PAYMENT, now, 0L, Limit.of(10)))
             .doesNotContain(order.orderId());
+    }
+
+    @Test
+    @DisplayName("리스너 트랜잭션 없이 받아도 배송 생성이 실패하면 주문 · 배송 · 장바구니는 되돌려지고 결제 완료가 PENDING · 시도 1로 남는다 (#532)")
+    void failureIsKeptWithoutListenerTransaction() {
+        OrderDetail order = placeWithCart(BUYER_ID);
+        breakSeller(order);
+
+        assertThatThrownBy(() -> eventDelivery.invokeWithoutListenerTransaction(completed(order)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+
+        Order stored = orderRepository.findById(order.orderId()).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+        assertThat(stored.getPaidAt()).isNull();
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
+        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).hasSize(2);
+        assertThat(historyCount(order.orderId(), "ORDER", "PAID")).isZero();
+        PaymentRecovery recovery = recoveryOf(order);
+        assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.PENDING);
+        assertThat(recovery.getAttemptCount()).isEqualTo(1);
+        assertThat(recovery.getFailureCode()).isEqualTo(FAILURE);
+    }
+
+    @Test
+    @DisplayName("리스너 트랜잭션 없이 받아도 결제완료 · 판매자별 배송 · 장바구니 정리가 함께 반영되고 보관은 없다 (#532)")
+    void paidWithoutListenerTransaction() {
+        OrderDetail order = placeWithCart(BUYER_ID);
+
+        eventDelivery.invokeWithoutListenerTransaction(completed(order));
+
+        assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus()).isEqualTo(Order.Status.PAID);
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).extracting(Delivery::getSellerId)
+            .containsExactlyInAnyOrder(SELLER_ID, OTHER_SELLER_ID);
+        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).isEmpty();
+        assertThat(historyCount(order.orderId(), "ORDER", "PAID")).isEqualTo(1);
+        assertThat(recoveryRepository.findByOrderId(order.orderId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("결제 완료 반영은 받는 쪽 트랜잭션과 따로 커밋까지 끝낸다: 바깥 트랜잭션이 되돌려져도 결제완료 · 배송 · 장바구니 정리가 남는다 "
+        + "(커밋 단계 실패도 리스너 분류로 오는 근거, #532)")
+    void appliedInItsOwnTransaction() {
+        OrderDetail order = placeWithCart(BUYER_ID);
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(outer -> {
+            eventDelivery.invokeWithoutListenerTransaction(completed(order));
+            outer.setRollbackOnly();
+        });
+
+        assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus()).isEqualTo(Order.Status.PAID);
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
+        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).isEmpty();
     }
 
     @Test

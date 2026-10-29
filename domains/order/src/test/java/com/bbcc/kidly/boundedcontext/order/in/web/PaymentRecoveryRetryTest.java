@@ -10,9 +10,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.PaymentCompletionService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
-import com.bbcc.kidly.boundedcontext.order.in.event.PaymentCompletion;
 import com.bbcc.kidly.global.error.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +33,7 @@ class PaymentRecoveryRetryTest {
     private PaymentRecoveryService recoveryService;
 
     @Mock
-    private PaymentCompletion paymentCompletion;
+    private PaymentCompletionService paymentCompletion;
 
     private PaymentRecoveryRetry retry;
 

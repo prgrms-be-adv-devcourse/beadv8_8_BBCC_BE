@@ -147,6 +147,25 @@ class OrderEventFailureIntegrationTest {
         assertThat(recorder.events(OrderCancelledEvent.class)).isEmpty();
     }
 
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(OrderEventFailure.EventType.class)
+    @DisplayName("리스너 트랜잭션 없이 받아도 주문 UPDATE가 실패하면 주문은 그대로, 기록이 PENDING · 시도 1로 1건 남는다 (#532)")
+    void keptWithoutListenerTransaction(OrderEventFailure.EventType eventType) {
+        OrderDetail order = place(BUYER_ID);
+        breakOrders(order);
+
+        assertThatThrownBy(() -> eventDelivery.invokeWithoutListenerTransaction(eventOf(order, eventType)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+
+        Order stored = orderRepository.findById(order.orderId()).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
+        assertThat(stored.getPaymentRequestedAt()).isNull();
+        assertThat(recorder.events(OrderPaymentRequestedEvent.class)).isEmpty();
+        assertThat(recorder.events(OrderCancelledEvent.class)).isEmpty();
+        assertThat(failureCount(order.orderId())).isEqualTo(1);
+        assertKept(failureOf(order, eventType));
+    }
+
     @Test
     @DisplayName("같은 주문의 같은 이벤트가 두 번 실패하면 기록은 1건, 시도 2 · 마지막 시도 시각 갱신")
     void secondFailureCounts() {
