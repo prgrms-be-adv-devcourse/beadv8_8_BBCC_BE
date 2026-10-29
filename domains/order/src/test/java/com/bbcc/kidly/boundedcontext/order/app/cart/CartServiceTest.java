@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.cart.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.order.app.cart.dto.CartView;
 import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
@@ -14,7 +15,6 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.cart.CartItem;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
@@ -144,6 +144,20 @@ class CartServiceTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_QUANTITY);
         assertThat(existing.getQuantity()).isEqualTo(99);
+    }
+
+    @Test
+    @DisplayName("담기: 같은 줄에 더한 수량이 1보다 작아지면 INVALID_QUANTITY이며 줄 수량은 그대로")
+    void addMergeFailsWhenQuantityInvalid() {
+        givenProduct(product(OPTION_ID, 25_000L, "ON_SALE", false));
+        CartItem existing = CartItem.create(BUYER_ID, OPTION_ID, null, 2);
+        when(cartItemRepository.findByMemberIdAndOptionIdAndChildId(BUYER_ID, OPTION_ID, null))
+            .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> cartService.addItem(BUYER_ID, OPTION_ID, null, -5))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_QUANTITY);
+        assertThat(existing.getQuantity()).isEqualTo(2);
     }
 
     @Test

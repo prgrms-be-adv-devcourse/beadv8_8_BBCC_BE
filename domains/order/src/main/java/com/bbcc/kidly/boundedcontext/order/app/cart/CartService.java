@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.cart;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
 import com.bbcc.kidly.boundedcontext.order.app.cart.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.order.app.cart.dto.CartView;
 import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
@@ -7,7 +9,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
 import com.bbcc.kidly.boundedcontext.order.domain.cart.CartItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
@@ -66,11 +68,19 @@ public class CartService {
             if (sameLine.get().getQuantity() + quantity > MAX_QUANTITY) {
                 throw new BusinessException(OrderErrorCode.INVALID_QUANTITY);
             }
-            sameLine.get().addQuantity(quantity);
+            try {
+                sameLine.get().addQuantity(quantity);
+            } catch (OrderRuleViolationException e) {
+                throw OrderErrors.toBusiness(e);
+            }
             return new AddCartItemResult(toLine(sameLine.get(), product, sellerNameOf(product)), false);
         }
-        CartItem created = cartItemRepository.save(
-            CartItem.create(memberId, optionId, childId, quantity));
+        CartItem created;
+        try {
+            created = cartItemRepository.save(CartItem.create(memberId, optionId, childId, quantity));
+        } catch (OrderRuleViolationException e) {
+            throw OrderErrors.toBusiness(e);
+        }
         return new AddCartItemResult(toLine(created, product, sellerNameOf(product)), true);
     }
 
@@ -101,7 +111,11 @@ public class CartService {
 
     public CartView.Line changeQuantity(Long memberId, Long cartItemId, int quantity) {
         CartItem item = findOwnedItem(memberId, cartItemId);
-        item.changeQuantity(quantity);
+        try {
+            item.changeQuantity(quantity);
+        } catch (OrderRuleViolationException e) {
+            throw OrderErrors.toBusiness(e);
+        }
         ReplicaProduct product = productReplicaRepository.findByOptionId(item.getOptionId()).orElse(null);
         return toLine(item, product, sellerNameOf(product));
     }

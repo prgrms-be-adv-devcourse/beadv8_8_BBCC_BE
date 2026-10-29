@@ -8,12 +8,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
@@ -128,6 +128,30 @@ class DeliveryServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_CARRIER);
         }
+
+        @Test
+        @DisplayName("이미 발송했으면 ALREADY_SHIPPED")
+        void alreadyShipped() {
+            Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+            delivery.ship(Delivery.Carrier.CJ, "1234567890", NOW);
+            when(deliveryRepository.findByIdAndSellerId(DELIVERY_ID, SELLER_A_ID)).thenReturn(Optional.of(delivery));
+
+            assertThatThrownBy(() -> deliveryService.ship(SELLER_A_ID, DELIVERY_ID, "CJ", "1234567890"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.ALREADY_SHIPPED);
+        }
+
+        @Test
+        @DisplayName("구매자가 취소한 배송이면 DELIVERY_CANCELLED")
+        void cancelledDelivery() {
+            Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+            delivery.cancel();
+            when(deliveryRepository.findByIdAndSellerId(DELIVERY_ID, SELLER_A_ID)).thenReturn(Optional.of(delivery));
+
+            assertThatThrownBy(() -> deliveryService.ship(SELLER_A_ID, DELIVERY_ID, "CJ", "1234567890"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.DELIVERY_CANCELLED);
+        }
     }
 
     @Nested
@@ -190,6 +214,29 @@ class DeliveryServiceTest {
             assertThatThrownBy(() -> deliveryService.complete(SELLER_B_ID, DELIVERY_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(OrderErrorCode.DELIVERY_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("발송 전이면 NOT_SHIPPED")
+        void notShipped() {
+            when(deliveryRepository.findByIdAndSellerId(DELIVERY_ID, SELLER_A_ID))
+                .thenReturn(Optional.of(Delivery.create(ORDER_ID, SELLER_A_ID)));
+
+            assertThatThrownBy(() -> deliveryService.complete(SELLER_A_ID, DELIVERY_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.NOT_SHIPPED);
+        }
+
+        @Test
+        @DisplayName("구매자가 취소한 배송이면 DELIVERY_CANCELLED")
+        void cancelledDelivery() {
+            Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+            delivery.cancel();
+            when(deliveryRepository.findByIdAndSellerId(DELIVERY_ID, SELLER_A_ID)).thenReturn(Optional.of(delivery));
+
+            assertThatThrownBy(() -> deliveryService.complete(SELLER_A_ID, DELIVERY_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.DELIVERY_CANCELLED);
         }
     }
 

@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.domain.order;
 
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
-import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
@@ -197,13 +197,13 @@ public class Order extends OrderTimeEntity {
     public static Order place(Long memberId, List<RequestedItem> items, ShippingAddress shippingAddress,
         Policy policy, LocalDateTime now) {
         if (items == null || items.isEmpty()) {
-            throw new BusinessException(OrderErrorCode.EMPTY_ORDER_ITEMS);
+            throw new OrderRuleViolationException(Rule.EMPTY_ORDER_ITEMS);
         }
         Set<List<Long>> keys = new HashSet<>();
         for (RequestedItem item : items) {
             Long childId = item.child() == null ? null : item.child().snapshot().childId();
             if (!keys.add(Arrays.asList(item.product().optionId(), childId))) {
-                throw new BusinessException(OrderErrorCode.DUPLICATE_ORDER_ITEM);
+                throw new OrderRuleViolationException(Rule.DUPLICATE_ORDER_ITEM);
             }
         }
 
@@ -398,12 +398,12 @@ public class Order extends OrderTimeEntity {
      */
     public TransitionResult confirmItem(Long orderItemId, LocalDateTime now) {
         OrderItem item = findItem(orderItemId)
-            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_ITEM_NOT_FOUND));
+            .orElseThrow(() -> new OrderRuleViolationException(Rule.ORDER_ITEM_NOT_FOUND));
         if (item.getStatus() == OrderItem.Status.CONFIRMED) {
             return TransitionResult.ALREADY_DONE;
         }
         if (item.getDeliveredAt() == null) {
-            throw new BusinessException(OrderErrorCode.NOT_DELIVERED);
+            throw new OrderRuleViolationException(Rule.NOT_DELIVERED);
         }
         return item.confirm(OrderItem.ConfirmType.DIRECT, now)
             ? TransitionResult.APPLIED
@@ -445,20 +445,20 @@ public class Order extends OrderTimeEntity {
 
     private static void validate(Long memberId, RequestedItem item) {
         if (item.quantity() < 1) {
-            throw new BusinessException(OrderErrorCode.INVALID_QUANTITY);
+            throw new OrderRuleViolationException(Rule.INVALID_QUANTITY);
         }
         if (item.requestedUnitPrice() != item.product().unitPrice()) {
-            throw new BusinessException(OrderErrorCode.PRICE_CHANGED);
+            throw new OrderRuleViolationException(Rule.PRICE_CHANGED);
         }
         if (!item.purchasable()) {
-            throw new BusinessException(OrderErrorCode.PRODUCT_NOT_PURCHASABLE);
+            throw new OrderRuleViolationException(Rule.PRODUCT_NOT_PURCHASABLE);
         }
         if (Objects.equals(item.product().sellerId(), memberId)) {
-            throw new BusinessException(OrderErrorCode.OWN_PRODUCT);
+            throw new OrderRuleViolationException(Rule.OWN_PRODUCT);
         }
         RequestedChild child = item.child();
         if (child != null && (!Objects.equals(child.memberId(), memberId) || child.deleted())) {
-            throw new BusinessException(OrderErrorCode.CHILD_NOT_ORDERABLE);
+            throw new OrderRuleViolationException(Rule.CHILD_NOT_ORDERABLE);
         }
     }
 }

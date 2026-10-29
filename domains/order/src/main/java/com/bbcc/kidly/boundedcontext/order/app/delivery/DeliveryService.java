@@ -1,12 +1,14 @@
 package com.bbcc.kidly.boundedcontext.order.app.delivery;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -70,7 +72,11 @@ public class DeliveryService {
         Delivery delivery = findOwned(memberId, deliveryId);
         LocalDateTime now = LocalDateTime.now();
         Delivery.Status from = delivery.getStatus();
-        delivery.ship(parsed, trackingNumber, now);
+        try {
+            delivery.ship(parsed, trackingNumber, now);
+        } catch (OrderRuleViolationException e) {
+            throw OrderErrors.toBusiness(e);
+        }
         historyRepository.save(OrderActor.seller(memberId, OrderActor.SELLER_SHIP).history(delivery.getOrderId(),
             OrderStatusHistory.TargetType.DELIVERY, delivery.getId(), from, delivery.getStatus(), null, now));
         log.info("발송: orderId={} deliveryId={} sellerId={} carrier={}",
@@ -88,7 +94,11 @@ public class DeliveryService {
         LocalDateTime now = LocalDateTime.now();
         Delivery.Status from = delivery.getStatus();
         boolean alreadyDelivered = from == Delivery.Status.DELIVERED;
-        delivery.complete(now);
+        try {
+            delivery.complete(now);
+        } catch (OrderRuleViolationException e) {
+            throw OrderErrors.toBusiness(e);
+        }
         orderRepository.findById(delivery.getOrderId())
             .ifPresent(order -> order.recordDelivered(delivery.getSellerId(), delivery.getDeliveredAt()));
         if (alreadyDelivered) {

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
@@ -25,7 +26,6 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
@@ -546,6 +546,31 @@ class OrderServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(OrderErrorCode.ORDER_NOT_FOUND);
             verify(orderRepository).findByIdAndMemberId(ORDER_ID, BUYER_ID);
+        }
+
+        @Test
+        @DisplayName("배송 완료 전이면 NOT_DELIVERED, 발행하지 않는다")
+        void notDelivered() {
+            Order order = placedOrderAt(LocalDateTime.now().minusDays(2));
+            pay(order, 500L, LocalDateTime.now().minusDays(1));
+            setItemId(order.getItems().get(0), ORDER_ITEM_ID);
+            when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
+
+            assertThatThrownBy(() -> orderService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.NOT_DELIVERED);
+            verify(eventPublisher, never()).publish(any());
+        }
+
+        @Test
+        @DisplayName("주문에 없는 주문상품이면 ORDER_ITEM_NOT_FOUND")
+        void unknownItem() {
+            Order order = deliveredOrder(LocalDateTime.now().minusDays(1));
+            when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
+
+            assertThatThrownBy(() -> orderService.confirmByBuyer(BUYER_ID, ORDER_ID, 999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(OrderErrorCode.ORDER_ITEM_NOT_FOUND);
         }
 
         @Test
