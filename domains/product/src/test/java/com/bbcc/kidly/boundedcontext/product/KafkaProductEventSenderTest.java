@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.product.out.outbox.KafkaProductEventSender;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.KafkaException;
+import org.springframework.kafka.core.KafkaProducerException;
 import org.springframework.kafka.core.KafkaTemplate;
 
 @ExtendWith(MockitoExtension.class)
@@ -62,6 +64,20 @@ class KafkaProductEventSenderTest {
         assertThatThrownBy(() -> sender().send(MESSAGE))
             .isInstanceOf(ProductEventSendException.class)
             .hasMessageContaining("브로커 연결 실패")
+            .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD);
+    }
+
+    @Test
+    @DisplayName("보낸 뒤 브로커 응답이 실패로 오면 Kafka 클라이언트가 알려 준 원인을 담은 전송 예외를 던진다")
+    @SuppressWarnings("unchecked")
+    void throwWithClientCauseWhenSendFailsAfterSending() {
+        given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(CompletableFuture.failedFuture(
+            new KafkaProducerException(null, "Failed to send",
+                new TimeoutException("Expiring 1 record(s) for kidly.product.events-0"))));
+
+        assertThatThrownBy(() -> sender().send(MESSAGE))
+            .isInstanceOf(ProductEventSendException.class)
+            .hasMessageContaining("Expiring 1 record(s) for kidly.product.events-0")
             .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD);
     }
 

@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSendExc
 import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSender;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import java.time.Duration;
+import java.util.concurrent.ExecutionException;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
 
@@ -31,10 +32,24 @@ public class KafkaProductEventSender implements ProductEventSender {
             .add("eventType", message.getEventType().getBytes(UTF_8))
             .add("eventId", message.getEventId().toString().getBytes(UTF_8));
         try {
-            kafkaTemplate.send(record);
+            kafkaTemplate.send(record).get();
+        } catch (ExecutionException e) {
+            throw failure(message, rootCause(e));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw failure(message, e);
         } catch (RuntimeException e) {
             throw failure(message, e);
         }
+    }
+
+    // Spring이 감싼 예외(KafkaProducerException)가 아니라 Kafka 클라이언트가 알려 준 가장 안쪽 원인을 찾는다
+    private static Throwable rootCause(Throwable error) {
+        Throwable current = error;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     // 예외 메시지는 로그에 남으므로 본문 대신 eventType · eventId와 원인만 담는다
