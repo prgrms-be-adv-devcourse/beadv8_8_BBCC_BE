@@ -66,4 +66,16 @@ public class ProductOutboxMessage extends BaseTimeEntity {
         message.payload = info.payload();
         return message;
     }
+
+    /**
+     * Kafka로 보냈다. 시도 횟수를 1 늘리고 보낸 시각을 기록한다.
+     * 이미 보낸 메시지는 바꾸지 않으므로, 같은 메시지를 두 번 처리해도 처음 기록이 남는다.
+     */
+    public void markSent(LocalDateTime now) {
+        if (sentAt != null) {
+            return;
+        }
+        this.attemptCount++;
+        this.sentAt = now;
+    }
 }
