@@ -205,12 +205,19 @@ class OrderCancelIntegrationTest {
         OrderDetail order = place();
         makeOverdue(order.orderId());
         orderScheduler.expireOverduePayments();
+        long version = versionOf(order.orderId());
+        List<String> historyBefore = historyRows(order.orderId());
 
         publish(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
             500L, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), LocalDateTime.now())));
 
         assertCancelled(order.orderId(), Order.CancelReason.PAYMENT_EXPIRED);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
+        assertThat(versionOf(order.orderId())).as("늦게 온 결제 완료는 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(historyRows(order.orderId())).isEqualTo(historyBefore).noneMatch(row -> row.endsWith(">PAID"));
+        assertThat(events.stream(OrderCancelledEvent.class).toList()).hasSize(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
+            Long.class, order.orderId())).as("취소된 주문의 결제 완료는 실패로 보관하지 않음").isZero();
         assertThat(lines(output, "WARN", "reason=paid-after-cancel orderId=" + order.orderId()
             + " paymentId=500 amount=" + order.totalAmount() + " cancelReason=PAYMENT_EXPIRED")).isEqualTo(1);
         assertThat(lines(output, "ERROR", "reason=paid-after-cancel")).isEqualTo(0);
@@ -252,6 +259,13 @@ class OrderCancelIntegrationTest {
 
     private long versionOf(Long orderId) {
         return jdbcTemplate.queryForObject("select version from orders.orders where id = ?", Long.class, orderId);
+    }
+
+    // 주문의 상태 이력 전체를 "이전>다음"으로
+    private List<String> historyRows(Long orderId) {
+        return historyRepository.findAllByOrderIdOrderByOccurredAtAscIdAsc(orderId).stream()
+            .map(history -> history.getFromStatus() + ">" + history.getToStatus())
+            .toList();
     }
 
     // 주문의 상태 이력 중 취소 줄만 "이전>다음 사유 출처"로
