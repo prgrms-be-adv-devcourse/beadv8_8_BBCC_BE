@@ -40,14 +40,14 @@ class JpaOrderOutboxRepositoryIntegrationTest {
         Long first = save();
         Long sent = save();
         Long second = save();
-        Long third = save();
+        save();
         markSent(sent, LocalDateTime.now());
 
         List<OrderOutboxMessage> unsent = transactionTemplate.execute(status ->
             outboxRepository.findBySentAtIsNullOrderByIdAsc(Limit.of(2)));
 
-        assertThat(unsent).extracting(OrderOutboxMessage::getId).containsExactly(first, second);
-        assertThat(third).isGreaterThan(second);
+        assertThat(unsent).as("셋째 안 보낸 메시지는 limit 밖").extracting(OrderOutboxMessage::getId)
+            .containsExactly(first, second);
     }
 
     @Test

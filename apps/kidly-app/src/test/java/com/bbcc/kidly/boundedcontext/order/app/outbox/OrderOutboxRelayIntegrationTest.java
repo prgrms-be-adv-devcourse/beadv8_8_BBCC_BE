@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -67,6 +68,26 @@ class OrderOutboxRelayIntegrationTest {
             .containsExactlyInAnyOrder(OutboxRelayResult.Outcome.STOPPED, OutboxRelayResult.Outcome.LOCKED);
         assertThat(jdbcTemplate.queryForObject("select attempt_count from orders.order_outbox where id = ?",
             Integer.class, id)).as("보내기를 시도한 릴레이는 하나").isOne();
+    }
+
+    @Test
+    @DisplayName("정리는 보관 기간(order.yml 기본 7일)보다 먼저 보낸 메시지만 지우고, 최근에 보낸 것 · 안 보낸 것은 남긴다")
+    void cleanUpDeletesSentOlderThanRetention() {
+        Long old = saveToUndeclaredTopic();
+        Long recent = saveToUndeclaredTopic();
+        Long unsent = saveToUndeclaredTopic();
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update("update orders.order_outbox set sent_at = ? where id = ?", now.minusDays(7).minusMinutes(1),
+            old);
+        jdbcTemplate.update("update orders.order_outbox set sent_at = ? where id = ?", now.minusDays(7).plusMinutes(1),
+            recent);
+        jdbcTemplate.update("update orders.order_outbox set created_at = ? where id = ?", now.minusDays(30), unsent);
+
+        int deleted = relayService.cleanUp();
+
+        assertThat(deleted).isOne();
+        assertThat(jdbcTemplate.queryForList("select id from orders.order_outbox order by id", Long.class))
+            .containsExactly(recent, unsent);
     }
 
     private Long saveToUndeclaredTopic() {

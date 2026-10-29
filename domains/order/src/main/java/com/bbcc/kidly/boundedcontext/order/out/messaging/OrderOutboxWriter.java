@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.out.messaging;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.config.OrderKafkaTopicConfig;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -18,15 +19,14 @@ import tools.jackson.databind.json.JsonMapper;
 @RequiredArgsConstructor
 class OrderOutboxWriter implements OrderEventOutbox {
 
-    static final String TOPIC = "kidly.order.events";
-
     private final OrderOutboxRepository outboxRepository;
     private final JsonMapper jsonMapper;
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void append(DomainEvent event) {
-        outboxRepository.save(OrderOutboxMessage.create(event.eventId(), event.eventType(), TOPIC,
-            event.correlationId(), jsonMapper.writeValueAsString(OrderEventEnvelope.from(event))));
+        outboxRepository.save(OrderOutboxMessage.create(event.eventId(), event.eventType(),
+            OrderKafkaTopicConfig.ORDER_EVENTS, event.correlationId(),
+            jsonMapper.writeValueAsString(OrderEventEnvelope.from(event))));
     }
 }
