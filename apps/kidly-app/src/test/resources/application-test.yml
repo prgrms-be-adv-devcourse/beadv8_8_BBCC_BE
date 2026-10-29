@@ -72,3 +72,7 @@ kidly:
       s3:
         key-prefix: test
         fake-credentials: true
+    # 상품 아웃박스 릴레이도 같은 이유로 길게 두고, 정리는 끈다. 릴레이 테스트는 ProductOutboxRelayService를, 정리 테스트는 ProductOutboxCleanupService를 직접 부른다
+    outbox:
+      relay-interval: P3650D
+      cleanup-cron: "-"
