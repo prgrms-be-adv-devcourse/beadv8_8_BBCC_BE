@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxRepository;
@@ -11,6 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -61,6 +63,18 @@ class ProductOutboxRepositoryIntegrationTest {
         assertThat(deleted).isEqualTo(1);
         assertThat(jdbcTemplate.queryForList("select event_id from product.product_outbox", UUID.class))
             .containsExactlyInAnyOrder(sentAtCutoff, sentLater, unsent);
+    }
+
+    @Test
+    @DisplayName("같은 이벤트 ID로 메시지를 또 저장하면 event_id UNIQUE 제약이 막아 한 줄만 남는다")
+    void rejectDuplicateEventId() {
+        UUID eventId = saveUnsent();
+
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> outboxRepository.save(
+            ProductOutboxMessage.create(ProductOutboxMessageFixture.productChanged(eventId)))))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbcTemplate.queryForList("select event_id from product.product_outbox", UUID.class))
+            .containsExactly(eventId);
     }
 
     private UUID saveUnsent() {
