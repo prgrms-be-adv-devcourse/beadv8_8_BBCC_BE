@@ -7,6 +7,8 @@ import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSender;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
 
@@ -32,14 +34,17 @@ public class KafkaProductEventSender implements ProductEventSender {
             .add("eventType", message.getEventType().getBytes(UTF_8))
             .add("eventId", message.getEventId().toString().getBytes(UTF_8));
         try {
-            kafkaTemplate.send(record).get();
+            kafkaTemplate.send(record).get(sendTimeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
-            throw failure(message, rootCause(e));
+            Throwable cause = rootCause(e);
+            throw failure(message, cause.getMessage(), cause);
+        } catch (TimeoutException e) {
+            throw failure(message, "응답 대기 시간 %dms 초과".formatted(sendTimeout.toMillis()), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw failure(message, e);
+            throw failure(message, e.getMessage(), e);
         } catch (RuntimeException e) {
-            throw failure(message, e);
+            throw failure(message, e.getMessage(), e);
         }
     }
 
@@ -53,10 +58,10 @@ public class KafkaProductEventSender implements ProductEventSender {
     }
 
     // 예외 메시지는 로그에 남으므로 본문 대신 eventType · eventId와 원인만 담는다
-    private ProductEventSendException failure(ProductOutboxMessage message, Throwable cause) {
+    private ProductEventSendException failure(ProductOutboxMessage message, String reason, Throwable cause) {
         return new ProductEventSendException(
             "상품 이벤트를 Kafka로 보내지 못했습니다. eventType=%s eventId=%s reason=%s"
-                .formatted(message.getEventType(), message.getEventId(), cause.getMessage()),
+                .formatted(message.getEventType(), message.getEventId(), reason),
             cause);
     }
 }

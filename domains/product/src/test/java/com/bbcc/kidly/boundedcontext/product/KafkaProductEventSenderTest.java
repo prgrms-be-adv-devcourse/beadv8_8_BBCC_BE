@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -79,6 +80,18 @@ class KafkaProductEventSenderTest {
             .isInstanceOf(ProductEventSendException.class)
             .hasMessageContaining("Expiring 1 record(s) for kidly.product.events-0")
             .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD);
+    }
+
+    @Test
+    @DisplayName("브로커 응답이 시간 제한 안에 오지 않으면 기다리지 않고 전송 예외를 던진다")
+    @SuppressWarnings("unchecked")
+    void throwWhenResponseTimesOut() {
+        given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(new CompletableFuture<>());
+        KafkaProductEventSender sender = new KafkaProductEventSender(kafkaTemplate, Duration.ofMillis(100));
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> assertThatThrownBy(() -> sender.send(MESSAGE))
+            .isInstanceOf(ProductEventSendException.class)
+            .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD));
     }
 
     private KafkaProductEventSender sender() {
