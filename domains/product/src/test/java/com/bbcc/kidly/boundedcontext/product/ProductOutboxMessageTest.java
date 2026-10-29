@@ -55,4 +55,31 @@ class ProductOutboxMessageTest {
             .extracting(ProductOutboxMessage::getAttemptCount, ProductOutboxMessage::getSentAt)
             .containsExactly(1, SENT_AT);
     }
+
+    @Test
+    @DisplayName("보내지 못했다고 기록하면 시도 횟수가 1 늘고 마지막 오류가 남으며, 보내지 않은 상태 그대로다")
+    void recordFailure() {
+        ProductOutboxMessage message = ProductOutboxMessage.create(ProductOutboxMessageFixture.productChanged());
+
+        message.recordFailure("TimeoutException: Topic kidly.product.events not present in metadata after 5000 ms.");
+
+        assertThat(message)
+            .extracting(
+                ProductOutboxMessage::getAttemptCount,
+                ProductOutboxMessage::getLastError,
+                ProductOutboxMessage::getSentAt)
+            .containsExactly(
+                1, "TimeoutException: Topic kidly.product.events not present in metadata after 5000 ms.", null);
+    }
+
+    @Test
+    @DisplayName("오류가 500자를 넘으면 칸 길이에 맞춰 앞 500자만 남긴다")
+    void recordFailureTruncatesLongError() {
+        ProductOutboxMessage message = ProductOutboxMessage.create(ProductOutboxMessageFixture.productChanged());
+        String error = "가".repeat(500) + "나".repeat(10);
+
+        message.recordFailure(error);
+
+        assertThat(message.getLastError()).isEqualTo("가".repeat(500));
+    }
 }

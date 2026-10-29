@@ -23,6 +23,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProductOutboxMessage extends BaseTimeEntity {
 
+    private static final int LAST_ERROR_LENGTH = 500;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -45,7 +47,7 @@ public class ProductOutboxMessage extends BaseTimeEntity {
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
-    @Column(name = "last_error", length = 500)
+    @Column(name = "last_error", length = LAST_ERROR_LENGTH)
     private String lastError;
 
     @Column(name = "sent_at")
@@ -77,5 +79,18 @@ public class ProductOutboxMessage extends BaseTimeEntity {
         }
         this.attemptCount++;
         this.sentAt = now;
+    }
+
+    /**
+     * Kafka로 보내지 못했다. 시도 횟수를 1 늘리고 마지막 오류를 바꾼다. 보낸 시각은 그대로 비워 다음 릴레이가 다시 보낸다.
+     * 오류가 칸 길이보다 길면 앞부분만 남긴다. 길이를 넘기면 이 기록을 저장하는 UPDATE가 실패하기 때문이다.
+     */
+    public void recordFailure(String error) {
+        this.attemptCount++;
+        if (error.length() > LAST_ERROR_LENGTH) {
+            this.lastError = error.substring(0, LAST_ERROR_LENGTH);
+            return;
+        }
+        this.lastError = error;
     }
 }
