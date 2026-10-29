@@ -76,6 +76,20 @@ class ProductOutboxRecorderIntegrationTest {
     }
 
     @Test
+    @DisplayName("같은 이벤트를 한 트랜잭션에서 두 번 발행해도 아웃박스 행은 하나만 남는다")
+    void recordSameEventOnce() {
+        ProductChangedEvent event = productChanged();
+
+        transactionTemplate.executeWithoutResult(status -> {
+            eventPublisher.publish(event);
+            eventPublisher.publish(event);
+        });
+
+        assertThat(outboxRows()).singleElement().satisfies(row -> assertThat(row)
+            .containsEntry("event_id", event.eventId()));
+    }
+
+    @Test
     @DisplayName("다른 도메인이 발행한 이벤트는 같은 트랜잭션에서 커밋돼도 아웃박스에 저장하지 않는다")
     void ignoreOtherDomainEvent() {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(
@@ -87,13 +101,9 @@ class ProductOutboxRecorderIntegrationTest {
     @Test
     @DisplayName("아웃박스 저장이 실패하면 같은 트랜잭션의 업무도 커밋되지 않는다")
     void rollBackBusinessWhenRecordFails() {
-        ProductChangedEvent event = productChanged();
-
-        // 같은 이벤트를 두 번 발행하면 두 번째 저장이 event_id UNIQUE에 걸려 커밋 직전에 실패한다
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             replicaSellerRepository.save(ProductReplicaSeller.create(ProductReplicaSellerFixture.sellerApproved()));
-            eventPublisher.publish(event);
-            eventPublisher.publish(event);
+            eventPublisher.publish(new TooLongTypeEvent(UUID.randomUUID(), OCCURRED_AT, 1L));
         })).isInstanceOf(DataIntegrityViolationException.class);
 
         assertThat(replicaSellerRepository.findById(ProductReplicaSellerFixture.SELLER_ID)).isEmpty();
@@ -115,6 +125,25 @@ class ProductOutboxRecorderIntegrationTest {
     private static ProductChangedEvent productChanged() {
         return new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT, new ProductChangedEvent.Data(
             1L, 2L, "데일리 맨투맨", 3L, ProductStatus.ON_SALE, null, OCCURRED_AT, false, List.of()));
+    }
+
+    // 아웃박스 저장을 실패시키려고 만든 상품 이벤트다. 종류가 event_type 칸 길이(60자)보다 길어 INSERT가 실패한다
+    private record TooLongTypeEvent(UUID eventId, LocalDateTime occurredAt, Long data) implements DomainEvent {
+
+        @Override
+        public String aggregateId() {
+            return String.valueOf(data);
+        }
+
+        @Override
+        public String eventType() {
+            return "product." + "x".repeat(60);
+        }
+
+        @Override
+        public String producer() {
+            return "product";
+        }
     }
 
     private List<Map<String, Object>> outboxRows() {
