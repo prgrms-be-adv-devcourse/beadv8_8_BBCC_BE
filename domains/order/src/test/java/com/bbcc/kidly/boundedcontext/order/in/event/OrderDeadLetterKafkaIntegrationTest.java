@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -50,10 +51,10 @@ class OrderDeadLetterKafkaIntegrationTest {
     private static final String PAYMENT_DLT = "kidly.payment.events.order.dlt";
     private static final String HIDDEN_TABLE = "order_dead_letter_hidden";
     private static final String BODY_MARKER = "본문-표식-DLT";
-    private static final String RETRY_LOG = "DLT 메시지를 저장하지 못해 다시 시도합니다";
+    private static final String RETRY_LOG = "DLT 메시지를 저장하지 못했습니다";
     private static final String DEAD_LETTER_LOG = "처리하지 못한 이벤트를 DLT로 보냅니다";
-    // 원래 토픽 처리기라면 처음 + 재시도 3번에서 DLT로 보낸다. 그보다 많이 실패해도 DLT로 가지 않는지 본다
-    private static final int MORE_THAN_SOURCE_ATTEMPTS = 5;
+    // 원래 토픽 처리기는 1초 간격 처음 + 재시도 3번(약 3초) 뒤 DLT로 보낸다. 저장 재시도는 1 · 2 · 4초 간격이라 8초면 4번 실패한다
+    private static final Duration FAILING_WINDOW = Duration.ofSeconds(8);
 
     @Autowired
     private KafkaContainer kafka;
@@ -172,7 +173,8 @@ class OrderDeadLetterKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("저장이 실패하면(DB 장애) DLT로 다시 보내지 않고 다시 시도해, 원인이 풀리면 1건 저장한다. 로그에는 본문 · 예외 메시지가 없다")
+    @DisplayName("저장이 실패하면(DB 장애) DLT로 다시 보내지 않고 다시 시도해, 원인이 풀리면 1건 저장한다. "
+        + "같은 메시지의 실패 로그는 처음 한 줄(ERROR)뿐이고 본문 · 예외 메시지가 없다")
     void storeFailureIsRetriedNotDeadLettered(CapturedOutput output) {
         long offset = newOffset();
         String eventId = OrderKafkaTestClient.newEventId();
@@ -181,9 +183,15 @@ class OrderDeadLetterKafkaIntegrationTest {
 
         RecordMetadata sent = kafkaClient.send(deadLetter(offset, eventId, "java.lang.IllegalStateException"));
 
-        AsyncWait.until(OrderKafkaTestClient.TIMEOUT,
-            () -> retryLogs(output, eventId) >= MORE_THAN_SOURCE_ATTEMPTS || deadLetterLogs(output, eventId) > 0);
+        AsyncWait.until(OrderKafkaTestClient.TIMEOUT, () -> retryLogs(output, eventId) > 0);
+        long deadline = System.nanoTime() + FAILING_WINDOW.toNanos();
+        while (System.nanoTime() < deadline && deadLetterLogs(output, eventId) == 0) {
+            Thread.onSpinWait();
+        }
         assertThat(deadLetterLogs(output, eventId)).as("DLT로 보내는 로그 없음").isZero();
+        assertThat(retryLogs(output, eventId)).as("같은 메시지의 실패 로그는 처음 한 줄").isEqualTo(1);
+        assertThat(output.getOut().lines().filter(line -> line.contains(RETRY_LOG)))
+            .allSatisfy(line -> assertThat(line).contains(" ERROR "));
         restoreTable();
 
         kafkaClient.awaitProcessed(sent);

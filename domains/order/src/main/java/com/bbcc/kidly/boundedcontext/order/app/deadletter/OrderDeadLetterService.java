@@ -99,27 +99,33 @@ public class OrderDeadLetterService {
      *   <li>같은 메시지는 한 번만: 기록을 기다리지 않는 잠금으로 잡고, 다른 재처리 · 종료가 잡고 있으면 409(재처리 중)</li>
      *   <li>원래 처리는 이 트랜잭션을 멈춘 채(잠금은 유지) 트랜잭션 없이 부른다. Kafka로 받았을 때처럼 처리 · 실패 보관이
      *       각자 트랜잭션에서 커밋해야 실패 보관이 남는다</li>
-     *   <li>OPEN이 아니면(재처리됨 · 종료됨) 409</li>
+     *   <li>이미 재처리됐으면 아무것도 하지 않고 지금 상세(기존 재처리 대기와 같음), 종료됐으면 409</li>
+     *   <li>원래 처리가 실패를 주문 자체 보관에 넘겼으면 REPROCESSED에 넘김 표시(진짜 성공과 구분)</li>
      * </ul>
      */
     @Transactional
     public OrderDeadLetterDetail reprocess(Long deadLetterId, Long adminId) {
         OrderDeadLetter letter = lockForReprocess(deadLetterId);
-        if (!letter.isOpen()) {
+        if (letter.getStatus() == OrderDeadLetter.Status.REPROCESSED) {
+            return detailOf(letter);
+        }
+        if (letter.getStatus() == OrderDeadLetter.Status.CLOSED) {
             throw new BusinessException(OrderErrorCode.DEAD_LETTER_CLOSED);
         }
-        String failure = replayWithoutTransaction(new DeadLetterReplay(letter.getSourceTopic(),
+        ReplayAttempt attempt = replayWithoutTransaction(new DeadLetterReplay(letter.getSourceTopic(),
             letter.getSourcePartition(), letter.getSourceOffset(), letter.getMessageKey(), letter.getEventType(),
             letter.getEventId(), letter.getPayload()));
         LocalDateTime now = LocalDateTime.now();
-        if (failure == null) {
-            letter.markReprocessed(adminId, now);
+        if (attempt.failure() != null) {
+            letter.recordReprocessFailure(attempt.failure(), now);
+        } else if (attempt.outcome() == DeadLetterReplay.Outcome.HANDED_OFF) {
+            letter.markHandedOff(adminId, now);
         } else {
-            letter.recordReprocessFailure(failure, now);
+            letter.markReprocessed(adminId, now);
         }
-        log.info("DLT 메시지 재처리: deadLetterId={} eventType={} eventId={} orderId={} status={} failure={}",
+        log.info("DLT 메시지 재처리: deadLetterId={} eventType={} eventId={} orderId={} status={} result={}",
             letter.getId(), letter.getEventType(), letter.getEventId(), letter.getOrderId(), letter.getStatus(),
-            failure);
+            letter.getLastReprocessResult());
         return detailOf(letter);
     }
 
@@ -132,7 +138,7 @@ public class OrderDeadLetterService {
         OrderDeadLetter letter = deadLetterRepository.findByIdForUpdate(deadLetterId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.DEAD_LETTER_NOT_FOUND));
         if (letter.getStatus() == OrderDeadLetter.Status.REPROCESSED) {
-            throw new BusinessException(OrderErrorCode.DEAD_LETTER_CLOSED);
+            throw new BusinessException(OrderErrorCode.DEAD_LETTER_REPROCESSED);
         }
         if (letter.isOpen()) {
             letter.close(adminId, memo, LocalDateTime.now());
@@ -151,18 +157,21 @@ public class OrderDeadLetterService {
         }
     }
 
-    // 실패하면 실패 이유(가장 안쪽 예외 종류 — 예외 메시지에는 본문 값이 들어 있을 수 있어 쓰지 않는다), 성공하면 null
-    private String replayWithoutTransaction(DeadLetterReplay message) {
+    // 실패 이유는 가장 안쪽 예외 종류(예외 메시지에는 본문 값이 들어 있을 수 있어 쓰지 않는다)
+    private ReplayAttempt replayWithoutTransaction(DeadLetterReplay message) {
         var withoutTransaction = new TransactionTemplate(transactionManager);
         withoutTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
         return withoutTransaction.execute(status -> {
             try {
-                replayer.replay(message);
-                return null;
+                return new ReplayAttempt(replayer.replay(message), null);
             } catch (RuntimeException e) {
-                return NestedExceptionUtils.getMostSpecificCause(e).getClass().getSimpleName();
+                return new ReplayAttempt(null,
+                    NestedExceptionUtils.getMostSpecificCause(e).getClass().getSimpleName());
             }
         });
+    }
+
+    private record ReplayAttempt(DeadLetterReplay.Outcome outcome, String failure) {
     }
 
     private OrderDeadLetterDetail detailOf(OrderDeadLetter letter) {

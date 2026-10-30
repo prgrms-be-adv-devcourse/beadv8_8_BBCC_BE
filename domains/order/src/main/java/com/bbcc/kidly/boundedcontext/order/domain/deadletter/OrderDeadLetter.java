@@ -33,6 +33,7 @@ public class OrderDeadLetter extends OrderTimeEntity {
 
     public static final String SOURCE_UNIQUE = "uk_order_dead_letter_source";
     public static final int RESULT_LENGTH = 500;
+    public static final String HANDED_OFF_RESULT = "자체 보관으로 넘김(재처리 대기 목록에서 처리)";
 
     /**
      * 왜 DLT로 갔는지. 관리자 권장 조치가 유형마다 다르다.
@@ -174,6 +175,15 @@ public class OrderDeadLetter extends OrderTimeEntity {
         this.reprocessCount++;
         this.lastReprocessedAt = now;
         this.lastReprocessResult = null;
+    }
+
+    /**
+     * 재처리에서 원래 처리가 실패를 주문 자체 보관(결제 반영 실패 · 이벤트 처리 실패 기록)에 넘겼다. 이 메시지로 할 일은 끝나
+     * REPROCESSED지만, 진짜 처리 성공과 구분되게 결과에 넘김을 표시한다(이후는 그 재처리 대기 목록에서).
+     */
+    public void markHandedOff(Long adminId, LocalDateTime now) {
+        markReprocessed(adminId, now);
+        this.lastReprocessResult = HANDED_OFF_RESULT;
     }
 
     /**

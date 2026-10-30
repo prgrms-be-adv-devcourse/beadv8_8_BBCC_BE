@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.domain.deadletter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +24,19 @@ class ReceivedDeadLetterTest {
         assertThat(letter.exceptionClass()).hasSize(300);
         assertThat(letter.stackTraceHead().lines().toList()).hasSize(10).first().isEqualTo("\tat line1");
         assertThat(letter.messageKey()).hasSize(100);
+    }
+
+    @Test
+    @DisplayName("NUL 문자(PostgreSQL 문자열에 저장 불가)는 모든 칸에서 대체 문자(U+FFFD)로 바꾼다 — 저장이 영구 실패하지 않게")
+    void replacesNul() {
+        ReceivedDeadLetter letter = new ReceivedDeadLetter("kidly.payment.events", 1, 7L, "k\u0000", "t\u0000",
+            "e\u0000", "{\"a\":\"\u0000\"}", "p\u0000", null, "a\u0000", "c\u0000", null,
+            OrderDeadLetter.FailureType.READ_FAILED, "x\u0000", "m\u0000", "s\u0000", NOW);
+
+        assertThat(List.of(letter.messageKey(), letter.eventType(), letter.eventId(), letter.payload(),
+            letter.producer(), letter.aggregateId(), letter.correlationId(), letter.exceptionClass(),
+            letter.exceptionMessage(), letter.stackTraceHead()))
+            .allSatisfy(value -> assertThat(value).doesNotContain("\u0000").contains("\uFFFD"));
     }
 
     @Test

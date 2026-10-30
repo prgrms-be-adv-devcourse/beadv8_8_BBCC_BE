@@ -45,6 +45,19 @@ class OrderDeadLetterTest {
     }
 
     @Test
+    @DisplayName("재처리에서 원래 처리가 주문 자체 보관으로 넘겼다: REPROCESSED · 처리자 · 시각, 결과에 넘김 표시")
+    void handedOff() {
+        OrderDeadLetter letter = OrderDeadLetter.received(received());
+
+        letter.markHandedOff(ADMIN_ID, NOW);
+
+        assertThat(letter.getStatus()).isEqualTo(OrderDeadLetter.Status.REPROCESSED);
+        assertThat(letter.getHandledBy()).isEqualTo(ADMIN_ID);
+        assertThat(letter.getReprocessCount()).isEqualTo(1);
+        assertThat(letter.getLastReprocessResult()).isEqualTo("자체 보관으로 넘김(재처리 대기 목록에서 처리)");
+    }
+
+    @Test
     @DisplayName("재처리 실패: OPEN 그대로, 재처리 횟수 +1 · 마지막 재처리 시각 · 실패 이유(500자까지), 처리자는 비어 있다")
     void reprocessFailed() {
         OrderDeadLetter letter = OrderDeadLetter.received(received());

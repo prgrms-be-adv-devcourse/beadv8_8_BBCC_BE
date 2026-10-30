@@ -52,6 +52,7 @@ class AdminOrderDeadLetterActionApiTest {
     private static final Long BUYER_ID = 6_400L;
     private static final String BREAK_DELIVERY = "test_break_dead_letter_delivery_insert";
     private static final String BREAK_ORDER = "test_break_dead_letter_order_update";
+    private static final String HANDED_OFF = "자체 보관으로 넘김(재처리 대기 목록에서 처리)";
 
     @Autowired
     private RestTestClient client;
@@ -120,7 +121,8 @@ class AdminOrderDeadLetterActionApiTest {
     }
 
     @Test
-    @DisplayName("결제 반영이 실패해 원래 처리가 주문 자체 보관(결제 반영 실패 기록)에 넘기면 REPROCESSED, 이후는 그 재처리 대기에서 본다")
+    @DisplayName("결제 반영이 실패해 원래 처리가 주문 자체 보관(결제 반영 실패 기록)에 넘기면 REPROCESSED, "
+        + "진짜 성공과 구분되게 결과에 넘김 표시, 이후는 그 재처리 대기에서 본다")
     void reprocessHandedToRecovery() {
         OrderDetail order = placeAwaitingPayment();
         Long id = receive(9L, PaymentEvents.completed(order, BUYER_ID), "java.lang.IllegalStateException");
@@ -130,7 +132,8 @@ class AdminOrderDeadLetterActionApiTest {
         reprocess(id)
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.status").isEqualTo("REPROCESSED");
+            .jsonPath("$.status").isEqualTo("REPROCESSED")
+            .jsonPath("$.lastReprocessResult").isEqualTo(HANDED_OFF);
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
             Long.class, order.orderId())).as("결제 반영 실패 기록").isEqualTo(1L);
@@ -152,7 +155,8 @@ class AdminOrderDeadLetterActionApiTest {
         reprocess(id)
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.status").isEqualTo("REPROCESSED");
+            .jsonPath("$.status").isEqualTo("REPROCESSED")
+            .jsonPath("$.lastReprocessResult").isEqualTo(HANDED_OFF);
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.order_event_failure where order_id = ? "
             + "and event_type = 'STOCK_DEDUCTED'", Long.class, order.orderId())).as("이벤트 처리 실패 기록").isEqualTo(1L);
@@ -267,21 +271,30 @@ class AdminOrderDeadLetterActionApiTest {
     }
 
     @Test
-    @DisplayName("OPEN이 아니면 재처리는 409(재처리됨 · 종료됨 모두), 재처리된 건 종료도 409")
-    void notOpenConflicts() {
+    @DisplayName("이미 재처리된 건을 다시 재처리하면 아무것도 하지 않고 200 · 지금 상세(기존 재처리 대기와 같음), "
+        + "종료된 건 재처리 · 재처리된 건 종료는 409")
+    void alreadyHandled() {
         OrderDetail order = placeAwaitingPayment();
         Long reprocessed = receive(7L, PaymentEvents.completed(order, BUYER_ID), "java.lang.IllegalStateException");
         Long closed = receive(8L, PaymentEvents.completed(order, BUYER_ID), "java.lang.IllegalStateException");
         reprocess(reprocessed).expectStatus().isOk();
         closeWith(closed, "확인").expectStatus().isOk();
+        long version = orderRows.versionOf(order.orderId());
 
-        for (Long id : List.of(reprocessed, closed)) {
-            reprocess(id)
-                .expectStatus().isEqualTo(409)
-                .expectBody()
-                .jsonPath("$.title").isEqualTo("이미 처리된 DLT 메시지입니다");
-        }
-        closeWith(reprocessed, "확인").expectStatus().isEqualTo(409);
+        reprocess(reprocessed)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("REPROCESSED")
+            .jsonPath("$.reprocessCount").isEqualTo(1);
+        assertThat(orderRows.versionOf(order.orderId())).as("주문은 그대로").isEqualTo(version);
+        reprocess(closed)
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("이미 종료된 DLT 메시지입니다");
+        closeWith(reprocessed, "확인")
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("이미 재처리된 DLT 메시지입니다");
     }
 
     @Test

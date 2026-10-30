@@ -9,7 +9,7 @@ import com.bbcc.kidly.boundedcontext.order.app.DeadLetterReplay;
 public interface DeadLetterReplayer {
 
     /**
-     * 처리를 마쳤거나(이미 처리된 이벤트면 결과 1회분) 주문 자체 보관에 넘겼으면 정상 반환, 아니면 예외를 그대로 던진다.
+     * 처리를 마쳤거나(이미 처리된 이벤트면 결과 1회분) 주문 자체 보관에 넘겼으면 그 결과를 돌려주고, 아니면 예외를 그대로 던진다.
      */
-    void replay(DeadLetterReplay message);
+    DeadLetterReplay.Outcome replay(DeadLetterReplay message);
 }

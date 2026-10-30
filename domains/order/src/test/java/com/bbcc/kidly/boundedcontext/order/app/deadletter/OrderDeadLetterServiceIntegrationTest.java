@@ -117,6 +117,18 @@ class OrderDeadLetterServiceIntegrationTest {
             .containsEntry("stack_trace_head", null);
     }
 
+    @Test
+    @DisplayName("본문 · 헤더에 NUL 문자가 있어도 저장한다(대체 문자로 바꿔서)")
+    void savesNul() {
+        deadLetterService.receive(new ReceiveDeadLetterCommand("kidly.product.events", 0, 4L, "k\u0000",
+            "product.changed", "e\u0000", "{\"name\":\"a\u0000b\"}", "java.lang.IllegalStateException",
+            "m\u0000", null));
+
+        OrderDeadLetter letter = single();
+        assertThat(letter.getPayload()).isEqualTo("{\"name\":\"a\uFFFDb\"}");
+        assertThat(letter.getMessageKey()).isEqualTo("k\uFFFD");
+    }
+
     private OrderDeadLetter single() {
         List<Long> ids = jdbcTemplate.queryForList("select id from orders.order_dead_letter", Long.class);
         assertThat(ids).hasSize(1);

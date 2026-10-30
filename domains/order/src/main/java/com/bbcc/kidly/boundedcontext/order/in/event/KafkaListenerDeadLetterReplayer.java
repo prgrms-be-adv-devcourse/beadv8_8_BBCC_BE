@@ -26,15 +26,18 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
     private final PaymentEventKafkaListener paymentListener;
 
     @Override
-    public void replay(DeadLetterReplay message) {
+    public DeadLetterReplay.Outcome replay(DeadLetterReplay message) {
         ConsumerRecord<String, String> record = record(message);
-        switch (message.sourceTopic()) {
-            case OrderKafkaListenerConfig.PRODUCT_EVENTS -> productListener.on(record);
-            case OrderKafkaListenerConfig.SELLER_EVENTS -> sellerListener.on(record);
-            case OrderKafkaListenerConfig.CHILDPROFILE_EVENTS -> childProfileListener.on(record);
-            case OrderKafkaListenerConfig.PAYMENT_EVENTS -> paymentListener.on(record);
-            default -> throw new UnknownDeadLetterSourceException(message.sourceTopic());
-        }
+        boolean handedOff = EventHandOffs.watch(() -> {
+            switch (message.sourceTopic()) {
+                case OrderKafkaListenerConfig.PRODUCT_EVENTS -> productListener.on(record);
+                case OrderKafkaListenerConfig.SELLER_EVENTS -> sellerListener.on(record);
+                case OrderKafkaListenerConfig.CHILDPROFILE_EVENTS -> childProfileListener.on(record);
+                case OrderKafkaListenerConfig.PAYMENT_EVENTS -> paymentListener.on(record);
+                default -> throw new UnknownDeadLetterSourceException(message.sourceTopic());
+            }
+        });
+        return handedOff ? DeadLetterReplay.Outcome.HANDED_OFF : DeadLetterReplay.Outcome.PROCESSED;
     }
 
     // 원래 위치 · 키 · 본문, 원래 헤더 eventType · eventId(없던 헤더는 넣지 않는다)
