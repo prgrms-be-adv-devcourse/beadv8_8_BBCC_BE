@@ -38,6 +38,9 @@ dependencies {
     // 메트릭 (/actuator/prometheus). 서버의 Prometheus 가 127.0.0.1 로 수집한다. 외부는 nginx 가 막는다
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
+    // Kafka 앱 공용 설정(전송 실패 로그). 도메인 모듈은 implementation으로 받아 앱의 컴파일 경로에는 없다
+    implementation("org.springframework.boot:spring-boot-starter-kafka")
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
