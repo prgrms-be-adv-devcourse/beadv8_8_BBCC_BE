@@ -67,3 +67,11 @@ kidly:
       # 자동 구매확정 기간(auto-confirm.after)이 지난 뒤 확정까지. 넘으면 AUTO_CONFIRM_MISSED(자동 확정 스케줄러 누락 의심)
       # 기본 1시간: 자동 확정 스케줄러 주기(10분)보다 넉넉해 정상 지연은 나오지 않는다
       auto-confirm-grace: ${ORDER_STUCK_AUTO_CONFIRM_GRACE:PT1H}
+      # 아웃박스 멈춤(#602): 보내지 못한 맨 앞 주문 이벤트 메시지(릴레이가 그 메시지에서 멈춰 뒤의 이벤트가 나가지 않음)
+      # 시도 횟수가 이 값 이상이면 OUTBOX_STUCK(1 이상 정수)
+      # 기본 10회: 릴레이는 1초마다 시도하고 한 번에 최대 15초 기다리므로 약 10초~2.5분 연속 실패. 브로커가 잠깐 끊긴 것은 넘기고
+      # 크기 초과처럼 다시 해도 안 되는 메시지는 몇 분 안에 보인다
+      outbox-attempts: ${ORDER_STUCK_OUTBOX_ATTEMPTS:10}
+      # 만든 뒤 이 시간이 지나도 못 보냈으면 OUTBOX_STUCK(1초 이상). 릴레이가 아예 돌지 않아 시도 횟수가 늘지 않는 경우도 잡는다
+      # 기본 5분: 정상이면 1초 안에 나간다. 재고 대기(stock-wait)와 같은 감각
+      outbox-wait: ${ORDER_STUCK_OUTBOX_WAIT:PT5M}

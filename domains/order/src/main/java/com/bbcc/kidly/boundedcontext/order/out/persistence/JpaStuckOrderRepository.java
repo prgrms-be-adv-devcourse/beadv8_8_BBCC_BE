@@ -3,6 +3,9 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 import com.bbcc.kidly.boundedcontext.order.app.port.StuckOrderRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
@@ -121,4 +124,24 @@ public interface JpaStuckOrderRepository extends Repository<Order, Long>, StuckO
     @Override
     @Query("select count(i) " + AUTO_CONFIRM_MISSED)
     long countAutoConfirmMissed(LocalDateTime before);
+
+    @Override
+    default Optional<OutboxHeadRow> findOldestUnsentOutbox() {
+        return findUnsentOutboxOrderByIdAsc(Limit.of(1)).stream().findFirst();
+    }
+
+    // 미전송 부분 인덱스(idx_order_outbox_unsent)를 id 순으로 읽는다
+    @Query("""
+        select m.id as id, m.eventId as eventId, m.eventType as eventType, m.messageKey as messageKey,
+               m.attemptCount as attemptCount, m.lastError as lastError, m.createdAt as createdAt,
+               m.updatedAt as updatedAt
+        from OrderOutboxMessage m
+        where m.sentAt is null
+        order by m.id asc
+        """)
+    List<OutboxHeadRow> findUnsentOutboxOrderByIdAsc(Limit limit);
+
+    @Override
+    @Query("select count(m) from OrderOutboxMessage m where m.sentAt is null")
+    long countUnsentOutbox();
 }
