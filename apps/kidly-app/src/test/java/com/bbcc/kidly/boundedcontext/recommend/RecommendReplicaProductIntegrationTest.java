@@ -1,11 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
-import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_CATEGORY_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_NAME;
-import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_REGISTERED_AT;
-import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
-import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_CHANGED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOption;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,9 +12,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
-import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
@@ -32,8 +26,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 상품 정보 변경됨을 받아 추천의 상품 복사본에 반영하는 흐름을 확인한다.
- * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않고 발행만 트랜잭션 안에서 한다.
+ * 상품 복사본 서비스가 실제 DB에서 상품 정보 변경됨을 반영하는 규칙을 확인한다.
+ * Kafka로 받는 연결은 RecommendKafkaListenerIntegrationTest가 확인한다.
  */
 @IntegrationTest
 class RecommendReplicaProductIntegrationTest {
@@ -41,48 +35,22 @@ class RecommendReplicaProductIntegrationTest {
     private static final LocalDateTime LATER = PRODUCT_CHANGED_AT.plusMinutes(1);
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
     private TransactionTemplate transactionTemplate;
 
     @Autowired
     private RecommendReplicaProductRepository replicaProductRepository;
 
-    // 리스너의 예외는 커밋 뒤라 로그로만 남으므로, 반영 규칙은 서비스를 직접 불러 예외까지 확인한다
     @Autowired
     private RecommendReplicaProductService replicaProductService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Test
-    @DisplayName("상품 정보 변경됨을 발행한 트랜잭션이 커밋되면 이벤트 값이 상품 복사본에 저장된다")
-    void saveReplicaAfterCommit() {
-        publishInTransaction(RecommendFixture.productAChangedEvent());
-
-        RecommendReplicaProduct replica = replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow();
-        assertThat(replica)
-            .extracting(
-                RecommendReplicaProduct::getSellerId,
-                RecommendReplicaProduct::getCategoryId,
-                RecommendReplicaProduct::getStatus,
-                RecommendReplicaProduct::getThumbnailUrl,
-                RecommendReplicaProduct::getProductRegisteredAt,
-                RecommendReplicaProduct::isSizeFree,
-                RecommendReplicaProduct::getEventOccurredAt)
-            .containsExactly(PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, ProductStatus.ON_SALE,
-                PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, PRODUCT_CHANGED_AT);
-        // 하한 · 상한이 서로 다른 값이라, 저장할 때 두 칸이 바뀌면 다시 읽은 값이 달라진다
-        assertThat(sizesOf(PRODUCT_A_ID).sizeRanges())
-            .containsExactlyInAnyOrder(SizeRange.of("110", 105, 115), SizeRange.of("120", 115, 125));
-    }
-
     // 가장 낮은 판매가를 판매 가능한 옵션에 두어, 품절 · 판매 중지 옵션을 최저가에 넣을지와 상관없이 기대값이 하나로 정해진다
     @Test
     @DisplayName("상품 정보 변경됨을 받으면 상품명 · 최저가 · 판매 가능 사이즈가 상품 복사본에 저장된다")
     void saveNamePriceAndSellableSizes() {
-        publishInTransaction(RecommendFixture.productAChangedEventAt(List.of(
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEventAt(List.of(
             productOption(1L, "120", 115, 125, 25_000L, true, OptionSaleStatus.ON_SALE),
             productOption(2L, "110", 105, 115, 23_000L, false, OptionSaleStatus.ON_SALE),
             productOption(3L, "130", 125, 135, 27_000L, false, OptionSaleStatus.STOPPED)), PRODUCT_CHANGED_AT));
@@ -102,7 +70,7 @@ class RecommendReplicaProductIntegrationTest {
     @Test
     @DisplayName("사이즈 무관 상품의 상품 정보 변경됨을 받으면 사이즈 무관으로 저장되고 권장 키 없는 옵션은 사이즈 줄에 넣지 않는다")
     void saveSizeFreeReplica() {
-        publishInTransaction(RecommendFixture.productAChangedEventOf(
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEventOf(
             true, List.of(productOption(3L, "FREE", null, null)), PRODUCT_CHANGED_AT));
 
         ProductSizes sizes = sizesOf(PRODUCT_A_ID);
@@ -114,38 +82,13 @@ class RecommendReplicaProductIntegrationTest {
     @Test
     @DisplayName("사이즈 없는 상품의 상품 정보 변경됨을 받으면 사이즈 무관으로 저장되고 판매 가능한 옵션이 있는 상품이 된다")
     void saveReplicaOfProductWithoutSize() {
-        publishInTransaction(RecommendFixture.productAChangedEventOf(
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEventOf(
             false, List.of(productOption(3L, null, null, null)), PRODUCT_CHANGED_AT));
 
         assertThat(sizesOf(PRODUCT_A_ID).isSizeFree()).isTrue();
         Boolean hasSellableOption = transactionTemplate.execute(
             status -> replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow().hasSellableOption());
         assertThat(hasSellableOption).isTrue();
-    }
-
-    @Test
-    @DisplayName("상품 정보 변경됨을 발행한 트랜잭션이 롤백되면 상품 복사본이 생기지 않는다")
-    void noReplicaAfterRollback() {
-        transactionTemplate.executeWithoutResult(status -> {
-            eventPublisher.publish(RecommendFixture.productAChangedEvent());
-            status.setRollbackOnly();
-        });
-
-        assertThat(replicaProductRepository.findById(PRODUCT_A_ID)).isEmpty();
-    }
-
-    @Test
-    @DisplayName("상품 복사본 반영이 실패해도 발행한 트랜잭션은 성공하고 복사본은 이전 값 그대로다")
-    void keepReplicaWhenListenerFails() {
-        publishInTransaction(RecommendFixture.productAChangedEvent());
-        ProductChangedEvent withoutOptions = RecommendFixture.productAChangedEventAt(null, LATER);
-
-        assertThatCode(() -> publishInTransaction(withoutOptions)).doesNotThrowAnyException();
-
-        assertThat(replicaProductRepository.findById(PRODUCT_A_ID)).get()
-            .extracting(RecommendReplicaProduct::getEventOccurredAt).isEqualTo(PRODUCT_CHANGED_AT);
-        assertThat(sizesOf(PRODUCT_A_ID).sizeRanges())
-            .containsExactlyInAnyOrder(SizeRange.of("110", 105, 115), SizeRange.of("120", 115, 125));
     }
 
     @Test
@@ -196,7 +139,7 @@ class RecommendReplicaProductIntegrationTest {
         ProductChangedEvent event = RecommendFixture.productAChangedEvent();
 
         for (int i = 0; i < 3; i++) {
-            publishInTransaction(event);
+            replicaProductService.applyProductChanged(event);
         }
 
         assertThat(count("select count(*) from recommend.replica_product where product_id = ?")).isEqualTo(1);
@@ -211,9 +154,5 @@ class RecommendReplicaProductIntegrationTest {
     private ProductSizes sizesOf(Long productId) {
         return transactionTemplate.execute(
             status -> replicaProductRepository.findById(productId).orElseThrow().toProductSizes());
-    }
-
-    private void publishInTransaction(ProductChangedEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }

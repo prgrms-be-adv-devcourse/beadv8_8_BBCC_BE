@@ -1,17 +1,23 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOption;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
@@ -38,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -52,6 +59,7 @@ class RecommendKafkaListenerIntegrationTest {
 
     private static final String SELLER_TOPIC = "kidly.seller.events";
     private static final String CHILD_TOPIC = "kidly.childprofile.events";
+    private static final String PRODUCT_TOPIC = "kidly.product.events";
     private static final String GROUP = "kidly.recommend";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final LocalDateTime CHANGED_AT = LocalDateTime.of(2026, 10, 30, 10, 0);
@@ -61,6 +69,12 @@ class RecommendKafkaListenerIntegrationTest {
 
     @Autowired
     private RecommendReplicaChildRepository replicaChildRepository;
+
+    @Autowired
+    private RecommendReplicaProductRepository replicaProductRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private JsonMapper jsonMapper;
@@ -132,6 +146,32 @@ class RecommendKafkaListenerIntegrationTest {
                 RecommendReplicaChild::isDeleted)
             .containsExactly(memberId, Gender.MALE, LocalDate.of(2020, 5, 1), BodyType.NORMAL, PreferredFit.LOOSE,
                 CHANGED_AT, false);
+    }
+
+    @Test
+    @DisplayName("상품 정보 변경됨을 Kafka로 받아 상품 복사본에 저장한다")
+    void saveProductReplica() throws Exception {
+        Long productId = newId();
+        Long sellerId = newId();
+
+        send(PRODUCT_TOPIC, new ProductChangedEvent(UUID.randomUUID(), CHANGED_AT, new ProductChangedEvent.Data(
+            productId, sellerId, "데일리 맨투맨", 3L, ProductStatus.ON_SALE, "https://img.kidly.dev/a.jpg",
+            CHANGED_AT.minusDays(1), false,
+            List.of(productOption(1L, "110", 105, 115), productOption(2L, "120", 115, 125)))));
+
+        AsyncWait.until(TIMEOUT, () -> replicaProductRepository.findById(productId).isPresent());
+        assertThat(replicaProductRepository.findById(productId)).get()
+            .extracting(
+                RecommendReplicaProduct::getSellerId,
+                RecommendReplicaProduct::getName,
+                RecommendReplicaProduct::getStatus,
+                RecommendReplicaProduct::getMinPrice,
+                RecommendReplicaProduct::getEventOccurredAt)
+            .containsExactly(sellerId, "데일리 맨투맨", ProductStatus.ON_SALE, 25_000L, CHANGED_AT);
+        // 옵션 목록까지 본문에서 읽었는지 사이즈 줄로 확인한다. 사이즈 줄은 지연 로딩이라 트랜잭션 안에서 읽는다
+        List<SizeRange> sizes = transactionTemplate.execute(status ->
+            replicaProductRepository.findById(productId).orElseThrow().toProductSizes().sizeRanges());
+        assertThat(sizes).containsExactlyInAnyOrder(SizeRange.of("110", 105, 115), SizeRange.of("120", 115, 125));
     }
 
     private static Long newId() {
