@@ -1,5 +1,5 @@
-// dev · prod 앱 컨테이너(compose 서비스 app) 로그를 Loki 로 보낸다
-// env 라벨은 compose 프로젝트 이름(dev · prod), level 라벨은 로그 줄에서 뽑는다
+// dev · prod 앱 컨테이너(compose 서비스 app · search-service) 로그를 Loki 로 보낸다
+// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(app → kidly, search-service → kidly-search), level 라벨은 로그 줄에서 뽑는다
 // 서버 콘솔은 ECS JSON 한 줄이다. 텍스트 줄은 JSON 이전 이미지가 남긴 것이라 전환 기간에만 쓰인다
 
 discovery.docker "containers" {
@@ -11,7 +11,7 @@ discovery.relabel "kidly_app" {
 
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "app"
+		regex         = "app|search-service"
 		action        = "keep"
 	}
 
@@ -24,6 +24,21 @@ discovery.relabel "kidly_app" {
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
 		target_label  = "env"
+	}
+
+	// Drilldown → Logs 가 서비스 이름으로 묶는다. 없으면 Loki 가 unknown_service 를 붙인다
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "app"
+		target_label  = "service_name"
+		replacement   = "kidly"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "search-service"
+		target_label  = "service_name"
+		replacement   = "kidly-search"
 	}
 }
 
@@ -58,13 +73,6 @@ loki.process "kidly_app" {
 	stage.labels {
 		values = {
 			level = "",
-		}
-	}
-
-	// Drilldown → Logs 가 서비스 이름으로 묶는다. 없으면 Loki 가 unknown_service 를 붙인다
-	stage.static_labels {
-		values = {
-			service_name = "kidly",
 		}
 	}
 

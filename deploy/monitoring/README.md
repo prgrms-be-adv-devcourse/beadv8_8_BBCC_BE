@@ -97,16 +97,17 @@ Grafana 화면에서 고친 대시보드 · 알림 규칙은 저장되지 않거
 앱 배포(`deploy/deploy.sh`)가 앱이 healthy 로 뜰 때마다 `/opt/app/monitoring/targets/<환경>.yml` 에 `127.0.0.1:<APP_PORT>` 와 `env` 라벨을 써 둡니다.
 Prometheus 는 이 폴더를 읽어 대상을 바꾸므로 손으로 고칠 것이 없습니다. prod 도 첫 배포 때 수집 · 알림이 시작됩니다.
 기동에 실패한 배포는 파일을 바꾸지 않습니다. 이미 있던 환경이면 "앱 다운" 이 그대로 울립니다.
-로그는 Alloy 가 앱 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
+검색이 켜진 환경(지금은 dev)은 검색 서비스도 `targets/search/<환경>.yml` 에 `127.0.0.1:<SEARCH_PORT>` 로 써 둡니다. 앱 대시보드 · 알림과 섞이지 않게 job 을 `kidly-search` 로 나눠서, 앱 알림(job `kidly`)은 검색 서비스를 보지 않습니다.
+로그는 Alloy 가 앱 · 검색 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 
 이 방식으로 바뀐 뒤 첫 앱 배포가 dev 를 등록합니다. 그 전에는 수집 대상이 없어 아무 알림도 오지 않습니다.
 
 ```bash
-cat /opt/app/monitoring/targets/*.yml
+cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml
 curl -s 127.0.0.1:9090/api/v1/targets | grep -o '"scrapeUrl":"[^"]*"'
 ```
 
-환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
+환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색이 켜져 있었으면 `targets/search/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
 
 ## 로그 보기
 
@@ -136,7 +137,7 @@ Logs Drilldown 앱 버전은 compose 의 `GF_PLUGINS_PREINSTALL` 로 고정합�
 
 **Grafana 를 올릴 때 확인**: 앱 버전(`GF_PLUGINS_PREINSTALL`), 기능 플래그 `kubernetesLogsDrilldown`(실험 기능), 기본 열 API 경로 `apis/logsdrilldown.grafana.app/v1beta1/.../logsdrilldowndefaultcolumns`(`deploy.sh`). 경로가 바뀌면 `deploy.sh` 가 실패해 `#4팀-알림` 에 모니터링 배포 실패가 옵니다 — 컨테이너는 이미 새로 떠 있어 수집 · 알림은 그대로입니다.
 
-서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(항상 `kidly`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
+서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
 로그 줄을 펼치면 traceId 옆 "같은 요청 로그 보기" 링크로 그 요청의 로그를 모두 엽니다(Explore, 최근 24시간).
 나머지 필드는 `| json` 으로 펼쳐 거릅니다. 점은 `_` 로 바뀝니다.
 
