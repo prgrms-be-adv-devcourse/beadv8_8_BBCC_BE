@@ -3,10 +3,15 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter;
 import com.bbcc.kidly.boundedcontext.order.domain.deadletter.ReceivedDeadLetter;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
@@ -39,6 +44,23 @@ public interface JpaOrderDeadLetterRepository extends Repository<OrderDeadLetter
             updated_at = excluded.updated_at
         """)
     void saveReceived(@Param("letter") ReceivedDeadLetter letter);
+
+    /**
+     * SELECT … FOR UPDATE. 잠금 대기 시간은 따로 두지 않는다(앞 트랜잭션이 끝나면 바로 풀림).
+     */
+    @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from OrderDeadLetter d where d.id = :id")
+    Optional<OrderDeadLetter> findByIdForUpdate(Long id);
+
+    /**
+     * SELECT … FOR UPDATE NOWAIT(잠금 대기 시간 0). 이미 잠겨 있으면 기다리지 않고 바로 실패한다.
+     */
+    @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0"))
+    @Query("select d from OrderDeadLetter d where d.id = :id")
+    Optional<OrderDeadLetter> findByIdForUpdateNoWait(Long id);
 
     @Override
     @Query(value = """

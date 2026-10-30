@@ -32,6 +32,7 @@ import lombok.NoArgsConstructor;
 public class OrderDeadLetter extends OrderTimeEntity {
 
     public static final String SOURCE_UNIQUE = "uk_order_dead_letter_source";
+    public static final int RESULT_LENGTH = 500;
 
     /**
      * 왜 DLT로 갔는지. 관리자 권장 조치가 유형마다 다르다.
@@ -127,9 +128,83 @@ public class OrderDeadLetter extends OrderTimeEntity {
 
     private LocalDateTime lastReprocessedAt;
 
-    @Column(length = 500)
+    @Column(length = RESULT_LENGTH)
     private String lastReprocessResult;
 
     @Version
     private Long version;
+
+    /**
+     * 처음 받은 메시지의 행(OPEN · 받은 횟수 1). 실제 저장은 저장소의 한 문장(upsert)이 같은 값으로 한다.
+     */
+    public static OrderDeadLetter received(ReceivedDeadLetter letter) {
+        OrderDeadLetter deadLetter = new OrderDeadLetter();
+        deadLetter.sourceTopic = letter.sourceTopic();
+        deadLetter.sourcePartition = letter.sourcePartition();
+        deadLetter.sourceOffset = letter.sourceOffset();
+        deadLetter.messageKey = letter.messageKey();
+        deadLetter.eventType = letter.eventType();
+        deadLetter.eventId = letter.eventId();
+        deadLetter.payload = letter.payload();
+        deadLetter.producer = letter.producer();
+        deadLetter.occurredAt = letter.occurredAt();
+        deadLetter.aggregateId = letter.aggregateId();
+        deadLetter.correlationId = letter.correlationId();
+        deadLetter.orderId = letter.orderId();
+        deadLetter.failureType = letter.failureType();
+        deadLetter.exceptionClass = letter.exceptionClass();
+        deadLetter.exceptionMessage = letter.exceptionMessage();
+        deadLetter.stackTraceHead = letter.stackTraceHead();
+        deadLetter.firstReceivedAt = letter.receivedAt();
+        deadLetter.lastReceivedAt = letter.receivedAt();
+        deadLetter.receivedCount = 1;
+        deadLetter.status = Status.OPEN;
+        deadLetter.reprocessCount = 0;
+        return deadLetter;
+    }
+
+    /**
+     * 재처리로 처리를 마쳤다. 처리자 · 시각을 남기고 마지막 실패 이유는 지운다. OPEN만(서비스가 먼저 거른다).
+     */
+    public void markReprocessed(Long adminId, LocalDateTime now) {
+        requireOpen();
+        this.status = Status.REPROCESSED;
+        this.handledBy = adminId;
+        this.handledAt = now;
+        this.reprocessCount++;
+        this.lastReprocessedAt = now;
+        this.lastReprocessResult = null;
+    }
+
+    /**
+     * 재처리가 실패했다. OPEN 그대로 두고 시도 횟수 · 시각 · 실패 이유(본문 없는 값, {@value #RESULT_LENGTH}자까지)만 남긴다.
+     */
+    public void recordReprocessFailure(String reason, LocalDateTime now) {
+        requireOpen();
+        this.reprocessCount++;
+        this.lastReprocessedAt = now;
+        this.lastReprocessResult = reason == null || reason.length() <= RESULT_LENGTH
+            ? reason : reason.substring(0, RESULT_LENGTH);
+    }
+
+    /**
+     * 확인 후 종료한다(처리하지 않음). 메모는 서비스 입력 검증이 비어 있지 않게 한다. OPEN만(서비스가 먼저 거른다).
+     */
+    public void close(Long adminId, String memo, LocalDateTime now) {
+        requireOpen();
+        this.status = Status.CLOSED;
+        this.handledBy = adminId;
+        this.handledAt = now;
+        this.memo = memo;
+    }
+
+    public boolean isOpen() {
+        return status == Status.OPEN;
+    }
+
+    private void requireOpen() {
+        if (!isOpen()) {
+            throw new IllegalStateException("OPEN인 DLT 메시지만 처리할 수 있습니다: status=" + status);
+        }
+    }
 }

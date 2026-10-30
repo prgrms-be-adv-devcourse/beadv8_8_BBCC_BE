@@ -20,6 +20,16 @@ public interface OrderDeadLetterRepository {
     Optional<OrderDeadLetter> findById(Long id);
 
     /**
+     * 행 쓰기 잠금으로 읽는다(종료). 재처리 중이면 끝날 때까지 기다렸다가 최신 행을 본다.
+     */
+    Optional<OrderDeadLetter> findByIdForUpdate(Long id);
+
+    /**
+     * 기다리지 않는 행 쓰기 잠금으로 읽는다(재처리). 다른 재처리 · 종료가 잠그고 있으면 바로 실패한다(같은 메시지는 한 번만 재처리).
+     */
+    Optional<OrderDeadLetter> findByIdForUpdateNoWait(Long id);
+
+    /**
      * 상태가 맞는 메시지. 실패 유형 · eventType은 null이면 거르지 않는다. 최근 받은 것부터(같으면 ID 큰 것부터).
      */
     Page<OrderDeadLetter> findPage(OrderDeadLetter.Status status, OrderDeadLetter.FailureType failureType,
