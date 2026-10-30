@@ -234,20 +234,37 @@ class RecommendReplicaProductTest {
             .isEqualTo(ProductSizes.of(true, List.of(SizeRange.of("130", 125, 135))));
     }
 
-    @ParameterizedTest(name = "저장된 시각에서 {0}분")
-    @ValueSource(longs = {0, -1})
-    @DisplayName("INV-R01 저장된 시각과 같거나 이르게 일어난 상품 변경은 무시한다")
-    void ignoreChangeNotLater(long minutes) {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesNotLater")
+    @DisplayName("INV-R01 저장된 시각과 같거나 이르게 일어난 상품 변경은 필수 값이 없어도 무시한다")
+    void ignoreChangeNotLater(RecommendReplicaProduct.ChangeInfo change) {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
 
-        replica.applyIfNewer(RecommendFixture.productAChangeOf(true,
-            List.of(productOptionInfo("130", 125, 135)),
-            PRODUCT_CHANGED_AT.plusMinutes(minutes)));
+        replica.applyIfNewer(change);
 
         assertThat(replica.getEventOccurredAt()).isEqualTo(PRODUCT_CHANGED_AT);
         assertThat(replica.toProductSizes()).isEqualTo(ProductSizes.of(false, List.of(
             SizeRange.of("110", 105, 115),
             SizeRange.of("120", 115, 125))));
+    }
+
+    // 이미 반영한 이벤트를 다시 받거나 이전 이벤트가 늦게 도착한 경우다. 값이 비어 있어도 예외 없이 무시해야 한다
+    static Stream<Named<RecommendReplicaProduct.ChangeInfo>> changesNotLater() {
+        LocalDateTime earlier = PRODUCT_CHANGED_AT.minusMinutes(1);
+        List<RecommendReplicaProduct.OptionInfo> newOptions = List.of(productOptionInfo("130", 125, 135));
+        return Stream.of(
+            Named.of("같은 시각", RecommendFixture.productAChangeOf(true, newOptions, PRODUCT_CHANGED_AT)),
+            Named.of("1분 이른 시각", RecommendFixture.productAChangeOf(true, newOptions, earlier)),
+            Named.of("같은 시각 · 판매자 ID 없음",
+                change(PRODUCT_A_ID, null, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, newOptions,
+                    PRODUCT_CHANGED_AT)),
+            Named.of("1분 이른 시각 · 판매 상태 없음",
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, null, PRODUCT_A_REGISTERED_AT, newOptions, earlier)),
+            Named.of("1분 이른 시각 · 상품 등록 시각 없음",
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, null, newOptions, earlier)),
+            Named.of("1분 이른 시각 · 옵션 목록 없음",
+                change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, null,
+                    earlier)));
     }
 
     // 처음 상품 변경은 110 · 120 옵션이 모두 25,000원이고 판매 가능하다. 110은 새 옵션에 없어 판매 가능이 아니게 된다
