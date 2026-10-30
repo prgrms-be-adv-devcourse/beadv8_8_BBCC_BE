@@ -5,14 +5,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -42,8 +45,14 @@ class OrderSchedulerTest {
     @Mock
     private OrderService orderService;
 
+    @Mock
+    private PaymentExpiryGate paymentExpiryGate;
+
+    // 결제 마감 만료는 실행 조건(#561)이 허락할 때만 돈다. 따로 정하지 않으면 허락한다
     private OrderScheduler scheduler(int batchSize, int maxPerRun) {
-        return new OrderScheduler(orderService, new OrderSchedulerProperties(batchSize, maxPerRun), INTERVALS);
+        lenient().when(paymentExpiryGate.allowsRun()).thenReturn(true);
+        return new OrderScheduler(orderService, new OrderSchedulerProperties(batchSize, maxPerRun), INTERVALS,
+            paymentExpiryGate);
     }
 
     /**
@@ -60,6 +69,17 @@ class OrderSchedulerTest {
     @Nested
     @DisplayName("결제 마감 만료")
     class ExpireOverduePayments {
+
+        @Test
+        @DisplayName("실행 조건(결제 이벤트 대기 확인, #561)이 건너뛰라고 하면 만료 대상을 조회하지도 취소하지도 않는다")
+        void skipsWhenGateSaysSo() {
+            OrderScheduler scheduler = scheduler(100, 1000);
+            when(paymentExpiryGate.allowsRun()).thenReturn(false);
+
+            scheduler.expireOverduePayments();
+
+            verifyNoInteractions(orderService);
+        }
 
         @Test
         @DisplayName("마지막 처리 ID 다음부터 이어서 조회하고, 한 실행의 모든 조회에 같은 기준 시각을 넘긴다")
@@ -180,6 +200,19 @@ class OrderSchedulerTest {
     @Nested
     @DisplayName("자동 구매확정")
     class AutoConfirm {
+
+        @Test
+        @DisplayName("자동 구매확정은 결제 마감 만료의 실행 조건과 상관없이 돈다")
+        void notGatedByPaymentExpiry() {
+            givenTargets(1);
+            OrderScheduler scheduler = scheduler(100, 1000);
+            lenient().when(paymentExpiryGate.allowsRun()).thenReturn(false);
+
+            scheduler.autoConfirm();
+
+            verify(orderService).confirmAutomatically(1L, 10L);
+            verify(paymentExpiryGate, never()).allowsRun();
+        }
 
         /**
          * 주문상품 ID 10, 20, …, total×10(주문 ID = 주문상품 ID / 10)이 대상이라고 보고, afterId 다음부터 limit건.
