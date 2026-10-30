@@ -274,9 +274,10 @@ class RecommendKafkaListenerIntegrationTest {
 
         String key = String.valueOf(childId);
         AsyncWait.until(TIMEOUT, () -> !deadLetters(CHILD_DLT, key).isEmpty());
+        // 숫자만으로는 로그 시각 등과 우연히 겹칠 수 있어, 본문에만 있는 칸 이름과 날짜로 확인한다
         assertThat(output.getOut())
             .contains("key=" + key)
-            .doesNotContain("37.7")
+            .doesNotContain("\"weightKg\"")
             .doesNotContain("2019-11-23");
     }
 
