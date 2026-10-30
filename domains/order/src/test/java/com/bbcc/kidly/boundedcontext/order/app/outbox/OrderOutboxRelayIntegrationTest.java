@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,9 @@ class OrderOutboxRelayIntegrationTest {
 
     @Autowired
     private OrderOutboxRelayService relayService;
+
+    @Autowired
+    private SingleServerJobRunner jobRunner;
 
     @Autowired
     private OrderOutboxRepository outboxRepository;
@@ -70,17 +74,16 @@ class OrderOutboxRelayIntegrationTest {
     }
 
     @Test
-    @DisplayName("두 릴레이가 동시에 돌면 잠금을 얻은 하나만 보내고 다른 하나는 아무것도 하지 않는다")
+    @DisplayName("두 서버의 릴레이가 동시에 돌면(한 서버에서만, #564) 잠금을 얻은 하나만 보내고 다른 하나는 아무것도 하지 않는다")
     void onlyOneRelayRunsAtATime() throws InterruptedException {
         Long id = saveToUndeclaredTopic();
         List<OutboxRelayResult> results = new CopyOnWriteArrayList<>();
-        Runnable relay = () -> results.add(relayService.relay());
+        Runnable relay = () -> jobRunner.run("outbox-relay", () -> results.add(relayService.relay()));
 
         ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(relay, relay));
 
         assertThat(outcome.unexpected()).isEmpty();
-        assertThat(results).extracting(OutboxRelayResult::outcome)
-            .containsExactlyInAnyOrder(OutboxRelayResult.Outcome.STOPPED, OutboxRelayResult.Outcome.LOCKED);
+        assertThat(results).extracting(OutboxRelayResult::outcome).containsExactly(OutboxRelayResult.Outcome.STOPPED);
         assertThat(jdbcTemplate.queryForObject("select attempt_count from orders.order_outbox where id = ?",
             Integer.class, id)).as("보내기를 시도한 릴레이는 하나").isOne();
     }

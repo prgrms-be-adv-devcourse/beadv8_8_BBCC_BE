@@ -10,10 +10,6 @@ public record OutboxRelayResult(Outcome outcome, int targets, int sent) {
 
     public enum Outcome {
         /**
-         * 다른 릴레이가 잠금을 쥐고 있어 아무것도 하지 않았다.
-         */
-        LOCKED,
-        /**
          * 읽은 메시지를 모두 보냈다(0건 포함).
          */
         COMPLETED,

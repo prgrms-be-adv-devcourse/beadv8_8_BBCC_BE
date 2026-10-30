@@ -17,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,11 +49,39 @@ class OrderSchedulerTest {
     @Mock
     private PaymentExpiryGate paymentExpiryGate;
 
+    private ImmediateJobRunner jobRunner = new ImmediateJobRunner();
+
+    @Test
+    @DisplayName("한 서버에서만(#564): 작업 이름은 payment-expiry · auto-confirm, 잠금을 잡은 서버만 실행한다")
+    void jobNames() {
+        when(orderService.findOverduePaymentOrderIds(any(), anyLong(), anyInt())).thenReturn(List.of());
+        when(orderService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenReturn(List.of());
+        OrderScheduler scheduler = scheduler(100, 1000);
+
+        scheduler.expireOverduePayments();
+        scheduler.autoConfirm();
+
+        assertThat(jobRunner.jobNames()).containsExactly("payment-expiry", "auto-confirm");
+    }
+
+    @Test
+    @DisplayName("다른 서버가 같은 작업을 돌고 있으면(잠금 못 잡음) 만료 실행 조건 확인 · 대상 조회 · 처리를 하지 않는다(잠금이 먼저)")
+    void skipsWhenAnotherServerRuns() {
+        jobRunner = ImmediateJobRunner.declining();
+        OrderScheduler scheduler = scheduler(100, 1000);
+
+        scheduler.expireOverduePayments();
+        scheduler.autoConfirm();
+
+        verify(paymentExpiryGate, never()).allowsRun();
+        verifyNoInteractions(orderService);
+    }
+
     // 결제 마감 만료는 실행 조건(#561)이 허락할 때만 돈다. 따로 정하지 않으면 허락한다
     private OrderScheduler scheduler(int batchSize, int maxPerRun) {
         lenient().when(paymentExpiryGate.allowsRun()).thenReturn(true);
         return new OrderScheduler(orderService, new OrderSchedulerProperties(batchSize, maxPerRun), INTERVALS,
-            paymentExpiryGate);
+            paymentExpiryGate, jobRunner);
     }
 
     /**

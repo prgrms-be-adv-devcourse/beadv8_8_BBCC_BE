@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,11 +29,16 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class OrderScheduler {
 
+    // 한 번에 한 서버에서만 돌 작업 이름(#564, 잠금 키 kidly.order.{작업})
+    static final String AUTO_CONFIRM_JOB = "auto-confirm";
+    static final String PAYMENT_EXPIRY_JOB = "payment-expiry";
+
     private final OrderService orderService;
     private final OrderSchedulerProperties properties;
     // 주기 값의 바인딩 검증(1초 이상)이 @Scheduled 등록보다 먼저 돌아 키 이름이 나오는 오류로 실패하게 하려고 주입한다
     private final OrderScheduleIntervals intervals;
     private final PaymentExpiryGate paymentExpiryGate;
+    private final SingleServerJobRunner jobRunner;
 
     /**
      * 배송 완료 후 기간이 지난 주문상품을 자동 구매확정한다. 커서는 주문상품 ID. 한 건 = 트랜잭션 하나,
@@ -40,6 +46,10 @@ public class OrderScheduler {
      */
     @Scheduled(fixedDelayString = "${kidly.order.auto-confirm.interval}")
     public void autoConfirm() {
+        jobRunner.run(AUTO_CONFIRM_JOB, this::autoConfirmTargets);
+    }
+
+    private void autoConfirmTargets() {
         // 기준 시각은 실행마다 한 번만 정해 모든 배치에 같게 쓴다(실행 중 새로 기간이 지난 건은 다음 실행에서)
         LocalDateTime now = LocalDateTime.now();
         Run run = runInBatches(
@@ -64,6 +74,11 @@ public class OrderScheduler {
      */
     @Scheduled(fixedDelayString = "${kidly.order.payment-expiry-interval}")
     public void expireOverduePayments() {
+        jobRunner.run(PAYMENT_EXPIRY_JOB, this::expireOverduePaymentTargets);
+    }
+
+    // 잠금을 잡은 서버만 실행 조건(Kafka 대기량)을 본다: 서버마다 확인 · 건너뜀 로그가 겹치지 않는다
+    private void expireOverduePaymentTargets() {
         if (!paymentExpiryGate.allowsRun()) {
             return;
         }

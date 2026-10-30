@@ -8,9 +8,6 @@ import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,28 +47,6 @@ class JpaOrderOutboxRepositoryIntegrationTest {
             .containsExactly(first, second);
     }
 
-    @Test
-    @DisplayName("릴레이 잠금은 한 트랜잭션만 얻고, 그 트랜잭션이 끝나면 다음 트랜잭션이 얻는다")
-    void relayLockIsExclusiveUntilTransactionEnds() throws Exception {
-        CountDownLatch locked = new CountDownLatch(1);
-        CountDownLatch release = new CountDownLatch(1);
-        CompletableFuture<Boolean> holder = CompletableFuture.supplyAsync(() -> transactionTemplate.execute(status -> {
-            boolean acquired = outboxRepository.tryLockRelay();
-            locked.countDown();
-            await(release);
-            return acquired;
-        }));
-        assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
-
-        Boolean whileHeld = transactionTemplate.execute(status -> outboxRepository.tryLockRelay());
-        release.countDown();
-        Boolean holderAcquired = holder.get(10, TimeUnit.SECONDS);
-        Boolean afterRelease = transactionTemplate.execute(status -> outboxRepository.tryLockRelay());
-
-        assertThat(holderAcquired).isTrue();
-        assertThat(whileHeld).as("다른 트랜잭션이 쥐고 있으면 기다리지 않고 false").isFalse();
-        assertThat(afterRelease).as("트랜잭션이 끝나면 잠금이 풀린다").isTrue();
-    }
 
     @Test
     @DisplayName("정리는 보낸 시각이 기준보다 이른 메시지만 지우고, 안 보낸 메시지는 오래돼도 남긴다")
@@ -98,16 +73,5 @@ class JpaOrderOutboxRepositoryIntegrationTest {
 
     private void markSent(Long id, LocalDateTime sentAt) {
         jdbcTemplate.update("update orders.order_outbox set sent_at = ?, attempt_count = 1 where id = ?", sentAt, id);
-    }
-
-    private static void await(CountDownLatch latch) {
-        try {
-            if (!latch.await(10, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("잠금 해제 신호를 기다리다 시간 초과");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
-        }
     }
 }

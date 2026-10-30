@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -115,6 +116,6 @@ class OrderSchedulerLogContextTest {
 
     private OrderScheduler scheduler() {
         return new OrderScheduler(orderService, new OrderSchedulerProperties(100, 1000), INTERVALS,
-            paymentExpiryGate);
+            paymentExpiryGate, new ImmediateJobRunner());
     }
 }
