@@ -119,10 +119,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
      * 반영할 때는 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄도 새 옵션으로 다시 채운다.
      */
     public void applyIfNewer(ChangeInfo info) {
-        requireValues(info);
+        // 저장된 시각보다 늦지 않은 이벤트(다시 받은 이벤트, 늦게 도착한 이전 이벤트)는 다른 값이 비어 있어도 예외 없이 무시하도록 시각을 먼저 비교한다
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         if (!info.occurredAt().isAfter(eventOccurredAt)) {
             return;
         }
+        requireValues(info);
         apply(info);
     }
 
@@ -130,6 +133,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     private static void requireValues(ChangeInfo info) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        requireNonNull(info.name(), "name은 필수입니다");
         requireNonNull(info.status(), "status는 필수입니다");
         requireNonNull(info.registeredAt(), "registeredAt은 필수입니다");
         requireNonNull(info.options(), "options는 필수입니다");
