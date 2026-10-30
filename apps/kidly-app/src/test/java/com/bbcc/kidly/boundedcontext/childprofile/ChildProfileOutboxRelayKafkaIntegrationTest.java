@@ -8,18 +8,15 @@ import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
-import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +35,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -70,12 +66,6 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
 
     @Autowired
     private ChildProfileOutboxRepository outboxRepository;
-
-    @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -135,11 +125,10 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("회원이 탈퇴하면 리스너가 새 트랜잭션에서 발행한 자녀 삭제 이벤트도 릴레이로 도착한다")
+    @DisplayName("회원 탈퇴로 자녀를 일괄 삭제하면(Kafka 탈퇴 리스너가 부르는 처리) 삭제 이벤트도 릴레이로 도착한다")
     void relayDeletedOnMemberWithdrawn() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new MemberWithdrawnEvent(
-            UUID.randomUUID(), LocalDateTime.now(), new MemberWithdrawnEvent.Data(MEMBER_ID))));
+        childProfileService.deleteAll(MEMBER_ID);
 
         relayService.relay();
 
