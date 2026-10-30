@@ -12,7 +12,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * 회원이 발행한 가입 · 변경 이벤트를 커밋 뒤 Kafka로도 보낸다. 탈퇴는 아웃박스로 보낸다.
+ * 회원이 발행한 가입 · 변경 · 토큰 무효화 이벤트를 커밋 뒤 Kafka로도 보낸다. 탈퇴는 아웃박스로 보낸다.
  * 롤백되거나 트랜잭션 밖에서 발행하면 보내지 않는다(@DomainEventListener와 같은 조건). 새 트랜잭션은 필요 없다.
  * 같은 커밋 뒤에 도는 다른 리스너(@DomainEventListener, 순서 LOWEST_PRECEDENCE)보다 먼저 전송 대기열에 넣는다.
  * 실제 전송은 MemberEventSender가 다른 스레드에서 하므로, 브로커가 죽어 있어도 뒤의 리스너를 늦추지 않는다.
