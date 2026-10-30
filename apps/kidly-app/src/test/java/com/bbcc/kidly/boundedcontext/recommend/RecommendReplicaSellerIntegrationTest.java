@@ -8,9 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaSellerService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
-import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
@@ -18,68 +16,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 판매자 정보 변경됨을 받아 판매자 복사본에 반영하는 흐름을 확인한다.
- * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않고 발행만 트랜잭션 안에서 한다.
+ * 판매자 복사본 서비스가 실제 DB에서 판매자 정보 변경됨을 반영하는 규칙을 확인한다.
+ * Kafka로 받는 연결은 RecommendKafkaListenerIntegrationTest가 확인한다.
  */
 @IntegrationTest
 class RecommendReplicaSellerIntegrationTest {
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
-
-    @Autowired
     private RecommendReplicaSellerRepository replicaSellerRepository;
 
-    // 리스너의 예외는 커밋 뒤라 로그로만 남으므로, 반영 규칙은 서비스를 직접 불러 예외까지 확인한다
     @Autowired
     private RecommendReplicaSellerService replicaSellerService;
-
-    @Test
-    @DisplayName("판매자 정보 변경됨을 발행한 트랜잭션이 커밋되면 이벤트 값이 판매자 복사본에 저장된다")
-    void saveReplicaAfterCommit() {
-        publishInTransaction(RecommendReplicaSellerFixture.sellerApprovedEvent());
-
-        assertThat(replicaSellerRepository.findById(PRODUCT_A_SELLER_ID)).get()
-            .extracting(
-                RecommendReplicaSeller::getBusinessName,
-                RecommendReplicaSeller::getStatus,
-                RecommendReplicaSeller::getEventOccurredAt)
-            .containsExactly("소소한옷장", SellerStatus.ACTIVE, SELLER_CHANGED_AT);
-    }
-
-    @Test
-    @DisplayName("판매자 정보 변경됨을 발행한 트랜잭션이 롤백되면 판매자 복사본이 생기지 않는다")
-    void noReplicaAfterRollback() {
-        transactionTemplate.executeWithoutResult(status -> {
-            eventPublisher.publish(RecommendReplicaSellerFixture.sellerApprovedEvent());
-            status.setRollbackOnly();
-        });
-
-        assertThat(replicaSellerRepository.findById(PRODUCT_A_SELLER_ID)).isEmpty();
-    }
-
-    @Test
-    @DisplayName("판매자 복사본 반영이 실패해도 발행한 트랜잭션은 성공하고 복사본은 이전 값 그대로다")
-    void keepReplicaWhenListenerFails() {
-        publishInTransaction(RecommendReplicaSellerFixture.sellerApprovedEvent());
-        SellerChangedEvent withoutBusinessName = RecommendReplicaSellerFixture.sellerChangedEventAt(
-            null, SellerStatus.SUSPENDED, SELLER_CHANGED_AT.plusMinutes(1));
-
-        assertThatCode(() -> publishInTransaction(withoutBusinessName)).doesNotThrowAnyException();
-
-        assertThat(replicaSellerRepository.findById(PRODUCT_A_SELLER_ID)).get()
-            .extracting(
-                RecommendReplicaSeller::getBusinessName,
-                RecommendReplicaSeller::getStatus,
-                RecommendReplicaSeller::getEventOccurredAt)
-            .containsExactly("소소한옷장", SellerStatus.ACTIVE, SELLER_CHANGED_AT);
-    }
 
     @Test
     @DisplayName("INV-R01 이미 있는 판매자 복사본은 더 늦게 일어난 이벤트의 값으로 덮어써진다")
@@ -115,9 +64,5 @@ class RecommendReplicaSellerIntegrationTest {
                 RecommendReplicaSeller::getStatus,
                 RecommendReplicaSeller::getEventOccurredAt)
             .containsExactly("소소한옷장", SellerStatus.ACTIVE, SELLER_CHANGED_AT);
-    }
-
-    private void publishInTransaction(SellerChangedEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }
