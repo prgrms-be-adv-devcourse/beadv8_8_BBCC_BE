@@ -44,6 +44,10 @@ public class ElasticsearchProductSearch implements ProductSearch {
     static final int MAX_RESULT_WINDOW = 10_000;
 
     private static final String ON_SALE = "ON_SALE";
+    private static final int SERVER_ERROR = 500;
+    private static final int TOO_MANY_REQUESTS = 429;
+    private static final int NOT_FOUND = 404;
+    private static final String INDEX_NOT_FOUND = "index_not_found_exception";
 
     private final ElasticsearchClient client;
     private final SearchIndexProperties properties;
@@ -82,8 +86,10 @@ public class ElasticsearchProductSearch implements ProductSearch {
             .trackTotalHits(track -> track.enabled(true)));
         try {
             return client.search(request, ProductDocument.class);
-        } catch (IOException | ElasticsearchException e) {
-            throw new SearchUnavailableException("Elasticsearch에서 상품을 찾지 못했습니다. index=" + properties.productIndex(), e);
+        } catch (IOException e) {
+            throw unavailable("상품", properties.productIndex(), e);
+        } catch (ElasticsearchException e) {
+            throw unavailableOrRethrow("상품", properties.productIndex(), e);
         }
     }
 
@@ -142,8 +148,10 @@ public class ElasticsearchProductSearch implements ProductSearch {
         try {
             response = client.mget(MgetRequest.of(mget -> mget
                 .index(properties.sellerIndex()).ids(List.copyOf(sellerIds))), SellerDocument.class);
-        } catch (IOException | ElasticsearchException e) {
-            throw new SearchUnavailableException("Elasticsearch에서 판매자를 찾지 못했습니다. index=" + properties.sellerIndex(), e);
+        } catch (IOException e) {
+            throw unavailable("판매자", properties.sellerIndex(), e);
+        } catch (ElasticsearchException e) {
+            throw unavailableOrRethrow("판매자", properties.sellerIndex(), e);
         }
         Map<Long, String> businessNames = new HashMap<>();
         for (MultiGetResponseItem<SellerDocument> item : response.docs()) {
@@ -153,5 +161,22 @@ public class ElasticsearchProductSearch implements ProductSearch {
             }
         }
         return businessNames;
+    }
+
+    private static SearchUnavailableException unavailable(String target, String index, IOException e) {
+        return new SearchUnavailableException(
+            "Elasticsearch에 연결하지 못해 " + target + "을(를) 찾지 못했습니다. index=" + index, e);
+    }
+
+    // Elasticsearch 쪽 장애(5xx · 과부하 429 · 색인 없음)만 검색 불가로 바꾼다. 다시 하면 될 수 있어 503으로 알린다.
+    // 그 밖의 4xx는 요청을 잘못 만든 우리 쪽 버그라 그대로 던진다(500, 스택 트레이스와 함께 ERROR). 503으로 가리면 원인을 찾기 어렵다
+    private static RuntimeException unavailableOrRethrow(String target, String index, ElasticsearchException e) {
+        int status = e.status();
+        boolean indexMissing = status == NOT_FOUND && INDEX_NOT_FOUND.equals(e.error().type());
+        if (status >= SERVER_ERROR || status == TOO_MANY_REQUESTS || indexMissing) {
+            return new SearchUnavailableException(
+                "Elasticsearch가 " + target + " 조회를 처리하지 못했습니다. index=" + index + " status=" + status, e);
+        }
+        return e;
     }
 }

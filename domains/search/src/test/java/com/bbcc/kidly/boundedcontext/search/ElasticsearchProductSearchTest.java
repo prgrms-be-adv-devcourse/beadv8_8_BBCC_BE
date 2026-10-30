@@ -11,6 +11,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.ElasticsearchException;
+import co.elastic.clients.elasticsearch._types.ErrorResponse;
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOptions;
 import co.elastic.clients.elasticsearch._types.SortOrder;
@@ -40,6 +42,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -250,15 +254,43 @@ class ElasticsearchProductSearchTest {
             .hasMessageContaining("local-products");
     }
 
-    @Test
-    @DisplayName("Elasticsearch가 오류로 답하면(색인 없음 · 과부하 등) 검색 색인을 쓸 수 없다고 알린다")
-    void elasticsearchError() throws IOException {
-        when(client.search(any(SearchRequest.class), eq(ProductDocument.class)))
-            .thenThrow(ElasticsearchSearchProductRepositoryTest.errorWithStatus(503));
+    @ParameterizedTest(name = "{0} {1}")
+    @CsvSource({
+        "503, search_phase_execution_exception",
+        "500, exception",
+        "429, es_rejected_execution_exception",
+        "404, index_not_found_exception"})
+    @DisplayName("Elasticsearch 쪽 장애(5xx · 과부하 429 · 색인 없음)면 검색 색인을 쓸 수 없다고 알린다")
+    void elasticsearchUnavailable(int status, String type) throws IOException {
+        when(client.search(any(SearchRequest.class), eq(ProductDocument.class))).thenThrow(error(status, type));
 
         assertThatThrownBy(() -> productSearch.search(
             condition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20)))
-            .isInstanceOf(SearchUnavailableException.class);
+            .isInstanceOf(SearchUnavailableException.class)
+            .hasMessageContaining("status=" + status);
+    }
+
+    @Test
+    @DisplayName("요청이 잘못됐다는 오류(400 등)는 우리 쪽 버그라 그대로 던진다. 일시 장애(503)로 가리지 않는다")
+    void requestErrorIsNotUnavailable() throws IOException {
+        when(client.search(any(SearchRequest.class), eq(ProductDocument.class)))
+            .thenThrow(error(400, "search_phase_execution_exception"));
+
+        assertThatThrownBy(() -> productSearch.search(
+            condition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20)))
+            .isInstanceOf(ElasticsearchException.class);
+    }
+
+    @Test
+    @DisplayName("판매자 조회도 요청이 잘못됐다는 오류는 그대로 던진다")
+    void sellerRequestErrorIsNotUnavailable() throws IOException {
+        givenProducts(1, product(10L, 7L));
+        when(client.mget(any(MgetRequest.class), eq(SellerDocument.class)))
+            .thenThrow(error(400, "illegal_argument_exception"));
+
+        assertThatThrownBy(() -> productSearch.search(
+            condition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20)))
+            .isInstanceOf(ElasticsearchException.class);
     }
 
     @Test
@@ -272,6 +304,12 @@ class ElasticsearchProductSearchTest {
             condition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20)))
             .isInstanceOf(SearchUnavailableException.class)
             .hasMessageContaining("local-sellers");
+    }
+
+    private static ElasticsearchException error(int status, String type) {
+        return new ElasticsearchException("search", ErrorResponse.of(response -> response
+            .status(status)
+            .error(cause -> cause.type(type).reason("원피스 여아용 검색 중 오류"))));
     }
 
     private static ProductSearchCondition condition(Long categoryId, String keyword,
