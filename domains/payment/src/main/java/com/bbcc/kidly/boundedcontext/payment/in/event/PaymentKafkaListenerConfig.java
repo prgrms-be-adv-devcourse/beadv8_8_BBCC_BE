@@ -40,8 +40,11 @@ class PaymentKafkaListenerConfig {
 
     static final String MEMBER_EVENTS = "kidly.member.events";
     static final String ORDER_EVENTS = "kidly.order.events";
+    static final String SETTLEMENT_EVENTS = "kidly.settlement.events";
     static final String GROUP = "kidly.payment";
     static final String AUTO_STARTUP = "${kidly.payment.kafka.consumer.enabled:true}";
+    // 정산은 아직 Kafka로 보내지 않아 기본으로 꺼 둔다(#607). 정산의 Kafka 발행이 배포된 뒤에 켠다
+    static final String SETTLEMENT_AUTO_STARTUP = "${kidly.payment.kafka.settlement-consumer.enabled:false}";
     private static final String DLT_SUFFIX = ".payment.dlt";
 
     @Bean
@@ -52,6 +55,12 @@ class PaymentKafkaListenerConfig {
     @Bean
     NewTopic paymentOrderEventsDeadLetterTopic() {
         return TopicBuilder.name(ORDER_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
+    }
+
+    // 정산 토픽이 아직 없어도 DLT는 미리 선언해 둔다. 스위치를 켜는 날 따로 만들 필요가 없다
+    @Bean
+    NewTopic paymentSettlementEventsDeadLetterTopic() {
+        return TopicBuilder.name(SETTLEMENT_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다

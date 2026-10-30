@@ -156,7 +156,11 @@
 | `kidly.member.events` | `member.registered` | `PaymentMemberEventListener` | 지갑 만들기(`createIfAbsent`) | `kidly.member.events.payment.dlt` |
 | `kidly.order.events` | `order.payment-requested` · `order.cancelled` | `PaymentOrderEventListener` | 결제 · 환불(결제 전 취소 기록) | `kidly.order.events.payment.dlt` |
 
-- 정산 `settlement.payout-requested`는 정산이 Kafka로 보내지 않아 Spring 리스너(`app/SettlementPayoutRequestedListener`)로만 받는다
+- 정산 `settlement.payout-requested`는 Kafka로 받을 준비만 해 두고 **꺼 두었다**(#607). 정산이 아직 Kafka로 보내지 않는다(`kidly.settlement.events` 없음)
+  - 리스너 `in/event/PaymentSettlementEventListener`, DLT `kidly.settlement.events.payment.dlt`(미리 선언). 처리는 `PaymentEventHandler.settlementPayoutRequested`(정산서마다 한 번 입금)
+  - 별도 스위치 `kidly.payment.kafka.settlement-consumer.enabled`(기본 false, 환경 변수 `PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED`). false면 Kafka 리스너를 시작하지 않고 Spring 리스너(`app/SettlementPayoutRequestedListener`)로 받는다. true면 Spring 리스너는 뜨지 않는다
+  - **정산의 Kafka 발행이 develop에 머지 · 배포된 뒤에만 켠다.** 그 전에 켜면 지급 요청이 어디에도 도착하지 않는다
+  - 실제 정산 메시지로는 아직 검증하지 못했다. `PaymentSettlementKafkaReceiveIntegrationTest`가 팀 규칙 모양의 메시지로 본다
 - 처리는 `app/PaymentEventHandler` 한 곳에 있고 Kafka 리스너 · Spring 리스너가 같은 처리를 부른다. 같은 이벤트를 다시 받아도 결과는 1회분이다(지갑은 없을 때만, 주문당 결제 1건, 같은 취소는 한 번만 환불)
 - 헤더 `eventType`으로 고르고 받지 않는 종류(회원 변경 · 탈퇴, 주문 생성 · 구매확정)는 본문을 읽지 않고 건너뛴다. 모르는 필드는 무시한다
 - 실패 처리(`in/event/PaymentKafkaListenerConfig`): 한 건씩 처리 완료를 커밋하고, 실패하면 1초 간격으로 3번 더 시도한 뒤 받은 토픽의 DLT 파티션 0으로 보낸다

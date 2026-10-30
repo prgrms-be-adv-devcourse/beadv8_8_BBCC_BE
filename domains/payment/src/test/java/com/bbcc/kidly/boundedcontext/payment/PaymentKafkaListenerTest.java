@@ -12,11 +12,14 @@ import static org.mockito.Mockito.never;
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventHandler;
 import com.bbcc.kidly.boundedcontext.payment.in.event.PaymentMemberEventListener;
 import com.bbcc.kidly.boundedcontext.payment.in.event.PaymentOrderEventListener;
+import com.bbcc.kidly.boundedcontext.payment.in.event.PaymentSettlementEventListener;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
+import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
 import java.lang.reflect.Method;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,11 +52,13 @@ class PaymentKafkaListenerTest {
 
     private PaymentMemberEventListener memberListener;
     private PaymentOrderEventListener orderListener;
+    private PaymentSettlementEventListener settlementListener;
 
     @BeforeEach
     void setUp() {
         memberListener = new PaymentMemberEventListener(handler, JSON_MAPPER);
         orderListener = new PaymentOrderEventListener(handler, JSON_MAPPER);
+        settlementListener = new PaymentSettlementEventListener(handler, JSON_MAPPER);
     }
 
     @Test
@@ -94,6 +99,35 @@ class PaymentKafkaListenerTest {
         ArgumentCaptor<OrderCancelledEvent> cancelledCaptor = ArgumentCaptor.forClass(OrderCancelledEvent.class);
         then(handler).should().orderCancelled(cancelledCaptor.capture());
         assertThat(cancelledCaptor.getValue().data().reason()).isEqualTo("PAYMENT_EXPIRED");
+    }
+
+    @Test
+    @DisplayName("settlement.payout-requested는 정산 입금에 넘기고, 정산의 다른 종류는 건너뛴다")
+    void settlementEvents() {
+        SettlementPayoutRequestedEvent requested = new SettlementPayoutRequestedEvent(UUID.randomUUID(), NOW,
+            new SettlementPayoutRequestedEvent.Data(31L, MEMBER_ID, 270_000L, LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 31)));
+
+        settlementListener.on(record("kidly.settlement.events", "settlement.payout-requested",
+            envelope(requested, "settlement.payout-requested")));
+        settlementListener.on(record("kidly.settlement.events", "settlement.closed", "결제가 받지 않는 종류라 읽지 않는 본문"));
+
+        ArgumentCaptor<SettlementPayoutRequestedEvent> captor =
+            ArgumentCaptor.forClass(SettlementPayoutRequestedEvent.class);
+        then(handler).should().settlementPayoutRequested(captor.capture());
+        assertThat(captor.getValue().data().settlementId()).isEqualTo(31L);
+        assertThat(captor.getValue().data().amount()).isEqualTo(270_000L);
+    }
+
+    @Test
+    @DisplayName("정산 리스너는 별도 스위치(기본 꺼짐)로 시작한다. 정산이 Kafka로 보내기 전에는 켜지 않는다")
+    void settlementStartsBySeparateSwitch() throws NoSuchMethodException {
+        KafkaListener kafkaListener = PaymentSettlementEventListener.class.getMethod("on", ConsumerRecord.class)
+            .getAnnotation(KafkaListener.class);
+
+        assertThat(kafkaListener.autoStartup()).isEqualTo("${kidly.payment.kafka.settlement-consumer.enabled:false}");
+        assertThat(kafkaListener.topics()).containsExactly("kidly.settlement.events");
+        assertThat(kafkaListener.groupId()).isEqualTo("kidly.payment");
     }
 
     @Test

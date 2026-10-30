@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.payment.app.MemberRegisteredListener;
 import com.bbcc.kidly.boundedcontext.payment.app.OrderCancelledListener;
 import com.bbcc.kidly.boundedcontext.payment.app.OrderPaymentRequestedListener;
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventHandler;
+import com.bbcc.kidly.boundedcontext.payment.app.SettlementPayoutRequestedListener;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -46,5 +47,29 @@ class PaymentEventSwitchTest {
     @DisplayName("스위치 값이 없으면 Kafka로 받는 것으로 본다(기본 true)")
     void defaultIsKafka() {
         runner.run(context -> assertThat(context).doesNotHaveBean(MemberRegisteredListener.class));
+    }
+
+    @Test
+    @DisplayName("정산 지급 요청은 별도 스위치를 따른다: 기본(값 없음) · false면 Spring 리스너로 받고, true면 뜨지 않는다")
+    void settlementSwitch() {
+        ApplicationContextRunner settlement = new ApplicationContextRunner()
+            .withBean(PaymentEventHandler.class, () -> mock(PaymentEventHandler.class))
+            .withUserConfiguration(SettlementPayoutRequestedListener.class);
+
+        settlement.run(context -> assertThat(context).hasSingleBean(SettlementPayoutRequestedListener.class));
+        settlement.withPropertyValues("kidly.payment.kafka.settlement-consumer.enabled=false")
+            .run(context -> assertThat(context).hasSingleBean(SettlementPayoutRequestedListener.class));
+        settlement.withPropertyValues("kidly.payment.kafka.settlement-consumer.enabled=true")
+            .run(context -> assertThat(context).doesNotHaveBean(SettlementPayoutRequestedListener.class));
+    }
+
+    @Test
+    @DisplayName("회원 · 주문용 스위치는 정산 지급 요청 수신에 영향을 주지 않는다")
+    void memberOrderSwitchDoesNotAffectSettlement() {
+        new ApplicationContextRunner()
+            .withBean(PaymentEventHandler.class, () -> mock(PaymentEventHandler.class))
+            .withUserConfiguration(SettlementPayoutRequestedListener.class)
+            .withPropertyValues("kidly.payment.kafka.consumer.enabled=true")
+            .run(context -> assertThat(context).hasSingleBean(SettlementPayoutRequestedListener.class));
     }
 }
