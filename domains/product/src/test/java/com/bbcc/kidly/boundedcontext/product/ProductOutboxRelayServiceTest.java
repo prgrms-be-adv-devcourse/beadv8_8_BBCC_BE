@@ -80,7 +80,7 @@ class ProductOutboxRelayServiceTest {
         assertThat(failing.getAttemptCount()).isEqualTo(1);
         assertThat(failing.getLastError()).isEqualTo(error);
         assertThat(after.getAttemptCount()).isZero();
-        assertThat(output.getAll()).contains("WARN").contains(error)
+        assertThat(output.getAll()).contains("ERROR").contains(error)
             .doesNotContain(ProductOutboxMessageFixture.PAYLOAD);
     }
 

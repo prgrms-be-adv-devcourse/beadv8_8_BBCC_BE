@@ -25,14 +25,14 @@ public class ProductOutboxScheduler {
 
     // fixedDelay는 이전 실행이 끝난 뒤부터 주기를 재므로 릴레이가 겹치지 않는다.
     // 첫 실행도 한 주기 뒤로 미뤄, 기동 직후 바로 돌지 않게 한다(테스트는 주기를 길게 둬서 돌지 않는다).
-    // DB 오류 메시지에 행 값(본문)이 들어갈 수 있어 예외 종류만 남긴다.
+    // DB 오류 메시지에 행 값(본문)이 들어갈 수 있어 예외 종류만 남긴다. 운영 알림(Slack)이 ERROR 건수로 오므로 ERROR로 남긴다.
     @Scheduled(fixedDelayString = "${kidly.product.outbox.relay-interval}",
         initialDelayString = "${kidly.product.outbox.relay-interval}")
     public void relay() {
         try {
             relayService.relay();
         } catch (RuntimeException e) {
-            log.warn("상품 아웃박스 릴레이가 예외로 끝났습니다. error={}", e.getClass().getSimpleName());
+            log.error("상품 아웃박스 릴레이가 예외로 끝났습니다. error={}", e.getClass().getSimpleName());
         }
     }
 
@@ -42,7 +42,7 @@ public class ProductOutboxScheduler {
         try {
             cleanupService.cleanUp();
         } catch (RuntimeException e) {
-            log.warn("상품 아웃박스 정리가 예외로 끝났습니다. error={}", e.getClass().getSimpleName());
+            log.error("상품 아웃박스 정리가 예외로 끝났습니다. error={}", e.getClass().getSimpleName());
         }
     }
 }

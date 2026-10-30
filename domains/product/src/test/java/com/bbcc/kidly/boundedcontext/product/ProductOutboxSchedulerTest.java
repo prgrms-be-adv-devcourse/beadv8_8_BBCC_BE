@@ -35,7 +35,7 @@ class ProductOutboxSchedulerTest {
 
         assertThatCode(scheduler::relay).doesNotThrowAnyException();
 
-        assertThat(output.getAll()).contains("WARN").contains("DataIntegrityViolationException")
+        assertThat(output.getAll()).contains("ERROR").contains("DataIntegrityViolationException")
             .doesNotContain("비밀 본문");
     }
 
@@ -48,7 +48,7 @@ class ProductOutboxSchedulerTest {
 
         assertThatCode(scheduler::cleanUp).doesNotThrowAnyException();
 
-        assertThat(output.getAll()).contains("WARN").contains("DataIntegrityViolationException")
+        assertThat(output.getAll()).contains("ERROR").contains("DataIntegrityViolationException")
             .doesNotContain("비밀 본문");
     }
 }
