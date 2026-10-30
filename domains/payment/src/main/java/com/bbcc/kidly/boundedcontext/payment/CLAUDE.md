@@ -148,13 +148,22 @@
 | `ORDER_REFUNDED` | `OrderCancellationService` | memberId, walletId, orderId, paymentId, refundId, amount, balance, reason |
 | `PAYOUT_COMPLETED` | `SettlementPayoutService` (처음 처리한 정산서만, 0원 포함) | memberId(판매자), walletId, settlementId, amount, ledgerId, balance |
 
-## Kafka 발행 (`app/PaymentEventRelay`, #534)
-- 결제가 발행한 이벤트(`payment.*`)를 커밋 뒤 토픽 `kidly.payment.events`로도 보낸다. 롤백되거나 트랜잭션 밖에서 발행하면 보내지 않는다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
+## Kafka 발행 (아웃박스, #534 · #550)
+- 결제가 발행한 이벤트(`payment.completed` · `payment.failed` · `payment.payout-completed` · `payment.payout-failed`)를 토픽 `kidly.payment.events`로도 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
 - 키 = `correlationId`(결제는 주문 ID, 정산 지급은 정산서 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
 - 받는 쪽(주문 · 정산)은 아직 Spring 이벤트(`@DomainEventListener`)로 받는다. Kafka로 옮기는 건 받는 도메인이 하고, 그때 이미 쌓인 메시지는 처리된 것이므로 첫 배포에서 오프셋을 끝으로 옮긴다
-- 전송은 결제 전용 스레드 하나(`payment-kafka-sender`)에서 한다. 브로커가 죽어 `send`가 `max.block.ms`만큼 멈춰도 커밋 뒤 요청 스레드(같은 커밋 뒤의 주문 · 정산 리스너, API 응답)는 기다리지 않는다
-  - 스레드가 하나라 받은 순서대로 보낸다. Relay는 `HIGHEST_PRECEDENCE`로 다른 커밋 뒤 리스너보다 먼저 대기열에 넣어, 그 리스너가 새로 발행한 결제 이벤트보다 먼저 나가게 한다
-  - 대기열은 10,000건까지다. 넘치면 버리고 ERROR 로그를 남긴다. 앱이 내려갈 때는 남은 전송을 10초까지 기다리고, 못 보낸 건수를 ERROR로 남긴다
-- 보내지 못하면 예외 없이 본문 없는 ERROR 로그만 남긴다. Outbox가 없어 대기열에 있는 동안 앱이 죽거나 브로커가 꺼져 있으면 Kafka 쪽 메시지는 잃는다
-- 설정은 결제 안(`out.kafka.PaymentKafkaConfig`)에만 둔다: 토픽 선언(파티션 3 · 복제 1, 파티션 수는 바꾸지 않는다), 결제 전용 템플릿, 전송 스레드. 템플릿은 Boot 프로듀서 설정(주소)에 직렬화 · `max.block.ms`(3초)만 덮어쓰고 본문을 찍는 기본 실패 로그를 끈다. 빈으로 두지 않아 앱 `spring.kafka`와 Boot 기본 `KafkaTemplate`은 그대로다
-- 로컬 `bootRun`은 `docker compose up -d`로 Kafka를 함께 띄운다. 없으면 결제 이벤트마다 전송 스레드가 최대 3초 기다린 뒤 ERROR 로그를 남긴다(요청은 기다리지 않는다)
+- **저장** (`app/PaymentOutboxRecorder`): 커밋 직전(`BEFORE_COMMIT`)에 결제가 발행한 이벤트(`producer() = payment`)만 같은 트랜잭션에서 `payment.payment_outbox`에 저장한다. 결제 서비스의 발행 코드는 그대로다
+  - 업무가 롤백되면 메시지도 남지 않고, 저장이 실패하면 업무도 롤백된다. 트랜잭션 밖에서 발행한 이벤트는 저장되지 않는다(`@DomainEventListener`와 같은 조건)
+  - 같은 이벤트(같은 `eventId`)를 다시 발행하면 메시지를 하나 더 만들지 않는다(`ON CONFLICT (event_id) DO NOTHING`, 동시에 와도 업무를 실패시키지 않는다)
+  - 저장은 Kafka 보내기가 꺼져 있어도(`kidly.kafka.producer.enabled=false`) 한다
+- **릴레이** (`app/PaymentOutboxRelayService`, `in.scheduler.PaymentOutboxRelayScheduler`): 주기(`kidly.payment.outbox.relay-interval`, 기본 1초)마다 안 보낸 메시지를 `id` 순서로 `batch-size`(기본 100)건 보내고 `sent_at`을 기록한다
+  - 한 트랜잭션에서 PostgreSQL advisory lock(`pg_try_advisory_xact_lock`)을 얻은 쪽만 보낸다. 서버가 여러 대여도 한 번에 하나만 돌아 순서가 지켜진다. 못 얻으면 아무것도 하지 않는다
+  - 보내다 실패하면 그 메시지에 `attempt_count` · `last_error`를 남기고 멈춘다. 다음 주기에 같은 메시지부터 다시 보낸다(순서 유지). 횟수 제한은 없다
+  - 실패는 업무를 실패시키지 않고 본문 없는 WARN(`eventType` · `eventId` · `key` · 원인)만 남긴다
+  - 메시지는 **한 번 이상** 갈 수 있다(보낸 뒤 커밋 전에 죽으면 다시 보낸다). 받는 쪽은 `eventId`나 업무 상태로 거른다
+  - `kidly.kafka.producer.enabled`가 false면 릴레이 스케줄러를 만들지 않는다
+- **정리** (`app/PaymentOutboxCleanupService`, `in.scheduler.PaymentOutboxCleanupScheduler`): 매일 04:00(KST, `cleanup-cron`)에 보낸 지 `retention`(기본 7일, 브로커 보존 기간과 같음)이 지난 메시지를 지운다. 안 보낸 메시지는 지우지 않는다
+- **전송** (`out.kafka.KafkaPaymentEventSender`): 저장된 토픽 · 키 · 본문 그대로 보내고 브로커 응답을 기다린다(동기). 받았다고 답하지 않으면 `PaymentEventSendException`
+- 설정은 결제 안(`out.kafka.PaymentKafkaConfig`)에만 둔다: 토픽 선언(파티션 3 · 복제 1, 파티션 수는 바꾸지 않는다)과 결제 전용 템플릿. 템플릿은 Boot 프로듀서 설정(주소)에 직렬화 · `acks=all` · `enable.idempotence=true` · `max.block.ms`(3초) · `request.timeout.ms`(5초) · `delivery.timeout.ms`(10초) · `linger.ms`(0)를 덮어쓰고 본문을 찍는 기본 실패 로그를 끈다. 빈으로 두지 않아 앱 `spring.kafka`와 Boot 기본 `KafkaTemplate`은 그대로다
+  - 릴레이는 스케줄러 스레드(앱 전체 1개) · DB 트랜잭션을 쥔 채 기다리므로, 브로커가 죽어 있으면 한 주기가 최대 약 13초 걸려 그만큼 다른 스케줄러가 늦어질 수 있다
+- 로컬 `bootRun`은 `docker compose up -d`로 Kafka를 함께 띄운다. 없으면 메시지가 아웃박스에 쌓이고 릴레이가 주기마다 WARN을 남긴다. Kafka를 띄우면 쌓인 것부터 순서대로 보낸다
