@@ -27,17 +27,21 @@ public class ProductOutboxRelayService {
     public void relay() {
         List<ProductOutboxMessage> messages = outboxRepository.findUnsent(properties.batchSize());
         int sent = 0;
-        for (ProductOutboxMessage message : messages) {
-            if (!send(message)) {
-                break;
+        try {
+            for (ProductOutboxMessage message : messages) {
+                if (!send(message)) {
+                    break;
+                }
+                message.markSent(LocalDateTime.now());
+                outboxRepository.save(message);
+                sent++;
             }
-            message.markSent(LocalDateTime.now());
-            outboxRepository.save(message);
-            sent++;
-        }
-        // 보낸 메시지가 있을 때만 남긴다. 보낼 것이 없는 실행은 1초마다 돌기 때문이다.
-        if (sent > 0) {
-            log.info("상품 아웃박스 메시지를 보냈습니다. sent={}", sent);
+        } finally {
+            // 보낸 메시지가 있을 때만 남긴다. 보낼 것이 없는 실행은 짧은 주기(relay-interval)로 계속 돌기 때문이다.
+            // 저장이 DB 오류로 끝나 예외가 스케줄러로 넘어가도 그때까지 보낸 건수는 남긴다.
+            if (sent > 0) {
+                log.info("상품 아웃박스 메시지를 보냈습니다. sent={}", sent);
+            }
         }
     }
 
@@ -51,8 +55,9 @@ public class ProductOutboxRelayService {
             return true;
         } catch (ProductEventSendException e) {
             message.recordFailure(e.getMessage());
-            outboxRepository.save(message);
+            // 실패 기록을 저장하다 DB 오류가 나도 Kafka 실패 원인이 남도록 저장보다 먼저 남긴다
             log.error("상품 아웃박스 전송 실패로 이번 릴레이를 멈춥니다. attempt={} {}", message.getAttemptCount(), e.getMessage());
+            outboxRepository.save(message);
             return false;
         }
     }

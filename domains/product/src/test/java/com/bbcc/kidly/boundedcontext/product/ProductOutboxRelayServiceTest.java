@@ -2,7 +2,9 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -55,7 +57,8 @@ class ProductOutboxRelayServiceTest {
             assertThat(message.getSentAt()).isNotNull();
             assertThat(message.getAttemptCount()).isEqualTo(1);
         });
-        assertThat(output.getAll()).contains("INFO").contains("상품 아웃박스 메시지를 보냈습니다. sent=2");
+        assertThat(output.getAll().lines())
+            .anyMatch(line -> line.contains("INFO") && line.contains("상품 아웃박스 메시지를 보냈습니다. sent=2"));
     }
 
     @Test
@@ -91,9 +94,53 @@ class ProductOutboxRelayServiceTest {
         assertThat(failing.getAttemptCount()).isEqualTo(1);
         assertThat(failing.getLastError()).isEqualTo(error);
         assertThat(after.getAttemptCount()).isZero();
-        assertThat(output.getAll()).contains("ERROR").contains(error)
-            .contains("상품 아웃박스 메시지를 보냈습니다. sent=1")
-            .doesNotContain(ProductOutboxMessageFixture.PAYLOAD);
+        assertThat(output.getAll().lines())
+            .anyMatch(line -> line.contains("ERROR") && line.contains(error))
+            .anyMatch(line -> line.contains("INFO") && line.contains("상품 아웃박스 메시지를 보냈습니다. sent=1"));
+        assertThat(output.getAll()).doesNotContain(ProductOutboxMessageFixture.PAYLOAD);
+    }
+
+    @Test
+    @DisplayName("첫 메시지부터 보내지 못하면 실패만 ERROR로 남기고 보낸 건수 로그는 남기지 않는다")
+    void logNoSentCountWhenFirstMessageFails(CapturedOutput output) {
+        ProductOutboxMessage failing = message();
+        given(outboxRepository.findUnsent(100)).willReturn(List.of(failing));
+        willThrow(new ProductEventSendException("broker down", new IllegalStateException("broker down")))
+            .given(sender).send(failing);
+
+        relayService().relay();
+
+        assertThat(output.getAll().lines()).anyMatch(line -> line.contains("ERROR") && line.contains("broker down"));
+        assertThat(output.getAll()).doesNotContain("상품 아웃박스 메시지를 보냈습니다");
+    }
+
+    @Test
+    @DisplayName("보낸 결과를 저장하다 DB 오류로 끝나도, 그때까지 보낸 건수는 남기고 예외는 스케줄러로 넘긴다")
+    void logSentCountEvenWhenSaveFails(CapturedOutput output) {
+        ProductOutboxMessage first = message();
+        ProductOutboxMessage second = message();
+        given(outboxRepository.findUnsent(100)).willReturn(List.of(first, second));
+        // 첫 메시지를 저장할 때 이 스텁과 인자가 달라도 정상이다(엄격 스텁이 인자 불일치로 보지 않게)
+        lenient().doThrow(new IllegalStateException("DB 연결 실패")).when(outboxRepository).save(second);
+
+        assertThatThrownBy(() -> relayService().relay()).isInstanceOf(IllegalStateException.class);
+
+        assertThat(output.getAll().lines())
+            .anyMatch(line -> line.contains("INFO") && line.contains("상품 아웃박스 메시지를 보냈습니다. sent=1"));
+    }
+
+    @Test
+    @DisplayName("실패를 저장하다 DB 오류가 나도 Kafka 전송 실패 원인은 ERROR로 남긴다")
+    void logSendFailureBeforeSavingIt(CapturedOutput output) {
+        ProductOutboxMessage failing = message();
+        given(outboxRepository.findUnsent(100)).willReturn(List.of(failing));
+        willThrow(new ProductEventSendException("broker down", new IllegalStateException("broker down")))
+            .given(sender).send(failing);
+        willThrow(new IllegalStateException("DB 연결 실패")).given(outboxRepository).save(failing);
+
+        assertThatThrownBy(() -> relayService().relay()).isInstanceOf(IllegalStateException.class);
+
+        assertThat(output.getAll().lines()).anyMatch(line -> line.contains("ERROR") && line.contains("broker down"));
     }
 
     private ProductOutboxRelayService relayService() {
