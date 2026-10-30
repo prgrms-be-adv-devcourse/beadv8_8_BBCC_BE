@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class RecommendReplicaChildTest {
 
@@ -89,19 +88,36 @@ class RecommendReplicaChildTest {
             .containsExactly(new BigDecimal("120.0"), new BigDecimal("22.0"), BodyType.CHUNKY, null, later);
     }
 
-    @ParameterizedTest(name = "저장된 시각에서 {0}분")
-    @ValueSource(longs = {0, -1})
-    @DisplayName("INV-R01 같은 시각이거나 더 이르게 일어난 이벤트는 무시한다")
-    void ignoreChangeNotLater(long minutesFromStored) {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesNotLater")
+    @DisplayName("INV-R01 같은 시각이거나 더 이르게 일어난 이벤트는 필수 값이 없어도 무시한다")
+    void ignoreChangeNotLater(RecommendReplicaChild.ChangeInfo change) {
         RecommendReplicaChild replica = RecommendReplicaChild.create(
             RecommendFixture.childChangeAt(new BigDecimal("115.0"), CHILD_CHANGED_AT));
 
-        replica.applyIfNewer(
-            RecommendFixture.childChangeAt(new BigDecimal("120.0"), CHILD_CHANGED_AT.plusMinutes(minutesFromStored)));
+        replica.applyIfNewer(change);
 
         assertThat(replica)
             .extracting(RecommendReplicaChild::getHeightCm, RecommendReplicaChild::getEventOccurredAt)
             .containsExactly(new BigDecimal("115.0"), CHILD_CHANGED_AT);
+    }
+
+    // 이미 반영한 이벤트를 다시 받거나 이전 이벤트가 늦게 도착한 경우다. 값이 비어 있어도 예외 없이 무시해야 한다
+    static Stream<Named<RecommendReplicaChild.ChangeInfo>> changesNotLater() {
+        LocalDateTime earlier = CHILD_CHANGED_AT.minusMinutes(1);
+        return Stream.of(
+            Named.of("같은 시각", RecommendFixture.childChangeAt(HEIGHT, CHILD_CHANGED_AT)),
+            Named.of("1분 이른 시각", RecommendFixture.childChangeAt(HEIGHT, earlier)),
+            Named.of("같은 시각 · 회원 ID 없음",
+                change(CHILD_1_ID, null, HEIGHT, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, CHILD_CHANGED_AT)),
+            Named.of("1분 이른 시각 · 키 없음",
+                change(CHILD_1_ID, MEMBER_1_ID, null, WEIGHT, Gender.MALE, CHILD_1_BIRTH_DATE, earlier)),
+            Named.of("1분 이른 시각 · 몸무게 없음",
+                change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, null, Gender.MALE, CHILD_1_BIRTH_DATE, earlier)),
+            Named.of("1분 이른 시각 · 성별 없음",
+                change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, null, CHILD_1_BIRTH_DATE, earlier)),
+            Named.of("1분 이른 시각 · 생년월일 없음",
+                change(CHILD_1_ID, MEMBER_1_ID, HEIGHT, WEIGHT, Gender.MALE, null, earlier)));
     }
 
     @Test
