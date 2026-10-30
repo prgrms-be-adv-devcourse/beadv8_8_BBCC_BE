@@ -38,8 +38,8 @@ class ProductOutboxRelayServiceTest {
     private ProductEventSender sender;
 
     @Test
-    @DisplayName("보내지 않은 메시지를 받은 순서대로 보내고, 하나를 보낼 때마다 보낸 시각과 시도 1회를 저장한다")
-    void sendInOrderAndSaveEach() {
+    @DisplayName("보내지 않은 메시지를 받은 순서대로 보내고, 하나를 보낼 때마다 보낸 시각과 시도 1회를 저장한 뒤 보낸 건수를 남긴다")
+    void sendInOrderAndSaveEach(CapturedOutput output) {
         ProductOutboxMessage first = message();
         ProductOutboxMessage second = message();
         given(outboxRepository.findUnsent(100)).willReturn(List.of(first, second));
@@ -55,10 +55,21 @@ class ProductOutboxRelayServiceTest {
             assertThat(message.getSentAt()).isNotNull();
             assertThat(message.getAttemptCount()).isEqualTo(1);
         });
+        assertThat(output.getAll()).contains("INFO").contains("상품 아웃박스 메시지를 보냈습니다. sent=2");
     }
 
     @Test
-    @DisplayName("보내다 실패하면 그 메시지에 시도 1회와 오류를 저장하고 멈춘다. 로그에는 예외 메시지만 남기고 본문은 남기지 않는다")
+    @DisplayName("보낼 메시지가 없으면 보낸 건수 로그를 남기지 않는다")
+    void logNothingWhenNoMessage(CapturedOutput output) {
+        given(outboxRepository.findUnsent(100)).willReturn(List.of());
+
+        relayService().relay();
+
+        assertThat(output.getAll()).doesNotContain("상품 아웃박스 메시지를 보냈습니다");
+    }
+
+    @Test
+    @DisplayName("보내다 실패하면 그 메시지에 시도 1회와 오류를 저장하고 멈춘다. 로그에는 예외 메시지와 그때까지 보낸 건수만 남기고 본문은 남기지 않는다")
     void recordFailureAndStop(CapturedOutput output) {
         ProductOutboxMessage first = message();
         ProductOutboxMessage failing = message();
@@ -81,6 +92,7 @@ class ProductOutboxRelayServiceTest {
         assertThat(failing.getLastError()).isEqualTo(error);
         assertThat(after.getAttemptCount()).isZero();
         assertThat(output.getAll()).contains("ERROR").contains(error)
+            .contains("상품 아웃박스 메시지를 보냈습니다. sent=1")
             .doesNotContain(ProductOutboxMessageFixture.PAYLOAD);
     }
 

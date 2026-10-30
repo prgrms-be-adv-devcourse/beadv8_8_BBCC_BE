@@ -26,12 +26,18 @@ public class ProductOutboxRelayService {
 
     public void relay() {
         List<ProductOutboxMessage> messages = outboxRepository.findUnsent(properties.batchSize());
+        int sent = 0;
         for (ProductOutboxMessage message : messages) {
             if (!send(message)) {
-                return;
+                break;
             }
             message.markSent(LocalDateTime.now());
             outboxRepository.save(message);
+            sent++;
+        }
+        // 보낸 메시지가 있을 때만 남긴다. 보낼 것이 없는 실행은 1초마다 돌기 때문이다.
+        if (sent > 0) {
+            log.info("상품 아웃박스 메시지를 보냈습니다. sent={}", sent);
         }
     }
 
