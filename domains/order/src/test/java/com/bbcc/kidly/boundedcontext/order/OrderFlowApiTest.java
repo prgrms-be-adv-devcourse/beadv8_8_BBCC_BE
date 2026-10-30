@@ -13,8 +13,6 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
-import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
-import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -25,15 +23,14 @@ import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
-import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
-import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
+import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
+import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -53,7 +50,8 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 /**
  * 주문 전 구간 흐름: ④ 주문 · 결제 → ⑤ 배송 → ⑥ 구매확정.
  * 사용자 행동(담기 · 주문하기 · 발송 · 배송 완료 · 구매확정 · 조회)은 API로, 상품 · 자녀 도메인 사건은 공유 계약 이벤트를
- * 직접 발행해 흉내 낸다. 결제는 결제 도메인 리스너가 실제로 돈다(지갑이 있으면 결제 완료됨, 없으면 결제 실패됨).
+ * 직접 발행해 흉내 낸다. 주문 모듈 테스트에는 결제 도메인이 없으므로(#616) 결제 결과(결제 완료됨 · 결제 실패됨)도
+ * 결제 도메인이 보내던 모양 그대로 직접 넣는다. 결제 도메인이 실제로 결제하는지는 이 테스트가 보지 않는다.
  * 시간은 실행 시각 기준 상대값, 과거로 옮겨야 하는 마감 · 배송 완료 시각은 DB 값을 직접 바꾼다.
  * 스케줄러는 테스트 프로필에서 저절로 돌지 않으므로 메서드를 직접 부른다.
  */
@@ -97,9 +95,6 @@ class OrderFlowApiTest {
     private Order.Policy orderPolicy;
 
     @Autowired
-    private WalletRepository walletRepository;
-
-    @Autowired
     private OrderFlowEventRecorder recorder;
 
     @BeforeEach
@@ -114,7 +109,6 @@ class OrderFlowApiTest {
         addToCart("1", "1", 2);
         addToCart("2", null, 1);
         addToCart("1", null, 1);
-        saveBuyerWallet(ORDER_AMOUNT);
 
         Long orderId = placeOrder();
 
@@ -138,16 +132,8 @@ class OrderFlowApiTest {
                 .toList());
         assertThat(requested.data().items().stream().mapToLong(OrderPaymentRequestedEvent.Item::amount).sum())
             .isEqualTo(requested.data().amount());
-        List<PaymentCompletedEvent> completed = paymentCompleted(orderId);
-        assertThat(completed).hasSize(1);
-        // 실제 결제 모듈이 보낸 회원 · 주문상품별 금액이 주문과 정확히 같아야 결제완료가 된다(#215, 할인 · 반올림 차이 없음)
-        assertThat(completed.get(0).data().memberId()).isEqualTo(BUYER_ID);
-        assertThat(completed.get(0).data().items())
-            .extracting(PaymentCompletedEvent.Item::orderItemId, PaymentCompletedEvent.Item::amount)
-            .containsExactlyElementsOf(requested.data().items().stream()
-                .map(item -> tuple(item.orderItemId(), item.amount()))
-                .toList());
         assertThat(detail(orderId).items()).hasSize(2);
+        pay(orderId);
 
         OrderBody paid = detail(orderId);
         assertThat(paid.status()).isEqualTo("PAID");
@@ -196,9 +182,9 @@ class OrderFlowApiTest {
     @Test
     @DisplayName("자동 구매확정: 배송 완료 후 기간이 지난 주문상품은 스케줄러가 AUTO로 확정하고 이벤트를 발행한다")
     void autoConfirm() {
-        saveBuyerWallet(ORDER_AMOUNT);
         Long orderId = placeOrder();
         eventDelivery.deliver(stockDeducted(orderId));
+        pay(orderId);
         shipAndDeliver(SELLER_A_ID, orderId);
         ItemRow itemOfA = itemOfSeller(detail(orderId), SELLER_A_ID);
         jdbcTemplate.update("update orders.order_item set delivered_at = ? where id = ?",
@@ -216,7 +202,7 @@ class OrderFlowApiTest {
     }
 
     @Test
-    @DisplayName("결제 실패: 지갑이 없으면 결제 실패됨 → PAYMENT_FAILED로 취소 · order.cancelled, 장바구니는 그대로")
+    @DisplayName("결제 실패: 결제 실패됨 → PAYMENT_FAILED로 취소 · order.cancelled, 장바구니는 그대로")
     void paymentFailed() {
         addToCart("1", "1", 2);
         addToCart("2", null, 1);
@@ -225,9 +211,8 @@ class OrderFlowApiTest {
             .map(OrderCreatedEvent.Item::orderItemId).toList();
 
         eventDelivery.deliver(stockDeducted(orderId));
+        eventDelivery.deliver(PaymentEvents.insufficientBalance(orderService.getOrder(BUYER_ID, orderId), BUYER_ID));
 
-        assertThat(recorder.events(PaymentFailedEvent.class))
-            .filteredOn(event -> event.data().orderId().equals(orderId)).hasSize(1);
         OrderBody order = detail(orderId);
         assertThat(order.status()).isEqualTo("CANCELLED");
         assertThat(order.cancelReason()).isEqualTo("PAYMENT_FAILED");
@@ -370,10 +355,10 @@ class OrderFlowApiTest {
     @Test
     @DisplayName("자동 구매확정(여러 배치): 기간이 지난 주문상품 4건(주문 2건 × 판매자 2명)을 batch 2로 한 실행에 끝까지 AUTO 확정한다")
     void autoConfirmAcrossBatches() {
-        saveBuyerWallet(ORDER_AMOUNT * 2);
         List<Long> orderIds = List.of(placeOrder(), placeOrder());
         for (Long orderId : orderIds) {
             eventDelivery.deliver(stockDeducted(orderId));
+            pay(orderId);
             shipAndDeliver(SELLER_A_ID, orderId);
             shipAndDeliver(SELLER_B_ID, orderId);
             jdbcTemplate.update("update orders.order_item set delivered_at = ? where order_id = ?",
@@ -401,7 +386,6 @@ class OrderFlowApiTest {
     @Test
     @DisplayName("중복 이벤트: 같은 재고 차감됨 두 번 → 결제 요청 1번, 같은 결제 완료됨 두 번 → 판매자당 배송 1건")
     void duplicateEvents() {
-        saveBuyerWallet(ORDER_AMOUNT);
         Long orderId = placeOrder();
         StockDeductedEvent stockDeducted = stockDeducted(orderId);
 
@@ -410,10 +394,10 @@ class OrderFlowApiTest {
 
         assertThat(recorder.events(OrderPaymentRequestedEvent.class))
             .filteredOn(event -> event.data().orderId().equals(orderId)).hasSize(1);
-        List<PaymentCompletedEvent> completed = paymentCompleted(orderId);
-        assertThat(completed).hasSize(1);
+        PaymentCompletedEvent completed = PaymentEvents.completed(orderService.getOrder(BUYER_ID, orderId), BUYER_ID);
 
-        eventDelivery.deliver(completed.get(0));
+        eventDelivery.deliver(completed);
+        eventDelivery.deliver(completed);
 
         OrderBody order = detail(orderId);
         assertThat(order.status()).isEqualTo("PAID");
@@ -438,7 +422,6 @@ class OrderFlowApiTest {
             .jsonPath("$.items[0].optionId").isEqualTo("30")
             .jsonPath("$.items[0].size").value(size -> assertThat(size).isNull())
             .jsonPath("$.items[0].purchasable").isEqualTo(true);
-        saveBuyerWallet(5_000L);
 
         URI location = client.post().uri(ORDERS_PATH)
             .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
@@ -452,6 +435,7 @@ class OrderFlowApiTest {
         assertThat(location).isNotNull();
         Long orderId = Long.valueOf(location.getPath().substring((ORDERS_PATH + "/").length()));
         eventDelivery.deliver(stockDeducted(orderId));
+        pay(orderId);
 
         assertThat(detail(orderId).status()).isEqualTo("PAID");
         client.get().uri(ORDERS_PATH + "/" + orderId)
@@ -590,10 +574,11 @@ class OrderFlowApiTest {
             .orElseThrow();
     }
 
-    private void saveBuyerWallet(long balance) {
-        Wallet wallet = Wallet.create(BUYER_ID);
-        wallet.deposit(balance);
-        walletRepository.save(wallet);
+    /**
+     * 결제 도메인이 결제 요청대로 결제한 것처럼 주문과 같은 결제 완료됨을 넣는다.
+     */
+    private void pay(Long orderId) {
+        eventDelivery.deliver(PaymentEvents.completed(orderService.getOrder(BUYER_ID, orderId), BUYER_ID));
     }
 
     private void expire(Long orderId) {
@@ -603,12 +588,6 @@ class OrderFlowApiTest {
 
     private StockDeductedEvent stockDeducted(Long orderId) {
         return new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(), new StockDeductedEvent.Data(orderId));
-    }
-
-    private List<PaymentCompletedEvent> paymentCompleted(Long orderId) {
-        return recorder.events(PaymentCompletedEvent.class).stream()
-            .filter(event -> event.data().orderId().equals(orderId))
-            .toList();
     }
 
     /**

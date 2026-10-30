@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
+import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxRelayService;
@@ -23,8 +24,6 @@ import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
-import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
-import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
 import java.time.LocalDateTime;
@@ -120,10 +119,8 @@ class OrderOutboxIntegrationTest {
 
         eventDelivery.deliver(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductedEvent.Data(order.orderId())));
-        // 주문 모듈 테스트에는 결제 도메인이 없으므로 결제 실패(지갑 없음과 같은 모양)를 직접 넣는다(#616)
-        eventDelivery.deliver(new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new PaymentFailedEvent.Data(null, order.orderId(), BUYER_ID, order.totalAmount(),
-                PaymentFailureCode.WALLET_NOT_FOUND, LocalDateTime.now())));
+        // 주문 모듈 테스트에는 결제 도메인이 없으므로 결제 실패를 직접 넣는다(#616)
+        eventDelivery.deliver(PaymentEvents.insufficientBalance(order, BUYER_ID));
 
         List<UUID> published = List.of(
             recorder.events(OrderCreatedEvent.class).getFirst().eventId(),

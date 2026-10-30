@@ -8,6 +8,8 @@ import static com.bbcc.kidly.boundedcontext.order.in.web.SellerOrderController.S
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
@@ -15,11 +17,9 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
-import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
-import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
-import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
+import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
+import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,7 +34,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.springframework.transaction.support.TransactionTemplate;
 
 @FunctionalTest
 class SellerOrderApiTest {
@@ -53,7 +52,7 @@ class SellerOrderApiTest {
     private TestTokens tokens;
 
     @Autowired
-    private TransactionTemplate transactionTemplate;
+    private OrderService orderService;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -63,9 +62,6 @@ class SellerOrderApiTest {
 
     @Autowired
     private SellerReplicaRepository sellerReplicaRepository;
-
-    @Autowired
-    private WalletRepository walletRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -78,7 +74,6 @@ class SellerOrderApiTest {
         productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
             2L, 2L, OTHER_SELLER_ID, "상품 B", null, "120", 30_000L, 2L, "ON_SALE", null, false, OCCURRED_AT)));
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
-        saveBuyerWallet(80_000L);
         orderId = placePaidOrder();
     }
 
@@ -220,11 +215,6 @@ class SellerOrderApiTest {
         @Test
         @DisplayName("그 판매자 배송이 2건이면 size=1 첫 페이지는 hasNext true · totalPages 2")
         void firstPageHasNext() {
-            transactionTemplate.executeWithoutResult(status -> {
-                Wallet wallet = walletRepository.findByMemberId(BUYER_ID).orElseThrow();
-                wallet.deposit(80_000L);
-                walletRepository.save(wallet);
-            });
             placePaidOrder();
 
             client.get().uri(SELLER_ORDERS_PATH + "?page=0&size=1")
@@ -501,6 +491,8 @@ class SellerOrderApiTest {
 
         eventDelivery.deliver(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductedEvent.Data(id)));
+        // 주문 모듈 테스트에는 결제 도메인이 없으므로 결제 완료됨을 직접 넣는다(#616)
+        eventDelivery.deliver(PaymentEvents.completed(orderService.getOrder(BUYER_ID, id), BUYER_ID));
         return String.valueOf(id);
     }
 
@@ -514,15 +506,6 @@ class SellerOrderApiTest {
             .getResponseBody();
         assertThat(page).isNotNull();
         return page.content().get(0).sellerOrderId();
-    }
-
-    /**
-     * 결제 도메인이 order.payment-requested를 받아 실제로 결제하므로, 지갑이 없으면 payment.failed로 주문이 취소된다.
-     */
-    private void saveBuyerWallet(long balance) {
-        Wallet wallet = Wallet.create(BUYER_ID);
-        wallet.deposit(balance);
-        walletRepository.save(wallet);
     }
 
     private record SellerOrderPage(List<SellerOrderRow> content) {

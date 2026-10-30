@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderRows;
+import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -18,9 +19,6 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
-import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
-import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
-import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
 import java.lang.reflect.RecordComponent;
@@ -102,7 +100,7 @@ class OrderPaymentRequestIntegrationTest {
         OrderDetail order = place();
         StockDeductedEvent stockDeducted = stockDeducted(order.orderId());
         eventDelivery.deliver(stockDeducted);
-        eventDelivery.deliver(paymentFailed(order));
+        eventDelivery.deliver(PaymentEvents.insufficientBalance(order, BUYER_ID));
         assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("CANCELLED");
         long version = orderRows.versionOf(order.orderId());
 
@@ -122,7 +120,7 @@ class OrderPaymentRequestIntegrationTest {
         OrderDetail order = place();
         StockDeductedEvent stockDeducted = stockDeducted(order.orderId());
         eventDelivery.deliver(stockDeducted);
-        eventDelivery.deliver(paymentCompleted(order));
+        eventDelivery.deliver(PaymentEvents.completed(order, BUYER_ID));
         assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PAID");
         long version = orderRows.versionOf(order.orderId());
 
@@ -174,24 +172,6 @@ class OrderPaymentRequestIntegrationTest {
 
     private static List<String> fieldNames(Class<? extends Record> type) {
         return Arrays.stream(type.getRecordComponents()).map(RecordComponent::getName).toList();
-    }
-
-    private static PaymentCompletedEvent paymentCompleted(OrderDetail order) {
-        return new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
-            500L, order.orderId(), BUYER_ID, order.totalAmount(),
-            order.items().stream()
-                .map(item -> new PaymentCompletedEvent.Item(item.orderItemId(), item.amount()))
-                .toList(),
-            LocalDateTime.now()));
-    }
-
-    /**
-     * 지갑이 없을 때 결제 도메인이 내던 실패와 같은 모양(저장하지 않은 실패라 paymentId null).
-     */
-    private static PaymentFailedEvent paymentFailed(OrderDetail order) {
-        return new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentFailedEvent.Data(
-            null, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.WALLET_NOT_FOUND,
-            LocalDateTime.now()));
     }
 
     private static StockDeductedEvent stockDeducted(Long orderId) {
