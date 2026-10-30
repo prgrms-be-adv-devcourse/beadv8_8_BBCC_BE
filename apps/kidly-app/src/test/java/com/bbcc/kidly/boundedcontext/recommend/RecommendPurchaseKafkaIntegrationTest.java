@@ -32,6 +32,7 @@ import tools.jackson.databind.json.JsonMapper;
 class RecommendPurchaseKafkaIntegrationTest {
 
     private static final String ORDER_TOPIC = "kidly.order.events";
+    private static final String ORDER_DLT = "kidly.order.events.recommend.dlt";
     private static final LocalDateTime CONFIRMED_AT = LocalDateTime.of(2026, 10, 30, 12, 0);
 
     @Autowired
@@ -82,6 +83,21 @@ class RecommendPurchaseKafkaIntegrationTest {
                 PurchaseRecord::getSize,
                 PurchaseRecord::getConfirmedAt)
             .containsExactly(orderId, 1L, 11L, 21L, 31L, "120", CONFIRMED_AT);
+    }
+
+    @Test
+    @DisplayName("INV-R03 같은 구매확정을 두 번 받아도 구매 기록은 한 줄이고 DLT로 보내지 않는다")
+    void keepOneRecordForSameConfirmation() throws Exception {
+        Long orderItemId = newId();
+        Long orderId = newId();
+        var event = purchaseConfirmed(orderItemId, orderId);
+
+        messages.send(ORDER_TOPIC, event);
+        var second = messages.send(ORDER_TOPIC, event);
+
+        messages.awaitProcessed(ORDER_TOPIC, second);
+        assertThat(recordsOf(orderItemId)).hasSize(1);
+        assertThat(messages.deadLetters(ORDER_DLT, String.valueOf(orderId))).isEmpty();
     }
 
     private List<PurchaseRecord> recordsOf(Long orderItemId) {
