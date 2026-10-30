@@ -11,3 +11,17 @@ toss:
 payment:
   key-encryption:
     key: ${PAYMENT_KEY_ENCRYPTION_KEY:}
+
+# 결제 이벤트 아웃박스(#550). 업무 트랜잭션이 저장한 메시지를 릴레이가 Kafka(kidly.payment.events)로 보낸다
+# 값이 비었거나 형식이 맞지 않으면 키 이름이 나오는 오류로 기동 실패 (PaymentOutboxProperties)
+kidly:
+  payment:
+    outbox:
+      # 릴레이 주기(1초 이상, 이전 실행이 끝난 뒤부터 잰다). 실패하면 멈췄다가 다음 주기에 같은 메시지부터 보낸다
+      relay-interval: ${PAYMENT_OUTBOX_RELAY_INTERVAL:PT1S}
+      # 한 번 실행에서 보내는 최대 건수(1 이상). 남은 건은 다음 주기에 보낸다
+      batch-size: ${PAYMENT_OUTBOX_BATCH_SIZE:100}
+      # 보낸 메시지를 남겨 두는 기간(1초 이상). Kafka 보존 기간(7일)과 같다. 안 보낸 메시지는 지우지 않는다
+      retention: ${PAYMENT_OUTBOX_RETENTION:P7D}
+      # 정리 실행 시각(cron, 초 분 시 일 월 요일, KST). "-"면 정리하지 않는다
+      cleanup-cron: ${PAYMENT_OUTBOX_CLEANUP_CRON:0 0 4 * * *}
