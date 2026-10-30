@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.outbox;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
@@ -43,13 +44,18 @@ public class OrderOutboxRelayService {
             Limit.of(properties.batchSize()));
         int sent = 0;
         for (OrderOutboxMessage message : unsent) {
-            try {
-                sender.send(message);
-            } catch (RuntimeException e) {
-                message.recordFailure(e.getClass().getSimpleName() + ": " + e.getMessage());
-                log.warn("아웃박스 전송 실패: outboxId={} eventId={} eventType={} attempt={} error={}", message.getId(),
-                    message.getEventId(), message.getEventType(), message.getAttemptCount(), message.getLastError());
-                return new OutboxRelayResult(OutboxRelayResult.Outcome.STOPPED, unsent.size(), sent);
+            // 보내는 동안 로그에 그 메시지의 eventId · eventType · correlationId(= 키)를 붙인다(#603)
+            try (var ignored = OrderLogContext.open(message.getEventId().toString(), message.getEventType(),
+                message.getMessageKey())) {
+                try {
+                    sender.send(message);
+                } catch (RuntimeException e) {
+                    message.recordFailure(e.getClass().getSimpleName() + ": " + e.getMessage());
+                    log.warn("아웃박스 전송 실패: outboxId={} eventId={} eventType={} attempt={} error={}",
+                        message.getId(), message.getEventId(), message.getEventType(), message.getAttemptCount(),
+                        message.getLastError());
+                    return new OutboxRelayResult(OutboxRelayResult.Outcome.STOPPED, unsent.size(), sent);
+                }
             }
             message.markSent(LocalDateTime.now());
             sent++;
