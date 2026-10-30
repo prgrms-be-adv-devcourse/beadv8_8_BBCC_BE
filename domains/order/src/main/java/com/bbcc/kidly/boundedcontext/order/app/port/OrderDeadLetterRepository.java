@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.app.port;
 import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter;
 import com.bbcc.kidly.boundedcontext.order.domain.deadletter.ReceivedDeadLetter;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * 주문 DLT 메시지 저장소(#601). 구현은 out/persistence (Spring Data가 만든다).
@@ -16,4 +18,15 @@ public interface OrderDeadLetterRepository {
     void saveReceived(ReceivedDeadLetter letter);
 
     Optional<OrderDeadLetter> findById(Long id);
+
+    /**
+     * 상태가 맞는 메시지. 실패 유형 · eventType은 null이면 거르지 않는다. 최근 받은 것부터(같으면 ID 큰 것부터).
+     */
+    Page<OrderDeadLetter> findPage(OrderDeadLetter.Status status, OrderDeadLetter.FailureType failureType,
+        String eventType, Pageable pageable);
+
+    /**
+     * findPage와 같은 조건의 건수. 목록을 읽을 수 없는 큰 page의 빈 페이지에 전체 건수를 채운다.
+     */
+    long countPage(OrderDeadLetter.Status status, OrderDeadLetter.FailureType failureType, String eventType);
 }

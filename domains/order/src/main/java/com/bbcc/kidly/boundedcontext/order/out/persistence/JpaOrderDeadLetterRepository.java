@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter;
 import com.bbcc.kidly.boundedcontext.order.domain.deadletter.ReceivedDeadLetter;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -37,4 +39,29 @@ public interface JpaOrderDeadLetterRepository extends Repository<OrderDeadLetter
             updated_at = excluded.updated_at
         """)
     void saveReceived(@Param("letter") ReceivedDeadLetter letter);
+
+    @Override
+    @Query(value = """
+        select d from OrderDeadLetter d
+        where d.status = :status
+          and (:failureType is null or d.failureType = :failureType)
+          and (:eventType is null or d.eventType = :eventType)
+        order by d.lastReceivedAt desc, d.id desc
+        """, countQuery = """
+        select count(d) from OrderDeadLetter d
+        where d.status = :status
+          and (:failureType is null or d.failureType = :failureType)
+          and (:eventType is null or d.eventType = :eventType)
+        """)
+    Page<OrderDeadLetter> findPage(OrderDeadLetter.Status status, OrderDeadLetter.FailureType failureType,
+        String eventType, Pageable pageable);
+
+    @Override
+    @Query("""
+        select count(d) from OrderDeadLetter d
+        where d.status = :status
+          and (:failureType is null or d.failureType = :failureType)
+          and (:eventType is null or d.eventType = :eventType)
+        """)
+    long countPage(OrderDeadLetter.Status status, OrderDeadLetter.FailureType failureType, String eventType);
 }
