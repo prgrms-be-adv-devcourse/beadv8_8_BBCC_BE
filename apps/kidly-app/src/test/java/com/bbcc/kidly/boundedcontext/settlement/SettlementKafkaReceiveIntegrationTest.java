@@ -4,6 +4,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
+import com.bbcc.kidly.boundedcontext.settlement.in.SettlementKafkaListenerTestGuard;
+import com.bbcc.kidly.boundedcontext.settlement.in.SettlementOrderKafkaListener;
+import com.bbcc.kidly.boundedcontext.settlement.in.SettlementPaymentKafkaListener;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.payment.domain.PayoutFailureCode;
@@ -40,14 +43,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 정산이 구매확정 · 지급 결과를 Kafka로 받아 Spring 이벤트로 받았을 때와 같이 처리하는지 실제 Kafka로 본다.
- * 테스트 설정은 스위치를 꺼 다른 테스트가 Spring 경로로 돌게 하므로, 여기서만 정산 리스너를 직접 켜고 끈다.
+ * 테스트 설정은 스위치를 꺼 다른 테스트가 Spring 경로로 돌게 하고, 컨텍스트를 다시 쓸 때도 리스너가 켜지지 않게
+ * SettlementKafkaListenerTestGuard가 리스너를 들고 있으므로, 여기서만 가드에서 꺼내 직접 켜고 끈다.
  * 메시지는 보내는 쪽과 같은 모양(키 = correlationId, 헤더 eventType · eventId, 본문 = 공통 칸 7개 + data)으로 직접 넣는다.
  * 앞 테스트가 남긴 주문 · 결제 메시지도 함께 읽으므로, 이 테스트의 값은 무작위 ID로 골라 본다.
  * 정산서 ID는 테이블을 비울 때 다시 1부터 시작해 다른 테스트와 겹치므로, DLT는 이 테스트가 보낸 eventId로 골라 본다.
@@ -61,14 +64,14 @@ class SettlementKafkaReceiveIntegrationTest {
     private static final String PAYMENT_DLT = "kidly.payment.events.settlement.dlt";
     private static final String GROUP = "kidly.settlement";
     private static final List<String> LISTENER_IDS =
-        List.of("settlementOrderKafkaListener", "settlementPaymentKafkaListener");
+        List.of(SettlementOrderKafkaListener.ID, SettlementPaymentKafkaListener.ID);
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
-    private KafkaListenerEndpointRegistry registry;
+    private SettlementKafkaListenerTestGuard listenerGuard;
 
     @Autowired
     private KafkaContainer kafka;
@@ -94,7 +97,7 @@ class SettlementKafkaReceiveIntegrationTest {
     @BeforeEach
     void startListeners() {
         for (String id : LISTENER_IDS) {
-            MessageListenerContainer listener = registry.getListenerContainer(id);
+            MessageListenerContainer listener = listenerGuard.listener(id);
             listener.start();
             listeners.add(listener);
         }
