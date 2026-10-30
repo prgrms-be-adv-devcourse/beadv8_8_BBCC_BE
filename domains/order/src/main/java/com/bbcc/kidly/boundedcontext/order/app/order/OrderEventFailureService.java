@@ -182,8 +182,9 @@ public class OrderEventFailureService {
                 new StockDeductionFailedCommand(orderId, failure.getStockFailures().stream()
                     .map(item -> new StockDeductionFailedCommand.Item(item.orderItemId(), item.reason()))
                     .toList()),
-                admin);
-            case PAYMENT_FAILED -> orderService.cancelForPaymentFailure(orderId, admin);
+                admin, WaitingRecord.eventFailure(failure.getId()));
+            case PAYMENT_FAILED -> orderService.cancelForPaymentFailure(orderId, admin,
+                WaitingRecord.eventFailure(failure.getId()));
         }
     }
 

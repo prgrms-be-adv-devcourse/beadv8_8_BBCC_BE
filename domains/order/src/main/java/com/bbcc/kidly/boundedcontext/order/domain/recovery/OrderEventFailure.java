@@ -37,6 +37,8 @@ import lombok.NoArgsConstructor;
 public class OrderEventFailure extends OrderTimeEntity {
 
     public static final String ORDER_EVENT_UNIQUE = "uk_order_event_failure_order_event";
+    /** 주문이 다른 경로로 취소돼 닫혔다(#598). 실패 코드 칸에 남기는 이유 */
+    public static final String ORDER_CANCELLED = "ORDER_CANCELLED";
 
     public enum EventType {
         STOCK_DEDUCTED,
@@ -138,6 +140,17 @@ public class OrderEventFailure extends OrderTimeEntity {
     public void cancel(LocalDateTime now) {
         requirePending();
         this.status = Status.CANCELLED;
+        this.lastAttemptedAt = now;
+    }
+
+    /**
+     * 주문이 다른 경로(구매자 · 만료 · 재고 부족 · 결제 실패 등)로 취소돼 재처리할 것이 없다(#598). 기록만 닫고 이유를 실패 코드에 남긴다.
+     * PENDING만(저장소가 PENDING만 읽어 넘긴다).
+     */
+    public void closeForOrderCancelled(LocalDateTime now) {
+        requirePending();
+        this.status = Status.CANCELLED;
+        this.failureCode = ORDER_CANCELLED;
         this.lastAttemptedAt = now;
     }
 

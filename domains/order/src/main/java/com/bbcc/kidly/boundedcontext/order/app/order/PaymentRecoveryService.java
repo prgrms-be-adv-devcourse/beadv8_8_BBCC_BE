@@ -170,7 +170,8 @@ public class PaymentRecoveryService {
         }
         OrderActor admin = OrderActor.admin(adminId, OrderActor.RECOVERY_CANCEL);
         if (orderStatus == Order.Status.PENDING_PAYMENT) {
-            orderService.cancelForPaymentFailure(recovery.getOrderId(), admin);
+            orderService.cancelForPaymentFailure(recovery.getOrderId(), admin,
+                WaitingRecord.paymentRecovery(recovery.getId()));
         }
         LocalDateTime now = LocalDateTime.now();
         PaymentRecovery.Status from = recovery.getStatus();

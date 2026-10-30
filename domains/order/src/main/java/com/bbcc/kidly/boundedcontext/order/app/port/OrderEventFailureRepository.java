@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.port;
 
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.OrderEventFailure;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +32,11 @@ public interface OrderEventFailureRepository {
      */
     Optional<OrderEventFailure> findByOrderIdAndEventTypeForUpdateNoWait(Long orderId,
         OrderEventFailure.EventType eventType);
+
+    /**
+     * 주문의 상태별 기록을 행 쓰기 잠금으로 읽되, 다른 트랜잭션(재처리 · 종료)이 잡고 있는 기록은 기다리지 않고 건너뛴다(#598).
+     */
+    List<OrderEventFailure> findByOrderIdAndStatusForUpdateSkipLocked(Long orderId, OrderEventFailure.Status status);
 
     /**
      * 모든 기록. 최근 기록부터.

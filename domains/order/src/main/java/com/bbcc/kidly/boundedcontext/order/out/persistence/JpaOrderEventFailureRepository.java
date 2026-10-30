@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventFailureRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.OrderEventFailure;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -33,4 +34,13 @@ public interface JpaOrderEventFailureRepository extends Repository<OrderEventFai
     @Query("select f from OrderEventFailure f where f.orderId = :orderId and f.eventType = :eventType")
     Optional<OrderEventFailure> findByOrderIdAndEventTypeForUpdateNoWait(Long orderId,
         OrderEventFailure.EventType eventType);
+
+    /**
+     * SELECT … FOR UPDATE SKIP LOCKED(잠금 대기 시간 -2 = 건너뜀). 다른 트랜잭션이 잡고 있는 행은 결과에서 빠진다.
+     */
+    @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))
+    @Query("select f from OrderEventFailure f where f.orderId = :orderId and f.status = :status order by f.id")
+    List<OrderEventFailure> findByOrderIdAndStatusForUpdateSkipLocked(Long orderId, OrderEventFailure.Status status);
 }

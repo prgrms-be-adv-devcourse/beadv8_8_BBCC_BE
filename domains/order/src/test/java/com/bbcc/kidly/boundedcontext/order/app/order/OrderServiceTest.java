@@ -102,6 +102,9 @@ class OrderServiceTest {
     @Mock
     private OrderEventOutbox outbox;
 
+    @Mock
+    private WaitingRecordCloser waitingRecordCloser;
+
     @Captor
     private ArgumentCaptor<DomainEvent> published;
 
@@ -110,7 +113,8 @@ class OrderServiceTest {
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
-            deliveryRepository, sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY);
+            deliveryRepository, sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY,
+            waitingRecordCloser);
     }
 
     @Nested

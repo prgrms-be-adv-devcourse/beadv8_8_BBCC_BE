@@ -31,4 +31,13 @@ public interface JpaPaymentRecoveryRepository extends Repository<PaymentRecovery
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0"))
     @Query("select r from PaymentRecovery r where r.orderId = :orderId")
     Optional<PaymentRecovery> findByOrderIdForUpdateNoWait(Long orderId);
+
+    /**
+     * SELECT … FOR UPDATE SKIP LOCKED(잠금 대기 시간 -2 = 건너뜀). 다른 트랜잭션이 잡고 있는 행은 결과에서 빠진다.
+     */
+    @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))
+    @Query("select r from PaymentRecovery r where r.orderId = :orderId and r.status = :status")
+    Optional<PaymentRecovery> findByOrderIdAndStatusForUpdateSkipLocked(Long orderId, PaymentRecovery.Status status);
 }

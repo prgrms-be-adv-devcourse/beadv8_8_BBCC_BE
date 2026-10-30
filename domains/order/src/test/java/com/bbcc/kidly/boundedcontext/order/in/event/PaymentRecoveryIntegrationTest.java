@@ -29,6 +29,8 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.web.PaymentRecoveryRetry;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.app.order.WaitingRecord;
+import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -290,7 +292,8 @@ class PaymentRecoveryIntegrationTest {
     }
 
     @Test
-    @DisplayName("기록 저장과 만료가 경합해 주문이 이미 취소됐으면 재처리 · 취소 모두 기록만 CANCELLED, 결제완료 · 추가 order.cancelled 없음")
+    @DisplayName("기록이 대기 중인 주문이 취소되면 기록은 그때 닫히고(ORDER_CANCELLED, #598) 재처리는 409 · 취소는 그대로 200, "
+        + "결제완료 · 추가 order.cancelled 없음")
     void alreadyCancelledOrder() {
         OrderDetail first = placeWithCart(BUYER_ID);
         OrderDetail second = placeWithCart(BUYER_ID + 1);
@@ -301,7 +304,13 @@ class PaymentRecoveryIntegrationTest {
             orderService.cancelForPaymentFailure(order.orderId());
         }
 
-        assertThat(recoveryRetry.retry(recoveryOf(first).getId(), ADMIN_ID).status()).isEqualTo("CANCELLED");
+        assertThat(List.of(recoveryOf(first), recoveryOf(second))).allSatisfy(recovery -> {
+            assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.CANCELLED);
+            assertThat(recovery.getFailureCode()).isEqualTo("ORDER_CANCELLED");
+        });
+        assertThatThrownBy(() -> recoveryRetry.retry(recoveryOf(first).getId(), ADMIN_ID))
+            .isInstanceOfSatisfying(BusinessException.class,
+                error -> assertThat(error.getErrorCode()).isEqualTo(OrderErrorCode.RECOVERY_CLOSED));
         assertThat(recoveryService.cancel(recoveryOf(second).getId(), ADMIN_ID).status()).isEqualTo("CANCELLED");
 
         for (OrderDetail order : List.of(first, second)) {
@@ -445,7 +454,9 @@ class PaymentRecoveryIntegrationTest {
 
         Throwable retryError = whileRecordLocked(recoveryId,
             recovery -> {
-                orderService.cancelForPaymentFailure(order.orderId());
+                // 관리자 결제 반영 취소(PaymentRecoveryService.cancel)처럼: 자기 기록은 빼고 주문을 취소한 뒤 그 기록을 닫는다(#598)
+                orderService.cancelForPaymentFailure(order.orderId(),
+                    OrderActor.admin(ADMIN_ID, OrderActor.RECOVERY_CANCEL), WaitingRecord.paymentRecovery(recoveryId));
                 recovery.cancel(LocalDateTime.now());
             },
             () -> recoveryRetry.retry(recoveryId, ADMIN_ID));

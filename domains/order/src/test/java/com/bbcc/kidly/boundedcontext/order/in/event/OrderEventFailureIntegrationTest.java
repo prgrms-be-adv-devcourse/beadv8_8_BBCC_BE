@@ -261,7 +261,8 @@ class OrderEventFailureIntegrationTest {
     }
 
     @Test
-    @DisplayName("주문이 이미 만료 취소됐으면 재처리는 기록만 CANCELLED, 주문 사유는 PAYMENT_EXPIRED 그대로 · 추가 order.cancelled 없음")
+    @DisplayName("주문이 만료 취소되면 그 기록은 그때 닫히고(ORDER_CANCELLED, #598) 그 뒤 재처리는 409, "
+        + "주문 사유는 PAYMENT_EXPIRED 그대로 · 추가 order.cancelled 없음")
     void alreadyExpiredOrder() {
         OrderDetail order = place(BUYER_ID);
         Long failureId = failAndGetId(order, OrderEventFailure.EventType.STOCK_DEDUCTION_FAILED);
@@ -270,9 +271,13 @@ class OrderEventFailureIntegrationTest {
             LocalDateTime.now().minusMinutes(1), order.orderId());
         orderService.cancelForPaymentExpiry(order.orderId());
 
-        OrderEventFailureResult result = failureRetry.retry(failureId, ADMIN_ID);
-
-        assertThat(result.status()).isEqualTo("CANCELLED");
+        assertThat(failureService.getFailure(failureId)).satisfies(failure -> {
+            assertThat(failure.status()).isEqualTo("CANCELLED");
+            assertThat(failure.failureCode()).isEqualTo("ORDER_CANCELLED");
+        });
+        assertThatThrownBy(() -> failureRetry.retry(failureId, ADMIN_ID))
+            .isInstanceOfSatisfying(BusinessException.class,
+                error -> assertThat(error.getErrorCode()).isEqualTo(OrderErrorCode.EVENT_FAILURE_CLOSED));
         Order stored = orderRepository.findById(order.orderId()).orElseThrow();
         assertThat(stored.getStatus()).isEqualTo(Order.Status.CANCELLED);
         assertThat(stored.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
