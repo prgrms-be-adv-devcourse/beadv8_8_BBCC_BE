@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
@@ -53,6 +54,10 @@ class OrderSchedulerBatchIntegrationTest {
 
     private static final Long BUYER_ID = 1L;
 
+    // 결제 이벤트 Kafka 리스너가 없어 만료를 늘 허락한다(#561)
+    @Autowired
+    private PaymentExpiryGate paymentExpiryGate;
+
     @Autowired
     private OrderService orderService;
 
@@ -72,7 +77,8 @@ class OrderSchedulerBatchIntegrationTest {
         OrderService failingFirst = mock(OrderService.class, delegatesTo(orderService));
         doThrow(new IllegalStateException("계속 실패")).when(failingFirst).cancelForPaymentExpiry(ids.getFirst());
 
-        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS).expireOverduePayments();
+        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate)
+            .expireOverduePayments();
 
         assertThat(statusOf(ids.getFirst())).isEqualTo("PENDING_PAYMENT");
         for (Long id : ids.subList(1, 5)) {
@@ -84,7 +90,8 @@ class OrderSchedulerBatchIntegrationTest {
     @DisplayName("max-per-run(3)에 닿으면 그 실행은 앞의 3건만 처리하고 멈추며, 나머지는 다음 실행에서 처리된다")
     void stopsAtMaxPerRunAndContinuesNextRun() {
         List<Long> ids = overdueOrders(5);
-        OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS);
+        OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS,
+            paymentExpiryGate);
 
         scheduler.expireOverduePayments();
 
@@ -105,7 +112,8 @@ class OrderSchedulerBatchIntegrationTest {
         doThrow(new IllegalStateException("계속 실패")).when(failingFirst)
             .confirmAutomatically(orderIds.getFirst(), firstItemId);
 
-        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS).autoConfirm();
+        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate)
+            .autoConfirm();
 
         assertThat(itemStatusOf(orderIds.getFirst())).isEqualTo("ORDERED");
         for (Long orderId : orderIds.subList(1, 4)) {
@@ -117,7 +125,8 @@ class OrderSchedulerBatchIntegrationTest {
     @DisplayName("자동 구매확정도 max-per-run(3)에 닿으면 주문상품 5건 중 앞의 3건만 확정하고, 다음 실행에서 나머지를 확정한다")
     void autoConfirmStopsAtMaxPerRun() {
         List<Long> orderIds = deliveredLongAgo(5);
-        OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS);
+        OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS,
+            paymentExpiryGate);
 
         scheduler.autoConfirm();
 
@@ -226,7 +235,7 @@ class OrderSchedulerBatchIntegrationTest {
     }
 
     private OrderScheduler instance() {
-        return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10), INTERVALS);
+        return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate);
     }
 
     // 진 쪽이 남긴 건별 실패 WARN 줄의 주문 ID(한 줄 = 한 건)

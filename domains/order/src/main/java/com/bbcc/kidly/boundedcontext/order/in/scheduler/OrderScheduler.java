@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -30,6 +31,7 @@ public class OrderScheduler {
     private final OrderSchedulerProperties properties;
     // 주기 값의 바인딩 검증(1초 이상)이 @Scheduled 등록보다 먼저 돌아 키 이름이 나오는 오류로 실패하게 하려고 주입한다
     private final OrderScheduleIntervals intervals;
+    private final PaymentExpiryGate paymentExpiryGate;
 
     /**
      * 배송 완료 후 기간이 지난 주문상품을 자동 구매확정한다. 커서는 주문상품 ID. 한 건 = 트랜잭션 하나,
@@ -56,9 +58,13 @@ public class OrderScheduler {
 
     /**
      * 결제 마감이 지난 주문을 만료 취소한다. 커서는 주문 ID.
+     * 결제 이벤트를 Kafka로 받는 중이면 처리 대기분이 없을 때만 돈다(#561, PaymentExpiryGate). 아니면 이번 주기를 건너뛴다.
      */
     @Scheduled(fixedDelayString = "${kidly.order.payment-expiry-interval}")
     public void expireOverduePayments() {
+        if (!paymentExpiryGate.allowsRun()) {
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         Run run = runInBatches(
             (afterId, limit) -> orderService.findOverduePaymentOrderIds(now, afterId, limit),

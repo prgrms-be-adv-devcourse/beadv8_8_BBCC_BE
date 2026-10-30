@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
 import java.io.IOException;
@@ -280,7 +281,7 @@ class OrderSettingsTest {
         @Bean
         OrderScheduler orderScheduler(OrderService orderService, OrderSchedulerProperties properties,
             OrderScheduleIntervals intervals) {
-            return new OrderScheduler(orderService, properties, intervals);
+            return new OrderScheduler(orderService, properties, intervals, mock(PaymentExpiryGate.class));
         }
     }
 
