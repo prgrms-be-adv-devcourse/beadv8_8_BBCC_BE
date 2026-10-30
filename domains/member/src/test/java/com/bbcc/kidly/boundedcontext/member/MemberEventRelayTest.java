@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import com.bbcc.kidly.boundedcontext.member.app.MemberEventRelay;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberEventSender;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.util.UUID;
@@ -42,6 +43,16 @@ class MemberEventRelayTest {
     void skipOtherProducer() {
         var event = new SellerChangedEvent(UUID.randomUUID(), NOW,
             new SellerChangedEvent.Data(1L, "소소한옷장", SellerStatus.ACTIVE));
+
+        memberEventRelay.relay(event);
+
+        then(memberEventSender).should(never()).send(any());
+    }
+
+    @Test
+    @DisplayName("탈퇴는 커밋 뒤 바로 넘기지 않는다(아웃박스 릴레이가 보낸다)")
+    void skipWithdrawn() {
+        var event = new MemberWithdrawnEvent(UUID.randomUUID(), NOW, new MemberWithdrawnEvent.Data(1L));
 
         memberEventRelay.relay(event);
 

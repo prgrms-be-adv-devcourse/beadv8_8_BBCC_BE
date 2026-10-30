@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
+import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -45,6 +46,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -55,6 +57,7 @@ import org.testcontainers.kafka.KafkaContainer;
  * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
  * 회원 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 회원 ID · 키로 걸러 본다.
  * 자녀마다 삭제 이벤트를 발행하는 것은 서비스 동작이라 ChildProfileServiceIntegrationTest가 본다.
+ * 회원은 탈퇴를 아웃박스에 저장하고 릴레이가 보낸다(#562). 테스트 설정은 릴레이를 돌리지 않으므로 발행한 뒤 직접 부른다.
  */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
@@ -83,6 +86,12 @@ class ChildProfileMemberEventKafkaIntegrationTest {
 
     @Autowired
     private ChildProfileRepository childProfileRepository;
+
+    @Autowired
+    private MemberOutboxRelayService memberOutboxRelayService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
@@ -130,7 +139,9 @@ class ChildProfileMemberEventKafkaIntegrationTest {
         var event = memberWithdrawn();
 
         publishInTransaction(event);
-        publishInTransaction(event);
+        // 릴레이가 보낸 뒤 커밋 전에 멈춘 것처럼 보낸 기록을 지워, 같은 메시지를 한 번 더 보낸다
+        jdbcTemplate.update("update member.member_outbox set sent_at = null where event_id = ?", event.eventId());
+        memberOutboxRelayService.relay();
 
         // 두 번째에는 지울 자녀가 없어 결과가 바뀌지 않으므로, 그룹이 두 번째 메시지까지 처리 완료를 표시할 때까지 기다린다
         awaitProcessed(event.eventId());
@@ -180,6 +191,7 @@ class ChildProfileMemberEventKafkaIntegrationTest {
 
     private void publishInTransaction(MemberWithdrawnEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
+        memberOutboxRelayService.relay();
     }
 
     private MemberWithdrawnEvent memberWithdrawn() {
