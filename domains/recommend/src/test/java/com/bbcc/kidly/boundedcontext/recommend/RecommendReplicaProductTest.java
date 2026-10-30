@@ -330,6 +330,7 @@ class RecommendReplicaProductTest {
                 change(null, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER))),
             Named.of("판매자 ID", () -> RecommendReplicaProduct.create(
                 change(PRODUCT_A_ID, null, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER))),
+            Named.of("상품명", () -> RecommendReplicaProduct.create(changeWithoutName())),
             Named.of("판매 상태", () -> RecommendReplicaProduct.create(
                 change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, null, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER))),
             Named.of("상품 등록 시각", () -> RecommendReplicaProduct.create(
@@ -368,6 +369,7 @@ class RecommendReplicaProductTest {
             Named.of("상품 정보", null),
             Named.of("판매자 ID",
                 change(PRODUCT_A_ID, null, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER)),
+            Named.of("상품명", changeWithoutName()),
             Named.of("판매 상태",
                 change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, null, PRODUCT_A_REGISTERED_AT, OPTIONS, LATER)),
             Named.of("상품 등록 시각",
@@ -376,6 +378,12 @@ class RecommendReplicaProductTest {
                 change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, null, LATER)),
             Named.of("이벤트 발생 시각", change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE,
                 PRODUCT_A_REGISTERED_AT, OPTIONS, null)));
+    }
+
+    // 상품명만 빠진, 저장된 시각보다 늦은 상품 변경이다
+    private static RecommendReplicaProduct.ChangeInfo changeWithoutName() {
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, null,
+            ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS, LATER);
     }
 
     private static RecommendReplicaProduct.ChangeInfo change(Long productId, Long sellerId, ProductStatus status,

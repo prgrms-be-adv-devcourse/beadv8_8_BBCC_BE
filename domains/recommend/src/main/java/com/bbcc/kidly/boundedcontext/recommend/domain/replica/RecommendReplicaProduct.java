@@ -133,6 +133,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     private static void requireValues(ChangeInfo info) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(info.sellerId(), "sellerId는 필수입니다");
+        requireNonNull(info.name(), "name은 필수입니다");
         requireNonNull(info.status(), "status는 필수입니다");
         requireNonNull(info.registeredAt(), "registeredAt은 필수입니다");
         requireNonNull(info.options(), "options는 필수입니다");
