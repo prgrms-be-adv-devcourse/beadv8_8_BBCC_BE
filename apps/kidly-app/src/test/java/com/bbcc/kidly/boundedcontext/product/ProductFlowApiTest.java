@@ -20,9 +20,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 판매자가 등록한 상품이 구매자의 상품 목록 · 상세와 자녀의 사이즈 추천 · 맞춤 상품 목록까지 이어지는지 HTTP 요청만으로 확인한다.
- * 판매자 정보 변경됨 · 자녀 정보 변경됨 · 상품 정보 변경됨은 테스트가 발행하지 않는다. 판매자 승인 · 자녀 등록 · 판매 시작 API가
- * 발행하고, 상품과 추천의 리스너가 실제로 받아 판매자 복사본 · 자녀 복사본 · 상품 복사본 · 검색용 표를 만든다.
+ * 판매자가 등록한 상품이 구매자의 상품 목록 · 상세까지 이어지는지 HTTP 요청만으로 확인한다.
+ * 판매자 정보 변경됨 · 상품 정보 변경됨은 테스트가 발행하지 않는다. 판매자 승인 · 판매 시작 API가 발행하고,
+ * 상품의 리스너가 실제로 받아 판매자 복사본 · 검색용 표를 만든다.
+ * 추천은 이 이벤트들을 Kafka로 받으므로(Kafka가 없는 기능 테스트에서는 받지 않는다) 추천까지 이어지는지는
+ * RecommendKafkaListenerIntegrationTest가 확인한다.
  * 상품 유형과 카테고리는 API가 없는 기준 데이터라서 매 테스트 전에 저장한다.
  */
 @FunctionalTest
@@ -30,15 +32,11 @@ class ProductFlowApiTest {
 
     private static final String APPLY_PATH = "/api/v1/members/me/seller-application";
     private static final String APPROVE_PATH = "/api/v1/admin/seller-applications/{applicationId}/approve";
-    private static final String CHILDREN_PATH = "/api/v1/children";
     private static final String SELLER_PRODUCTS_PATH = "/api/v1/seller/products";
     private static final String PRODUCTS_PATH = "/api/v1/products";
-    private static final String SIZE_RECOMMENDATION_PATH = "/api/v1/products/{productId}/size-recommendation";
-    private static final String RECOMMENDED_PRODUCTS_PATH = "/api/v1/children/{childId}/recommended-products";
 
     // 판매자 ID는 회원 ID와 같다
     private static final long SELLER_ID = 7L;
-    private static final long BUYER_ID = 1L;
     private static final long ADMIN_ID = 99L;
     private static final String BUSINESS_NAME = "키들리 상점";
 
@@ -59,23 +57,20 @@ class ProductFlowApiTest {
     }
 
     @Test
-    @DisplayName("판매자가 등록한 상품은 판매를 시작해야 구매자 목록 · 상세와 자녀의 사이즈 추천 · 맞춤 목록에 나온다")
-    void registeredProductReachesBuyerAndRecommendation() {
+    @DisplayName("판매자가 등록한 상품은 판매를 시작해야 구매자 목록 · 상세에 나온다")
+    void registeredProductReachesBuyer() {
         approveSeller();
-        String childId = registerChild();
         String productId = registerProductA();
 
-        expectHiddenBeforeSale(productId, childId);
+        expectHiddenBeforeSale(productId);
 
         startSale(productId);
 
         expectInBuyerList(productId);
         expectBuyerDetail(productId);
-        expectSizeRecommendation(productId, childId);
-        expectInRecommendedProducts(productId, childId);
     }
 
-    // 회원 7이 판매자 신청을 하고 관리자가 승인한다. 승인이 보낸 판매자 정보 변경됨으로 상품과 추천이 상호명을 받는다
+    // 회원 7이 판매자 신청을 하고 관리자가 승인한다. 승인이 보낸 판매자 정보 변경됨으로 상품이 상호명을 받는다
     private void approveSeller() {
         AtomicReference<Object> applicationId = new AtomicReference<>();
         client.post().uri(APPLY_PATH)
@@ -96,25 +91,10 @@ class ProductFlowApiTest {
             .jsonPath("$.status").isEqualTo("APPROVED");
     }
 
-    // 회원 1이 2019-01-01생 남아(키 115.0cm, 몸무게 20.0kg, 체형 보통, 선호 핏 여유)를 등록하고 자녀 ID를 받는다
-    private String registerChild() {
-        AtomicReference<Object> childId = new AtomicReference<>();
-        client.post().uri(CHILDREN_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(Map.of("name", "첫째", "birthDate", "2019-01-01", "gender", "MALE", "heightCm", 115.0,
-                "weightKg", 20.0, "bodyType", "NORMAL", "preferredFit", "LOOSE"))
-            .exchange()
-            .expectStatus().isCreated()
-            .expectBody()
-            .jsonPath("$.id").value(childId::set);
-        return String.valueOf(childId.get());
-    }
-
     // 판매자 7이 상품 A를 등록한다. 네이비 110(105 ~ 115cm) · 네이비 120(115 ~ 125cm)이고 둘 다 재고 10, 25,000원이다
     private String registerProductA() {
         Map<String, Object> body = productA(saved);
-        // 맞춤 목록은 추천 사이즈를 살 수 있는 상품만 담으므로, 추천 사이즈가 될 120에도 재고를 넣는다
+        // 상세에서 두 옵션이 모두 구매 가능으로 보이도록 120에도 재고를 넣는다
         options(body).get(1).put("initialQuantity", 10);
         AtomicReference<String> productId = new AtomicReference<>();
         client.post().uri(SELLER_PRODUCTS_PATH)
@@ -129,8 +109,8 @@ class ProductFlowApiTest {
         return productId.get();
     }
 
-    // 판매를 시작하기 전에는 상품 정보 변경됨이 나가지 않아서, 검색용 표와 추천의 상품 복사본에 상품이 없다
-    private void expectHiddenBeforeSale(String productId, String childId) {
+    // 판매를 시작하기 전에는 상품 정보 변경됨이 나가지 않아서, 검색용 표에 상품이 없다
+    private void expectHiddenBeforeSale(String productId) {
         client.get().uri(PRODUCTS_PATH)
             .exchange()
             .expectStatus().isOk()
@@ -139,14 +119,6 @@ class ProductFlowApiTest {
         client.get().uri(PRODUCTS_PATH + "/{productId}", productId)
             .exchange()
             .expectStatus().isNotFound();
-        recommendSize(productId, childId)
-            .expectStatus().isNotFound()
-            .expectBody()
-            .jsonPath("$.detail").isEqualTo("상품을 찾을 수 없습니다.");
-        recommendedProducts(childId)
-            .expectStatus().isOk()
-            .expectBody()
-            .jsonPath("$.content.length()").isEqualTo(0);
     }
 
     private void startSale(String productId) {
@@ -202,49 +174,6 @@ class ProductFlowApiTest {
             .jsonPath("$.options[*].optionName").isEqualTo(List.of("색상: 네이비 / 사이즈: 110", "색상: 네이비 / 사이즈: 120"))
             .jsonPath("$.options[*].purchasable").isEqualTo(List.of(true, true))
             .jsonPath("$.options[*].stockStatus").isEqualTo(List.of("AVAILABLE", "AVAILABLE"));
-    }
-
-    // 키 115cm는 110 · 120 두 후보에 들고, 선호 핏이 여유라 큰 120을 추천한다
-    private void expectSizeRecommendation(String productId, String childId) {
-        recommendSize(productId, childId)
-            .expectStatus().isOk()
-            .expectBody()
-            .jsonPath("$").value(Map.class, body -> assertThat(body)
-                .containsEntry("productId", productId)
-                .containsEntry("childId", childId)
-                .containsEntry("recommendedSize", "120")
-                .containsEntry("fit", "ROOMY")
-                .containsEntry("candidateSizes", List.of("110", "120"))
-                .containsEntry("notices", List.of())
-                .containsEntry("lastPurchasedSize", null));
-    }
-
-    // 맞춤 목록의 상호명은 추천의 판매자 복사본에서, 상품 값은 추천의 상품 복사본에서 온다. 추천 사이즈 120을 살 수 있어 목록에 담긴다
-    private void expectInRecommendedProducts(String productId, String childId) {
-        recommendedProducts(childId)
-            .expectStatus().isOk()
-            .expectBody()
-            .jsonPath("$.content.length()").isEqualTo(1)
-            .jsonPath("$.content[0]").value(Map.class, card -> assertThat(card)
-                .hasSize(6)
-                .containsEntry("productId", productId)
-                .containsEntry("name", "상품 A")
-                .containsEntry("thumbnailUrl", null)
-                .containsEntry("businessName", BUSINESS_NAME)
-                .containsEntry("minPrice", 25_000)
-                .containsEntry("recommendedSize", "120"));
-    }
-
-    private RestTestClient.ResponseSpec recommendSize(String productId, String childId) {
-        return client.get().uri(SIZE_RECOMMENDATION_PATH + "?childId={childId}", productId, childId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
-            .exchange();
-    }
-
-    private RestTestClient.ResponseSpec recommendedProducts(String childId) {
-        return client.get().uri(RECOMMENDED_PRODUCTS_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
-            .exchange();
     }
 
     // 상품 목록 API가 받는 항목 값 형식 "항목code:값ID"다
