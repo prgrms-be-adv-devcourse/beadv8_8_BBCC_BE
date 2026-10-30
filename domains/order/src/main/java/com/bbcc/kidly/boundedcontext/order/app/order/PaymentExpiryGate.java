@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * 정상 결제된 주문을 결제 마감 만료로 취소할 수 있어서다.
  * <ul>
  *   <li>주문의 결제 이벤트 Kafka 리스너가 실행 중이 아니면(없음 · 멈춤 = Spring으로 받음) 확인 없이 실행</li>
- *   <li>실행 중이면 처리 대기량을 확인해 대기 0일 때만 실행. 대기 있음 · 확인 실패 · 배정 전이면 건너뛰고 WARN(이유 코드만)</li>
+ *   <li>실행 중이면 처리 대기량을 확인해 대기 0일 때만 실행. 대기 있음 · 확인 실패 · 배정 전이면 건너뛰고 INFO(이유 코드만)</li>
  *   <li>연속으로 건너뛴 시간이 10분을 넘으면 ERROR 한 번(만료가 멈춤), 다시 실행되면 INFO 한 줄과 함께 연속 기록을 지운다</li>
  * </ul>
  * 연속 기록은 이 빈의 메모리에 둔다(서버마다 만료 스케줄러가 돌고 각자 판단한다. 재시작하면 처음부터 센다).
@@ -67,7 +67,8 @@ public class PaymentExpiryGate {
             skippingSince = now;
         }
         Duration skipped = Duration.between(skippingSince, now);
-        log.warn("결제 마감 만료 건너뜀(결제 이벤트 처리 대기): reason={} lag={} skippedFor={}",
+        // 저절로 맞춰지는 대기(처리 중인 결제 이벤트)는 조치가 필요 없어 INFO, 조치가 필요한 멈춤은 10분 ERROR가 알린다(#561-2)
+        log.info("결제 마감 만료 건너뜀(결제 이벤트 처리 대기): reason={} lag={} skippedFor={}",
             reasonOf(check), check.lag(), skipped);
         if (!alerted && skipped.compareTo(ALERT_AFTER) > 0) {
             alerted = true;

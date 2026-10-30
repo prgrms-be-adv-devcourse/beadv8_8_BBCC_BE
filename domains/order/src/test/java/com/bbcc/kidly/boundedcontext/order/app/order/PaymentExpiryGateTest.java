@@ -26,7 +26,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 /**
  * 결제 마감 만료 실행 조건(#561): 주문의 결제 이벤트 Kafka 리스너가 실행 중일 때만 처리 대기량을 확인한다.
  * 실행 중이 아니면(리스너 없음 · 멈춤 = 지금처럼 Spring으로 받음) 확인 없이 실행, 실행 중이면 대기 0일 때만 실행하고
- * 대기 있음 · 확인 실패 · 배정 전이면 이번 주기를 건너뛴다. 연속으로 건너뛴 시간이 10분을 넘으면 ERROR 한 번, 다시 실행되면 INFO.
+ * 대기 있음 · 확인 실패 · 배정 전이면 이번 주기를 건너뛴다(INFO — 저절로 맞춰지는 대기라 조치 대상이 아님). 연속으로 건너뛴 시간이 10분을 넘으면 ERROR 한 번, 다시 실행되면 INFO.
  */
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class PaymentExpiryGateTest {
@@ -65,13 +65,13 @@ class PaymentExpiryGateTest {
 
     @ParameterizedTest(name = "{1}")
     @MethodSource("skipped")
-    @DisplayName("리스너가 실행 중이고 대기 있음 · 확인 실패 · 배정 전이면 건너뛰고 WARN에 이유 코드만 남긴다")
+    @DisplayName("리스너가 실행 중이고 대기 있음 · 확인 실패 · 배정 전이면 건너뛰고 INFO에 이유 코드만 남긴다(WARN 아님)")
     void skips(PaymentEventLagCheck check, String reason, CapturedOutput output) {
         when(listener.isRunning()).thenReturn(true);
         when(lag.check()).thenReturn(check);
 
         assertThat(gate().allowsRun()).isFalse();
-        assertThat(output.getOut()).contains("WARN").contains("reason=" + reason);
+        assertThat(output.getOut()).contains(" INFO ").contains("reason=" + reason).doesNotContain(" WARN ");
     }
 
     static Stream<Arguments> skipped() {
