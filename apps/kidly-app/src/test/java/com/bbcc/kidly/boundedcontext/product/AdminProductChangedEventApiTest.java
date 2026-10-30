@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
@@ -9,12 +10,15 @@ import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterRespo
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
@@ -43,6 +47,9 @@ class AdminProductChangedEventApiTest {
 
     @Autowired
     private OrderFlowEventRecorder eventRecorder;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private SavedClothingTop saved;
 
@@ -89,6 +96,30 @@ class AdminProductChangedEventApiTest {
                 assertThat(event.eventId()).isNotEqualTo(first.eventId());
                 assertThat(event.occurredAt()).isAfter(first.occurredAt());
             });
+    }
+
+    @Test
+    @DisplayName("다시 보낸 상품 정보 변경됨은 상품 ID를 키로 아웃박스에 상품마다 한 줄씩 남는다")
+    void republishStoresOutboxMessages() {
+        Long firstProductId = register(ON_SALE_SELLER_ID);
+        changeSaleStatus(ON_SALE_SELLER_ID, firstProductId, "ON_SALE");
+        Long secondProductId = register(STOPPED_SELLER_ID);
+        changeSaleStatus(STOPPED_SELLER_ID, secondProductId, "ON_SALE");
+        eventRecorder.clear();
+
+        republish(tokens.admin(ADMIN_ID)).expectStatus().isOk();
+
+        // 판매 시작 때 남은 줄은 빼고, 다시 보낸 이벤트의 줄만 본다
+        List<UUID> republishedEventIds = eventRecorder.events(ProductChangedEvent.class).stream()
+            .map(ProductChangedEvent::eventId)
+            .toList();
+        assertThat(jdbcTemplate.queryForList(
+            "select event_id, event_type, topic, message_key, sent_at from product.product_outbox"))
+            .filteredOn(row -> republishedEventIds.contains(row.get("event_id")))
+            .extracting("message_key", "event_type", "topic", "sent_at")
+            .containsExactlyInAnyOrder(
+                tuple(String.valueOf(firstProductId), "product.changed", "kidly.product.events", null),
+                tuple(String.valueOf(secondProductId), "product.changed", "kidly.product.events", null));
     }
 
     private RestTestClient.ResponseSpec republish(String token) {
