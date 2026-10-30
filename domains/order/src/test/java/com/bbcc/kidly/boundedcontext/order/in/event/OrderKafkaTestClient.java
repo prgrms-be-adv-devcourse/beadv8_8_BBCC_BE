@@ -54,10 +54,17 @@ final class OrderKafkaTestClient {
         MessageListenerContainer listener = guard.listener(listenerId);
         listener.start();
         AsyncWait.until(TIMEOUT, () -> !listener.getAssignedPartitions().isEmpty());
+        awaitCaughtUp(topic);
+        return listener;
+    }
+
+    /**
+     * 그룹이 그 토픽에 지금 쌓여 있는 메시지를 모두 처리할 때까지 기다린다(여러 토픽을 읽는 리스너의 나머지 토픽).
+     */
+    void awaitCaughtUp(String topic) {
         Map<TopicPartition, Long> ends = endOffsets(topic);
         AsyncWait.until(TIMEOUT, () -> ends.entrySet().stream()
             .allMatch(end -> end.getValue() == 0 || committedOffset(end.getKey()) >= end.getValue()));
-        return listener;
     }
 
     /**
@@ -73,6 +80,13 @@ final class OrderKafkaTestClient {
             record.headers().add("eventType", eventType.getBytes(UTF_8));
         }
         record.headers().add("eventId", eventId.getBytes(UTF_8));
+        return send(record);
+    }
+
+    /**
+     * 만든 메시지를 그대로 보낸다(DLT 헤더를 단 DLT 메시지 등).
+     */
+    RecordMetadata send(ProducerRecord<String, String> record) {
         try (var producer = new KafkaProducer<String, String>(Map.of(
             ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
             ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,

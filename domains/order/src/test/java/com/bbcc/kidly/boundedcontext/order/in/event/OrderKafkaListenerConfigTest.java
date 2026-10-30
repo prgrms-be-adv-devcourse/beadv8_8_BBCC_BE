@@ -33,6 +33,8 @@ import org.springframework.kafka.listener.ContainerProperties.AckMode;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.ListenerExecutionFailedException;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.util.backoff.BackOffExecution;
+import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.databind.exc.InvalidFormatException;
 
 /**
@@ -46,6 +48,7 @@ class OrderKafkaListenerConfigTest {
 
     private final ConsumerFactory<Object, Object> consumerFactory = mock();
     private final CommonErrorHandler errorHandler = mock();
+    private final CommonErrorHandler deadLetterErrorHandler = mock();
 
     @ParameterizedTest(name = "앱 auto-startup={0}")
     @CsvSource({"true", "false"})
@@ -142,8 +145,55 @@ class OrderKafkaListenerConfigTest {
             .doesNotContain(BODY_MARKER);
     }
 
+    @ParameterizedTest(name = "스위치 {0}")
+    @CsvSource({"true", "false"})
+    @DisplayName("DLT 컨테이너(#601)는 저장 재시도 에러 처리기를 쓰고(DLT로 다시 보내지 않음) 스위치 · earliest는 다른 컨테이너와 같다")
+    void deadLetterContainerUsesStoreRetry(boolean consumerEnabled) {
+        var container = containerOf(true, consumerEnabled, "kidly.payment.events.order.dlt",
+            "kidly.product.events.order.dlt");
+
+        assertThat(container.getCommonErrorHandler()).isSameAs(deadLetterErrorHandler);
+        assertThat(container.isAutoStartup()).isEqualTo(consumerEnabled);
+        assertThat(container.getContainerProperties().getKafkaConsumerProperties()
+            .getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG)).isEqualTo("earliest");
+    }
+
+    @Test
+    @DisplayName("DLT 저장 재시도 간격은 1초부터 두 배씩 최대 60초, 끝없이 다시 시도한다(포기해 메시지를 건너뛰지 않음)")
+    void deadLetterStoreBackOffNeverStops() {
+        BackOffExecution execution = OrderKafkaListenerConfig.deadLetterStoreBackOff().start();
+
+        List<Long> intervals = new ArrayList<>();
+        for (int i = 0; i < 1_000; i++) {
+            intervals.add(execution.nextBackOff());
+        }
+
+        assertThat(intervals.subList(0, 8)).containsExactly(1_000L, 2_000L, 4_000L, 8_000L, 16_000L, 32_000L,
+            60_000L, 60_000L);
+        assertThat(intervals).doesNotContain(BackOffExecution.STOP);
+    }
+
+    @Test
+    @DisplayName("DLT 저장 재시도 처리기는 어떤 예외에도 메시지를 처리 완료로 넘기지 않는다(재시도하지 않는 기본 예외 포함)")
+    void deadLetterStoreErrorHandlerNeverRecovers() {
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.deadLetterStoreErrorHandler(new FixedBackOff(0L,
+            FixedBackOff.UNLIMITED_ATTEMPTS));
+
+        for (Exception cause : List.of(new RuntimeException("DB 장애"), new ClassCastException(),
+            new IllegalArgumentException())) {
+            boolean recovered = handler.handleOne(listenerFailure(cause), record("kidly.payment.events.order.dlt", 0),
+                mock(Consumer.class), mock(MessageListenerContainer.class));
+            assertThat(recovered).as(cause.getClass().getSimpleName()).isFalse();
+        }
+    }
+
     private ConcurrentMessageListenerContainer<Object, Object> containerOf(boolean appAutoStartup,
         boolean consumerEnabled) {
+        return containerOf(appAutoStartup, consumerEnabled, "kidly.seller.events");
+    }
+
+    private ConcurrentMessageListenerContainer<Object, Object> containerOf(boolean appAutoStartup,
+        boolean consumerEnabled, String... topics) {
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer = mock();
         // Boot configurer처럼 ConsumerFactory와 앱 spring.kafka.listener.auto-startup을 넣는다
         doAnswer(invocation -> {
@@ -153,8 +203,9 @@ class OrderKafkaListenerConfigTest {
             return null;
         }).when(configurer).configure(any(), any());
 
-        var factory = OrderKafkaListenerConfig.factory(configurer, consumerFactory, consumerEnabled, errorHandler);
-        return factory.createContainer("kidly.seller.events");
+        var factory = OrderKafkaListenerConfig.factory(configurer, consumerFactory, consumerEnabled, errorHandler,
+            deadLetterErrorHandler);
+        return factory.createContainer(topics);
     }
 
     private static ListenerExecutionFailedException listenerFailure(Exception cause) {

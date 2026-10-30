@@ -9,7 +9,7 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.stereotype.Component;
 
 /**
- * 주문 Kafka 리스너 4개(상품 · 판매자 · 자녀 #541, 결제 #594)가 테스트가 직접 켤 때만 돌게 한다. 테스트 클래스패스의 컴포넌트 스캔에 잡혀 모든 통합 · 기능 테스트
+ * 주문 Kafka 리스너 5개(상품 · 판매자 · 자녀 #541, 결제 #594, DLT #601)가 테스트가 직접 켤 때만 돌게 한다. 테스트 클래스패스의 컴포넌트 스캔에 잡혀 모든 통합 · 기능 테스트
  * 컨텍스트에 똑같이 등록된다(OrderFlowEventRecorder와 같다). 설정을 더하지 않으므로 컨텍스트 수는 그대로다.
  * <p>
  * 이유: 테스트 컨텍스트 캐시는 쓰지 않는 컨텍스트를 일시 정지했다가 다시 쓸 때 Lifecycle을 다시 시작하고, 그때
@@ -28,7 +28,7 @@ import org.springframework.stereotype.Component;
 public class OrderKafkaListenerTestGuard implements SmartLifecycle {
 
     static final List<String> ORDER_LISTENERS = List.of(ProductEventKafkaListener.ID, SellerEventKafkaListener.ID,
-        ChildProfileEventKafkaListener.ID, PaymentEventKafkaListener.ID);
+        ChildProfileEventKafkaListener.ID, PaymentEventKafkaListener.ID, OrderDeadLetterKafkaListener.ID);
 
     private final KafkaListenerEndpointRegistry registry;
     private final Map<String, MessageListenerContainer> listeners = new ConcurrentHashMap<>();

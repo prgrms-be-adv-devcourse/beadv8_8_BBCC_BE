@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderKafkaConsumerProperties;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.Arrays;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -13,6 +15,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.NestedExceptionUtils;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
+import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
@@ -22,6 +25,8 @@ import org.springframework.kafka.listener.ContainerProperties.AckMode;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.ProducerListener;
+import org.springframework.util.backoff.BackOff;
+import org.springframework.util.backoff.ExponentialBackOff;
 import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
@@ -34,6 +39,7 @@ import tools.jackson.core.JacksonException;
  *       않게 하고, 다시 읽어도 처리 결과가 1회분이라 안전하다</li>
  *   <li>스위치(kidly.order.kafka.consumer.enabled)가 꺼져 있으면 컨테이너를 자동 시작하지 않는다</li>
  *   <li>실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다. 다시 해도 같은 예외 · 읽기 실패는 재시도 없이 보낸다</li>
+ *   <li>DLT를 읽는 컨테이너(#601)만 에러 처리기가 다르다: 저장이 실패하면 DLT로 보내지 않고 끝없이 다시 시도한다</li>
  * </ul>
  * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate과 다른 도메인에 영향이 없다.
  */
@@ -49,8 +55,13 @@ class OrderKafkaListenerConfig {
     static final String PAYMENT_EVENTS = "kidly.payment.events";
 
     private static final String DEAD_LETTER_SUFFIX = ".order.dlt";
+    static final String PRODUCT_EVENTS_DLT = PRODUCT_EVENTS + DEAD_LETTER_SUFFIX;
+    static final String SELLER_EVENTS_DLT = SELLER_EVENTS + DEAD_LETTER_SUFFIX;
+    static final String CHILDPROFILE_EVENTS_DLT = CHILDPROFILE_EVENTS + DEAD_LETTER_SUFFIX;
+    static final String PAYMENT_EVENTS_DLT = PAYMENT_EVENTS + DEAD_LETTER_SUFFIX;
     private static final long RETRY_INTERVAL_MS = 1000L;
     private static final long RETRY_ATTEMPTS = 3L;
+    private static final long DEAD_LETTER_MAX_INTERVAL_MS = 60_000L;
 
     @Bean
     NewTopic orderProductEventsDeadLetterTopic() {
@@ -79,18 +90,25 @@ class OrderKafkaListenerConfig {
         ProducerFactory<String, String> producerFactory, OrderKafkaConsumerProperties properties) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> deadLetterPartition(record));
-        return factory(configurer, consumerFactory, properties.enabled(), errorHandler(deadLetter));
+        return factory(configurer, consumerFactory, properties.enabled(), errorHandler(deadLetter),
+            deadLetterStoreErrorHandler(deadLetterStoreBackOff()));
     }
 
     static ConcurrentKafkaListenerContainerFactory<Object, Object> factory(
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
-        boolean consumerEnabled, CommonErrorHandler errorHandler) {
+        boolean consumerEnabled, CommonErrorHandler errorHandler, CommonErrorHandler deadLetterErrorHandler) {
         var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
         configurer.configure(factory, consumerFactory);
         factory.getContainerProperties().setAckMode(AckMode.RECORD);
-        // 팩토리의 kafkaConsumerProperties는 만들어지는 컨테이너로 복사되지 않아 컨테이너마다 넣는다(ConsumerFactory는 그대로)
-        factory.setContainerCustomizer(container -> container.getContainerProperties().getKafkaConsumerProperties()
-            .setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"));
+        // 팩토리의 kafkaConsumerProperties는 만들어지는 컨테이너로 복사되지 않아 컨테이너마다 넣는다(ConsumerFactory는 그대로).
+        // 커스터마이저는 팩토리가 에러 처리기를 넣은 뒤에 불리므로, DLT 컨테이너만 저장 재시도 처리기로 바꾼다(#601)
+        factory.setContainerCustomizer(container -> {
+            container.getContainerProperties().getKafkaConsumerProperties()
+                .setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+            if (isDeadLetterContainer(container.getContainerProperties().getTopics())) {
+                container.setCommonErrorHandler(deadLetterErrorHandler);
+            }
+        });
         // 꺼짐만 강제한다. 켜져 있으면 앱 설정(테스트는 false)을 따른다
         if (!consumerEnabled) {
             factory.setAutoStartup(false);
@@ -110,6 +128,32 @@ class OrderKafkaListenerConfig {
         errorHandler.addNotRetryableExceptions(BusinessException.class, IllegalArgumentException.class,
             IllegalStateException.class, NullPointerException.class, JacksonException.class);
         return errorHandler;
+    }
+
+    /**
+     * DLT 저장 재시도 간격(#601): 1초부터 두 배씩, 최대 60초(max.poll.interval 5분보다 짧아 그룹에서 빠지지 않는다). 끝나지 않는다.
+     */
+    static BackOff deadLetterStoreBackOff() {
+        var backOff = new ExponentialBackOff(RETRY_INTERVAL_MS, 2.0);
+        backOff.setMaxInterval(DEAD_LETTER_MAX_INTERVAL_MS);
+        return backOff;
+    }
+
+    /**
+     * DLT 컨테이너의 에러 처리기(#601). DLT 메시지 저장이 실패하면 DLT로 다시 보내지 않고(DLT의 DLT 없음) 같은 메시지를 다시 시도한다.
+     * 간격이 끝나지 않으므로 처리 완료로 넘기는 recoverer가 불리지 않고, 기본으로 재시도하지 않는 예외도 모두 다시 시도한다.
+     * 실패 로그는 리스너가 본문 없이 남기므로 처리기 로그는 끈다(예외 메시지에 DB가 거부한 행 값 = 본문이 들어 있다).
+     */
+    static DefaultErrorHandler deadLetterStoreErrorHandler(BackOff backOff) {
+        var errorHandler = new DefaultErrorHandler(backOff);
+        errorHandler.setClassifications(Map.of(), true);
+        errorHandler.setLogLevel(KafkaException.Level.TRACE);
+        return errorHandler;
+    }
+
+    static boolean isDeadLetterContainer(String[] topics) {
+        return topics != null && topics.length > 0
+            && Arrays.stream(topics).allMatch(topic -> topic.endsWith(DEAD_LETTER_SUFFIX));
     }
 
     /**

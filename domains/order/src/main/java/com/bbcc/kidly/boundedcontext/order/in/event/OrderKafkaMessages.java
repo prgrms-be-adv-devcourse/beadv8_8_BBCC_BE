@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.bbcc.kidly.boundedcontext.order.app.deadletter.UnreadableOrderMessageException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 
@@ -25,12 +26,13 @@ final class OrderKafkaMessages {
     }
 
     /**
-     * 종류를 고를 eventType 헤더. 없으면 읽지 못한 메시지라 IllegalArgumentException(재시도 없이 DLT)을 던진다.
+     * 종류를 고를 eventType 헤더. 없으면 읽지 못한 메시지라 UnreadableOrderMessageException(IllegalArgumentException이라
+     * 재시도 없이 DLT, DLT에서는 읽기 실패)을 던진다.
      */
     static String eventType(ConsumerRecord<?, ?> record) {
         String eventType = header(record, EVENT_TYPE);
         if (eventType == null) {
-            throw new IllegalArgumentException("eventType 헤더 없음: " + record.topic() + "-" + record.partition()
+            throw new UnreadableOrderMessageException("eventType 헤더 없음: " + record.topic() + "-" + record.partition()
                 + "@" + record.offset());
         }
         return eventType;
