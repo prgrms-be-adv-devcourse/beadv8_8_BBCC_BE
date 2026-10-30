@@ -3,14 +3,22 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
+import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,12 +51,16 @@ import tools.jackson.databind.json.JsonMapper;
 class RecommendKafkaListenerIntegrationTest {
 
     private static final String SELLER_TOPIC = "kidly.seller.events";
+    private static final String CHILD_TOPIC = "kidly.childprofile.events";
     private static final String GROUP = "kidly.recommend";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final LocalDateTime CHANGED_AT = LocalDateTime.of(2026, 10, 30, 10, 0);
 
     @Autowired
     private RecommendReplicaSellerRepository replicaSellerRepository;
+
+    @Autowired
+    private RecommendReplicaChildRepository replicaChildRepository;
 
     @Autowired
     private JsonMapper jsonMapper;
@@ -93,6 +105,33 @@ class RecommendKafkaListenerIntegrationTest {
                 RecommendReplicaSeller::getStatus,
                 RecommendReplicaSeller::getEventOccurredAt)
             .containsExactly("소소한옷장", SellerStatus.ACTIVE, CHANGED_AT);
+    }
+
+    @Test
+    @DisplayName("자녀 정보 변경됨을 Kafka로 받아 자녀 복사본에 저장한다")
+    void saveChildReplica() throws Exception {
+        Long childId = newId();
+        Long memberId = newId();
+
+        send(CHILD_TOPIC, new ChildChangedEvent(UUID.randomUUID(), CHANGED_AT,
+            new ChildChangedEvent.Data(childId, memberId, new BigDecimal("115.0"), new BigDecimal("20.0"),
+                Gender.MALE, LocalDate.of(2020, 5, 1), BodyType.NORMAL, PreferredFit.LOOSE, false)));
+
+        AsyncWait.until(TIMEOUT, () -> replicaChildRepository.findById(childId).isPresent());
+        RecommendReplicaChild replica = replicaChildRepository.findById(childId).orElseThrow();
+        assertThat(replica.getHeightCm()).isEqualByComparingTo("115.0");
+        assertThat(replica.getWeightKg()).isEqualByComparingTo("20.0");
+        assertThat(replica)
+            .extracting(
+                RecommendReplicaChild::getMemberId,
+                RecommendReplicaChild::getGender,
+                RecommendReplicaChild::getBirthDate,
+                RecommendReplicaChild::getBodyType,
+                RecommendReplicaChild::getPreferredFit,
+                RecommendReplicaChild::getEventOccurredAt,
+                RecommendReplicaChild::isDeleted)
+            .containsExactly(memberId, Gender.MALE, LocalDate.of(2020, 5, 1), BodyType.NORMAL, PreferredFit.LOOSE,
+                CHANGED_AT, false);
     }
 
     private static Long newId() {
