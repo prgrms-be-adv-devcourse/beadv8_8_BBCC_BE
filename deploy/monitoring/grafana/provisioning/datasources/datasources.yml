@@ -5,13 +5,13 @@ datasources:
     uid: prometheus
     type: prometheus
     access: proxy
-    url: http://127.0.0.1:9090
+    url: http://prometheus:9090
     isDefault: true
   - name: Loki
     uid: loki
     type: loki
     access: proxy
-    url: http://127.0.0.1:3100
+    url: http://loki:3100
     jsonData:
       # 로그 상세의 traceId(구조화 메타데이터) 옆에 같은 요청의 로그를 여는 링크
       # 같은 Loki 로 가는 내부 링크(datasourceUid)는 쿼리를 expr 가 아닌 query 키로 넘겨 Explore 가 빈 쿼리로 열린다(Grafana 12.1).

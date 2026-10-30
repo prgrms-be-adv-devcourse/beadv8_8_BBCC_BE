@@ -1,0 +1,146 @@
+# 외부에서는 t3.large nginx 의 grafana.<도메인> → medium Traefik(80) → 이 Ingress 로 들어온다 (deploy/nginx)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+spec:
+  replicas: 1
+  # 볼륨이 RWO 라 새 Pod 가 뜨기 전에 옛 Pod 를 내린다
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      nodeSelector:
+        kidly/role: infra
+      containers:
+        - name: grafana
+          image: grafana/grafana:12.4.12
+          env:
+            - name: GF_SERVER_HTTP_PORT
+              value: "3000"
+            - name: GF_SERVER_ROOT_URL
+              value: https://grafana.kidly.kro.kr
+            # nginx 가 https 로만 받으므로 로그인 쿠키를 https 에서만 보낸다
+            - name: GF_SECURITY_COOKIE_SECURE
+              value: "true"
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            # Grafana DB 를 처음 만들 때만 쓰인다. 그 뒤로는 deploy.sh 가 배포마다 이 값으로 맞춘다
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: monitoring-secrets
+                  key: GRAFANA_ADMIN_PASSWORD
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "false"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            # 사용자가 따로 언어를 고르지 않으면 한국어로 보인다
+            - name: GF_USERS_DEFAULT_LANGUAGE
+              value: ko-KR
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            # Logs Drilldown 서버 기본 열(logsdrilldowndefaultcolumns). deploy.sh 가 grafana/logs-drilldown-default-columns.json 을 넣는다
+            - name: GF_FEATURE_TOGGLES_ENABLE
+              value: kubernetesLogsDrilldown
+            # Logs Drilldown 앱 버전 고정. 없으면 처음 설치할 때의 최신을 받고 그 뒤로는 올리지 않아 서버마다 버전이 달라진다(12.1 때 받은 1.0.41 이 남는다)
+            # deploy.sh 가 이 줄에서 기대 버전을 읽어 설치된 버전과 비교한다
+            - name: GF_PLUGINS_PREINSTALL
+              value: grafana-lokiexplore-app@2.6.0
+            # provisioning/alerting 의 Slack 연결점이 읽는다
+            - name: SLACK_OPS_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: monitoring-secrets
+                  key: SLACK_OPS_WEBHOOK_URL
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+          resources:
+            requests:
+              memory: 192Mi
+            limits:
+              memory: 384Mi
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+            - name: dashboard-providers
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+            - name: alerting
+              mountPath: /etc/grafana/provisioning/alerting
+              readOnly: true
+            - name: dashboards
+              mountPath: /etc/grafana/dashboards
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-providers
+          configMap:
+            name: grafana-dashboard-providers
+        - name: alerting
+          configMap:
+            name: grafana-alerting
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+        - name: data
+          persistentVolumeClaim:
+            claimName: grafana-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+spec:
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: grafana.kidly.kro.kr
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  name: http

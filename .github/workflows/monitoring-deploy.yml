@@ -1,5 +1,7 @@
-# 모니터링 스택(deploy/monitoring)을 서버의 /opt/app/monitoring 에 올리고 그 deploy.sh 가 compose pull / up 을 한다.
-# 설정의 원본은 레포, 비밀의 원본은 Environment dev 의 Secret(SLACK_OPS_WEBHOOK_URL, GRAFANA_ADMIN_PASSWORD)이다. 서버 .env 는 매번 새로 만든다
+# 모니터링을 두 서버에 올린다. 둘 다 /opt/app/monitoring 이고 그 deploy.sh 가 실제 배포를 한다
+#   server: t3.medium k3s 에 Prometheus · Loki · Grafana(deploy/monitoring). kubectl apply -k
+#   agent: t3.large(앱 서버)에 수집기 Alloy(deploy/monitoring-agent). docker compose. 받는 쪽이 먼저 떠 있도록 server 다음에 돈다
+# 설정의 원본은 레포, 비밀의 원본은 Environment dev 의 Secret(SLACK_OPS_WEBHOOK_URL, GRAFANA_ADMIN_PASSWORD)이다. 서버의 비밀 파일 · .env 는 매번 새로 만든다
 # nginx(deploy/nginx)는 여기서 다루지 않는다
 name: monitoring-deploy
 
@@ -8,8 +10,10 @@ on:
     branches: [develop]
     paths:
       - deploy/monitoring/**
+      - deploy/monitoring-agent/**
       # 문서만 고쳐서 스택을 다시 띄우지(수집 공백) 않는다
       - '!deploy/monitoring/README.md'
+      - '!deploy/monitoring-agent/README.md'
       - .github/workflows/monitoring-deploy.yml
       # 같이 쓰는 SSH · Secret 단계가 바뀌어도 한 번 돌려 확인한다
       - .github/actions/server-ssh/**
@@ -25,9 +29,81 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  server:
     runs-on: ubuntu-latest
-    # SSH 접속 정보(SSH_HOST · SSH_KNOWN_HOSTS · SSH_PRIVATE_KEY)가 dev 에 있다. 모니터링도 같은 서버다
+    # 모니터링 서버 접속 정보(MONITORING_SSH_HOST · MONITORING_SSH_KNOWN_HOSTS)와 Secret 이 dev 에 있다. SSH 키는 앱 서버와 같은 SSH_PRIVATE_KEY 다
+    environment: dev
+    env:
+      SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # 두 job 이 쓰는 새 변수를 먼저 본다. agent 가 쓰는 MONITORING_PRIVATE_IP 도 여기서 봐서, 빠졌으면 어느 서버도 바꾸지 않는다
+      - name: 모니터링 서버 변수 확인
+        env:
+          MONITORING_SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
+          MONITORING_SSH_KNOWN_HOSTS: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+          MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
+        run: |
+          missing=0
+          [[ -n "$MONITORING_SSH_HOST" ]] || { echo "::error::Environment dev 에 변수 MONITORING_SSH_HOST(모니터링 서버 t3.medium 의 탄력적 IP)를 등록하세요"; missing=1; }
+          [[ -n "$MONITORING_SSH_KNOWN_HOSTS" ]] || { echo "::error::Environment dev 에 변수 MONITORING_SSH_KNOWN_HOSTS(로컬에서 ssh-keyscan -H <탄력적 IP> 한 결과)를 등록하세요"; missing=1; }
+          # .env 에 그대로 들어가고 틀려도 Alloy 는 뜬 채 보내기만 실패하므로 형식까지 본다
+          [[ "$MONITORING_PRIVATE_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "::error::Environment dev 에 변수 MONITORING_PRIVATE_IP(모니터링 서버 t3.medium 의 사설 IPv4)를 등록하세요"; missing=1; }
+          (( missing == 0 )) || exit 1
+
+      # deploy-notify.yml 이 이 step 이름으로 "18시 이후 서버 꺼짐" 안내를 붙인다
+      - name: 서버 접속 확인 · SSH 키 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+
+      # 비밀 값은 출력하지 않는다. kustomize secretGenerator 가 secrets/<키> 파일을 그대로 Secret 값으로 쓴다
+      - name: 서버 설정 파일 만들기
+        env:
+          SLACK_OPS_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK_URL }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: |
+          out="$RUNNER_TEMP/monitoring"
+          mkdir -p "$out"
+          cp -r deploy/monitoring/{kustomization.yaml,deploy.sh,k8s,prometheus,loki,alloy,grafana} "$out/"
+
+          # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다. 출력(KEY='값' 줄)은 쓰지 않는다
+          .github/scripts/env-lines.sh dev SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD > /dev/null
+          # 파일 끝에 줄바꿈을 붙이지 않는다(그대로 Secret 값이 된다)
+          (
+            umask 077
+            mkdir -p "$out/secrets"
+            for key in SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD; do
+              printf '%s' "${!key}" > "$out/secrets/$key"
+            done
+          )
+
+      # 설정 폴더는 지우고 새로 풀어 레포에서 지운 파일이 서버에 남지 않게 한다. 데이터는 k3s PVC 라 그대로다
+      - name: 서버에 설정 파일 올리기
+        run: |
+          dir=/opt/app/monitoring
+          tar -C "$RUNNER_TEMP/monitoring" -czf - kustomization.yaml deploy.sh k8s prometheus loki alloy grafana secrets \
+            | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
+              set -e
+              mkdir -p $dir
+              cd $dir
+              rm -rf k8s prometheus loki alloy grafana secrets
+              tar -xzf - --no-same-owner
+              chmod 700 secrets
+              chmod 600 secrets/*
+            "
+
+      - name: 배포
+        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" /opt/app/monitoring/deploy.sh
+
+  agent:
+    # Alloy 가 뜨자마자 보낼 곳(medium 의 Prometheus · Loki)이 있어야 한다
+    needs: server
+    runs-on: ubuntu-latest
+    # 앱 서버 접속 정보(SSH_HOST · SSH_KNOWN_HOSTS · SSH_PRIVATE_KEY)가 dev 에 있다
     environment: dev
     env:
       SSH_HOST: ${{ vars.SSH_HOST }}
@@ -42,39 +118,31 @@ jobs:
           private-key: ${{ secrets.SSH_PRIVATE_KEY }}
           known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}
 
-      # 비밀 값은 출력하지 않는다
+      # 비밀은 없다. 보낼 곳(medium 사설 IP)만 .env 에 둔다. 값은 server job 이 형식까지 확인했다
       - name: 서버 설정 파일 만들기
         env:
-          SLACK_OPS_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK_URL }}
-          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
         run: |
-          out="$RUNNER_TEMP/monitoring"
+          out="$RUNNER_TEMP/monitoring-agent"
           mkdir -p "$out"
-          cp -r deploy/monitoring/{docker-compose.yml,deploy.sh,prometheus,loki,alloy,grafana} "$out/"
+          cp deploy/monitoring-agent/{docker-compose.yml,config.alloy,deploy.sh} "$out/"
+          printf "MONITORING_HOST='%s'\n" "$MONITORING_PRIVATE_IP" > "$out/.env"
 
-          # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다
-          secret_lines=$(.github/scripts/env-lines.sh dev SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD)
-          (
-            umask 077
-            printf '%s\n' "$secret_lines" > "$out/.env"
-          )
-
-      # 설정 폴더는 지우고 새로 풀어 레포에서 지운 파일이 서버에 남지 않게 한다. 데이터는 docker 볼륨이라 그대로다
+      # 이 서버에서 Prometheus · Loki · Grafana 를 돌리던 때의 설정 폴더를 지운다. 옛 docker-compose.yml · deploy.sh · .env(비밀이 들어 있던)는 새것으로 덮인다
       # targets 는 앱 배포(deploy/deploy.sh)가 쓰는 수집 대상이라 지우지 않는다.
       # 없는 채로 compose 를 올리면 docker 가 root 소유로 만들어 앱 배포가 못 쓰므로 deploy 유저로 먼저 만든다
       - name: 서버에 설정 파일 올리기
         run: |
           dir=/opt/app/monitoring
-          tar -C "$RUNNER_TEMP/monitoring" -czf - docker-compose.yml deploy.sh .env prometheus loki alloy grafana \
+          tar -C "$RUNNER_TEMP/monitoring-agent" -czf - docker-compose.yml config.alloy deploy.sh .env \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
               set -e
               mkdir -p $dir/targets
               cd $dir
               rm -rf prometheus loki alloy grafana
               tar -xzf - --no-same-owner
-              chmod 600 .env
-              # 컨테이너 사용자(nobody 등)가 설정을 읽을 수 있게 한다
-              chmod -R a+rX docker-compose.yml prometheus loki alloy grafana
+              # 컨테이너가 설정을 읽을 수 있게 한다
+              chmod a+r docker-compose.yml config.alloy
             "
 
       - name: 배포

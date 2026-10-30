@@ -1,126 +1,73 @@
-// dev · prod 앱 컨테이너(compose 서비스 app · search-service) 로그를 Loki 로 보낸다
-// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(app → kidly, search-service → kidly-search), level 라벨은 로그 줄에서 뽑는다
-// 서버 콘솔은 ECS JSON 한 줄이다. 텍스트 줄은 JSON 이전 이미지가 남긴 것이라 전환 기간에만 쓰인다
+// medium(k3s) 노드 자체의 메트릭과 이 노드 Pod 로그. DaemonSet 으로 뜬다 (k8s/alloy.yaml)
+// 앱 서버(t3.large)의 앱 로그 · 앱 메트릭 · 호스트 메트릭은 deploy/monitoring-agent 의 Alloy 가 보낸다
+// 호스트 경로는 k8s/alloy.yaml 이 /host 아래에 읽기 전용으로 마운트한다
 
-discovery.docker "containers" {
-	host = "unix:///var/run/docker.sock"
-}
-
-discovery.relabel "kidly_app" {
-	targets = discovery.docker.containers.targets
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "app|search-service"
-		action        = "keep"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
-		regex         = "dev|prod"
-		action        = "keep"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
-		target_label  = "env"
-	}
-
-	// Drilldown → Logs 가 서비스 이름으로 묶는다. 없으면 Loki 가 unknown_service 를 붙인다
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "app"
-		target_label  = "service_name"
-		replacement   = "kidly"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "search-service"
-		target_label  = "service_name"
-		replacement   = "kidly-search"
-	}
-}
-
-loki.source.docker "kidly_app" {
-	host       = "unix:///var/run/docker.sock"
-	targets    = discovery.relabel.kidly_app.output
-	forward_to = [loki.process.kidly_app.receiver]
-}
-
-loki.process "kidly_app" {
-	// 텍스트 줄의 스택 트레이스 여러 줄을 로그 한 건으로 묶는다 (로그 줄은 날짜 또는 JSON 의 { 로 시작한다)
-	stage.multiline {
-		firstline     = "^(\\d{4}-\\d{2}-\\d{2} |\\{)"
-		max_wait_time = "3s"
-	}
-
-	// 예: {"@timestamp":"...","log":{"level":"ERROR",...},...,"traceId":"...","memberId":"7"}
-	// traceId 는 요청 안에서만, memberId 는 로그인한 요청 안에서만 있다
-	stage.json {
-		expressions = {
-			level    = "log.level",
-			traceId  = "",
-			memberId = "",
-		}
-	}
-
-	// 예: 2026-10-16 17:33:04.385 ERROR [traceId] ... — 날짜로 시작하는 텍스트 줄에만 맞는다
-	stage.regex {
-		expression = "^\\d{4}-\\d{2}-\\d{2} \\S+\\s+(?P<level>[A-Z]+) "
-	}
-
-	stage.labels {
-		values = {
-			level = "",
-		}
-	}
-
-	// traceId · memberId 는 값 종류가 끝이 없어 라벨이 아니라 구조화 메타데이터로 둔다. {env="dev"} | traceId="..." 로 거른다
-	stage.structured_metadata {
-		values = {
-			traceId  = "",
-			memberId = "",
-		}
-	}
-
-	forward_to = [loki.write.local.receiver]
-}
-
-loki.write "local" {
-	endpoint {
-		url = "http://127.0.0.1:3100/loki/api/v1/push"
-	}
-}
-
-// 호스트(EC2)와 컨테이너별 자원 사용량. 새 컨테이너 없이 Alloy 내장 exporter 로 모아 Prometheus 에 remote write 한다
-// 호스트 경로는 docker-compose.yml 이 읽기 전용으로 마운트한다
-prometheus.exporter.unix "host" {
+prometheus.exporter.unix "node" {
 	procfs_path = "/host/proc"
-	rootfs_path = "/rootfs"
+	sysfs_path  = "/host/sys"
+	rootfs_path = "/host/root"
+
+	// Pod 마다 생기는 마운트(볼륨 · shm)는 빼서 Pod 를 새로 띄울 때마다 시계열이 늘지 않게 한다
+	filesystem {
+		mount_points_exclude = "^/(dev|proc|run|sys|var/lib/kubelet|var/lib/rancher)($|/)"
+	}
 }
 
-// 컨테이너는 name 라벨(dev-app-1 처럼 compose 프로젝트가 앞에 붙은 컨테이너 이름)로 구분한다. docker 라벨 · 환경 변수는 가져오지 않는다
-prometheus.exporter.cadvisor "containers" {
-	docker_only            = true
-	store_container_labels = false
-}
-
-// 앱 메트릭(prometheus/prometheus.yml)과 같은 15초 간격
-prometheus.scrape "host" {
-	targets         = prometheus.exporter.unix.host.targets
-	forward_to      = [prometheus.remote_write.local.receiver]
+// 앱 메트릭과 같은 15초 간격. job(integrations/unix) · instance(호스트 이름)는 기본값 그대로라 Kidly 서버 대시보드가 instance 로 서버를 고른다
+prometheus.scrape "node" {
+	targets         = prometheus.exporter.unix.node.targets
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
 	scrape_interval = "15s"
 }
 
-prometheus.scrape "containers" {
-	targets         = prometheus.exporter.cadvisor.containers.targets
-	forward_to      = [prometheus.remote_write.local.receiver]
-	scrape_interval = "15s"
-}
-
-prometheus.remote_write "local" {
+prometheus.remote_write "prometheus" {
 	endpoint {
-		url = "http://127.0.0.1:9090/api/v1/write"
+		url = "http://prometheus.monitoring.svc:9090/api/v1/write"
+	}
+}
+
+// DaemonSet 이라 노드마다 자기 노드의 Pod 만 맡는다
+discovery.kubernetes "pods" {
+	role = "pod"
+
+	selectors {
+		role  = "pod"
+		field = "spec.nodeName=" + sys.env("NODE_NAME")
+	}
+}
+
+// Drilldown → Logs 가 service_name 으로 묶는다. 없으면 Loki 가 unknown_service 를 붙이므로 컨테이너 이름을 쓴다
+discovery.relabel "pods" {
+	targets = discovery.kubernetes.pods.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_name"]
+		target_label  = "container"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_name"]
+		target_label  = "service_name"
+	}
+}
+
+loki.source.kubernetes "pods" {
+	targets    = discovery.relabel.pods.output
+	forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+	endpoint {
+		url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
 	}
 }

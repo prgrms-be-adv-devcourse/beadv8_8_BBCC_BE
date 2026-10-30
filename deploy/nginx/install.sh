@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # nginx 설치 + Let's Encrypt 인증서 발급 + 자동 갱신 등록. 여러 번 실행해도 된다.
-# 사용법: sudo ./install.sh <도메인> <이메일>   예) sudo ./install.sh kidly.example kidly@example.com
+# 사용법: sudo MONITORING_HOST=<모니터링 서버 사설 IP> ./install.sh <도메인> <이메일>
+#   예) sudo MONITORING_HOST=10.0.1.23 ./install.sh kidly.example kidly@example.com
+# MONITORING_HOST 는 Grafana 가 도는 t3.medium(k3s)의 사설 IP 다. grafana.<도메인> 을 그 노드의 Traefik(80)으로 넘긴다
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
-    echo "사용법: sudo $0 <도메인> <이메일>" >&2
+    echo "사용법: sudo MONITORING_HOST=<모니터링 서버 사설 IP> $0 <도메인> <이메일>" >&2
     exit 1
 fi
 if [[ $EUID -ne 0 ]]; then
@@ -17,11 +19,17 @@ DOMAIN=$1
 EMAIL=$2
 if [[ ! $DOMAIN =~ ^[a-z0-9-]+(\.[a-z0-9-]+)+$ ]]; then
     echo "도메인 형식이 잘못됐습니다: $DOMAIN" >&2
-    echo "사용법: sudo $0 <도메인> <이메일>" >&2
+    echo "사용법: sudo MONITORING_HOST=<모니터링 서버 사설 IP> $0 <도메인> <이메일>" >&2
     exit 1
 fi
 if [[ $DOMAIN == api.* || $DOMAIN == dev-api.* || $DOMAIN == grafana.* ]]; then
     echo "루트 도메인만 넣으세요 (예: kidly.store)" >&2
+    exit 1
+fi
+MONITORING_HOST=${MONITORING_HOST:-}
+if [[ ! $MONITORING_HOST =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    echo "MONITORING_HOST 에 모니터링 서버(t3.medium)의 사설 IPv4 를 넣으세요: ${MONITORING_HOST:-(비어 있음)}" >&2
+    echo "사용법: sudo MONITORING_HOST=<모니터링 서버 사설 IP> $0 <도메인> <이메일>" >&2
     exit 1
 fi
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -38,7 +46,7 @@ CERTBOT_RUN="/usr/bin/docker run --rm \
 $CERTBOT_IMAGE"
 
 render() {
-    sed "s/__DOMAIN__/$DOMAIN/g" "$SCRIPT_DIR/$1" > "$CONF"
+    sed -e "s/__DOMAIN__/$DOMAIN/g" -e "s/__MONITORING_HOST__/$MONITORING_HOST/g" "$SCRIPT_DIR/$1" > "$CONF"
     # 깨진 설정이 남으면 다음 부팅 때 nginx 가 뜨지 않는다
     nginx -t || { rm -f "$CONF"; exit 1; }
     systemctl enable --now nginx
@@ -61,7 +69,7 @@ EAB_ARGS=()
 if ! compgen -G "/etc/letsencrypt/accounts/acme.zerossl.com/v2/DV90/*" > /dev/null; then
     if [[ -z ${ZEROSSL_EAB_KID:-} || -z ${ZEROSSL_EAB_HMAC_KEY:-} ]]; then
         echo "서버에 ZeroSSL 계정이 없습니다. EAB 키를 넘겨 다시 실행하세요:" >&2
-        echo "  sudo ZEROSSL_EAB_KID=... ZEROSSL_EAB_HMAC_KEY=... $0 $DOMAIN $EMAIL" >&2
+        echo "  sudo ZEROSSL_EAB_KID=... ZEROSSL_EAB_HMAC_KEY=... MONITORING_HOST=$MONITORING_HOST $0 $DOMAIN $EMAIL" >&2
         exit 1
     fi
     EAB_ARGS=(--eab-kid "$ZEROSSL_EAB_KID" --eab-hmac-key "$ZEROSSL_EAB_HMAC_KEY")

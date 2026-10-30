@@ -2,7 +2,8 @@
 auth_enabled: false
 
 server:
-  http_listen_address: 127.0.0.1
+  # Service(NodePort 31100)로 다른 Pod · t3.large Alloy 가 보낸다
+  http_listen_address: 0.0.0.0
   http_listen_port: 3100
   grpc_listen_address: 127.0.0.1
   grpc_listen_port: 9095
