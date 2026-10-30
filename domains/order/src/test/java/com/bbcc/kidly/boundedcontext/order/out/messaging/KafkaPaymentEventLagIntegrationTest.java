@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
 import com.bbcc.kidly.boundedcontext.order.domain.expiry.PaymentEventLagCheck;
-import com.bbcc.kidly.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

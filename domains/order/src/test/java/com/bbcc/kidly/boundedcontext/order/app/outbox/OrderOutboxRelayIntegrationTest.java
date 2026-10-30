@@ -6,7 +6,7 @@ import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
-import com.bbcc.kidly.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;

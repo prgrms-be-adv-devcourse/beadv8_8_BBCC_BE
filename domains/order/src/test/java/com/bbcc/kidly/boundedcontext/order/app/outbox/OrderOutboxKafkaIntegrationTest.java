@@ -21,16 +21,17 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderOutboxRelayScheduler;
-import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
-import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
+import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
+import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
+import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
-import com.bbcc.kidly.support.AsyncWait;
-import com.bbcc.kidly.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.support.AsyncWait;
+import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -92,9 +93,6 @@ class OrderOutboxKafkaIntegrationTest {
     private OrderFlowEventRecorder recorder;
 
     @Autowired
-    private WalletRepository walletRepository;
-
-    @Autowired
     private ProductReplicaRepository productReplicaRepository;
 
     @Autowired
@@ -124,16 +122,16 @@ class OrderOutboxKafkaIntegrationTest {
     @Test
     @DisplayName("실제 주문 흐름의 4종이 kidly.order.events(파티션 3)에 도착한다: 키 = 주문 ID, 헤더 eventType · eventId, 본문 7칸 + data")
     void deliversFourEventTypes() {
-        // 지갑에 주문 하나 값만 넣어, 첫 주문은 결제 → 배송 완료 → 구매확정, 둘째 주문은 잔액 부족으로 결제 실패 → 취소
-        Wallet wallet = Wallet.create(BUYER_ID);
-        wallet.deposit(50_000L);
-        walletRepository.save(wallet);
+        // 첫 주문은 결제 → 배송 완료 → 구매확정, 둘째 주문은 잔액 부족으로 결제 실패 → 취소.
+        // 주문 모듈 테스트에는 결제 도메인이 없으므로 결제 응답은 테스트가 직접 넣는다(#616)
         OrderDetail confirmed = place();
         eventDelivery.deliver(stockDeducted(confirmed.orderId()));
+        eventDelivery.deliver(paymentCompleted(confirmed));
         deliveredAtSetter.recordDelivered(confirmed.orderId(), SELLER_ID, LocalDateTime.now());
         orderService.confirmByBuyer(BUYER_ID, confirmed.orderId(), confirmed.items().get(0).orderItemId());
         OrderDetail cancelled = place();
         eventDelivery.deliver(stockDeducted(cancelled.orderId()));
+        eventDelivery.deliver(paymentFailed(cancelled));
         List<DomainEvent> published = publishedOrderEvents();
 
         OutboxRelayResult result = relayService.relay();
@@ -244,6 +242,24 @@ class OrderOutboxKafkaIntegrationTest {
         return orderService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
+    }
+
+    private static PaymentCompletedEvent paymentCompleted(OrderDetail order) {
+        return new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(
+            500L, order.orderId(), BUYER_ID, order.totalAmount(),
+            order.items().stream()
+                .map(item -> new PaymentCompletedEvent.Item(item.orderItemId(), item.amount()))
+                .toList(),
+            LocalDateTime.now()));
+    }
+
+    /**
+     * 잔액 부족 실패는 결제 도메인이 실패 결제를 저장하므로 paymentId가 있다.
+     */
+    private static PaymentFailedEvent paymentFailed(OrderDetail order) {
+        return new PaymentFailedEvent(UUID.randomUUID(), LocalDateTime.now(), new PaymentFailedEvent.Data(
+            501L, order.orderId(), BUYER_ID, order.totalAmount(), PaymentFailureCode.INSUFFICIENT_BALANCE,
+            LocalDateTime.now()));
     }
 
     private static StockDeductedEvent stockDeducted(Long orderId) {

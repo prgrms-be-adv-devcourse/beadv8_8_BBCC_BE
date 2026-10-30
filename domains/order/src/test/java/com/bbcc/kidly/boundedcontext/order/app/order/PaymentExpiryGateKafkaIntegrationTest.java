@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
-import com.bbcc.kidly.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;

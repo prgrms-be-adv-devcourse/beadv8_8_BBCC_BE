@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderKafkaConsumerProperties;
-import com.bbcc.kidly.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
