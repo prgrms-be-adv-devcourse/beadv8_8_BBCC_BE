@@ -16,6 +16,7 @@ import com.bbcc.kidly.support.TestTokens;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -122,6 +123,22 @@ class ProductSaleStartApiTest {
                 new ProductChangedEvent.AttributeEntry("SIZE", clothing.size120().getId(), "120")));
         assertThat(data.infoValues()).containsExactly(
             new ProductChangedEvent.AttributeEntry("MAIN_MATERIAL", clothing.cotton().getId(), "면"));
+    }
+
+    @Test
+    @DisplayName("판매 시작이 커밋되면 나간 상품 정보 변경됨이 상품 ID를 키로 아웃박스에 한 줄 남는다")
+    void startSaleStoresOutboxMessage() {
+        startSale(tokens.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+
+        UUID eventId = eventRecorder.events(ProductChangedEvent.class).getFirst().eventId();
+        assertThat(jdbcTemplate.queryForList(
+            "select event_id, event_type, topic, message_key, sent_at from product.product_outbox"))
+            .singleElement().satisfies(row -> assertThat(row)
+                .containsEntry("event_id", eventId)
+                .containsEntry("event_type", "product.changed")
+                .containsEntry("topic", "kidly.product.events")
+                .containsEntry("message_key", productId)
+                .containsEntry("sent_at", null));
     }
 
     @Test
