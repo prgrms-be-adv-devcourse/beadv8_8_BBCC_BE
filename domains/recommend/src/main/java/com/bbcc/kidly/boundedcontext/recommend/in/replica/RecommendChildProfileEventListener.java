@@ -25,7 +25,10 @@ public class RecommendChildProfileEventListener {
         switch (RecommendKafkaListenerConfig.header(record, "eventType")) {
             case "child.changed" ->
                 replicaChildService.applyChildChanged(jsonMapper.readValue(record.value(), ChildChangedEvent.class));
-            default -> { }  // 추천이 받지 않는 종류
+            // 헤더가 없으면 어떤 이벤트인지 알 수 없어 재시도 없이 DLT로 보낸다
+            case null -> throw new IllegalArgumentException("eventType 헤더가 없습니다");
+            // 추천이 받지 않는 종류는 건너뛴다
+            default -> { }
         }
     }
 }
