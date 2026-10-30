@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: kidly-search
+  # 검색 도메인 설정(Elasticsearch 주소 · 색인 이름 접두어)
+  config:
+    import:
+      - classpath:search.yml
+  profiles:
+    default: local
+
+springdoc:
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha
+
+# 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+# kidly-app(8080)과 같이 띄울 수 있게 포트를 나눈다
+server:
+  port: 8082
+
+# 로컬 · 테스트 전용 키. 검증만 하므로 공개키만 둔다(개인키는 회원이 발급할 때만 쓴다)
+# 상대 경로라서 프로젝트 루트에서 실행해야 한다 (bootRun · 테스트는 기본으로 루트)
+jwt:
+  public-key: file:config/jwt/local-public.pem
+
+cors:
+  allowed-origins: http://localhost:5173
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+server:
+  forward-headers-strategy: native
+
+jwt:
+  public-key: ${JWT_PUBLIC_KEY_LOCATION}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}
