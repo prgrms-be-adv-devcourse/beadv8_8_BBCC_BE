@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,11 +35,15 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,8 +69,12 @@ class RecommendKafkaListenerIntegrationTest {
     private static final String CHILD_TOPIC = "kidly.childprofile.events";
     private static final String PRODUCT_TOPIC = "kidly.product.events";
     private static final String GROUP = "kidly.recommend";
+    private static final String SELLER_DLT = "kidly.seller.events.recommend.dlt";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final LocalDateTime CHANGED_AT = LocalDateTime.of(2026, 10, 30, 10, 0);
+
+    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
+    private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
     private RecommendReplicaSellerRepository replicaSellerRepository;
@@ -199,6 +208,21 @@ class RecommendKafkaListenerIntegrationTest {
             .containsExactly("새옷장", SellerStatus.SUSPENDED, CHANGED_AT.plusMinutes(1));
     }
 
+    @Test
+    @DisplayName("받는 종류인데 본문을 읽지 못하면 재시도 없이 DLT로 보낸다")
+    void deadLetterUnreadableBody() throws Exception {
+        String key = String.valueOf(newId());
+        String body = "{\"data\":{\"sellerId\":\"숫자 아님\",\"businessName\":\"소소한옷장\"}}";
+
+        var sent = sendRaw(SELLER_TOPIC, key, "seller.changed", UUID.randomUUID(), body);
+
+        AsyncWait.until(TIMEOUT, () -> !deadLetters(SELLER_DLT, key).isEmpty());
+        assertThat(deadLetters(SELLER_DLT, key)).singleElement().satisfies(deadLetter -> {
+            assertThat(deadLetter.value()).isEqualTo(body);
+            assertThat(deadLetter.timestamp() - sent.timestamp()).isLessThan(RETRY_BACKOFF_TOTAL_MS);
+        });
+    }
+
     private static Long newId() {
         return ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
     }
@@ -234,6 +258,27 @@ class RecommendKafkaListenerIntegrationTest {
             return committed == null ? -1 : committed.offset();
         } catch (Exception e) {
             throw new IllegalStateException("추천 그룹의 커밋 위치를 읽지 못했습니다", e);
+        }
+    }
+
+    // DLT를 처음부터 지금 끝까지 읽어 이 테스트의 키만 돌려준다. DLT가 아직 없으면 빈 목록이다
+    private List<ConsumerRecord<String, String>> deadLetters(String deadLetterTopic, String key) {
+        try (var consumer = new KafkaConsumer<String, String>(Map.of(
+            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
+            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
+            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
+            if (consumer.partitionsFor(deadLetterTopic).isEmpty()) {
+                return List.of();
+            }
+            var partition = new TopicPartition(deadLetterTopic, 0);
+            consumer.assign(List.of(partition));
+            consumer.seekToBeginning(List.of(partition));
+            var end = consumer.endOffsets(List.of(partition)).get(partition);
+            var records = new ArrayList<ConsumerRecord<String, String>>();
+            while (consumer.position(partition) < end) {
+                consumer.poll(Duration.ofMillis(200)).forEach(records::add);
+            }
+            return records.stream().filter(record -> key.equals(record.key())).toList();
         }
     }
 
