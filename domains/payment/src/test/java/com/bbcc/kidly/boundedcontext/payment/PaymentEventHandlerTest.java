@@ -12,12 +12,16 @@ import com.bbcc.kidly.boundedcontext.payment.app.OrderCancellationRetryService;
 import com.bbcc.kidly.boundedcontext.payment.app.OrderCancellationService;
 import com.bbcc.kidly.boundedcontext.payment.app.OrderPaymentService;
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventHandler;
+import com.bbcc.kidly.boundedcontext.payment.app.SettlementPayoutService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.OrderCancelCommand;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PayOrderCommand;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.PayoutCommand;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
+import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -47,6 +51,9 @@ class PaymentEventHandlerTest {
 
     @Mock
     private OrderCancellationRetryService orderCancellationRetryService;
+
+    @Mock
+    private SettlementPayoutService settlementPayoutService;
 
     @InjectMocks
     private PaymentEventHandler handler;
@@ -90,6 +97,16 @@ class PaymentEventHandlerTest {
         handler.orderCancelled(orderCancelledEvent());
 
         then(orderCancellationRetryService).should().remember(COMMAND, failure);
+    }
+
+    @Test
+    @DisplayName("정산 지급 요청은 정산서 · 판매자 · 정산금액으로 판매자 예치금에 입금한다")
+    void settlementPayoutRequested() {
+        handler.settlementPayoutRequested(new SettlementPayoutRequestedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new SettlementPayoutRequestedEvent.Data(31L, MEMBER_ID, 270_000L, LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 31))));
+
+        then(settlementPayoutService).should().payout(new PayoutCommand(31L, MEMBER_ID, 270_000L));
     }
 
     private static OrderCancelledEvent orderCancelledEvent() {
