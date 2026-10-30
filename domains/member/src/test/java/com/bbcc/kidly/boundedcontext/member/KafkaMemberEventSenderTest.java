@@ -15,6 +15,7 @@ import static org.mockito.Mockito.times;
 import com.bbcc.kidly.boundedcontext.member.out.kafka.KafkaMemberEventSender;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.member.event.MemberTokensRevokedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import java.time.Duration;
 import java.util.List;
@@ -94,6 +95,22 @@ class KafkaMemberEventSenderTest {
 
         assertThat(record.key()).isEqualTo(String.valueOf(MEMBER_ID));
         assertThat(header(record, "eventType")).isEqualTo("member.withdrawn");
+    }
+
+    @Test
+    @DisplayName("토큰 무효화의 data는 회원 ID 숫자와 기준 시각(시간대 없는 ISO 문자열)이다")
+    void tokensRevokedData() {
+        var event = new MemberTokensRevokedEvent(UUID.randomUUID(), NOW,
+            new MemberTokensRevokedEvent.Data(MEMBER_ID, NOW));
+
+        var record = sendOne(event);
+
+        assertThat(record.key()).isEqualTo(String.valueOf(MEMBER_ID));
+        assertThat(header(record, "eventType")).isEqualTo("member.tokens-revoked");
+        JsonNode data = JSON_MAPPER.readTree(record.value()).get("data");
+        assertThat(data.propertyNames()).containsExactly("memberId", "revokedAt");
+        assertThat(data.get("memberId").isNumber()).isTrue();
+        assertThat(data.get("revokedAt").asString()).isEqualTo("2026-10-12T09:00:00");
     }
 
     @Test

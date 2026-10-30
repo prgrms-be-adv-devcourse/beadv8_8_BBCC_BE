@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.member;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
@@ -18,6 +19,7 @@ import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.member.event.MemberTokensRevokedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -70,6 +72,9 @@ class MemberKafkaPublishIntegrationTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private AccessTokenRevocationService revocationService;
 
     @Autowired
     private EventPublisher eventPublisher;
@@ -132,6 +137,38 @@ class MemberKafkaPublishIntegrationTest {
 
         var changed = events.stream(MemberChangedEvent.class).findFirst().orElseThrow();
         assertSent(changed, "member.changed", member.getId());
+    }
+
+    @Test
+    @DisplayName("토큰을 무효화하면 커밋 뒤 member.tokens-revoked를 회원 ID 키로 보내고 data에 기준 시각을 담는다")
+    void tokensRevoked() {
+        var revokedAt = LocalDateTime.of(2026, 10, 12, 9, 0, 5);
+
+        transactionTemplate.executeWithoutResult(status -> revocationService.revoke(7L, revokedAt));
+
+        var tokensRevoked = events.stream(MemberTokensRevokedEvent.class).findFirst().orElseThrow();
+        var record = awaitRecord(tokensRevoked);
+        assertThat(record.key()).isEqualTo("7");
+        assertThat(header(record, "eventType")).isEqualTo("member.tokens-revoked");
+        var data = JSON_MAPPER.readTree(record.value()).get("data");
+        assertThat(data.get("memberId").asLong()).isEqualTo(7L);
+        assertThat(data.get("revokedAt").asString()).isEqualTo("2026-10-12T09:00:05");
+    }
+
+    @Test
+    @DisplayName("토큰 무효화가 롤백되면 보내지 않는다")
+    void tokensRevokedRolledBack() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+        transactionTemplate.executeWithoutResult(status -> {
+            revocationService.revoke(member.getId(), LocalDateTime.now());
+            status.setRollbackOnly();
+        });
+        var rolledBack = events.stream(MemberTokensRevokedEvent.class).findFirst().orElseThrow();
+        memberService.update(member.getId(), new MemberUpdateRequest("새닉네임"));
+
+        // 키(회원 ID)가 같아 같은 파티션이므로, 뒤에 보낸 변경을 받았으면 앞의 무효화는 이미 왔어야 한다
+        awaitRecord(events.stream(MemberChangedEvent.class).findFirst().orElseThrow());
+        assertThat(findRecord(rolledBack)).isEmpty();
     }
 
     @Test
