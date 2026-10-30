@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
-import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventListenerState;
 import com.bbcc.kidly.boundedcontext.order.domain.expiry.PaymentEventLagCheck;
 import java.time.Clock;
 import java.time.Duration;
@@ -14,8 +13,9 @@ import org.springframework.stereotype.Component;
  * 결제 마감 만료를 이번 주기에 실행해도 되는지 정한다(#561). 처리되지 않은 payment.completed가 남은 동안 만료가 돌면
  * 정상 결제된 주문을 결제 마감 만료로 취소할 수 있어서다.
  * <ul>
- *   <li>주문의 결제 이벤트 Kafka 리스너가 실행 중이 아니면(없음 · 멈춤 = Spring으로 받음) 확인 없이 실행</li>
- *   <li>실행 중이면 처리 대기량을 확인해 대기 0일 때만 실행. 대기 있음 · 확인 실패 · 배정 전이면 건너뛰고 INFO(이유 코드만)</li>
+ *   <li>주문 Kafka 수신 스위치(kidly.order.kafka.consumer.enabled)가 꺼져 있으면(Spring 수신) 확인 없이 실행</li>
+ *   <li>켜져 있으면 결제 리스너 상태와 상관없이 늘 처리 대기량을 확인해(리스너가 오류로 멈춰 대기분이 쌓여도 정상 결제 주문을
+ *       취소하지 않게, #594) 대기 0일 때만 실행. 대기 있음 · 확인 실패 · 배정 전이면 건너뛰고 INFO(이유 코드만)</li>
  *   <li>연속으로 건너뛴 시간이 10분을 넘으면 ERROR 한 번(만료가 멈춤), 다시 실행되면 INFO 한 줄과 함께 연속 기록을 지운다</li>
  * </ul>
  * 연속 기록은 이 빈의 메모리에 둔다(서버마다 만료 스케줄러가 돌고 각자 판단한다. 재시작하면 처음부터 센다).
@@ -26,7 +26,7 @@ public class PaymentExpiryGate {
 
     static final Duration ALERT_AFTER = Duration.ofMinutes(10);
 
-    private final PaymentEventListenerState listener;
+    private final OrderKafkaConsumerProperties consumerProperties;
     private final PaymentEventLag lag;
     private final Clock clock;
 
@@ -34,12 +34,12 @@ public class PaymentExpiryGate {
     private boolean alerted;
 
     @Autowired
-    public PaymentExpiryGate(PaymentEventListenerState listener, PaymentEventLag lag) {
-        this(listener, lag, Clock.systemDefaultZone());
+    public PaymentExpiryGate(OrderKafkaConsumerProperties consumerProperties, PaymentEventLag lag) {
+        this(consumerProperties, lag, Clock.systemDefaultZone());
     }
 
-    PaymentExpiryGate(PaymentEventListenerState listener, PaymentEventLag lag, Clock clock) {
-        this.listener = listener;
+    PaymentExpiryGate(OrderKafkaConsumerProperties consumerProperties, PaymentEventLag lag, Clock clock) {
+        this.consumerProperties = consumerProperties;
         this.lag = lag;
         this.clock = clock;
     }
@@ -48,7 +48,7 @@ public class PaymentExpiryGate {
      * @return 이번 주기에 만료를 실행해도 되면 true
      */
     public synchronized boolean allowsRun() {
-        if (!listener.isRunning()) {
+        if (!consumerProperties.enabled()) {
             resume();
             return true;
         }

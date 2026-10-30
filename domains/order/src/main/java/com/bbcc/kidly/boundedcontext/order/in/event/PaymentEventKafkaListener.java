@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
-import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventListenerState;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,8 @@ import tools.jackson.databind.json.JsonMapper;
 @RequiredArgsConstructor
 public class PaymentEventKafkaListener {
 
-    static final String ID = PaymentEventListenerState.LISTENER_ID;
+    // 주문 Kafka 리스너 이름 규칙: order + 받는 이벤트 + KafkaListener
+    static final String ID = "orderPaymentEventKafkaListener";
 
     private final JsonMapper jsonMapper;
     private final PaymentEventListener paymentEventListener;
