@@ -26,4 +26,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    // 수신 테스트용 Kafka 컨테이너와 메시지를 넣는 Producer · Admin, 리스너를 켜고 끄는 레지스트리 (버전은 Boot BOM, kidly-app과 같다)
+    // 도메인 모듈은 spring-kafka를 implementation으로 받아 앱의 테스트 컴파일 경로에는 없다
+    testImplementation("org.springframework.boot:spring-boot-starter-kafka")
+    testImplementation("org.testcontainers:testcontainers-kafka")
+    testImplementation("org.apache.kafka:kafka-clients")
 }

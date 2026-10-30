@@ -3,8 +3,8 @@
 상품 목록 검색(`GET /api/v1/products`)을 상품에서 떼어 맡는다. 상품 · 판매자가 발행한 이벤트로만 색인하고, 상품 DB를 읽지 않는다.
 
 ## 진행 상태
-- 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori)
-- 남음: 서버 배포(추가 서버 t3.medium의 compose · 배포 워크플로 · Alloy), Kafka 수신(`in`), 처음 채우기, nginx 전환
+- 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori), Kafka 수신(`in/SearchProductEventListener` · `in/SearchSellerEventListener`)
+- 남음: 서버 배포(추가 서버 t3.medium의 compose · 배포 워크플로 · Alloy · Kafka 사설 IP 연결), 처음 채우기(상품 · 판매자의 전체 다시 발행), nginx 전환
 - kidly-app에는 넣지 않는다. 상품의 목록 API와 경로(`GET /api/v1/products`)가 같아 한 앱에 두면 매핑이 겹친다. `apps/search-service`로만 띄운다
 
 ## 검색 문서 (`domain/SearchProduct`)
@@ -20,6 +20,17 @@
   - Elasticsearch 구현은 `occurredAt`(마이크로초)을 외부 버전(`version_type=external`)으로 넘긴다. 저장된 버전보다 크지 않으면 Elasticsearch가 409로 거절하고, 저장소는 그 거절을 무시한다(`out/VersionedIndexing`)
   - 다른 오류는 그대로 던져 Kafka 수신이 다시 시도하게 한다
 - 처음 채우기는 상품 · 판매자가 전체를 상품(판매자)마다 이벤트 한 개씩 다시 보낸다. 그 이벤트의 `occurredAt`은 마지막으로 바뀐 시각이라, 이미 복사본이 있는 다른 도메인은 무시하고 비어 있는 검색만 반영한다
+
+## Kafka 수신 (`in/SearchProductEventListener` · `in/SearchSellerEventListener`)
+- 구독 그룹 `kidly.search`로 `kidly.product.events`의 `product.changed`, `kidly.seller.events`의 `seller.changed`만 받는다. 그 밖의 종류(재고 차감 등)는 읽지 않고 건너뛴다. 종류는 헤더 `eventType`으로 고른다
+- 본문(공통 칸 7개 + `data`)을 이벤트 record로 읽어 `SearchIndexService`에 넘긴다. DB가 없어 트랜잭션은 열지 않는다
+- 같은 메시지를 다시 받거나 순서가 바뀌어 와도 외부 버전(`occurredAt`)으로 늦게 일어난 변경만 남는다. 그래서 한 번 이상 받아도 된다
+- 실패 처리(`in/SearchKafkaListenerConfig`): 한 건씩 처리 완료를 커밋하고, 실패하면 1초 간격으로 3번 더 시도한 뒤 받은 토픽의 DLT(`<토픽>.search.dlt`)로 보낸다
+  - 재시도 없이 바로 DLT: 읽지 못한 본문(`JacksonException`), 검색 문서로 만들 수 없는 값(옵션 없는 상품 · 필수 값 없음 · `eventType` 헤더 없음, `IllegalArgumentException` · `NullPointerException`). 다시 해도 같아서다
+  - DLT 로그에는 토픽 · `eventType` · `eventId` · 키 · 예외 종류만 남긴다(본문 · 예외 메시지는 남기지 않는다)
+  - Elasticsearch가 3초 넘게 응답하지 않으면 그동안 받은 메시지는 DLT로 간다. DLT를 다시 넣는 방법은 서버 배포 때 정한다
+- 읽기 시작 위치는 앱 설정 `latest`(회의 10-29 안건 4). 구독 그룹이 처음 붙기 전 메시지는 읽지 않으므로 기존 상품은 처음 채우기로 넣는다
+- 상품 · 판매자 토픽은 보내는 쪽이 선언한다. 검색은 DLT 두 개만 선언한다
 
 ## Elasticsearch 색인
 - 색인 이름은 `{kidly.search.index.prefix}-products` · `-sellers`. dev와 prod가 Elasticsearch 하나를 색인 이름으로만 나눠 쓸 수 있다(`search.yml`)
@@ -55,6 +66,6 @@
   - 로컬 compose의 `elasticsearch`는 프로필 `search`라 기본 `docker compose up -d`에서는 뜨지 않는다. 이름을 붙여 띄우거나 `--profile search`를 쓴다
 - Elasticsearch 이미지: `docker/elasticsearch/Dockerfile`(공식 9.4.x + analysis-nori). 로컬 compose · 테스트 · 서버가 같은 파일로 만든다. 버전은 클라이언트(Boot BOM)와 같은 마이너로 맞춘다
 - 메모리(로컬 측정): Elasticsearch 힙 512MB → 약 950MB, search-service `-Xmx384m` → 약 290MB
-- 테스트: `@IntegrationTest` · `@FunctionalTest`(이 서비스의 `support`)가 같은 Dockerfile로 Elasticsearch 컨테이너를 띄운다. 테스트마다 색인을 지우고 다시 만든다(`SearchIndexCleanerExtension`)
+- 테스트: `@IntegrationTest` · `@FunctionalTest`(이 서비스의 `support`)가 같은 Dockerfile로 Elasticsearch 컨테이너를 띄운다. Kafka 수신은 `@KafkaIntegrationTest`(Kafka 컨테이너를 더함, 리스너는 테스트 안에서 켜고 끈다)가 본다. 테스트마다 색인을 지우고 다시 만든다(`SearchIndexCleanerExtension`)
   - 문서만 지우면(delete_by_query) 안 된다. Elasticsearch가 지운 문서의 외부 버전을 잠시(`gc_deletes`, 60초) 기억해, 같은 발생 시각으로 다시 색인하면 늦은 이벤트로 보고 거절한다
   - 저장한 문서는 새로 고침 전에는 검색되지 않으므로 검색 전에 `SearchIndexes.refresh()`를 부른다
