@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 셋(IMAGE · SEARCH_IMAGE · ES_IMAGE)을 넘긴다
-# 검색 이미지 둘은 profile search 가 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다
+# 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 둘(IMAGE · SEARCH_IMAGE)을 넘긴다
+# 검색 서비스 이미지는 profile search 가 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다. Elasticsearch 는 t3.medium k3s(deploy/search)에 있다
 set -euo pipefail
 : "${APP_ENV:?APP_ENV 가 필요합니다}" "${IMAGE:?IMAGE 가 필요합니다}"
-: "${SEARCH_IMAGE:?SEARCH_IMAGE 가 필요합니다}" "${ES_IMAGE:?ES_IMAGE 가 필요합니다}"
+: "${SEARCH_IMAGE:?SEARCH_IMAGE 가 필요합니다}"
 cd "$(dirname "$0")"
 # docker 가 없는 디렉터리를 root 소유로 만들지 않도록 미리 만든다 (컨테이너는 UID 1001 = deploy 로 돈다)
 mkdir -p logs
-printf 'IMAGE=%s\nSEARCH_IMAGE=%s\nES_IMAGE=%s\n' "$IMAGE" "$SEARCH_IMAGE" "$ES_IMAGE" > image.env
+printf 'IMAGE=%s\nSEARCH_IMAGE=%s\n' "$IMAGE" "$SEARCH_IMAGE" > image.env
 compose() { docker compose -p "$APP_ENV" --env-file .env --env-file image.env "$@"; }
 # 검색이 켜진 환경인지. 꺼진 환경에서는 search-service 가 목록에 없다
 search_on=false
@@ -17,7 +17,8 @@ if grep -qx search-service <<< "$services"; then
 fi
 compose pull
 # 앱이 healthy 가 되지 못하면 워크플로가 원인을 뽑을 수 있게 앱 로그를 남기고 실패한다 (.github/scripts/startup-error.sh)
-if ! compose up -d --wait; then
+# --remove-orphans: compose 에서 뺀 서비스(t3.medium 으로 옮긴 elasticsearch)의 컨테이너를 지운다. 볼륨은 남는다
+if ! compose up -d --wait --remove-orphans; then
   echo "::group::앱 로그 (마지막 1000줄)"
   compose logs app --no-log-prefix --no-color --tail 1000 || true
   echo "::endgroup::"
@@ -26,9 +27,7 @@ if ! compose up -d --wait; then
     echo "::group::검색 서비스 로그 (마지막 300줄)"
     compose logs search-service --no-log-prefix --no-color --tail 300 || true
     echo "::endgroup::"
-    echo "::group::Elasticsearch 로그 (마지막 100줄)"
-    compose logs elasticsearch --no-log-prefix --no-color --tail 100 || true
-    echo "::endgroup::"
+    echo "Elasticsearch 로그는 t3.medium 에서 kubectl -n search logs deploy/elasticsearch 로 본다"
   fi
   exit 1
 fi
@@ -60,7 +59,7 @@ fi
 # 다른 환경 컨테이너가 쓰는 이미지는 docker 가 삭제를 거부해서 남는다 (-f 를 쓰지 않는다)
 # 지운 이미지로 롤백할 때는 GHCR 에서 다시 받는다
 removed=0
-for repo in "${IMAGE%:*}" "${SEARCH_IMAGE%:*}" "${ES_IMAGE%:*}"; do
+for repo in "${IMAGE%:*}" "${SEARCH_IMAGE%:*}"; do
   for old in $(docker images -a "$repo" --format '{{if eq .Tag "<none>"}}{{.ID}}{{else}}{{.Repository}}:{{.Tag}}{{end}}' | tail -n +4); do
     if docker rmi "$old" > /dev/null 2>&1; then
       removed=$((removed + 1))

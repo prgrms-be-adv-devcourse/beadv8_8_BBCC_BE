@@ -1,0 +1,95 @@
+# 검색(#526)이 쓰는 Elasticsearch. t3.large 의 search-service 가 medium 사설 IP 의 NodePort 30920 으로 붙는다
+# 이미지는 docker/elasticsearch(공식 + nori)를 deploy.yml 이 GHCR 에 올린 것. __ES_IMAGE__ 는 deploy.sh 가 바꾼다
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: search
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elasticsearch-data
+  namespace: search
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch
+  namespace: search
+spec:
+  replicas: 1
+  # ES 데이터 폴더는 한 프로세스만 쓸 수 있고(node lock) 메모리도 두 개를 띄울 만큼 없어 옛 Pod 를 먼저 내린다
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      nodeSelector:
+        kidly/role: infra
+      # GHCR 패키지가 private 이다. deploy.sh 가 배포 잡의 GITHUB_TOKEN 으로 배포마다 만든다
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: elasticsearch
+          image: __ES_IMAGE__
+          # 노드에 이미지가 있으면 쓴다. 지워진 뒤에는 pull secret 의 토큰이 만료돼 있어 다음 배포까지 받지 못한다
+          imagePullPolicy: IfNotPresent
+          # 인증(xpack)을 끈다. 보안 그룹이 t3.large 에서 오는 것만 받게 해서 막는다
+          # heap 을 정하지 않으면 노드 메모리에 비례해 크게 잡는다
+          env:
+            - name: discovery.type
+              value: single-node
+            - name: xpack.security.enabled
+              value: "false"
+            - name: ES_JAVA_OPTS
+              value: -Xms1g -Xmx1g
+          ports:
+            - name: http
+              containerPort: 9200
+          # compose 때 healthcheck 와 같다. 기동에 30초 넘게 걸린다
+          readinessProbe:
+            exec:
+              command: ["curl", "-fs", "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6
+          # 실측 최대 1.42GB (heap 1GB + 그 밖)
+          resources:
+            requests:
+              memory: 1536Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: elasticsearch-data
+---
+# NodePort 는 노드의 모든 주소에 열린다. 보안 그룹(소스 team04-sg)으로만 막는다
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: search
+spec:
+  type: NodePort
+  selector:
+    app: elasticsearch
+  ports:
+    - name: http
+      port: 9200
+      targetPort: http
+      nodePort: 30920
