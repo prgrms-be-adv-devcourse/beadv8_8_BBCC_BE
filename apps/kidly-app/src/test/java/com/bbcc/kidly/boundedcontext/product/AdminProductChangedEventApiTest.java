@@ -62,9 +62,7 @@ class AdminProductChangedEventApiTest {
         register(PENDING_SELLER_ID);
         eventRecorder.clear();
 
-        client.post().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
-            .exchange()
+        republish(tokens.admin(ADMIN_ID))
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.publishedCount").isEqualTo(2);
@@ -72,6 +70,31 @@ class AdminProductChangedEventApiTest {
         assertThat(eventRecorder.events(ProductChangedEvent.class))
             .extracting(event -> event.data().productId())
             .containsExactlyInAnyOrder(onSaleProductId, stoppedProductId);
+    }
+
+    @Test
+    @DisplayName("다시 보낸 상품 정보 변경됨은 처음 보낸 이벤트와 eventId가 다르고 occurredAt이 더 늦다")
+    void republishedEventHasNewEventIdAndLaterOccurredAt() {
+        Long productId = register(ON_SALE_SELLER_ID);
+        changeSaleStatus(ON_SALE_SELLER_ID, productId, "ON_SALE");
+        ProductChangedEvent first = eventRecorder.events(ProductChangedEvent.class).getFirst();
+        eventRecorder.clear();
+
+        republish(tokens.admin(ADMIN_ID)).expectStatus().isOk();
+
+        // 아웃박스는 같은 eventId를 한 번만 보내고, 받는 쪽은 저장된 occurredAt보다 늦은 이벤트만 반영한다
+        assertThat(eventRecorder.events(ProductChangedEvent.class))
+            .singleElement()
+            .satisfies(event -> {
+                assertThat(event.eventId()).isNotEqualTo(first.eventId());
+                assertThat(event.occurredAt()).isAfter(first.occurredAt());
+            });
+    }
+
+    private RestTestClient.ResponseSpec republish(String token) {
+        return client.post().uri(PATH)
+            .headers(headers -> headers.setBearerAuth(token))
+            .exchange();
     }
 
     private Long register(long sellerId) {
