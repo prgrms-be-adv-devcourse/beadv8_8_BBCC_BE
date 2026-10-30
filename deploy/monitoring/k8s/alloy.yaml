@@ -1,0 +1,101 @@
+# medium 노드 자체의 메트릭과 Pod 로그를 모은다 (alloy/config.alloy). 앱 서버(t3.large)는 deploy/monitoring-agent 의 Alloy 가 맡는다
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy
+---
+# 이 노드의 Pod 를 찾고(discovery.kubernetes) 그 로그를 API 로 읽는다(loki.source.kubernetes)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy
+subjects:
+  - kind: ServiceAccount
+    name: alloy
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: alloy
+spec:
+  selector:
+    matchLabels:
+      app: alloy
+  template:
+    metadata:
+      labels:
+        app: alloy
+    spec:
+      serviceAccountName: alloy
+      # 노드의 네트워크 장치 · 호스트 이름(메트릭 instance 라벨)을 그대로 보려고 호스트 네트워크를 쓴다. 클러스터 DNS 는 그대로 쓴다
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      # large 가 k3s 에 합류하면 이 nodeSelector 를 빼고 deploy/monitoring-agent 를 지운다
+      nodeSelector:
+        kidly/role: infra
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.10.1
+          # 호스트 네트워크라 UI · API 는 노드의 127.0.0.1 에만 연다. 그래서 probe 는 두지 않는다
+          args:
+            - run
+            - --server.http.listen-addr=127.0.0.1:12345
+            - --storage.path=/var/lib/alloy/data
+            - /etc/alloy/config.alloy
+          env:
+            # config.alloy 가 이 노드의 Pod 만 고른다
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              memory: 96Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+            # remote write WAL · 로그 읽은 위치. Pod 를 새로 만들어도(설정 변경) 이어서 읽도록 노드에 둔다
+            - name: data
+              mountPath: /var/lib/alloy/data
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+            - name: root
+              mountPath: /host/root
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: alloy-config
+        - name: data
+          hostPath:
+            path: /var/lib/alloy
+            type: DirectoryOrCreate
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: root
+          hostPath:
+            path: /

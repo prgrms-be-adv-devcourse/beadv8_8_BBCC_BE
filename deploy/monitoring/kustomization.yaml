@@ -1,0 +1,47 @@
+# t3.medium k3s 의 모니터링 스택. deploy.sh 가 kubectl apply --server-side -k 로 넣는다
+# 설정 파일은 ConfigMap 으로 만든다. 이름에 내용 해시가 붙어 설정이 바뀌면 그 Pod 가 다시 뜬다
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+resources:
+  - k8s/namespace.yaml
+  - k8s/prometheus.yaml
+  - k8s/loki.yaml
+  - k8s/grafana.yaml
+  - k8s/alloy.yaml
+
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus/prometheus.yml
+  - name: loki-config
+    files:
+      - loki/loki.yml
+  - name: alloy-config
+    files:
+      - alloy/config.alloy
+  - name: grafana-datasources
+    files:
+      - grafana/provisioning/datasources/datasources.yml
+  - name: grafana-dashboard-providers
+    files:
+      - grafana/provisioning/dashboards/dashboards.yml
+  - name: grafana-alerting
+    files:
+      - grafana/provisioning/alerting/alerting.yml
+      - grafana/provisioning/alerting/templates.yml
+  - name: grafana-dashboards
+    files:
+      - grafana/dashboards/jvm-micrometer.json
+      - grafana/dashboards/kidly-logs.json
+      - grafana/dashboards/kidly-server.json
+      - grafana/dashboards/spring-boot.json
+
+# 원본은 Environment dev Secret 이고, 워크플로가 secrets/<키> 파일을 매번 만든다(레포에는 없다)
+secretGenerator:
+  - name: monitoring-secrets
+    files:
+      - secrets/GRAFANA_ADMIN_PASSWORD
+      - secrets/SLACK_OPS_WEBHOOK_URL

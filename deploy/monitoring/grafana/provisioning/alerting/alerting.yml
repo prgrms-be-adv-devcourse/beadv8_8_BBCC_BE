@@ -1,6 +1,6 @@
 apiVersion: 1
 
-# Slack #4팀-운영이슈. 웹훅은 서버 .env 의 SLACK_OPS_WEBHOOK_URL
+# Slack #4팀-운영이슈. 웹훅은 Secret monitoring-secrets 의 SLACK_OPS_WEBHOOK_URL (Grafana 환경 변수)
 contactPoints:
   - orgId: 1
     name: slack-ops
@@ -32,8 +32,8 @@ groups:
     folder: Kidly
     interval: 1m
     rules:
-      # Prometheus 가 앱을 2분 넘게 못 읽으면(up=0). Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
-      # 데이터가 없다는 건 등록된 수집 대상이 없다는 뜻(앱 배포가 targets 파일을 쓰기 전)이라 알리지 않는다
+      # t3.large Alloy 가 앱을 2분 넘게 못 읽으면(up=0). Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
+      # 데이터가 없다는 건 등록된 수집 대상이 없다는 뜻(앱 배포가 targets 파일을 쓰기 전)이라 알리지 않는다. 메트릭이 아예 안 오는 것은 "수집 끊김"이 본다
       - uid: kidly-app-down
         title: 앱 다운
         condition: B
@@ -121,3 +121,33 @@ groups:
         annotations:
           summary: '최근 5분 ERROR 로그 {{ with $values.A }}{{ printf "%.0f" .Value }}{{ end }}건'
           logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\", level=\"ERROR\"}","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
+
+      # 앱 메트릭이 하나도 안 들어오면(up 시계열 자체가 없음). "앱 다운"은 up=0 만 보므로 t3.large 다운 · Alloy 중단 · 서버 간 연결 끊김을 못 잡는다
+      # absent_over_time 은 시계열이 있으면 빈 결과(데이터 없음 → OK), 없으면 1 이다. env 라벨이 없어 제목은 "수집 끊김" 만 나온다
+      # 수집 대상이 하나도 없을 때(어느 환경도 배포 전)도 울린다
+      - uid: kidly-scrape-missing
+        title: 수집 끊김
+        condition: B
+        for: 2m
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 300, to: 0}
+            model:
+              refId: A
+              expr: absent_over_time(up{job="kidly"}[3m])
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        labels:
+          severity: critical
+        annotations:
+          summary: '앱 메트릭이 3분 넘게 하나도 들어오지 않습니다 (t3.large 다운 · Alloy 중단 · 서버 간 연결 끊김)'

@@ -17,6 +17,7 @@ on:
     # 모니터링은 monitoring-deploy.yml 이, 루트 docker/ · docker-compose.yml 은 로컬 개발용이다. .md 는 .dockerignore 로 이미지에도 안 들어간다
     paths-ignore:
       - deploy/monitoring/**
+      - deploy/monitoring-agent/**
       - docker/**
       - docker-compose.yml
       - docs/**

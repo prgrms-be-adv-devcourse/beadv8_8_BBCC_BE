@@ -1,6 +1,6 @@
 # nginx + HTTPS 설정
 
-EC2 한 대에서 nginx 가 443 을 받아 운영 앱(`127.0.0.1:8080`), 개발 앱(`127.0.0.1:8081`), Grafana(`127.0.0.1:3000`)로 넘깁니다.
+앱 서버(t3.large)에서 nginx 가 443 을 받아 운영 앱(`127.0.0.1:8080`), 개발 앱(`127.0.0.1:8081`), Grafana(모니터링 서버 t3.medium 의 Traefik `<사설 IP>:80`)로 넘깁니다.
 `/actuator` 와 그 아래 경로는 `/actuator/health` 만 밖으로 열고 나머지는 404 입니다.
 인증서는 ZeroSSL 에서 무료로 받고(ACME), certbot 도커 이미지로 발급·갱신합니다.
 `kro.kr` 은 공용 접미사 목록(PSL)에 없어 Let's Encrypt 의 "등록 도메인당 주 50장" 한도를 모든 `kro.kr` 사용자와 나눠 쓰기 때문에 자주 막힙니다.
@@ -9,7 +9,7 @@ EC2 한 대에서 nginx 가 443 을 받아 운영 앱(`127.0.0.1:8080`), 개발 
 | --- | --- |
 | `https://api.<도메인>` | 운영 앱 (8080) |
 | `https://dev-api.<도메인>` | 개발 앱 (8081) |
-| `https://grafana.<도메인>` | Grafana (3000, `deploy/monitoring`) |
+| `https://grafana.<도메인>` | Grafana (t3.medium k3s, `deploy/monitoring`) |
 | IP 로 직접 접속, 모르는 호스트 | 응답 없이 끊음 |
 
 ## 준비
@@ -35,9 +35,11 @@ scp -r deploy/nginx ec2-user@<탄력적 IP>:~/
 
 ```bash
 cd ~/nginx
-sudo ./install.sh <도메인> <이메일>
-# 예) sudo ./install.sh kidly.example team@kidly.example
+sudo MONITORING_HOST=<모니터링 서버 사설 IP> ./install.sh <도메인> <이메일>
+# 예) sudo MONITORING_HOST=10.0.1.23 ./install.sh kidly.example team@kidly.example
 ```
+
+`MONITORING_HOST` 는 Grafana 가 도는 t3.medium 의 사설 IP 입니다(필수). 그 서버의 보안 그룹이 이 서버에서 오는 80 을 받아야 합니다.
 
 여러 번 실행해도 됩니다. 인증서 이름이 그대로면 발급은 건너뜁니다.
 이미 설치한 서버에서 이름을 추가할 때도 install.sh 를 다시 실행하면 됩니다.
@@ -45,7 +47,7 @@ sudo ./install.sh <도메인> <이메일>
 새 서버처럼 ZeroSSL 계정이 없으면 EAB 키가 필요합니다. ZeroSSL 대시보드 > Developer 에서 만들어 환경 변수로 넘깁니다(처음 한 번).
 
 ```bash
-sudo ZEROSSL_EAB_KID=<kid> ZEROSSL_EAB_HMAC_KEY=<hmac> ./install.sh <도메인> <이메일>
+sudo ZEROSSL_EAB_KID=<kid> ZEROSSL_EAB_HMAC_KEY=<hmac> MONITORING_HOST=<모니터링 서버 사설 IP> ./install.sh <도메인> <이메일>
 ```
 
 `--agree-tos` 로 [ZeroSSL 약관](https://zerossl.com/terms/)에 동의하게 됩니다.

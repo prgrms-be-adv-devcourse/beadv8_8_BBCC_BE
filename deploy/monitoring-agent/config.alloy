@@ -1,0 +1,158 @@
+// t3.large(앱 서버)의 수집기. 앱 로그 · 앱 메트릭 · 호스트 · 컨테이너 메트릭을 t3.medium k3s(deploy/monitoring)로 보낸다
+// 받는 곳은 medium 의 NodePort(Loki 31100, Prometheus 30090)다. 주소는 .env 의 MONITORING_HOST(medium 사설 IP)
+
+// dev · prod 앱 컨테이너(compose 서비스 app · search-service) 로그를 Loki 로 보낸다
+// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(app → kidly, search-service → kidly-search), level 라벨은 로그 줄에서 뽑는다
+// 서버 콘솔은 ECS JSON 한 줄이다. 텍스트 줄은 JSON 이전 이미지가 남긴 것이라 전환 기간에만 쓰인다
+
+discovery.docker "containers" {
+	host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "kidly_app" {
+	targets = discovery.docker.containers.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "app|search-service"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		regex         = "dev|prod"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		target_label  = "env"
+	}
+
+	// Drilldown → Logs 가 서비스 이름으로 묶는다. 없으면 Loki 가 unknown_service 를 붙인다
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "app"
+		target_label  = "service_name"
+		replacement   = "kidly"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "search-service"
+		target_label  = "service_name"
+		replacement   = "kidly-search"
+	}
+}
+
+loki.source.docker "kidly_app" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.kidly_app.output
+	forward_to = [loki.process.kidly_app.receiver]
+}
+
+loki.process "kidly_app" {
+	// 텍스트 줄의 스택 트레이스 여러 줄을 로그 한 건으로 묶는다 (로그 줄은 날짜 또는 JSON 의 { 로 시작한다)
+	stage.multiline {
+		firstline     = "^(\\d{4}-\\d{2}-\\d{2} |\\{)"
+		max_wait_time = "3s"
+	}
+
+	// 예: {"@timestamp":"...","log":{"level":"ERROR",...},...,"traceId":"...","memberId":"7"}
+	// traceId 는 요청 안에서만, memberId 는 로그인한 요청 안에서만 있다
+	stage.json {
+		expressions = {
+			level    = "log.level",
+			traceId  = "",
+			memberId = "",
+		}
+	}
+
+	// 예: 2026-10-16 17:33:04.385 ERROR [traceId] ... — 날짜로 시작하는 텍스트 줄에만 맞는다
+	stage.regex {
+		expression = "^\\d{4}-\\d{2}-\\d{2} \\S+\\s+(?P<level>[A-Z]+) "
+	}
+
+	stage.labels {
+		values = {
+			level = "",
+		}
+	}
+
+	// traceId · memberId 는 값 종류가 끝이 없어 라벨이 아니라 구조화 메타데이터로 둔다. {env="dev"} | traceId="..." 로 거른다
+	stage.structured_metadata {
+		values = {
+			traceId  = "",
+			memberId = "",
+		}
+	}
+
+	forward_to = [loki.write.medium.receiver]
+}
+
+loki.write "medium" {
+	endpoint {
+		url = string.format("http://%s:31100/loki/api/v1/push", sys.env("MONITORING_HOST"))
+	}
+}
+
+// 앱의 /actuator/prometheus. 옛 Prometheus 의 job kidly(file_sd)와 같은 라벨이 붙는다: job="kidly", instance="127.0.0.1:<포트>", env(파일의 labels)
+// 수집 대상은 앱 배포(deploy/deploy.sh)가 기동에 성공할 때마다 targets/<환경>.yml 로 써 둔다. 파일이 바뀌면 다시 읽는다
+// 배포된 적 없는 환경은 파일이 없어 수집하지 않는다 (없는 대상을 넣으면 "앱 다운"이 계속 울린다)
+discovery.file "kidly" {
+	files = ["/etc/alloy/targets/*.yml"]
+}
+
+prometheus.scrape "kidly" {
+	job_name        = "kidly"
+	targets         = discovery.file.kidly.targets
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.medium.receiver]
+}
+
+// 검색 서비스(apps/search-service). 앱 대시보드 · 알림(job kidly)과 섞이지 않게 job 을 나눈다
+// 검색이 켜진 환경만 앱 배포가 targets/search/<환경>.yml 로 써 둔다
+discovery.file "kidly_search" {
+	files = ["/etc/alloy/targets/search/*.yml"]
+}
+
+prometheus.scrape "kidly_search" {
+	job_name        = "kidly-search"
+	targets         = discovery.file.kidly_search.targets
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.medium.receiver]
+}
+
+// 호스트(EC2)와 컨테이너별 자원 사용량. 새 컨테이너 없이 Alloy 내장 exporter 로 모아 Prometheus 에 remote write 한다
+// 호스트 경로는 docker-compose.yml 이 읽기 전용으로 마운트한다
+prometheus.exporter.unix "host" {
+	procfs_path = "/host/proc"
+	rootfs_path = "/rootfs"
+}
+
+// 컨테이너는 name 라벨(dev-app-1 처럼 compose 프로젝트가 앞에 붙은 컨테이너 이름)로 구분한다. docker 라벨 · 환경 변수는 가져오지 않는다
+prometheus.exporter.cadvisor "containers" {
+	docker_only            = true
+	store_container_labels = false
+}
+
+// 앱 메트릭(위 prometheus.scrape "kidly")과 같은 15초 간격
+prometheus.scrape "host" {
+	targets         = prometheus.exporter.unix.host.targets
+	forward_to      = [prometheus.remote_write.medium.receiver]
+	scrape_interval = "15s"
+}
+
+prometheus.scrape "containers" {
+	targets         = prometheus.exporter.cadvisor.containers.targets
+	forward_to      = [prometheus.remote_write.medium.receiver]
+	scrape_interval = "15s"
+}
+
+prometheus.remote_write "medium" {
+	endpoint {
+		url = string.format("http://%s:30090/api/v1/write", sys.env("MONITORING_HOST"))
+	}
+}
