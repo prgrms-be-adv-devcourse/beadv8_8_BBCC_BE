@@ -1,102 +1,66 @@
-# Kidly BE
+# Kidly BE 기본 규율
 
-자녀 맞춤 키즈 패션 이커머스. Spring Boot 4.1 / Java 25 / PostgreSQL 18 모듈러 모놀리스.
+이 파일은 도메인 사이 외부 계약을 지키기 위한 최소 규율이다. 모든 작업에 적용한다. 도메인 내부는 외부 계약과 공용 실행 · 테스트 환경의 제약 안에서 자율적으로 설계한다.
+- 도메인 안의 설계는 그 도메인 폴더에 `CLAUDE.md`가 있으면 그것을, 없으면 그 도메인의 기존 코드 방식을 따른다. 어느 쪽이든 이 파일과 부딪히면 이 파일을 따른다.
+- 이 파일에서 "묻는다"는 작업을 멈추고 사람에게 확인받는다는 뜻이다. 확인 전에는 그 부분을 바꾸지 않는다.
+- 실행 · 빌드 · 테스트 명령은 README를 따른다: @README.md
 
-## 명령어
-- 로컬 DB: `docker compose up -d` (pgAdmin: http://localhost:5050, 서버 비밀번호 `kidly`)
-- 실행: `./gradlew bootRun` (기본 프로필 local)
-- 빌드(Checkstyle, ArchUnit, 테스트 포함): `./gradlew build`
-- 경계 규칙만 검사: `./gradlew archTest` (`test`에서는 제외된다)
-- 단위 테스트: `./gradlew test` (Docker 불필요) / 통합: `./gradlew integrationTest` / 기능: `./gradlew functionalTest` (둘 다 Docker 필요)
-- Swagger: http://localhost:8080/swagger-ui.html
+## 1. 도메인 경계
+- 다른 도메인의 코드를 참조하지 않는다. 도메인 사이는 `shared`의 계약으로만 주고받는다
+- 다른 도메인을 동기로 부를 때는 그 도메인의 `shared.{도메인}.out` 인터페이스만 쓴다. 이 인터페이스는 제공하는 도메인의 계약이다: 제공하는 도메인이 구현하고, 호출하는 도메인은 이 인터페이스에만 의존한다
+- 자기 DB 스키마만 읽고 쓴다
 
-## 구조
-- `com.bbcc.kidly.global`: 공통 코드. 도메인 패키지를 참조하지 않는다
-  - `eventpublisher`: `EventPublisher`. 이벤트는 `ApplicationEventPublisher` 대신 이것으로 발행한다
-    - 발행할 수 있는 건 `shared.event.DomainEvent`를 구현한 record뿐이다
-    - 발행은 `@Transactional` 서비스 안에서 `eventPublisher.publish(new PaymentCompletedEvent(...))`. 트랜잭션 밖에서 발행하면 전달되지 않는다
-    - 수신은 받는 도메인 `app`의 `@Component`에 `@DomainEventListener public void on(PaymentCompletedEvent event)`. 발행한 쪽이 커밋된 뒤 새 트랜잭션에서 실행된다
-    - 리스너가 실패하면 리스너 트랜잭션만 롤백되고 예외는 ERROR 로그로만 남는다 (발행한 쪽은 이미 커밋됨)
-  - `mail`: `EmailSender`. 메일은 이것으로 `send(new Email(to, subject, text))`. 기본 켬(`MAIL_ENABLED=false`로 끔)이고, 꺼져 있거나 SMTP 계정(`MAIL_USERNAME` · `MAIL_PASSWORD`)이 없으면 보내지 않고 로그만 남긴다. 커밋 뒤(이벤트 리스너 등)에서 부른다
-- `com.bbcc.kidly.shared`: 도메인 사이 계약. 도메인 패키지와 `global`을 참조하지 않는다
-  - `event.DomainEvent`: 모든 도메인 간 이벤트가 구현하는 인터페이스. 기획서 6.2 공통 형식이고, 이벤트마다 다른 내용은 `data`에 담는다
-    - record가 필드로 갖는 것: `UUID eventId`(발행할 때 `UUID.randomUUID()`), `LocalDateTime occurredAt`, `Data data`(이벤트 record 안의 `Data` record)
-    - 예: `record PaymentCompletedEvent(UUID eventId, LocalDateTime occurredAt, Data data) implements DomainEvent`, 꺼낼 때 `event.data().orderId()`
-    - record가 구현하는 것: `String aggregateId()`(이벤트가 다루는 대상의 ID)
-    - 기본값: `eventType`(클래스 이름에서, `OrderCreatedEvent` → `order.created`. 대상이 두 단어 이상이면 재정의), `producer`(패키지 `shared.{도메인}.event`에서), `schemaVersion` 1, `correlationId` = `aggregateId`
-    - 복사본은 저장된 값보다 `occurredAt`이 늦은 이벤트만 반영한다
-  - 도메인별 패키지 `member`, `product`, `recommend`, `order`, `payment`, `settlement`
-    - `dto`: 도메인 사이에 주고받는 데이터
-    - `domain`: 다른 도메인이 복사해 두는 그 도메인 데이터의 복사본
-    - `event`: 그 도메인이 발행하는 도메인 간 이벤트. record로 만들어 `DomainEvent`를 구현하고, 이름은 `발행도메인+과거형+Event`(예: `shared.payment.event.PaymentCompletedEvent`). 엔티티 대신 ID와 그 시점의 값만 `data`에 담는다
-    - `out`: 다른 도메인이 그 도메인과 연결할 때 쓰는 계약
-- `com.bbcc.kidly.boundedcontext`: 도메인 `member`, `product`, `recommend`, `order`, `payment`, `settlement`, `setting`(FE 동작 설정)
-  - `app`: 유스케이스 서비스, 이벤트 리스너
-    - `dto`: 유스케이스 입력 XxxRequest(Bean Validation 포함, 컨트롤러에서 `@Valid`로 검증)와 서비스가 돌려주는 결과
-    - `port`: 리포지토리가 아닌 나가는 연결(토큰 발급, 외부 API, DTO 조회)의 인터페이스
-  - `in`: 들어오는 요청. 컨트롤러, `dto`의 XxxResponse
-  - `domain`: 엔티티, 상태 enum, 리포지토리 인터페이스
-  - `out`: 나가는 연결. `domain`의 리포지토리와 `app.port`의 인터페이스를 구현한다 (JPA · QueryDSL, 외부 API 클라이언트)
-  - 계층 의존은 `in → app → domain`, `out → app.port · domain` 방향만 허용한다
-    - `domain`은 `app`·`in`·`out`을, `in`은 `domain`·`out`을, `app`은 `in`·`out`을, `out`은 `in`과 `app.port` 밖의 `app`을 참조하지 않는다
-    - 그래서 서비스는 엔티티 대신 `app.dto`의 결과를 돌려주고, XxxResponse는 그 결과로 만든다
-  - 도메인끼리는 서로의 코드를 참조하지 않는다. `shared`의 이벤트로만 주고받는다
-- 각 도메인은 자기 DB 스키마만 쓴다: `member`, `product`, `recommend`, `orders`, `payment`, `settlement`, `setting`
-- 경계 규칙: 도메인 사이 참조는 Gradle 의존으로 막고(`kidly.domain`), 모듈 사이 규칙은 `apps/kidly-app`의 `ArchitectureTest`, 모듈 안의 계층 규칙은 도메인 모듈마다 `LayerArchitectureTest`(`architecture` 모듈의 `LayerRules`)가 검사한다
+## 2. `shared` 계약
+- `shared`는 JDK만 쓴다. 도메인 · `common`을 참조하지 않는다
+- 도메인 간 이벤트는 `shared.{발행도메인}.event`에 record로 만들고 `DomainEvent`(`shared/event/DomainEvent.java`)를 구현한다. 이름은 `{발행도메인}{발생한 사실의 과거형}Event`(예: `OrderCreatedEvent` → `eventType` `order.created`)
+- 기존 이벤트의 패키지 · 클래스 이름을 바꾸지 않는다(패키지에서 `producer`, 클래스 이름에서 `eventType` 값이 만들어진다)
+- `aggregateId()`는 이벤트가 다루는 대상의 ID, `correlationId()`는 순서를 지켜야 하는 흐름의 ID다(기본값은 `aggregateId()`. 예: 결제 · 구매확정 이벤트는 주문 ID). 보내는 도메인이 정하고, 기존 이벤트의 값을 바꾸기 전에 묻는다(Kafka 키가 된다). 같은 키의 순서는 같은 토픽의 같은 파티션 안에서만 보장된다. 서로 다른 도메인 토픽 사이의 순서는 보장하지 않는다
+- 독립 배포: 아래를 지키면 보내는 쪽 · 받는 쪽 중 어느 쪽을 먼저 배포해도 된다
+  - 보내는 쪽은 호환되게만 바꾼다: 기존 이벤트 · DTO의 필드는 추가만 한다. 이름 · 타입 · 의미(단위 · 허용값 포함)를 바꾸거나 필드를 지우지 않는다. 이런 변경이 필요하면 묻는다
+  - 추가한 필드는 없어도 동작해야 한다: 그 필드가 없는 예전 메시지 · 호출도 역직렬화하고 처리한다(필수값 검사로 실패시키지 않는다)
+  - 받는 쪽은 너그럽게 읽는다: 모르는 필드는 무시한다(tolerant reader). 이 설정을 바꾸지 않는다
+  - 예외: 새 enum 값은 그 값을 받을 수 있는 모든 도메인이 처리하도록 배포된 뒤에 보낸다
+- 이벤트에 개인정보 필드를 추가하지 않는다
+- 이벤트 · DTO에 담는 ID 값은 `Long`, 시각은 `LocalDateTime`(한국 시간, 시간대 표시 없음). `DomainEvent`의 공통 칸은 정의대로 둔다(`eventId`는 `UUID`, `aggregateId` · `correlationId`는 문자열)
 
-## 코드 컨벤션
-- TDD (RED → GREEN → REFACTOR)
-- camelCase: 변수·메서드 / PascalCase: 클래스 / UPPER_SNAKE_CASE: 상수 / snake_case: DB 테이블·컬럼
-- 엔티티에 `@Data`, public setter 금지. 상태는 업무 메서드로만 바꾼다
-- 엔티티는 `global.entity.BaseTimeEntity`를 상속한다 (`created_at`, `updated_at` 자동 기록, `LocalDateTime`)
-- 소프트 삭제하는 엔티티는 `global.entity.BaseSoftDeleteEntity`를 상속한다 (`deleted_at`). 서비스에서 `entity.delete(LocalDateTime.now())`로 삭제하고, 삭제된 행을 조회에서 빼려면 엔티티에 `@SQLRestriction("deleted_at IS NULL")`을 붙인다
-- 스키마는 Flyway로 바꾼다(`src/main/resources/db/migration`). 엔티티를 바꾸면 `V{yyyyMMddHHmm}__설명.sql`(파일을 만든 시각, KST)을 추가하고, 이미 적용된 파일은 고치지 않는다. `ddl-auto`는 모든 프로필 validate
+## 3. `common` 모듈(`global` 패키지)
+- `common` 모듈의 코드는 `com.bbcc.kidly.global` 패키지에 있다. 도메인은 `common`에 의존할 수 있고, `common`은 도메인을 참조하지 않는다
+- 이벤트는 `EventPublisher`로, `@Transactional` 메서드 안에서 발행한다(트랜잭션 밖에서 발행하면 전달되지 않는다)
 
-## 테스트
-- 도메인 테스트는 `src/test/java/com/bbcc/kidly/boundedcontext/{도메인}`에 둔다. `app`·`domain`·`in`·`out` 하위 폴더는 만들지 않는다
-- `global`·`shared` 테스트는 대상과 같은 패키지에 둔다
-- 종류별 규칙
+## 4. API
+- API의 자원 · 용어 · 처리 책임은 자기 도메인 기준으로 정한다. 다른 화면이나 도메인의 요청으로 API를 추가할 수는 있지만, 그쪽 업무 흐름에 맞춘 API는 만들지 않는다
+- REST 관례(자원 중심 URL, HTTP 메서드 · 상태 코드)를 따른다
+- 실패 응답은 `GlobalExceptionHandler`의 ProblemDetail로 낸다. 도메인 오류는 `ErrorCode`를 구현한 enum과 `BusinessException`을 쓴다
 
-| 종류 | 대상 | 이름 | 붙일 것 |
-|---|---|---|---|
-| 단위 | 엔티티 업무 메서드, 값 객체, 서비스 로직 | `XxxTest` | 없음. 서비스는 `@ExtendWith(MockitoExtension.class)` + `@Mock` |
-| 통합 | 리포지토리 쿼리, 서비스 + DB, 이벤트 발행 → 수신 | `XxxIntegrationTest` | `support.IntegrationTest` |
-| 기능 | API 하나를 HTTP 요청부터 응답까지 | `XxxApiTest` | `support.FunctionalTest` + `RestTestClient` 주입 |
-| Kafka | Kafka로 보내거나 받는 것을 실제 브로커로 | `XxxIntegrationTest` | `support.KafkaIntegrationTest` |
+## 5. 함께 쓰는 것
+- 다음은 바꾸기 전에 묻는다: `application*.yml`, `common`, `shared`(단, 자기 도메인 패키지 `shared.{자기도메인}`에 2절 조건을 지키는 필드를 추가하는 것은 묻지 않는다), 빌드 설정(`build.gradle.kts` · `build-logic` · `gradle`), 공통 테스트 기반(`support`, `TestcontainersConfiguration`), 새 의존성
+- 이미 적용된 Flyway 파일은 고치지 않는다. 새 파일을 추가한다
+- 도메인 yml(`{도메인}.yml`)의 키와 빈 이름은 다른 도메인과 겹치지 않게 한다. `spring.*` · `management.*`에는 그 도메인만 쓰는 항목만 둔다
+- 로그 · 예외 메시지에 개인정보를 넣지 않는다
+- `@IntegrationTest` · `@FunctionalTest` · `@KafkaIntegrationTest`를 쓰는 테스트 클래스에 개별 설정(`@MockitoBean`, `@TestPropertySource` 등)을 붙이지 않는다(붙이면 스프링 컨텍스트가 새로 뜬다). 테스트에 특별한 설정이 필요하면 먼저 묻는다. 공통 테스트 기반에 반영할지는 다른 도메인에 미치는 영향을 보고 정한다
+- Kafka 컨테이너는 `@KafkaIntegrationTest`에서만 뜬다. 커밋 뒤 Kafka로 보내는 빈에는 `@ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)`를 붙인다
 
-- `@IntegrationTest`·`@FunctionalTest`·`@KafkaIntegrationTest`에 설정(`@MockitoBean`, `@TestPropertySource` 등)을 더하지 않는다. 설정이 다르면 스프링 컨텍스트를 새로 띄워 느려진다
-- Kafka 컨테이너는 `@KafkaIntegrationTest`에서만 뜬다. 다른 테스트에서는 커밋 뒤 Kafka 보내기(`kidly.kafka.producer.enabled`)와 기동 때 토픽 생성을 끈다. 커밋 뒤 Kafka로 보내는 빈에는 `@ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)`를 붙인다
-- 비동기 결과(메일, Kafka 수신)는 `support.AsyncWait.until(...)`로 기다린다. Awaitility는 쓰지 않는다
-- 통합·기능 테스트는 끝날 때마다 모든 테이블을 비운다(`DatabaseCleanerExtension`). 테스트에 `@Transactional`을 붙여 롤백하지 않는다 (커밋되지 않으면 `@DomainEventListener`가 실행되지 않는다)
-- 테스트용 엔티티는 도메인별 `XxxFixture`의 정적 메서드로 만든다
+## 6. 완료 조건
+- `./gradlew build`가 통과한다(ArchUnit 포함). ArchUnit에 예외를 추가하지 않는다
+- 브랜치 `feature|fix|hotfix/{도메인}/#{이슈}-{기능}`. main · develop에 직접 push하지 않는다. 커밋 제목 `{타입}: {요약}`
 
-## 검증
-| 변경 | 필수 검증 |
-| --- | --- |
-| 문서 · 포매팅 | diff · 내용 확인 (동작 테스트 생략, 이유 보고) |
-| 리팩터링 | 관련 테스트 수정 전 · 후 통과 + 영향받는 통합 테스트 + `./gradlew archTest` |
-| 기능 · 버그 수정 | TDD + 영향받는 통합 · 기능 테스트 + `./gradlew archTest`. 주문 정상 흐름(담기 → 주문하기 → 재고 · 결제 이벤트 → PAID → 송장 · 배송 완료 → 구매확정)에 영향이 있으면 그 흐름 테스트 포함 |
-| 코드 변경 작업의 최종 완료 | `./gradlew build` (Checkstyle · ArchUnit · test · integrationTest · functionalTest 포함) |
+## 7. Kafka
 
-- 통과한 검사는 새 변경 · 실패 · 미해결 우려가 없으면 다시 돌리지 않는다. 환경 때문에 못 돌린 검사는 미검증으로, 부분 통과는 부분 통과로 보고한다.
-- 검사 실패 시: 환경 문제(Docker · 네트워크 · DB 연결)는 고치려 하지 않고 미검증으로 보고한다. 의존성 충돌은 `[승인 요청]`. 범위 안의 코드 오류는 스스로 고치되, 같은 원인으로 2회 연속 실패하면 멈추고 시도한 내용과 원인을 보고한다.
-- ArchUnit은 `구조` 절의 경계 · 계층 의존 규칙을 검사하며(`ArchitectureTest` · `LayerRules`), 신규 클래스가 검사 대상에 실제 포함되는지 확인한다. 예외를 추가하지 않는다.
-- Java 25 · Spring Boot 4.1 · PostgreSQL 18과 기존 Gradle 설정을 유지한다. 새 의존성 · 검사 기준 · 외부 서비스는 승인 후 도입한다.
+### 보내는 쪽
+- 토픽은 자기 도메인 것 하나: `kidly.{보내는도메인}.events`. 자기가 `NewTopic`으로 선언한다(브로커 자동 생성은 꺼져 있다)
+- 파티션 3 · 복제 1. 만든 뒤 바꾸지 않는다(늘리면 같은 키의 순서가 깨진다)
+- 키는 `correlationId()`. 헤더는 `eventType` · `eventId` 두 개. `__TypeId__` 헤더는 넣지 않는다
+- 본문은 JSON 문자열: 공통 칸 7개(`eventId` · `eventType` · `schemaVersion` · `occurredAt` · `producer` · `aggregateId` · `correlationId`) + `data`. record를 그대로 직렬화하지 않는다(5칸이 빠진다). `data`가 `null`이면 보내지 않는다
+- DB 커밋이 끝난 뒤에만 보낸다
+- 다음은 바꾸기 전에 묻는다: 이벤트 추가 · 중단 · 삭제, 토픽, 키, 메시지 형식
 
-## DB 명명
-- PK `id`, FK `참조테이블단수_id`, 불리언 `is_/has_/can_`, 일시 `_at`, 날짜 `_on/_date`
-- 수량 `_count/_qty`, 금액 `_amount/_price`, 감사 컬럼 `created_at`, `updated_at`, `deleted_at`
-- 예약어(order, user, group, key, value 등) 금지, 부정형 불리언 금지
+### 받는 쪽
+- 구독 그룹은 `kidly.{받는도메인}`만 쓴다
 
-## API 응답
-- 성공은 감싸지 않고 그대로. 조회 200, 생성 201(+Location), 삭제 204
-- 실패는 ProblemDetail 5필드(`type, title, status, detail, instance`), `application/problem+json`
-  - 도메인 오류는 `global.error.ErrorCode`를 구현한 enum(예: `OrderErrorCode`)을 만들고 `BusinessException`을 던진다
-  - `GlobalExceptionHandler`가 업무 예외·검증 실패·스프링 기본 예외·예상 못 한 예외(500)를 변환한다. 401·403은 `SecurityProblemHandler`
-- 리스트는 null 대신 `[]`, 없는 숫자·선택 문자열·중첩 객체는 `null`, Boolean은 non-null
-- 단건 조회 결과가 없으면 404
-- 목록은 `global.response.PageResponse.from(page.map(XxxResponse::from))`: `content, page, size, totalElements, totalPages, hasNext`
-
-## Git
-- 브랜치 `feature/도메인/#이슈-기능`, `fix/...`, `hotfix/...`. main·develop 직접 push 금지
-- 커밋 `타입: 요약` (feat, fix, docs, style, refactor, test, chore), 제목 50자, 마침표 없음
+### 침범 금지
+- 다른 도메인의 토픽을 만들거나 그 토픽에 보내지 않는다. 받은 메시지를 원래 토픽에 다시 넣지 않는다
+- 다른 도메인의 그룹 · DLT · 오프셋을 쓰거나 바꾸지 않는다
+- 특정 받는 도메인에 맞춰 이벤트를 바꾸지 않는다
+- 앱 전체 Kafka 설정(`spring.kafka.*`)은 `application.yml`에만 둔다. 도메인만 쓰는 Kafka 값은 도메인 yml의 `kidly.{도메인}.kafka.*`에 두고, 자기 리스너 팩토리 · 템플릿 코드에서 적용한다(한 앱인 동안 `spring.kafka.*`는 도메인끼리 서로 덮어쓴다)
+- 도메인 전용 리스너 팩토리는 빈으로 등록할 수 있다(`{도메인}KafkaListenerContainerFactory`). 도메인 전용 `KafkaTemplate` · `ProducerFactory` · `ConsumerFactory` · 에러 처리기가 필요하면 그 도메인의 구성 코드 안에서 만들어 쓰고, 각각을 빈으로 등록하지 않는다
+- 로그 · 예외에 메시지 본문을 넣지 않는다. 남기는 값은 `eventType` · `eventId` · 키뿐이다
