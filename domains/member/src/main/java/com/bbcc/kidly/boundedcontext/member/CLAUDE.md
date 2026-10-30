@@ -1,17 +1,18 @@
 # 회원 도메인
 
-## Kafka 발행 (#548 · #562)
+## Kafka 발행 (#548 · #562 · #588)
 - 회원이 발행한 이벤트(`member.*`)를 토픽 `kidly.member.events`로 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
 - 키 = `correlationId`(회원 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
-- 받는 쪽: 알림(`member.registered`) · 판매자(`member.changed`) · 자녀 프로필(`member.withdrawn`)은 Kafka로(#567 · #568 · #569), 결제(`member.registered`)는 아직 Spring 이벤트(`@DomainEventListener`)로 받는다. Kafka로 옮기는 건 받는 도메인이 한다. 회원이 자기 이벤트(`member.withdrawn`)를 받는 리스너는 같은 도메인 안이라 Spring으로 둔다
-- 보내는 길이 둘이다. 잃으면 복구할 방법이 없는 탈퇴만 아웃박스로 보낸다(결정: 잃으면 자녀 프로필이 탈퇴 회원의 자녀 정보를 지우지 못함)
+- 받는 쪽: 알림(`member.registered`) · 판매자(`member.changed`) · 자녀 프로필(`member.withdrawn`)은 Kafka로(#567 · #568 · #569), 결제(`member.registered`)는 아직 Spring 이벤트(`@DomainEventListener`)로 받는다. Kafka로 옮기는 건 받는 도메인이 한다. 회원이 자기 이벤트(`member.withdrawn`)를 받는 리스너는 같은 도메인 안이라 Spring으로 둔다. `member.tokens-revoked`는 4단계 Gateway가 받는다(지금은 받는 곳 없음)
+- 보내는 길이 둘이다. 잃으면 피해가 영구적인 탈퇴만 아웃박스로 보낸다(결정: 잃으면 자녀 프로필이 탈퇴 회원의 자녀 정보를 지우지 못함). 토큰 무효화는 잃으면 Gateway가 그 회원의 Access Token을 만료(최대 30분)까지 통과시키지만 그 뒤로는 피해가 없어 커밋 뒤 바로 보낸다
 
 | 이벤트 | 보내는 길 |
 |---|---|
-| `member.registered` · `member.changed` | 커밋 뒤 바로(`app/MemberEventRelay` → 회원 전용 스레드 `member-kafka-sender`) |
+| `member.registered` · `member.changed` · `member.tokens-revoked` | 커밋 뒤 바로(`app/MemberEventRelay` → 회원 전용 스레드 `member-kafka-sender`) |
 | `member.withdrawn` | 아웃박스(`app/outbox/MemberOutboxRecorder` → `member.member_outbox` → 1초 릴레이) |
 
-- 커밋 뒤 바로(가입 · 변경)
+- 커밋 뒤 바로(가입 · 변경 · 토큰 무효화)
+  - 토큰 무효화는 `AccessTokenRevocationService.revoke()` 한 곳에서 발행한다(탈퇴 · 관리자 정지 · 권한 회수 · Refresh Token 재사용 감지 · 판매자 정지)
   - Relay는 `HIGHEST_PRECEDENCE`로 다른 커밋 뒤 리스너보다 먼저 대기열에 넣는다. 스레드가 하나라 받은 순서대로 보낸다. 브로커가 죽어도 커밋 뒤 요청 스레드는 기다리지 않는다
   - 대기열은 10,000건까지다. 넘치면 버리고 ERROR 로그를 남긴다. 앱이 내려갈 때는 남은 전송을 10초까지 기다린다. 대기열에 있는 동안 앱이 죽거나 브로커가 꺼져 있으면 잃는다
   - 설정: `out/kafka/MemberKafkaConfig`(토픽 선언 파티션 3 · 복제 1, 전용 템플릿 `max.block.ms` 3초, 전송 스레드)
