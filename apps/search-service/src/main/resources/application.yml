@@ -7,6 +7,22 @@ spring:
       - classpath:search.yml
   profiles:
     default: local
+  # Kafka. 상품 · 판매자 이벤트를 받는다(구독 그룹 kidly.search). 값은 kidly-app과 같다
+  # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      # DLT로 보낼 때만 쓴다
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). 그 전 상품은 처음 채우기(전체 다시 발행)로 넣는다
+      auto-offset-reset: latest
 
 springdoc:
   swagger-ui:
