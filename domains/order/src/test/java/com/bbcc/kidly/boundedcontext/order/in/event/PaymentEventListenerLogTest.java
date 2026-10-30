@@ -111,7 +111,7 @@ class PaymentEventListenerLogTest {
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
             .isSameAs(error)
-            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).as("결과가 이미 남 = 처리 완료").isTrue());
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isHandled(thrown)).as("결과가 이미 남 = 처리 완료").isTrue());
 
         assertThat(output).doesNotContain("lost-concurrent-duplicate").doesNotContain("ERROR");
         verify(recoveryService, never()).recordFailure(any(), any());
@@ -126,7 +126,7 @@ class PaymentEventListenerLogTest {
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
             .isSameAs(error)
-            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).isTrue());
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isHandled(thrown)).isTrue());
 
         assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
         verify(orderService).recheckLostPaymentCompleted(COMMAND);
@@ -141,7 +141,7 @@ class PaymentEventListenerLogTest {
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
             .isSameAs(error)
-            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).isFalse());
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isHandled(thrown)).isFalse());
 
         assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
     }
@@ -204,7 +204,7 @@ class PaymentEventListenerLogTest {
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
             .isSameAs(error)
-            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).isTrue());
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isHandled(thrown)).isTrue());
     }
 
     @Test
@@ -217,7 +217,7 @@ class PaymentEventListenerLogTest {
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
             .isSameAs(error)
-            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).isFalse());
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isHandled(thrown)).isFalse());
     }
 
     @Test

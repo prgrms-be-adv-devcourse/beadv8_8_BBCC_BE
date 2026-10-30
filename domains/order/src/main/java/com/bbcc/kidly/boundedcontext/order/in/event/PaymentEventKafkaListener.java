@@ -55,7 +55,8 @@ public class PaymentEventKafkaListener {
         try {
             process.run();
         } catch (RuntimeException e) {
-            boolean done = EventFailureKeeper.isKept(e) || lostIsDone && PaymentFailures.isLostConcurrentDuplicate(e);
+            boolean done = EventFailureKeeper.isHandled(e)
+                || lostIsDone && PaymentFailures.isLostConcurrentDuplicate(e);
             if (!done) {
                 throw e;
             }

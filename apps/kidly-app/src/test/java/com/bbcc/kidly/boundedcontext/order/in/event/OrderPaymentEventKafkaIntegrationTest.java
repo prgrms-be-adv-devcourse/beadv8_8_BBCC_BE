@@ -219,6 +219,9 @@ class OrderPaymentEventKafkaIntegrationTest {
 
         kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, event));
 
+        // 트리거가 실제로 첫 DELETE를 막았고(1) 다시 처리에서 남은 DELETE가 지나갔다(2 이상) — 충돌 없이 통과한 것이 아니다
+        assertThat(jdbcTemplate.queryForObject("select last_value from orders.test_cart_delete_seq", Long.class))
+            .isGreaterThanOrEqualTo(2L);
         assertThat(outcomeOf(order, 4_061L)).containsEntry("status", "PAID").containsEntry("deliveries", 2L)
             .containsEntry("cartLines", 0L).containsEntry("paidHistory", 1L);
         assertThat(recoveryCountOf(order.orderId())).as("진 쪽은 보관하지 않음").isZero();

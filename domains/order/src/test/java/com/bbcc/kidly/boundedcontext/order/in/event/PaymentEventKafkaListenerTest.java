@@ -89,7 +89,7 @@ class PaymentEventKafkaListenerTest {
     @DisplayName("처리 실패를 보관했으면 정상 반환한다(처리 완료)")
     void keptFailureCompletes() {
         var failure = new IllegalStateException("배송 생성 실패");
-        EventFailureKeeper.markKept(failure);
+        EventFailureKeeper.markHandled(failure);
         doThrow(failure).when(paymentEventListener).onPaymentCompleted(any());
 
         listener().on(record("payment.completed", completedBody()));
@@ -110,7 +110,7 @@ class PaymentEventKafkaListenerTest {
     @DisplayName("결제 완료에서 진 쪽이고 결과가 이미 났으면(처리 완료 표시) 정상 반환한다(다시 하면 환불 확인 WARN이 겹침)")
     void lostCompletedSettledCompletes() {
         var lost = new ObjectOptimisticLockingFailureException("Order", 7L);
-        EventFailureKeeper.markKept(lost);
+        EventFailureKeeper.markHandled(lost);
         doThrow(lost).when(paymentEventListener).onPaymentCompleted(any());
 
         listener().on(record("payment.completed", completedBody()));
@@ -133,7 +133,7 @@ class PaymentEventKafkaListenerTest {
     @DisplayName("결제 실패 처리도 보관됐거나 진 쪽이면 정상 반환, 보관하지 못했으면 다시 던진다")
     void failedKeptOrRethrown() {
         var kept = new IllegalStateException("주문 UPDATE 실패");
-        EventFailureKeeper.markKept(kept);
+        EventFailureKeeper.markHandled(kept);
         doThrow(kept).when(paymentEventListener).onPaymentFailed(any());
         listener().on(record("payment.failed", failedBody("INSUFFICIENT_BALANCE")));
 

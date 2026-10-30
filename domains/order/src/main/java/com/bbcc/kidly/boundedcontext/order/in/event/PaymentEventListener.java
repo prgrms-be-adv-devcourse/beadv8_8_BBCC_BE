@@ -74,7 +74,7 @@ public class PaymentEventListener {
                 // 결과가 이미 났으면(취소 · 결제완료 등) 다시 처리해도 아무것도 안 하므로 처리 완료로 봐도 된다는 표시를 붙인다.
                 // 아직 결제대기거나 다시 읽지 못했으면 붙이지 않는다(Kafka가 다시 처리, #594)
                 if (recheck == LostPaymentRecheck.PAID_AFTER_CANCEL || recheck == LostPaymentRecheck.SETTLED) {
-                    EventFailureKeeper.markKept(e);
+                    EventFailureKeeper.markHandled(e);
                 }
                 throw e;
             }
@@ -95,7 +95,7 @@ public class PaymentEventListener {
                 eventType, paid.orderId(), paid.paymentId(), recoveryStatus,
                 saved == null ? null : saved.attemptCount(), saved == null ? null : saved.failureCode(), e);
             if (saved != null) {
-                EventFailureKeeper.markKept(e);
+                EventFailureKeeper.markHandled(e);
             }
             throw e;
         }
