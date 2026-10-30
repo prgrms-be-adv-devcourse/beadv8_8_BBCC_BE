@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.settlement.app.AdminSettlementService;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementPayoutRetryScheduler;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementRunService;
+import com.bbcc.kidly.boundedcontext.settlement.app.outbox.SettlementOutboxCleanupService;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
+import com.bbcc.kidly.boundedcontext.settlement.domain.outbox.SettlementOutboxRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -50,6 +52,12 @@ class SettlementOutboxIntegrationTest {
 
     @Autowired
     private SettlementItemRepository settlementItemRepository;
+
+    @Autowired
+    private SettlementOutboxRepository outboxRepository;
+
+    @Autowired
+    private SettlementOutboxCleanupService cleanupService;
 
     @Autowired
     private EventPublisher eventPublisher;
@@ -149,6 +157,30 @@ class SettlementOutboxIntegrationTest {
         assertThat(body.get("correlationId").asString()).isEqualTo("31");
         assertThat(body.get("data").get("settlementId").asLong()).isEqualTo(31L);
         assertThat(body.get("data").get("amount").asLong()).isEqualTo(270_000L);
+    }
+
+    @Test
+    @DisplayName("정리는 보관 기간(7일)이 지난 보낸 메시지만 지운다. 안 보낸 메시지는 오래돼도 남긴다")
+    void cleanUp() {
+        Long oldSent = saveSentAt(LocalDateTime.now().minusDays(8));
+        Long recentSent = saveSentAt(LocalDateTime.now().minusDays(6));
+        Long unsent = outboxRepository.save(SettlementFixture.outboxMessage()).getId();
+        jdbcTemplate.update("update settlement.settlement_outbox set created_at = ? where id = ?",
+            LocalDateTime.now().minusDays(30), unsent);
+
+        int deleted = cleanupService.cleanUp();
+
+        assertThat(deleted).isOne();
+        assertThat(jdbcTemplate.queryForList("select id from settlement.settlement_outbox", Long.class))
+            .containsExactlyInAnyOrder(recentSent, unsent)
+            .doesNotContain(oldSent);
+    }
+
+    private Long saveSentAt(LocalDateTime sentAt) {
+        Long id = outboxRepository.save(SettlementFixture.outboxMessage()).getId();
+        jdbcTemplate.update("update settlement.settlement_outbox set sent_at = ?, attempt_count = 1 where id = ?",
+            sentAt, id);
+        return id;
     }
 
     private int outboxCount() {
