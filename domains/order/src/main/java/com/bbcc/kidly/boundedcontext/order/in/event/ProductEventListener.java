@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import com.bbcc.kidly.boundedcontext.order.app.replica.ReplicaService;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ProductChangedCommand;
-import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,9 +9,12 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * product.changed를 받아 복사본 반영을 맡긴다. 이벤트 필드가 바뀌면 여기 변환만 고친다.
+ * 받는 곳(#541): Kafka 리스너({@link ProductEventKafkaListener}), 스위치가 꺼졌을 때 Spring 수신({@link SpringEventReceiver}).
+ * 처리 메서드는 부르는 쪽 트랜잭션에 합류하고(Spring 수신), 없으면 새로 연다(Kafka 리스너).
  * 리스너는 재시도가 없어 저장이 실패하면 이벤트가 사라지므로, 깨진 값은 여기서 걸러 예외 없이 처리한다.
  */
 @Slf4j
@@ -30,7 +32,7 @@ public class ProductEventListener {
     /**
      * 복사본 행을 만들 수 없는 값(데이터 · 상품 ID · 판매자 ID · 상품명 · 발생 시각)이 없으면 이벤트 전체를 건너뛴다.
      */
-    @DomainEventListener
+    @Transactional
     public void onProductChanged(ProductChangedEvent event) {
         if (EventGuard.accept("상품", event, "productId", productIdOf(event), missingRequiredValue(event))) {
             replicaService.applyProductChanged(toCommand(event));

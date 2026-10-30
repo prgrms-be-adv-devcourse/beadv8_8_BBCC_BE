@@ -1,0 +1,169 @@
+package com.bbcc.kidly.boundedcontext.order.in.event;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.global.error.BusinessException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Stream;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.TopicPartition;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.listener.CommonErrorHandler;
+import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
+import org.springframework.kafka.listener.ContainerProperties.AckMode;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.listener.ListenerExecutionFailedException;
+import org.springframework.kafka.listener.MessageListenerContainer;
+import tools.jackson.databind.exc.InvalidFormatException;
+
+/**
+ * 주문 Kafka 수신 설정(#541): 스위치 · 한 건씩 완료 · earliest · 재시도 없는 예외 · DLT 대상 파티션 · DLT 로그.
+ * 팩토리는 Boot configurer가 앱 설정을 넣은 뒤 주문 값만 덮어쓴다. configurer는 앱 설정 대신 대역으로 흉내 낸다.
+ */
+@ExtendWith(OutputCaptureExtension.class)
+class OrderKafkaListenerConfigTest {
+
+    private static final String BODY_MARKER = "본문-표식-주소";
+
+    private final ConsumerFactory<Object, Object> consumerFactory = mock();
+    private final CommonErrorHandler errorHandler = mock();
+
+    @ParameterizedTest(name = "앱 auto-startup={0}")
+    @CsvSource({"true", "false"})
+    @DisplayName("스위치가 꺼져 있으면 앱 설정과 상관없이 컨테이너를 자동 시작하지 않는다")
+    void switchOffStopsAutoStartup(boolean appAutoStartup) {
+        var container = containerOf(appAutoStartup, false);
+
+        assertThat(container.isAutoStartup()).isFalse();
+    }
+
+    @ParameterizedTest(name = "앱 auto-startup={0}")
+    @CsvSource({"true", "false"})
+    @DisplayName("스위치가 켜져 있으면 앱 설정(테스트는 false)을 따른다")
+    void switchOnFollowsApp(boolean appAutoStartup) {
+        var container = containerOf(appAutoStartup, true);
+
+        assertThat(container.isAutoStartup()).isEqualTo(appAutoStartup);
+    }
+
+    @Test
+    @DisplayName("한 건씩 처리 완료를 표시하고, 처음 읽는 그룹은 처음부터(earliest) 읽으며, 주문 에러 처리기를 쓴다")
+    void recordAckEarliestAndErrorHandler() {
+        var container = containerOf(true, true);
+
+        assertThat(container.getContainerProperties().getAckMode()).isEqualTo(AckMode.RECORD);
+        assertThat(container.getContainerProperties().getKafkaConsumerProperties()
+            .getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG)).isEqualTo("earliest");
+        assertThat(container.getCommonErrorHandler()).isSameAs(errorHandler);
+    }
+
+    @ParameterizedTest(name = "{0} 파티션 {1}")
+    @CsvSource({
+        "kidly.product.events, 0, kidly.product.events.order.dlt",
+        "kidly.seller.events, 1, kidly.seller.events.order.dlt",
+        "kidly.childprofile.events, 2, kidly.childprofile.events.order.dlt"
+    })
+    @DisplayName("DLT는 원래 토픽 이름 + .order.dlt, 파티션은 원래 번호와 상관없이 0(DLT는 파티션 1개)")
+    void deadLetterPartition(String topic, int partition, String deadLetterTopic) {
+        var destination = OrderKafkaListenerConfig.deadLetterPartition(record(topic, partition));
+
+        assertThat(destination).isEqualTo(new TopicPartition(deadLetterTopic, 0));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("notRetryable")
+    @DisplayName("다시 해도 같은 예외 · 읽기 실패는 재시도 없이 바로 DLT로 보낸다")
+    void notRetryableGoesToDeadLetterAtOnce(String name, Exception cause) {
+        List<ConsumerRecord<?, ?>> deadLetters = new ArrayList<>();
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> deadLetters.add(record));
+        var record = record("kidly.seller.events", 2);
+
+        boolean recovered = handler.handleOne(listenerFailure(cause), record, mock(Consumer.class),
+            mock(MessageListenerContainer.class));
+
+        assertThat(recovered).isTrue();
+        assertThat(deadLetters).containsExactly(record);
+    }
+
+    static Stream<Arguments> notRetryable() {
+        return Stream.of(
+            Arguments.of("BusinessException", new BusinessException(OrderErrorCode.ORDER_NOT_FOUND)),
+            Arguments.of("IllegalArgumentException", new IllegalArgumentException()),
+            Arguments.of("IllegalStateException", new IllegalStateException()),
+            Arguments.of("NullPointerException", new NullPointerException()),
+            Arguments.of("모르는 enum 값(JacksonException)",
+                InvalidFormatException.from(null, "모르는 값", "UNKNOWN", Enum.class)));
+    }
+
+    @Test
+    @DisplayName("그 밖의 예외는 처음 실패에서 DLT로 보내지 않고 다시 시도한다")
+    void otherExceptionIsRetried() {
+        List<ConsumerRecord<?, ?>> deadLetters = new ArrayList<>();
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> deadLetters.add(record));
+
+        boolean recovered = handler.handleOne(listenerFailure(new RuntimeException("일시 장애")),
+            record("kidly.seller.events", 0), mock(Consumer.class), mock(MessageListenerContainer.class));
+
+        assertThat(recovered).isFalse();
+        assertThat(deadLetters).isEmpty();
+    }
+
+    @Test
+    @DisplayName("DLT로 보낼 때 ERROR 로그에는 eventType · eventId · 키 · 예외 종류만 남고 본문 · 예외 메시지는 없다")
+    void deadLetterLogHasNoBody(CapturedOutput output) {
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> { });
+
+        handler.handleOne(listenerFailure(new IllegalArgumentException("값: " + BODY_MARKER)),
+            record("kidly.seller.events", 1), mock(Consumer.class), mock(MessageListenerContainer.class));
+
+        assertThat(output.getOut())
+            .contains("eventType=seller.changed", "eventId=evt-1", "key=7",
+                "exception=java.lang.IllegalArgumentException")
+            .doesNotContain(BODY_MARKER);
+    }
+
+    private ConcurrentMessageListenerContainer<Object, Object> containerOf(boolean appAutoStartup,
+        boolean consumerEnabled) {
+        ConcurrentKafkaListenerContainerFactoryConfigurer configurer = mock();
+        // Boot configurer처럼 ConsumerFactory와 앱 spring.kafka.listener.auto-startup을 넣는다
+        doAnswer(invocation -> {
+            ConcurrentKafkaListenerContainerFactory<Object, Object> factory = invocation.getArgument(0);
+            factory.setConsumerFactory(invocation.getArgument(1));
+            factory.setAutoStartup(appAutoStartup);
+            return null;
+        }).when(configurer).configure(any(), any());
+
+        var factory = OrderKafkaListenerConfig.factory(configurer, consumerFactory, consumerEnabled, errorHandler);
+        return factory.createContainer("kidly.seller.events");
+    }
+
+    private static ListenerExecutionFailedException listenerFailure(Exception cause) {
+        return new ListenerExecutionFailedException("리스너 실패", cause);
+    }
+
+    private static ConsumerRecord<String, String> record(String topic, int partition) {
+        var record = new ConsumerRecord<>(topic, partition, 5L, "7", "{\"address\":\"" + BODY_MARKER + "\"}");
+        record.headers().add("eventType", "seller.changed".getBytes(UTF_8));
+        record.headers().add("eventId", "evt-1".getBytes(UTF_8));
+        return record;
+    }
+}

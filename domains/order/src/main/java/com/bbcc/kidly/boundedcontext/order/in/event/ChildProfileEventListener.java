@@ -2,13 +2,15 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import com.bbcc.kidly.boundedcontext.order.app.replica.ReplicaService;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
-import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * child.changed를 받아 복사본 반영을 맡긴다. 이벤트 필드가 바뀌면 여기 변환만 고친다.
+ * 받는 곳(#541): Kafka 리스너({@link ChildProfileEventKafkaListener}), 스위치가 꺼졌을 때 Spring 수신({@link SpringEventReceiver}).
+ * 처리 메서드는 부르는 쪽 트랜잭션에 합류하고(Spring 수신), 없으면 새로 연다(Kafka 리스너).
  * 리스너는 재시도가 없어 저장이 실패하면 이벤트가 사라지므로, 깨진 값은 여기서 걸러 예외 없이 처리한다.
  */
 @Component
@@ -22,7 +24,7 @@ public class ChildProfileEventListener {
      * 기존 복사본을 지우거나 덮지 않음), 삭제 이벤트는 삭제가 빠지면 지워진 자녀로 계속 주문할 수 있으므로
      * 기존 복사본에 삭제 표시만 맡긴다. 체형 · 선호 핏은 계약상 비어도 되므로 그대로 반영한다.
      */
-    @DomainEventListener
+    @Transactional
     public void onChildChanged(ChildChangedEvent event) {
         Long childId = event.data() == null ? null : event.data().childId();
         if (!EventGuard.accept("자녀", event, "childId", childId, missingIdentity(event))) {
