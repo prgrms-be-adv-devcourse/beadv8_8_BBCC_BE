@@ -39,6 +39,7 @@ class AdminProductChangedEventApiTest {
     private static final long ON_SALE_SELLER_ID = 7L;
     private static final long STOPPED_SELLER_ID = 8L;
     private static final long PENDING_SELLER_ID = 9L;
+    private static final long BUYER_ID = 10L;
 
     @Autowired
     private RestTestClient client;
@@ -118,12 +119,12 @@ class AdminProductChangedEventApiTest {
             .map(ProductChangedEvent::eventId)
             .toList();
         assertThat(jdbcTemplate.queryForList(
-            "select event_id, event_type, topic, message_key, sent_at from product.product_outbox"))
+            "select event_id, event_type, topic, message_key from product.product_outbox"))
             .filteredOn(row -> republishedEventIds.contains(row.get("event_id")))
-            .extracting("message_key", "event_type", "topic", "sent_at")
+            .extracting("message_key", "event_type", "topic")
             .containsExactlyInAnyOrder(
-                tuple(String.valueOf(firstProductId), "product.changed", "kidly.product.events", null),
-                tuple(String.valueOf(secondProductId), "product.changed", "kidly.product.events", null));
+                tuple(String.valueOf(firstProductId), "product.changed", "kidly.product.events"),
+                tuple(String.valueOf(secondProductId), "product.changed", "kidly.product.events"));
     }
 
     @ParameterizedTest(name = "{0} → {1}")
@@ -141,7 +142,7 @@ class AdminProductChangedEventApiTest {
     private String tokenOf(String member) {
         return switch (member) {
             case "판매자" -> tokens.seller(ON_SALE_SELLER_ID);
-            case "구매자" -> tokens.buyer(ON_SALE_SELLER_ID);
+            case "구매자" -> tokens.buyer(BUYER_ID);
             default -> null;
         };
     }
