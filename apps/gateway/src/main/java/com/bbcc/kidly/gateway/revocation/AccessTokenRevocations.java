@@ -20,6 +20,11 @@ public class AccessTokenRevocations {
         this.retention = retention;
     }
 
+    // 무효화 기록이 의미 있는 기간. 리스너가 되감을 기간이기도 하다
+    public Duration retention() {
+        return retention;
+    }
+
     // 같은 회원에 여러 번 오면 가장 늦은 시각을 남긴다(순서가 바뀌어 와도 같다)
     public void revoke(Long memberId, Instant revokedAt, Instant now) {
         revokedAts.merge(memberId, revokedAt, (current, incoming) -> incoming.isAfter(current) ? incoming : current);

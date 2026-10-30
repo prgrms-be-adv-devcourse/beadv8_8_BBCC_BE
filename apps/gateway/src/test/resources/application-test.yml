@@ -6,3 +6,6 @@ spring:
     # Kafka 컨테이너는 @KafkaIntegrationTest에서만 뜬다. 다른 테스트는 DLT 토픽을 만들려고 Kafka에 붙지 않는다
     admin:
       auto-create: false
+
+jwt:
+  public-key: file:config/jwt/local-public.pem

@@ -24,6 +24,10 @@ management:
       exposure:
         include: health,prometheus
 
+jwt:
+  # Access Token 유효 기간. kidly-app auth.yml과 같은 값이어야 한다. 무효화 기록 보존 기간(+ 시계 오차 60초)도 여기서 나온다
+  access-token-validity: 30m
+
 ---
 spring:
   config:
@@ -33,6 +37,10 @@ spring:
 # kidly-app(8080) · search-service(8082)와 같이 띄운다
 server:
   port: 8083
+
+# 로컬 전용 키(kidly-app과 같은 키). 상대 경로라서 프로젝트 루트에서 실행해야 한다 (bootRun은 기본으로 루트)
+jwt:
+  public-key: file:config/jwt/local-public.pem
 
 ---
 spring:
@@ -49,3 +57,6 @@ logging:
     json:
       stacktrace:
         max-throwable-depth: 30
+
+jwt:
+  public-key: ${JWT_PUBLIC_KEY_LOCATION}
