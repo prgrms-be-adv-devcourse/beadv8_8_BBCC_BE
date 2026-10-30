@@ -35,6 +35,13 @@ class MemberEventsTest {
             "member.changed", "1");
     }
 
+    @Test
+    @DisplayName("토큰 무효화 이벤트는 member.tokens-revoked이고 대상은 회원이다")
+    void memberTokensRevoked() {
+        assertContract(new MemberTokensRevokedEvent(EVENT_ID, NOW, new MemberTokensRevokedEvent.Data(1L, NOW)),
+            "member.tokens-revoked", "1");
+    }
+
     private static void assertContract(DomainEvent event, String eventType, String aggregateId) {
         assertThat(event.eventType()).isEqualTo(eventType);
         assertThat(event.producer()).isEqualTo("member");
