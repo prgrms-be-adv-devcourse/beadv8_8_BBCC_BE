@@ -15,11 +15,15 @@ import org.springframework.kafka.support.ProducerListener;
 
 /**
  * 상품이 보내는 토픽을 선언하고, 상품 전용 KafkaTemplate으로 전송기를 만든다.
- * 템플릿은 Boot 프로듀서 설정(주소 등)을 그대로 쓰고 직렬화 · 대기 시간 · linger.ms만 덮어쓴다.
+ * 템플릿은 Boot 프로듀서 설정(주소 등)을 그대로 쓰고 클라이언트 이름 · 직렬화 · 대기 시간 · linger.ms만 덮어쓴다.
  * 빈으로 등록하지 않으므로 Boot 기본 KafkaTemplate과 앱 spring.kafka 설정은 그대로다.
  */
 @Configuration
 class ProductKafkaConfig {
+
+    // 프로듀서 지표와 Kafka 로그에 남는 이름이다(Spring Kafka가 뒤에 -번호를 붙여 kidly-product-outbox-1이 된다).
+    // 정하지 않으면 producer-1처럼 번호만 남아 다른 도메인의 전송기와 구분할 수 없다.
+    static final String CLIENT_ID = "kidly-product-outbox";
 
     // 브로커가 응답하지 않거나 토픽 정보가 없을 때 send가 기다리는 시간이다. 기본 60초는 메시지 하나에 너무 길다
     static final int MAX_BLOCK_MS = 5000;
@@ -48,6 +52,7 @@ class ProductKafkaConfig {
         KafkaTemplate<String, String> kafkaTemplate = new KafkaTemplate<>(producerFactory, Map.of(
             ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
             ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
+            ProducerConfig.CLIENT_ID_CONFIG, CLIENT_ID,
             ProducerConfig.MAX_BLOCK_MS_CONFIG, MAX_BLOCK_MS,
             ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, REQUEST_TIMEOUT_MS,
             ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, DELIVERY_TIMEOUT_MS,

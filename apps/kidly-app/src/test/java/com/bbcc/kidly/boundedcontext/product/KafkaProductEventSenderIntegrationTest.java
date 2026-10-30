@@ -10,12 +10,14 @@ import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSender;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
+import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import javax.management.ObjectName;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -100,6 +102,18 @@ class KafkaProductEventSenderIntegrationTest {
             .hasMessageNotContaining("reason=Failed to send")
             .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD));
         assertThat(output.getAll()).doesNotContain(ProductOutboxMessageFixture.PAYLOAD);
+    }
+
+    @Test
+    @DisplayName("상품 전송기는 Kafka 클라이언트 이름 kidly-product-outbox로 보낸다. 프로듀서 지표가 이 이름으로 남는다")
+    void sendWithProductClientId() throws Exception {
+        productEventSender.send(
+            ProductOutboxMessage.create(ProductOutboxMessageFixture.productChanged(UUID.randomUUID())));
+
+        // Spring Kafka가 클라이언트 이름 뒤에 -번호를 붙인다(kidly-product-outbox-1)
+        ObjectName producerMetrics =
+            new ObjectName("kafka.producer:type=producer-metrics,client-id=kidly-product-outbox-*");
+        assertThat(ManagementFactory.getPlatformMBeanServer().queryNames(producerMetrics, null)).isNotEmpty();
     }
 
     private ConsumerRecord<String, String> awaitRecord(UUID eventId) {
