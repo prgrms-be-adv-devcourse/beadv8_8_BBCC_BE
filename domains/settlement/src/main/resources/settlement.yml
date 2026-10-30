@@ -9,6 +9,17 @@ kidly:
     payout-retry-cron: ${SETTLEMENT_PAYOUT_RETRY_CRON:0 */10 * * * *}
     # 한 트랜잭션에서 처리하는 판매자 수(1 이상). 실패하면 그 묶음을 판매자 1명씩 다시 처리한다
     chunk-size: ${SETTLEMENT_CHUNK_SIZE:100}
+    # 정산 이벤트 아웃박스. 업무 트랜잭션이 저장한 메시지를 릴레이가 Kafka(kidly.settlement.events)로 보낸다
+    # 값이 비었거나 형식이 맞지 않으면 키 이름이 나오는 오류로 기동 실패 (SettlementOutboxProperties)
+    outbox:
+      # 릴레이 주기(1초 이상, 이전 실행이 끝난 뒤부터 잰다). 실패하면 멈췄다가 다음 주기에 같은 메시지부터 보낸다
+      relay-interval: ${SETTLEMENT_OUTBOX_RELAY_INTERVAL:PT1S}
+      # 한 번 실행에서 보내는 최대 건수(1 이상). 남은 건은 다음 주기에 보낸다
+      batch-size: ${SETTLEMENT_OUTBOX_BATCH_SIZE:100}
+      # 보낸 메시지를 남겨 두는 기간(1초 이상). Kafka 보존 기간(7일)과 같다. 안 보낸 메시지는 지우지 않는다
+      retention: ${SETTLEMENT_OUTBOX_RETENTION:P7D}
+      # 정리 실행 시각(cron, 초 분 시 일 월 요일, KST). "-"면 정리하지 않는다
+      cleanup-cron: ${SETTLEMENT_OUTBOX_CLEANUP_CRON:0 0 4 * * *}
 
 spring:
   batch:
