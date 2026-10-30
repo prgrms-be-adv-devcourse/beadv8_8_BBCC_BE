@@ -17,10 +17,12 @@ import tools.jackson.databind.json.JsonMapper;
 @RequiredArgsConstructor
 public class SettlementOrderKafkaListener {
 
+    public static final String ID = "settlementOrderKafkaListener";
+
     private final SettlementItemService settlementItemService;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(id = "settlementOrderKafkaListener", topics = SettlementKafkaListenerConfig.ORDER_EVENTS,
+    @KafkaListener(id = ID, topics = SettlementKafkaListenerConfig.ORDER_EVENTS,
         groupId = SettlementKafkaListenerConfig.GROUP, containerFactory = "settlementKafkaListenerContainerFactory",
         autoStartup = SettlementKafkaListenerConfig.AUTO_STARTUP)
     public void on(ConsumerRecord<String, String> record) {
