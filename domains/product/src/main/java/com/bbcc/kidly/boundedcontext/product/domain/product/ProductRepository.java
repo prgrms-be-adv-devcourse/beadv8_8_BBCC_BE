@@ -18,6 +18,9 @@ public interface ProductRepository {
     // 상품을 ID로 찾는다. 없으면 빈 값을 돌려준다
     Optional<Product> findById(Long id);
 
+    // 저장된 모든 상품을 돌려준다
+    List<Product> findAll();
+
     // 저장된 상품의 수를 돌려준다
     long count();
 

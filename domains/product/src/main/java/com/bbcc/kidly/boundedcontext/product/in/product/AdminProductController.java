@@ -1,12 +1,15 @@
 package com.bbcc.kidly.boundedcontext.product.in.product;
 
+import com.bbcc.kidly.boundedcontext.product.app.product.ProductChangedRepublishService;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductSaleService;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductSaleStatusRequest;
+import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductChangedRepublishResponse;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductSaleStatusResponse;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminProductController {
 
     private final ProductSaleService productSaleService;
+    private final ProductChangedRepublishService productChangedRepublishService;
 
     @PutMapping("/{productId}/sale-status")
     public ProductSaleStatusResponse changeSaleStatus(
@@ -28,5 +32,11 @@ public class AdminProductController {
         @Valid @RequestBody ProductSaleStatusRequest request) {
         return ProductSaleStatusResponse.from(
             productSaleService.changeSaleStatusByAdmin(productId, ProductStatus.valueOf(request.status())));
+    }
+
+    // 판매를 시작한 상품마다 상품 정보 변경됨을 다시 보내고, 보낸 상품 수를 돌려준다
+    @PostMapping("/changed-events")
+    public ProductChangedRepublishResponse republishChangedEvents() {
+        return new ProductChangedRepublishResponse(productChangedRepublishService.republishStartedSaleProducts());
     }
 }
