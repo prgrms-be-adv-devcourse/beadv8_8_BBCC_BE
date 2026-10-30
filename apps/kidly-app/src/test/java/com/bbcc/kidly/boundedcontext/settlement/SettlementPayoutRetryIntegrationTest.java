@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.AdminSettlementService;
+import com.bbcc.kidly.boundedcontext.settlement.app.SettlementPayoutRetryScheduler;
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
@@ -35,6 +36,9 @@ class SettlementPayoutRetryIntegrationTest {
 
     @Autowired
     private AdminSettlementService adminSettlementService;
+
+    @Autowired
+    private SettlementPayoutRetryScheduler retryScheduler;
 
     @Autowired
     private SettlementRepository settlementRepository;
@@ -82,6 +86,44 @@ class SettlementPayoutRetryIntegrationTest {
         assertThatThrownBy(() -> adminSettlementService.retryPayout(999L))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("30분 넘게 결과를 못 받은 정산서는 자동 재요청으로 지급 완료가 된다")
+    void retriesStuck() {
+        var settlement = saveCompleted();
+
+        var retried = retryScheduler.retryStuckPayouts(SettlementFixture.NOW.plusHours(1));
+
+        assertThat(retried).isEqualTo(1);
+        assertThat(reload(settlement).getStatus()).isEqualTo(SettlementStatus.PAID);
+        assertThat(walletBalance()).isEqualTo(settlement.getSettlementAmount());
+        assertThat(payoutCount(settlement)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("30분이 안 됐거나 7일이 넘은 정산서는 건드리지 않는다")
+    void ignoresRecentAndOld() {
+        var settlement = saveCompleted();
+
+        assertThat(retryScheduler.retryStuckPayouts(SettlementFixture.NOW.plusMinutes(10))).isZero();
+        assertThat(retryScheduler.retryStuckPayouts(SettlementFixture.NOW.plusDays(8))).isZero();
+
+        assertThat(reload(settlement).getStatus()).isEqualTo(SettlementStatus.COMPLETED);
+        assertThat(payoutCount(settlement)).isZero();
+    }
+
+    @Test
+    @DisplayName("자동 재요청을 두 번 돌려도 입금은 한 번이다")
+    void retryTwiceDoesNotPayTwice() {
+        var settlement = saveCompleted();
+        var now = SettlementFixture.NOW.plusHours(1);
+
+        retryScheduler.retryStuckPayouts(now);
+        var second = retryScheduler.retryStuckPayouts(now);
+
+        assertThat(second).isZero();
+        assertThat(payoutCount(settlement)).isEqualTo(1);
     }
 
     private Settlement saveCompleted() {

@@ -5,6 +5,8 @@ kidly:
     fee-rate: ${SETTLEMENT_FEE_RATE:0.1}
     # 자동 정산 cron (Asia/Seoul). 기본 매월 1일 0시. "-"면 자동 실행을 끈다
     run-cron: ${SETTLEMENT_RUN_CRON:0 0 0 1 * *}
+    # 지급 결과를 30분 넘게 못 받은 정산서를 다시 요청하는 cron (Asia/Seoul). 기본 10분마다. "-"면 끈다
+    payout-retry-cron: ${SETTLEMENT_PAYOUT_RETRY_CRON:0 */10 * * * *}
     # 한 트랜잭션에서 처리하는 판매자 수(1 이상). 실패하면 그 묶음을 판매자 1명씩 다시 처리한다
     chunk-size: ${SETTLEMENT_CHUNK_SIZE:100}
 
