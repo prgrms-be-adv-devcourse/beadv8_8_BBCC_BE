@@ -5,6 +5,7 @@
 # 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 CI · 빌드 없이 그 이미지를 배포한다.
 # 롤백 때도 compose · .env 는 실행한 브랜치의 현재 것이 올라간다. 설정 키가 바뀐 커밋으로 되돌릴 땐 주의한다.
 # 이미지는 셋이다: 앱(<저장소>:<SHA>), 검색 서비스(<저장소>-search-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
+# Elasticsearch 는 앱 서버가 아니라 t3.medium k3s(deploy/search)에 뜬다. 검색이 켜진 환경이면 elasticsearch job 이 앱보다 먼저 올린다.
 # 검색 서비스 이미지가 없는 커밋(검색 배포 전)으로는 검색이 켜진 환경(dev)을 SHA 롤백할 수 없다.
 # Elasticsearch 이미지는 docker/elasticsearch 가 바뀐 뒤 첫 배포 때만 빌드한다. docker/** 만 바뀐 push 는 배포를 띄우지 않으니 다음 배포에 반영된다.
 # workflow_dispatch 를 develop · main 이 아닌 브랜치에서 실행하면 그 브랜치가 dev 환경에 배포된다 (기능 브랜치 확인용).
@@ -92,10 +93,102 @@ jobs:
             -t "$ES_IMAGE" docker/elasticsearch
           docker push "$ES_IMAGE"
 
-  deploy:
+  # 검색 서비스가 뜰 때 붙을 Elasticsearch 를 t3.medium k3s 에 먼저 올린다
+  # 앱과 같이 CI 를 기다린다. CI 가 실패한 커밋으로 ES 만 바뀌는 부분 배포를 막는다
+  elasticsearch:
     needs: [ci, build]
-    # CI 와 빌드가 모두 성공했거나 롤백(둘 다 생략)인 경우만 배포한다
+    # CI 와 빌드가 모두 성공했거나 롤백(둘 다 생략)인 경우만
     if: ${{ !cancelled() && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    outputs:
+      search: ${{ steps.search.outputs.on }}
+    env:
+      SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # 검색이 꺼진 환경(.env.<환경> 의 COMPOSE_PROFILES 에 search 없음)이면 아무것도 하지 않는다. deploy job 도 이 값을 쓴다
+      - name: 검색이 켜진 환경인지 확인
+        id: search
+        env:
+          APP_ENV: ${{ vars.APP_ENV }}
+        run: |
+          profiles=$(sed -n 's/^COMPOSE_PROFILES=//p' "deploy/.env.$APP_ENV" | tail -n 1)
+          if [[ ",$profiles," == *,search,* ]]; then on=true; else on=false; fi
+          echo "on=$on" >> "$GITHUB_OUTPUT"
+          echo "검색: $on"
+
+      # deploy job 이 .env 에 넣는 MONITORING_PRIVATE_IP 도 여기서 봐서, 빠졌으면 어느 서버도 바꾸지 않는다
+      - name: 검색 서버 변수 확인
+        if: steps.search.outputs.on == 'true'
+        env:
+          APP_ENV: ${{ vars.APP_ENV }}
+          MONITORING_SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
+          MONITORING_SSH_KNOWN_HOSTS: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+          MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
+        run: |
+          missing=0
+          [[ -n "$MONITORING_SSH_HOST" ]] || { echo "::error::Environment $APP_ENV 에 변수 MONITORING_SSH_HOST(t3.medium 의 탄력적 IP)를 등록하세요"; missing=1; }
+          [[ -n "$MONITORING_SSH_KNOWN_HOSTS" ]] || { echo "::error::Environment $APP_ENV 에 변수 MONITORING_SSH_KNOWN_HOSTS(로컬에서 ssh-keyscan -H <탄력적 IP> 한 결과)를 등록하세요"; missing=1; }
+          # .env 에 그대로 들어가고 틀리면 검색 서비스가 ES 에 못 붙어 기동에 실패하므로 형식까지 본다
+          [[ "$MONITORING_PRIVATE_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "::error::Environment $APP_ENV 에 변수 MONITORING_PRIVATE_IP(t3.medium 의 사설 IPv4)를 등록하세요"; missing=1; }
+          (( missing == 0 )) || exit 1
+
+      - uses: docker/login-action@v3
+        if: steps.search.outputs.on == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # build 잡과 같은 태그. 롤백이어도 실행한 브랜치의 docker/elasticsearch 를 따른다
+      # k3s 는 옛 Pod 를 먼저 내린 뒤 새 이미지를 받으므로(Recreate), 받을 수 없는 이미지면 서버를 건드리기 전에 멈춘다
+      # (docker/** 만 바뀐 push 는 배포를 띄우지 않아 새 태그가 빌드되지 않았을 수 있다)
+      - name: Elasticsearch 이미지 확인
+        id: image
+        if: steps.search.outputs.on == 'true'
+        run: |
+          ES_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-elasticsearch:$(git rev-parse --short=12 HEAD:docker/elasticsearch)"
+          docker manifest inspect "$ES_IMAGE" > /dev/null || { echo "::error::$ES_IMAGE 가 GHCR 에 없거나 받을 수 없습니다. docker/elasticsearch 가 바뀌었다면 develop 에서 deploy 를 한 번 새로 돌려 이미지를 빌드하세요"; exit 1; }
+          echo "es_image=$ES_IMAGE" >> "$GITHUB_OUTPUT"
+
+      # deploy-notify.yml 이 이 step 이름으로 "18시 이후 서버 꺼짐" 안내를 붙인다
+      - name: 서버 접속 확인 · SSH 키 준비
+        if: steps.search.outputs.on == 'true'
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+
+      # 데이터는 k3s PVC 라 그대로다
+      - name: 서버에 설정 파일 올리기
+        if: steps.search.outputs.on == 'true'
+        run: |
+          dir=/opt/app/search
+          tar -C deploy/search -czf - elasticsearch.yaml deploy.sh \
+            | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
+              "mkdir -p $dir && tar -xzf - --no-same-owner -C $dir"
+
+      - name: 배포
+        if: steps.search.outputs.on == 'true'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          ES_IMAGE: ${{ steps.image.outputs.es_image }}
+        run: |
+          # 토큰은 명령줄이 아니라 stdin 으로 넘긴다. deploy.sh 가 namespace 의 pull secret 으로 만든다
+          printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
+            "GHCR_USER=$GHCR_USER ES_IMAGE=$ES_IMAGE /opt/app/search/deploy.sh"
+
+  deploy:
+    needs: [ci, build, elasticsearch]
+    # CI 와 빌드가 모두 성공했거나 롤백(둘 다 생략)인 경우만 배포한다. Elasticsearch 배포가 실패하면 앱도 올리지 않는다
+    if: ${{ !cancelled() && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) && needs.elasticsearch.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -132,6 +225,8 @@ jobs:
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
           JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          SEARCH_ON: ${{ needs.elasticsearch.outputs.search }}
+          MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
         run: |
           umask 077
           out="$RUNNER_TEMP/deploy-files"
@@ -155,6 +250,10 @@ jobs:
           {
             cat "deploy/.env.$APP_ENV"
             echo
+            # 검색 서비스가 붙을 Elasticsearch(t3.medium k3s). 비밀은 아니지만 레포가 공개라 사설 IP 를 변수에서 붙인다. 형식은 elasticsearch job 이 확인했다
+            if [[ "$SEARCH_ON" == true ]]; then
+              echo "ELASTICSEARCH_URIS=http://$MONITORING_PRIVATE_IP:30920"
+            fi
             echo "# 아래는 배포 때 GitHub Environment Secret 에서 붙인 값이다"
             printf '%s\n' "$secret_lines"
             printf "POSTGRES_PASSWORD='%s'\n" "$DB_PASSWORD"
@@ -189,13 +288,11 @@ jobs:
           # 기동 실패 원인을 다음 단계에서 뽑도록 출력을 파일에도 남긴다
           set -o pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
-          # build 잡과 같은 태그. 롤백이어도 compose 와 같이 실행한 브랜치의 docker/elasticsearch 를 따른다
-          ES_IMAGE="$IMAGE-elasticsearch:$(git rev-parse --short=12 HEAD:docker/elasticsearch)"
           printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
             export DOCKER_CONFIG=\$(mktemp -d)
             trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
             docker login ghcr.io -u $GHCR_USER --password-stdin > /dev/null || exit 1
-            APP_ENV=$APP_ENV IMAGE=$IMAGE:$SHA SEARCH_IMAGE=$IMAGE-search-service:$SHA ES_IMAGE=$ES_IMAGE \
+            APP_ENV=$APP_ENV IMAGE=$IMAGE:$SHA SEARCH_IMAGE=$IMAGE-search-service:$SHA \
               /opt/app/$APP_ENV/deploy.sh
           " 2>&1 | tee "$RUNNER_TEMP/deploy.log"
 
