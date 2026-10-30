@@ -77,8 +77,8 @@ class ProductSampleDataServiceIntegrationTest {
         memberInitialDataService.load();
     }
 
-    @Test
     // 추천은 판매 시작 이벤트를 Kafka로 받아서, Kafka가 없는 이 테스트에서는 자녀 맞춤 목록까지 확인하지 않는다
+    @Test
     @DisplayName("판매자 2의 샘플 상품 두 개를 판매 중으로 넣고, 판매 시작 이벤트로 목록에 나온다")
     void load() {
         sellerInitialDataService.load();
