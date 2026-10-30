@@ -21,7 +21,7 @@
   - 받는 쪽은 너그럽게 읽는다: 모르는 필드는 무시한다(tolerant reader). 이 설정을 바꾸지 않는다
   - 예외: 새 enum 값은 그 값을 받을 수 있는 모든 도메인이 처리하도록 배포된 뒤에 보낸다
 - 이벤트에 개인정보 필드를 추가하지 않는다
-- ID는 `Long`, 시각은 `LocalDateTime`(한국 시간, 시간대 표시 없음)
+- 이벤트 · DTO에 담는 ID 값은 `Long`, 시각은 `LocalDateTime`(한국 시간, 시간대 표시 없음). `DomainEvent`의 공통 칸은 정의대로 둔다(`eventId`는 `UUID`, `aggregateId` · `correlationId`는 문자열)
 
 ## 3. `common` 모듈(`global` 패키지)
 - `common` 모듈의 코드는 `com.bbcc.kidly.global` 패키지에 있다. 도메인은 `common`에 의존할 수 있고, `common`은 도메인을 참조하지 않는다
