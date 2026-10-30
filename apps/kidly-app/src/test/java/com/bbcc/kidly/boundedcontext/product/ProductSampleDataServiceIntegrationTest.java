@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileInitialDataService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberInitialDataService;
 import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchItem;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductDetailService;
@@ -23,8 +22,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
-import com.bbcc.kidly.boundedcontext.recommend.app.recommended.RecommendedProductService;
-import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductResult;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerInitialDataService;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
@@ -46,12 +43,6 @@ class ProductSampleDataServiceIntegrationTest {
 
     @Autowired
     private SellerInitialDataService sellerInitialDataService;
-
-    @Autowired
-    private ChildProfileInitialDataService childProfileInitialDataService;
-
-    @Autowired
-    private RecommendedProductService recommendedProductService;
 
     @Autowired
     private ProductReferenceDataService productReferenceDataService;
@@ -86,10 +77,10 @@ class ProductSampleDataServiceIntegrationTest {
         memberInitialDataService.load();
     }
 
+    // 추천은 판매 시작 이벤트를 Kafka로 받아서, Kafka가 없는 이 테스트에서는 자녀 맞춤 목록까지 확인하지 않는다
     @Test
-    @DisplayName("판매자 2의 샘플 상품 두 개를 판매 중으로 넣고, 판매 시작 이벤트로 목록과 자녀 맞춤 목록에 나온다")
+    @DisplayName("판매자 2의 샘플 상품 두 개를 판매 중으로 넣고, 판매 시작 이벤트로 목록에 나온다")
     void load() {
-        childProfileInitialDataService.load();
         sellerInitialDataService.load();
         productReferenceDataService.load();
 
@@ -134,11 +125,6 @@ class ProductSampleDataServiceIntegrationTest {
             .containsExactly(tuple("120", 115, 125,
                 Map.of("TOTAL_LENGTH", 66, "WAIST_WIDTH", 25, "HIP_WIDTH", 34, "THIGH_WIDTH", 20, "RISE", 21)));
         assertThat(availableQuantities(bottomId)).containsExactly(5);
-
-        // 보호자(회원 1)의 자녀 1은 키 115cm라 두 상품 모두 120을 추천받는다
-        assertThat(recommendedProductService.list(1L, 1L, null, 0, 20).getContent())
-            .extracting(RecommendedProductResult::name, RecommendedProductResult::recommendedSize)
-            .containsExactlyInAnyOrder(tuple("네이비 데일리 맨투맨", "120"), tuple("그레이 조거 팬츠", "120"));
     }
 
     @Test
