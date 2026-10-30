@@ -58,7 +58,8 @@ final class EventFailureKeeper {
     }
 
     /**
-     * 실패를 주문 자체 보관에 남겼다는 표시를 원래 예외에 붙인다. run과 결제 완료 보관(payment_recovery, #594)이 같은 표시를 쓴다.
+     * Kafka 리스너가 처리 완료로 봐도 된다는 표시를 원래 예외에 붙인다: 실패를 주문 자체 보관에 남겼거나(run · 결제 완료
+     * payment_recovery), 동시 처리에서 진 결제 완료인데 주문 결과가 이미 났다(#594).
      */
     static void markKept(Throwable error) {
         error.addSuppressed(new KeptMark());

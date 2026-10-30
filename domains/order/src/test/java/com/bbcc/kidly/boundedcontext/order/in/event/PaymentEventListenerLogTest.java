@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
 import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.LostPaymentRecheck;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
@@ -106,25 +107,43 @@ class PaymentEventListenerLogTest {
     void lostToCancelLeavesRefundCheckOnly(CapturedOutput output) {
         ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", ORDER_ID);
         when(orderService.markPaid(COMMAND)).thenThrow(error);
-        when(orderService.warnIfPaidAfterCancel(COMMAND)).thenReturn(true);
+        when(orderService.recheckLostPaymentCompleted(COMMAND)).thenReturn(LostPaymentRecheck.PAID_AFTER_CANCEL);
 
-        assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).as("결과가 이미 남 = 처리 완료").isTrue());
 
         assertThat(output).doesNotContain("lost-concurrent-duplicate").doesNotContain("ERROR");
         verify(recoveryService, never()).recordFailure(any(), any());
     }
 
     @Test
-    @DisplayName("진 쪽인데 다시 읽은 주문이 취소가 아니면 진 쪽 WARN을 그대로 남기고 같은 예외를 다시 던진다 (#519)")
+    @DisplayName("진 쪽인데 다시 읽은 주문이 결제완료 등 결과가 났으면 진 쪽 WARN을 남기고 처리 완료 표시를 붙여 다시 던진다 (#519 · #594)")
     void lostToOtherKeepsLostWarn(CapturedOutput output) {
         ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", ORDER_ID);
         when(orderService.markPaid(COMMAND)).thenThrow(error);
-        when(orderService.warnIfPaidAfterCancel(COMMAND)).thenReturn(false);
+        when(orderService.recheckLostPaymentCompleted(COMMAND)).thenReturn(LostPaymentRecheck.SETTLED);
 
-        assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).isTrue());
 
         assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
-        verify(orderService).warnIfPaidAfterCancel(COMMAND);
+        verify(orderService).recheckLostPaymentCompleted(COMMAND);
+    }
+
+    @Test
+    @DisplayName("진 쪽인데 다시 읽은 주문이 아직 결제대기면(반영이 통째로 되돌려짐) 처리 완료 표시 없이 다시 던진다(Kafka가 다시 처리, #594)")
+    void lostButStillPendingIsNotMarked(CapturedOutput output) {
+        ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("CartItem", 9L);
+        when(orderService.markPaid(COMMAND)).thenThrow(error);
+        when(orderService.recheckLostPaymentCompleted(COMMAND)).thenReturn(LostPaymentRecheck.STILL_PENDING);
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).isFalse());
+
+        assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
     }
 
     @Test
@@ -133,11 +152,12 @@ class PaymentEventListenerLogTest {
         ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("Order", ORDER_ID);
         IllegalStateException readError = new IllegalStateException("주문 다시 읽기 실패");
         when(orderService.markPaid(COMMAND)).thenThrow(error);
-        when(orderService.warnIfPaidAfterCancel(COMMAND)).thenThrow(readError);
+        when(orderService.recheckLostPaymentCompleted(COMMAND)).thenThrow(readError);
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
             .isSameAs(error)
-            .satisfies(thrown -> assertThat(thrown.getSuppressed()).containsExactly(readError));
+            .satisfies(thrown -> assertThat(thrown.getSuppressed()).as("모르면 처리 완료 표시 없음 = 다시 처리")
+                .containsExactly(readError));
 
         assertThat(output).containsPattern("WARN.*" + LOST_REASON).doesNotContain("ERROR");
     }

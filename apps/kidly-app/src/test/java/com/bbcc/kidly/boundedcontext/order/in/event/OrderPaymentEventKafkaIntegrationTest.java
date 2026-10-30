@@ -107,6 +107,9 @@ class OrderPaymentEventKafkaIntegrationTest {
         }
         jdbcTemplate.execute("alter table orders.delivery drop constraint if exists " + BREAK_DELIVERY);
         jdbcTemplate.execute("alter table orders.payment_recovery drop constraint if exists " + BREAK_RECOVERY);
+        jdbcTemplate.execute("drop trigger if exists test_block_cart_delete_once on orders.cart_item");
+        jdbcTemplate.execute("drop function if exists orders.test_block_cart_delete_once()");
+        jdbcTemplate.execute("drop sequence if exists orders.test_cart_delete_seq");
     }
 
     @Test
@@ -208,6 +211,21 @@ class OrderPaymentEventKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("반영 중 장바구니 줄 충돌(낙관적 락)로 통째로 되돌려지면 처리 완료로 닫지 않고, 다시 처리해 결제완료가 된다(#594)")
+    void cartConflictRollbackIsRetried() {
+        OrderDetail order = placeWithCart(4_061L);
+        blockFirstCartDelete();
+        var event = paymentCompleted(order, 4_061L);
+
+        kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, event));
+
+        assertThat(outcomeOf(order, 4_061L)).containsEntry("status", "PAID").containsEntry("deliveries", 2L)
+            .containsEntry("cartLines", 0L).containsEntry("paidHistory", 1L);
+        assertThat(recoveryCountOf(order.orderId())).as("진 쪽은 보관하지 않음").isZero();
+        assertThat(kafkaClient.deadLetters(TOPIC, event.eventId().toString())).isEmpty();
+    }
+
+    @Test
     @DisplayName("반영도 보관도 실패하면 재시도한 뒤 DLT에 1건 보내고 보관 기록은 없다")
     void keepFailureToDeadLetter() {
         OrderDetail order = placeWithCart(4_041L);
@@ -250,6 +268,22 @@ class OrderPaymentEventKafkaIntegrationTest {
         });
         assertThat(outcomeOf(order, 4_051L)).containsEntry("status", "PENDING_PAYMENT");
         assertThat(output.getOut()).contains("eventId=" + eventId).doesNotContain(marker);
+    }
+
+    // 장바구니 줄 첫 DELETE 한 번만 막는다(트리거가 행을 지우지 않으면 버전 확인 DELETE가 0행 → 낙관적 락 예외).
+    // 처리 트랜잭션이 되돌려져도 시퀀스 값은 돌아가지 않으므로 다시 처리할 때는 막지 않는다
+    private void blockFirstCartDelete() {
+        jdbcTemplate.execute("create sequence orders.test_cart_delete_seq");
+        jdbcTemplate.execute("""
+            create function orders.test_block_cart_delete_once() returns trigger language plpgsql as $$
+            begin
+              if nextval('orders.test_cart_delete_seq') = 1 then
+                return null;
+              end if;
+              return old;
+            end $$""");
+        jdbcTemplate.execute("create trigger test_block_cart_delete_once before delete on orders.cart_item "
+            + "for each row execute function orders.test_block_cart_delete_once()");
     }
 
     private void saveReplicas() {

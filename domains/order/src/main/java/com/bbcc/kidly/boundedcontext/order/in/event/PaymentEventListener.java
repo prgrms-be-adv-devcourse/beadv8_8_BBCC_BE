@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.LostPaymentRecheck;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -39,8 +40,9 @@ public class PaymentEventListener {
     /**
      * 처리 중 예외는 분류해 로그를 남긴 뒤 그대로 다시 던진다(반영 트랜잭션은 되돌려짐). 반영은 커밋까지 끝낸 뒤 돌아오므로
      * 커밋 단계 실패(주문 버전 충돌 등)도 여기서 같은 기준으로 나눈다(#532).
-     * 낙관적 락 · 배송 (order_id, seller_id) 유니크 위반 = 동시 중복 처리에서 진 쪽(이긴 쪽이 이미 처리함) → WARN
-     * (이긴 쪽이 주문을 취소했으면 대신 환불 확인 WARN, #519),
+     * 낙관적 락 · 배송 (order_id, seller_id) 유니크 위반 = 동시 중복 처리에서 진 쪽 → WARN
+     * (이긴 쪽이 주문을 취소했으면 대신 환불 확인 WARN, #519). 주문을 다시 읽어 결과가 났으면 처리 완료 표시를 붙이고,
+     * 아직 결제대기면(장바구니 줄 동시 변경 등으로 반영이 통째로 되돌려짐) 붙이지 않는다(#594),
      * 그 밖 = 돈은 빠졌는데 결제완료가 안 됨 → 재처리용으로 보관하고(결제 불일치는 재처리 불가) 보관 결과를 붙여 ERROR 한 줄.
      * 보관에 성공하면 원래 예외에 보관 표시를 붙인다(Kafka 리스너가 처리 완료로 본다, #594).
      */
@@ -63,12 +65,17 @@ public class PaymentEventListener {
             paymentCompletion.applyForEvent(paid);
         } catch (RuntimeException e) {
             if (PaymentFailures.isLostConcurrentDuplicate(e)) {
-                if (warnedPaidAfterCancel(paid, e)) {
-                    throw e;
+                LostPaymentRecheck recheck = recheckLost(paid, e);
+                if (recheck != LostPaymentRecheck.PAID_AFTER_CANCEL) {
+                    log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event={} "
+                        + "reason=lost-concurrent-duplicate orderId={} paymentId={}",
+                        eventType, paid.orderId(), paid.paymentId(), e);
                 }
-                log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event={} "
-                    + "reason=lost-concurrent-duplicate orderId={} paymentId={}",
-                    eventType, paid.orderId(), paid.paymentId(), e);
+                // 결과가 이미 났으면(취소 · 결제완료 등) 다시 처리해도 아무것도 안 하므로 처리 완료로 봐도 된다는 표시를 붙인다.
+                // 아직 결제대기거나 다시 읽지 못했으면 붙이지 않는다(Kafka가 다시 처리, #594)
+                if (recheck == LostPaymentRecheck.PAID_AFTER_CANCEL || recheck == LostPaymentRecheck.SETTLED) {
+                    EventFailureKeeper.markKept(e);
+                }
                 throw e;
             }
             PaymentRecoveryResult saved = null;
@@ -94,14 +101,14 @@ public class PaymentEventListener {
         }
     }
 
-    // 이긴 쪽이 주문을 취소했으면 돈은 빠졌는데 취소된 것이므로 서비스가 환불 확인 WARN을 남긴다(#519).
-    // 다시 읽기가 실패해도 원래 예외를 그대로 던지도록 읽기 오류는 원래 예외에 붙이고(suppressed) 진 쪽 WARN으로 남긴다
-    private boolean warnedPaidAfterCancel(MarkPaidCommand paid, RuntimeException e) {
+    // 주문을 새 트랜잭션에서 다시 읽는다. 이긴 쪽이 주문을 취소했으면 서비스가 환불 확인 WARN을 남긴다(#519).
+    // 다시 읽기가 실패해도 원래 예외를 그대로 던지도록 읽기 오류는 원래 예외에 붙이고(suppressed) 아직 결제대기로 본다(다시 처리)
+    private LostPaymentRecheck recheckLost(MarkPaidCommand paid, RuntimeException e) {
         try {
-            return orderService.warnIfPaidAfterCancel(paid);
+            return orderService.recheckLostPaymentCompleted(paid);
         } catch (RuntimeException readError) {
             e.addSuppressed(readError);
-            return false;
+            return LostPaymentRecheck.STILL_PENDING;
         }
     }
 

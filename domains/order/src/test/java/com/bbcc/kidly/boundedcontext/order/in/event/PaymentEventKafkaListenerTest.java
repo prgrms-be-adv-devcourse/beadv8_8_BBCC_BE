@@ -25,8 +25,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * kidly.payment.events 리스너(#594): eventType 헤더로 고르고 본문(공통 칸 7개 + data)을 이벤트로 읽어 지금 결제 처리를 그대로 부른다.
- * 처리 실패를 주문 자체 보관(결제 완료 → payment_recovery, 결제 실패 → order_event_failure)에 남겼으면 처리 완료,
- * 동시 처리에서 진 쪽도 이긴 쪽이 이미 처리했으므로 처리 완료(다시 하면 환불 확인 WARN이 겹친다), 그 밖은 다시 던져 재시도 → DLT.
+ * 처리 실패를 주문 자체 보관(결제 완료 → payment_recovery, 결제 실패 → order_event_failure)에 남겼으면 처리 완료.
+ * 결제 완료의 동시 처리에서 진 쪽은 결제 처리가 주문을 다시 읽어 결과가 났을 때만 처리 완료 표시를 붙인다(아직 결제대기면 다시 처리).
+ * 결제 실패의 진 쪽은 처리 완료(결제대기가 아니면 다시 해도 아무것도 안 함). 그 밖은 다시 던져 재시도 → DLT.
  */
 @ExtendWith(MockitoExtension.class)
 class PaymentEventKafkaListenerTest {
@@ -97,14 +98,35 @@ class PaymentEventKafkaListenerTest {
     }
 
     @Test
-    @DisplayName("동시 처리에서 진 쪽이면 정상 반환한다(이긴 쪽이 이미 처리, 다시 하면 환불 확인 WARN이 겹침)")
-    void lostConcurrentDuplicateCompletes() {
-        doThrow(new ObjectOptimisticLockingFailureException("Order", 7L))
-            .when(paymentEventListener).onPaymentCompleted(any());
+    @DisplayName("결제 완료에서 진 쪽인데 처리 완료 표시가 없으면(주문이 아직 결제대기) 다시 던진다(재시도 → 반영 또는 DLT, #594)")
+    void lostCompletedStillPendingIsRethrown() {
+        var lost = new ObjectOptimisticLockingFailureException("CartItem", 9L);
+        doThrow(lost).when(paymentEventListener).onPaymentCompleted(any());
+
+        assertThatThrownBy(() -> listener().on(record("payment.completed", completedBody()))).isSameAs(lost);
+    }
+
+    @Test
+    @DisplayName("결제 완료에서 진 쪽이고 결과가 이미 났으면(처리 완료 표시) 정상 반환한다(다시 하면 환불 확인 WARN이 겹침)")
+    void lostCompletedSettledCompletes() {
+        var lost = new ObjectOptimisticLockingFailureException("Order", 7L);
+        EventFailureKeeper.markKept(lost);
+        doThrow(lost).when(paymentEventListener).onPaymentCompleted(any());
 
         listener().on(record("payment.completed", completedBody()));
 
         verify(paymentEventListener).onPaymentCompleted(any());
+    }
+
+    @Test
+    @DisplayName("결제 실패에서 진 쪽이면 정상 반환한다(결제대기가 아니면 다시 처리해도 아무것도 안 함)")
+    void lostFailedCompletes() {
+        doThrow(new ObjectOptimisticLockingFailureException("Order", 7L))
+            .when(paymentEventListener).onPaymentFailed(any());
+
+        listener().on(record("payment.failed", failedBody("INSUFFICIENT_BALANCE")));
+
+        verify(paymentEventListener).onPaymentFailed(any());
     }
 
     @Test
