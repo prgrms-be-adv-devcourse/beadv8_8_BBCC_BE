@@ -62,6 +62,10 @@ kidly:
     # 자동 구매확정 스케줄러도 같은 이유로 길게 둔다. 자동 확정 테스트는 OrderScheduler.autoConfirm()을 직접 부른다
     auto-confirm:
       interval: P3650D
+    # 아웃박스 릴레이도 같은 이유로 길게 두고, 정리는 끈다. 릴레이 테스트는 OrderOutboxRelayService를, 정리 테스트는 OrderOutboxCleanupService를 직접 부른다
+    outbox:
+      relay-interval: P3650D
+      cleanup-cron: "-"
   # 알림 재시도 스케줄러도 같은 이유로 길게 둔다. 재시도 테스트는 NotificationRetryScheduler를 직접 부른다
   notification:
     retry-interval: P3650D
