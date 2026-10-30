@@ -10,12 +10,14 @@ import com.bbcc.kidly.boundedcontext.product.app.port.outbox.ProductEventSender;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
+import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import javax.management.ObjectName;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -34,6 +36,7 @@ import org.testcontainers.kafka.KafkaContainer;
 /**
  * 상품 아웃박스 메시지가 실제 브로커의 kidly.product.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다.
  * 다른 테스트의 메시지도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
+ * 실패하면 본문 없이 알리는지와, 프로듀서 지표에 상품 전송기 이름(kidly-product-outbox)이 남는지도 본다.
  */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
@@ -100,6 +103,18 @@ class KafkaProductEventSenderIntegrationTest {
             .hasMessageNotContaining("reason=Failed to send")
             .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD));
         assertThat(output.getAll()).doesNotContain(ProductOutboxMessageFixture.PAYLOAD);
+    }
+
+    @Test
+    @DisplayName("상품 전송기는 Kafka 클라이언트 이름 kidly-product-outbox로 보낸다. 프로듀서 지표가 이 이름으로 남는다")
+    void sendWithProductClientId() throws Exception {
+        productEventSender.send(
+            ProductOutboxMessage.create(ProductOutboxMessageFixture.productChanged(UUID.randomUUID())));
+
+        // Spring Kafka가 클라이언트 이름 뒤에 -번호를 붙인다(kidly-product-outbox-1)
+        ObjectName producerMetrics =
+            new ObjectName("kafka.producer:type=producer-metrics,client-id=kidly-product-outbox-*");
+        assertThat(ManagementFactory.getPlatformMBeanServer().queryNames(producerMetrics, null)).isNotEmpty();
     }
 
     private ConsumerRecord<String, String> awaitRecord(UUID eventId) {
