@@ -3,8 +3,8 @@
 상품 목록 검색(`GET /api/v1/products`)을 상품에서 떼어 맡는다. 상품 · 판매자가 발행한 이벤트로만 색인하고, 상품 DB를 읽지 않는다.
 
 ## 진행 상태
-- 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`)
-- 남음: Kafka 수신(`in`), `apps/search-service`, 로컬 · 서버 compose(nori 플러그인을 넣은 Elasticsearch 이미지)
+- 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori)
+- 남음: 서버 배포(추가 서버 t3.medium의 compose · 배포 워크플로 · Alloy), Kafka 수신(`in`), 처음 채우기, nginx 전환
 - kidly-app에는 넣지 않는다. 상품의 목록 API와 경로(`GET /api/v1/products`)가 같아 한 앱에 두면 매핑이 겹친다. `apps/search-service`로만 띄운다
 
 ## 검색 문서 (`domain/SearchProduct`)
@@ -45,4 +45,15 @@
 - 검색 색인을 쓸 수 없으면(`SearchUnavailableException`) 503 `SEARCH_UNAVAILABLE` ProblemDetail로 응답하고 WARN을 남긴다(검색어는 남기지 않는다)
   - 상품의 PostgreSQL 검색으로 대신 찾지 않는다. 검색은 상품 DB를 읽지 않기 때문이다. 전환 기간에는 nginx 라우팅을 되돌려 상품의 목록 API로 돌아갈 수 있다
 - 관련도순 정렬은 아직 없다(상품 목록 API에도 없다)
-- 컨트롤러 테스트는 스프링을 띄우지 않고 `MockMvcBuilders.standaloneSetup` + `GlobalExceptionHandler`로 한다. 검색 모듈이 아직 앱에 들어가지 않아서다. 기능 테스트(`XxxApiTest`)는 `apps/search-service`를 만들 때 옮긴다
+- 도메인 모듈의 컨트롤러 단위 테스트는 스프링을 띄우지 않고 `MockMvcBuilders.standaloneSetup` + `GlobalExceptionHandler`로 한다. HTTP 전체는 `apps/search-service`의 기능 테스트(`ProductListApiTest`)가 본다
+
+## 검색 서비스 (`apps/search-service`)
+- 검색 도메인만 띄우는 Spring Boot 앱. 상품 목록 API와 경로가 같아 kidly-app과 따로 띄운다. 서버는 추가 서버(t3.medium)에 Elasticsearch와 함께 둔다
+- DB를 쓰지 않는다. `SearchServiceApplication`이 DataSource · JPA 자동 설정과 common의 JPA 설정(`JpaAuditingConfig` · `QuerydslConfig`)을 뺀다. common은 고치지 않는다
+- JWT는 공개키로 검증만 한다. common의 검증기가 요구하는 `AccessTokenRevocations`(회원 DB)는 무효화를 확인하지 않는 구현으로 채운다(`SearchServiceSecurityConfig`). 이 서비스에는 로그인이 필요한 API가 없어서다. 그런 API를 더하면 이 빈부터 다시 정한다
+- 실행: `docker compose up -d elasticsearch` 뒤 `./gradlew :apps:search-service:bootRun` (포트 8082, 프로필 local, 색인 `local-*`). 처음에는 nori 이미지를 빌드한다
+- Elasticsearch 이미지: `docker/elasticsearch/Dockerfile`(공식 9.4.x + analysis-nori). 로컬 compose · 테스트 · 서버가 같은 파일로 만든다. 버전은 클라이언트(Boot BOM)와 같은 마이너로 맞춘다
+- 메모리(로컬 측정): Elasticsearch 힙 512MB → 약 950MB, search-service `-Xmx384m` → 약 290MB
+- 테스트: `@IntegrationTest` · `@FunctionalTest`(이 서비스의 `support`)가 같은 Dockerfile로 Elasticsearch 컨테이너를 띄운다. 테스트마다 색인을 지우고 다시 만든다(`SearchIndexCleanerExtension`)
+  - 문서만 지우면(delete_by_query) 안 된다. Elasticsearch가 지운 문서의 외부 버전을 잠시(`gc_deletes`, 60초) 기억해, 같은 발생 시각으로 다시 색인하면 늦은 이벤트로 보고 거절한다
+  - 저장한 문서는 새로 고침 전에는 검색되지 않으므로 검색 전에 `SearchIndexes.refresh()`를 부른다
