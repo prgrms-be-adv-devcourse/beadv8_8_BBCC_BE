@@ -26,12 +26,12 @@ import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchCondition;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchItem;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchSort;
+import com.bbcc.kidly.boundedcontext.search.app.port.SearchUnavailableException;
 import com.bbcc.kidly.boundedcontext.search.out.ElasticsearchProductSearch;
 import com.bbcc.kidly.boundedcontext.search.out.ProductDocument;
 import com.bbcc.kidly.boundedcontext.search.out.SearchIndexProperties;
 import com.bbcc.kidly.boundedcontext.search.out.SellerDocument;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -239,14 +239,39 @@ class ElasticsearchProductSearchTest {
     }
 
     @Test
-    @DisplayName("Elasticsearch에 연결하지 못하면 UncheckedIOException으로 던진다")
-    void wrapsIoException() throws IOException {
+    @DisplayName("Elasticsearch에 연결하지 못하면 검색 색인을 쓸 수 없다고 알린다")
+    void connectionFailure() throws IOException {
         when(client.search(any(SearchRequest.class), eq(ProductDocument.class)))
             .thenThrow(new IOException("connection refused"));
 
         assertThatThrownBy(() -> productSearch.search(
             condition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20)))
-            .isInstanceOf(UncheckedIOException.class);
+            .isInstanceOf(SearchUnavailableException.class)
+            .hasMessageContaining("local-products");
+    }
+
+    @Test
+    @DisplayName("Elasticsearch가 오류로 답하면(색인 없음 · 과부하 등) 검색 색인을 쓸 수 없다고 알린다")
+    void elasticsearchError() throws IOException {
+        when(client.search(any(SearchRequest.class), eq(ProductDocument.class)))
+            .thenThrow(ElasticsearchSearchProductRepositoryTest.errorWithStatus(503));
+
+        assertThatThrownBy(() -> productSearch.search(
+            condition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20)))
+            .isInstanceOf(SearchUnavailableException.class);
+    }
+
+    @Test
+    @DisplayName("판매자 색인을 쓸 수 없어도 검색 색인을 쓸 수 없다고 알린다")
+    void sellerLookupFailure() throws IOException {
+        givenProducts(1, product(10L, 7L));
+        when(client.mget(any(MgetRequest.class), eq(SellerDocument.class)))
+            .thenThrow(new IOException("connection refused"));
+
+        assertThatThrownBy(() -> productSearch.search(
+            condition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20)))
+            .isInstanceOf(SearchUnavailableException.class)
+            .hasMessageContaining("local-sellers");
     }
 
     private static ProductSearchCondition condition(Long categoryId, String keyword,
