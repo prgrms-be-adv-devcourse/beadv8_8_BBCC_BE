@@ -74,7 +74,7 @@ class SettlementRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("기간 안의 COMPLETED만 id 순으로 limit만큼 찾는다")
+    @DisplayName("기간 안의 COMPLETED만 기준 id 다음부터 id 순으로 limit만큼 찾는다")
     void findStuck() {
         var first = saveCompleted(1L);
         var second = saveCompleted(2L);
@@ -83,10 +83,10 @@ class SettlementRepositoryIntegrationTest {
         paid.markPaid(NOW.plusMinutes(5));
         settlementRepository.save(paid);
 
-        var found = settlementRepository.findByStatusAndCompletedAtBetweenOrderByIdAsc(
-            SettlementStatus.COMPLETED, NOW.minusMinutes(1), NOW.plusMinutes(1), Limit.of(2));
+        var found = settlementRepository.findByStatusAndCompletedAtBetweenAndIdGreaterThanOrderByIdAsc(
+            SettlementStatus.COMPLETED, NOW.minusMinutes(1), NOW.plusMinutes(1), first.getId(), Limit.of(1));
 
-        assertThat(found).extracting(Settlement::getId).containsExactly(first.getId(), second.getId());
+        assertThat(found).extracting(Settlement::getId).containsExactly(second.getId());
     }
 
     @Test
@@ -94,8 +94,8 @@ class SettlementRepositoryIntegrationTest {
     void findStuckBoundaries() {
         var saved = saveCompleted(1L);
 
-        var found = settlementRepository.findByStatusAndCompletedAtBetweenOrderByIdAsc(
-            SettlementStatus.COMPLETED, NOW, NOW, Limit.of(10));
+        var found = settlementRepository.findByStatusAndCompletedAtBetweenAndIdGreaterThanOrderByIdAsc(
+            SettlementStatus.COMPLETED, NOW, NOW, 0L, Limit.of(10));
 
         assertThat(found).extracting(Settlement::getId).containsExactly(saved.getId());
     }

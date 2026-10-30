@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,8 +48,8 @@ class SettlementPayoutRetrySchedulerTest {
         int count = scheduler.retryStuckPayouts(NOW);
 
         assertThat(count).isEqualTo(2);
-        then(settlementRepository).should().findByStatusAndCompletedAtBetweenOrderByIdAsc(
-            SettlementStatus.COMPLETED, NOW.minusDays(7), NOW.minusMinutes(30), Limit.of(100));
+        then(settlementRepository).should().findByStatusAndCompletedAtBetweenAndIdGreaterThanOrderByIdAsc(
+            SettlementStatus.COMPLETED, NOW.minusDays(7), NOW.minusMinutes(30), 0L, Limit.of(100));
         then(adminSettlementService).should().retryPayout(1L);
         then(adminSettlementService).should().retryPayout(2L);
     }
@@ -80,21 +81,69 @@ class SettlementPayoutRetrySchedulerTest {
     }
 
     @Test
-    @DisplayName("7일 넘게 결과를 못 받은 정산서 건수를 센다")
-    void countsExpired() {
-        givenStuck();
-        given(settlementRepository.countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, NOW.minusDays(7))).willReturn(3L);
+    @DisplayName("한 번에 100건을 채우면 다음 실행은 마지막 id 다음부터 찾는다")
+    void continuesAfterLastIdWhenFull() {
+        givenStuckAfter(0L, NOW, LongStream.rangeClosed(1, 100).mapToObj(this::settlement).toArray(Settlement[]::new));
+        givenStuckAfter(100L, NOW, settlement(101L));
 
         scheduler.retryStuckPayouts(NOW);
+        scheduler.retryStuckPayouts(NOW);
 
-        then(settlementRepository).should().countByStatusAndCompletedAtBefore(
+        then(adminSettlementService).should().retryPayout(101L);
+    }
+
+    @Test
+    @DisplayName("100건이 안 되면 끝에 닿은 것이라 다음 실행은 처음부터 찾는다")
+    void restartsFromFirstWhenNotFull() {
+        givenStuckAfter(0L, NOW, settlement(1L));
+
+        scheduler.retryStuckPayouts(NOW);
+        scheduler.retryStuckPayouts(NOW);
+
+        then(adminSettlementService).should(times(2)).retryPayout(1L);
+    }
+
+    @Test
+    @DisplayName("7일 넘게 결과를 못 받은 정산서 경고는 하루에 한 번만 센다")
+    void warnsExpiredOncePerDay() {
+        givenStuck();
+        givenStuckAfter(0L, NOW.plusDays(1));
+        given(settlementRepository.countByStatusAndCompletedAtBefore(
+            SettlementStatus.COMPLETED, NOW.minusDays(7))).willReturn(3L);
+        given(settlementRepository.countByStatusAndCompletedAtBefore(
+            SettlementStatus.COMPLETED, NOW.plusDays(1).minusDays(7))).willReturn(3L);
+
+        scheduler.retryStuckPayouts(NOW);
+        scheduler.retryStuckPayouts(NOW);
+        scheduler.retryStuckPayouts(NOW.plusDays(1));
+
+        then(settlementRepository).should(times(1)).countByStatusAndCompletedAtBefore(
+            SettlementStatus.COMPLETED, NOW.minusDays(7));
+        then(settlementRepository).should(times(1)).countByStatusAndCompletedAtBefore(
+            SettlementStatus.COMPLETED, NOW.plusDays(1).minusDays(7));
+    }
+
+    @Test
+    @DisplayName("7일 넘은 정산서가 없으면 같은 날 다음 실행에서 다시 센다")
+    void recountsSameDayWhenNoneExpired() {
+        givenStuck();
+        given(settlementRepository.countByStatusAndCompletedAtBefore(
+            SettlementStatus.COMPLETED, NOW.minusDays(7))).willReturn(0L);
+
+        scheduler.retryStuckPayouts(NOW);
+        scheduler.retryStuckPayouts(NOW);
+
+        then(settlementRepository).should(times(2)).countByStatusAndCompletedAtBefore(
             SettlementStatus.COMPLETED, NOW.minusDays(7));
     }
 
     private void givenStuck(Settlement... settlements) {
-        given(settlementRepository.findByStatusAndCompletedAtBetweenOrderByIdAsc(
-            SettlementStatus.COMPLETED, NOW.minusDays(7), NOW.minusMinutes(30), Limit.of(100)))
+        givenStuckAfter(0L, NOW, settlements);
+    }
+
+    private void givenStuckAfter(Long afterId, LocalDateTime now, Settlement... settlements) {
+        given(settlementRepository.findByStatusAndCompletedAtBetweenAndIdGreaterThanOrderByIdAsc(
+            SettlementStatus.COMPLETED, now.minusDays(7), now.minusMinutes(30), afterId, Limit.of(100)))
             .willReturn(List.of(settlements));
     }
 
