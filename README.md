@@ -34,4 +34,5 @@
 | `apps/kidly-app` | 실행 앱. 앱 설정, 공통 테스트 기반(`support`, `TestcontainersConfiguration`) |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
-| `domains/*` | childprofile, member, notification, order, payment, product, recommend, seller, setting, settlement |
+| `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
+| `architecture` | 도메인 모듈 안의 계층 규칙(ArchUnit `LayerRules`) |
