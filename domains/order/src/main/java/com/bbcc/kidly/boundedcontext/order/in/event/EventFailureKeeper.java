@@ -50,7 +50,34 @@ final class EventFailureKeeper {
                     + "failureCode={}",
                 eventType, orderId, failureStatus, saved == null ? null : saved.attemptCount(),
                 saved == null ? null : saved.failureCode(), e);
+            if (saved != null) {
+                e.addSuppressed(new KeptMark());
+            }
             throw e;
+        }
+    }
+
+    /**
+     * run이 실패를 보관한 뒤 다시 던진 예외인지(#541). Kafka 리스너는 보관됐으면 처리 완료로 보고 정상 반환한다.
+     * 보관 성공 때만 붙이는 표시로 판정하므로, 보관 실패 · 동시 처리에서 진 쪽 · run 밖에서 난 예외(처리 트랜잭션 커밋 실패,
+     * 읽기 실패)는 모두 false다.
+     */
+    static boolean isKept(Throwable error) {
+        for (Throwable suppressed : error.getSuppressed()) {
+            if (suppressed instanceof KeptMark) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 보관 성공 표시. 원래 예외의 종류 · 메시지는 그대로 두고 suppressed로만 붙인다(스택은 남기지 않음).
+     */
+    private static final class KeptMark extends RuntimeException {
+
+        private KeptMark() {
+            super("order_event_failure에 보관함", null, false, false);
         }
     }
 
