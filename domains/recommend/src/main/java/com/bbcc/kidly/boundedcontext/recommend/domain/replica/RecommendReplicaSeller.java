@@ -57,7 +57,7 @@ public class RecommendReplicaSeller extends BaseTimeEntity {
      * 저장된 시각보다 늦게 일어난 변경만 덮어쓴다. 같은 이벤트를 다시 받거나 이전 이벤트가 늦게 도착해도 값이 되돌아가지 않는다.
      */
     public void applyIfNewer(ChangeInfo info) {
-        // 시각을 먼저 비교해서, 반영하지 않을 옛 이벤트는 다른 값이 비어 있어도 예외 없이 무시한다
+        // 저장된 시각보다 늦지 않은 이벤트(다시 받은 이벤트, 늦게 도착한 이전 이벤트)는 다른 값이 비어 있어도 예외 없이 무시하도록 시각을 먼저 비교한다
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         if (!info.occurredAt().isAfter(eventOccurredAt)) {
