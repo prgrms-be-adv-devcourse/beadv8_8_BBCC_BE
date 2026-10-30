@@ -1,26 +1,24 @@
 package com.bbcc.kidly.boundedcontext.payment.app;
 
-import com.bbcc.kidly.boundedcontext.payment.app.dto.PayOrderCommand;
 import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * order.payment-requested를 받아 주문을 예치금으로 결제한다. 이벤트 필드가 바뀌면 여기 변환만 고친다.
+ * order.payment-requested를 Spring 이벤트로 받는다. Kafka 수신 스위치(kidly.payment.kafka.consumer.enabled)를 끈 경우에만 뜬다(#593).
+ * 켜져 있으면 Kafka 리스너(in.event)가 받으므로, 같은 이벤트를 양쪽에서 받지 않는다. 처리는 PaymentEventHandler에 있다.
  */
 @Component
+@ConditionalOnProperty(name = "kidly.payment.kafka.consumer.enabled", havingValue = "false")
 @RequiredArgsConstructor
 public class OrderPaymentRequestedListener {
 
-    private final OrderPaymentService orderPaymentService;
+    private final PaymentEventHandler handler;
 
     @DomainEventListener
     public void on(OrderPaymentRequestedEvent event) {
-        OrderPaymentRequestedEvent.Data data = event.data();
-        orderPaymentService.pay(new PayOrderCommand(data.orderId(), data.memberId(), data.amount(),
-            data.items().stream()
-                .map(item -> new PayOrderCommand.Item(item.orderItemId(), item.amount()))
-                .toList()));
+        handler.orderPaymentRequested(event);
     }
 }

@@ -1,24 +1,24 @@
 package com.bbcc.kidly.boundedcontext.payment.app;
 
-import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * 회원이 가입하면 잔액 0인 예치금 지갑을 만든다. 같은 회원의 이벤트를 다시 받거나 동시에 받아도 지갑은 하나다.
- * 이 리스너가 실패해도 지갑을 쓰는 곳(충전 요청 · 결제 · 입금)이 없으면 만든다.
+ * member.registered를 Spring 이벤트로 받는다. Kafka 수신 스위치(kidly.payment.kafka.consumer.enabled)를 끈 경우에만 뜬다(#593).
+ * 켜져 있으면 Kafka 리스너(in.event)가 받으므로, 같은 이벤트를 양쪽에서 받지 않는다. 처리는 PaymentEventHandler에 있다.
  */
 @Component
+@ConditionalOnProperty(name = "kidly.payment.kafka.consumer.enabled", havingValue = "false")
 @RequiredArgsConstructor
 public class MemberRegisteredListener {
 
-    private final WalletRepository walletRepository;
+    private final PaymentEventHandler handler;
 
     @DomainEventListener
     public void on(MemberRegisteredEvent event) {
-        walletRepository.createIfAbsent(event.data().memberId(), LocalDateTime.now());
+        handler.memberRegistered(event);
     }
 }
