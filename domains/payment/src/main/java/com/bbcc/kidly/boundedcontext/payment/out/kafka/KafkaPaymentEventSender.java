@@ -2,109 +2,73 @@ package com.bbcc.kidly.boundedcontext.payment.out.kafka;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentEventSendException;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentEventSender;
-import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.boundedcontext.payment.domain.PaymentOutboxMessage;
 import java.time.Duration;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import lombok.extern.slf4j.Slf4j;
+import java.util.concurrent.TimeoutException;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.kafka.core.KafkaTemplate;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 결제 이벤트를 kidly.payment.events로 보낸다. 같은 키(주문 ID · 정산서 ID)의 이벤트는 한 파티션에 들어가 순서가 지켜진다.
- * 본문은 공통 칸 7개 + data다. record를 그대로 바꾸면 record 필드가 아닌 칸(eventType · producer 등)이 빠진다.
- * 전송은 결제 전용 스레드 하나에서 한다. 브로커가 죽어 send가 max.block.ms만큼 멈춰도 커밋 뒤 요청 스레드
- * (같은 커밋 뒤에 도는 주문 · 정산 리스너, API 응답)는 기다리지 않는다. 스레드가 하나라 받은 순서대로 보낸다.
+ * 아웃박스 메시지를 저장된 토픽 · 키 · 본문 그대로 Kafka로 보낸다(#550). 헤더는 eventType · eventId 두 개만 붙인다.
+ * 릴레이가 결과를 보고 보낸 시각이나 실패를 기록하므로, 브로커 응답을 sendTimeout까지 기다린다.
  */
-@Slf4j
 public class KafkaPaymentEventSender implements PaymentEventSender, DisposableBean {
 
-    static final String TOPIC = "kidly.payment.events";
-
-    // 앱이 내려갈 때 남은 전송을 기다리는 시간. 브로커가 죽어 있으면 하나에 max.block.ms가 걸리므로 다 못 보낼 수 있다
-    private static final Duration DRAIN_TIMEOUT = Duration.ofSeconds(10);
-
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final JsonMapper jsonMapper;
-    private final ExecutorService executor;
+    private final Duration sendTimeout;
 
-    public KafkaPaymentEventSender(KafkaTemplate<String, String> kafkaTemplate, JsonMapper jsonMapper,
-        ExecutorService executor) {
+    public KafkaPaymentEventSender(KafkaTemplate<String, String> kafkaTemplate, Duration sendTimeout) {
         this.kafkaTemplate = kafkaTemplate;
-        this.jsonMapper = jsonMapper;
-        this.executor = executor;
+        this.sendTimeout = sendTimeout;
     }
 
     @Override
-    public void send(DomainEvent event) {
-        try {
-            ProducerRecord<String, String> record = toRecord(event);
-            executor.execute(() -> sendNow(event, record));
-        } catch (RuntimeException e) {
-            // 대기열이 가득 찼거나 앱이 내려가는 중이다. 커밋 뒤 리스너에서 예외가 나가면 이미 커밋된 요청이 실패로 응답한다
-            logFailure(event, e);
-        }
-    }
-
-    private void sendNow(DomainEvent event, ProducerRecord<String, String> record) {
-        try {
-            kafkaTemplate.send(record)
-                .whenComplete((result, e) -> {
-                    if (e != null) {
-                        logFailure(event, e);
-                    }
-                });
-        } catch (RuntimeException e) {
-            logFailure(event, e);
-        }
-    }
-
-    private ProducerRecord<String, String> toRecord(DomainEvent event) {
-        ProducerRecord<String, String> record = new ProducerRecord<>(TOPIC, event.correlationId(), toBody(event));
+    public void send(PaymentOutboxMessage message) {
+        ProducerRecord<String, String> record =
+            new ProducerRecord<>(message.getTopic(), message.getMessageKey(), message.getPayload());
         record.headers()
-            .add("eventType", event.eventType().getBytes(UTF_8))
-            .add("eventId", event.eventId().toString().getBytes(UTF_8));
-        return record;
+            .add("eventType", message.getEventType().getBytes(UTF_8))
+            .add("eventId", message.getEventId().toString().getBytes(UTF_8));
+        try {
+            kafkaTemplate.send(record).get(sendTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            throw failure(message, "응답 대기 시간 %dms 초과".formatted(sendTimeout.toMillis()), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw failure(message, "응답 대기 중 인터럽트", e);
+        } catch (ExecutionException | RuntimeException e) {
+            // 보내기 전 실패는 "Send failed", 보낸 뒤 실패는 "Failed to send"로 Spring이 감싸 원인이 없으므로 Kafka 클라이언트 예외를 꺼낸다
+            Throwable cause = kafkaClientCause(e);
+            throw failure(message, cause.getMessage(), cause);
+        }
     }
 
-    private String toBody(DomainEvent event) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
-        return jsonMapper.writeValueAsString(body);
-    }
-
-    // 본문(회원 ID · 금액 등)은 남기지 않는다
-    private void logFailure(DomainEvent event, Throwable e) {
-        log.error("이벤트를 Kafka로 보내지 못했습니다. eventType={} eventId={} key={} reason={}",
-            event.eventType(), event.eventId(), event.correlationId(), e.getMessage());
-    }
-
-    // 남은 전송을 기다린 뒤 결제 전용 템플릿을 닫는다(빈이 아니므로 직접 닫는다). 못 보낸 건 ERROR로 남긴다
+    // 결제 전용 템플릿은 빈이 아니라 Spring이 닫아 주지 않으므로, 앱이 내려갈 때 직접 닫는다
     @Override
     public void destroy() {
-        executor.shutdown();
-        try {
-            if (!executor.awaitTermination(DRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
-                List<Runnable> dropped = executor.shutdownNow();
-                log.error("앱 종료로 Kafka에 보내지 못한 결제 이벤트가 있습니다. count={}", dropped.size());
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
         kafkaTemplate.destroy();
+    }
+
+    // 예외 메시지는 로그 · last_error에 남으므로 본문 대신 eventType · eventId · 키와 원인만 담는다
+    private static PaymentEventSendException failure(PaymentOutboxMessage message, String reason, Throwable cause) {
+        return new PaymentEventSendException(
+            "결제 이벤트를 Kafka로 보냈는지 확인하지 못했습니다. eventType=%s eventId=%s key=%s reason=%s"
+                .formatted(message.getEventType(), message.getEventId(), message.getMessageKey(), reason),
+            cause);
+    }
+
+    // 원인 사슬에서 처음 나오는 Kafka 클라이언트 예외. 무엇을 얼마나 기다렸는지가 메시지에 있다. 없으면 받은 예외 그대로
+    private static Throwable kafkaClientCause(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause.getClass().getName().startsWith("org.apache.kafka.")) {
+                return cause;
+            }
+        }
+        return error;
     }
 }

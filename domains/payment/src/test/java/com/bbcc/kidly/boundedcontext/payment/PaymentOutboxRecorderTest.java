@@ -7,8 +7,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
-import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventRelay;
-import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentEventSender;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentOutboxRecorder;
+import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentEventOutbox;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import java.util.List;
@@ -21,35 +21,35 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class PaymentEventRelayTest {
+class PaymentOutboxRecorderTest {
 
     @Mock
-    private PaymentEventSender paymentEventSender;
+    private PaymentEventOutbox paymentEventOutbox;
 
     @InjectMocks
-    private PaymentEventRelay paymentEventRelay;
+    private PaymentOutboxRecorder paymentOutboxRecorder;
 
     @Test
-    @DisplayName("결제가 발행한 이벤트는 Kafka로 넘긴다")
-    void relayPaymentEvent() {
+    @DisplayName("결제가 발행한 이벤트는 아웃박스에 저장한다")
+    void recordPaymentEvent() {
         PaymentCompletedEvent event = new PaymentCompletedEvent(UUID.randomUUID(), NOW,
             new PaymentCompletedEvent.Data(1L, ORDER_ID, MEMBER_ID, 10_000L,
                 List.of(new PaymentCompletedEvent.Item(10L, 10_000L)), NOW));
 
-        paymentEventRelay.relay(event);
+        paymentOutboxRecorder.record(event);
 
-        then(paymentEventSender).should().send(event);
+        then(paymentEventOutbox).should().append(event);
     }
 
     @Test
-    @DisplayName("다른 도메인이 발행한 이벤트는 넘기지 않는다")
+    @DisplayName("다른 도메인이 발행한 이벤트는 저장하지 않는다")
     void skipOtherProducer() {
         OrderPaymentRequestedEvent event = new OrderPaymentRequestedEvent(UUID.randomUUID(), NOW,
             new OrderPaymentRequestedEvent.Data(ORDER_ID, MEMBER_ID, 10_000L,
                 List.of(new OrderPaymentRequestedEvent.Item(10L, 10_000L))));
 
-        paymentEventRelay.relay(event);
+        paymentOutboxRecorder.record(event);
 
-        then(paymentEventSender).should(never()).send(any());
+        then(paymentEventOutbox).should(never()).append(any());
     }
 }
