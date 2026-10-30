@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.search.out;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOptions;
 import co.elastic.clients.elasticsearch._types.SortOrder;
@@ -17,8 +18,8 @@ import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearch;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchCondition;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchItem;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchSort;
+import com.bbcc.kidly.boundedcontext.search.app.port.SearchUnavailableException;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -81,8 +82,8 @@ public class ElasticsearchProductSearch implements ProductSearch {
             .trackTotalHits(track -> track.enabled(true)));
         try {
             return client.search(request, ProductDocument.class);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Elasticsearch에서 상품을 찾지 못했습니다. index=" + properties.productIndex(), e);
+        } catch (IOException | ElasticsearchException e) {
+            throw new SearchUnavailableException("Elasticsearch에서 상품을 찾지 못했습니다. index=" + properties.productIndex(), e);
         }
     }
 
@@ -141,8 +142,8 @@ public class ElasticsearchProductSearch implements ProductSearch {
         try {
             response = client.mget(MgetRequest.of(mget -> mget
                 .index(properties.sellerIndex()).ids(List.copyOf(sellerIds))), SellerDocument.class);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Elasticsearch에서 판매자를 찾지 못했습니다. index=" + properties.sellerIndex(), e);
+        } catch (IOException | ElasticsearchException e) {
+            throw new SearchUnavailableException("Elasticsearch에서 판매자를 찾지 못했습니다. index=" + properties.sellerIndex(), e);
         }
         Map<Long, String> businessNames = new HashMap<>();
         for (MultiGetResponseItem<SellerDocument> item : response.docs()) {

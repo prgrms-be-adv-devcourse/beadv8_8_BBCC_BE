@@ -3,8 +3,8 @@
 상품 목록 검색(`GET /api/v1/products`)을 상품에서 떼어 맡는다. 상품 · 판매자가 발행한 이벤트로만 색인하고, 상품 DB를 읽지 않는다.
 
 ## 진행 상태
-- 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`)
-- 남음: Kafka 수신(`in`), 목록 API(요청 변환 · 컨트롤러 · ES 장애 때 응답), `apps/search-service`, 로컬 · 서버 compose(nori 플러그인을 넣은 Elasticsearch 이미지)
+- 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`)
+- 남음: Kafka 수신(`in`), `apps/search-service`, 로컬 · 서버 compose(nori 플러그인을 넣은 Elasticsearch 이미지)
 - kidly-app에는 넣지 않는다. 상품의 목록 API와 경로(`GET /api/v1/products`)가 같아 한 앱에 두면 매핑이 겹친다. `apps/search-service`로만 띄운다
 
 ## 검색 문서 (`domain/SearchProduct`)
@@ -36,4 +36,13 @@
 - 정렬: `NEWEST` = `productCreatedAt` 내림차순, `PRICE_ASC` · `PRICE_DESC` = `minPrice`. 값이 같으면 `productId` 내림차순. 관련도순은 아직 없다
 - 상호명: 결과 페이지의 판매자 ID로 판매자 색인을 `mget` 한 번 해서 붙인다(같은 판매자는 한 번). 판매자 문서가 없으면 null. 결과가 없으면 찾지 않는다
 - 전체 개수는 정확히 센다(`track_total_hits: true`). Elasticsearch는 `from + size`가 1만 건(`max_result_window`)을 넘으면 거절하므로, 1만 건 너머 페이지는 빈 목록과 전체 개수를, 걸친 페이지는 1만 건까지만 돌려준다
-- Elasticsearch에 연결하지 못하면 `UncheckedIOException`, 그 밖의 오류는 `ElasticsearchException`을 그대로 던진다. 몇 번 상태로 응답할지는 목록 API에서 정한다
+- Elasticsearch에 연결하지 못했거나 오류로 답하면(색인 없음 · 과부하 등) 상품 · 판매자 조회 모두 `app.port.SearchUnavailableException`으로 바꿔 던진다
+
+## 목록 API (`in/ProductListController`, `app/ProductListService`)
+- `GET /api/v1/products`(`@PublicApi`). 경로 · 요청 · 응답 · 검증 메시지는 상품의 목록 API와 같다. FE는 바꾸지 않고 nginx가 이 경로를 search-service로 보낸다
+  - 요청 `app/dto/ProductListRequest`: `categoryId`, `keyword`(50자 이하), `attributes`(`항목code:값ID`, 20개까지), `sort`(`NEWEST` · `PRICE_ASC` · `PRICE_DESC`, 기본 `NEWEST`), `page`(0 이상, 기본 0), `size`(1~100, 기본 20)
+  - 응답 `PageResponse<ProductListItemResponse>`: `productId`(문자열) · `name` · `thumbnailUrl` · `businessName` · `minPrice` · `soldOut` · `sizeFree`. 없는 썸네일 · 상호명은 null
+- 검색 색인을 쓸 수 없으면(`SearchUnavailableException`) 503 `SEARCH_UNAVAILABLE` ProblemDetail로 응답하고 WARN을 남긴다(검색어는 남기지 않는다)
+  - 상품의 PostgreSQL 검색으로 대신 찾지 않는다. 검색은 상품 DB를 읽지 않기 때문이다. 전환 기간에는 nginx 라우팅을 되돌려 상품의 목록 API로 돌아갈 수 있다
+- 관련도순 정렬은 아직 없다(상품 목록 API에도 없다)
+- 컨트롤러 테스트는 스프링을 띄우지 않고 `MockMvcBuilders.standaloneSetup` + `GlobalExceptionHandler`로 한다. 검색 모듈이 아직 앱에 들어가지 않아서다. 기능 테스트(`XxxApiTest`)는 `apps/search-service`를 만들 때 옮긴다
