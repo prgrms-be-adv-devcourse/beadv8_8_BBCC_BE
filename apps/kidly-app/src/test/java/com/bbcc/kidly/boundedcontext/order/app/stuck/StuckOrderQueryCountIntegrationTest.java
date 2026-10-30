@@ -76,14 +76,14 @@ class StuckOrderQueryCountIntegrationTest {
     }
 
     @Test
-    @DisplayName("건수 요약: 대상 수와 상관없이 종류마다 1번씩 6번")
+    @DisplayName("건수 요약: 대상 수와 상관없이 종류마다 1번씩 7번(아웃박스 멈춤은 맨 앞 미전송 1번)")
     void summaryQueryCountFixed() {
         LocalDateTime now = LocalDateTime.now();
         long empty = countStatements(() -> stuckOrderService.getSummary(now));
         shippingDelayed(MANY);
         long many = countStatements(() -> stuckOrderService.getSummary(now));
 
-        assertThat(many).isEqualTo(empty).isEqualTo(6);
+        assertThat(many).isEqualTo(empty).isEqualTo(7);
     }
 
     private long countStatements(Supplier<?> query) {

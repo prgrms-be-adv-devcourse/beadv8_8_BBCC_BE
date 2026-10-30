@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 관리자 멈춘 주문 조회(#445, 실제 PostgreSQL). 지금(now)을 고정하고 저장된 시각을 jdbc로 맞춘다.
+ * 관리자 멈춘 주문 조회(#445, 실제 PostgreSQL). 아웃박스 멈춤(OUTBOX_STUCK, #602)은
+ * OutboxStuckIntegrationTest가 본다. 지금(now)을 고정하고 저장된 시각을 jdbc로 맞춘다.
  * 기준 시각(since) = 저장된 시각 + 기준 시간, since가 now보다 이전이면 나오고 정확히 같거나 뒤면 나오지 않는다.
  * 테스트에 @Transactional을 붙이지 않는다.
  */
@@ -68,7 +70,7 @@ class StuckOrderIntegrationTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @EnumSource(StuckOrderKind.class)
+    @EnumSource(value = StuckOrderKind.class, names = "OUTBOX_STUCK", mode = EnumSource.Mode.EXCLUDE)
     @DisplayName("기준 시각이 지금 1초 전이면 나오고, 정확히 지금 · 1초 뒤면 나오지 않는다(건수 = 목록 전체 건수)")
     void boundary(StuckOrderKind kind) {
         Long before = create(kind, now.minusSeconds(1));
@@ -162,7 +164,7 @@ class StuckOrderIntegrationTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @EnumSource(StuckOrderKind.class)
+    @EnumSource(value = StuckOrderKind.class, names = "OUTBOX_STUCK", mode = EnumSource.Mode.EXCLUDE)
     @DisplayName("취소된 주문은 어느 종류에도 나오지 않는다")
     void cancelledOrderExcluded(StuckOrderKind kind) {
         Long targetId = create(kind, now.minusSeconds(1));
@@ -178,12 +180,14 @@ class StuckOrderIntegrationTest {
     @Test
     @DisplayName("조회는 상태 · version · 상태 이력을 바꾸지 않는다(읽기 전용)")
     void readOnly() {
-        Arrays.stream(StuckOrderKind.values()).forEach(kind -> create(kind, now.minusSeconds(1)));
+        orderKinds().forEach(kind -> create(kind, now.minusSeconds(1)));
         List<Map<String, Object>> before = snapshot();
 
         stuckOrderService.getSummary(now);
         Arrays.stream(StuckOrderKind.values())
             .forEach(kind -> stuckOrderService.getStuckOrders(kind.name(), now, 0, 20));
+        // 아웃박스 멈춤 조회도 읽기만 한다
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.order_outbox", Long.class)).isZero();
 
         assertThat(snapshot()).isEqualTo(before);
     }
@@ -262,7 +266,14 @@ class StuckOrderIntegrationTest {
                     since.minus(orderPolicy.autoConfirmAfter()).minus(thresholds.autoConfirmGrace()), itemId);
                 yield itemId;
             }
+            // 주문 하나가 대상인 종류가 아니다(아웃박스 맨 앞 메시지). OutboxStuckIntegrationTest가 본다
+            case OUTBOX_STUCK -> throw new IllegalArgumentException("주문 대상 종류가 아님: " + kind);
         };
+    }
+
+    // 주문 · 주문상품 · 배송 · 복구 기록이 대상인 종류(아웃박스 멈춤은 OutboxStuckIntegrationTest)
+    private static Stream<StuckOrderKind> orderKinds() {
+        return Arrays.stream(StuckOrderKind.values()).filter(kind -> kind != StuckOrderKind.OUTBOX_STUCK);
     }
 
     private void paid(Long orderId) {

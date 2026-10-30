@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.app.port;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -63,4 +65,36 @@ public interface StuckOrderRepository {
     Page<StuckRow> findAutoConfirmMissed(LocalDateTime before, Pageable pageable);
 
     long countAutoConfirmMissed(LocalDateTime before);
+
+    /**
+     * 보내지 못한 주문 이벤트 아웃박스 메시지 한 줄(#602).
+     */
+    interface OutboxHeadRow {
+
+        Long getId();
+
+        UUID getEventId();
+
+        String getEventType();
+
+        String getMessageKey();
+
+        int getAttemptCount();
+
+        String getLastError();
+
+        LocalDateTime getCreatedAt();
+
+        /**
+         * 마지막으로 바뀐 시각 = 마지막 전송 시도 시각(시도 전이면 만든 시각).
+         */
+        LocalDateTime getUpdatedAt();
+    }
+
+    /**
+     * 보내지 못한 메시지 중 맨 앞(id가 가장 작은 것). 릴레이는 id 순으로 보내다 처음 실패한 메시지에서 멈추므로 막힌 메시지다.
+     */
+    Optional<OutboxHeadRow> findOldestUnsentOutbox();
+
+    long countUnsentOutbox();
 }

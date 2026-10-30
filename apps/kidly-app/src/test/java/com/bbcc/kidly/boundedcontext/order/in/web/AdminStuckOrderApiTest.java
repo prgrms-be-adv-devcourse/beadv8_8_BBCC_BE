@@ -4,15 +4,18 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.order.in.web.AdminOrderController.ADMIN_ORDERS_PATH;
 
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
+import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -42,10 +45,13 @@ class AdminStuckOrderApiTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private OrderOutboxRepository outboxRepository;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("건수 요약: 여섯 종류 키를 모두(0 포함) 담은 객체")
+    @DisplayName("건수 요약: 일곱 종류 키를 모두(0 포함) 담은 객체")
     void summary() {
         stockCheckStale(LocalDateTime.now().minusHours(2));
 
@@ -56,7 +62,8 @@ class AdminStuckOrderApiTest {
             .expectBody()
             .json("""
                 {"STOCK_CHECK_STALE":1,"PAYMENT_EXPIRY_MISSED":0,"PAID_WITHOUT_DELIVERY":0,
-                 "RECOVERY_PENDING_STALE":0,"SHIPPING_DELAYED":0,"AUTO_CONFIRM_MISSED":0}""", JsonCompareMode.STRICT);
+                 "RECOVERY_PENDING_STALE":0,"SHIPPING_DELAYED":0,"AUTO_CONFIRM_MISSED":0,"OUTBOX_STUCK":0}""",
+                JsonCompareMode.STRICT);
     }
 
     @Test
@@ -79,6 +86,7 @@ class AdminStuckOrderApiTest {
             .jsonPath("$.content[0].status").isEqualTo("PENDING_PAYMENT")
             .jsonPath("$.content[0].since")
             .isEqualTo(base.minusMinutes(1).plusMinutes(5).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+            .jsonPath("$.content[0].outbox").isEmpty()
             .jsonPath("$.page").isEqualTo(0)
             .jsonPath("$.size").isEqualTo(1)
             .jsonPath("$.totalElements").isEqualTo(2)
@@ -91,6 +99,48 @@ class AdminStuckOrderApiTest {
             .expectBody()
             .jsonPath("$.content[0].orderId").isEqualTo(newer)
             .jsonPath("$.hasNext").isEqualTo(false);
+    }
+
+    @Test
+    @DisplayName("아웃박스 멈춤: 맨 앞 미전송 메시지 한 건과 outbox 칸(ID는 문자열), 요약에 1")
+    void outboxStuck() {
+        LocalDateTime createdAt = LocalDateTime.now().withNano(0).minusHours(1);
+        UUID eventId = UUID.randomUUID();
+        Long outboxId = outboxRepository.save(OrderOutboxMessage.create(eventId, "order.cancelled",
+            "kidly.order.events", "1024", "{}")).getId();
+        outboxRepository.save(OrderOutboxMessage.create(UUID.randomUUID(), "order.created", "kidly.order.events",
+            "1025", "{}"));
+        jdbcTemplate.update("update orders.order_outbox set created_at = ?, attempt_count = 12, "
+            + "last_error = 'RecordTooLargeException: 크기 초과' where id = ?", createdAt, outboxId);
+
+        client.get().uri(STUCK_PATH + "?kind=OUTBOX_STUCK")
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content.length()").isEqualTo(1)
+            .jsonPath("$.content[0].kind").isEqualTo("OUTBOX_STUCK")
+            .jsonPath("$.content[0].orderId").isEqualTo("1024")
+            .jsonPath("$.content[0].targetType").isEqualTo("ORDER_OUTBOX")
+            .jsonPath("$.content[0].targetId").isEqualTo(String.valueOf(outboxId))
+            .jsonPath("$.content[0].status").isEqualTo("UNSENT")
+            .jsonPath("$.content[0].since")
+            .isEqualTo(createdAt.plusMinutes(5).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+            .jsonPath("$.content[0].outbox.outboxId").isEqualTo(String.valueOf(outboxId))
+            .jsonPath("$.content[0].outbox.eventType").isEqualTo("order.cancelled")
+            .jsonPath("$.content[0].outbox.eventId").isEqualTo(eventId.toString())
+            .jsonPath("$.content[0].outbox.attemptCount").isEqualTo(12)
+            .jsonPath("$.content[0].outbox.createdAt")
+            .isEqualTo(createdAt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+            .jsonPath("$.content[0].outbox.lastError").isEqualTo("RecordTooLargeException: 크기 초과")
+            .jsonPath("$.content[0].outbox.backlogCount").isEqualTo(1)
+            .jsonPath("$.totalElements").isEqualTo(1);
+        client.get().uri(STUCK_PATH + "/summary")
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.OUTBOX_STUCK").isEqualTo(1);
     }
 
     @Test
@@ -107,7 +157,7 @@ class AdminStuckOrderApiTest {
 
     @ParameterizedTest(name = "query={0}")
     @ValueSource(strings = {"", "?kind=", "?kind=UNKNOWN", "?kind=stock_check_stale"})
-    @DisplayName("kind 없음 · 빈 값 · 모르는 값 · 소문자면 400 INVALID_STUCK_KIND, 받는 값 여섯 개를 안내한다")
+    @DisplayName("kind 없음 · 빈 값 · 모르는 값 · 소문자면 400 INVALID_STUCK_KIND, 받는 값 일곱 개를 안내한다")
     void unknownKindIsBadRequest(String query) {
         client.get().uri(STUCK_PATH + query)
             .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
@@ -117,7 +167,8 @@ class AdminStuckOrderApiTest {
             .expectBody()
             .jsonPath("$.title").isEqualTo("지원하지 않는 멈춘 주문 종류입니다")
             .jsonPath("$.detail").isEqualTo("kind는 STOCK_CHECK_STALE · PAYMENT_EXPIRY_MISSED · PAID_WITHOUT_DELIVERY · "
-                + "RECOVERY_PENDING_STALE · SHIPPING_DELAYED · AUTO_CONFIRM_MISSED 중 하나를 대문자 그대로 보내 주세요.");
+                + "RECOVERY_PENDING_STALE · SHIPPING_DELAYED · AUTO_CONFIRM_MISSED · OUTBOX_STUCK 중 하나를 대문자 그대로 "
+                + "보내 주세요.");
     }
 
     @ParameterizedTest(name = "{0}")

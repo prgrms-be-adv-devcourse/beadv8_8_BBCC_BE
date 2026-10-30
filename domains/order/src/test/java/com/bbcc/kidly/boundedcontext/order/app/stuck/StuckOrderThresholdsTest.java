@@ -26,11 +26,23 @@ import org.springframework.core.io.ClassPathResource;
 class StuckOrderThresholdsTest {
 
     @Test
-    @DisplayName("환경변수가 없으면 order.yml 기본값: 재고 PT5M · 만료 PT5M · 배송 생성 PT5M · 복구 PT1H · 발송 P3D · 자동 확정 PT1H")
+    @DisplayName("환경변수가 없으면 order.yml 기본값: 재고 PT5M · 만료 PT5M · 배송 생성 PT5M · 복구 PT1H · 발송 P3D · 자동 확정 PT1H"
+        + " · 아웃박스 시도 10회 · 아웃박스 PT5M")
     void usesDefaults() {
         appWithOrderYml(Map.of()).run(context -> assertThat(context.getBean(StuckOrderThresholds.class))
             .isEqualTo(new StuckOrderThresholds(Duration.ofMinutes(5), Duration.ofMinutes(5), Duration.ofMinutes(5),
-                Duration.ofHours(1), Duration.ofDays(3), Duration.ofHours(1))));
+                Duration.ofHours(1), Duration.ofDays(3), Duration.ofHours(1), 10, Duration.ofMinutes(5))));
+    }
+
+    @Test
+    @DisplayName("아웃박스 기준도 환경변수로 바뀐다(ORDER_STUCK_OUTBOX_ATTEMPTS=3 · ORDER_STUCK_OUTBOX_WAIT=PT1M)")
+    void overridesOutboxByEnvironmentVariables() {
+        appWithOrderYml(Map.of("ORDER_STUCK_OUTBOX_ATTEMPTS", "3", "ORDER_STUCK_OUTBOX_WAIT", "PT1M"))
+            .run(context -> {
+                StuckOrderThresholds thresholds = context.getBean(StuckOrderThresholds.class);
+                assertThat(thresholds.outboxAttempts()).isEqualTo(3);
+                assertThat(thresholds.outboxWait()).isEqualTo(Duration.ofMinutes(1));
+            });
     }
 
     @Test
@@ -50,7 +62,11 @@ class StuckOrderThresholdsTest {
         "ORDER_STUCK_RECOVERY_WAIT, PT0.999S, kidly.order.stuck.recovery-wait",
         "ORDER_STUCK_SHIPPING_WAIT, PT0S, kidly.order.stuck.shipping-wait",
         "ORDER_STUCK_AUTO_CONFIRM_GRACE, -PT1S, kidly.order.stuck.auto-confirm-grace",
-        "ORDER_STUCK_AUTO_CONFIRM_GRACE, '', autoConfirmGrace"
+        "ORDER_STUCK_AUTO_CONFIRM_GRACE, '', autoConfirmGrace",
+        "ORDER_STUCK_OUTBOX_WAIT, PT0S, kidly.order.stuck.outbox-wait",
+        "ORDER_STUCK_OUTBOX_WAIT, '', outboxWait",
+        "ORDER_STUCK_OUTBOX_ATTEMPTS, 0, outboxAttempts",
+        "ORDER_STUCK_OUTBOX_ATTEMPTS, '', outboxAttempts"
     })
     @DisplayName("비었거나 1초 미만(음수 · 0 · 0.999초)이면 NPE가 아니라 키 이름이 나오는 바인딩 오류로 기동 실패")
     void invalidFails(String name, String value, String key) {
@@ -63,10 +79,17 @@ class StuckOrderThresholdsTest {
     @ParameterizedTest(name = "{0}=PT1S → 기동")
     @ValueSource(strings = {
         "ORDER_STUCK_STOCK_WAIT", "ORDER_STUCK_EXPIRY_GRACE", "ORDER_STUCK_DELIVERY_WAIT",
-        "ORDER_STUCK_RECOVERY_WAIT", "ORDER_STUCK_SHIPPING_WAIT", "ORDER_STUCK_AUTO_CONFIRM_GRACE"})
+        "ORDER_STUCK_RECOVERY_WAIT", "ORDER_STUCK_SHIPPING_WAIT", "ORDER_STUCK_AUTO_CONFIRM_GRACE",
+        "ORDER_STUCK_OUTBOX_WAIT"})
     @DisplayName("정확히 1초(PT1S)면 기동한다")
     void exactlyOneSecondStarts(String name) {
         appWithOrderYml(Map.of(name, "PT1S")).run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    @DisplayName("아웃박스 시도 기준은 1회면 기동한다")
+    void outboxAttemptsOneStarts() {
+        appWithOrderYml(Map.of("ORDER_STUCK_OUTBOX_ATTEMPTS", "1")).run(context -> assertThat(context).hasNotFailed());
     }
 
     @Test
