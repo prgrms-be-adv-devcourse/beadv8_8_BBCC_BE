@@ -69,4 +69,14 @@ class EventFailureKeeperTest {
     void otherException() {
         assertThat(EventFailureKeeper.isKept(new IllegalStateException("커밋 실패"))).isFalse();
     }
+
+    @Test
+    @DisplayName("다른 보관(결제 완료 → payment_recovery, #594)도 보관에 성공하면 같은 표시를 붙여 보관됨으로 판정한다")
+    void markKeptForOtherKeepers() {
+        var failure = new IllegalStateException("배송 생성 실패");
+
+        EventFailureKeeper.markKept(failure);
+
+        assertThat(EventFailureKeeper.isKept(failure)).isTrue();
+    }
 }

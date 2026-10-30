@@ -51,10 +51,17 @@ final class EventFailureKeeper {
                 eventType, orderId, failureStatus, saved == null ? null : saved.attemptCount(),
                 saved == null ? null : saved.failureCode(), e);
             if (saved != null) {
-                e.addSuppressed(new KeptMark());
+                markKept(e);
             }
             throw e;
         }
+    }
+
+    /**
+     * 실패를 주문 자체 보관에 남겼다는 표시를 원래 예외에 붙인다. run과 결제 완료 보관(payment_recovery, #594)이 같은 표시를 쓴다.
+     */
+    static void markKept(Throwable error) {
+        error.addSuppressed(new KeptMark());
     }
 
     /**

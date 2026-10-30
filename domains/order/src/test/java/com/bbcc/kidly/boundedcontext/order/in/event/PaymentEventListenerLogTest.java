@@ -175,6 +175,32 @@ class PaymentEventListenerLogTest {
     }
 
     @Test
+    @DisplayName("보관에 성공하면 Kafka 리스너가 처리 완료로 보게 보관 표시를 붙인다(#594). 같은 예외 그대로")
+    void storedFailureIsMarkedKept() {
+        IllegalStateException error = new IllegalStateException("배송 생성 실패");
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
+        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        when(recoveryService.recordFailure(COMMAND, error)).thenReturn(saved("IllegalStateException"));
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).isTrue());
+    }
+
+    @Test
+    @DisplayName("보관이 실패하면 보관 표시를 붙이지 않는다(Kafka 리스너가 다시 던져 재시도 → DLT)")
+    void unstoredFailureIsNotMarkedKept() {
+        IllegalStateException error = new IllegalStateException("배송 생성 실패");
+        when(orderService.markPaid(COMMAND)).thenReturn(true);
+        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        when(recoveryService.recordFailure(COMMAND, error)).thenThrow(new IllegalStateException("보관 실패"));
+
+        assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
+            .isSameAs(error)
+            .satisfies(thrown -> assertThat(EventFailureKeeper.isKept(thrown)).isFalse());
+    }
+
+    @Test
     @DisplayName("보관이 실패해도 원래 예외를 그대로 던지고(보관 오류는 suppressed), 로그에는 보관하지 못했다고 남긴다")
     void recordFailureErrorKeepsOriginal(CapturedOutput output) {
         IllegalStateException error = new IllegalStateException("배송 생성 실패");
