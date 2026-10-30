@@ -59,6 +59,20 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
 
+  # 검색 서비스(apps/search-service)의 색인 (http://localhost:9200). 한글 형태소 분석기(nori)를 넣은 이미지라 처음에 빌드한다
+  # 보안은 끈다(로컬 전용). 힙은 서버와 같게 512MB로 고정한다
+  elasticsearch:
+    build: ./docker/elasticsearch
+    container_name: kidly-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+
   # bootRun 으로 띄운 앱의 메트릭을 수집한다 (http://localhost:9090)
   prometheus:
     image: prom/prometheus:v3.5.0
@@ -99,3 +113,4 @@ volumes:
   prometheus-data:
   grafana-data:
   kafka-data:
+  elasticsearch-data:
