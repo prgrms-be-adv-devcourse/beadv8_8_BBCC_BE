@@ -1,6 +1,6 @@
 # Kidly BE 기본 규율
 
-이 파일은 도메인 사이 외부 계약을 지키기 위한 최소 규율이다. 모든 작업에 적용한다.
+이 파일은 도메인 사이 외부 계약을 지키기 위한 최소 규율이다. 모든 작업에 적용한다. 도메인 내부는 외부 계약과 공용 실행 · 테스트 환경의 제약 안에서 자율적으로 설계한다.
 - 도메인 안의 설계는 그 도메인 폴더에 `CLAUDE.md`가 있으면 그것을, 없으면 그 도메인의 기존 코드 방식을 따른다. 어느 쪽이든 이 파일과 부딪히면 이 파일을 따른다.
 - 이 파일에서 "묻는다"는 작업을 멈추고 사람에게 확인받는다는 뜻이다. 확인 전에는 그 부분을 바꾸지 않는다.
 - 실행 · 빌드 · 테스트 명령은 README를 따른다: @README.md
@@ -37,7 +37,7 @@
 - 이미 적용된 Flyway 파일은 고치지 않는다. 새 파일을 추가한다
 - 도메인 yml(`{도메인}.yml`)의 키와 빈 이름은 다른 도메인과 겹치지 않게 한다. `spring.*` · `management.*`에는 그 도메인만 쓰는 항목만 둔다
 - 로그 · 예외 메시지에 개인정보를 넣지 않는다
-- `@IntegrationTest` · `@FunctionalTest` · `@KafkaIntegrationTest`를 쓰는 테스트 클래스에 개별 설정(`@MockitoBean`, `@TestPropertySource` 등)을 붙이지 않는다(붙이면 스프링 컨텍스트가 새로 뜬다). 테스트에 특별한 설정이 필요하면 모든 도메인이 쓸 수 있게 공통 테스트 기반에 추가하도록 묻는다
+- `@IntegrationTest` · `@FunctionalTest` · `@KafkaIntegrationTest`를 쓰는 테스트 클래스에 개별 설정(`@MockitoBean`, `@TestPropertySource` 등)을 붙이지 않는다(붙이면 스프링 컨텍스트가 새로 뜬다). 테스트에 특별한 설정이 필요하면 먼저 묻는다. 공통 테스트 기반에 반영할지는 다른 도메인에 미치는 영향을 보고 정한다
 - Kafka 컨테이너는 `@KafkaIntegrationTest`에서만 뜬다. 커밋 뒤 Kafka로 보내는 빈에는 `@ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)`를 붙인다
 
 ## 6. 완료 조건
