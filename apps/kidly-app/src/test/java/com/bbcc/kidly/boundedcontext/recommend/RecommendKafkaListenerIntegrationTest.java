@@ -32,10 +32,13 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -174,6 +177,28 @@ class RecommendKafkaListenerIntegrationTest {
         assertThat(sizes).containsExactlyInAnyOrder(SizeRange.of("110", 105, 115), SizeRange.of("120", 115, 125));
     }
 
+    @Test
+    @DisplayName("INV-R01 이미 반영한 메시지를 다시 받아도 그 뒤에 반영한 더 늦은 값이 그대로 남는다")
+    void keepLaterValueWhenOldMessageRedelivered() throws Exception {
+        Long sellerId = newId();
+        var first = new SellerChangedEvent(UUID.randomUUID(), CHANGED_AT,
+            new SellerChangedEvent.Data(sellerId, "소소한옷장", SellerStatus.ACTIVE));
+        var later = new SellerChangedEvent(UUID.randomUUID(), CHANGED_AT.plusMinutes(1),
+            new SellerChangedEvent.Data(sellerId, "새옷장", SellerStatus.SUSPENDED));
+
+        send(SELLER_TOPIC, first);
+        send(SELLER_TOPIC, later);
+        var redelivered = send(SELLER_TOPIC, first);
+
+        awaitProcessed(SELLER_TOPIC, redelivered);
+        assertThat(replicaSellerRepository.findById(sellerId)).get()
+            .extracting(
+                RecommendReplicaSeller::getBusinessName,
+                RecommendReplicaSeller::getStatus,
+                RecommendReplicaSeller::getEventOccurredAt)
+            .containsExactly("새옷장", SellerStatus.SUSPENDED, CHANGED_AT.plusMinutes(1));
+    }
+
     private static Long newId() {
         return ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
     }
@@ -191,6 +216,25 @@ class RecommendKafkaListenerIntegrationTest {
         body.put("data", event.data());
         return sendRaw(topic, event.correlationId(), event.eventType(), event.eventId(),
             jsonMapper.writeValueAsString(body));
+    }
+
+    // 값이 바뀌지 않는 메시지는 결과로 처리 여부를 알 수 없다. 한 건씩 처리 완료를 커밋하므로, 추천 그룹의 커밋 위치가 그 메시지를 지나면 처리한 것이다
+    private void awaitProcessed(String topic, RecordMetadata sent) {
+        var partition = new TopicPartition(topic, sent.partition());
+        var config = Map.<String, Object>of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        try (var admin = Admin.create(config)) {
+            AsyncWait.until(TIMEOUT, () -> committedOffset(admin, partition) > sent.offset());
+        }
+    }
+
+    private static long committedOffset(Admin admin, TopicPartition partition) {
+        try {
+            var committed = admin.listConsumerGroupOffsets(GROUP).partitionsToOffsetAndMetadata()
+                .get(10, TimeUnit.SECONDS).get(partition);
+            return committed == null ? -1 : committed.offset();
+        } catch (Exception e) {
+            throw new IllegalStateException("추천 그룹의 커밋 위치를 읽지 못했습니다", e);
+        }
     }
 
     private RecordMetadata sendRaw(String topic, String key, String eventType, UUID eventId, String body)
