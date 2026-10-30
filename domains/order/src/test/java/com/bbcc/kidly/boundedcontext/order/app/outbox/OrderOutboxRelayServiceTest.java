@@ -54,7 +54,6 @@ class OrderOutboxRelayServiceTest {
     @DisplayName("릴레이")
     class Relay {
 
-
         @Test
         @DisplayName("안 보낸 메시지를 batch-size만큼 읽어 id 순서대로 보내고, 보낼 때마다 보낸 시각을 기록한다")
         void sendsInOrderAndMarksSent() {

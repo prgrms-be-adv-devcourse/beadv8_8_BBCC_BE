@@ -12,7 +12,6 @@ import org.springframework.data.repository.Repository;
  */
 public interface JpaOrderOutboxRepository extends Repository<OrderOutboxMessage, Long>, OrderOutboxRepository {
 
-
     @Override
     @Modifying
     @Query("delete from OrderOutboxMessage m where m.sentAt < :cutoff")

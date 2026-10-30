@@ -54,16 +54,27 @@ class AdvisoryLockJobRunnerIntegrationTest {
     }
 
     @Test
-    @DisplayName("작업이 끝나면 다음 시도가 다시 잡고, 작업이 예외로 끝나도(예외는 그대로 던짐) 잠금이 풀린다")
-    void releasedAfterFinishOrException() {
+    @DisplayName("작업이 끝나면(정상 · 예외 — 예외는 그대로 던짐) DB에 잠금이 남지 않고, 다른 스레드(다른 연결)가 다시 잡는다")
+    void releasedAfterFinishOrException() throws Exception {
         assertThat(runner.run("test-release", () -> { })).isTrue();
-        assertThat(runner.run("test-release", () -> { })).isTrue();
+        assertNoAdvisoryLockLeft();
+        assertThat(onOtherThread("test-release")).isTrue();
 
         assertThatThrownBy(() -> runner.run("test-release", () -> {
             throw new IllegalStateException("작업 실패");
         })).isInstanceOf(IllegalStateException.class).hasMessage("작업 실패");
+        assertNoAdvisoryLockLeft();
+        assertThat(onOtherThread("test-release")).isTrue();
+    }
 
-        assertThat(runner.run("test-release", () -> { })).isTrue();
+    // 트랜잭션 잠금이라 끝나면 풀린다. 세션 잠금이었다면 연결이 풀로 돌아가도 남아(pg_locks) 다른 서버가 영영 못 잡는다
+    private void assertNoAdvisoryLockLeft() {
+        assertThat(jdbcTemplate.queryForObject("select count(*) from pg_locks where locktype = 'advisory'",
+            Long.class)).isZero();
+    }
+
+    private boolean onOtherThread(String jobName) throws Exception {
+        return CompletableFuture.supplyAsync(() -> runner.run(jobName, () -> { })).get(5, TimeUnit.SECONDS);
     }
 
     @Test
