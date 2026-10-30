@@ -159,6 +159,15 @@ class OrderKafkaListenerConfigTest {
     }
 
     @Test
+    @DisplayName("받기 · DLT 컨테이너 모두 로그 추적 값(MDC) 인터셉터를 쓴다(#603)")
+    void logContextInterceptor() {
+        assertThat(containerOf(true, true).getRecordInterceptor())
+            .isInstanceOf(OrderLogContextRecordInterceptor.class);
+        assertThat(containerOf(true, true, "kidly.payment.events.order.dlt").getRecordInterceptor())
+            .isInstanceOf(OrderLogContextRecordInterceptor.class);
+    }
+
+    @Test
     @DisplayName("DLT 저장 재시도 간격은 1초부터 두 배씩 최대 60초, 끝없이 다시 시도한다(포기해 메시지를 건너뛰지 않음)")
     void deadLetterStoreBackOffNeverStops() {
         BackOffExecution execution = OrderKafkaListenerConfig.deadLetterStoreBackOff().start();

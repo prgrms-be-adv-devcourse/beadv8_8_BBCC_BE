@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.in.web.AdminOrderController.ADMIN_ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderRows;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
@@ -160,6 +161,31 @@ class AdminOrderDeadLetterActionApiTest {
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.order_event_failure where order_id = ? "
             + "and event_type = 'STOCK_DEDUCTED'", Long.class, order.orderId())).as("이벤트 처리 실패 기록").isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("재처리(HTTP 요청 안)의 원래 처리 로그에는 요청 traceId가 그대로이고 eventId · eventType · correlationId가 붙는다(#603)")
+    void reprocessLogKeepsRequestTrace() {
+        OrderDetail order = placeAwaitingPayment();
+        PaymentCompletedEvent completed = PaymentEvents.completed(order, BUYER_ID);
+        Long id = receive(11L, completed, "java.lang.IllegalStateException");
+        String requestId = UUID.randomUUID().toString();
+
+        try (CapturedLogs logs = CapturedLogs.start()) {
+            client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
+                .headers(headers -> {
+                    headers.setBearerAuth(tokens.admin(ADMIN_ID));
+                    headers.set("X-Request-Id", requestId);
+                })
+                .exchange()
+                .expectStatus().isOk();
+
+            assertThat(logs.mdcOf("결제완료: orderId=" + order.orderId()).orElseThrow())
+                .containsEntry("traceId", requestId)
+                .containsEntry("eventId", completed.eventId().toString())
+                .containsEntry("eventType", "payment.completed")
+                .containsEntry("correlationId", String.valueOf(order.orderId()));
+        }
     }
 
     @Test

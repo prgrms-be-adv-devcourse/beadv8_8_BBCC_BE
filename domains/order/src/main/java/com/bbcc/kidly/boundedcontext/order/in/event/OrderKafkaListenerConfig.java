@@ -40,6 +40,7 @@ import tools.jackson.core.JacksonException;
  *   <li>스위치(kidly.order.kafka.consumer.enabled)가 꺼져 있으면 컨테이너를 자동 시작하지 않는다</li>
  *   <li>실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다. 다시 해도 같은 예외 · 읽기 실패는 재시도 없이 보낸다</li>
  *   <li>DLT를 읽는 컨테이너(#601)만 에러 처리기가 다르다: 저장이 실패하면 DLT로 보내지 않고 끝없이 다시 시도한다</li>
+ *   <li>메시지 하나를 처리하는 동안 로그 MDC에 eventId · eventType · correlationId(키)를 둔다(#603, 에러 처리기 로그까지)</li>
  * </ul>
  * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate과 다른 도메인에 영향이 없다.
  */
@@ -114,6 +115,8 @@ class OrderKafkaListenerConfig {
             factory.setAutoStartup(false);
         }
         factory.setCommonErrorHandler(errorHandler);
+        // 메시지 하나를 처리하는 동안 로그에 eventId · eventType · correlationId(키)를 붙인다(#603)
+        factory.setRecordInterceptor(new OrderLogContextRecordInterceptor());
         return factory;
     }
 

@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.bbcc.kidly.boundedcontext.order.app.DeadLetterReplay;
+import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.UnknownDeadLetterSourceException;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeadLetterReplayer;
 import java.util.Optional;
@@ -28,6 +29,13 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
     @Override
     public DeadLetterReplay.Outcome replay(DeadLetterReplay message) {
         ConsumerRecord<String, String> record = record(message);
+        // 관리자 요청에서 리스너를 직접 부르므로 Kafka 인터셉터를 지나지 않는다. 같은 추적 값을 여기서 둔다(traceId는 요청 값 유지)
+        try (var ignored = OrderLogContext.open(message.eventId(), message.eventType(), message.messageKey())) {
+            return replayWatched(message, record);
+        }
+    }
+
+    private DeadLetterReplay.Outcome replayWatched(DeadLetterReplay message, ConsumerRecord<String, String> record) {
         boolean handedOff = EventHandOffs.watch(() -> {
             switch (message.sourceTopic()) {
                 case OrderKafkaListenerConfig.PRODUCT_EVENTS -> productListener.on(record);
