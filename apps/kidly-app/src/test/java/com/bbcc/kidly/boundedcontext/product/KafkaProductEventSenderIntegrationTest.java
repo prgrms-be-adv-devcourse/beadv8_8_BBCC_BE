@@ -36,6 +36,7 @@ import org.testcontainers.kafka.KafkaContainer;
 /**
  * 상품 아웃박스 메시지가 실제 브로커의 kidly.product.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다.
  * 다른 테스트의 메시지도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
+ * 실패하면 본문 없이 알리는지와, 프로듀서 지표에 상품 전송기 이름(kidly-product-outbox)이 남는지도 본다.
  */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
