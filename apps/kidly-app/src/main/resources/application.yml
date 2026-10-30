@@ -10,6 +10,7 @@ spring:
       - classpath:settlement.yml
       - classpath:product.yml
       - classpath:notification.yml
+      - classpath:childprofile.yml
       - classpath:member.yml
   profiles:
     default: local
