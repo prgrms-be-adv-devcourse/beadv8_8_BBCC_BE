@@ -3,12 +3,12 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.support.AsyncWait;
+import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
-import com.bbcc.kidly.boundedcontext.order.support.AsyncWait;
-import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;

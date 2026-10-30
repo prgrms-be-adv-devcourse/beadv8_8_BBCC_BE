@@ -20,9 +20,9 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.PaymentMismatchException
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;

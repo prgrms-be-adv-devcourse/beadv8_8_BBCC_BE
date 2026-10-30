@@ -17,9 +17,9 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
-import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
 import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -471,8 +471,8 @@ class SellerOrderApiTest {
     }
 
     /**
-     * 판매자 2 상품(자녀 1) · 판매자 3 상품으로 주문하고 재고 차감 이벤트만 직접 발행한다.
-     * 결제 요청을 받은 결제 도메인이 준비한 지갑으로 실제 결제해 결제 완료를 보내므로 결제완료가 된다.
+     * 판매자 2 상품(자녀 1) · 판매자 3 상품으로 주문하고 재고 차감됨 · 결제 완료됨 이벤트를 직접 넣어 결제완료로 만든다.
+     * 주문 모듈 테스트에는 결제 도메인이 없으므로 결제 완료됨은 주문과 같은 금액으로 테스트가 만든다(PaymentEvents).
      */
     private String placePaidOrder() {
         URI location = client.post().uri(ORDERS_PATH)

@@ -299,8 +299,8 @@ class OrderTimelineApiTest {
     }
 
     /**
-     * 결제 요청 시각만 기록한다. 서비스로 요청하면 결제 도메인이 order.payment-requested를 받아 실제로 결제를 시도하고
-     * (지갑이 없어) 주문을 결제 실패로 취소하므로, 결제 요청 뒤 · 결제대기 상태를 만들려고 시각만 맞춘다.
+     * 결제 요청 시각만 기록해 결제 요청 뒤 · 결제대기 상태를 만든다. 주문 모듈 테스트에는 결제 도메인이 없으므로
+     * 결제 결과(결제완료 · 결제 실패)는 테스트가 직접 정한다.
      */
     private void markPaymentRequested(Long orderId) {
         jdbcTemplate.update("update orders.orders set payment_requested_at = ? where id = ?",
