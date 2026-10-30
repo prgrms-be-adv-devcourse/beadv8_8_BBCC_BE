@@ -71,6 +71,11 @@ kidly:
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"
+    # 주문은 상품 · 재고 · 판매자 · 자녀 이벤트를 Spring 이벤트로 받는다(다른 도메인 테스트가 지금처럼 Spring 경로로 돈다).
+    # Kafka 수신 테스트는 그 테스트 안에서 주문 Kafka 리스너를 켠다
+    kafka:
+      consumer:
+        enabled: false
   # 알림 재시도 스케줄러도 같은 이유로 길게 둔다. 재시도 테스트는 NotificationRetryScheduler를 직접 부른다
   notification:
     retry-interval: P3650D

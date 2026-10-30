@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
-import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
 import java.util.LinkedHashMap;
@@ -12,9 +11,12 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * stock.deducted를 받아 그 주문의 결제를 요청하고, stock.deduction-failed를 받아 재고 부족 취소를 맡긴다.
+ * 받는 곳(#541): Kafka 리스너({@link ProductEventKafkaListener}), 스위치가 꺼졌을 때 Spring 수신({@link SpringEventReceiver}).
+ * 처리 메서드는 부르는 쪽 트랜잭션에 합류하고(Spring 수신), 없으면 새로 연다(Kafka 리스너).
  * 이벤트 필드가 바뀌면 여기 변환만 고친다.
  */
 @Slf4j
@@ -30,7 +32,7 @@ public class StockEventListener {
     /**
      * 주문 ID가 없으면 찾을 주문이 없으므로 WARN만 남기고 무시한다. 처리에 실패하면 재처리용으로 보관한다(#449).
      */
-    @DomainEventListener
+    @Transactional
     public void onStockDeducted(StockDeductedEvent event) {
         Long orderId = toOrderId(event);
         if (EventGuard.accept("재고", event, orderId == null ? MISSING_ORDER_ID : null)) {
@@ -45,7 +47,7 @@ public class StockEventListener {
      * 빈 줄 · 주문상품 ID 없는 줄 · 사유 없는 줄은 그 줄만 건너뛴다(WARN). 같은 주문상품 ID가 두 번 오면 마지막 사유를 쓴다(WARN).
      * 처리에 실패하면 거른 주문상품별 사유와 함께 재처리용으로 보관한다(#449).
      */
-    @DomainEventListener
+    @Transactional
     public void onStockDeductionFailed(StockDeductionFailedEvent event) {
         StockDeductionFailedEvent.Data data = event.data();
         boolean missingOrderId = data == null || data.orderId() == null;

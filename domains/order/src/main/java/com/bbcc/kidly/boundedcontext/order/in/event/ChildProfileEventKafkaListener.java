@@ -9,7 +9,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * kidly.childprofile.events에서 child.changed를 받아 자녀 복사본 처리를 그대로 부른다(#541).
- * 처리는 처리 메서드의 트랜잭션(REQUIRES_NEW)에서 끝나고, 실패하면 예외를 그대로 던져 재시도 → DLT로 보낸다.
+ * 처리는 처리 메서드가 여는 트랜잭션에서 끝나고, 실패하면 예외를 그대로 던져 재시도 → DLT로 보낸다.
  * 같은 메시지를 다시 받아도 늦은 변경만 반영하므로(occurredAt 비교) 결과는 1회분이다.
  */
 @Component
