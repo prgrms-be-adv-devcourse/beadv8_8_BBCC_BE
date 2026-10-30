@@ -3,9 +3,11 @@ package com.bbcc.kidly.boundedcontext.payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.Charge;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
+import com.bbcc.kidly.boundedcontext.payment.domain.PaymentOutboxMessage;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.test.util.ReflectionTestUtils;
 
 final class PaymentFixture {
@@ -67,6 +69,12 @@ final class PaymentFixture {
         charge.requestCancel("예치금 충전 취소");
         ReflectionTestUtils.setField(charge.getLastCancellation(), "id", CANCELLATION_ID);
         return charge;
+    }
+
+    // 아직 보내지 않은 payment.completed 아웃박스 메시지
+    static PaymentOutboxMessage outboxMessage() {
+        return PaymentOutboxMessage.create(UUID.randomUUID(), "payment.completed", "kidly.payment.events",
+            String.valueOf(ORDER_ID), "{\"eventType\":\"payment.completed\"}");
     }
 
     static Payment completedPayment() {
