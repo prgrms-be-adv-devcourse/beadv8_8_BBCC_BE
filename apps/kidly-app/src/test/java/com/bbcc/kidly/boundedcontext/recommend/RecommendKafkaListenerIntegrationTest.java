@@ -70,6 +70,7 @@ class RecommendKafkaListenerIntegrationTest {
     private static final String PRODUCT_TOPIC = "kidly.product.events";
     private static final String GROUP = "kidly.recommend";
     private static final String SELLER_DLT = "kidly.seller.events.recommend.dlt";
+    private static final String CHILD_DLT = "kidly.childprofile.events.recommend.dlt";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final LocalDateTime CHANGED_AT = LocalDateTime.of(2026, 10, 30, 10, 0);
 
@@ -223,8 +224,33 @@ class RecommendKafkaListenerIntegrationTest {
         });
     }
 
+    @Test
+    @DisplayName("더 늦게 일어난 이벤트에 필수 값이 없으면 재시도 없이 DLT로 보내고 복사본은 이전 값 그대로다")
+    void deadLetterLaterChangeWithoutRequiredValue() throws Exception {
+        Long childId = newId();
+        send(CHILD_TOPIC, childChanged(childId, new BigDecimal("115.0"), CHANGED_AT));
+        AsyncWait.until(TIMEOUT, () -> replicaChildRepository.findById(childId).isPresent());
+
+        var sent = send(CHILD_TOPIC, childChanged(childId, null, CHANGED_AT.plusMinutes(1)));
+
+        String key = String.valueOf(childId);
+        AsyncWait.until(TIMEOUT, () -> !deadLetters(CHILD_DLT, key).isEmpty());
+        assertThat(deadLetters(CHILD_DLT, key)).singleElement()
+            .satisfies(deadLetter -> assertThat(deadLetter.timestamp() - sent.timestamp())
+                .isLessThan(RETRY_BACKOFF_TOTAL_MS));
+        RecommendReplicaChild replica = replicaChildRepository.findById(childId).orElseThrow();
+        assertThat(replica.getHeightCm()).isEqualByComparingTo("115.0");
+        assertThat(replica.getEventOccurredAt()).isEqualTo(CHANGED_AT);
+    }
+
     private static Long newId() {
         return ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+    }
+
+    // 키만 바꾼 자녀 정보 변경됨이다. 회원 ID와 나머지 값은 고정이다
+    private static ChildChangedEvent childChanged(Long childId, BigDecimal heightCm, LocalDateTime occurredAt) {
+        return new ChildChangedEvent(UUID.randomUUID(), occurredAt, new ChildChangedEvent.Data(childId, 1L, heightCm,
+            new BigDecimal("20.0"), Gender.MALE, LocalDate.of(2020, 5, 1), BodyType.NORMAL, PreferredFit.LOOSE, false));
     }
 
     // 보내는 도메인과 같은 형식으로 넣는다. 키는 correlationId, 헤더는 eventType · eventId, 본문은 공통 칸 7개 + data다
