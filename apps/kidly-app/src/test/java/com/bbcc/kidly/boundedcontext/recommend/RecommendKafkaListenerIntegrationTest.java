@@ -49,7 +49,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -63,6 +66,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 같은 토픽에는 다른 테스트의 메시지도 쌓여 이어서 받을 수 있으므로, 판매자 · 자녀 · 상품 ID를 테스트마다 새로 만든다.
  */
 @KafkaIntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class RecommendKafkaListenerIntegrationTest {
 
     private static final String SELLER_TOPIC = "kidly.seller.events";
@@ -256,6 +260,24 @@ class RecommendKafkaListenerIntegrationTest {
 
         AsyncWait.until(TIMEOUT, () -> replicaProductRepository.findById(productId).isPresent());
         assertThat(deadLetters(PRODUCT_DLT, key)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("DLT로 보낼 때 로그에 키는 남기고 본문 값(자녀의 몸무게 · 생년월일)은 남기지 않는다")
+    void logDeadLetterWithoutBody(CapturedOutput output) throws Exception {
+        Long childId = newId();
+        var event = new ChildChangedEvent(UUID.randomUUID(), CHANGED_AT, new ChildChangedEvent.Data(childId, 1L,
+            null, new BigDecimal("37.7"), Gender.FEMALE, LocalDate.of(2019, 11, 23), BodyType.SLIM, PreferredFit.SLIM,
+            false));
+
+        send(CHILD_TOPIC, event);
+
+        String key = String.valueOf(childId);
+        AsyncWait.until(TIMEOUT, () -> !deadLetters(CHILD_DLT, key).isEmpty());
+        assertThat(output.getOut())
+            .contains("key=" + key)
+            .doesNotContain("37.7")
+            .doesNotContain("2019-11-23");
     }
 
     private static Long newId() {
