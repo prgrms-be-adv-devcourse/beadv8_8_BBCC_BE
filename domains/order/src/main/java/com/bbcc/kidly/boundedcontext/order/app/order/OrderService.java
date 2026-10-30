@@ -569,8 +569,14 @@ public class OrderService {
                     .map(item -> new OrderCancelledEvent.Item(
                         item.getId(), item.getProduct().optionId(), item.getQuantity()))
                     .toList())));
-        log.info("주문 취소: orderId={} reason={}", order.getId(), order.getCancelReason());
-        waitingRecordCloser.closeFor(order.getId(), actor, handled, now);
+        WaitingRecordCloser.Closed closed = waitingRecordCloser.closeFor(order.getId(), actor, handled, now);
+        // 결과 하나에 한 줄: 닫은 대기 기록이 있으면 그 ID를 같은 줄에 붙인다
+        if (closed.isEmpty()) {
+            log.info("주문 취소: orderId={} reason={}", order.getId(), order.getCancelReason());
+        } else {
+            log.info("주문 취소: orderId={} reason={} closedEventFailureIds={} closedPaymentRecoveryId={}", order.getId(),
+                order.getCancelReason(), closed.eventFailureIds(), closed.paymentRecoveryId());
+        }
     }
 
     /**

@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.OrderRows;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -93,6 +94,51 @@ class WaitingRecordsCloseOnCancelIntegrationTest {
             .anyMatch(row -> row.startsWith("PAYMENT_RECOVERY PENDING>CANCELLED ORDER_CANCELLED "));
         assertThat(recorder.events(OrderCancelledEvent.class)).singleElement()
             .satisfies(event -> assertThat(event.data().orderId()).isEqualTo(orderId));
+    }
+
+    @Test
+    @DisplayName("취소 로그는 한 줄: 닫은 기록 ID가 '주문 취소' 줄에 붙고, 따로 '기록 닫음' 줄은 없다. 닫은 기록이 없으면 지금 줄 그대로")
+    void oneLogLinePerCancel() {
+        Long withRecords = place();
+        Long failureId = pendingFailure(withRecords, OrderEventFailure.EventType.STOCK_DEDUCTED);
+        Long recoveryId = pendingRecovery(withRecords);
+        Long withoutRecords = place();
+
+        try (CapturedLogs logs = CapturedLogs.start()) {
+            orderService.cancelByBuyer(BUYER_ID, withRecords);
+            orderService.cancelByBuyer(BUYER_ID, withoutRecords);
+
+            assertThat(messages(logs, "주문 취소: orderId=" + withRecords + " ")).singleElement().isEqualTo(
+                "주문 취소: orderId=" + withRecords + " reason=BUYER_CANCELLED closedEventFailureIds=[" + failureId
+                    + "] closedPaymentRecoveryId=" + recoveryId);
+            assertThat(messages(logs, "주문 취소: orderId=" + withoutRecords + " ")).singleElement().isEqualTo(
+                "주문 취소: orderId=" + withoutRecords + " reason=BUYER_CANCELLED");
+            assertThat(messages(logs, "재처리 대기 기록")).isEmpty();
+        }
+    }
+
+    @Test
+    @DisplayName("재처리가 기록을 잡은 사이 주문이 다른 경로로 취소돼 기록이 대기로 남았으면, 재처리 실패를 기록할 때 ORDER_CANCELLED로 닫는다")
+    void retryFailureClosesWhenOrderCancelled() {
+        Long orderId = place();
+        orderService.cancelByBuyer(BUYER_ID, orderId);
+        // 재처리가 잡고 있어 취소가 건너뛴 기록과 같은 상태: 주문은 취소, 기록은 대기
+        Long failureId = pendingFailure(orderId, OrderEventFailure.EventType.STOCK_DEDUCTED);
+        Long recoveryId = pendingRecovery(orderId);
+        RuntimeException retryError = new IllegalStateException("재처리 실패");
+
+        assertThat(failureService.recordRetryFailure(failureId, retryError).status()).isEqualTo("CANCELLED");
+        assertThat(recoveryService.recordRetryFailure(recoveryId, ADMIN_ID, retryError).status())
+            .isEqualTo("CANCELLED");
+
+        assertThat(failureRow(failureId)).containsEntry("status", "CANCELLED")
+            .containsEntry("failure_code", ORDER_CANCELLED);
+        assertThat(recoveryRow(recoveryId)).containsEntry("status", "CANCELLED")
+            .containsEntry("failure_code", ORDER_CANCELLED);
+        assertThat(jdbcTemplate.queryForObject("select attempt_count from orders.order_event_failure where id = ?",
+            Integer.class, failureId)).as("시도 횟수는 늘지 않음").isEqualTo(1);
+        assertThat(orderRows.historyRows(orderId))
+            .anyMatch(row -> row.startsWith("PAYMENT_RECOVERY PENDING>CANCELLED ORDER_CANCELLED "));
     }
 
     @Test
@@ -204,6 +250,11 @@ class WaitingRecordsCloseOnCancelIntegrationTest {
 
         assertThat(orderService.getOrder(BUYER_ID, orderId).status()).isEqualTo("CANCELLED");
         assertThat(failureRow(failureId)).containsEntry("status", "PENDING");
+    }
+
+    private static List<String> messages(CapturedLogs logs, String text) {
+        return logs.events().stream().map(event -> event.getFormattedMessage())
+            .filter(message -> message.contains(text)).toList();
     }
 
     private void assertClosedByCancel(Long failureId, Long recoveryId) {

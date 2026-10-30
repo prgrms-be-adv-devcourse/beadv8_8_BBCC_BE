@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,11 +19,11 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>이벤트 처리 실패 · 결제 반영 실패 기록을 CANCELLED로, 이유는 실패 코드 칸에 ORDER_CANCELLED. 결제 반영 실패는 다른 상태 변경처럼
  *       상태 이력 한 줄(주체 = 취소 주체). 빠진 돈은 같은 트랜잭션의 order.cancelled를 받은 결제 쪽이 환불한다</li>
- *   <li>다른 트랜잭션(관리자 재처리 · 종료)이 잡고 있는 기록은 기다리지 않고 건너뛴다(SKIP LOCKED). 그 동작이 주문 취소를 보고 닫는다</li>
+ *   <li>다른 트랜잭션(관리자 재처리 · 종료)이 잡고 있는 기록은 기다리지 않고 건너뛴다(SKIP LOCKED). 그 동작이 끝날 때 주문이
+ *       취소된 것을 보고 닫는다: 재처리 성공(recover) · 재처리 실패 기록(recordRetryFailure) · 종료(cancel) 모두</li>
  *   <li>취소하는 쪽이 지금 다루는 기록(handled)은 빼고, 그쪽이 원래대로 결과를 정한다</li>
  * </ul>
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 class WaitingRecordCloser {
@@ -35,8 +34,9 @@ class WaitingRecordCloser {
 
     /**
      * @param handled 취소하는 쪽이 지금 다루는 기록. 없으면 null
+     * @return 닫은 기록(로그는 부르는 쪽의 주문 취소 한 줄에 붙인다)
      */
-    void closeFor(Long orderId, OrderActor actor, WaitingRecord handled, LocalDateTime now) {
+    Closed closeFor(Long orderId, OrderActor actor, WaitingRecord handled, LocalDateTime now) {
         List<Long> failureIds = new ArrayList<>();
         for (OrderEventFailure failure : failureRepository.findByOrderIdAndStatusForUpdateSkipLocked(orderId,
             OrderEventFailure.Status.PENDING)) {
@@ -56,9 +56,16 @@ class WaitingRecordCloser {
                 return recovery.getId();
             })
             .orElse(null);
-        if (!failureIds.isEmpty() || recoveryId != null) {
-            log.info("주문 취소로 재처리 대기 기록 닫음: orderId={} eventFailureIds={} paymentRecoveryId={}",
-                orderId, failureIds, recoveryId);
+        return new Closed(failureIds, recoveryId);
+    }
+
+    /**
+     * 닫은 기록. 이벤트 처리 실패는 여러 건일 수 있고 결제 반영 실패는 주문당 하나(없으면 null).
+     */
+    record Closed(List<Long> eventFailureIds, Long paymentRecoveryId) {
+
+        boolean isEmpty() {
+            return eventFailureIds.isEmpty() && paymentRecoveryId == null;
         }
     }
 

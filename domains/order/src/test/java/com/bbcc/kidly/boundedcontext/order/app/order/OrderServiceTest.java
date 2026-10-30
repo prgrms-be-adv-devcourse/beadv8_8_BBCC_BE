@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -115,6 +116,9 @@ class OrderServiceTest {
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
             deliveryRepository, sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY,
             waitingRecordCloser);
+        // 주문 취소가 닫을 재처리 대기 기록은 없다고 본다(#598, 닫는 동작은 통합 테스트가 본다)
+        lenient().when(waitingRecordCloser.closeFor(any(), any(), any(), any()))
+            .thenReturn(new WaitingRecordCloser.Closed(List.of(), null));
     }
 
     @Nested
