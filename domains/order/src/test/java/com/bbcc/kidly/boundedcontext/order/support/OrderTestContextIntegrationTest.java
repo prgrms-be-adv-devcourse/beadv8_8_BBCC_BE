@@ -32,14 +32,14 @@ class OrderTestContextIntegrationTest {
     private AccessTokenRevocations revocations;
 
     @Test
-    @DisplayName("orders 스키마의 표 13개가 기준 SQL과 주문 마이그레이션(order_outbox)으로 만들어진다")
+    @DisplayName("orders 스키마의 표 14개가 기준 SQL과 주문 마이그레이션(order_outbox · order_dead_letter)으로 만들어진다")
     void ordersSchemaMigrated() {
         List<String> tables = jdbcTemplate.queryForList(
             "select tablename from pg_tables where schemaname = 'orders' order by tablename", String.class);
 
-        assertThat(tables).containsExactly("cart_item", "delivery", "order_event_failure", "order_event_failure_item",
-            "order_item", "order_outbox", "order_status_history", "orders", "payment_recovery",
-            "payment_recovery_item", "replica_child", "replica_product", "replica_seller");
+        assertThat(tables).containsExactly("cart_item", "delivery", "order_dead_letter", "order_event_failure",
+            "order_event_failure_item", "order_item", "order_outbox", "order_status_history", "orders",
+            "payment_recovery", "payment_recovery_item", "replica_child", "replica_product", "replica_seller");
     }
 
     @Test
