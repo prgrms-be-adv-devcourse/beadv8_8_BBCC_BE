@@ -9,3 +9,6 @@ spring:
 
 jwt:
   public-key: file:config/jwt/local-public.pem
+
+cors:
+  allowed-origins: http://localhost:5173
