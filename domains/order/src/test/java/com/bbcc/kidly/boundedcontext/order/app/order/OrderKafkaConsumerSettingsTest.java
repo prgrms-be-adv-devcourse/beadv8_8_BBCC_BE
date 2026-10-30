@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.in.event;
+package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

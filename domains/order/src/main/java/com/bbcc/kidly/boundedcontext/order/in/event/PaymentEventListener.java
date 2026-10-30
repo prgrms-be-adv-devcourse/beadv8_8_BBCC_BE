@@ -5,9 +5,9 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.LostPaymentRecheck;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
-import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import java.util.List;
@@ -19,6 +19,8 @@ import org.springframework.stereotype.Component;
  * payment.completed를 받아 결제완료 → 판매자별 주문 만들기 → 장바구니 정리를 맡긴다. 셋은 반영 서비스의 트랜잭션 하나로
  * 묶여 중간에 실패하면 모두 되돌려지고, 받은 결제 완료와 실패 이유는 따로 보관한다(#353). 리스너 트랜잭션에 기대지 않는다(#532).
  * payment.failed를 받아 결제 실패 취소를 맡긴다. 이벤트 필드가 바뀌면 여기 변환만 고친다.
+ * 받는 곳(#594): Kafka 리스너({@link PaymentEventKafkaListener}), 스위치가 꺼졌을 때 Spring 수신({@link SpringEventReceiver}).
+ * 처리 메서드는 트랜잭션을 열지 않는다: 반영 · 보관 · 취소가 각자 트랜잭션에서 커밋까지 끝낸다(#532).
  */
 @Slf4j
 @Component
@@ -38,11 +40,12 @@ public class PaymentEventListener {
     /**
      * 처리 중 예외는 분류해 로그를 남긴 뒤 그대로 다시 던진다(반영 트랜잭션은 되돌려짐). 반영은 커밋까지 끝낸 뒤 돌아오므로
      * 커밋 단계 실패(주문 버전 충돌 등)도 여기서 같은 기준으로 나눈다(#532).
-     * 낙관적 락 · 배송 (order_id, seller_id) 유니크 위반 = 동시 중복 처리에서 진 쪽(이긴 쪽이 이미 처리함) → WARN
-     * (이긴 쪽이 주문을 취소했으면 대신 환불 확인 WARN, #519),
+     * 낙관적 락 · 배송 (order_id, seller_id) 유니크 위반 = 동시 중복 처리에서 진 쪽 → WARN
+     * (이긴 쪽이 주문을 취소했으면 대신 환불 확인 WARN, #519). 주문을 다시 읽어 결과가 났으면 처리 완료 표시를 붙이고,
+     * 아직 결제대기면(장바구니 줄 동시 변경 등으로 반영이 통째로 되돌려짐) 붙이지 않는다(#594),
      * 그 밖 = 돈은 빠졌는데 결제완료가 안 됨 → 재처리용으로 보관하고(결제 불일치는 재처리 불가) 보관 결과를 붙여 ERROR 한 줄.
+     * 보관에 성공하면 원래 예외에 보관 표시를 붙인다(Kafka 리스너가 처리 완료로 본다, #594).
      */
-    @DomainEventListener
     public void onPaymentCompleted(PaymentCompletedEvent event) {
         boolean missingOrderId = event.data() == null || event.data().orderId() == null;
         if (!EventGuard.accept("결제", event, missingOrderId ? MISSING_ORDER_ID : null)) {
@@ -62,12 +65,17 @@ public class PaymentEventListener {
             paymentCompletion.applyForEvent(paid);
         } catch (RuntimeException e) {
             if (PaymentFailures.isLostConcurrentDuplicate(e)) {
-                if (warnedPaidAfterCancel(paid, e)) {
-                    throw e;
+                LostPaymentRecheck recheck = recheckLost(paid, e);
+                if (recheck != LostPaymentRecheck.PAID_AFTER_CANCEL) {
+                    log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event={} "
+                        + "reason=lost-concurrent-duplicate orderId={} paymentId={}",
+                        eventType, paid.orderId(), paid.paymentId(), e);
                 }
-                log.warn("결제 완료 처리 실패(동시 중복 처리에서 진 쪽): event={} "
-                    + "reason=lost-concurrent-duplicate orderId={} paymentId={}",
-                    eventType, paid.orderId(), paid.paymentId(), e);
+                // 결과가 이미 났으면(취소 · 결제완료 등) 다시 처리해도 아무것도 안 하므로 처리 완료로 봐도 된다는 표시를 붙인다.
+                // 아직 결제대기거나 다시 읽지 못했으면 붙이지 않는다(Kafka가 다시 처리, #594)
+                if (recheck == LostPaymentRecheck.PAID_AFTER_CANCEL || recheck == LostPaymentRecheck.SETTLED) {
+                    EventFailureKeeper.markHandled(e);
+                }
                 throw e;
             }
             PaymentRecoveryResult saved = null;
@@ -86,18 +94,21 @@ public class PaymentEventListener {
                     + "recoveryStatus={} attemptCount={} failureCode={}",
                 eventType, paid.orderId(), paid.paymentId(), recoveryStatus,
                 saved == null ? null : saved.attemptCount(), saved == null ? null : saved.failureCode(), e);
+            if (saved != null) {
+                EventFailureKeeper.markHandled(e);
+            }
             throw e;
         }
     }
 
-    // 이긴 쪽이 주문을 취소했으면 돈은 빠졌는데 취소된 것이므로 서비스가 환불 확인 WARN을 남긴다(#519).
-    // 다시 읽기가 실패해도 원래 예외를 그대로 던지도록 읽기 오류는 원래 예외에 붙이고(suppressed) 진 쪽 WARN으로 남긴다
-    private boolean warnedPaidAfterCancel(MarkPaidCommand paid, RuntimeException e) {
+    // 주문을 새 트랜잭션에서 다시 읽는다. 이긴 쪽이 주문을 취소했으면 서비스가 환불 확인 WARN을 남긴다(#519).
+    // 다시 읽기가 실패해도 원래 예외를 그대로 던지도록 읽기 오류는 원래 예외에 붙이고(suppressed) 아직 결제대기로 본다(다시 처리)
+    private LostPaymentRecheck recheckLost(MarkPaidCommand paid, RuntimeException e) {
         try {
-            return orderService.warnIfPaidAfterCancel(paid);
+            return orderService.recheckLostPaymentCompleted(paid);
         } catch (RuntimeException readError) {
             e.addSuppressed(readError);
-            return false;
+            return LostPaymentRecheck.STILL_PENDING;
         }
     }
 
@@ -125,7 +136,6 @@ public class PaymentEventListener {
      * 실패 사유(reasonCode)는 주문에 넘기지 않고 로그에도 남기지 않는다(결제 기록 · 관리자 결제 조회에서 확인).
      * 취소 결과는 서비스가 "주문 취소" 한 줄로 남긴다. 처리에 실패하면 재처리용으로 보관한다(#449).
      */
-    @DomainEventListener
     public void onPaymentFailed(PaymentFailedEvent event) {
         Long orderId = toOrderId(event);
         if (!EventGuard.accept("결제", event, orderId == null ? MISSING_ORDER_ID : null)) {

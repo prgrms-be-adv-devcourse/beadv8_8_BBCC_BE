@@ -80,7 +80,8 @@ class OrderKafkaListenerConfigTest {
     @CsvSource({
         "kidly.product.events, 0, kidly.product.events.order.dlt",
         "kidly.seller.events, 1, kidly.seller.events.order.dlt",
-        "kidly.childprofile.events, 2, kidly.childprofile.events.order.dlt"
+        "kidly.childprofile.events, 2, kidly.childprofile.events.order.dlt",
+        "kidly.payment.events, 1, kidly.payment.events.order.dlt"
     })
     @DisplayName("DLT는 원래 토픽 이름 + .order.dlt, 파티션은 원래 번호와 상관없이 0(DLT는 파티션 1개)")
     void deadLetterPartition(String topic, int partition, String deadLetterTopic) {

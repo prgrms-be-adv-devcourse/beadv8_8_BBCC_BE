@@ -38,11 +38,11 @@ public class ProductEventKafkaListener {
             case "product.changed" -> productEventListener.onProductChanged(read(record, ProductChangedEvent.class));
             case "stock.deducted" -> {
                 StockDeductedEvent event = read(record, StockDeductedEvent.class);
-                completeIfKept(() -> stockEventListener.onStockDeducted(event));
+                completeIfHandled(() -> stockEventListener.onStockDeducted(event));
             }
             case "stock.deduction-failed" -> {
                 StockDeductionFailedEvent event = read(record, StockDeductionFailedEvent.class);
-                completeIfKept(() -> stockEventListener.onStockDeductionFailed(event));
+                completeIfHandled(() -> stockEventListener.onStockDeductionFailed(event));
             }
             default -> {
                 // 주문이 받지 않는 종류
@@ -54,11 +54,11 @@ public class ProductEventKafkaListener {
         return jsonMapper.readValue(record.value(), type);
     }
 
-    private static void completeIfKept(Runnable process) {
+    private static void completeIfHandled(Runnable process) {
         try {
             process.run();
         } catch (RuntimeException e) {
-            if (!EventFailureKeeper.isKept(e)) {
+            if (!EventFailureKeeper.isHandled(e)) {
                 throw e;
             }
         }

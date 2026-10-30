@@ -32,7 +32,7 @@ class EventFailureKeeperTest {
             }, error -> SAVED));
 
         assertThat(thrown).isSameAs(failure);
-        assertThat(EventFailureKeeper.isKept(thrown)).isTrue();
+        assertThat(EventFailureKeeper.isHandled(thrown)).isTrue();
     }
 
     @Test
@@ -48,7 +48,7 @@ class EventFailureKeeperTest {
             }));
 
         assertThat(thrown).isSameAs(failure);
-        assertThat(EventFailureKeeper.isKept(thrown)).isFalse();
+        assertThat(EventFailureKeeper.isHandled(thrown)).isFalse();
     }
 
     @Test
@@ -61,12 +61,22 @@ class EventFailureKeeperTest {
                 throw lost;
             }, error -> SAVED));
 
-        assertThat(EventFailureKeeper.isKept(thrown)).isFalse();
+        assertThat(EventFailureKeeper.isHandled(thrown)).isFalse();
     }
 
     @Test
     @DisplayName("보관 헬퍼를 거치지 않은 예외(처리 트랜잭션 커밋 실패 · 읽기 실패 등)는 보관되지 않음으로 판정한다")
     void otherException() {
-        assertThat(EventFailureKeeper.isKept(new IllegalStateException("커밋 실패"))).isFalse();
+        assertThat(EventFailureKeeper.isHandled(new IllegalStateException("커밋 실패"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("다른 보관(결제 완료 → payment_recovery, #594)도 보관에 성공하면 같은 표시를 붙여 보관됨으로 판정한다")
+    void markHandledForOtherKeepers() {
+        var failure = new IllegalStateException("배송 생성 실패");
+
+        EventFailureKeeper.markHandled(failure);
+
+        assertThat(EventFailureKeeper.isHandled(failure)).isTrue();
     }
 }

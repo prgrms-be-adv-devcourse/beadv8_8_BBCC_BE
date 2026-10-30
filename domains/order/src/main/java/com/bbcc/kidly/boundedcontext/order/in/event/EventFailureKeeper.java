@@ -51,20 +51,29 @@ final class EventFailureKeeper {
                 eventType, orderId, failureStatus, saved == null ? null : saved.attemptCount(),
                 saved == null ? null : saved.failureCode(), e);
             if (saved != null) {
-                e.addSuppressed(new KeptMark());
+                markHandled(e);
             }
             throw e;
         }
     }
 
     /**
-     * run이 실패를 보관한 뒤 다시 던진 예외인지(#541). Kafka 리스너는 보관됐으면 처리 완료로 보고 정상 반환한다.
-     * 보관 성공 때만 붙이는 표시로 판정하므로, 보관 실패 · 동시 처리에서 진 쪽 · run 밖에서 난 예외(처리 트랜잭션 커밋 실패,
-     * 읽기 실패)는 모두 false다.
+     * Kafka 리스너가 처리 완료로 봐도 된다는 표시를 원래 예외에 붙인다: 실패를 주문 자체 보관에 남겼거나(run · 결제 완료
+     * payment_recovery), 동시 처리에서 진 결제 완료인데 주문 결과가 이미 났다(#594).
      */
-    static boolean isKept(Throwable error) {
+    static void markHandled(Throwable error) {
+        error.addSuppressed(new HandledMark());
+    }
+
+    /**
+     * 처리 완료로 봐도 된다는 표시가 붙은 예외인지(#541 · #594). Kafka 리스너는 그러면 정상 반환한다.
+     * 표시는 실패를 주문 자체 보관에 남겼을 때(run · 결제 완료 payment_recovery)와, 동시 처리에서 진 결제 완료인데 주문을 다시
+     * 읽어 결과가 이미 났을 때(취소 · 결제완료 등)만 붙는다. 보관 실패 · 진 쪽인데 아직 결제대기이거나 다시 읽지 못함 ·
+     * 표시를 붙이는 곳 밖에서 난 예외(처리 트랜잭션 커밋 실패, 읽기 실패)는 false다.
+     */
+    static boolean isHandled(Throwable error) {
         for (Throwable suppressed : error.getSuppressed()) {
-            if (suppressed instanceof KeptMark) {
+            if (suppressed instanceof HandledMark) {
                 return true;
             }
         }
@@ -72,12 +81,12 @@ final class EventFailureKeeper {
     }
 
     /**
-     * 보관 성공 표시. 원래 예외의 종류 · 메시지는 그대로 두고 suppressed로만 붙인다(스택은 남기지 않음).
+     * 처리 완료 표시. 원래 예외의 종류 · 메시지는 그대로 두고 suppressed로만 붙인다(스택은 남기지 않음).
      */
-    private static final class KeptMark extends RuntimeException {
+    private static final class HandledMark extends RuntimeException {
 
-        private KeptMark() {
-            super("order_event_failure에 보관함", null, false, false);
+        private HandledMark() {
+            super("처리 완료로 봐도 됨(실패를 보관했거나 결과가 이미 남)", null, false, false);
         }
     }
 

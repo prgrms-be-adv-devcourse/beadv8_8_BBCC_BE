@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.LostPaymentRecheck;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
@@ -772,47 +773,70 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("동시 변경에 진 결제 완료: 다시 읽은 주문이 취소됐으면 환불 확인 WARN 한 줄을 남기고 true (#519)")
+        @DisplayName("동시 변경에 진 결제 완료: 다시 읽은 주문이 취소됐으면 환불 확인 WARN 한 줄을 남기고 PAID_AFTER_CANCEL (#519)")
         void lostToCancelLogsPaidAfterCancel(CapturedOutput output) {
             Order order = placedOrder(BUYER_ID);
             order.cancel(Order.CancelReason.OUT_OF_STOCK);
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            boolean warned = orderService.warnIfPaidAfterCancel(
+            LostPaymentRecheck recheck = orderService.recheckLostPaymentCompleted(
                 new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of()));
 
-            assertThat(warned).isTrue();
+            assertThat(recheck).isEqualTo(LostPaymentRecheck.PAID_AFTER_CANCEL);
             assertThat(paidAfterCancelLines(output, "WARN",
                 "orderId=" + ORDER_ID + " paymentId=500 amount=50000 cancelReason=OUT_OF_STOCK")).isEqualTo(1);
         }
 
         @Test
-        @DisplayName("동시 변경에 진 결제 완료: 다시 읽은 주문이 취소가 아니면(이긴 쪽이 결제완료) 로그 없이 false (#519)")
+        @DisplayName("동시 변경에 진 결제 완료: 다시 읽은 주문이 결제완료면(이긴 쪽이 반영) 로그 없이 SETTLED (#519)")
         void lostToPaidLogsNothing(CapturedOutput output) {
             Order order = placedOrder(BUYER_ID);
             pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            boolean warned = orderService.warnIfPaidAfterCancel(
+            LostPaymentRecheck recheck = orderService.recheckLostPaymentCompleted(
                 new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of()));
 
-            assertThat(warned).isFalse();
+            assertThat(recheck).isEqualTo(LostPaymentRecheck.SETTLED);
             assertThat(output).doesNotContain("paid-after-cancel");
         }
 
         @Test
-        @DisplayName("동시 변경에 진 결제 완료: 같은 결제 ID로 결제완료된 뒤 취소된 주문이면 이미 반영한 중복이라 WARN 없이 false (#519)")
+        @DisplayName("동시 변경에 진 결제 완료: 같은 결제 ID로 결제완료된 뒤 취소된 주문이면 이미 반영한 중복이라 WARN 없이 SETTLED (#519)")
         void lostToPaidThenCancelledLogsNothing(CapturedOutput output) {
             Order order = placedOrder(BUYER_ID);
             pay(order, 500L, LocalDateTime.of(2026, 10, 14, 9, 1));
             order.cancel(Order.CancelReason.BUYER_CANCELLED);
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            boolean warned = orderService.warnIfPaidAfterCancel(
+            LostPaymentRecheck recheck = orderService.recheckLostPaymentCompleted(
                 new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of()));
 
-            assertThat(warned).isFalse();
+            assertThat(recheck).isEqualTo(LostPaymentRecheck.SETTLED);
             assertThat(output).doesNotContain("paid-after-cancel");
+        }
+
+        @Test
+        @DisplayName("동시 변경에 진 결제 완료인데 주문이 아직 결제대기면(반영이 통째로 되돌려짐, 예: 장바구니 줄 충돌) STILL_PENDING (#594)")
+        void lostButStillPending(CapturedOutput output) {
+            Order order = placedOrder(BUYER_ID);
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            LostPaymentRecheck recheck = orderService.recheckLostPaymentCompleted(
+                new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of()));
+
+            assertThat(recheck).isEqualTo(LostPaymentRecheck.STILL_PENDING);
+            assertThat(output).doesNotContain("paid-after-cancel");
+        }
+
+        @Test
+        @DisplayName("동시 변경에 진 결제 완료인데 주문이 없으면 다시 해도 아무것도 안 하므로 SETTLED")
+        void lostAndMissingOrder() {
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
+
+            assertThat(orderService.recheckLostPaymentCompleted(
+                new MarkPaidCommand(ORDER_ID, 500L, BUYER_ID, 50_000L, List.of())))
+                .isEqualTo(LostPaymentRecheck.SETTLED);
         }
 
         private long paidAfterCancelLines(CapturedOutput output, String level, String text) {

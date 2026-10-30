@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.LostPaymentRecheck;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderStatusHistoryResult;
@@ -216,19 +217,21 @@ public class OrderService {
     }
 
     /**
-     * 결제 완료 반영이 동시 변경에 져 되돌려질 때(#519), 이긴 쪽이 주문을 취소했으면 취소된 주문에 온 결제 완료와 같으므로
-     * 환불 확인 WARN을 남긴다. 진 쪽이 읽어 둔 주문은 낡았고 그 트랜잭션은 되돌려지므로 새 트랜잭션에서 다시 읽는다.
-     *
-     * @return 환불 확인 WARN을 남겼으면 true. 주문이 없거나 취소가 아니거나 이미 반영한 결제면 false(로그 없음)
+     * 결제 완료 반영이 동시 변경에 져 되돌려질 때 주문이 지금 어떤지 본다. 진 쪽이 읽어 둔 주문은 낡았고 그 트랜잭션은
+     * 되돌려지므로 새 트랜잭션에서 다시 읽는다. 이긴 쪽이 주문을 취소했으면 취소된 주문에 온 결제 완료와 같으므로 환불 확인
+     * WARN을 남긴다(#519). 아직 결제대기면 반영이 통째로 되돌려진 것이라(예: 장바구니 줄 동시 변경) 다시 처리해야 한다(#594).
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-    public boolean warnIfPaidAfterCancel(MarkPaidCommand command) {
+    public LostPaymentRecheck recheckLostPaymentCompleted(MarkPaidCommand command) {
         Order order = orderRepository.findById(command.orderId()).orElse(null);
+        if (order != null && order.getStatus() == Order.Status.PENDING_PAYMENT) {
+            return LostPaymentRecheck.STILL_PENDING;
+        }
         if (order == null || order.getStatus() != Order.Status.CANCELLED || isAlreadyPaidBy(order, command)) {
-            return false;
+            return LostPaymentRecheck.SETTLED;
         }
         warnPaidAfterCancel(command, order);
-        return true;
+        return LostPaymentRecheck.PAID_AFTER_CANCEL;
     }
 
     // 결제완료 뒤 취소된 주문에 같은 결제 ID로 다시 온 결제 완료 = 이미 반영한 중복(#354-1).

@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderKafkaConsumerProperties;
 import com.bbcc.kidly.global.error.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -45,6 +46,7 @@ class OrderKafkaListenerConfig {
     static final String PRODUCT_EVENTS = "kidly.product.events";
     static final String SELLER_EVENTS = "kidly.seller.events";
     static final String CHILDPROFILE_EVENTS = "kidly.childprofile.events";
+    static final String PAYMENT_EVENTS = "kidly.payment.events";
 
     private static final String DEAD_LETTER_SUFFIX = ".order.dlt";
     private static final long RETRY_INTERVAL_MS = 1000L;
@@ -63,6 +65,11 @@ class OrderKafkaListenerConfig {
     @Bean
     NewTopic orderChildProfileEventsDeadLetterTopic() {
         return deadLetterTopic(CHILDPROFILE_EVENTS);
+    }
+
+    @Bean
+    NewTopic orderPaymentEventsDeadLetterTopic() {
+        return deadLetterTopic(PAYMENT_EVENTS);
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다

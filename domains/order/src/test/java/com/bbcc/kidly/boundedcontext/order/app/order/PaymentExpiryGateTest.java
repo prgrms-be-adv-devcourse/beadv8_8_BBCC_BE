@@ -5,7 +5,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
-import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventListenerState;
 import com.bbcc.kidly.boundedcontext.order.domain.expiry.PaymentEventLagCheck;
 import java.time.Clock;
 import java.time.Duration;
@@ -24,8 +23,8 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
- * 결제 마감 만료 실행 조건(#561): 주문의 결제 이벤트 Kafka 리스너가 실행 중일 때만 처리 대기량을 확인한다.
- * 실행 중이 아니면(리스너 없음 · 멈춤 = 지금처럼 Spring으로 받음) 확인 없이 실행, 실행 중이면 대기 0일 때만 실행하고
+ * 결제 마감 만료 실행 조건(#561, 판정은 #594): 주문 Kafka 수신 스위치가 꺼져 있으면(Spring 수신) 확인 없이 실행,
+ * 켜져 있으면 결제 리스너 상태와 상관없이 늘 처리 대기량을 확인해(리스너가 오류로 멈춰도 정상 결제 주문을 취소하지 않게) 대기 0일 때만 실행하고
  * 대기 있음 · 확인 실패 · 배정 전이면 이번 주기를 건너뛴다(INFO — 저절로 맞춰지는 대기라 조치 대상이 아님). 연속으로 건너뛴 시간이 10분을 넘으면 ERROR 한 번, 다시 실행되면 INFO.
  */
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
@@ -34,30 +33,29 @@ class PaymentExpiryGateTest {
     private static final Instant START = Instant.parse("2026-10-30T00:00:00Z");
 
     @Mock
-    private PaymentEventListenerState listener;
-
-    @Mock
     private PaymentEventLag lag;
 
     private final MutableClock clock = new MutableClock(START);
 
+    // 스위치 켜짐(Kafka 수신)
     private PaymentExpiryGate gate() {
-        return new PaymentExpiryGate(listener, lag, clock);
+        return gate(true);
+    }
+
+    private PaymentExpiryGate gate(boolean consumerEnabled) {
+        return new PaymentExpiryGate(new OrderKafkaConsumerProperties(consumerEnabled), lag, clock);
     }
 
     @Test
-    @DisplayName("결제 이벤트 Kafka 리스너가 실행 중이 아니면(없음 · 멈춤) 대기량을 확인하지 않고 실행한다")
-    void runsWithoutCheckWhenListenerNotRunning() {
-        when(listener.isRunning()).thenReturn(false);
-
-        assertThat(gate().allowsRun()).isTrue();
+    @DisplayName("수신 스위치가 꺼져 있으면(Spring 수신) 대기량을 확인하지 않고 실행한다")
+    void runsWithoutCheckWhenSwitchOff() {
+        assertThat(gate(false).allowsRun()).isTrue();
         verifyNoInteractions(lag);
     }
 
     @Test
-    @DisplayName("리스너가 실행 중이고 대기 0이면 실행한다")
+    @DisplayName("스위치가 켜져 있으면 결제 리스너 상태와 상관없이 늘 대기량을 확인하고, 대기 0이면 실행한다")
     void runsWhenCaughtUp() {
-        when(listener.isRunning()).thenReturn(true);
         when(lag.check()).thenReturn(PaymentEventLagCheck.caughtUp());
 
         assertThat(gate().allowsRun()).isTrue();
@@ -65,9 +63,8 @@ class PaymentExpiryGateTest {
 
     @ParameterizedTest(name = "{1}")
     @MethodSource("skipped")
-    @DisplayName("리스너가 실행 중이고 대기 있음 · 확인 실패 · 배정 전이면 건너뛰고 INFO에 이유 코드만 남긴다(WARN 아님)")
+    @DisplayName("스위치가 켜져 있고 대기 있음 · 확인 실패 · 배정 전이면 건너뛰고 INFO에 이유 코드만 남긴다(WARN 아님)")
     void skips(PaymentEventLagCheck check, String reason, CapturedOutput output) {
-        when(listener.isRunning()).thenReturn(true);
         when(lag.check()).thenReturn(check);
 
         assertThat(gate().allowsRun()).isFalse();
@@ -84,7 +81,6 @@ class PaymentExpiryGateTest {
     @Test
     @DisplayName("연속으로 건너뛴 시간이 10분을 넘는 순간 ERROR 한 번(정확히 10분은 아직, 그 뒤 건너뛰어도 다시 안 찍음)")
     void errorOnceAfterTenMinutes(CapturedOutput output) {
-        when(listener.isRunning()).thenReturn(true);
         when(lag.check()).thenReturn(PaymentEventLagCheck.lagging(1));
         PaymentExpiryGate gate = gate();
 
@@ -104,7 +100,6 @@ class PaymentExpiryGateTest {
     @Test
     @DisplayName("다시 실행되면 INFO 한 줄로 알리고 연속 기록을 지운다(새로 건너뛰기 시작하면 다시 10분을 센다)")
     void recoveryResetsStreak(CapturedOutput output) {
-        when(listener.isRunning()).thenReturn(true);
         when(lag.check()).thenReturn(PaymentEventLagCheck.lagging(1));
         PaymentExpiryGate gate = gate();
         gate.allowsRun();
@@ -122,19 +117,6 @@ class PaymentExpiryGateTest {
         assertThat(errorLines(output)).isEqualTo(1);
     }
 
-    @Test
-    @DisplayName("건너뛰는 중에 리스너가 멈추면(Spring 수신으로 되돌림) 확인 없이 실행하고 연속 기록을 지운다")
-    void listenerStoppedDuringStreakRuns(CapturedOutput output) {
-        when(listener.isRunning()).thenReturn(true);
-        when(lag.check()).thenReturn(PaymentEventLagCheck.lagging(1));
-        PaymentExpiryGate gate = gate();
-        gate.allowsRun();
-
-        when(listener.isRunning()).thenReturn(false);
-
-        assertThat(gate.allowsRun()).isTrue();
-        assertThat(output.getOut()).contains("결제 마감 만료를 다시 실행");
-    }
 
     private static long errorLines(CapturedOutput output) {
         return output.getOut().lines().filter(line -> line.contains(" ERROR ")).count();
