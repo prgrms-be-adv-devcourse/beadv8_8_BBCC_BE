@@ -4,6 +4,9 @@
 # 배포 전에 CI(ci.yml)를 이미지 빌드와 동시에 돌리고, 둘 다 성공해야 서버에 올린다.
 # 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 CI · 빌드 없이 그 이미지를 배포한다.
 # 롤백 때도 compose · .env 는 실행한 브랜치의 현재 것이 올라간다. 설정 키가 바뀐 커밋으로 되돌릴 땐 주의한다.
+# 이미지는 셋이다: 앱(<저장소>:<SHA>), 검색 서비스(<저장소>-search-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
+# 검색 서비스 이미지가 없는 커밋(검색 배포 전)으로는 검색이 켜진 환경(dev)을 SHA 롤백할 수 없다.
+# Elasticsearch 이미지는 docker/elasticsearch 가 바뀐 뒤 첫 배포 때만 빌드한다. docker/** 만 바뀐 push 는 배포를 띄우지 않으니 다음 배포에 반영된다.
 # workflow_dispatch 를 develop · main 이 아닌 브랜치에서 실행하면 그 브랜치가 dev 환경에 배포된다 (기능 브랜치 확인용).
 name: deploy
 
@@ -49,6 +52,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # 앱 모듈(apps/ 아래 폴더)마다 따로 빌드한다. 하나라도 실패하면 배포하지 않는다
+    strategy:
+      matrix:
+        app: [kidly-app, search-service]
     steps:
       - uses: actions/checkout@v7
 
@@ -60,11 +67,30 @@ jobs:
 
       # jar 는 Dockerfile 의 멀티스테이지 빌드가 만든다.
       # GHCR 이미지 이름은 소문자여야 하는데 github.repository 에는 대문자가 있을 수 있다
+      # source 라벨로 GHCR 패키지를 이 저장소에 연결한다 (새 패키지도 GITHUB_TOKEN 으로 받을 수 있게)
       - name: 이미지 빌드 · 푸시
+        env:
+          APP: ${{ matrix.app }}
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
-          docker build -t "$IMAGE:$GITHUB_SHA" .
+          [[ "$APP" == kidly-app ]] || IMAGE="$IMAGE-$APP"
+          docker build --build-arg APP="$APP" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            -t "$IMAGE:$GITHUB_SHA" .
           docker push "$IMAGE:$GITHUB_SHA"
+
+      # 태그가 docker/elasticsearch 의 트리 해시라 폴더가 그대로면 이미 있는 이미지를 쓴다
+      - name: Elasticsearch 이미지 빌드 · 푸시 (없을 때만)
+        if: matrix.app == 'search-service'
+        run: |
+          ES_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-elasticsearch:$(git rev-parse --short=12 HEAD:docker/elasticsearch)"
+          if docker manifest inspect "$ES_IMAGE" > /dev/null 2>&1; then
+            echo "이미 있음: $ES_IMAGE"
+            exit 0
+          fi
+          docker build --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            -t "$ES_IMAGE" docker/elasticsearch
+          docker push "$ES_IMAGE"
 
   deploy:
     needs: [ci, build]
@@ -162,11 +188,15 @@ jobs:
           # (dev · prod 가 같은 서버를 쓸 때 공유 ~/.docker/config.json 을 서로 지우지 않도록)
           # 기동 실패 원인을 다음 단계에서 뽑도록 출력을 파일에도 남긴다
           set -o pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          # build 잡과 같은 태그. 롤백이어도 compose 와 같이 실행한 브랜치의 docker/elasticsearch 를 따른다
+          ES_IMAGE="$IMAGE-elasticsearch:$(git rev-parse --short=12 HEAD:docker/elasticsearch)"
           printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
             export DOCKER_CONFIG=\$(mktemp -d)
             trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
             docker login ghcr.io -u $GHCR_USER --password-stdin > /dev/null || exit 1
-            APP_ENV=$APP_ENV IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:$SHA /opt/app/$APP_ENV/deploy.sh
+            APP_ENV=$APP_ENV IMAGE=$IMAGE:$SHA SEARCH_IMAGE=$IMAGE-search-service:$SHA ES_IMAGE=$ES_IMAGE \
+              /opt/app/$APP_ENV/deploy.sh
           " 2>&1 | tee "$RUNNER_TEMP/deploy.log"
 
       # deploy-notify.yml 이 이 주석(title 앱 기동 실패)을 읽어 장애 채널로 원인을 보낸다. 실행 화면 맨 위에도 보인다
