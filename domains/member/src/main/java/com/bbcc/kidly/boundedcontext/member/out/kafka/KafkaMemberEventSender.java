@@ -26,7 +26,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Slf4j
 public class KafkaMemberEventSender implements MemberEventSender, DisposableBean {
 
-    static final String TOPIC = "kidly.member.events";
+    public static final String TOPIC = "kidly.member.events";
 
     // 앱이 내려갈 때 남은 전송을 기다리는 시간. 브로커가 죽어 있으면 하나에 max.block.ms가 걸리므로 다 못 보낼 수 있다
     private static final Duration DRAIN_TIMEOUT = Duration.ofSeconds(10);
