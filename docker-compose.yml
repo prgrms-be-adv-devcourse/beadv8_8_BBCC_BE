@@ -61,8 +61,11 @@ services:
 
   # 검색 서비스(apps/search-service)의 색인 (http://localhost:9200). 한글 형태소 분석기(nori)를 넣은 이미지라 처음에 빌드한다
   # 보안은 끈다(로컬 전용). 힙은 서버와 같게 512MB로 고정한다
+  # 검색을 다룰 때만 띄운다(프로필 search). 기본 `docker compose up -d`에서는 뜨지 않아 다른 도메인 작업에 메모리 · 빌드 시간을 쓰지 않는다
+  # 띄우기: `docker compose up -d elasticsearch` 또는 `docker compose --profile search up -d`
   elasticsearch:
     build: ./docker/elasticsearch
+    profiles: [search]
     container_name: kidly-elasticsearch
     environment:
       discovery.type: single-node

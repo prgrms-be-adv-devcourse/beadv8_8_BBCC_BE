@@ -52,6 +52,7 @@
 - DB를 쓰지 않는다. `SearchServiceApplication`이 DataSource · JPA 자동 설정과 common의 JPA 설정(`JpaAuditingConfig` · `QuerydslConfig`)을 뺀다. common은 고치지 않는다
 - JWT는 공개키로 검증만 한다. common의 검증기가 요구하는 `AccessTokenRevocations`(회원 DB)는 무효화를 확인하지 않는 구현으로 채운다(`SearchServiceSecurityConfig`). 이 서비스에는 로그인이 필요한 API가 없어서다. 그런 API를 더하면 이 빈부터 다시 정한다
 - 실행: `docker compose up -d elasticsearch` 뒤 `./gradlew :apps:search-service:bootRun` (포트 8082, 프로필 local, 색인 `local-*`). 처음에는 nori 이미지를 빌드한다
+  - 로컬 compose의 `elasticsearch`는 프로필 `search`라 기본 `docker compose up -d`에서는 뜨지 않는다. 이름을 붙여 띄우거나 `--profile search`를 쓴다
 - Elasticsearch 이미지: `docker/elasticsearch/Dockerfile`(공식 9.4.x + analysis-nori). 로컬 compose · 테스트 · 서버가 같은 파일로 만든다. 버전은 클라이언트(Boot BOM)와 같은 마이너로 맞춘다
 - 메모리(로컬 측정): Elasticsearch 힙 512MB → 약 950MB, search-service `-Xmx384m` → 약 290MB
 - 테스트: `@IntegrationTest` · `@FunctionalTest`(이 서비스의 `support`)가 같은 Dockerfile로 Elasticsearch 컨테이너를 띄운다. 테스트마다 색인을 지우고 다시 만든다(`SearchIndexCleanerExtension`)
