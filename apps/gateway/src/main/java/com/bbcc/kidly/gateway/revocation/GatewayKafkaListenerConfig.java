@@ -2,7 +2,6 @@ package com.bbcc.kidly.gateway.revocation;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.bbcc.kidly.gateway.auth.GatewayJwtProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -23,7 +22,7 @@ import org.springframework.kafka.support.ProducerListener;
 import org.springframework.util.backoff.FixedBackOff;
 
 /**
- * Gateway가 member.tokens-revoked를 받을 때 쓰는 컨테이너 팩토리 · DLT와 무효화 목록 빈.
+ * Gateway가 member.tokens-revoked를 받을 때 쓰는 컨테이너 팩토리 · DLT.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고, 한 건씩 처리 완료를 표시한다.
  * 메모리에 넣기만 해서 잠깐 실패할 일이 없으므로 재시도하지 않는다: 어떤 예외든 바로 DLT로 보낸다.
  * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate에 영향이 없다.
@@ -35,11 +34,6 @@ class GatewayKafkaListenerConfig {
     static final String MEMBER_EVENTS = "kidly.member.events";
     static final String GROUP = "kidly.gateway";
     private static final String DLT_SUFFIX = ".gateway.dlt";
-
-    @Bean
-    AccessTokenRevocations accessTokenRevocations(GatewayJwtProperties jwtProperties) {
-        return new AccessTokenRevocations(jwtProperties.revocationRetention());
-    }
 
     @Bean
     NewTopic gatewayMemberEventsDeadLetterTopic() {

@@ -3,6 +3,16 @@ spring:
     name: kidly-gateway
   profiles:
     default: local
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            # 나머지는 모두 kidly-app으로 간다(검색 경로는 검색팀이 전환할 때 이 위에 더한다)
+            - id: kidly-app
+              uri: ${kidly.gateway.app-uri}
+              predicates:
+                - Path=/**
   # Kafka. member.tokens-revoked를 받는다(구독 그룹 kidly.gateway). 값은 kidly-app과 같다
   # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
   kafka:
@@ -38,6 +48,10 @@ spring:
 server:
   port: 8083
 
+kidly:
+  gateway:
+    app-uri: http://localhost:8080
+
 # 로컬 전용 키(kidly-app과 같은 키). 상대 경로라서 프로젝트 루트에서 실행해야 한다 (bootRun은 기본으로 루트)
 jwt:
   public-key: file:config/jwt/local-public.pem
@@ -57,6 +71,10 @@ logging:
     json:
       stacktrace:
         max-throwable-depth: 30
+
+kidly:
+  gateway:
+    app-uri: ${KIDLY_APP_URI}
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY_LOCATION}
