@@ -1,0 +1,8 @@
+spring:
+  # 리스너는 저절로 시작하지 않는다. 수신을 확인하는 테스트(@KafkaIntegrationTest)가 켜고 끈다
+  kafka:
+    listener:
+      auto-startup: false
+    # Kafka 컨테이너는 @KafkaIntegrationTest에서만 뜬다. 다른 테스트는 DLT 토픽을 만들려고 Kafka에 붙지 않는다
+    admin:
+      auto-create: false

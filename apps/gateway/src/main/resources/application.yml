@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: kidly-gateway
+  profiles:
+    default: local
+  # Kafka. member.tokens-revoked를 받는다(구독 그룹 kidly.gateway). 값은 kidly-app과 같다
+  # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      # DLT로 보낼 때만 쓴다
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+# kidly-app(8080) · search-service(8082)와 같이 띄운다
+server:
+  port: 8083
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}
+  # 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘으면 나뉘어 Loki 에서 JSON 으로 못 읽는다. 예외마다 프레임 수만 줄인다
+  # max-length 는 쓰지 않는다: 앞에서부터 잘라 마지막 Caused by(기동 실패 원인)가 사라진다. kidly-app application-prod.yml 과 같다
+  structured:
+    json:
+      stacktrace:
+        max-throwable-depth: 30
