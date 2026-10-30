@@ -81,3 +81,8 @@ kidly:
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"
+  # 자녀 프로필 아웃박스 릴레이도 같은 이유로 길게 두고, 정리는 끈다. 릴레이 테스트는 ChildProfileOutboxRelayService를 직접 부른다
+  childprofile:
+    outbox:
+      relay-interval: P3650D
+      cleanup-cron: "-"
