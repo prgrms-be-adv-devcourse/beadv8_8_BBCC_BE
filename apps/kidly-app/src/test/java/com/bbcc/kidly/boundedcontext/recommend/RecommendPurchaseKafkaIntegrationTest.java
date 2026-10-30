@@ -100,6 +100,21 @@ class RecommendPurchaseKafkaIntegrationTest {
         assertThat(messages.deadLetters(ORDER_DLT, String.valueOf(orderId))).isEmpty();
     }
 
+    @Test
+    @DisplayName("주문 토픽에서 추천이 받지 않는 주문 생성됨은 건너뛰고 DLT로 보내지 않으며, 뒤 메시지를 처리한다")
+    void skipOrderCreated() throws Exception {
+        Long orderItemId = newId();
+        Long orderId = newId();
+        String key = String.valueOf(orderId);
+        messages.sendRaw(ORDER_TOPIC, key, "order.created", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
+
+        // 키(주문 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
+        messages.send(ORDER_TOPIC, purchaseConfirmed(orderItemId, orderId));
+
+        AsyncWait.until(TIMEOUT, () -> !recordsOf(orderItemId).isEmpty());
+        assertThat(messages.deadLetters(ORDER_DLT, key)).isEmpty();
+    }
+
     private List<PurchaseRecord> recordsOf(Long orderItemId) {
         return purchaseRecordRepository.findAll().stream()
             .filter(record -> orderItemId.equals(record.getOrderItemId()))
