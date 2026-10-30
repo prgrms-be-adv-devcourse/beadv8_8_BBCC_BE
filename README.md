@@ -4,13 +4,17 @@
 
 개발 규칙은 [`CLAUDE.md`](CLAUDE.md)를 따른다.
 
+## 준비
+
+- JDK 25, Docker Compose를 쓸 수 있는 Docker 환경 (Gradle은 Wrapper를 쓴다)
+
 ## 로컬 실행
 
-1. `.env.example`을 참고해 환경 변수를 준비한다
+1. `.env.example`을 루트에 `.env`로 복사한다. 로컬은 기본값이 있어 비워 둬도 된다(앱이 실행될 때 루트의 `.env`를 자동으로 읽는다)
 2. `docker compose up -d` — PostgreSQL · Kafka · pgAdmin · Prometheus · Grafana
-3. `./gradlew bootRun` — 기본 프로필 local
+3. `./gradlew bootRun` — 기본 프로필 local. 루트에서 실행한다(IDE는 공유 실행 구성 `KidlyApplication`)
 
-- pgAdmin: http://localhost:5050 (서버 비밀번호 `kidly`)
+- pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - Swagger: http://localhost:8080/swagger-ui.html
 
 ## 빌드 · 테스트
@@ -20,7 +24,7 @@
 | 전체(Checkstyle · ArchUnit · 모든 테스트) | `./gradlew build` | 필요 |
 | 경계 규칙만 | `./gradlew archTest` | 불필요 |
 | 단위 테스트(`XxxTest`) | `./gradlew test` | 불필요 |
-| 통합 테스트(`XxxIntegrationTest`) | `./gradlew integrationTest` | 필요 |
+| 통합 테스트(`XxxIntegrationTest`, Kafka 통합 테스트 포함) | `./gradlew integrationTest` | 필요 |
 | 기능 테스트(`XxxApiTest`) | `./gradlew functionalTest` | 필요 |
 
 ## 모듈
