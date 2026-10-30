@@ -38,9 +38,10 @@ public class ProductListService {
         try {
             return productSearch.search(condition, PageRequest.of(request.pageOrDefault(), request.sizeOrDefault()));
         } catch (SearchUnavailableException e) {
-            // 요청마다 같은 장애가 반복되므로 스택 트레이스 대신 원인만 남긴다. 검색어는 남기지 않는다
+            // 요청마다 같은 장애가 반복되므로 스택 트레이스 대신 위치(색인 · 상태)와 원인 종류만 남긴다.
+            // 원인 메시지에는 Elasticsearch가 돌려준 요청 일부(검색어)가 들어갈 수 있어 남기지 않는다
             log.warn("상품 검색 색인을 쓸 수 없어 503으로 응답합니다. {} cause={}", e.getMessage(),
-                e.getCause() == null ? null : e.getCause().toString());
+                e.getCause() == null ? null : e.getCause().getClass().getSimpleName());
             throw new BusinessException(SearchErrorCode.SEARCH_UNAVAILABLE);
         }
     }

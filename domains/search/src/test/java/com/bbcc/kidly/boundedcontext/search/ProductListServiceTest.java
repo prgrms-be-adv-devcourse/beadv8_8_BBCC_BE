@@ -24,12 +24,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class ProductListServiceTest {
 
     @Mock
@@ -82,14 +84,18 @@ class ProductListServiceTest {
     }
 
     @Test
-    @DisplayName("검색 색인을 쓸 수 없으면 503 SEARCH_UNAVAILABLE로 알린다")
-    void unavailable() {
+    @DisplayName("검색 색인을 쓸 수 없으면 503 SEARCH_UNAVAILABLE로 알린다. 로그에 검색어 · 원인 메시지를 남기지 않는다")
+    void unavailable(CapturedOutput output) {
         given(productSearch.search(any(), any()))
-            .willThrow(new SearchUnavailableException("Elasticsearch에 연결하지 못했습니다", new RuntimeException()));
+            .willThrow(new SearchUnavailableException("Elasticsearch에서 상품을 찾지 못했습니다. index=local-products",
+                new IllegalStateException("원피스 여아용 검색 중 오류")));
 
-        assertThatThrownBy(() -> productListService.list(new ProductListRequest(null, null, null, null, null, null)))
+        assertThatThrownBy(() -> productListService.list(
+            new ProductListRequest(null, "원피스 여아용", null, null, null, null)))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(SearchErrorCode.SEARCH_UNAVAILABLE));
+        assertThat(output.getOut()).contains("index=local-products").contains("IllegalStateException")
+            .doesNotContain("원피스 여아용");
     }
 
     private void givenEmptyResult() {
