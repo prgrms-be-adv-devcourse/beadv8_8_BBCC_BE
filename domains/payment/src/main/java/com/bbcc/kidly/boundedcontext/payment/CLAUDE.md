@@ -60,8 +60,8 @@
 | FAILED · REFUNDED | 아무것도 안 함 (같은 취소가 다시 와도 한 번만 환불) |
 | 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그 |
 
-- 처리 실패 대비(#350): 리스너 실패는 이벤트를 다시 받을 수 없어서 결제 안에서 메운다
-  - `handle`은 리스너와 다른 트랜잭션(`REQUIRES_NEW`)이다. 실패하면 처리한 것만 롤백되고, 리스너가 `order_cancellation_retry`(`order_id` UK)에 남긴다(ERROR 로그)
+- 처리 실패 대비(#350): 받은 이벤트를 다시 받지 못할 수 있어서 결제 안에서 메운다
+  - `handle`은 받는 처리와 다른 트랜잭션(`REQUIRES_NEW`)이다. 실패하면 처리한 것만 롤백되고, `app/PaymentEventHandler`가 `order_cancellation_retry`(`order_id` UK)에 남긴다(ERROR 로그). 남기면 처리 완료이고, 남기기까지 실패하면 예외가 나가 Kafka가 재시도 뒤 DLT로 보낸다
   - `OrderCancellationRetryScheduler`가 주기(`kidly.payment.order-cancellation.retry-interval`, 기본 1분)마다 다시 처리한다. 성공하면 지우고, 실패하면 시도 횟수 · 마지막 오류를 남긴다. 횟수 제한은 없다
   - 위 표대로 같은 취소는 한 번만 반영되므로 여러 번 다시 처리해도 된다
 
@@ -147,6 +147,27 @@
 | `ORDER_CANCEL_RECORDED` | `OrderCancellationService` (결제 전 취소, `cancelled_order` 저장) | memberId, orderId, reason |
 | `ORDER_REFUNDED` | `OrderCancellationService` | memberId, walletId, orderId, paymentId, refundId, amount, balance, reason |
 | `PAYOUT_COMPLETED` | `SettlementPayoutService` (처음 처리한 정산서만, 0원 포함) | memberId(판매자), walletId, settlementId, amount, ledgerId, balance |
+
+## Kafka 수신 (#593)
+- 결제가 받는 이벤트 중 보내는 쪽이 Kafka로 보내는 3종을 Kafka로 받는다. 구독 그룹 `kidly.payment`, 토픽마다 리스너 하나(`in/event`)
+
+| 토픽 | 이벤트 | 리스너 | 처리(`app/PaymentEventHandler`) | DLT |
+|---|---|---|---|---|
+| `kidly.member.events` | `member.registered` | `PaymentMemberEventListener` | 지갑 만들기(`createIfAbsent`) | `kidly.member.events.payment.dlt` |
+| `kidly.order.events` | `order.payment-requested` · `order.cancelled` | `PaymentOrderEventListener` | 결제 · 환불(결제 전 취소 기록) | `kidly.order.events.payment.dlt` |
+
+- 정산 `settlement.payout-requested`는 정산이 Kafka로 보내지 않아 Spring 리스너(`app/SettlementPayoutRequestedListener`)로만 받는다
+- 처리는 `app/PaymentEventHandler` 한 곳에 있고 Kafka 리스너 · Spring 리스너가 같은 처리를 부른다. 같은 이벤트를 다시 받아도 결과는 1회분이다(지갑은 없을 때만, 주문당 결제 1건, 같은 취소는 한 번만 환불)
+- 헤더 `eventType`으로 고르고 받지 않는 종류(회원 변경 · 탈퇴, 주문 생성 · 구매확정)는 본문을 읽지 않고 건너뛴다. 모르는 필드는 무시한다
+- 실패 처리(`in/event/PaymentKafkaListenerConfig`): 한 건씩 처리 완료를 커밋하고, 실패하면 1초 간격으로 3번 더 시도한 뒤 받은 토픽의 DLT 파티션 0으로 보낸다
+  - 재시도 없이 바로 DLT: 읽지 못한 본문(`JacksonException`), `BusinessException`, `IllegalArgumentException`(`eventType` 헤더 없음 포함), `IllegalStateException`, NPE. 다시 해도 같아서다
+  - DLT 로그에는 토픽 · `eventType` · `eventId` · 키 · 예외 종류만 남긴다(본문에 이메일 · 금액이 있다)
+- 읽기 시작 위치는 결제 팩토리에서 `earliest`(앱 기본 `latest`를 덮어씀). 처음 Kafka로 바꿀 때 빠지는 메시지가 없게 한다. 이미 Spring으로 처리한 메시지를 다시 읽어도 결과가 1회분이라 안전하다
+- 스위치 `kidly.payment.kafka.consumer.enabled`(기본 true, 환경 변수 `PAYMENT_KAFKA_CONSUMER_ENABLED`)
+  - true: Kafka 리스너만 받는다. 같은 이벤트의 Spring 리스너(`app/MemberRegisteredListener` · `OrderPaymentRequestedListener` · `OrderCancelledListener`)는 뜨지 않는다
+  - false: Kafka 리스너를 시작하지 않고 Spring 리스너로 받는다(장애 때 되돌리는 용도). 같은 이벤트를 양쪽에서 받지 않는다
+  - 테스트 설정은 false라 다른 도메인 테스트(주문 흐름 등)는 Spring 경로로 돈다. Kafka 수신은 `PaymentKafkaReceiveIntegrationTest`가 그 안에서 결제 리스너를 켜서 본다
+- 로컬에서 결제가 받으려면 Kafka가 떠 있어야 한다(`docker compose up -d`에 포함)
 
 ## Kafka 발행 (아웃박스, #534 · #550)
 - 결제가 발행한 이벤트(`payment.completed` · `payment.failed` · `payment.payout-completed` · `payment.payout-failed`)를 토픽 `kidly.payment.events`로도 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다

@@ -57,6 +57,11 @@ kidly:
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"
+    # 결제가 받는 회원 · 주문 이벤트는 테스트에서 Spring 이벤트로 받는다(다른 도메인 테스트 · 주문 흐름이 지금처럼 돈다).
+    # Kafka 수신은 PaymentKafkaReceiveIntegrationTest가 그 안에서 결제 리스너를 켜서 본다
+    kafka:
+      consumer:
+        enabled: false
   order:
     payment-expiry-interval: P3650D
     # 자동 구매확정 스케줄러도 같은 이유로 길게 둔다. 자동 확정 테스트는 OrderScheduler.autoConfirm()을 직접 부른다
