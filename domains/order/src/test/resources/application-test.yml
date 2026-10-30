@@ -1,9 +1,7 @@
 # 주문 모듈 통합 · 기능 테스트 설정(#616). 앱 application.yml · auth.yml · application-test.yml 중 주문 · common에 필요한 값만 같게 둔다.
+# order.yml은 application.yml이 불러온다(여기 값이 order.yml 기본값을 덮는다).
 # 앱 설정이 바뀌면 여기도 맞춘다(같은 기준으로 돌아야 앱에서 돌 때와 결과가 같다)
 spring:
-  config:
-    import:
-      - classpath:order.yml
   # 운영 마이그레이션은 대부분 앱 모듈에 있어, orders 스키마 기준(db/order-baseline)을 깔고 주문 모듈 마이그레이션을 올린다
   flyway:
     locations: classpath:db/order-baseline,classpath:db/migration
