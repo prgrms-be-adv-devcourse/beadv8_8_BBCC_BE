@@ -69,13 +69,11 @@ class ChildProfileOutboxRecorderIntegrationTest {
     }
 
     @Test
-    @DisplayName("회원 탈퇴를 받아 자녀를 지운 새 트랜잭션에서도 삭제 child.changed가 저장된다")
+    @DisplayName("회원 탈퇴로 자녀를 일괄 삭제하면(Kafka 탈퇴 리스너가 부르는 처리) 삭제 child.changed가 그 트랜잭션에서 저장된다")
     void recordDeletedOnMemberWithdrawn() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
 
-        // 탈퇴 리스너는 발행한 트랜잭션이 커밋된 뒤 새 트랜잭션에서 자녀를 지우고 child.changed를 다시 발행한다
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new MemberWithdrawnEvent(
-            UUID.randomUUID(), OCCURRED_AT, new MemberWithdrawnEvent.Data(MEMBER_ID))));
+        childProfileService.deleteAll(MEMBER_ID);
 
         var rows = outboxRows();
         assertThat(rows).hasSize(2);
