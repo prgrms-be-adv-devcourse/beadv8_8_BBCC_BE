@@ -71,6 +71,7 @@ class RecommendKafkaListenerIntegrationTest {
     private static final String GROUP = "kidly.recommend";
     private static final String SELLER_DLT = "kidly.seller.events.recommend.dlt";
     private static final String CHILD_DLT = "kidly.childprofile.events.recommend.dlt";
+    private static final String PRODUCT_DLT = "kidly.product.events.recommend.dlt";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final LocalDateTime CHANGED_AT = LocalDateTime.of(2026, 10, 30, 10, 0);
 
@@ -243,8 +244,30 @@ class RecommendKafkaListenerIntegrationTest {
         assertThat(replica.getEventOccurredAt()).isEqualTo(CHANGED_AT);
     }
 
+    @Test
+    @DisplayName("상품 토픽에서 추천이 받지 않는 재고 차감됨은 건너뛰고 DLT로 보내지 않으며, 뒤 메시지를 처리한다")
+    void skipStockDeducted() throws Exception {
+        Long productId = newId();
+        String key = String.valueOf(productId);
+        sendRaw(PRODUCT_TOPIC, key, "stock.deducted", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
+
+        // 키가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
+        send(PRODUCT_TOPIC, productChanged(productId));
+
+        AsyncWait.until(TIMEOUT, () -> replicaProductRepository.findById(productId).isPresent());
+        assertThat(deadLetters(PRODUCT_DLT, key)).isEmpty();
+    }
+
     private static Long newId() {
         return ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+    }
+
+    // 상품 ID만 바꾼 상품 정보 변경됨이다. 110 · 120 두 옵션이 있다
+    private static ProductChangedEvent productChanged(Long productId) {
+        return new ProductChangedEvent(UUID.randomUUID(), CHANGED_AT, new ProductChangedEvent.Data(
+            productId, 7L, "데일리 맨투맨", 3L, ProductStatus.ON_SALE, "https://img.kidly.dev/a.jpg",
+            CHANGED_AT.minusDays(1), false,
+            List.of(productOption(1L, "110", 105, 115), productOption(2L, "120", 115, 125))));
     }
 
     // 키만 바꾼 자녀 정보 변경됨이다. 회원 ID와 나머지 값은 고정이다
