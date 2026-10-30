@@ -25,14 +25,13 @@ import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 주문 Kafka 수신 테스트(#541)가 쓰는 도구: 보내는 쪽 규칙대로 메시지를 넣고(키 · 헤더 2개 · 본문 7칸 + data),
- * 주문 리스너를 그 테스트 안에서만 켜고 끄며, 그룹의 처리 완료 위치 · DLT를 읽는다. 빈이 아니라 테스트가 직접 만든다.
+ * 주문 리스너를 그 테스트 안에서만 켜고 끄며(OrderKafkaListenerTestGuard에서 꺼냄), 그룹의 처리 완료 위치 · DLT를 읽는다. 빈이 아니라 테스트가 직접 만든다.
  * 리스너는 처음 읽는 그룹을 earliest로 읽으므로, 켠 뒤 다른 테스트가 넣어 둔 메시지를 모두 처리할 때까지(lag 0) 기다린다.
  */
 final class OrderKafkaTestClient {
@@ -51,8 +50,8 @@ final class OrderKafkaTestClient {
     /**
      * 리스너를 켜고, 파티션을 배정받은 뒤 그 토픽에 쌓여 있던 메시지를 모두 처리할 때까지 기다린다.
      */
-    MessageListenerContainer start(KafkaListenerEndpointRegistry registry, String listenerId, String topic) {
-        MessageListenerContainer listener = registry.getListenerContainer(listenerId);
+    MessageListenerContainer start(OrderKafkaListenerTestGuard guard, String listenerId, String topic) {
+        MessageListenerContainer listener = guard.listener(listenerId);
         listener.start();
         AsyncWait.until(TIMEOUT, () -> !listener.getAssignedPartitions().isEmpty());
         Map<TopicPartition, Long> ends = endOffsets(topic);

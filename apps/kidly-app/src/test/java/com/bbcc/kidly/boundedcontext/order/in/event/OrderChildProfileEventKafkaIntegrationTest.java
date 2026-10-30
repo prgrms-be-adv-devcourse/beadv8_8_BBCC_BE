@@ -26,7 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
@@ -50,7 +49,7 @@ class OrderChildProfileEventKafkaIntegrationTest {
     private JsonMapper jsonMapper;
 
     @Autowired
-    private KafkaListenerEndpointRegistry registry;
+    private OrderKafkaListenerTestGuard guard;
 
     @Autowired
     private OrderEventDelivery eventDelivery;
@@ -65,7 +64,7 @@ class OrderChildProfileEventKafkaIntegrationTest {
     @BeforeEach
     void startListener() {
         kafkaClient = new OrderKafkaTestClient(kafka, jsonMapper);
-        listener = kafkaClient.start(registry, ChildProfileEventKafkaListener.ID, TOPIC);
+        listener = kafkaClient.start(guard, ChildProfileEventKafkaListener.ID, TOPIC);
     }
 
     @AfterEach

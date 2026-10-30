@@ -22,7 +22,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
@@ -47,7 +46,7 @@ class OrderSellerEventKafkaIntegrationTest {
     private JsonMapper jsonMapper;
 
     @Autowired
-    private KafkaListenerEndpointRegistry registry;
+    private OrderKafkaListenerTestGuard guard;
 
     @Autowired
     private OrderEventDelivery eventDelivery;
@@ -62,7 +61,7 @@ class OrderSellerEventKafkaIntegrationTest {
     @BeforeEach
     void startListener() {
         kafkaClient = new OrderKafkaTestClient(kafka, jsonMapper);
-        listener = kafkaClient.start(registry, SellerEventKafkaListener.ID, TOPIC);
+        listener = kafkaClient.start(guard, SellerEventKafkaListener.ID, TOPIC);
     }
 
     // stop()은 처리 중인 메시지가 끝날 때까지 기다리므로 뒤이은 테이블 비우기와 겹치지 않는다

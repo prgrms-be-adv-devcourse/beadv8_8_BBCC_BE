@@ -38,7 +38,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
@@ -66,7 +65,7 @@ class OrderProductEventKafkaIntegrationTest {
     private JsonMapper jsonMapper;
 
     @Autowired
-    private KafkaListenerEndpointRegistry registry;
+    private OrderKafkaListenerTestGuard guard;
 
     @Autowired
     private OrderEventDelivery eventDelivery;
@@ -92,7 +91,7 @@ class OrderProductEventKafkaIntegrationTest {
     @BeforeEach
     void startListener() {
         kafkaClient = new OrderKafkaTestClient(kafka, jsonMapper);
-        listener = kafkaClient.start(registry, ProductEventKafkaListener.ID, TOPIC);
+        listener = kafkaClient.start(guard, ProductEventKafkaListener.ID, TOPIC);
         // 쌓여 있던 다른 테스트의 product.changed가 만든 복사본(같은 옵션 ID일 수 있음)을 지우고 시작한다
         jdbcTemplate.update("delete from orders.replica_product");
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
