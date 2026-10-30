@@ -133,6 +133,30 @@ class ChildProfileServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("회원의 자녀를 모두 삭제하면 자녀마다 삭제 이벤트를 발행하고, 다시 불러도 이벤트를 더 발행하지 않는다")
+    void deleteAll() {
+        var first = childProfileService.register(MEMBER_ID, REQUEST).id();
+        var second = childProfileService.register(MEMBER_ID, REQUEST).id();
+        var other = childProfileService.register(OTHER_MEMBER_ID, REQUEST).id();
+        events.clear();
+
+        childProfileService.deleteAll(MEMBER_ID);
+        childProfileService.deleteAll(MEMBER_ID);
+
+        assertThat(childProfileRepository.findAllByMemberId(MEMBER_ID)).isEmpty();
+        assertThat(childProfileRepository.findAllByMemberId(OTHER_MEMBER_ID))
+            .extracting(child -> child.getId())
+            .containsExactly(other);
+        assertThat(events.stream(ChildChangedEvent.class))
+            .allSatisfy(event -> {
+                assertThat(event.data().memberId()).isEqualTo(MEMBER_ID);
+                assertThat(event.data().deleted()).isTrue();
+            })
+            .extracting(event -> event.data().childId())
+            .containsExactlyInAnyOrder(first, second);
+    }
+
+    @Test
     @DisplayName("성장 이력을 오래된 순으로 준다")
     void getGrowthRecords() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();

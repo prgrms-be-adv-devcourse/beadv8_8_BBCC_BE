@@ -11,7 +11,6 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.event.DomainEvent;
-import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.math.BigDecimal;
@@ -117,22 +116,6 @@ class ChildProfileKafkaPublishIntegrationTest {
         assertSent(deleted, "child.changed", childId);
         assertThat(JSON_MAPPER.readTree(awaitRecord(deleted).value()).get("data").get("deleted").asBoolean())
             .isTrue();
-    }
-
-    @Test
-    @DisplayName("회원이 탈퇴하면 리스너가 다시 발행한 자녀 삭제 이벤트도 보낸다")
-    void deletedOnMemberWithdrawn() {
-        var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
-
-        // 탈퇴 리스너는 발행한 트랜잭션이 커밋된 뒤 새 트랜잭션에서 돈다. 그 트랜잭션이 커밋돼야 자녀 이벤트가 나간다
-        var withdrawn = new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new MemberWithdrawnEvent.Data(MEMBER_ID));
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(withdrawn));
-
-        var deleted = events.stream(ChildChangedEvent.class)
-            .filter(event -> event.data().deleted())
-            .findFirst().orElseThrow();
-        assertSent(deleted, "child.changed", childId);
     }
 
     @Test
