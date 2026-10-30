@@ -1,0 +1,8 @@
+# 자녀 프로필 도메인 설정. application.yml이 가져온다
+
+kidly:
+  childprofile:
+    # Kafka로 보낼 자녀 프로필 이벤트를 아웃박스에서 꺼내 보내는 릴레이
+    outbox:
+      # 릴레이를 부르는 주기. 이전 실행이 끝난 뒤부터 재며, 짧게 둬서 다른 도메인이 이벤트를 받을 때까지의 지연을 줄인다
+      relay-interval: PT1S
