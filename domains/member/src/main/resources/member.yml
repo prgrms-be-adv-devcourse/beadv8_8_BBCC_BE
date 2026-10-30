@@ -6,3 +6,5 @@ kidly:
     outbox:
       # 릴레이를 부르는 주기. 이전 실행이 끝난 뒤부터 재며, 짧게 둬서 다른 도메인이 이벤트를 받을 때까지의 지연을 줄인다
       relay-interval: PT1S
+      # 보낸 메시지를 지우는 시각. 매일 04:00. 보관 기간(7일)은 MemberOutboxCleanupService에 있다
+      cleanup-cron: "0 0 4 * * *"
