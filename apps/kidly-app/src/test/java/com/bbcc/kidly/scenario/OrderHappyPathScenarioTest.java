@@ -87,13 +87,8 @@ class OrderHappyPathScenarioTest {
             .expectStatus().isOk();
         assertThat(queryString("select business_name from orders.replica_seller where seller_id = ?", sellerId))
             .as("① 판매자 승인 뒤 주문 판매자 복사본 상호명").isEqualTo(BUSINESS_NAME);
-        client.get().uri("/api/v1/members/me")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(sellerId)))
-            .exchange()
-            .expectStatus().isOk()
-            .expectBody()
-            .jsonPath("$.sellerStatus").value(status -> assertThat(status)
-                .as("① 판매자 승인 뒤 회원 판매자 상태").isEqualTo("ACTIVE"));
+        // 회원은 seller.changed를 Kafka로 받아(Kafka가 없는 기능 테스트에서는 받지 않는다) 회원 판매자 상태는
+        // MemberSellerEventKafkaIntegrationTest가 본다. 이후 판매자 요청은 SELLER 토큰을 직접 만들어 보낸다
 
         // ② 상품 등록 · 판매 시작: product.changed → 주문 상품 복사본 구매 가능
         ProductBody product = client.post().uri("/api/v1/seller/products")

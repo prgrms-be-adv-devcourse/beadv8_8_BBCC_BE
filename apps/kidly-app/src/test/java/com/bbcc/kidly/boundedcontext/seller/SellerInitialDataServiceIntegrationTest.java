@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.seller;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.member.app.MemberInitialDataService;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerInitialDataService;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerService;
@@ -35,19 +34,12 @@ class SellerInitialDataServiceIntegrationTest {
     @Autowired
     private SellerApplicationRepository sellerApplicationRepository;
 
-    @Autowired
-    private MemberRepository memberRepository;
-
-    // 승인 이벤트로 회원 2가 판매자가 되는지 보려고 회원 초기 데이터를 먼저 넣는다
     @Test
     @DisplayName("회원 2를 판매자로 승인하고, 회원 5는 대기 · 회원 6은 거절 신청을 둔다")
     void load() {
-        memberInitialDataService.load();
-
         sellerInitialDataService.load();
 
         assertThat(sellerService.getMine(2L)).isEqualTo(new SellerResult(2L, "테스트상점", SellerStatus.ACTIVE));
-        assertThat(memberRepository.getById(2L).isActiveSeller()).isTrue();
         assertThat(sellerApplicationService.getLatest(5L).status()).isEqualTo(SellerApplicationStatus.PENDING);
         assertThat(sellerApplicationService.getLatest(6L).status()).isEqualTo(SellerApplicationStatus.REJECTED);
     }
