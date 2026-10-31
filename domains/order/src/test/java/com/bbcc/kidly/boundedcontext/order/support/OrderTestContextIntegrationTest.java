@@ -18,7 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @IntegrationTest
 class OrderTestContextIntegrationTest {
 
-    // 주문 모듈 = 주문 · 장바구니 · 배송 컨텍스트(#617)
+    // 주문 모듈 = 주문 · 장바구니 · 배송(#617) · 조르기(#640) 컨텍스트
     private static final String DOMAINS = "com.bbcc.kidly.boundedcontext.";
 
     @Autowired
@@ -28,14 +28,15 @@ class OrderTestContextIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("orders 스키마의 표 14개가 기준 SQL과 주문 마이그레이션(order_outbox · order_dead_letter)으로 만들어진다")
+    @DisplayName("orders 스키마의 표 15개가 기준 SQL과 주문 마이그레이션(order_outbox · order_dead_letter · wish_item)으로 만들어진다")
     void ordersSchemaMigrated() {
         List<String> tables = jdbcTemplate.queryForList(
             "select tablename from pg_tables where schemaname = 'orders' order by tablename", String.class);
 
         assertThat(tables).containsExactly("cart_item", "delivery", "order_dead_letter", "order_event_failure",
             "order_event_failure_item", "order_item", "order_outbox", "order_status_history", "orders",
-            "payment_recovery", "payment_recovery_item", "replica_child", "replica_product", "replica_seller");
+            "payment_recovery", "payment_recovery_item", "replica_child", "replica_product", "replica_seller",
+            "wish_item");
     }
 
     @Test
@@ -46,7 +47,8 @@ class OrderTestContextIntegrationTest {
             .filter(Objects::nonNull)
             .map(Class::getName)
             .filter(type -> type.startsWith(DOMAINS) && !type.startsWith(DOMAINS + "order.")
-                && !type.startsWith(DOMAINS + "cart.") && !type.startsWith(DOMAINS + "delivery."))
+                && !type.startsWith(DOMAINS + "cart.") && !type.startsWith(DOMAINS + "delivery.")
+                && !type.startsWith(DOMAINS + "wish."))
             .toList();
 
         assertThat(otherDomains).isEmpty();

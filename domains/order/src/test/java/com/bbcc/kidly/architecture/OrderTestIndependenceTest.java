@@ -29,12 +29,14 @@ class OrderTestIndependenceTest {
     // 주문 모듈 = 주문 · 장바구니 · 배송 컨텍스트(#617)
     private static final String CART = "com.bbcc.kidly.boundedcontext.cart";
     private static final String DELIVERY = "com.bbcc.kidly.boundedcontext.delivery";
+    // 조르기 컨텍스트(#640)
+    private static final String WISH = "com.bbcc.kidly.boundedcontext.wish";
 
-    private static final JavaClasses ORDER_CODE = new ClassFileImporter().importPackages(ORDER, CART, DELIVERY);
+    private static final JavaClasses ORDER_CODE = new ClassFileImporter().importPackages(ORDER, CART, DELIVERY, WISH);
 
     private static final ArchRule NO_OTHER_DOMAIN_OR_APP = noClasses()
         .should().dependOnClassesThat(resideInAPackage("com.bbcc.kidly.boundedcontext..")
-            .and(not(resideInAnyPackage(ORDER + "..", CART + "..", DELIVERY + ".."))))
+            .and(not(resideInAnyPackage(ORDER + "..", CART + "..", DELIVERY + "..", WISH + ".."))))
         .orShould().dependOnClassesThat().resideInAnyPackage("com.bbcc.kidly", "com.bbcc.kidly.support..")
         .because("주문 테스트는 주문 · shared · common만으로 돈다(#616)");
 

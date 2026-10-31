@@ -14,10 +14,11 @@ import com.tngtech.archunit.lang.CompositeArchRule;
 import java.util.List;
 
 /**
- * 주문 모듈 안의 컨텍스트(order · cart · delivery) 사이 규칙(#617). 계층 규칙은 {@link LayerArchitectureTest}가 컨텍스트마다 건다.
+ * 주문 모듈 안의 컨텍스트(order · cart · delivery, #617 · wish, #640) 사이 규칙. 계층 규칙은 {@link LayerArchitectureTest}가 컨텍스트마다 건다.
  * <ul>
  *   <li>한 컨텍스트는 다른 컨텍스트의 api(인터페이스 · record)만 참조한다</li>
  *   <li>api끼리는 서로 참조하지 않고, api에는 인터페이스 · record만 둔다(구현은 그 컨텍스트 안)</li>
+ *   <li>조르기(wish)는 아무도 참조하지 않는다(api 포함). 걷어낼 때 wish 패키지만 지우면 된다</li>
  * </ul>
  */
 @AnalyzeClasses(packages = "com.bbcc.kidly.boundedcontext",
@@ -25,7 +26,8 @@ import java.util.List;
 class OrderContextArchitectureTest {
 
     private static final String BASE = "com.bbcc.kidly.boundedcontext.";
-    private static final List<String> CONTEXTS = List.of("order", "cart", "delivery");
+    private static final List<String> CONTEXTS = List.of("order", "cart", "delivery", "wish");
+    private static final String WISH = "wish";
 
     @ArchTest
     static final ArchRule EVERY_CONTEXT_HAS_CLASSES = CompositeArchRule.of(CONTEXTS.stream()
@@ -43,6 +45,13 @@ class OrderContextArchitectureTest {
                     .and(resideOutsideOfPackage(BASE + other + ".api..")))
                 .as(context + "는 " + other + "의 api만 참조한다")))
         .toList());
+
+    @ArchTest
+    static final ArchRule NO_CONTEXT_DEPENDS_ON_WISH = noClasses()
+        .that().resideInAPackage("com.bbcc.kidly.boundedcontext..")
+        .and().resideOutsideOfPackage(BASE + WISH + "..")
+        .should().dependOnClassesThat().resideInAPackage(BASE + WISH + "..")
+        .as("주문 · 장바구니 · 배송은 조르기를 참조하지 않는다(#640)");
 
     @ArchTest
     static final ArchRule APIS_DO_NOT_DEPEND_ON_EACH_OTHER = CompositeArchRule.of(CONTEXTS.stream()
