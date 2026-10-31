@@ -30,7 +30,7 @@ public interface OrderDeadLetterRepository {
     Optional<OrderDeadLetter> findByIdForUpdateNoWait(Long id);
 
     /**
-     * 상태가 맞는 메시지. 실패 유형 · eventType은 null이면 거르지 않는다. 최근 받은 것부터(같으면 ID 큰 것부터).
+     * 상태가 맞는 메시지. 실패 유형 · eventType은 null이면 거르지 않는다. 결제 토픽에서 온 것이 먼저(#632), 그 안과 나머지는 최근 받은 것부터(같으면 ID 큰 것부터).
      */
     Page<OrderDeadLetter> findPage(OrderDeadLetter.Status status, OrderDeadLetter.FailureType failureType,
         String eventType, Pageable pageable);

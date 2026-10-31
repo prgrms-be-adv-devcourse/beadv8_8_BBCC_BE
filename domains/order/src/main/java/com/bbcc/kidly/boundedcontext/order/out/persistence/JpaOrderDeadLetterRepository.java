@@ -62,13 +62,16 @@ public interface JpaOrderDeadLetterRepository extends Repository<OrderDeadLetter
     @Query("select d from OrderDeadLetter d where d.id = :id")
     Optional<OrderDeadLetter> findByIdForUpdateNoWait(Long id);
 
+    /**
+     * 결제 토픽(OrderDeadLetter.PAYMENT_SOURCE_TOPIC)에서 온 것을 먼저 둔다(#632).
+     */
     @Override
     @Query(value = """
         select d from OrderDeadLetter d
         where d.status = :status
           and (:failureType is null or d.failureType = :failureType)
           and (:eventType is null or d.eventType = :eventType)
-        order by d.lastReceivedAt desc, d.id desc
+        order by case when d.sourceTopic = 'kidly.payment.events' then 0 else 1 end, d.lastReceivedAt desc, d.id desc
         """, countQuery = """
         select count(d) from OrderDeadLetter d
         where d.status = :status

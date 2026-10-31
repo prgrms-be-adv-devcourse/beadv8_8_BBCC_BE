@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
  * @param handledBy 재처리 · 종료한 관리자 회원 ID
  * @param lastReprocessResult 마지막 재처리 실패 이유(성공했거나 시도 전이면 null)
  * @param recommendedAction 실패 유형별 권장 조치 한 줄. 처리 · 종료돼 조치할 것이 없으면 null
+ * @param paymentEvent 결제 토픽에서 온 메시지. 돈이 걸려 있어 목록 맨 앞에 온다(#632)
  */
 public record OrderDeadLetterResponse(
     String deadLetterId,
@@ -48,7 +49,8 @@ public record OrderDeadLetterResponse(
     int reprocessCount,
     LocalDateTime lastReprocessedAt,
     String lastReprocessResult,
-    String recommendedAction) {
+    String recommendedAction,
+    boolean paymentEvent) {
 
     public static OrderDeadLetterResponse from(OrderDeadLetterDetail detail) {
         return new OrderDeadLetterResponse(String.valueOf(detail.deadLetterId()), detail.sourceTopic(),
@@ -58,7 +60,7 @@ public record OrderDeadLetterResponse(
             detail.exceptionClass(), detail.exceptionMessage(), detail.stackTraceHead(), detail.firstReceivedAt(),
             detail.lastReceivedAt(), detail.receivedCount(), detail.status(), toText(detail.handledBy()),
             detail.handledAt(), detail.memo(), detail.reprocessCount(), detail.lastReprocessedAt(),
-            detail.lastReprocessResult(), detail.recommendedAction());
+            detail.lastReprocessResult(), detail.recommendedAction(), detail.paymentEvent());
     }
 
     private static String toText(Long id) {

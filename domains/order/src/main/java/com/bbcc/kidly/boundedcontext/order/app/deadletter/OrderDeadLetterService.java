@@ -65,7 +65,7 @@ public class OrderDeadLetterService {
     }
 
     /**
-     * 최근 받은 것부터. statusName이 null이면 OPEN(확인 대상)만. 실패 유형 · eventType은 null이면 거르지 않는다.
+     * 결제 토픽에서 온 것이 먼저(#632), 그 안과 나머지는 최근 받은 것부터. statusName이 null이면 OPEN(확인 대상)만. 실패 유형 · eventType은 null이면 거르지 않는다.
      */
     @Transactional(readOnly = true)
     public Page<OrderDeadLetterSummary> getDeadLetters(String statusName, String failureTypeName, String eventType,
