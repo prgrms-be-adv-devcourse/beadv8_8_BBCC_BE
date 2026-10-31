@@ -1,0 +1,6 @@
+# 주문 모듈 테스트 앱의 기본 설정(#616). 앱 application.yml처럼 도메인 yml을 여기서 불러온다.
+# 불러온 파일은 불러온 파일보다 우선하므로, application-test.yml에서 부르면 order.yml 기본값이 테스트 값을 덮는다
+spring:
+  config:
+    import:
+      - classpath:order.yml
