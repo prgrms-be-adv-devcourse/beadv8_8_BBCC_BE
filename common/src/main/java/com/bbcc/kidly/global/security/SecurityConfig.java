@@ -14,8 +14,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -54,7 +52,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated())
             // 보낸 토큰은 공개 API에서도 검증한다. 잘못된 토큰(여기)과 토큰 없음(exceptionHandling) 모두 ProblemDetail로 응답한다
             .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                .jwt(jwt -> jwt.jwtAuthenticationConverter(new AuthMemberJwtAuthenticationConverter()))
                 .authenticationEntryPoint(problemHandler))
             .addFilterAfter(new MemberIdMdcFilter(), BearerTokenAuthenticationFilter.class)
             .exceptionHandling(exception -> exception
@@ -71,17 +69,6 @@ public class SecurityConfig {
         decoder.setJwtValidator(JwtValidators.createDefaultWithValidators(
             new JwtTimestampValidator(JwtProperties.CLOCK_SKEW), revokedValidator));
         return decoder;
-    }
-
-    // roles 클레임(BUYER · SELLER · ADMIN)을 ROLE_ 권한으로 바꾼다. 클레임 이름은 JwtAccessTokenIssuer와 같아야 한다
-    private JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
-        authoritiesConverter.setAuthoritiesClaimName("roles");
-        authoritiesConverter.setAuthorityPrefix("ROLE_");
-
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
-        return converter;
     }
 
     // 프론트 origin만 허용한다. 리프레시 토큰 쿠키를 고려해 credentials를 켜 둔다
