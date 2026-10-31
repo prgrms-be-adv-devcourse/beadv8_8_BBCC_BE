@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryActor;
 import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryApi;
 import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryChange;
 import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryView;
+import com.bbcc.kidly.boundedcontext.delivery.api.ShippingDelayedView;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -76,6 +78,17 @@ public class DeliveryService implements DeliveryApi {
     @Override
     public List<DeliveryView> findByOrder(Long orderId) {
         return deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId).stream().map(DeliveryService::toView).toList();
+    }
+
+    @Override
+    public Page<ShippingDelayedView> findShippingDelayed(LocalDateTime before, Pageable pageable) {
+        return deliveryRepository.findShippingDelayed(before, pageable)
+            .map(row -> new ShippingDelayedView(row.getOrderId(), row.getDeliveryId(), row.getCreatedAt()));
+    }
+
+    @Override
+    public long countShippingDelayed(LocalDateTime before) {
+        return deliveryRepository.countShippingDelayed(before);
     }
 
     @Override

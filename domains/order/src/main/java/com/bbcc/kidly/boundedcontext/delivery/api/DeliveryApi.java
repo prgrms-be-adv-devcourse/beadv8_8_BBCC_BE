@@ -1,6 +1,9 @@
 package com.bbcc.kidly.boundedcontext.delivery.api;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * 배송이 다른 컨텍스트(주문)에 내주는 기능(#617). 구현은 배송 app이고 부르는 쪽 트랜잭션에 합류한다.
@@ -29,4 +32,14 @@ public interface DeliveryApi {
      * @return 배송마다 이전 상태와 취소 뒤 배송, 만든 순서대로
      */
     List<DeliveryChange> cancelByOrder(Long orderId);
+
+    /**
+     * 발송 전(READY)이고 생성 시각 &lt; before인 배송(#617-2). 생성 시각 · 배송 ID 오름차순. 목록 1번 + 건수 1번으로 읽는다.
+     */
+    Page<ShippingDelayedView> findShippingDelayed(LocalDateTime before, Pageable pageable);
+
+    /**
+     * findShippingDelayed와 같은 조건의 건수.
+     */
+    long countShippingDelayed(LocalDateTime before);
 }

@@ -2,11 +2,9 @@ package com.bbcc.kidly.architecture;
 
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideOutsideOfPackage;
-import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.name;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
-import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
@@ -29,11 +27,6 @@ class OrderContextArchitectureTest {
     private static final String BASE = "com.bbcc.kidly.boundedcontext.";
     private static final List<String> CONTEXTS = List.of("order", "cart", "delivery");
 
-    /**
-     * 멈춘 주문 쿼리는 배송 상태를 직접 본다. 컨텍스트별 재구성은 후속에서 하므로 이 클래스 하나만 배송 참조를 허용한다.
-     */
-    private static final String STUCK_ORDER_QUERY = BASE + "order.out.persistence.JpaStuckOrderRepository";
-
     @ArchTest
     static final ArchRule EVERY_CONTEXT_HAS_CLASSES = CompositeArchRule.of(CONTEXTS.stream()
         .map(context -> classes().that().resideInAPackage(BASE + context + "..")
@@ -46,20 +39,10 @@ class OrderContextArchitectureTest {
         .flatMap(context -> CONTEXTS.stream().filter(other -> !other.equals(context))
             .map(other -> noClasses()
                 .that().resideInAPackage(BASE + context + "..")
-                .and(DescribedPredicate.not(name(STUCK_ORDER_QUERY)))
                 .should().dependOnClassesThat(resideInAPackage(BASE + other + "..")
                     .and(resideOutsideOfPackage(BASE + other + ".api..")))
                 .as(context + "는 " + other + "의 api만 참조한다")))
         .toList());
-
-    @ArchTest
-    static final ArchRule STUCK_ORDER_QUERY_USES_ONLY_DELIVERY_DOMAIN = noClasses()
-        .that(name(STUCK_ORDER_QUERY))
-        .should().dependOnClassesThat(resideInAPackage(BASE + "cart..")
-            .or(resideInAPackage(BASE + "delivery..")
-                .and(resideOutsideOfPackage(BASE + "delivery.domain.."))
-                .and(resideOutsideOfPackage(BASE + "delivery.api.."))))
-        .as("멈춘 주문 쿼리의 예외는 배송 domain까지만");
 
     @ArchTest
     static final ArchRule APIS_DO_NOT_DEPEND_ON_EACH_OTHER = CompositeArchRule.of(CONTEXTS.stream()

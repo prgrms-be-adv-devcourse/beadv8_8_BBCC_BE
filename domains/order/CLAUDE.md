@@ -4,7 +4,7 @@
 
 ## 1. 컨텍스트 · 계층과 포트
 - 이 모듈은 컨텍스트 셋이다: `boundedcontext.order`(주문 · 결제 반영 · 만료 · 구매확정 · 이력 · 재처리 · 아웃박스 · DLT · 관리자 · 상품/판매자/자녀 복사본), `boundedcontext.cart`(장바구니), `boundedcontext.delivery`(판매자별 배송 · 발송 · 배송 완료 · 판매 주문 조회). 저장은 셋 다 `orders` 스키마다
-- 컨텍스트끼리는 상대의 `api`(인터페이스 · record만, 구현은 그 컨텍스트 app)만 참조하고, `api`끼리는 참조하지 않는다. 부르는 쪽 트랜잭션에 합류한다(동기 호출). 예외는 멈춘 주문 쿼리(`JpaStuckOrderRepository`)가 배송 domain을 직접 보는 것 하나다(컨텍스트별 재구성은 후속)
+- 컨텍스트끼리는 상대의 `api`(인터페이스 · record만, 구현은 그 컨텍스트 app)만 참조하고, `api`끼리는 참조하지 않는다. 부르는 쪽 트랜잭션에 합류한다(동기 호출). 예외는 두지 않는다(멈춘 주문의 발송 지연도 `DeliveryApi`로 읽는다)
 - 컨텍스트마다 시각 기반 클래스(`OrderTimeEntity` · `CartTimeEntity` · `DeliveryTimeEntity`) · 규칙 예외 · 오류 코드(`OrderErrorCode` · `CartErrorCode` · `DeliveryErrorCode`)를 따로 둔다. 같은 오류는 응답(상태 · title · detail)이 같게 둔다
 - `domain`: 엔티티 · 상태 enum · 값. Spring과 `common`을 쓰지 않는다. 상태는 업무 메서드로만 바꾸고, 다시 와도 되는 변경은 `TransitionResult`(`APPLIED` · `ALREADY_DONE` · `NOT_APPLICABLE`)로 돌려준다
 - `app`: 유스케이스 서비스. 기능별 하위 패키지(`order` · `outbox` · `deadletter` · `provided` 등)끼리는 서로 의존하지 않는다. 여러 기능이 같이 쓰는 값은 `app` 바로 아래(`OrderActor` · `OrderErrorCode` · `OrderLogContext` · `DeadLetterReplay`)에 둔다. 주문 `api` 구현은 `app.provided`, 장바구니 · 배송 `api` 구현은 `CartService` · `DeliveryService`다

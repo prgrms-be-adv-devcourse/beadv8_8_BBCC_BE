@@ -14,7 +14,6 @@ import org.springframework.data.repository.Repository;
 /**
  * 멈춘 주문 조회 포트를 Spring Data JPA로 구현한다(#445). 목록은 필요한 값만 읽는 투영(지연 로딩 없음) 1번 + 건수 1번.
  * 기준 시각은 앱이 넘긴 값만 쓴다(DB now()는 DB 시간대를 따르므로 쓰지 않음).
- * 배송 컨텍스트의 배송(Delivery · 상태)을 쿼리에서 직접 본다: 컨텍스트 규칙(#617)의 예외 하나로 둔다(컨텍스트별 재구성은 후속).
  */
 public interface JpaStuckOrderRepository extends Repository<Order, Long>, StuckOrderRepository {
 
@@ -51,12 +50,6 @@ public interface JpaStuckOrderRepository extends Repository<Order, Long>, StuckO
             from Order o
             where o.id = r.orderId
               and o.status = com.bbcc.kidly.boundedcontext.order.domain.order.Order.Status.CANCELLED)
-        """;
-
-    String SHIPPING_DELAYED = """
-        from Delivery d
-        where d.status = com.bbcc.kidly.boundedcontext.delivery.domain.Delivery.Status.READY
-          and d.createdAt < :before
         """;
 
     String AUTO_CONFIRM_MISSED = """
@@ -105,16 +98,6 @@ public interface JpaStuckOrderRepository extends Repository<Order, Long>, StuckO
     @Override
     @Query("select count(r) " + RECOVERY_PENDING_STALE)
     long countRecoveryPendingStale(LocalDateTime before);
-
-    @Override
-    @Query(value = "select d.orderId as orderId, d.id as targetId, d.createdAt as basisAt " + SHIPPING_DELAYED
-        + "order by d.createdAt asc, d.id asc",
-        countQuery = "select count(d) " + SHIPPING_DELAYED)
-    Page<StuckRow> findShippingDelayed(LocalDateTime before, Pageable pageable);
-
-    @Override
-    @Query("select count(d) " + SHIPPING_DELAYED)
-    long countShippingDelayed(LocalDateTime before);
 
     @Override
     @Query(value = "select i.order.id as orderId, i.id as targetId, i.deliveredAt as basisAt " + AUTO_CONFIRM_MISSED

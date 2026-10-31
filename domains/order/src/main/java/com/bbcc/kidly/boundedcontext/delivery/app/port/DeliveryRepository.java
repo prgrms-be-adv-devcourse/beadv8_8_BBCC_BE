@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.delivery.app.port;
 
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -32,4 +33,23 @@ public interface DeliveryRepository {
      * 판매자의 배송 수. 목록을 읽을 수 없는 큰 page의 빈 페이지에 전체 건수를 채운다.
      */
     long countBySellerId(Long sellerId);
+
+    /**
+     * 발송 지연 목록 한 줄(#617-2). 지연 로딩 없이 필요한 값만 읽는다.
+     */
+    interface ShippingDelayedRow {
+
+        Long getOrderId();
+
+        Long getDeliveryId();
+
+        LocalDateTime getCreatedAt();
+    }
+
+    /**
+     * 발송 전(READY)이고 생성 시각 &lt; before인 배송. 생성 시각 · 배송 ID 오름차순.
+     */
+    Page<ShippingDelayedRow> findShippingDelayed(LocalDateTime before, Pageable pageable);
+
+    long countShippingDelayed(LocalDateTime before);
 }
