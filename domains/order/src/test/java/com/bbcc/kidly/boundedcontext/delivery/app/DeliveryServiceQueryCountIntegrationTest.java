@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.delivery.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.SchedulerIdle;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -10,27 +9,21 @@ import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
-import jakarta.persistence.EntityManagerFactory;
+import com.bbcc.kidly.boundedcontext.order.support.QueryCounter;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import org.hibernate.SessionFactory;
-import org.hibernate.stat.Statistics;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.data.domain.Page;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * 판매 주문 목록이 배송 건 수와 상관없이 같은 수의 쿼리로 끝나는지(건마다 주문 · 주문상품을 읽지 않는지) 본다.
- * Hibernate 통계는 이 클래스에서만 켠다.
+ * 쿼리 수는 {@link QueryCounter}로 센다(공용 통합 테스트 컨텍스트 그대로, #586).
  */
 @IntegrationTest
-@TestPropertySource(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class DeliveryServiceQueryCountIntegrationTest {
 
     private static final Long BUYER_ID = 1L;
@@ -49,17 +42,7 @@ class DeliveryServiceQueryCountIntegrationTest {
     private DeliveryRepository deliveryRepository;
 
     @Autowired
-    private EntityManagerFactory entityManagerFactory;
-
-    @Autowired
-    private ThreadPoolTaskScheduler taskScheduler;
-
-    private Statistics statistics;
-
-    @BeforeEach
-    void setUp() {
-        statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
-    }
+    private QueryCounter queryCounter;
 
     @Test
     @DisplayName("배송 건이 1개든 5개든 쿼리 수가 같고, 각 항목은 자기 주문의 자기 판매자 주문상품만 순서대로 갖는다")
@@ -95,11 +78,7 @@ class DeliveryServiceQueryCountIntegrationTest {
     }
 
     private long countStatements(Long sellerId) {
-        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
-        SchedulerIdle.await(taskScheduler);
-        statistics.clear();
-        deliveryService.getSellerOrders(sellerId, 0, 20);
-        return statistics.getPrepareStatementCount();
+        return queryCounter.count(() -> deliveryService.getSellerOrders(sellerId, 0, 20));
     }
 
     /**

@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.cart.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.SchedulerIdle;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -11,23 +10,17 @@ import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
-import jakarta.persistence.EntityManagerFactory;
+import com.bbcc.kidly.boundedcontext.order.support.QueryCounter;
 import java.time.LocalDateTime;
-import org.hibernate.SessionFactory;
-import org.hibernate.stat.Statistics;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * 장바구니 조회가 줄 · 판매자 수와 상관없이 같은 수의 쿼리로 끝나는지(줄마다 상품 · 판매자를 읽지 않는지) 본다.
- * Hibernate 통계는 다른 쿼리 수 테스트와 같은 설정으로 켠다(같은 컨텍스트를 재사용).
+ * 쿼리 수는 {@link QueryCounter}로 센다(공용 통합 테스트 컨텍스트 그대로, #586).
  */
 @IntegrationTest
-@TestPropertySource(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class CartQueryCountIntegrationTest {
 
     private static final Long SINGLE_BUYER_ID = 101L;
@@ -48,17 +41,7 @@ class CartQueryCountIntegrationTest {
     private SellerReplicaRepository sellerReplicaRepository;
 
     @Autowired
-    private EntityManagerFactory entityManagerFactory;
-
-    @Autowired
-    private ThreadPoolTaskScheduler taskScheduler;
-
-    private Statistics statistics;
-
-    @BeforeEach
-    void setUp() {
-        statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
-    }
+    private QueryCounter queryCounter;
 
     @Test
     @DisplayName("줄 · 판매자가 1개든 5개든 쿼리 수가 같고, 각 줄은 자기 판매자의 상호명을 갖는다")
@@ -84,11 +67,7 @@ class CartQueryCountIntegrationTest {
     }
 
     private long countStatements(Long memberId) {
-        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
-        SchedulerIdle.await(taskScheduler);
-        statistics.clear();
-        cartService.getCart(memberId);
-        return statistics.getPrepareStatementCount();
+        return queryCounter.count(() -> cartService.getCart(memberId));
     }
 
     /**

@@ -2,34 +2,27 @@ package com.bbcc.kidly.boundedcontext.order.app.stuck;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.SchedulerIdle;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
-import jakarta.persistence.EntityManagerFactory;
+import com.bbcc.kidly.boundedcontext.order.support.QueryCounter;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Supplier;
-import org.hibernate.SessionFactory;
-import org.hibernate.stat.Statistics;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * 멈춘 주문 조회(#445)가 대상 수와 상관없이 같은 수의 쿼리로 끝나는지 본다(목록은 투영이라 지연 로딩 없음).
- * Hibernate 통계는 다른 쿼리 수 테스트와 같은 설정으로 켠다(같은 컨텍스트를 재사용).
+ * 쿼리 수는 {@link QueryCounter}로 센다(공용 통합 테스트 컨텍스트 그대로, #586).
  */
 @IntegrationTest
-@TestPropertySource(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class StuckOrderQueryCountIntegrationTest {
 
     private static final Long BUYER_ID = 103L;
@@ -48,17 +41,7 @@ class StuckOrderQueryCountIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private EntityManagerFactory entityManagerFactory;
-
-    @Autowired
-    private ThreadPoolTaskScheduler taskScheduler;
-
-    private Statistics statistics;
-
-    @BeforeEach
-    void setUp() {
-        statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
-    }
+    private QueryCounter queryCounter;
 
     @Test
     @DisplayName("목록: 대상이 1건이든 10건이든 쿼리 수가 같다(한 페이지에 다 들면 목록 1번, 넘치면 목록 1번 + 건수 1번)")
@@ -87,11 +70,7 @@ class StuckOrderQueryCountIntegrationTest {
     }
 
     private long countStatements(Supplier<?> query) {
-        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
-        SchedulerIdle.await(taskScheduler);
-        statistics.clear();
-        query.get();
-        return statistics.getPrepareStatementCount();
+        return queryCounter.count(() -> query.get());
     }
 
     /**

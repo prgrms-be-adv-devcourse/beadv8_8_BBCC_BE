@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.SchedulerIdle;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -11,26 +10,20 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
-import jakarta.persistence.EntityManagerFactory;
+import com.bbcc.kidly.boundedcontext.order.support.QueryCounter;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import org.hibernate.SessionFactory;
-import org.hibernate.stat.Statistics;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * 내 주문 목록이 주문 수와 상관없이 같은 수의 쿼리로 끝나는지(주문마다 주문상품을 읽지 않는지) 본다.
- * Hibernate 통계는 판매 주문 목록 쿼리 수 테스트와 같은 설정으로 켠다(같은 컨텍스트를 재사용).
+ * 쿼리 수는 {@link QueryCounter}로 센다(공용 통합 테스트 컨텍스트 그대로, #586).
  */
 @IntegrationTest
-@TestPropertySource(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class OrderListQueryCountIntegrationTest {
 
     private static final Long SINGLE_BUYER_ID = 101L;
@@ -47,17 +40,7 @@ class OrderListQueryCountIntegrationTest {
     private SellerReplicaRepository sellerReplicaRepository;
 
     @Autowired
-    private EntityManagerFactory entityManagerFactory;
-
-    @Autowired
-    private ThreadPoolTaskScheduler taskScheduler;
-
-    private Statistics statistics;
-
-    @BeforeEach
-    void setUp() {
-        statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
-    }
+    private QueryCounter queryCounter;
 
     @Test
     @DisplayName("주문 · 판매자가 1건이든 5건이든 쿼리 수가 같고, 각 주문은 첫 주문상품 상품명 · 판매자 상호명 · 주문상품 수를 갖는다")
@@ -97,20 +80,13 @@ class OrderListQueryCountIntegrationTest {
     @DisplayName("관리자 전체 주문 목록도 주문이 1건이든 5건이든 쿼리 수가 같다(주문 페이지 1번 + 주문상품 1번)")
     void adminListSameQueryCountRegardlessOfOrderCount() {
         place(SINGLE_BUYER_ID, 0, "첫 주문", "둘째");
-        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
-        SchedulerIdle.await(taskScheduler);
-        statistics.clear();
-        orderService.getAllOrders(0, 20);
-        long singleCount = statistics.getPrepareStatementCount();
+        long singleCount = queryCounter.count(() -> orderService.getAllOrders(0, 20));
 
         for (int i = 1; i < MANY; i++) {
             place(MANY_BUYER_ID, i, "대표 " + i, "둘째 " + i);
         }
-        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
-        SchedulerIdle.await(taskScheduler);
-        statistics.clear();
+        long manyCount = queryCounter.count(() -> orderService.getAllOrders(0, 20));
         List<AdminOrderSummary> all = orderService.getAllOrders(0, 20).getContent();
-        long manyCount = statistics.getPrepareStatementCount();
 
         assertThat(manyCount).isEqualTo(singleCount);
         assertThat(singleCount).as("주문 페이지 1번 + 그 페이지 주문(주문상품 포함) 1번").isEqualTo(2);
@@ -132,11 +108,7 @@ class OrderListQueryCountIntegrationTest {
     }
 
     private long countStatements(Long memberId) {
-        // 측정 구간에 스케줄러 쿼리가 섞이지 않게(통계는 모든 스레드를 셈, #416)
-        SchedulerIdle.await(taskScheduler);
-        statistics.clear();
-        orderService.getOrders(memberId, 0, 20);
-        return statistics.getPrepareStatementCount();
+        return queryCounter.count(() -> orderService.getOrders(memberId, 0, 20));
     }
 
     /**
