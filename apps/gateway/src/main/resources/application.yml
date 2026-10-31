@@ -48,7 +48,13 @@ spring:
                 - Path=/internal/**
               filters:
                 - SetStatus=404
-            # 나머지는 모두 kidly-app으로 간다(검색 경로는 검색팀이 전환할 때 이 위에 더한다)
+            # 상품 목록 조회만 검색 서비스로 간다(#526). 상세(/api/v1/products/{id}) · 다른 메서드는 kidly-app(상품)에 남는다
+            - id: search-product-list
+              uri: ${kidly.gateway.search-uri}
+              predicates:
+                - Method=GET
+                - Path=/api/v1/products
+            # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}
               predicates:
@@ -96,6 +102,8 @@ server:
 kidly:
   gateway:
     app-uri: http://localhost:8080
+    # 상품 목록도 기본은 kidly-app이 받는다. search-service(8082)로 볼 때만 KIDLY_SEARCH_URI=http://localhost:8082로 띄운다
+    search-uri: ${KIDLY_SEARCH_URI:http://localhost:8080}
 
 cors:
   allowed-origins: http://localhost:5173
@@ -123,6 +131,7 @@ logging:
 kidly:
   gateway:
     app-uri: ${KIDLY_APP_URI}
+    search-uri: ${KIDLY_SEARCH_URI}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}
