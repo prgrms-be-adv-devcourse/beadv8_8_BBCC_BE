@@ -154,6 +154,24 @@ class OrderKafkaListenerConfigTest {
     }
 
     @Test
+    @DisplayName("보관 시도가 예상 못 한 예외로 끝나도 같은 메시지를 붙잡고 있지 않고 지금처럼 DLT로 보낸다(로그는 DLT 한 줄, 본문 없음)")
+    void keepErrorGoesToDeadLetter(CapturedOutput output) {
+        List<ConsumerRecord<?, ?>> deadLetters = new ArrayList<>();
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> deadLetters.add(record),
+            (record, e) -> {
+                throw new IllegalStateException("보관 시도 실패: " + BODY_MARKER);
+            });
+        var record = record("kidly.payment.events", 0);
+
+        boolean recovered = handler.handleOne(listenerFailure(new IllegalStateException()), record,
+            mock(Consumer.class), mock(MessageListenerContainer.class));
+
+        assertThat(recovered).isTrue();
+        assertThat(deadLetters).containsExactly(record);
+        assertThat(output.getOut()).containsOnlyOnce("DLT로 보냅니다").doesNotContain(BODY_MARKER);
+    }
+
+    @Test
     @DisplayName("그 밖의 예외는 처음 실패에서 DLT로 보내지 않고 다시 시도한다")
     void otherExceptionIsRetried() {
         List<ConsumerRecord<?, ?>> deadLetters = new ArrayList<>();

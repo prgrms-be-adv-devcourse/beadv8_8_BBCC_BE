@@ -133,7 +133,7 @@ class OrderKafkaListenerConfig {
     static DefaultErrorHandler errorHandler(ConsumerRecordRecoverer deadLetter,
         BiPredicate<ConsumerRecord<?, ?>, Exception> keep) {
         var errorHandler = new DefaultErrorHandler((record, e) -> {
-            if (keep.test(record, e)) {
+            if (kept(keep, record, e)) {
                 return;
             }
             logDeadLetter(record, e);
@@ -142,6 +142,20 @@ class OrderKafkaListenerConfig {
         errorHandler.addNotRetryableExceptions(BusinessException.class, IllegalArgumentException.class,
             IllegalStateException.class, NullPointerException.class, JacksonException.class);
         return errorHandler;
+    }
+
+    /**
+     * 보관 시도가 예상 못 한 예외로 끝나면 보관하지 못한 것으로 본다(#632). 여기서 던지면 recoverer 실패로 같은 메시지를 계속
+     * 다시 시도해 그 파티션이 멈추므로, 지금처럼 DLT로 보낸다. 보관 오류는 원래 예외에 붙이고(suppressed) 로그는 DLT 한 줄이다.
+     */
+    private static boolean kept(BiPredicate<ConsumerRecord<?, ?>, Exception> keep, ConsumerRecord<?, ?> record,
+        Exception error) {
+        try {
+            return keep.test(record, error);
+        } catch (RuntimeException keepError) {
+            error.addSuppressed(keepError);
+            return false;
+        }
     }
 
     /**
