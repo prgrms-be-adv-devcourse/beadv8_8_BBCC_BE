@@ -32,6 +32,7 @@
 | 모듈 | 내용 |
 |---|---|
 | `apps/kidly-app` | 실행 앱. 앱 설정, 공통 테스트 기반(`support`, `TestcontainersConfiguration`) |
+| `apps/gateway` | API Gateway(WebFlux). 토큰 검증 · 무효화 확인 · CORS · 라우팅 |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |

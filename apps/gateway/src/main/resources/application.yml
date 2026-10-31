@@ -1,0 +1,131 @@
+spring:
+  application:
+    name: kidly-gateway
+  profiles:
+    default: local
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # CORS는 Gateway가 처리한다: 프리플라이트에 직접 답하고 Gateway가 만든 401에도 붙는다. 값은 common SecurityConfig와 같다
+          # 서비스도 아직 CORS 헤더를 붙이므로(prod · 로컬 직접 접속용) 같은 헤더가 두 번 오지 않게 하나만 남긴다
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowed-origins: ${cors.allowed-origins}
+                allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+                allowed-headers: "*"
+                # 프론트가 오류 문의에 traceId를 붙일 수 있게 (common RequestLoggingFilter.TRACE_ID_HEADER)
+                exposed-headers: X-Request-Id
+                allow-credentials: true
+                max-age: 3600
+          # 백엔드 헤더는 Gateway 헤더 뒤에 붙으므로 첫 값(Gateway 값)을 남긴다.
+          # Vary는 Gateway가 값 셋(Origin · 프리플라이트 헤더 둘)을 따로 붙이므로 첫 값만 남기면 둘을 잃는다. 겹친 값만 줄인다
+          # Host는 nginx 값(원래 호스트)을 넘긴다. 없으면 백엔드 주소(app:8080)로 바뀐다
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Expose-Headers, RETAIN_FIRST
+            - DedupeResponseHeader=Vary, RETAIN_UNIQUE
+            - PreserveHostHeader
+          # nginx가 넣은 X-Forwarded-*를 앱에 그대로 넘긴다(앱이 nginx 직결 때와 같은 클라이언트 IP · https · 호스트를 본다).
+          # trusted-proxies가 없으면 X-Forwarded-*를 모두 지운다. Gateway는 서버 127.0.0.1에만 열리므로 모두 믿는다.
+          # 덧붙이기는 모두 끈다: Gateway는 아래 native로 자기 요청을 https · X-Forwarded-For 첫 값으로 보므로, 덧붙이면
+          # X-Forwarded-For 첫 값(클라이언트가 보낸 값일 수 있다)이 맨 뒤에 다시 붙어 앱이 그 값을 클라이언트로 본다
+          trusted-proxies: ".*"
+          x-forwarded:
+            for-enabled: false
+            proto-enabled: false
+            host-enabled: false
+            port-enabled: false
+            prefix-enabled: false
+          # Forwarded 헤더는 nginx가 넣지 않는다. 지금처럼 지운다(켜 두면 Gateway가 새로 만들어 넘긴다)
+          forwarded:
+            enabled: false
+          routes:
+            # 서비스끼리만 부르는 API는 밖에 열지 않는다(회원 요구사항 v2 5.4)
+            - id: internal
+              uri: no://op
+              predicates:
+                - Path=/internal/**
+              filters:
+                - SetStatus=404
+            # 나머지는 모두 kidly-app으로 간다(검색 경로는 검색팀이 전환할 때 이 위에 더한다)
+            - id: kidly-app
+              uri: ${kidly.gateway.app-uri}
+              predicates:
+                - Path=/**
+  # Kafka. member.tokens-revoked를 받는다(구독 그룹 kidly.gateway). 값은 kidly-app과 같다
+  # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      # DLT로 보낼 때만 쓴다
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+# Gateway도 자기 요청을 nginx가 받은 주소(https://dev-api...)로 본다. 같은 출처 요청(dev Swagger)을 CORS가 다른 출처로 막지 않게 한다.
+# native(Reactor Netty)는 헤더를 지우지 않아 앱에도 간다. framework(ForwardedHeaderTransformer)는 지우므로 쓰지 않는다
+server:
+  forward-headers-strategy: native
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+jwt:
+  # Access Token 유효 기간. kidly-app auth.yml과 같은 값이어야 한다. 무효화 기록 보존 기간(+ 시계 오차 60초)도 여기서 나온다
+  access-token-validity: 30m
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+# kidly-app(8080) · search-service(8082)와 같이 띄운다
+server:
+  port: 8083
+
+kidly:
+  gateway:
+    app-uri: http://localhost:8080
+
+cors:
+  allowed-origins: http://localhost:5173
+
+# 로컬 전용 키(kidly-app과 같은 키). 상대 경로라서 프로젝트 루트에서 실행해야 한다 (bootRun은 기본으로 루트)
+jwt:
+  public-key: file:config/jwt/local-public.pem
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}
+  # 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘으면 나뉘어 Loki 에서 JSON 으로 못 읽는다. 예외마다 프레임 수만 줄인다
+  # max-length 는 쓰지 않는다: 앞에서부터 잘라 마지막 Caused by(기동 실패 원인)가 사라진다. kidly-app application-prod.yml 과 같다
+  structured:
+    json:
+      stacktrace:
+        max-throwable-depth: 30
+
+kidly:
+  gateway:
+    app-uri: ${KIDLY_APP_URI}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+jwt:
+  public-key: ${JWT_PUBLIC_KEY_LOCATION}
