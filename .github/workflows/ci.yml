@@ -50,9 +50,23 @@ jobs:
           path: '**/build/reports/'
           retention-days: 7
 
+  # 모듈마다 컨테이너 · 컨텍스트를 따로 띄워 한 러너에서 차례로 돌리면 오래 걸린다. 오래 걸리는 모듈은 러너를 따로 쓴다.
+  # 나머지는 따로 뺀 모듈만 제외하고 돌려, 새로 생긴 모듈의 통합 테스트도 빠지지 않게 한다
   integration:
-    name: 통합 테스트
+    name: 통합 테스트 (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: kidly-app
+            tasks: :apps:kidly-app:integrationTest
+          - name: order
+            tasks: :domains:order:integrationTest
+          - name: search-service
+            tasks: :apps:search-service:integrationTest
+          - name: 나머지
+            tasks: integrationTest -x :apps:kidly-app:integrationTest -x :domains:order:integrationTest -x :apps:search-service:integrationTest
     steps:
       - uses: actions/checkout@v7
 
@@ -64,13 +78,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       - name: 통합 테스트 (Testcontainers)
-        run: ./gradlew integrationTest
+        run: ./gradlew ${{ matrix.tasks }}
 
       - name: 실패 리포트 업로드
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: reports-integration
+          name: reports-integration-${{ matrix.name }}
           path: '**/build/reports/'
           retention-days: 7
 
