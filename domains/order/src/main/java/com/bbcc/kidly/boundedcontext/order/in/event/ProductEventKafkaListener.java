@@ -61,6 +61,7 @@ public class ProductEventKafkaListener {
             if (!EventFailureKeeper.isHandled(e)) {
                 throw e;
             }
+            EventHandOffs.noteHandedOff();
         }
     }
 }

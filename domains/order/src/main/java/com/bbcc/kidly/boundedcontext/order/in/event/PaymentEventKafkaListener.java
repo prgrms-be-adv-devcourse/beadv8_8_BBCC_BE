@@ -55,10 +55,13 @@ public class PaymentEventKafkaListener {
         try {
             process.run();
         } catch (RuntimeException e) {
-            boolean done = EventFailureKeeper.isHandled(e)
-                || lostIsDone && PaymentFailures.isLostConcurrentDuplicate(e);
+            boolean handedOff = EventFailureKeeper.isHandled(e);
+            boolean done = handedOff || lostIsDone && PaymentFailures.isLostConcurrentDuplicate(e);
             if (!done) {
                 throw e;
+            }
+            if (handedOff) {
+                EventHandOffs.noteHandedOff();
             }
         }
     }

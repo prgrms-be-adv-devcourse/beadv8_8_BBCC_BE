@@ -4,6 +4,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.order.app.deadletter.UnreadableOrderMessageException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,9 +36,11 @@ class OrderKafkaMessagesTest {
     }
 
     @Test
-    @DisplayName("eventType 헤더가 없으면 IllegalArgumentException(읽기 실패), 메시지에 위치는 있고 본문은 없다")
+    @DisplayName("eventType 헤더가 없으면 읽기 실패 전용 예외(IllegalArgumentException이라 재시도 없음 · DLT에서 READ_FAILED), "
+        + "메시지에 위치는 있고 본문은 없다")
     void missingEventType() {
         assertThatThrownBy(() -> OrderKafkaMessages.eventType(record()))
+            .isInstanceOf(UnreadableOrderMessageException.class)
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("kidly.seller.events-1@5")
             .hasMessageNotContaining("본문-표식-주소");
