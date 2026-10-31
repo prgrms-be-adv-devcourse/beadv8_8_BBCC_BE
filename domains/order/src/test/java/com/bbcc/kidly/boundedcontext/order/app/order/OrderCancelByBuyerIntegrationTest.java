@@ -9,17 +9,18 @@ import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
+import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
-import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
-import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
+import com.bbcc.kidly.boundedcontext.cart.app.CartService;
+import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
-import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
-import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
+import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
@@ -369,7 +370,7 @@ class OrderCancelByBuyerIntegrationTest {
     private static boolean isRejectedByState(Throwable error) {
         return error instanceof BusinessException business
             && (business.getErrorCode() == OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED
-                || business.getErrorCode() == OrderErrorCode.DELIVERY_CANCELLED);
+                || business.getErrorCode() == DeliveryErrorCode.DELIVERY_CANCELLED);
     }
 
     /**

@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.order.dto;
 
-import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryView;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.math.BigDecimal;
@@ -98,7 +98,7 @@ public record OrderDetail(
     /**
      * @param sellerNames 판매자 ID별 지금 상호명. 없는 판매자는 null로 둔다
      */
-    public static OrderDetail from(Order order, List<Delivery> deliveries, Map<Long, String> sellerNames) {
+    public static OrderDetail from(Order order, List<DeliveryView> deliveries, Map<Long, String> sellerNames) {
         Order.ShippingAddress address = order.getShippingAddress();
         return new OrderDetail(
             order.getId(),
@@ -114,14 +114,14 @@ public record OrderDetail(
             deliveries.stream().map(OrderDetail::toDelivery).toList());
     }
 
-    private static SellerDelivery toDelivery(Delivery delivery) {
+    private static SellerDelivery toDelivery(DeliveryView delivery) {
         return new SellerDelivery(
-            delivery.getId(),
-            delivery.getSellerId(),
-            delivery.getStatus().name(),
-            delivery.getCarrier() == null ? null : delivery.getCarrier().name(),
-            delivery.getTrackingNumber(),
-            delivery.getShippedAt(),
-            delivery.getDeliveredAt());
+            delivery.deliveryId(),
+            delivery.sellerId(),
+            delivery.status(),
+            delivery.carrier(),
+            delivery.trackingNumber(),
+            delivery.shippedAt(),
+            delivery.deliveredAt());
     }
 }

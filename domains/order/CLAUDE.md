@@ -1,13 +1,16 @@
 # 주문 도메인 설계 규칙
 
-주문 모듈 안의 설계 규칙이다. 도메인 경계 · `shared` 계약 · Kafka 토픽/키/그룹 · 묻고 바꿀 것은 루트 `CLAUDE.md`를 따르고, 여기와 부딪히면 루트가 우선이다.
+주문 모듈(주문 · 장바구니 · 배송 컨텍스트) 안의 설계 규칙이다. 도메인 경계 · `shared` 계약 · Kafka 토픽/키/그룹 · 묻고 바꿀 것은 루트 `CLAUDE.md`를 따르고, 여기와 부딪히면 루트가 우선이다.
 
-## 1. 계층과 포트
-- `domain`: 엔티티 · 상태 enum · 값. Spring과 `common`을 쓰지 않는다(생성 · 수정 시각은 `OrderTimeEntity`). 상태는 업무 메서드로만 바꾸고, 다시 와도 되는 변경은 `TransitionResult`(`APPLIED` · `ALREADY_DONE` · `NOT_APPLICABLE`)로 돌려준다
-- `app`: 유스케이스 서비스. 기능별 하위 패키지(`order` · `cart` · `delivery` · `outbox` · `deadletter` 등)끼리는 서로 의존하지 않는다. 여러 기능이 같이 쓰는 값은 `app` 바로 아래(`OrderActor` · `OrderErrorCode` · `OrderLogContext` · `DeadLetterReplay`)에 둔다
+## 1. 컨텍스트 · 계층과 포트
+- 이 모듈은 컨텍스트 셋이다: `boundedcontext.order`(주문 · 결제 반영 · 만료 · 구매확정 · 이력 · 재처리 · 아웃박스 · DLT · 관리자 · 상품/판매자/자녀 복사본), `boundedcontext.cart`(장바구니), `boundedcontext.delivery`(판매자별 배송 · 발송 · 배송 완료 · 판매 주문 조회). 저장은 셋 다 `orders` 스키마다
+- 컨텍스트끼리는 상대의 `api`(인터페이스 · record만, 구현은 그 컨텍스트 app)만 참조하고, `api`끼리는 참조하지 않는다. 부르는 쪽 트랜잭션에 합류한다(동기 호출). 예외는 두지 않는다(멈춘 주문의 발송 지연도 `DeliveryApi`로 읽는다)
+- 컨텍스트마다 시각 기반 클래스(`OrderTimeEntity` · `CartTimeEntity` · `DeliveryTimeEntity`) · 규칙 예외 · 오류 코드(`OrderErrorCode` · `CartErrorCode` · `DeliveryErrorCode`)를 따로 둔다. 같은 오류는 응답(상태 · title · detail)이 같게 둔다
+- `domain`: 엔티티 · 상태 enum · 값. Spring과 `common`을 쓰지 않는다. 상태는 업무 메서드로만 바꾸고, 다시 와도 되는 변경은 `TransitionResult`(`APPLIED` · `ALREADY_DONE` · `NOT_APPLICABLE`)로 돌려준다
+- `app`: 유스케이스 서비스. 기능별 하위 패키지(`order` · `outbox` · `deadletter` · `provided` 등)끼리는 서로 의존하지 않는다. 여러 기능이 같이 쓰는 값은 `app` 바로 아래(`OrderActor` · `OrderErrorCode` · `OrderLogContext` · `DeadLetterReplay`)에 둔다. 주문 `api` 구현은 `app.provided`, 장바구니 · 배송 `api` 구현은 `CartService` · `DeliveryService`다
 - `app.port`: 저장소 · 외부 연결 · 작업 실행처럼 나가는 것의 인터페이스만 둔다(record · class를 두지 않는다). 구현은 `out`(Spring Data는 `Jpa…Repository`가 포트를 상속)
 - `in`: `web`(컨트롤러 · `dto`) · `event`(이벤트 수신) · `scheduler`. `domain`과 `out`을 쓰지 않는다
-- 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`), 기능 사이 의존 · 포트 규칙은 앱의 `OrderArchitectureTest`가 검사한다
+- 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙은 `OrderContextArchitectureTest`, 기능 사이 의존 · 포트 규칙은 앱의 `OrderArchitectureTest`가 검사한다
 
 ## 2. 이벤트 수신
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(`ReplicaProduct` · `ReplicaSeller` · `ReplicaChild`)은 저장된 `occurredAt`보다 늦은 이벤트만 반영하고, 주문 상태는 이미 그 상태면 `ALREADY_DONE`으로 끝낸다
@@ -26,7 +29,7 @@
 - 결제 마감 만료는 결제 이벤트를 Kafka로 받는 동안 처리 대기분이 있으면 그 주기를 건너뛴다(`PaymentExpiryGate`)
 
 ## 4. 테스트
-- 통합 · 기능 · Kafka 테스트는 이 모듈에서 돈다. 주석 · 컨테이너 · 정리는 `boundedcontext.order.support`(`IntegrationTest` · `FunctionalTest` · `KafkaIntegrationTest`)를 쓰고, 테스트 앱은 `OrderTestApplication`(주문 · `common`만)이다
+- 통합 · 기능 · Kafka 테스트는 이 모듈에서 돈다. 주석 · 컨테이너 · 정리는 `boundedcontext.order.support`(`IntegrationTest` · `FunctionalTest` · `KafkaIntegrationTest`)를 쓰고, 테스트 앱은 `OrderTestApplication`(주문 모듈 세 컨텍스트 · `common`만)이다
 - 주문 테스트는 다른 도메인 코드를 쓰지 않는다(`OrderTestIndependenceTest`). 다른 도메인이 하던 반응은 테스트가 이벤트로 직접 넣는다
   - `OrderEventDelivery`: 다른 도메인 이벤트를 주문에 넣는다(수신 방식이 바뀌면 이것만 고친다)
   - `PaymentEvents`: 결제 쪽이 보내던 결제 완료 · 결제 실패

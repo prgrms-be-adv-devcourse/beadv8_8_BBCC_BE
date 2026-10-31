@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 /**
  * 멈춘 주문 조회(#445). 종류마다 "저장된 시각 < before"인 대상을 저장된 시각 · 대상 ID 오름차순으로 읽는다.
  * before = 지금 − 기준 시간이라 저장된 시각 + 기준 시간 < 지금(정확히 같으면 빠짐)과 같다. 구현은 out/persistence.
+ * 발송 지연(SHIPPING_DELAYED)은 배송 컨텍스트가 내준다(DeliveryApi, #617-2).
  */
 public interface StuckOrderRepository {
 
@@ -51,13 +52,6 @@ public interface StuckOrderRepository {
     Page<StuckRow> findRecoveryPendingStale(LocalDateTime before, Pageable pageable);
 
     long countRecoveryPendingStale(LocalDateTime before);
-
-    /**
-     * 발송 전(READY) 배송. 저장된 시각 = 배송 생성 시각.
-     */
-    Page<StuckRow> findShippingDelayed(LocalDateTime before, Pageable pageable);
-
-    long countShippingDelayed(LocalDateTime before);
 
     /**
      * 배송 완료됐는데 확정 안 된 주문상품(주문이 취소된 것은 뺌). 저장된 시각 = 배송 완료 시각.

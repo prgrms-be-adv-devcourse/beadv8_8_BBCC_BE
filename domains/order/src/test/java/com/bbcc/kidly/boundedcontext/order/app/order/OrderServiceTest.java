@@ -23,14 +23,16 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
+import com.bbcc.kidly.boundedcontext.order.app.provided.OrderApiService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
+import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.order.PaymentMismatchException;
@@ -113,8 +115,10 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
+        // 배송은 delivery api의 실제 구현에 배송 저장소 mock을 넣어 쓴다(#617: 주문 동작은 그대로)
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
-            deliveryRepository, sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY,
+            new DeliveryService(deliveryRepository, new OrderApiService(orderRepository, historyRepository)),
+            sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY,
             waitingRecordCloser);
         // 주문 취소가 닫을 재처리 대기 기록은 없다고 본다(#598, 닫는 동작은 통합 테스트가 본다)
         lenient().when(waitingRecordCloser.closeFor(any(), any(), any(), any()))

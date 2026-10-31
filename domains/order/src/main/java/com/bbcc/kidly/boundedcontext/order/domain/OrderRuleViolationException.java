@@ -18,10 +18,7 @@ public class OrderRuleViolationException extends RuntimeException {
         OWN_PRODUCT,
         CHILD_NOT_ORDERABLE,
         ORDER_ITEM_NOT_FOUND,
-        NOT_DELIVERED,
-        ALREADY_SHIPPED,
-        NOT_SHIPPED,
-        DELIVERY_CANCELLED
+        NOT_DELIVERED
     }
 
     private final Rule rule;

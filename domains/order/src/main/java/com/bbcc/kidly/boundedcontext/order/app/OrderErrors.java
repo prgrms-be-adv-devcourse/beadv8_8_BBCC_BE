@@ -23,9 +23,6 @@ public final class OrderErrors {
             case CHILD_NOT_ORDERABLE -> OrderErrorCode.CHILD_NOT_ORDERABLE;
             case ORDER_ITEM_NOT_FOUND -> OrderErrorCode.ORDER_ITEM_NOT_FOUND;
             case NOT_DELIVERED -> OrderErrorCode.NOT_DELIVERED;
-            case ALREADY_SHIPPED -> OrderErrorCode.ALREADY_SHIPPED;
-            case NOT_SHIPPED -> OrderErrorCode.NOT_SHIPPED;
-            case DELIVERY_CANCELLED -> OrderErrorCode.DELIVERY_CANCELLED;
         });
     }
 }

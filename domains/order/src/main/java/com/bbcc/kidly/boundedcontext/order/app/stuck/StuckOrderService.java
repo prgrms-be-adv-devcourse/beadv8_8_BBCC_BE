@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.stuck;
 
+import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryApi;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.port.StuckOrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.dto.StuckOrderResult;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class StuckOrderService {
 
     private final StuckOrderRepository stuckOrderRepository;
+    private final DeliveryApi deliveryApi;
     private final StuckOrderThresholds thresholds;
     private final Order.Policy orderPolicy;
 
@@ -64,8 +66,8 @@ public class StuckOrderService {
         if (pageable.getOffset() > Integer.MAX_VALUE) {
             return new PageImpl<>(List.of(), pageable, count(kind, before));
         }
-        return find(kind, before, pageable).map(row -> new StuckOrderResult(kind.name(), row.getOrderId(),
-            kind.targetType(), row.getTargetId(), kind.status(), row.getBasisAt().plus(wait)));
+        return find(kind, before, pageable).map(row -> new StuckOrderResult(kind.name(), row.orderId(),
+            kind.targetType(), row.targetId(), kind.status(), row.basisAt().plus(wait)));
     }
 
     private Duration waitOf(StuckOrderKind kind) {
@@ -80,16 +82,26 @@ public class StuckOrderService {
         };
     }
 
-    private Page<StuckOrderRepository.StuckRow> find(StuckOrderKind kind, LocalDateTime before, PageRequest pageable) {
-        return switch (kind) {
+    // 발송 지연은 배송 컨텍스트 api로 읽는다(#617-2). 나머지는 주문 저장소 한 줄을 같은 모양으로 바꾼다
+    private Page<Row> find(StuckOrderKind kind, LocalDateTime before, PageRequest pageable) {
+        if (kind == StuckOrderKind.SHIPPING_DELAYED) {
+            return deliveryApi.findShippingDelayed(before, pageable)
+                .map(row -> new Row(row.orderId(), row.deliveryId(), row.createdAt()));
+        }
+        Page<StuckOrderRepository.StuckRow> rows = switch (kind) {
             case STOCK_CHECK_STALE -> stuckOrderRepository.findStockCheckStale(before, pageable);
             case PAYMENT_EXPIRY_MISSED -> stuckOrderRepository.findPaymentExpiryMissed(before, pageable);
             case PAID_WITHOUT_DELIVERY -> stuckOrderRepository.findPaidWithoutDelivery(before, pageable);
             case RECOVERY_PENDING_STALE -> stuckOrderRepository.findRecoveryPendingStale(before, pageable);
-            case SHIPPING_DELAYED -> stuckOrderRepository.findShippingDelayed(before, pageable);
             case AUTO_CONFIRM_MISSED -> stuckOrderRepository.findAutoConfirmMissed(before, pageable);
+            case SHIPPING_DELAYED -> throw new IllegalStateException("SHIPPING_DELAYED는 배송 api로 읽는다");
             case OUTBOX_STUCK -> throw outboxNotPerOrder();
         };
+        return rows.map(row -> new Row(row.getOrderId(), row.getTargetId(), row.getBasisAt()));
+    }
+
+    // 멈춘 대상 한 줄: 관련 주문 · 대상 ID · 저장된 시각
+    private record Row(Long orderId, Long targetId, LocalDateTime basisAt) {
     }
 
     private long count(StuckOrderKind kind, LocalDateTime before) {
@@ -98,7 +110,7 @@ public class StuckOrderService {
             case PAYMENT_EXPIRY_MISSED -> stuckOrderRepository.countPaymentExpiryMissed(before);
             case PAID_WITHOUT_DELIVERY -> stuckOrderRepository.countPaidWithoutDelivery(before);
             case RECOVERY_PENDING_STALE -> stuckOrderRepository.countRecoveryPendingStale(before);
-            case SHIPPING_DELAYED -> stuckOrderRepository.countShippingDelayed(before);
+            case SHIPPING_DELAYED -> deliveryApi.countShippingDelayed(before);
             case AUTO_CONFIRM_MISSED -> stuckOrderRepository.countAutoConfirmMissed(before);
             case OUTBOX_STUCK -> throw outboxNotPerOrder();
         };

@@ -1,9 +1,9 @@
 package com.bbcc.kidly.boundedcontext.order;
 
-import static com.bbcc.kidly.boundedcontext.order.in.web.CartController.CART_ITEMS_PATH;
-import static com.bbcc.kidly.boundedcontext.order.in.web.CartController.CART_PATH;
+import static com.bbcc.kidly.boundedcontext.cart.in.web.CartController.CART_ITEMS_PATH;
+import static com.bbcc.kidly.boundedcontext.cart.in.web.CartController.CART_PATH;
 import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
-import static com.bbcc.kidly.boundedcontext.order.in.web.SellerOrderController.SELLER_ORDERS_PATH;
+import static com.bbcc.kidly.boundedcontext.delivery.in.web.SellerOrderController.SELLER_ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 

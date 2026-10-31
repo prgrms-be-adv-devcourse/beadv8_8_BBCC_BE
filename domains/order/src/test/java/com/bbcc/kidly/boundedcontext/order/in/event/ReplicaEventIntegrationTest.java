@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
-import com.bbcc.kidly.boundedcontext.order.app.cart.CartService;
-import com.bbcc.kidly.boundedcontext.order.app.cart.dto.AddCartItemResult;
+import com.bbcc.kidly.boundedcontext.cart.app.CartService;
+import com.bbcc.kidly.boundedcontext.cart.app.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;

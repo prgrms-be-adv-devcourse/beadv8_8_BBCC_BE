@@ -52,12 +52,6 @@ public interface JpaStuckOrderRepository extends Repository<Order, Long>, StuckO
               and o.status = com.bbcc.kidly.boundedcontext.order.domain.order.Order.Status.CANCELLED)
         """;
 
-    String SHIPPING_DELAYED = """
-        from Delivery d
-        where d.status = com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery.Status.READY
-          and d.createdAt < :before
-        """;
-
     String AUTO_CONFIRM_MISSED = """
         from OrderItem i
         where i.status = com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem.Status.ORDERED
@@ -104,16 +98,6 @@ public interface JpaStuckOrderRepository extends Repository<Order, Long>, StuckO
     @Override
     @Query("select count(r) " + RECOVERY_PENDING_STALE)
     long countRecoveryPendingStale(LocalDateTime before);
-
-    @Override
-    @Query(value = "select d.orderId as orderId, d.id as targetId, d.createdAt as basisAt " + SHIPPING_DELAYED
-        + "order by d.createdAt asc, d.id asc",
-        countQuery = "select count(d) " + SHIPPING_DELAYED)
-    Page<StuckRow> findShippingDelayed(LocalDateTime before, Pageable pageable);
-
-    @Override
-    @Query("select count(d) " + SHIPPING_DELAYED)
-    long countShippingDelayed(LocalDateTime before);
 
     @Override
     @Query(value = "select i.order.id as orderId, i.id as targetId, i.deliveredAt as basisAt " + AUTO_CONFIRM_MISSED

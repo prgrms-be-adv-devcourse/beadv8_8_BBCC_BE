@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.in.web;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
-import static com.bbcc.kidly.boundedcontext.order.in.web.CartController.CART_ITEMS_PATH;
-import static com.bbcc.kidly.boundedcontext.order.in.web.CartController.CART_PATH;
+import static com.bbcc.kidly.boundedcontext.cart.in.web.CartController.CART_ITEMS_PATH;
+import static com.bbcc.kidly.boundedcontext.cart.in.web.CartController.CART_PATH;
 import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 

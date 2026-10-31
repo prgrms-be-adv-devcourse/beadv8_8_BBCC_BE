@@ -1,5 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
+import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryApi;
+import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryChange;
+import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryView;
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
@@ -15,14 +18,12 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
-import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
@@ -71,7 +72,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
-    private final DeliveryRepository deliveryRepository;
+    private final DeliveryApi deliveryApi;
     private final SellerReplicaRepository sellerReplicaRepository;
     private final OrderStatusHistoryRepository historyRepository;
     private final EventPublisher eventPublisher;
@@ -388,8 +389,8 @@ public class OrderService {
         LocalDateTime now = LocalDateTime.now();
         Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-        List<Delivery> deliveries = deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId);
-        if (order.getStatus() != Order.Status.CANCELLED && deliveries.stream().anyMatch(OrderService::isShipped)) {
+        List<DeliveryView> deliveries = deliveryApi.findByOrder(orderId);
+        if (order.getStatus() != Order.Status.CANCELLED && deliveries.stream().anyMatch(DeliveryView::shipped)) {
             throw new BusinessException(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
         }
         Order.Status from = order.getStatus();
@@ -402,21 +403,18 @@ public class OrderService {
             String reason = order.getCancelReason().name();
             historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.ORDER, orderId, from,
                 order.getStatus(), reason, now));
-            for (Delivery delivery : deliveries) {
-                Delivery.Status deliveryFrom = delivery.getStatus();
-                delivery.cancel();
-                historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.DELIVERY, delivery.getId(),
-                    deliveryFrom, delivery.getStatus(), reason, now));
+            List<DeliveryChange> changes = deliveryApi.cancelByOrder(orderId);
+            for (DeliveryChange change : changes) {
+                historyRepository.save(OrderStatusHistory.of(orderId, OrderStatusHistory.TargetType.DELIVERY,
+                    change.delivery().deliveryId(), change.from(), change.delivery().status(), reason, actor.type(),
+                    actor.id(), actor.source(), now));
             }
+            deliveries = changes.stream().map(DeliveryChange::delivery).toList();
             publishCancelled(order, actor, null, now);
         } else {
             logIgnored("cancel-by-buyer", order, result);
         }
         return OrderDetail.from(order, deliveries, sellerNamesOf(List.of(order)));
-    }
-
-    private static boolean isShipped(Delivery delivery) {
-        return delivery.getStatus() == Delivery.Status.SHIPPING || delivery.getStatus() == Delivery.Status.DELIVERED;
     }
 
     @Transactional(readOnly = true)
@@ -427,7 +425,7 @@ public class OrderService {
     }
 
     private OrderDetail detailOf(Long orderId, Order order) {
-        return OrderDetail.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId),
+        return OrderDetail.from(order, deliveryApi.findByOrder(orderId),
             sellerNamesOf(List.of(order)));
     }
 
@@ -438,7 +436,7 @@ public class OrderService {
     public OrderTimeline getTimeline(Long memberId, Long orderId) {
         Order order = orderRepository.findWithItemsByIdAndMemberId(orderId, memberId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-        return OrderTimeline.from(order, deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId),
+        return OrderTimeline.from(order, deliveryApi.findByOrder(orderId),
             sellerNamesOf(List.of(order)));
     }
 

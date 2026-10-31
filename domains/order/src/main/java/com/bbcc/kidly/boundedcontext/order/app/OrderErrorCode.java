@@ -7,7 +7,7 @@ import lombok.experimental.Accessors;
 import org.springframework.http.HttpStatus;
 
 /**
- * 주문 모듈(주문 · 장바구니 · 배송) 오류. detail은 받는 쪽이 다음에 할 일을 알 수 있게 쓴다(행동이 다르면 코드를 나눈다).
+ * 주문 컨텍스트 오류(장바구니 · 배송은 각자 CartErrorCode · DeliveryErrorCode, #617). detail은 받는 쪽이 다음에 할 일을 알 수 있게 쓴다(행동이 다르면 코드를 나눈다).
  */
 @Getter
 @Accessors(fluent = true)
@@ -26,18 +26,10 @@ public enum OrderErrorCode implements ErrorCode {
     CHILD_NOT_ORDERABLE(HttpStatus.CONFLICT, "선택할 수 없는 자녀입니다",
         "삭제됐거나 내 자녀가 아닌 자녀입니다. 자녀를 다시 선택해 주세요."),
     NOT_DELIVERED(HttpStatus.CONFLICT, "배송 완료 전입니다", "배송이 완료된 뒤 구매확정할 수 있습니다."),
-    ALREADY_SHIPPED(HttpStatus.CONFLICT, "이미 발송된 주문입니다", "이미 발송된 주문입니다. 판매 주문 목록을 새로고침해 주세요."),
-    NOT_SHIPPED(HttpStatus.CONFLICT, "발송 전입니다", "발송 처리를 먼저 해 주세요."),
     PRODUCT_OPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "상품 옵션을 찾을 수 없습니다",
         "없는 상품 옵션입니다. 상품 화면에서 옵션을 다시 골라 주세요."),
     CHILD_NOT_FOUND(HttpStatus.NOT_FOUND, "자녀를 찾을 수 없습니다", "없는 자녀입니다. 자녀를 다시 선택해 주세요."),
-    CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "장바구니 상품을 찾을 수 없습니다",
-        "이미 장바구니에서 빠진 상품입니다. 장바구니를 새로고침해 주세요."),
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다", "없는 주문입니다. 주문 목록에서 다시 선택해 주세요."),
-    DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "판매 주문을 찾을 수 없습니다",
-        "없는 판매 주문입니다. 판매 주문 목록을 새로고침해 주세요."),
-    INVALID_CARRIER(HttpStatus.BAD_REQUEST, "지원하지 않는 택배사입니다",
-        "지원하는 택배사는 CJ · EPOST · HANJIN · LOTTE · LOGEN입니다."),
     ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "주문상품을 찾을 수 없습니다", "없는 주문상품입니다. 주문 상세를 새로고침해 주세요."),
     INVALID_IDEMPOTENCY_KEY(HttpStatus.BAD_REQUEST, "잘못된 요청 키입니다", "주문서를 다시 열어 주문해 주세요."),
     IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT, "이미 다른 주문에 쓴 요청입니다", "주문서를 다시 열어 주문해 주세요."),
@@ -73,8 +65,7 @@ public enum OrderErrorCode implements ErrorCode {
         "kind는 STOCK_CHECK_STALE · PAYMENT_EXPIRY_MISSED · PAID_WITHOUT_DELIVERY · RECOVERY_PENDING_STALE · "
             + "SHIPPING_DELAYED · AUTO_CONFIRM_MISSED · OUTBOX_STUCK 중 하나를 대문자 그대로 보내 주세요."),
     CANCEL_NOT_ALLOWED_SHIPPED(HttpStatus.CONFLICT, "이미 발송된 상품이 있습니다",
-        "판매자가 발송을 시작해 취소할 수 없습니다. 판매자에게 문의해 주세요."),
-    DELIVERY_CANCELLED(HttpStatus.CONFLICT, "구매자가 취소한 주문입니다", "구매자가 취소한 주문입니다. 발송하지 마세요.");
+        "판매자가 발송을 시작해 취소할 수 없습니다. 판매자에게 문의해 주세요.");
 
     private final HttpStatus status;
     private final String title;

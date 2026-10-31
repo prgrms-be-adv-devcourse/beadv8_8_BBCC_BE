@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.order.dto;
 
-import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryView;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.time.LocalDateTime;
@@ -76,7 +76,7 @@ public record OrderTimeline(
      * @param deliveries 주문의 배송 건(ID 오름차순). 결제 전이거나 배송 건 생성 이벤트를 놓쳤으면 비어 있거나 일부만 있다
      * @param sellerNames 판매자 ID별 지금 상호명. 없는 판매자는 null로 둔다
      */
-    public static OrderTimeline from(Order order, List<Delivery> deliveries, Map<Long, String> sellerNames) {
+    public static OrderTimeline from(Order order, List<DeliveryView> deliveries, Map<Long, String> sellerNames) {
         boolean cancelled = order.getStatus() == Order.Status.CANCELLED;
         List<Step> steps = new ArrayList<>();
         steps.add(done(StepName.CREATED, order.getCreatedAt()));
@@ -104,9 +104,9 @@ public record OrderTimeline(
                 .distinct()
                 .count();
             steps.add(deliveryStep(StepName.SHIPPED,
-                deliveryDetails(deliveries, sellerNames, Delivery::getShippedAt), sellerCount));
+                deliveryDetails(deliveries, sellerNames, DeliveryView::shippedAt), sellerCount));
             steps.add(deliveryStep(StepName.DELIVERED,
-                deliveryDetails(deliveries, sellerNames, Delivery::getDeliveredAt), sellerCount));
+                deliveryDetails(deliveries, sellerNames, DeliveryView::deliveredAt), sellerCount));
             steps.add(confirmedStep(order.getItems().stream().map(OrderTimeline::itemDetail).toList()));
         }
         return new OrderTimeline(
@@ -125,18 +125,18 @@ public record OrderTimeline(
         return simple(StepName.PAYMENT_REQUESTED, cancelled ? StepStatus.NOT_APPLICABLE : StepStatus.WAITING);
     }
 
-    private static List<DeliveryDetail> deliveryDetails(List<Delivery> deliveries, Map<Long, String> sellerNames,
-        Function<Delivery, LocalDateTime> doneAt) {
+    private static List<DeliveryDetail> deliveryDetails(List<DeliveryView> deliveries, Map<Long, String> sellerNames,
+        Function<DeliveryView, LocalDateTime> doneAt) {
         return deliveries.stream()
-            .map(delivery -> new DeliveryDetail(delivery.getId(), delivery.getSellerId(),
-                sellerNames.get(delivery.getSellerId()), statusOf(doneAt.apply(delivery)), doneAt.apply(delivery)))
+            .map(delivery -> new DeliveryDetail(delivery.deliveryId(), delivery.sellerId(),
+                sellerNames.get(delivery.sellerId()), statusOf(doneAt.apply(delivery)), doneAt.apply(delivery)))
             .toList();
     }
 
-    private static List<DeliveryDetail> notApplicable(List<Delivery> deliveries, Map<Long, String> sellerNames) {
+    private static List<DeliveryDetail> notApplicable(List<DeliveryView> deliveries, Map<Long, String> sellerNames) {
         return deliveries.stream()
-            .map(delivery -> new DeliveryDetail(delivery.getId(), delivery.getSellerId(),
-                sellerNames.get(delivery.getSellerId()), StepStatus.NOT_APPLICABLE, null))
+            .map(delivery -> new DeliveryDetail(delivery.deliveryId(), delivery.sellerId(),
+                sellerNames.get(delivery.sellerId()), StepStatus.NOT_APPLICABLE, null))
             .toList();
     }
 

@@ -12,12 +12,16 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.CompositeArchRule;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 주문 모듈 안의 계층 규칙(로우레벨 설계 3절).
- * 모듈 사이 규칙과 in → out 금지는 {@link ArchitectureTest}가 검사한다.
+ * 주문 모듈 안의 계층 규칙(로우레벨 설계 3절). 주문 모듈의 세 컨텍스트(order · cart · delivery, #617)에 같이 건다.
+ * 컨텍스트 사이 규칙은 주문 모듈의 OrderContextArchitectureTest, 모듈 사이 규칙과 in → out 금지는 {@link ArchitectureTest}가 검사한다.
  *
  * <pre>
  * in ──▶ app ──▶ domain ◀── out
@@ -28,13 +32,17 @@ import org.springframework.web.bind.annotation.RestController;
     importOptions = {ImportOption.DoNotIncludeTests.class, DoNotIncludeTestFixtures.class})
 class OrderArchitectureTest {
 
-    private static final String ORDER = "com.bbcc.kidly.boundedcontext.order";
-    private static final String DOMAIN = ORDER + ".domain..";
-    private static final String APP = ORDER + ".app..";
-    private static final String PORT = ORDER + ".app.port..";
-    private static final String IN = ORDER + ".in..";
-    private static final String EVENT = ORDER + ".in.event..";
-    private static final String OUT = ORDER + ".out..";
+    private static final String BASE = "com.bbcc.kidly.boundedcontext.";
+    private static final List<String> CONTEXTS = List.of("order", "cart", "delivery");
+    private static final String[] MODULE = packages("..");
+    private static final String[] DOMAIN = packages(".domain..");
+    private static final String[] APP = packages(".app..");
+    private static final String[] PORT = packages(".app.port..");
+    private static final String[] IN = packages(".in..");
+    private static final String[] WEB = packages(".in.web..");
+    private static final String[] EVENT = packages(".in.event..");
+    private static final String[] SCHEDULER = packages(".in.scheduler..");
+    private static final String[] OUT = packages(".out..");
     private static final String SHARED_PRODUCT = "com.bbcc.kidly.shared.product..";
     private static final String SHARED_CHILDPROFILE = "com.bbcc.kidly.shared.childprofile..";
 
@@ -43,7 +51,7 @@ class OrderArchitectureTest {
      */
     @ArchTest
     static final ArchRule DOMAIN_DOES_NOT_USE_SPRING = noClasses()
-        .that().resideInAPackage(DOMAIN)
+        .that().resideInAnyPackage(DOMAIN)
         .should().dependOnClassesThat().resideInAPackage("org.springframework..")
         .allowEmptyShould(true);
 
@@ -53,7 +61,7 @@ class OrderArchitectureTest {
      */
     @ArchTest
     static final ArchRule DOMAIN_DOES_NOT_USE_GLOBAL = noClasses()
-        .that().resideInAPackage(DOMAIN)
+        .that().resideInAnyPackage(DOMAIN)
         .should().dependOnClassesThat().resideInAPackage("com.bbcc.kidly.global..")
         .allowEmptyShould(true);
 
@@ -62,7 +70,7 @@ class OrderArchitectureTest {
      */
     @ArchTest
     static final ArchRule DOMAIN_HAS_NO_INTERFACES = noClasses()
-        .that().resideInAPackage(DOMAIN)
+        .that().resideInAnyPackage(DOMAIN)
         .and().doNotHaveSimpleName("package-info")
         .should().beInterfaces()
         .allowEmptyShould(true);
@@ -71,19 +79,21 @@ class OrderArchitectureTest {
      * 애그리거트 패키지(domain.order · cart · delivery · replica)끼리는 의존하지 않고, domain 바로 아래 공통 값에만 의존한다.
      */
     @ArchTest
-    static final ArchRule DOMAIN_AGGREGATES_DO_NOT_DEPEND_ON_EACH_OTHER = slices()
-        .matching(ORDER + ".domain.(*)..")
-        .should().notDependOnEachOther()
-        .allowEmptyShould(true);
+    static final ArchRule DOMAIN_AGGREGATES_DO_NOT_DEPEND_ON_EACH_OTHER = CompositeArchRule.of(CONTEXTS.stream()
+        .map(context -> slices()
+            .matching(BASE + context + ".domain.(*)..")
+            .should().notDependOnEachOther()
+            .allowEmptyShould(true))
+        .toList());
 
     /**
      * 컨트롤러는 in.web 아래에만 둔다.
      */
     @ArchTest
     static final ArchRule CONTROLLERS_LIVE_IN_WEB = classes()
-        .that().resideInAPackage(ORDER + "..")
+        .that().resideInAnyPackage(MODULE)
         .and().areAnnotatedWith(RestController.class)
-        .should().resideInAPackage(ORDER + ".in.web..")
+        .should().resideInAnyPackage(WEB)
         .allowEmptyShould(true);
 
     /**
@@ -92,8 +102,8 @@ class OrderArchitectureTest {
     @ArchTest
     static final ArchRule EVENT_LISTENERS_LIVE_IN_EVENT = methods()
         .that().areAnnotatedWith(DomainEventListener.class)
-        .and().areDeclaredInClassesThat().resideInAPackage(ORDER + "..")
-        .should().beDeclaredInClassesThat().resideInAPackage(EVENT)
+        .and().areDeclaredInClassesThat().resideInAnyPackage(MODULE)
+        .should().beDeclaredInClassesThat().resideInAnyPackage(EVENT)
         .allowEmptyShould(true);
 
     /**
@@ -101,8 +111,8 @@ class OrderArchitectureTest {
      */
     @ArchTest
     static final ArchRule ONLY_REPLICA_LISTENERS_KNOW_OTHER_DOMAIN_EVENTS = noClasses()
-        .that().resideInAPackage(ORDER + "..")
-        .and().resideOutsideOfPackage(EVENT)
+        .that().resideInAnyPackage(MODULE)
+        .and().resideOutsideOfPackages(EVENT)
         .should().dependOnClassesThat().resideInAnyPackage(SHARED_PRODUCT, SHARED_CHILDPROFILE)
         .allowEmptyShould(true);
 
@@ -111,7 +121,7 @@ class OrderArchitectureTest {
      */
     @ArchTest
     static final ArchRule ORDER_DOMAIN_DOES_NOT_USE_OTHER_DOMAIN_CONTRACTS = noClasses()
-        .that().resideInAnyPackage(DOMAIN, APP)
+        .that().resideInAnyPackage(concat(DOMAIN, APP))
         .should().dependOnClassesThat().resideInAnyPackage(SHARED_PRODUCT, SHARED_CHILDPROFILE)
         .allowEmptyShould(true);
 
@@ -121,24 +131,26 @@ class OrderArchitectureTest {
     @ArchTest
     static final ArchRule SCHEDULERS_LIVE_IN_SCHEDULER = methods()
         .that().areAnnotatedWith(Scheduled.class)
-        .and().areDeclaredInClassesThat().resideInAPackage(ORDER + "..")
-        .should().beDeclaredInClassesThat().resideInAPackage(ORDER + ".in.scheduler..")
+        .and().areDeclaredInClassesThat().resideInAnyPackage(MODULE)
+        .should().beDeclaredInClassesThat().resideInAnyPackage(SCHEDULER)
         .allowEmptyShould(true);
 
     /**
      * 기능 패키지(app.cart · replica …)끼리는 의존하지 않는다. 출력 포트(app.port)는 기능이 아니라 모든 기능이 쓴다.
      */
     @ArchTest
-    static final ArchRule APP_FEATURES_DO_NOT_DEPEND_ON_EACH_OTHER = slices()
-        .matching(ORDER + ".app.(*)..")
-        .should().notDependOnEachOther()
-        .ignoreDependency(alwaysTrue(), resideInAPackage(PORT))
-        .allowEmptyShould(true);
+    static final ArchRule APP_FEATURES_DO_NOT_DEPEND_ON_EACH_OTHER = CompositeArchRule.of(CONTEXTS.stream()
+        .map(context -> slices()
+            .matching(BASE + context + ".app.(*)..")
+            .should().notDependOnEachOther()
+            .ignoreDependency(alwaysTrue(), resideInAPackage(BASE + context + ".app.port.."))
+            .allowEmptyShould(true))
+        .toList());
 
     @ArchTest
     static final ArchRule APP_DOES_NOT_USE_IN_OR_OUT = noClasses()
-        .that().resideInAPackage(APP)
-        .should().dependOnClassesThat().resideInAnyPackage(IN, OUT)
+        .that().resideInAnyPackage(APP)
+        .should().dependOnClassesThat().resideInAnyPackage(concat(IN, OUT))
         .allowEmptyShould(true);
 
     /**
@@ -146,14 +158,14 @@ class OrderArchitectureTest {
      */
     @ArchTest
     static final ArchRule APP_DOES_NOT_USE_JPA_IMPLEMENTATION = noClasses()
-        .that().resideInAPackage(APP)
+        .that().resideInAnyPackage(APP)
         .should().dependOnClassesThat().resideInAnyPackage("org.springframework.data.jpa..", "org.hibernate..")
         .allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule OUT_DOES_NOT_USE_IN = noClasses()
-        .that().resideInAPackage(OUT)
-        .should().dependOnClassesThat().resideInAPackage(IN)
+        .that().resideInAnyPackage(OUT)
+        .should().dependOnClassesThat().resideInAnyPackage(IN)
         .allowEmptyShould(true);
 
     /**
@@ -161,17 +173,25 @@ class OrderArchitectureTest {
      */
     @ArchTest
     static final ArchRule PORTS_ARE_INTERFACES = classes()
-        .that().resideInAPackage(PORT)
+        .that().resideInAnyPackage(PORT)
         .and().doNotHaveSimpleName("package-info")
         .should().beInterfaces()
         .allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule APP_INTERFACES_LIVE_IN_PORT = classes()
-        .that().resideInAPackage(APP)
+        .that().resideInAnyPackage(APP)
         .and().areInterfaces()
         .and().areNotAnnotations()
         .and().doNotHaveSimpleName("package-info")
-        .should().resideInAPackage(PORT)
+        .should().resideInAnyPackage(PORT)
         .allowEmptyShould(true);
+
+    private static String[] packages(String suffix) {
+        return CONTEXTS.stream().map(context -> BASE + context + suffix).toArray(String[]::new);
+    }
+
+    private static String[] concat(String[] first, String[] second) {
+        return Stream.concat(Arrays.stream(first), Arrays.stream(second)).toArray(String[]::new);
+    }
 }

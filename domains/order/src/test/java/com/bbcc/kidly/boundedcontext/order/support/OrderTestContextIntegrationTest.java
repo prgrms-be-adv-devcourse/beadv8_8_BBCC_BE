@@ -20,6 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @IntegrationTest
 class OrderTestContextIntegrationTest {
 
+    // 주문 모듈 = 주문 · 장바구니 · 배송 컨텍스트(#617)
     private static final String DOMAINS = "com.bbcc.kidly.boundedcontext.";
 
     @Autowired
@@ -49,7 +50,8 @@ class OrderTestContextIntegrationTest {
             .map(name -> context.getType(name))
             .filter(Objects::nonNull)
             .map(Class::getName)
-            .filter(type -> type.startsWith(DOMAINS) && !type.startsWith(DOMAINS + "order."))
+            .filter(type -> type.startsWith(DOMAINS) && !type.startsWith(DOMAINS + "order.")
+                && !type.startsWith(DOMAINS + "cart.") && !type.startsWith(DOMAINS + "delivery."))
             .toList();
 
         assertThat(otherDomains).isEmpty();
