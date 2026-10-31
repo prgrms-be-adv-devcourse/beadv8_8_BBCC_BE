@@ -9,7 +9,8 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.Step;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.StepName;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.StepStatus;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
-import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryView;
+import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.lang.reflect.Field;
@@ -45,7 +46,7 @@ class OrderTimelineTest {
         void beforePaymentRequest() {
             Order order = placed();
 
-            OrderTimeline timeline = OrderTimeline.from(order, List.of(), SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(List.of()), SELLER_NAMES);
 
             assertThat(timeline.orderId()).isEqualTo(ORDER_ID);
             assertThat(timeline.status()).isEqualTo("PENDING_PAYMENT");
@@ -74,7 +75,7 @@ class OrderTimelineTest {
             Order order = placed();
             order.requestPayment(ORDERED_AT.plusSeconds(1));
 
-            OrderTimeline timeline = OrderTimeline.from(order, List.of(), SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(List.of()), SELLER_NAMES);
 
             assertStep(timeline, StepName.PAYMENT_REQUESTED, StepStatus.DONE, ORDERED_AT.plusSeconds(1));
             assertStep(timeline, StepName.PAID, StepStatus.WAITING, null);
@@ -93,7 +94,7 @@ class OrderTimelineTest {
             Order order = paid();
             List<Delivery> deliveries = deliveries();
 
-            OrderTimeline timeline = OrderTimeline.from(order, deliveries, SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(deliveries), SELLER_NAMES);
 
             assertThat(timeline.status()).isEqualTo("PAID");
             assertThat(timeline.paymentDueAt()).isNull();
@@ -114,7 +115,7 @@ class OrderTimelineTest {
             List<Delivery> deliveries = deliveries();
             deliveries.get(0).ship(Delivery.Carrier.CJ, "1234", ORDERED_AT.plusHours(2));
 
-            OrderTimeline timeline = OrderTimeline.from(order, deliveries, SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(deliveries), SELLER_NAMES);
 
             assertStep(timeline, StepName.SHIPPED, StepStatus.PARTIAL, null);
             assertThat(step(timeline, StepName.SHIPPED).deliveries()).containsExactly(
@@ -132,7 +133,7 @@ class OrderTimelineTest {
             shipAndDeliver(order, deliveries.get(0), ORDERED_AT.plusHours(3), ORDERED_AT.plusDays(1));
             shipAndDeliver(order, deliveries.get(1), ORDERED_AT.plusHours(2), ORDERED_AT.plusDays(2));
 
-            OrderTimeline timeline = OrderTimeline.from(order, deliveries, SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(deliveries), SELLER_NAMES);
 
             assertStep(timeline, StepName.SHIPPED, StepStatus.DONE, ORDERED_AT.plusHours(3));
             assertStep(timeline, StepName.DELIVERED, StepStatus.DONE, ORDERED_AT.plusDays(2));
@@ -152,7 +153,7 @@ class OrderTimelineTest {
             shipAndDeliver(order, deliveries.get(1), ORDERED_AT.plusHours(2), ORDERED_AT.plusDays(2));
             order.confirmItem(41L, ORDERED_AT.plusDays(3));
 
-            OrderTimeline timeline = OrderTimeline.from(order, deliveries, SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(deliveries), SELLER_NAMES);
 
             assertStep(timeline, StepName.CONFIRMED, StepStatus.PARTIAL, null);
             assertThat(step(timeline, StepName.CONFIRMED).items()).containsExactly(
@@ -171,7 +172,7 @@ class OrderTimelineTest {
             order.confirmItem(41L, ORDERED_AT.plusDays(3));
             order.autoConfirmItem(42L, POLICY, ORDERED_AT.plusDays(17));
 
-            OrderTimeline timeline = OrderTimeline.from(order, deliveries, SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(deliveries), SELLER_NAMES);
 
             assertStep(timeline, StepName.CONFIRMED, StepStatus.DONE, ORDERED_AT.plusDays(17));
             assertThat(step(timeline, StepName.CONFIRMED).items()).containsExactly(
@@ -192,7 +193,7 @@ class OrderTimelineTest {
             order.cancelForOutOfStock(Map.of(41L, "OUT_OF_STOCK"));
             setTime(order, "updatedAt", ORDERED_AT.plusSeconds(1));
 
-            OrderTimeline timeline = OrderTimeline.from(order, List.of(), SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(List.of()), SELLER_NAMES);
 
             assertThat(timeline.status()).isEqualTo("CANCELLED");
             assertThat(timeline.cancelReason()).isEqualTo("OUT_OF_STOCK");
@@ -224,8 +225,8 @@ class OrderTimelineTest {
             expired.expirePayment(ORDERED_AT.plusMinutes(11));
             setTime(expired, "updatedAt", ORDERED_AT.plusMinutes(11));
 
-            OrderTimeline failedTimeline = OrderTimeline.from(failed, List.of(), SELLER_NAMES);
-            OrderTimeline expiredTimeline = OrderTimeline.from(expired, List.of(), SELLER_NAMES);
+            OrderTimeline failedTimeline = OrderTimeline.from(failed, views(List.of()), SELLER_NAMES);
+            OrderTimeline expiredTimeline = OrderTimeline.from(expired, views(List.of()), SELLER_NAMES);
 
             assertThat(failedTimeline.cancelReason()).isEqualTo("PAYMENT_FAILED");
             assertThat(expiredTimeline.cancelReason()).isEqualTo("PAYMENT_EXPIRED");
@@ -254,7 +255,7 @@ class OrderTimelineTest {
             deliveries.forEach(Delivery::cancel);
             setTime(order, "updatedAt", ORDERED_AT.plusMinutes(30));
 
-            OrderTimeline timeline = OrderTimeline.from(order, deliveries, SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(deliveries), SELLER_NAMES);
 
             assertThat(timeline.status()).isEqualTo("CANCELLED");
             assertThat(timeline.cancelReason()).isEqualTo("BUYER_CANCELLED");
@@ -284,7 +285,7 @@ class OrderTimelineTest {
             Order order = paid();
             order.cancel(Order.CancelReason.BUYER_CANCELLED);
 
-            OrderTimeline timeline = OrderTimeline.from(order, List.of(), SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(List.of()), SELLER_NAMES);
 
             assertStep(timeline, StepName.SHIPPED, StepStatus.NOT_APPLICABLE, null);
             assertNoDetails(step(timeline, StepName.SHIPPED));
@@ -317,7 +318,7 @@ class OrderTimelineTest {
             Delivery onlyA = deliveries().get(0);
             shipAndDeliver(order, onlyA, ORDERED_AT.plusHours(3), ORDERED_AT.plusDays(1));
 
-            OrderTimeline timeline = OrderTimeline.from(order, List.of(onlyA), SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(List.of(onlyA)), SELLER_NAMES);
 
             assertStep(timeline, StepName.SHIPPED, StepStatus.PARTIAL, null);
             assertStep(timeline, StepName.DELIVERED, StepStatus.PARTIAL, null);
@@ -333,7 +334,7 @@ class OrderTimelineTest {
             shipAndDeliver(order, deliveries.get(0), ORDERED_AT.plusHours(3), ORDERED_AT.plusDays(1));
             shipAndDeliver(order, deliveries.get(1), ORDERED_AT.plusHours(3), ORDERED_AT.plusDays(1));
 
-            OrderTimeline timeline = OrderTimeline.from(order, deliveries, SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(deliveries), SELLER_NAMES);
 
             assertStep(timeline, StepName.SHIPPED, StepStatus.DONE, ORDERED_AT.plusHours(3));
             assertStep(timeline, StepName.DELIVERED, StepStatus.DONE, ORDERED_AT.plusDays(1));
@@ -347,7 +348,7 @@ class OrderTimelineTest {
                 new Order.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"), POLICY, ORDERED_AT);
             setField(OrderItem.class, order.getItems().get(0), "id", 41L);
 
-            OrderTimeline timeline = OrderTimeline.from(order, List.of(), SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(List.of()), SELLER_NAMES);
 
             assertThat(step(timeline, StepName.CONFIRMED).items()).containsExactly(
                 new ItemDetail(41L, null, StepStatus.WAITING, null, null));
@@ -361,7 +362,7 @@ class OrderTimelineTest {
             shipAndDeliver(order, onlyA, ORDERED_AT.plusHours(3), ORDERED_AT.plusDays(1));
             setField(OrderItem.class, order.getItems().get(1), "product", null);
 
-            OrderTimeline timeline = OrderTimeline.from(order, List.of(onlyA), SELLER_NAMES);
+            OrderTimeline timeline = OrderTimeline.from(order, views(List.of(onlyA)), SELLER_NAMES);
 
             assertThat(step(timeline, StepName.CONFIRMED).items()).containsExactly(
                 new ItemDetail(41L, "아동 티셔츠", StepStatus.WAITING, null, null),
@@ -372,7 +373,7 @@ class OrderTimelineTest {
         @Test
         @DisplayName("판매자 복사본이 없으면 sellerName은 null")
         void missingSellerName() {
-            OrderTimeline timeline = OrderTimeline.from(paid(), deliveries(), Map.of(SELLER_A, "키들리상점"));
+            OrderTimeline timeline = OrderTimeline.from(paid(), views(deliveries()), Map.of(SELLER_A, "키들리상점"));
 
             assertThat(step(timeline, StepName.SHIPPED).deliveries()).containsExactly(
                 new DeliveryDetail(31L, SELLER_A, "키들리상점", StepStatus.WAITING, null),
@@ -416,6 +417,16 @@ class OrderTimelineTest {
         order.markPaid(500L, BUYER_ID, 55_000L, List.of(
             new Order.PaidItem(41L, 25_000L), new Order.PaidItem(42L, 30_000L)), ORDERED_AT.plusSeconds(2));
         return order;
+    }
+
+    // 주문은 배송을 delivery api 값으로 받는다(#617). 엔티티로 상태를 만든 뒤 그 값으로 바꾼다
+    private static List<DeliveryView> views(List<Delivery> deliveries) {
+        return deliveries.stream()
+            .map(delivery -> new DeliveryView(delivery.getId(), delivery.getOrderId(), delivery.getSellerId(),
+                delivery.getStatus().name(), delivery.getCarrier() == null ? null : delivery.getCarrier().name(),
+                delivery.getTrackingNumber(), delivery.getShippedAt(), delivery.getDeliveredAt(),
+                delivery.getStatus() == Delivery.Status.SHIPPING || delivery.getStatus() == Delivery.Status.DELIVERED))
+            .toList();
     }
 
     private static List<Delivery> deliveries() {

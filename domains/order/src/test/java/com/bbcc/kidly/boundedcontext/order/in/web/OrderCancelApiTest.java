@@ -4,18 +4,18 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
-import static com.bbcc.kidly.boundedcontext.order.in.web.SellerOrderController.SELLER_ORDERS_PATH;
+import static com.bbcc.kidly.boundedcontext.delivery.in.web.SellerOrderController.SELLER_ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
-import com.bbcc.kidly.boundedcontext.order.app.delivery.DeliveryService;
+import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
-import com.bbcc.kidly.boundedcontext.order.app.port.DeliveryRepository;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.delivery.Delivery;
+import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;

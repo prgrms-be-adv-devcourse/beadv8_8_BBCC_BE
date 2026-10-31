@@ -6,6 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
+import com.bbcc.kidly.boundedcontext.order.OrderTestApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -17,7 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Tag("integration")
-@SpringBootTest
+@SpringBootTest(classes = OrderTestApplication.class)
 @Import(OrderTestcontainers.class)
 @ActiveProfiles("test")
 @ExtendWith(OrderDatabaseCleanerExtension.class)

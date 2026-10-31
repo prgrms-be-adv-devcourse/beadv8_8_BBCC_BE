@@ -4,7 +4,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import java.time.LocalDateTime;
 
 /**
- * 상태를 바꾼 주체와 그 요청 · 작업 · 이벤트 이름(#442). 주문 · 배송 · 결제 복구 기능이 함께 쓰므로 app 바로 아래에 둔다.
+ * 상태를 바꾼 주체와 그 요청 · 작업 · 이벤트 이름(#442). 주문 · 결제 복구 기능이 함께 쓰므로 app 바로 아래에 둔다(배송 컨텍스트는 자기 요청 이름을 주문 api로 넘긴다, #617).
  * source는 관리자가 이력에서 바로 알아볼 수 있게 HTTP 경로 틀(path 변수는 이름 그대로) · 스케줄러 작업 이름 · 받은 이벤트 타입이다.
  *
  * @param id 회원 ID(구매자 · 판매자 · 관리자). 시스템 · 이벤트는 null
@@ -14,8 +14,6 @@ public record OrderActor(OrderStatusHistory.ActorType type, Long id, String sour
     public static final String PLACE = "POST /api/v1/orders";
     public static final String BUYER_CANCEL = "POST /api/v1/orders/{orderId}/cancel";
     public static final String BUYER_CONFIRM = "POST /api/v1/orders/{orderId}/items/{orderItemId}/confirm";
-    public static final String SELLER_SHIP = "POST /api/v1/seller/orders/{sellerOrderId}/ship";
-    public static final String SELLER_DELIVER = "POST /api/v1/seller/orders/{sellerOrderId}/deliver";
     public static final String RECOVERY_RETRY = "POST /api/v1/admin/orders/recoveries/{id}/retry";
     public static final String RECOVERY_CANCEL = "POST /api/v1/admin/orders/recoveries/{id}/cancel";
     public static final String EVENT_FAILURE_RETRY = "POST /api/v1/admin/orders/event-failures/{id}/retry";

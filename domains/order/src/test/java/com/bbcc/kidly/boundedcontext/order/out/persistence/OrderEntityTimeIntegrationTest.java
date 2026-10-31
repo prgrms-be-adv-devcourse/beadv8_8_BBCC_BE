@@ -3,10 +3,10 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.app.port.CartItemRepository;
+import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.cart.CartItem;
+import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
