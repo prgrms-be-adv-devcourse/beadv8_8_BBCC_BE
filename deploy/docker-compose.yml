@@ -1,7 +1,7 @@
 # 서버용. 배포 때 워크플로가 /opt/app/<env>/ 로 올린다 (env 마다 다른 것은 .env 뿐)
 # deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES=search 인 환경(지금은 dev)에서만 뜬다
-# Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(지금은 dev)에서만 뜬다
+# Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging

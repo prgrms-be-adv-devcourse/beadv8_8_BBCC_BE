@@ -160,7 +160,7 @@ Grafana 화면에서 고친 대시보드 · 알림 규칙은 저장되지 않거
 t3.large 의 Alloy 가 이 폴더를 읽어(`discovery.file`) 대상을 바꾸므로 손으로 고칠 것이 없습니다. 수집한 메트릭은 job `kidly` · `env` · `instance`(`127.0.0.1:<포트>`) 라벨로 medium Prometheus 에 들어갑니다. prod 도 첫 배포 때 수집 · 알림이 시작됩니다.
 기동에 실패한 배포는 파일을 바꾸지 않습니다. 이미 있던 환경이면 "앱 다운" 이 그대로 울립니다.
 검색이 켜진 환경(지금은 dev)은 검색 서비스도 `targets/search/<환경>.yml` 에 `127.0.0.1:<SEARCH_PORT>` 로 써 둡니다. 앱 대시보드 · 알림과 섞이지 않게 job 을 `kidly-search` 로 나눠서, 앱 알림(job `kidly`)은 검색 서비스를 보지 않습니다.
-Gateway 가 켜진 환경(지금은 dev)도 같은 식으로 `targets/gateway/<환경>.yml` 에 `127.0.0.1:<GATEWAY_PORT>` 를 써 두고, job 은 `kidly-gateway` 입니다. 모든 요청이 지나가므로 "앱 다운" · "ERROR 로그" 알림은 Gateway 도 봅니다. "5xx 증가" 와 "수집 끊김" 은 앱(job `kidly`)만 봅니다(Gateway 는 앱의 5xx 를 그대로 넘겨 두 번 세게 되고, Alloy 가 끊기면 앱도 함께 끊긴다).
+Gateway 가 켜진 환경(dev · prod)도 같은 식으로 `targets/gateway/<환경>.yml` 에 `127.0.0.1:<GATEWAY_PORT>` 를 써 두고, job 은 `kidly-gateway` 입니다. 모든 요청이 지나가므로 "앱 다운" · "ERROR 로그" 알림은 Gateway 도 봅니다. "5xx 증가" 와 "수집 끊김" 은 앱(job `kidly`)만 봅니다(Gateway 는 앱의 5xx 를 그대로 넘겨 두 번 세게 되고, Alloy 가 끊기면 앱도 함께 끊긴다).
 로그는 Alloy 가 앱 · 검색 서비스 · Gateway 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 medium 의 Pod 로그는 `namespace` · `pod` · `container` · `service_name`(컨테이너 이름) 라벨로 들어갑니다(`env` 없음).
 
