@@ -104,7 +104,6 @@ class OrderOutboxRelayLogContextTest {
     }
 
     private void givenUnsent(OrderOutboxMessage... messages) {
-        when(outboxRepository.tryLockRelay()).thenReturn(true);
         when(outboxRepository.findBySentAtIsNullOrderByIdAsc(any())).thenReturn(List.of(messages));
     }
 

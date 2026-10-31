@@ -7,7 +7,6 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
@@ -54,18 +53,6 @@ class OrderOutboxRelayServiceTest {
     @Nested
     @DisplayName("릴레이")
     class Relay {
-
-        @Test
-        @DisplayName("잠금을 얻지 못하면(다른 릴레이가 도는 중) 읽지도 보내지도 않는다")
-        void skipsWhenLocked() {
-            when(outboxRepository.tryLockRelay()).thenReturn(false);
-
-            OutboxRelayResult result = relayService.relay();
-
-            assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.LOCKED, 0, 0));
-            verify(outboxRepository, never()).findBySentAtIsNullOrderByIdAsc(any());
-            verifyNoInteractions(sender);
-        }
 
         @Test
         @DisplayName("안 보낸 메시지를 batch-size만큼 읽어 id 순서대로 보내고, 보낼 때마다 보낸 시각을 기록한다")
@@ -142,7 +129,6 @@ class OrderOutboxRelayServiceTest {
     }
 
     private void givenUnsent(OrderOutboxMessage... messages) {
-        when(outboxRepository.tryLockRelay()).thenReturn(true);
         when(outboxRepository.findBySentAtIsNullOrderByIdAsc(any())).thenAnswer(invocation ->
             List.of(messages).stream().filter(message -> message.getSentAt() == null).toList());
     }

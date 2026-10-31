@@ -2,11 +2,14 @@ package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
+import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,10 +29,26 @@ class OrderOutboxRelaySchedulerTest {
 
     private OrderOutboxRelayScheduler scheduler;
 
+    private ImmediateJobRunner jobRunner = new ImmediateJobRunner();
+
+    @Test
+    @DisplayName("한 서버에서만(#564): 작업 이름은 outbox-relay, 다른 서버가 돌고 있으면(잠금 못 잡음) 아무것도 하지 않는다")
+    void singleServer() {
+        when(relayService.relay()).thenReturn(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 0, 0));
+        scheduler.relay();
+        assertThat(jobRunner.jobNames()).containsExactly("outbox-relay");
+
+        jobRunner = ImmediateJobRunner.declining();
+        setUp();
+        scheduler.relay();
+
+        verify(relayService, times(1)).relay();
+    }
+
     @BeforeEach
     void setUp() {
         scheduler = new OrderOutboxRelayScheduler(relayService,
-            new OrderOutboxProperties(Duration.ofSeconds(1), 100, Duration.ofDays(7)));
+            new OrderOutboxProperties(Duration.ofSeconds(1), 100, Duration.ofDays(7)), jobRunner);
     }
 
     @Test

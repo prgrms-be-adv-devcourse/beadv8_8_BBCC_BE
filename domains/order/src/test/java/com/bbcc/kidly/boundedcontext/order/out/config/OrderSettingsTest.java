@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
+import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
@@ -281,7 +282,8 @@ class OrderSettingsTest {
         @Bean
         OrderScheduler orderScheduler(OrderService orderService, OrderSchedulerProperties properties,
             OrderScheduleIntervals intervals) {
-            return new OrderScheduler(orderService, properties, intervals, mock(PaymentExpiryGate.class));
+            return new OrderScheduler(orderService, properties, intervals, mock(PaymentExpiryGate.class),
+                new ImmediateJobRunner());
         }
     }
 

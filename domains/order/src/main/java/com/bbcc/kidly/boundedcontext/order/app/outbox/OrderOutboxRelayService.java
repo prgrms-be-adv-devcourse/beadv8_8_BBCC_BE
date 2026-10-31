@@ -31,15 +31,13 @@ public class OrderOutboxRelayService {
     private final OrderOutboxProperties properties;
 
     /**
-     * 한 트랜잭션에서 릴레이 잠금을 얻고 안 보낸 메시지를 id 순서로 batch-size건 보낸다. 잠금을 못 얻으면 아무것도 하지 않는다.
-     * 보낸 시각 · 실패 기록 · 잠금 해제가 커밋 한 번에 함께 된다. 보내다 실패하면 그 메시지에 실패를 기록하고 멈춰
+     * 한 트랜잭션에서 안 보낸 메시지를 id 순서로 batch-size건 보낸다. 한 번에 한 서버에서만 도는 것은 스케줄러가 맡는다
+     * (SingleServerJobRunner, #564).
+     * 보낸 시각 · 실패 기록이 커밋 한 번에 함께 된다. 보내다 실패하면 그 메시지에 실패를 기록하고 멈춰
      * 다음 실행이 같은 메시지부터 다시 보낸다(순서 유지). 보낸 뒤 커밋 전에 멈추면 다음 실행이 다시 보낸다(받는 쪽은 eventId로 거른다).
      */
     @Transactional
     public OutboxRelayResult relay() {
-        if (!outboxRepository.tryLockRelay()) {
-            return new OutboxRelayResult(OutboxRelayResult.Outcome.LOCKED, 0, 0);
-        }
         List<OrderOutboxMessage> unsent = outboxRepository.findBySentAtIsNullOrderByIdAsc(
             Limit.of(properties.batchSize()));
         int sent = 0;

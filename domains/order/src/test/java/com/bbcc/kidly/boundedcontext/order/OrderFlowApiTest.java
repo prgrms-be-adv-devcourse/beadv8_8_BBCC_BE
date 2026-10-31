@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
+import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
@@ -90,6 +91,9 @@ class OrderFlowApiTest {
     // 결제 이벤트 Kafka 리스너가 없어 만료를 늘 허락한다(#561)
     @Autowired
     private PaymentExpiryGate paymentExpiryGate;
+
+    @Autowired
+    private SingleServerJobRunner jobRunner;
 
     @Autowired
     private Order.Policy orderPolicy;
@@ -380,7 +384,8 @@ class OrderFlowApiTest {
      * 시연처럼 짧게: 한 번 조회 2건 · 한 실행 상한 10건. 같은 컨텍스트의 실제 서비스로 돌린다.
      */
     private OrderScheduler smallBatchScheduler() {
-        return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate);
+        return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate,
+            jobRunner);
     }
 
     @Test
