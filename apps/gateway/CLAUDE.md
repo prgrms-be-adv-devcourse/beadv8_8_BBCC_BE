@@ -26,9 +26,10 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 라우트 추가: `application.yml`의 `routes`에 더한다. 검색처럼 kidly-app이 아닌 서비스의 경로는 `kidly-app` 라우트(`/**`) 위에 둔다(위에서부터 맞춘다)
 
 ## 서버 배포 (`deploy/`)
-- dev만. compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(`GATEWAY_PORT`), compose 네트워크로 `http://app:8080`에 넘긴다
+- dev · prod(#638). compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(dev) · `127.0.0.1:8084`(prod)(`GATEWAY_PORT`), compose 네트워크로 `http://app:8080`에 넘긴다
 - dev의 kidly-app · search-service는 gateway 모드(`KIDLY_AUTH_MODE=gateway`, `deploy/.env.dev`)라 JWT를 다시 검증하지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다
-- nginx dev 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(8081)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
+- prod의 kidly-app은 아직 jwt 모드라 Gateway가 검증하고도 서비스가 JWT를 다시 검증한다
+- nginx dev · 운영 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(dev 8081 · prod 8080)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
-## 이번에 안 하는 것
-- prod 배포
+## 로컬 실행
+- `docker compose up -d` 뒤 앱(`:apps:kidly-app:bootRun`)과 Gateway(`:apps:gateway:bootRun`, 8083)를 루트에서 띄운다. IDE는 `Kidly 앱 + Gateway` 실행 구성. 프론트 · Swagger는 8083으로 붙는다
