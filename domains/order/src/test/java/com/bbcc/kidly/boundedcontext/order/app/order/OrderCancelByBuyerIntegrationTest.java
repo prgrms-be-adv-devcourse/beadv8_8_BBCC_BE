@@ -240,7 +240,8 @@ class OrderCancelByBuyerIntegrationTest {
     }
 
     @Test
-    @DisplayName("결제 반영 실패 기록이 재처리 대기인 주문을 구매자가 취소하면 200, 그 뒤 관리자 재처리는 기록만 CANCELLED로 닫는다(이벤트 1 그대로)")
+    @DisplayName("결제 반영 실패 기록이 재처리 대기인 주문을 구매자가 취소하면 200, 기록은 그때 닫히고(ORDER_CANCELLED, #598) "
+        + "그 뒤 관리자 재처리는 409(이벤트 1 그대로 — 결제 쪽 환불)")
     void buyerCancelThenAdminRetry() {
         Long buyerId = 8_000L;
         Long orderId = place(buyerId, true);
@@ -249,7 +250,13 @@ class OrderCancelByBuyerIntegrationTest {
         assertThat(orderService.cancelByBuyer(buyerId, orderId).status()).isEqualTo("CANCELLED");
         assertThat(cancelledEvents(orderId)).isEqualTo(1);
 
-        assertThat(recoveryRetry.retry(recoveryId, ADMIN_ID).status()).isEqualTo("CANCELLED");
+        assertThat(recoveryRepository.findById(recoveryId).orElseThrow()).satisfies(recovery -> {
+            assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.CANCELLED);
+            assertThat(recovery.getFailureCode()).isEqualTo("ORDER_CANCELLED");
+        });
+        assertThatThrownBy(() -> recoveryRetry.retry(recoveryId, ADMIN_ID))
+            .isInstanceOfSatisfying(BusinessException.class,
+                error -> assertThat(error.getErrorCode()).isEqualTo(OrderErrorCode.RECOVERY_CLOSED));
 
         Order order = orderRepository.findById(orderId).orElseThrow();
         assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);

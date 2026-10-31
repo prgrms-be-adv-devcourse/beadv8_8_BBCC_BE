@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -139,8 +141,8 @@ class OrderEventFailureServiceTest {
 
             service.recover(FAILURE_ID, ADMIN_ID);
 
-            verify(orderService).cancelForStockDeductionFailure(new StockDeductionFailedCommand(ORDER_ID, List.of(
-                new StockDeductionFailedCommand.Item(41L, "OUT_OF_STOCK"))), ADMIN);
+            verify(orderService).cancelForStockDeductionFailure(eq(new StockDeductionFailedCommand(ORDER_ID, List.of(
+                new StockDeductionFailedCommand.Item(41L, "OUT_OF_STOCK")))), eq(ADMIN), eventFailureRecord());
         }
 
         @Test
@@ -151,7 +153,7 @@ class OrderEventFailureServiceTest {
 
             service.recover(FAILURE_ID, ADMIN_ID);
 
-            verify(orderService).cancelForPaymentFailure(ORDER_ID, ADMIN);
+            verify(orderService).cancelForPaymentFailure(eq(ORDER_ID), eq(ADMIN), eventFailureRecord());
         }
 
         @Test
@@ -302,5 +304,10 @@ class OrderEventFailureServiceTest {
                 1L, 1L, 2L, "상품 A", null, "110", 25_000L, 1L), true, null, 1, 25_000L)),
             new Order.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"), POLICY,
             LocalDateTime.now());
+    }
+
+    // 재처리가 다루는 자기 기록(#598): 주문 취소가 대기 기록을 닫을 때 빼도록 넘긴다
+    private static WaitingRecord eventFailureRecord() {
+        return argThat(record -> record.kind() == WaitingRecord.Kind.EVENT_FAILURE);
     }
 }

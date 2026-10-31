@@ -77,6 +77,7 @@ public class OrderService {
     private final EventPublisher eventPublisher;
     private final OrderEventOutbox outbox;
     private final Order.Policy orderPolicy;
+    private final WaitingRecordCloser waitingRecordCloser;
 
     /**
      * 복사본이 없는 옵션 · 자녀는 여기서 404. 나머지 검사(빈 항목 · 중복 · 수량 · 가격 · 판매 중 · 자기 상품 · 자녀)는
@@ -264,14 +265,17 @@ public class OrderService {
      * 결제 실패로 취소한다. 결제대기가 아니면 그대로 둔다.
      */
     public void cancelForPaymentFailure(Long orderId) {
-        cancelForPaymentFailure(orderId, OrderActor.event(OrderActor.PAYMENT_FAILED));
+        cancel(orderId, "payment.failed", OrderActor.event(OrderActor.PAYMENT_FAILED), null,
+            order -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
     }
 
     /**
-     * 이벤트가 아닌 주체(관리자 결제 반영 취소)가 결제 실패 사유로 취소한다. 상태 이력에 그 주체를 남긴다(#442).
+     * 이벤트가 아닌 주체(관리자 결제 반영 취소 · 이벤트 처리 실패 재처리)가 결제 실패 사유로 취소한다. 상태 이력에 그 주체를 남긴다(#442).
+     *
+     * @param handled 그 주체가 지금 다루는 재처리 대기 기록. 주문 취소가 대기 기록을 닫을 때 빼고 그 주체가 결과를 정한다(#598)
      */
-    public void cancelForPaymentFailure(Long orderId, OrderActor actor) {
-        cancel(orderId, "payment.failed", actor, order -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
+    public void cancelForPaymentFailure(Long orderId, OrderActor actor, WaitingRecord handled) {
+        cancel(orderId, "payment.failed", actor, handled, order -> order.cancel(Order.CancelReason.PAYMENT_FAILED));
     }
 
     /**
@@ -279,17 +283,20 @@ public class OrderService {
      * 주문에 없는 주문상품 ID는 주문이 무시하므로 여기서 WARN만 남긴다.
      */
     public void cancelForStockDeductionFailure(StockDeductionFailedCommand command) {
-        cancelForStockDeductionFailure(command, OrderActor.event(OrderActor.STOCK_DEDUCTION_FAILED));
+        cancelForStockDeductionFailure(command, OrderActor.event(OrderActor.STOCK_DEDUCTION_FAILED), null);
     }
 
     /**
      * 이벤트가 아닌 주체(관리자 이벤트 처리 실패 재처리, #449)가 재고 차감 실패로 취소한다. 상태 이력에 그 주체를 남긴다.
+     *
+     * @param handled 그 주체가 지금 다루는 재처리 대기 기록(없으면 null). 주문 취소가 대기 기록을 닫을 때 뺀다(#598)
      */
-    public void cancelForStockDeductionFailure(StockDeductionFailedCommand command, OrderActor actor) {
+    public void cancelForStockDeductionFailure(StockDeductionFailedCommand command, OrderActor actor,
+        WaitingRecord handled) {
         Map<Long, String> reasons = command.items().stream()
             .collect(Collectors.toMap(StockDeductionFailedCommand.Item::orderItemId,
                 StockDeductionFailedCommand.Item::reason, (first, last) -> last));
-        cancel(command.orderId(), "stock.deduction-failed", actor,
+        cancel(command.orderId(), "stock.deduction-failed", actor, handled,
             order -> {
             warnUnknownOrderItems(command.orderId(), order, reasons);
             return order.cancelForOutOfStock(reasons);
@@ -310,7 +317,7 @@ public class OrderService {
      */
     public void cancelForPaymentExpiry(Long orderId) {
         LocalDateTime now = LocalDateTime.now();
-        cancel(orderId, "payment-expiry", OrderActor.system(OrderActor.PAYMENT_EXPIRY),
+        cancel(orderId, "payment-expiry", OrderActor.system(OrderActor.PAYMENT_EXPIRY), null,
             order -> order.expirePayment(now));
     }
 
@@ -401,7 +408,7 @@ public class OrderService {
                 historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.DELIVERY, delivery.getId(),
                     deliveryFrom, delivery.getStatus(), reason, now));
             }
-            publishCancelled(order, now);
+            publishCancelled(order, actor, null, now);
         } else {
             logIgnored("cancel-by-buyer", order, result);
         }
@@ -528,9 +535,11 @@ public class OrderService {
      *
      * @param source 취소를 일으킨 이벤트 · 작업 이름(로그용)
      * @param actor 상태 이력에 남길 주체
+     * @param handled 취소하는 주체가 지금 다루는 재처리 대기 기록(없으면 null)
      * @param change 주문을 취소하는 도메인 메서드. 이번에 취소했으면 APPLIED
      */
-    private void cancel(Long orderId, String source, OrderActor actor, Function<Order, TransitionResult> change) {
+    private void cancel(Long orderId, String source, OrderActor actor, WaitingRecord handled,
+        Function<Order, TransitionResult> change) {
         LocalDateTime now = LocalDateTime.now();
         Order order = findForEvent(orderId, source);
         if (order == null) {
@@ -546,20 +555,28 @@ public class OrderService {
         orderRepository.flush();
         historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.ORDER, orderId, from,
             order.getStatus(), order.getCancelReason().name(), now));
-        publishCancelled(order, now);
+        publishCancelled(order, actor, handled, now);
     }
 
     /**
-     * order.cancelled를 주문상품 순서대로 발행하고 결과 한 줄을 남긴다(사유는 주문에 기록된 값).
+     * 주문을 이번에 취소했을 때 모두 여기로 온다(취소 지점 한 곳): order.cancelled를 주문상품 순서대로 발행하고 결과 한 줄을 남기며,
+     * 그 주문의 재처리 대기 기록을 같은 트랜잭션에서 닫는다(#598, handled는 빼고).
      */
-    private void publishCancelled(Order order, LocalDateTime now) {
+    private void publishCancelled(Order order, OrderActor actor, WaitingRecord handled, LocalDateTime now) {
         publish(new OrderCancelledEvent(UUID.randomUUID(), now,
             new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), order.getCancelReason().name(),
                 order.getItems().stream()
                     .map(item -> new OrderCancelledEvent.Item(
                         item.getId(), item.getProduct().optionId(), item.getQuantity()))
                     .toList())));
-        log.info("주문 취소: orderId={} reason={}", order.getId(), order.getCancelReason());
+        WaitingRecordCloser.Closed closed = waitingRecordCloser.closeFor(order.getId(), actor, handled, now);
+        // 결과 하나에 한 줄: 닫은 대기 기록이 있으면 그 ID를 같은 줄에 붙인다
+        if (closed.isEmpty()) {
+            log.info("주문 취소: orderId={} reason={}", order.getId(), order.getCancelReason());
+        } else {
+            log.info("주문 취소: orderId={} reason={} closedEventFailureIds={} closedPaymentRecoveryId={}", order.getId(),
+                order.getCancelReason(), closed.eventFailureIds(), closed.paymentRecoveryId());
+        }
     }
 
     /**

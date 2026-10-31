@@ -24,6 +24,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.web.PaymentRecoveryRetry;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -263,21 +264,23 @@ class OrderStatusHistoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("재처리인데 주문이 이미 취소됐으면: 결제 복구 PENDING>CANCELLED 1줄(관리자 · 재처리 경로)만, 주문 · 배송 줄은 늘지 않는다")
+    @DisplayName("재처리 대기 중 주문이 취소되면: 결제 복구 PENDING>CANCELLED 1줄(사유 ORDER_CANCELLED · 취소 주체, #598)이 그때 남고, "
+        + "그 뒤 재처리는 409라 줄이 늘지 않는다")
     void retryAfterOrderCancelled() {
         OrderDetail order = place(true);
         breakSeller(order);
         assertThatThrownBy(() -> eventDelivery.invoke(completed(order)))
             .isInstanceOf(DataIntegrityViolationException.class);
         Long recoveryId = recoveryRepository.findByOrderId(order.orderId()).orElseThrow().getId();
-        orderService.cancelByBuyer(BUYER_ID, order.orderId());
         int before = rows(order.orderId()).size();
+        orderService.cancelByBuyer(BUYER_ID, order.orderId());
 
-        recoveryRetry.retry(recoveryId, ADMIN_ID);
-
-        assertThat(rows(order.orderId()).subList(before, rows(order.orderId()).size())).containsExactly(
-            "PAYMENT_RECOVERY#" + recoveryId + " PENDING>CANCELLED null ADMIN " + ADMIN_ID
-                + " POST /api/v1/admin/orders/recoveries/{id}/retry");
+        assertThat(rows(order.orderId()).subList(before, rows(order.orderId()).size())).contains(
+            "PAYMENT_RECOVERY#" + recoveryId + " PENDING>CANCELLED ORDER_CANCELLED BUYER " + BUYER_ID
+                + " POST /api/v1/orders/{orderId}/cancel");
+        int afterCancel = rows(order.orderId()).size();
+        assertThatThrownBy(() -> recoveryRetry.retry(recoveryId, ADMIN_ID)).isInstanceOf(BusinessException.class);
+        assertThat(rows(order.orderId())).hasSize(afterCancel);
     }
 
     @Test

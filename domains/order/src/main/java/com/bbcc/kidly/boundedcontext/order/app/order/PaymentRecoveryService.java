@@ -140,7 +140,13 @@ public class PaymentRecoveryService {
         }
         LocalDateTime now = LocalDateTime.now();
         PaymentRecovery.Status from = recovery.getStatus();
-        recovery.recordFailure(PaymentFailures.failureCode(error), PaymentFailures.isRetryable(error), now);
+        // 재처리가 기록을 잡은 사이 다른 경로로 주문이 취소됐으면(주문 취소는 잡힌 기록을 건너뜀, #598) 반영할 것이 없으므로 닫는다.
+        // 빠진 돈은 그 취소의 order.cancelled를 받은 결제 쪽이 환불한다
+        if (from == PaymentRecovery.Status.PENDING && isOrderCancelled(recovery.getOrderId())) {
+            recovery.closeForOrderCancelled(now);
+        } else {
+            recovery.recordFailure(PaymentFailures.failureCode(error), PaymentFailures.isRetryable(error), now);
+        }
         if (recovery.getStatus() != from) {
             recordHistory(OrderActor.admin(adminId, OrderActor.RECOVERY_RETRY), recovery, from,
                 recovery.getFailureCode(), now);
@@ -170,7 +176,8 @@ public class PaymentRecoveryService {
         }
         OrderActor admin = OrderActor.admin(adminId, OrderActor.RECOVERY_CANCEL);
         if (orderStatus == Order.Status.PENDING_PAYMENT) {
-            orderService.cancelForPaymentFailure(recovery.getOrderId(), admin);
+            orderService.cancelForPaymentFailure(recovery.getOrderId(), admin,
+                WaitingRecord.paymentRecovery(recovery.getId()));
         }
         LocalDateTime now = LocalDateTime.now();
         PaymentRecovery.Status from = recovery.getStatus();
@@ -215,6 +222,11 @@ public class PaymentRecoveryService {
     }
 
     // 기록은 주문이 있을 때만 생기고 주문은 지우지 않는다. 그래도 없으면 불변식 위반이라 예외로 알린다
+    private boolean isOrderCancelled(Long orderId) {
+        return orderRepository.findById(orderId).map(order -> order.getStatus() == Order.Status.CANCELLED)
+            .orElse(false);
+    }
+
     private Order.Status orderStatusOf(PaymentRecovery recovery) {
         return orderRepository.findById(recovery.getOrderId())
             .map(Order::getStatus)

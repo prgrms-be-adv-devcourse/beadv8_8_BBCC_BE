@@ -149,7 +149,12 @@ public class OrderEventFailureService {
         if (failure.isClosed()) {
             return OrderEventFailureResult.from(failure);
         }
-        failure.recordFailure(PaymentFailures.failureCode(error), LocalDateTime.now());
+        // 재처리가 기록을 잡은 사이 다른 경로로 주문이 취소됐으면(주문 취소는 잡힌 기록을 건너뜀, #598) 재처리할 것이 없으므로 닫는다
+        if (isOrderCancelled(failure.getOrderId())) {
+            failure.closeForOrderCancelled(LocalDateTime.now());
+        } else {
+            failure.recordFailure(PaymentFailures.failureCode(error), LocalDateTime.now());
+        }
         log.info("이벤트 처리 재처리: failureId={} eventType={} orderId={} result={} attemptCount={} failureCode={}",
             failure.getId(), failure.getEventType(), failure.getOrderId(), failure.getStatus(),
             failure.getAttemptCount(), failure.getFailureCode());
@@ -182,8 +187,9 @@ public class OrderEventFailureService {
                 new StockDeductionFailedCommand(orderId, failure.getStockFailures().stream()
                     .map(item -> new StockDeductionFailedCommand.Item(item.orderItemId(), item.reason()))
                     .toList()),
-                admin);
-            case PAYMENT_FAILED -> orderService.cancelForPaymentFailure(orderId, admin);
+                admin, WaitingRecord.eventFailure(failure.getId()));
+            case PAYMENT_FAILED -> orderService.cancelForPaymentFailure(orderId, admin,
+                WaitingRecord.eventFailure(failure.getId()));
         }
     }
 
@@ -214,6 +220,11 @@ public class OrderEventFailureService {
     }
 
     // 기록은 주문이 있을 때만 생기고 주문은 지우지 않는다. 그래도 없으면 불변식 위반이라 예외로 알린다
+    private boolean isOrderCancelled(Long orderId) {
+        return orderRepository.findById(orderId).map(order -> order.getStatus() == Order.Status.CANCELLED)
+            .orElse(false);
+    }
+
     private Order.Status orderStatusOf(OrderEventFailure failure) {
         return orderRepository.findById(failure.getOrderId())
             .map(Order::getStatus)

@@ -145,6 +145,19 @@ public class PaymentRecovery extends OrderTimeEntity {
         this.lastAttemptedAt = now;
     }
 
+    /**
+     * 주문이 다른 경로로 취소돼 결제완료로 반영할 수 없다(#598). 기록만 닫고 이유를 실패 코드에 남긴다. 빠진 돈은 주문 취소 이벤트를
+     * 받은 결제 쪽이 환불한다. PENDING만(저장소가 PENDING만 읽어 넘긴다, NOT_RETRYABLE은 그대로).
+     */
+    public void closeForOrderCancelled(LocalDateTime now) {
+        if (status != Status.PENDING) {
+            throw new IllegalStateException("재처리 대기 기록만 닫을 수 있습니다: status=" + status);
+        }
+        this.status = Status.CANCELLED;
+        this.failureCode = OrderEventFailure.ORDER_CANCELLED;
+        this.lastAttemptedAt = now;
+    }
+
     public boolean isClosed() {
         return status == Status.RECOVERED || status == Status.CANCELLED;
     }

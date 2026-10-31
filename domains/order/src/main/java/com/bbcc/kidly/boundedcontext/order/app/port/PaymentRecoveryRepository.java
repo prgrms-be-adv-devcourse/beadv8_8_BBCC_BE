@@ -32,6 +32,11 @@ public interface PaymentRecoveryRepository {
     Optional<PaymentRecovery> findByOrderIdForUpdateNoWait(Long orderId);
 
     /**
+     * 주문의 상태가 맞는 기록을 행 쓰기 잠금으로 읽되, 다른 트랜잭션(재처리 · 취소)이 잡고 있으면 기다리지 않고 건너뛴다(#598).
+     */
+    Optional<PaymentRecovery> findByOrderIdAndStatusForUpdateSkipLocked(Long orderId, PaymentRecovery.Status status);
+
+    /**
      * 모든 기록. 최근 기록부터.
      */
     Page<PaymentRecovery> findAllByOrderByIdDesc(Pageable pageable);
