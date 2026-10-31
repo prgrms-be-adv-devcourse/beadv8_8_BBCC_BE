@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend;
+import com.bbcc.kidly.gateway.support.RecordingBackendConfiguration;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -19,7 +21,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * 내부 API를 막고 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
+ * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  * 가짜 백엔드도 서비스처럼 CORS 헤더를 붙이므로 응답에 같은 헤더가 하나만 남는지도 본다.
  */
 @IntegrationTest
@@ -36,11 +38,16 @@ class RoutingIntegrationTest {
     @Autowired
     private RecordingBackend backend;
 
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.SEARCH)
+    private RecordingBackend searchBackend;
+
     private WebTestClient client;
 
     @BeforeEach
     void setUp() {
         backend.reset();
+        searchBackend.reset();
         client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
     }
 
@@ -51,6 +58,43 @@ class RoutingIntegrationTest {
             .expectStatus().isNotFound();
 
         assertThat(backend.lastRequest()).isEmpty();
+        assertThat(searchBackend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("상품 목록 조회는 같은 경로 · 쿼리로 검색 서비스에 넘긴다")
+    void routesProductListToSearchService() {
+        client.get().uri("/api/v1/products?keyword=원피스&sort=NEWEST&page=0").exchange()
+            .expectStatus().isOk();
+
+        assertThat(searchBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.method()).isEqualTo("GET");
+            assertThat(request.uri().getPath()).isEqualTo("/api/v1/products");
+            assertThat(request.uri().getQuery()).isEqualTo("keyword=원피스&sort=NEWEST&page=0");
+        });
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("상품 상세는 상품(kidly-app)에 넘긴다")
+    void routesProductDetailToKidlyApp() {
+        client.get().uri("/api/v1/products/1").exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/products/1")));
+        assertThat(searchBackend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("상품 목록 경로라도 GET이 아니면 kidly-app에 넘긴다")
+    void routesNonGetProductsToKidlyApp() {
+        client.post().uri("/api/v1/products").exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.method()).isEqualTo("POST"));
+        assertThat(searchBackend.lastRequest()).isEmpty();
     }
 
     @Test
@@ -124,7 +168,7 @@ class RoutingIntegrationTest {
     @Test
     @DisplayName("nginx가 넣은 Host · X-Forwarded-*를 앱이 nginx 직결 때와 같은 값으로 받는다")
     void forwardsNginxHeaders() {
-        client.get().uri("/api/v1/products")
+        client.get().uri("/api/v1/products/1")
             .headers(this::nginxHeaders)
             .exchange()
             .expectStatus().isOk();
