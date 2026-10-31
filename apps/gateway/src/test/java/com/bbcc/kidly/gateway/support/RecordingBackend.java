@@ -16,7 +16,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 
 /**
- * Gateway 뒤의 서비스(kidly-app) 대신 받는 가짜 백엔드. 마지막으로 받은 요청만 기억하고 200 ok로 답한다.
+ * Gateway 뒤의 서비스(kidly-app · search-service) 대신 받는 가짜 백엔드. 마지막으로 받은 요청만 기억하고 200 ok로 답한다.
  * 서비스처럼 CORS 헤더를 붙여 답한다(Gateway도 붙이므로 하나만 남는지 확인한다).
  */
 public class RecordingBackend implements AutoCloseable {

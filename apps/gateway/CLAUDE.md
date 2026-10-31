@@ -7,7 +7,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 검증: `Authorization: Bearer`(대소문자를 가리지 않는다. 서비스와 같다)가 있으면 서명 · 만료 · 무효화를 확인하고, 통과하면 `X-Member-Id` · `X-Member-Roles`를 붙여 넘긴다. 실패하면 401. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(공개 API 판단은 서비스)
 - `Authorization`은 지우지 않는다. 서비스가 아직 JWT를 직접 검증한다
 - CORS: 프리플라이트에 직접 답하고 Gateway가 만든 401에도 붙인다(`application.yml`의 `globalcors`). 서비스가 붙인 같은 헤더는 `DedupeResponseHeader`로 하나만 남긴다(`Vary`는 값이 여럿이라 `RETAIN_UNIQUE`로 따로). 서비스 CORS(`common`)는 prod · 로컬 직접 접속용으로 남아 있다
-- 라우트: `application.yml`로만. `/internal/**`은 404, 나머지는 kidly-app
+- 라우트: `application.yml`로만. `/internal/**`은 404, `GET /api/v1/products`(상품 목록, 경로가 정확히 같을 때만)는 search-service(`kidly.gateway.search-uri`, #526), 나머지는 kidly-app
 - nginx가 넣은 `Host` · `X-Forwarded-*`는 덧붙이지 않고 그대로 넘긴다(`PreserveHostHeader`, `trusted-proxies`, `x-forwarded.*-enabled: false`). Gateway 자신은 `server.forward-headers-strategy: native`로 https · 원래 호스트로 본다(같은 출처 판단)
 
 ## 무효화 목록
@@ -24,7 +24,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 라우트 추가: `application.yml`의 `routes`에 더한다. 검색처럼 kidly-app이 아닌 서비스의 경로는 `kidly-app` 라우트(`/**`) 위에 둔다(위에서부터 맞춘다)
 
 ## 서버 배포 (`deploy/`)
-- dev만. compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(`GATEWAY_PORT`), compose 네트워크로 `http://app:8080`에 넘긴다
+- dev만. compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(`GATEWAY_PORT`), compose 네트워크로 `http://app:8080` · `http://search-service:8080`에 넘긴다. 그래서 profile `search`도 켜져 있어야 한다
 - nginx dev 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(8081)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
 ## 이번에 안 하는 것

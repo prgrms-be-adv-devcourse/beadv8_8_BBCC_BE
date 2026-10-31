@@ -4,8 +4,8 @@
 
 ## 진행 상태
 - 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori), Kafka 수신(`in/SearchProductEventListener` · `in/SearchSellerEventListener`)
-- 됨: dev 서버 배포(아래 "서버 배포")
-- 남음: 처음 채우기(상품 · 판매자의 전체 다시 발행), nginx 전환(dev), prod 배포
+- 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`만 search-service로 넘긴다, `apps/gateway`)
+- 남음: 처음 채우기(상품 · 판매자의 전체 다시 발행), prod 배포(prod에는 Gateway가 없다)
 - kidly-app에는 넣지 않는다. 상품의 목록 API와 경로(`GET /api/v1/products`)가 같아 한 앱에 두면 매핑이 겹친다. `apps/search-service`로만 띄운다
 
 ## 서버 배포 (`deploy/`)

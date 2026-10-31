@@ -26,7 +26,8 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 @IntegrationTest
 class AccessTokenFilterIntegrationTest {
 
-    private static final String PATH = "/api/v1/products";
+    // kidly-app으로 가는 공개 API. 목록(/api/v1/products)은 검색 서비스로 간다
+    private static final String PATH = "/api/v1/products/1";
     private static final Duration VALIDITY = Duration.ofMinutes(30);
 
     @LocalServerPort
