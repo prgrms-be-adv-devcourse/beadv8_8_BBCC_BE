@@ -37,3 +37,16 @@
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
 | `architecture` | 도메인 모듈 안의 계층 규칙(ArchUnit `LayerRules`) |
+
+## 서비스 인증 모드
+
+`kidly.auth.mode`(`common` `SecurityConfig`, 환경 변수 `KIDLY_AUTH_MODE`)로 서비스가 로그인 회원을 어떻게 만들지 정한다.
+
+| 모드 | 동작 | 쓰는 곳 |
+|---|---|---|
+| `jwt`(기본) | 서비스가 `Authorization: Bearer` Access Token을 직접 검증한다(서명 · 만료 · 무효화). CORS를 켠다 | prod · 로컬 · 테스트 |
+| `gateway` | Gateway가 검증하고 붙인 `X-Member-Id` · `X-Member-Roles` · `X-Member-Nickname`(UTF-8 퍼센트 인코딩)으로 로그인 회원을 만든다. JWT는 보지 않고 CORS는 끈다(Gateway가 맡는다) | dev(`deploy/.env.dev`) |
+
+`gateway` 모드는 서비스가 Gateway 뒤에서만 열린다는 전제다. Gateway가 밖에서 온 `X-Member-*` 헤더를 지우므로, Gateway를 거치지 않고 서비스에 닿을 수 있으면 헤더를 위조할 수 있다. 자세한 Gateway 동작은 [`apps/gateway/CLAUDE.md`](apps/gateway/CLAUDE.md)
+
+`gateway` 모드에서는 요청 로그(`RequestLoggingFilter`)의 요청 헤더에 `x-member-nickname`(퍼센트 인코딩된 닉네임)이 남는다. 로그는 이름 · ID를 남기는 정책이라(`LogMasker`) 가리지 않는다.

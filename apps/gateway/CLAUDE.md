@@ -3,10 +3,10 @@
 nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Gateway, WebFlux). 업무 로직 · DB가 없다.
 
 ## 하는 일
-- 헤더 지우기: 밖에서 보낸 `X-Member-Id` · `X-Member-Roles`는 항상 지운다(`auth/AccessTokenFilter`)
-- 검증: `Authorization: Bearer`(대소문자를 가리지 않는다. 서비스와 같다)가 있으면 서명 · 만료 · 무효화를 확인하고, 통과하면 `X-Member-Id` · `X-Member-Roles`를 붙여 넘긴다. 실패하면 401. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(공개 API 판단은 서비스)
-- `Authorization`은 지우지 않는다. 서비스가 아직 JWT를 직접 검증한다
-- CORS: 프리플라이트에 직접 답하고 Gateway가 만든 401에도 붙인다(`application.yml`의 `globalcors`). 서비스가 붙인 같은 헤더는 `DedupeResponseHeader`로 하나만 남긴다(`Vary`는 값이 여럿이라 `RETAIN_UNIQUE`로 따로). 서비스 CORS(`common`)는 prod · 로컬 직접 접속용으로 남아 있다
+- 헤더 지우기: 밖에서 보낸 `X-Member-Id` · `X-Member-Roles` · `X-Member-Nickname`은 항상 지운다(`auth/AccessTokenFilter`)
+- 검증: `Authorization: Bearer`(대소문자를 가리지 않는다. 서비스와 같다)가 있으면 서명 · 만료 · 무효화를 확인하고, 통과하면 `X-Member-Id` · `X-Member-Roles`를 붙여 넘긴다. 토큰에 `nickname` 클레임이 있으면 `X-Member-Nickname`도 붙인다(UTF-8 퍼센트 인코딩, 공백 `%20`). 실패하면 401. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(공개 API 판단은 서비스)
+- `Authorization`은 지우지 않는다. jwt 모드 서비스(prod · 로컬)가 직접 검증한다
+- CORS: 프리플라이트에 직접 답하고 Gateway가 만든 401에도 붙인다(`application.yml`의 `globalcors`). 서비스가 붙인 같은 헤더는 `DedupeResponseHeader`로 하나만 남긴다(`Vary`는 값이 여럿이라 `RETAIN_UNIQUE`로 따로). 서비스 CORS(`common`)는 jwt 모드(prod · 로컬 직접 접속)에서만 켜지고 gateway 모드(dev)에서는 꺼진다
 - 라우트: `application.yml`로만. `/internal/**`은 404, 나머지는 kidly-app
 - nginx가 넣은 `Host` · `X-Forwarded-*`는 덧붙이지 않고 그대로 넘긴다(`PreserveHostHeader`, `trusted-proxies`, `x-forwarded.*-enabled: false`). Gateway 자신은 `server.forward-headers-strategy: native`로 https · 원래 호스트로 본다(같은 출처 판단)
 
@@ -17,16 +17,18 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 읽기 실패는 재시도 없이 DLT `kidly.member.events.gateway.dlt` + ERROR 로그(본문 없이 `eventType` · `eventId` · 키)
 - 31분 안에서 읽지 못해 DLT로 간 메시지는 Gateway가 다시 뜰 때마다 다시 읽혀 DLT로 다시 간다(ERROR 로그도 다시)
 - `jwt.access-token-validity`는 kidly-app `auth.yml`과 같아야 한다
+- 한계: 기동 직후 되감아 다 읽기 전에는 무효화된 토큰도 통과한다. jwt 모드 서비스는 자기 무효화 확인이 한 번 더 막지만, gateway 모드 서비스(dev)는 토큰을 보지 않으므로 이 사이는 실제로 뚫린다
 
 ## 지켜야 할 것
 - CORS 값(허용 origin · 메서드 · 노출 헤더)은 `common` `SecurityConfig`와 같이 바꾼다. 노출 헤더는 Gateway 값만 남는다(`DedupeResponseHeader` `RETAIN_FIRST`)
+- 회원 헤더 이름과 닉네임 인코딩(UTF-8 퍼센트 인코딩, 공백 `%20`)은 `common` `GatewayHeaderAuthenticationFilter`와 같아야 한다. 모듈이 달라 테스트로 묶지 못하므로 한쪽을 바꾸면 다른 쪽도 바꾼다
 - 401 본문은 `common`과 같아야 한다(문구 `CommonErrorCode.UNAUTHORIZED`, 5필드 `ProblemDetails`). 한쪽을 바꾸면 `auth/UnauthorizedResponse`도 바꾼다
 - 라우트 추가: `application.yml`의 `routes`에 더한다. 검색처럼 kidly-app이 아닌 서비스의 경로는 `kidly-app` 라우트(`/**`) 위에 둔다(위에서부터 맞춘다)
 
 ## 서버 배포 (`deploy/`)
 - dev만. compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(`GATEWAY_PORT`), compose 네트워크로 `http://app:8080`에 넘긴다
+- dev의 kidly-app · search-service는 gateway 모드(`KIDLY_AUTH_MODE=gateway`, `deploy/.env.dev`)라 JWT를 다시 검증하지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다
 - nginx dev 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(8081)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
 ## 이번에 안 하는 것
-- 서비스 헤더 모드(서비스가 JWT 대신 `X-Member-*`를 믿기), 서비스 CORS 정리
 - prod 배포

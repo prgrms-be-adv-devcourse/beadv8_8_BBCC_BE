@@ -8,7 +8,7 @@ spring:
       server:
         webflux:
           # CORS는 Gateway가 처리한다: 프리플라이트에 직접 답하고 Gateway가 만든 401에도 붙는다. 값은 common SecurityConfig와 같다
-          # 서비스도 아직 CORS 헤더를 붙이므로(prod · 로컬 직접 접속용) 같은 헤더가 두 번 오지 않게 하나만 남긴다
+          # jwt 모드 서비스(prod · 로컬 직접 접속)는 CORS 헤더를 붙이므로 같은 헤더가 두 번 오지 않게 하나만 남긴다
           globalcors:
             cors-configurations:
               '[/**]':
