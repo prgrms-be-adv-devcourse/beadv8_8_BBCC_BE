@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
@@ -44,6 +45,7 @@ public class OrderScheduler {
         Run run = runInBatches(
             (afterId, limit) -> orderService.findAutoConfirmTargets(now, afterId, limit),
             AutoConfirmTarget::orderItemId,
+            AutoConfirmTarget::orderId,
             target -> {
                 try {
                     orderService.confirmAutomatically(target.orderId(), target.orderItemId());
@@ -69,6 +71,7 @@ public class OrderScheduler {
         Run run = runInBatches(
             (afterId, limit) -> orderService.findOverduePaymentOrderIds(now, afterId, limit),
             Function.identity(),
+            Function.identity(),
             orderId -> {
                 try {
                     orderService.cancelForPaymentExpiry(orderId);
@@ -84,9 +87,10 @@ public class OrderScheduler {
     /**
      * afterId = 0부터 limit = min(batch-size, 남은 상한)건씩 읽어 처리한다. 가져온 건수가 limit보다 적거나
      * max-per-run에 닿으면 끝낸다. process는 성공이면 true, 실패(로그를 남긴 뒤)면 false를 돌려준다.
+     * 대상 하나를 처리하는 동안 로그에 correlationId = 그 주문 ID를 붙인다(#603, 요청 밖이라 traceId도 주문 ID).
      */
     private <T> Run runInBatches(BiFunction<Long, Integer, List<T>> fetch, Function<T, Long> idOf,
-        Function<T, Boolean> process) {
+        Function<T, Long> orderIdOf, Function<T, Boolean> process) {
         long afterId = 0L;
         int targets = 0;
         int failed = 0;
@@ -96,8 +100,10 @@ public class OrderScheduler {
             List<T> batch = fetch.apply(afterId, limit);
             batches++;
             for (T target : batch) {
-                if (!process.apply(target)) {
-                    failed++;
+                try (var ignored = OrderLogContext.open(null, null, String.valueOf(orderIdOf.apply(target)))) {
+                    if (!process.apply(target)) {
+                        failed++;
+                    }
                 }
             }
             targets += batch.size();
