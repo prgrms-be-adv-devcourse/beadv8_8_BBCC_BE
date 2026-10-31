@@ -6,12 +6,11 @@ import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.stereotype.Component;
 
 /**
  * 무효화된 회원의 Access Token이면 거절한다. 서명 검증 뒤 기본 검사(만료 등)와 함께 실행된다.
+ * jwt 모드에서만 쓰므로 빈으로 두지 않고 SecurityConfig의 jwtDecoder가 만든다(gateway 모드 서비스는 AccessTokenRevocations가 없어도 뜬다).
  */
-@Component
 @RequiredArgsConstructor
 public class RevokedAccessTokenValidator implements OAuth2TokenValidator<Jwt> {
 
