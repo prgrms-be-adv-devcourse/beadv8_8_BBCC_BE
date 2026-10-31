@@ -1,4 +1,4 @@
-package com.bbcc.kidly.global.security;
+package com.bbcc.kidly.shared.auth;
 
 /**
  * Access Token의 roles 클레임 값. 요청마다 ROLE_ 권한으로 바뀐다 ({@code hasRole("SELLER")}).

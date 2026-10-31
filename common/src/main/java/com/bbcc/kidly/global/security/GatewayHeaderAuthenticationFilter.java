@@ -1,5 +1,6 @@
 package com.bbcc.kidly.global.security;
 
+import com.bbcc.kidly.shared.auth.Role;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

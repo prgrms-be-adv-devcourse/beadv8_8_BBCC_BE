@@ -8,7 +8,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.RefreshTokenCookies;
 import com.bbcc.kidly.boundedcontext.member.in.dto.MemberResponse;
-import com.bbcc.kidly.global.security.Role;
+import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;

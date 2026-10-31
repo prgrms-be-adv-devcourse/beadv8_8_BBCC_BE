@@ -1,6 +1,7 @@
 package com.bbcc.kidly.global.security;
 
 import com.bbcc.kidly.global.filter.RequestLoggingFilter;
+import com.bbcc.kidly.shared.auth.Role;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

@@ -2,7 +2,8 @@ package com.bbcc.kidly.boundedcontext.member.out;
 
 import com.bbcc.kidly.boundedcontext.member.app.port.AccessTokenIssuer;
 import com.bbcc.kidly.global.security.JwtProperties;
-import com.bbcc.kidly.global.security.Role;
+import com.bbcc.kidly.shared.auth.AccessTokenClaims;
+import com.bbcc.kidly.shared.auth.Role;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -22,9 +23,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtAccessTokenIssuer implements AccessTokenIssuer {
 
-    private static final String NICKNAME_CLAIM = "nickname";
-    private static final String ROLES_CLAIM = "roles";
-
     private final JwtEncoder jwtEncoder;
     private final Duration validity;
 
@@ -40,10 +38,10 @@ public class JwtAccessTokenIssuer implements AccessTokenIssuer {
         var now = Instant.now();
         var claims = JwtClaimsSet.builder()
             .subject(String.valueOf(memberId))
-            .claim(NICKNAME_CLAIM, nickname)
+            .claim(AccessTokenClaims.NICKNAME, nickname)
             .issuedAt(now)
             .expiresAt(now.plus(validity))
-            .claim(ROLES_CLAIM, roles.stream().map(Role::name).toList())
+            .claim(AccessTokenClaims.ROLES, roles.stream().map(Role::name).toList())
             .build();
         var header = JwsHeader.with(SignatureAlgorithm.RS256).build();
         return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();

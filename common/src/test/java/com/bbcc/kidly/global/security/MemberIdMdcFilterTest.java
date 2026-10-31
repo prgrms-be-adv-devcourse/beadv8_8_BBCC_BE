@@ -3,6 +3,7 @@ package com.bbcc.kidly.global.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.global.filter.RequestLoggingFilter;
+import com.bbcc.kidly.shared.auth.Role;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;

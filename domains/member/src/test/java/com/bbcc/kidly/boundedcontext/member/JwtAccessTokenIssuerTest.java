@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.out.JwtAccessTokenIssuer;
 import com.bbcc.kidly.global.security.JwtProperties;
-import com.bbcc.kidly.global.security.Role;
+import com.bbcc.kidly.shared.auth.Role;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.KeyPair;

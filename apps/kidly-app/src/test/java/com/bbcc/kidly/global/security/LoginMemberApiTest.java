@@ -2,6 +2,7 @@ package com.bbcc.kidly.global.security;
 
 import static com.bbcc.kidly.support.TestApiController.LOGIN_MEMBER_PATH;
 
+import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.TestTokens;
 import java.util.List;

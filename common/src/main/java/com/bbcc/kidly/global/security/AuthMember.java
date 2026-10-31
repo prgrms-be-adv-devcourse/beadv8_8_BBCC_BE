@@ -1,5 +1,6 @@
 package com.bbcc.kidly.global.security;
 
+import com.bbcc.kidly.shared.auth.Role;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 import org.springframework.security.core.AuthenticatedPrincipal;

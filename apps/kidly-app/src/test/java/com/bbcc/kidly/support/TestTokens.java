@@ -1,7 +1,7 @@
 package com.bbcc.kidly.support;
 
 import com.bbcc.kidly.boundedcontext.member.app.port.AccessTokenIssuer;
-import com.bbcc.kidly.global.security.Role;
+import com.bbcc.kidly.shared.auth.Role;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

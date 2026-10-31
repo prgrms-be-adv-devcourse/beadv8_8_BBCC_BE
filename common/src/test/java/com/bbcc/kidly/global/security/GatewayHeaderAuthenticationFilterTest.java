@@ -2,6 +2,7 @@ package com.bbcc.kidly.global.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.shared.auth.Role;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;

@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.member.domain;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
-import com.bbcc.kidly.global.security.Role;
+import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;

@@ -3,66 +3,49 @@ package com.bbcc.kidly.gateway.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.gateway.revocation.AccessTokenRevocations;
+import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
-import com.bbcc.kidly.gateway.support.RecordingBackend;
 import com.bbcc.kidly.gateway.support.RecordingBackend.RecordedRequest;
 import com.bbcc.kidly.gateway.support.TestTokens;
+import com.bbcc.kidly.shared.auth.MemberHeaders;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
  * Gateway가 밖에서 온 X-Member-* 헤더를 지우고, Bearer 토큰을 검증 · 무효화 확인한 뒤 회원 헤더를 붙여 넘기는지 본다(#608).
  */
 @IntegrationTest
-class AccessTokenFilterIntegrationTest {
+class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
 
     // kidly-app으로 가는 공개 API. 목록(/api/v1/products)은 검색 서비스로 간다
     private static final String PATH = "/api/v1/products/1";
     private static final Duration VALIDITY = Duration.ofMinutes(30);
 
-    @LocalServerPort
-    private int port;
-
-    @Autowired
-    private RecordingBackend backend;
-
     @Autowired
     private AccessTokenRevocations revocations;
-
-    private WebTestClient client;
-
-    @BeforeEach
-    void setUp() {
-        backend.reset();
-        client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
-    }
 
     @Test
     @DisplayName("밖에서 보낸 X-Member-* 헤더는 지우고 넘긴다")
     void removesForgedMemberHeaders() {
         client.get().uri(PATH)
-            .header(AccessTokenFilter.MEMBER_ID, "1")
-            .header(AccessTokenFilter.MEMBER_ROLES, "ADMIN")
-            .header(AccessTokenFilter.MEMBER_NICKNAME, "admin")
+            .header(MemberHeaders.MEMBER_ID, "1")
+            .header(MemberHeaders.MEMBER_ROLES, "ADMIN")
+            .header(MemberHeaders.MEMBER_NICKNAME, "admin")
             .exchange()
             .expectStatus().isOk();
 
         var received = received();
-        assertThat(received.header(AccessTokenFilter.MEMBER_ID)).isEmpty();
-        assertThat(received.header(AccessTokenFilter.MEMBER_ROLES)).isEmpty();
-        assertThat(received.header(AccessTokenFilter.MEMBER_NICKNAME)).isEmpty();
+        assertThat(received.header(MemberHeaders.MEMBER_ID)).isEmpty();
+        assertThat(received.header(MemberHeaders.MEMBER_ROLES)).isEmpty();
+        assertThat(received.header(MemberHeaders.MEMBER_NICKNAME)).isEmpty();
     }
 
     @Test
@@ -76,9 +59,9 @@ class AccessTokenFilterIntegrationTest {
             .expectStatus().isOk();
 
         var received = received();
-        assertThat(received.header(AccessTokenFilter.MEMBER_ID)).isEmpty();
-        assertThat(received.header(AccessTokenFilter.MEMBER_ROLES)).isEmpty();
-        assertThat(received.header(AccessTokenFilter.MEMBER_NICKNAME)).isEmpty();
+        assertThat(received.header(MemberHeaders.MEMBER_ID)).isEmpty();
+        assertThat(received.header(MemberHeaders.MEMBER_ROLES)).isEmpty();
+        assertThat(received.header(MemberHeaders.MEMBER_NICKNAME)).isEmpty();
     }
 
     @Test
@@ -113,8 +96,8 @@ class AccessTokenFilterIntegrationTest {
             .expectStatus().isOk();
 
         var received = received();
-        assertThat(received.header(AccessTokenFilter.MEMBER_ID)).containsExactly("7");
-        assertThat(received.header(AccessTokenFilter.MEMBER_ROLES)).containsExactly("BUYER,SELLER");
+        assertThat(received.header(MemberHeaders.MEMBER_ID)).containsExactly("7");
+        assertThat(received.header(MemberHeaders.MEMBER_ROLES)).containsExactly("BUYER,SELLER");
         assertThat(received.header(HttpHeaders.AUTHORIZATION)).containsExactly("Bearer " + token);
     }
 
@@ -126,16 +109,16 @@ class AccessTokenFilterIntegrationTest {
 
         client.get().uri(PATH)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-            .header(AccessTokenFilter.MEMBER_ID, "1")
-            .header(AccessTokenFilter.MEMBER_ROLES, "ADMIN")
-            .header(AccessTokenFilter.MEMBER_NICKNAME, "admin")
+            .header(MemberHeaders.MEMBER_ID, "1")
+            .header(MemberHeaders.MEMBER_ROLES, "ADMIN")
+            .header(MemberHeaders.MEMBER_NICKNAME, "admin")
             .exchange()
             .expectStatus().isOk();
 
         var received = received();
-        assertThat(received.header(AccessTokenFilter.MEMBER_ID)).containsExactly("7");
-        assertThat(received.header(AccessTokenFilter.MEMBER_ROLES)).containsExactly("BUYER");
-        assertThat(received.header(AccessTokenFilter.MEMBER_NICKNAME)).isEmpty();
+        assertThat(received.header(MemberHeaders.MEMBER_ID)).containsExactly("7");
+        assertThat(received.header(MemberHeaders.MEMBER_ROLES)).containsExactly("BUYER");
+        assertThat(received.header(MemberHeaders.MEMBER_NICKNAME)).isEmpty();
     }
 
     @Test
@@ -145,11 +128,11 @@ class AccessTokenFilterIntegrationTest {
 
         client.get().uri(PATH)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestTokens.issueWithNickname(7L, nickname))
-            .header(AccessTokenFilter.MEMBER_NICKNAME, "admin")
+            .header(MemberHeaders.MEMBER_NICKNAME, "admin")
             .exchange()
             .expectStatus().isOk();
 
-        var encoded = received().header(AccessTokenFilter.MEMBER_NICKNAME);
+        var encoded = received().header(MemberHeaders.MEMBER_NICKNAME);
         assertThat(encoded).singleElement().satisfies(value -> {
             assertThat(value).contains("%20").doesNotContain("+", " ");
             assertThat(URLDecoder.decode(value, StandardCharsets.UTF_8)).isEqualTo(nickname);
@@ -164,8 +147,8 @@ class AccessTokenFilterIntegrationTest {
         bearer(TestTokens.issue(7L, List.of("BUYER"), now, now.plus(VALIDITY))).expectStatus().isOk();
 
         var received = received();
-        assertThat(received.header(AccessTokenFilter.MEMBER_ID)).containsExactly("7");
-        assertThat(received.header(AccessTokenFilter.MEMBER_NICKNAME)).isEmpty();
+        assertThat(received.header(MemberHeaders.MEMBER_ID)).containsExactly("7");
+        assertThat(received.header(MemberHeaders.MEMBER_NICKNAME)).isEmpty();
     }
 
     @Test
@@ -179,7 +162,7 @@ class AccessTokenFilterIntegrationTest {
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(received().header(AccessTokenFilter.MEMBER_ID)).containsExactly("7");
+        assertThat(received().header(MemberHeaders.MEMBER_ID)).containsExactly("7");
     }
 
     @Test
@@ -191,7 +174,7 @@ class AccessTokenFilterIntegrationTest {
 
         expectUnauthorized(client.get().uri(PATH)
             .header(HttpHeaders.AUTHORIZATION, "bearer " + token)
-            .exchange());
+            .exchange(), PATH);
     }
 
     @Test
@@ -199,7 +182,7 @@ class AccessTokenFilterIntegrationTest {
     void rejectsNonNumericSubject() {
         var now = Instant.now();
 
-        expectUnauthorized(bearer(TestTokens.issueWithSubject("abc", now, now.plus(VALIDITY))));
+        expectUnauthorized(bearer(TestTokens.issueWithSubject("abc", now, now.plus(VALIDITY))), PATH);
     }
 
     @Test
@@ -209,19 +192,19 @@ class AccessTokenFilterIntegrationTest {
         var token = TestTokens.issue(7L, List.of("BUYER"), now.minus(VALIDITY).minusSeconds(120),
             now.minusSeconds(120));
 
-        expectUnauthorized(bearer(token));
+        expectUnauthorized(bearer(token), PATH);
     }
 
     @Test
     @DisplayName("다른 키로 서명한 토큰은 401이다")
     void rejectsTokenSignedWithOtherKey() {
-        expectUnauthorized(bearer(TestTokens.issueWithOtherKey(7L)));
+        expectUnauthorized(bearer(TestTokens.issueWithOtherKey(7L)), PATH);
     }
 
     @Test
     @DisplayName("형식이 깨진 토큰은 401이다")
     void rejectsMalformedToken() {
-        expectUnauthorized(bearer("abc"));
+        expectUnauthorized(bearer("abc"), PATH);
     }
 
     @Test
@@ -231,7 +214,7 @@ class AccessTokenFilterIntegrationTest {
         revocations.revoke(8L, now, now);
         var token = TestTokens.issue(8L, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY));
 
-        expectUnauthorized(bearer(token));
+        expectUnauthorized(bearer(token), PATH);
     }
 
     @Test
@@ -243,26 +226,13 @@ class AccessTokenFilterIntegrationTest {
 
         bearer(token).expectStatus().isOk();
 
-        assertThat(received().header(AccessTokenFilter.MEMBER_ID)).containsExactly("9");
+        assertThat(received().header(MemberHeaders.MEMBER_ID)).containsExactly("9");
     }
 
     private ResponseSpec bearer(String token) {
         return client.get().uri(PATH)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
             .exchange();
-    }
-
-    // kidly-app(SecurityProblemHandler)과 같은 본문이어야 한다
-    private void expectUnauthorized(ResponseSpec response) {
-        response.expectStatus().isUnauthorized()
-            .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").isEqualTo("about:blank")
-            .jsonPath("$.title").isEqualTo("로그인이 필요합니다")
-            .jsonPath("$.status").isEqualTo(401)
-            .jsonPath("$.detail").isEqualTo("로그인 후 다시 시도해 주세요.")
-            .jsonPath("$.instance").isEqualTo(PATH);
-        assertThat(backend.lastRequest()).isEmpty();
     }
 
     private RecordedRequest received() {

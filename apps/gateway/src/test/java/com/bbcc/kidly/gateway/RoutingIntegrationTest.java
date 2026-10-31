@@ -2,6 +2,7 @@ package com.bbcc.kidly.gateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend;
 import com.bbcc.kidly.gateway.support.RecordingBackendConfiguration;
@@ -14,10 +15,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
@@ -25,30 +24,20 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
  * 가짜 백엔드도 서비스처럼 CORS 헤더를 붙이므로 응답에 같은 헤더가 하나만 남는지도 본다.
  */
 @IntegrationTest
-class RoutingIntegrationTest {
+class RoutingIntegrationTest extends GatewayTestSupport {
 
     private static final String ORIGIN = RecordingBackend.ALLOWED_ORIGIN;
     // nginx dev 블록이 받는 이름. 허용 origin(프론트)에는 없다
     private static final String NGINX_HOST = "dev-api.example";
     private static final String CLIENT_IP = "1.2.3.4";
 
-    @LocalServerPort
-    private int port;
-
-    @Autowired
-    private RecordingBackend backend;
-
     @Autowired
     @Qualifier(RecordingBackendConfiguration.SEARCH)
     private RecordingBackend searchBackend;
 
-    private WebTestClient client;
-
     @BeforeEach
-    void setUp() {
-        backend.reset();
+    void resetSearchBackend() {
         searchBackend.reset();
-        client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
     }
 
     @Test

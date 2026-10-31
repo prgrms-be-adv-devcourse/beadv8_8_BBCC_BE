@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.support;
 
 import com.bbcc.kidly.global.security.JwtProperties;
-import com.bbcc.kidly.global.security.Role;
+import com.bbcc.kidly.shared.auth.Role;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
