@@ -2,6 +2,12 @@
 # test 프로필 값은 운영 jar에 넣지 않으려고 src/test/resources/application-test.yml에 둔다
 
 # ── 모든 서비스가 읽는 것 (common의 JwtProperties · SecurityConfig). 서비스를 나누면 Gateway와 각 서비스의 설정이 된다
+kidly:
+  auth:
+    # jwt: 서비스가 Access Token을 직접 검증한다(prod · 로컬 · 테스트)
+    # gateway: Gateway가 검증하고 붙인 X-Member-* 헤더로 로그인 회원을 만든다. Gateway 뒤에서만 쓴다(dev는 환경 변수 KIDLY_AUTH_MODE=gateway)
+    mode: jwt
+
 jwt:
   # Access Token 유효 기간. 무효화 기록 보존 기간(+ 시계 오차 60초)도 여기서 나온다
   access-token-validity: 30m

@@ -7,6 +7,8 @@ import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend;
 import com.bbcc.kidly.gateway.support.RecordingBackend.RecordedRequest;
 import com.bbcc.kidly.gateway.support.TestTokens;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -52,12 +54,30 @@ class AccessTokenFilterIntegrationTest {
         client.get().uri(PATH)
             .header(AccessTokenFilter.MEMBER_ID, "1")
             .header(AccessTokenFilter.MEMBER_ROLES, "ADMIN")
+            .header(AccessTokenFilter.MEMBER_NICKNAME, "admin")
             .exchange()
             .expectStatus().isOk();
 
         var received = received();
         assertThat(received.header(AccessTokenFilter.MEMBER_ID)).isEmpty();
         assertThat(received.header(AccessTokenFilter.MEMBER_ROLES)).isEmpty();
+        assertThat(received.header(AccessTokenFilter.MEMBER_NICKNAME)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("헤더 이름의 대소문자를 바꿔 보낸 X-Member-* 헤더도 지운다")
+    void removesForgedMemberHeadersInAnyCase() {
+        client.get().uri(PATH)
+            .header("x-member-id", "1")
+            .header("x-member-roles", "ADMIN")
+            .header("x-member-nickname", "admin")
+            .exchange()
+            .expectStatus().isOk();
+
+        var received = received();
+        assertThat(received.header(AccessTokenFilter.MEMBER_ID)).isEmpty();
+        assertThat(received.header(AccessTokenFilter.MEMBER_ROLES)).isEmpty();
+        assertThat(received.header(AccessTokenFilter.MEMBER_NICKNAME)).isEmpty();
     }
 
     @Test
@@ -107,12 +127,44 @@ class AccessTokenFilterIntegrationTest {
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
             .header(AccessTokenFilter.MEMBER_ID, "1")
             .header(AccessTokenFilter.MEMBER_ROLES, "ADMIN")
+            .header(AccessTokenFilter.MEMBER_NICKNAME, "admin")
             .exchange()
             .expectStatus().isOk();
 
         var received = received();
         assertThat(received.header(AccessTokenFilter.MEMBER_ID)).containsExactly("7");
         assertThat(received.header(AccessTokenFilter.MEMBER_ROLES)).containsExactly("BUYER");
+        assertThat(received.header(AccessTokenFilter.MEMBER_NICKNAME)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("토큰에 닉네임이 있으면 UTF-8 퍼센트 인코딩(공백 %20)으로 붙이고, 서비스처럼 URLDecoder로 풀면 원래 닉네임이다")
+    void addsEncodedNicknameHeader() {
+        var nickname = "키들리 엄마+아빠 100%";
+
+        client.get().uri(PATH)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestTokens.issueWithNickname(7L, nickname))
+            .header(AccessTokenFilter.MEMBER_NICKNAME, "admin")
+            .exchange()
+            .expectStatus().isOk();
+
+        var encoded = received().header(AccessTokenFilter.MEMBER_NICKNAME);
+        assertThat(encoded).singleElement().satisfies(value -> {
+            assertThat(value).contains("%20").doesNotContain("+", " ");
+            assertThat(URLDecoder.decode(value, StandardCharsets.UTF_8)).isEqualTo(nickname);
+        });
+    }
+
+    @Test
+    @DisplayName("토큰에 닉네임 클레임이 없으면 닉네임 헤더를 붙이지 않는다")
+    void omitsNicknameHeaderWithoutClaim() {
+        var now = Instant.now();
+
+        bearer(TestTokens.issue(7L, List.of("BUYER"), now, now.plus(VALIDITY))).expectStatus().isOk();
+
+        var received = received();
+        assertThat(received.header(AccessTokenFilter.MEMBER_ID)).containsExactly("7");
+        assertThat(received.header(AccessTokenFilter.MEMBER_NICKNAME)).isEmpty();
     }
 
     @Test
