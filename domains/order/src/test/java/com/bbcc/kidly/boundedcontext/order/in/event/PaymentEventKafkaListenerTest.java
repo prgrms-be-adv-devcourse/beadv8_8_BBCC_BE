@@ -4,9 +4,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.kafka.listener.ListenerExecutionFailedException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.DeserializationFeature;
@@ -158,6 +161,46 @@ class PaymentEventKafkaListenerTest {
         var record = new ConsumerRecord<>("kidly.payment.events", 0, 0L, "7", "{}");
 
         assertThatThrownBy(() -> listener().on(record)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("재시도가 끝난 payment.completed는 본문을 읽어 리스너 실패의 원래 예외와 함께 결제 완료 보관에 넘기고 그 결과를 돌려준다(#632)")
+    void keepsCompletedAfterRetries() {
+        var cause = new ObjectOptimisticLockingFailureException("CartItem", 9L);
+        when(paymentEventListener.keepAfterRetries(any(), any())).thenReturn(true);
+
+        boolean kept = listener().keepAfterRetries(record("payment.completed", completedBody()),
+            new ListenerExecutionFailedException("리스너 실패", cause));
+
+        assertThat(kept).isTrue();
+        var captor = ArgumentCaptor.forClass(PaymentCompletedEvent.class);
+        verify(paymentEventListener).keepAfterRetries(captor.capture(), same(cause));
+        assertThat(captor.getValue().data().orderId()).isEqualTo(7L);
+    }
+
+    @Test
+    @DisplayName("결제 완료 보관이 실패하면 false(DLT로 보낸다)")
+    void notKeptAfterRetries() {
+        when(paymentEventListener.keepAfterRetries(any(), any())).thenReturn(false);
+
+        assertThat(listener().keepAfterRetries(record("payment.completed", completedBody()),
+            new ListenerExecutionFailedException("리스너 실패", new IllegalStateException()))).isFalse();
+    }
+
+    @Test
+    @DisplayName("결제 완료가 아니거나(결제 실패 · 다른 토픽) 읽지 못하는 메시지는 보관하지 않고 false(지금처럼 DLT)")
+    void othersNotKept() {
+        var failure = new ListenerExecutionFailedException("리스너 실패", new IllegalStateException());
+        var otherTopic = new ConsumerRecord<>("kidly.product.events", 0, 0L, "7", completedBody());
+        otherTopic.headers().add("eventType", "payment.completed".getBytes(UTF_8));
+        var noEventType = new ConsumerRecord<>("kidly.payment.events", 0, 0L, "7", completedBody());
+
+        assertThat(listener().keepAfterRetries(record("payment.failed", failedBody("INSUFFICIENT_BALANCE")), failure))
+            .isFalse();
+        assertThat(listener().keepAfterRetries(otherTopic, failure)).isFalse();
+        assertThat(listener().keepAfterRetries(noEventType, failure)).isFalse();
+        assertThat(listener().keepAfterRetries(record("payment.completed", "{깨진 본문"), failure)).isFalse();
+        verifyNoInteractions(paymentEventListener);
     }
 
     private static String completedBody() {

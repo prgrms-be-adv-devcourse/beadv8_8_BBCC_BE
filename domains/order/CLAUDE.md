@@ -13,8 +13,8 @@
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(`ReplicaProduct` · `ReplicaSeller` · `ReplicaChild`)은 저장된 `occurredAt`보다 늦은 이벤트만 반영하고, 주문 상태는 이미 그 상태면 `ALREADY_DONE`으로 끝낸다
 - 필수 값이 없으면 `EventGuard`로 WARN 한 줄을 남기고 무시한다
 - 받는 길은 스위치 `kidly.order.kafka.consumer.enabled` 하나로 고른다: `true`(기본)면 Kafka 리스너, `false`면 Spring 이벤트(`SpringEventReceiver`). 처리 코드(`…EventListener`)는 같다
-- Kafka 리스너(`ProductEventKafkaListener` · `SellerEventKafkaListener` · `ChildProfileEventKafkaListener` · `PaymentEventKafkaListener`)는 팩토리 `orderKafkaListenerContainerFactory`(`OrderKafkaListenerConfig`)만 쓴다: 한 건씩 완료, 처음 읽는 그룹은 earliest, 실패하면 1초 간격 3번 재시도 뒤 `{토픽}.order.dlt`, 다시 해도 같은 예외 · 읽기 실패는 바로 DLT
-- 처리 실패를 주문이 보관하면 리스너가 처리 완료로 본다. 재고 차감됨 · 재고 차감 실패 · 결제 실패는 `EventFailureKeeper.run`이 `order_event_failure`에, 결제 완료는 `PaymentEventListener`가 `payment_recovery`에 보관하고, 둘 다 `EventFailureKeeper.markHandled`로 처리 완료 표시를 붙인다. 관리자가 재처리 · 종료한다. 보관까지 실패하면 재시도 → DLT
+- Kafka 리스너(`ProductEventKafkaListener` · `SellerEventKafkaListener` · `ChildProfileEventKafkaListener` · `PaymentEventKafkaListener`)는 팩토리 `orderKafkaListenerContainerFactory`(`OrderKafkaListenerConfig`)만 쓴다: 한 건씩 완료, 처음 읽는 그룹은 earliest, 실패하면 1초 간격 3번 재시도 뒤 `{토픽}.order.dlt`, 다시 해도 같은 예외 · 읽기 실패는 바로 DLT. 결제 완료는 DLT로 보내기 전에 `payment_recovery` 보관을 한 번 더 시도하고, 보관되면 보내지 않는다(`PaymentEventKafkaListener.keepAfterRetries`)
+- 처리 실패를 주문이 보관하면 리스너가 처리 완료로 본다. 재고 차감됨 · 재고 차감 실패 · 결제 실패는 `EventFailureKeeper.run`이 `order_event_failure`에, 결제 완료는 `PaymentEventListener`가 `payment_recovery`에 보관하고, 둘 다 `EventFailureKeeper.markHandled`로 처리 완료 표시를 붙인다. 관리자가 재처리 · 종료한다. 보관까지 실패하면 재시도 → DLT. 결제 완료의 동시 처리에서 진 쪽은 주문이 아직 결제대기면 보관 없이 재시도하고, 재시도가 끝나면 위처럼 보관한다(재처리 대기 주문은 결제 마감 만료가 취소하지 않는다)
 - DLT 메시지는 `OrderDeadLetterKafkaListener`가 `order_dead_letter`에 원래 위치(토픽 · 파티션 · 오프셋)당 1건으로 저장한다. 저장 실패는 DLT로 다시 보내지 않고 끝없이 재시도한다. 관리자 재처리는 저장한 본문으로 원래 리스너를 그대로 부른다(원래 토픽에 다시 넣지 않음)
 - 주문이 취소되면 그 주문의 재처리 대기 기록을 같은 트랜잭션에서 닫는다(`WaitingRecordCloser`, 이유 `ORDER_CANCELLED`)
 
@@ -37,7 +37,7 @@
 
 ## 5. 관리자 확인 대상
 - 관리자 화면 · 목록 · WARN/ERROR 로그에는 사람이 실제로 조치해야 하는 것만 남긴다
-- DLT 메시지 목록은 상태를 주지 않으면 `OPEN`만 보인다(처리 · 종료된 건은 상태로 걸러 본다). 이벤트 처리 실패 · 결제 반영 실패 목록은 상태를 주지 않으면 모든 상태가 보인다
+- DLT 메시지 목록은 상태를 주지 않으면 `OPEN`만 보인다(처리 · 종료된 건은 상태로 걸러 본다). 결제 토픽에서 온 메시지가 먼저 온다(`paymentEvent`). 이벤트 처리 실패 · 결제 반영 실패 목록은 상태를 주지 않으면 모든 상태가 보인다
 - 이미 해결됐거나 저절로 맞춰지는 건은 그 자리에서 닫거나(예: 주문 취소 시 대기 기록) 로그 수준을 내린다(예: 같은 메시지의 반복 저장 실패는 첫 번만 ERROR, 이후 DEBUG)
 - 로그는 결과 하나에 한 줄이고, 본문 · 예외 메시지 · 개인정보를 넣지 않는다(eventType · eventId · 키 · ID · 예외 종류만)
 

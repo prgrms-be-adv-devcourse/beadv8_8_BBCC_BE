@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiPredicate;
 import java.util.stream.Stream;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -45,6 +46,7 @@ import tools.jackson.databind.exc.InvalidFormatException;
 class OrderKafkaListenerConfigTest {
 
     private static final String BODY_MARKER = "본문-표식-주소";
+    private static final BiPredicate<ConsumerRecord<?, ?>, Exception> NOT_KEPT = (record, e) -> false;
 
     private final ConsumerFactory<Object, Object> consumerFactory = mock();
     private final CommonErrorHandler errorHandler = mock();
@@ -98,7 +100,8 @@ class OrderKafkaListenerConfigTest {
     @DisplayName("다시 해도 같은 예외 · 읽기 실패는 재시도 없이 바로 DLT로 보낸다")
     void notRetryableGoesToDeadLetterAtOnce(String name, Exception cause) {
         List<ConsumerRecord<?, ?>> deadLetters = new ArrayList<>();
-        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> deadLetters.add(record));
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> deadLetters.add(record),
+            NOT_KEPT);
         var record = record("kidly.seller.events", 2);
 
         boolean recovered = handler.handleOne(listenerFailure(cause), record, mock(Consumer.class),
@@ -119,10 +122,43 @@ class OrderKafkaListenerConfigTest {
     }
 
     @Test
+    @DisplayName("DLT로 보낼 메시지를 주문이 대신 보관하면(#632) DLT로 보내지 않고 처리 완료, DLT 로그도 없다")
+    void keptInsteadOfDeadLetter(CapturedOutput output) {
+        List<ConsumerRecord<?, ?>> deadLetters = new ArrayList<>();
+        List<Exception> keptErrors = new ArrayList<>();
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> deadLetters.add(record),
+            (record, e) -> keptErrors.add(e));
+        var failure = listenerFailure(new IllegalStateException());
+
+        boolean recovered = handler.handleOne(failure, record("kidly.payment.events", 0), mock(Consumer.class),
+            mock(MessageListenerContainer.class));
+
+        assertThat(recovered).isTrue();
+        assertThat(deadLetters).isEmpty();
+        assertThat(keptErrors).singleElement().isSameAs(failure);
+        assertThat(output.getOut()).doesNotContain("DLT로 보냅니다");
+    }
+
+    @Test
+    @DisplayName("주문이 보관하지 못하면(#632) 지금처럼 DLT로 보낸다")
+    void notKeptGoesToDeadLetter() {
+        List<ConsumerRecord<?, ?>> deadLetters = new ArrayList<>();
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> deadLetters.add(record),
+            NOT_KEPT);
+        var record = record("kidly.payment.events", 0);
+
+        handler.handleOne(listenerFailure(new IllegalStateException()), record, mock(Consumer.class),
+            mock(MessageListenerContainer.class));
+
+        assertThat(deadLetters).containsExactly(record);
+    }
+
+    @Test
     @DisplayName("그 밖의 예외는 처음 실패에서 DLT로 보내지 않고 다시 시도한다")
     void otherExceptionIsRetried() {
         List<ConsumerRecord<?, ?>> deadLetters = new ArrayList<>();
-        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> deadLetters.add(record));
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> deadLetters.add(record),
+            NOT_KEPT);
 
         boolean recovered = handler.handleOne(listenerFailure(new RuntimeException("일시 장애")),
             record("kidly.seller.events", 0), mock(Consumer.class), mock(MessageListenerContainer.class));
@@ -134,7 +170,7 @@ class OrderKafkaListenerConfigTest {
     @Test
     @DisplayName("DLT로 보낼 때 ERROR 로그에는 eventType · eventId · 키 · 예외 종류만 남고 본문 · 예외 메시지는 없다")
     void deadLetterLogHasNoBody(CapturedOutput output) {
-        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> { });
+        DefaultErrorHandler handler = OrderKafkaListenerConfig.errorHandler((record, e) -> { }, NOT_KEPT);
 
         handler.handleOne(listenerFailure(new IllegalArgumentException("값: " + BODY_MARKER)),
             record("kidly.seller.events", 1), mock(Consumer.class), mock(MessageListenerContainer.class));
