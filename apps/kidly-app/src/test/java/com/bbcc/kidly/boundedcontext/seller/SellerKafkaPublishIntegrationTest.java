@@ -141,7 +141,7 @@ class SellerKafkaPublishIntegrationTest {
         assertThat(findRecord(rolledBack)).isEmpty();
     }
 
-    // 트랜잭션 없이 호출해야 커밋 뒤 리스너(회원 판매자 상태, Kafka 전송)가 돈다
+    // 트랜잭션 없이 호출해야 커밋 뒤 Kafka 전송이 돈다
     private Long approveSeller() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
         var request = new SellerApplicationRequest(SellerFixture.BUSINESS_NAME, SellerFixture.REPRESENTATIVE_NAME,
