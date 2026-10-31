@@ -75,8 +75,9 @@ server {
         proxy_pass http://127.0.0.1:8081;
     }
 
+    # Gateway(#608)가 토큰 검증 · CORS 를 하고 개발 앱으로 넘긴다. /actuator/health 는 위에서 앱을 그대로 본다
     location / {
-        proxy_pass http://127.0.0.1:8081;
+        proxy_pass http://127.0.0.1:8083;
     }
 }
 

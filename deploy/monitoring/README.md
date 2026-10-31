@@ -126,11 +126,11 @@ Slack 메시지 형식은 `grafana/provisioning/alerting/templates.yml` 에 있�
 
 ```
 🔴 앱 다운 · dev                        ← warning 은 🟠 주황, 그 밖은 빨강. 같은 그룹에 여러 건이면 끝에 (N건)
-앱 메트릭을 2분 넘게 못 읽었습니다 (앱 다운 또는 /actuator/prometheus 없음)
+kidly 메트릭을 2분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway
 규칙 보기 · 일시정지
 
 🟠 ERROR 로그 · dev
-최근 5분 ERROR 로그 3건
+kidly 최근 5분 ERROR 로그 3건
 규칙 보기 · 일시정지 · 로그 보기
 
 🟢 해결 · 앱 다운 · dev                  ← 초록
@@ -141,7 +141,7 @@ Slack 메시지 형식은 `grafana/provisioning/alerting/templates.yml` 에 있�
 Prometheus 조회가 실패하면 알림 이름이 `DatasourceError` 로 오는데, 제목에는 규칙 이름을 써서 `🔴 앱 다운 · 조회 실패` 로 보입니다(데이터가 없을 때는 `· 데이터 없음`).
 
 "일시정지" 는 그 알림의 라벨로 silence 를 만드는 화면을 엽니다.
-5xx 증가 · ERROR 로그 알림에는 "로그 보기" 가 더 붙습니다. 그 환경의 최근 15분 5xx 요청 로그 · ERROR 로그를 Explore 로 엽니다(규칙의 `logs_url`).
+5xx 증가 · ERROR 로그 알림에는 "로그 보기" 가 더 붙습니다. 그 환경의 최근 15분 5xx 요청 로그 · 그 서비스의 ERROR 로그를 Explore 로 엽니다(규칙의 `logs_url`).
 
 ## 설정 바꾸기
 
@@ -160,17 +160,18 @@ Grafana 화면에서 고친 대시보드 · 알림 규칙은 저장되지 않거
 t3.large 의 Alloy 가 이 폴더를 읽어(`discovery.file`) 대상을 바꾸므로 손으로 고칠 것이 없습니다. 수집한 메트릭은 job `kidly` · `env` · `instance`(`127.0.0.1:<포트>`) 라벨로 medium Prometheus 에 들어갑니다. prod 도 첫 배포 때 수집 · 알림이 시작됩니다.
 기동에 실패한 배포는 파일을 바꾸지 않습니다. 이미 있던 환경이면 "앱 다운" 이 그대로 울립니다.
 검색이 켜진 환경(지금은 dev)은 검색 서비스도 `targets/search/<환경>.yml` 에 `127.0.0.1:<SEARCH_PORT>` 로 써 둡니다. 앱 대시보드 · 알림과 섞이지 않게 job 을 `kidly-search` 로 나눠서, 앱 알림(job `kidly`)은 검색 서비스를 보지 않습니다.
-로그는 Alloy 가 앱 · 검색 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
+Gateway 가 켜진 환경(지금은 dev)도 같은 식으로 `targets/gateway/<환경>.yml` 에 `127.0.0.1:<GATEWAY_PORT>` 를 써 두고, job 은 `kidly-gateway` 입니다. 모든 요청이 지나가므로 "앱 다운" · "ERROR 로그" 알림은 Gateway 도 봅니다. "5xx 증가" 와 "수집 끊김" 은 앱(job `kidly`)만 봅니다(Gateway 는 앱의 5xx 를 그대로 넘겨 두 번 세게 되고, Alloy 가 끊기면 앱도 함께 끊긴다).
+로그는 Alloy 가 앱 · 검색 서비스 · Gateway 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 medium 의 Pod 로그는 `namespace` · `pod` · `container` · `service_name`(컨테이너 이름) 라벨로 들어갑니다(`env` 없음).
 
 t3.large 에서:
 
 ```bash
-cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml
+cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml /opt/app/monitoring/targets/gateway/*.yml
 docker compose -p monitoring logs alloy --tail 50   # 보내기 실패(medium 에 닿지 못함)가 여기 남는다
 ```
 
-환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색이 켜져 있었으면 `targets/search/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
+환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색 · Gateway 가 켜져 있었으면 `targets/search/<환경>.yml` · `targets/gateway/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
 
 ## 로그 보기
 
@@ -200,7 +201,7 @@ Logs Drilldown 앱 버전은 `k8s/grafana.yaml` 의 `GF_PLUGINS_PREINSTALL` 로 
 
 **Grafana 를 올릴 때 확인**: 앱 버전(`GF_PLUGINS_PREINSTALL`), 기능 플래그 `kubernetesLogsDrilldown`(실험 기능), 기본 열 API 경로 `apis/logsdrilldown.grafana.app/v1beta1/.../logsdrilldowndefaultcolumns`(`deploy.sh`). 경로가 바뀌면 `deploy.sh` 가 실패해 `#4팀-알림` 에 모니터링 배포 실패가 옵니다 — 컨테이너는 이미 새로 떠 있어 수집 · 알림은 그대로입니다.
 
-서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
+서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`, Gateway `kidly-gateway`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
 로그 줄을 펼치면 traceId 옆 "같은 요청 로그 보기" 링크로 그 요청의 로그를 모두 엽니다(Explore, 최근 24시간).
 나머지 필드는 `| json` 으로 펼쳐 거릅니다. 점은 `_` 로 바뀝니다.
 

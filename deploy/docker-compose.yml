@@ -1,6 +1,7 @@
 # 서버용. 배포 때 워크플로가 /opt/app/<env>/ 로 올린다 (env 마다 다른 것은 .env 뿐)
 # deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES=search 인 환경(지금은 dev)에서만 뜬다
+# Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(지금은 dev)에서만 뜬다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -105,6 +106,38 @@ services:
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${SEARCH_PORT:-8082}:8080"     # 외부 비공개. nginx 가 받아 넘긴다
+    volumes:
+      - ./jwt/public.pem:/app/jwt/public.pem:ro
+      - ./logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+    logging: *logging
+
+  # Gateway(apps/gateway, #608). nginx 뒤에서 토큰 검증 · 무효화 확인 · CORS 를 하고 app 으로 넘긴다
+  # 토큰 무효화 이벤트를 받는다(구독 그룹 kidly.gateway). DB 가 없어 비밀이 든 .env 대신 필요한 값만 넘기고 공개키만 마운트한다
+  gateway:
+    image: ${GATEWAY_IMAGE}
+    profiles: [gateway]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx256m
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # 같은 compose 네트워크의 app 컨테이너 포트(8080)다. 서버 포트(APP_PORT)가 아니다
+      KIDLY_APP_URI: http://app:8080
+      JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8083}:8080"     # 외부 비공개. nginx 가 받아 넘긴다
     volumes:
       - ./jwt/public.pem:/app/jwt/public.pem:ro
       - ./logs:/app/logs
