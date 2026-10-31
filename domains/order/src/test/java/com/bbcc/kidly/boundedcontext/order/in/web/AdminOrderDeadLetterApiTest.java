@@ -36,6 +36,7 @@ class AdminOrderDeadLetterApiTest {
     private static final Long ADMIN_ID = 99L;
     private static final Long BUYER_ID = 6_300L;
     private static final String PAYMENT_TOPIC = "kidly.payment.events";
+    private static final String PRODUCT_TOPIC = "kidly.product.events";
     private static final String STORE = "org.springframework.dao.DataIntegrityViolationException";
     private static final String READ = "tools.jackson.databind.exc.InvalidFormatException";
     private static final String PROCESS = "java.lang.IllegalStateException";
@@ -89,6 +90,41 @@ class AdminOrderDeadLetterApiTest {
             .jsonPath("$.totalElements").isEqualTo(2)
             .jsonPath("$.totalPages").isEqualTo(1)
             .jsonPath("$.hasNext").isEqualTo(false);
+    }
+
+    @Test
+    @DisplayName("목록: 결제 토픽 메시지가 먼저(돈이 걸림), 그 안과 나머지는 최근 받은 것부터. 칸 paymentEvent로 표시하고 거르기 · 쪽 나눔에도 같은 순서(#632)")
+    void paymentFirst() {
+        Long productNewest = receive(PRODUCT_TOPIC, 1L, "product.changed", "3", STORE);
+        Long paymentOld = receive(PAYMENT_TOPIC, 2L, "payment.failed", "42", PROCESS);
+        Long paymentNew = receive(PAYMENT_TOPIC, 3L, "payment.completed", "43", STORE);
+        Long productOld = receive(PRODUCT_TOPIC, 4L, "stock.deducted", "44", STORE);
+        receivedAt(productNewest, LocalDateTime.of(2026, 10, 31, 12, 0));
+        receivedAt(paymentOld, LocalDateTime.of(2026, 10, 31, 9, 0));
+        receivedAt(paymentNew, LocalDateTime.of(2026, 10, 31, 10, 0));
+        receivedAt(productOld, LocalDateTime.of(2026, 10, 31, 8, 0));
+
+        client.get().uri(DEAD_LETTERS_PATH)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].deadLetterId").isEqualTo(List.of(String.valueOf(paymentNew),
+                String.valueOf(paymentOld), String.valueOf(productNewest), String.valueOf(productOld)))
+            .jsonPath("$.content[*].paymentEvent").isEqualTo(List.of(true, true, false, false));
+        assertThat(idsOf("?size=2")).containsExactly(String.valueOf(paymentNew), String.valueOf(paymentOld));
+        assertThat(idsOf("?failureType=STORE_FAILED")).containsExactly(String.valueOf(paymentNew),
+            String.valueOf(productNewest), String.valueOf(productOld));
+        client.get().uri(DEAD_LETTERS_PATH + "/" + paymentNew)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectBody()
+            .jsonPath("$.paymentEvent").isEqualTo(true);
+        client.get().uri(DEAD_LETTERS_PATH + "/" + productNewest)
+            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .exchange()
+            .expectBody()
+            .jsonPath("$.paymentEvent").isEqualTo(false);
     }
 
     @Test
@@ -272,7 +308,11 @@ class AdminOrderDeadLetterApiTest {
     }
 
     private Long receive(long offset, String eventType, String key, String exceptionClass) {
-        deadLetterService.receive(new ReceiveDeadLetterCommand(PAYMENT_TOPIC, 1, offset, key, eventType,
+        return receive(PAYMENT_TOPIC, offset, eventType, key, exceptionClass);
+    }
+
+    private Long receive(String topic, long offset, String eventType, String key, String exceptionClass) {
+        deadLetterService.receive(new ReceiveDeadLetterCommand(topic, 1, offset, key, eventType,
             "e-" + offset, body(key), exceptionClass, "실패 메시지", "trace"));
         return jdbcTemplate.queryForObject("select id from orders.order_dead_letter where source_offset = ?",
             Long.class, offset);

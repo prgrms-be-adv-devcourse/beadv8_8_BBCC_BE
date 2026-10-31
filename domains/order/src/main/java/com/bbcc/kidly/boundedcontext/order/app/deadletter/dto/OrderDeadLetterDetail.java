@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
  *
  * @param orderStatus 관련 주문의 지금 상태(저장하지 않음). 관련 주문이 없거나 주문이 없으면 null
  * @param recommendedAction 실패 유형별 권장 조치 한 줄. 처리 · 종료돼 조치할 것이 없으면 null
+ * @param paymentEvent 결제 토픽에서 온 메시지(#632)
  */
 public record OrderDeadLetterDetail(
     Long deadLetterId,
@@ -38,7 +39,8 @@ public record OrderDeadLetterDetail(
     int reprocessCount,
     LocalDateTime lastReprocessedAt,
     String lastReprocessResult,
-    String recommendedAction) {
+    String recommendedAction,
+    boolean paymentEvent) {
 
     public static OrderDeadLetterDetail of(OrderDeadLetter letter, String orderStatus, String recommendedAction) {
         return new OrderDeadLetterDetail(letter.getId(), letter.getSourceTopic(), letter.getSourcePartition(),
@@ -49,6 +51,6 @@ public record OrderDeadLetterDetail(
             letter.getFirstReceivedAt(), letter.getLastReceivedAt(), letter.getReceivedCount(),
             letter.getStatus().name(), letter.getHandledBy(), letter.getHandledAt(), letter.getMemo(),
             letter.getReprocessCount(), letter.getLastReprocessedAt(), letter.getLastReprocessResult(),
-            recommendedAction);
+            recommendedAction, letter.isPaymentEvent());
     }
 }

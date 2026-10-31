@@ -34,6 +34,8 @@ public class OrderDeadLetter extends OrderTimeEntity {
     public static final String SOURCE_UNIQUE = "uk_order_dead_letter_source";
     public static final int RESULT_LENGTH = 500;
     public static final String HANDED_OFF_RESULT = "자체 보관으로 넘김(재처리 대기 목록에서 처리)";
+    /** 결제 토픽. 여기서 온 메시지는 돈이 걸려 있어 관리자 목록 맨 앞에 둔다(#632) */
+    public static final String PAYMENT_SOURCE_TOPIC = "kidly.payment.events";
 
     /**
      * 왜 DLT로 갔는지. 관리자 권장 조치가 유형마다 다르다.
@@ -206,6 +208,13 @@ public class OrderDeadLetter extends OrderTimeEntity {
         this.handledBy = adminId;
         this.handledAt = now;
         this.memo = memo;
+    }
+
+    /**
+     * 결제 토픽에서 온 메시지인지(#632). 결제 완료가 빠지면 돈은 빠졌는데 주문이 결제대기 · 만료 취소될 수 있어 먼저 본다.
+     */
+    public boolean isPaymentEvent() {
+        return PAYMENT_SOURCE_TOPIC.equals(sourceTopic);
     }
 
     public boolean isOpen() {

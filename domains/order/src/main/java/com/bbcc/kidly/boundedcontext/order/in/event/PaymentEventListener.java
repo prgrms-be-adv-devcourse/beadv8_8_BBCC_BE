@@ -101,6 +101,31 @@ public class PaymentEventListener {
         }
     }
 
+    /**
+     * 결제 완료가 마지막 재시도까지 실패해 DLT로 가기 직전이다(#632). 보관 없이 다시 던진 실패(동시 처리에서 진 쪽인데 아직
+     * 결제대기 · 보관 실패)를 처리 실패와 같은 형식으로 payment_recovery에 보관한다. 보관되면 결제 마감 만료가 이 주문을 취소하지
+     * 않고 관리자가 재처리 · 취소로 정한다. 보관하면 보관 결과를 붙여 ERROR 한 줄 · true(DLT로 보내지 않음), 보관이 실패하면
+     * 보관 오류를 원래 예외에 붙이고 false(지금처럼 DLT, 로그는 DLT 한 줄).
+     */
+    public boolean keepAfterRetries(PaymentCompletedEvent event, RuntimeException error) {
+        if (event.data() == null || event.data().orderId() == null) {
+            return false;
+        }
+        MarkPaidCommand paid = toCommand(event);
+        PaymentRecoveryResult saved;
+        try {
+            saved = recoveryService.recordFailure(paid, error);
+        } catch (RuntimeException recordError) {
+            error.addSuppressed(recordError);
+            return false;
+        }
+        log.error("결제 완료 처리 실패: event={} reason=retries-exhausted orderId={} paymentId={} "
+                + "recoveryStatus={} attemptCount={} failureCode={}",
+            event.eventType(), paid.orderId(), paid.paymentId(), saved.status(), saved.attemptCount(),
+            saved.failureCode(), error);
+        return true;
+    }
+
     // 주문을 새 트랜잭션에서 다시 읽는다. 이긴 쪽이 주문을 취소했으면 서비스가 환불 확인 WARN을 남긴다(#519).
     // 다시 읽기가 실패해도 원래 예외를 그대로 던지도록 읽기 오류는 원래 예외에 붙이고(suppressed) 아직 결제대기로 본다(다시 처리)
     private LostPaymentRecheck recheckLost(MarkPaidCommand paid, RuntimeException e) {

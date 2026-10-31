@@ -4,11 +4,13 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderKafkaConsumerPropertie
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.function.BiPredicate;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,7 +40,8 @@ import tools.jackson.core.JacksonException;
  *   <li>처음 읽는 그룹은 처음부터 읽는다(earliest, 앱 기본 latest를 이 팩토리의 컨테이너에만 덮어씀). 처음 전환할 때 메시지가 빠지지
  *       않게 하고, 다시 읽어도 처리 결과가 1회분이라 안전하다</li>
  *   <li>스위치(kidly.order.kafka.consumer.enabled)가 꺼져 있으면 컨테이너를 자동 시작하지 않는다</li>
- *   <li>실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다. 다시 해도 같은 예외 · 읽기 실패는 재시도 없이 보낸다</li>
+ *   <li>실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다. 다시 해도 같은 예외 · 읽기 실패는 재시도 없이 보낸다.
+ *       결제 완료는 보내기 전에 payment_recovery 보관을 시도하고, 보관되면 보내지 않는다(#632)</li>
  *   <li>DLT를 읽는 컨테이너(#601)만 에러 처리기가 다르다: 저장이 실패하면 DLT로 보내지 않고 끝없이 다시 시도한다</li>
  *   <li>메시지 하나를 처리하는 동안 로그 MDC에 eventId · eventType · correlationId(키)를 둔다(#603, 에러 처리기 로그까지)</li>
  * </ul>
@@ -84,14 +87,17 @@ class OrderKafkaListenerConfig {
         return deadLetterTopic(PAYMENT_EVENTS);
     }
 
-    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
+    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다.
+    // 결제 리스너는 이 팩토리를 쓰는 @KafkaListener라 만들 때 받으면 순환 참조가 되므로, DLT로 보낼 때 꺼낸다(#632)
     @Bean(FACTORY)
     ConcurrentKafkaListenerContainerFactory<Object, Object> orderKafkaListenerContainerFactory(
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
-        ProducerFactory<String, String> producerFactory, OrderKafkaConsumerProperties properties) {
+        ProducerFactory<String, String> producerFactory, OrderKafkaConsumerProperties properties,
+        ObjectProvider<PaymentEventKafkaListener> paymentListener) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> deadLetterPartition(record));
-        return factory(configurer, consumerFactory, properties.enabled(), errorHandler(deadLetter),
+        return factory(configurer, consumerFactory, properties.enabled(), errorHandler(deadLetter,
+            (record, e) -> paymentListener.getObject().keepAfterRetries(record, e)),
             deadLetterStoreErrorHandler(deadLetterStoreBackOff()));
     }
 
@@ -122,15 +128,34 @@ class OrderKafkaListenerConfig {
 
     /**
      * 다시 해도 같은 결과인 예외(업무 규칙 · 잘못된 값 · 상태 · null)와 읽기 실패(Jackson)는 재시도하지 않는다.
+     * DLT로 보내기 전에 keep으로 주문 자체 보관을 시도하고(결제 완료, #632), 보관되면 DLT로 보내지 않고 처리 완료로 넘긴다.
      */
-    static DefaultErrorHandler errorHandler(ConsumerRecordRecoverer deadLetter) {
+    static DefaultErrorHandler errorHandler(ConsumerRecordRecoverer deadLetter,
+        BiPredicate<ConsumerRecord<?, ?>, Exception> keep) {
         var errorHandler = new DefaultErrorHandler((record, e) -> {
+            if (kept(keep, record, e)) {
+                return;
+            }
             logDeadLetter(record, e);
             deadLetter.accept(record, e);
         }, new FixedBackOff(RETRY_INTERVAL_MS, RETRY_ATTEMPTS));
         errorHandler.addNotRetryableExceptions(BusinessException.class, IllegalArgumentException.class,
             IllegalStateException.class, NullPointerException.class, JacksonException.class);
         return errorHandler;
+    }
+
+    /**
+     * 보관 시도가 예상 못 한 예외로 끝나면 보관하지 못한 것으로 본다(#632). 여기서 던지면 recoverer 실패로 같은 메시지를 계속
+     * 다시 시도해 그 파티션이 멈추므로, 지금처럼 DLT로 보낸다. 보관 오류는 원래 예외에 붙이고(suppressed) 로그는 DLT 한 줄이다.
+     */
+    private static boolean kept(BiPredicate<ConsumerRecord<?, ?>, Exception> keep, ConsumerRecord<?, ?> record,
+        Exception error) {
+        try {
+            return keep.test(record, error);
+        } catch (RuntimeException keepError) {
+            error.addSuppressed(keepError);
+            return false;
+        }
     }
 
     /**

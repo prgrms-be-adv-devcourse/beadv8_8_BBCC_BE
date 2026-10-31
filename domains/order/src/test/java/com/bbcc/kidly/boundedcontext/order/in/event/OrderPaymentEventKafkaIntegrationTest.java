@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.in.web.PaymentRecoveryRetry;
 import com.bbcc.kidly.boundedcontext.order.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
@@ -56,6 +57,8 @@ class OrderPaymentEventKafkaIntegrationTest {
     private static final String BREAK_DELIVERY = "test_break_kafka_delivery_insert";
     private static final String BREAK_RECOVERY = "test_break_kafka_recovery_insert";
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
+    private static final long ATTEMPTS = 4;
+    private static final Long ADMIN_ID = 99L;
 
     @Autowired
     private KafkaContainer kafka;
@@ -85,6 +88,9 @@ class OrderPaymentEventKafkaIntegrationTest {
     private OrderFlowEventRecorder recorder;
 
     @Autowired
+    private PaymentRecoveryRetry recoveryRetry;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     private OrderKafkaTestClient kafkaClient;
@@ -107,9 +113,7 @@ class OrderPaymentEventKafkaIntegrationTest {
         }
         jdbcTemplate.execute("alter table orders.delivery drop constraint if exists " + BREAK_DELIVERY);
         jdbcTemplate.execute("alter table orders.payment_recovery drop constraint if exists " + BREAK_RECOVERY);
-        jdbcTemplate.execute("drop trigger if exists test_block_cart_delete_once on orders.cart_item");
-        jdbcTemplate.execute("drop function if exists orders.test_block_cart_delete_once()");
-        jdbcTemplate.execute("drop sequence if exists orders.test_cart_delete_seq");
+        unblockCartDeletes();
     }
 
     @Test
@@ -250,6 +254,62 @@ class OrderPaymentEventKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("반영이 매번 장바구니 줄 충돌로 되돌려지면 마지막 재시도 뒤 payment_recovery에 남기고 DLT 없이 결제대기, "
+        + "결제 마감이 지나도 만료 대상이 아니다(#632)")
+    void retriesExhaustedKept() {
+        OrderDetail order = placeWithCart(4_071L);
+        var event = paymentCompleted(order, 4_071L);
+
+        keepAfterRetries(event);
+
+        assertThat(jdbcTemplate.queryForMap("select status, attempt_count, failure_code from orders.payment_recovery "
+            + "where order_id = ?", order.orderId()))
+            .containsEntry("status", "PENDING").containsEntry("attempt_count", 1)
+            .containsEntry("failure_code", "ObjectOptimisticLockingFailureException");
+        assertThat(kafkaClient.deadLetters(TOPIC, event.eventId().toString())).isEmpty();
+        assertThat(outcomeOf(order, 4_071L)).containsEntry("status", "PENDING_PAYMENT").containsEntry("deliveries", 0L)
+            .containsEntry("cartLines", 2L);
+
+        jdbcTemplate.update("update orders.orders set payment_due_at = ? where id = ?",
+            LocalDateTime.now().minusMinutes(1), order.orderId());
+        assertThat(orderService.findOverduePaymentOrderIds(LocalDateTime.now(), 0L, 1_000))
+            .as("재처리 대기 주문은 만료 취소 대상이 아님").doesNotContain(order.orderId());
+    }
+
+    @Test
+    @DisplayName("재시도 끝에 보관된 결제 완료를 관리자가 재처리하면 결제완료 · 판매자별 배송 · 장바구니 정리 1회분(#632)")
+    void keptAfterRetriesRecoveredByAdmin() {
+        OrderDetail order = placeWithCart(4_081L);
+        keepAfterRetries(paymentCompleted(order, 4_081L));
+        unblockCartDeletes();
+        Long recoveryId = jdbcTemplate.queryForObject("select id from orders.payment_recovery where order_id = ?",
+            Long.class, order.orderId());
+
+        assertThat(recoveryRetry.retry(recoveryId, ADMIN_ID).status()).isEqualTo("RECOVERED");
+
+        assertThat(outcomeOf(order, 4_081L)).containsEntry("status", "PAID").containsEntry("deliveries", 2L)
+            .containsEntry("cartLines", 0L).containsEntry("paidHistory", 1L);
+    }
+
+    @Test
+    @DisplayName("재시도 끝에 보관까지 실패하면 지금처럼 DLT에 1건 보내고 보관 기록은 없다(#632)")
+    void retriesExhaustedKeepFailureToDeadLetter() {
+        OrderDetail order = placeWithCart(4_091L);
+        blockCartDeletes();
+        jdbcTemplate.execute("alter table orders.payment_recovery add constraint " + BREAK_RECOVERY
+            + " check (order_id <> " + order.orderId() + ") not valid");
+        var event = paymentCompleted(order, 4_091L);
+
+        kafkaClient.send(TOPIC, event);
+
+        String eventId = event.eventId().toString();
+        AsyncWait.until(OrderKafkaTestClient.TIMEOUT, () -> !kafkaClient.deadLetters(TOPIC, eventId).isEmpty());
+        assertThat(kafkaClient.deadLetters(TOPIC, eventId)).hasSize(1);
+        assertThat(recoveryCountOf(order.orderId())).isZero();
+        assertThat(outcomeOf(order, 4_091L)).containsEntry("status", "PENDING_PAYMENT");
+    }
+
+    @Test
     @DisplayName("모르는 실패 사유는 재시도 없이 DLT에 1건 보내고 주문은 그대로, 로그에 본문 값은 없다")
     void unknownEnumToDeadLetter(CapturedOutput output) {
         OrderDetail order = placeWithCart(4_051L);
@@ -287,6 +347,36 @@ class OrderPaymentEventKafkaIntegrationTest {
             end $$""");
         jdbcTemplate.execute("create trigger test_block_cart_delete_once before delete on orders.cart_item "
             + "for each row execute function orders.test_block_cart_delete_once()");
+    }
+
+    // 장바구니 줄 DELETE를 매번 막는다: 반영이 매 시도 낙관적 락으로 통째로 되돌려진다(진 쪽인데 계속 결제대기)
+    private void blockCartDeletes() {
+        jdbcTemplate.execute("create sequence orders.test_cart_delete_seq");
+        jdbcTemplate.execute("""
+            create function orders.test_block_cart_delete_once() returns trigger language plpgsql as $$
+            begin
+              perform nextval('orders.test_cart_delete_seq');
+              return null;
+            end $$""");
+        jdbcTemplate.execute("create trigger test_block_cart_delete_once before delete on orders.cart_item "
+            + "for each row execute function orders.test_block_cart_delete_once()");
+    }
+
+    private void unblockCartDeletes() {
+        jdbcTemplate.execute("drop trigger if exists test_block_cart_delete_once on orders.cart_item");
+        jdbcTemplate.execute("drop function if exists orders.test_block_cart_delete_once()");
+        jdbcTemplate.execute("drop sequence if exists orders.test_cart_delete_seq");
+    }
+
+    // 결제 완료를 보내고 처음 시도 + 재시도 3번이 모두 되돌려진 뒤 처리 완료(오프셋 커밋)될 때까지 기다린다
+    private void keepAfterRetries(PaymentCompletedEvent event) {
+        blockCartDeletes();
+
+        RecordMetadata sent = kafkaClient.send(TOPIC, event);
+        kafkaClient.awaitProcessed(sent);
+
+        assertThat(jdbcTemplate.queryForObject("select last_value from orders.test_cart_delete_seq", Long.class))
+            .as("처음 시도 + 재시도 3번 모두 막힘").isGreaterThanOrEqualTo(ATTEMPTS);
     }
 
     private void saveReplicas() {

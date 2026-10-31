@@ -300,6 +300,34 @@ class PaymentEventListenerLogTest {
             .doesNotContain("rolled-back-at-commit");
     }
 
+    @Test
+    @DisplayName("재시도가 끝난 결제 완료(#632)는 같은 형식으로 보관하고 보관 결과를 붙인 ERROR 한 줄을 남긴 뒤 true(DLT로 보내지 않음)")
+    void keptAfterRetries(CapturedOutput output) {
+        ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("CartItem", 9L);
+        when(recoveryService.recordFailure(COMMAND, error))
+            .thenReturn(saved("ObjectOptimisticLockingFailureException"));
+
+        assertThat(listener.keepAfterRetries(event(), error)).isTrue();
+
+        assertThat(output).containsPattern("ERROR.*event=payment.completed reason=retries-exhausted orderId="
+            + ORDER_ID + " paymentId=" + PAYMENT_ID + " recoveryStatus=PENDING attemptCount=1 "
+            + "failureCode=ObjectOptimisticLockingFailureException");
+        assertThat(output.getOut()).containsOnlyOnce("reason=retries-exhausted");
+    }
+
+    @Test
+    @DisplayName("재시도가 끝난 결제 완료의 보관이 실패하면 false(지금처럼 DLT, 로그는 DLT 한 줄), 보관 오류는 원래 예외에 붙인다(#632)")
+    void notKeptAfterRetries(CapturedOutput output) {
+        ObjectOptimisticLockingFailureException error = new ObjectOptimisticLockingFailureException("CartItem", 9L);
+        CannotAcquireLockException recordError = new CannotAcquireLockException("기록 잠김");
+        when(recoveryService.recordFailure(COMMAND, error)).thenThrow(recordError);
+
+        assertThat(listener.keepAfterRetries(event(), error)).isFalse();
+
+        assertThat(error.getSuppressed()).contains(recordError);
+        assertThat(output.getOut()).doesNotContain("retries-exhausted");
+    }
+
     // 반영 서비스를 통째로 mock으로 두어, 커밋까지 끝낸 반영이 예외로 돌아오는 경우를 만든다
     private PaymentEventListener listenerWith(PaymentCompletionService paymentCompletion) {
         return new PaymentEventListener(orderService, paymentCompletion, recoveryService, failureService);
