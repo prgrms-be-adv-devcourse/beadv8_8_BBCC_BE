@@ -5,7 +5,6 @@ import static com.bbcc.kidly.support.TestApiController.AUTH_PATH;
 import static com.bbcc.kidly.support.TestApiController.SELLER_PATH;
 
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -16,9 +15,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.function.Consumer;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -34,36 +36,37 @@ class JwtAuthenticationApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private JwtProperties jwtProperties;
 
     @Test
-    @DisplayName("유효한 토큰이면 로그인이 필요한 API를 호출할 수 있다")
+    @DisplayName("로그인 회원이면 로그인이 필요한 API를 호출할 수 있다")
     void validToken() {
-        expectOk(AUTH_PATH, tokens.buyer(1L));
+        expectOk(AUTH_PATH, TestMembers.buyer(1L));
     }
 
     @Test
+    @Disabled("gateway 모드: 토큰 검증은 Gateway가 한다. #638 Task 3에서 지운다")
     @DisplayName("만료된 토큰이면 401 ProblemDetail로 응답한다")
     void expiredToken() {
         expectUnauthorized(sign(serverKeyPair(), Instant.now().minus(Duration.ofMinutes(30))));
     }
 
     @Test
+    @Disabled("gateway 모드: 토큰 검증은 Gateway가 한다. #638 Task 3에서 지운다")
     @DisplayName("다른 키로 서명한 토큰이면 401 ProblemDetail로 응답한다")
     void otherKeyToken() {
         expectUnauthorized(sign(otherKeyPair(), Instant.now().plus(Duration.ofMinutes(30))));
     }
 
     @Test
+    @Disabled("gateway 모드: 토큰 검증은 Gateway가 한다. #638 Task 3에서 지운다")
     @DisplayName("형식이 잘못된 토큰이면 401 ProblemDetail로 응답한다")
     void malformedToken() {
         expectUnauthorized("not-a-jwt");
     }
 
     @Test
+    @Disabled("gateway 모드: 토큰 검증은 Gateway가 한다. #638 Task 3에서 지운다")
     @DisplayName("서명하지 않은 토큰(alg: none)이면 401 ProblemDetail로 응답한다")
     void unsignedToken() {
         expectUnauthorized(unsignedAdminToken());
@@ -72,36 +75,36 @@ class JwtAuthenticationApiTest {
     @Test
     @DisplayName("BUYER는 판매자 API를 호출할 수 없다")
     void buyerCannotCallSellerApi() {
-        expectForbidden(SELLER_PATH, tokens.buyer(1L));
+        expectForbidden(SELLER_PATH, TestMembers.buyer(1L));
     }
 
     @Test
     @DisplayName("BUYER는 관리자 API를 호출할 수 없다")
     void buyerCannotCallAdminApi() {
-        expectForbidden(ADMIN_PATH, tokens.buyer(1L));
+        expectForbidden(ADMIN_PATH, TestMembers.buyer(1L));
     }
 
     @Test
     @DisplayName("SELLER는 관리자 API를 호출할 수 없다")
     void sellerCannotCallAdminApi() {
-        expectForbidden(ADMIN_PATH, tokens.seller(1L));
+        expectForbidden(ADMIN_PATH, TestMembers.seller(1L));
     }
 
     @Test
     @DisplayName("SELLER는 판매자 API를 호출할 수 있다")
     void sellerCanCallSellerApi() {
-        expectOk(SELLER_PATH, tokens.seller(1L));
+        expectOk(SELLER_PATH, TestMembers.seller(1L));
     }
 
     @Test
     @DisplayName("ADMIN은 관리자 API를 호출할 수 있다")
     void adminCanCallAdminApi() {
-        expectOk(ADMIN_PATH, tokens.admin(1L));
+        expectOk(ADMIN_PATH, TestMembers.admin(1L));
     }
 
-    private void expectOk(String path, String token) {
+    private void expectOk(String path, Consumer<HttpHeaders> login) {
         client.get().uri(path)
-            .headers(headers -> headers.setBearerAuth(token))
+            .headers(login)
             .exchange()
             .expectStatus().isOk();
     }
@@ -118,9 +121,9 @@ class JwtAuthenticationApiTest {
             .jsonPath("$.instance").isEqualTo(AUTH_PATH);
     }
 
-    private void expectForbidden(String path, String token) {
+    private void expectForbidden(String path, Consumer<HttpHeaders> login) {
         client.get().uri(path)
-            .headers(headers -> headers.setBearerAuth(token))
+            .headers(login)
             .exchange()
             .expectStatus().isForbidden()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)

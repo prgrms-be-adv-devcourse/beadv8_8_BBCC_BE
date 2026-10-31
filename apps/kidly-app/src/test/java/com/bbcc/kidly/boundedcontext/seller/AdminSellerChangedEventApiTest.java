@@ -5,16 +5,18 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.time.LocalDateTime;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
@@ -34,9 +36,6 @@ class AdminSellerChangedEventApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private SellerRepository sellerRepository;
 
     @Autowired
@@ -51,7 +50,7 @@ class AdminSellerChangedEventApiTest {
         sellerRepository.save(suspended);
         eventRecorder.clear();
 
-        republish(tokens.admin(ADMIN_ID))
+        republish(TestMembers.admin(ADMIN_ID))
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.publishedCount").isEqualTo(2);
@@ -73,25 +72,21 @@ class AdminSellerChangedEventApiTest {
         sellerRepository.save(SellerFixture.activeSeller(ACTIVE_SELLER_ID));
         eventRecorder.clear();
 
-        republish(tokenOf(member)).expectStatus().isEqualTo(status);
+        republish(headersOf(member)).expectStatus().isEqualTo(status);
         assertThat(eventRecorder.events(SellerChangedEvent.class)).isEmpty();
     }
 
-    private String tokenOf(String member) {
+    private Consumer<HttpHeaders> headersOf(String member) {
         return switch (member) {
-            case "판매자" -> tokens.seller(ACTIVE_SELLER_ID);
-            case "구매자" -> tokens.buyer(BUYER_ID);
+            case "판매자" -> TestMembers.seller(ACTIVE_SELLER_ID);
+            case "구매자" -> TestMembers.buyer(BUYER_ID);
             default -> null;
         };
     }
 
-    private RestTestClient.ResponseSpec republish(String token) {
+    private RestTestClient.ResponseSpec republish(Consumer<HttpHeaders> login) {
         return client.post().uri(PATH)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .exchange();
     }
 }

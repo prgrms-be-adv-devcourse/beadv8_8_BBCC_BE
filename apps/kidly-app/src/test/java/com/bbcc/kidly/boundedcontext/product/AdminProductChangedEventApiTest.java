@@ -8,18 +8,20 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,9 +45,6 @@ class AdminProductChangedEventApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private ClothingTopSaver clothingTopSaver;
@@ -74,7 +73,7 @@ class AdminProductChangedEventApiTest {
         register(PENDING_SELLER_ID);
         eventRecorder.clear();
 
-        republish(tokens.admin(ADMIN_ID))
+        republish(TestMembers.admin(ADMIN_ID))
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.publishedCount").isEqualTo(2);
@@ -92,7 +91,7 @@ class AdminProductChangedEventApiTest {
         ProductChangedEvent first = eventRecorder.events(ProductChangedEvent.class).getFirst();
         eventRecorder.clear();
 
-        republish(tokens.admin(ADMIN_ID)).expectStatus().isOk();
+        republish(TestMembers.admin(ADMIN_ID)).expectStatus().isOk();
 
         // 아웃박스는 같은 eventId를 한 번만 보내고, 받는 쪽은 저장된 occurredAt보다 늦은 이벤트만 반영한다
         assertThat(eventRecorder.events(ProductChangedEvent.class))
@@ -112,7 +111,7 @@ class AdminProductChangedEventApiTest {
         changeSaleStatus(STOPPED_SELLER_ID, secondProductId, "ON_SALE");
         eventRecorder.clear();
 
-        republish(tokens.admin(ADMIN_ID)).expectStatus().isOk();
+        republish(TestMembers.admin(ADMIN_ID)).expectStatus().isOk();
 
         // 판매 시작 때 남은 줄은 빼고, 다시 보낸 이벤트의 줄만 본다
         List<UUID> republishedEventIds = eventRecorder.events(ProductChangedEvent.class).stream()
@@ -135,31 +134,27 @@ class AdminProductChangedEventApiTest {
         changeSaleStatus(ON_SALE_SELLER_ID, productId, "ON_SALE");
         eventRecorder.clear();
 
-        assertProblem(republish(tokenOf(member)), HttpStatus.valueOf(status));
+        assertProblem(republish(headersOf(member)), HttpStatus.valueOf(status));
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
-    private String tokenOf(String member) {
+    private Consumer<HttpHeaders> headersOf(String member) {
         return switch (member) {
-            case "판매자" -> tokens.seller(ON_SALE_SELLER_ID);
-            case "구매자" -> tokens.buyer(BUYER_ID);
+            case "판매자" -> TestMembers.seller(ON_SALE_SELLER_ID);
+            case "구매자" -> TestMembers.buyer(BUYER_ID);
             default -> null;
         };
     }
 
-    private RestTestClient.ResponseSpec republish(String token) {
+    private RestTestClient.ResponseSpec republish(Consumer<HttpHeaders> login) {
         return client.post().uri(PATH)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .exchange();
     }
 
     private Long register(long sellerId) {
         String productId = client.post().uri(SELLER_PRODUCTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(productA(saved))
             .exchange()
@@ -172,7 +167,7 @@ class AdminProductChangedEventApiTest {
 
     private void changeSaleStatus(long sellerId, Long productId, String status) {
         client.put().uri(SELLER_PRODUCTS_PATH + "/{productId}/sale-status", productId)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("status", status))
             .exchange()

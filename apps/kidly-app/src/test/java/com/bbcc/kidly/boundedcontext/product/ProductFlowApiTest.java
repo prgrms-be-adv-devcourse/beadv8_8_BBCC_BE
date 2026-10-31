@@ -7,8 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,9 +44,6 @@ class ProductFlowApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private ClothingTopSaver clothingTopSaver;
 
     private SavedClothingTop saved;
@@ -74,7 +71,7 @@ class ProductFlowApiTest {
     private void approveSeller() {
         AtomicReference<Object> applicationId = new AtomicReference<>();
         client.post().uri(APPLY_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(SELLER_ID)))
+            .headers(TestMembers.buyer(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("businessName", BUSINESS_NAME, "representativeName", "김판매",
                 "businessRegistrationNumber", "1234567890"))
@@ -84,7 +81,7 @@ class ProductFlowApiTest {
             .jsonPath("$.id").value(applicationId::set);
 
         client.post().uri(APPROVE_PATH, applicationId.get())
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -98,7 +95,7 @@ class ProductFlowApiTest {
         options(body).get(1).put("initialQuantity", 10);
         AtomicReference<String> productId = new AtomicReference<>();
         client.post().uri(SELLER_PRODUCTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange()
@@ -123,7 +120,7 @@ class ProductFlowApiTest {
 
     private void startSale(String productId) {
         client.put().uri(SELLER_PRODUCTS_PATH + "/{productId}/sale-status", productId)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("status", "ON_SALE"))
             .exchange()

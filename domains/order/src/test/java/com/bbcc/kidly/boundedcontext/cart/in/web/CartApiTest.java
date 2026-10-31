@@ -13,7 +13,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import java.net.URI;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,9 +40,6 @@ class CartApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private ProductReplicaRepository productReplicaRepository;
 
     @Autowired
@@ -67,7 +64,7 @@ class CartApiTest {
     @DisplayName("새 줄을 담으면 201 + Location, 같은 줄을 다시 담으면 200으로 수량을 더한다")
     void addItem() {
         URI location = client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "childId", "1", "quantity", 2))
             .exchange()
             .expectStatus().isCreated()
@@ -88,7 +85,7 @@ class CartApiTest {
         String cartItemId = location.getPath().substring((CART_ITEMS_PATH + "/").length());
 
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "childId", "1", "quantity", 1))
             .exchange()
             .expectStatus().isOk()
@@ -103,7 +100,7 @@ class CartApiTest {
         String cartItemId = addAndReadId();
 
         client.get().uri(CART_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -121,7 +118,7 @@ class CartApiTest {
         String cartItemId = addAndReadId();
 
         client.patch().uri(CART_ITEMS_PATH + "/" + cartItemId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("quantity", 3))
             .exchange()
             .expectStatus().isOk()
@@ -136,12 +133,12 @@ class CartApiTest {
         String cartItemId = addAndReadId();
 
         client.delete().uri(CART_ITEMS_PATH + "/" + cartItemId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isNoContent();
 
         client.get().uri(CART_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -156,7 +153,7 @@ class CartApiTest {
 
         for (int call = 1; call <= 2; call++) {
             client.patch().uri(CART_ITEMS_PATH + "/" + cartItemId)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(Map.of("quantity", 3))
                 .exchange()
                 .expectStatus().isOk()
@@ -167,7 +164,7 @@ class CartApiTest {
         }
 
         client.get().uri(CART_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -181,17 +178,17 @@ class CartApiTest {
     void removeItemTwice() {
         String cartItemId = addAndReadId();
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "childId", "1", "quantity", 1))
             .exchange()
             .expectStatus().isCreated();
 
         client.delete().uri(CART_ITEMS_PATH + "/" + cartItemId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isNoContent();
         client.delete().uri(CART_ITEMS_PATH + "/" + cartItemId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isNotFound()
             .expectBody()
@@ -199,7 +196,7 @@ class CartApiTest {
             .jsonPath("$.detail").isEqualTo("이미 장바구니에서 빠진 상품입니다. 장바구니를 새로고침해 주세요.");
 
         client.get().uri(CART_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -221,7 +218,7 @@ class CartApiTest {
         String cartItemId = addAndReadId();
 
         client.patch().uri(CART_ITEMS_PATH + "/" + cartItemId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(OTHER_ID)))
+            .headers(TestMembers.buyer(OTHER_ID))
             .body(Map.of("quantity", 3))
             .exchange()
             .expectStatus().isNotFound()
@@ -230,7 +227,7 @@ class CartApiTest {
             .jsonPath("$.detail").isEqualTo("이미 장바구니에서 빠진 상품입니다. 장바구니를 새로고침해 주세요.");
 
         client.delete().uri(CART_ITEMS_PATH + "/" + cartItemId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(OTHER_ID)))
+            .headers(TestMembers.buyer(OTHER_ID))
             .exchange()
             .expectStatus().isNotFound();
     }
@@ -239,7 +236,7 @@ class CartApiTest {
     @DisplayName("자기 상품을 담으면 403 OWN_PRODUCT")
     void ownProductIsForbidden() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .body(Map.of("optionId", "1", "quantity", 1))
             .exchange()
             .expectStatus().isForbidden()
@@ -255,7 +252,7 @@ class CartApiTest {
         jdbcTemplate.update("delete from orders.replica_product where option_id = ?", 1L);
 
         client.get().uri(CART_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -274,7 +271,7 @@ class CartApiTest {
     @DisplayName("판매 중이 아닌 상품을 담으면 409 PRODUCT_NOT_PURCHASABLE")
     void notPurchasableIsConflict() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", String.valueOf(STOPPED_OPTION_ID), "quantity", 1))
             .exchange()
             .expectStatus().isEqualTo(409)
@@ -287,7 +284,7 @@ class CartApiTest {
     @DisplayName("상품은 판매 중이어도 옵션이 판매 중지면 담을 때 409 PRODUCT_NOT_PURCHASABLE")
     void stoppedOptionIsConflict() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", String.valueOf(OPTION_STOPPED_ID), "quantity", 1))
             .exchange()
             .expectStatus().isEqualTo(409)
@@ -300,7 +297,7 @@ class CartApiTest {
     @DisplayName("상품 · 옵션이 판매 중이어도 품절이면 담을 때 409 PRODUCT_NOT_PURCHASABLE")
     void soldOutOptionIsConflict() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", String.valueOf(SOLD_OUT_ID), "quantity", 1))
             .exchange()
             .expectStatus().isEqualTo(409)
@@ -313,7 +310,7 @@ class CartApiTest {
     @DisplayName("없는 옵션을 담으면 404 PRODUCT_OPTION_NOT_FOUND, 옵션을 다시 고르라는 안내")
     void missingOptionIsNotFound() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "999999", "quantity", 1))
             .exchange()
             .expectStatus().isNotFound()
@@ -326,7 +323,7 @@ class CartApiTest {
     @DisplayName("없는 자녀로 담으면 404 CHILD_NOT_FOUND, 자녀를 다시 선택하라는 안내")
     void missingChildIsNotFound() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "childId", "999999", "quantity", 1))
             .exchange()
             .expectStatus().isNotFound()
@@ -339,7 +336,7 @@ class CartApiTest {
     @DisplayName("옵션 ID가 숫자가 아니면 400")
     void invalidOptionId() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "abc", "quantity", 1))
             .exchange()
             .expectStatus().isBadRequest();
@@ -349,7 +346,7 @@ class CartApiTest {
     @DisplayName("옵션 ID가 Long 범위를 넘으면(20자리) 400")
     void tooLargeOptionId() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "99999999999999999999", "quantity", 1))
             .exchange()
             .expectStatus().isBadRequest();
@@ -359,7 +356,7 @@ class CartApiTest {
     @DisplayName("경로의 장바구니 줄 ID가 숫자가 아니면 400")
     void invalidCartItemIdInPath() {
         client.patch().uri(CART_ITEMS_PATH + "/abc")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("quantity", 3))
             .exchange()
             .expectStatus().isBadRequest();
@@ -370,7 +367,7 @@ class CartApiTest {
     @DisplayName("담기 수량이 1~99 밖이면 400(500 아님)")
     void addOutOfRangeQuantityIsBadRequest(int quantity) {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "quantity", quantity))
             .exchange()
             .expectStatus().isEqualTo(400);
@@ -381,7 +378,7 @@ class CartApiTest {
     @DisplayName("담기 수량 1 · 99는 담긴다")
     void addBoundaryQuantityIsCreated(int quantity) {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "quantity", quantity))
             .exchange()
             .expectStatus().isCreated()
@@ -396,7 +393,7 @@ class CartApiTest {
         String cartItemId = addAndReadId();
 
         client.patch().uri(CART_ITEMS_PATH + "/" + cartItemId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("quantity", quantity))
             .exchange()
             .expectStatus().isEqualTo(status);
@@ -406,12 +403,12 @@ class CartApiTest {
     @DisplayName("같은 줄에 더해 98+1 = 99는 200, 99+1은 400이고 장바구니 줄은 99 그대로")
     void mergeUpToMaxQuantity() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "quantity", 98))
             .exchange()
             .expectStatus().isCreated();
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "quantity", 1))
             .exchange()
             .expectStatus().isOk()
@@ -419,7 +416,7 @@ class CartApiTest {
             .jsonPath("$.quantity").isEqualTo(99);
 
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "quantity", 1))
             .exchange()
             .expectStatus().isEqualTo(400)
@@ -427,7 +424,7 @@ class CartApiTest {
             .jsonPath("$.detail").isEqualTo("수량은 1 이상 99 이하여야 합니다.");
 
         client.get().uri(CART_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -437,7 +434,7 @@ class CartApiTest {
 
     private String addAndReadId() {
         CartIdOnly body = client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "quantity", 1))
             .exchange()
             .expectStatus().isCreated()

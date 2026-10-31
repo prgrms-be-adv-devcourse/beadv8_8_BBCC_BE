@@ -12,9 +12,12 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
 import com.bbcc.kidly.global.response.PageResponse;
+import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
+import com.bbcc.kidly.support.IssuedAccessToken;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,9 +39,6 @@ class AdminMemberApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private MemberRepository memberRepository;
@@ -111,7 +111,7 @@ class AdminMemberApiTest {
     @DisplayName("모르는 filter는 400이다")
     void listInvalidFilter() {
         client.get().uri(PATH + "?filter=FOO")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -120,7 +120,7 @@ class AdminMemberApiTest {
     @DisplayName("구매자는 목록을 볼 수 없다. 403이다")
     void listForbiddenForBuyer() {
         client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
+            .headers(TestMembers.buyer(2L))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -159,19 +159,20 @@ class AdminMemberApiTest {
     }
 
     @Test
+    @Disabled("gateway 모드: Access Token 무효화는 Gateway가 확인한다. #638 Task 3에서 지운다")
     @DisplayName("정지하면 정지 전에 발급된 Access Token은 바로 401이다")
     void suspendRevokesAccessToken() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
-        var accessToken = tokens.buyer(member.getId());
+        var login = TestMembers.buyer(member.getId());
         client.get().uri(ME_PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
+            .headers(login)
             .exchange()
             .expectStatus().isOk();
 
         suspend(member.getId(), REASON).expectStatus().isNoContent();
 
         client.get().uri(ME_PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
+            .headers(login)
             .exchange()
             .expectStatus().isUnauthorized();
     }
@@ -228,7 +229,7 @@ class AdminMemberApiTest {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
         client.post().uri(PATH + "/{id}/suspend", member.getId())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
+            .headers(TestMembers.buyer(2L))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new MemberSuspendRequest(REASON))
             .exchange()
@@ -274,8 +275,10 @@ class AdminMemberApiTest {
             .returnResult()
             .getResponseBody()
             .accessToken();
+        var reissued = IssuedAccessToken.decode(accessToken);
+        assertThat(reissued.roles()).contains(Role.ADMIN);
         client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
+            .headers(reissued.headers())
             .exchange()
             .expectStatus().isOk();
     }
@@ -303,7 +306,7 @@ class AdminMemberApiTest {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
         client.post().uri(PATH + "/{id}/grant-admin", member.getId())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
+            .headers(TestMembers.buyer(2L))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -319,19 +322,20 @@ class AdminMemberApiTest {
     }
 
     @Test
+    @Disabled("gateway 모드: Access Token 무효화는 Gateway가 확인한다. #638 Task 3에서 지운다")
     @DisplayName("관리자 권한을 해제하면 그 관리자가 가진 Access Token은 바로 401이다")
     void revokeAdminRevokesAccessToken() {
         var admin = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
-        var accessToken = tokens.admin(admin.getId());
+        var login = TestMembers.admin(admin.getId());
         client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
+            .headers(login)
             .exchange()
             .expectStatus().isOk();
 
         revokeAdmin(admin.getId(), ADMIN_ID).expectStatus().isNoContent();
 
         client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
+            .headers(login)
             .exchange()
             .expectStatus().isUnauthorized();
     }
@@ -362,7 +366,7 @@ class AdminMemberApiTest {
 
     private PageResponse<AdminMemberSummaryResponse> list(String query) {
         return client.get().uri(PATH + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(new ParameterizedTypeReference<PageResponse<AdminMemberSummaryResponse>>() { })
@@ -372,7 +376,7 @@ class AdminMemberApiTest {
 
     private RestTestClient.ResponseSpec suspend(Long memberId, String reason) {
         return client.post().uri(PATH + "/{id}/suspend", memberId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new MemberSuspendRequest(reason))
             .exchange();
@@ -380,13 +384,13 @@ class AdminMemberApiTest {
 
     private RestTestClient.ResponseSpec grantAdmin(Long memberId) {
         return client.post().uri(PATH + "/{id}/grant-admin", memberId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec revokeAdmin(Long memberId, Long adminId) {
         return client.post().uri(PATH + "/{id}/revoke-admin", memberId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(adminId)))
+            .headers(TestMembers.admin(adminId))
             .exchange();
     }
 }

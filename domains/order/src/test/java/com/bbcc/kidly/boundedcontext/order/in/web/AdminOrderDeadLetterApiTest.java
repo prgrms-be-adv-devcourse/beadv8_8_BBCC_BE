@@ -13,7 +13,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -45,9 +45,6 @@ class AdminOrderDeadLetterApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private OrderDeadLetterService deadLetterService;
 
     @Autowired
@@ -70,7 +67,7 @@ class AdminOrderDeadLetterApiTest {
         status(closed, "CLOSED");
 
         client.get().uri(DEAD_LETTERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -105,7 +102,7 @@ class AdminOrderDeadLetterApiTest {
         receivedAt(productOld, LocalDateTime.of(2026, 10, 31, 8, 0));
 
         client.get().uri(DEAD_LETTERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -116,12 +113,12 @@ class AdminOrderDeadLetterApiTest {
         assertThat(idsOf("?failureType=STORE_FAILED")).containsExactly(String.valueOf(paymentNew),
             String.valueOf(productNewest), String.valueOf(productOld));
         client.get().uri(DEAD_LETTERS_PATH + "/" + paymentNew)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectBody()
             .jsonPath("$.paymentEvent").isEqualTo(true);
         client.get().uri(DEAD_LETTERS_PATH + "/" + productNewest)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectBody()
             .jsonPath("$.paymentEvent").isEqualTo(false);
@@ -152,7 +149,7 @@ class AdminOrderDeadLetterApiTest {
     @DisplayName("상태 · 실패 유형 이름이 정확히 맞지 않으면 400 ProblemDetail")
     void unknownFilterIsBadRequest(String query, String title, String detail) {
         client.get().uri(DEAD_LETTERS_PATH + "?" + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest()
             .expectBody()
@@ -166,7 +163,7 @@ class AdminOrderDeadLetterApiTest {
     @DisplayName("size가 1~100 밖이거나 page가 음수면 400")
     void pageOrSizeOutOfRangeIsBadRequest(String query) {
         client.get().uri(DEAD_LETTERS_PATH + "?" + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -177,7 +174,7 @@ class AdminOrderDeadLetterApiTest {
         receive(1L, "payment.completed", "42", STORE);
 
         client.get().uri(DEAD_LETTERS_PATH + "?page=1073741824&size=2")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -193,7 +190,7 @@ class AdminOrderDeadLetterApiTest {
         Long id = receive(5L, "payment.completed", String.valueOf(order.orderId()), STORE);
 
         client.get().uri(DEAD_LETTERS_PATH + "/" + id)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -245,7 +242,7 @@ class AdminOrderDeadLetterApiTest {
         Long id = receive(6L, eventType, "42", exceptionClass);
 
         client.get().uri(DEAD_LETTERS_PATH + "/" + id)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -261,7 +258,7 @@ class AdminOrderDeadLetterApiTest {
         Long product = receive(8L, "product.changed", "3", READ);
 
         client.get().uri(DEAD_LETTERS_PATH + "/" + closed)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -270,7 +267,7 @@ class AdminOrderDeadLetterApiTest {
             .jsonPath("$.orderId").isEqualTo("42")
             .jsonPath("$.orderStatus").value(value -> assertThat(value).isNull());
         client.get().uri(DEAD_LETTERS_PATH + "/" + product)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -282,14 +279,14 @@ class AdminOrderDeadLetterApiTest {
     @DisplayName("없는 ID는 404 ProblemDetail, 숫자가 아닌 ID는 400")
     void notFound() {
         client.get().uri(DEAD_LETTERS_PATH + "/999999")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isNotFound()
             .expectHeader().contentType("application/problem+json")
             .expectBody()
             .jsonPath("$.title").isEqualTo("DLT 메시지를 찾을 수 없습니다");
         client.get().uri(DEAD_LETTERS_PATH + "/abc")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -299,10 +296,10 @@ class AdminOrderDeadLetterApiTest {
     void adminOnly() {
         client.get().uri(DEAD_LETTERS_PATH).exchange().expectStatus().isUnauthorized();
         client.get().uri(DEAD_LETTERS_PATH + "/1").exchange().expectStatus().isUnauthorized();
-        for (String token : List.of(tokens.buyer(BUYER_ID), tokens.seller(BUYER_ID))) {
-            client.get().uri(DEAD_LETTERS_PATH).headers(headers -> headers.setBearerAuth(token))
+        for (var login : List.of(TestMembers.buyer(BUYER_ID), TestMembers.seller(BUYER_ID))) {
+            client.get().uri(DEAD_LETTERS_PATH).headers(login)
                 .exchange().expectStatus().isForbidden();
-            client.get().uri(DEAD_LETTERS_PATH + "/1").headers(headers -> headers.setBearerAuth(token))
+            client.get().uri(DEAD_LETTERS_PATH + "/1").headers(login)
                 .exchange().expectStatus().isForbidden();
         }
     }
@@ -334,7 +331,7 @@ class AdminOrderDeadLetterApiTest {
 
     private List<String> idsOf(String query) {
         return client.get().uri(DEAD_LETTERS_PATH + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(Ids.class)

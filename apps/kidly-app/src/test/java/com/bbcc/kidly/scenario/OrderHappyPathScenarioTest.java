@@ -10,8 +10,9 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
+import com.bbcc.kidly.support.IssuedAccessToken;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -46,9 +47,6 @@ class OrderHappyPathScenarioTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private WalletRepository walletRepository;
 
     @Autowired
@@ -75,14 +73,14 @@ class OrderHappyPathScenarioTest {
 
         // ① 판매자 등록: 신청 → 관리자 승인 → seller.changed → 주문 판매자 복사본
         Long applicationId = client.post().uri("/api/v1/members/me/seller-application")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(sellerId)))
+            .headers(TestMembers.buyer(sellerId))
             .body(Map.of("businessName", BUSINESS_NAME, "representativeName", "김판매",
                 "businessRegistrationNumber", "1234567890"))
             .exchange()
             .expectStatus().isCreated()
             .expectBody(IdBody.class).returnResult().getResponseBody().id();
         client.post().uri("/api/v1/admin/seller-applications/" + applicationId + "/approve")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk();
         assertThat(queryString("select business_name from orders.replica_seller where seller_id = ?", sellerId))
@@ -92,7 +90,7 @@ class OrderHappyPathScenarioTest {
 
         // ② 상품 등록 · 판매 시작: product.changed → 주문 상품 복사본 구매 가능
         ProductBody product = client.post().uri("/api/v1/seller/products")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .body(Map.of("name", "줄무늬 양말", "categoryId", categoryId, "imageUrls", List.of(),
                 "attributes", List.of(),
                 "options", List.of(Map.of("valueIds", List.of(navyValueId), "initialQuantity", INITIAL_STOCK)),
@@ -104,7 +102,7 @@ class OrderHappyPathScenarioTest {
         assertThat(product).as("② 상품 등록 응답").isNotNull();
         String optionId = product.options().getFirst().optionId();
         client.put().uri("/api/v1/seller/products/" + product.productId() + "/sale-status")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .body(Map.of("status", "ON_SALE"))
             .exchange()
             .expectStatus().isOk();
@@ -113,7 +111,7 @@ class OrderHappyPathScenarioTest {
 
         // ③ 자녀 등록: child.changed → 주문 자녀 복사본
         Long childId = client.post().uri("/api/v1/children")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(buyerId)))
+            .headers(TestMembers.buyer(buyerId))
             .body(Map.of("name", "서준", "birthDate", LocalDate.now().minusYears(7).toString(), "gender", "MALE",
                 "heightCm", 120.5, "weightKg", 22.0))
             .exchange()
@@ -124,12 +122,12 @@ class OrderHappyPathScenarioTest {
 
         // ④ 담기 · 주문: order.created → 재고 차감 → stock.deducted → 결제 요청 → 지갑 결제 → payment.completed → PAID
         client.post().uri("/api/v1/cart/items")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(buyerId)))
+            .headers(TestMembers.buyer(buyerId))
             .body(Map.of("optionId", optionId, "childId", String.valueOf(childId), "quantity", 1))
             .exchange()
             .expectStatus().isCreated();
         URI location = client.post().uri("/api/v1/orders")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(buyerId)))
+            .headers(TestMembers.buyer(buyerId))
             .body(Map.of(
                 "items", List.of(Map.of("optionId", optionId, "childId", String.valueOf(childId), "quantity", 1,
                     "unitPrice", PRICE)),
@@ -154,12 +152,12 @@ class OrderHappyPathScenarioTest {
         // ⑤ 배송: 발송 → 배송 완료 → 주문상품 배송 완료 시각
         String sellerOrderId = paid.deliveries().getFirst().sellerOrderId();
         client.post().uri("/api/v1/seller/orders/" + sellerOrderId + "/ship")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .body(Map.of("carrier", "CJ", "trackingNumber", "1234567890"))
             .exchange()
             .expectStatus().isOk();
         client.post().uri("/api/v1/seller/orders/" + sellerOrderId + "/deliver")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .exchange()
             .expectStatus().isOk();
         OrderBody delivered = order(orderId);
@@ -170,7 +168,7 @@ class OrderHappyPathScenarioTest {
         // ⑥ 구매확정: order-item.purchase-confirmed → 판매자 정산 대상
         String orderItemId = delivered.items().getFirst().orderItemId();
         client.post().uri("/api/v1/orders/" + orderId + "/items/" + orderItemId + "/confirm")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(buyerId)))
+            .headers(TestMembers.buyer(buyerId))
             .exchange()
             .expectStatus().isOk();
         assertThat(queryLong("select sales_amount from settlement.settlement_item where order_item_id = ? "
@@ -182,7 +180,7 @@ class OrderHappyPathScenarioTest {
         jdbcTemplate.update("update settlement.settlement_item set confirmed_at = ? where order_item_id = ?",
             LocalDateTime.now().minusDays(1), Long.valueOf(orderItemId));
         client.post().uri("/api/v1/admin/settlements/run")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .body(Map.of("cutoffOn", LocalDate.now().toString()))
             .exchange()
             .expectStatus().isCreated();
@@ -203,7 +201,8 @@ class OrderHappyPathScenarioTest {
     /**
      * 0단계 가입: 실제 로그인 API로 구매자 · 판매자를 가입시킨다(처음 로그인이면 가입). 카카오는 외부 요소라
      * 테스트 대역(support/FakeOAuthClient, 인가 코드를 그대로 소셜 사용자 ID로 씀)이 대신하고, 코드가 다르면 다른 회원이다.
-     * 가입 이벤트로 결제 쪽이 지갑을 만든다. 회원 ID는 내 정보 조회로 받아 이후 토큰 · 요청에 쓴다.
+     * 가입 이벤트로 결제 쪽이 지갑을 만든다. 받은 Access Token의 클레임으로 Gateway 헤더를 붙여(서비스는 토큰을 보지 않는다)
+     * 내 정보를 조회하고, 그 회원 ID를 이후 요청에 쓴다.
      */
     private Long signUp(String authorizationCode) {
         TokenBody login = client.post().uri("/api/v1/auth/login/kakao")
@@ -213,7 +212,7 @@ class OrderHappyPathScenarioTest {
             .expectBody(TokenBody.class).returnResult().getResponseBody();
         assertThat(login).as("0 가입 로그인 응답").isNotNull();
         IdBody me = client.get().uri("/api/v1/members/me")
-            .headers(headers -> headers.setBearerAuth(login.accessToken()))
+            .headers(IssuedAccessToken.decode(login.accessToken()).headers())
             .exchange()
             .expectStatus().isOk()
             .expectBody(IdBody.class).returnResult().getResponseBody();
@@ -267,7 +266,7 @@ class OrderHappyPathScenarioTest {
 
     private OrderBody order(String orderId) {
         OrderBody body = client.get().uri("/api/v1/orders/" + orderId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(buyerId)))
+            .headers(TestMembers.buyer(buyerId))
             .exchange()
             .expectStatus().isOk()
             .expectBody(OrderBody.class).returnResult().getResponseBody();

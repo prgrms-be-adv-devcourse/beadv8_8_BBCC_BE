@@ -1,6 +1,8 @@
 // 공통 코드(com.bbcc.kidly.global). 자기가 쓰는 것만 넣고, 공개 시그니처에 나오는 것만 api로 전달한다
 plugins {
     id("kidly.library")
+    // 테스트 도우미(src/testFixtures/java, TestMembers)를 앱 · 도메인 테스트가 같이 쓴다
+    `java-test-fixtures`
 }
 
 dependencies {

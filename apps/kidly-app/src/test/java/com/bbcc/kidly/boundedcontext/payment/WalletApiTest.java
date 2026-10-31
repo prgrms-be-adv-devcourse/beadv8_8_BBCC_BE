@@ -5,8 +5,8 @@ import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedger;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,9 +23,6 @@ class WalletApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private WalletRepository walletRepository;
 
     @Autowired
@@ -37,7 +34,7 @@ class WalletApiTest {
         walletRepository.save(PaymentFixture.wallet(15_000L));
 
         client.get().uri(MY_WALLET_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(PaymentFixture.MEMBER_ID)))
+            .headers(TestMembers.buyer(PaymentFixture.MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -48,7 +45,7 @@ class WalletApiTest {
     @DisplayName("지갑이 없으면 아직 쓰지 않은 지갑이므로 잔액 0이다")
     void balanceWithoutWallet() {
         client.get().uri(MY_WALLET_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(PaymentFixture.MEMBER_ID)))
+            .headers(TestMembers.buyer(PaymentFixture.MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -139,7 +136,7 @@ class WalletApiTest {
 
     private RestTestClient.ResponseSpec getLedgers(String query) {
         return client.get().uri(LEDGERS_PATH + query)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(PaymentFixture.MEMBER_ID)))
+            .headers(TestMembers.buyer(PaymentFixture.MEMBER_ID))
             .exchange();
     }
 }

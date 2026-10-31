@@ -8,10 +8,11 @@ import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerErrorCode;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,9 +37,6 @@ class SellerApplicationApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private SellerApplicationRepository sellerApplicationRepository;
 
     @Autowired
@@ -47,7 +45,7 @@ class SellerApplicationApiTest {
     @Test
     @DisplayName("판매자를 신청하면 201과 Location, PENDING 신청을 준다")
     void apply() {
-        var result = submit(tokens.buyer(MEMBER_ID), REQUEST)
+        var result = submit(TestMembers.buyer(MEMBER_ID), REQUEST)
             .expectStatus().isCreated()
             .returnResult(SellerApplicationResponse.class);
 
@@ -67,14 +65,14 @@ class SellerApplicationApiTest {
         apply(MEMBER_ID);
 
         var saved = sellerApplicationRepository.findFirstByApplicantIdOrderByIdDesc(MEMBER_ID).orElseThrow();
-        assertThat(saved.getApplicantNickname()).isEqualTo(TestTokens.nickname(MEMBER_ID));
+        assertThat(saved.getApplicantNickname()).isEqualTo(TestMembers.nickname(MEMBER_ID));
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidRequests")
     @DisplayName("잘못된 신청 내용은 400이다")
     void applyInvalid(String name, SellerApplicationRequest request) {
-        submit(tokens.buyer(MEMBER_ID), request)
+        submit(TestMembers.buyer(MEMBER_ID), request)
             .expectStatus().isBadRequest();
     }
 
@@ -100,7 +98,7 @@ class SellerApplicationApiTest {
     void applyTwice() {
         apply(MEMBER_ID);
 
-        submit(tokens.buyer(MEMBER_ID), REQUEST)
+        submit(TestMembers.buyer(MEMBER_ID), REQUEST)
             .expectStatus().isEqualTo(HttpStatus.CONFLICT)
             .expectBody()
             .jsonPath("$.title").isEqualTo(SellerErrorCode.APPLICATION_ALREADY_PENDING.title());
@@ -111,7 +109,7 @@ class SellerApplicationApiTest {
     void applyWhenSeller() {
         sellerRepository.save(Seller.from(SellerFixture.approvedApplication(MEMBER_ID)));
 
-        submit(tokens.buyer(MEMBER_ID), REQUEST)
+        submit(TestMembers.buyer(MEMBER_ID), REQUEST)
             .expectStatus().isEqualTo(HttpStatus.CONFLICT)
             .expectBody()
             .jsonPath("$.title").isEqualTo(SellerErrorCode.ALREADY_SELLER.title());
@@ -123,7 +121,7 @@ class SellerApplicationApiTest {
         apply(MEMBER_ID);
 
         var result = client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .returnResult(SellerApplicationResponse.class);
@@ -146,7 +144,7 @@ class SellerApplicationApiTest {
         apply(MEMBER_ID);
 
         var latest = client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .returnResult(SellerApplicationResponse.class)
@@ -159,7 +157,7 @@ class SellerApplicationApiTest {
     @DisplayName("신청한 적이 없으면 조회는 404다")
     void getLatestWhenNone() {
         client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isNotFound();
     }
@@ -167,7 +165,7 @@ class SellerApplicationApiTest {
     @Test
     @DisplayName("토큰 없이 신청하면 401이다")
     void unauthenticated() {
-        submit(null, REQUEST)
+        submit(TestMembers.anonymous(), REQUEST)
             .expectStatus().isUnauthorized();
     }
 
@@ -182,17 +180,13 @@ class SellerApplicationApiTest {
     }
 
     private void apply(Long memberId) {
-        submit(tokens.buyer(memberId), REQUEST)
+        submit(TestMembers.buyer(memberId), REQUEST)
             .expectStatus().isCreated();
     }
 
-    private RestTestClient.ResponseSpec submit(String token, SellerApplicationRequest body) {
+    private RestTestClient.ResponseSpec submit(Consumer<HttpHeaders> login, SellerApplicationRequest body) {
         return client.post().uri(PATH)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();

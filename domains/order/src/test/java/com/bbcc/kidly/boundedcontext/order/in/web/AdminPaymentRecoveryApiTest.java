@@ -16,7 +16,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,9 +50,6 @@ class AdminPaymentRecoveryApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private OrderService orderService;
 
     @Autowired
@@ -82,7 +79,7 @@ class AdminPaymentRecoveryApiTest {
         failWith(notRetryable, null, null);
 
         client.get().uri(RECOVERIES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -115,14 +112,14 @@ class AdminPaymentRecoveryApiTest {
         failDelivery(BUYER_ID);
 
         client.get().uri(RECOVERIES_PATH + "?status=PENDING")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content.length()").isEqualTo(1)
             .jsonPath("$.content[0].status").isEqualTo("PENDING");
         client.get().uri(RECOVERIES_PATH + "?status=RECOVERED")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -135,7 +132,7 @@ class AdminPaymentRecoveryApiTest {
     @DisplayName("상태 이름이 정확히 맞지 않으면(소문자 · 모르는 값) 400")
     void unknownStatusIsBadRequest(String status) {
         client.get().uri(RECOVERIES_PATH + "?status=" + status)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest()
             .expectBody()
@@ -148,7 +145,7 @@ class AdminPaymentRecoveryApiTest {
     @DisplayName("size가 1~100 밖(0 · 101)이거나 page가 음수(-1)면 400")
     void pageOrSizeOutOfRangeIsBadRequest(String query) {
         client.get().uri(RECOVERIES_PATH + "?" + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -160,7 +157,7 @@ class AdminPaymentRecoveryApiTest {
         failDelivery(BUYER_ID);
 
         client.get().uri(RECOVERIES_PATH + "?size=" + size)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -174,14 +171,14 @@ class AdminPaymentRecoveryApiTest {
         failDelivery(BUYER_ID);
 
         client.get().uri(RECOVERIES_PATH + "?page=2147483647&size=1")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content.length()").isEqualTo(0)
             .jsonPath("$.totalElements").isEqualTo(1);
         client.get().uri(RECOVERIES_PATH + "?page=1073741824&size=2")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -261,22 +258,22 @@ class AdminPaymentRecoveryApiTest {
     void adminOnly() {
         client.get().uri(RECOVERIES_PATH).exchange().expectStatus().isUnauthorized();
         client.post().uri(RECOVERIES_PATH + "/1/retry").exchange().expectStatus().isUnauthorized();
-        for (String token : List.of(tokens.buyer(BUYER_ID), tokens.seller(SELLER_ID))) {
+        for (var login : List.of(TestMembers.buyer(BUYER_ID), TestMembers.seller(SELLER_ID))) {
             client.get().uri(RECOVERIES_PATH)
-                .headers(headers -> headers.setBearerAuth(token))
+                .headers(login)
                 .exchange().expectStatus().isForbidden();
             client.post().uri(RECOVERIES_PATH + "/1/retry")
-                .headers(headers -> headers.setBearerAuth(token))
+                .headers(login)
                 .exchange().expectStatus().isForbidden();
             client.post().uri(RECOVERIES_PATH + "/1/cancel")
-                .headers(headers -> headers.setBearerAuth(token))
+                .headers(login)
                 .exchange().expectStatus().isForbidden();
         }
     }
 
     private RestTestClient.ResponseSpec post(String recoveryId, String action) {
         return client.post().uri(RECOVERIES_PATH + "/" + recoveryId + "/" + action)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 

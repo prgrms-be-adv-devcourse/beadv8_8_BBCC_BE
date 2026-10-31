@@ -8,16 +8,18 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.RefreshTokenCookies;
 import com.bbcc.kidly.boundedcontext.member.in.dto.MemberResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.time.Duration;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -32,9 +34,6 @@ class MemberApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private MemberRepository memberRepository;
 
     @Test
@@ -42,7 +41,7 @@ class MemberApiTest {
     void getMe() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
-        var response = getMine(tokens.buyer(member.getId()))
+        var response = getMine(TestMembers.buyer(member.getId()))
             .expectStatus().isOk()
             .returnResult(MemberResponse.class)
             .getResponseBody();
@@ -60,7 +59,7 @@ class MemberApiTest {
     void getMeWithoutEmail() {
         var member = memberRepository.save(MemberFixture.withoutEmail("kakao-1"));
 
-        getMine(tokens.buyer(member.getId()))
+        getMine(TestMembers.buyer(member.getId()))
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.email").value(email -> assertThat(email).isNull());
@@ -71,7 +70,7 @@ class MemberApiTest {
     void rolesComeFromDatabase() {
         var member = memberRepository.save(MemberFixture.withSellerState(SellerStatus.ACTIVE));
 
-        var response = getMine(tokens.buyer(member.getId()))
+        var response = getMine(TestMembers.buyer(member.getId()))
             .expectStatus().isOk()
             .returnResult(MemberResponse.class)
             .getResponseBody();
@@ -85,7 +84,7 @@ class MemberApiTest {
     void suspendedSeller() {
         var member = memberRepository.save(MemberFixture.withSellerState(SellerStatus.SUSPENDED));
 
-        var response = getMine(tokens.buyer(member.getId()))
+        var response = getMine(TestMembers.buyer(member.getId()))
             .expectStatus().isOk()
             .returnResult(MemberResponse.class)
             .getResponseBody();
@@ -97,7 +96,7 @@ class MemberApiTest {
     @Test
     @DisplayName("없는 회원이면 404다")
     void missingMember() {
-        getMine(tokens.buyer(MISSING_ID))
+        getMine(TestMembers.buyer(MISSING_ID))
             .expectStatus().isNotFound()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
@@ -105,7 +104,7 @@ class MemberApiTest {
     @Test
     @DisplayName("로그인하지 않으면 401")
     void withoutToken() {
-        getMine(null)
+        getMine(TestMembers.anonymous())
             .expectStatus().isUnauthorized();
     }
 
@@ -114,7 +113,7 @@ class MemberApiTest {
     void updateNickname() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
-        var response = patchMine(tokens.buyer(member.getId()), new MemberUpdateRequest("하은맘"))
+        var response = patchMine(TestMembers.buyer(member.getId()), new MemberUpdateRequest("하은맘"))
             .expectStatus().isOk()
             .returnResult(MemberResponse.class)
             .getResponseBody();
@@ -130,7 +129,7 @@ class MemberApiTest {
     void updateNicknameStripsWhitespace() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
-        var response = patchMine(tokens.buyer(member.getId()), new MemberUpdateRequest("  하은맘  "))
+        var response = patchMine(TestMembers.buyer(member.getId()), new MemberUpdateRequest("  하은맘  "))
             .expectStatus().isOk()
             .returnResult(MemberResponse.class)
             .getResponseBody();
@@ -145,7 +144,7 @@ class MemberApiTest {
     void updateWithInvalidNickname(String nickname) {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
-        patchMine(tokens.buyer(member.getId()), new MemberUpdateRequest(nickname))
+        patchMine(TestMembers.buyer(member.getId()), new MemberUpdateRequest(nickname))
             .expectStatus().isBadRequest()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody().jsonPath("$.title").isEqualTo("잘못된 요청입니다");
@@ -156,7 +155,7 @@ class MemberApiTest {
     void updateWithoutNickname() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
-        patchMine(tokens.buyer(member.getId()), "{}")
+        patchMine(TestMembers.buyer(member.getId()), "{}")
             .expectStatus().isBadRequest()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody().jsonPath("$.title").isEqualTo("잘못된 요청입니다");
@@ -168,7 +167,7 @@ class MemberApiTest {
         var member = memberRepository.save(MemberFixture.kakaoMember());
         memberRepository.save(MemberFixture.kakaoMember("kakao-2"));
 
-        patchMine(tokens.buyer(member.getId()), new MemberUpdateRequest("회원-kakao-2"))
+        patchMine(TestMembers.buyer(member.getId()), new MemberUpdateRequest("회원-kakao-2"))
             .expectStatus().isEqualTo(HttpStatus.CONFLICT)
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody().jsonPath("$.title").isEqualTo("이미 사용 중인 닉네임입니다");
@@ -181,7 +180,7 @@ class MemberApiTest {
     void updateToSameNickname() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
-        var response = patchMine(tokens.buyer(member.getId()), new MemberUpdateRequest(MemberFixture.NICKNAME))
+        var response = patchMine(TestMembers.buyer(member.getId()), new MemberUpdateRequest(MemberFixture.NICKNAME))
             .expectStatus().isOk()
             .returnResult(MemberResponse.class)
             .getResponseBody();
@@ -194,7 +193,7 @@ class MemberApiTest {
     @Test
     @DisplayName("닉네임을 바꿀 때 로그인하지 않으면 401")
     void updateWithoutToken() {
-        patchMine(null, new MemberUpdateRequest("하은맘"))
+        patchMine(TestMembers.anonymous(), new MemberUpdateRequest("하은맘"))
             .expectStatus().isUnauthorized();
     }
 
@@ -203,7 +202,7 @@ class MemberApiTest {
     void withdraw() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
-        deleteMine(tokens.buyer(member.getId()))
+        deleteMine(TestMembers.buyer(member.getId()))
             .expectStatus().isNoContent()
             .expectCookie().maxAge(RefreshTokenCookies.NAME, Duration.ZERO)
             .expectCookie().path(RefreshTokenCookies.NAME, "/api/v1/auth");
@@ -217,7 +216,7 @@ class MemberApiTest {
     void withdrawAdmin() {
         var member = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
 
-        deleteMine(tokens.admin(member.getId()))
+        deleteMine(TestMembers.admin(member.getId()))
             .expectStatus().isEqualTo(HttpStatus.CONFLICT)
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody().jsonPath("$.title").isEqualTo("탈퇴할 수 없는 회원입니다");
@@ -228,39 +227,27 @@ class MemberApiTest {
     @Test
     @DisplayName("탈퇴할 때 로그인하지 않으면 401")
     void withdrawWithoutToken() {
-        deleteMine(null)
+        deleteMine(TestMembers.anonymous())
             .expectStatus().isUnauthorized();
     }
 
-    private RestTestClient.ResponseSpec deleteMine(String token) {
+    private RestTestClient.ResponseSpec deleteMine(Consumer<HttpHeaders> login) {
         return client.delete().uri(ME_PATH)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .exchange();
     }
 
-    private RestTestClient.ResponseSpec patchMine(String token, Object body) {
+    private RestTestClient.ResponseSpec patchMine(Consumer<HttpHeaders> login, Object body) {
         return client.patch().uri(ME_PATH)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();
     }
 
-    private RestTestClient.ResponseSpec getMine(String token) {
+    private RestTestClient.ResponseSpec getMine(Consumer<HttpHeaders> login) {
         return client.get().uri(ME_PATH)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .exchange();
     }
 }

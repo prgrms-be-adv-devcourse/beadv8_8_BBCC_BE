@@ -12,9 +12,9 @@ import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -30,6 +30,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -51,9 +52,6 @@ class ProductUpdateApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private ClothingTopSaver clothingTopSaver;
 
     @Autowired
@@ -73,7 +71,7 @@ class ProductUpdateApiTest {
     void registerProductA() {
         saved = clothingTopSaver.save();
         productId = client.post().uri(PRODUCTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(productA(saved))
             .exchange()
@@ -93,7 +91,7 @@ class ProductUpdateApiTest {
         Map<String, Object> body = updateBody(before);
         body.put("name", "상품 A 새 이름");
 
-        update(tokens.seller(SELLER_ID), body)
+        update(TestMembers.seller(SELLER_ID), body)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.productId").isEqualTo(productId)
@@ -111,11 +109,11 @@ class ProductUpdateApiTest {
         startSale();
         Map<String, Object> body = updateBody(storedVersion());
         body.put("name", "상품 A 새 이름");
-        update(tokens.seller(SELLER_ID), body).expectStatus().isOk();
+        update(TestMembers.seller(SELLER_ID), body).expectStatus().isOk();
         long afterFirst = storedVersion();
         eventRecorder.clear();
 
-        update(tokens.seller(SELLER_ID), body)
+        update(TestMembers.seller(SELLER_ID), body)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.version").isEqualTo(afterFirst);
@@ -130,11 +128,11 @@ class ProductUpdateApiTest {
         long version = storedVersion();
         Map<String, Object> first = updateBody(version);
         first.put("name", "먼저 고친 이름");
-        update(tokens.seller(SELLER_ID), first).expectStatus().isOk();
+        update(TestMembers.seller(SELLER_ID), first).expectStatus().isOk();
         Map<String, Object> late = updateBody(version);
         late.put("brand", "늦게 고친 브랜드");
 
-        expectProblem(update(tokens.seller(SELLER_ID), late), HttpStatus.CONFLICT,
+        expectProblem(update(TestMembers.seller(SELLER_ID), late), HttpStatus.CONFLICT,
             "다른 곳에서 먼저 바뀐 상품입니다", "상품을 다시 불러온 뒤 고쳐 주세요.");
         assertThat(jdbcTemplate.queryForObject("select name from product.product where id = ?", String.class,
             Long.valueOf(productId))).isEqualTo("먼저 고친 이름");
@@ -143,7 +141,7 @@ class ProductUpdateApiTest {
     @Test
     @DisplayName("OPT-08 등록한 판매자만 상품을 고칠 수 있으므로, 다른 판매자가 고치면 403 ProblemDetail을 받는다")
     void rejectOtherSeller() {
-        expectProblem(update(tokens.seller(OTHER_SELLER_ID), updateBody(storedVersion())), HttpStatus.FORBIDDEN,
+        expectProblem(update(TestMembers.seller(OTHER_SELLER_ID), updateBody(storedVersion())), HttpStatus.FORBIDDEN,
             "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
     }
 
@@ -153,7 +151,7 @@ class ProductUpdateApiTest {
         Map<String, Object> body = updateBody(storedVersion());
         body.put("imageUrls", List.of(ownImageUrl(SELLER_ID)));
 
-        expectProblem(update(tokens.seller(OTHER_SELLER_ID), body), HttpStatus.FORBIDDEN,
+        expectProblem(update(TestMembers.seller(OTHER_SELLER_ID), body), HttpStatus.FORBIDDEN,
             "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
     }
 
@@ -165,7 +163,7 @@ class ProductUpdateApiTest {
         body.put("thumbnailUrl", ownImageUrl(SELLER_ID));
         body.put("imageUrls", List.of(ownImageUrl(SELLER_ID)));
 
-        update(tokens.seller(SELLER_ID), body).expectStatus().isOk();
+        update(TestMembers.seller(SELLER_ID), body).expectStatus().isOk();
 
         assertThat(storedVersion()).isGreaterThan(version);
         assertThat(jdbcTemplate.queryForObject("select thumbnail_url from product.product where id = ?",
@@ -183,7 +181,7 @@ class ProductUpdateApiTest {
         String otherSellersImage = ownImageUrl(OTHER_SELLER_ID);
         body.put(field, field.equals("imageUrls") ? List.of(otherSellersImage) : otherSellersImage);
 
-        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST, "허용되지 않은 이미지 주소입니다",
+        expectProblem(update(TestMembers.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST, "허용되지 않은 이미지 주소입니다",
             "이 이미지는 상품에 넣을 수 없습니다. 이미지를 다시 올려 주세요.");
         assertThat(storedVersion()).isEqualTo(version);
     }
@@ -192,7 +190,7 @@ class ProductUpdateApiTest {
     @DisplayName("없는 상품을 고치면 404를 받는다")
     void rejectMissingProduct() {
         client.put().uri(PRODUCTS_PATH + "/{productId}", 999_999L)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(updateBody(storedVersion()))
             .exchange()
@@ -202,7 +200,7 @@ class ProductUpdateApiTest {
     @Test
     @DisplayName("로그인하지 않고 고치면 401을 받는다")
     void rejectWithoutLogin() {
-        update(null, updateBody(storedVersion())).expectStatus().isUnauthorized();
+        update(TestMembers.anonymous(), updateBody(storedVersion())).expectStatus().isUnauthorized();
     }
 
     static Stream<Arguments> invalidRequests() {
@@ -226,7 +224,7 @@ class ProductUpdateApiTest {
         Map<String, Object> body = updateBody(storedVersion());
         breakBody.accept(body);
 
-        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST, "잘못된 요청입니다", detail);
+        expectProblem(update(TestMembers.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST, "잘못된 요청입니다", detail);
     }
 
     @Test
@@ -235,7 +233,7 @@ class ProductUpdateApiTest {
         Map<String, Object> body = updateBody(storedVersion());
         body.put("options", productA(saved).get("options"));
 
-        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST,
+        expectProblem(update(TestMembers.seller(SELLER_ID), body), HttpStatus.BAD_REQUEST,
             "옵션 · 가격 · 실측이 함께 오지 않았습니다", "옵션 · 가격 · 실측을 모두 보내거나 모두 빼 주세요.");
     }
 
@@ -246,7 +244,7 @@ class ProductUpdateApiTest {
         Map<String, Object> body = productA(saved);
         body.put("version", storedVersion());
 
-        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.CONFLICT,
+        expectProblem(update(TestMembers.seller(SELLER_ID), body), HttpStatus.CONFLICT,
             "판매를 시작한 상품의 옵션 · 가격 · 실측은 여기서 바꿀 수 없습니다", "판매를 시작한 상품은 옵션 · 가격 · 실측을 빼고 보내 주세요.");
     }
 
@@ -257,7 +255,7 @@ class ProductUpdateApiTest {
         Map<String, Object> body = updateBody(storedVersion());
         body.put("categoryId", id(saver.saveOuter(saved).getId()));
 
-        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.CONFLICT,
+        expectProblem(update(TestMembers.seller(SELLER_ID), body), HttpStatus.CONFLICT,
             "판매를 시작한 상품은 카테고리를 바꿀 수 없습니다", "판매를 시작한 상품은 지금 카테고리를 그대로 보내 주세요.");
     }
 
@@ -274,7 +272,7 @@ class ProductUpdateApiTest {
             option(List.of(id(clothing.oatmeal().getId()), id(clothing.size110().getId())), 5, null))));
         body.put("sizeSpecs", new ArrayList<>(List.of(sizeSpecs(productA(saved)).get(0))));
 
-        update(tokens.seller(SELLER_ID), body)
+        update(TestMembers.seller(SELLER_ID), body)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.options.length()").isEqualTo(2);
@@ -299,7 +297,7 @@ class ProductUpdateApiTest {
         productB.put("name", "상품 B");
         options(productB).get(0).put("skuCode", "B-NV-110");
         client.post().uri(PRODUCTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(productB)
             .exchange()
@@ -308,7 +306,7 @@ class ProductUpdateApiTest {
         body.put("version", storedVersion());
         options(body).get(1).put("skuCode", "B-NV-110");
 
-        expectProblem(update(tokens.seller(SELLER_ID), body), HttpStatus.CONFLICT, "이미 쓰는 SKU 코드입니다",
+        expectProblem(update(TestMembers.seller(SELLER_ID), body), HttpStatus.CONFLICT, "이미 쓰는 SKU 코드입니다",
             "같은 판매자의 다른 옵션과 겹치지 않게 SKU 코드를 넣어 주세요. 겹친 코드는 B-NV-110입니다.");
         assertThat(jdbcTemplate.queryForList(
             "select sku_code from product.product_option where product_id = ? order by id", String.class,
@@ -325,7 +323,7 @@ class ProductUpdateApiTest {
         body.put("version", version);
         options(body).get(0).put("initialQuantity", 12);
 
-        update(tokens.seller(SELLER_ID), body).expectStatus().isOk();
+        update(TestMembers.seller(SELLER_ID), body).expectStatus().isOk();
 
         assertThat(storedVersion()).isEqualTo(version);
         assertThat(availableQty(navy110)).isEqualTo(12);
@@ -342,13 +340,9 @@ class ProductUpdateApiTest {
         return body;
     }
 
-    private RestTestClient.ResponseSpec update(String token, Map<String, Object> body) {
+    private RestTestClient.ResponseSpec update(Consumer<HttpHeaders> login, Map<String, Object> body) {
         return client.put().uri(PRODUCTS_PATH + "/{productId}", productId)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();
@@ -369,7 +363,7 @@ class ProductUpdateApiTest {
 
     private void startSale() {
         client.put().uri(PRODUCTS_PATH + "/{productId}/sale-status", productId)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("status", "ON_SALE"))
             .exchange()

@@ -2,8 +2,8 @@ package com.bbcc.kidly.boundedcontext.settlement;
 
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
@@ -21,9 +21,6 @@ class SellerSettlementApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private SettlementItemRepository settlementItemRepository;
 
     @Autowired
@@ -38,7 +35,7 @@ class SellerSettlementApiTest {
             SettlementFixture.item(202L, 11L, 5_000L, LocalDateTime.of(2026, 10, 1, 11, 0)));
 
         client.get().uri(TARGETS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -54,7 +51,7 @@ class SellerSettlementApiTest {
     @DisplayName("정산 대상이 없으면 빈 목록이다")
     void targetsEmpty() {
         client.get().uri(TARGETS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -66,7 +63,7 @@ class SellerSettlementApiTest {
     @DisplayName("구매자는 조회할 수 없다. 403이다")
     void targetsForbidden() {
         client.get().uri(TARGETS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.buyer(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -80,7 +77,7 @@ class SellerSettlementApiTest {
             11L, SettlementFixture.PERIOD_START, SettlementFixture.PERIOD_END));
 
         client.get().uri(SETTLEMENTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -109,7 +106,7 @@ class SellerSettlementApiTest {
             SettlementFixture.SELLER_ID, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)));
 
         client.get().uri(SETTLEMENTS_PATH + "?status=PAID&fromOn=2026-09-01&toOn=2026-09-30")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -123,7 +120,7 @@ class SellerSettlementApiTest {
     @DisplayName("정산서가 없으면 빈 목록이다")
     void settlementsEmpty() {
         client.get().uri(SETTLEMENTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -134,7 +131,7 @@ class SellerSettlementApiTest {
     @DisplayName("상태 필터가 잘못되면 400이다")
     void settlementsInvalidStatus() {
         client.get().uri(SETTLEMENTS_PATH + "?status=WRONG")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -143,7 +140,7 @@ class SellerSettlementApiTest {
     @DisplayName("구매자는 정산서를 조회할 수 없다. 403이다")
     void settlementsForbidden() {
         client.get().uri(SETTLEMENTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.buyer(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -157,7 +154,7 @@ class SellerSettlementApiTest {
         settle(settlement.getId(), 302L, 40_000L);
 
         client.get().uri(SETTLEMENTS_PATH + "/" + settlement.getId())
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -177,7 +174,7 @@ class SellerSettlementApiTest {
             11L, SettlementFixture.PERIOD_START, SettlementFixture.PERIOD_END));
 
         client.get().uri(SETTLEMENTS_PATH + "/" + settlement.getId())
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SettlementFixture.SELLER_ID)))
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isNotFound();
     }

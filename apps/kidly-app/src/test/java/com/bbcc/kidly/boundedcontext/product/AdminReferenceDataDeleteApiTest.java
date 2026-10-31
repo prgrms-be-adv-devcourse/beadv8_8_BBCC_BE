@@ -5,11 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -35,9 +37,6 @@ class AdminReferenceDataDeleteApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private ClothingTopSaver clothingTopSaver;
@@ -120,22 +119,18 @@ class AdminReferenceDataDeleteApiTest {
         SavedClothingTop saved = clothingTopSaver.save();
         String path = "/api/v1/admin/categories/" + saved.top().getId();
 
-        deleteWith(null, path).expectStatus().isUnauthorized();
-        deleteWith(tokens.buyer(1L), path).expectStatus().isForbidden();
-        deleteWith(tokens.seller(2L), path).expectStatus().isForbidden();
+        deleteWith(TestMembers.anonymous(), path).expectStatus().isUnauthorized();
+        deleteWith(TestMembers.buyer(1L), path).expectStatus().isForbidden();
+        deleteWith(TestMembers.seller(2L), path).expectStatus().isForbidden();
     }
 
     private RestTestClient.ResponseSpec delete(String path) {
-        return deleteWith(tokens.admin(ADMIN_ID), path);
+        return deleteWith(TestMembers.admin(ADMIN_ID), path);
     }
 
-    private RestTestClient.ResponseSpec deleteWith(String token, String path) {
+    private RestTestClient.ResponseSpec deleteWith(Consumer<HttpHeaders> login, String path) {
         return client.delete().uri(path)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .exchange();
     }
 

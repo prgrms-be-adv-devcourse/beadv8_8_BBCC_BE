@@ -11,6 +11,7 @@ import com.bbcc.kidly.support.FunctionalTest;
 import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.function.Supplier;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -153,6 +154,7 @@ class CategoryApiTest {
     }
 
     @Test
+    @Disabled("gateway 모드: 토큰 검증은 Gateway가 한다. #638 Task 3에서 지운다")
     @DisplayName("로그인 없이 부르는 API여도 잘못된 토큰을 보내면 401이다")
     void invalidTokenIsUnauthorized() {
         client.get().uri("/api/v1/categories")

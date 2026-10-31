@@ -10,17 +10,19 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -38,9 +40,6 @@ class AdminCategoryChangeApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private EntityManager entityManager;
@@ -146,9 +145,9 @@ class AdminCategoryChangeApiTest {
     void rejectNonAdminCategoryChange() {
         Map<String, Object> body = categoryChange(hatType.getId(), List.of());
 
-        putWith(null, categoryPath(hat), body).expectStatus().isUnauthorized();
-        putWith(tokens.buyer(1L), categoryPath(hat), body).expectStatus().isForbidden();
-        putWith(tokens.seller(2L), categoryPath(hat), body).expectStatus().isForbidden();
+        putWith(TestMembers.anonymous(), categoryPath(hat), body).expectStatus().isUnauthorized();
+        putWith(TestMembers.buyer(1L), categoryPath(hat), body).expectStatus().isForbidden();
+        putWith(TestMembers.seller(2L), categoryPath(hat), body).expectStatus().isForbidden();
     }
 
     // 상품 A(의류 > 상의, 의류 유형)를 저장하고 그 카테고리를 돌려준다
@@ -178,16 +177,12 @@ class AdminCategoryChangeApiTest {
     }
 
     private RestTestClient.ResponseSpec put(String path, Object body) {
-        return putWith(tokens.admin(ADMIN_ID), path, body);
+        return putWith(TestMembers.admin(ADMIN_ID), path, body);
     }
 
-    private RestTestClient.ResponseSpec putWith(String token, String path, Object body) {
+    private RestTestClient.ResponseSpec putWith(Consumer<HttpHeaders> login, String path, Object body) {
         return client.put().uri(path)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();

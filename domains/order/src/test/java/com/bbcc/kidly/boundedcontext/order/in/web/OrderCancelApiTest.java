@@ -19,7 +19,7 @@ import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import java.util.List;
 import java.util.Map;
@@ -41,9 +41,6 @@ class OrderCancelApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private OrderService orderService;
@@ -148,7 +145,7 @@ class OrderCancelApiTest {
             .expectBody()
             .jsonPath("$.title").isEqualTo("주문을 찾을 수 없습니다");
         client.post().uri(ORDERS_PATH + "/abc/cancel")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isBadRequest();
         client.post().uri(ORDERS_PATH + "/" + orderId + "/cancel")
@@ -166,7 +163,7 @@ class OrderCancelApiTest {
 
         for (String action : List.of("ship", "deliver")) {
             client.post().uri(SELLER_ORDERS_PATH + "/" + delivery.getId() + "/" + action)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .body(Map.of("carrier", "CJ", "trackingNumber", "1234567890"))
                 .exchange()
                 .expectStatus().isEqualTo(409)
@@ -175,7 +172,7 @@ class OrderCancelApiTest {
                 .jsonPath("$.detail").isEqualTo("구매자가 취소한 주문입니다. 발송하지 마세요.");
         }
         client.get().uri(SELLER_ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -191,7 +188,7 @@ class OrderCancelApiTest {
         cancel(orderId, BUYER_ID).expectStatus().isOk();
 
         client.get().uri(ORDERS_PATH + "/" + orderId + "/timeline")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -207,7 +204,7 @@ class OrderCancelApiTest {
 
     private RestTestClient.ResponseSpec cancel(Long orderId, Long memberId) {
         return client.post().uri(ORDERS_PATH + "/" + orderId + "/cancel")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .exchange();
     }
 

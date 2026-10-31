@@ -1,15 +1,14 @@
 package com.bbcc.kidly.boundedcontext.member;
 
-import static com.bbcc.kidly.support.TestApiController.LOGIN_MEMBER_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
 import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
-import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.support.FakeOAuthClient;
 import com.bbcc.kidly.support.FunctionalTest;
+import com.bbcc.kidly.support.IssuedAccessToken;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -95,16 +94,9 @@ class SocialLoginApiTest {
             .accessToken();
     }
 
-    // 발급받은 토큰으로 로그인 회원 ID를 돌려주는 테스트 API를 호출한다
-    private Long memberIdOf(String accessToken) {
-        return client.get().uri(LOGIN_MEMBER_PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
-            .exchange()
-            .expectStatus().isOk()
-            .expectBody(AuthMember.class)
-            .returnResult()
-            .getResponseBody()
-            .id();
+    // 발급받은 Access Token의 회원 ID(sub)
+    private static Long memberIdOf(String accessToken) {
+        return IssuedAccessToken.decode(accessToken).memberId();
     }
 
     private static String codeBody(String code) {

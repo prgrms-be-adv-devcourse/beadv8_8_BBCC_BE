@@ -8,11 +8,11 @@ import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -23,12 +23,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -50,9 +52,6 @@ class ProductSaleStartApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private ClothingTopSaver clothingTopSaver;
 
     @Autowired
@@ -69,7 +68,7 @@ class ProductSaleStartApiTest {
     void registerProductA() {
         saved = clothingTopSaver.save();
         productId = client.post().uri(PRODUCTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(productA(saved))
             .exchange()
@@ -83,7 +82,7 @@ class ProductSaleStartApiTest {
     @Test
     @DisplayName("SALE-03 · SALE-08 판매대기 상품의 판매를 시작하면 판매중이 되고, 커밋 뒤 상품 정보 변경됨이 한 번 나간다")
     void startSaleOfPendingProduct() {
-        startSale(tokens.seller(SELLER_ID), ON_SALE)
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.productId").isEqualTo(productId)
@@ -109,7 +108,7 @@ class ProductSaleStartApiTest {
     @Test
     @DisplayName("SALE-08 판매 시작으로 나간 상품 정보 변경됨에 저장된 옵션 값과 상품 정보 값이 항목 코드 · 값 ID와 함께 들어 있다")
     void startSaleEventCarriesAttributeValues() {
-        startSale(tokens.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
 
         // 항목은 지연 로딩이라, 판매 시작 트랜잭션 안에서 항목 코드와 값 ID를 읽는지 저장한 상품으로 확인한다
         ClothingOptions clothing = saved.clothing();
@@ -128,7 +127,7 @@ class ProductSaleStartApiTest {
     @Test
     @DisplayName("판매 시작이 커밋되면 나간 상품 정보 변경됨이 상품 ID를 키로 아웃박스에 한 줄 남는다")
     void startSaleStoresOutboxMessage() {
-        startSale(tokens.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
 
         UUID eventId = eventRecorder.events(ProductChangedEvent.class).getFirst().eventId();
         assertThat(jdbcTemplate.queryForList(
@@ -144,7 +143,7 @@ class ProductSaleStartApiTest {
     @Test
     @DisplayName("판매 시작이 커밋되면 그 상품의 검색용 표 행이 생기고, 저장된 값 ID로 attributes가 채워진다")
     void startSaleCreatesSearchDocument() {
-        startSale(tokens.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
 
         // 등록 요청의 초기 재고가 110은 10개, 120은 0개라 품절이 아니고, 표시 가격은 살 수 있는 110 옵션의 판매가다
         Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -164,11 +163,11 @@ class ProductSaleStartApiTest {
     @Test
     @DisplayName("이미 판매중인 상품에 판매 시작을 다시 보내면 200이고, 상태 · version이 그대로이며 이벤트도 다시 나가지 않는다")
     void startSaleAgainChangesNothing() {
-        startSale(tokens.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
         long versionAfterFirst = storedVersion();
 
         for (int i = 0; i < 2; i++) {
-            startSale(tokens.seller(SELLER_ID), ON_SALE)
+            startSale(TestMembers.seller(SELLER_ID), ON_SALE)
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.status").isEqualTo("ON_SALE")
@@ -186,7 +185,7 @@ class ProductSaleStartApiTest {
         jdbcTemplate.update("delete from product.size_spec where product_id = ? and attribute_value_id = "
             + "(select id from product.attribute_value where name = '120')", Long.valueOf(productId));
 
-        expectProblem(startSale(tokens.seller(SELLER_ID), ON_SALE), HttpStatus.CONFLICT,
+        expectProblem(startSale(TestMembers.seller(SELLER_ID), ON_SALE), HttpStatus.CONFLICT,
             "판매를 시작할 수 없습니다", "판매를 시작할 수 없습니다. 120 사이즈에 실측과 권장 키가 없습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
@@ -195,7 +194,7 @@ class ProductSaleStartApiTest {
     @Test
     @DisplayName("OPT-08 다른 판매자의 상품이면 403이고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")
     void rejectOtherSellersProduct() {
-        expectProblem(startSale(tokens.seller(OTHER_SELLER_ID), ON_SALE), HttpStatus.FORBIDDEN,
+        expectProblem(startSale(TestMembers.seller(OTHER_SELLER_ID), ON_SALE), HttpStatus.FORBIDDEN,
             "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
@@ -206,15 +205,15 @@ class ProductSaleStartApiTest {
     void rejectMissingProduct() {
         productId = "999999";
 
-        expectProblem(startSale(tokens.seller(SELLER_ID), ON_SALE), HttpStatus.NOT_FOUND,
+        expectProblem(startSale(TestMembers.seller(SELLER_ID), ON_SALE), HttpStatus.NOT_FOUND,
             "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
     }
 
     @Test
     @DisplayName("토큰이 없으면 401, 판매자가 아닌 회원이면 403이다")
     void rejectWithoutSellerRole() {
-        startSale(null, ON_SALE).expectStatus().isUnauthorized();
-        startSale(tokens.buyer(SELLER_ID), ON_SALE).expectStatus().isForbidden();
+        startSale(TestMembers.anonymous(), ON_SALE).expectStatus().isUnauthorized();
+        startSale(TestMembers.buyer(SELLER_ID), ON_SALE).expectStatus().isForbidden();
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
     }
 
@@ -222,7 +221,7 @@ class ProductSaleStartApiTest {
     @ValueSource(strings = {"SALE_PENDING", "FOO"})
     @DisplayName("판매 시작(ON_SALE)이나 판매 중지(STOPPED)가 아닌 판매 상태를 보내면 400이고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")
     void rejectStatusOtherThanOnSale(String status) {
-        expectProblem(startSale(tokens.seller(SELLER_ID), Map.of("status", status)), HttpStatus.BAD_REQUEST,
+        expectProblem(startSale(TestMembers.seller(SELLER_ID), Map.of("status", status)), HttpStatus.BAD_REQUEST,
             "잘못된 요청입니다", "status: 판매 시작(ON_SALE)이나 판매 중지(STOPPED)만 요청할 수 있습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
@@ -232,7 +231,7 @@ class ProductSaleStartApiTest {
     @DisplayName("같은 상품에 판매 시작 요청이 동시에 여러 개 와도 판매중으로 한 번만 바뀌고 이벤트도 한 번만 나가며, 나머지는 200이나 409다")
     void concurrentStartSaleChangesOnce() throws Exception {
         int requestCount = 5;
-        String token = tokens.seller(SELLER_ID);
+        var login = TestMembers.seller(SELLER_ID);
         // 모든 요청이 준비된 뒤 같은 순간에 출발하게 한다
         CountDownLatch ready = new CountDownLatch(requestCount);
         CountDownLatch go = new CountDownLatch(1);
@@ -243,7 +242,7 @@ class ProductSaleStartApiTest {
                 if (!go.await(10, TimeUnit.SECONDS)) {
                     throw new IllegalStateException("출발 신호를 기다리다 시간이 지났습니다");
                 }
-                return startSale(token, ON_SALE).returnResult(String.class).getStatus().value();
+                return startSale(login, ON_SALE).returnResult(String.class).getStatus().value();
             });
         }
         List<Integer> statuses = new ArrayList<>();
@@ -268,7 +267,7 @@ class ProductSaleStartApiTest {
     @Test
     @DisplayName("판매 상태를 보내지 않으면 400이다")
     void rejectMissingStatus() {
-        expectProblem(startSale(tokens.seller(SELLER_ID), Map.of()), HttpStatus.BAD_REQUEST,
+        expectProblem(startSale(TestMembers.seller(SELLER_ID), Map.of()), HttpStatus.BAD_REQUEST,
             "잘못된 요청입니다", "status: 판매 시작(ON_SALE)이나 판매 중지(STOPPED)만 요청할 수 있습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
     }
@@ -286,13 +285,9 @@ class ProductSaleStartApiTest {
             .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId + "/sale-status");
     }
 
-    private RestTestClient.ResponseSpec startSale(String token, Map<String, Object> body) {
+    private RestTestClient.ResponseSpec startSale(Consumer<HttpHeaders> login, Map<String, Object> body) {
         return client.put().uri(PRODUCTS_PATH + "/{productId}/sale-status", productId)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();

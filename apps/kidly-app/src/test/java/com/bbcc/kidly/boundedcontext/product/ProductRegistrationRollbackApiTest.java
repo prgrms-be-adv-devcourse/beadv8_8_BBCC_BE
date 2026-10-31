@@ -7,8 +7,8 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,9 +31,6 @@ class ProductRegistrationRollbackApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private ClothingTopSaver clothingTopSaver;
 
     @Autowired
@@ -50,7 +47,7 @@ class ProductRegistrationRollbackApiTest {
             .when(inventoryRepository).saveOpening(any());
 
         client.post().uri("/api/v1/seller/products")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .body(productA(saved))
             .exchange()
             .expectStatus().is5xxServerError();

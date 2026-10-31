@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.net.URI;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,9 +29,6 @@ class ChargeApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private WalletRepository walletRepository;
 
     @Autowired
@@ -49,7 +46,7 @@ class ChargeApiTest {
 
         assertThat(charge.orderId()).hasSize(36);
         client.get().uri(charge.location())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -65,7 +62,7 @@ class ChargeApiTest {
     @DisplayName("1천 원보다 적으면 400 CHARGE_AMOUNT_OUT_OF_RANGE")
     void amountOutOfRange() {
         client.post().uri(CHARGES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("amount", 999))
             .exchange()
@@ -86,7 +83,7 @@ class ChargeApiTest {
             .jsonPath("$.amount").isEqualTo(10_000)
             .jsonPath("$.balance").isEqualTo(10_000);
         client.get().uri("/api/v1/wallets/me")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectBody()
             .jsonPath("$.balance").isEqualTo(10_000);
@@ -350,7 +347,7 @@ class ChargeApiTest {
         RequestedCharge charge = requestCharge(10_000);
 
         client.post().uri(FAIL_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("orderId", charge.orderId()))
             .exchange()
@@ -374,7 +371,7 @@ class ChargeApiTest {
 
     private RequestedCharge requestCharge(Long memberId, int amount) {
         var result = client.post().uri(CHARGES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("amount", amount))
             .exchange()
@@ -393,7 +390,7 @@ class ChargeApiTest {
 
     private RestTestClient.ResponseSpec confirm(Long memberId, String paymentKey, String orderId, int amount) {
         return client.post().uri(CONFIRM_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("paymentKey", paymentKey, "orderId", orderId, "amount", amount))
             .exchange();
@@ -401,7 +398,7 @@ class ChargeApiTest {
 
     private RestTestClient.ResponseSpec fail(Long memberId, String orderId, String code) {
         return client.post().uri(FAIL_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("orderId", orderId, "code", code))
             .exchange();
@@ -415,13 +412,13 @@ class ChargeApiTest {
 
     private RestTestClient.ResponseSpec cancel(Long memberId, RequestedCharge charge) {
         return client.post().uri(charge.location() + "/cancel")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .exchange();
     }
 
     private void expectBalance(long balance) {
         client.get().uri("/api/v1/wallets/me")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectBody()
             .jsonPath("$.balance").isEqualTo(balance);
@@ -429,13 +426,13 @@ class ChargeApiTest {
 
     private RestTestClient.ResponseSpec getCharges(Long memberId, String query) {
         return client.get().uri(CHARGES_PATH + query)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .exchange();
     }
 
     private void expectStatus(RequestedCharge charge, String status) {
         client.get().uri(charge.location())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()

@@ -19,7 +19,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -50,9 +50,6 @@ class OrderTimelineApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private OrderService orderService;
@@ -209,7 +206,7 @@ class OrderTimelineApiTest {
 
         List<OrderDetail.Item> items = orderService.getOrder(BUYER_ID, orderId).items();
         client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + items.get(0).orderItemId() + "/confirm")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk();
         JsonNode partlyConfirmed = timeline(orderId);
@@ -285,7 +282,7 @@ class OrderTimelineApiTest {
 
     private Long place() {
         URI location = client.post().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("items", List.of(
                     Map.of("optionId", "1", "quantity", 1, "unitPrice", 25_000),
                     Map.of("optionId", "2", "quantity", 1, "unitPrice", 30_000)),
@@ -315,7 +312,7 @@ class OrderTimelineApiTest {
 
     private JsonNode timeline(Long orderId) {
         String body = client.get().uri(ORDERS_PATH + "/" + orderId + "/timeline")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(String.class)
@@ -326,7 +323,7 @@ class OrderTimelineApiTest {
 
     private JsonNode notFound(Long orderId, Long memberId) {
         String body = client.get().uri(ORDERS_PATH + "/" + orderId + "/timeline")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .exchange()
             .expectStatus().isNotFound()
             .expectBody(String.class)

@@ -6,7 +6,7 @@ import static com.bbcc.kidly.support.TestApiController.PUBLIC_ITEM_PATH;
 import static com.bbcc.kidly.support.TestApiController.PUBLIC_PATH;
 
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,9 +18,6 @@ class PublicApiTest {
     @Autowired
     private RestTestClient client;
 
-    @Autowired
-    private TestTokens tokens;
-
     @Test
     @DisplayName("@PublicApi가 붙은 API는 토큰 없이 호출할 수 있다")
     void withoutToken() {
@@ -30,15 +27,16 @@ class PublicApiTest {
     }
 
     @Test
-    @DisplayName("@PublicApi가 붙은 API도 유효한 토큰을 보내면 로그인 상태로 호출된다")
+    @DisplayName("@PublicApi가 붙은 API도 로그인 회원으로 호출할 수 있다")
     void validTokenAuthenticated() {
         client.get().uri(PUBLIC_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(1L)))
+            .headers(TestMembers.buyer(1L))
             .exchange()
             .expectStatus().isOk();
     }
 
     @Test
+    @Disabled("gateway 모드: 토큰 검증은 Gateway가 한다. #638 Task 3에서 지운다")
     @DisplayName("@PublicApi가 붙은 API도 잘못된 토큰을 보내면 401이다")
     void invalidTokenRejected() {
         client.get().uri(PUBLIC_PATH)

@@ -42,6 +42,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-kafka")
 
     // Test
+    // 기능 테스트의 로그인 헤더(TestMembers)
+    testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-starter-security-test")

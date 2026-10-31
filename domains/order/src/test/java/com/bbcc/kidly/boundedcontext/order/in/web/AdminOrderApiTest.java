@@ -12,7 +12,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -36,9 +36,6 @@ class AdminOrderApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private ProductReplicaRepository productReplicaRepository;
 
     @Autowired
@@ -58,7 +55,7 @@ class AdminOrderApiTest {
         orderService.cancelForPaymentFailure(Long.valueOf(second));
 
         client.get().uri(ADMIN_ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -89,7 +86,7 @@ class AdminOrderApiTest {
     @DisplayName("주문이 없으면 200 · content []")
     void emptyWhenNoOrders() {
         client.get().uri(ADMIN_ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -102,7 +99,7 @@ class AdminOrderApiTest {
     @DisplayName("size가 1~100 밖(0 · 101)이면 400")
     void sizeOutOfRangeIsBadRequest(int size) {
         client.get().uri(ADMIN_ORDERS_PATH + "?size=" + size)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -111,7 +108,7 @@ class AdminOrderApiTest {
     @DisplayName("page가 음수(-1)면 400")
     void negativePageIsBadRequest() {
         client.get().uri(ADMIN_ORDERS_PATH + "?page=-1")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -122,7 +119,7 @@ class AdminOrderApiTest {
         placeOrder(BUYER_ID, 1);
 
         client.get().uri(ADMIN_ORDERS_PATH + "?page=1073741824&size=2")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -144,18 +141,18 @@ class AdminOrderApiTest {
     @DisplayName("구매자 · 판매자 토큰이면 403")
     void forbiddenForNonAdmin() {
         client.get().uri(ADMIN_ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isForbidden();
         client.get().uri(ADMIN_ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .exchange()
             .expectStatus().isForbidden();
     }
 
     private String placeOrder(Long memberId, int quantity) {
         URI location = client.post().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .body(Map.of("items", List.of(Map.of("optionId", "1", "quantity", quantity, "unitPrice", 25_000)),
                 "shippingAddress", ADDRESS))
             .exchange()

@@ -15,7 +15,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -75,9 +75,6 @@ class OrderFlowApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -158,7 +155,7 @@ class OrderFlowApiTest {
 
         ItemRow itemOfA = itemOfSeller(delivered, SELLER_A_ID);
         client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + itemOfA.orderItemId() + "/confirm")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk();
 
@@ -248,7 +245,7 @@ class OrderFlowApiTest {
                     orderItemIds.get(1), StockDeductionFailureCode.OUT_OF_STOCK)))));
 
         client.get().uri(ORDERS_PATH + "/" + orderId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -271,7 +268,7 @@ class OrderFlowApiTest {
         assertThat(detail(orderId).status()).isEqualTo("CANCELLED");
         for (Long sellerId : List.of(SELLER_A_ID, SELLER_B_ID)) {
             client.get().uri(SELLER_ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+                .headers(TestMembers.seller(sellerId))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -327,7 +324,7 @@ class OrderFlowApiTest {
                 PreferredFit.LOOSE, true)));
 
         client.post().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of(
                 "items", List.of(Map.of("optionId", "1", "childId", String.valueOf(CHILD_ID), "quantity", 1,
                     "unitPrice", 25_000)),
@@ -420,7 +417,7 @@ class OrderFlowApiTest {
                 null, null, false, OptionSaleStatus.ON_SALE)))));
         addToCart("30", null, 1);
         client.get().uri(CART_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -429,7 +426,7 @@ class OrderFlowApiTest {
             .jsonPath("$.items[0].purchasable").isEqualTo(true);
 
         URI location = client.post().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of(
                 "items", List.of(Map.of("optionId", "30", "quantity", 1, "unitPrice", 5_000)),
                 "shippingAddress", ADDRESS))
@@ -444,14 +441,14 @@ class OrderFlowApiTest {
 
         assertThat(detail(orderId).status()).isEqualTo("PAID");
         client.get().uri(ORDERS_PATH + "/" + orderId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.items[0].optionName").isEqualTo("색상: 흰색")
             .jsonPath("$.items[0].size").value(size -> assertThat(size).isNull());
         client.get().uri(SELLER_ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_A_ID)))
+            .headers(TestMembers.seller(SELLER_A_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -461,7 +458,7 @@ class OrderFlowApiTest {
         shipAndDeliver(SELLER_A_ID, orderId);
         ItemRow item = itemOfSeller(detail(orderId), SELLER_A_ID);
         client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + item.orderItemId() + "/confirm")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -494,7 +491,7 @@ class OrderFlowApiTest {
             ? Map.of("optionId", optionId, "quantity", quantity)
             : Map.of("optionId", optionId, "childId", childId, "quantity", quantity);
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(body)
             .exchange()
             .expectStatus().isCreated();
@@ -505,7 +502,7 @@ class OrderFlowApiTest {
      */
     private Long placeOrder() {
         URI location = client.post().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of(
                 "items", List.of(
                     Map.of("optionId", "1", "childId", "1", "quantity", 2, "unitPrice", 25_000),
@@ -522,19 +519,19 @@ class OrderFlowApiTest {
     private void shipAndDeliver(Long sellerId, Long orderId) {
         String sellerOrderId = sellerOrderIdOf(sellerId, orderId);
         client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .body(Map.of("carrier", "CJ", "trackingNumber", "1234567890"))
             .exchange()
             .expectStatus().isOk();
         client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/deliver")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .exchange()
             .expectStatus().isOk();
     }
 
     private String sellerOrderIdOf(Long sellerId, Long orderId) {
         SellerOrders page = client.get().uri(SELLER_ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .exchange()
             .expectStatus().isOk()
             .expectBody(SellerOrders.class)
@@ -550,7 +547,7 @@ class OrderFlowApiTest {
 
     private OrderBody detail(Long orderId) {
         OrderBody body = client.get().uri(ORDERS_PATH + "/" + orderId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(OrderBody.class)
@@ -562,7 +559,7 @@ class OrderFlowApiTest {
 
     private List<CartLine> cart() {
         CartBody body = client.get().uri(CART_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(CartBody.class)

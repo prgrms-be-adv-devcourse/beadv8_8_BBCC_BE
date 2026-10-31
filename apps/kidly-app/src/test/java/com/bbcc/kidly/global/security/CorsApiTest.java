@@ -3,6 +3,7 @@ package com.bbcc.kidly.global.security;
 import static com.bbcc.kidly.support.TestApiController.PUBLIC_PATH;
 
 import com.bbcc.kidly.support.FunctionalTest;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ class CorsApiTest {
     private RestTestClient client;
 
     @Test
+    @Disabled("gateway 모드: CORS는 Gateway가 맡는다. #638 Task 3에서 지운다")
     @DisplayName("허용된 origin의 요청에 X-Request-Id를 프론트가 읽을 수 있게 노출한다")
     void exposesRequestId() {
         client.get().uri(PUBLIC_PATH)

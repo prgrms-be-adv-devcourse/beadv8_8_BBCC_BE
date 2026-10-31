@@ -18,7 +18,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import java.net.URI;
 import java.time.LocalDateTime;
@@ -47,9 +47,6 @@ class SellerOrderApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private OrderService orderService;
@@ -85,7 +82,7 @@ class SellerOrderApiTest {
         @DisplayName("그 판매자 몫 주문상품 · 배송지와 함께 6.1 목록 형식으로 돌려준다")
         void onlySellersItems() {
             client.get().uri(SELLER_ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -109,7 +106,7 @@ class SellerOrderApiTest {
                 new ReplicaSeller.Values(SELLER_ID, "키들리샵", "ACTIVE", OCCURRED_AT)));
 
             client.get().uri(SELLER_ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -125,7 +122,7 @@ class SellerOrderApiTest {
             jdbcTemplate.update("delete from orders.orders where id = ?", Long.valueOf(orderId));
 
             client.get().uri(SELLER_ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -142,7 +139,7 @@ class SellerOrderApiTest {
         @DisplayName("기본 페이지는 page 0 · size 20이고 배송 1건이면 hasNext false")
         void defaultPage() {
             client.get().uri(SELLER_ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -157,7 +154,7 @@ class SellerOrderApiTest {
         @DisplayName("마지막 페이지 바로 다음 page는 200 · 빈 목록")
         void pageAfterLastIsEmpty() {
             client.get().uri(SELLER_ORDERS_PATH + "?page=1&size=20")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -173,7 +170,7 @@ class SellerOrderApiTest {
             // page = Integer.MAX_VALUE에서는 Spring Page.hasNext()의 +1 넘침으로 true — global PageResponse 한계, backlog 후보.
             // 그래서 hasNext는 바로 아래 큰 page(hugePageHasNoNext)에서 확인한다
             client.get().uri(SELLER_ORDERS_PATH + "?page=2147483647&size=20")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -188,7 +185,7 @@ class SellerOrderApiTest {
         void offsetExactlyMaxIsQueriedFromDatabase() {
             // hasNext는 단언하지 않는다(page = Integer.MAX_VALUE의 Spring Page.hasNext() +1 넘침, global 한계)
             client.get().uri(SELLER_ORDERS_PATH + "?page=2147483647&size=1")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -202,7 +199,7 @@ class SellerOrderApiTest {
         @DisplayName("offset이 int를 넘는 큰 page(1073741824 · size 2)는 200 · 빈 목록 · hasNext false")
         void hugePageHasNoNext() {
             client.get().uri(SELLER_ORDERS_PATH + "?page=1073741824&size=2")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -218,7 +215,7 @@ class SellerOrderApiTest {
             placePaidOrder();
 
             client.get().uri(SELLER_ORDERS_PATH + "?page=0&size=1")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -234,7 +231,7 @@ class SellerOrderApiTest {
         @DisplayName("size가 100을 넘으면 400")
         void tooLargePageSize() {
             client.get().uri(SELLER_ORDERS_PATH + "?size=101")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isBadRequest();
         }
@@ -244,7 +241,7 @@ class SellerOrderApiTest {
         @DisplayName("size 1과 100은 200")
         void pageSizeBoundsAreAllowed(int size) {
             client.get().uri(SELLER_ORDERS_PATH + "?size=" + size)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -255,7 +252,7 @@ class SellerOrderApiTest {
         @DisplayName("size가 0이면 400")
         void zeroPageSize() {
             client.get().uri(SELLER_ORDERS_PATH + "?size=0")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isBadRequest();
         }
@@ -264,7 +261,7 @@ class SellerOrderApiTest {
         @DisplayName("page가 음수(-1)면 400")
         void negativePage() {
             client.get().uri(SELLER_ORDERS_PATH + "?page=-1")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isBadRequest();
         }
@@ -280,7 +277,7 @@ class SellerOrderApiTest {
             String sellerOrderId = sellerOrderIdOf(SELLER_ID);
 
             client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .body(Map.of("carrier", "CJ", "trackingNumber", "1234567890"))
                 .exchange()
                 .expectStatus().isOk()
@@ -293,7 +290,7 @@ class SellerOrderApiTest {
                 .jsonPath("$.shippedAt").exists();
 
             client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/deliver")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -305,7 +302,7 @@ class SellerOrderApiTest {
             deliver(sellerOrderId);
 
             client.get().uri(SELLER_ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -317,7 +314,7 @@ class SellerOrderApiTest {
                 .jsonPath("$.content[0].deliveredAt").exists();
 
             client.get().uri(ORDERS_PATH + "/" + orderId)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -335,14 +332,14 @@ class SellerOrderApiTest {
         void itemsKeepOrderedSequenceAfterUpdate() {
             String sellerOrderId = sellerOrderIdOf(SELLER_ID);
             client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .body(Map.of("carrier", "CJ", "trackingNumber", "1234567890"))
                 .exchange()
                 .expectStatus().isOk();
             deliver(sellerOrderId);
 
             OrderItems detail = client.get().uri(ORDERS_PATH + "/" + orderId)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(OrderItems.class)
@@ -362,7 +359,7 @@ class SellerOrderApiTest {
             String sellerOrderId = sellerOrderIdOf(SELLER_ID);
 
             client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(OTHER_SELLER_ID)))
+                .headers(TestMembers.seller(OTHER_SELLER_ID))
                 .body(Map.of("carrier", "CJ", "trackingNumber", "1234567890"))
                 .exchange()
                 .expectStatus().isNotFound()
@@ -384,7 +381,7 @@ class SellerOrderApiTest {
                 .jsonPath("$.detail").isEqualTo("이미 발송된 주문입니다. 판매 주문 목록을 새로고침해 주세요.");
 
             client.get().uri(SELLER_ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -398,7 +395,7 @@ class SellerOrderApiTest {
             String sellerOrderId = sellerOrderIdOf(SELLER_ID);
 
             client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/deliver")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isEqualTo(409)
                 .expectBody()
@@ -406,7 +403,7 @@ class SellerOrderApiTest {
                 .jsonPath("$.detail").isEqualTo("발송 처리를 먼저 해 주세요.");
 
             client.get().uri(SELLER_ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -425,7 +422,7 @@ class SellerOrderApiTest {
                 .jsonPath("$.detail").isEqualTo("지원하는 택배사는 CJ · EPOST · HANJIN · LOTTE · LOGEN입니다.");
 
             client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .body(Map.of("carrier", "CJ", "trackingNumber", ""))
                 .exchange()
                 .expectStatus().isBadRequest();
@@ -445,7 +442,7 @@ class SellerOrderApiTest {
                 .jsonPath("$.trackingNumber").isEqualTo(fifty);
 
             client.get().uri(SELLER_ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -454,14 +451,14 @@ class SellerOrderApiTest {
 
         private RestTestClient.ResponseSpec ship(String sellerOrderId, String carrier, String trackingNumber) {
             return client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/ship")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .body(Map.of("carrier", carrier, "trackingNumber", trackingNumber))
                 .exchange();
         }
 
         private void deliver(String sellerOrderId) {
             client.post().uri(SELLER_ORDERS_PATH + "/" + sellerOrderId + "/deliver")
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -476,7 +473,7 @@ class SellerOrderApiTest {
      */
     private String placePaidOrder() {
         URI location = client.post().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of(
                 "items", List.of(
                     Map.of("optionId", "1", "childId", "1", "quantity", 2, "unitPrice", 25_000),
@@ -498,7 +495,7 @@ class SellerOrderApiTest {
 
     private String sellerOrderIdOf(Long sellerId) {
         SellerOrderPage page = client.get().uri(SELLER_ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .exchange()
             .expectStatus().isOk()
             .expectBody(SellerOrderPage.class)

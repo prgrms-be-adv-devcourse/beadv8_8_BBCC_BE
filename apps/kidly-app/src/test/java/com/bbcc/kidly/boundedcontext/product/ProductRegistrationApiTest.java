@@ -13,8 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryAdjustmentReason;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import java.net.URI;
 import java.util.Arrays;
@@ -53,9 +53,6 @@ class ProductRegistrationApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private ClothingTopSaver clothingTopSaver;
 
     // 응답에 없는 재고 행 · 재고 조정 기록과, 실패한 요청이 아무것도 저장하지 않았는지를 확인할 때 쓴다
@@ -75,7 +72,7 @@ class ProductRegistrationApiTest {
         AtomicReference<String> productId = new AtomicReference<>();
 
         URI location = client.post().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .body(productA(saved))
             .exchange()
             .expectStatus().isCreated()
@@ -133,7 +130,7 @@ class ProductRegistrationApiTest {
     @DisplayName("판매자가 아닌 회원은 403을 받는다")
     void rejectBuyer() {
         client.post().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(SELLER_ID)))
+            .headers(TestMembers.buyer(SELLER_ID))
             .body(productA(saved))
             .exchange()
             .expectStatus().isForbidden();
@@ -275,7 +272,7 @@ class ProductRegistrationApiTest {
 
     private RestTestClient.ResponseSpec register(Map<String, Object> body) {
         return client.post().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .body(body)
             .exchange();
     }
@@ -299,7 +296,7 @@ class ProductRegistrationApiTest {
     void registerWithImageUrlFromUploadApi() {
         AtomicReference<String> imageUrl = new AtomicReference<>();
         client.post().uri("/api/v1/seller/product-images/upload-urls")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("files", List.of(Map.of("contentType", "image/png", "contentLength", 1_000))))
             .exchange()

@@ -17,7 +17,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
@@ -55,9 +55,6 @@ class OrderApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private OrderService orderService;
 
     @Autowired
@@ -90,7 +87,7 @@ class OrderApiTest {
         @DisplayName("201 + Location과 결제대기 주문 상세를 돌려준다")
         void placesOrder() {
             URI location = client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody("1", "1", 2, 25_000))
                 .exchange()
                 .expectStatus().isCreated()
@@ -111,7 +108,7 @@ class OrderApiTest {
 
             assertThat(location).isNotNull();
             OrderTimes times = client.get().uri(location)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(OrderTimes.class)
@@ -130,7 +127,7 @@ class OrderApiTest {
         @DisplayName("요청 단가가 지금 단가(25,000)보다 1원 적거나 많으면 409 PRICE_CHANGED")
         void priceOffByOneIsConflict(long unitPrice) {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody("1", null, 1, unitPrice))
                 .exchange()
                 .expectStatus().isEqualTo(409)
@@ -143,7 +140,7 @@ class OrderApiTest {
         @DisplayName("판매자가 자기 상품을 주문하면 403 OWN_PRODUCT")
         void ownProductIsForbidden() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+                .headers(TestMembers.seller(SELLER_ID))
                 .body(orderBody("1", null, 1, 25_000))
                 .exchange()
                 .expectStatus().isForbidden()
@@ -158,7 +155,7 @@ class OrderApiTest {
             Map<String, Object> line = Map.of("optionId", "1", "quantity", 1, "unitPrice", 25_000);
 
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(Map.of("items", List.of(line, line), "shippingAddress", ADDRESS))
                 .exchange()
                 .expectStatus().isBadRequest()
@@ -171,7 +168,7 @@ class OrderApiTest {
         @DisplayName("상품은 판매 중이어도 옵션이 판매 중지면 409 PRODUCT_NOT_PURCHASABLE")
         void stoppedOptionIsConflict() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody(String.valueOf(OPTION_STOPPED_ID), null, 1, 25_000))
                 .exchange()
                 .expectStatus().isEqualTo(409)
@@ -184,7 +181,7 @@ class OrderApiTest {
         @DisplayName("상품 · 옵션이 판매 중이어도 품절이면 409 PRODUCT_NOT_PURCHASABLE")
         void soldOutOptionIsConflict() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody(String.valueOf(SOLD_OUT_ID), null, 1, 25_000))
                 .exchange()
                 .expectStatus().isEqualTo(409)
@@ -197,7 +194,7 @@ class OrderApiTest {
         @DisplayName("주문상품이 비어 있으면 400")
         void emptyItems() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(Map.of("items", List.of(), "shippingAddress", ADDRESS))
                 .exchange()
                 .expectStatus().isBadRequest();
@@ -207,7 +204,7 @@ class OrderApiTest {
         @DisplayName("옵션 ID가 숫자가 아니면 400")
         void invalidOptionId() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody("abc", null, 1, 25_000))
                 .exchange()
                 .expectStatus().isBadRequest();
@@ -217,7 +214,7 @@ class OrderApiTest {
         @DisplayName("배송지가 비어 있으면 400")
         void blankAddress() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(Map.of(
                     "items", List.of(Map.of("optionId", "1", "quantity", 1, "unitPrice", 25_000)),
                     "shippingAddress", Map.of("recipientName", "", "phone", "", "zipCode", "", "address", "")))
@@ -230,7 +227,7 @@ class OrderApiTest {
         @DisplayName("주문 수량 경계(지금 단가 그대로): 1 · 99는 201, 0 · 100 · Integer.MAX_VALUE는 400(500 아님)")
         void quantityBoundary(int quantity, int status) {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody("1", null, quantity, 25_000))
                 .exchange()
                 .expectStatus().isEqualTo(status);
@@ -241,7 +238,7 @@ class OrderApiTest {
         @DisplayName("요청 단가가 아주 커도(지금 단가와 다름) 수량 범위 밖이면 400, 수량이 맞으면 가격 비교로 409(금액 계산 전에 거절, 500 아님)")
         void hugeUnitPriceIsRejectedBeforeAmount(int quantity, long unitPrice, int status) {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody("1", null, quantity, unitPrice))
                 .exchange()
                 .expectStatus().isEqualTo(status);
@@ -251,7 +248,7 @@ class OrderApiTest {
         @DisplayName("단가가 음수(-1)면 400")
         void negativeUnitPrice() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody("1", null, 1, -1))
                 .exchange()
                 .expectStatus().isBadRequest();
@@ -261,7 +258,7 @@ class OrderApiTest {
         @DisplayName("단가 0은 형식 검증을 통과한다(가격이 다르면 409)")
         void zeroUnitPricePassesValidation() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody("1", null, 1, 0))
                 .exchange()
                 .expectStatus().isEqualTo(409)
@@ -274,7 +271,7 @@ class OrderApiTest {
         @DisplayName("없는 옵션을 주문하면 404 PRODUCT_OPTION_NOT_FOUND, 옵션을 다시 고르라는 안내")
         void missingOptionIsNotFound() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody("999999", null, 1, 25_000))
                 .exchange()
                 .expectStatus().isNotFound()
@@ -287,7 +284,7 @@ class OrderApiTest {
         @DisplayName("없는 자녀로 주문하면 404 CHILD_NOT_FOUND, 자녀를 다시 선택하라는 안내")
         void missingChildIsNotFound() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(orderBody("1", "999999", 1, 25_000))
                 .exchange()
                 .expectStatus().isNotFound()
@@ -300,7 +297,7 @@ class OrderApiTest {
         @DisplayName("남의 자녀로 주문하면 409 CHILD_NOT_ORDERABLE, 자녀를 다시 선택하라는 안내")
         void othersChildIsNotOrderable() {
             client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(OTHER_ID)))
+                .headers(TestMembers.buyer(OTHER_ID))
                 .body(orderBody("1", "1", 1, 25_000))
                 .exchange()
                 .expectStatus().isEqualTo(409)
@@ -408,7 +405,7 @@ class OrderApiTest {
         private RestTestClient.ResponseSpec placeWithKey(Long memberId, String key, Map<String, Object> body) {
             return client.post().uri(ORDERS_PATH)
                 .headers(headers -> {
-                    headers.setBearerAuth(tokens.buyer(memberId));
+                    TestMembers.buyer(memberId).accept(headers);
                     headers.set("Idempotency-Key", key);
                 })
                 .body(body)
@@ -426,7 +423,7 @@ class OrderApiTest {
             String orderId = placeAndReadId();
 
             client.get().uri(ORDERS_PATH + "/" + orderId)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -441,7 +438,7 @@ class OrderApiTest {
             String second = placeAndReadId();
 
             client.get().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -464,7 +461,7 @@ class OrderApiTest {
             placeAndReadId();
 
             client.get().uri(ORDERS_PATH + "?page=1&size=20")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -482,7 +479,7 @@ class OrderApiTest {
             // page = Integer.MAX_VALUE에서는 Spring Page.hasNext()의 +1 넘침으로 true — global PageResponse 한계, backlog 후보.
             // 그래서 hasNext는 바로 아래 큰 page(hugePageHasNoNext)에서 확인한다
             client.get().uri(ORDERS_PATH + "?page=2147483647&size=20")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -499,7 +496,7 @@ class OrderApiTest {
 
             // hasNext는 단언하지 않는다(page = Integer.MAX_VALUE의 Spring Page.hasNext() +1 넘침, global 한계)
             client.get().uri(ORDERS_PATH + "?page=2147483647&size=1")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -515,7 +512,7 @@ class OrderApiTest {
             placeAndReadId();
 
             client.get().uri(ORDERS_PATH + "?page=1073741824&size=2")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -532,7 +529,7 @@ class OrderApiTest {
             String second = placeAndReadId();
 
             client.get().uri(ORDERS_PATH + "?page=0&size=1")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -554,7 +551,7 @@ class OrderApiTest {
             publishRenamedFirstProduct();
 
             client.get().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -574,7 +571,7 @@ class OrderApiTest {
             placeTwoItems();
 
             client.get().uri(ORDERS_PATH + "?page=1&size=1")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -592,7 +589,7 @@ class OrderApiTest {
          */
         private String placeTwoItems() {
             URI location = client.post().uri(ORDERS_PATH)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .body(Map.of(
                     "items", List.of(
                         Map.of("optionId", "6", "quantity", 1, "unitPrice", 30_000),
@@ -627,7 +624,7 @@ class OrderApiTest {
         @DisplayName("목록 size가 100을 넘으면 400")
         void tooLargePageSize() {
             client.get().uri(ORDERS_PATH + "?size=101")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isBadRequest();
         }
@@ -637,7 +634,7 @@ class OrderApiTest {
         @DisplayName("목록 size 1과 100은 200")
         void pageSizeBoundsAreAllowed(int size) {
             client.get().uri(ORDERS_PATH + "?size=" + size)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -648,7 +645,7 @@ class OrderApiTest {
         @DisplayName("목록 size가 0이면 400")
         void zeroPageSize() {
             client.get().uri(ORDERS_PATH + "?size=0")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isBadRequest();
         }
@@ -657,7 +654,7 @@ class OrderApiTest {
         @DisplayName("목록 page가 음수(-1)면 400")
         void negativePage() {
             client.get().uri(ORDERS_PATH + "?page=-1")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isBadRequest();
         }
@@ -671,7 +668,7 @@ class OrderApiTest {
                     BUYER_ID, 25_000L, PaymentFailureCode.INSUFFICIENT_BALANCE, LocalDateTime.now())));
 
             client.get().uri(ORDERS_PATH + "/" + orderId)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -685,7 +682,7 @@ class OrderApiTest {
             String orderId = placeAndReadId();
 
             client.get().uri(ORDERS_PATH + "/" + orderId)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(OTHER_ID)))
+                .headers(TestMembers.buyer(OTHER_ID))
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()
@@ -738,7 +735,7 @@ class OrderApiTest {
                 .jsonPath("$.status").isEqualTo("CONFIRMED");
 
             client.get().uri(ORDERS_PATH + "/" + orderId)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -787,7 +784,7 @@ class OrderApiTest {
 
         private RestTestClient.ResponseSpec confirm(String orderId, String orderItemId, Long memberId) {
             return client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + orderItemId + "/confirm")
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+                .headers(TestMembers.buyer(memberId))
                 .exchange();
         }
 
@@ -802,7 +799,7 @@ class OrderApiTest {
 
         private String orderItemIdOf(String orderId) {
             OrderItems detail = client.get().uri(ORDERS_PATH + "/" + orderId)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+                .headers(TestMembers.buyer(BUYER_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(OrderItems.class)
@@ -827,7 +824,7 @@ class OrderApiTest {
 
     private String placeAndReadId() {
         URI location = client.post().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(orderBody("1", null, 1, 25_000))
             .exchange()
             .expectStatus().isCreated()

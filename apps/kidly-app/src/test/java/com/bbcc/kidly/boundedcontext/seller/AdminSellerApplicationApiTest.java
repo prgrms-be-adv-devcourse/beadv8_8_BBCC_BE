@@ -10,9 +10,9 @@ import com.bbcc.kidly.boundedcontext.seller.domain.SellerPolicy;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationSummaryResponse;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationResponse;
 import com.bbcc.kidly.global.response.PageResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,9 +35,6 @@ class AdminSellerApplicationApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private SellerApplicationRepository sellerApplicationRepository;
 
     @Test
@@ -54,7 +51,7 @@ class AdminSellerApplicationApiTest {
         assertThat(page.content()).extracting(SellerApplicationSummaryResponse::applicantId)
             .containsExactly(2L, 1L);
         var row = page.content().getFirst();
-        assertThat(row.applicantNickname()).isEqualTo(TestTokens.nickname(2L));
+        assertThat(row.applicantNickname()).isEqualTo(TestMembers.nickname(2L));
         assertThat(row.maskedBusinessRegistrationNumber()).isEqualTo(SellerFixture.MASKED_BUSINESS_REGISTRATION_NUMBER);
         assertThat(row.status()).isEqualTo(SellerApplicationStatus.PENDING);
     }
@@ -76,7 +73,7 @@ class AdminSellerApplicationApiTest {
     @DisplayName("모르는 status는 400이다")
     void listInvalidStatus() {
         client.get().uri(PATH + "?status=FOO")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -92,7 +89,7 @@ class AdminSellerApplicationApiTest {
         assertThat(body.id()).isEqualTo(applicationId);
         assertThat(body.status()).isEqualTo(SellerApplicationStatus.APPROVED);
         var mine = client.get().uri(APPLY_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(1L)))
+            .headers(TestMembers.buyer(1L))
             .exchange()
             .expectStatus().isOk()
             .returnResult(SellerApplicationResponse.class)
@@ -135,7 +132,7 @@ class AdminSellerApplicationApiTest {
     @DisplayName("구매자는 목록을 볼 수 없다. 403이다")
     void forbiddenForBuyer() {
         client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(1L)))
+            .headers(TestMembers.buyer(1L))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -146,7 +143,7 @@ class AdminSellerApplicationApiTest {
         var applicationId = apply(1L);
 
         client.post().uri(PATH + "/{id}/approve", applicationId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
+            .headers(TestMembers.buyer(2L))
             .exchange()
             .expectStatus().isForbidden();
     }
@@ -162,7 +159,7 @@ class AdminSellerApplicationApiTest {
         assertThat(body.id()).isEqualTo(applicationId);
         assertThat(body.status()).isEqualTo(SellerApplicationStatus.REJECTED);
         var mine = client.get().uri(APPLY_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(1L)))
+            .headers(TestMembers.buyer(1L))
             .exchange()
             .expectStatus().isOk()
             .returnResult(SellerApplicationResponse.class)
@@ -227,7 +224,7 @@ class AdminSellerApplicationApiTest {
         var applicationId = apply(1L);
 
         client.post().uri(PATH + "/{id}/reject", applicationId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
+            .headers(TestMembers.buyer(2L))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new SellerApplicationRejectRequest(SellerFixture.REJECT_REASON))
             .exchange()
@@ -236,7 +233,7 @@ class AdminSellerApplicationApiTest {
 
     private PageResponse<SellerApplicationSummaryResponse> list(String query) {
         return client.get().uri(PATH + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(new ParameterizedTypeReference<PageResponse<SellerApplicationSummaryResponse>>() { })
@@ -246,13 +243,13 @@ class AdminSellerApplicationApiTest {
 
     private RestTestClient.ResponseSpec approve(Long applicationId) {
         return client.post().uri(PATH + "/{id}/approve", applicationId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec reject(Long applicationId, String reason) {
         return client.post().uri(PATH + "/{id}/reject", applicationId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new SellerApplicationRejectRequest(reason))
             .exchange();
@@ -261,7 +258,7 @@ class AdminSellerApplicationApiTest {
     // 실제 신청 API로 신청을 만들고 신청 ID를 준다
     private Long apply(Long memberId) {
         client.post().uri(APPLY_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new SellerApplicationRequest(SellerFixture.BUSINESS_NAME, SellerFixture.REPRESENTATIVE_NAME,
                 SellerFixture.BUSINESS_REGISTRATION_NUMBER))

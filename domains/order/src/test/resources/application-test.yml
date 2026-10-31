@@ -47,6 +47,9 @@ cors:
   allowed-origins: http://localhost:5173
 
 kidly:
+  # 서비스는 Gateway 뒤에서 X-Member-* 헤더로 로그인 회원을 만든다. 테스트는 TestMembers로 그 헤더를 보낸다
+  auth:
+    mode: gateway
   # 커밋 뒤 Kafka로 보내지 않는다. Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
   kafka:
     producer:

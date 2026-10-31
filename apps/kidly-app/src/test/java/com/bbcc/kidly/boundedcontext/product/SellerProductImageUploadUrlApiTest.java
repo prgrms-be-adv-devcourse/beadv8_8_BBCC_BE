@@ -5,11 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Named.named;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.test.web.servlet.client.RestTestClient.ResponseSpec;
@@ -35,9 +37,6 @@ class SellerProductImageUploadUrlApiTest {
     @Autowired
     private RestTestClient client;
 
-    @Autowired
-    private TestTokens tokens;
-
     @Test
     @DisplayName("판매자가 이미지 두 장의 업로드 주소를 요청하면 요청 순서대로 본인 경로의 주소와 만료 시각을 받는다")
     void issuesUploadUrlsInRequestOrder() {
@@ -45,7 +44,7 @@ class SellerProductImageUploadUrlApiTest {
             Map.of("contentType", "image/jpeg", "contentLength", 1_000),
             Map.of("contentType", "image/png", "contentLength", 2_000)));
 
-        issue(tokens.seller(SELLER_ID), body)
+        issue(TestMembers.seller(SELLER_ID), body)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.uploads.length()").isEqualTo(2)
@@ -60,7 +59,7 @@ class SellerProductImageUploadUrlApiTest {
     @MethodSource("invalidRequests")
     @DisplayName("형식 · 크기 · 장수가 맞지 않는 요청은 400과 ProblemDetail로 거절한다")
     void rejectInvalidRequest(Map<String, Object> body, String detail) {
-        issue(tokens.seller(SELLER_ID), body)
+        issue(TestMembers.seller(SELLER_ID), body)
             .expectStatus().isBadRequest()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody()
@@ -76,8 +75,8 @@ class SellerProductImageUploadUrlApiTest {
     void rejectWithoutSellerRole() {
         Map<String, Object> body = files(file("image/jpeg", 1_000));
 
-        issue(null, body).expectStatus().isUnauthorized();
-        issue(tokens.buyer(SELLER_ID), body).expectStatus().isForbidden();
+        issue(TestMembers.anonymous(), body).expectStatus().isUnauthorized();
+        issue(TestMembers.buyer(SELLER_ID), body).expectStatus().isForbidden();
     }
 
     static Stream<Arguments> invalidRequests() {
@@ -105,13 +104,9 @@ class SellerProductImageUploadUrlApiTest {
         return Map.of("contentType", contentType, "contentLength", contentLength);
     }
 
-    private ResponseSpec issue(String token, Map<String, Object> body) {
+    private ResponseSpec issue(Consumer<HttpHeaders> login, Map<String, Object> body) {
         return client.post().uri(PATH)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();

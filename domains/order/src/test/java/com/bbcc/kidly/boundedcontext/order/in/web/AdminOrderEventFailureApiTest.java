@@ -16,7 +16,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.recovery.OrderEventFailure;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
@@ -53,9 +53,6 @@ class AdminOrderEventFailureApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private OrderService orderService;
 
     @Autowired
@@ -86,7 +83,7 @@ class AdminOrderEventFailureApiTest {
         failPayment(paymentFailed);
 
         client.get().uri(FAILURES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -116,14 +113,14 @@ class AdminOrderEventFailureApiTest {
         failPayment(place(BUYER_ID));
 
         client.get().uri(FAILURES_PATH + "?status=PENDING")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content.length()").isEqualTo(1)
             .jsonPath("$.content[0].status").isEqualTo("PENDING");
         client.get().uri(FAILURES_PATH + "?status=RECOVERED")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -136,7 +133,7 @@ class AdminOrderEventFailureApiTest {
     @DisplayName("상태 이름이 정확히 맞지 않으면(소문자 · 결제 복구 전용 값 · 모르는 값) 400")
     void unknownStatusIsBadRequest(String status) {
         client.get().uri(FAILURES_PATH + "?status=" + status)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest()
             .expectBody()
@@ -149,7 +146,7 @@ class AdminOrderEventFailureApiTest {
     @DisplayName("size가 1~100 밖(0 · 101)이거나 page가 음수(-1)면 400")
     void pageOrSizeOutOfRangeIsBadRequest(String query) {
         client.get().uri(FAILURES_PATH + "?" + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -160,7 +157,7 @@ class AdminOrderEventFailureApiTest {
         failPayment(place(BUYER_ID));
 
         client.get().uri(FAILURES_PATH + "?page=1073741824&size=2")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -228,22 +225,22 @@ class AdminOrderEventFailureApiTest {
     void adminOnly() {
         client.get().uri(FAILURES_PATH).exchange().expectStatus().isUnauthorized();
         client.post().uri(FAILURES_PATH + "/1/retry").exchange().expectStatus().isUnauthorized();
-        for (String token : List.of(tokens.buyer(BUYER_ID), tokens.seller(SELLER_ID))) {
+        for (var login : List.of(TestMembers.buyer(BUYER_ID), TestMembers.seller(SELLER_ID))) {
             client.get().uri(FAILURES_PATH)
-                .headers(headers -> headers.setBearerAuth(token))
+                .headers(login)
                 .exchange().expectStatus().isForbidden();
             client.post().uri(FAILURES_PATH + "/1/retry")
-                .headers(headers -> headers.setBearerAuth(token))
+                .headers(login)
                 .exchange().expectStatus().isForbidden();
             client.post().uri(FAILURES_PATH + "/1/cancel")
-                .headers(headers -> headers.setBearerAuth(token))
+                .headers(login)
                 .exchange().expectStatus().isForbidden();
         }
     }
 
     private RestTestClient.ResponseSpec post(String failureId, String action) {
         return client.post().uri(FAILURES_PATH + "/" + failureId + "/" + action)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 
