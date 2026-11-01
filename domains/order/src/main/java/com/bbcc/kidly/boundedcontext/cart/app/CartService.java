@@ -1,14 +1,14 @@
 package com.bbcc.kidly.boundedcontext.cart.app;
 
-import com.bbcc.kidly.boundedcontext.cart.api.CartApi;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
+import com.bbcc.kidly.boundedcontext.cart.app.port.CartCatalog;
+import com.bbcc.kidly.boundedcontext.cart.app.port.CartCatalog.ProductOption;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
+import com.bbcc.kidly.boundedcontext.cart.app.port.CartOrders;
+import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCleanup;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartRuleViolationException;
-import com.bbcc.kidly.boundedcontext.order.api.OrderApi;
-import com.bbcc.kidly.boundedcontext.order.api.ProductOptionView;
-import com.bbcc.kidly.boundedcontext.order.api.ReplicaApi;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Collection;
 import java.util.List;
@@ -23,12 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 장바구니 담기 · 조회 · 수량 변경 · 삭제. 다른 회원의 줄은 없는 줄로 본다.
- * 상품 · 판매자 · 자녀 복사본과 주문은 주문 컨텍스트의 api로 읽는다(#617). 결제완료 뒤 장바구니 정리는 {@link CartApi}로 내준다.
+ * 상품 · 판매자 · 자녀는 {@link CartCatalog}, 주문한 상품은 {@link CartOrders}로 읽는다(주문 컨텍스트, #641).
+ * 결제완료 뒤 장바구니 정리는 {@link CartCleanup}으로 내준다.
  */
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class CartService implements CartApi {
+public class CartService implements CartCleanup {
 
     /**
      * 한 줄 수량 상한(담기 · 수량 변경 · 주문하기 공통, #253). 요청 DTO의 @Max(99)와 같은 값.
@@ -37,15 +38,15 @@ public class CartService implements CartApi {
     static final int MAX_QUANTITY = 99;
 
     private final CartItemRepository cartItemRepository;
-    private final ReplicaApi replicaApi;
-    private final OrderApi orderApi;
+    private final CartCatalog cartCatalog;
+    private final CartOrders cartOrders;
 
     /**
      * 확인 순서: 옵션 없음 → 자기 상품 → 판매 중 아님 → 자녀 없음 · 남의 자녀 · 삭제된 자녀 → 수량.
      * 같은 줄(회원, 옵션, 자녀)이 있으면 수량을 더한다.
      */
     public AddCartItemResult addItem(Long memberId, Long optionId, Long childId, int quantity) {
-        ProductOptionView product = replicaApi.findProductOption(optionId)
+        ProductOption product = cartCatalog.findProductOption(optionId)
             .orElseThrow(() -> new BusinessException(CartErrorCode.PRODUCT_OPTION_NOT_FOUND));
         if (product.sellerId().equals(memberId)) {
             throw new BusinessException(CartErrorCode.OWN_PRODUCT);
@@ -85,15 +86,15 @@ public class CartService implements CartApi {
     @Transactional(readOnly = true)
     public CartView getCart(Long memberId) {
         List<CartItem> items = cartItemRepository.findAllByMemberIdOrderByIdDesc(memberId);
-        Map<Long, ProductOptionView> products = replicaApi.findProductOptions(
+        Map<Long, ProductOption> products = cartCatalog.findProductOptions(
                 items.stream().map(CartItem::getOptionId).toList())
             .stream()
-            .collect(Collectors.toMap(ProductOptionView::optionId, Function.identity()));
+            .collect(Collectors.toMap(ProductOption::optionId, Function.identity()));
         Map<Long, String> sellerNames = sellerNamesOf(products.values());
 
         List<CartView.Line> lines = items.stream()
             .map(item -> {
-                ProductOptionView product = products.get(item.getOptionId());
+                ProductOption product = products.get(item.getOptionId());
                 return toLine(item, product, product == null ? null : sellerNames.get(product.sellerId()));
             })
             .toList();
@@ -111,7 +112,7 @@ public class CartService implements CartApi {
         } catch (CartRuleViolationException e) {
             throw CartErrors.toBusiness(e);
         }
-        ProductOptionView product = replicaApi.findProductOption(item.getOptionId()).orElse(null);
+        ProductOption product = cartCatalog.findProductOption(item.getOptionId()).orElse(null);
         return toLine(item, product, sellerNameOf(product));
     }
 
@@ -120,12 +121,9 @@ public class CartService implements CartApi {
      */
     @Override
     public void clearOrdered(Long orderId) {
-        orderApi.findOrder(orderId).ifPresent(order -> order.items().forEach(item ->
-            cartItemRepository.findByMemberIdAndOptionIdAndChildId(
-                    order.memberId(),
-                    item.optionId(),
-                    item.child() == null ? null : item.child().childId())
-                .ifPresent(cartItemRepository::delete)));
+        cartOrders.findOrderedLines(orderId).forEach(line ->
+            cartItemRepository.findByMemberIdAndOptionIdAndChildId(line.memberId(), line.optionId(), line.childId())
+                .ifPresent(cartItemRepository::delete));
     }
 
     public void removeItem(Long memberId, Long cartItemId) {
@@ -133,7 +131,7 @@ public class CartService implements CartApi {
     }
 
     private void requireOrderableChild(Long memberId, Long childId) {
-        replicaApi.findChild(childId)
+        cartCatalog.findChild(childId)
             .filter(child -> child.memberId().equals(memberId) && !child.deleted())
             .orElseThrow(() -> new BusinessException(CartErrorCode.CHILD_NOT_FOUND));
     }
@@ -143,25 +141,25 @@ public class CartService implements CartApi {
             .orElseThrow(() -> new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND));
     }
 
-    private String sellerNameOf(ProductOptionView product) {
+    private String sellerNameOf(ProductOption product) {
         if (product == null) {
             return null;
         }
-        return replicaApi.findSellerName(product.sellerId()).orElse(null);
+        return cartCatalog.findSellerName(product.sellerId()).orElse(null);
     }
 
-    private Map<Long, String> sellerNamesOf(Collection<ProductOptionView> products) {
-        Set<Long> sellerIds = products.stream().map(ProductOptionView::sellerId).collect(Collectors.toSet());
+    private Map<Long, String> sellerNamesOf(Collection<ProductOption> products) {
+        Set<Long> sellerIds = products.stream().map(ProductOption::sellerId).collect(Collectors.toSet());
         if (sellerIds.isEmpty()) {
             return Map.of();
         }
-        return replicaApi.findSellerNames(sellerIds);
+        return cartCatalog.findSellerNames(sellerIds);
     }
 
     /**
      * 상품 복사본이 없으면 상품 필드 null, 구매 불가, 금액 0.
      */
-    private CartView.Line toLine(CartItem item, ProductOptionView product, String sellerName) {
+    private CartView.Line toLine(CartItem item, ProductOption product, String sellerName) {
         if (product == null) {
             return new CartView.Line(item.getId(), item.getOptionId(), null, null, null, null, null, item.getChildId(),
                 item.getQuantity(), null, false, 0L, null);

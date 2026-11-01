@@ -23,7 +23,9 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
-import com.bbcc.kidly.boundedcontext.order.app.provided.OrderApiService;
+import com.bbcc.kidly.boundedcontext.delivery.out.order.DeliveryOrdersAdapter;
+import com.bbcc.kidly.boundedcontext.order.app.provided.ProvidedOrderService;
+import com.bbcc.kidly.boundedcontext.order.out.delivery.OrderDeliveriesAdapter;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
@@ -115,9 +117,12 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 배송은 delivery api의 실제 구현에 배송 저장소 mock을 넣어 쓴다(#617: 주문 동작은 그대로)
+        // 배송은 어댑터 + 배송 컨텍스트의 실제 들어오는 포트 구현에 배송 저장소 mock을 넣어 쓴다(#617 · #641: 주문 동작은 그대로)
+        ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository);
+        DeliveryService delivery = new DeliveryService(deliveryRepository,
+            new DeliveryOrdersAdapter(provided, provided));
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
-            new DeliveryService(deliveryRepository, new OrderApiService(orderRepository, historyRepository)),
+            new OrderDeliveriesAdapter(delivery, delivery),
             sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY,
             waitingRecordCloser);
         // 주문 취소가 닫을 재처리 대기 기록은 없다고 본다(#598, 닫는 동작은 통합 테스트가 본다)

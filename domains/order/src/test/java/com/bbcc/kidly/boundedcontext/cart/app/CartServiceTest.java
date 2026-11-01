@@ -10,9 +10,11 @@ import static org.mockito.Mockito.when;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
+import com.bbcc.kidly.boundedcontext.cart.out.order.CartCatalogAdapter;
+import com.bbcc.kidly.boundedcontext.cart.out.order.CartOrdersAdapter;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.app.provided.OrderApiService;
-import com.bbcc.kidly.boundedcontext.order.app.provided.ReplicaApiService;
+import com.bbcc.kidly.boundedcontext.order.app.provided.ProvidedOrderService;
+import com.bbcc.kidly.boundedcontext.order.app.provided.ProvidedReplicaService;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
@@ -63,7 +65,7 @@ class CartServiceTest {
     @Mock
     private SellerReplicaRepository sellerReplicaRepository;
 
-    // 주문 컨텍스트 api는 실제 구현에 위 저장소 mock을 넣어 쓴다(#617: 장바구니 동작은 그대로)
+    // 주문 컨텍스트는 어댑터 + 실제 들어오는 포트 구현에 위 저장소 mock을 넣어 쓴다(#617 · #641: 장바구니 동작은 그대로)
     private CartService cartService;
 
     @Captor
@@ -72,8 +74,9 @@ class CartServiceTest {
     @BeforeEach
     void setUp() {
         cartService = new CartService(cartItemRepository,
-            new ReplicaApiService(productReplicaRepository, sellerReplicaRepository, childReplicaRepository),
-            new OrderApiService(orderRepository, null));
+            new CartCatalogAdapter(
+                new ProvidedReplicaService(productReplicaRepository, sellerReplicaRepository, childReplicaRepository)),
+            new CartOrdersAdapter(new ProvidedOrderService(orderRepository, null)));
     }
 
     // ── 담기 ──

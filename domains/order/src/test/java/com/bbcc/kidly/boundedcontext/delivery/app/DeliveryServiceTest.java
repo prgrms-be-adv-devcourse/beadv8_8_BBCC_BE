@@ -13,7 +13,8 @@ import com.bbcc.kidly.boundedcontext.delivery.app.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
-import com.bbcc.kidly.boundedcontext.order.app.provided.OrderApiService;
+import com.bbcc.kidly.boundedcontext.delivery.out.order.DeliveryOrdersAdapter;
+import com.bbcc.kidly.boundedcontext.order.app.provided.ProvidedOrderService;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
@@ -56,7 +57,7 @@ class DeliveryServiceTest {
     @Mock
     private OrderStatusHistoryRepository historyRepository;
 
-    // 주문 컨텍스트 api는 실제 구현에 위 저장소 mock을 넣어 쓴다(#617: 배송 동작은 그대로)
+    // 주문 컨텍스트는 어댑터 + 실제 들어오는 포트 구현에 위 저장소 mock을 넣어 쓴다(#617 · #641: 배송 동작은 그대로)
     private DeliveryService deliveryService;
 
     @Captor
@@ -64,8 +65,8 @@ class DeliveryServiceTest {
 
     @BeforeEach
     void setUp() {
-        deliveryService = new DeliveryService(deliveryRepository,
-            new OrderApiService(orderRepository, historyRepository));
+        ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository);
+        deliveryService = new DeliveryService(deliveryRepository, new DeliveryOrdersAdapter(provided, provided));
     }
 
     @Nested

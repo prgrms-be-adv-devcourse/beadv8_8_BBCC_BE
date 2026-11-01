@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.wish.out.actor;
 
-import com.bbcc.kidly.boundedcontext.order.api.ChildView;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishActor;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
 
 /**
@@ -20,7 +20,7 @@ public record ParentWishActor(Long memberId) implements WishActor {
     }
 
     @Override
-    public boolean canUse(ChildView child) {
+    public boolean canUse(WishCatalog.Child child) {
         return !child.deleted() && child.memberId().equals(memberId);
     }
 }

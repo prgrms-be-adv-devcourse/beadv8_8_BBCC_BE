@@ -1,11 +1,11 @@
 package com.bbcc.kidly.boundedcontext.order.app.provided;
 
-import com.bbcc.kidly.boundedcontext.order.api.ChildView;
-import com.bbcc.kidly.boundedcontext.order.api.ProductOptionView;
-import com.bbcc.kidly.boundedcontext.order.api.ReplicaApi;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup.ChildView;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup.ProductOptionView;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import java.util.Collection;
@@ -18,12 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 상품 · 판매자 · 자녀 복사본 조회를 다른 컨텍스트에 내준다(#617, {@link ReplicaApi}). 부르는 쪽 트랜잭션에 합류한다(REQUIRED).
+ * 상품 · 판매자 · 자녀 복사본 조회를 다른 컨텍스트에 내준다(#617 · #641, {@link ReplicaLookup}). 부르는 쪽 트랜잭션에 합류한다(REQUIRED).
  */
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class ReplicaApiService implements ReplicaApi {
+public class ProvidedReplicaService implements ReplicaLookup {
 
     private final ProductReplicaRepository productReplicaRepository;
     private final SellerReplicaRepository sellerReplicaRepository;
@@ -31,12 +31,14 @@ public class ReplicaApiService implements ReplicaApi {
 
     @Override
     public Optional<ProductOptionView> findProductOption(Long optionId) {
-        return productReplicaRepository.findByOptionId(optionId).map(ReplicaApiService::toView);
+        return productReplicaRepository.findByOptionId(optionId).map(ProvidedReplicaService::toView);
     }
 
     @Override
     public List<ProductOptionView> findProductOptions(Collection<Long> optionIds) {
-        return productReplicaRepository.findAllByOptionIdIn(optionIds).stream().map(ReplicaApiService::toView).toList();
+        return productReplicaRepository.findAllByOptionIdIn(optionIds).stream()
+            .map(ProvidedReplicaService::toView)
+            .toList();
     }
 
     @Override

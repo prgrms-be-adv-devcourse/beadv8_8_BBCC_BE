@@ -2,17 +2,22 @@ package com.bbcc.kidly.architecture;
 
 import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.CompositeArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -26,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <pre>
  * in ──▶ app ──▶ domain ◀── out
  *         └──▶ app/port ◀── out (포트 구현)
+ *  app ──▶ app/port/in ◀── 다른 컨텍스트 out (app이 구현, #641)
  * </pre>
  */
 @AnalyzeClasses(packages = "com.bbcc.kidly",
@@ -38,6 +44,7 @@ class OrderArchitectureTest {
     private static final String[] DOMAIN = packages(".domain..");
     private static final String[] APP = packages(".app..");
     private static final String[] PORT = packages(".app.port..");
+    private static final String[] IN_PORT = packages(".app.port.in..");
     private static final String[] IN = packages(".in..");
     private static final String[] WEB = packages(".in.web..");
     private static final String[] EVENT = packages(".in.event..");
@@ -169,13 +176,33 @@ class OrderArchitectureTest {
         .allowEmptyShould(true);
 
     /**
-     * 출력 포트만 인터페이스로 둔다. 입력 포트 · 서비스 인터페이스는 만들지 않는다(4.1 · 4.3).
+     * 포트(app/port 나가는 포트 · app/port/in 다른 컨텍스트가 들어오는 포트, #641)는 인터페이스다. 포트가 주고받는 값은
+     * 그 포트 안의 record로 둔다(조회 결과 행은 인터페이스). 서비스 인터페이스는 만들지 않는다(4.1 · 4.3).
      */
     @ArchTest
     static final ArchRule PORTS_ARE_INTERFACES = classes()
         .that().resideInAnyPackage(PORT)
+        .and().areTopLevelClasses()
         .and().doNotHaveSimpleName("package-info")
         .should().beInterfaces()
+        .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule PORT_VALUES_ARE_RECORDS_IN_PORTS = classes()
+        .that().resideInAnyPackage(PORT)
+        .and().areNotTopLevelClasses()
+        .should(beInterfaceOrRecordInsideInterface())
+        .allowEmptyShould(true);
+
+    /**
+     * 들어오는 포트(app/port/in)는 그 컨텍스트 app이 구현한다(out · in · 포트 자신이 아님).
+     */
+    @ArchTest
+    static final ArchRule IN_PORTS_ARE_IMPLEMENTED_BY_APP = classes()
+        .that().implement(resideInAnyPackage(IN_PORT))
+        .and().resideInAnyPackage(MODULE)
+        .should().resideInAnyPackage(APP)
+        .andShould().resideOutsideOfPackages(PORT)
         .allowEmptyShould(true);
 
     @ArchTest
@@ -186,6 +213,22 @@ class OrderArchitectureTest {
         .and().doNotHaveSimpleName("package-info")
         .should().resideInAnyPackage(PORT)
         .allowEmptyShould(true);
+
+    private static ArchCondition<JavaClass> beInterfaceOrRecordInsideInterface() {
+        return new ArchCondition<>("포트 인터페이스 안의 record · 인터페이스다") {
+            @Override
+            public void check(JavaClass javaClass, ConditionEvents events) {
+                JavaClass topLevel = javaClass;
+                while (topLevel.getEnclosingClass().isPresent()) {
+                    topLevel = topLevel.getEnclosingClass().get();
+                }
+                if (!topLevel.isInterface() || !(javaClass.isRecord() || javaClass.isInterface())) {
+                    events.add(SimpleConditionEvent.violated(javaClass,
+                        javaClass.getName() + "는 포트 인터페이스 안의 record · 인터페이스가 아니다"));
+                }
+            }
+        };
+    }
 
     private static String[] packages(String suffix) {
         return CONTEXTS.stream().map(context -> BASE + context + suffix).toArray(String[]::new);
