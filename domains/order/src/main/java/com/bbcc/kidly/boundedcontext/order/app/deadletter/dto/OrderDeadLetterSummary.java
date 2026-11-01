@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.deadletter.dto;
 
-import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter;
+import com.bbcc.kidly.boundedcontext.order.app.deadletter.DeadLetterHandling;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.DeadLetter;
 import java.time.LocalDateTime;
 
 /**
@@ -18,9 +19,9 @@ public record OrderDeadLetterSummary(
     String status,
     boolean paymentEvent) {
 
-    public static OrderDeadLetterSummary from(OrderDeadLetter letter) {
-        return new OrderDeadLetterSummary(letter.getId(), letter.getLastReceivedAt(), letter.getFailureType().name(),
-            letter.getEventType(), letter.getOrderId(), letter.getReceivedCount(), letter.getStatus().name(),
-            letter.isPaymentEvent());
+    public static OrderDeadLetterSummary from(DeadLetter letter) {
+        return new OrderDeadLetterSummary(letter.id(), letter.lastReceivedAt(), letter.failureType().name(),
+            letter.eventType(), letter.orderId(), letter.receivedCount(), letter.status().name(),
+            DeadLetterHandling.isPaymentEvent(letter));
     }
 }

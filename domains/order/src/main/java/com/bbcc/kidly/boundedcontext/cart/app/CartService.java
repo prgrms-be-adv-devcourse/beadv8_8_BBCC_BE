@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.cart.app.port.CartOrders;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCleanup;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartRuleViolationException;
+import com.bbcc.kidly.boundedcontext.cart.domain.CartRules;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Collection;
 import java.util.List;
@@ -31,12 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CartService implements CartCleanup {
 
-    /**
-     * 한 줄 수량 상한(담기 · 수량 변경 · 주문하기 공통, #253). 요청 DTO의 @Max(99)와 같은 값.
-     * 담기 합산 상한은 담기 경로가 이 서비스 하나뿐이라 도메인(CartItem)을 바꾸지 않고 여기서 막는다.
-     */
-    static final int MAX_QUANTITY = 99;
-
     private final CartItemRepository cartItemRepository;
     private final CartCatalog cartCatalog;
     private final CartOrders cartOrders;
@@ -48,8 +43,10 @@ public class CartService implements CartCleanup {
     public AddCartItemResult addItem(Long memberId, Long optionId, Long childId, int quantity) {
         ProductOption product = cartCatalog.findProductOption(optionId)
             .orElseThrow(() -> new BusinessException(CartErrorCode.PRODUCT_OPTION_NOT_FOUND));
-        if (product.sellerId().equals(memberId)) {
-            throw new BusinessException(CartErrorCode.OWN_PRODUCT);
+        try {
+            CartRules.requireNotOwnProduct(memberId, product.sellerId());
+        } catch (CartRuleViolationException e) {
+            throw CartErrors.toBusiness(e);
         }
         if (!product.purchasable()) {
             throw new BusinessException(CartErrorCode.PRODUCT_NOT_PURCHASABLE);
@@ -61,9 +58,6 @@ public class CartService implements CartCleanup {
         Optional<CartItem> sameLine = cartItemRepository.findByMemberIdAndOptionIdAndChildId(
             memberId, optionId, childId);
         if (sameLine.isPresent()) {
-            if (sameLine.get().getQuantity() + quantity > MAX_QUANTITY) {
-                throw new BusinessException(CartErrorCode.INVALID_QUANTITY);
-            }
             try {
                 sameLine.get().addQuantity(quantity);
             } catch (CartRuleViolationException e) {

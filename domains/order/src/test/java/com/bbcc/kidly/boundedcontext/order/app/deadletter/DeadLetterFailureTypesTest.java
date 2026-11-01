@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.deadletter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter.FailureType;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.FailureType;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullSource;

@@ -3,8 +3,10 @@ package com.bbcc.kidly.boundedcontext.order.app.deadletter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.ReceiveDeadLetterCommand;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.FailureType;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.Status;
+import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderDeadLetter;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderDeadLetterRepository;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,7 +30,7 @@ class OrderDeadLetterServiceIntegrationTest {
     private OrderDeadLetterService deadLetterService;
 
     @Autowired
-    private OrderDeadLetterRepository deadLetterRepository;
+    private JpaOrderDeadLetterRepository deadLetterRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -52,14 +54,14 @@ class OrderDeadLetterServiceIntegrationTest {
         assertThat(letter.getAggregateId()).isEqualTo("500");
         assertThat(letter.getCorrelationId()).isEqualTo("42");
         assertThat(letter.getOrderId()).isEqualTo(42L);
-        assertThat(letter.getFailureType()).isEqualTo(OrderDeadLetter.FailureType.STORE_FAILED);
+        assertThat(letter.getFailureType()).isEqualTo(FailureType.STORE_FAILED);
         assertThat(letter.getExceptionClass())
             .isEqualTo("org.springframework.orm.ObjectOptimisticLockingFailureException");
         assertThat(letter.getExceptionMessage()).isEqualTo("실패 메시지");
         assertThat(letter.getStackTraceHead()).isEqualTo("trace");
         assertThat(letter.getFirstReceivedAt()).isNotNull().isEqualTo(letter.getLastReceivedAt());
         assertThat(letter.getReceivedCount()).isEqualTo(1);
-        assertThat(letter.getStatus()).isEqualTo(OrderDeadLetter.Status.OPEN);
+        assertThat(letter.getStatus()).isEqualTo(Status.OPEN);
         assertThat(letter.getHandledBy()).isNull();
         assertThat(letter.getHandledAt()).isNull();
         assertThat(letter.getMemo()).isNull();
@@ -81,10 +83,10 @@ class OrderDeadLetterServiceIntegrationTest {
         assertThat(again.getReceivedCount()).isEqualTo(2);
         assertThat(again.getLastReceivedAt()).isAfter(first.getLastReceivedAt());
         assertThat(again.getFirstReceivedAt()).isEqualTo(first.getFirstReceivedAt());
-        assertThat(again.getFailureType()).isEqualTo(OrderDeadLetter.FailureType.PROCESS_FAILED);
+        assertThat(again.getFailureType()).isEqualTo(FailureType.PROCESS_FAILED);
         assertThat(again.getExceptionClass()).isEqualTo("java.lang.IllegalStateException");
         assertThat(again.getPayload()).isEqualTo(PAYMENT_BODY);
-        assertThat(again.getStatus()).isEqualTo(OrderDeadLetter.Status.CLOSED);
+        assertThat(again.getStatus()).isEqualTo(Status.CLOSED);
         assertThat(again.getMemo()).isEqualTo("확인함");
     }
 

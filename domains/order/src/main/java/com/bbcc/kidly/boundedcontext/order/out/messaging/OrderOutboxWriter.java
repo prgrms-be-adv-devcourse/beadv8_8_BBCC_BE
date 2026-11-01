@@ -1,9 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.out.messaging;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.out.config.OrderKafkaTopicConfig;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -19,7 +18,7 @@ import tools.jackson.databind.json.JsonMapper;
 @RequiredArgsConstructor
 class OrderOutboxWriter implements OrderEventOutbox {
 
-    private final OrderOutboxRepository outboxRepository;
+    private final JpaOrderOutboxRepository outboxRepository;
     private final JsonMapper jsonMapper;
 
     @Override

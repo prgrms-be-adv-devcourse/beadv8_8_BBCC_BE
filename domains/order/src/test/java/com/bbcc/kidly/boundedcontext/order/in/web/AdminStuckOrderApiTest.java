@@ -4,11 +4,11 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.order.in.web.AdminOrderController.ADMIN_ORDERS_PATH;
 
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
 import java.time.Duration;
@@ -42,7 +42,7 @@ class AdminStuckOrderApiTest {
     private OrderRepository orderRepository;
 
     @Autowired
-    private OrderOutboxRepository outboxRepository;
+    private JpaOrderOutboxRepository outboxRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

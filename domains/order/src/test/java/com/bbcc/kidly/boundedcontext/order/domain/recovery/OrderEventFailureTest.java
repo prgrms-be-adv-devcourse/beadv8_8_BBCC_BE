@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.domain.recovery;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -118,6 +120,76 @@ class OrderEventFailureTest {
 
             assertThatThrownBy(() -> failure.recover(NOW)).isInstanceOf(IllegalStateException.class);
             assertThatThrownBy(() -> failure.cancel(NOW)).isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("관리자 재처리 · 종료 상태 판단 (#642, app에서 옮긴 규칙)")
+    class AdminHandling {
+
+        @Test
+        @DisplayName("재처리: PENDING이면 실행, 이미 복구됐으면 실행하지 않고, 종료됐으면 규칙 위반")
+        void startRetry() {
+            OrderEventFailure recovered = open();
+            recovered.recover(NOW);
+            OrderEventFailure cancelled = open();
+            cancelled.cancel(NOW);
+
+            assertThat(open().startRetry()).isTrue();
+            assertThat(recovered.startRetry()).isFalse();
+            assertThatThrownBy(cancelled::startRetry)
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.EVENT_FAILURE_CLOSED);
+        }
+
+        @Test
+        @DisplayName("재처리를 마치면 주문이 결제대기였을 때만 복구, 아니면 기록만 종료")
+        void finishRetry() {
+            OrderEventFailure applied = open();
+            OrderEventFailure skipped = open();
+
+            applied.finishRetry(true, NOW.plusMinutes(1));
+            skipped.finishRetry(false, NOW.plusMinutes(1));
+
+            assertThat(applied.getStatus()).isEqualTo(OrderEventFailure.Status.RECOVERED);
+            assertThat(skipped.getStatus()).isEqualTo(OrderEventFailure.Status.CANCELLED);
+        }
+
+        @Test
+        @DisplayName("재처리가 다시 실패: 주문이 취소됐으면 닫고, 아니면 시도를 센다. 종료된 기록은 주문을 보지 않는다")
+        void retryFailed() {
+            OrderEventFailure closedByOrder = open();
+            OrderEventFailure counted = open();
+            OrderEventFailure closed = open();
+            closed.cancel(NOW);
+
+            closedByOrder.retryFailed(() -> true, "X", NOW.plusMinutes(1));
+            counted.retryFailed(() -> false, "X", NOW.plusMinutes(1));
+            closed.retryFailed(() -> {
+                throw new AssertionError("종료된 기록은 주문 상태를 읽지 않는다");
+            }, "X", NOW.plusMinutes(1));
+
+            assertThat(closedByOrder.getStatus()).isEqualTo(OrderEventFailure.Status.CANCELLED);
+            assertThat(closedByOrder.getFailureCode()).isEqualTo(OrderEventFailure.ORDER_CANCELLED);
+            assertThat(counted.getAttemptCount()).isEqualTo(2);
+            assertThat(closed.getAttemptCount()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("관리자 종료: PENDING이면 종료, 이미 종료면 그대로, 복구됐으면 규칙 위반")
+        void closeByAdmin() {
+            OrderEventFailure pending = open();
+            OrderEventFailure cancelled = open();
+            cancelled.cancel(NOW);
+            OrderEventFailure recovered = open();
+            recovered.recover(NOW);
+
+            assertThat(pending.closeByAdmin(NOW)).isTrue();
+            assertThat(pending.getStatus()).isEqualTo(OrderEventFailure.Status.CANCELLED);
+            assertThat(cancelled.closeByAdmin(NOW)).isFalse();
+            assertThatThrownBy(() -> recovered.closeByAdmin(NOW))
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.EVENT_FAILURE_CLOSED);
         }
     }
 

@@ -1,7 +1,8 @@
-package com.bbcc.kidly.boundedcontext.order.domain.deadletter;
+package com.bbcc.kidly.boundedcontext.order.out.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.FailureType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,7 +32,7 @@ class ReceivedDeadLetterTest {
     void replacesNul() {
         ReceivedDeadLetter letter = new ReceivedDeadLetter("kidly.payment.events", 1, 7L, "k\u0000", "t\u0000",
             "e\u0000", "{\"a\":\"\u0000\"}", "p\u0000", null, "a\u0000", "c\u0000", null,
-            OrderDeadLetter.FailureType.READ_FAILED, "x\u0000", "m\u0000", "s\u0000", NOW);
+            FailureType.READ_FAILED, "x\u0000", "m\u0000", "s\u0000", NOW);
 
         assertThat(List.of(letter.messageKey(), letter.eventType(), letter.eventId(), letter.payload(),
             letter.producer(), letter.aggregateId(), letter.correlationId(), letter.exceptionClass(),
@@ -52,7 +53,7 @@ class ReceivedDeadLetterTest {
 
     private static ReceivedDeadLetter received(String message, String exceptionClass, String stack, String key) {
         return new ReceivedDeadLetter("kidly.payment.events", 1, 7L, key, "payment.completed", "e-1", "{}",
-            null, null, null, null, null, OrderDeadLetter.FailureType.PROCESS_FAILED, exceptionClass, message,
+            null, null, null, null, null, FailureType.PROCESS_FAILED, exceptionClass, message,
             stack, NOW);
     }
 }

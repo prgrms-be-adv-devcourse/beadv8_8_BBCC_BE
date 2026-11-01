@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.domain.recovery;
 
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -19,6 +21,7 @@ import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -126,7 +129,7 @@ public class OrderEventFailure extends OrderTimeEntity {
     }
 
     /**
-     * 재처리로 이벤트 처리를 마쳤다. PENDING만 복구할 수 있다(서비스가 먼저 거른다).
+     * 재처리로 이벤트 처리를 마쳤다. PENDING만 복구할 수 있다(startRetry가 먼저 거른다).
      */
     public void recover(LocalDateTime now) {
         requirePending();
@@ -135,7 +138,7 @@ public class OrderEventFailure extends OrderTimeEntity {
     }
 
     /**
-     * 기록을 종료한다(주문은 바꾸지 않음). PENDING만 종료할 수 있다(서비스가 먼저 거른다).
+     * 기록을 종료한다(주문은 바꾸지 않음). PENDING만 종료할 수 있다(startRetry · closeByAdmin이 먼저 거른다).
      */
     public void cancel(LocalDateTime now) {
         requirePending();
@@ -152,6 +155,65 @@ public class OrderEventFailure extends OrderTimeEntity {
         this.status = Status.CANCELLED;
         this.failureCode = ORDER_CANCELLED;
         this.lastAttemptedAt = now;
+    }
+
+    /**
+     * 관리자 재처리를 시작할지(#642). PENDING이면 실행하고, 이미 복구됐으면 실행하지 않는다(지금 값 그대로 돌려줌).
+     *
+     * @throws OrderRuleViolationException 종료됐으면 EVENT_FAILURE_CLOSED
+     */
+    public boolean startRetry() {
+        return switch (status) {
+            case PENDING -> true;
+            case RECOVERED -> false;
+            case CANCELLED -> throw new OrderRuleViolationException(Rule.EVENT_FAILURE_CLOSED);
+        };
+    }
+
+    /**
+     * 재처리를 마쳤다(#642). 주문이 결제대기였으면(이번에 처리함) 복구, 이미 결제대기가 아니었으면(만료 취소 · 다른 이유로 끝남)
+     * 처리하지 않았으므로 기록만 종료한다.
+     */
+    public void finishRetry(boolean orderAwaitingPayment, LocalDateTime now) {
+        if (orderAwaitingPayment) {
+            recover(now);
+        } else {
+            cancel(now);
+        }
+    }
+
+    /**
+     * 재처리가 다시 실패했다(#642). 종료된 기록은 그대로 둔다. 그 사이 다른 경로로 주문이 취소됐으면 재처리할 것이 없으므로
+     * 닫고(#598), 아니면 시도를 센다. 주문 상태는 종료되지 않은 기록일 때만 읽는다.
+     *
+     * @param orderCancelled 주문이 취소됐는지(필요할 때만 부른다)
+     */
+    public void retryFailed(BooleanSupplier orderCancelled, String failureCode, LocalDateTime now) {
+        if (isClosed()) {
+            return;
+        }
+        if (orderCancelled.getAsBoolean()) {
+            closeForOrderCancelled(now);
+        } else {
+            recordFailure(failureCode, now);
+        }
+    }
+
+    /**
+     * 관리자가 기록을 종료한다(#642, 주문은 바꾸지 않음). 이미 종료됐으면 그대로 둔다.
+     *
+     * @return 이번에 종료했으면 true
+     * @throws OrderRuleViolationException 이미 복구됐으면 EVENT_FAILURE_CLOSED
+     */
+    public boolean closeByAdmin(LocalDateTime now) {
+        if (status == Status.CANCELLED) {
+            return false;
+        }
+        if (status == Status.RECOVERED) {
+            throw new OrderRuleViolationException(Rule.EVENT_FAILURE_CLOSED);
+        }
+        cancel(now);
+        return true;
     }
 
     public boolean isClosed() {

@@ -3,8 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.out.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -26,7 +25,7 @@ class OrderOutboxWriterTest {
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
     @Mock
-    private OrderOutboxRepository outboxRepository;
+    private JpaOrderOutboxRepository outboxRepository;
 
     private OrderOutboxWriter writer;
 

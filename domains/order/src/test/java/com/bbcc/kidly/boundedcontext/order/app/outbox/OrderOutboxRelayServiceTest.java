@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.outbox;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -11,10 +12,13 @@ import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository.OutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.OrderOutboxStore;
+import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,8 +41,9 @@ class OrderOutboxRelayServiceTest {
     private static final OrderOutboxProperties PROPERTIES =
         new OrderOutboxProperties(Duration.ofSeconds(1), 100, Duration.ofDays(7));
 
+    // 포트는 실제 구현(OrderOutboxStore)에 Spring Data 저장소 mock을 넣어 쓴다(#642: 엔티티는 out)
     @Mock
-    private OrderOutboxRepository outboxRepository;
+    private JpaOrderOutboxRepository jpaRepository;
 
     @Mock
     private OrderEventSender sender;
@@ -47,7 +52,7 @@ class OrderOutboxRelayServiceTest {
 
     @BeforeEach
     void setUp() {
-        relayService = new OrderOutboxRelayService(outboxRepository, sender, PROPERTIES);
+        relayService = new OrderOutboxRelayService(new OrderOutboxStore(jpaRepository), sender, PROPERTIES);
     }
 
     @Nested
@@ -65,10 +70,10 @@ class OrderOutboxRelayServiceTest {
 
             assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 2, 2));
             InOrder order = inOrder(sender);
-            order.verify(sender).send(first);
-            order.verify(sender).send(second);
+            order.verify(sender).send(sameMessage(first));
+            order.verify(sender).send(sameMessage(second));
             ArgumentCaptor<Limit> limit = ArgumentCaptor.forClass(Limit.class);
-            verify(outboxRepository).findBySentAtIsNullOrderByIdAsc(limit.capture());
+            verify(jpaRepository).findBySentAtIsNullOrderByIdAsc(limit.capture());
             assertThat(limit.getValue().max()).isEqualTo(100);
             assertThat(first.getSentAt()).isNotNull();
             assertThat(second.getSentAt()).isNotNull();
@@ -83,12 +88,13 @@ class OrderOutboxRelayServiceTest {
             givenUnsent(first, failing, after);
             // 다른 메시지를 보낼 때는 이 스텁과 인자가 달라도 정상(엄격 스텁이 예외로 보지 않게)
             lenient().doThrow(new IllegalStateException(
-                "TimeoutException: Topic not present in metadata after 5000 ms.")).when(sender).send(failing);
+                "TimeoutException: Topic not present in metadata after 5000 ms."))
+                .when(sender).send(sameMessage(failing));
 
             OutboxRelayResult result = relayService.relay();
 
             assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.STOPPED, 3, 1));
-            verify(sender, never()).send(after);
+            verify(sender, never()).send(sameMessage(after));
             assertThat(first.getSentAt()).isNotNull();
             assertThat(failing.getSentAt()).isNull();
             assertThat(failing.getAttemptCount()).isEqualTo(1);
@@ -103,7 +109,7 @@ class OrderOutboxRelayServiceTest {
         void retriesFromFailedMessage() {
             OrderOutboxMessage failing = message(2L);
             givenUnsent(failing);
-            doThrow(new IllegalStateException("broker down")).doNothing().when(sender).send(failing);
+            doThrow(new IllegalStateException("broker down")).doNothing().when(sender).send(sameMessage(failing));
             relayService.relay();
 
             OutboxRelayResult result = relayService.relay();
@@ -118,7 +124,7 @@ class OrderOutboxRelayServiceTest {
         void warnsWithoutPayload(CapturedOutput output) {
             OrderOutboxMessage failing = message(7L);
             givenUnsent(failing);
-            doThrow(new IllegalStateException("broker down")).when(sender).send(failing);
+            doThrow(new IllegalStateException("broker down")).when(sender).send(sameMessage(failing));
 
             relayService.relay();
 
@@ -129,8 +135,16 @@ class OrderOutboxRelayServiceTest {
     }
 
     private void givenUnsent(OrderOutboxMessage... messages) {
-        when(outboxRepository.findBySentAtIsNullOrderByIdAsc(any())).thenAnswer(invocation ->
+        when(jpaRepository.findBySentAtIsNullOrderByIdAsc(any())).thenAnswer(invocation ->
             List.of(messages).stream().filter(message -> message.getSentAt() == null).toList());
+        for (OrderOutboxMessage message : messages) {
+            lenient().when(jpaRepository.findById(message.getId())).thenReturn(Optional.of(message));
+        }
+    }
+
+    // 보내는 값은 포트 record라 메시지 ID로 맞춘다
+    private static OutboxMessage sameMessage(OrderOutboxMessage message) {
+        return argThat(sent -> sent != null && sent.id().equals(message.getId()));
     }
 
     private static OrderOutboxMessage message(Long id) {

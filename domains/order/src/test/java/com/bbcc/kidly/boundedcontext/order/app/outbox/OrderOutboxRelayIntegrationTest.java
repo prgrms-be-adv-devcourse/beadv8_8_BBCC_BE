@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.util.List;
@@ -40,7 +40,7 @@ class OrderOutboxRelayIntegrationTest {
     private SingleServerJobRunner jobRunner;
 
     @Autowired
-    private OrderOutboxRepository outboxRepository;
+    private JpaOrderOutboxRepository outboxRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.domain.recovery;
 
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -19,6 +21,7 @@ import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -124,7 +127,7 @@ public class PaymentRecovery extends OrderTimeEntity {
     }
 
     /**
-     * 재처리로 결제완료 반영을 마쳤다. PENDING만 복구할 수 있다(서비스가 먼저 거른다).
+     * 재처리로 결제완료 반영을 마쳤다. PENDING만 복구할 수 있다(startRetry · finishRetry가 먼저 거른다).
      */
     public void recover(LocalDateTime now) {
         if (status != Status.PENDING) {
@@ -135,7 +138,7 @@ public class PaymentRecovery extends OrderTimeEntity {
     }
 
     /**
-     * 주문을 취소로 끝냈다. 종료되지 않은 기록(PENDING · NOT_RETRYABLE)만 취소로 종료할 수 있다(서비스가 먼저 거른다).
+     * 주문을 취소로 끝냈다. 종료되지 않은 기록(PENDING · NOT_RETRYABLE)만 취소로 종료할 수 있다(startAdminCancel · startRetry가 먼저 거른다).
      */
     public void cancel(LocalDateTime now) {
         if (isClosed()) {
@@ -156,6 +159,75 @@ public class PaymentRecovery extends OrderTimeEntity {
         this.status = Status.CANCELLED;
         this.failureCode = OrderEventFailure.ORDER_CANCELLED;
         this.lastAttemptedAt = now;
+    }
+
+    /**
+     * 관리자 재처리를 시작할지(#642). PENDING이면 실행하고, 이미 복구됐으면 실행하지 않는다(지금 값 그대로 돌려줌).
+     *
+     * @throws OrderRuleViolationException 취소로 종료됐으면 RECOVERY_CLOSED, 재처리할 수 없는 기록이면 RECOVERY_NOT_RETRYABLE
+     */
+    public boolean startRetry() {
+        return switch (status) {
+            case PENDING -> true;
+            case RECOVERED -> false;
+            case CANCELLED -> throw new OrderRuleViolationException(Rule.RECOVERY_CLOSED);
+            case NOT_RETRYABLE -> throw new OrderRuleViolationException(Rule.RECOVERY_NOT_RETRYABLE);
+        };
+    }
+
+    /**
+     * 재처리를 마쳤다(#642). 그 사이 주문이 취소됐으면(기록 저장과 만료가 경합) 결제완료로 되돌리지 않고 취소로 끝내고, 아니면 복구한다.
+     */
+    public void finishRetry(boolean orderCancelled, LocalDateTime now) {
+        if (orderCancelled) {
+            cancel(now);
+        } else {
+            recover(now);
+        }
+    }
+
+    /**
+     * 재처리가 다시 실패했다(#642). 종료된 기록은 그대로 둔다. PENDING인데 그 사이 다른 경로로 주문이 취소됐으면 반영할 것이 없으므로
+     * 닫고(#598), 아니면 시도를 센다. 주문 상태는 PENDING일 때만 읽는다.
+     *
+     * @param orderCancelled 주문이 취소됐는지(필요할 때만 부른다)
+     */
+    public void retryFailed(BooleanSupplier orderCancelled, String failureCode, boolean retryable, LocalDateTime now) {
+        if (isClosed()) {
+            return;
+        }
+        if (status == Status.PENDING && orderCancelled.getAsBoolean()) {
+            closeForOrderCancelled(now);
+        } else {
+            recordFailure(failureCode, retryable, now);
+        }
+    }
+
+    /**
+     * 관리자 취소를 시작할지(#642). 이미 취소됐으면 하지 않는다(지금 값 그대로 돌려줌).
+     *
+     * @throws OrderRuleViolationException 이미 복구됐으면 RECOVERY_CLOSED
+     */
+    public boolean startAdminCancel() {
+        if (status == Status.CANCELLED) {
+            return false;
+        }
+        if (status == Status.RECOVERED) {
+            throw new OrderRuleViolationException(Rule.RECOVERY_CLOSED);
+        }
+        return true;
+    }
+
+    /**
+     * 관리자가 기록을 취소로 끝낸다(#642). 이미 결제가 반영된 주문의 기록은 취소로 끝낼 수 없다.
+     *
+     * @throws OrderRuleViolationException 주문이 결제완료면 RECOVERY_ORDER_PAID
+     */
+    public void cancelByAdmin(boolean orderPaid, LocalDateTime now) {
+        if (orderPaid) {
+            throw new OrderRuleViolationException(Rule.RECOVERY_ORDER_PAID);
+        }
+        cancel(now);
     }
 
     public boolean isClosed() {

@@ -7,9 +7,12 @@ import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.OrderDeadLetterSum
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.ReceiveDeadLetterCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeadLetterReplayer;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.DeadLetter;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.FailureType;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.Handling;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.Received;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.Status;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter;
-import com.bbcc.kidly.boundedcontext.order.domain.deadletter.ReceivedDeadLetter;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -57,7 +60,7 @@ public class OrderDeadLetterService {
     public void receive(ReceiveDeadLetterCommand command) {
         DeadLetterPayloads.Fields fields = payloads.read(command.payload(), command.eventType(),
             command.messageKey());
-        deadLetterRepository.saveReceived(new ReceivedDeadLetter(command.sourceTopic(), command.sourcePartition(),
+        deadLetterRepository.saveReceived(new Received(command.sourceTopic(), command.sourcePartition(),
             command.sourceOffset(), command.messageKey(), command.eventType(), command.eventId(), command.payload(),
             fields.producer(), fields.occurredAt(), fields.aggregateId(), fields.correlationId(), fields.orderId(),
             DeadLetterFailureTypes.of(command.exceptionClass()), command.exceptionClass(),
@@ -70,8 +73,8 @@ public class OrderDeadLetterService {
     @Transactional(readOnly = true)
     public Page<OrderDeadLetterSummary> getDeadLetters(String statusName, String failureTypeName, String eventType,
         int page, int size) {
-        OrderDeadLetter.Status status = statusName == null ? OrderDeadLetter.Status.OPEN : toStatus(statusName);
-        OrderDeadLetter.FailureType failureType = failureTypeName == null ? null : toFailureType(failureTypeName);
+        Status status = statusName == null ? Status.OPEN : toStatus(statusName);
+        FailureType failureType = failureTypeName == null ? null : toFailureType(failureTypeName);
         PageRequest pageable = PageRequest.of(page, size);
         // 저장소는 offset(page × size)이 int를 넘으면 조회하지 못하므로(500), 조회 없이 빈 페이지로 답한다
         if (pageable.getOffset() > Integer.MAX_VALUE) {
@@ -86,7 +89,7 @@ public class OrderDeadLetterService {
      */
     @Transactional(readOnly = true)
     public OrderDeadLetterDetail getDeadLetter(Long deadLetterId) {
-        OrderDeadLetter letter = deadLetterRepository.findById(deadLetterId)
+        DeadLetter letter = deadLetterRepository.findById(deadLetterId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.DEAD_LETTER_NOT_FOUND));
         return detailOf(letter);
     }
@@ -105,28 +108,31 @@ public class OrderDeadLetterService {
      */
     @Transactional
     public OrderDeadLetterDetail reprocess(Long deadLetterId, Long adminId) {
-        OrderDeadLetter letter = lockForReprocess(deadLetterId);
-        if (letter.getStatus() == OrderDeadLetter.Status.REPROCESSED) {
+        DeadLetter letter = lockForReprocess(deadLetterId);
+        if (letter.status() == Status.REPROCESSED) {
             return detailOf(letter);
         }
-        if (letter.getStatus() == OrderDeadLetter.Status.CLOSED) {
+        if (letter.status() == Status.CLOSED) {
             throw new BusinessException(OrderErrorCode.DEAD_LETTER_CLOSED);
         }
-        ReplayAttempt attempt = replayWithoutTransaction(new DeadLetterReplay(letter.getSourceTopic(),
-            letter.getSourcePartition(), letter.getSourceOffset(), letter.getMessageKey(), letter.getEventType(),
-            letter.getEventId(), letter.getPayload()));
+        ReplayAttempt attempt = replayWithoutTransaction(new DeadLetterReplay(letter.sourceTopic(),
+            letter.sourcePartition(), letter.sourceOffset(), letter.messageKey(), letter.eventType(),
+            letter.eventId(), letter.payload()));
         LocalDateTime now = LocalDateTime.now();
+        Handling handling;
         if (attempt.failure() != null) {
-            letter.recordReprocessFailure(attempt.failure(), now);
+            handling = DeadLetterHandling.reprocessFailed(letter, attempt.failure(), now);
         } else if (attempt.outcome() == DeadLetterReplay.Outcome.HANDED_OFF) {
-            letter.markHandedOff(adminId, now);
+            handling = DeadLetterHandling.handedOff(letter, adminId, now);
         } else {
-            letter.markReprocessed(adminId, now);
+            handling = DeadLetterHandling.reprocessed(letter, adminId, now);
         }
+        deadLetterRepository.saveHandling(letter.id(), handling);
+        DeadLetter handled = letter.withHandling(handling);
         log.info("DLT 메시지 재처리: deadLetterId={} eventType={} eventId={} orderId={} status={} result={}",
-            letter.getId(), letter.getEventType(), letter.getEventId(), letter.getOrderId(), letter.getStatus(),
-            letter.getLastReprocessResult());
-        return detailOf(letter);
+            handled.id(), handled.eventType(), handled.eventId(), handled.orderId(), handled.status(),
+            handling.lastReprocessResult());
+        return detailOf(handled);
     }
 
     /**
@@ -135,20 +141,22 @@ public class OrderDeadLetterService {
      */
     @Transactional
     public OrderDeadLetterDetail close(Long deadLetterId, Long adminId, String memo) {
-        OrderDeadLetter letter = deadLetterRepository.findByIdForUpdate(deadLetterId)
+        DeadLetter letter = deadLetterRepository.findByIdForUpdate(deadLetterId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.DEAD_LETTER_NOT_FOUND));
-        if (letter.getStatus() == OrderDeadLetter.Status.REPROCESSED) {
+        if (letter.status() == Status.REPROCESSED) {
             throw new BusinessException(OrderErrorCode.DEAD_LETTER_REPROCESSED);
         }
-        if (letter.isOpen()) {
-            letter.close(adminId, memo, LocalDateTime.now());
+        if (letter.status() == Status.OPEN) {
+            Handling handling = DeadLetterHandling.closed(letter, adminId, memo, LocalDateTime.now());
+            deadLetterRepository.saveHandling(letter.id(), handling);
+            letter = letter.withHandling(handling);
             log.info("DLT 메시지 종료: deadLetterId={} eventType={} eventId={} orderId={}",
-                letter.getId(), letter.getEventType(), letter.getEventId(), letter.getOrderId());
+                letter.id(), letter.eventType(), letter.eventId(), letter.orderId());
         }
         return detailOf(letter);
     }
 
-    private OrderDeadLetter lockForReprocess(Long deadLetterId) {
+    private DeadLetter lockForReprocess(Long deadLetterId) {
         try {
             return deadLetterRepository.findByIdForUpdateNoWait(deadLetterId)
                 .orElseThrow(() -> new BusinessException(OrderErrorCode.DEAD_LETTER_NOT_FOUND));
@@ -174,36 +182,36 @@ public class OrderDeadLetterService {
     private record ReplayAttempt(DeadLetterReplay.Outcome outcome, String failure) {
     }
 
-    private OrderDeadLetterDetail detailOf(OrderDeadLetter letter) {
-        String orderStatus = letter.getOrderId() == null ? null
-            : orderRepository.findById(letter.getOrderId()).map(order -> order.getStatus().name()).orElse(null);
+    private OrderDeadLetterDetail detailOf(DeadLetter letter) {
+        String orderStatus = letter.orderId() == null ? null
+            : orderRepository.findById(letter.orderId()).map(order -> order.getStatus().name()).orElse(null);
         return OrderDeadLetterDetail.of(letter, orderStatus, recommendedAction(letter));
     }
 
     // 처리 · 종료된 건은 조치할 것이 없다. 결제 완료의 보관 실패는 돈이 빠졌는데 주문이 결제대기로 남았을 수 있어 먼저 본다(#594)
-    static String recommendedAction(OrderDeadLetter letter) {
-        if (letter.getStatus() != OrderDeadLetter.Status.OPEN) {
+    static String recommendedAction(DeadLetter letter) {
+        if (letter.status() != Status.OPEN) {
             return null;
         }
-        return switch (letter.getFailureType()) {
+        return switch (letter.failureType()) {
             case READ_FAILED -> ACTION_READ_FAILED;
-            case STORE_FAILED -> PAYMENT_COMPLETED.equals(letter.getEventType())
+            case STORE_FAILED -> PAYMENT_COMPLETED.equals(letter.eventType())
                 ? ACTION_PAYMENT_COMPLETED_STORE_FAILED : ACTION_STORE_FAILED;
             case PROCESS_FAILED -> ACTION_PROCESS_FAILED;
         };
     }
 
-    private static OrderDeadLetter.Status toStatus(String statusName) {
+    private static Status toStatus(String statusName) {
         try {
-            return OrderDeadLetter.Status.valueOf(statusName);
+            return Status.valueOf(statusName);
         } catch (IllegalArgumentException e) {
             throw new BusinessException(OrderErrorCode.INVALID_DEAD_LETTER_STATUS);
         }
     }
 
-    private static OrderDeadLetter.FailureType toFailureType(String failureTypeName) {
+    private static FailureType toFailureType(String failureTypeName) {
         try {
-            return OrderDeadLetter.FailureType.valueOf(failureTypeName);
+            return FailureType.valueOf(failureTypeName);
         } catch (IllegalArgumentException e) {
             throw new BusinessException(OrderErrorCode.INVALID_DEAD_LETTER_FAILURE_TYPE);
         }

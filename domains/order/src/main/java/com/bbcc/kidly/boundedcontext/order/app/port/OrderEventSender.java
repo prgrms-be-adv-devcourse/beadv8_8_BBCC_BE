@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.order.app.port;
 
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
 
 /**
  * 아웃박스 메시지 하나를 Kafka로 보낸다(#540). 구현은 out/messaging.
@@ -8,5 +7,5 @@ import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
  */
 public interface OrderEventSender {
 
-    void send(OrderOutboxMessage message);
+    void send(OrderOutboxRepository.OutboxMessage message);
 }

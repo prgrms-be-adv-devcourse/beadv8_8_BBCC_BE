@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;

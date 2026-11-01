@@ -15,6 +15,7 @@ public final class CartErrors {
     public static BusinessException toBusiness(CartRuleViolationException violation) {
         return new BusinessException(switch (violation.getRule()) {
             case INVALID_QUANTITY -> CartErrorCode.INVALID_QUANTITY;
+            case OWN_PRODUCT -> CartErrorCode.OWN_PRODUCT;
         });
     }
 }

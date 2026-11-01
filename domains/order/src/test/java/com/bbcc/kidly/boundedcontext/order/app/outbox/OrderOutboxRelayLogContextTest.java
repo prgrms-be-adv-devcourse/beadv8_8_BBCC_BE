@@ -3,17 +3,21 @@ package com.bbcc.kidly.boundedcontext.order.app.outbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository.OutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.OrderOutboxStore;
+import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,8 +39,9 @@ class OrderOutboxRelayLogContextTest {
     private static final OrderOutboxProperties PROPERTIES =
         new OrderOutboxProperties(Duration.ofSeconds(1), 100, Duration.ofDays(7));
 
+    // 포트는 실제 구현(OrderOutboxStore)에 Spring Data 저장소 mock을 넣어 쓴다(#642: 엔티티는 out)
     @Mock
-    private OrderOutboxRepository outboxRepository;
+    private JpaOrderOutboxRepository jpaRepository;
 
     @Mock
     private OrderEventSender sender;
@@ -46,7 +51,7 @@ class OrderOutboxRelayLogContextTest {
 
     @BeforeEach
     void setUp() {
-        relayService = new OrderOutboxRelayService(outboxRepository, sender, PROPERTIES);
+        relayService = new OrderOutboxRelayService(new OrderOutboxStore(jpaRepository), sender, PROPERTIES);
     }
 
     @AfterEach
@@ -96,7 +101,7 @@ class OrderOutboxRelayLogContextTest {
     private void recordMdcOnSend(OrderOutboxMessage failing) {
         doAnswer(invocation -> {
             sentWith.add(new HashMap<>(MDC.getCopyOfContextMap()));
-            if (invocation.getArgument(0) == failing) {
+            if (((OutboxMessage) invocation.getArgument(0)).id().equals(failing.getId())) {
                 throw new IllegalStateException("broker down");
             }
             return null;
@@ -104,7 +109,10 @@ class OrderOutboxRelayLogContextTest {
     }
 
     private void givenUnsent(OrderOutboxMessage... messages) {
-        when(outboxRepository.findBySentAtIsNullOrderByIdAsc(any())).thenReturn(List.of(messages));
+        when(jpaRepository.findBySentAtIsNullOrderByIdAsc(any())).thenReturn(List.of(messages));
+        for (OrderOutboxMessage message : messages) {
+            lenient().when(jpaRepository.findById(message.getId())).thenReturn(Optional.of(message));
+        }
     }
 
     private static OrderOutboxMessage message(Long id, String eventType, String key) {

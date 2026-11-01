@@ -2,16 +2,19 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderEventFailureResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventFailureRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.OrderEventFailure;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -119,22 +122,14 @@ public class OrderEventFailureService {
     @Transactional
     public OrderEventFailureResult recover(Long failureId, Long adminId) {
         OrderEventFailure failure = findForUpdate(failureId);
-        if (failure.getStatus() == OrderEventFailure.Status.RECOVERED) {
+        if (!byRule(failure::startRetry)) {
             return OrderEventFailureResult.from(failure);
-        }
-        if (failure.getStatus() == OrderEventFailure.Status.CANCELLED) {
-            throw new BusinessException(OrderErrorCode.EVENT_FAILURE_CLOSED);
         }
         boolean pendingPayment = orderStatusOf(failure) == Order.Status.PENDING_PAYMENT;
         if (pendingPayment) {
             apply(failure, OrderActor.admin(adminId, OrderActor.EVENT_FAILURE_RETRY));
         }
-        LocalDateTime now = LocalDateTime.now();
-        if (pendingPayment) {
-            failure.recover(now);
-        } else {
-            failure.cancel(now);
-        }
+        failure.finishRetry(pendingPayment, LocalDateTime.now());
         log.info("이벤트 처리 재처리: failureId={} eventType={} orderId={} result={}",
             failure.getId(), failure.getEventType(), failure.getOrderId(), failure.getStatus());
         return OrderEventFailureResult.from(failure);
@@ -149,12 +144,9 @@ public class OrderEventFailureService {
         if (failure.isClosed()) {
             return OrderEventFailureResult.from(failure);
         }
-        // 재처리가 기록을 잡은 사이 다른 경로로 주문이 취소됐으면(주문 취소는 잡힌 기록을 건너뜀, #598) 재처리할 것이 없으므로 닫는다
-        if (isOrderCancelled(failure.getOrderId())) {
-            failure.closeForOrderCancelled(LocalDateTime.now());
-        } else {
-            failure.recordFailure(PaymentFailures.failureCode(error), LocalDateTime.now());
-        }
+        // 재처리가 기록을 잡은 사이 다른 경로로 주문이 취소됐으면(주문 취소는 잡힌 기록을 건너뜀, #598) 기록이 닫는다
+        failure.retryFailed(() -> isOrderCancelled(failure.getOrderId()), PaymentFailures.failureCode(error),
+            LocalDateTime.now());
         log.info("이벤트 처리 재처리: failureId={} eventType={} orderId={} result={} attemptCount={} failureCode={}",
             failure.getId(), failure.getEventType(), failure.getOrderId(), failure.getStatus(),
             failure.getAttemptCount(), failure.getFailureCode());
@@ -167,16 +159,21 @@ public class OrderEventFailureService {
     @Transactional
     public OrderEventFailureResult cancel(Long failureId) {
         OrderEventFailure failure = findForUpdate(failureId);
-        if (failure.getStatus() == OrderEventFailure.Status.CANCELLED) {
+        if (!byRule(() -> failure.closeByAdmin(LocalDateTime.now()))) {
             return OrderEventFailureResult.from(failure);
         }
-        if (failure.getStatus() == OrderEventFailure.Status.RECOVERED) {
-            throw new BusinessException(OrderErrorCode.EVENT_FAILURE_CLOSED);
-        }
-        failure.cancel(LocalDateTime.now());
         log.info("이벤트 처리 실패 종료: failureId={} eventType={} orderId={} result={}",
             failure.getId(), failure.getEventType(), failure.getOrderId(), failure.getStatus());
         return OrderEventFailureResult.from(failure);
+    }
+
+    // 기록의 상태 규칙(domain) 위반을 오류 응답으로 바꾼다
+    private static boolean byRule(BooleanSupplier rule) {
+        try {
+            return rule.getAsBoolean();
+        } catch (OrderRuleViolationException e) {
+            throw OrderErrors.toBusiness(e);
+        }
     }
 
     private void apply(OrderEventFailure failure, OrderActor admin) {

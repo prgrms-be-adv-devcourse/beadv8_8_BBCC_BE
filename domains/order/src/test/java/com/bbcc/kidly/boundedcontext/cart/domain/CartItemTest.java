@@ -83,4 +83,31 @@ class CartItemTest {
             .extracting("rule").isEqualTo(Rule.INVALID_QUANTITY);
         assertThat(item.getQuantity()).isEqualTo(2);
     }
+
+    @Test
+    @DisplayName("같은 줄에 더한 수량이 99면 담고, 99를 넘으면 담지 않는다(#642, 줄 수량 상한)")
+    void addQuantityUpToMax() {
+        CartItem item = CartItem.create(BUYER_ID, OPTION_ID, CHILD_ID, 98);
+
+        item.addQuantity(1);
+
+        assertThat(item.getQuantity()).isEqualTo(CartItem.MAX_QUANTITY);
+        assertThatThrownBy(() -> item.addQuantity(1))
+            .isInstanceOf(CartRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.INVALID_QUANTITY);
+        assertThat(item.getQuantity()).isEqualTo(99);
+    }
+
+    @Test
+    @DisplayName("담기 · 수량 변경도 99를 넘을 수 없다(#642)")
+    void createAndChangeUpToMax() {
+        assertThat(CartItem.create(BUYER_ID, OPTION_ID, null, 99).getQuantity()).isEqualTo(99);
+        assertThatThrownBy(() -> CartItem.create(BUYER_ID, OPTION_ID, null, 100))
+            .isInstanceOf(CartRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.INVALID_QUANTITY);
+        CartItem item = CartItem.create(BUYER_ID, OPTION_ID, null, 1);
+        assertThatThrownBy(() -> item.changeQuantity(100))
+            .isInstanceOf(CartRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.INVALID_QUANTITY);
+    }
 }
