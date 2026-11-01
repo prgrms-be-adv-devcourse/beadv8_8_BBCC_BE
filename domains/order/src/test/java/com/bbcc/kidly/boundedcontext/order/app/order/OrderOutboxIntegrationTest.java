@@ -20,7 +20,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderOutboxCleanupScheduler;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderOutboxRelayScheduler;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;

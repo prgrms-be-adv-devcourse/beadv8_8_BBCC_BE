@@ -6,7 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 /**
- * 주문 DLT 메시지 저장소(#601). 구현은 out/persistence. 보관 행(엔티티)은 Kafka 실패 처리 장치라 out에 있고, app은 이 포트의 값으로
+ * 주문 DLT 메시지 저장소(#601). 구현은 out/deadletter(OrderDeadLetterStore). 보관 행(엔티티)은 Kafka 실패 처리 장치라 out에 있고, app은 이 포트의 값으로
  * 읽고 관리자 처리 결과({@link Handling})만 되돌려 쓴다(#642). 부르는 쪽 트랜잭션에 합류한다.
  */
 public interface OrderDeadLetterRepository {

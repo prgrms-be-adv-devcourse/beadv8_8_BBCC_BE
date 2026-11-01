@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.bbcc.kidly.boundedcontext.order.support.AsyncWait;
+import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import java.time.Duration;
 import java.util.ArrayList;

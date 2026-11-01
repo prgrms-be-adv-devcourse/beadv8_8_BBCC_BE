@@ -7,7 +7,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;

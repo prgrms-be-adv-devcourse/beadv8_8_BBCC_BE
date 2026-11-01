@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.sql.Timestamp;

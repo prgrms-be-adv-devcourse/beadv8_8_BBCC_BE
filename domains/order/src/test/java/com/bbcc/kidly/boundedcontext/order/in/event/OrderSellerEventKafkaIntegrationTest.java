@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
-import com.bbcc.kidly.boundedcontext.order.support.AsyncWait;
-import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.AsyncWait;
+import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;

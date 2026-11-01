@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.order.OrderTestApplication;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.in.event.OrderKafkaListenerTestGuard;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.lang.ArchRule;
@@ -31,12 +31,15 @@ class OrderTestIndependenceTest {
     private static final String DELIVERY = "com.bbcc.kidly.boundedcontext.delivery";
     // 조르기 컨텍스트(#640)
     private static final String WISH = "com.bbcc.kidly.boundedcontext.wish";
+    // 주문 모듈 테스트 지원(네 컨텍스트가 같이 씀, #651). 앱 공통 테스트 기반(com.bbcc.kidly.support)과는 다른 패키지다
+    private static final String SUPPORT = "com.bbcc.kidly.boundedcontext.support";
 
-    private static final JavaClasses ORDER_CODE = new ClassFileImporter().importPackages(ORDER, CART, DELIVERY, WISH);
+    private static final JavaClasses ORDER_CODE =
+        new ClassFileImporter().importPackages(ORDER, CART, DELIVERY, WISH, SUPPORT);
 
     private static final ArchRule NO_OTHER_DOMAIN_OR_APP = noClasses()
         .should().dependOnClassesThat(resideInAPackage("com.bbcc.kidly.boundedcontext..")
-            .and(not(resideInAnyPackage(ORDER + "..", CART + "..", DELIVERY + "..", WISH + ".."))))
+            .and(not(resideInAnyPackage(ORDER + "..", CART + "..", DELIVERY + "..", WISH + "..", SUPPORT + ".."))))
         .orShould().dependOnClassesThat().resideInAnyPackage("com.bbcc.kidly", "com.bbcc.kidly.support..")
         .because("주문 테스트는 주문 · shared · common만으로 돈다(#616)");
 

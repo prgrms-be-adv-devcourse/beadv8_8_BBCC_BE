@@ -1,0 +1,217 @@
+package com.bbcc.kidly.boundedcontext.order.in.config;
+
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderKafkaConsumerProperties;
+import com.bbcc.kidly.boundedcontext.order.in.event.OrderKafkaMessages;
+import com.bbcc.kidly.boundedcontext.order.in.event.OrderLogContextRecordInterceptor;
+import com.bbcc.kidly.boundedcontext.order.in.event.PaymentEventKafkaListener;
+import com.bbcc.kidly.global.error.BusinessException;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.BiPredicate;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.TopicPartition;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.NestedExceptionUtils;
+import org.springframework.kafka.KafkaException;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.config.TopicBuilder;
+import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.listener.CommonErrorHandler;
+import org.springframework.kafka.listener.ConsumerRecordRecoverer;
+import org.springframework.kafka.listener.ContainerProperties.AckMode;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.ProducerListener;
+import org.springframework.util.backoff.BackOff;
+import org.springframework.util.backoff.ExponentialBackOff;
+import org.springframework.util.backoff.FixedBackOff;
+import tools.jackson.core.JacksonException;
+
+/**
+ * 주문이 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT(#541). 구독 그룹은 kidly.order.
+ * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정을 그대로 받고 주문 값만 덮어쓴다:
+ * <ul>
+ *   <li>한 건씩 처리 완료를 표시한다(RECORD)</li>
+ *   <li>처음 읽는 그룹은 처음부터 읽는다(earliest, 앱 기본 latest를 이 팩토리의 컨테이너에만 덮어씀). 처음 전환할 때 메시지가 빠지지
+ *       않게 하고, 다시 읽어도 처리 결과가 1회분이라 안전하다</li>
+ *   <li>스위치(kidly.order.kafka.consumer.enabled)가 꺼져 있으면 컨테이너를 자동 시작하지 않는다</li>
+ *   <li>실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다. 다시 해도 같은 예외 · 읽기 실패는 재시도 없이 보낸다.
+ *       결제 완료는 보내기 전에 payment_recovery 보관을 시도하고, 보관되면 보내지 않는다(#632)</li>
+ *   <li>DLT를 읽는 컨테이너(#601)만 에러 처리기가 다르다: 저장이 실패하면 DLT로 보내지 않고 끝없이 다시 시도한다</li>
+ *   <li>메시지 하나를 처리하는 동안 로그 MDC에 eventId · eventType · correlationId(키)를 둔다(#603, 에러 처리기 로그까지)</li>
+ * </ul>
+ * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate과 다른 도메인에 영향이 없다.
+ */
+@Slf4j
+@Configuration
+public class OrderKafkaListenerConfig {
+
+    public static final String GROUP = "kidly.order";
+    public static final String FACTORY = "orderKafkaListenerContainerFactory";
+    public static final String PRODUCT_EVENTS = "kidly.product.events";
+    public static final String SELLER_EVENTS = "kidly.seller.events";
+    public static final String CHILDPROFILE_EVENTS = "kidly.childprofile.events";
+    public static final String PAYMENT_EVENTS = "kidly.payment.events";
+
+    private static final String DEAD_LETTER_SUFFIX = ".order.dlt";
+    public static final String PRODUCT_EVENTS_DLT = PRODUCT_EVENTS + DEAD_LETTER_SUFFIX;
+    public static final String SELLER_EVENTS_DLT = SELLER_EVENTS + DEAD_LETTER_SUFFIX;
+    public static final String CHILDPROFILE_EVENTS_DLT = CHILDPROFILE_EVENTS + DEAD_LETTER_SUFFIX;
+    public static final String PAYMENT_EVENTS_DLT = PAYMENT_EVENTS + DEAD_LETTER_SUFFIX;
+    private static final long RETRY_INTERVAL_MS = 1000L;
+    private static final long RETRY_ATTEMPTS = 3L;
+    private static final long DEAD_LETTER_MAX_INTERVAL_MS = 60_000L;
+
+    @Bean
+    NewTopic orderProductEventsDeadLetterTopic() {
+        return deadLetterTopic(PRODUCT_EVENTS);
+    }
+
+    @Bean
+    NewTopic orderSellerEventsDeadLetterTopic() {
+        return deadLetterTopic(SELLER_EVENTS);
+    }
+
+    @Bean
+    NewTopic orderChildProfileEventsDeadLetterTopic() {
+        return deadLetterTopic(CHILDPROFILE_EVENTS);
+    }
+
+    @Bean
+    NewTopic orderPaymentEventsDeadLetterTopic() {
+        return deadLetterTopic(PAYMENT_EVENTS);
+    }
+
+    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다.
+    // 결제 리스너는 이 팩토리를 쓰는 @KafkaListener라 만들 때 받으면 순환 참조가 되므로, DLT로 보낼 때 꺼낸다(#632)
+    @Bean(FACTORY)
+    ConcurrentKafkaListenerContainerFactory<Object, Object> orderKafkaListenerContainerFactory(
+        ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
+        ProducerFactory<String, String> producerFactory, OrderKafkaConsumerProperties properties,
+        ObjectProvider<PaymentEventKafkaListener> paymentListener) {
+        var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
+            (record, e) -> deadLetterPartition(record));
+        return factory(configurer, consumerFactory, properties.enabled(), errorHandler(deadLetter,
+            (record, e) -> paymentListener.getObject().keepAfterRetries(record, e)),
+            deadLetterStoreErrorHandler(deadLetterStoreBackOff()));
+    }
+
+    static ConcurrentKafkaListenerContainerFactory<Object, Object> factory(
+        ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
+        boolean consumerEnabled, CommonErrorHandler errorHandler, CommonErrorHandler deadLetterErrorHandler) {
+        var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
+        configurer.configure(factory, consumerFactory);
+        factory.getContainerProperties().setAckMode(AckMode.RECORD);
+        // 팩토리의 kafkaConsumerProperties는 만들어지는 컨테이너로 복사되지 않아 컨테이너마다 넣는다(ConsumerFactory는 그대로).
+        // 커스터마이저는 팩토리가 에러 처리기를 넣은 뒤에 불리므로, DLT 컨테이너만 저장 재시도 처리기로 바꾼다(#601)
+        factory.setContainerCustomizer(container -> {
+            container.getContainerProperties().getKafkaConsumerProperties()
+                .setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+            if (isDeadLetterContainer(container.getContainerProperties().getTopics())) {
+                container.setCommonErrorHandler(deadLetterErrorHandler);
+            }
+        });
+        // 꺼짐만 강제한다. 켜져 있으면 앱 설정(테스트는 false)을 따른다
+        if (!consumerEnabled) {
+            factory.setAutoStartup(false);
+        }
+        factory.setCommonErrorHandler(errorHandler);
+        // 메시지 하나를 처리하는 동안 로그에 eventId · eventType · correlationId(키)를 붙인다(#603)
+        factory.setRecordInterceptor(new OrderLogContextRecordInterceptor());
+        return factory;
+    }
+
+    /**
+     * 다시 해도 같은 결과인 예외(업무 규칙 · 잘못된 값 · 상태 · null)와 읽기 실패(Jackson)는 재시도하지 않는다.
+     * DLT로 보내기 전에 keep으로 주문 자체 보관을 시도하고(결제 완료, #632), 보관되면 DLT로 보내지 않고 처리 완료로 넘긴다.
+     */
+    static DefaultErrorHandler errorHandler(ConsumerRecordRecoverer deadLetter,
+        BiPredicate<ConsumerRecord<?, ?>, Exception> keep) {
+        var errorHandler = new DefaultErrorHandler((record, e) -> {
+            if (kept(keep, record, e)) {
+                return;
+            }
+            logDeadLetter(record, e);
+            deadLetter.accept(record, e);
+        }, new FixedBackOff(RETRY_INTERVAL_MS, RETRY_ATTEMPTS));
+        errorHandler.addNotRetryableExceptions(BusinessException.class, IllegalArgumentException.class,
+            IllegalStateException.class, NullPointerException.class, JacksonException.class);
+        return errorHandler;
+    }
+
+    /**
+     * 보관 시도가 예상 못 한 예외로 끝나면 보관하지 못한 것으로 본다(#632). 여기서 던지면 recoverer 실패로 같은 메시지를 계속
+     * 다시 시도해 그 파티션이 멈추므로, 지금처럼 DLT로 보낸다. 보관 오류는 원래 예외에 붙이고(suppressed) 로그는 DLT 한 줄이다.
+     */
+    private static boolean kept(BiPredicate<ConsumerRecord<?, ?>, Exception> keep, ConsumerRecord<?, ?> record,
+        Exception error) {
+        try {
+            return keep.test(record, error);
+        } catch (RuntimeException keepError) {
+            error.addSuppressed(keepError);
+            return false;
+        }
+    }
+
+    /**
+     * DLT 저장 재시도 간격(#601): 1초부터 두 배씩, 최대 60초(max.poll.interval 5분보다 짧아 그룹에서 빠지지 않는다). 끝나지 않는다.
+     */
+    static BackOff deadLetterStoreBackOff() {
+        var backOff = new ExponentialBackOff(RETRY_INTERVAL_MS, 2.0);
+        backOff.setMaxInterval(DEAD_LETTER_MAX_INTERVAL_MS);
+        return backOff;
+    }
+
+    /**
+     * DLT 컨테이너의 에러 처리기(#601). DLT 메시지 저장이 실패하면 DLT로 다시 보내지 않고(DLT의 DLT 없음) 같은 메시지를 다시 시도한다.
+     * 간격이 끝나지 않으므로 처리 완료로 넘기는 recoverer가 불리지 않고, 기본으로 재시도하지 않는 예외도 모두 다시 시도한다.
+     * 실패 로그는 리스너가 본문 없이 남기므로 처리기 로그는 끈다(예외 메시지에 DB가 거부한 행 값 = 본문이 들어 있다).
+     */
+    static DefaultErrorHandler deadLetterStoreErrorHandler(BackOff backOff) {
+        var errorHandler = new DefaultErrorHandler(backOff);
+        errorHandler.setClassifications(Map.of(), true);
+        errorHandler.setLogLevel(KafkaException.Level.TRACE);
+        return errorHandler;
+    }
+
+    static boolean isDeadLetterContainer(String[] topics) {
+        return topics != null && topics.length > 0
+            && Arrays.stream(topics).allMatch(topic -> topic.endsWith(DEAD_LETTER_SUFFIX));
+    }
+
+    /**
+     * DLT는 파티션이 1개라 원래 메시지의 파티션 번호(1 · 2)를 쓰면 보내지 못한다. 항상 0으로 보낸다.
+     */
+    static TopicPartition deadLetterPartition(ConsumerRecord<?, ?> record) {
+        return new TopicPartition(record.topic() + DEAD_LETTER_SUFFIX, 0);
+    }
+
+    private static NewTopic deadLetterTopic(String topic) {
+        return TopicBuilder.name(topic + DEAD_LETTER_SUFFIX).partitions(1).replicas(1).build();
+    }
+
+    // Boot 프로듀서 팩토리를 그대로 써서 공용 프로듀서를 빌려 쓰므로 따로 닫을 것이 없다
+    private static KafkaTemplate<String, String> deadLetterTemplate(ProducerFactory<String, String> producerFactory) {
+        var kafkaTemplate = new KafkaTemplate<>(producerFactory);
+        // 기본 LoggingProducerListener는 실패 로그에 본문을 찍는다. 실패는 DeadLetterPublishingRecoverer가 본문 없이 남긴다
+        kafkaTemplate.setProducerListener(new ProducerListener<>() {
+        });
+        return kafkaTemplate;
+    }
+
+    // 본문과 예외 메시지(읽지 못한 값이 들어 있다)는 남기지 않는다
+    private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
+        String exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
+        log.error("처리하지 못한 이벤트를 DLT로 보냅니다. topic={} eventType={} eventId={} key={} exception={}",
+            record.topic(), OrderKafkaMessages.header(record, OrderKafkaMessages.EVENT_TYPE),
+            OrderKafkaMessages.header(record, OrderKafkaMessages.EVENT_ID), record.key(), exception);
+    }
+}

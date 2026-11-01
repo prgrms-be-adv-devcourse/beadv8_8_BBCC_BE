@@ -15,7 +15,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
+import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;

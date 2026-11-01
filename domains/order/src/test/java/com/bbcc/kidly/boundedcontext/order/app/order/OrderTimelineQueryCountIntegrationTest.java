@@ -2,16 +2,16 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
+import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
+import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
-import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
-import com.bbcc.kidly.boundedcontext.order.support.QueryCounter;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.QueryCounter;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;

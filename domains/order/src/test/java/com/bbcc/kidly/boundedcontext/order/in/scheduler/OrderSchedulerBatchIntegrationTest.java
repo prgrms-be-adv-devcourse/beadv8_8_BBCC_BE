@@ -15,7 +15,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import java.time.Duration;

@@ -4,8 +4,8 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
+import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
@@ -15,7 +15,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import java.time.LocalDateTime;
 import java.util.List;

@@ -10,7 +10,7 @@ import org.springframework.kafka.listener.RecordInterceptor;
  * 메시지 하나를 처리하는 동안 헤더 eventId · eventType과 키(팀 규칙: 키 = correlationId)를 MDC에 두고, 처리가 끝나면(성공 · 실패,
  * 에러 처리기 뒤) 연 때의 값으로 되돌린다. 본문은 읽지 않는다. 소비 스레드마다 하나씩 열리므로 스레드 로컬로 들고 있다.
  */
-class OrderLogContextRecordInterceptor implements RecordInterceptor<Object, Object> {
+public class OrderLogContextRecordInterceptor implements RecordInterceptor<Object, Object> {
 
     private static final ThreadLocal<OrderLogContext> CURRENT = new ThreadLocal<>();
 

@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
+import com.bbcc.kidly.boundedcontext.order.in.config.OrderKafkaListenerConfig;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;

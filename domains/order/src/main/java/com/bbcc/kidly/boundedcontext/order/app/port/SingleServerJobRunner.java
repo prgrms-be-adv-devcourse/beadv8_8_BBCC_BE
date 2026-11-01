@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.port;
 
 /**
  * 이름 붙은 작업을 한 번에 한 서버에서만 실행한다(#564). 서버가 여러 대여도 같은 이름의 작업은 동시에 하나만 돈다.
- * 구현은 out(DB 잠금). 스케줄러 · 서비스는 DB 종류를 모른다.
+ * 구현은 out/lock(DB 잠금). 스케줄러 · 서비스는 DB 종류를 모른다.
  */
 public interface SingleServerJobRunner {
 

@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.wish.app;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
-import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
+import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

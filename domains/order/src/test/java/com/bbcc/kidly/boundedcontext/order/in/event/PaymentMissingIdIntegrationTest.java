@@ -4,18 +4,18 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
-import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.PaymentMismatchException;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import java.time.LocalDateTime;
 import java.util.List;

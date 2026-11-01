@@ -4,13 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
+import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
-import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
-import com.bbcc.kidly.boundedcontext.order.support.QueryCounter;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.QueryCounter;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

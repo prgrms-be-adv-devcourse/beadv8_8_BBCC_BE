@@ -6,7 +6,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Limit;
 
 /**
- * Kafka로 보낼 주문 이벤트 메시지 저장소(#540). 구현은 out/persistence. 메시지(아웃박스 엔티티)는 전달 장치라 out에 있고,
+ * Kafka로 보낼 주문 이벤트 메시지 저장소(#540). 구현은 out/outbox(OrderOutboxStore). 메시지(아웃박스 엔티티)는 전달 장치라 out에 있고,
  * app은 이 포트의 값({@link OutboxMessage})으로만 다룬다(#642). 부르는 쪽 트랜잭션에 합류한다.
  */
 public interface OrderOutboxRepository {

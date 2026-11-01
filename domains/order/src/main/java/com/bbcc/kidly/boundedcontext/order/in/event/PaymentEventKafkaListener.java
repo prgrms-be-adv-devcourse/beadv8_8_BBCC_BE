@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
+import com.bbcc.kidly.boundedcontext.order.in.config.OrderKafkaListenerConfig;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import lombok.RequiredArgsConstructor;
@@ -63,7 +64,7 @@ public class PaymentEventKafkaListener {
      * @param error 에러 처리기가 받은 예외(리스너 실패면 원래 예외로 벗겨 보관 이유로 쓴다)
      * @return 보관했으면 true(처리 완료)
      */
-    boolean keepAfterRetries(ConsumerRecord<?, ?> record, Exception error) {
+    public boolean keepAfterRetries(ConsumerRecord<?, ?> record, Exception error) {
         if (!OrderKafkaListenerConfig.PAYMENT_EVENTS.equals(record.topic())
             || !PAYMENT_COMPLETED.equals(OrderKafkaMessages.header(record, OrderKafkaMessages.EVENT_TYPE))
             || !(record.value() instanceof String body)

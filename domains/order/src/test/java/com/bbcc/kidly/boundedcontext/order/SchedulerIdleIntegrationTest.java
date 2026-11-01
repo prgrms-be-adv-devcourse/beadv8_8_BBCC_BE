@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.order;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
