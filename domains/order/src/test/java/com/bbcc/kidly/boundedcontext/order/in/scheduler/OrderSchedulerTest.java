@@ -143,29 +143,31 @@ class OrderSchedulerTest {
         }
 
         @Test
-        @DisplayName("max-per-run에 정확히 닿으면(batch 3 · max 6) 두 번 조회로 6건만 처리하고 멈춘다")
+        @DisplayName("max-per-run에 정확히 닿으면(batch 3 · max 6) 두 번 조회로 6건만 처리하고 멈춘다"
+            + "(남은 대상 확인 1건 조회 더, #656)")
         void stopsExactlyAtMaxPerRun() {
             givenOverdueOrders(10);
 
             scheduler(3, 6).expireOverduePayments();
 
             ArgumentCaptor<Integer> limit = ArgumentCaptor.forClass(Integer.class);
-            verify(orderService, times(2)).findOverduePaymentOrderIds(any(), anyLong(), limit.capture());
-            assertThat(limit.getAllValues()).containsExactly(3, 3);
+            verify(orderService, times(3)).findOverduePaymentOrderIds(any(), anyLong(), limit.capture());
+            assertThat(limit.getAllValues()).containsExactly(3, 3, 1);
             verify(orderService, times(6)).cancelForPaymentExpiry(anyLong());
             verify(orderService, never()).cancelForPaymentExpiry(7L);
         }
 
         @Test
-        @DisplayName("max-per-run이 batch-size로 나누어떨어지지 않으면(batch 3 · max 7) 마지막 조회를 남은 건수(1)로 줄인다")
+        @DisplayName("max-per-run이 batch-size로 나누어떨어지지 않으면(batch 3 · max 7) 마지막 조회를 남은 건수(1)로 줄인다"
+            + "(상한 도달 뒤 남은 대상 확인 1건, #656)")
         void shrinksLastFetchToMaxPerRun() {
             givenOverdueOrders(10);
 
             scheduler(3, 7).expireOverduePayments();
 
             ArgumentCaptor<Integer> limit = ArgumentCaptor.forClass(Integer.class);
-            verify(orderService, times(3)).findOverduePaymentOrderIds(any(), anyLong(), limit.capture());
-            assertThat(limit.getAllValues()).containsExactly(3, 3, 1);
+            verify(orderService, times(4)).findOverduePaymentOrderIds(any(), anyLong(), limit.capture());
+            assertThat(limit.getAllValues()).containsExactly(3, 3, 1, 1);
             verify(orderService, times(7)).cancelForPaymentExpiry(anyLong());
             verify(orderService, never()).cancelForPaymentExpiry(8L);
         }
@@ -186,8 +188,9 @@ class OrderSchedulerTest {
         }
 
         @Test
-        @DisplayName("알려진 한계: 계속 실패하는 건이 max-per-run 이상 앞쪽에 쌓이면 매 실행 처음(afterId 0)부터 다시 시작해 뒤쪽은 처리되지 않는다")
-        void persistentFailuresAtFrontBlockTheRestAcrossRuns() {
+        @DisplayName("계속 실패하는 건이 max-per-run 이상 앞쪽에 쌓여도 다음 실행은 멈춘 곳 다음부터 이어 읽어 뒤쪽을 처리한다(#656, 전에는 "
+            + "매 실행 afterId 0부터라 뒤쪽이 처리되지 않았다)")
+        void persistentFailuresAtFrontDoNotBlockTheRestAcrossRuns(CapturedOutput output) {
             givenOverdueOrders(6);
             for (long id = 1; id <= 4; id++) {
                 doThrow(new IllegalStateException("계속 실패")).when(orderService).cancelForPaymentExpiry(id);
@@ -198,10 +201,26 @@ class OrderSchedulerTest {
             scheduler.expireOverduePayments();
 
             ArgumentCaptor<Long> afterId = ArgumentCaptor.forClass(Long.class);
-            verify(orderService, times(4)).findOverduePaymentOrderIds(any(), afterId.capture(), anyInt());
-            assertThat(afterId.getAllValues()).containsExactly(0L, 2L, 0L, 2L);
-            verify(orderService, never()).cancelForPaymentExpiry(5L);
-            verify(orderService, never()).cancelForPaymentExpiry(6L);
+            verify(orderService, times(7)).findOverduePaymentOrderIds(any(), afterId.capture(), anyInt());
+            // 첫 실행 0 · 2(상한 4, 남은 대상 확인 4 → 5 있음, 4 기억) → 둘째 실행 4 · 6(끝) → 처음으로 돌아가 0(1 · 2)
+            // → 상한, 남은 대상 확인 2 → 3(시작 4 이하) 있음
+            assertThat(afterId.getAllValues()).containsExactly(0L, 2L, 4L, 4L, 6L, 0L, 2L);
+            verify(orderService).cancelForPaymentExpiry(5L);
+            verify(orderService).cancelForPaymentExpiry(6L);
+            assertThat(output).containsPattern(
+                "WARN.*스케줄러 상한 도달: job=payment-expiry targets=4 processed=0 failed=4 batches=2 maxPerRun=4 "
+                    + "resumeAfterId=4 interval=PT1M");
+        }
+
+        @Test
+        @DisplayName("상한에 닿지 않은 실행은 WARN 없이 INFO 한 줄이다(상한 도달 줄 없음)")
+        void noWarnUnderCap(CapturedOutput output) {
+            givenOverdueOrders(3);
+
+            scheduler(2, 4).expireOverduePayments();
+
+            assertThat(output).containsPattern("INFO.*job=payment-expiry targets=3 ")
+                .doesNotContain("스케줄러 상한 도달");
         }
 
         @Test
@@ -285,10 +304,31 @@ class OrderSchedulerTest {
 
             scheduler(2, 4).autoConfirm();
 
-            verify(orderService, times(2)).findAutoConfirmTargets(any(), anyLong(), anyInt());
+            // 처리할 대상 조회 두 번 + 상한에 닿아 남은 대상 확인 한 번(#656)
+            verify(orderService, times(3)).findAutoConfirmTargets(any(), anyLong(), anyInt());
             verify(orderService).confirmAutomatically(2L, 20L);
             verify(orderService).confirmAutomatically(4L, 40L);
             verify(orderService, never()).confirmAutomatically(5L, 50L);
+        }
+
+        @Test
+        @DisplayName("상한에 닿으면 WARN 한 줄을 남기고, 다음 실행은 멈춘 주문상품 ID 다음부터 이어 읽는다(#656)")
+        void continuesFromCapOnNextRun(CapturedOutput output) {
+            givenTargets(6);
+            OrderScheduler scheduler = scheduler(2, 4);
+
+            scheduler.autoConfirm();
+            scheduler.autoConfirm();
+
+            ArgumentCaptor<Long> afterId = ArgumentCaptor.forClass(Long.class);
+            verify(orderService, times(7)).findAutoConfirmTargets(any(), afterId.capture(), anyInt());
+            // 상한에 닿은 두 실행은 남은 대상 확인 조회(40 · 20)가 한 번씩 더 있다
+            assertThat(afterId.getAllValues()).containsExactly(0L, 20L, 40L, 40L, 60L, 0L, 20L);
+            verify(orderService).confirmAutomatically(5L, 50L);
+            verify(orderService).confirmAutomatically(6L, 60L);
+            assertThat(output).containsPattern(
+                "WARN.*스케줄러 상한 도달: job=auto-confirm targets=4 processed=4 failed=0 batches=2 maxPerRun=4 "
+                    + "resumeAfterId=40 interval=PT10M");
         }
 
         @Test
