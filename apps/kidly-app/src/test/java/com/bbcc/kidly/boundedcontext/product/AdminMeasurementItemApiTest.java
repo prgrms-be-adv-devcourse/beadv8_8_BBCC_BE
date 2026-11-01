@@ -103,19 +103,6 @@ class AdminMeasurementItemApiTest {
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
-    @Test
-    @DisplayName("로그인하지 않으면 401, 관리자가 아니면 403을 준다")
-    void rejectNonAdmin() {
-        Map<String, Object> body = Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm");
-        post(TestMembers.anonymous(), body).expectStatus().isUnauthorized();
-        post(TestMembers.buyer(1L), body).expectStatus().isForbidden();
-        post(TestMembers.seller(2L), body).expectStatus().isForbidden();
-        client.get().uri(PATH)
-            .headers(TestMembers.seller(2L))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
     private RestTestClient.ResponseSpec post(Consumer<HttpHeaders> login, Object body) {
         return client.post().uri(PATH)
             .headers(login)

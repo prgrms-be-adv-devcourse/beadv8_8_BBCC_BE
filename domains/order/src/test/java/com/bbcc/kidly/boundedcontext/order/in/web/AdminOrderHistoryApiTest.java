@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.order.in.web;
 
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
-import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.order.in.web.AdminOrderController.ADMIN_ORDERS_PATH;
 import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -134,24 +133,6 @@ class AdminOrderHistoryApiTest {
             .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
-    }
-
-    @Test
-    @DisplayName("토큰이 없으면 401, 구매자 · 판매자 토큰이면 403")
-    void adminOnly() {
-        String orderId = placeOrder();
-
-        client.get().uri(historyPath(orderId))
-            .exchange()
-            .expectStatus().isUnauthorized();
-        client.get().uri(historyPath(orderId))
-            .headers(TestMembers.buyer(BUYER_ID))
-            .exchange()
-            .expectStatus().isForbidden();
-        client.get().uri(historyPath(orderId))
-            .headers(TestMembers.seller(SELLER_ID))
-            .exchange()
-            .expectStatus().isForbidden();
     }
 
     private static String historyPath(String orderId) {

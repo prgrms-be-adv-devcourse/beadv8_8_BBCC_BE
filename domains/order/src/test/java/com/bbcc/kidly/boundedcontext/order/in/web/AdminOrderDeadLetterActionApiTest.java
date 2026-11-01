@@ -327,21 +327,6 @@ class AdminOrderDeadLetterActionApiTest {
         closeWith(999_999L, "메모").expectStatus().isNotFound();
     }
 
-    @Test
-    @DisplayName("토큰이 없으면 401, 구매자 · 판매자 토큰이면 403(재처리 · 종료)")
-    void adminOnly() {
-        client.post().uri(DEAD_LETTERS_PATH + "/1/reprocess").exchange().expectStatus().isUnauthorized();
-        client.post().uri(DEAD_LETTERS_PATH + "/1/close").contentType(MediaType.APPLICATION_JSON)
-            .body(Map.of("memo", "m")).exchange().expectStatus().isUnauthorized();
-        for (var login : List.of(TestMembers.buyer(BUYER_ID), TestMembers.seller(BUYER_ID))) {
-            client.post().uri(DEAD_LETTERS_PATH + "/1/reprocess").headers(login)
-                .exchange().expectStatus().isForbidden();
-            client.post().uri(DEAD_LETTERS_PATH + "/1/close").headers(login)
-                .contentType(MediaType.APPLICATION_JSON).body(Map.of("memo", "m"))
-                .exchange().expectStatus().isForbidden();
-        }
-    }
-
     private RestTestClient.ResponseSpec reprocess(Long id) {
         return client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
             .headers(TestMembers.admin(ADMIN_ID))

@@ -209,14 +209,6 @@ class ProductSaleStartApiTest {
             "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
     }
 
-    @Test
-    @DisplayName("토큰이 없으면 401, 판매자가 아닌 회원이면 403이다")
-    void rejectWithoutSellerRole() {
-        startSale(TestMembers.anonymous(), ON_SALE).expectStatus().isUnauthorized();
-        startSale(TestMembers.buyer(SELLER_ID), ON_SALE).expectStatus().isForbidden();
-        assertThat(storedStatus()).isEqualTo("SALE_PENDING");
-    }
-
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"SALE_PENDING", "FOO"})
     @DisplayName("판매 시작(ON_SALE)이나 판매 중지(STOPPED)가 아닌 판매 상태를 보내면 400이고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")

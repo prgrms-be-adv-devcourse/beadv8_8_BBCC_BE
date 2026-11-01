@@ -7,9 +7,25 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class MemberHeadersTest {
+
+    @Test
+    @DisplayName("회원 ID는 Long 범위의 숫자다")
+    void parsesMemberId() {
+        assertThat(MemberHeaders.parseMemberId("7")).contains(7L);
+        assertThat(MemberHeaders.parseMemberId("9223372036854775807")).contains(Long.MAX_VALUE);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"-7", "+7", " 7", "9223372036854775808", "9999999999999999999", "abc", "7a"})
+    @DisplayName("회원 ID가 없거나 음수 · 부호 · 공백 · Long 범위 초과 · 숫자가 아니면 빈 값이다")
+    void rejectsInvalidMemberId(String value) {
+        assertThat(MemberHeaders.parseMemberId(value)).isEmpty();
+    }
 
     @Test
     @DisplayName("역할 이름을 쉼표로 잇고, 디코딩하면 같은 역할이다")

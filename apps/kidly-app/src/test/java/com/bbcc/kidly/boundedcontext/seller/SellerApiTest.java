@@ -43,13 +43,6 @@ class SellerApiTest {
     }
 
     @Test
-    @DisplayName("판매자가 아니면 403이다")
-    void forbiddenForBuyer() {
-        get(TestMembers.buyer(MEMBER_ID))
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("토큰 없이 조회하면 401이다")
     void unauthenticated() {
         get(TestMembers.anonymous())

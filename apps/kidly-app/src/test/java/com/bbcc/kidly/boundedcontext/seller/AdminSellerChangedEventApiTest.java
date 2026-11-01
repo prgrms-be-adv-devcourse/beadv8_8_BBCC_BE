@@ -13,8 +13,6 @@ import java.time.LocalDateTime;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -30,7 +28,6 @@ class AdminSellerChangedEventApiTest {
     private static final Long ADMIN_ID = SellerFixture.ADMIN_ID;
     private static final Long ACTIVE_SELLER_ID = 1L;
     private static final Long SUSPENDED_SELLER_ID = 2L;
-    private static final Long BUYER_ID = 3L;
 
     @Autowired
     private RestTestClient client;
@@ -63,25 +60,6 @@ class AdminSellerChangedEventApiTest {
                 tuple(SUSPENDED_SELLER_ID, SellerFixture.BUSINESS_NAME, SellerStatus.SUSPENDED));
         assertThat(sellerRepository.getById(ACTIVE_SELLER_ID).getStatus()).isEqualTo(SellerStatus.ACTIVE);
         assertThat(sellerRepository.getById(SUSPENDED_SELLER_ID).getStatus()).isEqualTo(SellerStatus.SUSPENDED);
-    }
-
-    @ParameterizedTest(name = "{0} → {1}")
-    @CsvSource({"없음, 401", "판매자, 403", "구매자, 403"})
-    @DisplayName("토큰이 없으면 401, 관리자가 아닌 회원(판매자 · 구매자)이면 403이고, 판매자 변경됨은 나가지 않는다")
-    void rejectWithoutAdminRole(String member, int status) {
-        sellerRepository.save(SellerFixture.activeSeller(ACTIVE_SELLER_ID));
-        eventRecorder.clear();
-
-        republish(headersOf(member)).expectStatus().isEqualTo(status);
-        assertThat(eventRecorder.events(SellerChangedEvent.class)).isEmpty();
-    }
-
-    private Consumer<HttpHeaders> headersOf(String member) {
-        return switch (member) {
-            case "판매자" -> TestMembers.seller(ACTIVE_SELLER_ID);
-            case "구매자" -> TestMembers.buyer(BUYER_ID);
-            default -> null;
-        };
     }
 
     private RestTestClient.ResponseSpec republish(Consumer<HttpHeaders> login) {

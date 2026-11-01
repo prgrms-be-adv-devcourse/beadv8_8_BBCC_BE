@@ -60,15 +60,6 @@ class SellerSettlementApiTest {
     }
 
     @Test
-    @DisplayName("구매자는 조회할 수 없다. 403이다")
-    void targetsForbidden() {
-        client.get().uri(TARGETS_PATH)
-            .headers(TestMembers.buyer(SettlementFixture.SELLER_ID))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("판매자는 본인의 정산서 목록을 조회한다")
     void settlements() {
         settlementRepository.save(SettlementFixture.settlement(
@@ -134,15 +125,6 @@ class SellerSettlementApiTest {
             .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
             .exchange()
             .expectStatus().isBadRequest();
-    }
-
-    @Test
-    @DisplayName("구매자는 정산서를 조회할 수 없다. 403이다")
-    void settlementsForbidden() {
-        client.get().uri(SETTLEMENTS_PATH)
-            .headers(TestMembers.buyer(SettlementFixture.SELLER_ID))
-            .exchange()
-            .expectStatus().isForbidden();
     }
 
     @Test

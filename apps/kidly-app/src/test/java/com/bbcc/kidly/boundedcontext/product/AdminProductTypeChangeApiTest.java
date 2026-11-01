@@ -134,17 +134,6 @@ class AdminProductTypeChangeApiTest {
             link(clothing.color().getId(), "SIZE", true, true, false, List.of())))), HttpStatus.BAD_REQUEST);
     }
 
-    @Test
-    @DisplayName("관리자가 아니면 상품 유형 설정을 바꿀 수 없다. 비로그인은 401, 구매자 · 판매자는 403이다")
-    void rejectNonAdminTypeChange() {
-        Map<String, Object> body = Map.of("attributes", List.of(
-            link(clothing.color().getId(), "OPTION", true, true, false, List.of())));
-
-        putWith(TestMembers.anonymous(), typePath(hatType), body).expectStatus().isUnauthorized();
-        putWith(TestMembers.buyer(1L), typePath(hatType), body).expectStatus().isForbidden();
-        putWith(TestMembers.seller(2L), typePath(hatType), body).expectStatus().isForbidden();
-    }
-
     // 의류 유형을 쓰는 의류 > 상의 카테고리에 상품 A를 저장한다
     private void saveProductOfClothingType() {
         Product.RegisterInfo info = ProductFixture.productA(clothing);

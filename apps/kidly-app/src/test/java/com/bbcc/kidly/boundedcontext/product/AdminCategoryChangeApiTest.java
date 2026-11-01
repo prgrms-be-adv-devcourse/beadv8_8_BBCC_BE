@@ -140,16 +140,6 @@ class AdminCategoryChangeApiTest {
             HttpStatus.BAD_REQUEST);
     }
 
-    @Test
-    @DisplayName("관리자가 아니면 카테고리 설정을 바꿀 수 없다. 비로그인은 401, 구매자 · 판매자는 403이다")
-    void rejectNonAdminCategoryChange() {
-        Map<String, Object> body = categoryChange(hatType.getId(), List.of());
-
-        putWith(TestMembers.anonymous(), categoryPath(hat), body).expectStatus().isUnauthorized();
-        putWith(TestMembers.buyer(1L), categoryPath(hat), body).expectStatus().isForbidden();
-        putWith(TestMembers.seller(2L), categoryPath(hat), body).expectStatus().isForbidden();
-    }
-
     // 상품 A(의류 > 상의, 의류 유형)를 저장하고 그 카테고리를 돌려준다
     private Category savedProductCategory() {
         Product.RegisterInfo info = ProductFixture.productA(clothing);

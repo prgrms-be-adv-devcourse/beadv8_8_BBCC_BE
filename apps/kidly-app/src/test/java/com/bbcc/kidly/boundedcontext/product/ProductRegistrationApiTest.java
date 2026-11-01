@@ -127,16 +127,6 @@ class ProductRegistrationApiTest {
     }
 
     @Test
-    @DisplayName("판매자가 아닌 회원은 403을 받는다")
-    void rejectBuyer() {
-        client.post().uri(PATH)
-            .headers(TestMembers.buyer(SELLER_ID))
-            .body(productA(saved))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("없는 카테고리로 등록하면 404를 받는다")
     void rejectUnknownCategory() {
         Map<String, Object> body = productA(saved);

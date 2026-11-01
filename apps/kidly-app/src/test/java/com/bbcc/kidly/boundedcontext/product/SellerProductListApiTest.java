@@ -79,13 +79,6 @@ class SellerProductListApiTest {
             .jsonPath("$.hasNext").isEqualTo(false);
     }
 
-    @Test
-    @DisplayName("토큰이 없으면 401, 판매자가 아닌 회원이면 403이다")
-    void rejectWithoutSellerRole() {
-        list(TestMembers.anonymous()).expectStatus().isUnauthorized();
-        list(TestMembers.buyer(SELLER_ID)).expectStatus().isForbidden();
-    }
-
     // 등록 API로 판매대기 상품을 만들고 상품 ID를 돌려준다
     private String register(long sellerId, Map<String, Object> body) {
         return client.post().uri(PRODUCTS_PATH)

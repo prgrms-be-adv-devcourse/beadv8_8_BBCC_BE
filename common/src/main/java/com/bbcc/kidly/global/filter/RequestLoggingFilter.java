@@ -1,5 +1,6 @@
 package com.bbcc.kidly.global.filter;
 
+import com.bbcc.kidly.shared.auth.MemberHeaders;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,7 +37,7 @@ import tools.jackson.core.JacksonException;
  * 클라이언트가 UUID 형식의 X-Request-Id를 보내면 그 값을 이어서 쓴다.
  * actuator 요청(헬스체크 · 메트릭 수집)은 2xx가 아닐 때만 로그를 남긴다.
  * 로그에는 IP · 경로 패턴 · 쿼리 · User-Agent · 헤더 · JSON 본문(각 UTF-8 3,000바이트)을 비밀값을 가려 붙인다({@link LogMasker}).
- * 회원 ID는 인증 뒤 MDC에 들어오고(security.MemberIdMdcFilter) 요청이 끝나면 여기서 지운다.
+ * 회원 ID는 Gateway가 붙인 X-Member-Id 헤더로 MDC에 넣고(Long 범위의 숫자가 아니면 넣지 않는다) 요청이 끝나면 지운다.
  */
 @Slf4j
 @Component
@@ -65,6 +66,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         throws ServletException, IOException {
         String traceId = resolveTraceId(request);
         MDC.put(TRACE_ID_MDC_KEY, traceId);
+        memberId(request).ifPresent(memberId -> MDC.put(MEMBER_ID_MDC_KEY, String.valueOf(memberId)));
         response.setHeader(TRACE_ID_HEADER, traceId);
 
         var path = PathContainer.parsePath(request.getRequestURI());
@@ -162,6 +164,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         } catch (JacksonException e) {
             return UNREADABLE_JSON;
         }
+    }
+
+    // Gateway가 밖에서 온 X-Member-* 헤더를 지우고 붙인 값이다. 로그인이 필요 없는 API의 로그에도 남는다
+    private static Optional<Long> memberId(HttpServletRequest request) {
+        return MemberHeaders.parseMemberId(request.getHeader(MemberHeaders.MEMBER_ID));
     }
 
     private String resolveTraceId(HttpServletRequest request) {

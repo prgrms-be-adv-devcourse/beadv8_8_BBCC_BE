@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.order.in.web;
 
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
-import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.order.in.web.AdminOrderController.ADMIN_ORDERS_PATH;
 import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -127,27 +126,6 @@ class AdminOrderApiTest {
             .jsonPath("$.page").isEqualTo(1073741824)
             .jsonPath("$.totalElements").isEqualTo(1)
             .jsonPath("$.hasNext").isEqualTo(false);
-    }
-
-    @Test
-    @DisplayName("토큰이 없으면 401")
-    void unauthorized() {
-        client.get().uri(ADMIN_ORDERS_PATH)
-            .exchange()
-            .expectStatus().isUnauthorized();
-    }
-
-    @Test
-    @DisplayName("구매자 · 판매자 토큰이면 403")
-    void forbiddenForNonAdmin() {
-        client.get().uri(ADMIN_ORDERS_PATH)
-            .headers(TestMembers.buyer(BUYER_ID))
-            .exchange()
-            .expectStatus().isForbidden();
-        client.get().uri(ADMIN_ORDERS_PATH)
-            .headers(TestMembers.seller(SELLER_ID))
-            .exchange()
-            .expectStatus().isForbidden();
     }
 
     private String placeOrder(Long memberId, int quantity) {

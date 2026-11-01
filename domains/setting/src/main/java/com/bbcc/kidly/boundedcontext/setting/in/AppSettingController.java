@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.setting.in;
 
 import com.bbcc.kidly.boundedcontext.setting.app.AppSettingService;
 import com.bbcc.kidly.boundedcontext.setting.in.dto.AppSettingResponse;
-import com.bbcc.kidly.global.security.PublicApi;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,7 +15,6 @@ public class AppSettingController {
 
     private final AppSettingService appSettingService;
 
-    @PublicApi
     @GetMapping("/api/v1/settings")
     public AppSettingResponse get() {
         return AppSettingResponse.from(appSettingService.get());

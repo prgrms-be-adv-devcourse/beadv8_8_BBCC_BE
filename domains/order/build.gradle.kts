@@ -8,8 +8,6 @@ dependencies {
     // 기능 테스트의 로그인 헤더(common TestMembers)
     testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-security-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
@@ -56,9 +54,4 @@ val functionalTest = tasks.register<Test>("functionalTest") {
 
 tasks.check {
     dependsOn(integrationTest, functionalTest)
-}
-
-// 테스트 설정의 JWT 키(config/jwt/local-*.pem)가 루트 기준 상대 경로라 루트에서 실행한다
-tasks.withType<Test> {
-    workingDir = rootDir
 }

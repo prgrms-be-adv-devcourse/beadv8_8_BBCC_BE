@@ -194,24 +194,6 @@ class AdminStuckOrderApiTest {
             .jsonPath("$.hasNext").isEqualTo(false);
     }
 
-    @Test
-    @DisplayName("토큰이 없으면 401, 구매자 · 판매자 토큰이면 403(요약 · 목록 모두)")
-    void adminOnly() {
-        for (String path : List.of(STUCK_PATH + "/summary", STUCK_PATH + "?kind=SHIPPING_DELAYED")) {
-            client.get().uri(path)
-                .exchange()
-                .expectStatus().isUnauthorized();
-            client.get().uri(path)
-                .headers(TestMembers.buyer(BUYER_ID))
-                .exchange()
-                .expectStatus().isForbidden();
-            client.get().uri(path)
-                .headers(TestMembers.seller(SELLER_ID))
-                .exchange()
-                .expectStatus().isForbidden();
-        }
-    }
-
     /**
      * 결제 요청 전인 결제대기 주문을 주문 시각 orderedAt으로 만든다(기본 기준 5분 뒤가 since).
      */

@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.payment.in;
 
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeReconcileService;
 import com.bbcc.kidly.boundedcontext.payment.in.dto.TossWebhookRequest;
-import com.bbcc.kidly.global.security.PublicApi;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,7 +18,6 @@ public class TossWebhookController {
 
     private final ChargeReconcileService chargeReconcileService;
 
-    @PublicApi
     @PostMapping("/api/v1/webhooks/toss")
     public ResponseEntity<Void> receive(@RequestBody TossWebhookRequest request) {
         if (request.isPaymentCancelled()) {

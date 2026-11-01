@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 판매자 주문(배송) API. 판매자 본인의 배송만 다룬다. SELLER 권한은 SecurityConfig가 확인한다.
+ * 판매자 주문(배송) API. 판매자 본인의 배송만 다룬다. SELLER 권한은 Gateway가 확인한다.
  */
 @RestController
 @RequestMapping(SellerOrderController.SELLER_ORDERS_PATH)

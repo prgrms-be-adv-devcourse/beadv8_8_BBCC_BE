@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product;
 
-import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
@@ -18,11 +17,8 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -41,7 +37,6 @@ class AdminProductChangedEventApiTest {
     private static final long ON_SALE_SELLER_ID = 7L;
     private static final long STOPPED_SELLER_ID = 8L;
     private static final long PENDING_SELLER_ID = 9L;
-    private static final long BUYER_ID = 10L;
 
     @Autowired
     private RestTestClient client;
@@ -124,26 +119,6 @@ class AdminProductChangedEventApiTest {
             .containsExactlyInAnyOrder(
                 tuple(String.valueOf(firstProductId), "product.changed", "kidly.product.events"),
                 tuple(String.valueOf(secondProductId), "product.changed", "kidly.product.events"));
-    }
-
-    @ParameterizedTest(name = "{0} → {1}")
-    @CsvSource({"없음, 401", "판매자, 403", "구매자, 403"})
-    @DisplayName("토큰이 없으면 401, 관리자가 아닌 회원(판매자 · 구매자)이면 403이고, 상품 정보 변경됨은 나가지 않는다")
-    void rejectWithoutAdminRole(String member, int status) {
-        Long productId = register(ON_SALE_SELLER_ID);
-        changeSaleStatus(ON_SALE_SELLER_ID, productId, "ON_SALE");
-        eventRecorder.clear();
-
-        assertProblem(republish(headersOf(member)), HttpStatus.valueOf(status));
-        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
-    }
-
-    private Consumer<HttpHeaders> headersOf(String member) {
-        return switch (member) {
-            case "판매자" -> TestMembers.seller(ON_SALE_SELLER_ID);
-            case "구매자" -> TestMembers.buyer(BUYER_ID);
-            default -> null;
-        };
     }
 
     private RestTestClient.ResponseSpec republish(Consumer<HttpHeaders> login) {

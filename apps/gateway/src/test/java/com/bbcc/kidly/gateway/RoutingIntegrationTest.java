@@ -21,7 +21,6 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
  * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
- * 가짜 백엔드도 서비스처럼 CORS 헤더를 붙이므로 응답에 같은 헤더가 하나만 남는지도 본다.
  */
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
@@ -131,18 +130,15 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("서비스도 CORS 헤더를 붙여도 응답에는 하나씩만 남는다")
-    void dedupesCorsHeaders() {
+    @DisplayName("서비스 응답에 Gateway가 CORS 헤더를 붙인다(서비스는 CORS를 하지 않는다)")
+    void addsCorsHeadersToBackendResponse() {
         corsGet()
             .expectStatus().isOk()
             .expectHeader().values(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
                 values -> assertThat(values).containsExactly(ORIGIN))
             .expectHeader().values(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
                 values -> assertThat(values).containsExactly("true"))
-            // Vary는 Gateway 값(Origin 외 프리플라이트 헤더 둘)을 잃지 않고 겹친 Origin만 하나로 줄인다
-            .expectHeader().values(HttpHeaders.VARY, values -> assertThat(values)
-                .containsOnlyOnce(HttpHeaders.ORIGIN)
-                .contains(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS));
+            .expectHeader().values(HttpHeaders.VARY, values -> assertThat(values).contains(HttpHeaders.ORIGIN));
     }
 
     @Test

@@ -3,19 +3,19 @@ package com.bbcc.kidly.boundedcontext.member;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.app.AuthTokenService;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.SellerState;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.global.security.JwtProperties;
+import com.bbcc.kidly.shared.auth.Role;
+import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
+import com.bbcc.kidly.support.IssuedAccessToken;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +33,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
@@ -46,14 +47,13 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * seller.changed가 커밋되면 kidly.seller.events를 거쳐 회원의 판매자 상태 복사본을 갱신하고,
- * SELLER를 잃으면 Access Token을 무효화한다(#608).
+ * SELLER를 잃으면 Access Token을 무효화한다(#608). 무효화는 kidly.member.events에 온 member.tokens-revoked로 본다.
  * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 판매자 이벤트(판매자 ID 1, 2 …)도 쌓여 이어서 받을 수 있으므로
  * 회원 ID를 테스트마다 무작위로 정해 저장하고, 결과는 이 테스트의 회원 · 키로 걸러 본다.
  */
@@ -62,6 +62,7 @@ import tools.jackson.databind.json.JsonMapper;
 class MemberSellerEventKafkaIntegrationTest {
 
     private static final String TOPIC = "kidly.seller.events";
+    private static final String MEMBER_TOPIC = "kidly.member.events";
     private static final String GROUP = "kidly.member";
     private static final String DLT = "kidly.seller.events.member.dlt";
     private static final String LISTENER_ID = "memberSellerEventListener";
@@ -81,13 +82,7 @@ class MemberSellerEventKafkaIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private AccessTokenRevocationService accessTokenRevocationService;
-
-    @Autowired
     private AuthTokenService authTokenService;
-
-    @Autowired
-    private JwtProperties jwtProperties;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -105,18 +100,29 @@ class MemberSellerEventKafkaIntegrationTest {
 
     private MessageListenerContainer listener;
 
+    private KafkaConsumer<String, String> memberEventConsumer;
+    private final List<ConsumerRecord<String, String>> memberEvents = new ArrayList<>();
+
     // 읽기 시작 위치가 latest라 파티션을 배정받기 전에 보낸 메시지는 받지 못한다
     @BeforeEach
     void startListener() {
         listener = kafkaListenerEndpointRegistry.getListenerContainer(LISTENER_ID);
         listener.start();
         AsyncWait.until(TIMEOUT, () -> !listener.getAssignedPartitions().isEmpty());
+        memberEventConsumer = new KafkaConsumer<>(Map.of(
+            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
+            ConsumerConfig.GROUP_ID_CONFIG, "member-seller-test-" + UUID.randomUUID(),
+            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
+            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
+            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
+        memberEventConsumer.subscribe(List.of(MEMBER_TOPIC));
     }
 
     // stop()은 처리 중인 메시지가 끝날 때까지 기다리므로 뒤이은 테이블 비우기와 겹치지 않는다
     @AfterEach
     void stopListener() {
         listener.stop();
+        memberEventConsumer.close();
     }
 
     @Test
@@ -142,9 +148,9 @@ class MemberSellerEventKafkaIntegrationTest {
 
         publishInTransaction(sellerChanged(SellerStatus.SUSPENDED, APPROVED_AT.plusDays(1)));
 
-        AsyncWait.until(TIMEOUT, this::isRevoked);
+        AsyncWait.until(TIMEOUT, () -> tokensRevokedCount() > 0);
         assertThat(sellerState().status()).isEqualTo(SellerStatus.SUSPENDED);
-        assertThat(rolesOfNewToken()).doesNotContain("SELLER");
+        assertThat(rolesOfNewToken()).doesNotContain(Role.SELLER);
     }
 
     @Test
@@ -156,8 +162,8 @@ class MemberSellerEventKafkaIntegrationTest {
 
         awaitProcessed(sent);
         assertThat(sellerState().status()).isEqualTo(SellerStatus.ACTIVE);
-        assertThat(rolesOfNewToken()).contains("SELLER");
-        assertThat(isRevoked()).isFalse();
+        assertThat(rolesOfNewToken()).contains(Role.SELLER);
+        assertThat(tokensRevokedCountAfterMarker()).isZero();
     }
 
     @Test
@@ -169,7 +175,7 @@ class MemberSellerEventKafkaIntegrationTest {
 
         awaitProcessed(sent);
         assertThat(sellerState().status()).isEqualTo(SellerStatus.ACTIVE);
-        assertThat(isRevoked()).isFalse();
+        assertThat(tokensRevokedCountAfterMarker()).isZero();
     }
 
     @Test
@@ -180,7 +186,7 @@ class MemberSellerEventKafkaIntegrationTest {
         var sent = sendChanged(sellerChanged(SellerStatus.SUSPENDED, APPROVED_AT));
 
         awaitProcessed(sent);
-        assertThat(isRevoked()).isFalse();
+        assertThat(tokensRevokedCountAfterMarker()).isZero();
     }
 
     @Test
@@ -189,14 +195,13 @@ class MemberSellerEventKafkaIntegrationTest {
         save(MemberFixture.withSellerState(SellerStatus.ACTIVE));
         var event = sellerChanged(SellerStatus.SUSPENDED, APPROVED_AT.plusDays(1));
         sendChanged(event);
-        AsyncWait.until(TIMEOUT, this::isRevoked);
-        var firstRevokedAt = revokedAt();
+        AsyncWait.until(TIMEOUT, () -> tokensRevokedCount() > 0);
 
         var second = sendChanged(event);
 
         awaitProcessed(second);
         assertThat(sellerState()).isEqualTo(new SellerState(SellerStatus.SUSPENDED, APPROVED_AT.plusDays(1)));
-        assertThat(revokedAt()).isEqualTo(firstRevokedAt);
+        assertThat(tokensRevokedCountAfterMarker()).isEqualTo(1);
     }
 
     @Test
@@ -254,20 +259,37 @@ class MemberSellerEventKafkaIntegrationTest {
         return memberRepository.getById(memberId).getSellerState();
     }
 
-    private boolean isRevoked() {
-        return accessTokenRevocationService.isRevoked(memberId, Instant.now().minusSeconds(60));
+    // 지금까지 받은 회원 이벤트 중 이 테스트 회원 키의 member.tokens-revoked 수
+    private long tokensRevokedCount() {
+        memberEventConsumer.poll(Duration.ofMillis(200)).forEach(memberEvents::add);
+        return memberEvents.stream()
+            .filter(record -> String.valueOf(memberId).equals(record.key()))
+            .filter(record -> "member.tokens-revoked".equals(header(record, "eventType")))
+            .count();
     }
 
-    // 역할만 확인한다. 무효화 검증이 있는 jwtDecoder는 무효화와 같은 초에 발급한 토큰을 거절하므로 쓰지 않는다
-    private List<String> rolesOfNewToken() {
-        var claimsDecoder = NimbusJwtDecoder.withPublicKey(jwtProperties.rsaPublicKey()).build();
-        var jwt = claimsDecoder.decode(authTokenService.issueAccessToken(memberRepository.getById(memberId)));
-        return jwt.getClaimAsStringList("roles");
+    // 무효화하지 않았음을 보려면 기다릴 기준이 필요하다. 회원 이벤트는 한 스레드가 받은 순서대로 보내고 같은 키는 같은 파티션이라,
+    // 처리가 끝난 뒤 같은 회원 키로 보낸 확인용 member.changed가 왔으면 그 앞의 무효화도 이미 와 있다
+    private long tokensRevokedCountAfterMarker() {
+        var marker = new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new MemberChangedEvent.Data(memberId, "확인용닉네임"));
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(marker));
+        AsyncWait.until(TIMEOUT, () -> {
+            memberEventConsumer.poll(Duration.ofMillis(200)).forEach(memberEvents::add);
+            return memberEvents.stream()
+                .anyMatch(record -> marker.eventId().toString().equals(header(record, "eventId")));
+        });
+        return tokensRevokedCount();
     }
 
-    private LocalDateTime revokedAt() {
-        return jdbcTemplate.queryForObject(
-            "SELECT revoked_at FROM member.access_token_revocation WHERE member_id = ?", LocalDateTime.class, memberId);
+    private List<Role> rolesOfNewToken() {
+        var token = authTokenService.issueAccessToken(memberRepository.getById(memberId));
+        return IssuedAccessToken.decode(token).roles();
+    }
+
+    private static String header(ConsumerRecord<String, String> record, String name) {
+        Header header = record.headers().lastHeader(name);
+        return header == null ? null : new String(header.value(), UTF_8);
     }
 
     private void publishInTransaction(SellerChangedEvent event) {

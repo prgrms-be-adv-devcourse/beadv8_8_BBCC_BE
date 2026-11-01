@@ -13,16 +13,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 
 /**
  * Gateway 뒤의 서비스(kidly-app · search-service) 대신 받는 가짜 백엔드. 마지막으로 받은 요청만 기억하고 200 ok로 답한다.
- * 서비스처럼 CORS 헤더를 붙여 답한다(Gateway도 붙이므로 하나만 남는지 확인한다).
  * 응답 헤더를 더 붙이려면 addResponseHeader를 쓴다. reset()이 지운다.
  */
 public class RecordingBackend implements AutoCloseable {
 
+    // Gateway가 허용하는 프론트 origin(application-test.yml cors.allowed-origins)
     public static final String ALLOWED_ORIGIN = "http://localhost:5173";
     private static final byte[] OK = "ok".getBytes(UTF_8);
 
@@ -73,9 +72,6 @@ public class RecordingBackend implements AutoCloseable {
             lastRequest.set(new RecordedRequest(exchange.getRequestMethod(), exchange.getRequestURI(),
                 Map.copyOf(exchange.getRequestHeaders())));
             var headers = exchange.getResponseHeaders();
-            headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN);
-            headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
-            headers.add(HttpHeaders.VARY, HttpHeaders.ORIGIN);
             extraResponseHeaders.forEach(headers::add);
             exchange.sendResponseHeaders(HttpStatus.OK.value(), OK.length);
             exchange.getResponseBody().write(OK);

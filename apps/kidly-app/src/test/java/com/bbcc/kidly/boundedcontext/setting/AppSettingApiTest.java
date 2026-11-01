@@ -87,28 +87,4 @@ class AppSettingApiTest {
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
-    @Test
-    @DisplayName("로그인하지 않으면 바꿀 수 없다. 401이다")
-    void updateWithoutToken() {
-        client.put().uri(ADMIN_PATH)
-            .contentType(MediaType.APPLICATION_JSON)
-            .body("""
-                {"useMock": false}
-                """)
-            .exchange()
-            .expectStatus().isUnauthorized();
-    }
-
-    @Test
-    @DisplayName("관리자가 아니면 바꿀 수 없다. 403이다")
-    void updateForbiddenForBuyer() {
-        client.put().uri(ADMIN_PATH)
-            .headers(TestMembers.buyer(1L))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body("""
-                {"useMock": false}
-                """)
-            .exchange()
-            .expectStatus().isForbidden();
-    }
 }

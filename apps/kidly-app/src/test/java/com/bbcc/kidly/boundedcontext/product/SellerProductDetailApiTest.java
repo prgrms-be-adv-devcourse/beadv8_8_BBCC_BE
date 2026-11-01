@@ -234,15 +234,6 @@ class SellerProductDetailApiTest {
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
-    @Test
-    @DisplayName("토큰이 없으면 401, 판매자가 아닌 회원이면 403이다")
-    void rejectWithoutSellerRole() {
-        ProductRegisterResponse registered = register(productA(saved));
-
-        detail(TestMembers.anonymous(), registered.productId()).expectStatus().isUnauthorized();
-        detail(TestMembers.buyer(SELLER_ID), registered.productId()).expectStatus().isForbidden();
-    }
-
     // 등록 API로 판매자 7의 판매대기 상품을 만든다
     private ProductRegisterResponse register(Map<String, Object> body) {
         return client.post().uri(PRODUCTS_PATH)

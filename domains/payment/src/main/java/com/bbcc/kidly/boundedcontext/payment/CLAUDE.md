@@ -83,7 +83,7 @@
 - 아직 없음(다음 이슈): 부분 취소
 
 ### 토스에서 직접 취소한 충전 맞추기 (#207)
-- 토스 웹훅 `POST /api/v1/webhooks/toss`(`@PublicApi`). 토스 상점관리자에 이 URL을 등록해야 동작한다(배포 주소가 정해지면 등록)
+- 토스 웹훅 `POST /api/v1/webhooks/toss`(로그인 없이 호출). 토스 상점관리자에 이 URL을 등록해야 동작한다(배포 주소가 정해지면 등록)
 - `PAYMENT_STATUS_CHANGED` 중 상태가 `CANCELED` · `PARTIAL_CANCELED`인 것만 본다. 나머지 이벤트 · 우리 충전이 아닌 주문번호 · 완료(DONE)가 아닌 충전은 200으로 넘어간다
 - 토스 웹훅에는 서명이 없어 본문은 믿지 않는다. 주문번호로 토스를 다시 조회(`PaymentGateway.findCancellationByOrderId`)해 확정한다
 

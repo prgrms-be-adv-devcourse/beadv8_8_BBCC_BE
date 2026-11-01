@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -173,16 +172,6 @@ class ProductListApiTest {
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content[*].productId").isEqualTo(List.of("1"));
-    }
-
-    @Test
-    @Disabled("gateway 모드: 토큰 검증은 Gateway가 한다. #638 Task 3에서 지운다")
-    @DisplayName("로그인 없이 부를 수 있는 API여도 잘못된 토큰을 보내면 401을 받는다")
-    void rejectInvalidToken() {
-        client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth("invalid-token"))
-            .exchange()
-            .expectStatus().isUnauthorized();
     }
 
     private void persist(ProductSearchDocument... documents) {

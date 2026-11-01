@@ -14,7 +14,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -165,31 +164,6 @@ class AdminAttributeApiTest {
         post(TestMembers.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")).expectStatus().isCreated();
 
         assertProblem(post(TestMembers.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")), HttpStatus.CONFLICT);
-    }
-
-    @Test
-    @DisplayName("로그인하지 않으면 항목 API는 401을 준다")
-    void rejectAnonymous() {
-        post(TestMembers.anonymous(), PATH, attribute("색상", "COLOR", "PALETTE", List.of()))
-            .expectStatus().isUnauthorized();
-        client.get().uri(PATH).exchange().expectStatus().isUnauthorized();
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("nonAdminMembers")
-    @DisplayName("관리자가 아니면 항목 API는 403을 준다")
-    void rejectNonAdmin(String role, Consumer<HttpHeaders> login) {
-        post(login, PATH, attribute("색상", "COLOR", "PALETTE", List.of())).expectStatus().isForbidden();
-        client.get().uri(PATH)
-            .headers(login)
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    static Stream<Arguments> nonAdminMembers() {
-        return Stream.of(
-            Arguments.of("구매자", TestMembers.buyer(1L)),
-            Arguments.of("판매자", TestMembers.seller(2L)));
     }
 
     private static Map<String, Object> attribute(String name, String code, String inputType, List<?> values) {

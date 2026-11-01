@@ -162,16 +162,6 @@ class AdminProductSaleStatusApiTest {
             "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
     }
 
-    @Test
-    @DisplayName("토큰이 없으면 401, 관리자가 아닌 회원(판매자)이면 403이다")
-    void rejectWithoutAdminRole() {
-        startSaleBySeller();
-
-        changeSaleStatusByAdmin(TestMembers.anonymous(), STOPPED).expectStatus().isUnauthorized();
-        changeSaleStatusByAdmin(TestMembers.seller(SELLER_ID), STOPPED).expectStatus().isForbidden();
-        assertThat(storedStatus()).isEqualTo("ON_SALE");
-    }
-
     // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
         response

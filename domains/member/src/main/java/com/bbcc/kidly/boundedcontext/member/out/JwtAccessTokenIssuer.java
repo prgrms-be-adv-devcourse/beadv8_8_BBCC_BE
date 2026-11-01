@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.member.out;
 
 import com.bbcc.kidly.boundedcontext.member.app.port.AccessTokenIssuer;
-import com.bbcc.kidly.global.security.JwtProperties;
 import com.bbcc.kidly.shared.auth.AccessTokenClaims;
 import com.bbcc.kidly.shared.auth.Role;
 import java.time.Duration;

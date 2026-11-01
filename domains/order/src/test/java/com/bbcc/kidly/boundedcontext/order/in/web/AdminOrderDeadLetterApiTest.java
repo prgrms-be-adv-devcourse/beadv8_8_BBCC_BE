@@ -291,19 +291,6 @@ class AdminOrderDeadLetterApiTest {
             .expectStatus().isBadRequest();
     }
 
-    @Test
-    @DisplayName("토큰이 없으면 401, 구매자 · 판매자 토큰이면 403(목록 · 상세)")
-    void adminOnly() {
-        client.get().uri(DEAD_LETTERS_PATH).exchange().expectStatus().isUnauthorized();
-        client.get().uri(DEAD_LETTERS_PATH + "/1").exchange().expectStatus().isUnauthorized();
-        for (var login : List.of(TestMembers.buyer(BUYER_ID), TestMembers.seller(BUYER_ID))) {
-            client.get().uri(DEAD_LETTERS_PATH).headers(login)
-                .exchange().expectStatus().isForbidden();
-            client.get().uri(DEAD_LETTERS_PATH + "/1").headers(login)
-                .exchange().expectStatus().isForbidden();
-        }
-    }
-
     private Long receive(long offset, String eventType, String key, String exceptionClass) {
         return receive(PAYMENT_TOPIC, offset, eventType, key, exceptionClass);
     }

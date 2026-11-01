@@ -86,23 +86,6 @@ class AdminPaymentApiTest {
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
-    @Test
-    @DisplayName("로그인하지 않으면 401")
-    void withoutToken() {
-        client.get().uri(ADMIN_PAYMENTS_PATH)
-            .exchange()
-            .expectStatus().isUnauthorized();
-    }
-
-    @Test
-    @DisplayName("관리자가 아니면 403")
-    void notAdmin() {
-        client.get().uri(ADMIN_PAYMENTS_PATH)
-            .headers(TestMembers.buyer(MEMBER_ID))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
     private RestTestClient.ResponseSpec getAsAdmin(String uri) {
         return client.get().uri(uri)
             .headers(TestMembers.admin(ADMIN_ID))

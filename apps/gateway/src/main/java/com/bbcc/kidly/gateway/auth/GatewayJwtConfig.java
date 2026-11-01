@@ -15,7 +15,7 @@ import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 
 /**
- * 공개키로 서명을 확인하고, 기본 검사(만료 등, 시계 오차 60초) 뒤 무효화된 회원인지 본다. common SecurityConfig와 같은 규칙이다.
+ * 공개키로 서명을 확인하고, 기본 검사(만료 등, 시계 오차 60초) 뒤 무효화된 회원인지 본다.
  */
 @Configuration
 class GatewayJwtConfig {

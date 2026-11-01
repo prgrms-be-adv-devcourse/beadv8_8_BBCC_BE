@@ -135,18 +135,6 @@ class InventoryAdjustmentApiTest {
             HttpStatus.NOT_FOUND, "옵션을 찾을 수 없습니다", "옵션을 다시 확인해 주세요.", MISSING_OPTION_ID);
     }
 
-    @Test
-    @DisplayName("로그인하지 않으면 401, 판매자가 아닌 회원이면 403으로 거절하고 아무것도 바꾸지 않는다")
-    void rejectWithoutSellerRole() {
-        Map<String, Object> restock = Map.of("deltaQuantity", 10, "reason", "RESTOCK");
-
-        adjust(TestMembers.anonymous(), option.getId(), restock).expectStatus().isUnauthorized();
-        adjust(TestMembers.buyer(SELLER_ID), option.getId(), restock).expectStatus().isForbidden();
-
-        assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(5);
-        assertThat(sellerAdjustments(option)).isEmpty();
-    }
-
     @ParameterizedTest(name = "{0} {1}")
     @CsvSource({"product, SALE_PENDING", "product, STOPPED", "product_option, STOPPED", "product_option, ARCHIVED"})
     @DisplayName("판매를 시작하기 전이거나 판매를 멈춘 상품, 판매를 멈추거나 보관한 옵션도 재고를 조정할 수 있다")

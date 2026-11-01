@@ -5,6 +5,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -21,6 +22,19 @@ public final class MemberHeaders {
     private static final String ROLE_DELIMITER = ",";
 
     private MemberHeaders() {
+    }
+
+    // 없거나, 0-9로만 된 Long 범위의 수가 아니면(부호 · 공백 포함) 빈 값이다
+    public static Optional<Long> parseMemberId(String value) {
+        if (value == null || value.isEmpty() || !value.chars().allMatch(c -> c >= '0' && c <= '9')) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Long.parseLong(value));
+        } catch (NumberFormatException e) {
+            // Long 범위를 넘는다
+            return Optional.empty();
+        }
     }
 
     // 역할 이름(roles 클레임 값, Role.name())을 쉼표로 잇는다(BUYER,SELLER). 역할이 없으면 빈 문자열

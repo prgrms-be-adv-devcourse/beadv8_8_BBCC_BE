@@ -86,19 +86,6 @@ class AdminSellerApiTest {
             .expectStatus().isBadRequest();
     }
 
-    @Test
-    @DisplayName("구매자는 정지할 수 없다. 403이다")
-    void suspendForbiddenForBuyer() {
-        var seller = sellerRepository.save(SellerFixture.activeSeller(1L));
-
-        client.post().uri(PATH + "/{id}/suspend", seller.getId())
-            .headers(TestMembers.buyer(2L))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(new SellerSuspendRequest(REASON))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
     private RestTestClient.ResponseSpec suspend(Long sellerId, String reason) {
         return client.post().uri(PATH + "/{id}/suspend", sellerId)
             .headers(TestMembers.admin(ADMIN_ID))

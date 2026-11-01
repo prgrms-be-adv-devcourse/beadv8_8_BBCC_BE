@@ -16,7 +16,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -176,24 +175,6 @@ class AdminCategoryApiTest {
         assertProblem(post(TestMembers.admin(ADMIN_ID), category("의류", null, null, List.of())), HttpStatus.CONFLICT);
         assertProblem(
             post(TestMembers.admin(ADMIN_ID), category("의류", null, productTypeId, List.of())), HttpStatus.CONFLICT);
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("nonAdminMembers")
-    @DisplayName("관리자가 아니면 카테고리를 만들거나 조회할 수 없다")
-    void rejectNonAdmin(String role, Consumer<HttpHeaders> login, HttpStatus status) {
-        post(login, category("의류", null, null, List.of())).expectStatus().isEqualTo(status);
-        client.get().uri(PATH)
-            .headers(login)
-            .exchange()
-            .expectStatus().isEqualTo(status);
-    }
-
-    static Stream<Arguments> nonAdminMembers() {
-        return Stream.of(
-            Arguments.of("비로그인은 401", null, HttpStatus.UNAUTHORIZED),
-            Arguments.of("구매자는 403", TestMembers.buyer(1L), HttpStatus.FORBIDDEN),
-            Arguments.of("판매자는 403", TestMembers.seller(2L), HttpStatus.FORBIDDEN));
     }
 
     private String createdCategoryId(Map<String, Object> body) {

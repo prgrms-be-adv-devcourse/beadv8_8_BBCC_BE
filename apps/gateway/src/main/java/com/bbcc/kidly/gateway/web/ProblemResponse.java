@@ -13,7 +13,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * Gateway가 막은 요청에 400 · 401 · 403 ProblemDetail을 쓴다. 본문은 kidly-app(SecurityProblemHandler)과 같아야 한다:
+ * Gateway가 막은 요청에 400 · 401 · 403 ProblemDetail을 쓴다. 본문은 서비스(GlobalExceptionHandler)와 같아야 한다:
  * 문구는 common CommonErrorCode.INVALID_INPUT · UNAUTHORIZED · FORBIDDEN, 5필드는 common ProblemDetails와 같다.
  * 직렬화는 WebFlux가 쓰는 코덱(Boot JsonMapper)으로 한다.
  */

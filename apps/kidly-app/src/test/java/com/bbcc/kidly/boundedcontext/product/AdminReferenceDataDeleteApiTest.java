@@ -113,17 +113,6 @@ class AdminReferenceDataDeleteApiTest {
             HttpStatus.NOT_FOUND);
     }
 
-    @Test
-    @DisplayName("관리자가 아니면 기준 데이터를 지울 수 없다. 비로그인은 401, 구매자 · 판매자는 403이다")
-    void rejectNonAdmin() {
-        SavedClothingTop saved = clothingTopSaver.save();
-        String path = "/api/v1/admin/categories/" + saved.top().getId();
-
-        deleteWith(TestMembers.anonymous(), path).expectStatus().isUnauthorized();
-        deleteWith(TestMembers.buyer(1L), path).expectStatus().isForbidden();
-        deleteWith(TestMembers.seller(2L), path).expectStatus().isForbidden();
-    }
-
     private RestTestClient.ResponseSpec delete(String path) {
         return deleteWith(TestMembers.admin(ADMIN_ID), path);
     }

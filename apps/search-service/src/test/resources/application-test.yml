@@ -11,17 +11,7 @@ spring:
 springdotenv:
   enabled: false
 
-# 로컬과 같은 개발용 키를 쓴다. 운영 키와 다르다
-jwt:
-  public-key: file:config/jwt/local-public.pem
-
-cors:
-  allowed-origins: http://localhost:5173
-
 kidly:
-  # 서비스는 Gateway 뒤에서 X-Member-* 헤더로 로그인 회원을 만든다(토큰을 보지 않는다)
-  auth:
-    mode: gateway
   search:
     index:
       # 로컬 bootRun(local-*)과 색인이 섞이지 않게 한다. 테스트 컨테이너는 따로 뜨지만 이름으로도 나눈다

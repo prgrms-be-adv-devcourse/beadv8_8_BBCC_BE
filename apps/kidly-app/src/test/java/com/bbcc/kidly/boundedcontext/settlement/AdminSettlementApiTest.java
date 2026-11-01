@@ -91,17 +91,6 @@ class AdminSettlementApiTest {
     }
 
     @Test
-    @DisplayName("판매자는 실행할 수 없다. 403이다")
-    void runForbidden() {
-        client.post().uri(RUN_PATH)
-            .headers(TestMembers.seller(2L))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(new SettlementRunRequest(LocalDate.now().withDayOfMonth(1)))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("실행 기록을 id로 조회한다")
     void getRun() {
         var created = run(LocalDate.now().withDayOfMonth(1)).expectStatus().isCreated()
@@ -187,15 +176,6 @@ class AdminSettlementApiTest {
     @DisplayName("상태 값이 잘못되면 400이다")
     void settlementsInvalidStatus() {
         getSettlements(SETTLEMENTS_PATH + "?status=READY").expectStatus().isBadRequest();
-    }
-
-    @Test
-    @DisplayName("판매자는 관리자 정산서 목록을 볼 수 없다. 403이다")
-    void settlementsForbidden() {
-        client.get().uri(SETTLEMENTS_PATH)
-            .headers(TestMembers.seller(2L))
-            .exchange()
-            .expectStatus().isForbidden();
     }
 
     @Test

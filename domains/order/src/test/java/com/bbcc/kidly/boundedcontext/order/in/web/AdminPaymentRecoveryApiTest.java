@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.web;
 
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
-import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.order.in.web.AdminOrderController.ADMIN_ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -250,24 +249,6 @@ class AdminPaymentRecoveryApiTest {
             post("999999", action).expectStatus().isNotFound()
                 .expectBody()
                 .jsonPath("$.title").isEqualTo("결제 반영 실패 기록을 찾을 수 없습니다");
-        }
-    }
-
-    @Test
-    @DisplayName("토큰이 없으면 401, 구매자 · 판매자 토큰이면 403(목록 · 재처리 · 취소)")
-    void adminOnly() {
-        client.get().uri(RECOVERIES_PATH).exchange().expectStatus().isUnauthorized();
-        client.post().uri(RECOVERIES_PATH + "/1/retry").exchange().expectStatus().isUnauthorized();
-        for (var login : List.of(TestMembers.buyer(BUYER_ID), TestMembers.seller(SELLER_ID))) {
-            client.get().uri(RECOVERIES_PATH)
-                .headers(login)
-                .exchange().expectStatus().isForbidden();
-            client.post().uri(RECOVERIES_PATH + "/1/retry")
-                .headers(login)
-                .exchange().expectStatus().isForbidden();
-            client.post().uri(RECOVERIES_PATH + "/1/cancel")
-                .headers(login)
-                .exchange().expectStatus().isForbidden();
         }
     }
 

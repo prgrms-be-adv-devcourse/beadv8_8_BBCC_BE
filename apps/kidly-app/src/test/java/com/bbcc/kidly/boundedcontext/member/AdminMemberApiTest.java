@@ -17,7 +17,6 @@ import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.IssuedAccessToken;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,7 +33,6 @@ class AdminMemberApiTest {
 
     private static final String PATH = "/api/v1/admin/members";
     private static final String REASON = "욕설이 담긴 리뷰로 신고가 접수되었어요.";
-    private static final String ME_PATH = "/api/v1/members/me";
     private static final Long ADMIN_ID = 100L;
 
     @Autowired
@@ -117,21 +115,6 @@ class AdminMemberApiTest {
     }
 
     @Test
-    @DisplayName("구매자는 목록을 볼 수 없다. 403이다")
-    void listForbiddenForBuyer() {
-        client.get().uri(PATH)
-            .headers(TestMembers.buyer(2L))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
-    @DisplayName("토큰이 없으면 401이다")
-    void listUnauthorized() {
-        client.get().uri(PATH).exchange().expectStatus().isUnauthorized();
-    }
-
-    @Test
     @DisplayName("정지하면 204이고 회원은 SUSPENDED가 된다")
     void suspend() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
@@ -154,25 +137,6 @@ class AdminMemberApiTest {
 
         client.post().uri("/api/v1/auth/reissue")
             .cookie("refresh_token", refreshToken)
-            .exchange()
-            .expectStatus().isUnauthorized();
-    }
-
-    @Test
-    @Disabled("gateway 모드: Access Token 무효화는 Gateway가 확인한다. #638 Task 3에서 지운다")
-    @DisplayName("정지하면 정지 전에 발급된 Access Token은 바로 401이다")
-    void suspendRevokesAccessToken() {
-        var member = memberRepository.save(MemberFixture.kakaoMember());
-        var login = TestMembers.buyer(member.getId());
-        client.get().uri(ME_PATH)
-            .headers(login)
-            .exchange()
-            .expectStatus().isOk();
-
-        suspend(member.getId(), REASON).expectStatus().isNoContent();
-
-        client.get().uri(ME_PATH)
-            .headers(login)
             .exchange()
             .expectStatus().isUnauthorized();
     }
@@ -221,19 +185,6 @@ class AdminMemberApiTest {
 
         suspend(member.getId(), "가".repeat(MemberPolicy.SUSPEND_REASON_MAX_LENGTH + 1))
             .expectStatus().isBadRequest();
-    }
-
-    @Test
-    @DisplayName("구매자는 정지할 수 없다. 403이다")
-    void suspendForbiddenForBuyer() {
-        var member = memberRepository.save(MemberFixture.kakaoMember());
-
-        client.post().uri(PATH + "/{id}/suspend", member.getId())
-            .headers(TestMembers.buyer(2L))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(new MemberSuspendRequest(REASON))
-            .exchange()
-            .expectStatus().isForbidden();
     }
 
     @Test
@@ -301,17 +252,6 @@ class AdminMemberApiTest {
     }
 
     @Test
-    @DisplayName("구매자는 관리자를 지정할 수 없다. 403이다")
-    void grantAdminForbiddenForBuyer() {
-        var member = memberRepository.save(MemberFixture.kakaoMember());
-
-        client.post().uri(PATH + "/{id}/grant-admin", member.getId())
-            .headers(TestMembers.buyer(2L))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("관리자 권한을 해제하면 204이고 USER가 된다")
     void revokeAdmin() {
         var admin = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
@@ -319,25 +259,6 @@ class AdminMemberApiTest {
         revokeAdmin(admin.getId(), ADMIN_ID).expectStatus().isNoContent();
 
         assertThat(memberRepository.findById(admin.getId()).orElseThrow().getRole()).isEqualTo(MemberRole.USER);
-    }
-
-    @Test
-    @Disabled("gateway 모드: Access Token 무효화는 Gateway가 확인한다. #638 Task 3에서 지운다")
-    @DisplayName("관리자 권한을 해제하면 그 관리자가 가진 Access Token은 바로 401이다")
-    void revokeAdminRevokesAccessToken() {
-        var admin = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
-        var login = TestMembers.admin(admin.getId());
-        client.get().uri(PATH)
-            .headers(login)
-            .exchange()
-            .expectStatus().isOk();
-
-        revokeAdmin(admin.getId(), ADMIN_ID).expectStatus().isNoContent();
-
-        client.get().uri(PATH)
-            .headers(login)
-            .exchange()
-            .expectStatus().isUnauthorized();
     }
 
     @Test

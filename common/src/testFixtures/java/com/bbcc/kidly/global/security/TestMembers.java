@@ -8,7 +8,7 @@ import org.springframework.http.HttpHeaders;
 
 /**
  * 기능 테스트에서 로그인한 회원을 Gateway가 붙이는 X-Member-* 헤더로 보낸다. 예: {@code .headers(TestMembers.buyer(1L))}
- * 서비스 테스트는 kidly.auth.mode: gateway로 돌아 토큰 없이 이 헤더만으로 로그인한다.
+ * 서비스는 토큰을 보지 않고 이 헤더만으로 로그인 회원을 만든다(LoginMemberArgumentResolver).
  */
 public final class TestMembers {
 

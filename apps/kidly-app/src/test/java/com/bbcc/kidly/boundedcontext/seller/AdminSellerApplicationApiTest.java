@@ -129,26 +129,6 @@ class AdminSellerApplicationApiTest {
     }
 
     @Test
-    @DisplayName("구매자는 목록을 볼 수 없다. 403이다")
-    void forbiddenForBuyer() {
-        client.get().uri(PATH)
-            .headers(TestMembers.buyer(1L))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
-    @DisplayName("구매자는 승인할 수 없다. 403이다")
-    void approveForbiddenForBuyer() {
-        var applicationId = apply(1L);
-
-        client.post().uri(PATH + "/{id}/approve", applicationId)
-            .headers(TestMembers.buyer(2L))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("거절하면 REJECTED 신청을 돌려주고, 신청자의 신청 조회에 거절 사유가 보인다")
     void reject() {
         var applicationId = apply(1L);
@@ -216,19 +196,6 @@ class AdminSellerApplicationApiTest {
 
         reject(applicationId, "가".repeat(SellerPolicy.REJECT_REASON_MAX_LENGTH + 1))
             .expectStatus().isBadRequest();
-    }
-
-    @Test
-    @DisplayName("구매자는 거절할 수 없다. 403이다")
-    void rejectForbiddenForBuyer() {
-        var applicationId = apply(1L);
-
-        client.post().uri(PATH + "/{id}/reject", applicationId)
-            .headers(TestMembers.buyer(2L))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(new SellerApplicationRejectRequest(SellerFixture.REJECT_REASON))
-            .exchange()
-            .expectStatus().isForbidden();
     }
 
     private PageResponse<SellerApplicationSummaryResponse> list(String query) {

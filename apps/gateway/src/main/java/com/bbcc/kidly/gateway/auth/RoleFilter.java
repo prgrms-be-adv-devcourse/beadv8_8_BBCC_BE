@@ -18,7 +18,7 @@ import reactor.core.publisher.Mono;
  * 판매자 · 관리자 API의 역할을 검사한다. 토큰이 없으면(X-Member-Id가 없으면) 401, 역할이 없으면 403이고 넘기지 않는다.
  * 그 밖의 경로는 그대로 넘긴다(로그인이 필요한지는 서비스가 정한다).
  * AccessTokenFilter 뒤에 돌므로 X-Member-* 헤더는 Gateway가 토큰에서 붙인 값뿐이다(밖에서 온 것은 지워졌다).
- * /**는 0개 이상의 경로 조각이라 /api/v1/admin 자체도 맞고 /api/v1/administrator는 맞지 않는다(서비스 SecurityConfig와 같다).
+ * /**는 0개 이상의 경로 조각이라 /api/v1/admin 자체도 맞고 /api/v1/administrator는 맞지 않는다(서비스가 역할을 검사하던 규칙과 같다).
  */
 @Component
 @RequiredArgsConstructor
