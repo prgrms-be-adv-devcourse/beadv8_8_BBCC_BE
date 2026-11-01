@@ -28,7 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 판매자별 주문(배송): 결제완료 뒤 만들기 · 발송 · 배송 완료 · 판매자 목록. 남의 배송은 없는 배송으로 본다.
+ * 판매자별 주문(배송): 결제완료 뒤 만들기 · 발송 · 배송 완료 · 발송 전 취소(#655) · 판매자 목록. 남의 배송은 없는 배송으로 본다.
  * 주문 읽기 · 배송 완료 시각 반영 · 상태 이력은 {@link DeliveryOrders}로 한다(주문 컨텍스트, #641).
  * 주문이 쓰는 기능은 {@link DeliveryOperations} · {@link ShippingDelays}로 내준다.
  */
@@ -42,6 +42,7 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     private static final String PAYMENT_COMPLETED = "payment.completed";
     private static final String SELLER_SHIP = "POST /api/v1/seller/orders/{sellerOrderId}/ship";
     private static final String SELLER_DELIVER = "POST /api/v1/seller/orders/{sellerOrderId}/deliver";
+    private static final String SELLER_CANCEL = "POST /api/v1/seller/orders/{sellerOrderId}/cancel";
     private static final String SELLER = "SELLER";
     // 택배 조회 스케줄러가 바꾼 상태 이력의 주체(#650, 주문 OrderActor의 scheduler:{작업} 이름 규칙과 같음)
     private static final String SYSTEM = "SYSTEM";
@@ -50,6 +51,7 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
 
     private final DeliveryRepository deliveryRepository;
     private final DeliveryOrders deliveryOrders;
+    private final PartialCancelProperties partialCancelProperties;
 
     /**
      * 주문상품을 판매자로 묶어 판매자마다 배송 준비 1건을 만든다. 주문이 없으면 만들지 않는다.
@@ -153,6 +155,43 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     }
 
     /**
+     * 판매자 발송 전 몫 취소(#655): 배송 READY → CANCELLED, 그 판매자 주문상품 취소(모두 취소면 주문도 취소) · 이력 ·
+     * order-item.cancelled를 한 트랜잭션으로 처리한다. 발송과 동시에 오면 배송 @Version으로 한쪽만 성공한다.
+     * 확인 순서: 스위치 꺼짐 409 → 모르는 사유 400 → 없거나 남의 배송 404 → 이미 취소 · 발송됨 409.
+     * 메모는 로그에 남기지 않는다.
+     */
+    public DeliveryResult cancel(Long memberId, Long deliveryId, String reason, String memo) {
+        if (!partialCancelProperties.enabled()) {
+            throw new BusinessException(DeliveryErrorCode.PARTIAL_CANCEL_DISABLED);
+        }
+        SellerCancelReason parsed = toCancelReason(reason);
+        Delivery delivery = findOwned(memberId, deliveryId);
+        LocalDateTime now = LocalDateTime.now();
+        Delivery.Status from = delivery.getStatus();
+        try {
+            delivery.cancelBySeller();
+        } catch (DeliveryRuleViolationException e) {
+            throw DeliveryErrors.toBusiness(e);
+        }
+        DeliveryOrders.Actor actor = new DeliveryOrders.Actor(SELLER, memberId, SELLER_CANCEL);
+        DeliveryOrders.CancelledShare share = deliveryOrders.cancelSellerItems(delivery.getOrderId(),
+                delivery.getSellerId(), parsed.name(), memo, actor, now)
+            // 배송을 READY로 읽은 뒤 주문 잠금을 기다리는 사이 구매자 취소가 먼저 커밋했으면 취소할 주문상품이 없다.
+            // 이미 취소된 것이므로 409로 끝내고 배송 취소도 되돌린다
+            .orElseThrow(() -> {
+                log.warn("판매자 취소 무시: orderId={} deliveryId={} reason=no-cancellable-items",
+                    delivery.getOrderId(), deliveryId);
+                return new BusinessException(DeliveryErrorCode.ALREADY_CANCELLED);
+            });
+        deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), actor, from.name(),
+            delivery.getStatus().name(), parsed.name(), now);
+        log.info("판매자 발송 전 취소: orderId={} deliveryId={} sellerId={} cancellationId={} reason={} orderCancelled={}",
+            delivery.getOrderId(), delivery.getId(), delivery.getSellerId(), share.cancellationId(), parsed,
+            share.orderCancelled());
+        return DeliveryResult.from(delivery);
+    }
+
+    /**
      * 택배 조회 대상(#650): 발송 중이고 조회를 멈추지 않은 배송을 ID 커서로 limit건.
      */
     @Transactional(readOnly = true)
@@ -237,6 +276,13 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     private Delivery findOwned(Long memberId, Long deliveryId) {
         return deliveryRepository.findByIdAndSellerId(deliveryId, memberId)
             .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
+    }
+
+    private static SellerCancelReason toCancelReason(String reason) {
+        return Arrays.stream(SellerCancelReason.values())
+            .filter(candidate -> candidate.name().equals(reason))
+            .findFirst()
+            .orElseThrow(() -> new BusinessException(DeliveryErrorCode.INVALID_CANCEL_REASON));
     }
 
     private Delivery.Carrier toCarrier(String carrier) {

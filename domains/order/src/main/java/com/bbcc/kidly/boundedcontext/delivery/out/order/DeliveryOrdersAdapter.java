@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.in.DeliveryRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.DeliveryRecorder.HistoryActor;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup.OrderView;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.SellerItemCancellation;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 배송할 주문을 주문 컨텍스트의 주문 조회 포트로 읽고, 배송 결과를 배송 반영 포트로 남긴다(#641).
+ * 판매자 발송 전 몫 취소는 판매자 취소 포트로 반영한다(#655).
  * 같은 앱 안의 동기 호출이라 부르는 쪽 트랜잭션에 합류한다.
  */
 @Component
@@ -22,6 +24,7 @@ public class DeliveryOrdersAdapter implements DeliveryOrders {
 
     private final OrderLookup orderLookup;
     private final DeliveryRecorder deliveryRecorder;
+    private final SellerItemCancellation sellerItemCancellation;
 
     @Override
     public Optional<Order> findOrder(Long orderId) {
@@ -43,6 +46,14 @@ public class DeliveryOrdersAdapter implements DeliveryOrders {
         LocalDateTime occurredAt) {
         deliveryRecorder.recordDeliveryHistory(orderId, deliveryId,
             new HistoryActor(actor.type(), actor.id(), actor.source()), from, to, reason, occurredAt);
+    }
+
+    @Override
+    public Optional<CancelledShare> cancelSellerItems(Long orderId, Long sellerId, String reason, String memo,
+        Actor actor, LocalDateTime now) {
+        return sellerItemCancellation.cancelSellerItems(orderId, sellerId, reason, memo,
+                new HistoryActor(actor.type(), actor.id(), actor.source()), now)
+            .map(share -> new CancelledShare(share.cancellationId(), share.orderItemIds(), share.orderCancelled()));
     }
 
     private static Order toOrder(OrderView order) {

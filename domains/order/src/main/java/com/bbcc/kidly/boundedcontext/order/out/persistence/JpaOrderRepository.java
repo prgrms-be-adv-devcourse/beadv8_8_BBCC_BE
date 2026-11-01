@@ -3,11 +3,13 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
@@ -15,6 +17,14 @@ import org.springframework.data.repository.Repository;
  * 주문 저장소 포트를 Spring Data JPA로 구현한다. 포트에 선언한 메서드만 노출한다.
  */
 public interface JpaOrderRepository extends Repository<Order, Long>, OrderRepository {
+
+    /**
+     * SELECT … FOR UPDATE. 잠금 대기 시간은 따로 두지 않는다(앞 트랜잭션이 끝나면 바로 풀림).
+     */
+    @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o where o.id = :id")
+    Optional<Order> findByIdForUpdate(Long id);
 
     /**
      * 주문상품을 fetch join으로 함께 읽는다. 주문상품 순서는 @OrderBy와 같게 ID 오름차순으로 명시한다.

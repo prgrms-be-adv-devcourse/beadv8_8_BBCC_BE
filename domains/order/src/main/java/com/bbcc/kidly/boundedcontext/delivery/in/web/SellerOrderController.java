@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.delivery.in.web;
 
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
+import com.bbcc.kidly.boundedcontext.delivery.in.web.dto.CancelSellerOrderRequest;
 import com.bbcc.kidly.boundedcontext.delivery.in.web.dto.DeliveryResponse;
 import com.bbcc.kidly.boundedcontext.delivery.in.web.dto.SellerOrderResponse;
 import com.bbcc.kidly.boundedcontext.delivery.in.web.dto.ShipRequest;
@@ -58,5 +59,18 @@ public class SellerOrderController {
     @PostMapping("/{sellerOrderId}/deliver")
     public DeliveryResponse deliver(@LoginMember AuthMember member, @PathVariable Long sellerOrderId) {
         return DeliveryResponse.from(deliveryService.complete(member.id(), sellerOrderId));
+    }
+
+    /**
+     * 발송 전 자기 몫 취소(#655). 배송 취소 · 주문상품 취소 · 이벤트를 서비스 메서드 하나(한 트랜잭션)에 맡긴다.
+     * 스위치(kidly.order.partial-cancel.enabled)가 꺼져 있으면 409.
+     */
+    @PostMapping("/{sellerOrderId}/cancel")
+    public DeliveryResponse cancel(
+        @LoginMember AuthMember member,
+        @PathVariable Long sellerOrderId,
+        @Valid @RequestBody CancelSellerOrderRequest request) {
+        return DeliveryResponse.from(
+            deliveryService.cancel(member.id(), sellerOrderId, request.reason(), request.memo()));
     }
 }

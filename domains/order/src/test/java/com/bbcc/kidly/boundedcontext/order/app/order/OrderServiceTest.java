@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
+import com.bbcc.kidly.boundedcontext.delivery.app.PartialCancelProperties;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.delivery.out.order.DeliveryOrdersAdapter;
@@ -119,8 +120,9 @@ class OrderServiceTest {
     void setUp() {
         // 배송은 어댑터 + 배송 컨텍스트의 실제 들어오는 포트 구현에 배송 저장소 mock을 넣어 쓴다(#617 · #641: 주문 동작은 그대로)
         ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository);
+        // 판매자 취소(#655)는 주문 서비스 흐름에 없으므로 포트 구현 없이(null) · 스위치 꺼짐으로 둔다
         DeliveryService delivery = new DeliveryService(deliveryRepository,
-            new DeliveryOrdersAdapter(provided, provided));
+            new DeliveryOrdersAdapter(provided, provided, null), new PartialCancelProperties(false));
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
             new OrderDeliveriesAdapter(delivery, delivery),
             sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY,

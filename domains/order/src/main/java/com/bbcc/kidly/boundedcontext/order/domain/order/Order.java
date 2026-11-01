@@ -64,13 +64,15 @@ public class Order extends OrderTimeEntity {
     }
 
     /**
-     * 주문 취소 사유.
+     * 주문 취소 사유. SELLER_CANCELLED는 판매자들이 발송 전 자기 몫을 모두 취소해 주문이 취소된 것이다(#655).
+     * 그때는 order.cancelled를 보내지 않으므로 이 값은 다른 도메인으로 나가지 않는다(주문 상세 · 관리자 목록 · 타임라인에만 보인다).
      */
     public enum CancelReason {
         OUT_OF_STOCK,
         PAYMENT_FAILED,
         PAYMENT_EXPIRED,
-        BUYER_CANCELLED
+        BUYER_CANCELLED,
+        SELLER_CANCELLED
     }
 
     /**
@@ -411,6 +413,29 @@ public class Order extends OrderTimeEntity {
         return TransitionResult.APPLIED;
     }
 
+    /**
+     * 판매자가 발송 전 자기 몫을 취소한다(#655). 결제완료 주문에서 그 판매자의 주문됨 · 배송 전 주문상품을 모두 취소하고,
+     * 모든 주문상품이 취소됐으면 주문도 취소한다(사유 SELLER_CANCELLED). 배송이 READY인지는 배송이 먼저 확인한다.
+     *
+     * @param cancellationId 이 취소의 기록 ID(주문상품에 남긴다)
+     * @return 이번에 취소한 주문상품(주문상품 순서). 결제완료가 아니거나 취소할 주문상품이 없으면 빈 목록이고 아무것도 바꾸지 않는다
+     */
+    public List<OrderItem> cancelSellerItems(Long sellerId, OrderItem.CancelReason reason, Long cancellationId,
+        LocalDateTime now) {
+        if (status != Status.PAID) {
+            return List.of();
+        }
+        List<OrderItem> cancelled = items.stream()
+            .filter(item -> Objects.equals(item.getProduct().sellerId(), sellerId))
+            .filter(item -> item.cancel(reason, cancellationId, now))
+            .toList();
+        if (!cancelled.isEmpty() && items.stream().allMatch(item -> item.getStatus() == OrderItem.Status.CANCELLED)) {
+            this.status = Status.CANCELLED;
+            this.cancelReason = CancelReason.SELLER_CANCELLED;
+        }
+        return cancelled;
+    }
+
     public void recordDelivered(Long sellerId, LocalDateTime at) {
         for (OrderItem item : items) {
             if (Objects.equals(item.getProduct().sellerId(), sellerId)) {
@@ -420,7 +445,8 @@ public class Order extends OrderTimeEntity {
     }
 
     /**
-     * 구매자가 직접 구매확정한다. 주문에 없는 주문상품이면 404, 배송 전이면 409, 이미 확정이면 그대로 둔다.
+     * 구매자가 직접 구매확정한다. 주문에 없는 주문상품이면 404, 판매자가 취소했으면 409(#655), 배송 전이면 409,
+     * 이미 확정이면 그대로 둔다.
      *
      * @return APPLIED 이번에 확정함 · ALREADY_DONE 이미 확정. 이 메서드는 NOT_APPLICABLE을 돌려주지 않는다(예외로 알림)
      */
@@ -429,6 +455,9 @@ public class Order extends OrderTimeEntity {
             .orElseThrow(() -> new OrderRuleViolationException(Rule.ORDER_ITEM_NOT_FOUND));
         if (item.getStatus() == OrderItem.Status.CONFIRMED) {
             return TransitionResult.ALREADY_DONE;
+        }
+        if (item.getStatus() == OrderItem.Status.CANCELLED) {
+            throw new OrderRuleViolationException(Rule.ORDER_ITEM_CANCELLED);
         }
         if (item.getDeliveredAt() == null) {
             throw new OrderRuleViolationException(Rule.NOT_DELIVERED);

@@ -30,6 +30,12 @@ public interface OrderRepository {
     Optional<Order> findById(Long id);
 
     /**
+     * 주문 1건을 SELECT … FOR UPDATE로 읽는다(#655). 같은 주문의 판매자 취소가 동시에 오면 뒤쪽이 앞쪽 커밋을 기다렸다가
+     * 그 결과(다른 몫의 취소)를 보고 판단한다. 주문 행 → 배송 행 순서로 잠그므로 구매자 취소(주문 → 배송)와 순서가 같다.
+     */
+    Optional<Order> findByIdForUpdate(Long id);
+
+    /**
      * 바뀐 주문을 지금 DB에 반영한다(#449). 받은 이벤트 처리 실패를 리스너 안에서 잡아 보관하려고 쓴다.
      */
     void flush();

@@ -994,4 +994,106 @@ class OrderTest {
             assertThat(OrderFixture.paidOrder().isPaidAfterCancel(999L)).isFalse();
         }
     }
+
+    @Nested
+    @DisplayName("판매자 발송 전 몫 취소 (#655)")
+    class CancelSellerItems {
+
+        private static final Long CANCELLATION_ID = 90L;
+
+        @Test
+        @DisplayName("그 판매자 주문상품만 CANCELLED(사유 · 취소 ID · 시각), 다른 판매자 몫 · 주문 상태는 그대로")
+        void onlySellersItems() {
+            Order order = OrderFixture.paidOrder();
+
+            List<OrderItem> cancelled = order.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OUT_OF_STOCK,
+                CANCELLATION_ID, NOW);
+
+            OrderItem itemA = itemOf(order, SELLER_A_ID);
+            assertThat(cancelled).containsExactly(itemA);
+            assertThat(itemA.getStatus()).isEqualTo(OrderItem.Status.CANCELLED);
+            assertThat(itemA.getCancelReason()).isEqualTo(OrderItem.CancelReason.OUT_OF_STOCK);
+            assertThat(itemA.getCancellationId()).isEqualTo(CANCELLATION_ID);
+            assertThat(itemA.getCancelledAt()).isEqualTo(NOW);
+            assertThat(itemOf(order, SELLER_B_ID).getStatus()).isEqualTo(OrderItem.Status.ORDERED);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(order.getCancelReason()).isNull();
+        }
+
+        @Test
+        @DisplayName("마지막 판매자 몫까지 취소되면 주문도 CANCELLED(사유 SELLER_CANCELLED)")
+        void lastShareCancelsOrder() {
+            Order order = OrderFixture.paidOrder();
+            order.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OUT_OF_STOCK, CANCELLATION_ID, NOW);
+
+            order.cancelSellerItems(SELLER_B_ID, OrderItem.CancelReason.OTHER, CANCELLATION_ID + 1, NOW);
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.SELLER_CANCELLED);
+        }
+
+        @Test
+        @DisplayName("같은 판매자를 두 번 취소하면 두 번째는 빈 목록이고 처음 값(사유 · 취소 ID)을 유지한다")
+        void twiceKeepsFirst() {
+            Order order = OrderFixture.paidOrder();
+            order.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OUT_OF_STOCK, CANCELLATION_ID, NOW);
+
+            assertThat(order.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OTHER, 91L, NOW)).isEmpty();
+            assertThat(itemOf(order, SELLER_A_ID).getCancellationId()).isEqualTo(CANCELLATION_ID);
+            assertThat(itemOf(order, SELLER_A_ID).getCancelReason()).isEqualTo(OrderItem.CancelReason.OUT_OF_STOCK);
+        }
+
+        @Test
+        @DisplayName("결제완료가 아니면(결제대기 · 취소됨) 아무것도 바꾸지 않는다")
+        void onlyPaid() {
+            Order pending = OrderFixture.placedOrder();
+            Order cancelled = OrderFixture.paidOrder();
+            cancelled.cancelByBuyer(false);
+
+            assertThat(pending.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OTHER, CANCELLATION_ID, NOW))
+                .isEmpty();
+            assertThat(cancelled.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OTHER, CANCELLATION_ID, NOW))
+                .isEmpty();
+            assertThat(itemOf(pending, SELLER_A_ID).getStatus()).isEqualTo(OrderItem.Status.ORDERED);
+            assertThat(cancelled.getCancelReason()).isEqualTo(Order.CancelReason.BUYER_CANCELLED);
+        }
+
+        @Test
+        @DisplayName("배송 완료된 주문상품은 취소하지 않는다(그 판매자 몫이 이미 배송 완료)")
+        void deliveredIsNotCancelled() {
+            Order order = OrderFixture.deliveredToSellerA();
+
+            assertThat(order.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OTHER, CANCELLATION_ID, NOW))
+                .isEmpty();
+            assertThat(itemOf(order, SELLER_A_ID).getStatus()).isEqualTo(OrderItem.Status.ORDERED);
+        }
+
+        @Test
+        @DisplayName("취소된 주문상품은 배송 완료 기록 · 직접 구매확정(409 ORDER_ITEM_CANCELLED) · 자동 구매확정 대상이 아니다")
+        void cancelledItemIsExcludedFromFollowUps() {
+            Order order = OrderFixture.paidOrder();
+            order.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OUT_OF_STOCK, CANCELLATION_ID, NOW);
+            OrderItem itemA = itemOf(order, SELLER_A_ID);
+
+            order.recordDelivered(SELLER_A_ID, DELIVERED_AT);
+
+            assertThat(itemA.getDeliveredAt()).isNull();
+            assertThatThrownBy(() -> order.confirmItem(itemA.getId(), DELIVERED_AT))
+                .isInstanceOf(OrderRuleViolationException.class)
+                .extracting("rule").isEqualTo(Rule.ORDER_ITEM_CANCELLED);
+            assertThat(order.autoConfirmItem(itemA.getId(), POLICY, DELIVERED_AT.plus(AUTO_CONFIRM_AFTER).plusDays(1)))
+                .isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(itemA.getStatus()).isEqualTo(OrderItem.Status.CANCELLED);
+        }
+
+        @Test
+        @DisplayName("일부 몫이 취소된 결제완료 주문도 구매자가 발송 전이면 전체 취소할 수 있다(사유 BUYER_CANCELLED)")
+        void buyerCanCancelAfterPartial() {
+            Order order = OrderFixture.paidOrder();
+            order.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OUT_OF_STOCK, CANCELLATION_ID, NOW);
+
+            assertThat(order.cancelByBuyer(false)).isEqualTo(TransitionResult.APPLIED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.BUYER_CANCELLED);
+        }
+    }
 }

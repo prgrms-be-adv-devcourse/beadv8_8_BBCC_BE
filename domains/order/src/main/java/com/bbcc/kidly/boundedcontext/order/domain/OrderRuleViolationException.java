@@ -19,6 +19,7 @@ public class OrderRuleViolationException extends RuntimeException {
         CHILD_NOT_ORDERABLE,
         ORDER_ITEM_NOT_FOUND,
         NOT_DELIVERED,
+        ORDER_ITEM_CANCELLED,
         RECOVERY_CLOSED,
         RECOVERY_NOT_RETRYABLE,
         RECOVERY_ORDER_PAID,

@@ -20,7 +20,13 @@ public enum DeliveryErrorCode implements ErrorCode {
         "없는 판매 주문입니다. 판매 주문 목록을 새로고침해 주세요."),
     INVALID_CARRIER(HttpStatus.BAD_REQUEST, "지원하지 않는 택배사입니다",
         "지원하는 택배사는 CJ · EPOST · HANJIN · LOTTE · LOGEN입니다."),
-    DELIVERY_CANCELLED(HttpStatus.CONFLICT, "구매자가 취소한 주문입니다", "구매자가 취소한 주문입니다. 발송하지 마세요.");
+    DELIVERY_CANCELLED(HttpStatus.CONFLICT, "구매자가 취소한 주문입니다", "구매자가 취소한 주문입니다. 발송하지 마세요."),
+    // 판매자 발송 전 취소(#655)
+    ALREADY_CANCELLED(HttpStatus.CONFLICT, "이미 취소된 판매 주문입니다", "이미 취소된 판매 주문입니다. 판매 주문 목록을 새로고침해 주세요."),
+    INVALID_CANCEL_REASON(HttpStatus.BAD_REQUEST, "지원하지 않는 취소 사유입니다",
+        "취소 사유는 OUT_OF_STOCK · WRONG_PRODUCT_INFO · OTHER입니다."),
+    PARTIAL_CANCEL_DISABLED(HttpStatus.CONFLICT, "판매자 취소를 아직 쓸 수 없습니다",
+        "판매자 취소 기능이 꺼져 있습니다. 관리자에게 문의해 주세요.");
 
     private final HttpStatus status;
     private final String title;

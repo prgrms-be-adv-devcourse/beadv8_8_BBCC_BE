@@ -65,8 +65,53 @@ class DeliveryServiceTest {
 
     @BeforeEach
     void setUp() {
+        deliveryService = deliveryService(true);
+    }
+
+    private DeliveryService deliveryService(boolean partialCancelEnabled) {
         ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository);
-        deliveryService = new DeliveryService(deliveryRepository, new DeliveryOrdersAdapter(provided, provided));
+        // 판매자 취소 반영(주문 SellerCancelService)은 여기 경우(꺼짐 · 사유 · 404)에서 불리지 않으므로 없이(null) 둔다.
+        // 불리면 NullPointerException으로 테스트가 실패한다. 반영은 통합 · 기능 테스트가 본다
+        return new DeliveryService(deliveryRepository, new DeliveryOrdersAdapter(provided, provided, null),
+            new PartialCancelProperties(partialCancelEnabled));
+    }
+
+    @Nested
+    @DisplayName("판매자 발송 전 취소 (#655)")
+    class CancelBySeller {
+
+        @Test
+        @DisplayName("스위치가 꺼져 있으면 409 PARTIAL_CANCEL_DISABLED이고 배송 · 주문을 읽지도 바꾸지도 않는다(취소 반영 · 이벤트 없음)")
+        void disabledRejects() {
+            DeliveryService disabled = deliveryService(false);
+
+            assertThatThrownBy(() -> disabled.cancel(SELLER_A_ID, DELIVERY_ID, "OUT_OF_STOCK", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(DeliveryErrorCode.PARTIAL_CANCEL_DISABLED);
+            verify(deliveryRepository, never()).findByIdAndSellerId(any(), any());
+            verify(orderRepository, never()).findById(any());
+            verify(historyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("모르는 사유면 배송을 읽기 전에 400 INVALID_CANCEL_REASON")
+        void invalidReason() {
+            assertThatThrownBy(() -> deliveryService.cancel(SELLER_A_ID, DELIVERY_ID, "out_of_stock", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(DeliveryErrorCode.INVALID_CANCEL_REASON);
+            verify(deliveryRepository, never()).findByIdAndSellerId(any(), any());
+        }
+
+        @Test
+        @DisplayName("없거나 남의 배송이면 404 DELIVERY_NOT_FOUND이고 취소 반영(이력 · 이벤트)이 없다")
+        void notOwned() {
+            when(deliveryRepository.findByIdAndSellerId(DELIVERY_ID, SELLER_A_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> deliveryService.cancel(SELLER_A_ID, DELIVERY_ID, "OTHER", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(DeliveryErrorCode.DELIVERY_NOT_FOUND);
+            verify(historyRepository, never()).save(any());
+        }
     }
 
     @Nested
