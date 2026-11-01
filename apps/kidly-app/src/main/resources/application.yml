@@ -12,6 +12,7 @@ spring:
       - classpath:notification.yml
       - classpath:childprofile.yml
       - classpath:member.yml
+      - classpath:community.yml
   profiles:
     default: local
   # 스키마는 Flyway가 만들고 Hibernate는 엔티티와 맞는지 검사만 한다 (db/migration)
@@ -19,7 +20,7 @@ spring:
     locations: classpath:db/migration
     # 이력 테이블은 public에 둔다. 도메인 스키마도 함께 검사해 테이블이 이미 있으면 첫 마이그레이션(init) 버전으로 baseline을 잡고 건너뛴다
     default-schema: public
-    schemas: public,childprofile,member,orders,payment,product,recommend,seller,settlement,setting,notification
+    schemas: public,childprofile,member,orders,payment,product,recommend,seller,settlement,setting,notification,community
     baseline-on-migrate: true
     baseline-version: 202610160256
     # 버전이 파일을 만든 시각이라, 먼저 만든 PR이 나중에 머지되면 이미 적용된 것보다 옛 버전이 된다. 그래도 적용한다

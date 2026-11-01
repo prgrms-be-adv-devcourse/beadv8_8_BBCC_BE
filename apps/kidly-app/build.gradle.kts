@@ -11,7 +11,7 @@ dependencies {
     // 도메인 모듈과 그 Fixture(src/testFixtures). 통합 · 기능 테스트가 도메인 Fixture를 쓴다
     listOf(
         "member", "seller", "childprofile", "setting", "notification",
-        "product", "recommend", "order", "payment", "settlement",
+        "product", "recommend", "order", "payment", "settlement", "community",
     ).forEach { domain ->
         implementation(project(":domains:$domain"))
         testImplementation(testFixtures(project(":domains:$domain")))
