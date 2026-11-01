@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.stuck;
 
-import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryView;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
@@ -15,7 +15,7 @@ public enum StuckOrderKind {
     PAYMENT_EXPIRY_MISSED(OrderStatusHistory.TargetType.ORDER, Order.Status.PENDING_PAYMENT),
     PAID_WITHOUT_DELIVERY(OrderStatusHistory.TargetType.ORDER, Order.Status.PAID),
     RECOVERY_PENDING_STALE(OrderStatusHistory.TargetType.PAYMENT_RECOVERY, PaymentRecovery.Status.PENDING),
-    SHIPPING_DELAYED(OrderStatusHistory.TargetType.DELIVERY.name(), DeliveryView.READY),
+    SHIPPING_DELAYED(OrderStatusHistory.TargetType.DELIVERY.name(), OrderDeliveries.Delivery.READY),
     AUTO_CONFIRM_MISSED(OrderStatusHistory.TargetType.ORDER_ITEM, OrderItem.Status.ORDERED),
     OUTBOX_STUCK("ORDER_OUTBOX", "UNSENT");
 

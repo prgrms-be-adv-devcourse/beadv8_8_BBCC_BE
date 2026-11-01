@@ -11,10 +11,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.PaymentCompletionService;
-import com.bbcc.kidly.boundedcontext.cart.app.CartService;
-import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderedCartCleaner;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderEventFailureResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
@@ -46,10 +46,10 @@ class PaymentEventListenerTest {
     private OrderService orderService;
 
     @Mock
-    private DeliveryService deliveryService;
+    private OrderDeliveries orderDeliveries;
 
     @Mock
-    private CartService cartService;
+    private OrderedCartCleaner orderedCartCleaner;
 
     @Mock
     private PaymentRecoveryService recoveryService;
@@ -63,7 +63,8 @@ class PaymentEventListenerTest {
     @BeforeEach
     void setUp() {
         listener = new PaymentEventListener(orderService,
-            new PaymentCompletionService(orderService, deliveryService, cartService), recoveryService, failureService);
+            new PaymentCompletionService(orderService, orderDeliveries, orderedCartCleaner), recoveryService,
+            failureService);
     }
 
     @Nested
@@ -78,8 +79,8 @@ class PaymentEventListenerTest {
             listener.onPaymentCompleted(event());
 
             verify(orderService).markPaid(COMMAND);
-            verify(deliveryService).createFor(ORDER_ID);
-            verify(cartService).clearOrdered(ORDER_ID);
+            verify(orderDeliveries).createFor(ORDER_ID);
+            verify(orderedCartCleaner).clearOrdered(ORDER_ID);
         }
 
         @Test
@@ -88,8 +89,8 @@ class PaymentEventListenerTest {
             listener.onPaymentCompleted(event());
 
             verify(orderService).markPaid(COMMAND);
-            verify(deliveryService, never()).createFor(anyLong());
-            verify(cartService, never()).clearOrdered(anyLong());
+            verify(orderDeliveries, never()).createFor(anyLong());
+            verify(orderedCartCleaner, never()).clearOrdered(anyLong());
         }
 
         @Test
@@ -115,7 +116,7 @@ class PaymentEventListenerTest {
                     List.of(new PaymentCompletedEvent.Item(70L, 1L)), at)));
 
             verify(orderService).markPaid(withoutPaymentId);
-            verify(deliveryService).createFor(ORDER_ID);
+            verify(orderDeliveries).createFor(ORDER_ID);
             assertThat(output).containsPattern(
                 "ERROR.*event=payment.completed reason=missing-payment-id orderId=" + ORDER_ID);
         }
@@ -139,7 +140,7 @@ class PaymentEventListenerTest {
                     List.of(new PaymentCompletedEvent.Item(70L, 1L)), null)));
 
             verify(orderService).markPaid(COMMAND);
-            verify(deliveryService).createFor(ORDER_ID);
+            verify(orderDeliveries).createFor(ORDER_ID);
             assertThat(errorLines(output, "reason=missing-paid-at orderId=" + ORDER_ID)).isEqualTo(1);
             assertThat(output).doesNotContain("missing-payment-id");
         }
@@ -221,7 +222,7 @@ class PaymentEventListenerTest {
             listener.onPaymentCompleted(new PaymentCompletedEvent(UUID.randomUUID(), at,
                 new PaymentCompletedEvent.Data(PAYMENT_ID, null, 1L, 1L, List.of(), at)));
 
-            verifyNoInteractions(orderService, deliveryService, cartService);
+            verifyNoInteractions(orderService, orderDeliveries, orderedCartCleaner);
             assertThat(output).containsPattern("WARN.*event=payment.completed.*reason=missing-order-id");
         }
 
@@ -231,7 +232,7 @@ class PaymentEventListenerTest {
             listener.onPaymentCompleted(
                 new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.of(2026, 10, 14, 9, 0), null));
 
-            verifyNoInteractions(orderService, deliveryService, cartService);
+            verifyNoInteractions(orderService, orderDeliveries, orderedCartCleaner);
             assertThat(output).containsPattern("WARN.*event=payment.completed.*reason=missing-order-id");
         }
 

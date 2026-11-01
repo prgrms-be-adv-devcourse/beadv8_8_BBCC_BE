@@ -9,10 +9,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.PaymentCompletionService;
-import com.bbcc.kidly.boundedcontext.cart.app.CartService;
-import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderedCartCleaner;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.LostPaymentRecheck;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
@@ -53,10 +53,10 @@ class PaymentEventListenerLogTest {
     private OrderService orderService;
 
     @Mock
-    private DeliveryService deliveryService;
+    private OrderDeliveries orderDeliveries;
 
     @Mock
-    private CartService cartService;
+    private OrderedCartCleaner orderedCartCleaner;
 
     @Mock
     private PaymentRecoveryService recoveryService;
@@ -73,7 +73,8 @@ class PaymentEventListenerLogTest {
     @BeforeEach
     void setUp() {
         listener = new PaymentEventListener(orderService,
-            new PaymentCompletionService(orderService, deliveryService, cartService), recoveryService, failureService);
+            new PaymentCompletionService(orderService, orderDeliveries, orderedCartCleaner), recoveryService,
+            failureService);
     }
 
     @Test
@@ -82,7 +83,7 @@ class PaymentEventListenerLogTest {
         DataIntegrityViolationException error = new DataIntegrityViolationException(
             "duplicate key value violates unique constraint \"uk_delivery_order_seller\"");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
-        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        doThrow(error).when(orderDeliveries).createFor(ORDER_ID);
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
 
@@ -168,7 +169,7 @@ class PaymentEventListenerLogTest {
         DataIntegrityViolationException error = new DataIntegrityViolationException(
             "duplicate key value violates unique constraint \"uk_cart_item\"");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
-        doThrow(error).when(cartService).clearOrdered(ORDER_ID);
+        doThrow(error).when(orderedCartCleaner).clearOrdered(ORDER_ID);
         when(recoveryService.recordFailure(COMMAND, error)).thenReturn(saved("DataIntegrityViolationException"));
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
@@ -184,7 +185,7 @@ class PaymentEventListenerLogTest {
     void otherErrorIsError(CapturedOutput output) {
         IllegalStateException error = new IllegalStateException("배송 생성 실패");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
-        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        doThrow(error).when(orderDeliveries).createFor(ORDER_ID);
         when(recoveryService.recordFailure(COMMAND, error)).thenReturn(saved("IllegalStateException"));
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event())).isSameAs(error);
@@ -199,7 +200,7 @@ class PaymentEventListenerLogTest {
     void storedFailureIsMarkedKept() {
         IllegalStateException error = new IllegalStateException("배송 생성 실패");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
-        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        doThrow(error).when(orderDeliveries).createFor(ORDER_ID);
         when(recoveryService.recordFailure(COMMAND, error)).thenReturn(saved("IllegalStateException"));
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
@@ -212,7 +213,7 @@ class PaymentEventListenerLogTest {
     void unstoredFailureIsNotMarkedKept() {
         IllegalStateException error = new IllegalStateException("배송 생성 실패");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
-        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        doThrow(error).when(orderDeliveries).createFor(ORDER_ID);
         when(recoveryService.recordFailure(COMMAND, error)).thenThrow(new IllegalStateException("보관 실패"));
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
@@ -226,7 +227,7 @@ class PaymentEventListenerLogTest {
         IllegalStateException error = new IllegalStateException("배송 생성 실패");
         IllegalStateException recordError = new IllegalStateException("기록 저장 실패");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
-        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        doThrow(error).when(orderDeliveries).createFor(ORDER_ID);
         when(recoveryService.recordFailure(COMMAND, error)).thenThrow(recordError);
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
@@ -242,7 +243,7 @@ class PaymentEventListenerLogTest {
         IllegalStateException error = new IllegalStateException("배송 생성 실패");
         CannotAcquireLockException recordError = new CannotAcquireLockException("could not obtain lock on row");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
-        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        doThrow(error).when(orderDeliveries).createFor(ORDER_ID);
         when(recoveryService.recordFailure(COMMAND, error)).thenThrow(recordError);
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))
@@ -260,7 +261,7 @@ class PaymentEventListenerLogTest {
         DataIntegrityViolationException recordError = new DataIntegrityViolationException(
             "duplicate key value violates unique constraint \"uk_payment_recovery_order\"");
         when(orderService.markPaid(COMMAND)).thenReturn(true);
-        doThrow(error).when(deliveryService).createFor(ORDER_ID);
+        doThrow(error).when(orderDeliveries).createFor(ORDER_ID);
         when(recoveryService.recordFailure(COMMAND, error)).thenThrow(recordError);
 
         assertThatThrownBy(() -> listener.onPaymentCompleted(event()))

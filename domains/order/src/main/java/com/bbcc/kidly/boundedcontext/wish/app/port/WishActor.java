@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.wish.app.port;
 
-import com.bbcc.kidly.boundedcontext.order.api.ChildView;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
 
 /**
@@ -19,5 +18,5 @@ public interface WishActor {
     /**
      * 이 자녀(주문이 받아 둔 자녀 복사본)의 공용 장바구니를 쓸 수 있는지. 삭제된 자녀는 누구도 쓸 수 없다.
      */
-    boolean canUse(ChildView child);
+    boolean canUse(WishCatalog.Child child);
 }

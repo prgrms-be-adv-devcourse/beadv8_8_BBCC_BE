@@ -9,7 +9,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.Step;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.StepName;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.StepStatus;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
-import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryView;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
@@ -419,10 +419,11 @@ class OrderTimelineTest {
         return order;
     }
 
-    // 주문은 배송을 delivery api 값으로 받는다(#617). 엔티티로 상태를 만든 뒤 그 값으로 바꾼다
-    private static List<DeliveryView> views(List<Delivery> deliveries) {
+    // 주문은 배송을 자기 포트(OrderDeliveries) 값으로 받는다(#617 · #641). 엔티티로 상태를 만든 뒤 그 값으로 바꾼다
+    private static List<OrderDeliveries.Delivery> views(List<Delivery> deliveries) {
         return deliveries.stream()
-            .map(delivery -> new DeliveryView(delivery.getId(), delivery.getOrderId(), delivery.getSellerId(),
+            .map(delivery -> new OrderDeliveries.Delivery(delivery.getId(), delivery.getOrderId(),
+                delivery.getSellerId(),
                 delivery.getStatus().name(), delivery.getCarrier() == null ? null : delivery.getCarrier().name(),
                 delivery.getTrackingNumber(), delivery.getShippedAt(), delivery.getDeliveredAt(),
                 delivery.getStatus() == Delivery.Status.SHIPPING || delivery.getStatus() == Delivery.Status.DELIVERED))

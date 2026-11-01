@@ -1,18 +1,14 @@
 package com.bbcc.kidly.boundedcontext.delivery.app;
 
-import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryActor;
-import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryApi;
-import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryChange;
-import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryView;
-import com.bbcc.kidly.boundedcontext.delivery.api.ShippingDelayedView;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.SellerOrderView;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryOrders;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryOrders.Order;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.in.DeliveryOperations;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.in.ShippingDelays;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.delivery.domain.DeliveryRuleViolationException;
-import com.bbcc.kidly.boundedcontext.order.api.HistoryActor;
-import com.bbcc.kidly.boundedcontext.order.api.OrderApi;
-import com.bbcc.kidly.boundedcontext.order.api.OrderView;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -31,13 +27,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 판매자별 주문(배송): 결제완료 뒤 만들기 · 발송 · 배송 완료 · 판매자 목록. 남의 배송은 없는 배송으로 본다.
- * 주문 읽기 · 배송 완료 시각 반영 · 상태 이력은 주문 컨텍스트의 api로 한다(#617). 주문이 쓰는 기능은 {@link DeliveryApi}로 내준다.
+ * 주문 읽기 · 배송 완료 시각 반영 · 상태 이력은 {@link DeliveryOrders}로 한다(주문 컨텍스트, #641).
+ * 주문이 쓰는 기능은 {@link DeliveryOperations} · {@link ShippingDelays}로 내준다.
  */
 @Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class DeliveryService implements DeliveryApi {
+public class DeliveryService implements DeliveryOperations, ShippingDelays {
 
     // 상태 이력의 주체 이름(이벤트 이름은 주문 OrderActor.PAYMENT_COMPLETED와 같은 값)
     private static final String PAYMENT_COMPLETED = "payment.completed";
@@ -47,7 +44,7 @@ public class DeliveryService implements DeliveryApi {
 
 
     private final DeliveryRepository deliveryRepository;
-    private final OrderApi orderApi;
+    private final DeliveryOrders deliveryOrders;
 
     /**
      * 주문상품을 판매자로 묶어 판매자마다 배송 준비 1건을 만든다. 주문이 없으면 만들지 않는다.
@@ -63,14 +60,14 @@ public class DeliveryService implements DeliveryApi {
     @Override
     public void createFor(Long orderId, DeliveryActor actor) {
         LocalDateTime now = LocalDateTime.now();
-        HistoryActor historyActor = new HistoryActor(actor.type(), actor.id(), actor.source());
-        orderApi.findOrder(orderId).ifPresent(order -> order.items().stream()
-            .map(OrderView.Item::sellerId)
+        DeliveryOrders.Actor historyActor = new DeliveryOrders.Actor(actor.type(), actor.id(), actor.source());
+        deliveryOrders.findOrder(orderId).ifPresent(order -> order.items().stream()
+            .map(Order.Item::sellerId)
             .distinct()
             .map(sellerId -> Delivery.create(orderId, sellerId))
             .forEach(delivery -> {
                 deliveryRepository.save(delivery);
-                orderApi.recordDeliveryHistory(orderId, delivery.getId(), historyActor, null,
+                deliveryOrders.recordHistory(orderId, delivery.getId(), historyActor, null,
                     delivery.getStatus().name(), null, now);
             }));
     }
@@ -115,7 +112,7 @@ public class DeliveryService implements DeliveryApi {
         } catch (DeliveryRuleViolationException e) {
             throw DeliveryErrors.toBusiness(e);
         }
-        orderApi.recordDeliveryHistory(delivery.getOrderId(), delivery.getId(), new HistoryActor(SELLER, memberId,
+        deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SELLER, memberId,
             SELLER_SHIP), from.name(), delivery.getStatus().name(), null, now);
         log.info("발송: orderId={} deliveryId={} sellerId={} carrier={}",
             delivery.getOrderId(), delivery.getId(), delivery.getSellerId(), parsed);
@@ -137,13 +134,13 @@ public class DeliveryService implements DeliveryApi {
         } catch (DeliveryRuleViolationException e) {
             throw DeliveryErrors.toBusiness(e);
         }
-        orderApi.recordDelivered(delivery.getOrderId(), delivery.getSellerId(), delivery.getDeliveredAt());
+        deliveryOrders.recordDelivered(delivery.getOrderId(), delivery.getSellerId(), delivery.getDeliveredAt());
         if (alreadyDelivered) {
             log.debug("요청 무시: event=deliver orderId={} deliveryId={} result=ALREADY_DONE",
                 delivery.getOrderId(), delivery.getId());
         } else {
-            orderApi.recordDeliveryHistory(delivery.getOrderId(), delivery.getId(), new HistoryActor(SELLER, memberId,
-                SELLER_DELIVER), from.name(), delivery.getStatus().name(), null, now);
+            deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SELLER,
+                memberId, SELLER_DELIVER), from.name(), delivery.getStatus().name(), null, now);
             log.info("배송 완료: orderId={} deliveryId={} sellerId={}",
                 delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
         }
@@ -162,9 +159,9 @@ public class DeliveryService implements DeliveryApi {
             return new PageImpl<>(List.of(), pageable, deliveryRepository.countBySellerId(memberId));
         }
         Page<Delivery> deliveries = deliveryRepository.findAllBySellerIdOrderByIdDesc(memberId, pageable);
-        Map<Long, OrderView> ordersById = findOrdersWithItems(deliveries.getContent());
+        Map<Long, Order> ordersById = findOrdersWithItems(deliveries.getContent());
         return deliveries.map(delivery -> {
-            OrderView order = ordersById.get(delivery.getOrderId());
+            Order order = ordersById.get(delivery.getOrderId());
             if (order == null) {
                 log.warn("판매 주문 목록 주문 없음: reason=order-not-found deliveryId={} orderId={}",
                     delivery.getId(), delivery.getOrderId());
@@ -174,13 +171,13 @@ public class DeliveryService implements DeliveryApi {
         });
     }
 
-    private Map<Long, OrderView> findOrdersWithItems(List<Delivery> deliveries) {
+    private Map<Long, Order> findOrdersWithItems(List<Delivery> deliveries) {
         if (deliveries.isEmpty()) {
             return Map.of();
         }
         List<Long> orderIds = deliveries.stream().map(Delivery::getOrderId).distinct().toList();
-        return orderApi.findOrdersWithItems(orderIds).stream()
-            .collect(Collectors.toMap(OrderView::orderId, Function.identity()));
+        return deliveryOrders.findOrdersWithItems(orderIds).stream()
+            .collect(Collectors.toMap(Order::orderId, Function.identity()));
     }
 
     private Delivery findOwned(Long memberId, Long deliveryId) {

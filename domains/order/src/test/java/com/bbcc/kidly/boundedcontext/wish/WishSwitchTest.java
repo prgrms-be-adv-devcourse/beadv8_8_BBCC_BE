@@ -4,7 +4,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.bbcc.kidly.boundedcontext.order.api.ReplicaApi;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup;
 import com.bbcc.kidly.boundedcontext.wish.app.WishPolicy;
 import com.bbcc.kidly.boundedcontext.wish.app.WishService;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishItemRepository;
@@ -38,7 +38,7 @@ class WishSwitchTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withUserConfiguration(WishScan.class)
-        .withBean(ReplicaApi.class, () -> mock(ReplicaApi.class))
+        .withBean(ReplicaLookup.class, () -> mock(ReplicaLookup.class))
         .withBean(WishItemRepository.class, () -> mock(WishItemRepository.class));
 
     @Test

@@ -4,14 +4,14 @@
 
 ## 1. 컨텍스트 · 계층과 포트
 - 이 모듈은 컨텍스트 넷이다: `boundedcontext.order`(주문 · 결제 반영 · 만료 · 구매확정 · 이력 · 재처리 · 아웃박스 · DLT · 관리자 · 상품/판매자/자녀 복사본), `boundedcontext.cart`(장바구니), `boundedcontext.delivery`(판매자별 배송 · 발송 · 배송 완료 · 판매 주문 조회), `boundedcontext.wish`(조르기, 아래). 저장은 모두 `orders` 스키마다
-- `boundedcontext.wish`(조르기 = 부모 · 자녀 공용 장바구니, #640)는 팀이 정책을 확정하지 않아 걷어낼 수 있게 둔다: 아무 컨텍스트도 wish를 참조하지 않고(wish는 다른 컨텍스트 `api`만), 표는 `wish_item` 하나, 스위치 `kidly.order.wish.enabled`(false면 빈 · API 없음, 모든 빈에 같은 조건), 정책은 `WishPolicy` 클래스 한 곳, 호출 주체는 `app.port.WishActor`(구현은 out)
-- 컨텍스트끼리는 상대의 `api`(인터페이스 · record만, 구현은 그 컨텍스트 app)만 참조하고, `api`끼리는 참조하지 않는다. 부르는 쪽 트랜잭션에 합류한다(동기 호출). 예외는 두지 않는다(멈춘 주문의 발송 지연도 `DeliveryApi`로 읽는다)
+- `boundedcontext.wish`(조르기 = 부모 · 자녀 공용 장바구니, #640)는 팀이 정책을 확정하지 않아 걷어낼 수 있게 둔다: 아무 컨텍스트도 wish를 참조하지 않고(wish는 들어오는 포트가 없다), 표는 `wish_item` 하나, 스위치 `kidly.order.wish.enabled`(false면 빈 · API 없음, 모든 빈에 같은 조건), 정책은 `WishPolicy` 클래스 한 곳, 호출 주체는 `app.port.WishActor`(구현은 out)
+- 컨텍스트 사이는 in · out으로만 잇는다(#641, `api` 패키지는 두지 않는다). 받는 쪽은 들어오는 포트를 자기 `app.port.in`에 두고 app이 구현한다(`OrderLookup` · `DeliveryRecorder` · `ReplicaLookup` · `CartCleanup` · `DeliveryOperations` · `ShippingDelays`). 부르는 쪽은 필요한 것을 자기 `app.port`에 자기 말로 두고(`OrderDeliveries` · `OrderedCartCleaner` · `CartCatalog` · `CartOrders` · `DeliveryOrders` · `WishCatalog`), `out.{상대}` 어댑터가 상대 `app.port.in`을 불러 값을 옮겨 담는다. 다른 컨텍스트를 아는 것은 이 어댑터뿐이다(app · domain · in은 모른다). 같은 앱 안의 동기 호출이라 부르는 쪽 트랜잭션에 합류한다. 예외는 두지 않는다(멈춘 주문의 발송 지연도 `OrderDeliveries`로 읽는다). 떼어 낼 때는 어댑터를 HTTP · Kafka 호출로, 받는 쪽은 `app.port.in`을 부르는 컨트롤러 · 리스너를 in에 더한다
 - 컨텍스트마다 시각 기반 클래스(`OrderTimeEntity` · `CartTimeEntity` · `DeliveryTimeEntity` · `WishTimeEntity`) · 규칙 예외 · 오류 코드(`OrderErrorCode` · `CartErrorCode` · `DeliveryErrorCode` · `WishErrorCode`)를 따로 둔다. 같은 오류는 응답(상태 · title · detail)이 같게 둔다
 - `domain`: 엔티티 · 상태 enum · 값. Spring과 `common`을 쓰지 않는다. 상태는 업무 메서드로만 바꾸고, 다시 와도 되는 변경은 `TransitionResult`(`APPLIED` · `ALREADY_DONE` · `NOT_APPLICABLE`)로 돌려준다
-- `app`: 유스케이스 서비스. 기능별 하위 패키지(`order` · `outbox` · `deadletter` · `provided` 등)끼리는 서로 의존하지 않는다. 여러 기능이 같이 쓰는 값은 `app` 바로 아래(`OrderActor` · `OrderErrorCode` · `OrderLogContext` · `DeadLetterReplay`)에 둔다. 주문 `api` 구현은 `app.provided`, 장바구니 · 배송 `api` 구현은 `CartService` · `DeliveryService`다
-- `app.port`: 저장소 · 외부 연결 · 작업 실행처럼 나가는 것의 인터페이스만 둔다(record · class를 두지 않는다). 구현은 `out`(Spring Data는 `Jpa…Repository`가 포트를 상속)
+- `app`: 유스케이스 서비스. 기능별 하위 패키지(`order` · `outbox` · `deadletter` · `provided` 등)끼리는 서로 의존하지 않는다. 여러 기능이 같이 쓰는 값은 `app` 바로 아래(`OrderActor` · `OrderErrorCode` · `OrderLogContext` · `DeadLetterReplay`)에 둔다. 주문의 들어오는 포트 구현은 `app.provided`(`ProvidedOrderService` · `ProvidedReplicaService`), 장바구니 · 배송의 구현은 `CartService` · `DeliveryService`다
+- `app.port`: 저장소 · 외부 연결 · 다른 컨텍스트 · 작업 실행처럼 나가는 것의 인터페이스, `app.port.in`: 다른 컨텍스트가 들어오는 인터페이스. 둘 다 최상위는 인터페이스만 두고, 주고받는 값은 그 인터페이스 안의 record로 둔다. 나가는 포트 구현은 `out`(Spring Data는 `Jpa…Repository`가 포트를 상속), 들어오는 포트 구현은 app
 - `in`: `web`(컨트롤러 · `dto`) · `event`(이벤트 수신) · `scheduler`. `domain`과 `out`을 쓰지 않는다
-- 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙은 `OrderContextArchitectureTest`, 기능 사이 의존 · 포트 규칙은 앱의 `OrderArchitectureTest`가 검사한다
+- 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙(다른 컨텍스트 참조는 내 out → 상대 `app.port.in`만)은 `OrderContextArchitectureTest`, 기능 사이 의존 · 포트 규칙은 앱의 `OrderArchitectureTest`가 검사한다
 
 ## 2. 이벤트 수신
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(`ReplicaProduct` · `ReplicaSeller` · `ReplicaChild`)은 저장된 `occurredAt`보다 늦은 이벤트만 반영하고, 주문 상태는 이미 그 상태면 `ALREADY_DONE`으로 끝낸다

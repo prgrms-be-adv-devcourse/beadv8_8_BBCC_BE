@@ -1,10 +1,10 @@
 package com.bbcc.kidly.boundedcontext.order.app.provided;
 
-import com.bbcc.kidly.boundedcontext.order.api.HistoryActor;
-import com.bbcc.kidly.boundedcontext.order.api.OrderApi;
-import com.bbcc.kidly.boundedcontext.order.api.OrderView;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.DeliveryRecorder;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup.OrderView;
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
@@ -17,24 +17,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 주문 조회 · 배송 반영을 다른 컨텍스트에 내준다(#617, {@link OrderApi}). 부르는 쪽 트랜잭션에 합류한다(REQUIRED).
+ * 주문 조회 · 배송 반영을 다른 컨텍스트에 내준다(#617 · #641, {@link OrderLookup} · {@link DeliveryRecorder}). 부르는 쪽 트랜잭션에 합류한다(REQUIRED).
  */
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class OrderApiService implements OrderApi {
+public class ProvidedOrderService implements OrderLookup, DeliveryRecorder {
 
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository historyRepository;
 
     @Override
     public Optional<OrderView> findOrder(Long orderId) {
-        return orderRepository.findById(orderId).map(OrderApiService::toView);
+        return orderRepository.findById(orderId).map(ProvidedOrderService::toView);
     }
 
     @Override
     public List<OrderView> findOrdersWithItems(Collection<Long> orderIds) {
-        return orderRepository.findAllWithItemsByIdIn(orderIds).stream().map(OrderApiService::toView).toList();
+        return orderRepository.findAllWithItemsByIdIn(orderIds).stream().map(ProvidedOrderService::toView).toList();
     }
 
     @Override
@@ -54,7 +54,7 @@ public class OrderApiService implements OrderApi {
         return new OrderView(order.getId(), order.getMemberId(), order.getCreatedAt(),
             address == null ? null : new OrderView.ShippingAddress(address.recipientName(), address.phone(),
                 address.zipCode(), address.address()),
-            order.getItems().stream().map(OrderApiService::toItem).toList());
+            order.getItems().stream().map(ProvidedOrderService::toItem).toList());
     }
 
     private static OrderView.Item toItem(OrderItem item) {

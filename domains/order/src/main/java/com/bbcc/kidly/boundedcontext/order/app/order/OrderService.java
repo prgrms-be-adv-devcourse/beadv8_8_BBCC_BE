@@ -1,8 +1,5 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
-import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryApi;
-import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryChange;
-import com.bbcc.kidly.boundedcontext.delivery.api.DeliveryView;
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
@@ -18,6 +15,9 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries.CancelledDelivery;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries.Delivery;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
@@ -72,7 +72,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
-    private final DeliveryApi deliveryApi;
+    private final OrderDeliveries orderDeliveries;
     private final SellerReplicaRepository sellerReplicaRepository;
     private final OrderStatusHistoryRepository historyRepository;
     private final EventPublisher eventPublisher;
@@ -389,8 +389,8 @@ public class OrderService {
         LocalDateTime now = LocalDateTime.now();
         Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-        List<DeliveryView> deliveries = deliveryApi.findByOrder(orderId);
-        if (order.getStatus() != Order.Status.CANCELLED && deliveries.stream().anyMatch(DeliveryView::shipped)) {
+        List<Delivery> deliveries = orderDeliveries.findByOrder(orderId);
+        if (order.getStatus() != Order.Status.CANCELLED && deliveries.stream().anyMatch(Delivery::shipped)) {
             throw new BusinessException(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
         }
         Order.Status from = order.getStatus();
@@ -403,13 +403,13 @@ public class OrderService {
             String reason = order.getCancelReason().name();
             historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.ORDER, orderId, from,
                 order.getStatus(), reason, now));
-            List<DeliveryChange> changes = deliveryApi.cancelByOrder(orderId);
-            for (DeliveryChange change : changes) {
+            List<CancelledDelivery> changes = orderDeliveries.cancelByOrder(orderId);
+            for (CancelledDelivery change : changes) {
                 historyRepository.save(OrderStatusHistory.of(orderId, OrderStatusHistory.TargetType.DELIVERY,
                     change.delivery().deliveryId(), change.from(), change.delivery().status(), reason, actor.type(),
                     actor.id(), actor.source(), now));
             }
-            deliveries = changes.stream().map(DeliveryChange::delivery).toList();
+            deliveries = changes.stream().map(CancelledDelivery::delivery).toList();
             publishCancelled(order, actor, null, now);
         } else {
             logIgnored("cancel-by-buyer", order, result);
@@ -425,7 +425,7 @@ public class OrderService {
     }
 
     private OrderDetail detailOf(Long orderId, Order order) {
-        return OrderDetail.from(order, deliveryApi.findByOrder(orderId),
+        return OrderDetail.from(order, orderDeliveries.findByOrder(orderId),
             sellerNamesOf(List.of(order)));
     }
 
@@ -436,7 +436,7 @@ public class OrderService {
     public OrderTimeline getTimeline(Long memberId, Long orderId) {
         Order order = orderRepository.findWithItemsByIdAndMemberId(orderId, memberId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-        return OrderTimeline.from(order, deliveryApi.findByOrder(orderId),
+        return OrderTimeline.from(order, orderDeliveries.findByOrder(orderId),
             sellerNamesOf(List.of(order)));
     }
 

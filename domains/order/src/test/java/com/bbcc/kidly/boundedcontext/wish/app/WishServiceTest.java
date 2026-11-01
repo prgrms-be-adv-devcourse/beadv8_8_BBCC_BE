@@ -7,11 +7,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.bbcc.kidly.boundedcontext.order.api.ChildView;
-import com.bbcc.kidly.boundedcontext.order.api.ProductOptionView;
-import com.bbcc.kidly.boundedcontext.order.api.ReplicaApi;
 import com.bbcc.kidly.boundedcontext.wish.app.dto.AddWishItemResult;
 import com.bbcc.kidly.boundedcontext.wish.app.dto.WishView;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog.Child;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog.ProductOption;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishItemRepository;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
@@ -50,17 +50,17 @@ class WishServiceTest {
     private WishItemRepository wishItemRepository;
 
     @Mock
-    private ReplicaApi replicaApi;
+    private WishCatalog wishCatalog;
 
     private WishService wishService;
 
     @BeforeEach
     void setUp() {
-        wishService = new WishService(wishItemRepository, replicaApi, new WishPolicy());
-        when(replicaApi.findProductOption(OPTION_ID)).thenReturn(Optional.of(product(OPTION_ID, true)));
-        when(replicaApi.findSellerName(SELLER_ID)).thenReturn(Optional.of("판매자"));
-        when(replicaApi.findChild(CHILD_ID)).thenReturn(Optional.of(new ChildView(CHILD_ID, PARENT_ID, false)));
-        when(replicaApi.findChild(SIBLING_ID)).thenReturn(Optional.of(new ChildView(SIBLING_ID, PARENT_ID, false)));
+        wishService = new WishService(wishItemRepository, wishCatalog, new WishPolicy());
+        when(wishCatalog.findProductOption(OPTION_ID)).thenReturn(Optional.of(product(OPTION_ID, true)));
+        when(wishCatalog.findSellerName(SELLER_ID)).thenReturn(Optional.of("판매자"));
+        when(wishCatalog.findChild(CHILD_ID)).thenReturn(Optional.of(new Child(CHILD_ID, PARENT_ID, false)));
+        when(wishCatalog.findChild(SIBLING_ID)).thenReturn(Optional.of(new Child(SIBLING_ID, PARENT_ID, false)));
         when(wishItemRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -117,7 +117,7 @@ class WishServiceTest {
         @Test
         @DisplayName("합치지 않는 정책이면 같은 옵션도 새 줄이다(정책을 갈아 끼움)")
         void separateLinesPolicy() {
-            WishService separate = new WishService(wishItemRepository, replicaApi, new WishPolicy() {
+            WishService separate = new WishService(wishItemRepository, wishCatalog, new WishPolicy() {
                 @Override
                 public boolean mergesSameOption() {
                     return false;
@@ -155,8 +155,8 @@ class WishServiceTest {
         @Test
         @DisplayName("다른 부모의 자녀 · 삭제된 자녀 · 없는 자녀에는 담을 수 없다(없는 자녀)")
         void rejectsUnusableChild() {
-            when(replicaApi.findChild(20L)).thenReturn(Optional.of(new ChildView(20L, OTHER_PARENT_ID, false)));
-            when(replicaApi.findChild(21L)).thenReturn(Optional.of(new ChildView(21L, PARENT_ID, true)));
+            when(wishCatalog.findChild(20L)).thenReturn(Optional.of(new Child(20L, OTHER_PARENT_ID, false)));
+            when(wishCatalog.findChild(21L)).thenReturn(Optional.of(new Child(21L, PARENT_ID, true)));
 
             assertCode(() -> wishService.add(PARENT, 20L, OPTION_ID, 1), WishErrorCode.CHILD_NOT_FOUND);
             assertCode(() -> wishService.add(PARENT, 21L, OPTION_ID, 1), WishErrorCode.CHILD_NOT_FOUND);
@@ -174,7 +174,7 @@ class WishServiceTest {
         @Test
         @DisplayName("장바구니와 같은 판단: 없는 옵션 · 자기 상품 · 구매 불가 상품은 거절한다")
         void sameChecksAsCart() {
-            when(replicaApi.findProductOption(9L)).thenReturn(Optional.of(product(9L, false)));
+            when(wishCatalog.findProductOption(9L)).thenReturn(Optional.of(product(9L, false)));
 
             assertCode(() -> wishService.add(PARENT, CHILD_ID, 99L, 1), WishErrorCode.PRODUCT_OPTION_NOT_FOUND);
             assertCode(() -> wishService.add(new ParentWishActor(SELLER_ID), CHILD_ID, OPTION_ID, 1),
@@ -195,9 +195,9 @@ class WishServiceTest {
             WishItem gone = WishItem.create(CHILD_ID, 99L, 1, AddedBy.CHILD, CHILD_ID);
             when(wishItemRepository.findAllByChildIdAndStatusOrderByIdDesc(CHILD_ID, Status.ACTIVE))
                 .thenReturn(List.of(onSale, stopped, gone));
-            when(replicaApi.findProductOptions(List.of(OPTION_ID, 9L, 99L)))
+            when(wishCatalog.findProductOptions(List.of(OPTION_ID, 9L, 99L)))
                 .thenReturn(List.of(product(OPTION_ID, true), product(9L, false)));
-            when(replicaApi.findSellerNames(any())).thenReturn(Map.of(SELLER_ID, "판매자"));
+            when(wishCatalog.findSellerNames(any())).thenReturn(Map.of(SELLER_ID, "판매자"));
 
             WishView view = wishService.getWishes(PARENT, CHILD_ID);
 
@@ -263,8 +263,8 @@ class WishServiceTest {
         }
     }
 
-    private static ProductOptionView product(Long optionId, boolean purchasable) {
-        return new ProductOptionView(optionId, 1L, SELLER_ID, "상품 A", "네이비 / 110", "110", 25_000L, purchasable);
+    private static ProductOption product(Long optionId, boolean purchasable) {
+        return new ProductOption(optionId, 1L, SELLER_ID, "상품 A", "네이비 / 110", "110", 25_000L, purchasable);
     }
 
     private static void assertCode(Runnable call, ErrorCode code) {

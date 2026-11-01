@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.delivery.app.dto;
 
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryOrders.Order;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
-import com.bbcc.kidly.boundedcontext.order.api.OrderView;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,8 +54,8 @@ public record SellerOrderView(
     public record Child(Long childId, String name, BigDecimal heightCm, BigDecimal weightKg, String bodyType) {
     }
 
-    public static SellerOrderView of(Delivery delivery, OrderView order) {
-        OrderView.ShippingAddress address = order.shippingAddress();
+    public static SellerOrderView of(Delivery delivery, Order order) {
+        Order.ShippingAddress address = order.shippingAddress();
         return new SellerOrderView(
             delivery.getId(),
             delivery.getOrderId(),
@@ -90,8 +90,8 @@ public record SellerOrderView(
             List.of());
     }
 
-    private static Item toItem(OrderView.Item item) {
-        OrderView.Child child = item.child();
+    private static Item toItem(Order.Item item) {
+        Order.Child child = item.child();
         return new Item(
             item.orderItemId(),
             item.productId(),
