@@ -11,13 +11,14 @@
 - `in`: `web`(컨트롤러 · `dto`, 관리자 API가 생기면 `web.admin`) · `event`(이벤트 수신 · 매퍼) · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
 - `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `{상대 컨텍스트}`(어댑터)
 - 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`
+- 한 앱 안에서 빈 · 엔티티 이름이 다른 도메인과 겹치면 기동이 실패한다: 다른 도메인에 같은 이름이 있을 수 있는 클래스(`…EventListener` · `SpringEventReceiver` · `EventGuard` 등)는 `Community` 접두어를 붙이고, 엔티티는 `@Entity(name = "Community…")`로 이름을 정한다
 - 검사: 계층 규칙은 `LayerArchitectureTest`(`LayerRules`), 컨텍스트 사이 규칙(내 out → 상대 `app.port.in`만)은 `CommunityContextArchitectureTest`, 패키지 배치는 `CommunityPackageLayoutArchitectureTest`. 컨텍스트 루트의 `package-info`는 `@NullMarked`로 클래스를 남겨 뼈대만 있을 때도 검사 대상이 비지 않게 한다
 
 ## 2. 이벤트 수신
 - 받는 길은 스위치 `kidly.community.kafka.consumer.enabled` 하나로 고른다: `true`(기본)면 Kafka 리스너, `false`면 Spring 이벤트. 처리 코드(`…EventListener`)는 같다
 - Kafka 리스너는 전용 팩토리 `communityKafkaListenerContainerFactory`(`in.config`)만 쓴다: 구독 그룹 `kidly.community`, 한 건씩 완료, 실패하면 1초 간격 3번 재시도 뒤 `{토픽}.community.dlt`, 다시 해도 같은 예외 · 읽기 실패는 바로 DLT. 팩토리 외의 Kafka 객체(템플릿 · 에러 처리기)는 이 구성 코드 안에서 만들고 빈으로 등록하지 않는다
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(상품 등)은 저장된 `occurredAt`보다 늦은 이벤트만 반영한다
-- 필수 값이 없으면 `EventGuard`로 WARN 한 줄을 남기고 무시한다
+- 필수 값이 없으면 `CommunityEventGuard`로 WARN 한 줄을 남기고 무시한다
 - 로그 추적(MDC): Kafka 수신은 메시지 하나를 처리하는 동안 eventId · eventType · `correlationId`(= 키)를 MDC에 넣고, 끝나면(예외 포함) 이전 값으로 되돌린다
 - 로그는 결과 하나에 한 줄이고, 본문 · 예외 메시지 · 개인정보를 넣지 않는다(eventType · eventId · 키 · ID · 예외 종류만)
 
