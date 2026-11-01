@@ -26,6 +26,7 @@
 
 ## 3. 이벤트 발행과 주기 작업
 - 주문 이벤트는 루트 규칙대로 `EventPublisher`로 발행하고, 같은 트랜잭션에서 `order_outbox`에 저장된다(`OrderOutboxWriter`). 업무가 롤백되면 메시지도 남지 않는다
+- 장바구니는 담기에 성공하면(새 줄 · 같은 줄 합치기) `cart.item-added`(`CartItemAddedEvent`, 키 = 회원 ID)를 같은 길로 낸다: `cart/app/port/CartEvents` → `cart/out/order` 어댑터 → 주문 `app/port/in/OrderEventIssuer`(구현 `ProvidedEventService`, #654). 받는 도메인에 맞춘 필드는 넣지 않는다
 - `OrderOutboxRelayScheduler`가 안 보낸 메시지를 한 트랜잭션에서 id 순서로 batch만큼 보내고(`KafkaOrderEventSender`), 보내다 실패하면 그 메시지에서 멈춘다. 보낸 메시지는 `OrderOutboxCleanupScheduler`가 보관 기간 뒤 한 트랜잭션의 delete 한 번으로 지운다
 - 주기 작업(결제 마감 만료 · 자동 구매확정 · 아웃박스 릴레이 · 정리)은 `SingleServerJobRunner`로 한 번에 한 서버에서만 돈다(PostgreSQL advisory lock `kidly.order.{작업}`). 작업은 잠금 트랜잭션 밖에서 돈다
 - 결제 마감 만료 · 자동 구매확정(`OrderScheduler`)은 대상 주문 하나 = 트랜잭션 하나다. 한 건이 실패해도 로그만 남기고 다음 건을 처리한다

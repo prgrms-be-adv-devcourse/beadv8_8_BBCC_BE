@@ -32,6 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class StuckOrderService {
 
+    // 키가 주문 ID인 이벤트 종류의 접두어(주문 · 주문상품)
+    private static final List<String> ORDER_KEYED_EVENT_TYPES = List.of("order.", "order-item.");
+
     private final StuckOrderRepository stuckOrderRepository;
     private final OrderDeliveries orderDeliveries;
     private final StuckOrderThresholds thresholds;
@@ -128,8 +131,9 @@ public class StuckOrderService {
         StuckOrderRepository.OutboxHeadRow head = stuck.get();
         long backlog = stuckOrderRepository.countUnsentOutbox() - 1;
         StuckOrderKind kind = StuckOrderKind.OUTBOX_STUCK;
-        return new PageImpl<>(List.of(new StuckOrderResult(kind.name(), orderIdOf(head.getMessageKey()),
-            kind.targetType(), head.getId(), kind.status(), outboxSince(head, now),
+        return new PageImpl<>(List.of(new StuckOrderResult(kind.name(),
+            orderIdOf(head.getEventType(), head.getMessageKey()), kind.targetType(), head.getId(), kind.status(),
+            outboxSince(head, now),
             new StuckOrderResult.Outbox(head.getId(), head.getEventType(), head.getEventId(), head.getAttemptCount(),
                 head.getCreatedAt(), head.getLastError(), backlog))), pageable, 1);
     }
@@ -151,8 +155,12 @@ public class StuckOrderService {
         return head.getCreatedAt().plus(thresholds.outboxWait());
     }
 
-    // 주문 이벤트의 키는 주문 ID(correlationId)다. 숫자가 아니면(계약 밖) 주문을 모른다
-    private static Long orderIdOf(String messageKey) {
+    // 주문 · 주문상품 이벤트(order. · order-item.)만 키가 주문 ID(correlationId)다. 장바구니 담기(cart.item-added, #654)처럼
+    // 다른 종류의 키(회원 ID)는 주문 ID로 보이지 않는다. 숫자가 아니면(계약 밖) 주문을 모른다
+    private static Long orderIdOf(String eventType, String messageKey) {
+        if (eventType == null || ORDER_KEYED_EVENT_TYPES.stream().noneMatch(eventType::startsWith)) {
+            return null;
+        }
         try {
             return Long.valueOf(messageKey);
         } catch (NumberFormatException e) {

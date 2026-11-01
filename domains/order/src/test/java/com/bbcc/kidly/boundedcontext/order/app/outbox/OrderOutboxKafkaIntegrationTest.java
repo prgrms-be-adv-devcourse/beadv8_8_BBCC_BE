@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
@@ -24,6 +25,7 @@ import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxReposit
 import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
@@ -79,6 +81,9 @@ class OrderOutboxKafkaIntegrationTest {
 
     @Autowired
     private OrderOutboxRelayService relayService;
+
+    @Autowired
+    private CartService cartService;
 
     @Autowired
     private JpaOrderOutboxRepository outboxRepository;
@@ -159,6 +164,39 @@ class OrderOutboxKafkaIntegrationTest {
             assertThat(body.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(event.data()));
         }
         assertThat(partitionCount(TOPIC)).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("장바구니 담기(#654)도 같은 토픽에 도착한다: 키 = 회원 ID, 헤더 eventType · eventId, 본문 7칸 + data")
+    void deliversCartItemAdded() {
+        cartService.addItem(BUYER_ID, 1L, null, 2);
+        cartService.addItem(BUYER_ID, 1L, null, 1);
+        List<CartItemAddedEvent> published = recorder.events(CartItemAddedEvent.class);
+
+        OutboxRelayResult result = relayService.relay();
+
+        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 2, 2));
+        Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
+            published.stream().map(event -> event.eventId().toString()).collect(Collectors.toSet()));
+        assertThat(received).hasSize(2);
+        for (CartItemAddedEvent event : published) {
+            ConsumerRecord<String, String> record = received.get(event.eventId().toString());
+            assertThat(record.key()).isEqualTo(String.valueOf(BUYER_ID));
+            assertThat(header(record, "eventType")).isEqualTo("cart.item-added");
+            assertThat(header(record, "eventId")).isEqualTo(event.eventId().toString());
+            assertThat(record.headers().lastHeader("__TypeId__")).isNull();
+            JsonNode body = jsonMapper.readTree(record.value());
+            assertThat(body.propertyNames()).containsExactly("eventId", "eventType", "schemaVersion",
+                "occurredAt", "producer", "aggregateId", "correlationId", "data");
+            assertThat(body.get("aggregateId").asString()).isEqualTo(event.aggregateId());
+            assertThat(body.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(event.data()));
+        }
+        // 같은 회원의 담기는 같은 파티션에 담은 순서대로 쌓인다
+        List<ConsumerRecord<String, String>> inOrder = published.stream()
+            .map(event -> received.get(event.eventId().toString()))
+            .toList();
+        assertThat(inOrder.get(1).partition()).isEqualTo(inOrder.get(0).partition());
+        assertThat(inOrder.get(1).offset()).isGreaterThan(inOrder.get(0).offset());
     }
 
     @Test
