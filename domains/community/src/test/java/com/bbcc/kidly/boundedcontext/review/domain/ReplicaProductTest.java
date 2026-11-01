@@ -1,0 +1,102 @@
+package com.bbcc.kidly.boundedcontext.review.domain;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+class ReplicaProductTest {
+
+    private static final LocalDateTime OCCURRED_AT = LocalDateTime.now().minusHours(1);
+    private static final ReplicaProduct.OptionState ON_SALE = new ReplicaProduct.OptionState("ON_SALE", false);
+    private static final ReplicaProduct.OptionState ON_SALE_SOLD_OUT = new ReplicaProduct.OptionState("ON_SALE", true);
+    private static final ReplicaProduct.OptionState STOPPED = new ReplicaProduct.OptionState("STOPPED", false);
+
+    @ParameterizedTest
+    @ValueSource(strings = {"STOPPED", "SALE_PENDING", "NEW_STATUS"})
+    @NullSource
+    @DisplayName("상품이 판매 중이 아니면(중지 · 판매 전 · 모르는 값 · 없음) 옵션과 상관없이 판매 종료다")
+    void notOnSaleIsSaleEnded(String productStatus) {
+        assertThat(DisplayStatus.of(productStatus, List.of(ON_SALE))).isEqualTo(DisplayStatus.SALE_ENDED);
+    }
+
+    @Test
+    @DisplayName("판매 중 상품의 판매 중 옵션이 모두 품절이면 품절이다")
+    void allOnSaleOptionsSoldOut() {
+        assertThat(DisplayStatus.of("ON_SALE", List.of(ON_SALE_SOLD_OUT, ON_SALE_SOLD_OUT)))
+            .isEqualTo(DisplayStatus.SOLD_OUT);
+    }
+
+    @Test
+    @DisplayName("판매 중 옵션 하나라도 재고가 있으면 판매 중이다(일부 품절)")
+    void someOnSaleOptionInStock() {
+        assertThat(DisplayStatus.of("ON_SALE", List.of(ON_SALE_SOLD_OUT, ON_SALE))).isEqualTo(DisplayStatus.ON_SALE);
+    }
+
+    @Test
+    @DisplayName("판매 중지 옵션은 품절이 아니어도 세지 않는다: 판매 중 옵션이 모두 품절이면 품절이다")
+    void stoppedOptionIgnored() {
+        assertThat(DisplayStatus.of("ON_SALE", List.of(STOPPED, ON_SALE_SOLD_OUT))).isEqualTo(DisplayStatus.SOLD_OUT);
+    }
+
+    @Test
+    @DisplayName("판매 중 옵션이 하나도 없으면(옵션 없음 · 모두 중지 · 옵션 상태 없음) 품절이다")
+    void noOnSaleOptionIsSoldOut() {
+        var unknownOption = new ReplicaProduct.OptionState(null, false);
+
+        assertThat(DisplayStatus.of("ON_SALE", List.of())).isEqualTo(DisplayStatus.SOLD_OUT);
+        assertThat(DisplayStatus.of("ON_SALE", List.of(STOPPED))).isEqualTo(DisplayStatus.SOLD_OUT);
+        assertThat(DisplayStatus.of("ON_SALE", List.of(unknownOption))).isEqualTo(DisplayStatus.SOLD_OUT);
+    }
+
+    @Test
+    @DisplayName("만들 때 이벤트 값과 표시 상태를 저장한다")
+    void create() {
+        ReplicaProduct replica = ReplicaProduct.create(values("상품 A", "ON_SALE", List.of(ON_SALE), OCCURRED_AT));
+
+        assertThat(replica.getProductId()).isEqualTo(1L);
+        assertThat(replica.getName()).isEqualTo("상품 A");
+        assertThat(replica.getThumbnailUrl()).isEqualTo("https://img/1.png");
+        assertThat(replica.getDisplayStatus()).isEqualTo(DisplayStatus.ON_SALE);
+        assertThat(replica.getSourceOccurredAt()).isEqualTo(OCCURRED_AT);
+    }
+
+    @Test
+    @DisplayName("저장된 시각보다 늦은 이벤트(1나노초 뒤)는 덮어쓴다")
+    void newerApplied() {
+        ReplicaProduct replica = ReplicaProduct.create(values("상품 A", "ON_SALE", List.of(ON_SALE), OCCURRED_AT));
+        LocalDateTime later = OCCURRED_AT.plusNanos(1);
+
+        boolean applied = replica.applyIfNewer(values("상품 B", "STOPPED", List.of(ON_SALE), later));
+
+        assertThat(applied).isTrue();
+        assertThat(replica.getName()).isEqualTo("상품 B");
+        assertThat(replica.getDisplayStatus()).isEqualTo(DisplayStatus.SALE_ENDED);
+        assertThat(replica.getSourceOccurredAt()).isEqualTo(later);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1})
+    @DisplayName("저장된 시각과 같거나(중복) 이른(늦게 온 옛) 이벤트는 무시한다")
+    void sameOrOlderIgnored(long nanos) {
+        ReplicaProduct replica = ReplicaProduct.create(values("상품 A", "ON_SALE", List.of(ON_SALE), OCCURRED_AT));
+
+        boolean applied = replica.applyIfNewer(values("상품 B", "STOPPED", List.of(ON_SALE),
+            OCCURRED_AT.plusNanos(nanos)));
+
+        assertThat(applied).isFalse();
+        assertThat(replica.getName()).isEqualTo("상품 A");
+        assertThat(replica.getDisplayStatus()).isEqualTo(DisplayStatus.ON_SALE);
+        assertThat(replica.getSourceOccurredAt()).isEqualTo(OCCURRED_AT);
+    }
+
+    private static ReplicaProduct.Values values(String name, String status, List<ReplicaProduct.OptionState> options,
+        LocalDateTime occurredAt) {
+        return new ReplicaProduct.Values(1L, name, "https://img/1.png", status, options, occurredAt);
+    }
+}
