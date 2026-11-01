@@ -30,6 +30,7 @@
 - 관리자 멈춘 주문(아웃박스 멈춤)은 eventType 접두(`order.` · `order-item.`)로 메시지 키가 주문 ID인지 판별한다 — 새 주문 이벤트 종류가 이 접두를 벗어나면 `StuckOrderService` 목록을 같이 고친다
 - `OrderOutboxRelayScheduler`가 안 보낸 메시지를 한 트랜잭션에서 id 순서로 batch만큼 보내고(`KafkaOrderEventSender`), 보내다 실패하면 그 메시지에서 멈춘다. 보낸 메시지는 `OrderOutboxCleanupScheduler`가 보관 기간 뒤 한 트랜잭션의 delete 한 번으로 지운다
 - 주기 작업(결제 마감 만료 · 자동 구매확정 · 아웃박스 릴레이 · 정리)은 `SingleServerJobRunner`로 한 번에 한 서버에서만 돈다(PostgreSQL advisory lock `kidly.order.{작업}`). 작업은 잠금 트랜잭션 밖에서 돈다
+- 주기 작업(결제 마감 만료 · 자동 구매확정 · 택배 조회)은 메모리 순환 커서(`RotatingCursor`, #656)로 지난 실행이 상한(max-per-run)에서 멈춘 곳 다음부터 이어 읽고 끝에 닿으면 처음으로 돌아간다(서버마다 따로, 재기동하면 처음부터). 상한에 닿고 남은 대상이 있는 실행의 실행 로그는 WARN 한 줄이다
 - 결제 마감 만료 · 자동 구매확정(`OrderScheduler`)은 대상 주문 하나 = 트랜잭션 하나다. 한 건이 실패해도 로그만 남기고 다음 건을 처리한다
 - 결제 마감 만료는 결제 이벤트를 Kafka로 받는 동안 처리 대기분이 있으면 그 주기를 건너뛴다(`PaymentExpiryGate`)
 - 배송 자동 완료(#650): `DeliveryStatusPoller`가 발송 중이고 조회를 멈추지 않은 배송을 `DeliveryStatusChecker`(out `tracker`, Delivery Tracker)로 트랜잭션 밖에서 조회하고, 택배사 DELIVERED이고 택배사 시각 > 발송 시각일 때만 `Delivery.completeByTracking`으로 완료한다(완료 시각 = 택배사 시각, 이력 SYSTEM · `scheduler:delivery-tracking`, 수동 완료와 겹쳐도 1회). 운송장 형식 오류는 `tracking_stopped_at`으로 조회를 멈추고(수동 완료는 가능) 그 밖의 오류는 다음 주기에 다시 본다. 한 서버에서만(`DeliveryJobRunner`, 잠금 `kidly.delivery.{작업}`), 인증값이 없으면 기능만 꺼진다
