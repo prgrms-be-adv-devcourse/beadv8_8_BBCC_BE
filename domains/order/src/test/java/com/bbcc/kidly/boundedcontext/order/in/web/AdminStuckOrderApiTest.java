@@ -10,7 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -39,9 +39,6 @@ class AdminStuckOrderApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private OrderRepository orderRepository;
 
     @Autowired
@@ -56,7 +53,7 @@ class AdminStuckOrderApiTest {
         stockCheckStale(LocalDateTime.now().minusHours(2));
 
         client.get().uri(STUCK_PATH + "/summary")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -74,7 +71,7 @@ class AdminStuckOrderApiTest {
         String older = stockCheckStale(base.minusMinutes(1));
 
         client.get().uri(STUCK_PATH + "?kind=STOCK_CHECK_STALE&size=1")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -93,7 +90,7 @@ class AdminStuckOrderApiTest {
             .jsonPath("$.totalPages").isEqualTo(2)
             .jsonPath("$.hasNext").isEqualTo(true);
         client.get().uri(STUCK_PATH + "?kind=STOCK_CHECK_STALE&page=1&size=1")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -114,7 +111,7 @@ class AdminStuckOrderApiTest {
             + "last_error = 'RecordTooLargeException: 크기 초과' where id = ?", createdAt, outboxId);
 
         client.get().uri(STUCK_PATH + "?kind=OUTBOX_STUCK")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -136,7 +133,7 @@ class AdminStuckOrderApiTest {
             .jsonPath("$.content[0].outbox.backlogCount").isEqualTo(1)
             .jsonPath("$.totalElements").isEqualTo(1);
         client.get().uri(STUCK_PATH + "/summary")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -147,7 +144,7 @@ class AdminStuckOrderApiTest {
     @DisplayName("멈춘 대상이 없으면 200 · content []")
     void emptyList() {
         client.get().uri(STUCK_PATH + "?kind=SHIPPING_DELAYED")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -160,7 +157,7 @@ class AdminStuckOrderApiTest {
     @DisplayName("kind 없음 · 빈 값 · 모르는 값 · 소문자면 400 INVALID_STUCK_KIND, 받는 값 일곱 개를 안내한다")
     void unknownKindIsBadRequest(String query) {
         client.get().uri(STUCK_PATH + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
@@ -177,7 +174,7 @@ class AdminStuckOrderApiTest {
     @DisplayName("size 1~100 밖 · page 음수면 400")
     void invalidParametersAreBadRequest(String query) {
         client.get().uri(STUCK_PATH + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -188,31 +185,13 @@ class AdminStuckOrderApiTest {
         stockCheckStale(LocalDateTime.now().minusHours(2));
 
         client.get().uri(STUCK_PATH + "?kind=STOCK_CHECK_STALE&page=1073741824&size=2")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content.length()").isEqualTo(0)
             .jsonPath("$.totalElements").isEqualTo(1)
             .jsonPath("$.hasNext").isEqualTo(false);
-    }
-
-    @Test
-    @DisplayName("토큰이 없으면 401, 구매자 · 판매자 토큰이면 403(요약 · 목록 모두)")
-    void adminOnly() {
-        for (String path : List.of(STUCK_PATH + "/summary", STUCK_PATH + "?kind=SHIPPING_DELAYED")) {
-            client.get().uri(path)
-                .exchange()
-                .expectStatus().isUnauthorized();
-            client.get().uri(path)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
-                .exchange()
-                .expectStatus().isForbidden();
-            client.get().uri(path)
-                .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
-                .exchange()
-                .expectStatus().isForbidden();
-        }
     }
 
     /**

@@ -12,9 +12,11 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
 import com.bbcc.kidly.global.response.PageResponse;
+import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
+import com.bbcc.kidly.support.IssuedAccessToken;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -31,14 +33,10 @@ class AdminMemberApiTest {
 
     private static final String PATH = "/api/v1/admin/members";
     private static final String REASON = "욕설이 담긴 리뷰로 신고가 접수되었어요.";
-    private static final String ME_PATH = "/api/v1/members/me";
     private static final Long ADMIN_ID = 100L;
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private MemberRepository memberRepository;
@@ -111,24 +109,9 @@ class AdminMemberApiTest {
     @DisplayName("모르는 filter는 400이다")
     void listInvalidFilter() {
         client.get().uri(PATH + "?filter=FOO")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
-    }
-
-    @Test
-    @DisplayName("구매자는 목록을 볼 수 없다. 403이다")
-    void listForbiddenForBuyer() {
-        client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
-    @DisplayName("토큰이 없으면 401이다")
-    void listUnauthorized() {
-        client.get().uri(PATH).exchange().expectStatus().isUnauthorized();
     }
 
     @Test
@@ -154,24 +137,6 @@ class AdminMemberApiTest {
 
         client.post().uri("/api/v1/auth/reissue")
             .cookie("refresh_token", refreshToken)
-            .exchange()
-            .expectStatus().isUnauthorized();
-    }
-
-    @Test
-    @DisplayName("정지하면 정지 전에 발급된 Access Token은 바로 401이다")
-    void suspendRevokesAccessToken() {
-        var member = memberRepository.save(MemberFixture.kakaoMember());
-        var accessToken = tokens.buyer(member.getId());
-        client.get().uri(ME_PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
-            .exchange()
-            .expectStatus().isOk();
-
-        suspend(member.getId(), REASON).expectStatus().isNoContent();
-
-        client.get().uri(ME_PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
             .exchange()
             .expectStatus().isUnauthorized();
     }
@@ -223,19 +188,6 @@ class AdminMemberApiTest {
     }
 
     @Test
-    @DisplayName("구매자는 정지할 수 없다. 403이다")
-    void suspendForbiddenForBuyer() {
-        var member = memberRepository.save(MemberFixture.kakaoMember());
-
-        client.post().uri(PATH + "/{id}/suspend", member.getId())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(new MemberSuspendRequest(REASON))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("filter=ADMIN이면 관리자만 준다")
     void listAdmins() {
         memberRepository.save(MemberFixture.kakaoMember("1"));
@@ -274,8 +226,10 @@ class AdminMemberApiTest {
             .returnResult()
             .getResponseBody()
             .accessToken();
+        var reissued = IssuedAccessToken.decode(accessToken);
+        assertThat(reissued.roles()).contains(Role.ADMIN);
         client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
+            .headers(reissued.headers())
             .exchange()
             .expectStatus().isOk();
     }
@@ -298,17 +252,6 @@ class AdminMemberApiTest {
     }
 
     @Test
-    @DisplayName("구매자는 관리자를 지정할 수 없다. 403이다")
-    void grantAdminForbiddenForBuyer() {
-        var member = memberRepository.save(MemberFixture.kakaoMember());
-
-        client.post().uri(PATH + "/{id}/grant-admin", member.getId())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("관리자 권한을 해제하면 204이고 USER가 된다")
     void revokeAdmin() {
         var admin = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
@@ -316,24 +259,6 @@ class AdminMemberApiTest {
         revokeAdmin(admin.getId(), ADMIN_ID).expectStatus().isNoContent();
 
         assertThat(memberRepository.findById(admin.getId()).orElseThrow().getRole()).isEqualTo(MemberRole.USER);
-    }
-
-    @Test
-    @DisplayName("관리자 권한을 해제하면 그 관리자가 가진 Access Token은 바로 401이다")
-    void revokeAdminRevokesAccessToken() {
-        var admin = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
-        var accessToken = tokens.admin(admin.getId());
-        client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
-            .exchange()
-            .expectStatus().isOk();
-
-        revokeAdmin(admin.getId(), ADMIN_ID).expectStatus().isNoContent();
-
-        client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(accessToken))
-            .exchange()
-            .expectStatus().isUnauthorized();
     }
 
     @Test
@@ -362,7 +287,7 @@ class AdminMemberApiTest {
 
     private PageResponse<AdminMemberSummaryResponse> list(String query) {
         return client.get().uri(PATH + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(new ParameterizedTypeReference<PageResponse<AdminMemberSummaryResponse>>() { })
@@ -372,7 +297,7 @@ class AdminMemberApiTest {
 
     private RestTestClient.ResponseSpec suspend(Long memberId, String reason) {
         return client.post().uri(PATH + "/{id}/suspend", memberId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new MemberSuspendRequest(reason))
             .exchange();
@@ -380,13 +305,13 @@ class AdminMemberApiTest {
 
     private RestTestClient.ResponseSpec grantAdmin(Long memberId) {
         return client.post().uri(PATH + "/{id}/grant-admin", memberId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec revokeAdmin(Long memberId, Long adminId) {
         return client.post().uri(PATH + "/{id}/revoke-admin", memberId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(adminId)))
+            .headers(TestMembers.admin(adminId))
             .exchange();
     }
 }

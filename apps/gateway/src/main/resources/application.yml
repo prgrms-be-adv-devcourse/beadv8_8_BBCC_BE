@@ -7,8 +7,7 @@ spring:
     gateway:
       server:
         webflux:
-          # CORS는 Gateway가 처리한다: 프리플라이트에 직접 답하고 Gateway가 만든 401에도 붙는다. 값은 common SecurityConfig와 같다
-          # jwt 모드 서비스(prod · 로컬 직접 접속)는 CORS 헤더를 붙이므로 같은 헤더가 두 번 오지 않게 하나만 남긴다
+          # CORS는 Gateway만 처리한다: 프리플라이트에 직접 답하고 Gateway가 만든 401 · 403에도 붙는다(서비스는 CORS 헤더를 붙이지 않는다)
           globalcors:
             cors-configurations:
               '[/**]':
@@ -19,12 +18,8 @@ spring:
                 exposed-headers: X-Request-Id
                 allow-credentials: true
                 max-age: 3600
-          # 백엔드 헤더는 Gateway 헤더 뒤에 붙으므로 첫 값(Gateway 값)을 남긴다.
-          # Vary는 Gateway가 값 셋(Origin · 프리플라이트 헤더 둘)을 따로 붙이므로 첫 값만 남기면 둘을 잃는다. 겹친 값만 줄인다
           # Host는 nginx 값(원래 호스트)을 넘긴다. 없으면 백엔드 주소(app:8080)로 바뀐다
           default-filters:
-            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Expose-Headers, RETAIN_FIRST
-            - DedupeResponseHeader=Vary, RETAIN_UNIQUE
             - PreserveHostHeader
           # nginx가 넣은 X-Forwarded-*를 앱에 그대로 넘긴다(앱이 nginx 직결 때와 같은 클라이언트 IP · https · 호스트를 본다).
           # trusted-proxies가 없으면 X-Forwarded-*를 모두 지운다. Gateway는 서버 127.0.0.1에만 열리므로 모두 믿는다.

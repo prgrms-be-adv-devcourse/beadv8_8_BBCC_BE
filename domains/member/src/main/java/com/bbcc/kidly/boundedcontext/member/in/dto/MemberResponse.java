@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.member.in.dto;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberResult;
-import com.bbcc.kidly.global.security.Role;
+import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import java.util.List;
 

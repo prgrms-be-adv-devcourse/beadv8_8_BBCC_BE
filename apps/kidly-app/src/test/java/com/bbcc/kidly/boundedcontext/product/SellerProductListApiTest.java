@@ -5,12 +5,14 @@ import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixtur
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -26,9 +28,6 @@ class SellerProductListApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private ClothingTopSaver clothingTopSaver;
@@ -47,7 +46,7 @@ class SellerProductListApiTest {
         String withThumbnail = register(SELLER_ID, withThumbnailBody);
         register(OTHER_SELLER_ID, productA(saved));
 
-        list(tokens.seller(SELLER_ID))
+        list(TestMembers.seller(SELLER_ID))
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content.length()").isEqualTo(2)
@@ -71,7 +70,7 @@ class SellerProductListApiTest {
     @Test
     @DisplayName("상품이 없는 판매자는 빈 목록을 받는다")
     void listEmptyWhenNoProducts() {
-        list(tokens.seller(SELLER_ID))
+        list(TestMembers.seller(SELLER_ID))
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content").isArray()
@@ -80,17 +79,10 @@ class SellerProductListApiTest {
             .jsonPath("$.hasNext").isEqualTo(false);
     }
 
-    @Test
-    @DisplayName("토큰이 없으면 401, 판매자가 아닌 회원이면 403이다")
-    void rejectWithoutSellerRole() {
-        list(null).expectStatus().isUnauthorized();
-        list(tokens.buyer(SELLER_ID)).expectStatus().isForbidden();
-    }
-
     // 등록 API로 판매대기 상품을 만들고 상품 ID를 돌려준다
     private String register(long sellerId, Map<String, Object> body) {
         return client.post().uri(PRODUCTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange()
@@ -100,13 +92,9 @@ class SellerProductListApiTest {
             .productId();
     }
 
-    private RestTestClient.ResponseSpec list(String token) {
+    private RestTestClient.ResponseSpec list(Consumer<HttpHeaders> login) {
         return client.get().uri(PRODUCTS_PATH)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .exchange();
     }
 }

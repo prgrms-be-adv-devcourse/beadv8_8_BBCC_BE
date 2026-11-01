@@ -8,10 +8,11 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -41,9 +43,6 @@ class InventoryAdjustmentApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -68,7 +67,7 @@ class InventoryAdjustmentApiTest {
         "DEFECTIVE, -1, 4", "LOST, -5, 0"})
     @DisplayName("INV-17 사유와 부호가 맞는 조정이면 판매 가능 수량이 증감량만큼 바뀌고 재고 조정 기록이 한 행 생긴다")
     void adjustStock(String reason, int deltaQuantity, int expectedQty) {
-        adjust(tokens.seller(SELLER_ID), option.getId(), Map.of("deltaQuantity", deltaQuantity, "reason", reason))
+        adjust(TestMembers.seller(SELLER_ID), option.getId(), Map.of("deltaQuantity", deltaQuantity, "reason", reason))
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.optionId").isEqualTo(String.valueOf(option.getId()))
@@ -86,7 +85,8 @@ class InventoryAdjustmentApiTest {
     @DisplayName("INV-03 판매 가능 수량 5인 옵션을 5보다 많이 줄이면 409로 거절하고 판매 가능 수량과 재고 조정 기록이 그대로다")
     void rejectDecreaseOverAvailable(int deltaQuantity) {
         expectProblem(
-            adjust(tokens.seller(SELLER_ID), option.getId(), Map.of("deltaQuantity", deltaQuantity, "reason", "LOST")),
+            adjust(TestMembers.seller(SELLER_ID), option.getId(),
+                Map.of("deltaQuantity", deltaQuantity, "reason", "LOST")),
             HttpStatus.CONFLICT, "판매 가능 수량보다 많이 줄일 수 없습니다",
             "판매 가능 수량보다 많이 줄일 수 없습니다. 지금 판매 가능 수량: 5", option.getId());
 
@@ -119,7 +119,8 @@ class InventoryAdjustmentApiTest {
     @DisplayName("다른 판매자의 옵션 재고를 조정하면 403으로 거절하고 아무것도 바꾸지 않는다")
     void rejectOtherSellersOption() {
         expectProblem(
-            adjust(tokens.seller(OTHER_SELLER_ID), option.getId(), Map.of("deltaQuantity", 10, "reason", "RESTOCK")),
+            adjust(TestMembers.seller(OTHER_SELLER_ID), option.getId(),
+                Map.of("deltaQuantity", 10, "reason", "RESTOCK")),
             HttpStatus.FORBIDDEN, "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.", option.getId());
 
         assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(5);
@@ -130,20 +131,8 @@ class InventoryAdjustmentApiTest {
     @DisplayName("없는 옵션의 재고를 조정하면 404로 거절한다")
     void rejectMissingOption() {
         expectProblem(
-            adjust(tokens.seller(SELLER_ID), MISSING_OPTION_ID, Map.of("deltaQuantity", 10, "reason", "RESTOCK")),
+            adjust(TestMembers.seller(SELLER_ID), MISSING_OPTION_ID, Map.of("deltaQuantity", 10, "reason", "RESTOCK")),
             HttpStatus.NOT_FOUND, "옵션을 찾을 수 없습니다", "옵션을 다시 확인해 주세요.", MISSING_OPTION_ID);
-    }
-
-    @Test
-    @DisplayName("로그인하지 않으면 401, 판매자가 아닌 회원이면 403으로 거절하고 아무것도 바꾸지 않는다")
-    void rejectWithoutSellerRole() {
-        Map<String, Object> restock = Map.of("deltaQuantity", 10, "reason", "RESTOCK");
-
-        adjust(null, option.getId(), restock).expectStatus().isUnauthorized();
-        adjust(tokens.buyer(SELLER_ID), option.getId(), restock).expectStatus().isForbidden();
-
-        assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(5);
-        assertThat(sellerAdjustments(option)).isEmpty();
     }
 
     @ParameterizedTest(name = "{0} {1}")
@@ -159,7 +148,7 @@ class InventoryAdjustmentApiTest {
                 "update product.product_option set sale_status = ? where id = ?", status, option.getId());
         }
 
-        adjust(tokens.seller(SELLER_ID), option.getId(), Map.of("deltaQuantity", 10, "reason", "RESTOCK"))
+        adjust(TestMembers.seller(SELLER_ID), option.getId(), Map.of("deltaQuantity", 10, "reason", "RESTOCK"))
             .expectStatus().isOk();
 
         assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(15);
@@ -189,7 +178,7 @@ class InventoryAdjustmentApiTest {
 
     // 400으로 거절하고 판매 가능 수량과 재고 조정 기록을 바꾸지 않았는지 본다
     private void expectBadRequest(Map<String, Object> body, String detail) {
-        expectProblem(adjust(tokens.seller(SELLER_ID), option.getId(), body),
+        expectProblem(adjust(TestMembers.seller(SELLER_ID), option.getId(), body),
             HttpStatus.BAD_REQUEST, "잘못된 요청입니다", detail, option.getId());
 
         assertThat(inventoryDeductionDb.availableQty(option)).isEqualTo(5);
@@ -209,13 +198,9 @@ class InventoryAdjustmentApiTest {
             .jsonPath("$.instance").isEqualTo(adjustmentsPath(optionId));
     }
 
-    private ResponseSpec adjust(String token, long optionId, Map<String, Object> body) {
+    private ResponseSpec adjust(Consumer<HttpHeaders> login, long optionId, Map<String, Object> body) {
         return client.post().uri(adjustmentsPath(optionId))
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();

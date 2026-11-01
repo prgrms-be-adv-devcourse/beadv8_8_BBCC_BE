@@ -2,20 +2,18 @@ package com.bbcc.kidly.boundedcontext.order.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.global.security.AccessTokenRevocations;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 주문 모듈 테스트 기반(#616): 주문 테스트 앱이 주문 · common만으로 뜨고, orders 스키마가 기준 SQL + 주문 마이그레이션으로
- * 만들어지며(엔티티와 맞지 않으면 ddl validate로 기동 실패), 다른 도메인이 구현하던 common 인터페이스는 테스트용 구현이 채운다.
+ * 만들어진다(엔티티와 맞지 않으면 ddl validate로 기동 실패).
  */
 @IntegrationTest
 class OrderTestContextIntegrationTest {
@@ -28,9 +26,6 @@ class OrderTestContextIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private AccessTokenRevocations revocations;
 
     @Test
     @DisplayName("orders 스키마의 표 14개가 기준 SQL과 주문 마이그레이션(order_outbox · order_dead_letter)으로 만들어진다")
@@ -55,11 +50,5 @@ class OrderTestContextIntegrationTest {
             .toList();
 
         assertThat(otherDomains).isEmpty();
-    }
-
-    @Test
-    @DisplayName("Access Token 무효화 확인은 테스트용 구현(늘 무효화 안 됨)이 채운다")
-    void revocationsAreTestImplementation() {
-        assertThat(AopUtils.getTargetClass(revocations)).isEqualTo(NoRevokedAccessTokens.class);
     }
 }

@@ -5,11 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildProfileResponse;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.GrowthRecordResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -37,14 +37,11 @@ class ChildProfileApiTest {
     @Autowired
     private RestTestClient client;
 
-    @Autowired
-    private TestTokens tokens;
-
     @Test
     @DisplayName("자녀를 등록하면 201과 Location, 등록된 자녀를 준다")
     void register() {
         var result = client.post().uri(CHILDREN_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(REQUEST)
             .exchange()
@@ -69,7 +66,7 @@ class ChildProfileApiTest {
         register(OTHER_MEMBER_ID);
 
         var children = client.get().uri(CHILDREN_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(new ParameterizedTypeReference<List<ChildProfileResponse>>() { })
@@ -85,7 +82,7 @@ class ChildProfileApiTest {
         var childId = register(MEMBER_ID);
 
         client.get().uri(CHILD_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -104,7 +101,7 @@ class ChildProfileApiTest {
             new BigDecimal("118.0"), new BigDecimal("21.0"), null, null);
 
         var child = client.patch().uri(CHILD_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(changed)
             .exchange()
@@ -123,12 +120,12 @@ class ChildProfileApiTest {
         var childId = register(MEMBER_ID);
 
         client.delete().uri(CHILD_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isNoContent();
 
         client.get().uri(CHILD_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isNotFound();
     }
@@ -138,7 +135,7 @@ class ChildProfileApiTest {
     void growthRecords() {
         var childId = register(MEMBER_ID);
         client.patch().uri(CHILD_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
                 new BigDecimal("118.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE))
@@ -146,7 +143,7 @@ class ChildProfileApiTest {
             .expectStatus().isOk();
 
         var records = client.get().uri(GROWTH_RECORDS_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(new ParameterizedTypeReference<List<GrowthRecordResponse>>() { })
@@ -163,26 +160,26 @@ class ChildProfileApiTest {
     @DisplayName("남의 자녀는 상세 · 수정 · 삭제 · 성장 이력 모두 404다")
     void otherMembersChild() {
         var childId = register(MEMBER_ID);
-        var otherToken = tokens.buyer(OTHER_MEMBER_ID);
+        var otherMember = TestMembers.buyer(OTHER_MEMBER_ID);
 
         client.get().uri(CHILD_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(otherToken))
+            .headers(otherMember)
             .exchange()
             .expectStatus().isNotFound()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody().jsonPath("$.title").isEqualTo("찾을 수 없습니다");
         client.patch().uri(CHILD_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(otherToken))
+            .headers(otherMember)
             .contentType(MediaType.APPLICATION_JSON)
             .body(REQUEST)
             .exchange()
             .expectStatus().isNotFound();
         client.delete().uri(CHILD_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(otherToken))
+            .headers(otherMember)
             .exchange()
             .expectStatus().isNotFound();
         client.get().uri(GROWTH_RECORDS_PATH, childId)
-            .headers(headers -> headers.setBearerAuth(otherToken))
+            .headers(otherMember)
             .exchange()
             .expectStatus().isNotFound();
     }
@@ -213,7 +210,7 @@ class ChildProfileApiTest {
     @DisplayName("모르는 체형 값이면 400")
     void unknownBodyType() {
         client.post().uri(CHILDREN_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body("{\"name\":\"첫째\",\"birthDate\":\"2019-01-15\",\"gender\":\"MALE\",\"heightCm\":115.0,"
                 + "\"weightKg\":20.0,\"bodyType\":\"FAT\"}")
@@ -231,7 +228,7 @@ class ChildProfileApiTest {
 
     private Long register(Long memberId) {
         return client.post().uri(CHILDREN_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(REQUEST)
             .exchange()
@@ -244,7 +241,7 @@ class ChildProfileApiTest {
     // detail에 "필드명: 메시지"가 들어 있다
     private void expectInvalid(ChildProfileRequest request, String field) {
         var body = client.post().uri(CHILDREN_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(request)
             .exchange()

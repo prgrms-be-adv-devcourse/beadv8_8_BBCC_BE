@@ -2,10 +2,8 @@ package com.bbcc.kidly.support;
 
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
-import com.bbcc.kidly.global.security.PublicApi;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,47 +15,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class TestApiController {
 
-    public static final String AUTH_PATH = "/api/v1/test/auth";
-    public static final String SELLER_PATH = "/api/v1/seller/test";
-    public static final String ADMIN_PATH = "/api/v1/admin/test";
     public static final String LOGIN_MEMBER_PATH = "/api/v1/test/login-member";
     public static final String PUBLIC_PATH = "/api/v1/test/public";
-    public static final String PUBLIC_ITEM_PATH = "/api/v1/test/items/{id}";
-    public static final String PRIVATE_ITEM_PATH = "/api/v1/test/items/mine";
     public static final String ECHO_PATH = "/api/v1/test/echo";
-
-    @GetMapping(AUTH_PATH)
-    void auth() {
-    }
-
-    @GetMapping(SELLER_PATH)
-    void seller() {
-    }
-
-    @GetMapping(ADMIN_PATH)
-    void admin() {
-    }
-
-    @PublicApi
-    @GetMapping(PUBLIC_PATH)
-    void publicApi() {
-    }
-
-    @PublicApi
-    @GetMapping(PUBLIC_ITEM_PATH)
-    void publicItem(@PathVariable Long id) {
-    }
-
-    @GetMapping(PRIVATE_ITEM_PATH)
-    void privateItem() {
-    }
 
     @GetMapping(LOGIN_MEMBER_PATH)
     AuthMember loginMember(@LoginMember AuthMember member) {
         return member;
     }
 
-    @PublicApi
+    @GetMapping(PUBLIC_PATH)
+    void publicApi() {
+    }
+
     @PostMapping(ECHO_PATH)
     Map<String, Object> echo(@RequestBody Map<String, Object> body) {
         return body;

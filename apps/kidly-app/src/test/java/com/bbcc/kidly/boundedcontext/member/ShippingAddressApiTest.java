@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.ShippingAddressRequest;
 import com.bbcc.kidly.boundedcontext.member.in.dto.ShippingAddressResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Stream;
@@ -33,14 +33,11 @@ class ShippingAddressApiTest {
     @Autowired
     private RestTestClient client;
 
-    @Autowired
-    private TestTokens tokens;
-
     @Test
     @DisplayName("배송지를 등록하면 201과 Location, 등록된 배송지를 주고, 첫 배송지는 기본 배송지다")
     void register() {
         var result = client.post().uri(ADDRESSES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(request("홍길동", false))
             .exchange()
@@ -62,7 +59,7 @@ class ShippingAddressApiTest {
     @DisplayName("응답 JSON의 기본 배송지 키는 isDefault다")
     void isDefaultJsonKey() {
         client.post().uri(ADDRESSES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(request("홍길동", false))
             .exchange()
@@ -119,7 +116,7 @@ class ShippingAddressApiTest {
             "김철수", "010-9999-8888", "04524", "서울특별시 중구 세종대로 110", " ", false);
 
         var updated = client.patch().uri(ADDRESS_PATH, address.id())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(changed)
             .exchange()
@@ -157,7 +154,7 @@ class ShippingAddressApiTest {
         var address = registerAddress(MEMBER_ID, "홍길동", false);
 
         client.patch().uri(ADDRESS_PATH, address.id())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(request(" ", false))
             .exchange()
@@ -173,7 +170,7 @@ class ShippingAddressApiTest {
         var second = registerAddress(MEMBER_ID, "둘째", false);
 
         var changed = client.patch().uri(DEFAULT_PATH, second.id())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isOk()
             .returnResult(ShippingAddressResponse.class)
@@ -192,7 +189,7 @@ class ShippingAddressApiTest {
         var second = registerAddress(MEMBER_ID, "둘째", false);
 
         client.delete().uri(ADDRESS_PATH, second.id())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isNoContent();
 
@@ -206,7 +203,7 @@ class ShippingAddressApiTest {
         registerAddress(MEMBER_ID, "둘째", false);
 
         client.delete().uri(ADDRESS_PATH, first.id())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isEqualTo(409)
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
@@ -221,7 +218,7 @@ class ShippingAddressApiTest {
         var only = registerAddress(MEMBER_ID, "첫째", false);
 
         client.delete().uri(ADDRESS_PATH, only.id())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .exchange()
             .expectStatus().isNoContent();
 
@@ -248,7 +245,7 @@ class ShippingAddressApiTest {
     @DisplayName("잘못된 입력이면 400이다")
     void invalidInput(String name, ShippingAddressRequest request, String field) {
         var body = client.post().uri(ADDRESSES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
+            .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(request)
             .exchange()
@@ -297,7 +294,7 @@ class ShippingAddressApiTest {
 
     private ShippingAddressResponse registerAddress(Long memberId, String recipientName, boolean isDefault) {
         return client.post().uri(ADDRESSES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(request(recipientName, isDefault))
             .exchange()
@@ -308,7 +305,7 @@ class ShippingAddressApiTest {
 
     private List<ShippingAddressResponse> list(Long memberId) {
         return client.get().uri(ADDRESSES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .exchange()
             .expectStatus().isOk()
             .expectBody(new ParameterizedTypeReference<List<ShippingAddressResponse>>() { })
@@ -318,7 +315,7 @@ class ShippingAddressApiTest {
 
     private ShippingAddressResponse updateAddress(Long memberId, Long addressId, ShippingAddressRequest request) {
         return client.patch().uri(ADDRESS_PATH, addressId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(request)
             .exchange()
@@ -329,27 +326,27 @@ class ShippingAddressApiTest {
 
     private void requestChangeDefault(Long memberId, Long addressId) {
         client.patch().uri(DEFAULT_PATH, addressId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .exchange()
             .expectStatus().isOk();
     }
 
     private void expectNotFound(Long memberId, Long addressId) {
-        var token = tokens.buyer(memberId);
+        var login = TestMembers.buyer(memberId);
         client.patch().uri(ADDRESS_PATH, addressId)
-            .headers(headers -> headers.setBearerAuth(token))
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(request("홍길동", false))
             .exchange()
             .expectStatus().isNotFound()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
         client.delete().uri(ADDRESS_PATH, addressId)
-            .headers(headers -> headers.setBearerAuth(token))
+            .headers(login)
             .exchange()
             .expectStatus().isNotFound()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
         client.patch().uri(DEFAULT_PATH, addressId)
-            .headers(headers -> headers.setBearerAuth(token))
+            .headers(login)
             .exchange()
             .expectStatus().isNotFound()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);

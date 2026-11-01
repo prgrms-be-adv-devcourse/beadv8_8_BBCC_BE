@@ -4,7 +4,6 @@ import com.bbcc.kidly.boundedcontext.member.app.DevTokenService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.DevTokenRequest;
 import com.bbcc.kidly.boundedcontext.member.in.dto.DevTokenResponse;
 import com.bbcc.kidly.global.config.DevOnly;
-import com.bbcc.kidly.global.security.PublicApi;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +21,6 @@ public class DevTokenController {
 
     private final DevTokenService devTokenService;
 
-    @PublicApi
     @PostMapping("/api/v1/dev/tokens")
     public DevTokenResponse issue(@Valid @RequestBody DevTokenRequest request) {
         return new DevTokenResponse(devTokenService.issue(request));

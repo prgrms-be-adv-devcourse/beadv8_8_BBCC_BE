@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -36,9 +37,6 @@ class RequestLoggingApiTest {
     @Autowired
     private RestTestClient client;
 
-    @Autowired
-    private TestTokens tokens;
-
     @BeforeEach
     void attachAppender() {
         appender.start();
@@ -56,7 +54,9 @@ class RequestLoggingApiTest {
         var body = "{\"password\":\"pw\",\"name\":\"홍길동\",\"amount\":1000}";
 
         client.post().uri(ECHO_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(7L)))
+            .headers(TestMembers.buyer(7L))
+            // 서비스는 토큰을 보지 않지만, 들어온 Authorization 헤더는 로그에서 가린다
+            .header(HttpHeaders.AUTHORIZATION, "Bearer secret-token")
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange()

@@ -271,17 +271,6 @@ class ProductDetailApiTest {
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
-    @Test
-    @DisplayName("로그인 없이 부르는 API여도 잘못된 토큰을 보내면 401이다")
-    void invalidTokenIsUnauthorized() {
-        Product product = savedProductOnSale(10, 10, 10);
-
-        client.get().uri("/api/v1/products/{productId}", product.getId())
-            .headers(headers -> headers.setBearerAuth("invalid-token"))
-            .exchange()
-            .expectStatus().isUnauthorized();
-    }
-
     // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(String path, HttpStatus status, String title, String detail) {
         client.get().uri(path)

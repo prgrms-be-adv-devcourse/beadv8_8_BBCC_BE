@@ -17,7 +17,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
@@ -59,9 +59,6 @@ class AdminOrderDeadLetterActionApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private OrderDeadLetterService deadLetterService;
 
     @Autowired
@@ -101,7 +98,7 @@ class AdminOrderDeadLetterActionApiTest {
             + "ObjectOptimisticLockingFailureException");
 
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -174,7 +171,7 @@ class AdminOrderDeadLetterActionApiTest {
         try (CapturedLogs logs = CapturedLogs.start()) {
             client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
                 .headers(headers -> {
-                    headers.setBearerAuth(tokens.admin(ADMIN_ID));
+                    TestMembers.admin(ADMIN_ID).accept(headers);
                     headers.set("X-Request-Id", requestId);
                 })
                 .exchange()
@@ -198,7 +195,7 @@ class AdminOrderDeadLetterActionApiTest {
         Long id = receive(2L, completed, "java.lang.IllegalStateException");
 
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -219,7 +216,7 @@ class AdminOrderDeadLetterActionApiTest {
 
         for (int attempt = 1; attempt <= 2; attempt++) {
             client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-                .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+                .headers(TestMembers.admin(ADMIN_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -244,7 +241,7 @@ class AdminOrderDeadLetterActionApiTest {
         Long id = idAt(4L);
 
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -286,7 +283,7 @@ class AdminOrderDeadLetterActionApiTest {
 
         closeWith(id, memo).expectStatus().isBadRequest();
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/close")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of())
             .exchange()
@@ -330,30 +327,15 @@ class AdminOrderDeadLetterActionApiTest {
         closeWith(999_999L, "메모").expectStatus().isNotFound();
     }
 
-    @Test
-    @DisplayName("토큰이 없으면 401, 구매자 · 판매자 토큰이면 403(재처리 · 종료)")
-    void adminOnly() {
-        client.post().uri(DEAD_LETTERS_PATH + "/1/reprocess").exchange().expectStatus().isUnauthorized();
-        client.post().uri(DEAD_LETTERS_PATH + "/1/close").contentType(MediaType.APPLICATION_JSON)
-            .body(Map.of("memo", "m")).exchange().expectStatus().isUnauthorized();
-        for (String token : List.of(tokens.buyer(BUYER_ID), tokens.seller(BUYER_ID))) {
-            client.post().uri(DEAD_LETTERS_PATH + "/1/reprocess").headers(headers -> headers.setBearerAuth(token))
-                .exchange().expectStatus().isForbidden();
-            client.post().uri(DEAD_LETTERS_PATH + "/1/close").headers(headers -> headers.setBearerAuth(token))
-                .contentType(MediaType.APPLICATION_JSON).body(Map.of("memo", "m"))
-                .exchange().expectStatus().isForbidden();
-        }
-    }
-
     private RestTestClient.ResponseSpec reprocess(Long id) {
         return client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec closeWith(Long id, String memo) {
         return client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/close")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("memo", memo))
             .exchange();
@@ -422,7 +404,7 @@ class AdminOrderDeadLetterActionApiTest {
 
     private List<String> idsOf(String query) {
         return client.get().uri(DEAD_LETTERS_PATH + query)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(Ids.class)

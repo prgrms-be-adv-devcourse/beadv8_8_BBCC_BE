@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 로그인한 판매자의 정보 API. SELLER 권한은 SecurityConfig가 확인한다.
+ * 로그인한 판매자의 정보 API. SELLER 권한은 Gateway가 확인한다.
  */
 @RestController
 @RequestMapping("/api/v1/seller/me")

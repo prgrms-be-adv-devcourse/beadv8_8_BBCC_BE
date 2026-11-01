@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.order.in.web;
 
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
-import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.order.in.web.AdminOrderController.ADMIN_ORDERS_PATH;
 import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -12,7 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -38,9 +37,6 @@ class AdminOrderHistoryApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private ProductReplicaRepository productReplicaRepository;
 
     @Autowired
@@ -59,12 +55,12 @@ class AdminOrderHistoryApiTest {
     void listsHistoryOldestFirst() {
         String orderId = placeOrder();
         client.post().uri(ORDERS_PATH + "/" + orderId + "/cancel")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk();
 
         client.get().uri(historyPath(orderId))
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -92,7 +88,7 @@ class AdminOrderHistoryApiTest {
         orderService.cancelForPaymentFailure(Long.valueOf(orderId));
 
         client.get().uri(historyPath(orderId))
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -109,7 +105,7 @@ class AdminOrderHistoryApiTest {
         jdbcTemplate.update("delete from orders.order_status_history where order_id = ?", Long.valueOf(orderId));
 
         client.get().uri(historyPath(orderId))
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -120,7 +116,7 @@ class AdminOrderHistoryApiTest {
     @DisplayName("없는 주문이면 404 ORDER_NOT_FOUND(ProblemDetail)")
     void notFound() {
         client.get().uri(historyPath("999999"))
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isNotFound()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
@@ -134,27 +130,9 @@ class AdminOrderHistoryApiTest {
     @DisplayName("주문 ID가 숫자가 아니면(abc) 400")
     void nonNumericIdIsBadRequest() {
         client.get().uri(historyPath("abc"))
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
-    }
-
-    @Test
-    @DisplayName("토큰이 없으면 401, 구매자 · 판매자 토큰이면 403")
-    void adminOnly() {
-        String orderId = placeOrder();
-
-        client.get().uri(historyPath(orderId))
-            .exchange()
-            .expectStatus().isUnauthorized();
-        client.get().uri(historyPath(orderId))
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
-            .exchange()
-            .expectStatus().isForbidden();
-        client.get().uri(historyPath(orderId))
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
-            .exchange()
-            .expectStatus().isForbidden();
     }
 
     private static String historyPath(String orderId) {
@@ -163,7 +141,7 @@ class AdminOrderHistoryApiTest {
 
     private String placeOrder() {
         URI location = client.post().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("items", List.of(Map.of("optionId", "1", "quantity", 1, "unitPrice", 25_000)),
                 "shippingAddress", ADDRESS))
             .exchange()

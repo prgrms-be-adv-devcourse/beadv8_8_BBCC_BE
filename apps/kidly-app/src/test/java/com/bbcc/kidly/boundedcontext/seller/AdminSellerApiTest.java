@@ -7,9 +7,9 @@ import com.bbcc.kidly.boundedcontext.seller.domain.SellerErrorCode;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerPolicy;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,9 +29,6 @@ class AdminSellerApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private SellerRepository sellerRepository;
@@ -89,22 +86,9 @@ class AdminSellerApiTest {
             .expectStatus().isBadRequest();
     }
 
-    @Test
-    @DisplayName("구매자는 정지할 수 없다. 403이다")
-    void suspendForbiddenForBuyer() {
-        var seller = sellerRepository.save(SellerFixture.activeSeller(1L));
-
-        client.post().uri(PATH + "/{id}/suspend", seller.getId())
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(2L)))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(new SellerSuspendRequest(REASON))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
     private RestTestClient.ResponseSpec suspend(Long sellerId, String reason) {
         return client.post().uri(PATH + "/{id}/suspend", sellerId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new SellerSuspendRequest(reason))
             .exchange();

@@ -7,11 +7,13 @@ import static org.assertj.core.api.Assertions.tuple;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.bbcc.kidly.shared.auth.MemberHeaders;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -374,16 +376,33 @@ class RequestLoggingFilterTest {
     }
 
     @Test
-    @DisplayName("요청 중 MDC에 들어온 memberId를 끝 로그에 남기고 요청이 끝나면 지운다")
+    @DisplayName("X-Member-Id 헤더의 회원 ID를 요청 동안 MDC에 넣어 끝 로그에 남기고 요청이 끝나면 지운다")
     void logsAndClearsMemberId() throws Exception {
         var request = new MockHttpServletRequest("GET", "/api/v1/me");
+        request.addHeader(MemberHeaders.MEMBER_ID, "7");
         var response = new MockHttpServletResponse();
+        var duringRequest = new AtomicReference<String>();
 
-        filter.doFilter(request, response, (req, res) -> MDC.put(RequestLoggingFilter.MEMBER_ID_MDC_KEY, "7"));
+        filter.doFilter(request, response,
+            (req, res) -> duringRequest.set(MDC.get(RequestLoggingFilter.MEMBER_ID_MDC_KEY)));
 
+        assertThat(duringRequest).hasValue("7");
         assertThat(appender.list.getFirst().getMDCPropertyMap())
             .containsEntry(RequestLoggingFilter.MEMBER_ID_MDC_KEY, "7");
         assertThat(MDC.get(RequestLoggingFilter.MEMBER_ID_MDC_KEY)).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"abc", "7 OR 1=1", "", "-7", "9999999999999999999", "12345678901234567890"})
+    @DisplayName("X-Member-Id 헤더가 Long 범위의 숫자가 아니면 MDC에 넣지 않는다")
+    void skipsInvalidMemberId(String memberId) throws Exception {
+        var request = new MockHttpServletRequest("GET", "/api/v1/me");
+        request.addHeader(MemberHeaders.MEMBER_ID, memberId);
+
+        filter.doFilter(request, new MockHttpServletResponse(), respondWith(200));
+
+        assertThat(appender.list.getFirst().getMDCPropertyMap())
+            .doesNotContainKey(RequestLoggingFilter.MEMBER_ID_MDC_KEY);
     }
 
     private static MockHttpServletRequest jsonRequest(String method, String uri, String body) {

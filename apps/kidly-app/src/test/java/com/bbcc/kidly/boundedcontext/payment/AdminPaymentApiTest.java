@@ -7,9 +7,9 @@ import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.WALLET_ID;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,9 +26,6 @@ class AdminPaymentApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private PaymentRepository paymentRepository;
@@ -89,26 +86,9 @@ class AdminPaymentApiTest {
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
-    @Test
-    @DisplayName("로그인하지 않으면 401")
-    void withoutToken() {
-        client.get().uri(ADMIN_PAYMENTS_PATH)
-            .exchange()
-            .expectStatus().isUnauthorized();
-    }
-
-    @Test
-    @DisplayName("관리자가 아니면 403")
-    void notAdmin() {
-        client.get().uri(ADMIN_PAYMENTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_ID)))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
     private RestTestClient.ResponseSpec getAsAdmin(String uri) {
         return client.get().uri(uri)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 }

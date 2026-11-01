@@ -30,6 +30,7 @@
 ## 4. API
 - API의 자원 · 용어 · 처리 책임은 자기 도메인 기준으로 정한다. 다른 화면이나 도메인의 요청으로 API를 추가할 수는 있지만, 그쪽 업무 흐름에 맞춘 API는 만들지 않는다
 - REST 관례(자원 중심 URL, HTTP 메서드 · 상태 코드)를 따른다
+- 로그인이 필요한 API는 `@LoginMember AuthMember`를 받는다. 그 밖은 공개다. `/api/v1/admin/**` · `/api/v1/seller/**`의 역할은 Gateway가 검사한다
 - 실패 응답은 `GlobalExceptionHandler`의 ProblemDetail로 낸다. 도메인 오류는 `ErrorCode`를 구현한 enum과 `BusinessException`을 쓴다
 
 ## 5. 함께 쓰는 것

@@ -9,8 +9,8 @@ import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunRequest;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.boundedcontext.settlement.in.dto.SettlementRunResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -34,9 +34,6 @@ class AdminSettlementApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private SettlementRepository settlementRepository;
@@ -69,7 +66,7 @@ class AdminSettlementApiTest {
     @DisplayName("기준일이 없으면 400이다")
     void runMissingCutoff() {
         client.post().uri(RUN_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of())
             .exchange()
@@ -94,24 +91,13 @@ class AdminSettlementApiTest {
     }
 
     @Test
-    @DisplayName("판매자는 실행할 수 없다. 403이다")
-    void runForbidden() {
-        client.post().uri(RUN_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(2L)))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(new SettlementRunRequest(LocalDate.now().withDayOfMonth(1)))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("실행 기록을 id로 조회한다")
     void getRun() {
         var created = run(LocalDate.now().withDayOfMonth(1)).expectStatus().isCreated()
             .expectBody(SettlementRunResponse.class).returnResult().getResponseBody();
 
         client.get().uri(RUNS_PATH + "/{id}", created.runId())
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -155,7 +141,7 @@ class AdminSettlementApiTest {
     @DisplayName("없는 실행 기록은 404이다")
     void getRunNotFound() {
         client.get().uri(RUNS_PATH + "/999")
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isNotFound();
     }
@@ -193,15 +179,6 @@ class AdminSettlementApiTest {
     }
 
     @Test
-    @DisplayName("판매자는 관리자 정산서 목록을 볼 수 없다. 403이다")
-    void settlementsForbidden() {
-        client.get().uri(SETTLEMENTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(2L)))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    @Test
     @DisplayName("지급 결과를 받지 못한 정산서를 재요청하면 204이고, 지급 완료된 뒤 다시 요청하면 409이다")
     void retryPayout() {
         var settlement = settlementRepository.save(SettlementFixture.settlement(10_000L));
@@ -222,25 +199,25 @@ class AdminSettlementApiTest {
 
     private RestTestClient.ResponseSpec getSettlements(String uri) {
         return client.get().uri(uri)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec recover(Long runId) {
         return client.post().uri(RUNS_PATH + "/{id}/recover", runId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec retry(Long settlementId) {
         return client.post().uri(SETTLEMENTS_PATH + "/{id}/retry", settlementId)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec run(LocalDate cutoffOn) {
         return client.post().uri(RUN_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new SettlementRunRequest(cutoffOn))
             .exchange();

@@ -5,9 +5,9 @@ plugins {
 // 주문 통합 · 기능 · Kafka 테스트를 이 모듈에서 돌린다(#616). 다른 도메인 모듈에는 의존하지 않는다(kidly.domain이 막는다).
 // 테스트 앱은 주문 · common · shared만으로 뜬다(src/test의 OrderTestApplication)
 dependencies {
+    // 기능 테스트의 로그인 헤더(common TestMembers)
+    testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-security-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
@@ -54,9 +54,4 @@ val functionalTest = tasks.register<Test>("functionalTest") {
 
 tasks.check {
     dependsOn(integrationTest, functionalTest)
-}
-
-// 테스트 설정의 JWT 키(config/jwt/local-*.pem)가 루트 기준 상대 경로라 루트에서 실행한다
-tasks.withType<Test> {
-    workingDir = rootDir
 }

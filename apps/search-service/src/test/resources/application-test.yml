@@ -11,13 +11,6 @@ spring:
 springdotenv:
   enabled: false
 
-# 로컬과 같은 개발용 키를 쓴다. 운영 키와 다르다
-jwt:
-  public-key: file:config/jwt/local-public.pem
-
-cors:
-  allowed-origins: http://localhost:5173
-
 kidly:
   search:
     index:

@@ -3,21 +3,20 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -39,9 +38,6 @@ class AdminProductTypeApiTest {
     @Autowired
     private RestTestClient client;
 
-    @Autowired
-    private TestTokens tokens;
-
     @Test
     @DisplayName("유형을 만들면 201과 Location, 넘긴 순서의 연결과 ID 순서의 허용 값을 준다")
     void createProductType() {
@@ -50,7 +46,7 @@ class AdminProductTypeApiTest {
         AtomicReference<String> location = new AtomicReference<>();
 
         // 연결은 항목 ID 순서와 다르게 사이즈를 먼저 넘기고, 허용 값은 ID가 큰 오트밀을 먼저 넘긴다
-        post(tokens.admin(ADMIN_ID), Map.of(
+        post(TestMembers.admin(ADMIN_ID), Map.of(
             "name", "의류",
             "attributes", List.of(
                 link(size.id(), "OPTION", true, true, true, false, List.of()),
@@ -85,16 +81,16 @@ class AdminProductTypeApiTest {
     void listProductTypes() {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비", "그레이"));
         CreatedAttribute size = createAttribute("SIZE", "LIST", List.of("110"));
-        post(tokens.admin(ADMIN_ID), Map.of("name", "의류", "attributes", List.of(
+        post(TestMembers.admin(ADMIN_ID), Map.of("name", "의류", "attributes", List.of(
             link(color.id(), "OPTION", true, false, false, false, List.of(color.valueId("그레이"))),
             link(size.id(), "OPTION", true, true, true, false, List.of()))))
             .expectStatus().isCreated();
-        post(tokens.admin(ADMIN_ID), Map.of("name", "잡화", "attributes", List.of(
+        post(TestMembers.admin(ADMIN_ID), Map.of("name", "잡화", "attributes", List.of(
             link(color.id(), "OPTION", true, true, false, false, List.of()))))
             .expectStatus().isCreated();
 
         client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -111,7 +107,7 @@ class AdminProductTypeApiTest {
     @MethodSource("invalidRequests")
     @DisplayName("유형 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
     void rejectInvalidProductType(Map<String, Object> body) {
-        assertProblem(post(tokens.admin(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
+        assertProblem(post(TestMembers.admin(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
     }
 
     // 요청 검증에서 막히므로 항목 ID는 실제로 없는 값이어도 된다
@@ -137,7 +133,7 @@ class AdminProductTypeApiTest {
         CreatedAttribute material = createAttribute("MAIN_MATERIAL", "LIST", List.of("면"));
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
 
-        RestTestClient.ResponseSpec response = post(tokens.admin(ADMIN_ID), type("의류", List.of(
+        RestTestClient.ResponseSpec response = post(TestMembers.admin(ADMIN_ID), type("의류", List.of(
             link(material.id(), "INFO", true, true, false, false, List.of()),
             link(color.id(), "OPTION", false, true, false, false, List.of()))));
 
@@ -153,7 +149,7 @@ class AdminProductTypeApiTest {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
         CreatedAttribute size = createAttribute("SIZE", "LIST", List.of("110"));
 
-        RestTestClient.ResponseSpec response = post(tokens.admin(ADMIN_ID), type("의류", List.of(
+        RestTestClient.ResponseSpec response = post(TestMembers.admin(ADMIN_ID), type("의류", List.of(
             link(color.id(), "OPTION", true, false, false, false, List.of(size.valueId("110"))),
             link(size.id(), "OPTION", true, true, true, false, List.of()))));
 
@@ -168,9 +164,9 @@ class AdminProductTypeApiTest {
     void rejectUnknownAttributeOrValue() {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
 
-        RestTestClient.ResponseSpec unknownAttribute = post(tokens.admin(ADMIN_ID), type("의류", List.of(
+        RestTestClient.ResponseSpec unknownAttribute = post(TestMembers.admin(ADMIN_ID), type("의류", List.of(
             link("999999", "OPTION", true, true, false, false, List.of()))));
-        RestTestClient.ResponseSpec unknownValue = post(tokens.admin(ADMIN_ID), type("의류", List.of(
+        RestTestClient.ResponseSpec unknownValue = post(TestMembers.admin(ADMIN_ID), type("의류", List.of(
             link(color.id(), "OPTION", true, false, false, false, List.of("999999")))));
 
         assertProblem(unknownAttribute, HttpStatus.NOT_FOUND);
@@ -184,9 +180,9 @@ class AdminProductTypeApiTest {
     void rejectDuplicateProductType() {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
         Map<String, Object> colorLink = link(color.id(), "OPTION", true, true, false, false, List.of());
-        post(tokens.admin(ADMIN_ID), type("의류", List.of(colorLink))).expectStatus().isCreated();
+        post(TestMembers.admin(ADMIN_ID), type("의류", List.of(colorLink))).expectStatus().isCreated();
 
-        assertProblem(post(tokens.admin(ADMIN_ID), type("의류", List.of(colorLink))), HttpStatus.CONFLICT);
+        assertProblem(post(TestMembers.admin(ADMIN_ID), type("의류", List.of(colorLink))), HttpStatus.CONFLICT);
     }
 
     @Test
@@ -195,31 +191,8 @@ class AdminProductTypeApiTest {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
         Map<String, Object> colorLink = link(color.id(), "OPTION", true, true, false, false, List.of());
 
-        assertProblem(post(tokens.admin(ADMIN_ID), type("잡화", List.of(colorLink, colorLink))), HttpStatus.BAD_REQUEST);
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("nonAdminTokens")
-    @DisplayName("관리자가 아니면 유형을 만들거나 조회할 수 없다")
-    void rejectNonAdmin(String role, Function<TestTokens, String> token, HttpStatus status) {
-        Map<String, Object> body = type("의류", List.of(link("1", "OPTION", true, true, false, false, List.of())));
-        post(token.apply(tokens), body).expectStatus().isEqualTo(status);
-        client.get().uri(PATH)
-            .headers(headers -> {
-                String value = token.apply(tokens);
-                if (value != null) {
-                    headers.setBearerAuth(value);
-                }
-            })
-            .exchange()
-            .expectStatus().isEqualTo(status);
-    }
-
-    static Stream<Arguments> nonAdminTokens() {
-        return Stream.of(
-            Arguments.of("비로그인은 401", (Function<TestTokens, String>) tokens -> null, HttpStatus.UNAUTHORIZED),
-            Arguments.of("구매자는 403", (Function<TestTokens, String>) tokens -> tokens.buyer(1L), HttpStatus.FORBIDDEN),
-            Arguments.of("판매자는 403", (Function<TestTokens, String>) tokens -> tokens.seller(2L), HttpStatus.FORBIDDEN));
+        assertProblem(post(TestMembers.admin(ADMIN_ID), type("잡화", List.of(colorLink, colorLink))),
+            HttpStatus.BAD_REQUEST);
     }
 
     private static Map<String, Object> type(String name, List<?> attributes) {
@@ -265,7 +238,7 @@ class AdminProductTypeApiTest {
             values.add(value);
         }
         Map<?, ?> body = client.post().uri(ATTRIBUTES_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("name", code, "code", code, "inputType", inputType, "values", values))
             .exchange()
@@ -281,13 +254,9 @@ class AdminProductTypeApiTest {
         return new CreatedAttribute((String) body.get("attributeId"), valueIds);
     }
 
-    private RestTestClient.ResponseSpec post(String token, Object body) {
+    private RestTestClient.ResponseSpec post(Consumer<HttpHeaders> login, Object body) {
         return client.post().uri(PATH)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();

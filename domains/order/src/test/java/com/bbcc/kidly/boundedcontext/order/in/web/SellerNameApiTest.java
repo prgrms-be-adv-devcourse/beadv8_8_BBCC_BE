@@ -16,7 +16,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.support.FunctionalTest;
-import com.bbcc.kidly.boundedcontext.order.support.TestTokens;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.net.URI;
@@ -45,9 +45,6 @@ class SellerNameApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -90,7 +87,7 @@ class SellerNameApiTest {
             .items().getFirst().orderItemId());
 
         client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + orderItemId + "/confirm")
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -100,19 +97,19 @@ class SellerNameApiTest {
 
     private void assertSellerNames(String orderId, String expected) {
         client.get().uri(CART_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.items[0].sellerName").value(name -> assertThat(name).isEqualTo(expected));
         client.get().uri(ORDERS_PATH + "/" + orderId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.items[0].sellerName").value(name -> assertThat(name).isEqualTo(expected));
         client.get().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -122,7 +119,7 @@ class SellerNameApiTest {
 
     private void addToCart() {
         client.post().uri(CART_ITEMS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "quantity", 1))
             .exchange()
             .expectStatus().isCreated();
@@ -130,7 +127,7 @@ class SellerNameApiTest {
 
     private String placeOrder() {
         URI location = client.post().uri(ORDERS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(BUYER_ID)))
+            .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("items", List.of(Map.of("optionId", "1", "quantity", 1, "unitPrice", 25_000)),
                 "shippingAddress", ADDRESS))
             .exchange()

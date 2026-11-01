@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.member.app.port;
 
-import com.bbcc.kidly.global.security.Role;
+import com.bbcc.kidly.shared.auth.Role;
 import java.util.List;
 
 /**

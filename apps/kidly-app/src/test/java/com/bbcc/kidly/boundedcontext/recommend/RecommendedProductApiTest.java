@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaSellerService;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -22,7 +23,6 @@ import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -70,9 +70,6 @@ class RecommendedProductApiTest {
     private RestTestClient client;
 
     @Autowired
-    private TestTokens tokens;
-
-    @Autowired
     private RecommendReplicaProductService replicaProductService;
 
     @Autowired
@@ -95,7 +92,7 @@ class RecommendedProductApiTest {
         // 두 상품 모두 옵션 110과 120의 판매가가 25,000원이라 최저가도 25,000원이다
         // ID는 숫자가 아니라 문자열로 보내고, 금액은 숫자로 보낸다. jsonPath의 isEqualTo는 숫자도 문자열로 바꿔 비교하므로 Map으로 꺼내 값의 타입까지 확인한다
         client.get().uri(PATH, CHILD_1_ID)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_1_ID)))
+            .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -221,7 +218,7 @@ class RecommendedProductApiTest {
 
     private RestTestClient.ResponseSpec list(String query) {
         return client.get().uri(PATH + query, CHILD_1_ID)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_1_ID)))
+            .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange();
     }
 

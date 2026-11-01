@@ -3,18 +3,17 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -34,15 +33,12 @@ class AdminAttributeApiTest {
     @Autowired
     private RestTestClient client;
 
-    @Autowired
-    private TestTokens tokens;
-
     @Test
     @DisplayName("항목을 목록 값과 함께 만들면 201과 Location, 넣은 순서대로 ID가 붙은 값을 준다")
     void createAttribute() {
         AtomicReference<String> location = new AtomicReference<>();
 
-        post(tokens.admin(ADMIN_ID), PATH, Map.of(
+        post(TestMembers.admin(ADMIN_ID), PATH, Map.of(
             "name", "색상",
             "code", "COLOR",
             "inputType", "PALETTE",
@@ -69,7 +65,7 @@ class AdminAttributeApiTest {
         String valuesPath = PATH + "/" + attributeId + "/values";
         AtomicReference<String> location = new AtomicReference<>();
 
-        post(tokens.admin(ADMIN_ID), valuesPath, Map.of("name", "오트밀", "colorCode", "#e3d3bc"))
+        post(TestMembers.admin(ADMIN_ID), valuesPath, Map.of("name", "오트밀", "colorCode", "#e3d3bc"))
             .expectStatus().isCreated()
             .expectHeader().value(HttpHeaders.LOCATION, location::set)
             .expectBody()
@@ -82,16 +78,16 @@ class AdminAttributeApiTest {
     @Test
     @DisplayName("항목 목록은 항목과 값 모두 ID 순서이고, 값이 없는 항목은 빈 목록, 색 코드가 없는 값은 null이다")
     void listAttributes() {
-        post(tokens.admin(ADMIN_ID), PATH, Map.of("name", "색상", "code", "COLOR", "inputType", "PALETTE",
+        post(TestMembers.admin(ADMIN_ID), PATH, Map.of("name", "색상", "code", "COLOR", "inputType", "PALETTE",
             "values", List.of(Map.of("name", "네이비", "colorCode", "#2f3e5c"))))
             .expectStatus().isCreated();
-        post(tokens.admin(ADMIN_ID), PATH, Map.of("name", "사이즈", "code", "SIZE", "inputType", "LIST",
+        post(TestMembers.admin(ADMIN_ID), PATH, Map.of("name", "사이즈", "code", "SIZE", "inputType", "LIST",
             "values", List.of(Map.of("name", "110"), Map.of("name", "120"))))
             .expectStatus().isCreated();
         createdAttributeId("FABRIC_COMPOSITION", "TEXT");
 
         client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.admin(ADMIN_ID)))
+            .headers(TestMembers.admin(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -110,7 +106,7 @@ class AdminAttributeApiTest {
     @MethodSource("invalidAttributeRequests")
     @DisplayName("항목 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
     void rejectInvalidAttribute(Map<String, Object> body) {
-        assertProblem(post(tokens.admin(ADMIN_ID), PATH, body), HttpStatus.BAD_REQUEST);
+        assertProblem(post(TestMembers.admin(ADMIN_ID), PATH, body), HttpStatus.BAD_REQUEST);
     }
 
     static Stream<Named<Map<String, Object>>> invalidAttributeRequests() {
@@ -133,7 +129,8 @@ class AdminAttributeApiTest {
     void rejectInvalidValue(Map<String, Object> body) {
         String attributeId = createdAttributeId("COLOR", "PALETTE");
 
-        assertProblem(post(tokens.admin(ADMIN_ID), PATH + "/" + attributeId + "/values", body), HttpStatus.BAD_REQUEST);
+        assertProblem(post(TestMembers.admin(ADMIN_ID), PATH + "/" + attributeId + "/values", body),
+            HttpStatus.BAD_REQUEST);
     }
 
     static Stream<Named<Map<String, Object>>> invalidValueRequests() {
@@ -146,7 +143,8 @@ class AdminAttributeApiTest {
     @Test
     @DisplayName("없는 항목에 목록 값을 더하면 404와 ProblemDetail을 준다")
     void rejectValueOfMissingAttribute() {
-        assertProblem(post(tokens.admin(ADMIN_ID), PATH + "/999/values", Map.of("name", "레드")), HttpStatus.NOT_FOUND);
+        assertProblem(post(TestMembers.admin(ADMIN_ID), PATH + "/999/values", Map.of("name", "레드")),
+            HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -154,7 +152,7 @@ class AdminAttributeApiTest {
     void rejectDuplicateAttributeCode() {
         createdAttributeId("COLOR", "PALETTE");
 
-        assertProblem(post(tokens.admin(ADMIN_ID), PATH, attribute("색상2", "COLOR", "PALETTE", List.of())),
+        assertProblem(post(TestMembers.admin(ADMIN_ID), PATH, attribute("색상2", "COLOR", "PALETTE", List.of())),
             HttpStatus.CONFLICT);
     }
 
@@ -163,33 +161,9 @@ class AdminAttributeApiTest {
     void rejectDuplicateValueName() {
         String attributeId = createdAttributeId("COLOR", "PALETTE");
         String valuesPath = PATH + "/" + attributeId + "/values";
-        post(tokens.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")).expectStatus().isCreated();
+        post(TestMembers.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")).expectStatus().isCreated();
 
-        assertProblem(post(tokens.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")), HttpStatus.CONFLICT);
-    }
-
-    @Test
-    @DisplayName("로그인하지 않으면 항목 API는 401을 준다")
-    void rejectAnonymous() {
-        post(null, PATH, attribute("색상", "COLOR", "PALETTE", List.of())).expectStatus().isUnauthorized();
-        client.get().uri(PATH).exchange().expectStatus().isUnauthorized();
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("nonAdminTokens")
-    @DisplayName("관리자가 아니면 항목 API는 403을 준다")
-    void rejectNonAdmin(String role, Function<TestTokens, String> token) {
-        post(token.apply(tokens), PATH, attribute("색상", "COLOR", "PALETTE", List.of())).expectStatus().isForbidden();
-        client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(token.apply(tokens)))
-            .exchange()
-            .expectStatus().isForbidden();
-    }
-
-    static Stream<Arguments> nonAdminTokens() {
-        return Stream.of(
-            Arguments.of("구매자", (Function<TestTokens, String>) tokens -> tokens.buyer(1L)),
-            Arguments.of("판매자", (Function<TestTokens, String>) tokens -> tokens.seller(2L)));
+        assertProblem(post(TestMembers.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")), HttpStatus.CONFLICT);
     }
 
     private static Map<String, Object> attribute(String name, String code, String inputType, List<?> values) {
@@ -198,7 +172,7 @@ class AdminAttributeApiTest {
 
     // 값 없이 항목 하나를 만들고 그 ID를 돌려준다
     private String createdAttributeId(String code, String inputType) {
-        Map<?, ?> body = post(tokens.admin(ADMIN_ID), PATH,
+        Map<?, ?> body = post(TestMembers.admin(ADMIN_ID), PATH,
             Map.of("name", code, "code", code, "inputType", inputType, "values", List.of()))
             .expectStatus().isCreated()
             .expectBody(Map.class)
@@ -207,13 +181,9 @@ class AdminAttributeApiTest {
         return (String) body.get("attributeId");
     }
 
-    private RestTestClient.ResponseSpec post(String token, String path, Object body) {
+    private RestTestClient.ResponseSpec post(Consumer<HttpHeaders> login, String path, Object body) {
         return client.post().uri(path)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();

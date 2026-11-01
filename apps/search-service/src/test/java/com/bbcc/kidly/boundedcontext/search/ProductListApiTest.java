@@ -82,13 +82,13 @@ class ProductListApiTest {
     }
 
     @Test
-    @DisplayName("검색 서비스에 없는 다른 도메인 API는 열리지 않는다")
+    @DisplayName("검색 서비스에 없는 다른 도메인 API는 404다")
     void otherDomainApis() {
         client.get().uri("/api/v1/orders")
             .exchange()
-            .expectStatus().isUnauthorized();
+            .expectStatus().isNotFound();
         client.get().uri("/api/v1/products/1")
             .exchange()
-            .expectStatus().isUnauthorized();
+            .expectStatus().isNotFound();
     }
 }

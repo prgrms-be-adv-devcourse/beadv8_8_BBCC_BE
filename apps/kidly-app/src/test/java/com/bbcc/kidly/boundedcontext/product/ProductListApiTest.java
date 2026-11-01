@@ -174,15 +174,6 @@ class ProductListApiTest {
             .jsonPath("$.content[*].productId").isEqualTo(List.of("1"));
     }
 
-    @Test
-    @DisplayName("로그인 없이 부를 수 있는 API여도 잘못된 토큰을 보내면 401을 받는다")
-    void rejectInvalidToken() {
-        client.get().uri(PATH)
-            .headers(headers -> headers.setBearerAuth("invalid-token"))
-            .exchange()
-            .expectStatus().isUnauthorized();
-    }
-
     private void persist(ProductSearchDocument... documents) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             for (ProductSearchDocument document : documents) {

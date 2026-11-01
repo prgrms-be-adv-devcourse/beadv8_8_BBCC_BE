@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.member;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.ShippingAddressService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.ShippingAddressRequest;
@@ -19,9 +18,9 @@ import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.boundedcontext.member.domain.ShippingAddressRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.member.event.MemberTokensRevokedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.IntegrationTest;
-import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,9 +54,6 @@ class MemberServiceIntegrationTest {
     @Autowired
     private ApplicationEvents events;
 
-    @Autowired
-    private AccessTokenRevocationService accessTokenRevocationService;
-
     @Test
     @DisplayName("탈퇴하면 소셜 계정을 지우고 탈퇴 이벤트를 발행하며, 이벤트를 받아 배송지 · 기본 배송지를 지운다")
     void withdraw() {
@@ -84,13 +80,14 @@ class MemberServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("탈퇴하면 이미 발급된 Access Token을 바로 무효화한다")
+    @DisplayName("탈퇴하면 이미 발급된 Access Token을 무효화한다(member.tokens-revoked 발행)")
     void withdrawRevokesAccessToken() {
         var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
 
         memberService.withdraw(memberId);
 
-        assertThat(accessTokenRevocationService.isRevoked(memberId, Instant.now().minusSeconds(60))).isTrue();
+        assertThat(events.stream(MemberTokensRevokedEvent.class))
+            .singleElement().satisfies(event -> assertThat(event.data().memberId()).isEqualTo(memberId));
     }
 
     @Test

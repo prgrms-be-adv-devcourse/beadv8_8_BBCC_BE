@@ -42,10 +42,12 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-kafka")
 
     // Test
+    // 기능 테스트의 로그인 헤더(TestMembers)
+    testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-security-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test")
+    // 회원이 발급한 Access Token을 읽는다(support.IssuedAccessToken, nimbus-jose-jwt). 버전은 Spring Security BOM이 관리한다
+    testImplementation("org.springframework.security:spring-security-oauth2-jose")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")

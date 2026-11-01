@@ -87,7 +87,7 @@ services:
     logging: *logging
 
   # 검색 서비스(apps/search-service). 상품 목록 검색 API 와 상품 · 판매자 이벤트 수신(구독 그룹 kidly.search)
-  # 비밀이 든 .env 를 통째로 넘기지 않고 필요한 값만 넘긴다. jwt 모드(로컬 · prod 용 설정)에서 토큰을 검증할 때 쓰는 공개키만 마운트한다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 필요한 값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   # /actuator/health 가 Elasticsearch 연결을 본다. ES 는 t3.medium k3s(deploy/search), 앱 배포 전에 deploy 워크플로가 먼저 올린다
   # ELASTICSEARCH_URIS(medium 사설 IP)는 레포가 공개라 deploy 워크플로가 서버 .env 에 붙인다
   search-service:
@@ -101,15 +101,10 @@ services:
       # 기본값은 profile 이 꺼진 환경(prod)에서 빈 값 경고를 내지 않으려는 것이다
       ELASTICSEARCH_URIS: ${ELASTICSEARCH_URIS:-}
       SEARCH_INDEX_PREFIX: ${SEARCH_INDEX_PREFIX:-}
-      JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
-      # 인증 모드(jwt | gateway). .env 에 KIDLY_AUTH_MODE 가 없으면 jwt 로 토큰을 직접 검증한다
-      KIDLY_AUTH_MODE: ${KIDLY_AUTH_MODE:-jwt}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${SEARCH_PORT:-8082}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에 열 때는 nginx 가 아니라 Gateway 라우트로(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
-      - ./jwt/public.pem:/app/jwt/public.pem:ro
       - ./logs:/app/logs
     depends_on:
       kafka:

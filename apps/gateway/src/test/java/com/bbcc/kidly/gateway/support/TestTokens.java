@@ -1,5 +1,6 @@
 package com.bbcc.kidly.gateway.support;
 
+import com.bbcc.kidly.shared.auth.AccessTokenClaims;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -63,9 +64,9 @@ public final class TestTokens {
             .subject(subject)
             .issuedAt(issuedAt)
             .expiresAt(expiresAt)
-            .claim("roles", roles);
+            .claim(AccessTokenClaims.ROLES, roles);
         if (nickname != null) {
-            claims.claim("nickname", nickname);
+            claims.claim(AccessTokenClaims.NICKNAME, nickname);
         }
         var header = JwsHeader.with(SignatureAlgorithm.RS256).build();
         return encoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();

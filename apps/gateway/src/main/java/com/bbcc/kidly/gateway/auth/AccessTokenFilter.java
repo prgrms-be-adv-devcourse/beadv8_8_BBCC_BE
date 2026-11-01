@@ -1,7 +1,8 @@
 package com.bbcc.kidly.gateway.auth;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import com.bbcc.kidly.gateway.web.ProblemResponse;
+import com.bbcc.kidly.shared.auth.AccessTokenClaims;
+import com.bbcc.kidly.shared.auth.MemberHeaders;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -19,37 +20,34 @@ import reactor.core.publisher.Mono;
 
 /**
  * 모든 요청에서 밖에서 보낸 X-Member-* 헤더를 지우고, Bearer 토큰이 있으면 검증 · 무효화 확인 뒤
- * X-Member-Id · X-Member-Roles · X-Member-Nickname을 붙여 넘긴다. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(공개 API 판단은 서비스).
- * 검증에 실패하면 401. Authorization은 지우지 않는다: jwt 모드 서비스(prod · 로컬)가 직접 검증한다.
- * 닉네임은 UTF-8 퍼센트 인코딩(공백은 %20)으로 넣는다. 서비스 GatewayHeaderAuthenticationFilter의 디코딩 규칙과 같아야 한다.
+ * X-Member-Id · X-Member-Roles · X-Member-Nickname을 붙여 넘긴다. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(로그인이 필요한지는 서비스가 정한다).
+ * 검증에 실패하면 401. Authorization은 지우지 않고 그대로 넘기지만 서비스는 보지 않는다.
+ * 헤더 이름 · 역할 목록 · 닉네임 인코딩은 shared MemberHeaders를, 클레임 이름은 AccessTokenClaims를 따른다.
  * 닉네임 클레임이 없으면 닉네임 헤더를 붙이지 않는다.
  */
 @Component
 @RequiredArgsConstructor
 class AccessTokenFilter implements GlobalFilter, Ordered {
 
-    static final String MEMBER_ID = "X-Member-Id";
-    static final String MEMBER_ROLES = "X-Member-Roles";
-    static final String MEMBER_NICKNAME = "X-Member-Nickname";
+    // 라우팅 필터보다 먼저 돈다
+    static final int ORDER = Ordered.HIGHEST_PRECEDENCE;
+
     private static final String BEARER = "Bearer ";
-    // JwtAccessTokenIssuer의 클레임 이름과 같아야 한다
-    private static final String ROLES_CLAIM = "roles";
-    private static final String NICKNAME_CLAIM = "nickname";
 
     private final ReactiveJwtDecoder jwtDecoder;
-    private final UnauthorizedResponse unauthorized;
+    private final ProblemResponse problem;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         var request = exchange.getRequest().mutate()
             .headers(headers -> {
-                headers.remove(MEMBER_ID);
-                headers.remove(MEMBER_ROLES);
-                headers.remove(MEMBER_NICKNAME);
+                headers.remove(MemberHeaders.MEMBER_ID);
+                headers.remove(MemberHeaders.MEMBER_ROLES);
+                headers.remove(MemberHeaders.MEMBER_NICKNAME);
             })
             .build();
         var authorization = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        // 서비스(DefaultBearerTokenResolver)처럼 대소문자를 가리지 않는다. 가리면 "bearer <무효화된 토큰>"이 검증 없이 지나간다
+        // Spring Security의 Bearer 토큰 규칙(DefaultBearerTokenResolver)처럼 대소문자를 가리지 않는다. 가리면 "bearer <무효화된 토큰>"이 검증 없이 지나간다
         if (authorization == null || !authorization.regionMatches(true, 0, BEARER, 0, BEARER.length())) {
             return chain.filter(exchange.mutate().request(request).build());
         }
@@ -58,31 +56,25 @@ class AccessTokenFilter implements GlobalFilter, Ordered {
             .onErrorResume(JwtException.class, e -> Mono.just(Optional.empty()))
             .flatMap(authenticated -> authenticated
                 .map(member -> chain.filter(exchange.mutate().request(member).build()))
-                .orElseGet(() -> unauthorized.write(exchange)));
+                .orElseGet(() -> problem.unauthorized(exchange)));
     }
 
     private static ServerHttpRequest withMember(ServerHttpRequest request, Jwt jwt) {
-        var roles = Optional.ofNullable(jwt.getClaimAsStringList(ROLES_CLAIM)).orElse(List.of());
-        var nickname = jwt.getClaimAsString(NICKNAME_CLAIM);
+        var roles = Optional.ofNullable(jwt.getClaimAsStringList(AccessTokenClaims.ROLES)).orElse(List.of());
+        var nickname = jwt.getClaimAsString(AccessTokenClaims.NICKNAME);
         return request.mutate()
             .headers(headers -> {
-                headers.set(MEMBER_ID, jwt.getSubject());
-                headers.set(MEMBER_ROLES, String.join(",", roles));
+                headers.set(MemberHeaders.MEMBER_ID, jwt.getSubject());
+                headers.set(MemberHeaders.MEMBER_ROLES, MemberHeaders.encodeRoles(roles));
                 if (nickname != null) {
-                    headers.set(MEMBER_NICKNAME, encode(nickname));
+                    headers.set(MemberHeaders.MEMBER_NICKNAME, MemberHeaders.encodeNickname(nickname));
                 }
             })
             .build();
     }
 
-    // URLEncoder는 공백을 +로 만들므로 규칙대로 %20으로 바꾼다. 닉네임 안의 + 문자는 이미 %2B라 섞이지 않는다
-    private static String encode(String nickname) {
-        return URLEncoder.encode(nickname, StandardCharsets.UTF_8).replace("+", "%20");
-    }
-
-    // 라우팅 필터보다 먼저 돈다
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE;
+        return ORDER;
     }
 }

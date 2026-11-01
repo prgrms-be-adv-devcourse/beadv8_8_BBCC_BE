@@ -4,8 +4,8 @@ import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixtur
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import jakarta.persistence.EntityManager;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,9 +31,6 @@ class ProductRegistrationSkuCodeApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private ClothingTopSaver clothingTopSaver;
@@ -84,7 +81,7 @@ class ProductRegistrationSkuCodeApiTest {
 
     private RestTestClient.ResponseSpec register(long sellerId, Map<String, Object> body) {
         return client.post().uri(PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(sellerId)))
+            .headers(TestMembers.seller(sellerId))
             .body(body)
             .exchange();
     }

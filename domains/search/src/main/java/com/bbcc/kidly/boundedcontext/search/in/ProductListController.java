@@ -4,7 +4,6 @@ import com.bbcc.kidly.boundedcontext.search.app.ProductListService;
 import com.bbcc.kidly.boundedcontext.search.app.dto.ProductListRequest;
 import com.bbcc.kidly.boundedcontext.search.in.dto.ProductListItemResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.PublicApi;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,7 +19,6 @@ public class ProductListController {
 
     private final ProductListService productListService;
 
-    @PublicApi
     @GetMapping("/api/v1/products")
     public PageResponse<ProductListItemResponse> list(@Valid @ModelAttribute ProductListRequest request) {
         return PageResponse.from(productListService.list(request).map(ProductListItemResponse::from));

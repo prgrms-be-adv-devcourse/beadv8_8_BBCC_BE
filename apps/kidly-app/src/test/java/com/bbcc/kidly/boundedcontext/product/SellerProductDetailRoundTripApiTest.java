@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,9 +30,6 @@ class SellerProductDetailRoundTripApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private ClothingTopSaver clothingTopSaver;
@@ -99,7 +96,7 @@ class SellerProductDetailRoundTripApiTest {
     // 등록 API로 판매자 7의 판매대기 상품을 만든다
     private ProductRegisterResponse register(Map<String, Object> body) {
         return client.post().uri(PRODUCTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange()
@@ -110,7 +107,7 @@ class SellerProductDetailRoundTripApiTest {
 
     private void startSale(String productId) {
         client.put().uri(PRODUCTS_PATH + "/{productId}/sale-status", productId)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("status", "ON_SALE"))
             .exchange()
@@ -120,7 +117,7 @@ class SellerProductDetailRoundTripApiTest {
     @SuppressWarnings("unchecked")
     private Map<String, Object> detail(String productId) {
         return client.get().uri(PRODUCTS_PATH + "/{productId}", productId)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .exchange()
             .expectStatus().isOk()
             .returnResult(Map.class)
@@ -130,7 +127,7 @@ class SellerProductDetailRoundTripApiTest {
     @SuppressWarnings("unchecked")
     private Map<String, Object> update(String productId, Map<String, Object> body) {
         return client.put().uri(PRODUCTS_PATH + "/{productId}", productId)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange()

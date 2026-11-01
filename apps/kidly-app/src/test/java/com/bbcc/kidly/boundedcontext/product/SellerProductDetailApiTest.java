@@ -13,16 +13,18 @@ import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.FeatureTopSaver.FeatureTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,9 +42,6 @@ class SellerProductDetailApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private ClothingTopSaver clothingTopSaver;
@@ -66,7 +65,7 @@ class SellerProductDetailApiTest {
         // 상품 A는 네이비 110(초기 재고 10, SKU A-NV-110) · 네이비 120(초기 재고 0, SKU 없음) 옵션이고 판매가는 25,000원이다
         ProductRegisterResponse registered = register(productA(saved));
 
-        detail(tokens.seller(SELLER_ID), registered.productId())
+        detail(TestMembers.seller(SELLER_ID), registered.productId())
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.productId").isEqualTo(registered.productId())
@@ -96,7 +95,7 @@ class SellerProductDetailApiTest {
         body.put("imageUrls", List.of(secondImage, thumbnail));
         ProductRegisterResponse registered = register(body);
 
-        detail(tokens.seller(SELLER_ID), registered.productId())
+        detail(TestMembers.seller(SELLER_ID), registered.productId())
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.brand").isEqualTo("키들리")
@@ -116,7 +115,7 @@ class SellerProductDetailApiTest {
         body.put("description", null);
         ProductRegisterResponse registered = register(body);
 
-        detail(tokens.seller(SELLER_ID), registered.productId())
+        detail(TestMembers.seller(SELLER_ID), registered.productId())
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.brand").isEqualTo(null)
@@ -141,7 +140,7 @@ class SellerProductDetailApiTest {
         attributes(body).add(composition);
         ProductRegisterResponse registered = register(body);
 
-        detail(tokens.seller(SELLER_ID), registered.productId())
+        detail(TestMembers.seller(SELLER_ID), registered.productId())
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.attributes.length()").isEqualTo(3)
@@ -165,7 +164,7 @@ class SellerProductDetailApiTest {
         ClothingOptions clothing = saved.clothing();
         ProductRegisterResponse registered = register(productA(saved));
 
-        detail(tokens.seller(SELLER_ID), registered.productId())
+        detail(TestMembers.seller(SELLER_ID), registered.productId())
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.options[0].valueIds").isEqualTo(
@@ -201,7 +200,7 @@ class SellerProductDetailApiTest {
         changeSaleStatus(registered.options().get(1).optionId(), "STOPPED");
         changeSaleStatus(registered.options().get(2).optionId(), "ARCHIVED");
 
-        detail(tokens.seller(SELLER_ID), registered.productId())
+        detail(TestMembers.seller(SELLER_ID), registered.productId())
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.options.length()").isEqualTo(2)
@@ -216,38 +215,29 @@ class SellerProductDetailApiTest {
     void rejectOtherSellersProduct() {
         ProductRegisterResponse registered = register(productA(saved));
 
-        expectProblem(detail(tokens.seller(OTHER_SELLER_ID), registered.productId()), registered.productId(),
+        expectProblem(detail(TestMembers.seller(OTHER_SELLER_ID), registered.productId()), registered.productId(),
             HttpStatus.FORBIDDEN, "상품을 볼 권한이 없습니다", "본인이 등록한 상품만 볼 수 있습니다.");
     }
 
     @Test
     @DisplayName("없는 상품이면 404다")
     void rejectMissingProduct() {
-        expectProblem(detail(tokens.seller(SELLER_ID), "999999"), "999999",
+        expectProblem(detail(TestMembers.seller(SELLER_ID), "999999"), "999999",
             HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
     }
 
     @Test
     @DisplayName("상품 ID가 숫자가 아니면 400이다")
     void rejectNonNumericProductId() {
-        detail(tokens.seller(SELLER_ID), "abc")
+        detail(TestMembers.seller(SELLER_ID), "abc")
             .expectStatus().isBadRequest()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
-    }
-
-    @Test
-    @DisplayName("토큰이 없으면 401, 판매자가 아닌 회원이면 403이다")
-    void rejectWithoutSellerRole() {
-        ProductRegisterResponse registered = register(productA(saved));
-
-        detail(null, registered.productId()).expectStatus().isUnauthorized();
-        detail(tokens.buyer(SELLER_ID), registered.productId()).expectStatus().isForbidden();
     }
 
     // 등록 API로 판매자 7의 판매대기 상품을 만든다
     private ProductRegisterResponse register(Map<String, Object> body) {
         return client.post().uri(PRODUCTS_PATH)
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange()
@@ -281,13 +271,9 @@ class SellerProductDetailApiTest {
             .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId);
     }
 
-    private RestTestClient.ResponseSpec detail(String token, String productId) {
+    private RestTestClient.ResponseSpec detail(Consumer<HttpHeaders> login, String productId) {
         return client.get().uri(PRODUCTS_PATH + "/{productId}", productId)
-            .headers(headers -> {
-                if (token != null) {
-                    headers.setBearerAuth(token);
-                }
-            })
+            .headers(login)
             .exchange();
     }
 }

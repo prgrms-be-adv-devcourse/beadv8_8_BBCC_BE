@@ -7,9 +7,9 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,9 +32,6 @@ class InventoryAdjustmentSoldOutApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -122,7 +119,7 @@ class InventoryAdjustmentSoldOutApiTest {
 
     private ResponseSpec adjust(ProductOption option, int deltaQuantity, String reason) {
         return client.post().uri("/api/v1/seller/options/" + option.getId() + "/inventory-adjustments")
-            .headers(headers -> headers.setBearerAuth(tokens.seller(SELLER_ID)))
+            .headers(TestMembers.seller(SELLER_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("deltaQuantity", deltaQuantity, "reason", reason))
             .exchange();

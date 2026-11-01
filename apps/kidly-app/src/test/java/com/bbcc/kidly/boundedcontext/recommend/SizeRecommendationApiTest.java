@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -15,7 +16,6 @@ import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.TestTokens;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -45,9 +45,6 @@ class SizeRecommendationApiTest {
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private TestTokens tokens;
 
     @Autowired
     private RecommendReplicaProductService replicaProductService;
@@ -195,7 +192,7 @@ class SizeRecommendationApiTest {
     @DisplayName("childId 없이 요청하면 400 \"childId: 자녀 ID가 필요합니다.\"를 받는다")
     void rejectWithoutChildId() {
         expectProblem(client.get().uri(PATH, PRODUCT_A_ID)
-                .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_1_ID)))
+                .headers(TestMembers.buyer(MEMBER_1_ID))
                 .exchange(),
             HttpStatus.BAD_REQUEST, "잘못된 요청입니다", "childId: 자녀 ID가 필요합니다.");
     }
@@ -204,7 +201,7 @@ class SizeRecommendationApiTest {
     @DisplayName("childId가 숫자가 아니면 400을 받는다")
     void rejectNonNumericChildId() {
         client.get().uri(PATH + "?childId=abc", PRODUCT_A_ID)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(MEMBER_1_ID)))
+            .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange()
             .expectStatus().isBadRequest()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
@@ -250,7 +247,7 @@ class SizeRecommendationApiTest {
 
     private RestTestClient.ResponseSpec recommend(Long memberId, Long productId, Long childId) {
         return client.get().uri(PATH + "?childId={childId}", productId, childId)
-            .headers(headers -> headers.setBearerAuth(tokens.buyer(memberId)))
+            .headers(TestMembers.buyer(memberId))
             .exchange();
     }
 }

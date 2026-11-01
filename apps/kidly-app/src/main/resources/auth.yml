@@ -1,18 +1,12 @@
 # 인증 설정. application.yml이 가져온다. 환경별 값은 아래 프로필 문서(---)에 있다
 # test 프로필 값은 운영 jar에 넣지 않으려고 src/test/resources/application-test.yml에 둔다
 
-# ── 모든 서비스가 읽는 것 (common의 JwtProperties · SecurityConfig). 서비스를 나누면 Gateway와 각 서비스의 설정이 된다
-kidly:
-  auth:
-    # jwt: 서비스가 Access Token을 직접 검증한다(prod · 로컬 · 테스트)
-    # gateway: Gateway가 검증하고 붙인 X-Member-* 헤더로 로그인 회원을 만든다. Gateway 뒤에서만 쓴다(dev는 환경 변수 KIDLY_AUTH_MODE=gateway)
-    mode: jwt
-
+# 회원 서비스만 읽는 것 (member의 JwtProperties · RefreshTokenProperties · KakaoProperties). 서비스를 나누면 member-service 설정으로 간다
+# 토큰 검증 · 역할 검사 · CORS는 Gateway(apps/gateway)가 한다. 서비스는 Gateway가 붙인 X-Member-* 헤더로 로그인 회원을 만든다
 jwt:
-  # Access Token 유효 기간. 무효화 기록 보존 기간(+ 시계 오차 60초)도 여기서 나온다
+  # Access Token 유효 기간
   access-token-validity: 30m
 
-# ── 회원 서비스만 읽는 것 (member의 RefreshTokenProperties · KakaoProperties). 서비스를 나누면 member-service 설정으로 간다
 refresh-token:
   # 재발급할 때마다 다시 이 기간이 된다
   validity: 14d
@@ -28,9 +22,6 @@ spring:
 jwt:
   public-key: file:config/jwt/local-public.pem
   private-key: file:config/jwt/local-private.pem
-
-cors:
-  allowed-origins: http://localhost:5173
 
 # 로컬은 http라서 Secure 쿠키를 브라우저가 보내지 않는다. 운영은 기본값(true)을 쓴다
 refresh-token:
@@ -56,6 +47,3 @@ kakao:
   client-id: ${KAKAO_CLIENT_ID}
   client-secret: ${KAKAO_CLIENT_SECRET}
   redirect-uri: ${KAKAO_REDIRECT_URI}
-
-cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS}
