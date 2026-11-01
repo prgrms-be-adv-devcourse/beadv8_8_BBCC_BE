@@ -24,12 +24,12 @@ class LayerArchitectureTest {
     static final ArchTests LAYER_RULES = ArchTests.in(LayerRules.class);
 
     /**
-     * 계층 규칙은 빈 대상을 허용하므로, 주문 모듈의 세 컨텍스트(#617)마다 각 계층 클래스가 이 검사 대상에 실제로 들어 있고
+     * 계층 규칙은 빈 대상을 허용하므로, 주문 모듈의 컨텍스트(#617, 조르기 #640)마다 각 계층 클래스가 이 검사 대상에 실제로 들어 있고
      * 계층 규칙의 패키지 틀({@code boundedcontext.*.계층..})에 걸리는지 확인한다(검사가 조용히 빠지는 것 방지).
      */
     @ArchTest
     static final ArchRule LAYER_RULES_COVER_EVERY_CONTEXT = CompositeArchRule.of(
-        List.of("order", "cart", "delivery").stream()
+        List.of("order", "cart", "delivery", "wish").stream()
             .flatMap(context -> List.of("domain", "app", "in", "out").stream()
                 .map(layer -> classes()
                     .that().resideInAPackage(CONTEXTS + ".*." + layer + "..")

@@ -46,6 +46,10 @@ kidly:
         # false면 시작하지 않고(리스너 빈은 만든다) Spring 이벤트 수신으로 되돌아간다. 장애 때 되돌리는 용도
         # 로컬 실행은 Kafka가 떠 있어야 받는다(docker compose)
         enabled: ${ORDER_KAFKA_CONSUMER_ENABLED:true}
+    # 조르기(#640): 부모 · 자녀 공용 장바구니(/api/v1/wishes). 팀이 정책을 확정하지 않아 통째로 끌 수 있게 둔다
+    wish:
+      # false면 조르기 API · 빈이 뜨지 않는다(표는 그대로 남는다). 기본 true
+      enabled: ${ORDER_WISH_ENABLED:true}
     # 관리자 멈춘 주문 조회(#445)의 기준 시간. 저장된 시각에 이 시간을 더한 기준 시각이 지금보다 이전이면 멈춘 것으로 본다
     # 여섯 값 모두 1초(PT1S) 이상이어야 한다. 0 · 음수 · 1초 미만 · 빈 값이면 키 이름이 나오는 오류로 기동 실패. 조회만 하고 상태는 바꾸지 않는다
     stuck:

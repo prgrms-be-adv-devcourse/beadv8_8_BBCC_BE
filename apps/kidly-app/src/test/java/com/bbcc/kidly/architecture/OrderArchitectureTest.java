@@ -20,7 +20,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 주문 모듈 안의 계층 규칙(로우레벨 설계 3절). 주문 모듈의 세 컨텍스트(order · cart · delivery, #617)에 같이 건다.
+ * 주문 모듈 안의 계층 규칙(로우레벨 설계 3절). 주문 모듈의 컨텍스트(order · cart · delivery, #617 · wish, #640)에 같이 건다.
  * 컨텍스트 사이 규칙은 주문 모듈의 OrderContextArchitectureTest, 모듈 사이 규칙과 in → out 금지는 {@link ArchitectureTest}가 검사한다.
  *
  * <pre>
@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 class OrderArchitectureTest {
 
     private static final String BASE = "com.bbcc.kidly.boundedcontext.";
-    private static final List<String> CONTEXTS = List.of("order", "cart", "delivery");
+    private static final List<String> CONTEXTS = List.of("order", "cart", "delivery", "wish");
     private static final String[] MODULE = packages("..");
     private static final String[] DOMAIN = packages(".domain..");
     private static final String[] APP = packages(".app..");
