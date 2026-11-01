@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.domain.outbox;
+package com.bbcc.kidly.boundedcontext.order.out.messaging;
 
 import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import jakarta.persistence.Column;
@@ -14,7 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Kafka로 보낼 주문 이벤트(#540). 이벤트를 발행하는 업무 트랜잭션 안에서 저장해, 업무가 롤백되면 메시지도 남지 않는다.
+ * Kafka로 보낼 주문 이벤트(#540). 업무 개념이 아닌 전달 장치라 out에 둔다(#642). 이벤트를 발행하는 업무 트랜잭션 안에서 저장해, 업무가 롤백되면 메시지도 남지 않는다.
  * 릴레이가 id 순서대로 아직 보내지 않은 메시지를 보내고 보낸 시각을 기록한다. 보낸 메시지는 일정 기간 뒤 지운다.
  * 인덱스(안 보낸 메시지 · 보낸 시각)는 부분 인덱스라 마이그레이션에만 둔다.
  */

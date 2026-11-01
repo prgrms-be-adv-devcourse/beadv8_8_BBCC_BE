@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.deadletter;
 
-import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter.FailureType;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.FailureType;
 import jakarta.persistence.PersistenceException;
 import java.sql.SQLException;
 import java.util.List;

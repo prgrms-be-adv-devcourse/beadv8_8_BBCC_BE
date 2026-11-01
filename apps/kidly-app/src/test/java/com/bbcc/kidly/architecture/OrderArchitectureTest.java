@@ -83,6 +83,17 @@ class OrderArchitectureTest {
         .allowEmptyShould(true);
 
     /**
+     * domain은 업무 규칙 · 불변식만 둔다. 메시지 전달(아웃박스) · DLT 보관 · Kafka 대기량 확인 같은 기술 장치는 out · app에 둔다(#642).
+     */
+    @ArchTest
+    static final ArchRule DOMAIN_HAS_NO_TECHNICAL_DEVICES = noClasses()
+        .that().resideInAnyPackage(DOMAIN)
+        .should().resideInAnyPackage(Stream.of(".domain.outbox..", ".domain.deadletter..", ".domain.expiry..")
+            .flatMap(suffix -> Arrays.stream(packages(suffix))).toArray(String[]::new))
+        .orShould().dependOnClassesThat().resideInAnyPackage("org.apache.kafka..")
+        .allowEmptyShould(true);
+
+    /**
      * 애그리거트 패키지(domain.order · cart · delivery · replica)끼리는 의존하지 않고, domain 바로 아래 공통 값에만 의존한다.
      */
     @ArchTest
@@ -177,7 +188,7 @@ class OrderArchitectureTest {
 
     /**
      * 포트(app/port 나가는 포트 · app/port/in 다른 컨텍스트가 들어오는 포트, #641)는 인터페이스다. 포트가 주고받는 값은
-     * 그 포트 안의 record로 둔다(조회 결과 행은 인터페이스). 서비스 인터페이스는 만들지 않는다(4.1 · 4.3).
+     * 그 포트 안의 record로 둔다(조회 결과 행은 인터페이스, 값의 종류는 enum, #642). 서비스 인터페이스는 만들지 않는다(4.1 · 4.3).
      */
     @ArchTest
     static final ArchRule PORTS_ARE_INTERFACES = classes()
@@ -215,16 +226,17 @@ class OrderArchitectureTest {
         .allowEmptyShould(true);
 
     private static ArchCondition<JavaClass> beInterfaceOrRecordInsideInterface() {
-        return new ArchCondition<>("포트 인터페이스 안의 record · 인터페이스다") {
+        return new ArchCondition<>("포트 인터페이스 안의 record · 인터페이스 · enum이다") {
             @Override
             public void check(JavaClass javaClass, ConditionEvents events) {
                 JavaClass topLevel = javaClass;
                 while (topLevel.getEnclosingClass().isPresent()) {
                     topLevel = topLevel.getEnclosingClass().get();
                 }
-                if (!topLevel.isInterface() || !(javaClass.isRecord() || javaClass.isInterface())) {
+                boolean value = javaClass.isRecord() || javaClass.isInterface() || javaClass.isEnum();
+                if (!topLevel.isInterface() || !value) {
                     events.add(SimpleConditionEvent.violated(javaClass,
-                        javaClass.getName() + "는 포트 인터페이스 안의 record · 인터페이스가 아니다"));
+                        javaClass.getName() + "는 포트 인터페이스 안의 record · 인터페이스 · enum이 아니다"));
                 }
             }
         };

@@ -25,6 +25,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CartItem extends CartTimeEntity {
 
+    /**
+     * 한 줄 수량 상한(담기 · 같은 줄 더하기 · 수량 변경 · 주문하기 공통, #253 · #642). 요청 DTO의 @Max(99)와 같은 값.
+     */
+    public static final int MAX_QUANTITY = 99;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -44,7 +49,7 @@ public class CartItem extends CartTimeEntity {
     private Long version;
 
     public static CartItem create(Long memberId, Long optionId, Long childId, int quantity) {
-        requirePositive(quantity);
+        requireAllowed(quantity);
         CartItem item = new CartItem();
         item.memberId = memberId;
         item.optionId = optionId;
@@ -55,17 +60,17 @@ public class CartItem extends CartTimeEntity {
 
     public void addQuantity(int quantity) {
         int added = this.quantity + quantity;
-        requirePositive(added);
+        requireAllowed(added);
         this.quantity = added;
     }
 
     public void changeQuantity(int quantity) {
-        requirePositive(quantity);
+        requireAllowed(quantity);
         this.quantity = quantity;
     }
 
-    private static void requirePositive(int quantity) {
-        if (quantity < 1) {
+    private static void requireAllowed(int quantity) {
+        if (quantity < 1 || quantity > MAX_QUANTITY) {
             throw new CartRuleViolationException(Rule.INVALID_QUANTITY);
         }
     }

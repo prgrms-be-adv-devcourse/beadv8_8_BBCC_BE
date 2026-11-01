@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.out.messaging;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository.OutboxMessage;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
@@ -59,11 +59,11 @@ class KafkaOrderEventSender implements OrderEventSender, DisposableBean {
     }
 
     @Override
-    public void send(OrderOutboxMessage message) {
-        ProducerRecord<String, String> record = new ProducerRecord<>(message.getTopic(), message.getMessageKey(),
-            message.getPayload());
-        record.headers().add("eventType", message.getEventType().getBytes(StandardCharsets.UTF_8));
-        record.headers().add("eventId", message.getEventId().toString().getBytes(StandardCharsets.UTF_8));
+    public void send(OutboxMessage message) {
+        ProducerRecord<String, String> record = new ProducerRecord<>(message.topic(), message.messageKey(),
+            message.payload());
+        record.headers().add("eventType", message.eventType().getBytes(StandardCharsets.UTF_8));
+        record.headers().add("eventId", message.eventId().toString().getBytes(StandardCharsets.UTF_8));
         try {
             kafkaTemplate.send(record).get(SEND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         } catch (RuntimeException | ExecutionException e) {

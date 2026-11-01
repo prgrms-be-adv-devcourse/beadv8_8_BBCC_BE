@@ -200,11 +200,7 @@ public class OrderService {
         Order.Status from = order.getStatus();
         TransitionResult result = order.markPaid(command.paymentId(), command.memberId(), command.amount(),
             toPaidItems(command.items()), now);
-        if (result == TransitionResult.NOT_APPLICABLE && order.getStatus() == Order.Status.CANCELLED) {
-            if (isAlreadyPaidBy(order, command)) {
-                logIgnored("payment.completed", order, result);
-                return false;
-            }
+        if (order.isPaidAfterCancel(command.paymentId())) {
             warnPaidAfterCancel(command, order);
             return false;
         }
@@ -229,18 +225,11 @@ public class OrderService {
         if (order != null && order.getStatus() == Order.Status.PENDING_PAYMENT) {
             return LostPaymentRecheck.STILL_PENDING;
         }
-        if (order == null || order.getStatus() != Order.Status.CANCELLED || isAlreadyPaidBy(order, command)) {
+        if (order == null || !order.isPaidAfterCancel(command.paymentId())) {
             return LostPaymentRecheck.SETTLED;
         }
         warnPaidAfterCancel(command, order);
         return LostPaymentRecheck.PAID_AFTER_CANCEL;
-    }
-
-    // 결제완료 뒤 취소된 주문에 같은 결제 ID로 다시 온 결제 완료 = 이미 반영한 중복(#354-1).
-    // 결제 ID가 없으면 같은 결제인지 알 수 없으므로 중복으로 보지 않는다(환불 확인 WARN 그대로)
-    private static boolean isAlreadyPaidBy(Order order, MarkPaidCommand command) {
-        return order.getPaidAt() != null && command.paymentId() != null
-            && Objects.equals(order.getPaymentId(), command.paymentId());
     }
 
     private static void warnPaidAfterCancel(MarkPaidCommand command, Order order) {
@@ -390,11 +379,8 @@ public class OrderService {
         Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
         List<Delivery> deliveries = orderDeliveries.findByOrder(orderId);
-        if (order.getStatus() != Order.Status.CANCELLED && deliveries.stream().anyMatch(Delivery::shipped)) {
-            throw new BusinessException(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
-        }
         Order.Status from = order.getStatus();
-        TransitionResult result = order.cancel(Order.CancelReason.BUYER_CANCELLED);
+        TransitionResult result = order.cancelByBuyer(deliveries.stream().anyMatch(Delivery::shipped));
         if (result == TransitionResult.NOT_APPLICABLE) {
             throw new BusinessException(OrderErrorCode.CANCEL_NOT_ALLOWED_SHIPPED);
         }

@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.order.out.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
-import com.bbcc.kidly.boundedcontext.order.domain.expiry.PaymentEventLagCheck;
 import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
 import java.util.HashMap;
 import java.util.List;
@@ -67,7 +66,7 @@ class KafkaPaymentEventLagIntegrationTest {
     void caughtUp() throws Exception {
         commit(endOffsets());
 
-        assertThat(paymentEventLag.check()).isEqualTo(PaymentEventLagCheck.caughtUp());
+        assertThat(paymentEventLag.check()).isEqualTo(PaymentEventLag.Check.caughtUp());
     }
 
     @Test
@@ -78,7 +77,7 @@ class KafkaPaymentEventLagIntegrationTest {
         send(0);
         send(1);
 
-        assertThat(paymentEventLag.check()).isEqualTo(PaymentEventLagCheck.lagging(2));
+        assertThat(paymentEventLag.check()).isEqualTo(PaymentEventLag.Check.lagging(2));
     }
 
     @Test
@@ -89,7 +88,7 @@ class KafkaPaymentEventLagIntegrationTest {
         ends.remove(new TopicPartition(TOPIC, 0));
         commit(ends);
 
-        assertThat(paymentEventLag.check()).isEqualTo(PaymentEventLagCheck.notAssigned());
+        assertThat(paymentEventLag.check()).isEqualTo(PaymentEventLag.Check.notAssigned());
     }
 
     private Map<TopicPartition, Long> endOffsets() throws Exception {

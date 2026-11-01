@@ -1,8 +1,9 @@
 package com.bbcc.kidly.boundedcontext.order.out.persistence;
 
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter;
-import com.bbcc.kidly.boundedcontext.order.domain.deadletter.ReceivedDeadLetter;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.FailureType;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.Status;
+import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderDeadLetter;
+import com.bbcc.kidly.boundedcontext.order.out.messaging.ReceivedDeadLetter;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import java.util.Optional;
@@ -16,15 +17,16 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 /**
- * 주문 DLT 메시지 저장소 포트를 Spring Data JPA로 구현한다. 포트에 선언한 메서드만 노출한다.
+ * 주문 DLT 메시지 Spring Data JPA 저장소. app은 {@link OrderDeadLetterStore}(포트 구현)로만 쓴다(#642).
  */
-public interface JpaOrderDeadLetterRepository extends Repository<OrderDeadLetter, Long>, OrderDeadLetterRepository {
+public interface JpaOrderDeadLetterRepository extends Repository<OrderDeadLetter, Long> {
+
+    Optional<OrderDeadLetter> findById(Long id);
 
     /**
      * INSERT … ON CONFLICT(원래 위치) DO UPDATE. 다시 받음은 받은 횟수 · 마지막 받은 시각 · 수정 시각만 바꾸고 version은 올리지 않는다
      * (관리자 처리는 행을 잠그고 최신 값을 읽은 뒤 바꾼다).
      */
-    @Override
     @Modifying
     @Query(nativeQuery = true, value = """
         insert into orders.order_dead_letter (source_topic, source_partition, source_offset, message_key, event_type,
@@ -48,7 +50,6 @@ public interface JpaOrderDeadLetterRepository extends Repository<OrderDeadLetter
     /**
      * SELECT … FOR UPDATE. 잠금 대기 시간은 따로 두지 않는다(앞 트랜잭션이 끝나면 바로 풀림).
      */
-    @Override
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from OrderDeadLetter d where d.id = :id")
     Optional<OrderDeadLetter> findByIdForUpdate(Long id);
@@ -56,16 +57,14 @@ public interface JpaOrderDeadLetterRepository extends Repository<OrderDeadLetter
     /**
      * SELECT … FOR UPDATE NOWAIT(잠금 대기 시간 0). 이미 잠겨 있으면 기다리지 않고 바로 실패한다.
      */
-    @Override
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0"))
     @Query("select d from OrderDeadLetter d where d.id = :id")
     Optional<OrderDeadLetter> findByIdForUpdateNoWait(Long id);
 
     /**
-     * 결제 토픽(OrderDeadLetter.PAYMENT_SOURCE_TOPIC)에서 온 것을 먼저 둔다(#632).
+     * 결제 토픽(kidly.payment.events)에서 온 것을 먼저 둔다(#632).
      */
-    @Override
     @Query(value = """
         select d from OrderDeadLetter d
         where d.status = :status
@@ -78,15 +77,14 @@ public interface JpaOrderDeadLetterRepository extends Repository<OrderDeadLetter
           and (:failureType is null or d.failureType = :failureType)
           and (:eventType is null or d.eventType = :eventType)
         """)
-    Page<OrderDeadLetter> findPage(OrderDeadLetter.Status status, OrderDeadLetter.FailureType failureType,
+    Page<OrderDeadLetter> findPage(Status status, FailureType failureType,
         String eventType, Pageable pageable);
 
-    @Override
     @Query("""
         select count(d) from OrderDeadLetter d
         where d.status = :status
           and (:failureType is null or d.failureType = :failureType)
           and (:eventType is null or d.eventType = :eventType)
         """)
-    long countPage(OrderDeadLetter.Status status, OrderDeadLetter.FailureType failureType, String eventType);
+    long countPage(Status status, FailureType failureType, String eventType);
 }

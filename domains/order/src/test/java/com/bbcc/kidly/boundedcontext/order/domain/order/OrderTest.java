@@ -931,4 +931,67 @@ class OrderTest {
             assertThat(itemOf(order, SELLER_A_ID).getDeliveredAt()).isEqualTo(DELIVERED_AT);
         }
     }
+
+    @Nested
+    @DisplayName("구매자 취소 · 취소 주문에 온 결제 완료 (#642, app에서 옮긴 규칙)")
+    class BuyerCancelAndPaidAfterCancel {
+
+        @Test
+        @DisplayName("발송된 배송이 있으면 결제완료 주문을 구매자가 취소할 수 없다")
+        void shippedIsNotCancelled() {
+            Order order = OrderFixture.paidOrder();
+
+            assertThat(order.cancelByBuyer(true)).isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+        }
+
+        @Test
+        @DisplayName("발송 전이면 BUYER_CANCELLED로 취소한다(결제대기 · 결제완료)")
+        void notShippedIsCancelled() {
+            Order paid = OrderFixture.paidOrder();
+            Order pending = OrderFixture.placedOrder();
+
+            assertThat(paid.cancelByBuyer(false)).isEqualTo(TransitionResult.APPLIED);
+            assertThat(paid.getCancelReason()).isEqualTo(Order.CancelReason.BUYER_CANCELLED);
+            assertThat(pending.cancelByBuyer(false)).isEqualTo(TransitionResult.APPLIED);
+        }
+
+        @Test
+        @DisplayName("이미 취소된 주문은 발송 여부와 상관없이 그대로(처음 사유 유지)")
+        void alreadyCancelled() {
+            Order order = OrderFixture.placedOrder();
+            order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
+
+            assertThat(order.cancelByBuyer(true)).isEqualTo(TransitionResult.ALREADY_DONE);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
+        }
+
+        @Test
+        @DisplayName("결제 전에 취소된 주문에 온 결제 완료는 환불 확인 대상이다")
+        void paidAfterCancel() {
+            Order order = OrderFixture.placedOrder();
+            order.cancel(Order.CancelReason.PAYMENT_EXPIRED);
+
+            assertThat(order.isPaidAfterCancel(PAYMENT_ID)).isTrue();
+            assertThat(order.isPaidAfterCancel(null)).isTrue();
+        }
+
+        @Test
+        @DisplayName("결제완료 뒤 취소된 주문에 같은 결제 ID로 다시 온 결제 완료는 이미 반영한 중복이다")
+        void samePaymentAfterPaidThenCancelled() {
+            Order order = OrderFixture.paidOrder();
+            order.cancel(Order.CancelReason.BUYER_CANCELLED);
+
+            assertThat(order.isPaidAfterCancel(PAYMENT_ID)).isFalse();
+            assertThat(order.isPaidAfterCancel(999L)).isTrue();
+            assertThat(order.isPaidAfterCancel(null)).isTrue();
+        }
+
+        @Test
+        @DisplayName("취소되지 않은 주문은 환불 확인 대상이 아니다")
+        void notCancelled() {
+            assertThat(OrderFixture.placedOrder().isPaidAfterCancel(PAYMENT_ID)).isFalse();
+            assertThat(OrderFixture.paidOrder().isPaidAfterCancel(999L)).isFalse();
+        }
+    }
 }

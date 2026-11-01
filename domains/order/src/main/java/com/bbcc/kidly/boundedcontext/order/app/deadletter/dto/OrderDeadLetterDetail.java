@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.app.deadletter.dto;
 
-import com.bbcc.kidly.boundedcontext.order.domain.deadletter.OrderDeadLetter;
+import com.bbcc.kidly.boundedcontext.order.app.deadletter.DeadLetterHandling;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.DeadLetter;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.Handling;
 import java.time.LocalDateTime;
 
 /**
@@ -42,15 +44,16 @@ public record OrderDeadLetterDetail(
     String recommendedAction,
     boolean paymentEvent) {
 
-    public static OrderDeadLetterDetail of(OrderDeadLetter letter, String orderStatus, String recommendedAction) {
-        return new OrderDeadLetterDetail(letter.getId(), letter.getSourceTopic(), letter.getSourcePartition(),
-            letter.getSourceOffset(), letter.getMessageKey(), letter.getEventType(), letter.getEventId(),
-            letter.getPayload(), letter.getProducer(), letter.getOccurredAt(), letter.getAggregateId(),
-            letter.getCorrelationId(), letter.getOrderId(), orderStatus, letter.getFailureType().name(),
-            letter.getExceptionClass(), letter.getExceptionMessage(), letter.getStackTraceHead(),
-            letter.getFirstReceivedAt(), letter.getLastReceivedAt(), letter.getReceivedCount(),
-            letter.getStatus().name(), letter.getHandledBy(), letter.getHandledAt(), letter.getMemo(),
-            letter.getReprocessCount(), letter.getLastReprocessedAt(), letter.getLastReprocessResult(),
-            recommendedAction, letter.isPaymentEvent());
+    public static OrderDeadLetterDetail of(DeadLetter letter, String orderStatus, String recommendedAction) {
+        Handling handling = letter.handling();
+        return new OrderDeadLetterDetail(letter.id(), letter.sourceTopic(), letter.sourcePartition(),
+            letter.sourceOffset(), letter.messageKey(), letter.eventType(), letter.eventId(),
+            letter.payload(), letter.producer(), letter.occurredAt(), letter.aggregateId(),
+            letter.correlationId(), letter.orderId(), orderStatus, letter.failureType().name(),
+            letter.exceptionClass(), letter.exceptionMessage(), letter.stackTraceHead(),
+            letter.firstReceivedAt(), letter.lastReceivedAt(), letter.receivedCount(),
+            handling.status().name(), handling.handledBy(), handling.handledAt(), handling.memo(),
+            handling.reprocessCount(), handling.lastReprocessedAt(), handling.lastReprocessResult(),
+            recommendedAction, DeadLetterHandling.isPaymentEvent(letter));
     }
 }

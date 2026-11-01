@@ -10,7 +10,8 @@ public class CartRuleViolationException extends RuntimeException {
      * 위반한 규칙. 이름은 app의 CartErrorCode와 같다.
      */
     public enum Rule {
-        INVALID_QUANTITY
+        INVALID_QUANTITY,
+        OWN_PRODUCT
     }
 
     private final Rule rule;

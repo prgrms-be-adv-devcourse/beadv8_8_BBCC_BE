@@ -322,7 +322,7 @@ public class Order extends OrderTimeEntity {
     /**
      * 결제대기일 때 주어진 사유로 취소한다. 결제 마감 만료는 expirePayment를 쓴다.
      * 구매자 취소(BUYER_CANCELLED, #354)만 결제완료 주문도 취소한다 — 배송 완료 · 구매확정된 주문상품이 없을 때만.
-     * 판매자 발송 여부는 배송이 알고 서비스가 먼저 거른다. 이미 취소된 주문은 그대로 둔다(처음 사유 유지).
+     * 판매자 발송 여부는 cancelByBuyer가 값으로 받아 거른다(#642). 이미 취소된 주문은 그대로 둔다(처음 사유 유지).
      *
      * @return APPLIED 이번에 취소함 · ALREADY_DONE 이미 취소됨(사유와 상관없이) ·
      *     NOT_APPLICABLE 결제완료(구매자 취소가 아니거나, 배송 완료 · 구매확정된 주문상품이 있음)
@@ -337,6 +337,34 @@ public class Order extends OrderTimeEntity {
         this.status = Status.CANCELLED;
         this.cancelReason = reason;
         return TransitionResult.APPLIED;
+    }
+
+    /**
+     * 구매자가 주문을 전체 취소한다(#354 · #642). 판매자 발송 여부는 배송이 알고 부른 쪽이 값으로 넘긴다.
+     * 이미 취소된 주문은 발송 여부와 상관없이 그대로 두고(처음 사유 유지), 발송된 배송이 있으면 취소하지 않는다.
+     * 그 밖은 cancel(BUYER_CANCELLED)과 같다(배송 완료 · 구매확정된 주문상품이 있으면 취소하지 않음).
+     *
+     * @param anyShipped 판매자별 배송 중 하나라도 발송됐는지(배송 중 · 배송 완료)
+     * @return APPLIED 이번에 취소함 · ALREADY_DONE 이미 취소됨 · NOT_APPLICABLE 발송됐거나 취소할 수 없는 결제완료
+     */
+    public TransitionResult cancelByBuyer(boolean anyShipped) {
+        if (status != Status.CANCELLED && anyShipped) {
+            return TransitionResult.NOT_APPLICABLE;
+        }
+        return cancel(CancelReason.BUYER_CANCELLED);
+    }
+
+    /**
+     * 취소된 주문에 온 결제 완료가 환불 확인 대상인지(#354-1 · #519 · #642). 결제완료 뒤 취소된 주문에 같은 결제 ID로 다시 온
+     * 결제 완료는 이미 반영한 중복이라 대상이 아니다. 결제 ID가 없으면 같은 결제인지 알 수 없으므로 대상으로 본다.
+     * 취소되지 않은 주문은 대상이 아니다.
+     */
+    public boolean isPaidAfterCancel(Long paymentId) {
+        if (status != Status.CANCELLED) {
+            return false;
+        }
+        boolean alreadyPaidBySame = paidAt != null && paymentId != null && Objects.equals(this.paymentId, paymentId);
+        return !alreadyPaidBySame;
     }
 
     private boolean canBuyerCancelPaid(CancelReason reason) {

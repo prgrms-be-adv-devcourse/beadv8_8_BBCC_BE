@@ -5,7 +5,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
-import com.bbcc.kidly.boundedcontext.order.domain.expiry.PaymentEventLagCheck;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -56,7 +55,7 @@ class PaymentExpiryGateTest {
     @Test
     @DisplayName("스위치가 켜져 있으면 결제 리스너 상태와 상관없이 늘 대기량을 확인하고, 대기 0이면 실행한다")
     void runsWhenCaughtUp() {
-        when(lag.check()).thenReturn(PaymentEventLagCheck.caughtUp());
+        when(lag.check()).thenReturn(PaymentEventLag.Check.caughtUp());
 
         assertThat(gate().allowsRun()).isTrue();
     }
@@ -64,7 +63,7 @@ class PaymentExpiryGateTest {
     @ParameterizedTest(name = "{1}")
     @MethodSource("skipped")
     @DisplayName("스위치가 켜져 있고 대기 있음 · 확인 실패 · 배정 전이면 건너뛰고 INFO에 이유 코드만 남긴다(WARN 아님)")
-    void skips(PaymentEventLagCheck check, String reason, CapturedOutput output) {
+    void skips(PaymentEventLag.Check check, String reason, CapturedOutput output) {
         when(lag.check()).thenReturn(check);
 
         assertThat(gate().allowsRun()).isFalse();
@@ -73,15 +72,15 @@ class PaymentExpiryGateTest {
 
     static Stream<Arguments> skipped() {
         return Stream.of(
-            Arguments.of(PaymentEventLagCheck.lagging(3), "lag"),
-            Arguments.of(PaymentEventLagCheck.checkFailed("timeout"), "check-failed:timeout"),
-            Arguments.of(PaymentEventLagCheck.notAssigned(), "not-assigned"));
+            Arguments.of(PaymentEventLag.Check.lagging(3), "lag"),
+            Arguments.of(PaymentEventLag.Check.checkFailed("timeout"), "check-failed:timeout"),
+            Arguments.of(PaymentEventLag.Check.notAssigned(), "not-assigned"));
     }
 
     @Test
     @DisplayName("연속으로 건너뛴 시간이 10분을 넘는 순간 ERROR 한 번(정확히 10분은 아직, 그 뒤 건너뛰어도 다시 안 찍음)")
     void errorOnceAfterTenMinutes(CapturedOutput output) {
-        when(lag.check()).thenReturn(PaymentEventLagCheck.lagging(1));
+        when(lag.check()).thenReturn(PaymentEventLag.Check.lagging(1));
         PaymentExpiryGate gate = gate();
 
         gate.allowsRun();
@@ -100,17 +99,17 @@ class PaymentExpiryGateTest {
     @Test
     @DisplayName("다시 실행되면 INFO 한 줄로 알리고 연속 기록을 지운다(새로 건너뛰기 시작하면 다시 10분을 센다)")
     void recoveryResetsStreak(CapturedOutput output) {
-        when(lag.check()).thenReturn(PaymentEventLagCheck.lagging(1));
+        when(lag.check()).thenReturn(PaymentEventLag.Check.lagging(1));
         PaymentExpiryGate gate = gate();
         gate.allowsRun();
         clock.advance(Duration.ofMinutes(11));
         gate.allowsRun();
 
-        when(lag.check()).thenReturn(PaymentEventLagCheck.caughtUp());
+        when(lag.check()).thenReturn(PaymentEventLag.Check.caughtUp());
         assertThat(gate.allowsRun()).isTrue();
         assertThat(output.getOut()).contains("INFO").contains("결제 마감 만료를 다시 실행");
 
-        when(lag.check()).thenReturn(PaymentEventLagCheck.lagging(1));
+        when(lag.check()).thenReturn(PaymentEventLag.Check.lagging(1));
         gate.allowsRun();
         clock.advance(Duration.ofMinutes(5));
         gate.allowsRun();

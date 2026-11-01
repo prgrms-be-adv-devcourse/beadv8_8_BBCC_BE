@@ -2,11 +2,13 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
@@ -15,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -102,14 +105,8 @@ public class PaymentRecoveryService {
     @Transactional
     public PaymentRecoveryResult recover(Long recoveryId, Long adminId, Consumer<MarkPaidCommand> applyPaid) {
         PaymentRecovery recovery = findForUpdate(recoveryId);
-        switch (recovery.getStatus()) {
-            case RECOVERED -> {
-                return PaymentRecoveryResult.from(recovery);
-            }
-            case CANCELLED -> throw new BusinessException(OrderErrorCode.RECOVERY_CLOSED);
-            case NOT_RETRYABLE -> throw new BusinessException(OrderErrorCode.RECOVERY_NOT_RETRYABLE);
-            default -> {
-            }
+        if (!byRule(recovery::startRetry)) {
+            return PaymentRecoveryResult.from(recovery);
         }
         Order.Status orderStatus = orderStatusOf(recovery);
         if (orderStatus == Order.Status.PENDING_PAYMENT) {
@@ -118,11 +115,7 @@ public class PaymentRecoveryService {
         // 결제 완료 반영 뒤의 시각: 이력에서 기록 종료가 주문 결제완료 · 배송 생성 다음에 오게 한다
         LocalDateTime now = LocalDateTime.now();
         PaymentRecovery.Status from = recovery.getStatus();
-        if (orderStatus == Order.Status.CANCELLED) {
-            recovery.cancel(now);
-        } else {
-            recovery.recover(now);
-        }
+        recovery.finishRetry(orderStatus == Order.Status.CANCELLED, now);
         recordHistory(OrderActor.admin(adminId, OrderActor.RECOVERY_RETRY), recovery, from, null, now);
         log.info("결제 반영 재처리: recoveryId={} orderId={} result={}",
             recovery.getId(), recovery.getOrderId(), recovery.getStatus());
@@ -140,13 +133,10 @@ public class PaymentRecoveryService {
         }
         LocalDateTime now = LocalDateTime.now();
         PaymentRecovery.Status from = recovery.getStatus();
-        // 재처리가 기록을 잡은 사이 다른 경로로 주문이 취소됐으면(주문 취소는 잡힌 기록을 건너뜀, #598) 반영할 것이 없으므로 닫는다.
+        // 재처리가 기록을 잡은 사이 다른 경로로 주문이 취소됐으면(주문 취소는 잡힌 기록을 건너뜀, #598) 기록이 닫는다.
         // 빠진 돈은 그 취소의 order.cancelled를 받은 결제 쪽이 환불한다
-        if (from == PaymentRecovery.Status.PENDING && isOrderCancelled(recovery.getOrderId())) {
-            recovery.closeForOrderCancelled(now);
-        } else {
-            recovery.recordFailure(PaymentFailures.failureCode(error), PaymentFailures.isRetryable(error), now);
-        }
+        recovery.retryFailed(() -> isOrderCancelled(recovery.getOrderId()), PaymentFailures.failureCode(error),
+            PaymentFailures.isRetryable(error), now);
         if (recovery.getStatus() != from) {
             recordHistory(OrderActor.admin(adminId, OrderActor.RECOVERY_RETRY), recovery, from,
                 recovery.getFailureCode(), now);
@@ -164,16 +154,10 @@ public class PaymentRecoveryService {
     @Transactional
     public PaymentRecoveryResult cancel(Long recoveryId, Long adminId) {
         PaymentRecovery recovery = findForUpdate(recoveryId);
-        if (recovery.getStatus() == PaymentRecovery.Status.CANCELLED) {
+        if (!byRule(recovery::startAdminCancel)) {
             return PaymentRecoveryResult.from(recovery);
         }
-        if (recovery.getStatus() == PaymentRecovery.Status.RECOVERED) {
-            throw new BusinessException(OrderErrorCode.RECOVERY_CLOSED);
-        }
         Order.Status orderStatus = orderStatusOf(recovery);
-        if (orderStatus == Order.Status.PAID) {
-            throw new BusinessException(OrderErrorCode.RECOVERY_ORDER_PAID);
-        }
         OrderActor admin = OrderActor.admin(adminId, OrderActor.RECOVERY_CANCEL);
         if (orderStatus == Order.Status.PENDING_PAYMENT) {
             orderService.cancelForPaymentFailure(recovery.getOrderId(), admin,
@@ -181,11 +165,23 @@ public class PaymentRecoveryService {
         }
         LocalDateTime now = LocalDateTime.now();
         PaymentRecovery.Status from = recovery.getStatus();
-        recovery.cancel(now);
+        byRule(() -> {
+            recovery.cancelByAdmin(orderStatus == Order.Status.PAID, now);
+            return true;
+        });
         recordHistory(admin, recovery, from, null, now);
         log.info("결제 반영 취소로 종료: recoveryId={} orderId={} result={}",
             recovery.getId(), recovery.getOrderId(), recovery.getStatus());
         return PaymentRecoveryResult.from(recovery);
+    }
+
+    // 기록의 상태 규칙(domain) 위반을 오류 응답으로 바꾼다
+    private static boolean byRule(BooleanSupplier rule) {
+        try {
+            return rule.getAsBoolean();
+        } catch (OrderRuleViolationException e) {
+            throw OrderErrors.toBusiness(e);
+        }
     }
 
     private void recordHistory(OrderActor actor, PaymentRecovery recovery, PaymentRecovery.Status from, String reason,

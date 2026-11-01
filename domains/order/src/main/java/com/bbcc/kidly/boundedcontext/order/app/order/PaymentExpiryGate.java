@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
-import com.bbcc.kidly.boundedcontext.order.domain.expiry.PaymentEventLagCheck;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -52,8 +51,8 @@ public class PaymentExpiryGate {
             resume();
             return true;
         }
-        PaymentEventLagCheck check = lag.check();
-        if (check.status() == PaymentEventLagCheck.Status.CAUGHT_UP) {
+        PaymentEventLag.Check check = lag.check();
+        if (check.status() == PaymentEventLag.Check.Status.CAUGHT_UP) {
             resume();
             return true;
         }
@@ -61,7 +60,7 @@ public class PaymentExpiryGate {
         return false;
     }
 
-    private void skip(PaymentEventLagCheck check) {
+    private void skip(PaymentEventLag.Check check) {
         Instant now = clock.instant();
         if (skippingSince == null) {
             skippingSince = now;
@@ -86,7 +85,7 @@ public class PaymentExpiryGate {
         alerted = false;
     }
 
-    private static String reasonOf(PaymentEventLagCheck check) {
+    private static String reasonOf(PaymentEventLag.Check check) {
         return switch (check.status()) {
             case LAGGING -> "lag";
             case NOT_ASSIGNED -> "not-assigned";

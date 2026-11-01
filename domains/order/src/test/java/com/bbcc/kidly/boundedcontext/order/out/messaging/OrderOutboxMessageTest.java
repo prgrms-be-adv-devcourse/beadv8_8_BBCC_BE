@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.domain.outbox;
+package com.bbcc.kidly.boundedcontext.order.out.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

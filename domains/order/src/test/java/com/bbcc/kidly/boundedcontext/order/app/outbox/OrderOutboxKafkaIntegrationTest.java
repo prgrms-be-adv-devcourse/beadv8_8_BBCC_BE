@@ -14,9 +14,9 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
@@ -81,7 +81,7 @@ class OrderOutboxKafkaIntegrationTest {
     private OrderOutboxRelayService relayService;
 
     @Autowired
-    private OrderOutboxRepository outboxRepository;
+    private JpaOrderOutboxRepository outboxRepository;
 
     @Autowired
     private OrderEventDelivery eventDelivery;

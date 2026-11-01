@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.out.messaging;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
-import com.bbcc.kidly.boundedcontext.order.domain.expiry.PaymentEventLagCheck;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -51,7 +50,7 @@ class KafkaPaymentEventLag implements PaymentEventLag, DisposableBean {
     }
 
     @Override
-    public PaymentEventLagCheck check() {
+    public PaymentEventLag.Check check() {
         long deadline = System.nanoTime() + TIMEOUT.toNanos();
         try {
             Admin client = admin();
@@ -74,14 +73,14 @@ class KafkaPaymentEventLag implements PaymentEventLag, DisposableBean {
             });
             return evaluate(ends, committed);
         } catch (TimeoutException e) {
-            return PaymentEventLagCheck.checkFailed("timeout");
+            return PaymentEventLag.Check.checkFailed("timeout");
         } catch (ExecutionException e) {
-            return PaymentEventLagCheck.checkFailed(reasonOf(e.getCause()));
+            return PaymentEventLag.Check.checkFailed(reasonOf(e.getCause()));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return PaymentEventLagCheck.checkFailed("interrupted");
+            return PaymentEventLag.Check.checkFailed("interrupted");
         } catch (RuntimeException e) {
-            return PaymentEventLagCheck.checkFailed(reasonOf(e));
+            return PaymentEventLag.Check.checkFailed(reasonOf(e));
         }
     }
 
@@ -89,7 +88,7 @@ class KafkaPaymentEventLag implements PaymentEventLag, DisposableBean {
      * 파티션 번호별 끝 오프셋과 그룹 커밋 오프셋으로 결과를 정한다. 커밋이 없는 파티션은 비어 있으면(끝 0) 넘어가고,
      * 읽을 메시지가 있으면 배정 · 첫 처리 전으로 본다.
      */
-    static PaymentEventLagCheck evaluate(Map<Integer, Long> ends, Map<Integer, Long> committed) {
+    static PaymentEventLag.Check evaluate(Map<Integer, Long> ends, Map<Integer, Long> committed) {
         long lag = 0;
         boolean notAssigned = false;
         for (Map.Entry<Integer, Long> end : ends.entrySet()) {
@@ -101,9 +100,9 @@ class KafkaPaymentEventLag implements PaymentEventLag, DisposableBean {
             lag += Math.max(0, end.getValue() - position);
         }
         if (notAssigned) {
-            return PaymentEventLagCheck.notAssigned();
+            return PaymentEventLag.Check.notAssigned();
         }
-        return lag == 0 ? PaymentEventLagCheck.caughtUp() : PaymentEventLagCheck.lagging(lag);
+        return lag == 0 ? PaymentEventLag.Check.caughtUp() : PaymentEventLag.Check.lagging(lag);
     }
 
     @Override
