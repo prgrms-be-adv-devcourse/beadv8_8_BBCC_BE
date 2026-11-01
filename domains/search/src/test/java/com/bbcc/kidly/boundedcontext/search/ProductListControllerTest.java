@@ -1,8 +1,11 @@
 package com.bbcc.kidly.boundedcontext.search;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -15,6 +18,8 @@ import com.bbcc.kidly.boundedcontext.search.domain.SearchErrorCode;
 import com.bbcc.kidly.boundedcontext.search.in.ProductListController;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.GlobalExceptionHandler;
+import com.bbcc.kidly.shared.auth.MemberHeaders;
+import org.springframework.data.domain.Page;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,7 +55,7 @@ class ProductListControllerTest {
     @Test
     @DisplayName("목록은 감싸지 않은 페이지 응답이다. 상품 ID는 문자열, 없는 썸네일 · 상호명은 null이다")
     void list() throws Exception {
-        given(productListService.list(any())).willReturn(new PageImpl<>(List.of(
+        given(productListService.list(any(), any())).willReturn(new PageImpl<>(List.of(
             new ProductSearchItem(10L, "여아 원피스", null, null, 15_000L, false, true)), PageRequest.of(0, 20), 21));
 
         mockMvc.perform(get("/api/v1/products").param("keyword", "원피스"))
@@ -80,13 +85,14 @@ class ProductListControllerTest {
         mockMvc.perform(get("/api/v1/products").param("size", "101"))
             .andExpect(status().isBadRequest());
 
-        verify(productListService, never()).list(any());
+        verify(productListService, never()).list(any(), any());
     }
 
     @Test
     @DisplayName("검색 색인을 쓸 수 없으면 503 ProblemDetail로 알린다")
     void unavailable() throws Exception {
-        given(productListService.list(any())).willThrow(new BusinessException(SearchErrorCode.SEARCH_UNAVAILABLE));
+        given(productListService.list(any(), any()))
+            .willThrow(new BusinessException(SearchErrorCode.SEARCH_UNAVAILABLE));
 
         mockMvc.perform(get("/api/v1/products"))
             .andExpect(status().isServiceUnavailable())
@@ -94,5 +100,29 @@ class ProductListControllerTest {
             .andExpect(jsonPath("$.status").value(503))
             .andExpect(jsonPath("$.title").value(SearchErrorCode.SEARCH_UNAVAILABLE.title()))
             .andExpect(jsonPath("$.instance").value("/api/v1/products"));
+    }
+
+    @Test
+    @DisplayName("Gateway가 붙인 회원 ID 헤더가 있으면 그 회원으로 찾는다")
+    void loginMember() throws Exception {
+        given(productListService.list(any(), any())).willReturn(Page.empty());
+
+        mockMvc.perform(get("/api/v1/products").param("keyword", "원피스").header(MemberHeaders.MEMBER_ID, "7"))
+            .andExpect(status().isOk());
+
+        verify(productListService).list(any(), eq(7L));
+    }
+
+    @Test
+    @DisplayName("회원 헤더가 없거나 잘못돼도 401 없이 비로그인으로 찾는다")
+    void anonymous() throws Exception {
+        given(productListService.list(any(), any())).willReturn(Page.empty());
+
+        mockMvc.perform(get("/api/v1/products").param("keyword", "원피스"))
+            .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/products").param("keyword", "원피스").header(MemberHeaders.MEMBER_ID, "abc"))
+            .andExpect(status().isOk());
+
+        verify(productListService, times(2)).list(any(), isNull());
     }
 }
