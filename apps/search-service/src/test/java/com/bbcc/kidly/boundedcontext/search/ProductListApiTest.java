@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.search.SearchEvents.product;
 import static com.bbcc.kidly.boundedcontext.search.SearchEvents.seller;
 
 import com.bbcc.kidly.boundedcontext.search.app.SearchIndexService;
+import com.bbcc.kidly.shared.auth.MemberHeaders;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.SearchIndexes;
@@ -46,6 +47,21 @@ class ProductListApiTest {
             .jsonPath("$.content[0].soldOut").isEqualTo(false)
             .jsonPath("$.totalElements").isEqualTo(1)
             .jsonPath("$.hasNext").isEqualTo(false);
+    }
+
+    @Test
+    @DisplayName("Gateway가 붙인 회원 ID 헤더가 있어도 같은 목록을 돌려준다")
+    void listWithMemberHeader() {
+        indexService.applyProductChanged(product(1L, "여아 원피스", 7L, 3L, ProductStatus.ON_SALE, 15_000, 3L, 1));
+        indexes.refresh();
+
+        client.get().uri(uri -> uri.path("/api/v1/products").queryParam("keyword", "원피스").build())
+            .header(MemberHeaders.MEMBER_ID, "7")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[0].productId").isEqualTo("1")
+            .jsonPath("$.totalElements").isEqualTo(1);
     }
 
     @Test

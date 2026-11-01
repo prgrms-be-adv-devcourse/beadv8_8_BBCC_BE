@@ -3,7 +3,7 @@
 상품 목록 검색(`GET /api/v1/products`)을 상품에서 떼어 맡는다. 상품 · 판매자가 발행한 이벤트로만 색인하고, 상품 DB를 읽지 않는다.
 
 ## 진행 상태
-- 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori), Kafka 수신(`in/SearchProductEventListener` · `in/SearchSellerEventListener`)
+- 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori), Kafka 수신(`in/SearchProductEventListener` · `in/SearchSellerEventListener`), 검색 이벤트 발행(`search.performed`, #611)
 - 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`만 search-service로 넘긴다, `apps/gateway`)
 - 남음: 처음 채우기(상품 · 판매자의 전체 다시 발행), prod 배포(prod에는 Gateway가 없다)
 - kidly-app에는 넣지 않는다. 상품의 목록 API와 경로(`GET /api/v1/products`)가 같아 한 앱에 두면 매핑이 겹친다. `apps/search-service`로만 띄운다
@@ -66,12 +66,20 @@
 - 검색 색인을 쓸 수 없으면(`SearchUnavailableException`) 503 `SEARCH_UNAVAILABLE` ProblemDetail로 응답하고 WARN을 남긴다. 로그에는 색인 · 상태와 원인 예외 종류만 남긴다. 원인 메시지에는 Elasticsearch가 돌려준 요청 일부(검색어)가 들어갈 수 있어 남기지 않는다
   - 상품의 PostgreSQL 검색으로 대신 찾지 않는다. 검색은 상품 DB를 읽지 않기 때문이다. 전환 기간에는 Gateway의 검색 주소(`KIDLY_SEARCH_URI`)를 kidly-app으로 돌려 상품의 목록 API로 돌아갈 수 있다
 - 관련도순 정렬은 아직 없다(상품 목록 API에도 없다)
+- 공개 API지만 로그인했으면 Gateway가 붙인 회원 ID 헤더(`MemberHeaders.MEMBER_ID`)를 읽어 검색 이벤트에 쓴다. `@LoginMember`는 헤더가 없으면 401이라 쓰지 않는다. 헤더가 없거나 잘못되면 비로그인으로 찾는다
 - 도메인 모듈의 컨트롤러 단위 테스트는 스프링을 띄우지 않고 `MockMvcBuilders.standaloneSetup` + `GlobalExceptionHandler`로 한다. HTTP 전체는 `apps/search-service`의 기능 테스트(`ProductListApiTest`)가 본다
+
+## 검색 이벤트 발행 (`search.performed`, #611)
+- 추천이 회원의 관심사로 쓴다. 토픽 `kidly.search.events`(파티션 3 · 복제 1, `out/SearchKafkaConfig`가 선언), 키는 회원 ID, 본문은 공통 칸 7개 + `data`
+- 보내는 때: 로그인 회원이 검색어(앞뒤 공백을 빼고 비지 않은 것)로 찾은 첫 페이지. 비로그인 · 검색어 없는 둘러보기 · 다음 페이지 · 검색 실패(503)는 보내지 않는다
+- `data`: `memberId` · `keyword`(앞뒤 공백 뺀 값) · `categoryId` · `attributeValueIds`(항목 code → 값 ID 목록) · `resultCount`(전체 결과 수, 0건도). 검색 시각은 `occurredAt`. 결과 목록은 담지 않는다
+- DB가 없어 아웃박스를 쓰지 않는다. 검색 응답 스레드는 전송을 검색 전용 스레드 하나(대기열 1만 건)에 넘기고 기다리지 않는다. 보내지 못하면 ERROR 로그(eventType · eventId · 키 · 예외 종류)만 남기고 버린다. 검색어가 들어 있어 본문 · 예외 메시지는 남기지 않는다
+- `kidly.kafka.producer.enabled=false`(Kafka 없는 테스트)면 보내지 않는 구현을 쓴다. `@KafkaIntegrationTest`만 켠다
 
 ## 검색 서비스 (`apps/search-service`)
 - 검색 도메인만 띄우는 Spring Boot 앱. 상품 목록 API와 경로가 같아 kidly-app과 따로 띄운다. 서버는 추가 서버(t3.medium)에 Elasticsearch와 함께 둔다
 - DB를 쓰지 않는다. `SearchServiceApplication`이 DataSource · JPA 자동 설정과 common의 JPA 설정(`JpaAuditingConfig` · `QuerydslConfig`)을 뺀다. common은 고치지 않는다
-- 토큰은 Gateway가 검증한다. 이 서비스는 토큰을 보지 않고, 로그인이 필요한 API가 없다
+- 토큰은 Gateway가 검증한다. 이 서비스는 토큰을 보지 않고, 로그인이 필요한 API가 없다(회원 ID 헤더는 검색 이벤트에만 쓴다)
 - 실행: `docker compose up -d elasticsearch` 뒤 `./gradlew :apps:search-service:bootRun` (포트 8082, 프로필 local, 색인 `local-*`). 처음에는 nori 이미지를 빌드한다
   - 로컬 compose의 `elasticsearch`는 프로필 `search`라 기본 `docker compose up -d`에서는 뜨지 않는다. 이름을 붙여 띄우거나 `--profile search`를 쓴다
 - Elasticsearch 이미지: `docker/elasticsearch/Dockerfile`(공식 9.4.x + analysis-nori). 로컬 compose · 테스트 · 서버가 같은 파일로 만든다. 버전은 클라이언트(Boot BOM)와 같은 마이너로 맞춘다
