@@ -39,7 +39,7 @@ public class Delivery extends DeliveryTimeEntity {
     }
 
     /**
-     * 택배사. DUMMY는 테스트용. Delivery Tracker 택배사 ID 연결은 연동 때 정한다.
+     * 택배사. DUMMY는 테스트용. Delivery Tracker 택배사 ID 연결은 out/tracker 어댑터가 한다(#650).
      */
     public enum Carrier {
         CJ,
@@ -74,6 +74,9 @@ public class Delivery extends DeliveryTimeEntity {
     private LocalDateTime shippedAt;
 
     private LocalDateTime deliveredAt;
+
+    // 택배 조회를 멈춘 시각(#650). 운송장 번호 형식 오류(다시 조회해도 같음)일 때 기록하고 조회 대상에서 뺀다
+    private LocalDateTime trackingStoppedAt;
 
     @Version
     private Long version;
@@ -110,6 +113,35 @@ public class Delivery extends DeliveryTimeEntity {
         }
         this.status = Status.DELIVERED;
         this.deliveredAt = now;
+    }
+
+    /**
+     * 택배 조회로 배송 완료(#650). 발송 중이고 조회를 멈추지 않았고 택배사 완료 시각이 발송 시각보다 뒤일 때만 바꾼다
+     * (엉터리 · 재사용 운송장은 과거 완료 기록이 오므로 막는다). 배송 완료 시각은 택배사 시각이다.
+     * 스케줄러가 부르므로 조건이 안 맞아도 예외 없이 false로 알린다(이미 완료 · 취소 · 발송 전 포함).
+     *
+     * @return 이번에 배송 완료로 바꿨으면 true
+     */
+    public boolean completeByTracking(LocalDateTime trackedAt) {
+        if (status != Status.SHIPPING || trackingStoppedAt != null || !trackedAt.isAfter(shippedAt)) {
+            return false;
+        }
+        this.status = Status.DELIVERED;
+        this.deliveredAt = trackedAt;
+        return true;
+    }
+
+    /**
+     * 택배 조회 중지(#650). 발송 중일 때 한 번만 기록한다. 판매자 수동 배송 완료(complete)는 중지와 상관없이 할 수 있다.
+     *
+     * @return 이번에 기록했으면 true
+     */
+    public boolean stopTracking(LocalDateTime now) {
+        if (status != Status.SHIPPING || trackingStoppedAt != null) {
+            return false;
+        }
+        this.trackingStoppedAt = now;
+        return true;
     }
 
     /**

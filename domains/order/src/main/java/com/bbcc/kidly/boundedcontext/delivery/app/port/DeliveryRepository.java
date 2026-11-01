@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -52,4 +53,11 @@ public interface DeliveryRepository {
     Page<ShippingDelayedRow> findShippingDelayed(LocalDateTime before, Pageable pageable);
 
     long countShippingDelayed(LocalDateTime before);
+
+    Optional<Delivery> findById(Long id);
+
+    /**
+     * 택배 조회 대상(#650): 상태가 status이고 조회를 멈추지 않았고 운송장이 있는 배송. afterId보다 큰 ID만 오름차순으로 limit건(ID 커서).
+     */
+    List<Delivery> findTrackingTargets(Delivery.Status status, Long afterId, Limit limit);
 }

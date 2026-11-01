@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.delivery.out.persistence;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import java.time.LocalDateTime;
+import java.util.List;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
@@ -29,4 +31,13 @@ public interface JpaDeliveryRepository extends Repository<Delivery, Long>, Deliv
     @Override
     @Query("select count(d) " + SHIPPING_DELAYED)
     long countShippingDelayed(LocalDateTime before);
+
+    @Override
+    @Query("""
+        select d
+        from Delivery d
+        where d.status = :status and d.trackingStoppedAt is null and d.trackingNumber is not null and d.id > :afterId
+        order by d.id asc
+        """)
+    List<Delivery> findTrackingTargets(Delivery.Status status, Long afterId, Limit limit);
 }

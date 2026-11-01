@@ -60,6 +60,12 @@ kidly:
         enabled: false
   order:
     payment-expiry-interval: P3650D
+    # 택배 조회 스케줄러도 같은 이유로 길게 둔다. 테스트는 실제 API를 부르지 않는다(인증값 비움 = 비활성)
+    delivery-tracking:
+      interval: P3650D
+    delivery-tracker:
+      client-id: ""
+      client-secret: ""
     # 자동 구매확정 스케줄러도 같은 이유로 길게 둔다. 자동 확정 테스트는 OrderScheduler.autoConfirm()을 직접 부른다
     auto-confirm:
       interval: P3650D

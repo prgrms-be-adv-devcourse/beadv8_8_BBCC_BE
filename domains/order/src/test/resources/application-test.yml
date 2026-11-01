@@ -45,6 +45,12 @@ kidly:
   # 스케줄러가 테스트 중 다른 스레드에서 저절로 돌지 않게 주기를 아주 길게 두고, 정리는 끈다. 테스트가 직접 부른다
   order:
     payment-expiry-interval: P3650D
+    # 택배 조회 스케줄러도 같은 이유로 길게 둔다. 테스트는 실제 API를 부르지 않는다(인증값 비움 = 비활성)
+    delivery-tracking:
+      interval: P3650D
+    delivery-tracker:
+      client-id: ""
+      client-secret: ""
     auto-confirm:
       interval: P3650D
     outbox:

@@ -53,7 +53,7 @@ class OrderPackageLayoutArchitectureTest {
         .should().resideInAnyPackage(CONFIG)
         .as("스프링 설정(@Configuration)은 in/config · out/config에 둔다");
 
-    // app 설정 값은 app/config로 모으기 전까지(#651-1) app 기능 패키지에 둔다
+    // app 설정 값은 쓰는 기능 패키지에 둔다(#651-1)
     @ArchTest
     static final ArchRule PROPERTIES_LIVE_IN_APP_OR_CONFIG = classes()
         .that().resideInAPackage(ALL)
