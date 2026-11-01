@@ -148,4 +148,52 @@ class DeliveryTest {
         assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.CANCELLED);
         assertThat(delivery.getCarrier()).isNull();
     }
+
+    @Test
+    @DisplayName("판매자 발송 전 취소: READY면 CANCELLED (#655)")
+    void cancelBySellerReady() {
+        Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+
+        delivery.cancelBySeller();
+
+        assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("판매자 발송 전 취소: 이미 취소면(두 번째 요청 · 구매자 취소) 409 ALREADY_CANCELLED, 발송 · 배송 완료면 409 ALREADY_SHIPPED (#655)")
+    void cancelBySellerOnlyReady() {
+        Delivery cancelled = Delivery.create(ORDER_ID, SELLER_A_ID);
+        cancelled.cancelBySeller();
+        Delivery buyerCancelled = Delivery.create(ORDER_ID, SELLER_A_ID);
+        buyerCancelled.cancel();
+        Delivery shipping = Delivery.create(ORDER_ID, SELLER_A_ID);
+        shipping.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT);
+        Delivery delivered = Delivery.create(ORDER_ID, SELLER_A_ID);
+        delivered.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT);
+        delivered.complete(COMPLETED_AT);
+
+        assertThatThrownBy(cancelled::cancelBySeller).isInstanceOf(DeliveryRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.ALREADY_CANCELLED);
+        assertThatThrownBy(buyerCancelled::cancelBySeller).isInstanceOf(DeliveryRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.ALREADY_CANCELLED);
+        assertThatThrownBy(shipping::cancelBySeller).isInstanceOf(DeliveryRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.ALREADY_SHIPPED);
+        assertThatThrownBy(delivered::cancelBySeller).isInstanceOf(DeliveryRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.ALREADY_SHIPPED);
+        assertThat(shipping.getStatus()).isEqualTo(Delivery.Status.SHIPPING);
+        assertThat(delivered.getStatus()).isEqualTo(Delivery.Status.DELIVERED);
+    }
+
+    @Test
+    @DisplayName("판매자가 취소한 배송은 발송 · 배송 완료할 수 없다 (409 DELIVERY_CANCELLED) (#655)")
+    void sellerCancelledCannotShip() {
+        Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+        delivery.cancelBySeller();
+
+        assertThatThrownBy(() -> delivery.ship(Delivery.Carrier.CJ, "1234567890", SHIPPED_AT))
+            .isInstanceOf(DeliveryRuleViolationException.class)
+            .extracting("rule").isEqualTo(Rule.DELIVERY_CANCELLED);
+        assertThat(delivery.completeByTracking(COMPLETED_AT)).isFalse();
+        assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.CANCELLED);
+    }
 }

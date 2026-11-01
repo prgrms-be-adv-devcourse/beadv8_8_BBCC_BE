@@ -35,6 +35,22 @@ public interface DeliveryOrders {
         LocalDateTime occurredAt);
 
     /**
+     * 판매자 발송 전 몫 취소를 주문에 반영한다(#655): 그 판매자 주문상품 취소(모두면 주문도 취소) · 이력 · order-item.cancelled.
+     *
+     * @param reason 취소 사유 이름
+     * @param memo 판매자 메모. 없으면 null
+     * @return 주문이 없거나 취소할 주문상품이 없으면 빈 값(아무것도 바꾸지 않음)
+     */
+    Optional<CancelledShare> cancelSellerItems(Long orderId, Long sellerId, String reason, String memo, Actor actor,
+        LocalDateTime now);
+
+    /**
+     * @param orderCancelled 이 취소로 주문이 취소됐으면 true
+     */
+    record CancelledShare(Long cancellationId, List<Long> orderItemIds, boolean orderCancelled) {
+    }
+
+    /**
      * 배송할 주문 한 건. 상태 · 구매확정 종류는 enum 이름 문자열.
      *
      * @param orderedAt 주문 시각(주문 생성 시각)

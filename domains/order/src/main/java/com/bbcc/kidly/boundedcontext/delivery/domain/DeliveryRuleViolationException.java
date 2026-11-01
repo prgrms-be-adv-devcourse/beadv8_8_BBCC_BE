@@ -12,7 +12,8 @@ public class DeliveryRuleViolationException extends RuntimeException {
     public enum Rule {
         ALREADY_SHIPPED,
         NOT_SHIPPED,
-        DELIVERY_CANCELLED
+        DELIVERY_CANCELLED,
+        ALREADY_CANCELLED
     }
 
     private final Rule rule;

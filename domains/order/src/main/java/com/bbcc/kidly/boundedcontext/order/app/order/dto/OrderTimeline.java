@@ -16,6 +16,7 @@ import java.util.function.Function;
  * 단계는 순서 있는 배열이다: CREATED → PAYMENT_REQUESTED → PAID → SHIPPED → DELIVERED → CONFIRMED.
  * 취소된 주문은 마지막으로 끝난 단계 뒤에 CANCELLED를 두고(결제 전 취소면 PAID 없음) 나머지를 NOT_APPLICABLE로 둔다.
  * 결제 뒤 구매자 취소(#354)면 나머지 단계의 details에 배송 건 · 주문상품을 NOT_APPLICABLE로 나열한다(결제 전 취소는 []).
+ * 주문이 살아 있는데 판매자가 발송 전 자기 몫을 취소했으면(#655) 그 배송 건 · 주문상품만 NOT_APPLICABLE로 두고 단계 진행에서 뺀다.
  *
  * @param currentStep 배열에서 가장 뒤의 DONE 또는 PARTIAL 단계
  * @param cancelReason 취소가 아니면 null
@@ -28,6 +29,9 @@ public record OrderTimeline(
     String cancelReason,
     LocalDateTime paymentDueAt,
     List<Step> steps) {
+
+    // 판매자 발송 전 취소(#655)로 취소된 배송 건의 상태 이름
+    private static final String CANCELLED = "CANCELLED";
 
     public enum StepName {
         CREATED,
@@ -98,6 +102,7 @@ public record OrderTimeline(
             steps.add(new Step(StepName.CONFIRMED, StepStatus.NOT_APPLICABLE, null, false, List.of(), notConfirmed));
         } else {
             long sellerCount = order.getItems().stream()
+                .filter(item -> item.getStatus() != OrderItem.Status.CANCELLED)
                 .map(OrderItem::getProduct)
                 .filter(Objects::nonNull)
                 .map(OrderItem.ProductSnapshot::sellerId)
@@ -128,8 +133,11 @@ public record OrderTimeline(
     private static List<DeliveryDetail> deliveryDetails(List<Delivery> deliveries, Map<Long, String> sellerNames,
         Function<Delivery, LocalDateTime> doneAt) {
         return deliveries.stream()
-            .map(delivery -> new DeliveryDetail(delivery.deliveryId(), delivery.sellerId(),
-                sellerNames.get(delivery.sellerId()), statusOf(doneAt.apply(delivery)), doneAt.apply(delivery)))
+            .map(delivery -> CANCELLED.equals(delivery.status())
+                ? new DeliveryDetail(delivery.deliveryId(), delivery.sellerId(), sellerNames.get(delivery.sellerId()),
+                    StepStatus.NOT_APPLICABLE, null)
+                : new DeliveryDetail(delivery.deliveryId(), delivery.sellerId(), sellerNames.get(delivery.sellerId()),
+                    statusOf(doneAt.apply(delivery)), doneAt.apply(delivery)))
             .toList();
     }
 
@@ -147,6 +155,9 @@ public record OrderTimeline(
     }
 
     private static ItemDetail itemDetail(OrderItem item) {
+        if (item.getStatus() == OrderItem.Status.CANCELLED) {
+            return notApplicable(item);
+        }
         OrderItem.ProductSnapshot product = item.getProduct();
         return new ItemDetail(item.getId(), product == null ? null : product.productName(),
             statusOf(item.getConfirmedAt()), item.getConfirmedAt(),
@@ -161,12 +172,19 @@ public record OrderTimeline(
      * 배송은 주문상품의 판매자 수만큼 있어야 완료로 본다: 배송 건 생성을 일부 놓친 주문은 DONE으로 올리지 않는다.
      */
     private static Step deliveryStep(StepName name, List<DeliveryDetail> details, long sellerCount) {
-        Progress progress = Progress.of(details.stream().map(DeliveryDetail::at).toList(), sellerCount);
+        Progress progress = Progress.of(details.stream()
+            .filter(detail -> detail.status() != StepStatus.NOT_APPLICABLE)
+            .map(DeliveryDetail::at)
+            .toList(), sellerCount);
         return new Step(name, progress.status(), progress.at(), false, details, List.of());
     }
 
     private static Step confirmedStep(List<ItemDetail> details) {
-        Progress progress = Progress.of(details.stream().map(ItemDetail::at).toList(), details.size());
+        List<LocalDateTime> doneAts = details.stream()
+            .filter(detail -> detail.status() != StepStatus.NOT_APPLICABLE)
+            .map(ItemDetail::at)
+            .toList();
+        Progress progress = Progress.of(doneAts, doneAts.size());
         return new Step(StepName.CONFIRMED, progress.status(), progress.at(), false, List.of(), details);
     }
 

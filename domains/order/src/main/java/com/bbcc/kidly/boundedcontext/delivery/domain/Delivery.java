@@ -18,7 +18,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * 판매자별 주문(주문 1건 × 판매자 1명). READY → SHIPPING → DELIVERED 순서로만 바뀐다.
- * 구매자가 발송 전에 주문을 취소하면 READY → CANCELLED(#354). 발송과 취소가 동시에 오면 @Version으로 한쪽만 성공한다.
+ * 구매자가 발송 전에 주문을 취소하거나(#354) 판매자가 발송 전 자기 몫을 취소하면(#655) READY → CANCELLED.
+ * 발송과 취소가 동시에 오면 @Version으로 한쪽만 성공한다.
  */
 @Entity
 @Table(schema = "orders", name = "delivery", indexes = {
@@ -154,6 +155,20 @@ public class Delivery extends DeliveryTimeEntity {
         }
         if (status != Status.READY) {
             throw new IllegalStateException("발송 전 배송만 취소할 수 있습니다: deliveryId=" + id + " status=" + status);
+        }
+        this.status = Status.CANCELLED;
+    }
+
+    /**
+     * 판매자가 발송 전 자기 몫을 취소한다(#655). READY일 때만 취소하고, 이미 취소됐으면(판매자 · 구매자 취소) 409,
+     * 발송 · 배송 완료면 409. 같은 요청이 두 번 오면 두 번째는 이미 취소로 막힌다.
+     */
+    public void cancelBySeller() {
+        if (status == Status.CANCELLED) {
+            throw new DeliveryRuleViolationException(Rule.ALREADY_CANCELLED);
+        }
+        if (status != Status.READY) {
+            throw new DeliveryRuleViolationException(Rule.ALREADY_SHIPPED);
         }
         this.status = Status.CANCELLED;
     }

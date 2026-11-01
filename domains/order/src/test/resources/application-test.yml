@@ -51,6 +51,9 @@ kidly:
     delivery-tracker:
       client-id: ""
       client-secret: ""
+    # 판매자 발송 전 부분 취소(#655)는 운영 기본 꺼짐. 주문 모듈 테스트는 켜고 기능을 확인한다(꺼짐 거절은 단위 테스트)
+    partial-cancel:
+      enabled: true
     auto-confirm:
       interval: P3650D
     outbox:

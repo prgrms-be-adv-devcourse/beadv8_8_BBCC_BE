@@ -24,7 +24,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 주문상품. 옵션 × 자녀 1행. 상품 · 자녀 스냅샷, 수량 · 금액, 구매확정 상태를 가진다.
+ * 주문상품. 옵션 × 자녀 1행. 상품 · 자녀 스냅샷, 수량 · 금액, 구매확정 · 판매자 취소(#655) 상태를 가진다.
  * 변경 메서드는 package-private이므로 다른 패키지에서는 호출할 수 없다.
  * 같은 패키지 내에서 Order를 통해 변경하는 것은 사용 규칙이며, 접근 제어가 Order만을 허용하는 것은 아니다.
  */
@@ -37,11 +37,22 @@ import lombok.NoArgsConstructor;
 public class OrderItem extends OrderTimeEntity {
 
     /**
-     * 주문상품 상태. 배송 완료 후 한 번만 구매확정된다.
+     * 주문상품 상태. 배송 완료 후 한 번만 구매확정된다. 발송 전 판매자가 자기 몫을 취소하면 CANCELLED(#655)이고,
+     * 취소된 주문상품은 배송 완료 기록 · 구매확정(직접 · 자동) 대상이 아니다.
      */
     public enum Status {
         ORDERED,
-        CONFIRMED
+        CONFIRMED,
+        CANCELLED
+    }
+
+    /**
+     * 판매자 취소 사유(#655). 이름이 이벤트(order-item.cancelled)의 reason이다.
+     */
+    public enum CancelReason {
+        OUT_OF_STOCK,
+        WRONG_PRODUCT_INFO,
+        OTHER
     }
 
     /**
@@ -124,6 +135,17 @@ public class OrderItem extends OrderTimeEntity {
     private String unavailableReason;
 
     /**
+     * 판매자 취소(#655) 사유 · 그 취소 기록(OrderItemCancellation) ID · 취소 시각. 취소되지 않았으면 모두 null.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private CancelReason cancelReason;
+
+    private Long cancellationId;
+
+    private LocalDateTime cancelledAt;
+
+    /**
      * 직접 · 자동 구매확정이 같은 주문상품을 동시에 확정하면 나중 쪽을 실패시킨다(주문상품만 바뀌면 Order 버전은 오르지 않음).
      */
     @Version
@@ -151,7 +173,7 @@ public class OrderItem extends OrderTimeEntity {
     }
 
     void markDelivered(LocalDateTime at) {
-        if (deliveredAt == null) {
+        if (deliveredAt == null && status != Status.CANCELLED) {
             this.deliveredAt = at;
         }
     }
@@ -162,12 +184,29 @@ public class OrderItem extends OrderTimeEntity {
      * @return 이번에 확정했으면 true
      */
     boolean confirm(ConfirmType type, LocalDateTime now) {
+        // 취소된 주문상품(#655)도 ORDERED가 아니므로 여기서 걸러진다
         if (status != Status.ORDERED || deliveredAt == null) {
             return false;
         }
         this.status = Status.CONFIRMED;
         this.confirmType = type;
         this.confirmedAt = now;
+        return true;
+    }
+
+    /**
+     * 판매자 취소(#655). 주문됨이고 배송 완료 전일 때만 취소한다(배송 READY일 때만 오므로 배송 완료 시각은 늘 비어 있다).
+     *
+     * @return 이번에 취소했으면 true
+     */
+    boolean cancel(CancelReason reason, Long cancellationId, LocalDateTime now) {
+        if (status != Status.ORDERED || deliveredAt != null) {
+            return false;
+        }
+        this.status = Status.CANCELLED;
+        this.cancelReason = reason;
+        this.cancellationId = cancellationId;
+        this.cancelledAt = now;
         return true;
     }
 }

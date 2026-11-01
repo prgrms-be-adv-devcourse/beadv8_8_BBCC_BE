@@ -17,6 +17,7 @@ public final class DeliveryErrors {
             case ALREADY_SHIPPED -> DeliveryErrorCode.ALREADY_SHIPPED;
             case NOT_SHIPPED -> DeliveryErrorCode.NOT_SHIPPED;
             case DELIVERY_CANCELLED -> DeliveryErrorCode.DELIVERY_CANCELLED;
+            case ALREADY_CANCELLED -> DeliveryErrorCode.ALREADY_CANCELLED;
         });
     }
 }

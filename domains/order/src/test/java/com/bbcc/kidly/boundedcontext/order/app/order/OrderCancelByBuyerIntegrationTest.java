@@ -357,7 +357,8 @@ class OrderCancelByBuyerIntegrationTest {
 
         assertThatThrownBy(() -> jdbcTemplate.update("update orders.delivery set status = 'LOST' where id = ?",
             deliveryId)).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbcTemplate.update("update orders.orders set cancel_reason = 'SELLER_CANCELLED' "
+        // SELLER_CANCELLED는 #655에서 허용 값이 됐으므로 모르는 값의 예로 쓰지 않는다
+        assertThatThrownBy(() -> jdbcTemplate.update("update orders.orders set cancel_reason = 'UNKNOWN_REASON' "
             + "where id = ?", orderId)).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(deliveryOf(orderId, SELLER_ID).getStatus()).isEqualTo(Delivery.Status.CANCELLED);
         assertThat(orderRepository.findById(orderId).orElseThrow().getCancelReason())

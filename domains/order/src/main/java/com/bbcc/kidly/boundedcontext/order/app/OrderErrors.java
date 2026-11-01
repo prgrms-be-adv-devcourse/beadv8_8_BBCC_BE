@@ -23,6 +23,7 @@ public final class OrderErrors {
             case CHILD_NOT_ORDERABLE -> OrderErrorCode.CHILD_NOT_ORDERABLE;
             case ORDER_ITEM_NOT_FOUND -> OrderErrorCode.ORDER_ITEM_NOT_FOUND;
             case NOT_DELIVERED -> OrderErrorCode.NOT_DELIVERED;
+            case ORDER_ITEM_CANCELLED -> OrderErrorCode.ORDER_ITEM_CANCELLED;
             case RECOVERY_CLOSED -> OrderErrorCode.RECOVERY_CLOSED;
             case RECOVERY_NOT_RETRYABLE -> OrderErrorCode.RECOVERY_NOT_RETRYABLE;
             case RECOVERY_ORDER_PAID -> OrderErrorCode.RECOVERY_ORDER_PAID;
