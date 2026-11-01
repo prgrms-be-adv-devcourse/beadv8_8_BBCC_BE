@@ -83,4 +83,23 @@ kidly:
       # false면 조르기 API · 빈이 뜨지 않는다(표는 그대로 남는다). 기본 true
       enabled: ${ORDER_WISH_ENABLED:true}
 
-    # 장바구니(boundedcontext.cart) · 배송(boundedcontext.delivery) 컨텍스트는 아직 설정이 없다
+    # ===== 배송 컨텍스트(boundedcontext.delivery) =====
+    # 택배 조회 스케줄러(배송 컨텍스트, #650). 발송 중인 배송을 Delivery Tracker에 조회해 완료된 건을 배송 완료한다
+    delivery-tracking:
+      # 주기(1초 이상, 이전 실행이 끝난 뒤부터 잰다). 기본 10분: 실제 배송 상태는 시간 단위로 바뀐다. 시연 때는 PT1M 정도로 줄인다
+      interval: ${ORDER_DELIVERY_TRACKING_INTERVAL:PT10M}
+      # 한 번 읽는 배송 수 · 한 실행 상한(batch-size 이상). 호출 간격 200ms라 1000건이면 한 실행이 약 200초
+      batch-size: ${ORDER_DELIVERY_TRACKING_BATCH_SIZE:100}
+      max-per-run: ${ORDER_DELIVERY_TRACKING_MAX_PER_RUN:1000}
+    # Delivery Tracker 연결. 인증값이 비어 있으면 택배 조회를 하지 않는다(판매자 수동 배송 완료는 그대로). 인증값은 환경변수로만 넣는다
+    delivery-tracker:
+      base-url: ${DELIVERY_TRACKER_BASE_URL:https://apis.tracker.delivery}
+      client-id: ${DELIVERY_TRACKER_CLIENT_ID:}
+      client-secret: ${DELIVERY_TRACKER_CLIENT_SECRET:}
+      connect-timeout: PT3S
+      # 실제 택배사 응답은 최대 2초 안팎(10/15 측정). 문서 권장 상한 15초 안
+      read-timeout: PT10S
+      # 호출 한도 초당 10회. 200ms 간격 = 초당 5회
+      min-call-interval: PT0.2S
+
+    # 장바구니(boundedcontext.cart) 컨텍스트는 아직 설정이 없다

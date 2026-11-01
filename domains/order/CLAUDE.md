@@ -11,8 +11,8 @@
 - `app`: 유스케이스 서비스. 기능별 하위 패키지(`order` · `outbox` · `deadletter` · `provided` 등)끼리는 서로 의존하지 않는다. 여러 기능이 같이 쓰는 값은 `app` 바로 아래(`OrderActor` · `OrderErrorCode` · `OrderLogContext` · `DeadLetterReplay`)에 둔다. 주문의 들어오는 포트 구현은 `app.provided`(`ProvidedOrderService` · `ProvidedReplicaService`), 장바구니 · 배송의 구현은 `CartService` · `DeliveryService`다
 - `app.port`: 저장소 · 외부 연결 · 다른 컨텍스트 · 작업 실행처럼 나가는 것의 인터페이스, `app.port.in`: 다른 컨텍스트가 들어오는 인터페이스. 둘 다 최상위는 인터페이스만 두고, 주고받는 값은 그 인터페이스 안에 둔다(값은 record, 값의 종류는 enum, 조회 결과 행은 인터페이스. class는 두지 않는다). 나가는 포트 구현은 `out`: 저장소는 대부분 Spring Data `Jpa…Repository`가 포트를 상속하고, 아웃박스 · DLT처럼 엔티티가 out에 있는 것은 `…Store`(`out.outbox.OrderOutboxStore` · `out.deadletter.OrderDeadLetterStore`)가 포트를 구현하며 그 `Jpa…Repository`는 out 안에서만 쓴다. 들어오는 포트 구현은 app
 - `in`: `web`(컨트롤러 · `dto`. 주문의 관리자 API(`/api/v1/admin/**`) 컨트롤러 · 재처리 도우미 · dto는 `web.admin`, 구매자 API는 `web`. 장바구니 · 배송 · 조르기는 나누지 않는다) · `event`(이벤트 수신) · `scheduler` · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
-- `out`(#651): `persistence`(Spring Data JPA 저장소만) · `outbox`(아웃박스 메시지 · 저장 · 포트 구현) · `kafka`(발송 · 봉투 · 결제 이벤트 대기량 확인) · `deadletter`(DLT 보관 행 · 포트 구현) · `lock`(서버 한 대 실행 DB 잠금) · `config`(Kafka 토픽 · 설정값 → `OrderPolicy`) · `{상대 컨텍스트}`(어댑터)
-- 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`. app 설정 값은 `app.config`로 모으기 전까지(#651-1) 쓰는 기능 패키지에 둔다
+- `out`(#651): `persistence`(Spring Data JPA 저장소만) · `outbox`(아웃박스 메시지 · 저장 · 포트 구현) · `kafka`(발송 · 봉투 · 결제 이벤트 대기량 확인) · `deadletter`(DLT 보관 행 · 포트 구현) · `lock`(서버 한 대 실행 DB 잠금) · `config`(Kafka 토픽 · 설정값 → `OrderPolicy`, 배송은 택배 조회 빈 · 연결 설정) · `tracker`(배송: Delivery Tracker 연동, #650) · `{상대 컨텍스트}`(어댑터)
+- 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`. app 설정 값은 쓰는 기능 패키지에 둔다(#651-1)
 - 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙(다른 컨텍스트 참조는 내 out → 상대 `app.port.in`만)은 `OrderContextArchitectureTest`, 패키지 배치(위 in · out · 설정 자리)는 `OrderPackageLayoutArchitectureTest`, 기능 사이 의존 · 포트 규칙은 앱의 `OrderArchitectureTest`가 검사한다
 
 ## 2. 이벤트 수신
@@ -30,6 +30,7 @@
 - 주기 작업(결제 마감 만료 · 자동 구매확정 · 아웃박스 릴레이 · 정리)은 `SingleServerJobRunner`로 한 번에 한 서버에서만 돈다(PostgreSQL advisory lock `kidly.order.{작업}`). 작업은 잠금 트랜잭션 밖에서 돈다
 - 결제 마감 만료 · 자동 구매확정(`OrderScheduler`)은 대상 주문 하나 = 트랜잭션 하나다. 한 건이 실패해도 로그만 남기고 다음 건을 처리한다
 - 결제 마감 만료는 결제 이벤트를 Kafka로 받는 동안 처리 대기분이 있으면 그 주기를 건너뛴다(`PaymentExpiryGate`)
+- 배송 자동 완료(#650): `DeliveryStatusPoller`가 발송 중이고 조회를 멈추지 않은 배송을 `DeliveryStatusChecker`(out `tracker`, Delivery Tracker)로 트랜잭션 밖에서 조회하고, 택배사 DELIVERED이고 택배사 시각 > 발송 시각일 때만 `Delivery.completeByTracking`으로 완료한다(완료 시각 = 택배사 시각, 이력 SYSTEM · `scheduler:delivery-tracking`, 수동 완료와 겹쳐도 1회). 운송장 형식 오류는 `tracking_stopped_at`으로 조회를 멈추고(수동 완료는 가능) 그 밖의 오류는 다음 주기에 다시 본다. 한 서버에서만(`DeliveryJobRunner`, 잠금 `kidly.delivery.{작업}`), 인증값이 없으면 기능만 꺼진다
 
 ## 4. 테스트
 - 통합 · 기능 · Kafka 테스트는 이 모듈에서 돈다. 주석 · 컨테이너 · 정리는 주문 모듈 공통 `boundedcontext.support`(#651, 앱의 `com.bbcc.kidly.support`와 다른 패키지)(`IntegrationTest` · `FunctionalTest` · `KafkaIntegrationTest`)를 쓰고, 테스트 앱은 `OrderTestApplication`(주문 모듈 네 컨텍스트 · `common`만)이다

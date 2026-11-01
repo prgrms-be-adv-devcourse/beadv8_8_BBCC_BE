@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.delivery.app;
 
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.SellerOrderView;
+import com.bbcc.kidly.boundedcontext.delivery.app.dto.TrackingTarget;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryOrders;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryOrders.Order;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
@@ -18,6 +19,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -41,6 +43,9 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     private static final String SELLER_SHIP = "POST /api/v1/seller/orders/{sellerOrderId}/ship";
     private static final String SELLER_DELIVER = "POST /api/v1/seller/orders/{sellerOrderId}/deliver";
     private static final String SELLER = "SELLER";
+    // 택배 조회 스케줄러가 바꾼 상태 이력의 주체(#650, 주문 OrderActor의 scheduler:{작업} 이름 규칙과 같음)
+    private static final String SYSTEM = "SYSTEM";
+    static final String DELIVERY_TRACKING = "scheduler:delivery-tracking";
 
 
     private final DeliveryRepository deliveryRepository;
@@ -145,6 +150,55 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
                 delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
         }
         return DeliveryResult.from(delivery);
+    }
+
+    /**
+     * 택배 조회 대상(#650): 발송 중이고 조회를 멈추지 않은 배송을 ID 커서로 limit건.
+     */
+    @Transactional(readOnly = true)
+    public List<TrackingTarget> findTrackingTargets(Long afterId, int limit) {
+        return deliveryRepository.findTrackingTargets(Delivery.Status.SHIPPING, afterId, Limit.of(limit)).stream()
+            .map(TrackingTarget::from)
+            .toList();
+    }
+
+    /**
+     * 택배 조회로 배송 완료 + 그 판매자 몫 주문상품 deliveredAt 기록 + 상태 이력을 한 트랜잭션으로 처리한다(#650).
+     * 완료해도 되는지는 Delivery가 판단한다(이미 완료 · 취소 · 조회 중지 · 택배사 시각이 발송보다 앞이면 그대로 둔다).
+     * 판매자 수동 완료와 겹치면 @Version으로 한쪽만 성공하고, 진 쪽은 예외로 끝나 다음 주기에 대상에서 빠진다.
+     *
+     * @return 이번에 배송 완료로 바꿨으면 true
+     */
+    public boolean completeByTracking(Long deliveryId, LocalDateTime trackedAt) {
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+            .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
+        Delivery.Status from = delivery.getStatus();
+        if (!delivery.completeByTracking(trackedAt)) {
+            log.warn("택배 완료 무시: orderId={} deliveryId={} status={} reason=not-applicable",
+                delivery.getOrderId(), deliveryId, from);
+            return false;
+        }
+        deliveryOrders.recordDelivered(delivery.getOrderId(), delivery.getSellerId(), delivery.getDeliveredAt());
+        deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SYSTEM, null,
+            DELIVERY_TRACKING), from.name(), delivery.getStatus().name(), null, LocalDateTime.now());
+        log.info("배송 완료: orderId={} deliveryId={} sellerId={} by=tracking",
+            delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
+        return true;
+    }
+
+    /**
+     * 택배 조회 중지(#650, 운송장 번호 형식 오류). 배송 상태는 바뀌지 않으므로 상태 이력은 남기지 않는다.
+     *
+     * @return 이번에 기록했으면 true
+     */
+    public boolean stopTracking(Long deliveryId, String reason) {
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+            .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
+        boolean stopped = delivery.stopTracking(LocalDateTime.now());
+        if (stopped) {
+            log.warn("택배 조회 중지: orderId={} deliveryId={} reason={}", delivery.getOrderId(), deliveryId, reason);
+        }
+        return stopped;
     }
 
     /**
