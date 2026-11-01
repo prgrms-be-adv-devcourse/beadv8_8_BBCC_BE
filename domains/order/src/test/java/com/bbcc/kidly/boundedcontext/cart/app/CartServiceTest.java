@@ -12,11 +12,14 @@ import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.cart.out.order.CartCatalogAdapter;
+import com.bbcc.kidly.boundedcontext.cart.out.order.CartEventsAdapter;
 import com.bbcc.kidly.boundedcontext.cart.out.order.CartOrdersAdapter;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.provided.ProvidedEventService;
 import com.bbcc.kidly.boundedcontext.order.app.provided.ProvidedOrderService;
 import com.bbcc.kidly.boundedcontext.order.app.provided.ProvidedReplicaService;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -24,6 +27,9 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -38,6 +44,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class CartServiceTest {
@@ -65,6 +72,12 @@ class CartServiceTest {
     @Mock
     private SellerReplicaRepository sellerReplicaRepository;
 
+    @Mock
+    private EventPublisher eventPublisher;
+
+    @Mock
+    private OrderEventOutbox outbox;
+
     // 주문 컨텍스트는 어댑터 + 실제 들어오는 포트 구현에 위 저장소 mock을 넣어 쓴다(#617 · #641: 장바구니 동작은 그대로)
     private CartService cartService;
 
@@ -76,7 +89,8 @@ class CartServiceTest {
         cartService = new CartService(cartItemRepository,
             new CartCatalogAdapter(
                 new ProvidedReplicaService(productReplicaRepository, sellerReplicaRepository, childReplicaRepository)),
-            new CartOrdersAdapter(new ProvidedOrderService(orderRepository, null)));
+            new CartOrdersAdapter(new ProvidedOrderService(orderRepository, null)),
+            new CartEventsAdapter(new ProvidedEventService(eventPublisher, outbox)));
     }
 
     // ── 담기 ──
@@ -244,6 +258,72 @@ class CartServiceTest {
         assertAddFails(BUYER_ID, 1L, 1L, 0, CartErrorCode.INVALID_QUANTITY);
     }
 
+    // ── 담기 이벤트(#654) ──
+
+    @Test
+    @DisplayName("담기 이벤트: 새 줄이면 cart.item-added를 Spring 이벤트 · 아웃박스로 한 번씩, 키는 회원 ID · 대상은 장바구니 줄 ID")
+    void addPublishesItemAddedForNewLine() {
+        givenProduct(product(OPTION_ID, 25_000L, "ON_SALE", false));
+        givenChild(child(BUYER_ID, false));
+        when(cartItemRepository.save(any())).thenAnswer(invocation -> {
+            CartItem item = invocation.getArgument(0);
+            ReflectionTestUtils.setField(item, "id", CART_ITEM_ID);
+            return item;
+        });
+
+        cartService.addItem(BUYER_ID, OPTION_ID, CHILD_ID, 2);
+
+        CartItemAddedEvent event = publishedEvent();
+        assertThat(event.eventId()).isNotNull();
+        assertThat(event.occurredAt()).isNotNull();
+        assertThat(event.eventType()).isEqualTo("cart.item-added");
+        assertThat(event.producer()).isEqualTo("order");
+        assertThat(event.aggregateId()).isEqualTo(String.valueOf(CART_ITEM_ID));
+        assertThat(event.correlationId()).isEqualTo(String.valueOf(BUYER_ID));
+        assertThat(event.data()).isEqualTo(new CartItemAddedEvent.Data(CART_ITEM_ID, BUYER_ID, CHILD_ID, 1L,
+            OPTION_ID, 2, 2));
+    }
+
+    @Test
+    @DisplayName("담기 이벤트: 같은 줄에 합치면 quantity는 이번에 담은 수량, cartQuantity는 담은 뒤 줄 수량")
+    void addPublishesItemAddedForMergedLine() {
+        givenProduct(product(OPTION_ID, 25_000L, "ON_SALE", false));
+        CartItem existing = CartItem.create(BUYER_ID, OPTION_ID, null, 3);
+        ReflectionTestUtils.setField(existing, "id", CART_ITEM_ID);
+        when(cartItemRepository.findByMemberIdAndOptionIdAndChildId(BUYER_ID, OPTION_ID, null))
+            .thenReturn(Optional.of(existing));
+
+        cartService.addItem(BUYER_ID, OPTION_ID, null, 2);
+
+        assertThat(publishedEvent().data()).isEqualTo(new CartItemAddedEvent.Data(CART_ITEM_ID, BUYER_ID, null, 1L,
+            OPTION_ID, 2, 5));
+    }
+
+    @Test
+    @DisplayName("담기 이벤트: 같은 줄 합산이 99를 넘어 실패하면 내지 않는다")
+    void addMergeFailurePublishesNothing() {
+        givenProduct(product(OPTION_ID, 25_000L, "ON_SALE", false));
+        when(cartItemRepository.findByMemberIdAndOptionIdAndChildId(BUYER_ID, OPTION_ID, null))
+            .thenReturn(Optional.of(CartItem.create(BUYER_ID, OPTION_ID, null, 99)));
+
+        assertThatThrownBy(() -> cartService.addItem(BUYER_ID, OPTION_ID, null, 1))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(CartErrorCode.INVALID_QUANTITY);
+        verifyNoEvent();
+    }
+
+    @Test
+    @DisplayName("담기 이벤트: 수량 변경 · 빼기는 내지 않는다(범위 밖)")
+    void changeAndRemovePublishNothing() {
+        CartItem item = CartItem.create(BUYER_ID, OPTION_ID, null, 1);
+        when(cartItemRepository.findByIdAndMemberId(CART_ITEM_ID, BUYER_ID)).thenReturn(Optional.of(item));
+
+        cartService.changeQuantity(BUYER_ID, CART_ITEM_ID, 4);
+        cartService.removeItem(BUYER_ID, CART_ITEM_ID);
+
+        verifyNoEvent();
+    }
+
     // ── 조회 ──
 
     @Test
@@ -401,6 +481,24 @@ class CartServiceTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(expected);
         verify(cartItemRepository, never()).save(any());
+        verifyNoEvent();
+    }
+
+    private void verifyNoEvent() {
+        verify(eventPublisher, never()).publish(any());
+        verify(outbox, never()).append(any());
+    }
+
+    /**
+     * 같은 이벤트가 Spring 이벤트와 아웃박스 양쪽에 한 번씩 나갔는지 보고 그 이벤트를 돌려준다.
+     */
+    private CartItemAddedEvent publishedEvent() {
+        ArgumentCaptor<DomainEvent> published = ArgumentCaptor.forClass(DomainEvent.class);
+        ArgumentCaptor<DomainEvent> appended = ArgumentCaptor.forClass(DomainEvent.class);
+        verify(eventPublisher).publish(published.capture());
+        verify(outbox).append(appended.capture());
+        assertThat(appended.getValue()).isSameAs(published.getValue());
+        return (CartItemAddedEvent) published.getValue();
     }
 
     private void givenProduct(ReplicaProduct product) {

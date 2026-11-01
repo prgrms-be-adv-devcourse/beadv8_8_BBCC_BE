@@ -128,6 +128,36 @@ class OutboxStuckIntegrationTest {
     }
 
     @Test
+    @DisplayName("맨 앞이 장바구니 담기(cart.item-added, 키 = 회원 ID)면 주문 ID는 null, 건수 · 나머지 칸은 그대로(#654)")
+    void cartEventHeadHasNoOrderId() {
+        OrderOutboxMessage head = unsent("cart.item-added", "1", now);
+        attempts(head, thresholds.outboxAttempts(), "RecordTooLargeException: 크기 초과");
+        LocalDateTime lastAttempt = now.minusSeconds(3);
+        jdbcTemplate.update("update orders.order_outbox set updated_at = ? where id = ?", lastAttempt, head.getId());
+        unsent("7", now);
+
+        assertThat(list()).singleElement().satisfies(result -> {
+            assertThat(result.kind()).isEqualTo(KIND);
+            assertThat(result.orderId()).as("회원 ID를 주문 ID로 보이지 않는다").isNull();
+            assertThat(result.targetType()).isEqualTo("ORDER_OUTBOX");
+            assertThat(result.targetId()).isEqualTo(head.getId());
+            assertThat(result.status()).isEqualTo("UNSENT");
+            assertThat(result.since()).isEqualTo(lastAttempt);
+            assertThat(result.outbox()).isEqualTo(new StuckOrderResult.Outbox(head.getId(), "cart.item-added",
+                head.getEventId(), thresholds.outboxAttempts(), now, "RecordTooLargeException: 크기 초과", 1));
+        });
+        assertThat(stuckOrderService.getSummary(now)).containsEntry(StuckOrderKind.OUTBOX_STUCK, 1L);
+    }
+
+    @Test
+    @DisplayName("주문상품 이벤트(order-item.*)도 키가 주문 ID다")
+    void orderItemEventKeyIsOrderId() {
+        attempts(unsent("order-item.purchase-confirmed", "1024", now), thresholds.outboxAttempts(), "Timeout");
+
+        assertThat(list()).singleElement().satisfies(result -> assertThat(result.orderId()).isEqualTo(1024L));
+    }
+
+    @Test
     @DisplayName("멈춘 메시지는 한 건뿐이라 둘째 페이지는 빈 목록, 전체 건수 1")
     void secondPageIsEmpty() {
         attempts(unsent("7", now), thresholds.outboxAttempts(), "RecordTooLargeException");
@@ -151,8 +181,12 @@ class OutboxStuckIntegrationTest {
 
     // 지금 만든 미전송 주문 이벤트 메시지(시도 0)
     private OrderOutboxMessage unsent(String key, LocalDateTime createdAt) {
+        return unsent("order.created", key, createdAt);
+    }
+
+    private OrderOutboxMessage unsent(String eventType, String key, LocalDateTime createdAt) {
         OrderOutboxMessage message = outboxRepository.save(OrderOutboxMessage.create(UUID.randomUUID(),
-            "order.created", "kidly.order.events", key, "{}"));
+            eventType, "kidly.order.events", key, "{}"));
         createdAt(message, createdAt);
         return message;
     }

@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.cart.app.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartCatalog;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartCatalog.ProductOption;
+import com.bbcc.kidly.boundedcontext.cart.app.port.CartEvents;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartOrders;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCleanup;
@@ -11,11 +12,14 @@ import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartRuleViolationException;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartRules;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 장바구니 담기 · 조회 · 수량 변경 · 삭제. 다른 회원의 줄은 없는 줄로 본다.
  * 상품 · 판매자 · 자녀는 {@link CartCatalog}, 주문한 상품은 {@link CartOrders}로 읽는다(주문 컨텍스트, #641).
- * 결제완료 뒤 장바구니 정리는 {@link CartCleanup}으로 내준다.
+ * 결제완료 뒤 장바구니 정리는 {@link CartCleanup}으로 내준다. 담기에 성공하면 {@link CartItemAddedEvent}를 낸다(#654, {@link CartEvents}).
  */
 @Service
 @Transactional
@@ -35,10 +39,11 @@ public class CartService implements CartCleanup {
     private final CartItemRepository cartItemRepository;
     private final CartCatalog cartCatalog;
     private final CartOrders cartOrders;
+    private final CartEvents cartEvents;
 
     /**
      * 확인 순서: 옵션 없음 → 자기 상품 → 판매 중 아님 → 자녀 없음 · 남의 자녀 · 삭제된 자녀 → 수량.
-     * 같은 줄(회원, 옵션, 자녀)이 있으면 수량을 더한다.
+     * 같은 줄(회원, 옵션, 자녀)이 있으면 수량을 더한다. 성공하면(새 줄 · 합치기 모두) 같은 트랜잭션에서 담기 이벤트를 낸다.
      */
     public AddCartItemResult addItem(Long memberId, Long optionId, Long childId, int quantity) {
         ProductOption product = cartCatalog.findProductOption(optionId)
@@ -63,6 +68,7 @@ public class CartService implements CartCleanup {
             } catch (CartRuleViolationException e) {
                 throw CartErrors.toBusiness(e);
             }
+            publishItemAdded(sameLine.get(), product, quantity);
             return new AddCartItemResult(toLine(sameLine.get(), product, sellerNameOf(product)), false);
         }
         CartItem created;
@@ -71,7 +77,17 @@ public class CartService implements CartCleanup {
         } catch (CartRuleViolationException e) {
             throw CartErrors.toBusiness(e);
         }
+        publishItemAdded(created, product, quantity);
         return new AddCartItemResult(toLine(created, product, sellerNameOf(product)), true);
+    }
+
+    /**
+     * @param quantity 이번에 담은 수량. 줄의 수량(담은 뒤)은 cartQuantity로 따로 담는다
+     */
+    private void publishItemAdded(CartItem item, ProductOption product, int quantity) {
+        cartEvents.publish(new CartItemAddedEvent(UUID.randomUUID(), LocalDateTime.now(), new CartItemAddedEvent.Data(
+            item.getId(), item.getMemberId(), item.getChildId(), product.productId(), item.getOptionId(), quantity,
+            item.getQuantity())));
     }
 
     /**
