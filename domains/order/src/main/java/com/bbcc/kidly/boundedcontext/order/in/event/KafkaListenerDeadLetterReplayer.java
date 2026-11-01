@@ -1,17 +1,18 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
 import com.bbcc.kidly.boundedcontext.order.app.DeadLetterReplay;
 import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.UnknownDeadLetterSourceException;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeadLetterReplayer;
+import com.bbcc.kidly.boundedcontext.order.in.config.OrderKafkaListenerConfig;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.record.TimestampType;
 import org.springframework.stereotype.Component;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 
 /**
  * 저장한 DLT 메시지로 원래 Kafka 메시지를 다시 만들어 원래 토픽의 리스너에 그대로 넘긴다(#601).

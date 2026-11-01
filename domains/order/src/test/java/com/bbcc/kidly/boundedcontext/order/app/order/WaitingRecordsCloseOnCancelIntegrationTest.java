@@ -16,7 +16,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.recovery.OrderEventFailure;
 import com.bbcc.kidly.boundedcontext.order.domain.recovery.PaymentRecovery;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import java.time.Duration;
 import java.time.LocalDateTime;

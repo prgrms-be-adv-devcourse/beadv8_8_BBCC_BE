@@ -2,10 +2,10 @@ package com.bbcc.kidly.boundedcontext.order.app.stuck;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.dto.StuckOrderResult;
-import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;

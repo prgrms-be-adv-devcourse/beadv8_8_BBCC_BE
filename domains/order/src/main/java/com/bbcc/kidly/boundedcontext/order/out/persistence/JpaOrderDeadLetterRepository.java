@@ -2,8 +2,9 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.FailureType;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.Status;
-import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderDeadLetter;
-import com.bbcc.kidly.boundedcontext.order.out.messaging.ReceivedDeadLetter;
+import com.bbcc.kidly.boundedcontext.order.out.deadletter.OrderDeadLetter;
+import com.bbcc.kidly.boundedcontext.order.out.deadletter.OrderDeadLetterStore;
+import com.bbcc.kidly.boundedcontext.order.out.deadletter.ReceivedDeadLetter;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import java.util.Optional;

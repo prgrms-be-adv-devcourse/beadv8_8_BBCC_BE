@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.app.deadletter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.ReceiveDeadLetterCommand;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
-import com.bbcc.kidly.boundedcontext.order.support.QueryCounter;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.QueryCounter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -9,10 +9,10 @@ import org.apache.kafka.common.header.Header;
 /**
  * 받은 Kafka 메시지의 헤더를 읽는다(#541). 예외 메시지에는 본문 대신 위치(토픽-파티션@오프셋)만 남긴다.
  */
-final class OrderKafkaMessages {
+public final class OrderKafkaMessages {
 
-    static final String EVENT_TYPE = "eventType";
-    static final String EVENT_ID = "eventId";
+    public static final String EVENT_TYPE = "eventType";
+    public static final String EVENT_ID = "eventId";
 
     private OrderKafkaMessages() {
     }
@@ -20,7 +20,7 @@ final class OrderKafkaMessages {
     /**
      * @return 헤더 값(UTF-8). 없으면 null
      */
-    static String header(ConsumerRecord<?, ?> record, String name) {
+    public static String header(ConsumerRecord<?, ?> record, String name) {
         Header header = record.headers().lastHeader(name);
         return header == null ? null : new String(header.value(), UTF_8);
     }

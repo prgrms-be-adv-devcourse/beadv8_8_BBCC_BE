@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
-import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
-import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
-import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
+import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;

@@ -9,9 +9,11 @@
 - 컨텍스트마다 시각 기반 클래스(`OrderTimeEntity` · `CartTimeEntity` · `DeliveryTimeEntity` · `WishTimeEntity`) · 규칙 예외 · 오류 코드(`OrderErrorCode` · `CartErrorCode` · `DeliveryErrorCode` · `WishErrorCode`)를 따로 둔다. 같은 오류는 응답(상태 · title · detail)이 같게 둔다
 - `domain`: 업무 규칙 · 불변식(엔티티 · 상태 enum · 값, JPA 엔티티 겸용). 상태 · 값을 보고 하는 업무 판단(취소 가능 · 결제 반영 결과 · 수량 상한 · 재처리 상태 등)은 domain 메서드가 하고 app은 순서만 조율한다. 기술 장치(아웃박스 메시지 · DLT 보관 · Kafka 대기량 확인 결과)는 domain 밖(out · app.port 값)에 둔다(#642). Spring과 `common`을 쓰지 않는다. 상태는 업무 메서드로만 바꾸고, 다시 와도 되는 변경은 `TransitionResult`(`APPLIED` · `ALREADY_DONE` · `NOT_APPLICABLE`)로 돌려준다
 - `app`: 유스케이스 서비스. 기능별 하위 패키지(`order` · `outbox` · `deadletter` · `provided` 등)끼리는 서로 의존하지 않는다. 여러 기능이 같이 쓰는 값은 `app` 바로 아래(`OrderActor` · `OrderErrorCode` · `OrderLogContext` · `DeadLetterReplay`)에 둔다. 주문의 들어오는 포트 구현은 `app.provided`(`ProvidedOrderService` · `ProvidedReplicaService`), 장바구니 · 배송의 구현은 `CartService` · `DeliveryService`다
-- `app.port`: 저장소 · 외부 연결 · 다른 컨텍스트 · 작업 실행처럼 나가는 것의 인터페이스, `app.port.in`: 다른 컨텍스트가 들어오는 인터페이스. 둘 다 최상위는 인터페이스만 두고, 주고받는 값은 그 인터페이스 안에 둔다(값은 record, 값의 종류는 enum, 조회 결과 행은 인터페이스. class는 두지 않는다). 나가는 포트 구현은 `out`: 저장소는 대부분 Spring Data `Jpa…Repository`가 포트를 상속하고, 아웃박스 · DLT처럼 엔티티가 out에 있는 것은 `…Store`(`OrderOutboxStore` · `OrderDeadLetterStore`)가 포트를 구현하며 그 `Jpa…Repository`는 out 안에서만 쓴다. 들어오는 포트 구현은 app
-- `in`: `web`(컨트롤러 · `dto`) · `event`(이벤트 수신) · `scheduler`. `domain`과 `out`을 쓰지 않는다
-- 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙(다른 컨텍스트 참조는 내 out → 상대 `app.port.in`만)은 `OrderContextArchitectureTest`, 기능 사이 의존 · 포트 규칙은 앱의 `OrderArchitectureTest`가 검사한다
+- `app.port`: 저장소 · 외부 연결 · 다른 컨텍스트 · 작업 실행처럼 나가는 것의 인터페이스, `app.port.in`: 다른 컨텍스트가 들어오는 인터페이스. 둘 다 최상위는 인터페이스만 두고, 주고받는 값은 그 인터페이스 안에 둔다(값은 record, 값의 종류는 enum, 조회 결과 행은 인터페이스. class는 두지 않는다). 나가는 포트 구현은 `out`: 저장소는 대부분 Spring Data `Jpa…Repository`가 포트를 상속하고, 아웃박스 · DLT처럼 엔티티가 out에 있는 것은 `…Store`(`out.outbox.OrderOutboxStore` · `out.deadletter.OrderDeadLetterStore`)가 포트를 구현하며 그 `Jpa…Repository`는 out 안에서만 쓴다. 들어오는 포트 구현은 app
+- `in`: `web`(컨트롤러 · `dto`. 주문의 관리자 API(`/api/v1/admin/**`) 컨트롤러 · 재처리 도우미 · dto는 `web.admin`, 구매자 API는 `web`. 장바구니 · 배송 · 조르기는 나누지 않는다) · `event`(이벤트 수신) · `scheduler` · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
+- `out`(#651): `persistence`(Spring Data JPA 저장소만) · `outbox`(아웃박스 메시지 · 저장 · 포트 구현) · `kafka`(발송 · 봉투 · 결제 이벤트 대기량 확인) · `deadletter`(DLT 보관 행 · 포트 구현) · `lock`(서버 한 대 실행 DB 잠금) · `config`(Kafka 토픽 · 설정값 → `OrderPolicy`) · `{상대 컨텍스트}`(어댑터)
+- 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`. app 설정 값은 `app.config`로 모으기 전까지(#651-1) 쓰는 기능 패키지에 둔다
+- 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙(다른 컨텍스트 참조는 내 out → 상대 `app.port.in`만)은 `OrderContextArchitectureTest`, 패키지 배치(위 in · out · 설정 자리)는 `OrderPackageLayoutArchitectureTest`, 기능 사이 의존 · 포트 규칙은 앱의 `OrderArchitectureTest`가 검사한다
 
 ## 2. 이벤트 수신
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(`ReplicaProduct` · `ReplicaSeller` · `ReplicaChild`)은 저장된 `occurredAt`보다 늦은 이벤트만 반영하고, 주문 상태는 이미 그 상태면 `ALREADY_DONE`으로 끝낸다
@@ -30,7 +32,7 @@
 - 결제 마감 만료는 결제 이벤트를 Kafka로 받는 동안 처리 대기분이 있으면 그 주기를 건너뛴다(`PaymentExpiryGate`)
 
 ## 4. 테스트
-- 통합 · 기능 · Kafka 테스트는 이 모듈에서 돈다. 주석 · 컨테이너 · 정리는 `boundedcontext.order.support`(`IntegrationTest` · `FunctionalTest` · `KafkaIntegrationTest`)를 쓰고, 테스트 앱은 `OrderTestApplication`(주문 모듈 네 컨텍스트 · `common`만)이다
+- 통합 · 기능 · Kafka 테스트는 이 모듈에서 돈다. 주석 · 컨테이너 · 정리는 주문 모듈 공통 `boundedcontext.support`(#651, 앱의 `com.bbcc.kidly.support`와 다른 패키지)(`IntegrationTest` · `FunctionalTest` · `KafkaIntegrationTest`)를 쓰고, 테스트 앱은 `OrderTestApplication`(주문 모듈 네 컨텍스트 · `common`만)이다
 - 주문 테스트는 다른 도메인 코드를 쓰지 않는다(`OrderTestIndependenceTest`). 다른 도메인이 하던 반응은 테스트가 이벤트로 직접 넣는다
   - `OrderEventDelivery`: 다른 도메인 이벤트를 주문에 넣는다(수신 방식이 바뀌면 이것만 고친다)
   - `PaymentEvents`: 결제 쪽이 보내던 결제 완료 · 결제 실패

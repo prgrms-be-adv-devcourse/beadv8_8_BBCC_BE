@@ -7,8 +7,8 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
-import com.bbcc.kidly.boundedcontext.order.support.IntegrationTest;
-import com.bbcc.kidly.boundedcontext.order.support.QueryCounter;
+import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.QueryCounter;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;

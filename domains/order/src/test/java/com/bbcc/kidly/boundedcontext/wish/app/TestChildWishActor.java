@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.wish.app;
 
-import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishActor;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
 
 /**

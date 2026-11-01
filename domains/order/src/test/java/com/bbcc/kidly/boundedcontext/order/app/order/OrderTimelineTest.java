@@ -2,15 +2,15 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.DeliveryDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.ItemDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.Step;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.StepName;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline.StepStatus;
-import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
-import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
+import com.bbcc.kidly.boundedcontext.order.domain.OrderTimeEntity;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.lang.reflect.Field;

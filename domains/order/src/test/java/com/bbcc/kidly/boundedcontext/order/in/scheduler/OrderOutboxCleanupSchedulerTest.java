@@ -6,9 +6,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxCleanupService;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxProperties;
-import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

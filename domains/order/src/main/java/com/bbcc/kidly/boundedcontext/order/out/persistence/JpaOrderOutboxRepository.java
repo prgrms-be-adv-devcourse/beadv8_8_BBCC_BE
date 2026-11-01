@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.out.persistence;
 
-import com.bbcc.kidly.boundedcontext.order.out.messaging.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxMessage;
+import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxStore;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;

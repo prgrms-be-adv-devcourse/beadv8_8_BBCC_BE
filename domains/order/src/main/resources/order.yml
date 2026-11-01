@@ -4,6 +4,7 @@
 
 kidly:
   order:
+    # ===== 주문 컨텍스트(boundedcontext.order): 결제 마감 · 자동 구매확정 · 아웃박스 · Kafka 수신 · 멈춘 주문 =====
     # 결제 마감(1초 이상). 주문하기부터 이 시간 안에 결제가 끝나지 않으면 결제 마감 만료로 취소한다
     # 기본 10분: 주문 설계 9장의 확정값. 결제 화면에서 결제를 마치기에 충분한 시간. 시연 때 만료 취소를 보이려면 짧게 둔다
     payment-timeout: ${ORDER_PAYMENT_TIMEOUT:PT10M}
@@ -46,10 +47,6 @@ kidly:
         # false면 시작하지 않고(리스너 빈은 만든다) Spring 이벤트 수신으로 되돌아간다. 장애 때 되돌리는 용도
         # 로컬 실행은 Kafka가 떠 있어야 받는다(docker compose)
         enabled: ${ORDER_KAFKA_CONSUMER_ENABLED:true}
-    # 조르기(#640): 부모 · 자녀 공용 장바구니(/api/v1/wishes). 팀이 정책을 확정하지 않아 통째로 끌 수 있게 둔다
-    wish:
-      # false면 조르기 API · 빈이 뜨지 않는다(표는 그대로 남는다). 기본 true
-      enabled: ${ORDER_WISH_ENABLED:true}
     # 관리자 멈춘 주문 조회(#445)의 기준 시간. 저장된 시각에 이 시간을 더한 기준 시각이 지금보다 이전이면 멈춘 것으로 본다
     # 여섯 값 모두 1초(PT1S) 이상이어야 한다. 0 · 음수 · 1초 미만 · 빈 값이면 키 이름이 나오는 오류로 기동 실패. 조회만 하고 상태는 바꾸지 않는다
     stuck:
@@ -79,3 +76,11 @@ kidly:
       # 만든 뒤 이 시간이 지나도 못 보냈으면 OUTBOX_STUCK(1초 이상). 릴레이가 아예 돌지 않아 시도 횟수가 늘지 않는 경우도 잡는다
       # 기본 5분: 정상이면 1초 안에 나간다. 재고 대기(stock-wait)와 같은 감각
       outbox-wait: ${ORDER_STUCK_OUTBOX_WAIT:PT5M}
+
+    # ===== 조르기 컨텍스트(boundedcontext.wish) =====
+    # 조르기(#640): 부모 · 자녀 공용 장바구니(/api/v1/wishes). 팀이 정책을 확정하지 않아 통째로 끌 수 있게 둔다
+    wish:
+      # false면 조르기 API · 빈이 뜨지 않는다(표는 그대로 남는다). 기본 true
+      enabled: ${ORDER_WISH_ENABLED:true}
+
+    # 장바구니(boundedcontext.cart) · 배송(boundedcontext.delivery) 컨텍스트는 아직 설정이 없다

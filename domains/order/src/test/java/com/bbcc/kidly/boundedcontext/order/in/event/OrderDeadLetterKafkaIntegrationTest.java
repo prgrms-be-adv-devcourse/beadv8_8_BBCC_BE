@@ -4,8 +4,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.UnreadableOrderMessageException;
-import com.bbcc.kidly.boundedcontext.order.support.AsyncWait;
-import com.bbcc.kidly.boundedcontext.order.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.support.AsyncWait;
+import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import java.nio.ByteBuffer;

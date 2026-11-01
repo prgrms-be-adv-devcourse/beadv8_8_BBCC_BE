@@ -1,0 +1,56 @@
+package com.bbcc.kidly.boundedcontext.support;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+/**
+ * 주문 모듈 테스트 기반(#616): 주문 테스트 앱이 주문 · common만으로 뜨고, orders 스키마가 기준 SQL + 주문 마이그레이션으로
+ * 만들어진다(엔티티와 맞지 않으면 ddl validate로 기동 실패).
+ */
+@IntegrationTest
+class OrderTestContextIntegrationTest {
+
+    // 주문 모듈 = 주문 · 장바구니 · 배송(#617) · 조르기(#640) 컨텍스트
+    private static final String DOMAINS = "com.bbcc.kidly.boundedcontext.";
+
+    @Autowired
+    private ApplicationContext context;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @DisplayName("orders 스키마의 표 15개가 기준 SQL과 주문 마이그레이션(order_outbox · order_dead_letter · wish_item)으로 만들어진다")
+    void ordersSchemaMigrated() {
+        List<String> tables = jdbcTemplate.queryForList(
+            "select tablename from pg_tables where schemaname = 'orders' order by tablename", String.class);
+
+        assertThat(tables).containsExactly("cart_item", "delivery", "order_dead_letter", "order_event_failure",
+            "order_event_failure_item", "order_item", "order_outbox", "order_status_history", "orders",
+            "payment_recovery", "payment_recovery_item", "replica_child", "replica_product", "replica_seller",
+            "wish_item");
+    }
+
+    @Test
+    @DisplayName("주문 밖 도메인의 빈이 하나도 없다(주문 · common · 스프링만)")
+    void noOtherDomainBeans() {
+        List<String> otherDomains = Arrays.stream(context.getBeanDefinitionNames())
+            .map(name -> context.getType(name))
+            .filter(Objects::nonNull)
+            .map(Class::getName)
+            .filter(type -> type.startsWith(DOMAINS) && !type.startsWith(DOMAINS + "order.")
+                && !type.startsWith(DOMAINS + "cart.") && !type.startsWith(DOMAINS + "delivery.")
+                && !type.startsWith(DOMAINS + "wish.") && !type.startsWith(DOMAINS + "support."))
+            .toList();
+
+        assertThat(otherDomains).isEmpty();
+    }
+}
