@@ -45,10 +45,10 @@ sudo MONITORING_HOST=<모니터링 서버 사설 IP> ./install.sh <도메인> <�
 이미 설치한 서버에서 이름을 추가할 때도 install.sh 를 다시 실행하면 됩니다.
 nginx 설정은 앱 배포로 바뀌지 않습니다. 템플릿을 고친 뒤에는 새 `deploy/nginx` 를 서버에 다시 올리고 install.sh 를 다시 실행해야 반영됩니다.
 
-Gateway(dev #608, prod #638)를 켜고 끌 때는 순서를 지킵니다. 거꾸로 하면 그 환경이 502 입니다. 아래는 환경별로 따로 합니다(dev: `.env.dev` · `dev-gateway` · dev 블록 · 8081, prod: `.env.prod` · `prod-gateway` · 운영 블록 · 8080).
+Gateway(dev #608, prod #638)를 켤 때는 순서를 지킵니다. 환경별로 따로 합니다(dev: `.env.dev` · `dev-gateway`, prod: `.env.prod` · `prod-gateway`).
 
-- 처음 켤 때: `.env.<환경>` 의 `COMPOSE_PROFILES` 에 `gateway` 가 든 배포가 끝나고 gateway 컨테이너가 healthy 인 것(`docker ps --filter name=<환경>-gateway`)을 본 뒤 install.sh 를 다시 실행합니다
-- 끌 때: 템플릿의 그 환경 블록 `location /` 를 앱 포트(dev `127.0.0.1:8081`, prod `127.0.0.1:8080`)로 되돌려 install.sh 를 다시 실행한 뒤, `COMPOSE_PROFILES` 에서 `gateway` 를 빼고 배포합니다
+- 처음 켤 때: nginx 를 먼저 Gateway 로 돌리고(install.sh) 그다음 `.env.<환경>` 의 `COMPOSE_PROFILES` 에 `gateway` 가 든 배포를 합니다. #638 뒤로 서비스는 `X-Member-*` 헤더를 그대로 믿으므로, 배포가 먼저면 nginx 가 앱으로 바로 넘기는 사이 누구나 헤더를 위조할 수 있습니다. 대신 배포가 끝나 gateway 컨테이너가 healthy 가 될 때까지(`docker ps --filter name=<환경>-gateway`) 그 환경은 502 입니다. prod 는 아직 운영 전이라 502 가 나도 피해가 없습니다
+- 끄지 않습니다: Gateway 를 끄는 것은 롤백 수단이 아닙니다(#638 뒤로 서비스는 `X-Member-*` 헤더를 그대로 믿습니다). 템플릿의 `location /` 를 앱 포트(dev 8081, prod 8080)로 되돌리면 Gateway 를 거치지 않으므로 누구나 헤더를 위조해 다른 회원 · 관리자로 요청할 수 있습니다
 
 새 서버처럼 ZeroSSL 계정이 없으면 EAB 키가 필요합니다. ZeroSSL 대시보드 > Developer 에서 만들어 환경 변수로 넘깁니다(처음 한 번).
 

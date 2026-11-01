@@ -60,11 +60,11 @@
   - 그 밖의 4xx(400 등)는 요청을 잘못 만든 우리 쪽 버그라 `ElasticsearchException` 그대로 던진다(500, 스택 트레이스와 함께 ERROR). 503으로 가리면 원인을 찾기 어렵다
 
 ## 목록 API (`in/ProductListController`, `app/ProductListService`)
-- `GET /api/v1/products`(로그인 없이 호출). 경로 · 요청 · 응답 · 검증 메시지는 상품의 목록 API와 같다. FE는 바꾸지 않고 nginx가 이 경로를 search-service로 보낸다
+- `GET /api/v1/products`(로그인 없이 호출). 경로 · 요청 · 응답 · 검증 메시지는 상품의 목록 API와 같다. FE는 바꾸지 않고 Gateway가 이 경로를 search-service로 보낸다(`apps/gateway` `application.yml`의 `search-product-list` 라우트)
   - 요청 `app/dto/ProductListRequest`: `categoryId`, `keyword`(50자 이하), `attributes`(`항목code:값ID`, 20개까지), `sort`(`NEWEST` · `PRICE_ASC` · `PRICE_DESC`, 기본 `NEWEST`), `page`(0 이상, 기본 0), `size`(1~100, 기본 20)
   - 응답 `PageResponse<ProductListItemResponse>`: `productId`(문자열) · `name` · `thumbnailUrl` · `businessName` · `minPrice` · `soldOut` · `sizeFree`. 없는 썸네일 · 상호명은 null
 - 검색 색인을 쓸 수 없으면(`SearchUnavailableException`) 503 `SEARCH_UNAVAILABLE` ProblemDetail로 응답하고 WARN을 남긴다. 로그에는 색인 · 상태와 원인 예외 종류만 남긴다. 원인 메시지에는 Elasticsearch가 돌려준 요청 일부(검색어)가 들어갈 수 있어 남기지 않는다
-  - 상품의 PostgreSQL 검색으로 대신 찾지 않는다. 검색은 상품 DB를 읽지 않기 때문이다. 전환 기간에는 nginx 라우팅을 되돌려 상품의 목록 API로 돌아갈 수 있다
+  - 상품의 PostgreSQL 검색으로 대신 찾지 않는다. 검색은 상품 DB를 읽지 않기 때문이다. 전환 기간에는 Gateway의 검색 주소(`KIDLY_SEARCH_URI`)를 kidly-app으로 돌려 상품의 목록 API로 돌아갈 수 있다
 - 관련도순 정렬은 아직 없다(상품 목록 API에도 없다)
 - 도메인 모듈의 컨트롤러 단위 테스트는 스프링을 띄우지 않고 `MockMvcBuilders.standaloneSetup` + `GlobalExceptionHandler`로 한다. HTTP 전체는 `apps/search-service`의 기능 테스트(`ProductListApiTest`)가 본다
 

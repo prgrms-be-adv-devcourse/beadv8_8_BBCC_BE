@@ -16,6 +16,12 @@ proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
 proxy_set_header X-Forwarded-Proto $scheme;
 proxy_set_header X-Forwarded-Host  $host;
 proxy_set_header X-Forwarded-Port  $server_port;
+# 밖에서 온 회원 헤더를 지운다. 값이 빈 문자열이면 nginx 는 그 헤더를 넘기지 않는다.
+# 서비스는 이 헤더를 그대로 믿는다(#638). Gateway 는 받은 것을 어차피 지우고 검증한 값으로 다시 붙이므로 받을 필요가 없다.
+# /actuator/health 처럼 Gateway 를 거치지 않고 앱으로 가는 경로에서도 지워진다
+proxy_set_header X-Member-Id       "";
+proxy_set_header X-Member-Roles    "";
+proxy_set_header X-Member-Nickname "";
 
 # 모르는 호스트(IP 로 직접 접속 등)는 응답 없이 끊는다
 server {

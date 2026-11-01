@@ -20,8 +20,8 @@ import reactor.core.publisher.Mono;
 
 /**
  * 모든 요청에서 밖에서 보낸 X-Member-* 헤더를 지우고, Bearer 토큰이 있으면 검증 · 무효화 확인 뒤
- * X-Member-Id · X-Member-Roles · X-Member-Nickname을 붙여 넘긴다. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(공개 API 판단은 서비스).
- * 검증에 실패하면 401. Authorization은 지우지 않는다: jwt 모드 서비스(prod · 로컬)가 직접 검증한다.
+ * X-Member-Id · X-Member-Roles · X-Member-Nickname을 붙여 넘긴다. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(로그인이 필요한지는 서비스가 정한다).
+ * 검증에 실패하면 401. Authorization은 지우지 않고 그대로 넘기지만 서비스는 보지 않는다.
  * 헤더 이름 · 역할 목록 · 닉네임 인코딩은 shared MemberHeaders를, 클레임 이름은 AccessTokenClaims를 따른다.
  * 닉네임 클레임이 없으면 닉네임 헤더를 붙이지 않는다.
  */
@@ -47,7 +47,7 @@ class AccessTokenFilter implements GlobalFilter, Ordered {
             })
             .build();
         var authorization = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        // 서비스(DefaultBearerTokenResolver)처럼 대소문자를 가리지 않는다. 가리면 "bearer <무효화된 토큰>"이 검증 없이 지나간다
+        // Spring Security의 Bearer 토큰 규칙(DefaultBearerTokenResolver)처럼 대소문자를 가리지 않는다. 가리면 "bearer <무효화된 토큰>"이 검증 없이 지나간다
         if (authorization == null || !authorization.regionMatches(true, 0, BEARER, 0, BEARER.length())) {
             return chain.filter(exchange.mutate().request(request).build());
         }
