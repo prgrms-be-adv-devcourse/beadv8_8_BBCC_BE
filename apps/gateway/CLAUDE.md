@@ -15,7 +15,8 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
   - 404(`/internal/**`): 이름 있는 필터 `web/NotFoundGatewayFilterFactory`(`application.yml`에서 `NotFound`)
   - 503 · 504 · 500: `web/GatewayErrorWebExceptionHandler`
   - 백엔드 호출 timeout(`application.yml`의 `spring.cloud.gateway.server.webflux.httpclient`): 연결 3초, 응답 55초. 55초는 결제 승인(Toss 연결 3초 + 읽기 30초)보다 길고 nginx 기본 `proxy_read_timeout` 60초보다 짧다. 테스트는 `application-test.yml`에서 응답 1초로 줄인다
-- 라우트: `application.yml`로만. `/internal/**`은 404, `GET /api/v1/products`(상품 목록, 경로가 정확히 같을 때만)는 `kidly.gateway.search-uri`(#526), `/api/v1/children` · `/api/v1/children/**`(자녀 프로필)는 `kidly.gateway.childprofile-uri`(#682), `/v3/api-docs/childprofile`은 같은 서비스의 `/v3/api-docs`(kidly-app Swagger의 '자녀 프로필' 문서, `SetPath`), 나머지는 kidly-app
+  - 추천 라우트만 응답 3초(라우트 `metadata.response-timeout`, #704). 추천이 느려도 화면이 추천 영역만 비우고 넘어가게 한다. 테스트는 전체 1초 설정과 상관없이 라우트 값을 쓴다(`BackendTimeoutIntegrationTest`)
+- 라우트: `application.yml`로만. `/internal/**`은 404, `GET /api/v1/products`(상품 목록, 경로가 정확히 같을 때만)는 `kidly.gateway.search-uri`(#526), `/api/v1/children` · `/api/v1/children/**`(자녀 프로필)는 `kidly.gateway.childprofile-uri`(#682), `/v3/api-docs/childprofile`은 같은 서비스의 `/v3/api-docs`(kidly-app Swagger의 '자녀 프로필' 문서, `SetPath`), `/api/v1/recommendations/**`(추천)는 `kidly.gateway.recommend-uri`(#704), 나머지는 kidly-app
 - nginx가 넣은 `Host` · `X-Forwarded-*`는 덧붙이지 않고 그대로 넘긴다(`PreserveHostHeader`, `trusted-proxies`, `x-forwarded.*-enabled: false`). Gateway 자신은 `server.forward-headers-strategy: native`로 https · 원래 호스트로 본다(같은 출처 판단)
 
 ## 무효화 목록
@@ -39,7 +40,8 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - dev · prod(#638). compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(dev) · `127.0.0.1:8084`(prod)(`GATEWAY_PORT`), compose 네트워크로 `http://app:8080`에 넘긴다
 - 상품 목록은 `KIDLY_SEARCH_URI`로 넘긴다. dev는 `.env.dev`에 `http://search-service:8080`(profile `search`도 켜져 있어야 한다), 값이 없는 prod는 기본값 `http://app:8080`이라 앱이 그대로 받는다
 - 자녀 프로필은 `KIDLY_CHILDPROFILE_URI`로 넘긴다. 기본값은 `http://childprofile-service:8080`이고 kidly-app에는 자녀 API가 없다. profile `childprofile`이 꺼진 환경에서는 자녀 API가 실패한다
-- dev · prod 모두 서비스(kidly-app · search-service · childprofile-service)는 JWT를 보지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다. 서비스는 Gateway 뒤에서만 열려야 한다
+- 추천은 `KIDLY_RECOMMEND_URI`로 넘긴다. 서비스를 켠 환경은 `.env`에 `http://recommend-service:8080`(profile `recommend`도 켜져 있어야 한다), 값이 없으면 기본값 `http://app:8080`이다. 지금은 dev · prod 모두 켜지 않았다. kidly-app이 아직 추천 도메인을 가지고 있어 이 값만 지우면 앱으로 되돌아간다
+- dev · prod 모두 서비스(kidly-app · search-service · childprofile-service · recommend-service)는 JWT를 보지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다. 서비스는 Gateway 뒤에서만 열려야 한다
 - nginx dev · 운영 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(dev 8081 · prod 8080)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
 ## 로컬 실행
