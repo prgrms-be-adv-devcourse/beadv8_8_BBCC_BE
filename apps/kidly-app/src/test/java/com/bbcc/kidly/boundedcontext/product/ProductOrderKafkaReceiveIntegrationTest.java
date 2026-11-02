@@ -4,6 +4,8 @@ import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.cancel
 import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.orderCancelled;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
+import static com.bbcc.kidly.boundedcontext.product.OrderItemCancelledFixture.cancelledOrderItem;
+import static com.bbcc.kidly.boundedcontext.product.OrderItemCancelledFixture.orderItemCancelled;
 import static com.bbcc.kidly.boundedcontext.product.ProductKafkaMessages.TIMEOUT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,7 +33,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 상품이 주문 토픽의 주문 생성됨 · 주문 취소됨을 받아 재고를 줄이고 되돌리는지 확인한다(#692).
+ * 상품이 주문 토픽의 주문 생성됨 · 주문 취소됨 · 판매자 부분 취소(주문상품 취소됨)를 받아 재고를 줄이고 되돌리는지 확인한다(#692, #693).
  * 메시지는 주문 도메인을 거치지 않고 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다.
  * 테스트 설정은 Spring 경로도 켜 두므로, 주문 서비스를 거치면 Spring 이벤트로도 재고가 바뀌어 Kafka 수신을 확인할 수 없다.
  * 주문이 실제로 보낸 메시지를 받는지는 주문의 아웃박스에 직접 저장하고 릴레이를 불러 확인한다. 이렇게 하면 Spring 이벤트가 나가지 않는다.
@@ -168,12 +170,31 @@ class ProductOrderKafkaReceiveIntegrationTest {
     }
 
     @Test
-    @DisplayName("주문 토픽에서 상품이 받지 않는 종류(부분 취소 등)는 건너뛰고 DLT로 보내지 않으며, 뒤 메시지를 처리한다")
+    @DisplayName("INV-04 판매자 부분 취소(주문상품 취소됨)를 Kafka로 받아 취소한 주문상품의 차감만 되돌리고, 같은 주문의 다른 주문상품은 DEDUCTED 그대로다")
+    void restoreOnOrderItemCancelled() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        long orderId = newId();
+        messages.send(ORDER_TOPIC, orderCreated(orderId,
+            orderItem(11L, options.navy110(), 2),
+            orderItem(12L, options.navy120(), 1)));
+
+        messages.send(ORDER_TOPIC, orderItemCancelled(orderId, 7L, cancelledOrderItem(11L, options.navy110(), 2)));
+
+        var restored = tuple(orderId, 11L, options.navy110().getId(), 2, "RESTORED");
+        AsyncWait.until(TIMEOUT, () -> inventoryDeductionDb.records(orderId).contains(restored));
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(4);
+        assertThat(inventoryDeductionDb.records(orderId)).containsExactlyInAnyOrder(
+            restored, tuple(orderId, 12L, options.navy120().getId(), 1, "DEDUCTED"));
+    }
+
+    @Test
+    @DisplayName("주문 토픽에서 상품이 받지 않는 종류(구매확정 등)는 건너뛰고 DLT로 보내지 않으며, 뒤 메시지를 처리한다")
     void skipUnhandledOrderEvent() throws Exception {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         long orderId = newId();
         String key = String.valueOf(orderId);
-        messages.sendRaw(ORDER_TOPIC, key, "order-item.cancelled", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
+        messages.sendRaw(ORDER_TOPIC, key, "order-item.purchase-confirmed", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
 
         // 키가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
         messages.send(ORDER_TOPIC, orderCreated(orderId, orderItem(11L, options.navy110(), 2)));

@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryRestorationS
 import com.bbcc.kidly.boundedcontext.product.app.replica.ProductReplicaSellerService;
 import com.bbcc.kidly.boundedcontext.product.in.inventory.ProductOrderCancelledEventListener;
 import com.bbcc.kidly.boundedcontext.product.in.inventory.ProductOrderEventListener;
+import com.bbcc.kidly.boundedcontext.product.in.inventory.ProductOrderItemCancelledEventListener;
 import com.bbcc.kidly.boundedcontext.product.in.inventory.ProductOrderKafkaListener;
 import com.bbcc.kidly.boundedcontext.product.in.replica.ProductSellerEventListener;
 import com.bbcc.kidly.boundedcontext.product.in.replica.ProductSellerKafkaListener;
@@ -27,28 +28,30 @@ class ProductKafkaSwitchTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withUserConfiguration(ProductSellerEventListener.class, ProductOrderEventListener.class,
-            ProductOrderCancelledEventListener.class)
+            ProductOrderCancelledEventListener.class, ProductOrderItemCancelledEventListener.class)
         .withBean(ProductReplicaSellerService.class, () -> mock(ProductReplicaSellerService.class))
         .withBean(InventoryDeductionService.class, () -> mock(InventoryDeductionService.class))
         .withBean(InventoryRestorationService.class, () -> mock(InventoryRestorationService.class));
 
     @ParameterizedTest
     @ValueSource(strings = {"kidly.product.kafka.consumer.enabled=true", "kidly.product.other=true"})
-    @DisplayName("Kafka 수신 스위치가 켜져 있거나 지정되지 않으면 판매자 · 주문 이벤트의 Spring 리스너를 만들지 않는다")
+    @DisplayName("Kafka 수신 스위치가 켜져 있거나 지정되지 않으면 판매자 · 주문 · 판매자 부분 취소 이벤트의 Spring 리스너를 만들지 않는다")
     void notRegisteredWhenKafkaReceives(String property) {
         runner.withPropertyValues(property).run(context -> assertThat(context)
             .doesNotHaveBean(ProductSellerEventListener.class)
             .doesNotHaveBean(ProductOrderEventListener.class)
-            .doesNotHaveBean(ProductOrderCancelledEventListener.class));
+            .doesNotHaveBean(ProductOrderCancelledEventListener.class)
+            .doesNotHaveBean(ProductOrderItemCancelledEventListener.class));
     }
 
     @Test
-    @DisplayName("Kafka 수신 스위치를 끄면 판매자 · 주문 이벤트의 Spring 리스너가 만들어진다")
+    @DisplayName("Kafka 수신 스위치를 끄면 판매자 · 주문 · 판매자 부분 취소 이벤트의 Spring 리스너가 만들어진다")
     void registeredWhenKafkaIsOff() {
         runner.withPropertyValues("kidly.product.kafka.consumer.enabled=false").run(context -> assertThat(context)
             .hasSingleBean(ProductSellerEventListener.class)
             .hasSingleBean(ProductOrderEventListener.class)
-            .hasSingleBean(ProductOrderCancelledEventListener.class));
+            .hasSingleBean(ProductOrderCancelledEventListener.class)
+            .hasSingleBean(ProductOrderItemCancelledEventListener.class));
     }
 
     // 테스트 설정은 리스너가 저절로 시작하지 않게 막아 두므로, 스위치를 따르는지는 애노테이션 값으로 확인한다
