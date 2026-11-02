@@ -36,6 +36,7 @@ import tools.jackson.core.JacksonException;
 public class ProductKafkaListenerConfig {
 
     public static final String SELLER_EVENTS = "kidly.seller.events";
+    public static final String ORDER_EVENTS = "kidly.order.events";
     public static final String GROUP = "kidly.product";
     public static final String AUTO_STARTUP = "${kidly.product.kafka.consumer.enabled:true}";
     private static final String DLT_SUFFIX = ".product.dlt";

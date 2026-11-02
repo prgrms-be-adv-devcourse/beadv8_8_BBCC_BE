@@ -97,12 +97,25 @@ final class ProductKafkaMessages {
         }
     }
 
+    // 지금 토픽 끝까지 들어온 메시지를 상품 그룹이 모두 처리할 때까지 기다린다. 커밋 위치가 없는 파티션은
+    // 배정받을 때 끝에서 읽기 시작했으므로 처리할 메시지가 없다
+    void awaitCaughtUp(String topic) {
+        var config = Map.<String, Object>of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        try (var admin = Admin.create(config); var consumer = newConsumer()) {
+            var partitions = consumer.partitionsFor(topic).stream()
+                .map(info -> new TopicPartition(topic, info.partition()))
+                .toList();
+            Map<TopicPartition, Long> ends = consumer.endOffsets(partitions);
+            AsyncWait.until(TIMEOUT, () -> ends.entrySet().stream().allMatch(end -> {
+                long committed = committedOffset(admin, end.getKey());
+                return committed == -1 || committed >= end.getValue();
+            }));
+        }
+    }
+
     // DLT를 처음부터 지금 끝까지 읽어 그 키의 메시지만 돌려준다. 다른 테스트가 넣은 DLT 메시지도 있다. DLT가 아직 없으면 빈 목록이다
     List<ConsumerRecord<String, String>> deadLetters(String deadLetterTopic, String key) {
-        try (var consumer = new KafkaConsumer<String, String>(Map.of(
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
+        try (var consumer = newConsumer()) {
             if (consumer.partitionsFor(deadLetterTopic).isEmpty()) {
                 return List.of();
             }
@@ -116,6 +129,13 @@ final class ProductKafkaMessages {
             }
             return records.stream().filter(record -> key.equals(record.key())).toList();
         }
+    }
+
+    private KafkaConsumer<String, String> newConsumer() {
+        return new KafkaConsumer<>(Map.of(
+            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
+            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
     }
 
     private static long committedOffset(Admin admin, TopicPartition partition) {
