@@ -9,7 +9,6 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,10 +21,10 @@ public class RecommendedProductController {
 
     private final RecommendedProductService recommendedProductService;
 
-    @GetMapping("/api/v1/children/{childId}/recommended-products")
+    @GetMapping("/api/v1/recommendations/products")
     public PageResponse<RecommendedProductResponse> list(
         @LoginMember AuthMember member,
-        @PathVariable Long childId,
+        @RequestParam Long childId,
         @RequestParam(required = false) Long categoryId,
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {

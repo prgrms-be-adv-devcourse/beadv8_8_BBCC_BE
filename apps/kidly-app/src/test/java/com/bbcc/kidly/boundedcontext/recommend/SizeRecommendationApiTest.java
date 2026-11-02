@@ -41,7 +41,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @FunctionalTest
 class SizeRecommendationApiTest {
 
-    private static final String PATH = "/api/v1/products/{productId}/size-recommendation";
+    private static final String PATH = "/api/v1/recommendations/size";
 
     @Autowired
     private RestTestClient client;
@@ -171,7 +171,7 @@ class SizeRecommendationApiTest {
     }
 
     @Test
-    @DisplayName("상품과 자녀가 둘 다 없으면 경로의 상품을 먼저 확인해 상품 404를 받는다")
+    @DisplayName("상품과 자녀가 둘 다 없으면 상품을 먼저 확인해 상품 404를 받는다")
     void checkProductBeforeChild() {
         expectProblem(recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID), HttpStatus.NOT_FOUND,
             "상품을 찾을 수 없습니다", "상품을 찾을 수 없습니다.");
@@ -191,16 +191,25 @@ class SizeRecommendationApiTest {
     @Test
     @DisplayName("childId 없이 요청하면 400 \"childId: 자녀 ID가 필요합니다.\"를 받는다")
     void rejectWithoutChildId() {
-        expectProblem(client.get().uri(PATH, PRODUCT_A_ID)
+        expectProblem(client.get().uri(PATH + "?productId={productId}", PRODUCT_A_ID)
                 .headers(TestMembers.buyer(MEMBER_1_ID))
                 .exchange(),
             HttpStatus.BAD_REQUEST, "잘못된 요청입니다", "childId: 자녀 ID가 필요합니다.");
     }
 
     @Test
+    @DisplayName("productId 없이 요청하면 400 \"productId: 상품 ID가 필요합니다.\"를 받는다")
+    void rejectWithoutProductId() {
+        expectProblem(client.get().uri(PATH + "?childId={childId}", CHILD_1_ID)
+                .headers(TestMembers.buyer(MEMBER_1_ID))
+                .exchange(),
+            HttpStatus.BAD_REQUEST, "잘못된 요청입니다", "productId: 상품 ID가 필요합니다.");
+    }
+
+    @Test
     @DisplayName("childId가 숫자가 아니면 400을 받는다")
     void rejectNonNumericChildId() {
-        client.get().uri(PATH + "?childId=abc", PRODUCT_A_ID)
+        client.get().uri(PATH + "?productId={productId}&childId=abc", PRODUCT_A_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange()
             .expectStatus().isBadRequest()
@@ -210,7 +219,7 @@ class SizeRecommendationApiTest {
     @Test
     @DisplayName("로그인하지 않으면 401을 받는다")
     void rejectWithoutToken() {
-        client.get().uri(PATH + "?childId={childId}", PRODUCT_A_ID, CHILD_1_ID)
+        client.get().uri(PATH + "?productId={productId}&childId={childId}", PRODUCT_A_ID, CHILD_1_ID)
             .exchange()
             .expectStatus().isUnauthorized();
     }
@@ -226,7 +235,7 @@ class SizeRecommendationApiTest {
             .jsonPath("$.title").isEqualTo(title)
             .jsonPath("$.status").isEqualTo(status.value())
             .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo("/api/v1/products/" + PRODUCT_A_ID + "/size-recommendation");
+            .jsonPath("$.instance").isEqualTo(PATH);
     }
 
     // 상품 A의 상품 정보 변경됨에서 판매 상태 · 사이즈 무관 여부 · 옵션만 바꾼다
@@ -246,7 +255,7 @@ class SizeRecommendationApiTest {
     }
 
     private RestTestClient.ResponseSpec recommend(Long memberId, Long productId, Long childId) {
-        return client.get().uri(PATH + "?childId={childId}", productId, childId)
+        return client.get().uri(PATH + "?productId={productId}&childId={childId}", productId, childId)
             .headers(TestMembers.buyer(memberId))
             .exchange();
     }
