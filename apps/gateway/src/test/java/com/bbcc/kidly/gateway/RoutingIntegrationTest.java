@@ -20,7 +20,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
+ * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 자녀 프로필은 자녀 프로필 서비스로(#682), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  */
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
@@ -34,9 +34,14 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     @Qualifier(RecordingBackendConfiguration.SEARCH)
     private RecordingBackend searchBackend;
 
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.CHILDPROFILE)
+    private RecordingBackend childProfileBackend;
+
     @BeforeEach
-    void resetSearchBackend() {
+    void resetServiceBackends() {
         searchBackend.reset();
+        childProfileBackend.reset();
     }
 
     @Test
@@ -81,6 +86,33 @@ class RoutingIntegrationTest extends GatewayTestSupport {
         assertThat(backend.lastRequest()).hasValueSatisfying(request ->
             assertThat(request.method()).isEqualTo("POST"));
         assertThat(searchBackend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("자녀 프로필 목록 · 하위 경로는 같은 메서드 · 경로로 자녀 프로필 서비스에 넘긴다")
+    void routesChildrenToChildProfileService() {
+        client.get().uri("/api/v1/children").exchange()
+            .expectStatus().isOk();
+        assertThat(childProfileBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/children")));
+
+        client.patch().uri("/api/v1/children/7/growth-records?x=1").exchange()
+            .expectStatus().isOk();
+        assertThat(childProfileBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.method()).isEqualTo("PATCH");
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/children/7/growth-records?x=1"));
+        });
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("children으로 시작하기만 하는 다른 경로는 kidly-app에 넘긴다")
+    void routesChildrenPrefixLookalikeToKidlyApp() {
+        client.get().uri("/api/v1/childrenx").exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(childProfileBackend.lastRequest()).isEmpty();
     }
 
     @Test
