@@ -2,11 +2,7 @@ package com.bbcc.kidly.boundedcontext.review.app;
 
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewEligibilities;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewEligibilities.EligibleRow;
-import com.bbcc.kidly.global.error.BusinessException;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeParseException;
-import java.util.Base64;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Limit;
@@ -22,10 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ReviewEligibilityQueryService {
 
-    static final int DEFAULT_SIZE = 20;
-    static final int MAX_SIZE = 50;
-    private static final String SEPARATOR = "|";
-
     private final ReviewEligibilities reviewEligibilities;
 
     /**
@@ -33,33 +25,22 @@ public class ReviewEligibilityQueryService {
      * @param size 1~50 정수. 없으면 20
      */
     public EligiblePage findEligible(Long memberId, String cursor, String size) {
-        int pageSize = pageSize(size);
+        int pageSize = PageRequestValues.pageSize(size);
         Limit limit = Limit.of(pageSize + 1);
         List<EligibleRow> rows = cursor == null
             ? reviewEligibilities.findEligible(memberId, limit)
-            : findAfter(memberId, Cursor.decode(cursor), limit);
+            : findAfter(memberId, PageRequestValues.Cursor.decode(cursor), limit);
         boolean hasNext = rows.size() > pageSize;
         List<EligibleItem> items = rows.stream().limit(pageSize).map(EligibleItem::from).toList();
-        return new EligiblePage(items, hasNext ? Cursor.of(items.getLast()).encode() : null);
+        return new EligiblePage(items, hasNext ? cursorOf(items.getLast()).encode() : null);
     }
 
-    private List<EligibleRow> findAfter(Long memberId, Cursor cursor, Limit limit) {
-        return reviewEligibilities.findEligibleAfter(memberId, cursor.confirmedAt(), cursor.id(), limit);
+    private List<EligibleRow> findAfter(Long memberId, PageRequestValues.Cursor cursor, Limit limit) {
+        return reviewEligibilities.findEligibleAfter(memberId, cursor.at(), cursor.id(), limit);
     }
 
-    private static int pageSize(String size) {
-        if (size == null) {
-            return DEFAULT_SIZE;
-        }
-        try {
-            int value = Integer.parseInt(size);
-            if (value >= 1 && value <= MAX_SIZE) {
-                return value;
-            }
-        } catch (NumberFormatException e) {
-            // 아래에서 같은 오류로 응답한다
-        }
-        throw new BusinessException(ReviewErrorCode.INVALID_PAGE_SIZE);
+    private static PageRequestValues.Cursor cursorOf(EligibleItem last) {
+        return new PageRequestValues.Cursor(last.confirmedAt(), last.id());
     }
 
     /**
@@ -86,31 +67,6 @@ public class ReviewEligibilityQueryService {
         static EligibleItem from(EligibleRow row) {
             return new EligibleItem(row.getId(), row.getOrderItemId(), row.getOrderId(), row.getProductId(),
                 row.getProductName(), row.getThumbnailUrl(), row.getSize(), row.getConfirmedAt());
-        }
-    }
-
-    private record Cursor(LocalDateTime confirmedAt, Long id) {
-
-        static Cursor of(EligibleItem last) {
-            return new Cursor(last.confirmedAt(), last.id());
-        }
-
-        String encode() {
-            String raw = confirmedAt + SEPARATOR + id;
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
-        }
-
-        static Cursor decode(String cursor) {
-            try {
-                String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-                int at = raw.indexOf(SEPARATOR);
-                if (at < 0) {
-                    throw new BusinessException(ReviewErrorCode.INVALID_CURSOR);
-                }
-                return new Cursor(LocalDateTime.parse(raw.substring(0, at)), Long.parseLong(raw.substring(at + 1)));
-            } catch (IllegalArgumentException | DateTimeParseException e) {
-                throw new BusinessException(ReviewErrorCode.INVALID_CURSOR);
-            }
         }
     }
 }

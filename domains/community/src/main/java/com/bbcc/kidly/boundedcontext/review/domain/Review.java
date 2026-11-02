@@ -79,12 +79,40 @@ public class Review extends ReviewTimeEntity {
     }
 
     /**
-     * 작성자가 별점 · 본문을 고친다. 규칙 위반이면 값을 바꾸지 않는다.
+     * 수정할 값. 보낸 값만 바꾼다(given이 false면 그 값은 그대로). 보냈는데 null이면 그 값의 규칙 위반이다.
+     */
+    public record Change(boolean ratingGiven, Integer rating, boolean contentGiven, String content) {
+
+        public static Change both(Integer rating, String content) {
+            return new Change(true, rating, true, content);
+        }
+
+        public static Change ratingOnly(Integer rating) {
+            return new Change(true, rating, false, null);
+        }
+
+        public static Change contentOnly(String content) {
+            return new Change(false, null, true, content);
+        }
+    }
+
+    /**
+     * 작성자가 별점 · 본문을 고친다.
      */
     public void update(Long memberId, Integer rating, String content) {
+        update(memberId, Change.both(rating, content));
+    }
+
+    /**
+     * 작성자가 보낸 값만 고친다. 바꿀 값이 없거나 규칙 위반이면 아무것도 바꾸지 않는다.
+     */
+    public void update(Long memberId, Change change) {
         checkAuthor(memberId);
-        int newRating = validRating(rating);
-        String newContent = validContent(content);
+        if (!change.ratingGiven() && !change.contentGiven()) {
+            throw new ReviewRuleException(ReviewRule.NO_CHANGES);
+        }
+        int newRating = change.ratingGiven() ? validRating(change.rating()) : this.rating;
+        String newContent = change.contentGiven() ? validContent(change.content()) : this.content;
         this.rating = (short) newRating;
         this.content = newContent;
     }

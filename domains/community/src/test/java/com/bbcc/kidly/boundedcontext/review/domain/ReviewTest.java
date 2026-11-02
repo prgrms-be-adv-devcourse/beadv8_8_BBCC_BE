@@ -99,6 +99,37 @@ class ReviewTest {
         assertThat(review.getContent()).isEqualTo("좋아요");
     }
 
+    @Test
+    @DisplayName("일부 수정: 별점만 보내면 별점만, 본문만 보내면 본문만 바뀐다")
+    void partialUpdate() {
+        Review review = review(5, "좋아요");
+
+        review.update(AUTHOR, Review.Change.ratingOnly(2));
+        assertThat(review.getRating()).isEqualTo(2);
+        assertThat(review.getContent()).isEqualTo("좋아요");
+
+        review.update(AUTHOR, Review.Change.contentOnly(" 바뀐 본문 "));
+        assertThat(review.getRating()).isEqualTo(2);
+        assertThat(review.getContent()).isEqualTo("바뀐 본문");
+    }
+
+    @Test
+    @DisplayName("바꿀 값이 하나도 없으면 변경 없음 규칙 위반, 보낸 값이 null이면 그 값의 규칙 위반")
+    void noChangesOrNullValues() {
+        Review review = review(5, "좋아요");
+
+        assertThatThrownBy(() -> review.update(AUTHOR, new Review.Change(false, null, false, null)))
+            .isInstanceOfSatisfying(ReviewRuleException.class,
+                e -> assertThat(e.rule()).isEqualTo(ReviewRule.NO_CHANGES));
+        assertThatThrownBy(() -> review.update(AUTHOR, Review.Change.ratingOnly(null)))
+            .isInstanceOfSatisfying(ReviewRuleException.class, e -> assertThat(e.rule()).isEqualTo(ReviewRule.RATING));
+        assertThatThrownBy(() -> review.update(AUTHOR, Review.Change.contentOnly(null)))
+            .isInstanceOfSatisfying(ReviewRuleException.class,
+                e -> assertThat(e.rule()).isEqualTo(ReviewRule.CONTENT));
+        assertThat(review.getRating()).isEqualTo(5);
+        assertThat(review.getContent()).isEqualTo("좋아요");
+    }
+
     private static Review review(Integer rating, String content) {
         return Review.create(new Review.Values(11L, 14L, AUTHOR, "닉네임", rating, content));
     }

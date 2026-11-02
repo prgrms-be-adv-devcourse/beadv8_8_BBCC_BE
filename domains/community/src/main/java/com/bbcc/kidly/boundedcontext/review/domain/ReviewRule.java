@@ -9,5 +9,7 @@ public enum ReviewRule {
     // 본문은 앞뒤 공백을 뺀 1~1000자
     CONTENT,
     // 수정 · 삭제는 작성자만
-    AUTHOR
+    AUTHOR,
+    // 수정은 바꿀 값(별점 · 본문)을 하나 이상 담는다
+    NO_CHANGES
 }

@@ -158,6 +158,37 @@ class ReviewServiceTest {
             .hasMessageContaining("productId=" + PRODUCT);
     }
 
+    @Test
+    @DisplayName("일부 수정: 별점만 보내면 별점 차이만큼 집계, 본문만 보내면 집계 그대로 · 별점 그대로")
+    void partialUpdate() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        long reviewId = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요").reviewId();
+        stats.deltas.clear();
+
+        ReviewView ratingOnly = service.update(ME, reviewId,
+            new ReviewService.ReviewChange(true, 2, false, null));
+        ReviewView contentOnly = service.update(ME, reviewId,
+            new ReviewService.ReviewChange(false, null, true, "본문만 고침"));
+
+        assertThat(ratingOnly.rating()).isEqualTo(2);
+        assertThat(ratingOnly.content()).isEqualTo("좋아요");
+        assertThat(contentOnly.rating()).isEqualTo(2);
+        assertThat(contentOnly.content()).isEqualTo("본문만 고침");
+        assertThat(stats.deltas).containsExactly(new Delta(PRODUCT, 0, -2));
+    }
+
+    @Test
+    @DisplayName("바꿀 값이 없으면 NO_FIELDS_TO_UPDATE, 별점 null을 보내면 INVALID_RATING")
+    void noFieldsOrNullRating() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        long reviewId = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요").reviewId();
+
+        assertError(() -> service.update(ME, reviewId, new ReviewService.ReviewChange(false, null, false, null)),
+            ReviewErrorCode.NO_FIELDS_TO_UPDATE);
+        assertError(() -> service.update(ME, reviewId, new ReviewService.ReviewChange(true, null, false, null)),
+            ReviewErrorCode.INVALID_RATING);
+    }
+
     private static void assertError(Runnable call, ReviewErrorCode code) {
         assertThatThrownBy(call::run).isInstanceOfSatisfying(BusinessException.class,
             e -> assertThat(e.getErrorCode()).isEqualTo(code));
@@ -261,6 +292,27 @@ class ReviewServiceTest {
         @Override
         public void delete(Review review) {
             rows.remove(review.getId());
+        }
+
+        @Override
+        public List<ReviewListRow> findByProduct(Long productId, Limit limit) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<ReviewListRow> findByProductAfter(Long productId, LocalDateTime createdAt, Long id,
+            Limit limit) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<ReviewListRow> findByMember(Long memberId, Limit limit) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<ReviewListRow> findByMemberAfter(Long memberId, LocalDateTime createdAt, Long id, Limit limit) {
+            throw new UnsupportedOperationException();
         }
     }
 }

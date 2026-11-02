@@ -250,6 +250,39 @@ class ReviewApiTest {
         assertThat(updatedAt).isEqualTo(((java.sql.Timestamp) row.get("updated_at")).toLocalDateTime());
     }
 
+    @Test
+    @DisplayName("PATCH 일부 수정: 별점만 · 본문만 보내면 그 값만 바뀌고, 빈 본문 {}은 400 NO_FIELDS_TO_UPDATE, 별점 null은 400")
+    void partialPatch() {
+        String reviewId = write();
+
+        client.patch().uri(PATH + "/" + reviewId).headers(TestMembers.buyer(ME))
+            .contentType(MediaType.APPLICATION_JSON).body(Map.of("rating", 3))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.rating").isEqualTo(3)
+            .jsonPath("$.content").isEqualTo("좋아요");
+        client.patch().uri(PATH + "/" + reviewId).headers(TestMembers.buyer(ME))
+            .contentType(MediaType.APPLICATION_JSON).body(Map.of("content", "본문만 고침"))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.rating").isEqualTo(3)
+            .jsonPath("$.content").isEqualTo("본문만 고침");
+
+        expectProblem(client.patch().uri(PATH + "/" + reviewId).headers(TestMembers.buyer(ME))
+            .contentType(MediaType.APPLICATION_JSON).body(Map.of()).exchange(),
+            400, ReviewErrorCode.NO_FIELDS_TO_UPDATE);
+        Map<String, Object> nullRating = new HashMap<>();
+        nullRating.put("rating", null);
+        expectProblem(client.patch().uri(PATH + "/" + reviewId).headers(TestMembers.buyer(ME))
+            .contentType(MediaType.APPLICATION_JSON).body(nullRating).exchange(),
+            400, ReviewErrorCode.INVALID_RATING);
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForMap(
+            "select rating::int as rating, content from community.review where id = ?", Long.valueOf(reviewId)))
+            .containsEntry("rating", 3).containsEntry("content", "본문만 고침");
+    }
+
     private static void expectProblem(RestTestClient.ResponseSpec response, int status, ReviewErrorCode code) {
         response.expectStatus().isEqualTo(status)
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
