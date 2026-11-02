@@ -10,13 +10,18 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -144,6 +149,70 @@ class RecommendReplicaProductIntegrationTest {
 
         assertThat(count("select count(*) from recommend.replica_product where product_id = ?")).isEqualTo(1);
         assertThat(count("select count(*) from recommend.replica_product_size where product_id = ?")).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("상품 정보 변경됨을 받으면 브랜드 · 설명 · 사이즈별 실측이 저장되고, 다시 읽어도 실측 값이 같다")
+    void storeBrandDescriptionAndSizeSpecs() {
+        replicaProductService.applyProductChanged(eventWithDetails(List.of(
+            new ProductChangedEvent.SizeSpec("110", 105, 115,
+                Map.of("TOTAL_LENGTH", new BigDecimal("42.5"), "CHEST_WIDTH", new BigDecimal("34"))),
+            new ProductChangedEvent.SizeSpec("FREE", null, null, Map.of("HEAD_CIRCUMFERENCE", new BigDecimal("50")))),
+            PRODUCT_CHANGED_AT));
+
+        // 실측 줄은 지연 로딩이라 트랜잭션 안에서 읽는다. JSONB에서 읽은 숫자는 자릿수와 상관없이 값으로 비교한다
+        RecommendReplicaProduct stored = transactionTemplate.execute(status -> {
+            RecommendReplicaProduct product = replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow();
+            product.getSizeSpecs().size();
+            return product;
+        });
+        assertThat(stored.getBrand()).isEqualTo("키들리");
+        assertThat(stored.getDescription()).isEqualTo("상품 설명");
+        assertThat(stored.getSizeSpecs())
+            .usingRecursiveFieldByFieldElementComparator(RecursiveComparisonConfiguration.builder()
+                .withComparatorForType(BigDecimal::compareTo, BigDecimal.class).build())
+            .containsExactlyInAnyOrder(
+                new RecommendReplicaSizeSpec("110", 105, 115,
+                    Map.of("TOTAL_LENGTH", new BigDecimal("42.5"), "CHEST_WIDTH", new BigDecimal("34"))),
+                new RecommendReplicaSizeSpec("FREE", null, null, Map.of("HEAD_CIRCUMFERENCE", new BigDecimal("50"))));
+    }
+
+    @Test
+    @DisplayName("INV-R01 더 늦게 일어난 이벤트를 받으면 사이즈별 실측 행이 새 사이즈로 바뀌고 옛 사이즈 행은 남지 않는다")
+    void replaceSizeSpecRowsWithLaterEvent() {
+        replicaProductService.applyProductChanged(eventWithDetails(List.of(
+            new ProductChangedEvent.SizeSpec("110", 105, 115, Map.of("TOTAL_LENGTH", new BigDecimal("42"))),
+            new ProductChangedEvent.SizeSpec("120", 115, 125, Map.of("TOTAL_LENGTH", new BigDecimal("45")))),
+            PRODUCT_CHANGED_AT));
+
+        replicaProductService.applyProductChanged(eventWithDetails(List.of(
+            new ProductChangedEvent.SizeSpec("130", 125, 135, Map.of("TOTAL_LENGTH", new BigDecimal("48")))),
+            LATER));
+
+        assertThat(jdbcTemplate.queryForList(
+            "select size from recommend.replica_product_size_spec where product_id = ?", String.class,
+            PRODUCT_A_ID)).containsExactly("130");
+    }
+
+    @Test
+    @DisplayName("브랜드 · 설명 · 사이즈별 실측이 없는 예전 상품 정보 변경됨을 받아도 복사본을 저장하고 세 값은 비워 둔다")
+    void storeReplicaFromEventWithoutDetails() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+
+        assertThat(replicaProductRepository.findById(PRODUCT_A_ID)).get()
+            .extracting(RecommendReplicaProduct::getBrand, RecommendReplicaProduct::getDescription)
+            .containsExactly(null, null);
+        assertThat(count("select count(*) from recommend.replica_product_size_spec where product_id = ?"))
+            .isZero();
+    }
+
+    // 상품 A의 상품 정보 변경됨에 브랜드 · 설명 · 사이즈별 실측을 담는다. 옵션은 110 · 120이다
+    private static ProductChangedEvent eventWithDetails(List<ProductChangedEvent.SizeSpec> sizeSpecs,
+        LocalDateTime occurredAt) {
+        ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
+        return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
+            data.productId(), data.sellerId(), data.name(), data.categoryId(), data.status(), data.thumbnailUrl(),
+            data.createdAt(), data.sizeFree(), data.options(), data.infoValues(), "키들리", "상품 설명", sizeSpecs));
     }
 
     private long count(String sql) {
