@@ -210,6 +210,9 @@ class ProductUpdateApiTest {
             Arguments.of(Named.of("상품명이 101자",
                     (Consumer<Map<String, Object>>) body -> body.put("name", "가".repeat(101))),
                 "name: 상품명은 100자 이하로 입력해 주세요."),
+            Arguments.of(Named.of("설명이 5001자",
+                    (Consumer<Map<String, Object>>) body -> body.put("description", "가".repeat(5001))),
+                "description: 상품 설명은 5000자 이하로 입력해 주세요."),
             Arguments.of(Named.of("version이 없음", (Consumer<Map<String, Object>>) body -> body.put("version", null)),
                 "version: version이 필요합니다."),
             Arguments.of(Named.of("이미지 목록에 빈 칸", (Consumer<Map<String, Object>>) body ->
