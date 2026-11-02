@@ -20,6 +20,7 @@ public interface JpaReviewEligibilityRepository extends JpaRepository<ReviewElig
         from CommunityReviewEligibility e
         left join CommunityReplicaProduct p on p.productId = e.productId
         where e.memberId = :memberId
+          and not exists (select 1 from CommunityReview r where r.orderItemId = e.orderItemId)
         """;
     String ELIGIBLE_ORDER = " order by e.confirmedAt desc, e.id desc";
 

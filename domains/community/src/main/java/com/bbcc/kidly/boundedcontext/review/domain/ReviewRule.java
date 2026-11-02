@@ -1,0 +1,13 @@
+package com.bbcc.kidly.boundedcontext.review.domain;
+
+/**
+ * 리뷰 규칙 위반의 종류.
+ */
+public enum ReviewRule {
+    // 별점은 1~5 정수
+    RATING,
+    // 본문은 앞뒤 공백을 뺀 1~1000자
+    CONTENT,
+    // 수정 · 삭제는 작성자만
+    AUTHOR
+}
