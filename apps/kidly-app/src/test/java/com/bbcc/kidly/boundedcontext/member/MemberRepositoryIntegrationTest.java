@@ -7,8 +7,6 @@ import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
-import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
-import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
@@ -23,33 +21,14 @@ class MemberRepositoryIntegrationTest {
     private MemberRepository memberRepository;
 
     @Test
-    @DisplayName("소셜 계정으로 회원을 찾는다")
-    void findBySocialAccount() {
-        Member saved = memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
+    @DisplayName("가입 키로 회원을 찾고, 그 키로 가입한 회원이 없으면 찾지 못한다")
+    void findByRegistrationKey() {
+        Member saved = memberRepository.save(
+            Member.register(new MemberRegisterInfo("social-account:1", new Nickname("테스트회원"), MemberFixture.EMAIL)));
 
-        assertThat(memberRepository.findBySocialAccount(new SocialIdentity(OAuthProvider.KAKAO, "kakao-1")))
+        assertThat(memberRepository.findByRegistrationKey("social-account:1"))
             .hasValueSatisfying(found -> assertThat(found.getId()).isEqualTo(saved.getId()));
-    }
-
-    @Test
-    @DisplayName("연결된 소셜 계정이 없으면 찾지 못한다")
-    void notFound() {
-        memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
-
-        assertThat(memberRepository.findBySocialAccount(new SocialIdentity(OAuthProvider.KAKAO, "kakao-2"))).isEmpty();
-    }
-
-    @Test
-    @DisplayName("같은 소셜 계정은 두 회원에게 연결할 수 없다")
-    void duplicateSocialAccount() {
-        memberRepository.save(MemberFixture.kakaoMember("kakao-1"));
-
-        assertThatThrownBy(() -> memberRepository.save(
-            Member.register(
-                new MemberRegisterInfo(
-                    new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"), new Nickname("다른회원"), MemberFixture.EMAIL),
-                MemberFixture.NOW)))
-            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(memberRepository.findByRegistrationKey("social-account:2")).isEmpty();
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.bbcc.kidly.support;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.TimeZone;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.DynamicPropertyRegistrar;
@@ -17,6 +18,10 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public class ElasticsearchTestcontainersConfiguration {
 
     private static final int HTTP_PORT = 9200;
+
+    static {
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"));
+    }
 
     @Bean
     GenericContainer<?> elasticsearchContainer() {

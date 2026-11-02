@@ -12,11 +12,11 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberSuspension;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
-import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
-import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.auth.Role;
+import com.bbcc.kidly.shared.member.dto.MemberLoginState;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,30 +27,26 @@ import org.springframework.test.util.ReflectionTestUtils;
 class MemberTest {
 
     private static final Long ADMIN_ID = 99L;
+    private static final Long MEMBER_ID = 1L;
     private static final String REASON = "약관 위반";
-    private static final SocialIdentity KAKAO_1 = new SocialIdentity(OAuthProvider.KAKAO, "kakao-1");
 
     @Test
-    @DisplayName("가입하면 소셜 계정 1개를 가진 활성 일반 회원이 된다")
+    @DisplayName("가입하면 가입 키를 가진 활성 일반 회원이 된다")
     void register() {
-        Member member = Member.register(new MemberRegisterInfo(KAKAO_1, new Nickname("테스트회원"), EMAIL), NOW);
+        Member member = Member.register(new MemberRegisterInfo("social-account:1", new Nickname("테스트회원"), EMAIL));
 
+        assertThat(member.getRegistrationKey()).isEqualTo("social-account:1");
         assertThat(member.getNickname()).isEqualTo("테스트회원");
         assertThat(member.getEmail()).isEqualTo(EMAIL);
         assertThat(member.getRole()).isEqualTo(MemberRole.USER);
         assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
-        assertThat(member.getSocialAccounts()).singleElement().satisfies(account -> {
-            assertThat(account.getIdentity()).isEqualTo(new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"));
-            assertThat(account.getConnectedAt()).isEqualTo(NOW);
-            assertThat(account.getMember()).isSameAs(member);
-        });
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"하은", "가나다라마바사아자차카타파하가나다라마바"})
     @DisplayName("닉네임이 정확히 2자이거나 20자여도 가입하고 바꿀 수 있다")
     void acceptsNicknameBoundaryLength(String nickname) {
-        var registered = Member.register(new MemberRegisterInfo(KAKAO_1, new Nickname(nickname), EMAIL), NOW);
+        var registered = Member.register(new MemberRegisterInfo(null, new Nickname(nickname), EMAIL));
         var member = MemberFixture.kakaoMember();
 
         assertThat(registered.getNickname()).isEqualTo(nickname);
@@ -97,27 +93,40 @@ class MemberTest {
     }
 
     @Test
-    @DisplayName("활성 회원은 로그인할 수 있다")
-    void activeMemberCanLogin() {
-        assertThat(MemberFixture.kakaoMember().canLogin()).isTrue();
-    }
+    @DisplayName("활성 회원의 로그인 상태는 닉네임과 역할을 담는다")
+    void loginStateOfActive() {
+        var member = withId(MemberFixture.withSellerState(SellerStatus.ACTIVE));
 
-    @ParameterizedTest
-    @EnumSource(value = MemberStatus.class, names = {"SUSPENDED", "WITHDRAWN"})
-    @DisplayName("정지 · 탈퇴한 회원은 로그인할 수 없다")
-    void inactiveMemberCannotLogin(MemberStatus status) {
-        assertThat(MemberFixture.withStatus(status).canLogin()).isFalse();
+        assertThat(member.loginState()).isEqualTo(
+            new MemberLoginState.Active(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER, Role.SELLER)));
     }
 
     @Test
-    @DisplayName("정지하면 SUSPENDED이고 로그인할 수 없으며 사유 · 관리자 · 시각이 저장된다")
+    @DisplayName("정지한 회원의 로그인 상태는 Suspended다")
+    void loginStateOfSuspended() {
+        var member = withId(MemberFixture.kakaoMember());
+        member.suspend(ADMIN_ID, REASON, NOW);
+
+        assertThat(member.loginState()).isEqualTo(new MemberLoginState.Suspended(MEMBER_ID));
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원의 로그인 상태는 Withdrawn이다")
+    void loginStateOfWithdrawn() {
+        var member = withId(MemberFixture.kakaoMember());
+        member.withdraw(NOW);
+
+        assertThat(member.loginState()).isEqualTo(new MemberLoginState.Withdrawn(MEMBER_ID));
+    }
+
+    @Test
+    @DisplayName("정지하면 SUSPENDED이고 사유 · 관리자 · 시각이 저장된다")
     void suspend() {
         var member = MemberFixture.kakaoMember();
 
         member.suspend(ADMIN_ID, REASON, NOW);
 
         assertThat(member.getStatus()).isEqualTo(MemberStatus.SUSPENDED);
-        assertThat(member.canLogin()).isFalse();
         assertThat(member.getSuspension()).isEqualTo(new MemberSuspension(REASON, ADMIN_ID, NOW));
     }
 
@@ -158,18 +167,16 @@ class MemberTest {
     }
 
     @Test
-    @DisplayName("탈퇴하면 WITHDRAWN이고 탈퇴 시각이 남으며 닉네임 · 이메일 · 소셜 계정이 지워진다")
+    @DisplayName("탈퇴하면 WITHDRAWN이고 탈퇴 시각이 남으며 닉네임 · 이메일이 지워진다")
     void withdraw() {
         var member = MemberFixture.kakaoMember();
 
         member.withdraw(NOW);
 
         assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
-        assertThat(member.canLogin()).isFalse();
         assertThat(member.getWithdrawnAt()).isEqualTo(NOW);
         assertThat(member.getNickname()).isNull();
         assertThat(member.getEmail()).isNull();
-        assertThat(member.getSocialAccounts()).isEmpty();
     }
 
     @ParameterizedTest
@@ -195,7 +202,6 @@ class MemberTest {
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_WITHDRAWABLE));
         assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
-        assertThat(member.getSocialAccounts()).hasSize(1);
     }
 
     @Test
@@ -282,15 +288,6 @@ class MemberTest {
     void admin() {
         assertThat(MemberFixture.withRole(MemberRole.ADMIN).isAdmin()).isTrue();
         assertThat(MemberFixture.kakaoMember().isAdmin()).isFalse();
-    }
-
-    @Test
-    @DisplayName("소셜 계정 목록은 밖에서 바꿀 수 없다")
-    void socialAccountsAreReadOnly() {
-        Member member = MemberFixture.kakaoMember();
-
-        assertThatThrownBy(() -> member.getSocialAccounts().clear())
-            .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
@@ -398,6 +395,11 @@ class MemberTest {
         member.applySellerState(SellerStatus.ACTIVE, NOW);
 
         assertThat(member.roles()).containsExactly(Role.BUYER, Role.SELLER, Role.ADMIN);
+    }
+
+    private static Member withId(Member member) {
+        ReflectionTestUtils.setField(member, "id", MEMBER_ID);
+        return member;
     }
 
     private void assertStillActive(Member member) {

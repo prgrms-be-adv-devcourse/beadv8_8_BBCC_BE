@@ -5,12 +5,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberSummaryQuery;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
+import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * 정지 · 관리자 해제는 이미 발급된 Access Token을 무효화한다. 무효화(member.tokens-revoked 발행)를 Gateway가 받아 그 토큰을 거절한다.
+ * 정지 · 관리자 해제는 이미 발급된 Access Token을 무효화한다. 무효화(auth.tokens-revoked 발행)를 Gateway가 받아 그 토큰을 거절한다.
  */
 @ExtendWith(MockitoExtension.class)
 class AdminMemberServiceTest {
@@ -35,7 +35,7 @@ class AdminMemberServiceTest {
     private MemberSummaryQuery memberSummaryQuery;
 
     @Mock
-    private AccessTokenRevocationService accessTokenRevocationService;
+    private MemberTokenRevoker memberTokenRevoker;
 
     @InjectMocks
     private AdminMemberService adminMemberService;
@@ -47,7 +47,7 @@ class AdminMemberServiceTest {
 
         adminMemberService.suspend(MEMBER_ID, ADMIN_ID, new MemberSuspendRequest("신고 접수"));
 
-        then(accessTokenRevocationService).should().revoke(eq(MEMBER_ID), any(LocalDateTime.class));
+        then(memberTokenRevoker).should().revoke(eq(MEMBER_ID), any(LocalDateTime.class));
     }
 
     @Test
@@ -57,6 +57,6 @@ class AdminMemberServiceTest {
 
         adminMemberService.revokeAdmin(MEMBER_ID, ADMIN_ID);
 
-        then(accessTokenRevocationService).should().revoke(eq(MEMBER_ID), any(LocalDateTime.class));
+        then(memberTokenRevoker).should().revoke(eq(MEMBER_ID), any(LocalDateTime.class));
     }
 }

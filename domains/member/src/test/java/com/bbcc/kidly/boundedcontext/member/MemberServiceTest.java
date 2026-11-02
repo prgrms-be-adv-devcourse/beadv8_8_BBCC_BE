@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
@@ -13,6 +12,8 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
+import com.bbcc.kidly.shared.auth.out.SocialAccountFinder;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,14 +36,17 @@ class MemberServiceTest {
     private EventPublisher eventPublisher;
 
     @Mock
-    private AccessTokenRevocationService accessTokenRevocationService;
+    private MemberTokenRevoker memberTokenRevoker;
+
+    @Mock
+    private SocialAccountFinder socialAccountFinder;
 
     private MemberService memberService;
 
     @BeforeEach
     void setUp() {
         memberService = new MemberService(memberRepository, new NicknamePolicy(memberRepository), eventPublisher,
-            accessTokenRevocationService);
+            memberTokenRevoker, socialAccountFinder);
     }
 
     @Test

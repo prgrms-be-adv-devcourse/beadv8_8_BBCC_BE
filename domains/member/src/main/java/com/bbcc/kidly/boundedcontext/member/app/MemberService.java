@@ -6,6 +6,8 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
+import com.bbcc.kidly.shared.auth.out.SocialAccountFinder;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import java.time.LocalDateTime;
@@ -26,11 +28,12 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final NicknamePolicy nicknamePolicy;
     private final EventPublisher eventPublisher;
-    private final AccessTokenRevocationService accessTokenRevocationService;
+    private final MemberTokenRevoker memberTokenRevoker;
+    private final SocialAccountFinder socialAccountFinder;
 
     @Transactional(readOnly = true)
     public MemberResult getMine(Long memberId) {
-        return MemberResult.from(memberRepository.getById(memberId));
+        return MemberResult.from(memberRepository.getById(memberId), socialAccountFinder.findProviders(memberId));
     }
 
     // 지금 닉네임과 같으면 바꾸지 않고 이벤트도 발행하지 않는다
@@ -43,10 +46,10 @@ public class MemberService {
                 new MemberChangedEvent.Data(memberId, member.getNickname())));
             log.info("닉네임 변경: memberId={}", memberId);
         }
-        return MemberResult.from(member);
+        return MemberResult.from(member, socialAccountFinder.findProviders(memberId));
     }
 
-    // 신청하면 바로 탈퇴한다. 배송지 · 자녀 프로필은 탈퇴 이벤트를 받아 지운다
+    // 신청하면 바로 탈퇴한다. 배송지 · 자녀 프로필 · 소셜 계정 연결은 탈퇴 이벤트를 받아 지운다
     // Refresh Token은 탈퇴 회원의 재발급이 막히므로 남겨 두고, 만료되면 RefreshTokenCleaner가 지운다
     // TODO 예치금 잔액이 0원인지 확인한다 (결제 도메인)
     // TODO 진행 중인 주문이 없는지 확인한다 (주문 도메인)
@@ -56,7 +59,7 @@ public class MemberService {
         var now = LocalDateTime.now();
         var member = memberRepository.getById(memberId);
         member.withdraw(now);
-        accessTokenRevocationService.revoke(memberId, now);
+        memberTokenRevoker.revoke(memberId, now);
         eventPublisher.publish(
             new MemberWithdrawnEvent(UUID.randomUUID(), now, new MemberWithdrawnEvent.Data(memberId)));
         log.info("회원 탈퇴: memberId={}", memberId);

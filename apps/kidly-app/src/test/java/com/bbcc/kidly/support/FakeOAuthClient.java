@@ -1,9 +1,9 @@
 package com.bbcc.kidly.support;
 
-import com.bbcc.kidly.boundedcontext.member.app.port.OAuthClient;
-import com.bbcc.kidly.boundedcontext.member.app.port.OAuthProfile;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
-import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
+import com.bbcc.kidly.boundedcontext.auth.app.port.OAuthClient;
+import com.bbcc.kidly.boundedcontext.auth.app.port.OAuthProfile;
+import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
+import com.bbcc.kidly.boundedcontext.auth.domain.OAuthProvider;
 import com.bbcc.kidly.global.error.BusinessException;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
@@ -29,7 +29,7 @@ public class FakeOAuthClient implements OAuthClient {
     @Override
     public OAuthProfile fetchProfile(OAuthProvider provider, String code) {
         if (INVALID_CODE.equals(code)) {
-            throw new BusinessException(MemberErrorCode.INVALID_AUTHORIZATION_CODE);
+            throw new BusinessException(AuthErrorCode.INVALID_AUTHORIZATION_CODE);
         }
         return new OAuthProfile(code, nicknameOf(code), NO_EMAIL_CODE.equals(code) ? null : EMAIL);
     }

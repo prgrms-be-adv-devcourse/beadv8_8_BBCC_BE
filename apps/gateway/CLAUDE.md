@@ -19,12 +19,12 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - nginx가 넣은 `Host` · `X-Forwarded-*`는 덧붙이지 않고 그대로 넘긴다(`PreserveHostHeader`, `trusted-proxies`, `x-forwarded.*-enabled: false`). Gateway 자신은 `server.forward-headers-strategy: native`로 https · 원래 호스트로 본다(같은 출처 판단)
 
 ## 무효화 목록
-- `revocation/AccessTokenRevocations`: 회원 ID → 무효화 시각, 메모리. 그 시각까지(초 단위, 같은 초 포함) 발급된 토큰은 401
-- `kidly.member.events`의 `member.tokens-revoked`를 받아 채운다. 구독 그룹 `kidly.gateway`, 다른 종류는 건너뛴다
+- `revocation/AccessTokenRevocations`: (주체 종류, 주체 ID) → 무효화 시각, 메모리. 그 시각까지(초 단위, 같은 초 포함) 발급된 토큰은 401
+- `kidly.auth.events`의 `auth.tokens-revoked`를 받아 채운다(발행은 인증 도메인, `domains/auth`). 구독 그룹 `kidly.gateway`, 다른 종류는 건너뛴다
 - 메모리라 다시 뜨면 빈다. 그래서 파티션을 받을 때마다 31분 전(Access Token 유효 기간 30분 + 시계 오차 60초)으로 되감아 다시 읽는다. 구독 그룹의 책갈피로 시작 위치를 정하지 않는다(31분 안에 메시지가 없는 파티션만 책갈피 위치에서 읽는다. 거기 있는 메시지는 보존 기간이 지나 결과가 같다)
-- 읽기 실패는 재시도 없이 DLT `kidly.member.events.gateway.dlt` + ERROR 로그(본문 없이 `eventType` · `eventId` · 키)
+- 읽기 실패는 재시도 없이 DLT `kidly.auth.events.gateway.dlt` + ERROR 로그(본문 없이 `eventType` · `eventId` · 키)
 - 31분 안에서 읽지 못해 DLT로 간 메시지는 Gateway가 다시 뜰 때마다 다시 읽혀 DLT로 다시 간다(ERROR 로그도 다시)
-- `jwt.access-token-validity`는 kidly-app `auth.yml`과 같아야 한다
+- `jwt.access-token-validity`는 인증 도메인(`domains/auth`)의 `auth.yml`과 같아야 한다
 - 한계: 기동 직후 되감아 다 읽기 전에는 무효화된 토큰도 통과한다. 서비스는 토큰을 보지 않으므로 dev · prod 모두 이 사이는 실제로 뚫린다(prod 전환 전 readiness로 줄일 일)
 
 ## 지켜야 할 것

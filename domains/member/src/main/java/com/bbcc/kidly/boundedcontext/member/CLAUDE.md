@@ -3,16 +3,15 @@
 ## Kafka 발행 (#548 · #562 · #588)
 - 회원이 발행한 이벤트(`member.*`)를 토픽 `kidly.member.events`로 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
 - 키 = `correlationId`(회원 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
-- 받는 쪽: 알림(`member.registered`) · 판매자(`member.changed`) · 자녀 프로필(`member.withdrawn`)은 Kafka로(#567 · #568 · #569), 결제(`member.registered`)는 아직 Spring 이벤트(`@DomainEventListener`)로 받는다. Kafka로 옮기는 건 받는 도메인이 한다. 회원이 자기 이벤트(`member.withdrawn`)를 받는 리스너는 같은 도메인 안이라 Spring으로 둔다. `member.tokens-revoked`는 Gateway(`apps/gateway`, #622)가 받는다
-- 보내는 길이 둘이다. 잃으면 피해가 영구적인 탈퇴만 아웃박스로 보낸다(결정: 잃으면 자녀 프로필이 탈퇴 회원의 자녀 정보를 지우지 못함). 토큰 무효화는 잃으면 Gateway가 그 회원의 Access Token을 만료(최대 30분)까지 통과시키지만 그 뒤로는 피해가 없어 커밋 뒤 바로 보낸다
+- 받는 쪽: 알림(`member.registered`) · 판매자(`member.changed`) · 자녀 프로필(`member.withdrawn`)은 Kafka로(#567 · #568 · #569), 결제(`member.registered`)는 아직 Spring 이벤트(`@DomainEventListener`)로 받는다. Kafka로 옮기는 건 받는 도메인이 한다. 회원이 자기 이벤트(`member.withdrawn`)를 받는 리스너는 같은 도메인 안이라 Spring으로 둔다
+- 보내는 길이 둘이다. 잃으면 피해가 영구적인 탈퇴만 아웃박스로 보낸다(결정: 잃으면 자녀 프로필이 탈퇴 회원의 자녀 정보를 지우지 못함)
 
 | 이벤트 | 보내는 길 |
 |---|---|
-| `member.registered` · `member.changed` · `member.tokens-revoked` | 커밋 뒤 바로(`app/MemberEventRelay` → 회원 전용 스레드 `member-kafka-sender`) |
+| `member.registered` · `member.changed` | 커밋 뒤 바로(`app/MemberEventRelay` → 회원 전용 스레드 `member-kafka-sender`) |
 | `member.withdrawn` | 아웃박스(`app/outbox/MemberOutboxRecorder` → `member.member_outbox` → 1초 릴레이) |
 
-- 커밋 뒤 바로(가입 · 변경 · 토큰 무효화)
-  - 토큰 무효화는 `AccessTokenRevocationService.revoke()` 한 곳에서 발행한다(탈퇴 · 관리자 정지 · 권한 회수 · Refresh Token 재사용 감지 · 판매자 정지)
+- 커밋 뒤 바로(가입 · 변경)
   - Relay는 `HIGHEST_PRECEDENCE`로 다른 커밋 뒤 리스너보다 먼저 대기열에 넣는다. 스레드가 하나라 받은 순서대로 보낸다. 브로커가 죽어도 커밋 뒤 요청 스레드는 기다리지 않는다
   - 대기열은 10,000건까지다. 넘치면 버리고 ERROR 로그를 남긴다. 앱이 내려갈 때는 남은 전송을 10초까지 기다린다. 대기열에 있는 동안 앱이 죽거나 브로커가 꺼져 있으면 잃는다
   - 설정: `out/kafka/MemberKafkaConfig`(토픽 선언 파티션 3 · 복제 1, 전용 템플릿 `max.block.ms` 3초, 전송 스레드)
@@ -27,9 +26,13 @@
   - 설정: `out/outbox/MemberOutboxKafkaConfig`(전용 템플릿 `max.block.ms` 3초 · `delivery.timeout.ms` 10초), `member.yml`(`kidly.member.outbox.*`)
 - `member.registered`에 이메일이 있으므로 본문을 로그에 남기지 않는다. 실패 로그 · 기록은 `eventType` · `eventId` · 키 · 원인만, 스케줄러 예외는 예외 종류만 남긴다. 전용 템플릿 둘 다 본문을 찍는 기본 실패 로그를 끈다
 
+## Access Token 무효화 (#686)
+- 회원은 Access Token을 직접 발급 · 무효화하지 않는다. 탈퇴 · 관리자 정지 · 권한 회수 · 판매자 정지에서 `shared.auth.out.MemberTokenRevoker.revoke(memberId, revokedAt)`만 부른다(호출자 트랜잭션 안에서만, `MemberService` · `AdminMemberService` · `SellerStateService`)
+- 구현은 인증 도메인(`AccessTokenRevocationService`)이다. `auth.tokens-revoked`를 `kidly.auth.events`로 커밋 뒤 바로 보내고, Gateway가 받아 그 시각까지 발급된 토큰을 거절한다. 잃으면 Gateway가 그 회원의 Access Token을 만료(최대 30분)까지 통과시키지만 그 뒤로는 피해가 없어 아웃박스를 쓰지 않는다(인증 도메인 CLAUDE.md)
+
 ## Kafka 수신 (`in/SellerEventListener`, #608)
 - 구독 그룹 `kidly.member`로 `kidly.seller.events`의 `seller.changed`만 받는다. 그 밖의 종류는 읽지 않고 건너뛴다. 종류는 헤더 `eventType`으로 고른다
-- 본문(공통 칸 7개 + `data`)을 `SellerChangedEvent`로 읽어 `SellerStateService.apply`에 넘긴다. 트랜잭션은 `apply`가 열고, SELLER를 잃으면 그 안에서 Access Token을 무효화한다(→ `member.tokens-revoked`)
+- 본문(공통 칸 7개 + `data`)을 `SellerChangedEvent`로 읽어 `SellerStateService.apply`에 넘긴다. 트랜잭션은 `apply`가 열고, SELLER를 잃으면 그 안에서 `MemberTokenRevoker`를 부른다(→ `auth.tokens-revoked`)
 - 같은 메시지를 다시 받거나 순서가 바뀌어 와도 늦게 일어난 변경(`occurredAt`)만 반영하고, 이미 SELLER가 없으면 다시 무효화하지 않는다. 그래서 한 번 이상 받아도 된다
 - 실패 처리(`in/MemberKafkaListenerConfig`): 한 건씩 처리 완료를 커밋하고, 실패하면 1초 간격으로 3번 더 시도한 뒤 DLT `kidly.seller.events.member.dlt`로 보낸다
   - 재시도 없이 바로 DLT: 읽지 못한 본문(`JacksonException`), 업무 규칙 위반(`BusinessException`. 회원 없음 등). 회원은 판매자보다 먼저 있으므로 다시 해도 같다

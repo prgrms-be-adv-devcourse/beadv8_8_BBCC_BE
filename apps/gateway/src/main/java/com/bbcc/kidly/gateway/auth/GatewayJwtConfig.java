@@ -1,6 +1,8 @@
 package com.bbcc.kidly.gateway.auth;
 
 import com.bbcc.kidly.gateway.revocation.AccessTokenRevocations;
+import com.bbcc.kidly.gateway.revocation.PrincipalKey;
+import com.bbcc.kidly.shared.auth.PrincipalType;
 import java.time.Instant;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +17,7 @@ import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 
 /**
- * 공개키로 서명을 확인하고, 기본 검사(만료 등, 시계 오차 60초) 뒤 무효화된 회원인지 본다.
+ * 공개키로 서명을 확인하고, 기본 검사(만료 등, 시계 오차 60초) 뒤 무효화된 주체인지 본다.
  */
 @Configuration
 class GatewayJwtConfig {
@@ -33,7 +35,8 @@ class GatewayJwtConfig {
     ReactiveJwtDecoder jwtDecoder(GatewayJwtProperties jwtProperties, AccessTokenRevocations revocations) {
         var decoder = NimbusReactiveJwtDecoder.withPublicKey(jwtProperties.rsaPublicKey()).build();
         OAuth2TokenValidator<Jwt> notRevoked = jwt ->
-            revocations.isRevoked(Long.valueOf(jwt.getSubject()), jwt.getIssuedAt(), Instant.now())
+            revocations.isRevoked(new PrincipalKey(PrincipalType.MEMBER, Long.valueOf(jwt.getSubject())),
+                jwt.getIssuedAt(), Instant.now())
                 ? OAuth2TokenValidatorResult.failure(REVOKED)
                 : OAuth2TokenValidatorResult.success();
         decoder.setJwtValidator(JwtValidators.createDefaultWithValidators(

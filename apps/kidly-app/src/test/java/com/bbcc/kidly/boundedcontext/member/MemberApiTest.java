@@ -2,12 +2,14 @@ package com.bbcc.kidly.boundedcontext.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.auth.SocialAccountFixture;
+import com.bbcc.kidly.boundedcontext.auth.domain.SocialAccountRepository;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
-import com.bbcc.kidly.boundedcontext.member.in.RefreshTokenCookies;
 import com.bbcc.kidly.boundedcontext.member.in.dto.MemberResponse;
+import com.bbcc.kidly.global.security.RefreshTokenCookies;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -36,10 +38,14 @@ class MemberApiTest {
     @Autowired
     private MemberRepository memberRepository;
 
+    @Autowired
+    private SocialAccountRepository socialAccountRepository;
+
     @Test
-    @DisplayName("로그인한 회원의 id, 닉네임, 이메일, 역할을 준다")
+    @DisplayName("로그인한 회원의 id, 닉네임, 이메일, 역할, 로그인 제공자를 준다")
     void getMe() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
+        socialAccountRepository.save(SocialAccountFixture.linked(member.getId(), "kakao-1"));
 
         var response = getMine(TestMembers.buyer(member.getId()))
             .expectStatus().isOk()
@@ -52,6 +58,19 @@ class MemberApiTest {
         assertThat(response.roles()).containsExactly(Role.BUYER);
         assertThat(response.sellerStatus()).isNull();
         assertThat(response.providers()).containsExactly("KAKAO");
+    }
+
+    @Test
+    @DisplayName("연결된 소셜 계정이 없으면 providers는 빈 목록이다")
+    void getMeWithoutSocialAccount() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+
+        var response = getMine(TestMembers.buyer(member.getId()))
+            .expectStatus().isOk()
+            .returnResult(MemberResponse.class)
+            .getResponseBody();
+
+        assertThat(response.providers()).isEmpty();
     }
 
     @Test
@@ -112,6 +131,7 @@ class MemberApiTest {
     @DisplayName("닉네임을 바꾸면 200과 바뀐 닉네임, 이메일, 로그인 제공자를 주고 DB에도 반영한다")
     void updateNickname() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
+        socialAccountRepository.save(SocialAccountFixture.linked(member.getId(), "kakao-1"));
 
         var response = patchMine(TestMembers.buyer(member.getId()), new MemberUpdateRequest("하은맘"))
             .expectStatus().isOk()

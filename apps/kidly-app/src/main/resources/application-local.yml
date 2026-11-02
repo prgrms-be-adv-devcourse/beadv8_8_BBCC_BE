@@ -23,3 +23,6 @@ kidly:
     image:
       s3:
         fake-credentials: true
+  # 로컬은 http라서 Secure 쿠키를 브라우저가 보내지 않는다. 운영은 기본값(true)을 쓴다
+  security:
+    secure-cookie: false

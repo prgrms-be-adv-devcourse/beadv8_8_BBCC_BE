@@ -8,7 +8,6 @@ import static org.mockito.Mockito.never;
 import com.bbcc.kidly.boundedcontext.member.app.MemberEventRelay;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberEventSender;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
-import com.bbcc.kidly.shared.member.event.MemberTokensRevokedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
@@ -58,15 +57,5 @@ class MemberEventRelayTest {
         memberEventRelay.relay(event);
 
         then(memberEventSender).should(never()).send(any());
-    }
-
-    @Test
-    @DisplayName("토큰 무효화는 커밋 뒤 바로 넘긴다(아웃박스 아님)")
-    void relayTokensRevoked() {
-        var event = new MemberTokensRevokedEvent(UUID.randomUUID(), NOW, new MemberTokensRevokedEvent.Data(1L, NOW));
-
-        memberEventRelay.relay(event);
-
-        then(memberEventSender).should().send(event);
     }
 }

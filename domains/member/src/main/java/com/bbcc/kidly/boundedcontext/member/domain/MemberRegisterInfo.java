@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.member.domain;
 
 /**
- * {@link Member#register} 입력. 값만 담고, 검증은 엔티티가 한다.
+ * {@link Member#register} 입력. 값만 담는다.
  */
-public record MemberRegisterInfo(SocialIdentity identity, Nickname nickname, String email) {
+public record MemberRegisterInfo(String registrationKey, Nickname nickname, String email) {
 }

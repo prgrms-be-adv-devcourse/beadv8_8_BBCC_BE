@@ -61,7 +61,7 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
 
 ### 5. 도메인 공통 스택은 모든 도메인이 쓰는 것만
 
-`kidly.domain`에는 모든 도메인 코드가 쓰는 것(webmvc · validation · data-jpa · QueryDSL)만 넣는다. 한 도메인만 쓰는 것은 그 도메인 빌드 파일에 둔다: member=JWT 발급(spring-security-oauth2-jose), notification=mail, product=AWS S3, settlement=batch. Swagger UI(springdoc)는 실행되는 앱(서비스)이 화면을 여는 것이라 앱 모듈에 둔다.
+`kidly.domain`에는 모든 도메인 코드가 쓰는 것(webmvc · validation · data-jpa · QueryDSL)만 넣는다. 한 도메인만 쓰는 것은 그 도메인 빌드 파일에 둔다: auth=JWT 발급(spring-security-oauth2-jose), notification=mail, product=AWS S3, settlement=batch. Swagger UI(springdoc)는 실행되는 앱(서비스)이 화면을 여는 것이라 앱 모듈에 둔다.
 
 ## 도메인 옮기는 법
 
@@ -117,7 +117,7 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
 
    루트 `settings.gradle.kts`에 `include("apps:{d}-service")`. 서비스가 둘 이상이 되면 위 런타임 묶음을 `kidly.boot-app`으로 올린다
 2. **메인 클래스**: `apps/{d}-service/src/main/java/com/bbcc/kidly/{D}Application.java`. 패키지는 `com.bbcc.kidly`여야 한다. 컴포넌트 · 엔티티 · `@ConfigurationProperties` 스캔이 이 패키지 아래의 클래스패스(의존한 도메인 jar)만 훑어, 의존하지 않은 도메인은 뜨지 않는다
-3. **설정**: `apps/{d}-service/src/main/resources/application.yml`. `kidly-app`의 것에서 그 서비스에 필요한 것만 가져온다(`spring.application.name`, Flyway `schemas`는 자기 스키마만, JWT 설정은 member-service만 둔다(토큰 검증은 Gateway가 하므로 다른 서비스는 키가 필요 없다), `config.import`는 자기 도메인 yml만)
+3. **설정**: `apps/{d}-service/src/main/resources/application.yml`. `kidly-app`의 것에서 그 서비스에 필요한 것만 가져온다(`spring.application.name`, Flyway `schemas`는 자기 스키마만, JWT 설정은 auth-service만 둔다(토큰 검증은 Gateway가 하므로 다른 서비스는 키가 필요 없다), `config.import`는 자기 도메인 yml만)
 4. **마이그레이션 분리** (아래 "서비스를 뗄 때 마이그레이션")
 5. **kidly-app에서 빼기**: `apps/kidly-app/build.gradle.kts`의 `domains` 목록에서 `{d}`를 지우고, `application.yml`의 `config.import`에서 `{d}.yml`을 지운다. kidly-app의 Flyway는 빠진 마이그레이션을 무시하게 `spring.flyway.ignore-migration-patterns: "*:missing"`을 둔다
 6. **이미지 · 배포**: `docker build --build-arg APP={d}-service .`. compose · nginx 라우팅 · Prometheus 수집 대상 추가는 `wiki/멀티모듈 분리와 MSA 전환 가이드.md` 4단계

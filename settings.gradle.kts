@@ -22,6 +22,7 @@ include("shared")
 include("common")
 // ArchUnit 공통 규칙. 도메인 모듈과 앱의 archTest가 쓴다
 include("architecture")
+include("domains:auth")
 include("domains:member")
 include("domains:seller")
 include("domains:childprofile")

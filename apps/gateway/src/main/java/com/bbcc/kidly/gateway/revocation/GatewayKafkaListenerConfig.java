@@ -22,7 +22,7 @@ import org.springframework.kafka.support.ProducerListener;
 import org.springframework.util.backoff.FixedBackOff;
 
 /**
- * Gateway가 member.tokens-revoked를 받을 때 쓰는 컨테이너 팩토리 · DLT.
+ * Gateway가 auth.tokens-revoked를 받을 때 쓰는 컨테이너 팩토리 · DLT.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고, 한 건씩 처리 완료를 표시한다.
  * 메모리에 넣기만 해서 잠깐 실패할 일이 없으므로 재시도하지 않는다: 어떤 예외든 바로 DLT로 보낸다.
  * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate에 영향이 없다.
@@ -31,13 +31,13 @@ import org.springframework.util.backoff.FixedBackOff;
 @Configuration
 class GatewayKafkaListenerConfig {
 
-    static final String MEMBER_EVENTS = "kidly.member.events";
+    static final String AUTH_EVENTS = "kidly.auth.events";
     static final String GROUP = "kidly.gateway";
     private static final String DLT_SUFFIX = ".gateway.dlt";
 
     @Bean
-    NewTopic gatewayMemberEventsDeadLetterTopic() {
-        return TopicBuilder.name(MEMBER_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
+    NewTopic gatewayAuthEventsDeadLetterTopic() {
+        return TopicBuilder.name(AUTH_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
@@ -52,7 +52,7 @@ class GatewayKafkaListenerConfig {
         return factory;
     }
 
-    // 실패한 메시지는 재시도 없이 kidly.member.events.gateway.dlt로 보낸다
+    // 실패한 메시지는 재시도 없이 kidly.auth.events.gateway.dlt로 보낸다
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
