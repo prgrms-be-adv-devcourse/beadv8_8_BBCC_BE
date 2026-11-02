@@ -33,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.kafka.KafkaContainer;
 
 /**
  * 판매자 · 상품 도메인이 실제로 보낸 메시지를 추천이 읽어 복사본에 저장하는지(#576),
@@ -74,12 +75,15 @@ class RecommendKafkaFromProducersIntegrationTest {
     @Autowired
     private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
 
+    @Autowired
+    private KafkaContainer kafka;
+
     private List<MessageListenerContainer> listeners;
 
     // 리스너는 이 테스트 안에서만 켠다
     @BeforeEach
-    void startListeners() {
-        listeners = RecommendKafkaMessages.startListeners(kafkaListenerEndpointRegistry);
+    void startListeners() throws Exception {
+        listeners = RecommendKafkaMessages.startListeners(kafkaListenerEndpointRegistry, kafka.getBootstrapServers());
     }
 
     // stop()은 처리 중인 메시지가 끝날 때까지 기다리므로 뒤이은 테이블 비우기와 겹치지 않는다

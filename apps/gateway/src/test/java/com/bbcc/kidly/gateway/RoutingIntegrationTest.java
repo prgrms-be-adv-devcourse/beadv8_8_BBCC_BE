@@ -106,6 +106,17 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
+    @DisplayName("자녀 프로필 API 문서는 자녀 프로필 서비스의 /v3/api-docs로 넘긴다")
+    void routesChildProfileApiDocsToChildProfileService() {
+        client.get().uri("/v3/api-docs/childprofile").exchange()
+            .expectStatus().isOk();
+
+        assertThat(childProfileBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/v3/api-docs")));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
     @DisplayName("children으로 시작하기만 하는 다른 경로는 kidly-app에 넘긴다")
     void routesChildrenPrefixLookalikeToKidlyApp() {
         client.get().uri("/api/v1/childrenx").exchange()

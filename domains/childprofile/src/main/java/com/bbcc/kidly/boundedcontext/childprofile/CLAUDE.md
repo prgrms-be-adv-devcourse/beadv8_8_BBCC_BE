@@ -20,10 +20,11 @@
 - 설정은 자녀 프로필 안에만 둔다: `out/outbox/ChildProfileKafkaConfig`(토픽 선언 파티션 3 · 복제 1, 전용 템플릿 `max.block.ms` 3초 · `delivery.timeout.ms` 10초, 본문을 찍는 기본 실패 로그 끔), `childprofile.yml`(`kidly.childprofile.outbox.*`)
 
 ## 자녀 프로필 서비스 (`apps/childprofile-service`, #682)
-- 이 도메인만 띄우는 서비스. kidly-app도 아직 이 도메인을 가지고 같은 DB · 구독 그룹(`kidly.childprofile`)으로 함께 돈다. kidly-app에서 빼는 건 다음 PR
-- Gateway가 `/api/v1/children/**`를 `KIDLY_CHILDPROFILE_URI`로 보낸다. dev만 서비스(`.env.dev`), 값을 지우면 kidly-app이 받는다
-- 실행: `./gradlew :apps:childprofile-service:bootRun`(포트 8084, 프로필 local). 서버는 profile `childprofile`, `127.0.0.1:8085`, 프로필 `prod`만(초기 데이터는 kidly-app이 넣는다). local은 두 앱 모두 초기 데이터 러너가 돌아, 빈 DB에서 둘을 동시에 띄우면 초기 자녀가 둘 생길 수 있다
+- 이 도메인은 이 서비스에서만 돈다. kidly-app에는 없다. 자녀 API · 자녀 이벤트 발행 · 회원 탈퇴 수신(구독 그룹 `kidly.childprofile`) 모두 서비스가 한다
+- 테스트는 `apps/childprofile-service/src/test`에 있다. 회원 도메인이 없으므로 회원 탈퇴 수신 테스트는 회원이 보내는 형식으로 토픽에 직접 넣는다
+- Gateway가 `/api/v1/children/**`를 `KIDLY_CHILDPROFILE_URI`로 보낸다. 기본값이 서비스라 서비스가 없으면 자녀 API가 실패한다
+- 실행: `./gradlew :apps:childprofile-service:bootRun`(포트 8084, 프로필 local, 초기 자녀 데이터를 넣는다). 서버는 compose profile `childprofile`, dev `127.0.0.1:8085` · prod `127.0.0.1:8088`, 스프링 프로필은 서버 `.env`의 `SPRING_PROFILES_ACTIVE`(dev는 `prod,dev`라 초기 자녀 데이터를 넣고, prod는 넣지 않는다)
 - Flyway: 자기 이력 테이블 `childprofile.flyway_schema_history_childprofile`. 자녀 테이블이 있는 DB는 첫 기동 때 `202610300953`으로 baseline
-- 함께 도는 동안 지킬 것
-  - 이 도메인에 새 마이그레이션을 넣으면 kidly-app과 서비스가 각자 이력으로 둘 다 적용하려 한다. 다음 PR(kidly-app에서 빼기) 전에는 넣지 않는다
-  - 빈 DB에서는 kidly-app이 먼저 마이그레이션해야 한다. 서비스가 먼저 자녀 테이블을 만들면 kidly-app의 init이 `relation "child_profile" already exists`로 실패한다(로컬에서 확인). 서버 compose는 서비스가 `app`의 healthy를 기다린다
+  - 새 마이그레이션은 이 모듈의 `db/migration/childprofile/`에 둔다. kidly-app에는 이 jar가 없어 서비스만 적용한다
+  - 빈 DB에서는 kidly-app이 먼저 마이그레이션해야 한다. kidly-app의 init(고칠 수 없음)이 자녀 테이블도 만들어, 서비스가 먼저 만들면 kidly-app의 init이 `relation "child_profile" already exists`로 실패한다(로컬에서 확인). 서버 compose는 서비스가 `app`의 healthy를 기다린다
+  - kidly-app이 먼저 만든 빈 DB에는 아웃박스가 없다. 서비스가 baseline으로 원래 아웃박스 파일을 건너뛰므로 `V202611021428__child_profile_outbox_if_missing`이 같은 테이블을 만든다

@@ -6,13 +6,16 @@ import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -46,14 +49,33 @@ final class RecommendKafkaMessages {
 
     // 추천 그룹의 리스너만 켜고, 모두 파티션을 배정받을 때까지 기다린다.
     // 읽기 시작 위치가 latest라 파티션을 배정받기 전에 보낸 메시지는 받지 못한다
-    static List<MessageListenerContainer> startListeners(KafkaListenerEndpointRegistry registry) {
+    static List<MessageListenerContainer> startListeners(KafkaListenerEndpointRegistry registry,
+        String bootstrapServers) throws Exception {
         List<MessageListenerContainer> listeners = registry.getAllListenerContainers().stream()
             .filter(container -> GROUP.equals(container.getGroupId()))
             .toList();
+        createSubscribedTopics(listeners, bootstrapServers);
         listeners.forEach(MessageListenerContainer::start);
         AsyncWait.until(TIMEOUT, () -> listeners.stream()
             .allMatch(container -> !container.getAssignedPartitions().isEmpty()));
         return listeners;
+    }
+
+    // 운영에서는 보내는 서비스가 토픽을 만들지만, 테스트 브로커에는 그 서비스가 없다(자녀 프로필은 별도 서비스).
+    // 추천이 구독하는 토픽을 보내는 쪽과 같은 모양(파티션 3 · 복제 1)으로 미리 만든다. 이미 있으면 그대로 둔다
+    private static void createSubscribedTopics(List<MessageListenerContainer> listeners, String bootstrapServers)
+        throws Exception {
+        var topics = listeners.stream()
+            .flatMap(container -> Arrays.stream(container.getContainerProperties().getTopics()))
+            .collect(Collectors.toSet());
+        try (Admin admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers))) {
+            var existing = admin.listTopics().names().get(10, TimeUnit.SECONDS);
+            var missing = topics.stream()
+                .filter(topic -> !existing.contains(topic))
+                .map(topic -> new NewTopic(topic, 3, (short) 1))
+                .toList();
+            admin.createTopics(missing).all().get(10, TimeUnit.SECONDS);
+        }
     }
 
     // 보내는 도메인과 같은 형식으로 넣는다. 키는 correlationId, 헤더는 eventType · eventId, 본문은 공통 칸 7개 + data다

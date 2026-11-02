@@ -60,6 +60,13 @@ spring:
               uri: ${kidly.gateway.childprofile-uri}
               predicates:
                 - Path=/api/v1/children/**
+            # 자녀 프로필 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
+            - id: childprofile-api-docs
+              uri: ${kidly.gateway.childprofile-uri}
+              predicates:
+                - Path=/v3/api-docs/childprofile
+              filters:
+                - SetPath=/v3/api-docs
             # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}
@@ -110,8 +117,8 @@ kidly:
     app-uri: http://localhost:8080
     # 상품 목록도 기본은 kidly-app이 받는다. search-service(8082)로 볼 때만 KIDLY_SEARCH_URI=http://localhost:8082로 띄운다
     search-uri: ${KIDLY_SEARCH_URI:http://localhost:8080}
-    # 자녀 프로필도 기본은 kidly-app이 받는다. childprofile-service(8084)로 볼 때만 KIDLY_CHILDPROFILE_URI=http://localhost:8084로 띄운다
-    childprofile-uri: ${KIDLY_CHILDPROFILE_URI:http://localhost:8080}
+    # 자녀 프로필은 kidly-app에 없다. childprofile-service(8084)를 띄워야 자녀 API가 된다
+    childprofile-uri: ${KIDLY_CHILDPROFILE_URI:http://localhost:8084}
 
 cors:
   allowed-origins: http://localhost:5173

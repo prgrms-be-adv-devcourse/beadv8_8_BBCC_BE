@@ -7,8 +7,6 @@ import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
-import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -20,6 +18,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,18 +45,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * member.withdrawn이 커밋되면 kidly.member.events를 거쳐 그 회원의 자녀를 모두 삭제한다(#569).
  * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
  * 회원 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 회원 ID · 키로 걸러 본다.
  * 자녀마다 삭제 이벤트를 발행하는 것은 서비스 동작이라 ChildProfileServiceIntegrationTest가 본다.
- * 회원은 탈퇴를 아웃박스에 저장하고 릴레이가 보낸다(#562). 테스트 설정은 릴레이를 돌리지 않으므로 발행한 뒤 직접 부른다.
+ * 이 서비스에는 회원 도메인이 없으므로 회원이 보내는 형식(키 correlationId, 헤더 eventType · eventId, 본문 공통 칸 7개 + data)으로
+ * 토픽에 직접 넣는다. 회원 토픽은 KafkaTestcontainersConfiguration이 선언한다.
  */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
@@ -76,22 +75,13 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
-
-    @Autowired
     private ChildProfileService childProfileService;
 
     @Autowired
     private ChildProfileRepository childProfileRepository;
 
     @Autowired
-    private MemberOutboxRelayService memberOutboxRelayService;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private JsonMapper jsonMapper;
 
     @Autowired
     private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
@@ -120,12 +110,12 @@ class ChildProfileMemberEventKafkaIntegrationTest {
 
     @Test
     @DisplayName("탈퇴 이벤트가 커밋되면 Kafka로 받아 그 회원의 자녀를 모두 삭제한다")
-    void deleteChildrenOnWithdraw() {
+    void deleteChildrenOnWithdraw() throws Exception {
         childProfileService.register(memberId, REQUEST);
         childProfileService.register(memberId, REQUEST);
         var other = childProfileService.register(otherMemberId, REQUEST).id();
 
-        publishInTransaction(memberWithdrawn());
+        send(memberWithdrawn());
 
         AsyncWait.until(TIMEOUT, () -> childrenOf(memberId).isEmpty());
         assertThat(childrenOf(otherMemberId)).extracting(ChildProfile::getId).containsExactly(other);
@@ -133,15 +123,14 @@ class ChildProfileMemberEventKafkaIntegrationTest {
 
     @Test
     @DisplayName("같은 탈퇴 이벤트를 두 번 받아도 결과는 한 번 받은 것과 같고 DLT로 보내지 않는다")
-    void duplicateEvent() {
+    void duplicateEvent() throws Exception {
         childProfileService.register(memberId, REQUEST);
         var other = childProfileService.register(otherMemberId, REQUEST).id();
         var event = memberWithdrawn();
 
-        publishInTransaction(event);
-        // 릴레이가 보낸 뒤 커밋 전에 멈춘 것처럼 보낸 기록을 지워, 같은 메시지를 한 번 더 보낸다
-        jdbcTemplate.update("update member.member_outbox set sent_at = null where event_id = ?", event.eventId());
-        memberOutboxRelayService.relay();
+        // 회원 릴레이가 보낸 뒤 보낸 기록을 남기기 전에 멈추면 같은 메시지를 한 번 더 보낸다
+        send(event);
+        send(event);
 
         // 두 번째에는 지울 자녀가 없어 결과가 바뀌지 않으므로, 그룹이 두 번째 메시지까지 처리 완료를 표시할 때까지 기다린다
         awaitProcessed(event.eventId());
@@ -155,10 +144,10 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     void skipOtherEventType() throws Exception {
         childProfileService.register(memberId, REQUEST);
 
-        sendRaw("member.changed", "받지 않는 종류라 읽지 않는 본문");
+        sendRaw("member.changed", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
 
         // 키(회원 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
-        publishInTransaction(memberWithdrawn());
+        send(memberWithdrawn());
 
         AsyncWait.until(TIMEOUT, () -> childrenOf(memberId).isEmpty());
         assertThat(deadLetters()).isEmpty();
@@ -170,7 +159,7 @@ class ChildProfileMemberEventKafkaIntegrationTest {
         var marker = UUID.randomUUID().toString();
         var body = "{\"correlationId\":\"" + marker + "\",\"data\":{\"memberId\":\"숫자 아님\"}}";
 
-        var sent = sendRaw("member.withdrawn", body);
+        var sent = sendRaw("member.withdrawn", UUID.randomUUID(), body);
 
         assertDeadLetteredWithoutRetry(sent, body);
         assertThat(output.getOut()).contains("key=" + memberId).doesNotContain(marker);
@@ -189,9 +178,18 @@ class ChildProfileMemberEventKafkaIntegrationTest {
         return childProfileRepository.findAllByMemberId(memberId);
     }
 
-    private void publishInTransaction(MemberWithdrawnEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
-        memberOutboxRelayService.relay();
+    // 회원이 보내는 형식 그대로 넣는다. 키는 correlationId(회원 ID)다
+    private void send(MemberWithdrawnEvent event) throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("eventId", event.eventId());
+        body.put("eventType", event.eventType());
+        body.put("schemaVersion", event.schemaVersion());
+        body.put("occurredAt", event.occurredAt());
+        body.put("producer", event.producer());
+        body.put("aggregateId", event.aggregateId());
+        body.put("correlationId", event.correlationId());
+        body.put("data", event.data());
+        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(body));
     }
 
     private MemberWithdrawnEvent memberWithdrawn() {
@@ -218,10 +216,10 @@ class ChildProfileMemberEventKafkaIntegrationTest {
         }
     }
 
-    // 회원이 보내지 않는 메시지(다른 종류 · 깨진 본문)를 이 테스트의 회원 ID 키로 직접 넣는다
-    private RecordMetadata sendRaw(String eventType, String body) throws Exception {
+    // 메시지를 이 테스트의 회원 ID 키로 직접 넣는다. 회원이 보내지 않는 메시지(다른 종류 · 깨진 본문)도 넣는다
+    private RecordMetadata sendRaw(String eventType, UUID eventId, String body) throws Exception {
         var record = new ProducerRecord<>(TOPIC, String.valueOf(memberId), body);
-        record.headers().add("eventId", UUID.randomUUID().toString().getBytes(UTF_8));
+        record.headers().add("eventId", eventId.toString().getBytes(UTF_8));
         record.headers().add("eventType", eventType.getBytes(UTF_8));
         try (var producer = new KafkaProducer<String, String>(Map.of(
             ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
