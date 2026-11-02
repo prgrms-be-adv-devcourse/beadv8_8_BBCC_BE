@@ -30,7 +30,8 @@ class RequestFirewallFilter implements WebFilter {
             .flatMap(chain::filter)
             // 공개 도메인 스캐너가 흔히 보내므로 INFO. 거절 이유는 남기지 않는다: 헤더 값 · 호스트가 그대로 들어간다
             .onErrorResume(ServerExchangeRejectedException.class, rejected -> {
-                log.info("방화벽이 요청을 거절했습니다. method={}", exchange.getRequest().getMethod());
+                log.atInfo().addKeyValue(RequestIdFilter.LOG_KEY, RequestIdFilter.requestId(exchange))
+                    .log("방화벽이 요청을 거절했습니다. method={}", exchange.getRequest().getMethod());
                 return problem.badRequest(exchange);
             });
     }

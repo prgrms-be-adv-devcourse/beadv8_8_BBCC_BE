@@ -51,6 +51,7 @@ class BackendUnavailableIntegrationTest {
 
         GatewayTestSupport.expectProblem(response, HttpStatus.SERVICE_UNAVAILABLE, "서비스를 잠시 사용할 수 없습니다",
             "잠시 후 다시 시도해 주세요.", "/api/v1/members/me");
+        response.expectHeader().exists("X-Request-Id");
     }
 
     // 요청 전에 닫아서 연결이 거절되는(ConnectException) 포트를 만든다

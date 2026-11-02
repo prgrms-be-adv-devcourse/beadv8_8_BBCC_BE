@@ -36,18 +36,22 @@ class GatewayErrorWebExceptionHandler implements ErrorWebExceptionHandler {
             return Mono.error(ex);
         }
         var path = exchange.getRequest().getPath().value();
+        var traceId = RequestIdFilter.requestId(exchange);
         if (ex instanceof ConnectException || ex instanceof UnknownHostException) {
-            log.warn("백엔드 연결에 실패했습니다. path={}, exception={}", path, ex.getClass().getName());
+            log.atWarn().addKeyValue(RequestIdFilter.LOG_KEY, traceId)
+                .log("백엔드 연결에 실패했습니다. path={}, exception={}", path, ex.getClass().getName());
             return problem.serviceUnavailable(exchange);
         }
         if (ex instanceof ResponseStatusException responseStatusException) {
             if (HttpStatus.GATEWAY_TIMEOUT.isSameCodeAs(responseStatusException.getStatusCode())) {
-                log.warn("백엔드 응답이 지연되고 있습니다. path={}, exception={}", path, ex.getClass().getName());
+                log.atWarn().addKeyValue(RequestIdFilter.LOG_KEY, traceId)
+                    .log("백엔드 응답이 지연되고 있습니다. path={}, exception={}", path, ex.getClass().getName());
                 return problem.gatewayTimeout(exchange);
             }
             return Mono.error(ex);
         }
-        log.error("Gateway에서 예상하지 못한 오류가 발생했습니다. path={}", path, ex);
+        log.atError().addKeyValue(RequestIdFilter.LOG_KEY, traceId)
+            .log("Gateway에서 예상하지 못한 오류가 발생했습니다. path={}", path, ex);
         return problem.internalError(exchange);
     }
 }
