@@ -3,7 +3,8 @@
 kidly:
   community:
     # 커뮤니티가 받는 이벤트의 Kafka 수신. 구독 그룹 kidly.community, 실패는 1초 간격 3번 재시도 뒤 {토픽}.community.dlt
-    # 지금 받는 것: kidly.product.events의 product.changed(상품 복사본). 회원 탈퇴는 #663에서 더한다
+    # 지금 받는 것: kidly.product.events의 product.changed(상품 복사본),
+    #   kidly.order.events의 order-item.purchase-confirmed(리뷰 작성 자격). 회원 탈퇴는 #663에서 더한다
     kafka:
       consumer:
         # true면 Kafka 리스너 컨테이너가 앱 설정대로 시작한다(테스트는 spring.kafka.listener.auto-startup: false라 시작하지 않음)

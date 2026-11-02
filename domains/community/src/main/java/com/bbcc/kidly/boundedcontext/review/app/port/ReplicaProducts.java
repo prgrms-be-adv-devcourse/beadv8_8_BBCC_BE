@@ -10,5 +10,8 @@ public interface ReplicaProducts {
 
     Optional<ReplicaProduct> findById(Long productId);
 
-    ReplicaProduct save(ReplicaProduct replica);
+    /**
+     * 새 행으로만 넣고 바로 DB에 반영한다. 같은 상품 행이 이미 있으면(커밋 전이든 뒤든) 덮어쓰지 않고 PK 위반으로 실패한다.
+     */
+    ReplicaProduct insert(ReplicaProduct replica);
 }

@@ -44,6 +44,7 @@ public class CommunityKafkaListenerConfig {
     public static final String GROUP = "kidly.community";
     public static final String FACTORY = "communityKafkaListenerContainerFactory";
     public static final String PRODUCT_EVENTS = "kidly.product.events";
+    public static final String ORDER_EVENTS = "kidly.order.events";
 
     private static final String DEAD_LETTER_SUFFIX = ".community.dlt";
     private static final long RETRY_INTERVAL_MS = 1000L;
@@ -51,7 +52,12 @@ public class CommunityKafkaListenerConfig {
 
     @Bean
     NewTopic communityProductEventsDeadLetterTopic() {
-        return TopicBuilder.name(PRODUCT_EVENTS + DEAD_LETTER_SUFFIX).partitions(1).replicas(1).build();
+        return deadLetterTopic(PRODUCT_EVENTS);
+    }
+
+    @Bean
+    NewTopic communityOrderEventsDeadLetterTopic() {
+        return deadLetterTopic(ORDER_EVENTS);
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
@@ -86,6 +92,10 @@ public class CommunityKafkaListenerConfig {
         errorHandler.addNotRetryableExceptions(BusinessException.class, IllegalArgumentException.class,
             IllegalStateException.class, NullPointerException.class, JacksonException.class);
         return errorHandler;
+    }
+
+    private static NewTopic deadLetterTopic(String topic) {
+        return TopicBuilder.name(topic + DEAD_LETTER_SUFFIX).partitions(1).replicas(1).build();
     }
 
     /**
