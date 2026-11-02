@@ -48,9 +48,9 @@ public class ProductReplicaService implements ProductReplicaRecorder {
 
     private static ReplicaProduct.Values toValues(ProductChanged changed) {
         return new ReplicaProduct.Values(changed.productId(), changed.name(), changed.thumbnailUrl(),
-            changed.productStatus(),
+            changed.productOnSale(),
             changed.options().stream()
-                .map(option -> new ReplicaProduct.OptionState(option.saleStatus(), option.soldOut()))
+                .map(option -> new ReplicaProduct.OptionState(option.onSale(), option.inStock()))
                 .toList(),
             changed.occurredAt());
     }

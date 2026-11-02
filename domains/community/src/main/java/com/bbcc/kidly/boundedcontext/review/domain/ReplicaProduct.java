@@ -26,7 +26,7 @@ public class ReplicaProduct extends ReviewTimeEntity {
     /**
      * 복사본 입력 값.
      *
-     * @param productStatus 상품 판매 상태 이름. 모르는 값 · null이면 판매 종료
+     * @param productOnSale 상품이 판매 중인지. 아니면 판매 종료
      * @param options 옵션 판매 상태 · 품절 여부. 표시 상태 계산에만 쓴다
      * @param occurredAt 이벤트 발생 시각. 저장된 값보다 늦을 때만 반영한다
      */
@@ -34,15 +34,16 @@ public class ReplicaProduct extends ReviewTimeEntity {
         Long productId,
         String name,
         String thumbnailUrl,
-        String productStatus,
+        boolean productOnSale,
         List<OptionState> options,
         LocalDateTime occurredAt) {
     }
 
     /**
-     * @param saleStatus 옵션 판매 상태 이름. 판매 중(ON_SALE)이 아니면(모르는 값 · null 포함) 표시 상태 계산에서 보지 않는다
+     * @param onSale 옵션이 판매 중인지. 판매 중이 아니면 표시 상태 계산에서 보지 않는다
+     * @param inStock 재고가 있는지
      */
-    public record OptionState(String saleStatus, boolean soldOut) {
+    public record OptionState(boolean onSale, boolean inStock) {
     }
 
     @Id
@@ -84,7 +85,7 @@ public class ReplicaProduct extends ReviewTimeEntity {
     private void apply(Values values) {
         name = values.name();
         thumbnailUrl = values.thumbnailUrl();
-        displayStatus = DisplayStatus.of(values.productStatus(), values.options());
+        displayStatus = DisplayStatus.of(values.productOnSale(), values.options());
         sourceOccurredAt = ReviewTimes.toStoredPrecision(values.occurredAt());
     }
 }
