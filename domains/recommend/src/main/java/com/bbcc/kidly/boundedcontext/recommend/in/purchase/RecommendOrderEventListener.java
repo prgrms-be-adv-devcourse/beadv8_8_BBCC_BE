@@ -11,7 +11,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * kidly.order.events에서 order-item.purchase-confirmed를 받아 구매 기록 저장을 맡긴다.
- * 같은 주문상품의 구매확정을 다시 받아도 구매 기록 저장이 한 번만 반영하므로 결과는 한 번 받은 것과 같다.
+ * 같은 주문상품의 구매확정을 다시 받아도 구매 기록은 한 줄만 남으므로 결과는 한 번 받은 것과 같다.
  */
 @Component
 @RequiredArgsConstructor
