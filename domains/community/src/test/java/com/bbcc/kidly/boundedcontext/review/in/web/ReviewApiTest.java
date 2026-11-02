@@ -61,6 +61,7 @@ class ReviewApiTest {
             .jsonPath("$.rating").isEqualTo(5)
             .jsonPath("$.content").isEqualTo("좋아요")
             .jsonPath("$.nickname").isEqualTo(TestMembers.nickname(ME))
+            .jsonPath("$.authorWithdrawn").isEqualTo(false)
             .jsonPath("$.createdAt").isNotEmpty()
             .jsonPath("$.updatedAt").isNotEmpty();
 

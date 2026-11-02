@@ -18,6 +18,7 @@
 - 받는 길은 스위치 `kidly.community.kafka.consumer.enabled` 하나로 고른다: `true`(기본)면 Kafka 리스너, `false`면 Spring 이벤트. 처리 코드(`…EventListener`)는 같다
 - Kafka 리스너는 전용 팩토리 `communityKafkaListenerContainerFactory`(`in.config`)만 쓴다: 구독 그룹 `kidly.community`, 한 건씩 완료, 실패하면 1초 간격 3번 재시도 뒤 `{토픽}.community.dlt`, 다시 해도 같은 예외 · 읽기 실패는 바로 DLT. 팩토리 외의 Kafka 객체(템플릿 · 에러 처리기)는 이 구성 코드 안에서 만들고 빈으로 등록하지 않는다
 - DLT 토픽은 파티션 1개이고, 보낼 때는 원래 파티션과 상관없이 0번으로 보낸다. 도메인 이벤트 토픽의 파티션 3 규칙과 별개다
+- 토픽 하나는 리스너 하나가 받는다(같은 토픽 · 같은 그룹에 리스너가 둘이면 메시지를 나눠 가진다). 회원 탈퇴(`member.withdrawn`)는 review가 받아, 찜 정리는 `review.out.favorite` → favorite `app.port.in.MemberFavoritesRemover`로 같은 트랜잭션에서 맡긴다. 리뷰는 남기고 닉네임을 지우며 `author_withdrawn_at`을 처음 한 번만 기록한다(응답은 nickname "탈퇴한 회원" · authorWithdrawn true)
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(상품 등)은 저장된 `occurredAt`보다 늦은 이벤트만 반영한다
 - 필수 값이 없으면 `CommunityEventGuard`로 WARN 한 줄을 남기고 무시한다
 - 로그 추적(MDC): Kafka 수신은 메시지 하나를 처리하는 동안 eventId · eventType · `correlationId`(= 키)를 MDC에 넣고, 끝나면(예외 포함) 이전 값으로 되돌린다

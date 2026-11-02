@@ -202,6 +202,11 @@ class ReviewQueryServiceTest {
         }
 
         @Override
+        public LocalDateTime getAuthorWithdrawnAt() {
+            return null;
+        }
+
+        @Override
         public LocalDateTime getCreatedAt() {
             return at;
         }
