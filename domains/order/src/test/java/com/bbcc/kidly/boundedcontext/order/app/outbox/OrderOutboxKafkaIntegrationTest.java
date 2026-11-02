@@ -6,6 +6,10 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
+import com.bbcc.kidly.boundedcontext.wish.app.TestChildWishActor;
+import com.bbcc.kidly.boundedcontext.wish.app.WishRequestService;
+import com.bbcc.kidly.boundedcontext.wish.app.WishService;
+import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
@@ -26,6 +30,9 @@ import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.WishItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
+import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
@@ -84,6 +91,12 @@ class OrderOutboxKafkaIntegrationTest {
 
     @Autowired
     private CartService cartService;
+
+    @Autowired
+    private WishService wishService;
+
+    @Autowired
+    private WishRequestService wishRequestService;
 
     @Autowired
     private JpaOrderOutboxRepository outboxRepository;
@@ -197,6 +210,43 @@ class OrderOutboxKafkaIntegrationTest {
             .toList();
         assertThat(inOrder.get(1).partition()).isEqualTo(inOrder.get(0).partition());
         assertThat(inOrder.get(1).offset()).isGreaterThan(inOrder.get(0).offset());
+    }
+
+    @Test
+    @DisplayName("조르기 이벤트(#702)도 같은 토픽에 도착한다: 키 = 자녀 프로필 ID, 헤더 eventType · eventId, 본문 7칸 + data, "
+        + "같은 자녀는 같은 파티션에 일어난 순서대로")
+    void deliversWishEvents() {
+        Long childId = 1L;
+        TestChildWishActor child = new TestChildWishActor(childId);
+        Long wishItemId = wishService.add(child, childId, 1L, 2).line().wishItemId();
+        Long requestId = wishRequestService.send(child, childId, List.of(wishItemId), null).requestId();
+        wishRequestService.reject(new ParentWishActor(BUYER_ID), requestId, "NEXT_TIME");
+        List<DomainEvent> published = List.of(recorder.events(WishItemAddedEvent.class).getFirst(),
+            recorder.events(WishSentEvent.class).getFirst(), recorder.events(WishRejectedEvent.class).getFirst());
+
+        OutboxRelayResult result = relayService.relay();
+
+        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 3, 3));
+        Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
+            published.stream().map(event -> event.eventId().toString()).collect(Collectors.toSet()));
+        List<ConsumerRecord<String, String>> inOrder = published.stream()
+            .map(event -> received.get(event.eventId().toString()))
+            .toList();
+        assertThat(inOrder).extracting(record -> header(record, "eventType"))
+            .containsExactly("wish.item-added", "wish.sent", "wish.rejected");
+        for (DomainEvent event : published) {
+            ConsumerRecord<String, String> record = received.get(event.eventId().toString());
+            assertThat(record.key()).isEqualTo(String.valueOf(childId));
+            assertThat(header(record, "eventId")).isEqualTo(event.eventId().toString());
+            assertThat(record.headers().lastHeader("__TypeId__")).isNull();
+            JsonNode body = jsonMapper.readTree(record.value());
+            assertThat(body.propertyNames()).containsExactly("eventId", "eventType", "schemaVersion",
+                "occurredAt", "producer", "aggregateId", "correlationId", "data");
+            assertThat(body.get("correlationId").asString()).isEqualTo(String.valueOf(childId));
+            assertThat(body.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(event.data()));
+        }
+        assertThat(inOrder).extracting(ConsumerRecord::partition).containsOnly(inOrder.getFirst().partition());
+        assertThat(inOrder).extracting(ConsumerRecord::offset).isSorted();
     }
 
     @Test

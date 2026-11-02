@@ -1,7 +1,9 @@
 package com.bbcc.kidly.boundedcontext.wish.app.port;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 승인한 조르기를 바로 결제(주문하기)로 넘기고, 그 주문의 결제 결과를 읽는다(#701). 구현은 out의 주문 컨텍스트 어댑터이고
@@ -22,6 +24,13 @@ public interface WishOrders {
     List<OrderState> findStates(Collection<Long> orderIds);
 
     /**
+     * 주문 처리 타임라인(#702). 그 회원의 주문이 아니거나 없으면 빈 값.
+     *
+     * @param memberId 주문한 보호자 회원 ID
+     */
+    Optional<OrderTimeline> findTimeline(Long memberId, Long orderId);
+
+    /**
      * @param unitPrice 보호자 화면이 보여 준 단가(지금 단가와 다르면 주문하기가 409)
      */
     record Line(Long optionId, int quantity, long unitPrice) {
@@ -35,5 +44,17 @@ public interface WishOrders {
      * @param cancelled 주문이 취소됐는지
      */
     record OrderState(Long orderId, boolean paid, boolean cancelled) {
+    }
+
+    /**
+     * @param steps 순서 있는 주문 단계(CREATED → PAYMENT_REQUESTED → PAID → (CANCELLED) → SHIPPED → DELIVERED → CONFIRMED)
+     */
+    record OrderTimeline(Long orderId, String status, List<Step> steps) {
+    }
+
+    /**
+     * @param status DONE · PARTIAL · WAITING · NOT_APPLICABLE
+     */
+    record Step(String step, String status, LocalDateTime at) {
     }
 }

@@ -25,7 +25,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 조르기 동시 처리(#701): 같은 조르기의 승인 · 거절이 겹쳐도 한 번만 처리되고(조르기 @Version), 바로 결제 주문도 하나만 생긴다.
- * 같은 줄을 동시에 다른 조르기에 넣어도 하나만 들어간다(줄 @Version). 회차마다 새 상품 줄 · 새 조르기로 되풀이한다.
+ * 같은 줄을 동시에 다른 조르기에 넣어도 하나만 들어간다(줄 @Version). 진 쪽은 조르기 이벤트(#702)도 남기지 않는다.
+ * 회차마다 새 상품 줄 · 새 조르기로 되풀이한다.
  */
 @IntegrationTest
 class WishRequestConcurrencyIntegrationTest {
@@ -78,6 +79,7 @@ class WishRequestConcurrencyIntegrationTest {
             assertThat(orderCount() - ordersBefore).as("%d회차 새 주문 수", round).isEqualTo(1);
             assertThat(jdbcTemplate.queryForObject("select order_id from orders.wish_request where id = ?", Long.class,
                 requestId)).as("%d회차 기록한 주문", round).isEqualTo(results.getFirst().orderId());
+            assertThat(wishEventCount("wish.approved", requestId)).as("%d회차 승인 이벤트(#702)", round).isOne();
         }
     }
 
@@ -104,6 +106,8 @@ class WishRequestConcurrencyIntegrationTest {
             assertThat(status).as("%d회차 상태", round).isEqualTo(results.getFirst().status());
             assertThat(cartLineCount() - cartLinesBefore).as("%d회차 장바구니 줄", round)
                 .isEqualTo("APPROVED".equals(status) ? 1 : 0);
+            assertThat(wishEventCount("wish.approved", requestId) + wishEventCount("wish.rejected", requestId))
+                .as("%d회차 처리 이벤트(#702)", round).isOne();
         }
     }
 
@@ -145,6 +149,12 @@ class WishRequestConcurrencyIntegrationTest {
         productReplicaRepository.save(ReplicaProduct.create(
             ReplicaFixture.product(optionId, PRICE, "ON_SALE", false, OCCURRED_AT)));
         return wishService.add(CHILD, CHILD_ID, optionId, 1).line().wishItemId();
+    }
+
+    // 조르기 이벤트의 대상(aggregateId)은 조르기 ID다. 진 쪽은 롤백돼 행이 없다
+    private long wishEventCount(String eventType, Long requestId) {
+        return jdbcTemplate.queryForObject("select count(*) from orders.order_outbox where event_type = ? "
+            + "and payload::jsonb ->> 'aggregateId' = ?", Long.class, eventType, String.valueOf(requestId));
     }
 
     private long orderCount() {

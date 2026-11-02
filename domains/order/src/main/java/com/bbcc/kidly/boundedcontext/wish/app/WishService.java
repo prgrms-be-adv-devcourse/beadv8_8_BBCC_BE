@@ -5,17 +5,21 @@ import com.bbcc.kidly.boundedcontext.wish.app.dto.WishView;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishActor;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog.ProductOption;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishEvents;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishItemRepository;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.Status;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRuleViolationException;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.order.event.WishItemAddedEvent;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 그 자녀의 줄은 없는 것으로 본다. 상품 표시 · 구매 가능 판단은 장바구니와 같다({@link WishCatalog}: 주문 컨텍스트의 상품 · 판매자 · 자녀 복사본, #641).
  * 합치기 · 최대 줄 수 · 빼기 권한은 {@link WishPolicy}가 정한다. 진행 중인 조르기에 든 줄은 수량을 더하거나 뺄 수 없고(409),
  * 조르기로 산 주문이 결제된 줄은 목록에서 빠진다(#701, 먼저 {@link WishOrderSettlement}로 결제 결과를 맞춘다).
+ * 담기에 성공하면(새 줄 · 같은 옵션 합치기 모두) 같은 트랜잭션에서 wish.item-added를 낸다(#702, {@link WishEvents}).
  */
 @Service
 @Transactional
@@ -44,6 +49,7 @@ public class WishService {
     private final WishCatalog wishCatalog;
     private final WishPolicy wishPolicy;
     private final WishOrderSettlement wishOrderSettlement;
+    private final WishEvents wishEvents;
 
     /**
      * 확인 순서(장바구니와 같음): 옵션 없음 → 자기 상품(부모) → 판매 중 아님 → 자녀 → 수량. 그 뒤 정책: 같은 옵션 합치기 → 최대 줄 수.
@@ -57,7 +63,7 @@ public class WishService {
         if (!product.purchasable()) {
             throw new BusinessException(WishErrorCode.PRODUCT_NOT_PURCHASABLE);
         }
-        requireUsableChild(actor, childId, WishErrorCode.CHILD_NOT_FOUND);
+        WishCatalog.Child child = requireUsableChild(actor, childId, WishErrorCode.CHILD_NOT_FOUND);
         wishOrderSettlement.settle(childId);
 
         Optional<WishItem> sameOption = wishPolicy.mergesSameOption()
@@ -75,6 +81,7 @@ public class WishService {
             } catch (WishRuleViolationException e) {
                 throw WishErrors.toBusiness(e);
             }
+            publishItemAdded(sameOption.get(), child, product, quantity);
             return new AddWishItemResult(toLine(sameOption.get(), product, sellerNameOf(product)), false);
         }
         if (wishItemRepository.countByChildIdAndStatus(childId, Status.ACTIVE) >= wishPolicy.maxLines()) {
@@ -86,7 +93,17 @@ public class WishService {
         } catch (WishRuleViolationException e) {
             throw WishErrors.toBusiness(e);
         }
+        publishItemAdded(created, child, product, quantity);
         return new AddWishItemResult(toLine(created, product, sellerNameOf(product)), true);
+    }
+
+    /**
+     * @param quantity 이번에 담은 수량(같은 옵션 줄에 합쳐도 이번 수량)
+     */
+    private void publishItemAdded(WishItem item, WishCatalog.Child child, ProductOption product, int quantity) {
+        wishEvents.publish(new WishItemAddedEvent(UUID.randomUUID(), LocalDateTime.now(), new WishItemAddedEvent.Data(
+            item.getId(), child.childId(), child.memberId(),
+            List.of(new WishItemAddedEvent.Item(product.productId(), product.optionId(), quantity)))));
     }
 
     /**
@@ -141,8 +158,8 @@ public class WishService {
         wishItemRepository.delete(item);
     }
 
-    private void requireUsableChild(WishActor actor, Long childId, WishErrorCode notFound) {
-        wishCatalog.findChild(childId)
+    private WishCatalog.Child requireUsableChild(WishActor actor, Long childId, WishErrorCode notFound) {
+        return wishCatalog.findChild(childId)
             .filter(actor::canUse)
             .orElseThrow(() -> new BusinessException(notFound));
     }

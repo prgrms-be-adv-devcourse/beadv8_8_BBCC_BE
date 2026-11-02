@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.wish.app.dto.WishView;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog.Child;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog.ProductOption;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishEvents;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishItemRepository;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
@@ -55,11 +56,15 @@ class WishServiceTest {
     @Mock
     private WishOrderSettlement wishOrderSettlement;
 
+    @Mock
+    private WishEvents wishEvents;
+
     private WishService wishService;
 
     @BeforeEach
     void setUp() {
-        wishService = new WishService(wishItemRepository, wishCatalog, new WishPolicy(), wishOrderSettlement);
+        wishService = new WishService(wishItemRepository, wishCatalog, new WishPolicy(), wishOrderSettlement,
+            wishEvents);
         when(wishCatalog.findProductOption(OPTION_ID)).thenReturn(Optional.of(product(OPTION_ID, true)));
         when(wishCatalog.findSellerName(SELLER_ID)).thenReturn(Optional.of("판매자"));
         when(wishCatalog.findChild(CHILD_ID)).thenReturn(Optional.of(new Child(CHILD_ID, PARENT_ID, false)));
@@ -145,7 +150,7 @@ class WishServiceTest {
                 public boolean mergesSameOption() {
                     return false;
                 }
-            }, wishOrderSettlement);
+            }, wishOrderSettlement, wishEvents);
             when(wishItemRepository.findFirstByChildIdAndOptionIdAndStatusOrderByIdAsc(CHILD_ID, OPTION_ID,
                 Status.ACTIVE)).thenReturn(Optional.of(WishItem.create(CHILD_ID, OPTION_ID, 1, AddedBy.PARENT,
                 PARENT_ID)));

@@ -155,8 +155,9 @@ public class StuckOrderService {
         return head.getCreatedAt().plus(thresholds.outboxWait());
     }
 
-    // 주문 · 주문상품 이벤트(order. · order-item.)만 키가 주문 ID(correlationId)다. 장바구니 담기(cart.item-added, #654)처럼
-    // 다른 종류의 키(회원 ID)는 주문 ID로 보이지 않는다. 숫자가 아니면(계약 밖) 주문을 모른다
+    // 주문 · 주문상품 이벤트(order. · order-item.)만 키가 주문 ID(correlationId)다. 장바구니 담기(cart.item-added, #654,
+    // 키 = 회원 ID) · 조르기(wish.*, #702, 키 = 자녀 프로필 ID)처럼 다른 종류의 키는 주문 ID로 보이지 않는다.
+    // 숫자가 아니면(계약 밖) 주문을 모른다
     private static Long orderIdOf(String eventType, String messageKey) {
         if (eventType == null || ORDER_KEYED_EVENT_TYPES.stream().noneMatch(eventType::startsWith)) {
             return null;

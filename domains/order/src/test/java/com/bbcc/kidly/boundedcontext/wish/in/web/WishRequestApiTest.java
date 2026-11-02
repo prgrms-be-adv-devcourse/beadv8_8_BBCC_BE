@@ -241,6 +241,44 @@ class WishRequestApiTest {
     }
 
     @Test
+    @DisplayName("타임라인(#702): 바로 결제로 승인하면 보냄 → 승인 → 주문 단계가 [단계 · 상태 · 시각]으로 이어진다. 남의 자녀면 404")
+    void timeline() {
+        String requestId = sendAndReadId();
+        client.post().uri(WISH_REQUESTS_PATH + "/" + requestId + "/approval")
+            .headers(TestMembers.buyer(BUYER_ID))
+            .body(Map.of("checkout", "ORDER",
+                "items", List.of(Map.of("wishItemId", wishItemId, "quantity", 1, "unitPrice", 25_000)),
+                "shippingAddress", ADDRESS))
+            .exchange()
+            .expectStatus().isOk();
+
+        client.get().uri(WISH_REQUESTS_PATH + "/" + requestId + "/timeline")
+            .headers(TestMembers.buyer(BUYER_ID))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.requestId").isEqualTo(requestId)
+            .jsonPath("$.status").isEqualTo("APPROVED")
+            .jsonPath("$.checkout").isEqualTo("ORDER")
+            .jsonPath("$.orderId").isNotEmpty()
+            .jsonPath("$.rejectReason").doesNotExist()
+            .jsonPath("$.steps.length()").isEqualTo(8)
+            .jsonPath("$.steps[0].step").isEqualTo("SENT")
+            .jsonPath("$.steps[0].status").isEqualTo("DONE")
+            .jsonPath("$.steps[0].at").isNotEmpty()
+            .jsonPath("$.steps[1].step").isEqualTo("APPROVED")
+            .jsonPath("$.steps[2].step").isEqualTo("CREATED")
+            .jsonPath("$.steps[3].step").isEqualTo("PAYMENT_REQUESTED")
+            .jsonPath("$.steps[3].status").isEqualTo("WAITING")
+            .jsonPath("$.steps[3].at").doesNotExist()
+            .jsonPath("$.steps[7].step").isEqualTo("CONFIRMED");
+        client.get().uri(WISH_REQUESTS_PATH + "/" + requestId + "/timeline")
+            .headers(TestMembers.buyer(OTHER_PARENT_ID))
+            .exchange()
+            .expectStatus().isNotFound();
+    }
+
+    @Test
     @DisplayName("로그인하지 않으면 401")
     void unauthorized() {
         client.get().uri(WISH_REQUESTS_PATH + "?childId=1")

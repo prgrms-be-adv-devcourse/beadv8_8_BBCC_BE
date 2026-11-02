@@ -9,6 +9,9 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
+import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
+import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
@@ -24,6 +27,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.boundedcontext.wish.app.dto.ApproveWishCommand;
 import com.bbcc.kidly.boundedcontext.wish.app.dto.WishRequestView;
+import com.bbcc.kidly.boundedcontext.wish.app.dto.WishTimelineView;
 import com.bbcc.kidly.boundedcontext.wish.app.dto.WishView;
 import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -84,6 +88,12 @@ class WishRequestIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private DeliveryService deliveryService;
+
+    @Autowired
+    private DeliveryRepository deliveryRepository;
 
     private Long itemA;
     private Long itemB;
@@ -251,6 +261,97 @@ class WishRequestIntegrationTest {
                 List.of(new ApproveWishCommand.Item(itemA, 1, PRICE_A)), ADDRESS)), WishErrorCode.INVALID_APPROVAL);
             assertCode(() -> wishRequestService.approve(PARENT, requestId, new ApproveWishCommand("ORDER",
                 List.of(new ApproveWishCommand.Item(itemB, 1, PRICE_B)), ADDRESS)), WishErrorCode.INVALID_APPROVAL);
+        }
+    }
+
+    @Nested
+    @DisplayName("타임라인(#702)")
+    class Timeline {
+
+        @Test
+        @DisplayName("처리 전: 보냄 DONE → 승인 WAITING. 거절: 보냄 → 거절(사유), 주문 단계 없음")
+        void requestedAndRejected() {
+            Long requestId = send(itemA).requestId();
+
+            assertThat(steps(wishRequestService.getTimeline(PARENT, requestId)))
+                .containsExactly(tuple("SENT", "DONE", true), tuple("APPROVED", "WAITING", false));
+
+            wishRequestService.reject(PARENT, requestId, "TOO_EXPENSIVE");
+
+            WishTimelineView rejected = wishRequestService.getTimeline(PARENT, requestId);
+            assertThat(rejected.status()).isEqualTo("REJECTED");
+            assertThat(rejected.rejectReason()).isEqualTo("TOO_EXPENSIVE");
+            assertThat(rejected.orderId()).isNull();
+            assertThat(steps(rejected)).containsExactly(tuple("SENT", "DONE", true), tuple("REJECTED", "DONE", true));
+        }
+
+        @Test
+        @DisplayName("장바구니로 옮기기로 승인: 주문이 없어 조르기 단계로 끝난다")
+        void approvedWithoutOrder() {
+            Long requestId = send(itemA).requestId();
+            wishRequestService.approve(PARENT, requestId, new ApproveWishCommand("CART",
+                List.of(new ApproveWishCommand.Item(itemA, 1, null)), null));
+
+            WishTimelineView timeline = wishRequestService.getTimeline(PARENT, requestId);
+
+            assertThat(timeline.checkout()).isEqualTo("CART");
+            assertThat(steps(timeline)).containsExactly(tuple("SENT", "DONE", true), tuple("APPROVED", "DONE", true));
+        }
+
+        @Test
+        @DisplayName("바로 결제: 조르기 단계 뒤에 주문 타임라인을 이어 붙인다(결제대기 → 결제 → 발송 → 배송 완료 → 구매확정)")
+        void approvedWithOrder() {
+            Long requestId = send(itemA).requestId();
+            Long orderId = approveOrder(requestId, 2).orderId();
+
+            WishTimelineView pending = wishRequestService.getTimeline(PARENT, requestId);
+            assertThat(pending.orderId()).isEqualTo(orderId);
+            assertThat(steps(pending)).containsExactly(tuple("SENT", "DONE", true), tuple("APPROVED", "DONE", true),
+                tuple("CREATED", "DONE", true), tuple("PAYMENT_REQUESTED", "WAITING", false),
+                tuple("PAID", "WAITING", false), tuple("SHIPPED", "WAITING", false),
+                tuple("DELIVERED", "WAITING", false), tuple("CONFIRMED", "WAITING", false));
+
+            pay(orderId);
+            Delivery delivery = deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId).getFirst();
+            deliveryService.ship(SELLER_ID, delivery.getId(), "CJ", "1234567890");
+            deliveryService.complete(SELLER_ID, delivery.getId());
+            Long orderItemId = orderService.getOrder(BUYER_ID, orderId).items().getFirst().orderItemId();
+            orderService.confirmByBuyer(BUYER_ID, orderId, orderItemId);
+
+            assertThat(steps(wishRequestService.getTimeline(new TestChildWishActor(CHILD_ID), requestId)))
+                .as("자녀가 봐도 보호자의 주문 타임라인이 이어진다")
+                .containsExactly(tuple("SENT", "DONE", true), tuple("APPROVED", "DONE", true),
+                    tuple("CREATED", "DONE", true), tuple("PAYMENT_REQUESTED", "DONE", true),
+                    tuple("PAID", "DONE", true), tuple("SHIPPED", "DONE", true), tuple("DELIVERED", "DONE", true),
+                    tuple("CONFIRMED", "DONE", true));
+        }
+
+        @Test
+        @DisplayName("결제 실패로 주문이 취소되면 주문 타임라인 그대로 CANCELLED가 이어진다")
+        void orderCancelled() {
+            Long requestId = send(itemA).requestId();
+            Long orderId = approveOrder(requestId, 2).orderId();
+            eventDelivery.deliver(stockDeducted(orderId),
+                PaymentEvents.insufficientBalance(orderService.getOrder(BUYER_ID, orderId), BUYER_ID));
+
+            assertThat(wishRequestService.getTimeline(PARENT, requestId).steps())
+                .extracting(WishTimelineView.Step::step, WishTimelineView.Step::status)
+                .contains(tuple("CANCELLED", "DONE"), tuple("SHIPPED", "NOT_APPLICABLE"));
+        }
+
+        @Test
+        @DisplayName("남의 자녀 조르기의 타임라인은 404")
+        void otherParent() {
+            Long requestId = send(itemA).requestId();
+
+            assertCode(() -> wishRequestService.getTimeline(new ParentWishActor(3L), requestId),
+                WishErrorCode.WISH_REQUEST_NOT_FOUND);
+        }
+
+        private List<org.assertj.core.groups.Tuple> steps(WishTimelineView timeline) {
+            return timeline.steps().stream()
+                .map(step -> tuple(step.step(), step.status(), step.at() != null))
+                .toList();
         }
     }
 
