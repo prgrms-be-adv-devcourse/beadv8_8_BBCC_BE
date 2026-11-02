@@ -9,10 +9,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import ch.qos.logback.classic.Level;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.TrackingTarget;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker.TrackingResult;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
+import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -76,6 +78,20 @@ class DeliveryTrackingServiceTest {
         verify(deliveryService, never()).stopTracking(anyLong(), anyString());
         // 일시 오류도 그 자리에서 다시 부르지 않는다(한 번 조회 = 한 번 호출, 재시도는 다음 주기)
         verify(checker, times(2)).check(any(), any());
+    }
+
+    @Test
+    @DisplayName("서킷이 열려 건너뛴 건(CIRCUIT_OPEN, #708)도 아무것도 바꾸지 않고 다음 실행에서 다시 조회한다. 건마다 WARN은 남기지 않는다")
+    void circuitOpenChangesNothing() {
+        given(checker.check(any(), any())).willReturn(TrackingResult.circuitOpen());
+
+        try (CapturedLogs logs = CapturedLogs.start()) {
+            trackingService.track(TARGET);
+
+            assertThat(logs.events()).filteredOn(event -> event.getLevel() == Level.WARN).isEmpty();
+        }
+        verify(deliveryService, never()).completeByTracking(anyLong(), any());
+        verify(deliveryService, never()).stopTracking(anyLong(), anyString());
     }
 
     @Test

@@ -5,6 +5,9 @@ plugins {
 // 주문 통합 · 기능 · Kafka 테스트를 이 모듈에서 돌린다(#616). 다른 도메인 모듈에는 의존하지 않는다(kidly.domain이 막는다).
 // 테스트 앱은 주문 · common · shared만으로 뜬다(src/test의 OrderTestApplication)
 dependencies {
+    // 택배 조회 호출의 서킷브레이커(#708). 코어만 쓰고(스타터 · 자동 설정 · 전역 resilience4j.* 없음) delivery/out 안에서 만들어 쓴다.
+    // 공용 버전 관리(libs.versions.toml)에 넣지 않고 주문 모듈에서만 버전을 적는다. 전이 의존은 resilience4j-core · slf4j-api(Boot BOM 버전)뿐
+    implementation("io.github.resilience4j:resilience4j-circuitbreaker:2.4.0")
     // 기능 테스트의 로그인 헤더(common TestMembers)
     testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")

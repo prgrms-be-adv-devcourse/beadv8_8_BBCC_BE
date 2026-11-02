@@ -10,6 +10,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker.TrackingResult;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.delivery.out.config.DeliveryTrackerProperties;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -31,7 +32,9 @@ class DeliveryTrackerCheckerTest {
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final DeliveryTrackerChecker checker =
-        new DeliveryTrackerChecker(new DeliveryTrackerClient(ENABLED, builder), Duration.ZERO, KST);
+        new DeliveryTrackerChecker(new DeliveryTrackerClient(ENABLED, builder),
+            TrackerCircuitBreaker.create(DeliveryTrackerCircuitBreakerTest.DEFAULTS, Clock.systemUTC()), Duration.ZERO,
+            KST);
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(Delivery.Carrier.class)
@@ -102,7 +105,9 @@ class DeliveryTrackerCheckerTest {
     void disabled() {
         DeliveryTrackerChecker disabled = new DeliveryTrackerChecker(new DeliveryTrackerClient(
             new DeliveryTrackerProperties("https://apis.tracker.delivery", "", "", Duration.ofSeconds(3),
-                Duration.ofSeconds(10), Duration.ZERO), RestClient.builder()), Duration.ZERO, KST);
+                Duration.ofSeconds(10), Duration.ZERO), RestClient.builder()),
+            TrackerCircuitBreaker.create(DeliveryTrackerCircuitBreakerTest.DEFAULTS, Clock.systemUTC()), Duration.ZERO,
+            KST);
 
         assertThat(disabled.isEnabled()).isFalse();
     }
