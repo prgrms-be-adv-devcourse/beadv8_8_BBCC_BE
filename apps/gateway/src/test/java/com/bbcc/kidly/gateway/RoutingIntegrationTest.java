@@ -40,12 +40,10 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("서비스끼리만 부르는 내부 API는 404이고 넘기지 않는다")
+    @DisplayName("서비스끼리만 부르는 내부 API는 404 ProblemDetail이고 넘기지 않는다")
     void blocksInternalApi() {
-        client.get().uri("/internal/members/1").exchange()
-            .expectStatus().isNotFound();
+        expectNotFound(client.get().uri("/internal/members/1").exchange(), "/internal/members/1");
 
-        assertThat(backend.lastRequest()).isEmpty();
         assertThat(searchBackend.lastRequest()).isEmpty();
     }
 

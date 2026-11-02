@@ -42,7 +42,7 @@ spring:
               predicates:
                 - Path=/internal/**
               filters:
-                - SetStatus=404
+                - NotFound
             # 상품 목록 조회만 검색 서비스로 간다(#526). 상세(/api/v1/products/{id}) · 다른 메서드는 kidly-app(상품)에 남는다
             - id: search-product-list
               uri: ${kidly.gateway.search-uri}

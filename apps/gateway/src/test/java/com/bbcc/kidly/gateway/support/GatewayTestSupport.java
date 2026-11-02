@@ -48,8 +48,20 @@ public abstract class GatewayTestSupport {
         expectRejected(response, HttpStatus.FORBIDDEN, "권한이 없습니다", "이 요청을 처리할 권한이 없습니다.", instance);
     }
 
+    protected void expectNotFound(ResponseSpec response, String instance) {
+        expectRejected(response, HttpStatus.NOT_FOUND, "찾을 수 없습니다", "요청한 대상을 찾을 수 없습니다.", instance);
+    }
+
     // 서비스의 400 · 401 · 403(common CommonErrorCode, 5필드 ProblemDetails)과 같은 본문이고 백엔드로 넘기지 않았다
     private void expectRejected(ResponseSpec response, HttpStatus status, String title, String detail,
+        String instance) {
+        expectProblem(response, status, title, detail, instance);
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    // 5필드 ProblemDetail 본문을 본다. 백엔드까지 갔다가 실패한 응답(503 · 504)에도 쓰므로 백엔드 호출 여부는 보지 않는다.
+    // BackendUnavailableIntegrationTest는 이 클래스를 상속하지 않으므로 public이다
+    public static void expectProblem(ResponseSpec response, HttpStatus status, String title, String detail,
         String instance) {
         response.expectStatus().isEqualTo(status)
             .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
@@ -59,7 +71,6 @@ public abstract class GatewayTestSupport {
             .jsonPath("$.status").isEqualTo(status.value())
             .jsonPath("$.detail").isEqualTo(detail)
             .jsonPath("$.instance").isEqualTo(instance);
-        assertThat(backend.lastRequest()).isEmpty();
     }
 
     private String baseUrl() {
