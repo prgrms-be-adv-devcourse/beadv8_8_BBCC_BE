@@ -15,6 +15,7 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -64,8 +65,12 @@ class RecommendServiceApplicationApiTest {
             .jsonPath("$.instance").isEqualTo("/api/v1/children");
     }
 
+    // 추천 마이그레이션을 더하고 baseline-version을 올리지 않으면, kidly-app이 이미 적용한 DB에서 다시 적용하려다 기동에 실패한다
+    @Value("${spring.flyway.baseline-version}")
+    private String baselineVersion;
+
     @Test
-    @DisplayName("빈 DB에는 init부터 적용하고, 테이블은 추천 스키마에만 만든다")
+    @DisplayName("빈 DB에는 init부터 적용하고, 마지막 버전은 baseline-version이며, 테이블은 추천 스키마에만 만든다")
     void migratesOnlyRecommendSchema() {
         var schemas = jdbcTemplate.queryForList("""
             SELECT DISTINCT schemaname FROM pg_tables
@@ -78,7 +83,8 @@ class RecommendServiceApplicationApiTest {
             """, String.class);
 
         assertThat(schemas).containsExactly("recommend");
-        assertThat(versions).containsExactly("202610160256");
+        assertThat(versions.getFirst()).isEqualTo("202610160256");
+        assertThat(versions.getLast()).isEqualTo(baselineVersion);
     }
 
     @Test
