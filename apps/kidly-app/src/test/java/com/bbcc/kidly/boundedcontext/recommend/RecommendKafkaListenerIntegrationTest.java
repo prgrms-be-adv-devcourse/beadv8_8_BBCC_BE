@@ -90,9 +90,9 @@ class RecommendKafkaListenerIntegrationTest {
 
     // 리스너는 이 테스트 안에서만 켠다
     @BeforeEach
-    void startListeners() {
+    void startListeners() throws Exception {
         messages = new RecommendKafkaMessages(kafka.getBootstrapServers(), jsonMapper);
-        listeners = RecommendKafkaMessages.startListeners(kafkaListenerEndpointRegistry);
+        listeners = RecommendKafkaMessages.startListeners(kafkaListenerEndpointRegistry, kafka.getBootstrapServers());
     }
 
     // stop()은 처리 중인 메시지가 끝날 때까지 기다리므로 뒤이은 테이블 비우기와 겹치지 않는다
