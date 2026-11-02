@@ -44,7 +44,8 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 판매자 · 자녀 · 상품 도메인이 실제로 보낸 메시지를 추천이 읽어 복사본에 저장하는지 확인한다(#576).
+ * 판매자 · 자녀 · 상품 도메인이 실제로 보낸 메시지를 추천이 읽어 복사본에 저장하는지(#576),
+ * 주문이 보낸 구매확정을 읽어 구매 기록에 저장하는지(#606) 확인한다.
  * 보내는 쪽이 만드는 본문(공통 칸 7개 + data)과 추천이 읽는 형식이 맞는지 보는 도메인 사이 계약 테스트다.
  * 판매자는 커밋 뒤 바로 보내고, 자녀 · 상품 · 주문은 아웃박스에 저장된 뒤 릴레이가 보낸다.
  * 테스트 설정은 릴레이 주기가 길어 저절로 돌지 않으므로 테스트가 릴레이를 직접 부른다.
@@ -66,7 +67,7 @@ class RecommendKafkaFromProducersIntegrationTest {
     @Autowired
     private ProductOutboxRelayService productOutboxRelayService;
 
-    // 주문은 EventPublisher가 아니라 주문 서비스가 이 포트로 아웃박스에 직접 넣는다
+    // 주문의 아웃박스는 EventPublisher로 채워지지 않고, 주문 서비스가 이 포트로 직접 넣는다
     @Autowired
     private OrderEventOutbox orderEventOutbox;
 
