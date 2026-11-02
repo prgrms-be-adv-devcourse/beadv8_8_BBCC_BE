@@ -1,0 +1,97 @@
+spring:
+  application:
+    name: kidly-recommend
+  profiles:
+    default: local
+  # 자기 스키마만 다룬다. 이력은 kidly-app(public.flyway_schema_history)과 따로 쓴다
+  flyway:
+    locations: classpath:db/migration
+    # 이력 테이블은 recommend 스키마에 둔다. 나중에 DB를 나눌 때 스키마와 같이 옮겨지고, 다른 스키마를 건드리지 않는다
+    default-schema: recommend
+    schemas: recommend
+    table: flyway_schema_history_recommend
+    # 이미 추천 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 추천 테이블을 만든 init 버전으로 baseline을 잡고 init을 건너뛴다.
+    # 추천 스키마는 init 뒤로 바뀐 적이 없다. 빈 DB(테스트)는 baseline 없이 init부터 적용한다
+    baseline-on-migrate: true
+    baseline-version: 202610160256
+    # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다
+    out-of-order: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        # kidly-app과 같다. 트랜잭션이 끝나면 DB 연결을 바로 돌려주고(커밋 뒤 리스너가 연결을 더 쥐지 않게),
+        # 그래서 DB가 막지 못하는 읽기 전용 트랜잭션의 쓰기를 SQL을 보내기 전에 막는다
+        connection:
+          handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
+        session_factory:
+          statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
+  # Kafka. 추천이 받는 판매자 · 자녀 · 상품 · 주문 이벤트를 받는다(구독 그룹 kidly.recommend). producer는 DLT로 보낼 때만 쓴다. 값은 kidly-app과 같다
+  # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app과 같은 구독 그룹이라 책갈피를 이어 쓴다
+      auto-offset-reset: latest
+
+springdoc:
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha
+
+# 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kidly
+    username: kidly
+    password: kidly
+
+# kidly-app(8080) · search-service(8082) · gateway(8083) · childprofile-service(8084)와 같이 띄울 수 있게 포트를 나눈다
+server:
+  port: 8086
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+server:
+  forward-headers-strategy: native
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}
+  # kidly-app application-prod.yml과 같다. 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘지 않게 예외마다 프레임 수만 줄인다
+  structured:
+    json:
+      stacktrace:
+        max-throwable-depth: 30
