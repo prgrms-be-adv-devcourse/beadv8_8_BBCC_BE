@@ -68,21 +68,24 @@ class InventoryRestorationPartialCancelIntegrationTest {
     }
 
     @Test
-    @DisplayName("판매자가 부분 취소한 주문상품의 DEDUCTED 기록만 RESTORED로 바꾸고 그 수량을 되돌리며, 같은 주문의 다른 주문상품은 DEDUCTED 그대로다")
+    @DisplayName("INV-04 판매자가 부분 취소한 주문상품들의 DEDUCTED 기록만 RESTORED로 바꾸고 그 수량을 되돌리며, 같은 주문의 다른 주문상품은 DEDUCTED 그대로다")
     void restoreOnlyCancelledOrderItems() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         inventoryDeductionService.deduct(orderCreated(ORDER_ID,
             orderItem(11L, options.navy110(), 2),
-            orderItem(12L, options.navy120(), 1)));
+            orderItem(12L, options.navy120(), 1),
+            orderItem(13L, options.navy110(), 1)));
 
         publishInTransaction(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
-            cancelledOrderItem(11L, options.navy110(), 2)));
+            cancelledOrderItem(11L, options.navy110(), 2),
+            cancelledOrderItem(13L, options.navy110(), 1)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(4);
         assertThat(inventoryDeductionDb.records()).containsExactlyInAnyOrder(
             tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "RESTORED"),
-            tuple(ORDER_ID, 12L, options.navy120().getId(), 1, "DEDUCTED"));
+            tuple(ORDER_ID, 12L, options.navy120().getId(), 1, "DEDUCTED"),
+            tuple(ORDER_ID, 13L, options.navy110().getId(), 1, "RESTORED"));
     }
 
     @Test
@@ -157,6 +160,21 @@ class InventoryRestorationPartialCancelIntegrationTest {
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.records()).isEmpty();
         assertThat(output.getOut()).containsPattern("ERROR .*차감 기록이 없는 주문상품 취소됨");
+    }
+
+    @Test
+    @DisplayName("INV-04 재고 부족으로 거절해 FAILED 기록만 있는 주문상품의 부분 취소는 재고와 기록을 바꾸지 않으며, 결제될 수 없는 주문이라 ERROR 로그를 남긴다")
+    void changeNothingWhenPartialCancelOfRejectedOrder(CapturedOutput output) {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+
+        publishInTransaction(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
+            cancelledOrderItem(11L, options.navy110(), 2)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(1);
+        assertThat(inventoryDeductionDb.records())
+            .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
+        assertThat(output.getOut()).containsPattern("ERROR .*거절한 주문상품의 주문상품 취소됨");
     }
 
     private void publishInTransaction(DomainEvent event) {

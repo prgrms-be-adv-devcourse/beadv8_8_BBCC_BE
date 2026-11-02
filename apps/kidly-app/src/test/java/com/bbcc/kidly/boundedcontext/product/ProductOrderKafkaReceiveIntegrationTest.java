@@ -33,7 +33,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 상품이 주문 토픽의 주문 생성됨 · 주문 취소됨을 받아 재고를 줄이고 되돌리는지 확인한다(#692).
+ * 상품이 주문 토픽의 주문 생성됨 · 주문 취소됨 · 판매자 부분 취소(주문상품 취소됨)를 받아 재고를 줄이고 되돌리는지 확인한다(#692, #693).
  * 메시지는 주문 도메인을 거치지 않고 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다.
  * 테스트 설정은 Spring 경로도 켜 두므로, 주문 서비스를 거치면 Spring 이벤트로도 재고가 바뀌어 Kafka 수신을 확인할 수 없다.
  * 주문이 실제로 보낸 메시지를 받는지는 주문의 아웃박스에 직접 저장하고 릴레이를 불러 확인한다. 이렇게 하면 Spring 이벤트가 나가지 않는다.
@@ -170,7 +170,7 @@ class ProductOrderKafkaReceiveIntegrationTest {
     }
 
     @Test
-    @DisplayName("판매자 부분 취소(주문상품 취소됨)를 Kafka로 받아 취소한 주문상품의 차감만 되돌리고, 같은 주문의 다른 주문상품은 DEDUCTED 그대로다")
+    @DisplayName("INV-04 판매자 부분 취소(주문상품 취소됨)를 Kafka로 받아 취소한 주문상품의 차감만 되돌리고, 같은 주문의 다른 주문상품은 DEDUCTED 그대로다")
     void restoreOnOrderItemCancelled() throws Exception {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         long orderId = newId();

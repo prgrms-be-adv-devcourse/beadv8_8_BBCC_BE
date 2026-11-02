@@ -70,6 +70,12 @@ public class InventoryRestorationService {
                 data.orderId(), data.cancellationId());
             return;
         }
+        if (restoration.isRejected()) {
+            // 거절한 주문은 결제 요청까지 가지 못하므로 판매자가 취소할 수 없다. 도메인 사이 버그라 ERROR로 알린다
+            log.error("거절한 주문상품의 주문상품 취소됨이라 처리하지 않습니다. orderId={}, cancellationId={}",
+                data.orderId(), data.cancellationId());
+            return;
+        }
         List<InventoryDeduction> targets = restoration.recordsToRestore();
         if (targets.isEmpty()) {
             log.info("이미 되돌린 주문상품 취소됨이라 건너뜁니다. orderId={}, cancellationId={}",
