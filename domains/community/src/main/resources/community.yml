@@ -1,0 +1,12 @@
+# 커뮤니티 도메인(리뷰 · 찜) 설정. application.yml이 가져온다
+
+kidly:
+  community:
+    # 커뮤니티가 받는 이벤트(상품 · 회원 탈퇴)의 Kafka 수신. 구독 그룹 kidly.community, 실패는 {토픽}.community.dlt
+    # 리스너는 수신 이슈(#658 · #663)에서 추가한다. 지금은 자리만 둔다
+    kafka:
+      consumer:
+        # true면 Kafka 리스너 컨테이너가 앱 설정대로 시작한다(테스트는 spring.kafka.listener.auto-startup: false라 시작하지 않음)
+        # false면 시작하지 않고(리스너 빈은 만든다) Spring 이벤트 수신으로 되돌아간다. 장애 때 되돌리는 용도
+        # 로컬 실행은 Kafka가 떠 있어야 받는다(docker compose)
+        enabled: ${COMMUNITY_KAFKA_CONSUMER_ENABLED:true}

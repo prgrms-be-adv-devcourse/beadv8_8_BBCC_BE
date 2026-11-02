@@ -1,0 +1,57 @@
+plugins {
+    id("kidly.domain")
+}
+
+// 커뮤니티 통합 · 기능 테스트를 이 모듈에서 돌린다. 다른 도메인 모듈에는 의존하지 않는다(kidly.domain이 막는다).
+// 테스트 앱은 커뮤니티 · common · shared만으로 뜬다(src/test의 CommunityTestApplication)
+dependencies {
+    // 기능 테스트의 로그인 헤더(common TestMembers)
+    testImplementation(testFixtures(project(":common")))
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("org.springframework.boot:spring-boot-starter-flyway")
+    testRuntimeOnly("org.flywaydb:flyway-database-postgresql")
+    testRuntimeOnly("org.postgresql:postgresql")
+}
+
+// 앱 모듈(kidly.boot-app)과 같은 나눔: 단위는 test, 스프링 + Testcontainers는 integrationTest · functionalTest(Docker 필요)
+val integrationTag = "integration"
+val functionalTag = "functional"
+
+tasks.test {
+    useJUnitPlatform {
+        excludeTags(integrationTag, functionalTag)
+    }
+    // 뼈대만 있는 동안은 단위 테스트가 없다(규칙 테스트는 archTest, 기동 확인은 integrationTest). 첫 단위 테스트가 생기면 지운다
+    filter.isFailOnNoMatchingTests = false
+}
+
+val integrationTest = tasks.register<Test>("integrationTest") {
+    description = "커뮤니티 통합 테스트를 실행한다 (스프링 + Testcontainers)"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform {
+        includeTags(integrationTag)
+    }
+    shouldRunAfter(tasks.test)
+}
+
+val functionalTest = tasks.register<Test>("functionalTest") {
+    description = "커뮤니티 기능 테스트를 실행한다 (실제 포트 + Testcontainers)"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform {
+        includeTags(functionalTag)
+    }
+    shouldRunAfter(integrationTest)
+}
+
+tasks.check {
+    dependsOn(integrationTest, functionalTest)
+}
