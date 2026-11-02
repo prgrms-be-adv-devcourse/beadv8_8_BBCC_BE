@@ -139,6 +139,7 @@ public class SettlementRunService {
         var skips = settlementSkipRepository.findAllByJobExecutionIdOrderByIdAsc(execution.getId());
         var cutoffAt = execution.getJobParameters().getLocalDateTime(SettlementJobConfig.CUTOFF_AT);
         var endOn = SettlementPeriod.from(cutoffAt).endOn();
+        // 같은 종료일의 정산서를 그 실행의 정산서로 본다. 실패한 실행을 복구해 같은 기준일로 다시 돌리면 앞선 실행 조회에도 재실행분이 섞여 보인다(표시값)
         var periodStartOn = settlementRepository.findFirstByPeriodEndOnOrderByPeriodStartOnAsc(endOn)
             .map(Settlement::getPeriodStartOn)
             .orElse(endOn);
