@@ -40,7 +40,7 @@ public class ReplicaProduct extends ReviewTimeEntity {
     }
 
     /**
-     * @param saleStatus 옵션 판매 상태 이름. 판매 중(ON_SALE)이 아니면(모르는 값 · null 포함) 판매 중 옵션으로 세지 않는다
+     * @param saleStatus 옵션 판매 상태 이름. 판매 중(ON_SALE)이 아니면(모르는 값 · null 포함) 표시 상태 계산에서 보지 않는다
      */
     public record OptionState(String saleStatus, boolean soldOut) {
     }

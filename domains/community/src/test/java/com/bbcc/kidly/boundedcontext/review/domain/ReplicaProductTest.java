@@ -7,6 +7,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -39,19 +40,25 @@ class ReplicaProductTest {
     }
 
     @Test
-    @DisplayName("판매 중지 옵션은 품절이 아니어도 세지 않는다: 판매 중 옵션이 모두 품절이면 품절이다")
+    @DisplayName("판매 중지 옵션은 재고가 있어도 보지 않는다: 남은 판매 중 옵션이 모두 품절이면 품절이다")
     void stoppedOptionIgnored() {
         assertThat(DisplayStatus.of("ON_SALE", List.of(STOPPED, ON_SALE_SOLD_OUT))).isEqualTo(DisplayStatus.SOLD_OUT);
     }
 
     @Test
-    @DisplayName("판매 중 옵션이 하나도 없으면(옵션 없음 · 모두 중지 · 옵션 상태 없음) 품절이다")
-    void noOnSaleOptionIsSoldOut() {
+    @DisplayName("판매 중 상품이라도 판매 중 옵션이 하나도 없으면(모두 중지 · 옵션 상태 없음) 판매 종료다")
+    void noOnSaleOptionIsSaleEnded() {
         var unknownOption = new ReplicaProduct.OptionState(null, false);
 
-        assertThat(DisplayStatus.of("ON_SALE", List.of())).isEqualTo(DisplayStatus.SOLD_OUT);
-        assertThat(DisplayStatus.of("ON_SALE", List.of(STOPPED))).isEqualTo(DisplayStatus.SOLD_OUT);
-        assertThat(DisplayStatus.of("ON_SALE", List.of(unknownOption))).isEqualTo(DisplayStatus.SOLD_OUT);
+        assertThat(DisplayStatus.of("ON_SALE", List.of(STOPPED, STOPPED))).isEqualTo(DisplayStatus.SALE_ENDED);
+        assertThat(DisplayStatus.of("ON_SALE", List.of(unknownOption))).isEqualTo(DisplayStatus.SALE_ENDED);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @DisplayName("판매 중 상품이라도 옵션이 없으면(빈 목록 · null) 판매 종료다")
+    void noOptionsIsSaleEnded(List<ReplicaProduct.OptionState> options) {
+        assertThat(DisplayStatus.of("ON_SALE", options)).isEqualTo(DisplayStatus.SALE_ENDED);
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -114,28 +115,45 @@ class CommunityProductEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("모르는 옵션 판매 상태는 판매 중 옵션으로 세지 않는다: 남은 판매 중 옵션이 모두 품절이면 품절로 저장한다")
+    @DisplayName("모르는 옵션 판매 상태는 보지 않는다: 남은 판매 중 옵션이 모두 품절이면 품절, 판매 중 옵션이 없어지면 판매 종료")
     void unknownOptionStatusNotCountedAsOnSale() {
-        long productId = newProductId();
+        long soldOutId = newProductId();
+        long saleEndedId = soldOutId + 1;
+        // 재고 있는 옵션을 모르는 상태로 바꾼다: 남은 판매 중 옵션(품절)만 보면 품절
+        String soldOut = sendWithUnknownOptionStatus(soldOutId, List.of(true, false), 1);
+        // 하나뿐인 판매 중 옵션을 모르는 상태로 바꾼다: 판매 중 옵션이 없어 판매 종료
+        String saleEnded = sendWithUnknownOptionStatus(saleEndedId, List.of(false), 0);
+
+        assertThat(stored(soldOutId)).containsEntry("display_status", "SOLD_OUT");
+        assertThat(stored(saleEndedId)).containsEntry("display_status", "SALE_ENDED");
+        assertThat(kafkaClient.deadLetters(TOPIC, soldOut)).isEmpty();
+        assertThat(kafkaClient.deadLetters(TOPIC, saleEnded)).isEmpty();
+    }
+
+    /**
+     * 판매 중 옵션들(품절 여부 순서대로)로 이벤트를 만들고, unknownIndex 옵션의 saleStatus만 모르는 값으로 바꿔 보낸 뒤 처리를 기다린다.
+     *
+     * @return 보낸 eventId
+     */
+    private String sendWithUnknownOptionStatus(long productId, List<Boolean> soldOuts, int unknownIndex) {
+        List<ProductChangedEvent.Option> options = new ArrayList<>();
+        for (int i = 0; i < soldOuts.size(); i++) {
+            options.add(new ProductChangedEvent.Option((long) i + 1, "옵션 " + i, "110", 25_000L, null, null,
+                soldOuts.get(i), OptionSaleStatus.ON_SALE));
+        }
         var event = new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT, new ProductChangedEvent.Data(productId, 2L,
-            "상품 A", 3L, ProductStatus.ON_SALE, null, OCCURRED_AT.minusDays(1), false, List.of(
-                new ProductChangedEvent.Option(1L, "옵션 1", "110", 25_000L, null, null, false, OptionSaleStatus.ON_SALE),
-                new ProductChangedEvent.Option(2L, "옵션 2", "120", 25_000L, null, null, true,
-                    OptionSaleStatus.ON_SALE))));
+            "상품 A", 3L, ProductStatus.ON_SALE, null, OCCURRED_AT.minusDays(1), false, options));
         Map<String, Object> body = kafkaClient.envelopeFields(event);
         @SuppressWarnings("unchecked")
         Map<String, Object> data = jsonMapper.convertValue(event.data(), Map.class);
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> options = (List<Map<String, Object>>) data.get("options");
-        // 재고가 있는 옵션을 모르는 상태로 바꾼다. 세면 판매 중, 세지 않으면 품절
-        options.getFirst().put("saleStatus", "NEW_OPTION_STATUS");
+        List<Map<String, Object>> rawOptions = (List<Map<String, Object>>) data.get("options");
+        rawOptions.get(unknownIndex).put("saleStatus", "NEW_OPTION_STATUS");
         body.put("data", data);
 
         kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, event.correlationId(), event.eventType(),
             event.eventId().toString(), kafkaClient.toJson(body)));
-
-        assertThat(stored(productId)).containsEntry("display_status", "SOLD_OUT");
-        assertThat(kafkaClient.deadLetters(TOPIC, event.eventId().toString())).isEmpty();
+        return event.eventId().toString();
     }
 
     @Test
