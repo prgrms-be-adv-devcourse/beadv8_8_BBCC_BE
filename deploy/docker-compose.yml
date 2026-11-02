@@ -15,6 +15,7 @@ services:
     image: ${IMAGE}
     env_file: .env
     environment:
+      JAVA_TOOL_OPTIONS: -Xmx512m
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "127.0.0.1:${APP_PORT}:8080"     # 외부 비공개. nginx 가 80/443 으로 받아 넘긴다
@@ -34,6 +35,8 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
+    # 한 서버에 dev · prod 가 같이 떠도 한 컨테이너가 메모리를 다 써서 다른 환경까지 OOM 으로 죽이지 않게 서비스마다 상한을 둔다. 합계가 호스트 메모리 안에 들어오게 잡았다
+    mem_limit: 1g
     restart: unless-stopped
     logging: *logging
 
@@ -46,6 +49,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       retries: 10
+    mem_limit: 512m
     restart: unless-stopped
     logging: *logging
     ports:
@@ -77,12 +81,14 @@ services:
       KAFKA_HEAP_OPTS: -Xms256m -Xmx256m
     volumes:
       - kafka-data:/var/lib/kafka/data
+    # 포트만 본다. kafka-broker-api-versions.sh 는 부를 때마다 JVM 을 띄워 1회 CPU 약 4초를 쓴다(10초 주기면 0.33코어). 9092 리스너는 브로커 준비 직전에 열려서 포트 검사로 충분하다
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null"]
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/9092"]
       interval: 10s
       timeout: 10s
       retries: 12
       start_period: 30s
+    mem_limit: 768m
     restart: unless-stopped
     logging: *logging
 
@@ -115,6 +121,7 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
+    mem_limit: 1g
     restart: unless-stopped
     logging: *logging
 
@@ -149,6 +156,7 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
+    mem_limit: 512m
     restart: unless-stopped
     logging: *logging
 
