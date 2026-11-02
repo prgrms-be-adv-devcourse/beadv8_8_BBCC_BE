@@ -44,6 +44,16 @@ class ProductEventsTest {
     }
 
     @Test
+    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 브랜드 · 설명 · 사이즈별 실측을 담고, 실측은 사이즈 · 권장 키 · 실측 맵이다")
+    void dataCarriesBrandDescriptionAndSizeSpecs() {
+        assertThat(ProductChangedEvent.Data.class.getRecordComponents()).extracting(RecordComponent::getName)
+            .containsExactly("productId", "sellerId", "name", "categoryId", "status", "thumbnailUrl", "createdAt",
+                "sizeFree", "options", "infoValues", "brand", "description", "sizeSpecs");
+        assertThat(ProductChangedEvent.SizeSpec.class.getRecordComponents()).extracting(RecordComponent::getName)
+            .containsExactly("size", "minHeightCm", "maxHeightCm", "measurements");
+    }
+
+    @Test
     @DisplayName("항목 값 칸이 생기기 전의 생성자로 만들면 옵션 값과 상품 정보 값은 빈 목록이다")
     void constructorsWithoutAttributeValuesFillEmptyLists() {
         ProductChangedEvent.Option option = new ProductChangedEvent.Option(1L, "색상: 네이비 / 사이즈: 110", "110", 25_000L,
@@ -53,6 +63,31 @@ class ProductEventsTest {
 
         assertThat(option.values()).isEmpty();
         assertThat(data.infoValues()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("브랜드 · 설명 · 사이즈별 실측 칸이 생기기 전의 생성자로 만들면 브랜드와 설명은 null, 사이즈별 실측은 빈 목록이다")
+    void constructorsWithoutBrandDescriptionAndSizeSpecs() {
+        ProductChangedEvent.Data withoutInfoValues = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of());
+        ProductChangedEvent.Data withInfoValues = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of());
+
+        assertThat(List.of(withoutInfoValues, withInfoValues)).allSatisfy(data -> {
+            assertThat(data.brand()).isNull();
+            assertThat(data.description()).isNull();
+            assertThat(data.sizeSpecs()).isEmpty();
+        });
+    }
+
+    @Test
+    @DisplayName("사이즈별 실측 칸이 없는 예전 메시지처럼 null을 받으면 사이즈별 실측은 빈 목록이다")
+    void nullSizeSpecsBecomeEmptyList() {
+        ProductChangedEvent.Data data = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of(),
+            null, null, null);
+
+        assertThat(data.sizeSpecs()).isEmpty();
     }
 
     @Test

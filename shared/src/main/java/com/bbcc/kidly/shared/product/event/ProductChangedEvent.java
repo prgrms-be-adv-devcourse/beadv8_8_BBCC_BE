@@ -3,8 +3,10 @@ package com.bbcc.kidly.shared.product.event;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -21,6 +23,9 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      * @param sizeFree true면 사이즈 무관 상품이다. 추천은 권장 키가 아니라 이 값으로 사이즈 무관을 판단한다
      * @param options 그 상품의 옵션. 보관한 옵션은 넣지 않는다
      * @param infoValues 상품 정보 값이다. 다중 선택 목록 항목은 같은 {@code code}로 여러 개를 담는다
+     * @param brand 브랜드. 등록하지 않았으면 null
+     * @param description 상품 설명. 등록하지 않았으면 null
+     * @param sizeSpecs 사이즈별 실측이다. 상품의 실측 행마다 하나를 담고, 사이즈 무관 상품의 FREE 행도 담는다
      */
     public record Data(
             Long productId,
@@ -32,7 +37,36 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
             LocalDateTime createdAt,
             boolean sizeFree,
             List<Option> options,
-            List<AttributeEntry> infoValues) {
+            List<AttributeEntry> infoValues,
+            String brand,
+            String description,
+            List<SizeSpec> sizeSpecs) {
+
+        // 사이즈별 실측 칸이 없는 예전 메시지를 읽으면 null이 들어오므로, 받는 쪽이 null을 검사하지 않게 빈 목록으로 바꾼다
+        public Data {
+            if (sizeSpecs == null) {
+                sizeSpecs = List.of();
+            }
+        }
+
+        /**
+         * 이벤트를 만드는 주문 · 추천 테스트 코드가 바뀌지 않게 하려고, 브랜드 · 설명 · 사이즈별 실측 없이 만드는 생성자를 둔다.
+         * 브랜드와 설명은 null, 사이즈별 실측은 빈 목록이 된다. 상품이 이벤트를 보낼 때는 이 생성자를 쓰지 않는다.
+         */
+        public Data(
+                Long productId,
+                Long sellerId,
+                String name,
+                Long categoryId,
+                ProductStatus status,
+                String thumbnailUrl,
+                LocalDateTime createdAt,
+                boolean sizeFree,
+                List<Option> options,
+                List<AttributeEntry> infoValues) {
+            this(productId, sellerId, name, categoryId, status, thumbnailUrl, createdAt, sizeFree, options,
+                    infoValues, null, null, List.of());
+        }
 
         /**
          * 이벤트를 만드는 주문 · 추천 테스트 코드가 바뀌지 않게 하려고, 상품 정보 값 없이 만드는 생성자를 둔다.
@@ -48,8 +82,24 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
                 LocalDateTime createdAt,
                 boolean sizeFree,
                 List<Option> options) {
-            this(productId, sellerId, name, categoryId, status, thumbnailUrl, createdAt, sizeFree, options, List.of());
+            this(productId, sellerId, name, categoryId, status, thumbnailUrl, createdAt, sizeFree, options, List.of(),
+                    null, null, List.of());
         }
+    }
+
+    /**
+     * 사이즈 하나의 실측이다. 옵션이 아니라 사이즈 단위로 담는다. 색상만 다른 옵션은 실측이 같으므로 옵션마다 반복하지 않는다.
+     *
+     * @param size 사이즈. 문자열이다(예: "110"). 사이즈 무관 상품은 "FREE"다
+     * @param minHeightCm 권장 키 하한(cm, 포함). 입력하지 않았으면 null
+     * @param maxHeightCm 권장 키 상한(cm, 포함). 입력하지 않았으면 null
+     * @param measurements 실측 값이다. 키는 실측 항목 코드, 값은 cm다
+     */
+    public record SizeSpec(
+            String size,
+            Integer minHeightCm,
+            Integer maxHeightCm,
+            Map<String, BigDecimal> measurements) {
     }
 
     /**
