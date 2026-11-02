@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.review.domain.DisplayStatus;
 import com.bbcc.kidly.boundedcontext.review.domain.ReplicaProduct;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,6 +117,11 @@ class ProductReplicaServiceTest {
         private ReplicaProduct insertedByOther;
         private DataIntegrityViolationException violation =
             violation("23505", ProductReplicaService.PRODUCT_PRIMARY_KEY);
+
+        @Override
+        public List<ReplicaProduct> findAllByProductIdIn(Collection<Long> productIds) {
+            throw new UnsupportedOperationException();
+        }
 
         @Override
         public Optional<ReplicaProduct> findById(Long productId) {
