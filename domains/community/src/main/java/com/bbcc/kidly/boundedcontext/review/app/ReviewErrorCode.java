@@ -19,6 +19,7 @@ public enum ReviewErrorCode implements ErrorCode {
         "cursor는 직전 응답의 nextCursor를 그대로 보내 주세요. 처음부터 읽으려면 cursor를 빼고 보내 주세요."),
     INVALID_RATING(HttpStatus.BAD_REQUEST, "잘못된 별점입니다", "별점은 1 이상 5 이하 정수로 보내 주세요."),
     INVALID_CONTENT(HttpStatus.BAD_REQUEST, "잘못된 리뷰 본문입니다", "본문은 공백을 빼고 1자 이상 1000자 이하로 써 주세요."),
+    INVALID_PRODUCT_ID(HttpStatus.BAD_REQUEST, "잘못된 상품 ID입니다", "productId는 상품의 ID(양의 정수)로 보내 주세요."),
     INVALID_ORDER_ITEM_ID(HttpStatus.BAD_REQUEST, "잘못된 주문상품 ID입니다",
         "orderItemId는 리뷰 작성 가능 목록의 orderItemId를 그대로 보내 주세요."),
     REVIEW_NOT_ELIGIBLE(HttpStatus.FORBIDDEN, "리뷰를 쓸 수 없는 주문상품입니다",
