@@ -13,7 +13,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class ReplicaProductTest {
 
-    private static final LocalDateTime OCCURRED_AT = LocalDateTime.now().minusHours(1);
+    // 나노초가 있는 고정 시각. DB(마이크로초, 반올림)에 저장하면 .123456으로 내려가 저장 값보다 "늦은" 값으로 보일 수 있는 경우다
+    private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123);
+    // OCCURRED_AT을 마이크로초로 자른 저장 값
+    private static final LocalDateTime STORED = LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_000);
     private static final ReplicaProduct.OptionState ON_SALE = new ReplicaProduct.OptionState("ON_SALE", false);
     private static final ReplicaProduct.OptionState ON_SALE_SOLD_OUT = new ReplicaProduct.OptionState("ON_SALE", true);
     private static final ReplicaProduct.OptionState STOPPED = new ReplicaProduct.OptionState("STOPPED", false);
@@ -70,14 +73,14 @@ class ReplicaProductTest {
         assertThat(replica.getName()).isEqualTo("상품 A");
         assertThat(replica.getThumbnailUrl()).isEqualTo("https://img/1.png");
         assertThat(replica.getDisplayStatus()).isEqualTo(DisplayStatus.ON_SALE);
-        assertThat(replica.getSourceOccurredAt()).isEqualTo(OCCURRED_AT);
+        assertThat(replica.getSourceOccurredAt()).isEqualTo(STORED);
     }
 
     @Test
-    @DisplayName("저장된 시각보다 늦은 이벤트(1나노초 뒤)는 덮어쓴다")
+    @DisplayName("저장된 시각보다 늦은 이벤트(1마이크로초 뒤)는 덮어쓴다")
     void newerApplied() {
         ReplicaProduct replica = ReplicaProduct.create(values("상품 A", "ON_SALE", List.of(ON_SALE), OCCURRED_AT));
-        LocalDateTime later = OCCURRED_AT.plusNanos(1);
+        LocalDateTime later = STORED.plusNanos(1_000);
 
         boolean applied = replica.applyIfNewer(values("상품 B", "STOPPED", List.of(ON_SALE), later));
 
@@ -88,8 +91,8 @@ class ReplicaProductTest {
     }
 
     @ParameterizedTest
-    @ValueSource(longs = {0, -1})
-    @DisplayName("저장된 시각과 같거나(중복) 이른(늦게 온 옛) 이벤트는 무시한다")
+    @ValueSource(longs = {0, -1_000})
+    @DisplayName("저장된 시각과 같거나(중복) 1마이크로초 이른(늦게 온 옛) 이벤트는 무시한다")
     void sameOrOlderIgnored(long nanos) {
         ReplicaProduct replica = ReplicaProduct.create(values("상품 A", "ON_SALE", List.of(ON_SALE), OCCURRED_AT));
 
@@ -99,7 +102,31 @@ class ReplicaProductTest {
         assertThat(applied).isFalse();
         assertThat(replica.getName()).isEqualTo("상품 A");
         assertThat(replica.getDisplayStatus()).isEqualTo(DisplayStatus.ON_SALE);
-        assertThat(replica.getSourceOccurredAt()).isEqualTo(OCCURRED_AT);
+        assertThat(replica.getSourceOccurredAt()).isEqualTo(STORED);
+    }
+
+    @Test
+    @DisplayName("발생 시각은 마이크로초로 잘라 저장한다(DB 정밀도와 같게)")
+    void occurredAtTruncatedToMicros() {
+        ReplicaProduct replica = ReplicaProduct.create(values("상품 A", "ON_SALE", List.of(ON_SALE), OCCURRED_AT));
+
+        assertThat(replica.getSourceOccurredAt()).isEqualTo(LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_000));
+    }
+
+    @Test
+    @DisplayName("마이크로초 아래만 다른 두 시각은 같은 시각이라 덮어쓰지 않고, 1마이크로초 늦으면 반영한다")
+    void subMicrosecondIsSameTime() {
+        ReplicaProduct replica = ReplicaProduct.create(values("상품 A", "ON_SALE", List.of(ON_SALE),
+            LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_000)));
+
+        boolean sameMicro = replica.applyIfNewer(values("상품 B", "STOPPED", List.of(ON_SALE),
+            LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_999)));
+        boolean oneMicroLater = replica.applyIfNewer(values("상품 C", "STOPPED", List.of(ON_SALE),
+            LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_457_000)));
+
+        assertThat(sameMicro).isFalse();
+        assertThat(oneMicroLater).isTrue();
+        assertThat(replica.getName()).isEqualTo("상품 C");
     }
 
     private static ReplicaProduct.Values values(String name, String status, List<ReplicaProduct.OptionState> options,

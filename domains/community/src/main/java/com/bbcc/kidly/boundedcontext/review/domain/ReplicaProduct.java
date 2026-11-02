@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 /**
  * 상품 복사본(상품당 1행). product.changed의 지금 값을 덮어쓰며, 리뷰 · 찜 화면에 상품 이름 · 썸네일 · 표시 상태를 보여 줄 때 쓴다.
  * 옵션은 저장하지 않고 표시 상태 계산에만 쓴다.
- * 엔티티 이름은 한 앱 안에서 겹치면 안 되므로(주문에도 ReplicaProduct가 있다) CommunityReplicaProduct로 둔다.
+ * 엔티티 이름은 한 앱 안에서 겹치면 안 되므로(다른 도메인에 같은 클래스 이름이 있을 수 있다) CommunityReplicaProduct로 둔다.
  */
 @Entity(name = "CommunityReplicaProduct")
 @Table(schema = "community", name = "replica_product")
@@ -69,11 +69,12 @@ public class ReplicaProduct extends ReviewTimeEntity {
 
     /**
      * 저장된 값보다 늦게 발생한 이벤트일 때만 덮어쓴다(같은 시각 = 중복, 이른 시각 = 늦게 온 옛 이벤트는 무시).
+     * 시각은 마이크로초로 잘라 비교 · 저장한다(ReviewTimes).
      *
      * @return 반영했으면 true
      */
     public boolean applyIfNewer(Values values) {
-        if (!values.occurredAt().isAfter(sourceOccurredAt)) {
+        if (!ReviewTimes.toStoredPrecision(values.occurredAt()).isAfter(sourceOccurredAt)) {
             return false;
         }
         apply(values);
@@ -84,6 +85,6 @@ public class ReplicaProduct extends ReviewTimeEntity {
         name = values.name();
         thumbnailUrl = values.thumbnailUrl();
         displayStatus = DisplayStatus.of(values.productStatus(), values.options());
-        sourceOccurredAt = values.occurredAt();
+        sourceOccurredAt = ReviewTimes.toStoredPrecision(values.occurredAt());
     }
 }

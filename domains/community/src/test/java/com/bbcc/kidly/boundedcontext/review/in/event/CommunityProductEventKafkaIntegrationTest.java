@@ -39,7 +39,8 @@ class CommunityProductEventKafkaIntegrationTest {
     private static final String TOPIC = "kidly.product.events";
     private static final String BREAK_REPLICA = "test_break_community_replica_product";
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
-    private static final LocalDateTime OCCURRED_AT = LocalDateTime.now().minusHours(1);
+    // 나노초가 있는 고정 시각(DB에는 마이크로초로 내림 저장되는 값)
+    private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123);
 
     @Autowired
     private KafkaContainer kafka;
@@ -80,7 +81,7 @@ class CommunityProductEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("같은 product.changed를 두 번 받아도 행 1개 · 값 1회분이고 DLT로 보내지 않는다")
+    @DisplayName("같은 product.changed를 두 번 받아도 행 1개 · 값 1회분(수정 시각 그대로)이고 DLT로 보내지 않는다")
     void duplicateAppliedOnce() {
         long productId = newProductId();
         var event = changed(productId, ProductStatus.ON_SALE, OCCURRED_AT);
@@ -208,7 +209,7 @@ class CommunityProductEventKafkaIntegrationTest {
     }
 
     private Map<String, Object> stored(long productId) {
-        return jdbcTemplate.queryForMap("select name, thumbnail_url, display_status, source_occurred_at "
+        return jdbcTemplate.queryForMap("select name, thumbnail_url, display_status, source_occurred_at, updated_at "
             + "from community.replica_product where product_id = ?", productId);
     }
 

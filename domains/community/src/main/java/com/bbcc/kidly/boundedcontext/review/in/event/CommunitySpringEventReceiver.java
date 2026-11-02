@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.review.in.event;
 
 import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
+import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,9 +18,15 @@ import org.springframework.stereotype.Component;
 public class CommunitySpringEventReceiver {
 
     private final CommunityProductEventListener productEventListener;
+    private final CommunityOrderEventListener orderEventListener;
 
     @DomainEventListener
     public void onProductChanged(ProductChangedEvent event) {
         productEventListener.onProductChanged(event);
+    }
+
+    @DomainEventListener
+    public void onPurchaseConfirmed(OrderItemPurchaseConfirmedEvent event) {
+        orderEventListener.onPurchaseConfirmed(event);
     }
 }

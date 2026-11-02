@@ -26,7 +26,7 @@ import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
 /**
- * 커뮤니티가 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT. 구독 그룹은 kidly.community. 주문 팩토리의 경량판이다(DLT 보관 · 재처리 없음).
+ * 커뮤니티가 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT. 구독 그룹은 kidly.community. DLT로 보낸 메시지는 보관 · 재처리하지 않는다.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정을 그대로 받고 커뮤니티 값만 덮어쓴다:
  * <ul>
  *   <li>한 건씩 처리 완료를 표시한다(RECORD)</li>
@@ -44,6 +44,7 @@ public class CommunityKafkaListenerConfig {
     public static final String GROUP = "kidly.community";
     public static final String FACTORY = "communityKafkaListenerContainerFactory";
     public static final String PRODUCT_EVENTS = "kidly.product.events";
+    public static final String ORDER_EVENTS = "kidly.order.events";
 
     private static final String DEAD_LETTER_SUFFIX = ".community.dlt";
     private static final long RETRY_INTERVAL_MS = 1000L;
@@ -51,7 +52,12 @@ public class CommunityKafkaListenerConfig {
 
     @Bean
     NewTopic communityProductEventsDeadLetterTopic() {
-        return TopicBuilder.name(PRODUCT_EVENTS + DEAD_LETTER_SUFFIX).partitions(1).replicas(1).build();
+        return deadLetterTopic(PRODUCT_EVENTS);
+    }
+
+    @Bean
+    NewTopic communityOrderEventsDeadLetterTopic() {
+        return deadLetterTopic(ORDER_EVENTS);
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
@@ -86,6 +92,10 @@ public class CommunityKafkaListenerConfig {
         errorHandler.addNotRetryableExceptions(BusinessException.class, IllegalArgumentException.class,
             IllegalStateException.class, NullPointerException.class, JacksonException.class);
         return errorHandler;
+    }
+
+    private static NewTopic deadLetterTopic(String topic) {
+        return TopicBuilder.name(topic + DEAD_LETTER_SUFFIX).partitions(1).replicas(1).build();
     }
 
     /**
