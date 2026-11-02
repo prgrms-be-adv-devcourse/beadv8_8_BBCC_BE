@@ -1,5 +1,6 @@
 -- kidly-app의 같은 버전 init.sql에서 recommend 스키마 구문만 뽑았다(#704). 내용을 고치지 않는다
--- 이미 테이블이 있는 DB는 baseline(application.yml)으로 이 파일을 건너뛴다. 빈 DB(테스트 · 새 로컬)만 적용한다
+-- 이미 테이블이 있는 DB는 baseline(application.yml)으로 이 파일을 건너뛴다. 빈 DB(테스트)만 적용한다
+-- 로컬은 kidly-app이 먼저 마이그레이션해야 한다. 빈 DB에서 이 서비스가 먼저 추천 테이블을 만들면 kidly-app의 init이 실패한다
 
 CREATE SCHEMA IF NOT EXISTS recommend;
 

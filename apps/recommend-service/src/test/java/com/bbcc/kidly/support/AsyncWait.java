@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.function.BooleanSupplier;
 
 /**
- * 비동기 처리(메일 발송, Kafka 수신 등)가 끝나기를 기다린다. 조건이 시간 안에 만족되지 않으면 실패한다.
+ * 비동기 처리(Kafka 수신 등)가 끝나기를 기다린다. 조건이 시간 안에 만족되지 않으면 실패한다.
  * Awaitility 대신 쓴다(회의 10-29 안건 3).
  */
 public final class AsyncWait {

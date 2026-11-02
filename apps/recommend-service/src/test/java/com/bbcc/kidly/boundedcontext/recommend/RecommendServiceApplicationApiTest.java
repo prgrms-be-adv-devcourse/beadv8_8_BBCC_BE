@@ -15,6 +15,7 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -50,12 +51,17 @@ class RecommendServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("다른 도메인 API는 없다(404)")
+    @DisplayName("다른 도메인 API는 없어 kidly-app과 같은 ProblemDetail 형식의 404를 받는다")
     void noOtherDomainApi() {
         client.get().uri("/api/v1/children")
             .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange()
-            .expectStatus().isNotFound();
+            .expectStatus().isNotFound()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.status").isEqualTo(404)
+            .jsonPath("$.title").isNotEmpty()
+            .jsonPath("$.instance").isEqualTo("/api/v1/children");
     }
 
     @Test

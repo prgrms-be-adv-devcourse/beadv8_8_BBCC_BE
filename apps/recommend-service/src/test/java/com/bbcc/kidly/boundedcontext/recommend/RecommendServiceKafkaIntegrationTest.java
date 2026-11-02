@@ -25,7 +25,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 추천 서비스가 kidly-app과 같은 구독 그룹(kidly.recommend)으로 Kafka에 붙어 받은 메시지를 복사본에 반영하는지 본다.
- * 받는 종류마다의 처리는 추천 도메인의 수신 테스트가 확인하고, 여기서는 서비스가 Kafka에 붙는지만 판매자 메시지 하나로 본다.
+ * 받는 종류마다의 처리는 kidly-app의 추천 수신 테스트가 확인하고, 여기서는 서비스가 Kafka에 붙는지만 판매자 메시지 하나로 본다.
  */
 @KafkaIntegrationTest
 class RecommendServiceKafkaIntegrationTest {
