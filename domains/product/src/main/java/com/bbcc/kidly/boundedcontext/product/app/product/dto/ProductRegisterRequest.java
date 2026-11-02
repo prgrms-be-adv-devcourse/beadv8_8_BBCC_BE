@@ -30,6 +30,8 @@ public record ProductRegisterRequest(
     String brand,
     @NotNull(message = "카테고리를 골라 주세요.")
     Long categoryId,
+    // 설명은 상품 정보 변경됨 본문에 그대로 실려 Kafka로 나가므로, 메시지 크기 한도(1MB)에 닿지 않게 길이를 제한한다
+    @Size(max = 5000, message = "상품 설명은 5000자 이하로 입력해 주세요.")
     String description,
     String thumbnailUrl,
     @NotNull(message = "이미지 목록이 필요합니다.")

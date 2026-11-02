@@ -13,6 +13,7 @@ import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 판매자가 판매대기 상품의 판매를 시작하는 API를 HTTP 요청부터 응답까지 확인한다.
@@ -59,6 +63,9 @@ class ProductSaleStartApiTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private JsonMapper jsonMapper;
 
     private SavedClothingTop saved;
 
@@ -122,6 +129,38 @@ class ProductSaleStartApiTest {
                 new ProductChangedEvent.AttributeEntry("SIZE", clothing.size120().getId(), "120")));
         assertThat(data.infoValues()).containsExactly(
             new ProductChangedEvent.AttributeEntry("MAIN_MATERIAL", clothing.cotton().getId(), "면"));
+    }
+
+    @Test
+    @DisplayName("SALE-08 판매 시작으로 나간 상품 정보 변경됨에 브랜드 · 설명과 저장된 사이즈별 실측이 들어 있다")
+    void startSaleEventCarriesBrandDescriptionAndSizeSpecs() {
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+
+        // 실측은 JSONB로 저장했다가 판매 시작 트랜잭션에서 다시 읽은 값이다. 숫자 자릿수와 상관없이 값으로 비교한다
+        ProductChangedEvent.Data data = eventRecorder.events(ProductChangedEvent.class).getFirst().data();
+        assertThat(data.brand()).isEqualTo("키들리");
+        assertThat(data.description()).isEqualTo("상품 설명");
+        assertThat(data.sizeSpecs()).usingRecursiveFieldByFieldElementComparator(
+                RecursiveComparisonConfiguration.builder()
+                    .withComparatorForType(BigDecimal::compareTo, BigDecimal.class).build())
+            .containsExactly(
+                new ProductChangedEvent.SizeSpec("110", 105, 115, measurements(42, 30, 34, 38)),
+                new ProductChangedEvent.SizeSpec("120", 115, 125, measurements(45, 32, 36, 41)));
+    }
+
+    @Test
+    @DisplayName("SALE-08 판매 시작으로 아웃박스에 남은 본문의 data에 브랜드 · 설명 · 사이즈별 실측이 있고, 다시 읽으면 나간 이벤트와 같다")
+    void startSaleOutboxPayloadCarriesNewFields() {
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+
+        ProductChangedEvent.Data published = eventRecorder.events(ProductChangedEvent.class).getFirst().data();
+        JsonNode payloadData = jsonMapper.readTree(
+            jdbcTemplate.queryForObject("select payload from product.product_outbox", String.class)).get("data");
+        assertThat(payloadData.get("brand").asString()).isEqualTo("키들리");
+        assertThat(payloadData.get("description").asString()).isEqualTo("상품 설명");
+        assertThat(payloadData.get("sizeSpecs").get(0).get("measurements").propertyNames())
+            .containsExactlyInAnyOrder("TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH");
+        assertThat(jsonMapper.treeToValue(payloadData, ProductChangedEvent.Data.class)).isEqualTo(published);
     }
 
     @Test
@@ -275,6 +314,16 @@ class ProductSaleStartApiTest {
             .jsonPath("$.status").isEqualTo(status.value())
             .jsonPath("$.detail").isEqualTo(detail)
             .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId + "/sale-status");
+    }
+
+    // 등록 요청의 실측 값(총장 · 어깨너비 · 가슴단면 · 소매길이, cm)을 실측 항목 코드 맵으로 만든다
+    private static Map<String, BigDecimal> measurements(int totalLength, int shoulderWidth, int chestWidth,
+        int sleeveLength) {
+        return Map.of(
+            "TOTAL_LENGTH", BigDecimal.valueOf(totalLength),
+            "SHOULDER_WIDTH", BigDecimal.valueOf(shoulderWidth),
+            "CHEST_WIDTH", BigDecimal.valueOf(chestWidth),
+            "SLEEVE_LENGTH", BigDecimal.valueOf(sleeveLength));
     }
 
     private RestTestClient.ResponseSpec startSale(Consumer<HttpHeaders> login, Map<String, Object> body) {

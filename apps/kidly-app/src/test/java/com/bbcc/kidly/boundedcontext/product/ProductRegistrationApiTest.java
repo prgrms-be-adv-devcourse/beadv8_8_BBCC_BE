@@ -229,6 +229,8 @@ class ProductRegistrationApiTest {
                 "name: 상품명은 100자 이하로 입력해 주세요."),
             invalid("255자를 넘는 브랜드", body -> body.put("brand", "가".repeat(256)),
                 "brand: 브랜드는 255자 이하로 입력해 주세요."),
+            invalid("5000자를 넘는 설명", body -> body.put("description", "가".repeat(5001)),
+                "description: 상품 설명은 5000자 이하로 입력해 주세요."),
             invalid("카테고리 없음", body -> body.put("categoryId", null), "categoryId: 카테고리를 골라 주세요."),
             invalid("이미지 목록 없음", body -> body.put("imageUrls", null), "imageUrls: 이미지 목록이 필요합니다."),
             invalid("이미지 목록에 빈 칸", body -> body.put("imageUrls", Arrays.asList(ownImageUrl(SELLER_ID), null)),
