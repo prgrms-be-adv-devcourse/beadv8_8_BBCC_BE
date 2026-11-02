@@ -154,8 +154,9 @@ class ProductChangedDataTest {
     }
 
     @Test
-    @DisplayName("SALE-08 실측 행이 없는 상품은 사이즈별 실측을 빈 목록으로 담는다")
+    @DisplayName("SIZE-06 실측 행이 없으면 사이즈별 실측을 빈 목록으로 옮긴다")
     void carryEmptySizeSpecsWithoutSizeSpecRows() {
+        // 실측 행이 없는 실제 경우는 사이즈 역할 항목이 없는 유형의 상품인데, 그런 유형의 픽스처가 없어 옮기는 동작만 확인한다
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
         ReflectionTestUtils.setField(product.getOptions().get(0), "id", OPTION_110_ID);
 

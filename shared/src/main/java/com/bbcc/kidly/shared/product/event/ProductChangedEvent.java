@@ -25,7 +25,8 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      * @param infoValues 상품 정보 값이다. 다중 선택 목록 항목은 같은 {@code code}로 여러 개를 담는다
      * @param brand 브랜드. 등록하지 않았으면 null
      * @param description 상품 설명. 등록하지 않았으면 null
-     * @param sizeSpecs 사이즈별 실측이다. 상품의 실측 행마다 하나를 담고, 사이즈 무관 상품의 FREE 행도 담는다
+     * @param sizeSpecs 사이즈별 실측이다. 상품의 실측 행마다 하나를 담고, 사이즈 무관 상품의 FREE 행도 담는다.
+     *        사이즈 역할 항목이 없는 유형의 상품처럼 실측 행이 없으면 빈 목록이다. 이 칸이 생기기 전에 나간 메시지도 빈 목록으로 읽힌다
      */
     public record Data(
             Long productId,
@@ -50,7 +51,8 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
         }
 
         /**
-         * 아래 생성자와 같은 이유로, 브랜드 · 설명 · 사이즈별 실측 없이 만드는 생성자를 둔다. 브랜드와 설명은 null, 사이즈별 실측은 빈 목록이 된다.
+         * 이벤트를 만드는 다른 도메인 테스트 코드가 바뀌지 않게 하려고, 브랜드 · 설명 · 사이즈별 실측 없이 만드는 생성자를 둔다.
+         * 브랜드와 설명은 null, 사이즈별 실측은 빈 목록이 된다. 상품이 이벤트를 보낼 때 쓰면 세 값이 빠지므로 쓰지 않는다.
          */
         public Data(
                 Long productId,
