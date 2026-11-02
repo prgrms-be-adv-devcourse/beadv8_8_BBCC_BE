@@ -16,7 +16,9 @@ import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
 import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.auth.Role;
+import com.bbcc.kidly.shared.member.dto.MemberLoginState;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,6 +29,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class MemberTest {
 
     private static final Long ADMIN_ID = 99L;
+    private static final Long MEMBER_ID = 1L;
     private static final String REASON = "약관 위반";
     private static final SocialIdentity KAKAO_1 = new SocialIdentity(OAuthProvider.KAKAO, "kakao-1");
 
@@ -94,6 +97,45 @@ class MemberTest {
 
         assertThatThrownBy(() -> member.changeNickname(null)).isInstanceOf(NullPointerException.class);
         assertThat(member.getNickname()).isEqualTo(MemberFixture.NICKNAME);
+    }
+
+    @Test
+    @DisplayName("가입 키로 가입하면 키를 저장하고 소셜 계정은 연결하지 않는다")
+    void registerWithKey() {
+        var member = Member.register(new MemberRegisterInfo("social-account:1", new Nickname("테스트회원"), EMAIL), NOW);
+
+        assertThat(member.getRegistrationKey()).isEqualTo("social-account:1");
+        assertThat(member.getSocialAccounts()).isEmpty();
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("활성 회원의 로그인 상태는 닉네임과 역할을 담는다")
+    void loginStateOfActive() {
+        var member = withId(MemberFixture.withSellerState(SellerStatus.ACTIVE));
+
+        assertThat(member.loginState()).isEqualTo(
+            new MemberLoginState.Active(MEMBER_ID, MemberFixture.NICKNAME, List.of(Role.BUYER, Role.SELLER)));
+    }
+
+    @Test
+    @DisplayName("정지한 회원의 로그인 상태는 Suspended다")
+    void loginStateOfSuspended() {
+        var member = withId(MemberFixture.kakaoMember());
+        member.suspend(ADMIN_ID, REASON, NOW);
+
+        assertThat(member.loginState()).isEqualTo(new MemberLoginState.Suspended(MEMBER_ID));
+        assertThat(member.canLogin()).isFalse();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원의 로그인 상태는 Withdrawn이다")
+    void loginStateOfWithdrawn() {
+        var member = withId(MemberFixture.kakaoMember());
+        member.withdraw(NOW);
+
+        assertThat(member.loginState()).isEqualTo(new MemberLoginState.Withdrawn(MEMBER_ID));
+        assertThat(member.canLogin()).isFalse();
     }
 
     @Test
@@ -398,6 +440,11 @@ class MemberTest {
         member.applySellerState(SellerStatus.ACTIVE, NOW);
 
         assertThat(member.roles()).containsExactly(Role.BUYER, Role.SELLER, Role.ADMIN);
+    }
+
+    private static Member withId(Member member) {
+        ReflectionTestUtils.setField(member, "id", MEMBER_ID);
+        return member;
     }
 
     private void assertStillActive(Member member) {

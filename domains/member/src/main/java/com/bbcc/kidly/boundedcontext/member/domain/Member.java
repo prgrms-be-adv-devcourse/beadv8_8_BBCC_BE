@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.member.domain;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.auth.Role;
+import com.bbcc.kidly.shared.member.dto.MemberLoginState;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -35,7 +36,9 @@ import lombok.NoArgsConstructor;
 @Table(
     name = "member",
     schema = "member",
-    uniqueConstraints = @UniqueConstraint(name = "uk_member_nickname", columnNames = "nickname"))
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_member_nickname", columnNames = "nickname"),
+        @UniqueConstraint(name = "uk_member_registration_key", columnNames = "registration_key")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member extends BaseTimeEntity {
@@ -69,11 +72,16 @@ public class Member extends BaseTimeEntity {
     // 탈퇴한 회원만 값이 있다
     private LocalDateTime withdrawnAt;
 
+    // 가입을 멱등하게 만드는 키. 가입 때만 정하고 바꾸지 않는다. 키 없이 가입한 회원은 null이다
+    @Column(length = 64)
+    private String registrationKey;
+
     // 나중에 같은 사람의 여러 소셜 계정을 한 회원으로 통합할 수 있게 1:N으로 둔다
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SocialAccount> socialAccounts = new ArrayList<>();
 
-    private Member(String nickname, String email) {
+    private Member(String registrationKey, String nickname, String email) {
+        this.registrationKey = registrationKey;
         this.nickname = nickname;
         this.email = email;
         this.role = MemberRole.USER;
@@ -81,8 +89,10 @@ public class Member extends BaseTimeEntity {
     }
 
     public static Member register(MemberRegisterInfo info, LocalDateTime now) {
-        Member member = new Member(info.nickname().value(), info.email());
-        member.socialAccounts.add(new SocialAccount(member, info.identity(), now));
+        Member member = new Member(info.registrationKey(), info.nickname().value(), info.email());
+        if (info.identity() != null) {
+            member.socialAccounts.add(new SocialAccount(member, info.identity(), now));
+        }
         return member;
     }
 
@@ -121,7 +131,15 @@ public class Member extends BaseTimeEntity {
     }
 
     public boolean canLogin() {
-        return status == MemberStatus.ACTIVE;
+        return loginState() instanceof MemberLoginState.Active;
+    }
+
+    public MemberLoginState loginState() {
+        return switch (status) {
+            case ACTIVE -> new MemberLoginState.Active(id, nickname, roles());
+            case SUSPENDED -> new MemberLoginState.Suspended(id);
+            case WITHDRAWN -> new MemberLoginState.Withdrawn(id);
+        };
     }
 
     public boolean isAdmin() {

@@ -16,6 +16,8 @@ public interface MemberRepository {
 
     Optional<Member> findBySocialAccount(SocialIdentity identity);
 
+    Optional<Member> findByRegistrationKey(String registrationKey);
+
     boolean existsByNickname(String nickname);
 
     // 자신을 빼고 다른 회원이 쓰는 닉네임인지
