@@ -2,10 +2,16 @@ package com.bbcc.kidly.boundedcontext.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
+import com.bbcc.kidly.shared.auth.Role;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
+import com.bbcc.kidly.support.IssuedAccessToken;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +30,9 @@ class RefreshTokenApiTest {
 
     @Autowired
     private RestTestClient client;
+
+    @Autowired
+    private MemberRepository memberRepository;
 
     @Test
     @DisplayName("로그인하면 Refresh Token을 HttpOnly 쿠키로 받고 응답은 캐시되지 않는다")
@@ -55,6 +64,60 @@ class RefreshTokenApiTest {
 
         assertThat(result.getResponseBody().accessToken()).isNotBlank();
         assertThat(result.getResponseCookies().getFirst(COOKIE).getValue()).isNotEqualTo(oldToken);
+    }
+
+    @Test
+    @DisplayName("닉네임을 바꾼 뒤 재발급하면 새 Access Token의 nickname 클레임이 바뀐 닉네임이다")
+    void reissueReflectsNicknameChange() {
+        var loginResult = client.post().uri(LOGIN_PATH)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(new SocialLoginRequest("kakao-1"))
+            .exchange()
+            .expectStatus().isOk()
+            .returnResult(LoginResponse.class);
+        var oldRefreshToken = loginResult.getResponseCookies().getFirst(COOKIE).getValue();
+        var issued = IssuedAccessToken.decode(loginResult.getResponseBody().accessToken());
+
+        client.patch().uri("/api/v1/members/me")
+            .headers(issued.headers())
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(new MemberUpdateRequest("새닉네임"))
+            .exchange()
+            .expectStatus().isOk();
+
+        var reissuedToken = reissue(oldRefreshToken)
+            .expectStatus().isOk()
+            .returnResult(LoginResponse.class)
+            .getResponseBody()
+            .accessToken();
+
+        assertThat(IssuedAccessToken.decode(reissuedToken).nickname()).isEqualTo("새닉네임");
+    }
+
+    @Test
+    @DisplayName("판매자 자격을 잃은 뒤 재발급하면 새 Access Token 역할에서 SELLER가 빠진다")
+    void reissueReflectsSellerLoss() {
+        var member = memberRepository.save(MemberFixture.withSellerState("kakao-seller", SellerStatus.ACTIVE));
+        var loginResult = client.post().uri(LOGIN_PATH)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(new SocialLoginRequest("kakao-seller"))
+            .exchange()
+            .expectStatus().isOk()
+            .returnResult(LoginResponse.class);
+        var oldRefreshToken = loginResult.getResponseCookies().getFirst(COOKIE).getValue();
+        assertThat(IssuedAccessToken.decode(loginResult.getResponseBody().accessToken()).roles())
+            .contains(Role.SELLER);
+
+        member.applySellerState(SellerStatus.SUSPENDED, LocalDateTime.now());
+        memberRepository.save(member);
+
+        var reissuedToken = reissue(oldRefreshToken)
+            .expectStatus().isOk()
+            .returnResult(LoginResponse.class)
+            .getResponseBody()
+            .accessToken();
+
+        assertThat(IssuedAccessToken.decode(reissuedToken).roles()).doesNotContain(Role.SELLER);
     }
 
     @Test

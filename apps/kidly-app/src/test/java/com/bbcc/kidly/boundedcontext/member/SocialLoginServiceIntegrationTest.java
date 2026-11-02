@@ -16,11 +16,18 @@ import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.support.FakeOAuthClient;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 
@@ -39,6 +46,41 @@ class SocialLoginServiceIntegrationTest {
 
     @Autowired
     private ApplicationEvents events;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @DisplayName("같은 소셜 계정으로 동시에 처음 로그인하면 한 명만 가입되고 모두 그 회원으로 로그인한다")
+    void concurrentFirstLoginRegistersOnce() throws Exception {
+        var threadCount = 10;
+        var start = new CountDownLatch(1);
+        Callable<Long> login = () -> {
+            start.await();
+            return login("kakao-1").getId();
+        };
+
+        List<Long> memberIds;
+        try (var executor = Executors.newFixedThreadPool(threadCount)) {
+            var futures = new ArrayList<Future<Long>>();
+            for (var i = 0; i < threadCount; i++) {
+                futures.add(executor.submit(login));
+            }
+            start.countDown();
+            memberIds = new ArrayList<>();
+            for (var future : futures) {
+                memberIds.add(future.get());
+            }
+        }
+
+        assertThat(memberIds).hasSize(threadCount).containsOnly(memberIds.getFirst());
+        assertThat(jpaMemberRepository.count()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from member.social_account", Long.class))
+            .isEqualTo(1L);
+        assertThat(events.stream(MemberRegisteredEvent.class))
+            .singleElement()
+            .satisfies(event -> assertThat(event.data().memberId()).isEqualTo(memberIds.getFirst()));
+    }
 
     @Test
     @DisplayName("처음 로그인하면 가입되고 가입 이벤트가 발행된다")

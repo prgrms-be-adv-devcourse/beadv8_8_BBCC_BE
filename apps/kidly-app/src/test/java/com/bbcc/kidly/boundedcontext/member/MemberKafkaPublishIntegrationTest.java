@@ -4,7 +4,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
+import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
+import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
@@ -75,6 +77,9 @@ class MemberKafkaPublishIntegrationTest {
 
     @Autowired
     private AccessTokenRevocationService revocationService;
+
+    @Autowired
+    private AdminMemberService adminMemberService;
 
     @Autowired
     private EventPublisher eventPublisher;
@@ -153,6 +158,28 @@ class MemberKafkaPublishIntegrationTest {
         var data = JSON_MAPPER.readTree(record.value()).get("data");
         assertThat(data.get("memberId").asLong()).isEqualTo(7L);
         assertThat(data.get("revokedAt").asString()).isEqualTo("2026-10-12T09:00:05");
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 실제 호출자(MemberService)가 커밋한 뒤에도 member.tokens-revoked가 회원 ID 키로 온다")
+    void withdrawSendsTokensRevoked() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+
+        memberService.withdraw(member.getId());
+
+        var tokensRevoked = events.stream(MemberTokensRevokedEvent.class).findFirst().orElseThrow();
+        assertSent(tokensRevoked, "member.tokens-revoked", member.getId());
+    }
+
+    @Test
+    @DisplayName("정지하면 실제 호출자(AdminMemberService)가 커밋한 뒤에도 member.tokens-revoked가 회원 ID 키로 온다")
+    void suspendSendsTokensRevoked() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+
+        adminMemberService.suspend(member.getId(), 999L, new MemberSuspendRequest("규칙 위반"));
+
+        var tokensRevoked = events.stream(MemberTokensRevokedEvent.class).findFirst().orElseThrow();
+        assertSent(tokensRevoked, "member.tokens-revoked", member.getId());
     }
 
     @Test

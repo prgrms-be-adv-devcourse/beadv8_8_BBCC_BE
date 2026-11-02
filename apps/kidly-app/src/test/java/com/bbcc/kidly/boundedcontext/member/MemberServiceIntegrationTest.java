@@ -115,6 +115,7 @@ class MemberServiceIntegrationTest {
         assertThat(memberRepository.findById(memberId))
             .hasValueSatisfying(member -> assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE));
         assertThat(events.stream(MemberWithdrawnEvent.class)).isEmpty();
+        assertThat(events.stream(MemberTokensRevokedEvent.class)).isEmpty();
     }
 
     private ShippingAddressRequest addressRequest(boolean isDefault) {

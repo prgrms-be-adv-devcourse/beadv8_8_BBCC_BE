@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
+import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
@@ -38,6 +39,9 @@ class RefreshTokenServiceIntegrationTest {
 
     @Autowired
     private RefreshTokenService refreshTokenService;
+
+    @Autowired
+    private MemberService memberService;
 
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
@@ -119,12 +123,26 @@ class RefreshTokenServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("정지된 회원이면 재발급하지 않는다")
+    @DisplayName("정지된 회원이면 재발급하지 않고, 행은 지우지 않는다")
     void inactiveMember() {
         var memberId = memberRepository.save(MemberFixture.withStatus(MemberStatus.SUSPENDED)).getId();
         var token = refreshTokenService.issue(memberId);
 
         assertInvalid(() -> refreshTokenService.reissue(token));
+
+        assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원이면 재발급하지 않고, 행은 지우지 않는다")
+    void withdrawnMember() {
+        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
+        var token = refreshTokenService.issue(memberId);
+
+        memberService.withdraw(memberId);
+
+        assertInvalid(() -> refreshTokenService.reissue(token));
+        assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
     }
 
     @Test

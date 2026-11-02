@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
 import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
+import com.bbcc.kidly.boundedcontext.member.out.JpaRefreshTokenRepository;
 import com.bbcc.kidly.support.FakeOAuthClient;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.IssuedAccessToken;
@@ -30,6 +31,9 @@ class SocialLoginApiTest {
     @Autowired
     private JpaMemberRepository jpaMemberRepository;
 
+    @Autowired
+    private JpaRefreshTokenRepository jpaRefreshTokenRepository;
+
     @Test
     @DisplayName("처음 로그인하면 가입되고 그 회원의 Access Token을 받는다")
     void firstLogin() {
@@ -48,11 +52,40 @@ class SocialLoginApiTest {
     }
 
     @Test
-    @DisplayName("정지된 회원이면 403")
+    @DisplayName("정지된 회원이면 403이고 Refresh Token 쿠키도 행도 생기지 않는다")
     void suspendedMember() {
         memberRepository.save(MemberFixture.withStatus(MemberStatus.SUSPENDED));
 
-        expectProblem(KAKAO_LOGIN_PATH, codeBody("kakao-1"), HttpStatus.FORBIDDEN, "로그인할 수 없는 회원입니다");
+        var result = client.post().uri(KAKAO_LOGIN_PATH)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(codeBody("kakao-1"))
+            .exchange()
+            .expectStatus().isEqualTo(HttpStatus.FORBIDDEN)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("로그인할 수 없는 회원입니다")
+            .jsonPath("$.instance").isEqualTo(KAKAO_LOGIN_PATH)
+            .returnResult();
+
+        assertThat(result.getResponseCookies().getFirst("refresh_token")).isNull();
+        assertThat(jpaRefreshTokenRepository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 뒤 같은 코드로 다시 로그인하면 새 회원이 된다")
+    void loginAfterWithdrawRegistersNewMember() {
+        var accessToken = login("kakao-1");
+        var oldMemberId = memberIdOf(accessToken);
+        var issued = IssuedAccessToken.decode(accessToken);
+
+        client.delete().uri("/api/v1/members/me")
+            .headers(issued.headers())
+            .exchange()
+            .expectStatus().isNoContent();
+
+        var newMemberId = memberIdOf(login("kakao-1"));
+
+        assertThat(newMemberId).isNotEqualTo(oldMemberId);
     }
 
     @Test
