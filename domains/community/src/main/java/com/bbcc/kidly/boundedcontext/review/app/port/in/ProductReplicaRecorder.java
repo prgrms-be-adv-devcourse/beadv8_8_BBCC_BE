@@ -12,21 +12,22 @@ public interface ProductReplicaRecorder {
     void record(ProductChanged changed);
 
     /**
-     * @param productStatus 상품 판매 상태 이름. 모르는 값이면 null
+     * @param productOnSale 상품이 판매 중인지
      * @param options 옵션 판매 상태 · 품절 여부. 없으면 빈 목록
      */
     record ProductChanged(
         Long productId,
         String name,
         String thumbnailUrl,
-        String productStatus,
+        boolean productOnSale,
         List<Option> options,
         LocalDateTime occurredAt) {
     }
 
     /**
-     * @param saleStatus 옵션 판매 상태 이름. 모르는 값이면 null
+     * @param onSale 옵션이 판매 중인지
+     * @param inStock 재고가 있는지
      */
-    record Option(String saleStatus, boolean soldOut) {
+    record Option(boolean onSale, boolean inStock) {
     }
 }

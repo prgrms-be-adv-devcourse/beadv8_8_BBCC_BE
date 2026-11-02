@@ -30,7 +30,7 @@ class ProductReplicaServiceTest {
     @Test
     @DisplayName("처음 받은 상품은 복사본을 만든다")
     void createsFirst() {
-        service.record(changed("상품 A", "ON_SALE", OCCURRED_AT));
+        service.record(changed("상품 A", true, OCCURRED_AT));
 
         assertThat(replicas.findById(1L)).get().satisfies(replica -> {
             assertThat(replica.getName()).isEqualTo("상품 A");
@@ -42,9 +42,9 @@ class ProductReplicaServiceTest {
     @Test
     @DisplayName("늦게 발생한 이벤트는 저장된 복사본을 덮어쓴다")
     void updatesNewer() {
-        service.record(changed("상품 A", "ON_SALE", OCCURRED_AT));
+        service.record(changed("상품 A", true, OCCURRED_AT));
 
-        service.record(changed("상품 B", "STOPPED", OCCURRED_AT.plusSeconds(1)));
+        service.record(changed("상품 B", false, OCCURRED_AT.plusSeconds(1)));
 
         assertThat(replicas.findById(1L)).get().satisfies(replica -> {
             assertThat(replica.getName()).isEqualTo("상품 B");
@@ -55,10 +55,10 @@ class ProductReplicaServiceTest {
     @Test
     @DisplayName("같거나 이른 이벤트는 무시하고 새로 만들지 않는다")
     void ignoresSameOrOlder() {
-        service.record(changed("상품 A", "ON_SALE", OCCURRED_AT));
+        service.record(changed("상품 A", true, OCCURRED_AT));
 
-        service.record(changed("상품 B", "STOPPED", OCCURRED_AT));
-        service.record(changed("상품 C", "STOPPED", OCCURRED_AT.minusSeconds(1)));
+        service.record(changed("상품 B", false, OCCURRED_AT));
+        service.record(changed("상품 C", false, OCCURRED_AT.minusSeconds(1)));
 
         assertThat(replicas.findById(1L)).get().extracting(ReplicaProduct::getName).isEqualTo("상품 A");
         assertThat(replicas.saves).isEqualTo(1);
@@ -69,7 +69,7 @@ class ProductReplicaServiceTest {
     void concurrentFirstInsertAppliesNewer() {
         replicas.insertedByOther = ReplicaProduct.create(values("상품 다른쪽", OCCURRED_AT));
 
-        service.record(changed("상품 B", "STOPPED", OCCURRED_AT.plusSeconds(1)));
+        service.record(changed("상품 B", false, OCCURRED_AT.plusSeconds(1)));
 
         assertThat(replicas.findById(1L)).get().extracting(ReplicaProduct::getName).isEqualTo("상품 B");
     }
@@ -79,7 +79,7 @@ class ProductReplicaServiceTest {
     void concurrentFirstInsertKeepsNewerStored() {
         replicas.insertedByOther = ReplicaProduct.create(values("상품 다른쪽", OCCURRED_AT.plusSeconds(1)));
 
-        service.record(changed("상품 B", "STOPPED", OCCURRED_AT));
+        service.record(changed("상품 B", false, OCCURRED_AT));
 
         assertThat(replicas.findById(1L)).get().extracting(ReplicaProduct::getName).isEqualTo("상품 다른쪽");
     }
@@ -90,12 +90,12 @@ class ProductReplicaServiceTest {
         replicas.insertedByOther = ReplicaProduct.create(values("상품 다른쪽", OCCURRED_AT));
         replicas.violation = violation("23502", null);
 
-        assertThatThrownBy(() -> service.record(changed("상품 B", "STOPPED", OCCURRED_AT.plusSeconds(1))))
+        assertThatThrownBy(() -> service.record(changed("상품 B", false, OCCURRED_AT.plusSeconds(1))))
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private static ReplicaProduct.Values values(String name, LocalDateTime occurredAt) {
-        return new ReplicaProduct.Values(1L, name, null, "ON_SALE", List.of(), occurredAt);
+        return new ReplicaProduct.Values(1L, name, null, true, List.of(), occurredAt);
     }
 
     private static DataIntegrityViolationException violation(String sqlState, String constraint) {
@@ -104,8 +104,8 @@ class ProductReplicaServiceTest {
                 constraint));
     }
 
-    private static ProductChanged changed(String name, String status, LocalDateTime occurredAt) {
-        return new ProductChanged(1L, name, null, status, List.of(new Option("ON_SALE", false)), occurredAt);
+    private static ProductChanged changed(String name, boolean productOnSale, LocalDateTime occurredAt) {
+        return new ProductChanged(1L, name, null, productOnSale, List.of(new Option(true, true)), occurredAt);
     }
 
     private static final class FakeReplicaProducts implements ReplicaProducts {

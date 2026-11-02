@@ -40,7 +40,7 @@ class JpaReplicaProductRepositoryIntegrationTest {
     @DisplayName("처음 보는 상품은 새 행으로 저장된다")
     void insertsNew() {
         transactionTemplate.executeWithoutResult(status -> replicaProducts.insert(ReplicaProduct.create(
-            new ReplicaProduct.Values(PRODUCT_ID, "새 상품", null, "ON_SALE", List.of(), NEWER))));
+            new ReplicaProduct.Values(PRODUCT_ID, "새 상품", null, true, List.of(), NEWER))));
 
         assertThat(row()).singleElement().satisfies(r -> assertThat(r).containsEntry("name", "새 상품"));
     }
@@ -54,7 +54,7 @@ class JpaReplicaProductRepositoryIntegrationTest {
         List<Map<String, Object>> before = row();
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> replicaProducts.insert(
-            ReplicaProduct.create(new ReplicaProduct.Values(PRODUCT_ID, "이른 값", null, "STOPPED", List.of(),
+            ReplicaProduct.create(new ReplicaProduct.Values(PRODUCT_ID, "이른 값", null, false, List.of(),
                 NEWER.minusMinutes(1))))))
             .isInstanceOf(DataIntegrityViolationException.class)
             .satisfies(e -> assertThat(e.getCause()).isInstanceOfSatisfying(ConstraintViolationException.class,
