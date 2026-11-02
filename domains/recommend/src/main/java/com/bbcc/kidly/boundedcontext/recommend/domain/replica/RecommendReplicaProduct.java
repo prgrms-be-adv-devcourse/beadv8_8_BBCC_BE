@@ -16,10 +16,13 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -77,6 +80,12 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "event_occurred_at", nullable = false)
     private LocalDateTime eventOccurredAt;
 
+    @Column(length = 255)
+    private String brand;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     // 사이즈 줄은 applyIfNewer로만 바꾸도록 getter를 두지 않고, 읽을 때는 toProductSizes를 쓴다
     @Getter(AccessLevel.NONE)
     @BatchSize(size = BATCH_FETCH_SIZE)
@@ -94,9 +103,25 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "size", nullable = false, length = 20)
     private Set<String> sellableSizes = new HashSet<>();
 
+    // 사이즈별 실측 줄은 applyIfNewer로만 바꾸도록 Lombok getter를 두지 않고, getSizeSpecs로 읽기 전용 목록을 돌려준다
+    @Getter(AccessLevel.NONE)
+    @BatchSize(size = BATCH_FETCH_SIZE)
+    @ElementCollection
+    @CollectionTable(schema = "recommend", name = "replica_product_size_spec",
+        joinColumns = @JoinColumn(name = "product_id"))
+    private List<RecommendReplicaSizeSpec> sizeSpecs = new ArrayList<>();
+
+    // brand, description, sizeSpecs는 새로 생긴 칸이라 없는 예전 메시지도 처리해야 하므로 null을 허용한다
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
-        LocalDateTime occurredAt) {
+        String brand, String description, List<SizeSpecInfo> sizeSpecs, LocalDateTime occurredAt) {
+    }
+
+    /**
+     * 사이즈별 실측 한 줄의 입력 값이다. 키는 실측 항목 코드, 값은 cm다.
+     */
+    public record SizeSpecInfo(String size, Integer minHeightCm, Integer maxHeightCm,
+        Map<String, BigDecimal> measurements) {
     }
 
     /**
@@ -152,10 +177,19 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.thumbnailUrl = info.thumbnailUrl();
         this.productRegisteredAt = info.registeredAt();
         this.sizeFree = info.sizeFree() || hasOnlyOptionsWithoutSize(info.options());
+        this.brand = info.brand();
+        this.description = info.description();
         this.eventOccurredAt = info.occurredAt();
         // 컬렉션 객체를 새로 갈아 끼우지 않고 비운 뒤 다시 채운다
         this.sizes.clear();
         this.sellableSizes.clear();
+        this.sizeSpecs.clear();
+        if (info.sizeSpecs() != null) {
+            for (SizeSpecInfo spec : info.sizeSpecs()) {
+                this.sizeSpecs.add(new RecommendReplicaSizeSpec(
+                    spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
+            }
+        }
         for (OptionInfo option : info.options()) {
             if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {
                 this.sellableSizes.add(option.size() == null ? FREE_SIZE : option.size());
@@ -173,6 +207,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             }
             this.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
+    }
+
+    /**
+     * 사이즈별 실측을 읽기 전용 목록으로 돌려준다.
+     */
+    public List<RecommendReplicaSizeSpec> getSizeSpecs() {
+        return Collections.unmodifiableList(sizeSpecs);
     }
 
     /**

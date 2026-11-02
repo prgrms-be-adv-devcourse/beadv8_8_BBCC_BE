@@ -45,6 +45,9 @@ public class RecommendReplicaProductService {
             data.createdAt(),
             data.sizeFree(),
             toOptionInfos(data.options()),
+            null,
+            null,
+            List.of(),
             event.occurredAt());
     }
 

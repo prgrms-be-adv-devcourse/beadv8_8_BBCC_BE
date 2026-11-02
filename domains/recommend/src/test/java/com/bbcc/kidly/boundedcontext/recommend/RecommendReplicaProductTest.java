@@ -10,14 +10,18 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_C
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOptionInfo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +36,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 class RecommendReplicaProductTest {
 
     private static final LocalDateTime LATER = PRODUCT_CHANGED_AT.plusMinutes(1);
+
+    private static final List<RecommendReplicaProduct.SizeSpecInfo> SIZE_130_SPECS = List.of(
+        new RecommendReplicaProduct.SizeSpecInfo("130", 125, 135, Map.of("TOTAL_LENGTH", new BigDecimal("48"))));
 
     private static final List<RecommendReplicaProduct.OptionInfo> OPTIONS =
         List.of(productOptionInfo("130", 125, 135));
@@ -60,6 +67,23 @@ class RecommendReplicaProductTest {
         assertThat(replica.toProductSizes()).isEqualTo(ProductSizes.of(false, List.of(
             SizeRange.of("110", 105, 115),
             SizeRange.of("120", 115, 125))));
+    }
+
+    @Test
+    @DisplayName("처음 받은 상품 정보로 만든 복사본에 브랜드 · 설명 · 사이즈별 실측이 들어간다")
+    void createWithBrandDescriptionAndSizeSpecs() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        assertThat(replica.getBrand()).isEqualTo("키들리");
+        assertThat(replica.getDescription()).isEqualTo("상품 설명");
+        assertThat(replica.getSizeSpecs())
+            .extracting(RecommendReplicaSizeSpec::getSize, RecommendReplicaSizeSpec::getMinHeightCm,
+                RecommendReplicaSizeSpec::getMaxHeightCm, RecommendReplicaSizeSpec::getMeasurements)
+            .containsExactly(
+                tuple("110", 105, 115,
+                    Map.of("TOTAL_LENGTH", new BigDecimal("42"), "CHEST_WIDTH", new BigDecimal("34"))),
+                tuple("120", 115, 125,
+                    Map.of("TOTAL_LENGTH", new BigDecimal("45"), "CHEST_WIDTH", new BigDecimal("36"))));
     }
 
     @Test
@@ -217,7 +241,7 @@ class RecommendReplicaProductTest {
 
         replica.applyIfNewer(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, 61L, 62L, PRODUCT_A_NAME,
             ProductStatus.STOPPED, "https://cdn.kidly.test/products/31-new.jpg", LocalDateTime.of(2026, 10, 2, 9, 0),
-            true, List.of(productOptionInfo("130", 125, 135)), LATER));
+            true, List.of(productOptionInfo("130", 125, 135)), null, null, List.of(), LATER));
 
         assertThat(replica)
             .extracting(
@@ -232,6 +256,44 @@ class RecommendReplicaProductTest {
                 "https://cdn.kidly.test/products/31-new.jpg", LocalDateTime.of(2026, 10, 2, 9, 0), LATER);
         assertThat(replica.toProductSizes())
             .isEqualTo(ProductSizes.of(true, List.of(SizeRange.of("130", 125, 135))));
+    }
+
+    @Test
+    @DisplayName("INV-R01 더 늦게 일어난 상품 변경으로 브랜드 · 설명 · 사이즈별 실측을 덮어쓰고, 빠진 사이즈의 실측은 남지 않는다")
+    void applyLaterBrandDescriptionAndSizeSpecs() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        replica.applyIfNewer(changeWithDetails("키들리 키즈", "새 설명", SIZE_130_SPECS, LATER));
+
+        assertThat(replica.getBrand()).isEqualTo("키들리 키즈");
+        assertThat(replica.getDescription()).isEqualTo("새 설명");
+        assertThat(replica.getSizeSpecs())
+            .extracting(RecommendReplicaSizeSpec::getSize, RecommendReplicaSizeSpec::getMeasurements)
+            .containsExactly(tuple("130", Map.of("TOTAL_LENGTH", new BigDecimal("48"))));
+    }
+
+    @Test
+    @DisplayName("INV-R01 저장된 시각보다 이르게 일어난 상품 변경은 브랜드 · 설명 · 사이즈별 실측을 바꾸지 않는다")
+    void ignoreEarlierBrandDescriptionAndSizeSpecs() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        replica.applyIfNewer(changeWithDetails("키들리 키즈", "새 설명", SIZE_130_SPECS,
+            PRODUCT_CHANGED_AT.minusMinutes(1)));
+
+        assertThat(replica.getBrand()).isEqualTo("키들리");
+        assertThat(replica.getDescription()).isEqualTo("상품 설명");
+        assertThat(replica.getSizeSpecs()).extracting(RecommendReplicaSizeSpec::getSize).containsExactly("110", "120");
+    }
+
+    @Test
+    @DisplayName("브랜드 · 설명 · 사이즈별 실측이 없는 예전 메시지의 상품 정보로도 복사본을 만들고, 세 값은 비워 둔다")
+    void createWithoutBrandDescriptionAndSizeSpecs() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithDetails(null, null, null, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.getBrand()).isNull();
+        assertThat(replica.getDescription()).isNull();
+        assertThat(replica.getSizeSpecs()).isEmpty();
     }
 
     @ParameterizedTest(name = "{0}")
@@ -383,12 +445,21 @@ class RecommendReplicaProductTest {
     // 상품명만 빠진, 저장된 시각보다 늦은 상품 변경이다
     private static RecommendReplicaProduct.ChangeInfo changeWithoutName() {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, null,
-            ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS, LATER);
+            ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS, null, null,
+            List.of(), LATER);
+    }
+
+    // 상품 A의 다른 값은 그대로 두고 브랜드 · 설명 · 사이즈별 실측과 발생 시각만 정해 만든다
+    private static RecommendReplicaProduct.ChangeInfo changeWithDetails(String brand, String description,
+        List<RecommendReplicaProduct.SizeSpecInfo> sizeSpecs, LocalDateTime occurredAt) {
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
+            PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
+            brand, description, sizeSpecs, occurredAt);
     }
 
     private static RecommendReplicaProduct.ChangeInfo change(Long productId, Long sellerId, ProductStatus status,
         LocalDateTime registeredAt, List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(productId, sellerId, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME,
-            status, PRODUCT_A_THUMBNAIL_URL, registeredAt, false, options, occurredAt);
+            status, PRODUCT_A_THUMBNAIL_URL, registeredAt, false, options, null, null, List.of(), occurredAt);
     }
 }
