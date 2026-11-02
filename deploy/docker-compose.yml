@@ -3,6 +3,7 @@
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES=search 인 환경(지금은 dev)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
 # 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(dev · prod)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
+# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(지금은 dev)에서만 뜬다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -167,6 +168,46 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # 추천 서비스(apps/recommend-service, #704). 추천 API 와 판매자 · 자녀 · 상품 · 주문 이벤트 수신(구독 그룹 kidly.recommend). 보내는 이벤트는 없다
+  # app 도 아직 추천 도메인을 가지고 같은 DB · 구독 그룹으로 함께 돈다. 같은 메시지를 두 번 받아도 한 번만 반영한다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
+  recommend-service:
+    image: ${RECOMMEND_IMAGE}
+    profiles: [recommend]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx192m
+      # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${RECOMMEND_PORT:-8087}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    # app 이 추천 도메인을 가진 동안(#704)은 app 이 먼저 마이그레이션해야 한다. 서비스는 app 이 이미 적용한 마지막 추천 마이그레이션 버전으로 baseline 을 잡는다
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    # 아웃박스 · 스케줄러가 없어 자녀 프로필 서비스보다 작게 시작한다. 힙 192m · 상한 512m 은 추측값이라 dev 에서 재고 정한다
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *logging
+
   # Gateway(apps/gateway, #608). nginx 뒤에서 토큰 검증 · 무효화 확인 · CORS 를 하고 app 으로 넘긴다. 상품 목록은 KIDLY_SEARCH_URI 로 넘긴다(#526)
   # 토큰 무효화 이벤트를 받는다(구독 그룹 kidly.gateway). DB 가 없어 비밀이 든 .env 대신 필요한 값만 넘기고 공개키만 마운트한다
   gateway:
@@ -183,6 +224,8 @@ services:
       KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://app:8080}
       # 자녀 프로필(/api/v1/children/**)을 받을 곳(#682). app 에는 자녀 API 가 없어 profile childprofile 이 꺼진 환경에서는 자녀 API 가 실패한다
       KIDLY_CHILDPROFILE_URI: ${KIDLY_CHILDPROFILE_URI:-http://childprofile-service:8080}
+      # 추천(/api/v1/recommendations/**)을 받을 곳(#704). 추천 서비스가 켜진 환경(dev)은 .env 에 recommend-service 를 두고, 없으면(prod) 지금처럼 app 이 받는다
+      KIDLY_RECOMMEND_URI: ${KIDLY_RECOMMEND_URI:-http://app:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs
