@@ -14,7 +14,7 @@ import org.springframework.security.web.server.header.XXssProtectionServerHttpHe
 import org.springframework.web.server.WebFilter;
 
 /**
- * 모든 요청이 맨 먼저 거치는 WebFilter 둘: 보안 헤더 → 방화벽 순서다(방화벽 400에도 보안 헤더가 붙는다).
+ * 모든 요청이 맨 먼저 거치는 WebFilter 셋: 보안 헤더 → 요청 ID → 방화벽 순서다(방화벽 400에도 보안 헤더 · 요청 ID가 붙는다).
  * WebFilter라 CORS · 라우팅 · GlobalFilter(토큰 · 역할 검사)보다 먼저 돈다.
  */
 @Configuration(proxyBeanMethods = false)
@@ -40,6 +40,12 @@ class WebFilterConfig {
 
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE + 1)
+    WebFilter requestIdFilter() {
+        return new RequestIdFilter();
+    }
+
+    @Bean
+    @Order(Ordered.HIGHEST_PRECEDENCE + 2)
     WebFilter requestFirewallFilter(ProblemResponse problem) {
         return new RequestFirewallFilter(problem);
     }

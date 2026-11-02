@@ -23,5 +23,6 @@ class BackendTimeoutIntegrationTest extends GatewayTestSupport {
 
         expectProblem(response, HttpStatus.GATEWAY_TIMEOUT, "응답이 지연되고 있습니다", "잠시 후 다시 시도해 주세요.",
             "/api/v1/members/me");
+        response.expectHeader().exists("X-Request-Id");
     }
 }
