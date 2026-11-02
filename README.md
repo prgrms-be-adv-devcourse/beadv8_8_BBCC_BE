@@ -19,7 +19,7 @@
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - 프론트와 Swagger(http://localhost:8083/swagger-ui.html)는 Gateway 주소(8083)로 붙는다. 앱(8080)에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 앱에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
-- Gateway는 Kafka(`kidly.member.events`)로 토큰 무효화를 받는다. 앱보다 먼저 떠도 기동은 되지만, 앱이 한 번 떠서 토픽이 만들어진 뒤에 무효화 목록이 채워진다
+- Gateway는 Kafka(`kidly.auth.events`)로 토큰 무효화를 받는다. 앱보다 먼저 떠도 기동은 되지만, 앱이 한 번 떠서 토픽이 만들어진 뒤에 무효화 목록이 채워진다
 
 ## 빌드 · 테스트
 
