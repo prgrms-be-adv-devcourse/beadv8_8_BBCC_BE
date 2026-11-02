@@ -101,8 +101,10 @@ jobs:
             tasks: :apps:kidly-app:functionalTest
           - name: search-service
             tasks: :apps:search-service:functionalTest
+          - name: childprofile-service
+            tasks: :apps:childprofile-service:functionalTest
           - name: 나머지
-            tasks: functionalTest -x :apps:kidly-app:functionalTest -x :apps:search-service:functionalTest
+            tasks: functionalTest -x :apps:kidly-app:functionalTest -x :apps:search-service:functionalTest -x :apps:childprofile-service:functionalTest
     steps:
       - uses: actions/checkout@v7
 
