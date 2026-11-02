@@ -3,12 +3,13 @@ package com.bbcc.kidly.boundedcontext.settlement.domain;
 import static java.util.Objects.requireNonNull;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.util.Assert;
 
 /**
- * 판매자 1명의 정산 대상 판매 합계를 구하고 정산 기간의 정산서를 만든다.
+ * 판매자 1명의 정산 대상 판매 합계 · 시작일을 구하고 정산 기간의 정산서를 만든다.
  * 대상은 모두 같은 판매자 · 대기 상태 · 종료 기준일 이전이어야 한다.
  */
 public class SettlementCalculator {
@@ -25,12 +26,13 @@ public class SettlementCalculator {
         return period;
     }
 
-    // 판매 합계가 long을 넘치면 ArithmeticException
-    public long sumSalesAmount(List<SettlementItem> items) {
+    // 시작일은 가장 이른 확정일. 판매 합계가 long을 넘치면 ArithmeticException
+    public SettlementSales sumSales(List<SettlementItem> items) {
         requireNonNull(items, "items는 필수입니다");
         Assert.notEmpty(items, "정산 대상이 없습니다");
         var sellerId = items.getFirst().getSellerId();
         var total = 0L;
+        LocalDate startOn = null;
         for (var item : items) {
             Assert.isTrue(item.getSellerId().equals(sellerId), "한 판매자의 정산 대상만 묶을 수 있습니다");
             Assert.isTrue(
@@ -38,12 +40,17 @@ public class SettlementCalculator {
             Assert.isTrue(
                 item.getConfirmedAt().isBefore(period.cutoffAt()), "종료 기준일 전에 확정된 대상만 정산할 수 있습니다");
             total = Math.addExact(total, item.getSalesAmount());
+            var confirmedOn = item.getConfirmedAt().toLocalDate();
+            if (startOn == null || confirmedOn.isBefore(startOn)) {
+                startOn = confirmedOn;
+            }
         }
-        return total;
+        return new SettlementSales(total, startOn);
     }
 
-    public Settlement create(Long sellerId, long totalSalesAmount, LocalDateTime now) {
-        return Settlement.create(
-            new SettlementCreateInfo(sellerId, period.startOn(), period.endOn(), totalSalesAmount, feeRate), now);
+    public Settlement create(Long sellerId, SettlementSales sales, LocalDateTime now) {
+        requireNonNull(sales, "sales는 필수입니다");
+        return Settlement.create(new SettlementCreateInfo(
+            sellerId, sales.periodStartOn(), period.endOn(), sales.totalAmount(), feeRate), now);
     }
 }

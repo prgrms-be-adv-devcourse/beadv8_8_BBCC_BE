@@ -2,8 +2,10 @@ package com.bbcc.kidly.boundedcontext.settlement.app;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunResult;
+import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementSkipRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementTriggerType;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -38,6 +40,7 @@ public class SettlementRunService {
     private final JobRepository jobRepository;
     private final Job settlementJob;
     private final SettlementSkipRepository settlementSkipRepository;
+    private final SettlementRepository settlementRepository;
 
     // 기준일은 오늘 또는 지난 날짜. 그 날 0시 전에 확정된 대기 항목을 정산한다
     public SettlementRunResult runManually(LocalDate cutoffOn, Long adminId) {
@@ -45,8 +48,9 @@ public class SettlementRunService {
         return run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
     }
 
+    // 오늘 0시를 기준으로 전날까지 확정된 대기 항목을 정산한다. 영업일인지는 호출한 쪽(스케줄러)이 확인한다
     public SettlementRunResult runScheduled(LocalDate today) {
-        return run(SettlementPeriod.monthly(today).cutoffAt(), SettlementTriggerType.SCHEDULED, null);
+        return run(SettlementPeriod.daily(today).cutoffAt(), SettlementTriggerType.SCHEDULED, null);
     }
 
     @Transactional(readOnly = true)
@@ -130,8 +134,14 @@ public class SettlementRunService {
         return failure;
     }
 
+    // 실행의 시작일은 그 실행이 만든 정산서(종료일이 같은 정산서) 중 가장 이른 시작일. 정산서가 없으면 종료일이다
     private SettlementRunResult resultOf(JobExecution execution) {
-        return SettlementRunResult.of(
-            execution, settlementSkipRepository.findAllByJobExecutionIdOrderByIdAsc(execution.getId()));
+        var skips = settlementSkipRepository.findAllByJobExecutionIdOrderByIdAsc(execution.getId());
+        var cutoffAt = execution.getJobParameters().getLocalDateTime(SettlementJobConfig.CUTOFF_AT);
+        var endOn = SettlementPeriod.from(cutoffAt).endOn();
+        var periodStartOn = settlementRepository.findFirstByPeriodEndOnOrderByPeriodStartOnAsc(endOn)
+            .map(Settlement::getPeriodStartOn)
+            .orElse(endOn);
+        return SettlementRunResult.of(execution, periodStartOn, skips);
     }
 }
