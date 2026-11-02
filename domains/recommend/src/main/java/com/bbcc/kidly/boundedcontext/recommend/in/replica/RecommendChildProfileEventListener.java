@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.in.replica;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
+import com.bbcc.kidly.boundedcontext.recommend.in.RecommendKafkaListenerConfig;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

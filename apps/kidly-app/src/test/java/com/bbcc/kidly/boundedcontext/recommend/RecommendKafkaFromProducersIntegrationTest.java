@@ -5,18 +5,23 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendKafkaMessages.TIM
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.product.app.outbox.ProductOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
+import com.bbcc.kidly.boundedcontext.recommend.out.purchase.JpaPurchaseRecordRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -39,9 +44,10 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 판매자 · 자녀 · 상품 도메인이 실제로 보낸 메시지를 추천이 읽어 복사본에 저장하는지 확인한다(#576).
+ * 판매자 · 자녀 · 상품 도메인이 실제로 보낸 메시지를 추천이 읽어 복사본에 저장하는지(#576),
+ * 주문이 보낸 구매확정을 읽어 구매 기록에 저장하는지(#606) 확인한다.
  * 보내는 쪽이 만드는 본문(공통 칸 7개 + data)과 추천이 읽는 형식이 맞는지 보는 도메인 사이 계약 테스트다.
- * 판매자는 커밋 뒤 바로 보내고, 자녀 · 상품은 아웃박스에 저장된 뒤 릴레이가 보낸다.
+ * 판매자는 커밋 뒤 바로 보내고, 자녀 · 상품 · 주문은 아웃박스에 저장된 뒤 릴레이가 보낸다.
  * 테스트 설정은 릴레이 주기가 길어 저절로 돌지 않으므로 테스트가 릴레이를 직접 부른다.
  */
 @KafkaIntegrationTest
@@ -60,6 +66,16 @@ class RecommendKafkaFromProducersIntegrationTest {
 
     @Autowired
     private ProductOutboxRelayService productOutboxRelayService;
+
+    // 주문의 아웃박스는 EventPublisher로 채워지지 않고, 주문 서비스가 이 포트로 직접 넣는다
+    @Autowired
+    private OrderEventOutbox orderEventOutbox;
+
+    @Autowired
+    private OrderOutboxRelayService orderOutboxRelayService;
+
+    @Autowired
+    private JpaPurchaseRecordRepository purchaseRecordRepository;
 
     @Autowired
     private RecommendReplicaSellerRepository replicaSellerRepository;
@@ -121,6 +137,26 @@ class RecommendKafkaFromProducersIntegrationTest {
             .extracting(RecommendReplicaProduct::getName, RecommendReplicaProduct::getMinPrice,
                 RecommendReplicaProduct::getEventOccurredAt)
             .containsExactly("데일리 맨투맨", 25_000L, CHANGED_AT);
+    }
+
+    @Test
+    @DisplayName("주문이 아웃박스로 보낸 구매확정을 Kafka로 받아 구매 기록에 저장한다")
+    void savePurchaseRecordFromOrder() {
+        Long orderItemId = newId();
+        Long orderId = newId();
+        var confirmed = new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), CHANGED_AT,
+            new OrderItemPurchaseConfirmedEvent.Data(orderItemId, orderId, 1L, 7L, 11L, 21L, 31L, "120", 2, 50_000L,
+                CHANGED_AT));
+
+        transactionTemplate.executeWithoutResult(status -> orderEventOutbox.append(confirmed));
+        orderOutboxRelayService.relay();
+
+        AsyncWait.until(TIMEOUT, () -> purchaseRecordRepository.findAll().stream()
+            .anyMatch(record -> orderItemId.equals(record.getOrderItemId())));
+        assertThat(purchaseRecordRepository.findAll()).filteredOn(record -> orderItemId.equals(record.getOrderItemId()))
+            .singleElement()
+            .extracting(PurchaseRecord::getOrderId, PurchaseRecord::getChildProfileId, PurchaseRecord::getSize)
+            .containsExactly(orderId, 11L, "120");
     }
 
     private static Long newId() {
