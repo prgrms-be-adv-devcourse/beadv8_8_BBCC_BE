@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.http.HttpStatus;
 
 /**
- * Gateway 뒤의 서비스(kidly-app · search-service) 대신 받는 가짜 백엔드. 마지막으로 받은 요청만 기억하고 200 ok로 답한다.
+ * Gateway 뒤의 서비스(kidly-app · search-service · childprofile-service) 대신 받는 가짜 백엔드. 마지막으로 받은 요청만 기억하고 200 ok로 답한다.
  * 응답 헤더를 더 붙이려면 addResponseHeader를, 응답을 늦추려면 delayResponse를 쓴다. reset()이 둘 다 지운다.
  */
 public class RecordingBackend implements AutoCloseable {
