@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.review.out.persistence;
 
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
+import com.bbcc.kidly.boundedcontext.review.app.port.WithdrawnAuthors;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
@@ -9,6 +10,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,17 +18,26 @@ import org.springframework.data.repository.query.Param;
  * 리뷰 저장소. 목록은 리뷰 left join 상품 복사본 한 쿼리이고, 커서 조건은 (작성 시각, id) 튜플 비교라
  * 인덱스 (product_id | member_id, created_at desc, id desc)의 범위 조건으로 쓰인다.
  */
-public interface JpaReviewRepository extends JpaRepository<Review, Long>, Reviews {
+public interface JpaReviewRepository extends JpaRepository<Review, Long>, Reviews, WithdrawnAuthors {
 
     String LIST_SELECT = """
         select r.id as id, r.orderItemId as orderItemId, r.productId as productId, p.name as productName,
                p.thumbnailUrl as thumbnailUrl, p.displayStatus as displayStatus, r.rating as rating,
-               r.content as content, r.nickname as nickname, r.createdAt as createdAt, r.updatedAt as updatedAt
+               r.content as content, r.nickname as nickname, r.authorWithdrawnAt as authorWithdrawnAt,
+               r.createdAt as createdAt, r.updatedAt as updatedAt
         from CommunityReview r
         left join CommunityReplicaProduct p on p.productId = r.productId
         """;
     String AFTER = " and (r.createdAt, r.id) < (:createdAt, :id)";
     String NEWEST_FIRST = " order by r.createdAt desc, r.id desc";
+
+    @Override
+    @Modifying
+    @Query("""
+        update CommunityReview r set r.nickname = null, r.authorWithdrawnAt = :withdrawnAt
+        where r.memberId = :memberId and r.authorWithdrawnAt is null
+        """)
+    int markWithdrawn(@Param("memberId") Long memberId, @Param("withdrawnAt") LocalDateTime withdrawnAt);
 
     @Override
     @Query(LIST_SELECT + " where r.productId = :productId" + NEWEST_FIRST)

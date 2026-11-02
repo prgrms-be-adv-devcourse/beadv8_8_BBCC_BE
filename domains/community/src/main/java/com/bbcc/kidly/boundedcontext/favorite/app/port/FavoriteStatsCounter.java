@@ -13,9 +13,9 @@ public interface FavoriteStatsCounter {
     void increase(Long productId, LocalDateTime now);
 
     /**
-     * 찜 −1(있는 행 UPDATE).
+     * 찜 −count(있는 행 UPDATE).
      *
      * @return 바뀐 행 수. 0이면 찜 수 행이 없다(찜이 있는데 찜 수가 없는 어긋난 상태)
      */
-    int decrease(Long productId, LocalDateTime now);
+    int decreaseBy(Long productId, int count, LocalDateTime now);
 }

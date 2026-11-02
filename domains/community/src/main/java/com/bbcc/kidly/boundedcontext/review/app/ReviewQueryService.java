@@ -94,7 +94,8 @@ public class ReviewQueryService {
      * @param productName 상품 복사본이 없으면 null
      * @param thumbnailUrl 상품 복사본이 없거나 썸네일이 없으면 null
      * @param displayStatus 표시 상태 이름(ON_SALE · SOLD_OUT · SALE_ENDED). 상품 복사본이 없으면 null
-     * @param nickname 작성 시점 닉네임. 몰랐으면 null
+     * @param nickname 작성 시점 닉네임. 작성자가 탈퇴했으면 "탈퇴한 회원", 몰랐으면 null
+     * @param authorWithdrawn 작성자가 탈퇴했는지
      */
     public record ReviewItem(
         Long reviewId,
@@ -106,14 +107,17 @@ public class ReviewQueryService {
         int rating,
         String content,
         String nickname,
+        boolean authorWithdrawn,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
         static ReviewItem from(ReviewListRow row) {
+            boolean withdrawn = row.getAuthorWithdrawnAt() != null;
             return new ReviewItem(row.getId(), row.getOrderItemId(), row.getProductId(), row.getProductName(),
                 row.getThumbnailUrl(), row.getDisplayStatus() == null ? null : row.getDisplayStatus().name(),
                 row.getRating().intValue(), row.getContent(),
-                row.getNickname(), row.getCreatedAt(), row.getUpdatedAt());
+                AuthorDisplay.nickname(row.getNickname(), withdrawn), withdrawn, row.getCreatedAt(),
+                row.getUpdatedAt());
         }
     }
 }

@@ -64,7 +64,7 @@ public class FavoriteService {
         if (favorites.deleteByMember(memberId, id) == 0) {
             return;
         }
-        if (favoriteStatsCounter.decrease(id, FavoriteTimes.now()) == 0) {
+        if (favoriteStatsCounter.decreaseBy(id, 1, FavoriteTimes.now()) == 0) {
             throw new IllegalStateException("찜 수 행이 없습니다: productId=" + id);
         }
     }

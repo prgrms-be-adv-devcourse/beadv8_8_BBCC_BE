@@ -67,6 +67,9 @@ public interface Reviews {
 
         String getNickname();
 
+        // 작성자가 탈퇴했으면 그 시각, 아니면 null
+        LocalDateTime getAuthorWithdrawnAt();
+
         LocalDateTime getCreatedAt();
 
         LocalDateTime getUpdatedAt();

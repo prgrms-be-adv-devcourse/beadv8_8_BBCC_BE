@@ -31,9 +31,10 @@ public interface JpaFavoriteStatsRepository
     @Modifying
     @Query(nativeQuery = true, value = """
         update community.favorite_stats
-        set favorite_count = favorite_count - 1,
+        set favorite_count = favorite_count - :count,
             updated_at = :now
         where product_id = :productId
         """)
-    int decrease(@Param("productId") Long productId, @Param("now") LocalDateTime now);
+    int decreaseBy(@Param("productId") Long productId, @Param("count") int count,
+        @Param("now") LocalDateTime now);
 }
