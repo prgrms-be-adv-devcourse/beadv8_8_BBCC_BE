@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +41,9 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 같은 DLT 메시지를 동시에 재처리하면 한 번만 처리한다(#601). 먼저 온 재처리가 기록을 잠근 채 처리하는 동안
  * 늦은 쪽은 기다리지 않고 409(재처리 중). 처리 중임을 확실히 하려고 테스트가 주문 행을 잠가 먼저 온 재처리를 붙잡아 둔다.
+ * 먼저 온 재처리가 붙잡혔는지는 행을 잠가 보지 않고 pg_stat_activity로 본다(#669): 테스트의 주문 잠금에 막혀 기다리는 연결이 있으면
+ * 그 재처리는 이미 DLT 기록을 잠갔다(기록을 잠근 트랜잭션을 멈춘 채 원래 처리를 부르므로). 전에는 확인 쿼리가 기록을
+ * FOR UPDATE NOWAIT로 잠가 봤는데, 그 순간 먼저 온 재처리가 시작되면 재처리가 진행 중 오류로 끝나 대기가 시간 초과됐다.
  */
 @IntegrationTest
 class OrderDeadLetterReprocessConcurrencyIntegrationTest {
@@ -79,9 +83,11 @@ class OrderDeadLetterReprocessConcurrencyIntegrationTest {
         Long id = receive(PaymentEvents.completed(order, BUYER_ID));
         CountDownLatch orderLocked = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger holderPid = new AtomicInteger();
         CompletableFuture<Void> lockHolder = CompletableFuture.runAsync(() -> transactionTemplate.executeWithoutResult(
             status -> {
                 jdbcTemplate.queryForList("select id from orders.orders where id = ? for update", order.orderId());
+                holderPid.set(jdbcTemplate.queryForObject("select pg_backend_pid()", Integer.class));
                 orderLocked.countDown();
                 await(release);
             }));
@@ -89,7 +95,7 @@ class OrderDeadLetterReprocessConcurrencyIntegrationTest {
 
         CompletableFuture<OrderDeadLetterDetail> first = CompletableFuture.supplyAsync(
             () -> deadLetterService.reprocess(id, ADMIN_ID));
-        AsyncWait.until(Duration.ofSeconds(10), () -> isLocked(id));
+        AsyncWait.until(Duration.ofSeconds(10), () -> isBlockedBy(holderPid.get()));
 
         assertThatThrownBy(() -> deadLetterService.reprocess(id, ADMIN_ID))
             .isInstanceOfSatisfying(BusinessException.class, e ->
@@ -103,15 +109,10 @@ class OrderDeadLetterReprocessConcurrencyIntegrationTest {
             Integer.class, id)).isEqualTo(1);
     }
 
-    // 다른 트랜잭션이 기록을 잠그고 있으면 기다리지 않는 잠금이 바로 실패한다
-    private boolean isLocked(Long id) {
-        try {
-            transactionTemplate.executeWithoutResult(status -> jdbcTemplate.queryForList(
-                "select id from orders.order_dead_letter where id = ? for update nowait", id));
-            return false;
-        } catch (RuntimeException e) {
-            return true;
-        }
+    // 그 연결(테스트의 주문 잠금)에 막혀 잠금을 기다리는 연결이 있는지. 잠금을 잡지 않고 보기만 한다
+    private boolean isBlockedBy(int holderPid) {
+        return jdbcTemplate.queryForObject(
+            "select count(*) from pg_stat_activity where ? = any(pg_blocking_pids(pid))", Long.class, holderPid) > 0;
     }
 
     private static void await(CountDownLatch latch) {
