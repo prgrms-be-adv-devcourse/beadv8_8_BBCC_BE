@@ -61,6 +61,12 @@ springdoc:
   swagger-ui:
     operations-sorter: method
     tags-sorter: alpha
+    # 자녀 API는 자녀 프로필 서비스에만 있다(#682). Gateway(/v3/api-docs/childprofile)가 그 문서를 넘겨 주므로 Gateway로 연 Swagger에서만 보인다
+    urls:
+      - name: kidly
+        url: /v3/api-docs
+      - name: 자녀 프로필
+        url: /v3/api-docs/childprofile
 
 # 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다 (deploy/nginx)
 management:

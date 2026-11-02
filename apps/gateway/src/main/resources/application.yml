@@ -60,6 +60,13 @@ spring:
               uri: ${kidly.gateway.childprofile-uri}
               predicates:
                 - Path=/api/v1/children/**
+            # 자녀 프로필 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
+            - id: childprofile-api-docs
+              uri: ${kidly.gateway.childprofile-uri}
+              predicates:
+                - Path=/v3/api-docs/childprofile
+              filters:
+                - SetPath=/v3/api-docs
             # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}

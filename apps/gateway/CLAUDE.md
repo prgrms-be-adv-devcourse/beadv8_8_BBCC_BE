@@ -15,7 +15,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
   - 404(`/internal/**`): 이름 있는 필터 `web/NotFoundGatewayFilterFactory`(`application.yml`에서 `NotFound`)
   - 503 · 504 · 500: `web/GatewayErrorWebExceptionHandler`
   - 백엔드 호출 timeout(`application.yml`의 `spring.cloud.gateway.server.webflux.httpclient`): 연결 3초, 응답 55초. 55초는 결제 승인(Toss 연결 3초 + 읽기 30초)보다 길고 nginx 기본 `proxy_read_timeout` 60초보다 짧다. 테스트는 `application-test.yml`에서 응답 1초로 줄인다
-- 라우트: `application.yml`로만. `/internal/**`은 404, `GET /api/v1/products`(상품 목록, 경로가 정확히 같을 때만)는 `kidly.gateway.search-uri`(#526), `/api/v1/children` · `/api/v1/children/**`(자녀 프로필)는 `kidly.gateway.childprofile-uri`(#682), 나머지는 kidly-app
+- 라우트: `application.yml`로만. `/internal/**`은 404, `GET /api/v1/products`(상품 목록, 경로가 정확히 같을 때만)는 `kidly.gateway.search-uri`(#526), `/api/v1/children` · `/api/v1/children/**`(자녀 프로필)는 `kidly.gateway.childprofile-uri`(#682), `/v3/api-docs/childprofile`은 같은 서비스의 `/v3/api-docs`(kidly-app Swagger의 '자녀 프로필' 문서, `SetPath`), 나머지는 kidly-app
 - nginx가 넣은 `Host` · `X-Forwarded-*`는 덧붙이지 않고 그대로 넘긴다(`PreserveHostHeader`, `trusted-proxies`, `x-forwarded.*-enabled: false`). Gateway 자신은 `server.forward-headers-strategy: native`로 https · 원래 호스트로 본다(같은 출처 판단)
 
 ## 무효화 목록
@@ -43,5 +43,5 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - nginx dev · 운영 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(dev 8081 · prod 8080)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
 ## 로컬 실행
-- `docker compose up -d` 뒤 앱(`:apps:kidly-app:bootRun`)과 Gateway(`:apps:gateway:bootRun`, 8083)를 루트에서 띄운다. IDE는 `Kidly 앱 + Gateway` 실행 구성. 프론트 · Swagger는 8083으로 붙는다
+- `docker compose up -d` 뒤 앱(`:apps:kidly-app:bootRun`)과 Gateway(`:apps:gateway:bootRun`, 8083)를 루트에서 띄운다. IDE는 `Kidly 앱 + Gateway` 실행 구성. 프론트 · Swagger는 8083으로 붙는다(Swagger의 '자녀 프로필' 문서는 자녀 프로필 서비스가 떠 있어야 열린다)
 - 자녀 API(`/api/v1/children/**`)는 자녀 프로필 서비스(`:apps:childprofile-service:bootRun`, 8084)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_CHILDPROFILE_URI`를 준다

@@ -18,7 +18,7 @@
 6. (선택) `./gradlew :apps:recommend-service:bootRun` — 추천 서비스(8086). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 추천 API를 받는다
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
-- 프론트와 Swagger(http://localhost:8083/swagger-ui.html)는 Gateway 주소(8083)로 붙는다. 앱(8080)에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 앱에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
+- 프론트와 Swagger(http://localhost:8083/swagger-ui.html)는 Gateway 주소(8083)로 붙는다. Swagger 위쪽에서 앱 문서(`kidly`)와 `자녀 프로필` 문서를 고른다(자녀 문서는 5가 떠 있어야 열린다). 앱(8080)에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 앱에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
 - Gateway는 Kafka(`kidly.auth.events`)로 토큰 무효화를 받는다. 앱보다 먼저 떠도 기동은 되지만, 앱이 한 번 떠서 토픽이 만들어진 뒤에 무효화 목록이 채워진다
 - 자녀 토픽(`kidly.childprofile.events`)은 자녀 프로필 서비스가 처음 뜰 때 만든다. 새 Kafka(빈 `kafka-data` 볼륨)에서는 그 전에 떠 있던 앱의 주문 · 추천 리스너가 몇 초 뒤 메타데이터를 갱신하고서야 토픽을 받고, 책갈피가 없어 그때의 끝(`auto-offset-reset: latest`)부터 읽는다. 그 사이에 나간 자녀 메시지(서비스가 뜨며 넣는 초기 자녀 데이터 등)는 건너뛰고 다시 오지 않는다. 처음 한 번은 서비스를 띄운 뒤 앱을 다시 시작한다
 
