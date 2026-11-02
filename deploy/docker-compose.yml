@@ -2,7 +2,7 @@
 # deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES=search 인 환경(지금은 dev)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
-# 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(지금은 dev)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
+# 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(dev · prod)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -36,7 +36,8 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
-    # 한 서버에 dev · prod 가 같이 떠도 한 컨테이너가 메모리를 다 써서 다른 환경까지 OOM 으로 죽이지 않게 서비스마다 상한을 둔다. 합계가 호스트 메모리 안에 들어오게 잡았다
+    # 한 서버에 dev · prod 가 같이 떠도 한 컨테이너가 메모리를 다 써서 다른 환경까지 OOM 으로 죽이지 않게 서비스마다 상한을 둔다
+    # 합계는 prod 3328MiB(app 1024 · postgres 512 · kafka 768 · gateway 512 · 자녀 512) + dev 4352MiB(여기에 검색 1024) = 7680MiB 로 호스트(t3.large 8GiB) 안이다. 남는 512MiB 를 OS · nginx · Alloy 가 쓴다
     mem_limit: 1g
     restart: unless-stopped
     logging: *logging
@@ -132,9 +133,10 @@ services:
     image: ${CHILDPROFILE_IMAGE}
     profiles: [childprofile]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       TZ: Asia/Seoul
-      JAVA_TOOL_OPTIONS: -Xmx256m
+      # 힙은 64MiB 안팎만 쓴다(#682 측정)
+      JAVA_TOOL_OPTIONS: -Xmx192m
       # 힙 밖 네이티브 메모리(glibc malloc arena)가 동시 요청에 따라 커지는 것을 줄인다. 2 CPU 동시 부하에서 472MiB → 353MiB(#682 측정)
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -160,8 +162,8 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
-    # 힙은 64MiB 안팎만 쓰고 Metaspace · 스레드 등 힙 밖이 크다. 측정 최대 353MiB, 힙이 -Xmx 까지 차도 약 520MiB(#682)
-    mem_limit: 640m
+    # 2 CPU 동시 부하 뒤 353MiB(힙 64MiB 안팎, 나머지는 Metaspace · 스레드 등 힙 밖). 힙이 192m 까지 차도 추정 약 455MiB(#682 측정)
+    mem_limit: 512m
     restart: unless-stopped
     logging: *logging
 

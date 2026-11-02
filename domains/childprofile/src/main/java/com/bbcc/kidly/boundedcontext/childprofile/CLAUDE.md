@@ -23,7 +23,7 @@
 - 이 도메인은 이 서비스에서만 돈다. kidly-app에는 없다. 자녀 API · 자녀 이벤트 발행 · 회원 탈퇴 수신(구독 그룹 `kidly.childprofile`) 모두 서비스가 한다
 - 테스트는 `apps/childprofile-service/src/test`에 있다. 회원 도메인이 없으므로 회원 탈퇴 수신 테스트는 회원이 보내는 형식으로 토픽에 직접 넣는다
 - Gateway가 `/api/v1/children/**`를 `KIDLY_CHILDPROFILE_URI`로 보낸다. 기본값이 서비스라 서비스가 없으면 자녀 API가 실패한다
-- 실행: `./gradlew :apps:childprofile-service:bootRun`(포트 8084, 프로필 local, 초기 자녀 데이터를 넣는다). 서버는 profile `childprofile`, `127.0.0.1:8085`, 프로필 `prod`만이라 초기 데이터를 넣지 않는다
+- 실행: `./gradlew :apps:childprofile-service:bootRun`(포트 8084, 프로필 local, 초기 자녀 데이터를 넣는다). 서버는 compose profile `childprofile`, dev `127.0.0.1:8085` · prod `127.0.0.1:8088`, 스프링 프로필은 서버 `.env`의 `SPRING_PROFILES_ACTIVE`(dev는 `prod,dev`라 초기 자녀 데이터를 넣고, prod는 넣지 않는다)
 - Flyway: 자기 이력 테이블 `childprofile.flyway_schema_history_childprofile`. 자녀 테이블이 있는 DB는 첫 기동 때 `202610300953`으로 baseline
   - 새 마이그레이션은 이 모듈의 `db/migration/childprofile/`에 둔다. kidly-app에는 이 jar가 없어 서비스만 적용한다
   - 빈 DB에서는 kidly-app이 먼저 마이그레이션해야 한다. kidly-app의 init(고칠 수 없음)이 자녀 테이블도 만들어, 서비스가 먼저 만들면 kidly-app의 init이 `relation "child_profile" already exists`로 실패한다(로컬에서 확인). 서버 compose는 서비스가 `app`의 healthy를 기다린다
