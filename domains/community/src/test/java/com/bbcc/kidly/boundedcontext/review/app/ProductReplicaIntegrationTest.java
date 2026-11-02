@@ -36,7 +36,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 class ProductReplicaIntegrationTest {
 
     private static final long PRODUCT_ID = 7L;
-    private static final LocalDateTime OCCURRED_AT = LocalDateTime.now().minusHours(1);
+    // 나노초가 있는 고정 시각. DB(마이크로초, 반올림)에 저장하면 .123456으로 내려가 저장 값보다 "늦은" 값으로 보일 수 있는 경우다
+    private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123);
     // 받는 쪽이 저장하려던 상품 이름. 막힌 저장의 값이 로그에 나오지 않는지 이것으로 본다
     private static final String NAME_MARKER = "상품_" + UUID.randomUUID();
     private static final String OTHER_NAME = "먼저 저장된 상품";

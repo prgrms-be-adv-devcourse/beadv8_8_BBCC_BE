@@ -38,7 +38,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 class ReviewEligibilityIntegrationTest {
 
     private static final long ORDER_ITEM_ID = 11L;
-    private static final LocalDateTime CONFIRMED_AT = LocalDateTime.now().minusMinutes(5);
+    // 나노초가 있는 고정 시각. DB(마이크로초, 반올림)에 저장하면 .123456으로 내려가 저장 값보다 "늦은" 값으로 보일 수 있는 경우다
+    private static final LocalDateTime CONFIRMED_AT = LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123);
     // 받는 쪽이 저장하려던 값. 막힌 저장의 값이 로그에 나오지 않는지 이것으로 본다
     private static final String SIZE_MARKER = "SIZE_" + UUID.randomUUID().toString().replace("-", "");
     private static final String OTHER_SIZE = "110";

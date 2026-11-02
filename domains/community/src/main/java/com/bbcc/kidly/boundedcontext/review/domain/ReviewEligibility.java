@@ -69,7 +69,7 @@ public class ReviewEligibility extends ReviewTimeEntity {
         eligibility.productId = values.productId();
         eligibility.optionId = values.optionId();
         eligibility.size = values.size();
-        eligibility.confirmedAt = values.confirmedAt();
+        eligibility.confirmedAt = ReviewTimes.toStoredPrecision(values.confirmedAt());
         return eligibility;
     }
 }

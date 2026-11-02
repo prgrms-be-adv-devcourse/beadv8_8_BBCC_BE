@@ -23,13 +23,13 @@ public abstract class ReviewTimeEntity {
 
     @PrePersist
     void recordCreated() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = ReviewTimes.now();
         this.createdAt = now;
         this.updatedAt = now;
     }
 
     @PreUpdate
     void recordUpdated() {
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = ReviewTimes.now();
     }
 }

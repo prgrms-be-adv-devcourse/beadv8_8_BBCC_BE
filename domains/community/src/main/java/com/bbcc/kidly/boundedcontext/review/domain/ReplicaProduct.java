@@ -69,11 +69,12 @@ public class ReplicaProduct extends ReviewTimeEntity {
 
     /**
      * 저장된 값보다 늦게 발생한 이벤트일 때만 덮어쓴다(같은 시각 = 중복, 이른 시각 = 늦게 온 옛 이벤트는 무시).
+     * 시각은 마이크로초로 잘라 비교 · 저장한다(ReviewTimes).
      *
      * @return 반영했으면 true
      */
     public boolean applyIfNewer(Values values) {
-        if (!values.occurredAt().isAfter(sourceOccurredAt)) {
+        if (!ReviewTimes.toStoredPrecision(values.occurredAt()).isAfter(sourceOccurredAt)) {
             return false;
         }
         apply(values);
@@ -84,6 +85,6 @@ public class ReplicaProduct extends ReviewTimeEntity {
         name = values.name();
         thumbnailUrl = values.thumbnailUrl();
         displayStatus = DisplayStatus.of(values.productStatus(), values.options());
-        sourceOccurredAt = values.occurredAt();
+        sourceOccurredAt = ReviewTimes.toStoredPrecision(values.occurredAt());
     }
 }

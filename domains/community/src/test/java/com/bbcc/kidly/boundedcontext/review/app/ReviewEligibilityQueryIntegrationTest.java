@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.review.app.ReviewEligibilityQueryService.EligibleItem;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewEligibilityQueryService.EligiblePage;
+import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.boundedcontext.support.QueryCounter;
 import java.time.LocalDateTime;
@@ -27,6 +28,9 @@ class ReviewEligibilityQueryIntegrationTest {
 
     @Autowired
     private QueryCounter queryCounter;
+
+    @Autowired
+    private ReviewEligibilityRecorder recorder;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -87,6 +91,28 @@ class ReviewEligibilityQueryIntegrationTest {
 
         assertThat(expected).containsExactly(501L, 504L, 503L, 502L, 505L);
         assertThat(read).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("나노초가 있는 구매확정 시각으로 받은 자격도 커서로 빠짐 · 겹침 없이 끝까지 읽는다")
+    void nanoConfirmedAtCursor() {
+        LocalDateTime nano = LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123);
+        for (int i = 0; i < 5; i++) {
+            recorder.record(new ReviewEligibilityRecorder.PurchaseConfirmed(700L + i, 1L, ME, 1L, 1L, null,
+                i < 3 ? nano : nano.minusNanos(i * 1_000L + 1)));
+        }
+
+        List<Long> read = new ArrayList<>();
+        String cursor = null;
+        do {
+            EligiblePage page = queryService.findEligible(ME, cursor, "2");
+            page.items().forEach(item -> read.add(item.orderItemId()));
+            cursor = page.nextCursor();
+        } while (cursor != null);
+
+        assertThat(read).containsExactlyInAnyOrder(700L, 701L, 702L, 703L, 704L).doesNotHaveDuplicates();
+        assertThat(read).isEqualTo(jdbcTemplate.queryForList("select order_item_id from community.review_eligibility "
+            + "where member_id = ? order by confirmed_at desc, id desc", Long.class, ME));
     }
 
     @Test

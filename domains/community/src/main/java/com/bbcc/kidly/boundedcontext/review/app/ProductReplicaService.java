@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 상품 복사본 반영. 없으면 만들고, 있으면 늦게 발생한 값일 때만 덮어쓴다. 부르는 쪽 트랜잭션에 합류한다(없으면 새로 연다).
  * 처음 보는 같은 상품이 동시에 오면 저장이 PK(replica_product_pkey) 유일 제약에 막힌다. 저장은 따로 연 트랜잭션에서 하므로
  * 그 위반이면 다시 조회해 늦을 때만 덮어쓰기까지 이 트랜잭션에서 마친다(예외 · 재시도 · DLT 없음, 로그 없음). 그 밖의 위반은 던진다.
+ * 따로 연 트랜잭션은 이 트랜잭션이 열린 채로 열리므로 수신 한 건이 커넥션을 최대 2개 쓴다. Kafka 리스너는 동시성 1이라 2개로 끝나고,
+ * Spring 이벤트 경로는 발행 쪽 스레드 수만큼 동시에 2개씩 들 수 있다.
  */
 @Service
 @RequiredArgsConstructor
