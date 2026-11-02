@@ -15,6 +15,8 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItem;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementSales;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,13 +41,14 @@ class SettlementSellerProcessorTest {
     }
 
     @Test
-    @DisplayName("판매자의 대기 항목을 ID 오름차순 · 판매 합계의 정산 계획으로 만든다")
+    @DisplayName("판매자의 대기 항목을 ID 오름차순 · 판매 합계 · 가장 이른 확정일의 정산 계획으로 만든다")
     void plan() {
-        givenPendingItems(item(7L, 10_000L), item(3L, 5_009L));
+        givenPendingItems(item(7L, 10_000L, CONFIRMED_AT.plusDays(2)), item(3L, 5_009L, CONFIRMED_AT));
 
         var plan = processor.process(SELLER_ID);
 
-        assertThat(plan).isEqualTo(new SettlementSellerPlan(SELLER_ID, List.of(3L, 7L), 15_009L));
+        assertThat(plan).isEqualTo(new SettlementSellerPlan(
+            SELLER_ID, List.of(3L, 7L), new SettlementSales(15_009L, CONFIRMED_AT.toLocalDate())));
     }
 
     @Test
@@ -70,7 +73,11 @@ class SettlementSellerProcessorTest {
     }
 
     private static SettlementItem item(Long id, long salesAmount) {
-        var item = SettlementFixture.item(id, SELLER_ID, salesAmount, CONFIRMED_AT);
+        return item(id, salesAmount, CONFIRMED_AT);
+    }
+
+    private static SettlementItem item(Long id, long salesAmount, LocalDateTime confirmedAt) {
+        var item = SettlementFixture.item(id, SELLER_ID, salesAmount, confirmedAt);
         ReflectionTestUtils.setField(item, "id", id);
         return item;
     }

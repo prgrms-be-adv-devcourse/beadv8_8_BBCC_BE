@@ -40,12 +40,36 @@ class SettlementRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("같은 판매자 · 같은 기간의 정산서는 두 번 저장되지 않는다")
-    void uniqueSellerPeriod() {
-        settlementRepository.save(SettlementFixture.settlement(1_000L));
+    @DisplayName("같은 판매자 · 같은 종료일의 정산서는 시작일이 달라도 두 번 저장되지 않는다")
+    void uniqueSellerPeriodEnd() {
+        settlementRepository.save(SettlementFixture.settlement(SELLER_ID, PERIOD_START, PERIOD_END));
 
-        assertThatThrownBy(() -> settlementRepository.save(SettlementFixture.settlement(2_000L)))
+        assertThatThrownBy(() -> settlementRepository.save(
+            SettlementFixture.settlement(SELLER_ID, PERIOD_END.minusDays(2), PERIOD_END)))
             .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("종료일이 같아도 판매자가 다르면 따로 저장한다")
+    void differentSeller() {
+        settlementRepository.save(SettlementFixture.settlement(SELLER_ID, PERIOD_START, PERIOD_END));
+
+        var saved = settlementRepository.save(SettlementFixture.settlement(SELLER_ID + 1, PERIOD_START, PERIOD_END));
+
+        assertThat(saved.getId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("종료일이 같은 정산서 중 시작일이 가장 이른 것을 찾고, 없으면 비어 있다")
+    void findEarliestStartByEndOn() {
+        settlementRepository.save(SettlementFixture.settlement(1L, PERIOD_END.minusDays(1), PERIOD_END));
+        settlementRepository.save(SettlementFixture.settlement(2L, PERIOD_END.minusDays(3), PERIOD_END));
+        settlementRepository.save(SettlementFixture.settlement(3L, PERIOD_START, PERIOD_END.minusDays(1)));
+
+        assertThat(settlementRepository.findFirstByPeriodEndOnOrderByPeriodStartOnAsc(PERIOD_END))
+            .hasValueSatisfying(found -> assertThat(found.getPeriodStartOn()).isEqualTo(PERIOD_END.minusDays(3)));
+        assertThat(settlementRepository.findFirstByPeriodEndOnOrderByPeriodStartOnAsc(PERIOD_END.plusDays(1)))
+            .isEmpty();
     }
 
     @Test

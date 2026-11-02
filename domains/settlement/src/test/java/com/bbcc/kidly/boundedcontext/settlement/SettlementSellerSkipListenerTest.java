@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.settlement;
 
+import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.PERIOD_START;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -9,6 +10,7 @@ import static org.mockito.BDDMockito.willThrow;
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementSellerPlan;
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementSellerSkipListener;
 import com.bbcc.kidly.boundedcontext.settlement.app.support.SettlementSkipRecorder;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementSales;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementSkipPhase;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -53,6 +55,6 @@ class SettlementSellerSkipListenerTest {
     }
 
     private static SettlementSellerPlan plan(Long sellerId) {
-        return new SettlementSellerPlan(sellerId, List.of(1L), 1_000L);
+        return new SettlementSellerPlan(sellerId, List.of(1L), new SettlementSales(1_000L, PERIOD_START));
     }
 }

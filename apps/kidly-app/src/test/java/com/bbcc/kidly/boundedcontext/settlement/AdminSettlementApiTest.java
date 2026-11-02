@@ -54,7 +54,8 @@ class AdminSettlementApiTest {
         var body = result.getResponseBody();
         assertThat(body.status()).isEqualTo("COMPLETED");
         assertThat(body.triggerType()).isEqualTo("MANUAL");
-        assertThat(body.periodStartOn()).isEqualTo(cutoffOn.minusDays(1).withDayOfMonth(1));
+        // 만든 정산서가 없으면 시작일은 종료일과 같다
+        assertThat(body.periodStartOn()).isEqualTo(cutoffOn.minusDays(1));
         assertThat(body.periodEndOn()).isEqualTo(cutoffOn.minusDays(1));
         assertThat(body.successCount()).isZero();
         assertThat(body.requestedBy()).isEqualTo(ADMIN_ID);
