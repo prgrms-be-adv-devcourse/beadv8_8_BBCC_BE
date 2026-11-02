@@ -24,13 +24,13 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 판매자 한 명의 정산 기간 정산서. 판매 합계에서 수수료를 뺀 금액의 지급을 요청하고 결제의 지급 결과를 반영한다.
+ * 판매자 한 명의 정산 기간 정산서. 판매자 · 종료일마다 하나다(실행 하나에 정산서 하나). 판매 합계에서 수수료를 뺀 금액의 지급을 요청하고 결제의 지급 결과를 반영한다.
  */
 @Entity
 @Table(
     name = "settlement", schema = "settlement",
     uniqueConstraints = @UniqueConstraint(
-        name = "uk_settlement_seller_period", columnNames = {"seller_id", "period_start_on", "period_end_on"}))
+        name = "uk_settlement_seller_period_end_on", columnNames = {"seller_id", "period_end_on"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Settlement extends BaseTimeEntity {

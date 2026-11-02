@@ -41,7 +41,7 @@ public class SettlementSellerWriter implements ItemWriter<SettlementSellerPlan> 
                 throw new IllegalStateException("정산 대상이 바뀌었습니다");
             }
             var settlement = settlementRepository.save(
-                settlementCalculator.create(plan.sellerId(), plan.totalSalesAmount(), now));
+                settlementCalculator.create(plan.sellerId(), plan.sales(), now));
             items.forEach(item -> item.settle(settlement.getId()));
             settlementPayoutRequester.request(settlement, now);
         }

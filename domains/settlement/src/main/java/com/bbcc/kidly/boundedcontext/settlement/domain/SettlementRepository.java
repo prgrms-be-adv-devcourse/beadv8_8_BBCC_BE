@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.settlement.domain;
 
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +22,9 @@ public interface SettlementRepository {
 
     // 기준 시각 이전에 완료됐지만 아직 지급되지 않은 정산서 수
     long countByStatusAndCompletedAtBefore(SettlementStatus status, LocalDateTime before);
+
+    // 종료일이 같은 정산서(= 그 종료일의 정산 실행이 만든 정산서) 중 시작일이 가장 이른 것
+    Optional<Settlement> findFirstByPeriodEndOnOrderByPeriodStartOnAsc(LocalDate periodEndOn);
 
     // 없으면 404
     default Settlement getById(Long id) {
