@@ -1,7 +1,7 @@
 # 인증 설정. application.yml이 가져온다. 환경별 값은 아래 프로필 문서(---)에 있다
 # test 프로필 값은 운영 jar에 넣지 않으려고 src/test/resources/application-test.yml에 둔다
 
-# 회원 서비스만 읽는 것 (member의 JwtProperties · RefreshTokenProperties · KakaoProperties). 서비스를 나누면 member-service 설정으로 간다
+# 인증만 읽는 것 (지금은 member의 JwtProperties · RefreshTokenProperties · KakaoProperties, Task 3에서 auth로 옮긴다). 서비스를 나누면 auth-service 설정으로 간다
 # 토큰 검증 · 역할 검사 · CORS는 Gateway(apps/gateway)가 한다. 서비스는 Gateway가 붙인 X-Member-* 헤더로 로그인 회원을 만든다
 jwt:
   # Access Token 유효 기간
