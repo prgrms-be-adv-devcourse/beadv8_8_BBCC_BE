@@ -28,4 +28,11 @@ class DeliveryTrackerException extends RuntimeException {
     boolean isInvalidTrackingNumber() {
         return "BAD_REQUEST".equals(code);
     }
+
+    /**
+     * 택배사가 답한 업무 결과(운송장 형식 오류 · 없는 번호, #708). 서비스 장애가 아니므로 서킷브레이커가 실패로 세지 않는다.
+     */
+    boolean isBusinessResult() {
+        return isInvalidTrackingNumber() || "NOT_FOUND".equals(code);
+    }
 }

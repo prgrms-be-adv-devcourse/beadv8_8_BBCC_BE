@@ -101,6 +101,16 @@ kidly:
       read-timeout: PT10S
       # 호출 한도 초당 10회. 200ms 간격 = 초당 5회
       min-call-interval: PT0.2S
+      # 서킷브레이커(#708): 장애 때 건마다 타임아웃을 기다리지 않게 실패가 많으면 열림 동안 호출 없이 건너뛴다(다음 실행에서 다시 조회).
+      # 실패로 셈: 네트워크 · 타임아웃 · 5xx · 인증 오류 · 호출 한도 초과 / 세지 않음: 운송장 형식 오류 · 없는 번호. 열림 유지는 조회 주기(10분)보다 짧게
+      circuit-breaker:
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: PT5S
+        slow-call-rate-threshold: 50
+        wait-duration-in-open-state: PT1M
+        permitted-number-of-calls-in-half-open-state: 3
     # 판매자 발송 전 부분 취소(#655, POST /api/v1/seller/orders/{sellerOrderId}/cancel). 꺼져 있으면 API가 409로 거절하고 이벤트도 없다
     # 기본 false: 받는 쪽(결제 부분 환불 · 상품 재고 복구, order-item.cancelled)이 준비된 뒤에 켠다
     partial-cancel:

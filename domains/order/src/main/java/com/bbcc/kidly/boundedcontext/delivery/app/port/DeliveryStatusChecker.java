@@ -25,6 +25,11 @@ public interface DeliveryStatusChecker {
      */
     record TrackingResult(Kind kind, LocalDateTime deliveredAt, String reason) {
 
+        /**
+         * 서킷브레이커가 열려 조회하지 않았다(#708). 다음 실행에서 다시 조회한다.
+         */
+        public static final String CIRCUIT_OPEN = "CIRCUIT_OPEN";
+
         public static TrackingResult delivered(LocalDateTime deliveredAt) {
             return new TrackingResult(Kind.DELIVERED, deliveredAt, null);
         }
@@ -40,6 +45,14 @@ public interface DeliveryStatusChecker {
         public static TrackingResult unavailable(String reason) {
             return new TrackingResult(Kind.UNAVAILABLE, null, reason);
         }
+
+        public static TrackingResult circuitOpen() {
+            return unavailable(CIRCUIT_OPEN);
+        }
+
+        public boolean isCircuitOpen() {
+            return kind == Kind.UNAVAILABLE && CIRCUIT_OPEN.equals(reason);
+        }
     }
 
     /**
@@ -52,7 +65,7 @@ public interface DeliveryStatusChecker {
         IN_PROGRESS,
         /** 운송장 번호 형식 오류. 다시 조회해도 결과가 같아 조회를 멈춘다 */
         INVALID_TRACKING_NUMBER,
-        /** 일시 오류(없는 번호 · 호출 한도 · 인증 · 네트워크 · 응답 이상). 다음 주기에 다시 조회한다 */
+        /** 일시 오류(없는 번호 · 호출 한도 · 인증 · 네트워크 · 응답 이상 · 서킷 열림). 다음 주기에 다시 조회한다 */
         UNAVAILABLE
     }
 }
