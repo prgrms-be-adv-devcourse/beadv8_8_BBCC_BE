@@ -13,6 +13,8 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("org.testcontainers:testcontainers-kafka")
+    testImplementation("org.apache.kafka:kafka-clients")
     testImplementation("org.springframework.boot:spring-boot-starter-flyway")
     testRuntimeOnly("org.flywaydb:flyway-database-postgresql")
     testRuntimeOnly("org.postgresql:postgresql")
@@ -26,8 +28,6 @@ tasks.test {
     useJUnitPlatform {
         excludeTags(integrationTag, functionalTag)
     }
-    // 뼈대만 있는 동안은 단위 테스트가 없다(규칙 테스트는 archTest, 기동 확인은 integrationTest). 첫 단위 테스트가 생기면 지운다
-    filter.isFailOnNoMatchingTests = false
 }
 
 val integrationTest = tasks.register<Test>("integrationTest") {

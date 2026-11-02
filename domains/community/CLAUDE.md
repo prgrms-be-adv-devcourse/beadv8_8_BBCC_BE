@@ -11,13 +11,14 @@
 - `in`: `web`(컨트롤러 · `dto`, 관리자 API가 생기면 `web.admin`) · `event`(이벤트 수신 · 매퍼) · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
 - `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `{상대 컨텍스트}`(어댑터)
 - 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`
+- 한 앱 안에서 빈 · 엔티티 이름이 다른 도메인과 겹치면 기동이 실패한다: 다른 도메인에 같은 이름이 있을 수 있는 클래스(`…EventListener` · `SpringEventReceiver` · `EventGuard` 등)는 `Community` 접두어를 붙이고, 엔티티는 `@Entity(name = "Community…")`로 이름을 정한다
 - 검사: 계층 규칙은 `LayerArchitectureTest`(`LayerRules`), 컨텍스트 사이 규칙(내 out → 상대 `app.port.in`만)은 `CommunityContextArchitectureTest`, 패키지 배치는 `CommunityPackageLayoutArchitectureTest`. 컨텍스트 루트의 `package-info`는 `@NullMarked`로 클래스를 남겨 뼈대만 있을 때도 검사 대상이 비지 않게 한다
 
 ## 2. 이벤트 수신
 - 받는 길은 스위치 `kidly.community.kafka.consumer.enabled` 하나로 고른다: `true`(기본)면 Kafka 리스너, `false`면 Spring 이벤트. 처리 코드(`…EventListener`)는 같다
 - Kafka 리스너는 전용 팩토리 `communityKafkaListenerContainerFactory`(`in.config`)만 쓴다: 구독 그룹 `kidly.community`, 한 건씩 완료, 실패하면 1초 간격 3번 재시도 뒤 `{토픽}.community.dlt`, 다시 해도 같은 예외 · 읽기 실패는 바로 DLT. 팩토리 외의 Kafka 객체(템플릿 · 에러 처리기)는 이 구성 코드 안에서 만들고 빈으로 등록하지 않는다
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(상품 등)은 저장된 `occurredAt`보다 늦은 이벤트만 반영한다
-- 필수 값이 없으면 `EventGuard`로 WARN 한 줄을 남기고 무시한다
+- 필수 값이 없으면 `CommunityEventGuard`로 WARN 한 줄을 남기고 무시한다
 - 로그 추적(MDC): Kafka 수신은 메시지 하나를 처리하는 동안 eventId · eventType · `correlationId`(= 키)를 MDC에 넣고, 끝나면(예외 포함) 이전 값으로 되돌린다
 - 로그는 결과 하나에 한 줄이고, 본문 · 예외 메시지 · 개인정보를 넣지 않는다(eventType · eventId · 키 · ID · 예외 종류만)
 
@@ -27,13 +28,23 @@
 - 목록은 커서 페이지네이션 + 인덱스, 쿼리 수 테스트로 N+1을 막는다
 - 마이그레이션은 `src/main/resources/db/migration/community/V{yyyyMMddHHmm}__community_{설명}.sql`, 추가만(이미 적용된 파일은 고치지 않는다)
 
-## 4. 넣지 않는 것 (주문 모듈에서 가져오지 않음)
+## 4. 상품 복사본 · 기존 상품 채우기
+- 상품 복사본(`review.domain.ReplicaProduct`, 표 `community.replica_product`)은 상품당 1행이고 `product.changed`의 지금 값을 덮어쓴다. 리뷰 · 찜 화면의 상품 이름 · 썸네일 · 표시 상태를 여기서 읽는다
+- 표시 상태(`DisplayStatus`): 품절은 팔고 있지만 재고가 없는 것, 판매 종료는 더 이상 팔지 않는 것이다
+  - 판매 종료(`SALE_ENDED`): 상품이 `STOPPED` · `SALE_PENDING` · 모르는 값(null), 또는 `ON_SALE`이지만 판매 중(`ON_SALE`) 옵션이 0개
+  - 품절(`SOLD_OUT`): `ON_SALE`이고 판매 중 옵션이 1개 이상이며 그 옵션이 모두 품절(판매 중지 · 모르는 상태 옵션은 보지 않는다)
+  - 판매 중(`ON_SALE`): 그 밖(판매 중 옵션 하나라도 재고가 있다)
+- 기존 상품 채우기: 복사본은 커뮤니티가 받기 시작한 뒤의 `product.changed`로만 채워지므로, 커뮤니티를 처음 배포한 뒤 환경마다 한 번 상품 도메인의 관리자 API `POST /api/v1/admin/products/changed-events`를 호출한다. 판매를 시작한 상품 전체를 `ProductChangedEvent`로 다시 보낸다
+  - 판매 시작 전 상품은 보내지 않으므로 복사본에 없다. 복사본에 없는 상품은 찜을 거절한다
+  - 같은 이벤트를 다른 도메인(주문 · 추천 등)도 다시 받는다. 값이 그대로라 덮어쓰기만 일어난다
+
+## 5. 넣지 않는 것 (주문 모듈에서 가져오지 않음)
 - 복잡한 상태 전이(`TransitionResult`) · `@Version` 낙관적 잠금 경쟁
 - 처리 실패 보관 테이블 · DLT 보관 · 관리자 재처리
 - 아웃박스 · 릴레이 스케줄러(커뮤니티가 이벤트를 발행하지 않는 동안)
 - 필요해지면 이 문서를 먼저 고치고 넣는다
 
-## 5. 테스트
+## 6. 테스트
 - 단위 테스트는 `test`, 스프링 + Testcontainers는 태그로 나눠 `integrationTest`(`@IntegrationTest`) · `functionalTest`(`@FunctionalTest`)로 이 모듈에서 돈다. 규칙 테스트는 `archTest`
 - 주석 · 컨테이너 · 정리는 모듈 공통 `boundedcontext.support`(앱의 `com.bbcc.kidly.support`와 다른 패키지)를 쓰고, 테스트 앱은 `CommunityTestApplication`(리뷰 · 찜 컨텍스트 · `common`만)이다. 테스트가 끝나면 `community` 스키마의 표를 비운다(`CommunityDatabaseCleanerExtension`)
 - `@IntegrationTest` · `@FunctionalTest`를 쓰는 테스트 클래스에 개별 설정(`@MockitoBean`, `@TestPropertySource` 등)을 붙이지 않는다(컨텍스트가 새로 뜬다)
