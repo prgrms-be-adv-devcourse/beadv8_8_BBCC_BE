@@ -9,7 +9,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -21,12 +20,11 @@ public class SizeRecommendationController {
 
     private final SizeRecommendationService sizeRecommendationService;
 
-    @GetMapping("/api/v1/products/{productId}/size-recommendation")
+    @GetMapping("/api/v1/recommendations/size")
     public SizeRecommendationResponse recommend(
         @LoginMember AuthMember member,
-        @PathVariable Long productId,
         @Valid @ModelAttribute SizeRecommendationRequest request) {
         return SizeRecommendationResponse.from(
-            sizeRecommendationService.recommend(member.id(), productId, request.childId()));
+            sizeRecommendationService.recommend(member.id(), request.productId(), request.childId()));
     }
 }

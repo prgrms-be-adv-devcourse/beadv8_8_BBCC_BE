@@ -50,7 +50,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @FunctionalTest
 class RecommendedProductApiTest {
 
-    private static final String PATH = "/api/v1/children/{childId}/recommended-products";
+    private static final String PATH = "/api/v1/recommendations/products";
 
     /**
      * 신상품순이 상품 ID 내림차순과 다르도록, ID가 작은 상품을 나중에 등록한 상품으로 둔다.
@@ -91,7 +91,7 @@ class RecommendedProductApiTest {
         // 키 115cm는 110과 120 두 후보에 들고, 선호 핏이 여유라 큰 120을 추천한다
         // 두 상품 모두 옵션 110과 120의 판매가가 25,000원이라 최저가도 25,000원이다
         // ID는 숫자가 아니라 문자열로 보내고, 금액은 숫자로 보낸다. jsonPath의 isEqualTo는 숫자도 문자열로 바꿔 비교하므로 Map으로 꺼내 값의 타입까지 확인한다
-        client.get().uri(PATH, CHILD_1_ID)
+        client.get().uri(PATH + "?childId={childId}", CHILD_1_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange()
             .expectStatus().isOk()
@@ -124,9 +124,19 @@ class RecommendedProductApiTest {
     @Test
     @DisplayName("로그인하지 않으면 401을 받는다")
     void rejectWithoutToken() {
-        client.get().uri(PATH, CHILD_1_ID)
+        client.get().uri(PATH + "?childId={childId}", CHILD_1_ID)
             .exchange()
             .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @DisplayName("childId 없이 요청하면 400을 ProblemDetail로 받는다")
+    void rejectWithoutChildId() {
+        expectProblem(client.get().uri(PATH)
+                .headers(TestMembers.buyer(MEMBER_1_ID))
+                .exchange(), HttpStatus.BAD_REQUEST)
+            .jsonPath("$.title").exists()
+            .jsonPath("$.detail").exists();
     }
 
     @ParameterizedTest(name = "{0}")
@@ -173,7 +183,7 @@ class RecommendedProductApiTest {
             PRODUCT_A_REGISTERED_AT, false, sizedOptions()));
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
 
-        list("?categoryId=" + PRODUCT_A_CATEGORY_ID)
+        list("&categoryId=" + PRODUCT_A_CATEGORY_ID)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content.length()").isEqualTo(1)
@@ -189,7 +199,7 @@ class RecommendedProductApiTest {
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
 
         // 검증 오류의 title · detail 문구는 공통 처리기가 정하므로 칸이 있는지만 확인한다
-        expectProblem(list("?page=" + page + "&size=" + size), HttpStatus.BAD_REQUEST)
+        expectProblem(list("&page=" + page + "&size=" + size), HttpStatus.BAD_REQUEST)
             .jsonPath("$.title").exists()
             .jsonPath("$.detail").exists();
     }
@@ -204,7 +214,7 @@ class RecommendedProductApiTest {
             productChanged(NEWER_PRODUCT_ID, PRODUCT_A_REGISTERED_AT.plusDays(1)));
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
 
-        list("?page=1&size=2")
+        list("&page=1&size=2")
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content.length()").isEqualTo(1)
@@ -217,7 +227,7 @@ class RecommendedProductApiTest {
     }
 
     private RestTestClient.ResponseSpec list(String query) {
-        return client.get().uri(PATH + query, CHILD_1_ID)
+        return client.get().uri(PATH + "?childId={childId}" + query, CHILD_1_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange();
     }
@@ -231,7 +241,7 @@ class RecommendedProductApiTest {
             .expectBody()
             .jsonPath("$.type").isEqualTo("about:blank")
             .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.instance").isEqualTo("/api/v1/children/" + CHILD_1_ID + "/recommended-products");
+            .jsonPath("$.instance").isEqualTo(PATH);
     }
 
     private static Map<String, Object> card(Long productId) {
