@@ -319,8 +319,11 @@ class ProductSaleStartApiTest {
     // 등록 요청의 실측 값(총장 · 어깨너비 · 가슴단면 · 소매길이, cm)을 실측 항목 코드 맵으로 만든다
     private static Map<String, BigDecimal> measurements(int totalLength, int shoulderWidth, int chestWidth,
         int sleeveLength) {
-        return Map.of("TOTAL_LENGTH", BigDecimal.valueOf(totalLength), "SHOULDER_WIDTH", BigDecimal.valueOf(shoulderWidth),
-            "CHEST_WIDTH", BigDecimal.valueOf(chestWidth), "SLEEVE_LENGTH", BigDecimal.valueOf(sleeveLength));
+        return Map.of(
+            "TOTAL_LENGTH", BigDecimal.valueOf(totalLength),
+            "SHOULDER_WIDTH", BigDecimal.valueOf(shoulderWidth),
+            "CHEST_WIDTH", BigDecimal.valueOf(chestWidth),
+            "SLEEVE_LENGTH", BigDecimal.valueOf(sleeveLength));
     }
 
     private RestTestClient.ResponseSpec startSale(Consumer<HttpHeaders> login, Map<String, Object> body) {
