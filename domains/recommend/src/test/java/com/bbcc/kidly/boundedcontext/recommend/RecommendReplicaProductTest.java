@@ -439,7 +439,12 @@ class RecommendReplicaProductTest {
             Named.of("옵션 목록",
                 change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE, PRODUCT_A_REGISTERED_AT, null, LATER)),
             Named.of("이벤트 발생 시각", change(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, ProductStatus.ON_SALE,
-                PRODUCT_A_REGISTERED_AT, OPTIONS, null)));
+                PRODUCT_A_REGISTERED_AT, OPTIONS, null)),
+            Named.of("실측 줄의 사이즈", changeWithDetails("키들리", "상품 설명", List.of(
+                new RecommendReplicaProduct.SizeSpecInfo(null, 105, 115, Map.of("TOTAL_LENGTH", new BigDecimal("42")))),
+                LATER)),
+            Named.of("실측 줄의 실측 값", changeWithDetails("키들리", "상품 설명", List.of(
+                new RecommendReplicaProduct.SizeSpecInfo("110", 105, 115, null)), LATER)));
     }
 
     // 상품명만 빠진, 저장된 시각보다 늦은 상품 변경이다

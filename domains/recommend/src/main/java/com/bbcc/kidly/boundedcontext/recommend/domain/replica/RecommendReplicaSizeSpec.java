@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.replica;
 
+import static java.util.Objects.requireNonNull;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import java.math.BigDecimal;
@@ -36,10 +38,10 @@ public class RecommendReplicaSizeSpec {
 
     public RecommendReplicaSizeSpec(String size, Integer minHeightCm, Integer maxHeightCm,
         Map<String, BigDecimal> measurements) {
-        this.size = size;
+        this.size = requireNonNull(size, "size는 필수입니다");
         this.minHeightCm = minHeightCm;
         this.maxHeightCm = maxHeightCm;
-        this.measurements = Map.copyOf(measurements);
+        this.measurements = Map.copyOf(requireNonNull(measurements, "measurements는 필수입니다"));
     }
 
     public Map<String, BigDecimal> getMeasurements() {

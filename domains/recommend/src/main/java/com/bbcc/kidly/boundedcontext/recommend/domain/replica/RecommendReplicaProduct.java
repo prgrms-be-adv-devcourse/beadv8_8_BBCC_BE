@@ -31,6 +31,7 @@ import org.hibernate.annotations.BatchSize;
 
 /**
  * 추천이 사이즈를 계산하려고 상품 정보 변경됨 이벤트에서 옮겨 둔 상품 정보다.
+ * 브랜드 · 설명 · 사이즈별 실측은 아직 계산에 쓰지 않고, 브랜드별 사이즈 보정과 실측 비교에 쓰려고 함께 옮겨 둔다.
  * 주문 도메인에도 상품 복사본 엔티티 {@code ReplicaProduct}가 있어서, JPA 엔티티 이름이 겹치지 않게 클래스 이름 앞에 도메인 이름을 붙인다.
  */
 @Entity
@@ -141,7 +142,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
 
     /**
      * 저장된 시각보다 늦게 일어난 상품 변경만 반영한다. 같은 이벤트를 다시 받거나 이전 이벤트가 늦게 도착해도 값이 되돌아가지 않는다.
-     * 반영할 때는 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄도 새 옵션으로 다시 채운다.
+     * 반영할 때는 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄은 새 옵션으로, 사이즈별 실측 줄은 이벤트의 실측으로 다시 채운다.
      */
     public void applyIfNewer(ChangeInfo info) {
         // 저장된 시각보다 늦지 않은 이벤트(다시 받은 이벤트, 늦게 도착한 이전 이벤트)는 다른 값이 비어 있어도 예외 없이 무시하도록 시각을 먼저 비교한다
@@ -169,6 +170,12 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     }
 
     private void apply(ChangeInfo info) {
+        // 실측 줄에 사이즈나 실측 값이 없으면 값을 하나도 바꾸기 전에 실패하도록 새 실측 줄을 먼저 만든다
+        List<RecommendReplicaSizeSpec> newSizeSpecs = new ArrayList<>();
+        for (SizeSpecInfo spec : info.sizeSpecs()) {
+            newSizeSpecs.add(new RecommendReplicaSizeSpec(
+                spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
+        }
         this.sellerId = info.sellerId();
         this.categoryId = info.categoryId();
         this.name = info.name();
@@ -184,10 +191,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.sizes.clear();
         this.sellableSizes.clear();
         this.sizeSpecs.clear();
-        for (SizeSpecInfo spec : info.sizeSpecs()) {
-            this.sizeSpecs.add(new RecommendReplicaSizeSpec(
-                spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
-        }
+        this.sizeSpecs.addAll(newSizeSpecs);
         for (OptionInfo option : info.options()) {
             if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {
                 this.sellableSizes.add(option.size() == null ? FREE_SIZE : option.size());
