@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartIntake;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderEventIssuer;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderPlacing;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderTimelineLookup;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup;
 import com.bbcc.kidly.boundedcontext.wish.app.WishPolicy;
 import com.bbcc.kidly.boundedcontext.wish.app.WishRequestService;
@@ -47,6 +49,8 @@ class WishSwitchTest {
         .withBean(WishItemRepository.class, () -> mock(WishItemRepository.class))
         .withBean(WishRequestRepository.class, () -> mock(WishRequestRepository.class))
         .withBean(OrderPlacing.class, () -> mock(OrderPlacing.class))
+        .withBean(OrderTimelineLookup.class, () -> mock(OrderTimelineLookup.class))
+        .withBean(OrderEventIssuer.class, () -> mock(OrderEventIssuer.class))
         .withBean(CartIntake.class, () -> mock(CartIntake.class));
 
     @Test

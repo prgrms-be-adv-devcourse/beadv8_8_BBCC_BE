@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.wish.in.web.dto.ApproveWishRequest;
 import com.bbcc.kidly.boundedcontext.wish.in.web.dto.RejectWishRequest;
 import com.bbcc.kidly.boundedcontext.wish.in.web.dto.SendWishRequest;
 import com.bbcc.kidly.boundedcontext.wish.in.web.dto.WishRequestResponse;
+import com.bbcc.kidly.boundedcontext.wish.in.web.dto.WishTimelineResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import jakarta.validation.Valid;
@@ -59,6 +60,14 @@ public class WishRequestController {
     @GetMapping("/{requestId}")
     public WishRequestResponse getRequest(@LoginMember AuthMember member, @PathVariable Long requestId) {
         return WishRequestResponse.from(wishRequestService.getRequest(wishActors.parent(member.id()), requestId));
+    }
+
+    /**
+     * 조르기 단계(보냄 → 승인 · 거절)에 바로 결제한 주문의 타임라인을 이어 붙인다(#702).
+     */
+    @GetMapping("/{requestId}/timeline")
+    public WishTimelineResponse getTimeline(@LoginMember AuthMember member, @PathVariable Long requestId) {
+        return WishTimelineResponse.from(wishRequestService.getTimeline(wishActors.parent(member.id()), requestId));
     }
 
     @PostMapping("/{requestId}/approval")

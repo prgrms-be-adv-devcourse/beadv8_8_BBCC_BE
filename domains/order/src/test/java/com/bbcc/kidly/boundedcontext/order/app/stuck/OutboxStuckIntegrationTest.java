@@ -150,6 +150,17 @@ class OutboxStuckIntegrationTest {
     }
 
     @Test
+    @DisplayName("맨 앞이 조르기 이벤트(wish.*, 키 = 자녀 프로필 ID)여도 주문 ID는 null이다(#702)")
+    void wishEventHeadHasNoOrderId() {
+        attempts(unsent("wish.sent", "1", now), thresholds.outboxAttempts(), "Timeout");
+
+        assertThat(list()).singleElement().satisfies(result -> {
+            assertThat(result.orderId()).as("자녀 프로필 ID를 주문 ID로 보이지 않는다").isNull();
+            assertThat(result.outbox().eventType()).isEqualTo("wish.sent");
+        });
+    }
+
+    @Test
     @DisplayName("주문상품 이벤트(order-item.*)도 키가 주문 ID다")
     void orderItemEventKeyIsOrderId() {
         attempts(unsent("order-item.purchase-confirmed", "1024", now), thresholds.outboxAttempts(), "Timeout");
