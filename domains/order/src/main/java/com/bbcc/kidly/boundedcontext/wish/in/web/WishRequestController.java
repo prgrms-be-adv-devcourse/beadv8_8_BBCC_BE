@@ -25,8 +25,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 조르기 API(#701). 자원은 조르기(wish-request)이고, 자녀 한 명의 목록은 childId로 거른다. 승인 · 거절은 조르기의
- * 하위 자원(approval · rejection)을 만드는 것으로 둔다. 지금은 로그인한 보호자가 부른다(자녀 계정은 회원 쪽 인증이 준비되면 연결).
+ * 조르기 API(#701). 자원은 조르기이고 공용 장바구니 아래(/wish/requests, #718)에 둔다. 자녀 한 명의 목록은 childId로 거른다.
+ * 승인 · 거절은 조르기의 하위 자원(approval · rejection)을 만드는 것으로 둔다. 지금은 로그인한 보호자가 부른다(자녀 계정은 회원 쪽 인증이 준비되면 연결).
  * 스위치 kidly.order.wish.enabled가 false면 이 API가 없다.
  */
 @RestController
@@ -35,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(name = "kidly.order.wish.enabled", havingValue = "true", matchIfMissing = true)
 public class WishRequestController {
 
-    public static final String WISH_REQUESTS_PATH = "/api/v1/wish-requests";
+    public static final String WISH_REQUESTS_PATH = WishController.WISH_PATH + "/requests";
 
     private final WishRequestService wishRequestService;
     private final WishActors wishActors;
