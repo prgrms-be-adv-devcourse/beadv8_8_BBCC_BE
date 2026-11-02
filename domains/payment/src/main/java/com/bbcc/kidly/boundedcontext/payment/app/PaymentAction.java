@@ -25,7 +25,8 @@ public enum PaymentAction {
     ORDER_PAYMENT_FAILED("주문 결제 실패"),
     ORDER_CANCEL_RECORDED("결제 전 주문 취소 기록"),
     ORDER_REFUNDED("주문 취소 환불"),
-    PAYOUT_COMPLETED("정산 지급 완료");
+    PAYOUT_COMPLETED("정산 지급 완료"),
+    WALLET_FROZEN("탈퇴 회원 지갑 동결");
 
     private final String description;
 }

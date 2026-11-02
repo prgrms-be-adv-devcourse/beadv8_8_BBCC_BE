@@ -109,6 +109,19 @@ class ChargeServiceTest {
     }
 
     @Test
+    @DisplayName("탈퇴로 동결된 지갑이면 충전을 요청할 수 없다")
+    void requestFrozenWallet() {
+        Wallet wallet = PaymentFixture.savedWallet(0L);
+        wallet.freeze(LocalDateTime.now());
+        given(walletRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(wallet));
+
+        assertThatThrownBy(() -> chargeService.request(MEMBER_ID, new ChargeRequest(10_000L)))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.WALLET_FROZEN);
+        then(chargeRepository).should(never()).save(any());
+    }
+
+    @Test
     @DisplayName("충전 목록은 회원 지갑의 충전을 최신순 페이지로 준다")
     void getCharges() {
         Charge charge = PaymentFixture.savedCharge(10_000L);

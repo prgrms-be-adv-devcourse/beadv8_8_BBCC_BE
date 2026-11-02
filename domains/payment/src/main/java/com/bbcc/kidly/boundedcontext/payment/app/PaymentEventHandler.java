@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.payment.app.dto.PayOrderCommand;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PayoutCommand;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
@@ -16,7 +17,7 @@ import org.springframework.stereotype.Component;
 /**
  * 결제가 받는 회원 · 주문 · 정산 이벤트의 처리(#593, #607). Kafka 리스너(in.event)와 Spring 리스너(스위치를 끈 경우)가 같은 처리를 부른다.
  * 이벤트 필드가 바뀌면 여기 변환만 고친다. 각 처리는 자기 트랜잭션을 연다(지갑 만들기 · 결제 · 취소 · 다시 처리할 기록).
- * 같은 이벤트를 다시 받아도 결과는 1회분이다: 지갑은 없을 때만 만들고, 주문당 결제는 한 번이며, 같은 취소는 한 번만 환불하고,
+ * 같은 이벤트를 다시 받아도 결과는 1회분이다: 지갑은 없을 때만 만들고 탈퇴한 회원의 지갑은 한 번만 동결하며, 주문당 결제는 한 번이며, 같은 취소는 한 번만 환불하고,
  * 정산서마다 한 번만 입금한다(이미 처리한 정산서는 저장된 결과를 다시 발행).
  */
 @Slf4j
@@ -29,6 +30,7 @@ public class PaymentEventHandler {
     private final OrderCancellationService orderCancellationService;
     private final OrderCancellationRetryService orderCancellationRetryService;
     private final SettlementPayoutService settlementPayoutService;
+    private final WalletService walletService;
 
     /**
      * 회원이 가입하면 잔액 0인 예치금 지갑을 만든다. 같은 회원의 이벤트를 다시 받거나 동시에 받아도 지갑은 하나다.
@@ -36,6 +38,14 @@ public class PaymentEventHandler {
      */
     public void memberRegistered(MemberRegisteredEvent event) {
         walletRepository.createIfAbsent(event.data().memberId(), LocalDateTime.now());
+    }
+
+    /**
+     * 회원이 탈퇴하면 지갑을 동결한다(#670). 잔액은 그대로 두고, 같은 탈퇴를 다시 받아도 한 번만 동결한다.
+     * 지갑이 없으면 동결된 빈 지갑을 만든다.
+     */
+    public void memberWithdrawn(MemberWithdrawnEvent event) {
+        walletService.freeze(event.data().memberId());
     }
 
     /**

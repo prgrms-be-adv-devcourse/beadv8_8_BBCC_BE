@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.payment.domain;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface WalletRepository {
 
@@ -18,4 +20,13 @@ public interface WalletRepository {
     Optional<Wallet> findWithLockByMemberId(Long memberId);
 
     Optional<Wallet> findWithLockById(Long id);
+
+    // 관리자 지갑 조회. 동결 여부 · 잔액으로 거르고 최신순(ID 내림차순)이다
+    Page<Wallet> findAllByOrderByIdDesc(Pageable pageable);
+
+    Page<Wallet> findAllByFrozenAtIsNotNullOrderByIdDesc(Pageable pageable);
+
+    Page<Wallet> findAllByBalanceGreaterThanOrderByIdDesc(long balance, Pageable pageable);
+
+    Page<Wallet> findAllByFrozenAtIsNotNullAndBalanceGreaterThanOrderByIdDesc(long balance, Pageable pageable);
 }

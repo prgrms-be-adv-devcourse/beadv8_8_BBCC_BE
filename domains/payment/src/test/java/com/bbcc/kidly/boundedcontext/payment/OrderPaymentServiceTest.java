@@ -172,6 +172,21 @@ class OrderPaymentServiceTest {
     }
 
     @Test
+    @DisplayName("탈퇴로 동결된 지갑이면 차감 · 결제 저장 없이 payment.failed(WALLET_NOT_FOUND)를 발행한다")
+    void frozenWallet() {
+        Wallet wallet = PaymentFixture.savedWallet(20_000L);
+        wallet.freeze(LocalDateTime.now());
+        given(walletRepository.findWithLockByMemberId(MEMBER_ID)).willReturn(Optional.of(wallet));
+
+        orderPaymentService.pay(COMMAND);
+
+        assertThat(wallet.getBalance()).isEqualTo(20_000L);
+        then(paymentRepository).should(never()).save(any());
+        then(walletLedgerRepository).should(never()).save(any());
+        assertThat(assertFailedEvent(PaymentFailureCode.WALLET_NOT_FOUND).data().paymentId()).isNull();
+    }
+
+    @Test
     @DisplayName("이미 취소된 주문의 결제 요청이면 차감하지 않고 아무것도 발행하지 않는다")
     void cancelledOrder() {
         Wallet wallet = PaymentFixture.savedWallet(20_000L);

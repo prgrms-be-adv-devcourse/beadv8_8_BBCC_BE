@@ -56,6 +56,9 @@ public class ChargeService {
     public ChargeRequestResult request(Long memberId, ChargeRequest request) {
         walletRepository.createIfAbsent(memberId, LocalDateTime.now());
         Wallet wallet = walletOf(memberId);
+        if (wallet.isFrozen()) {
+            throw new BusinessException(PaymentErrorCode.WALLET_FROZEN);
+        }
         Charge charge = chargeRepository.save(Charge.request(wallet.getId(), UUID.randomUUID().toString(),
             request.amount(), LocalDateTime.now().plus(EXPIRES_IN)));
         PaymentActionLog.record(PaymentAction.CHARGE_REQUESTED, "memberId={} walletId={} chargeId={} amount={}",

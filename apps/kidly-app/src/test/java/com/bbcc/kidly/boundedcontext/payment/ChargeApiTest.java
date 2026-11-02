@@ -72,6 +72,21 @@ class ChargeApiTest {
     }
 
     @Test
+    @DisplayName("탈퇴로 동결된 지갑이면 409 WALLET_FROZEN")
+    void requestFrozenWallet() {
+        jdbcTemplate.update("update payment.wallet set frozen_at = now() where member_id = ?", MEMBER_ID);
+
+        client.post().uri(CHARGES_PATH)
+            .headers(TestMembers.buyer(MEMBER_ID))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("amount", 10_000))
+            .exchange()
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("동결된 지갑입니다");
+    }
+
+    @Test
     @DisplayName("토스가 승인하면 200 DONE과 늘어난 잔액을 주고 지갑 잔액도 늘어 있다")
     void confirmApproved() {
         RequestedCharge charge = requestCharge(10_000);

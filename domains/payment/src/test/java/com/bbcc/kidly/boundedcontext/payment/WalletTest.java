@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.payment;
 
+import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.NOW;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -82,5 +83,41 @@ class WalletTest {
 
         assertThat(wallet.canWithdraw(1_000L)).isTrue();
         assertThat(wallet.canWithdraw(1_001L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("동결하면 동결 시각을 남기고 잔액은 그대로다")
+    void freeze() {
+        Wallet wallet = PaymentFixture.wallet(5_000L);
+
+        boolean frozen = wallet.freeze(NOW);
+
+        assertThat(frozen).isTrue();
+        assertThat(wallet.isFrozen()).isTrue();
+        assertThat(wallet.getFrozenAt()).isEqualTo(NOW);
+        assertThat(wallet.getBalance()).isEqualTo(5_000L);
+    }
+
+    @Test
+    @DisplayName("이미 동결된 지갑을 다시 동결하면 false이고 처음 동결한 시각을 그대로 둔다")
+    void freezeTwice() {
+        Wallet wallet = PaymentFixture.wallet(0L);
+        wallet.freeze(NOW);
+
+        boolean frozen = wallet.freeze(NOW.plusDays(1));
+
+        assertThat(frozen).isFalse();
+        assertThat(wallet.getFrozenAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("동결된 지갑에도 입금할 수 있다")
+    void depositAfterFreeze() {
+        Wallet wallet = PaymentFixture.wallet(1_000L);
+        wallet.freeze(NOW);
+
+        wallet.deposit(2_000L);
+
+        assertThat(wallet.getBalance()).isEqualTo(3_000L);
     }
 }
