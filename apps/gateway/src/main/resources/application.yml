@@ -18,6 +18,12 @@ spring:
                 exposed-headers: X-Request-Id
                 allow-credentials: true
                 max-age: 3600
+          # 백엔드 호출 timeout(#668). 연결 3초(도메인의 외부 호출 connect-timeout과 같은 값), 응답 55초
+          # (결제 승인이 Toss를 동기로 부르고 연결 3초 + 읽기 30초라 그보다 짧으면 결제는 됐는데 클라이언트는 504를 받는다.
+          # nginx 기본 proxy_read_timeout 60초보다는 짧아야 Gateway의 ProblemDetail 504가 나간다)
+          httpclient:
+            connect-timeout: 3000
+            response-timeout: 55s
           # Host는 nginx 값(원래 호스트)을 넘긴다. 없으면 백엔드 주소(app:8080)로 바뀐다
           default-filters:
             - PreserveHostHeader
