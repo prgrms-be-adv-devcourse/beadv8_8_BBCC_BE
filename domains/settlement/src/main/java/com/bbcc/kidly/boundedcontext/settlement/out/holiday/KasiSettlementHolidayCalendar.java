@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.settlement.out.holiday;
 
-import com.bbcc.kidly.boundedcontext.settlement.app.port.HolidayCalendar;
-import com.bbcc.kidly.boundedcontext.settlement.app.port.HolidayLookupException;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayCalendar;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -29,7 +29,7 @@ import org.xml.sax.helpers.DefaultHandler;
  * 요청 URL에 인증키가 들어 있어, 스프링 예외(메시지에 URL이 들어 있다)는 종류만 남기고 원인으로 붙이지 않는다.
  */
 @Slf4j
-public class KasiHolidayCalendar implements HolidayCalendar {
+public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar {
 
     private static final String PATH =
         "/getRestDeInfo?serviceKey={serviceKey}&solYear={year}&solMonth={month}&numOfRows=50&pageNo=1";
@@ -41,7 +41,7 @@ public class KasiHolidayCalendar implements HolidayCalendar {
     private final RestClient restClient;
     private final String serviceKey;
 
-    public KasiHolidayCalendar(RestClient.Builder builder, SettlementHolidayProperties properties) {
+    public KasiSettlementHolidayCalendar(RestClient.Builder builder, SettlementHolidayProperties properties) {
         this.restClient = builder.baseUrl(properties.baseUrl()).build();
         this.serviceKey = properties.serviceKey();
         if (!StringUtils.hasText(serviceKey)) {
@@ -52,7 +52,7 @@ public class KasiHolidayCalendar implements HolidayCalendar {
     @Override
     public Set<LocalDate> holidaysIn(YearMonth month) {
         if (!StringUtils.hasText(serviceKey)) {
-            throw new HolidayLookupException("공휴일 API 인증키가 없습니다");
+            throw new SettlementHolidayLookupException("공휴일 API 인증키가 없습니다");
         }
         return parse(fetch(month));
     }
@@ -63,16 +63,17 @@ public class KasiHolidayCalendar implements HolidayCalendar {
                 .uri(PATH, serviceKey, month.getYear(), "%02d".formatted(month.getMonthValue()))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (request, response) -> {
-                    throw new HolidayLookupException("공휴일 조회 응답이 오류입니다: HTTP " + response.getStatusCode().value());
+                    throw new SettlementHolidayLookupException(
+                            "공휴일 조회 응답이 오류입니다: HTTP " + response.getStatusCode().value());
                 })
                 .body(byte[].class);
             if (body == null) {
-                throw new HolidayLookupException("공휴일 조회 응답 본문이 없습니다");
+                throw new SettlementHolidayLookupException("공휴일 조회 응답 본문이 없습니다");
             }
             return body;
         } catch (RestClientException e) {
             // 연결 실패 · 시간 초과 등. 메시지에 인증키가 든 URL이 있어 종류만 남긴다
-            throw new HolidayLookupException("공휴일 조회에 실패했습니다: " + e.getClass().getSimpleName());
+            throw new SettlementHolidayLookupException("공휴일 조회에 실패했습니다: " + e.getClass().getSimpleName());
         }
     }
 
@@ -88,12 +89,12 @@ public class KasiHolidayCalendar implements HolidayCalendar {
             builder.setErrorHandler(new DefaultHandler());
             document = builder.parse(new ByteArrayInputStream(body));
         } catch (ParserConfigurationException | SAXException | IOException e) {
-            throw new HolidayLookupException("공휴일 조회 응답을 읽지 못했습니다: " + e.getClass().getSimpleName());
+            throw new SettlementHolidayLookupException("공휴일 조회 응답을 읽지 못했습니다: " + e.getClass().getSimpleName());
         }
         var root = document.getDocumentElement();
         var resultCode = text(root, "resultCode");
         if (!NORMAL.equals(resultCode)) {
-            throw new HolidayLookupException("공휴일 조회 결과가 정상이 아닙니다: resultCode " + resultCode);
+            throw new SettlementHolidayLookupException("공휴일 조회 결과가 정상이 아닙니다: resultCode " + resultCode);
         }
         Set<LocalDate> holidays = new HashSet<>();
         NodeList items = root.getElementsByTagName("item");
@@ -109,7 +110,7 @@ public class KasiHolidayCalendar implements HolidayCalendar {
     private static String text(Element parent, String tag) {
         var node = parent.getElementsByTagName(tag).item(0);
         if (node == null) {
-            throw new HolidayLookupException("공휴일 조회 응답에 " + tag + "가 없습니다");
+            throw new SettlementHolidayLookupException("공휴일 조회 응답에 " + tag + "가 없습니다");
         }
         return node.getTextContent().strip();
     }
@@ -119,7 +120,7 @@ public class KasiHolidayCalendar implements HolidayCalendar {
         try {
             return LocalDate.parse(value, DateTimeFormatter.BASIC_ISO_DATE);
         } catch (DateTimeParseException e) {
-            throw new HolidayLookupException("공휴일 조회 응답의 locdate 형식이 맞지 않습니다: " + value);
+            throw new SettlementHolidayLookupException("공휴일 조회 응답의 locdate 형식이 맞지 않습니다: " + value);
         }
     }
 }

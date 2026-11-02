@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.settlement.app;
 
-import com.bbcc.kidly.boundedcontext.settlement.app.port.HolidayCalendar;
-import com.bbcc.kidly.boundedcontext.settlement.app.port.HolidayLookupException;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayCalendar;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementBusinessDay;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -15,10 +15,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class SettlementBusinessCalendar {
 
-    private final HolidayCalendar holidayCalendar;
+    private final SettlementHolidayCalendar holidayCalendar;
 
     /**
-     * @throws HolidayLookupException 공휴일을 조회하지 못한 경우. 영업일인지 알 수 없다
+     * @throws SettlementHolidayLookupException 공휴일을 조회하지 못한 경우. 영업일인지 알 수 없다
      */
     public boolean isBusinessDay(LocalDate date) {
         return SettlementBusinessDay.isBusinessDay(date, holidayCalendar.holidaysIn(YearMonth.from(date)));

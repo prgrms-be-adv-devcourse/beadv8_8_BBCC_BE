@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementBusinessCalendar;
-import com.bbcc.kidly.boundedcontext.settlement.app.port.HolidayCalendar;
-import com.bbcc.kidly.boundedcontext.settlement.app.port.HolidayLookupException;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayCalendar;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Set;
@@ -23,7 +23,7 @@ class SettlementBusinessCalendarTest {
     private static final YearMonth MARCH = YearMonth.of(2026, 3);
 
     @Mock
-    private HolidayCalendar holidayCalendar;
+    private SettlementHolidayCalendar holidayCalendar;
 
     @InjectMocks
     private SettlementBusinessCalendar calendar;
@@ -40,9 +40,9 @@ class SettlementBusinessCalendarTest {
     @Test
     @DisplayName("공휴일을 조회하지 못하면 예외를 그대로 올린다")
     void propagatesLookupFailure() {
-        given(holidayCalendar.holidaysIn(MARCH)).willThrow(new HolidayLookupException("공휴일 API 인증키가 없습니다"));
+        given(holidayCalendar.holidaysIn(MARCH)).willThrow(new SettlementHolidayLookupException("공휴일 API 인증키가 없습니다"));
 
         assertThatThrownBy(() -> calendar.isBusinessDay(LocalDate.of(2026, 3, 3)))
-            .isInstanceOf(HolidayLookupException.class);
+            .isInstanceOf(SettlementHolidayLookupException.class);
     }
 }
