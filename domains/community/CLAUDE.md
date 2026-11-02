@@ -28,13 +28,23 @@
 - 목록은 커서 페이지네이션 + 인덱스, 쿼리 수 테스트로 N+1을 막는다
 - 마이그레이션은 `src/main/resources/db/migration/community/V{yyyyMMddHHmm}__community_{설명}.sql`, 추가만(이미 적용된 파일은 고치지 않는다)
 
-## 4. 넣지 않는 것 (주문 모듈에서 가져오지 않음)
+## 4. 상품 복사본 · 기존 상품 채우기
+- 상품 복사본(`review.domain.ReplicaProduct`, 표 `community.replica_product`)은 상품당 1행이고 `product.changed`의 지금 값을 덮어쓴다. 리뷰 · 찜 화면의 상품 이름 · 썸네일 · 표시 상태를 여기서 읽는다
+- 표시 상태(`DisplayStatus`): 품절은 팔고 있지만 재고가 없는 것, 판매 종료는 더 이상 팔지 않는 것이다
+  - 판매 종료(`SALE_ENDED`): 상품이 `STOPPED` · `SALE_PENDING` · 모르는 값(null), 또는 `ON_SALE`이지만 판매 중(`ON_SALE`) 옵션이 0개
+  - 품절(`SOLD_OUT`): `ON_SALE`이고 판매 중 옵션이 1개 이상이며 그 옵션이 모두 품절(판매 중지 · 모르는 상태 옵션은 보지 않는다)
+  - 판매 중(`ON_SALE`): 그 밖(판매 중 옵션 하나라도 재고가 있다)
+- 기존 상품 채우기: 복사본은 커뮤니티가 받기 시작한 뒤의 `product.changed`로만 채워지므로, 커뮤니티를 처음 배포한 뒤 환경마다 한 번 상품 도메인의 관리자 API `POST /api/v1/admin/products/changed-events`를 호출한다. 판매를 시작한 상품 전체를 `ProductChangedEvent`로 다시 보낸다
+  - 판매 시작 전 상품은 보내지 않으므로 복사본에 없다. 복사본에 없는 상품은 찜을 거절한다
+  - 같은 이벤트를 다른 도메인(주문 · 추천 등)도 다시 받는다. 값이 그대로라 덮어쓰기만 일어난다
+
+## 5. 넣지 않는 것 (주문 모듈에서 가져오지 않음)
 - 복잡한 상태 전이(`TransitionResult`) · `@Version` 낙관적 잠금 경쟁
 - 처리 실패 보관 테이블 · DLT 보관 · 관리자 재처리
 - 아웃박스 · 릴레이 스케줄러(커뮤니티가 이벤트를 발행하지 않는 동안)
 - 필요해지면 이 문서를 먼저 고치고 넣는다
 
-## 5. 테스트
+## 6. 테스트
 - 단위 테스트는 `test`, 스프링 + Testcontainers는 태그로 나눠 `integrationTest`(`@IntegrationTest`) · `functionalTest`(`@FunctionalTest`)로 이 모듈에서 돈다. 규칙 테스트는 `archTest`
 - 주석 · 컨테이너 · 정리는 모듈 공통 `boundedcontext.support`(앱의 `com.bbcc.kidly.support`와 다른 패키지)를 쓰고, 테스트 앱은 `CommunityTestApplication`(리뷰 · 찜 컨텍스트 · `common`만)이다. 테스트가 끝나면 `community` 스키마의 표를 비운다(`CommunityDatabaseCleanerExtension`)
 - `@IntegrationTest` · `@FunctionalTest`를 쓰는 테스트 클래스에 개별 설정(`@MockitoBean`, `@TestPropertySource` 등)을 붙이지 않는다(컨텍스트가 새로 뜬다)
