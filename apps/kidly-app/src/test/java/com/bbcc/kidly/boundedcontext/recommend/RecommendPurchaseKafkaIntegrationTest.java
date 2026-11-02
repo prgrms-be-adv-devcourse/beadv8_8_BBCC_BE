@@ -115,6 +115,23 @@ class RecommendPurchaseKafkaIntegrationTest {
         assertThat(messages.deadLetters(ORDER_DLT, key)).isEmpty();
     }
 
+    @Test
+    @DisplayName("구매확정에 회원 ID가 없으면 DLT로 보내고 구매 기록은 남기지 않는다")
+    void deadLetterConfirmationWithoutMember() throws Exception {
+        Long orderItemId = newId();
+        Long orderId = newId();
+        var withoutMember = new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), CONFIRMED_AT.plusSeconds(1),
+            new OrderItemPurchaseConfirmedEvent.Data(orderItemId, orderId, null, 7L, 11L, 21L, 31L, "120", 2,
+                50_000L, CONFIRMED_AT));
+
+        messages.send(ORDER_TOPIC, withoutMember);
+
+        String key = String.valueOf(orderId);
+        AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(ORDER_DLT, key).isEmpty());
+        assertThat(messages.deadLetters(ORDER_DLT, key)).singleElement();
+        assertThat(recordsOf(orderItemId)).isEmpty();
+    }
+
     private List<PurchaseRecord> recordsOf(Long orderItemId) {
         return purchaseRecordRepository.findAll().stream()
             .filter(record -> orderItemId.equals(record.getOrderItemId()))
