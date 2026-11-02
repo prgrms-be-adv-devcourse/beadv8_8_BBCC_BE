@@ -21,7 +21,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class CommunityKafkaListenerTestGuard implements SmartLifecycle {
 
-    static final List<String> COMMUNITY_LISTENERS = List.of(CommunityProductEventKafkaListener.ID);
+    static final List<String> COMMUNITY_LISTENERS = List.of(CommunityProductEventKafkaListener.ID,
+        CommunityOrderEventKafkaListener.ID);
 
     private final KafkaListenerEndpointRegistry registry;
     private final Map<String, MessageListenerContainer> listeners = new ConcurrentHashMap<>();
