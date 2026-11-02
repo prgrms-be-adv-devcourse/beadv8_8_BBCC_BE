@@ -3,7 +3,7 @@
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES=search 인 환경(지금은 dev)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
 # 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(dev · prod)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
-# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경에서만 뜬다. 지금은 어느 환경에도 켜지 않았다(켜면 app 주석의 상한 합계에 더해진다)
+# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경에서만 뜬다. 지금은 dev 에서만 켰다(켜면 app 주석의 상한 합계에 더해진다)
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -177,7 +177,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Seoul
-      JAVA_TOOL_OPTIONS: -Xmx192m
+      JAVA_TOOL_OPTIONS: -Xmx128m
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -203,8 +203,8 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
-    # 힙 192m · 상한 512m 은 구성이 비슷한 자녀 프로필 서비스와 같게 둔 추측값이다. 켜기 전에 서버 메모리 여유를 보고, 켠 뒤 재서 정한다
-    mem_limit: 512m
+    # 구성이 비슷한 자녀 프로필 서비스가 dev 에서 7일 최대 365MiB(힙 64MiB 안팎)를 썼다. 그보다 조금 넉넉하게 힙 128m · 상한 448m 으로 시작하고, 켠 뒤 재서 정한다
+    mem_limit: 448m
     restart: unless-stopped
     logging: *logging
 
