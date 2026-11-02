@@ -89,6 +89,7 @@ public class ReplicaProduct extends OrderTimeEntity {
     private LocalDateTime eventOccurredAt;
 
     private static final String ON_SALE = "ON_SALE";
+    private static final String SOLD_OUT = "SOLD_OUT";
 
     public static ReplicaProduct create(Values values) {
         ReplicaProduct replica = new ReplicaProduct();
@@ -130,6 +131,21 @@ public class ReplicaProduct extends OrderTimeEntity {
     public boolean isPurchasable() {
         return ON_SALE.equals(productStatus) && (optionSaleStatus == null || ON_SALE.equals(optionSaleStatus))
             && !soldOut;
+    }
+
+    /**
+     * 판매 상태 값 하나(#701, 조르기 화면 표시용). 판단 순서: 상품이 판매 중이 아니면 상품 상태 이름(SALE_PENDING · STOPPED 등,
+     * 모르는 값도 그대로), 옵션이 판매 중이 아니면 옵션 상태 이름(STOPPED 등), 품절이면 SOLD_OUT, 그 밖은 ON_SALE.
+     * ON_SALE일 때만 {@link #isPurchasable()}가 true다.
+     */
+    public String saleStatus() {
+        if (!ON_SALE.equals(productStatus)) {
+            return productStatus;
+        }
+        if (optionSaleStatus != null && !ON_SALE.equals(optionSaleStatus)) {
+            return optionSaleStatus;
+        }
+        return soldOut ? SOLD_OUT : ON_SALE;
     }
 
     public boolean isSoldBy(Long memberId) {

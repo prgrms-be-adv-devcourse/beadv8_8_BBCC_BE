@@ -10,7 +10,11 @@ public class WishRuleViolationException extends RuntimeException {
      * 위반한 규칙. 이름은 app의 WishErrorCode와 같다.
      */
     public enum Rule {
-        INVALID_QUANTITY
+        INVALID_QUANTITY,
+        INVALID_WISH_REQUEST,
+        WISH_ITEM_IN_REQUEST,
+        WISH_REQUEST_ALREADY_DECIDED,
+        INVALID_APPROVAL
     }
 
     private final Rule rule;

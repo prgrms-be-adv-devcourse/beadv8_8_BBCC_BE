@@ -28,6 +28,7 @@ public interface WishCatalog {
 
     /**
      * @param purchasable 지금 살 수 있는지(판매 중 · 옵션 판매 중 · 품절 아님). 장바구니와 같은 판단
+     * @param saleStatus 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED · SALE_PENDING 등, #701). 판매 중이 아니어도 빼지 않고 이 값으로 보인다
      */
     record ProductOption(
         Long optionId,
@@ -37,7 +38,8 @@ public interface WishCatalog {
         String optionName,
         String size,
         long unitPrice,
-        boolean purchasable) {
+        boolean purchasable,
+        String saleStatus) {
     }
 
     /**

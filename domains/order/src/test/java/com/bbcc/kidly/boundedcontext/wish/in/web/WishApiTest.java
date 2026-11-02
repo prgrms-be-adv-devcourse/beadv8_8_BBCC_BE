@@ -115,6 +115,8 @@ class WishApiTest {
             .jsonPath("$.items[0].optionName").isEqualTo("네이비 / 110")
             .jsonPath("$.items[0].sellerId").isEqualTo(String.valueOf(SELLER_ID))
             .jsonPath("$.items[0].purchasable").isEqualTo(false)
+            .jsonPath("$.items[0].saleStatus").isEqualTo("SOLD_OUT")
+            .jsonPath("$.items[0].requestId").doesNotExist()
             .jsonPath("$.totalAmount").isEqualTo(0);
         client.get().uri(CartController.CART_PATH)
             .headers(TestMembers.buyer(BUYER_ID))

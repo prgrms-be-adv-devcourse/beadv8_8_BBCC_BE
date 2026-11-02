@@ -17,6 +17,8 @@ public record WishView(Long childId, List<Line> items, long totalAmount) {
      * @param sellerName 판매자의 지금 상호명(판매자 복사본). 상품 · 판매자 복사본이 없으면 null
      * @param addedBy 담은 사람 종류(PARENT · CHILD)
      * @param addedAt 처음 담은 시각
+     * @param saleStatus 상품의 지금 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED 등, #701). 상품 복사본이 없으면 null
+     * @param requestId 이 줄이 든 진행 중인 조르기 ID(#701). 없으면 null. 있으면 다른 조르기에 넣거나 수량을 바꾸거나 뺄 수 없다
      */
     public record Line(
         Long wishItemId,
@@ -33,6 +35,8 @@ public record WishView(Long childId, List<Line> items, long totalAmount) {
         long lineAmount,
         String sellerName,
         String addedBy,
-        LocalDateTime addedAt) {
+        LocalDateTime addedAt,
+        String saleStatus,
+        Long requestId) {
     }
 }

@@ -52,11 +52,14 @@ class WishServiceTest {
     @Mock
     private WishCatalog wishCatalog;
 
+    @Mock
+    private WishOrderSettlement wishOrderSettlement;
+
     private WishService wishService;
 
     @BeforeEach
     void setUp() {
-        wishService = new WishService(wishItemRepository, wishCatalog, new WishPolicy());
+        wishService = new WishService(wishItemRepository, wishCatalog, new WishPolicy(), wishOrderSettlement);
         when(wishCatalog.findProductOption(OPTION_ID)).thenReturn(Optional.of(product(OPTION_ID, true)));
         when(wishCatalog.findSellerName(SELLER_ID)).thenReturn(Optional.of("판매자"));
         when(wishCatalog.findChild(CHILD_ID)).thenReturn(Optional.of(new Child(CHILD_ID, PARENT_ID, false)));
@@ -105,6 +108,26 @@ class WishServiceTest {
         }
 
         @Test
+        @DisplayName("같은 옵션 줄이 진행 중인 조르기에 들었으면 수량을 더하지 않는다(409, #701)")
+        void lockedLineNotMerged() {
+            WishItem locked = WishItem.create(CHILD_ID, OPTION_ID, 2, AddedBy.CHILD, CHILD_ID);
+            locked.lockFor(100L);
+            when(wishItemRepository.findFirstByChildIdAndOptionIdAndStatusOrderByIdAsc(CHILD_ID, OPTION_ID,
+                Status.ACTIVE)).thenReturn(Optional.of(locked));
+
+            assertCode(() -> wishService.add(PARENT, CHILD_ID, OPTION_ID, 1), WishErrorCode.WISH_ITEM_IN_REQUEST);
+            assertThat(locked.getQuantity()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("담기 전에 그 자녀의 바로 결제 결과를 먼저 맞춘다(#701)")
+        void settlesFirst() {
+            wishService.add(PARENT, CHILD_ID, OPTION_ID, 1);
+
+            verify(wishOrderSettlement).settle(CHILD_ID);
+        }
+
+        @Test
         @DisplayName("합친 수량이 99를 넘으면 거절한다")
         void mergeOverMax() {
             when(wishItemRepository.findFirstByChildIdAndOptionIdAndStatusOrderByIdAsc(CHILD_ID, OPTION_ID,
@@ -122,7 +145,7 @@ class WishServiceTest {
                 public boolean mergesSameOption() {
                     return false;
                 }
-            });
+            }, wishOrderSettlement);
             when(wishItemRepository.findFirstByChildIdAndOptionIdAndStatusOrderByIdAsc(CHILD_ID, OPTION_ID,
                 Status.ACTIVE)).thenReturn(Optional.of(WishItem.create(CHILD_ID, OPTION_ID, 1, AddedBy.PARENT,
                 PARENT_ID)));
@@ -252,6 +275,16 @@ class WishServiceTest {
         }
 
         @Test
+        @DisplayName("진행 중인 조르기에 든 줄은 뺄 수 없다(409, #701)")
+        void lockedLine() {
+            WishItem item = stored(WishItem.create(CHILD_ID, OPTION_ID, 1, AddedBy.PARENT, PARENT_ID));
+            item.lockFor(100L);
+
+            assertCode(() -> wishService.remove(PARENT, WISH_ITEM_ID), WishErrorCode.WISH_ITEM_IN_REQUEST);
+            verify(wishItemRepository, never()).delete(any());
+        }
+
+        @Test
         @DisplayName("없는 줄은 없는 줄이다")
         void notFound() {
             assertCode(() -> wishService.remove(PARENT, WISH_ITEM_ID), WishErrorCode.WISH_ITEM_NOT_FOUND);
@@ -264,7 +297,8 @@ class WishServiceTest {
     }
 
     private static ProductOption product(Long optionId, boolean purchasable) {
-        return new ProductOption(optionId, 1L, SELLER_ID, "상품 A", "네이비 / 110", "110", 25_000L, purchasable);
+        return new ProductOption(optionId, 1L, SELLER_ID, "상품 A", "네이비 / 110", "110", 25_000L, purchasable,
+            purchasable ? "ON_SALE" : "SOLD_OUT");
     }
 
     private static void assertCode(Runnable call, ErrorCode code) {

@@ -15,6 +15,10 @@ public final class WishErrors {
     public static BusinessException toBusiness(WishRuleViolationException violation) {
         return new BusinessException(switch (violation.getRule()) {
             case INVALID_QUANTITY -> WishErrorCode.INVALID_QUANTITY;
+            case INVALID_WISH_REQUEST -> WishErrorCode.INVALID_WISH_REQUEST;
+            case WISH_ITEM_IN_REQUEST -> WishErrorCode.WISH_ITEM_IN_REQUEST;
+            case WISH_REQUEST_ALREADY_DECIDED -> WishErrorCode.WISH_REQUEST_ALREADY_DECIDED;
+            case INVALID_APPROVAL -> WishErrorCode.INVALID_APPROVAL;
         });
     }
 }

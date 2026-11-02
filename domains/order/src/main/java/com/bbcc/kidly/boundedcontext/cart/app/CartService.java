@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.cart.app.port.CartEvents;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartOrders;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCleanup;
+import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartIntake;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartRuleViolationException;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartRules;
@@ -29,12 +30,13 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 장바구니 담기 · 조회 · 수량 변경 · 삭제. 다른 회원의 줄은 없는 줄로 본다.
  * 상품 · 판매자 · 자녀는 {@link CartCatalog}, 주문한 상품은 {@link CartOrders}로 읽는다(주문 컨텍스트, #641).
- * 결제완료 뒤 장바구니 정리는 {@link CartCleanup}으로 내준다. 담기에 성공하면 {@link CartItemAddedEvent}를 낸다(#654, {@link CartEvents}).
+ * 결제완료 뒤 장바구니 정리는 {@link CartCleanup}, 다른 컨텍스트의 담기(조르기 승인, #701)는 {@link CartIntake}로 내준다.
+ * 담기에 성공하면 {@link CartItemAddedEvent}를 낸다(#654, {@link CartEvents}).
  */
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class CartService implements CartCleanup {
+public class CartService implements CartCleanup, CartIntake {
 
     private final CartItemRepository cartItemRepository;
     private final CartCatalog cartCatalog;
@@ -79,6 +81,14 @@ public class CartService implements CartCleanup {
         }
         publishItemAdded(created, product, quantity);
         return new AddCartItemResult(toLine(created, product, sellerNameOf(product)), true);
+    }
+
+    /**
+     * 담기와 같다({@link #addItem}).
+     */
+    @Override
+    public void add(Long memberId, Long optionId, Long childId, int quantity) {
+        addItem(memberId, optionId, childId, quantity);
     }
 
     /**

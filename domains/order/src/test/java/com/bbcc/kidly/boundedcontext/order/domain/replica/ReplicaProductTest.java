@@ -78,6 +78,25 @@ class ReplicaProductTest {
     }
 
     @Test
+    @DisplayName("판매 상태 값(#701): 상품 상태 → 옵션 상태 → 품절 순으로 보고, ON_SALE일 때만 구매 가능과 같다")
+    void saleStatus() {
+        assertThat(ReplicaProduct.create(option(1L, "ON_SALE", "ON_SALE", false, OCCURRED_AT)).saleStatus())
+            .isEqualTo("ON_SALE");
+        assertThat(ReplicaProduct.create(option(1L, "ON_SALE", null, false, OCCURRED_AT)).saleStatus())
+            .isEqualTo("ON_SALE");
+        assertThat(ReplicaProduct.create(option(1L, "ON_SALE", "ON_SALE", true, OCCURRED_AT)).saleStatus())
+            .isEqualTo("SOLD_OUT");
+        assertThat(ReplicaProduct.create(option(1L, "ON_SALE", "STOPPED", true, OCCURRED_AT)).saleStatus())
+            .isEqualTo("STOPPED");
+        assertThat(ReplicaProduct.create(option(1L, "STOPPED", "ON_SALE", true, OCCURRED_AT)).saleStatus())
+            .isEqualTo("STOPPED");
+        assertThat(ReplicaProduct.create(option(1L, "SALE_PENDING", "ON_SALE", false, OCCURRED_AT)).saleStatus())
+            .isEqualTo("SALE_PENDING");
+        assertThat(ReplicaProduct.create(option(1L, "ON_SALE", "ARCHIVED", false, OCCURRED_AT)).saleStatus())
+            .isEqualTo("ARCHIVED");
+    }
+
+    @Test
     @DisplayName("옵션 판매 상태가 없던 옛 행(null)은 판매 중으로 본다")
     void missingOptionSaleStatusIsOnSale() {
         ReplicaProduct replica = ReplicaProduct.create(option(1L, "ON_SALE", null, false, OCCURRED_AT));

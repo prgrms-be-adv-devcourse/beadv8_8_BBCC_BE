@@ -61,6 +61,6 @@ public class ProvidedReplicaService implements ReplicaLookup {
     private static ProductOptionView toView(ReplicaProduct product) {
         return new ProductOptionView(product.getOptionId(), product.getProductId(), product.getSellerId(),
             product.getProductName(), product.getOptionName(), product.getSize(), product.unitPrice(),
-            product.isPurchasable());
+            product.isPurchasable(), product.saleStatus());
     }
 }
