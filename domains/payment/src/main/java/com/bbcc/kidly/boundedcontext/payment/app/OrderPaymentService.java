@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 잔액 부족만 실패 결제를 저장한다. 금액 불일치는 결제 대상이 아니라 ERROR 로그와 payment.failed만 남긴다.
  * 지갑이 없으면 잔액 0으로 만들어 결제한다(잔액 부족).
  * 결제 전에 취소된 주문(order.cancelled)이면 차감하지 않고 아무것도 발행하지 않는다(기획서 2.1 ④).
+ * 탈퇴로 동결된 지갑이면 차감하지 않고 payment.failed(WALLET_NOT_FOUND)를 발행한다(#670). 결제는 저장하지 않는다.
  */
 @Slf4j
 @Service
@@ -57,6 +58,12 @@ public class OrderPaymentService {
         if (cancelledOrderRepository.existsByOrderId(command.orderId())) {
             log.warn("이미 취소된 주문의 결제 요청이라 차감하지 않습니다. orderId={}, memberId={}",
                 command.orderId(), command.memberId());
+            return;
+        }
+        if (wallet.isFrozen()) {
+            // 동결 전용 실패 사유를 더하면 shared 계약에 enum 값이 늘어 받는 쪽 배포가 먼저 필요하다. 쓸 수 있는 지갑이 없다는 뜻으로 기존 값을 쓴다
+            log.warn("탈퇴로 동결된 지갑이라 결제하지 않습니다. orderId={}, memberId={}", command.orderId(), command.memberId());
+            publishFailed(command, null, PaymentFailureCode.WALLET_NOT_FOUND, now);
             return;
         }
         if (wallet.canWithdraw(command.amount())) {
