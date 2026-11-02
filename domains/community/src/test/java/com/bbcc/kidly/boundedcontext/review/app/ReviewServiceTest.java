@@ -262,5 +262,26 @@ class ReviewServiceTest {
         public void delete(Review review) {
             rows.remove(review.getId());
         }
+
+        @Override
+        public List<ReviewListRow> findByProduct(Long productId, Limit limit) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<ReviewListRow> findByProductAfter(Long productId, LocalDateTime createdAt, Long id,
+            Limit limit) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<ReviewListRow> findByMember(Long memberId, Limit limit) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<ReviewListRow> findByMemberAfter(Long memberId, LocalDateTime createdAt, Long id, Limit limit) {
+            throw new UnsupportedOperationException();
+        }
     }
 }
