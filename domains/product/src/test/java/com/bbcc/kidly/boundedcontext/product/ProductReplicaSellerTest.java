@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductReplicaSellerTest {
 
@@ -51,14 +50,13 @@ class ProductReplicaSellerTest {
             .containsExactly(SELLER_ID, "새상점", SellerStatus.SUSPENDED, later);
     }
 
-    @ParameterizedTest(name = "저장된 시각에서 {0}분")
-    @ValueSource(longs = {0, -1})
-    @DisplayName("같은 시각이거나 더 이르게 일어난 이벤트는 무시한다")
-    void ignoreChangeNotLater(long minutesFromStored) {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changesNotLater")
+    @DisplayName("같은 시각이거나 더 이르게 일어난 이벤트는 필수 값이 없어도 무시한다")
+    void ignoreChangeNotLater(ProductReplicaSeller.ChangeInfo info) {
         ProductReplicaSeller replica = ProductReplicaSeller.create(ProductReplicaSellerFixture.sellerApproved());
 
-        replica.applyIfNewer(ProductReplicaSellerFixture.sellerChangeAt(
-            "새상점", SellerStatus.SUSPENDED, SELLER_CHANGED_AT.plusMinutes(minutesFromStored)));
+        replica.applyIfNewer(info);
 
         assertThat(replica)
             .extracting(
@@ -66,6 +64,20 @@ class ProductReplicaSellerTest {
                 ProductReplicaSeller::getStatus,
                 ProductReplicaSeller::getEventOccurredAt)
             .containsExactly("테스트상점", SellerStatus.ACTIVE, SELLER_CHANGED_AT);
+    }
+
+    // 이미 반영한 이벤트를 다시 받거나 이전 이벤트가 늦게 도착한 경우다. 값이 비어 있어도 예외 없이 무시해야 한다
+    static Stream<Named<ProductReplicaSeller.ChangeInfo>> changesNotLater() {
+        LocalDateTime earlier = SELLER_CHANGED_AT.minusMinutes(1);
+        return Stream.of(
+            Named.of("같은 시각",
+                ProductReplicaSellerFixture.sellerChangeAt("새상점", SellerStatus.SUSPENDED, SELLER_CHANGED_AT)),
+            Named.of("1분 이른 시각",
+                ProductReplicaSellerFixture.sellerChangeAt("새상점", SellerStatus.SUSPENDED, earlier)),
+            Named.of("같은 시각 · 상호명 없음",
+                ProductReplicaSellerFixture.sellerChangeAt(null, SellerStatus.SUSPENDED, SELLER_CHANGED_AT)),
+            Named.of("1분 이른 시각 · 판매자 상태 없음",
+                ProductReplicaSellerFixture.sellerChangeAt("새상점", null, earlier)));
     }
 
     @ParameterizedTest(name = "{0}")
