@@ -18,4 +18,11 @@ class GatewayApplicationIntegrationTest extends GatewayTestSupport {
             .expectStatus().isOk()
             .expectBody().jsonPath("$.status").isEqualTo("UP");
     }
+
+    @Test
+    @DisplayName("지원하지 않는 메서드는 405다(504가 아닌 ResponseStatusException은 바꾸지 않는다)")
+    void unsupportedMethodIsMethodNotAllowed() {
+        client.post().uri("/actuator/health").exchange()
+            .expectStatus().isEqualTo(405);
+    }
 }
