@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRestorati
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,7 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
- * 주문 취소됨을 받아 그 주문에서 차감한 재고를 되돌리는 흐름이다. 규칙 판단은 InventoryRestoration이 하고,
+ * 주문 취소됨과 판매자 부분 취소(주문상품 취소됨)를 받아 차감한 재고를 되돌리는 흐름이다. 규칙 판단은 InventoryRestoration이 하고,
  * 서비스는 읽기와 호출 순서만 맡는다. 트랜잭션은 InventoryRestorer와 InventoryDeductionRecorder가 각자 새로 열어서
  * 이 클래스에는 붙이지 않는다. 바깥(리스너) 트랜잭션에서는 쓰기나 잠금을 하지 않아야 한다.
  * 바깥 트랜잭션이 잡은 잠금을 같은 스레드의 안쪽 새 트랜잭션이 기다리면 PostgreSQL이 교착으로 감지하지 못하고 멈추기 때문이다.
@@ -29,6 +30,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class InventoryRestorationService {
 
+    private static final String ORDER_CANCELLED = "주문 취소됨";
+    private static final String ORDER_ITEM_CANCELLED = "주문상품 취소됨";
+
     private final ProductRepository productRepository;
     private final InventoryDeductionRepository inventoryDeductionRepository;
     private final InventoryRestorer inventoryRestorer;
@@ -36,7 +40,7 @@ public class InventoryRestorationService {
 
     public void restore(OrderCancelledEvent event) {
         OrderCancelledEvent.Data data = event.data();
-        InventoryRestoration restoration = readRestoration(data);
+        InventoryRestoration restoration = readRestoration(data.orderId(), orderItemIds(data), ORDER_CANCELLED);
         if (restoration != null && restoration.isCancelledBeforeCreated()) {
             // 주문 취소됨이 주문 생성됨보다 먼저 온 경우라, 주문상품마다 FAILED를 남겨 나중에 온 주문 생성됨을 차감하지 않게 한다 (INV-09)
             restoration = recordFailedOrReread(data);
@@ -52,14 +56,37 @@ public class InventoryRestorationService {
         inventoryRestorer.restore(targets);
     }
 
+    // 판매자가 취소한 주문상품의 차감 기록 중 DEDUCTED인 것만 되돌린다. 취소한 몫이 아닌 주문상품은 건드리지 않는다
+    public void restore(OrderItemCancelledEvent event) {
+        OrderItemCancelledEvent.Data data = event.data();
+        InventoryRestoration restoration = readRestoration(data.orderId(), orderItemIds(data), ORDER_ITEM_CANCELLED);
+        if (restoration == null) {
+            return;
+        }
+        if (restoration.isCancelledBeforeCreated()) {
+            // 판매자 취소는 결제가 끝난 주문에서만 되므로 차감 기록이 없을 수 없다. 도메인 사이 버그라 FAILED를 남기지 않는다
+            // 다시 받아도 같으므로 재시도하지 않는다
+            log.error("차감 기록이 없는 주문상품 취소됨이라 처리하지 않습니다. orderId={}, cancellationId={}",
+                data.orderId(), data.cancellationId());
+            return;
+        }
+        List<InventoryDeduction> targets = restoration.recordsToRestore();
+        if (targets.isEmpty()) {
+            log.info("이미 되돌린 주문상품 취소됨이라 건너뜁니다. orderId={}, cancellationId={}",
+                data.orderId(), data.cancellationId());
+            return;
+        }
+        inventoryRestorer.restore(targets);
+    }
+
     // 주문상품의 기존 차감 기록을 읽는다. 다른 주문의 기록이 섞여 있으면 ERROR 로그를 남기고 null을 돌려준다
-    private InventoryRestoration readRestoration(OrderCancelledEvent.Data data) {
-        List<InventoryDeduction> records = inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds(data));
+    private InventoryRestoration readRestoration(Long orderId, List<Long> orderItemIds, String eventName) {
+        List<InventoryDeduction> records = inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds);
         try {
-            return InventoryRestoration.of(data.orderId(), records);
+            return InventoryRestoration.of(orderId, records);
         } catch (IllegalArgumentException e) {
             // 주문 쪽 오류다. 다시 받아도 결과가 같으므로 재시도하지 않는다
-            log.error("다른 주문의 차감 기록이 든 주문 취소됨이라 처리하지 않습니다. orderId={}", data.orderId(), e);
+            log.error("다른 주문의 차감 기록이 든 {}이라 처리하지 않습니다. orderId={}", eventName, orderId, e);
             return null;
         }
     }
@@ -76,7 +103,7 @@ public class InventoryRestorationService {
             return null;
         } catch (DataIntegrityViolationException e) {
             // Spring은 UNIQUE 위반을 다른 제약 위반과 같은 타입으로 바꾸므로, 기록을 다시 읽어 원인을 가린다
-            InventoryRestoration reread = readRestoration(data);
+            InventoryRestoration reread = readRestoration(data.orderId(), orderItemIds(data), ORDER_CANCELLED);
             if (reread == null) {
                 return null;
             }
@@ -132,6 +159,14 @@ public class InventoryRestorationService {
     private List<Long> orderItemIds(OrderCancelledEvent.Data data) {
         List<Long> orderItemIds = new ArrayList<>();
         for (OrderCancelledEvent.Item item : data.items()) {
+            orderItemIds.add(item.orderItemId());
+        }
+        return orderItemIds;
+    }
+
+    private List<Long> orderItemIds(OrderItemCancelledEvent.Data data) {
+        List<Long> orderItemIds = new ArrayList<>();
+        for (OrderItemCancelledEvent.Item item : data.items()) {
             orderItemIds.add(item.orderItemId());
         }
         return orderItemIds;
