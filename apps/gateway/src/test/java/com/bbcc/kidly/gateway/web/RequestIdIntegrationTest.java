@@ -1,14 +1,21 @@
 package com.bbcc.kidly.gateway.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
@@ -23,6 +30,21 @@ class RequestIdIntegrationTest extends GatewayTestSupport {
     private static final String HEADER = "X-Request-Id";
     private static final Pattern UUID_PATTERN =
         Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
+
+    private final Logger firewallLogger = (Logger) LoggerFactory.getLogger(RequestFirewallFilter.class);
+    private final ListAppender<ILoggingEvent> firewallAppender = new ListAppender<>();
+
+    @BeforeEach
+    void attachFirewallAppender() {
+        firewallAppender.start();
+        firewallLogger.addAppender(firewallAppender);
+    }
+
+    @AfterEach
+    void detachFirewallAppender() {
+        firewallLogger.detachAppender(firewallAppender);
+        firewallAppender.stop();
+    }
 
     @Test
     @DisplayName("클라이언트가 보낸 X-Request-Id는 버리고 새로 만들어 백엔드로 보낸다")
@@ -52,10 +74,14 @@ class RequestIdIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("방화벽 400 응답에 UUID 값 하나가 붙는다")
-    void addsHeaderToFirewallBadRequest() {
-        expectSingleUuidHeader(client.get().uri(raw("/api/v1/../admin/members")).exchange()
+    @DisplayName("방화벽 400 응답에 UUID 값 하나가 붙고, 방화벽 로그의 traceId는 그 값과 같다")
+    void addsHeaderToFirewallBadRequestAndMatchesFirewallLog() {
+        var requestId = captureRequestId(client.get().uri(raw("/api/v1/../admin/members")).exchange()
             .expectStatus().isBadRequest());
+
+        assertThat(requestId).matches(UUID_PATTERN);
+        assertThat(firewallAppender.list.getFirst().getKeyValuePairs()).extracting(p -> p.key, p -> p.value)
+            .contains(tuple("traceId", requestId));
     }
 
     @Test

@@ -16,7 +16,9 @@ import reactor.core.publisher.Mono;
 class RequestIdFilter implements WebFilter {
 
     static final String HEADER = "X-Request-Id";
-    private static final String ATTRIBUTE = RequestIdFilter.class.getName() + ".requestId";
+    // 서비스 MDC · Alloy · Grafana가 찾는 이름이라 로그 키는 traceId다
+    static final String LOG_KEY = "traceId";
+    static final String ATTRIBUTE = RequestIdFilter.class.getName() + ".requestId";
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
