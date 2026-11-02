@@ -10,7 +10,10 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.IssuedAccessToken;
 import jakarta.persistence.EntityManager;
@@ -21,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,9 +34,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 전 도메인 정상 흐름 ①~⑦(#359). 사람 행동은 각 도메인의 실제 API, 도메인 사이는 실제 이벤트 · 리스너로만 지난다
- * (테스트는 도메인 이벤트를 직접 발행하지 않는다). 확인은 단계별 결과(상태 · 재고 · 예치금 · 정산)만 본다.
- * 회원은 실제 로그인 API로 가입시킨다(카카오는 support/FakeOAuthClient 대역). API가 없는 준비만 테스트가 직접 넣는다:
- * 상품 기준 데이터(카테고리 · 상품 유형 · 항목 값)와 구매자 예치금.
+ * (③은 예외: 자녀 API가 앱 밖으로 빠져(#682) child.changed를 테스트가 직접 발행한다). 확인은 단계별 결과
+ * (상태 · 재고 · 예치금 · 정산)만 본다. 회원은 실제 로그인 API로 가입시킨다(카카오는 support/FakeOAuthClient 대역).
+ * API가 없는 준비만 테스트가 직접 넣는다: 상품 기준 데이터(카테고리 · 상품 유형 · 항목 값)와 구매자 예치금.
  */
 @FunctionalTest
 class OrderHappyPathScenarioTest {
@@ -41,6 +45,7 @@ class OrderHappyPathScenarioTest {
     private static final long PRICE = 25_000L;
     private static final int INITIAL_STOCK = 10;
     private static final long BUYER_DEPOSIT = 100_000L;
+    private static final long CHILD_ID = 1L;
     private static final String BUSINESS_NAME = "키들리샵";
 
     @Autowired
@@ -51,6 +56,9 @@ class OrderHappyPathScenarioTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private EventPublisher eventPublisher;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -109,14 +117,12 @@ class OrderHappyPathScenarioTest {
         assertThat(queryString("select product_status from orders.replica_product where option_id = ?",
             Long.valueOf(optionId))).as("② 판매 시작 뒤 주문 상품 복사본 판매 상태").isEqualTo("ON_SALE");
 
-        // ③ 자녀 등록: child.changed → 주문 자녀 복사본
-        Long childId = client.post().uri("/api/v1/children")
-            .headers(TestMembers.buyer(buyerId))
-            .body(Map.of("name", "서준", "birthDate", LocalDate.now().minusYears(7).toString(), "gender", "MALE",
-                "heightCm", 120.5, "weightKg", 22.0))
-            .exchange()
-            .expectStatus().isCreated()
-            .expectBody(IdBody.class).returnResult().getResponseBody().id();
+        // ③ 자녀 이벤트 발행: child.changed → 주문 자녀 복사본
+        Long childId = CHILD_ID;
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new ChildChangedEvent(
+            UUID.randomUUID(), LocalDateTime.now(), new ChildChangedEvent.Data(childId, buyerId,
+                new BigDecimal("120.5"), new BigDecimal("22.0"), Gender.MALE, LocalDate.now().minusYears(7),
+                null, null, false))));
         assertThat(queryLong("select member_id from orders.replica_child where child_id = ?", childId))
             .as("③ 자녀 등록 뒤 주문 자녀 복사본").isEqualTo(buyerId);
 
