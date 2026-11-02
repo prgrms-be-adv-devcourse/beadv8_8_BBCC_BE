@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.payment.in.event.PaymentSettlementEventList
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
 import java.lang.reflect.Method;
@@ -99,6 +100,23 @@ class PaymentKafkaListenerTest {
         ArgumentCaptor<OrderCancelledEvent> cancelledCaptor = ArgumentCaptor.forClass(OrderCancelledEvent.class);
         then(handler).should().orderCancelled(cancelledCaptor.capture());
         assertThat(cancelledCaptor.getValue().data().reason()).isEqualTo("PAYMENT_EXPIRED");
+    }
+
+    @Test
+    @DisplayName("order-item.cancelled는 부분 취소 환불에 넘긴다(#711)")
+    void orderItemCancelled() {
+        OrderItemCancelledEvent cancelled = new OrderItemCancelledEvent(UUID.randomUUID(), NOW,
+            new OrderItemCancelledEvent.Data(ORDER_ID, MEMBER_ID, 7L, 70L, "OUT_OF_STOCK",
+                List.of(new OrderItemCancelledEvent.Item(1000L, 1L, 2, 12_000L))));
+
+        orderListener.on(record("kidly.order.events", "order-item.cancelled",
+            envelope(cancelled, "order-item.cancelled")));
+
+        ArgumentCaptor<OrderItemCancelledEvent> captor = ArgumentCaptor.forClass(OrderItemCancelledEvent.class);
+        then(handler).should().orderItemCancelled(captor.capture());
+        assertThat(captor.getValue().data().cancellationId()).isEqualTo(70L);
+        assertThat(captor.getValue().data().items()).singleElement()
+            .satisfies(item -> assertThat(item.amount()).isEqualTo(12_000L));
     }
 
     @Test

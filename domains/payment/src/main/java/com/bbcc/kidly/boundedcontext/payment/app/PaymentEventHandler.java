@@ -1,12 +1,14 @@
 package com.bbcc.kidly.boundedcontext.payment.app;
 
 import com.bbcc.kidly.boundedcontext.payment.app.dto.OrderCancelCommand;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.OrderItemCancelCommand;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PayOrderCommand;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PayoutCommand;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
 import java.time.LocalDateTime;
@@ -15,7 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * 결제가 받는 회원 · 주문 · 정산 이벤트의 처리(#593, #607). Kafka 리스너(in.event)와 Spring 리스너(스위치를 끈 경우)가 같은 처리를 부른다.
+ * 결제가 받는 회원 · 주문 · 정산 이벤트의 처리(#593, #607, #711). Kafka 리스너(in.event)와 Spring 리스너(스위치를 끈 경우)가 같은 처리를 부른다.
  * 이벤트 필드가 바뀌면 여기 변환만 고친다. 각 처리는 자기 트랜잭션을 연다(지갑 만들기 · 결제 · 취소 · 다시 처리할 기록).
  * 같은 이벤트를 다시 받아도 결과는 1회분이다: 지갑은 없을 때만 만들고 탈퇴한 회원의 지갑은 한 번만 동결하며, 주문당 결제는 한 번이며, 같은 취소는 한 번만 환불하고,
  * 정산서마다 한 번만 입금한다(이미 처리한 정산서는 저장된 결과를 다시 발행).
@@ -29,6 +31,7 @@ public class PaymentEventHandler {
     private final OrderPaymentService orderPaymentService;
     private final OrderCancellationService orderCancellationService;
     private final OrderCancellationRetryService orderCancellationRetryService;
+    private final OrderItemCancellationService orderItemCancellationService;
     private final SettlementPayoutService settlementPayoutService;
     private final WalletService walletService;
 
@@ -73,6 +76,18 @@ public class PaymentEventHandler {
             log.error("주문 취소를 처리하지 못해 다시 처리할 취소로 남깁니다. orderId={}", command.orderId(), e);
             orderCancellationRetryService.remember(command, e);
         }
+    }
+
+    /**
+     * order-item.cancelled: 판매자가 취소한 주문상품의 금액만큼 환불한다(#711). Kafka로만 받는다.
+     * 실패하면 예외가 나가 Kafka가 재시도한 뒤 DLT로 보낸다. 같은 취소는 한 번만 환불하므로 다시 처리해도 된다.
+     */
+    public void orderItemCancelled(OrderItemCancelledEvent event) {
+        OrderItemCancelledEvent.Data data = event.data();
+        orderItemCancellationService.handle(new OrderItemCancelCommand(data.orderId(), data.memberId(),
+            data.cancellationId(), data.reason(), data.items().stream()
+                .map(item -> new OrderItemCancelCommand.Item(item.orderItemId(), item.amount()))
+                .toList()));
     }
 
     /**
