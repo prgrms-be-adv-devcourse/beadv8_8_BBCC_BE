@@ -128,7 +128,7 @@ class CartApiTest {
     }
 
     @Test
-    @DisplayName("줄을 빼면 204이고 장바구니에서 사라진다")
+    @DisplayName("줄을 빼면 204이고 장바구니에서 사라지며 cart.item-removed가 한 행 남는다")
     void removeItem() {
         String cartItemId = addAndReadId();
 
@@ -144,6 +144,9 @@ class CartApiTest {
             .expectBody()
             .jsonPath("$.items.length()").isEqualTo(0)
             .jsonPath("$.totalAmount").isEqualTo(0);
+        // 빼기 한 건에 cart.item-removed 한 행(키 = 회원 ID, #709)
+        assertThat(jdbcTemplate.queryForList("select message_key from orders.order_outbox "
+            + "where event_type = 'cart.item-removed'", String.class)).containsExactly(String.valueOf(BUYER_ID));
     }
 
     @Test
