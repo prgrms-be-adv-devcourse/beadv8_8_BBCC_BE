@@ -229,6 +229,7 @@ jobs:
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
           JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          HOLIDAY_API_SERVICE_KEY: ${{ secrets.HOLIDAY_API_SERVICE_KEY }}
           SEARCH_ON: ${{ needs.elasticsearch.outputs.search }}
           MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
         run: |
@@ -241,6 +242,8 @@ jobs:
           keys=(DB_PASSWORD KAKAO_CLIENT_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
           # 없어도 되는 비밀. 있으면 붙이고 없으면 건너뛴다 (MAIL_PASSWORD 가 없으면 메일은 보내지 않고 로그만 남긴다)
           [[ -z "$MAIL_PASSWORD" ]] || keys+=(MAIL_PASSWORD)
+          # HOLIDAY_API_SERVICE_KEY 가 없으면 영업일 판단(공휴일 조회)이 실패한다
+          [[ -z "$HOLIDAY_API_SERVICE_KEY" ]] || keys+=(HOLIDAY_API_SERVICE_KEY)
           # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다
           secret_lines=$(.github/scripts/env-lines.sh "$APP_ENV" "${keys[@]}")
 
