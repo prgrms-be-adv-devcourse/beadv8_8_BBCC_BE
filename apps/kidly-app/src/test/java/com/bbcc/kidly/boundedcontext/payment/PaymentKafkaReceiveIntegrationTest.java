@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.support.AsyncWait;
@@ -109,6 +110,18 @@ class PaymentKafkaReceiveIntegrationTest {
     }
 
     @Test
+    @DisplayName("member.withdrawn을 받으면 지갑을 동결하고 잔액은 그대로 둔다")
+    void memberWithdrawn() throws Exception {
+        createWallet(3_000L);
+
+        send(MEMBER_TOPIC, memberId, "member.withdrawn", envelope(new MemberWithdrawnEvent(UUID.randomUUID(),
+            LocalDateTime.now(), new MemberWithdrawnEvent.Data(memberId))));
+
+        AsyncWait.until(TIMEOUT, () -> frozenAt() != null);
+        assertThat(balance()).isEqualTo(3_000L);
+    }
+
+    @Test
     @DisplayName("order.payment-requested를 받으면 예치금으로 결제하고, 같은 메시지를 두 번 받아도 한 번만 결제한다")
     void paymentRequestedOnce() throws Exception {
         createWallet(20_000L);
@@ -184,6 +197,12 @@ class PaymentKafkaReceiveIntegrationTest {
         List<Long> balances = jdbcTemplate.queryForList(
             "select balance from payment.wallet where member_id = ?", Long.class, memberId);
         return balances.isEmpty() ? null : balances.getFirst();
+    }
+
+    private LocalDateTime frozenAt() {
+        List<LocalDateTime> frozenAts = jdbcTemplate.queryForList(
+            "select frozen_at from payment.wallet where member_id = ?", LocalDateTime.class, memberId);
+        return frozenAts.isEmpty() ? null : frozenAts.getFirst();
     }
 
     private List<String> paymentStatuses() {
