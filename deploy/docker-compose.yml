@@ -2,7 +2,7 @@
 # deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES=search 인 환경(지금은 dev)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
-# 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(지금은 dev)에서만 뜬다
+# 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(지금은 dev)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -127,7 +127,6 @@ services:
     logging: *logging
 
   # 자녀 프로필 서비스(apps/childprofile-service, #682). 자녀 프로필 API 와 회원 이벤트 수신(구독 그룹 kidly.childprofile), 자녀 이벤트 발행
-  # app 도 아직 자녀 도메인을 가지고 같은 DB · 구독 그룹으로 함께 돈다. 아웃박스 릴레이는 DB advisory lock 이라 한 번만 보낸다
   # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   childprofile-service:
     image: ${CHILDPROFILE_IMAGE}
@@ -147,7 +146,7 @@ services:
       - "127.0.0.1:${CHILDPROFILE_PORT:-8085}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # app 이 자녀 도메인을 가진 동안(#682)은 app 이 먼저 마이그레이션해야 한다. 빈 DB 에서 서비스가 먼저 자녀 테이블을 만들면 app 의 init 이 실패한다
+    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다. app 의 init 이 자녀 테이블도 만들어, 서비스가 먼저 만들면 app 의 init 이 실패한다(#682)
     depends_on:
       postgres:
         condition: service_healthy
@@ -180,8 +179,8 @@ services:
       KIDLY_APP_URI: http://app:8080
       # 상품 목록(GET /api/v1/products)을 받을 곳(#526). 검색이 켜진 환경(dev)은 .env 에 search-service 를 두고, 없으면(prod) 지금처럼 app 이 받는다
       KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://app:8080}
-      # 자녀 프로필(/api/v1/children/**)을 받을 곳(#682). 자녀 서비스가 켜진 환경(dev)은 .env 에 childprofile-service 를 두고, 없으면(prod) 지금처럼 app 이 받는다
-      KIDLY_CHILDPROFILE_URI: ${KIDLY_CHILDPROFILE_URI:-http://app:8080}
+      # 자녀 프로필(/api/v1/children/**)을 받을 곳(#682). app 에는 자녀 API 가 없어 profile childprofile 이 꺼진 환경에서는 자녀 API 가 실패한다
+      KIDLY_CHILDPROFILE_URI: ${KIDLY_CHILDPROFILE_URI:-http://childprofile-service:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs
