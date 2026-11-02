@@ -80,7 +80,6 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "event_occurred_at", nullable = false)
     private LocalDateTime eventOccurredAt;
 
-    @Column(length = 255)
     private String brand;
 
     @Column(columnDefinition = "TEXT")
@@ -111,7 +110,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         joinColumns = @JoinColumn(name = "product_id"))
     private List<RecommendReplicaSizeSpec> sizeSpecs = new ArrayList<>();
 
-    // brand, description, sizeSpecs는 새로 생긴 칸이라 없는 예전 메시지도 처리해야 하므로 null을 허용한다
+    // 브랜드 · 설명은 새 칸이 없는 예전 메시지에서 null로 오므로 필수 값으로 검사하지 않는다.
+    // 사이즈별 실측은 이벤트가 칸이 없으면 빈 목록으로 바꿔 주므로 null이 오지 않는다
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
         String brand, String description, List<SizeSpecInfo> sizeSpecs, LocalDateTime occurredAt) {
@@ -184,11 +184,9 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.sizes.clear();
         this.sellableSizes.clear();
         this.sizeSpecs.clear();
-        if (info.sizeSpecs() != null) {
-            for (SizeSpecInfo spec : info.sizeSpecs()) {
-                this.sizeSpecs.add(new RecommendReplicaSizeSpec(
-                    spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
-            }
+        for (SizeSpecInfo spec : info.sizeSpecs()) {
+            this.sizeSpecs.add(new RecommendReplicaSizeSpec(
+                spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
         }
         for (OptionInfo option : info.options()) {
             if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {

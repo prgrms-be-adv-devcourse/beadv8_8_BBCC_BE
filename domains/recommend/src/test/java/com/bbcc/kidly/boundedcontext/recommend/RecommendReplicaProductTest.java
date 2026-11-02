@@ -289,7 +289,7 @@ class RecommendReplicaProductTest {
     @DisplayName("브랜드 · 설명 · 사이즈별 실측이 없는 예전 메시지의 상품 정보로도 복사본을 만들고, 세 값은 비워 둔다")
     void createWithoutBrandDescriptionAndSizeSpecs() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(
-            changeWithDetails(null, null, null, PRODUCT_CHANGED_AT));
+            changeWithDetails(null, null, List.of(), PRODUCT_CHANGED_AT));
 
         assertThat(replica.getBrand()).isNull();
         assertThat(replica.getDescription()).isNull();
