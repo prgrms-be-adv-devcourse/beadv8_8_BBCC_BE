@@ -78,7 +78,8 @@ class RecommendServiceApplicationApiTest {
             """, String.class);
 
         assertThat(schemas).containsExactly("recommend");
-        assertThat(versions).containsExactly("202610160256");
+        // init 뒤의 추천 마이그레이션은 도메인 모듈(db/migration/recommend/)에서 온다
+        assertThat(versions).containsExactly("202610160256", "202611021557");
     }
 
     @Test
