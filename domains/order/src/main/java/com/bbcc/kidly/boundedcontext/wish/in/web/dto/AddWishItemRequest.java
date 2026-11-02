@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * POST /wishes(#640). JSON의 문자열 ID("123")도 Long으로 받는다. 숫자가 아니거나 범위를 넘으면 400.
+ * POST /wish/items(#640 · 경로 #718). JSON의 문자열 ID("123")도 Long으로 받는다. 숫자가 아니거나 범위를 넘으면 400.
  *
  * @param childId 공용 장바구니의 자녀(프로필 ID)
  */

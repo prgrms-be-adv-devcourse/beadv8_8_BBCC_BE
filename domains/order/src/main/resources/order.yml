@@ -78,7 +78,7 @@ kidly:
       outbox-wait: ${ORDER_STUCK_OUTBOX_WAIT:PT5M}
 
     # ===== 조르기 컨텍스트(boundedcontext.wish) =====
-    # 조르기(#640): 부모 · 자녀 공용 장바구니(/api/v1/wishes). 팀이 정책을 확정하지 않아 통째로 끌 수 있게 둔다
+    # 조르기(#640): 부모 · 자녀 공용 장바구니(/api/v1/wish · /api/v1/wish/items, 조르기 /api/v1/wish/requests, #718). 팀이 정책을 확정하지 않아 통째로 끌 수 있게 둔다
     wish:
       # false면 조르기 API · 빈이 뜨지 않는다(표는 그대로 남는다). 기본 true
       enabled: ${ORDER_WISH_ENABLED:true}
