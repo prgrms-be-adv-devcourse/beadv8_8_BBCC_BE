@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.gateway.support.AsyncWait;
 import com.bbcc.kidly.gateway.support.KafkaIntegrationTest;
+import com.bbcc.kidly.shared.auth.PrincipalType;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -47,18 +48,19 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 회원이 Kafka로 보낸 member.tokens-revoked를 Gateway가 받아 무효화 목록에 넣는지 실제 Kafka로 본다(#608).
- * 메시지는 회원이 보내는 모양(키 = 회원 ID, 헤더 eventType · eventId, 본문 = 공통 칸 7개 + data)으로 직접 넣는다.
- * Gateway는 회원 토픽을 선언하지 않으므로(보내는 쪽이 선언) 테스트가 만든다.
+ * 인증이 Kafka로 보낸 auth.tokens-revoked를 Gateway가 받아 무효화 목록에 넣는지 실제 Kafka로 본다.
+ * 메시지는 인증이 보내는 모양(키 = 주체 ID, 헤더 eventType · eventId, 본문 = 공통 칸 7개 + data)으로 직접 넣는다.
+ * Gateway는 인증 토픽을 선언하지 않으므로(보내는 쪽이 선언) 테스트가 만든다.
  * 리스너는 켤 때마다 31분 전으로 되감으므로 앞 테스트의 메시지를 다시 읽는다. 테스트마다 회원 ID를 새로 뽑아 섞이지 않게 한다.
  */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
-class MemberTokensRevokedKafkaIntegrationTest {
+class AuthTokensRevokedKafkaIntegrationTest {
 
-    private static final String TOPIC = "kidly.member.events";
-    private static final String DLT = "kidly.member.events.gateway.dlt";
-    private static final String LISTENER_ID = "gatewayMemberEventListener";
+    private static final String TOPIC = "kidly.auth.events";
+    private static final String DLT = "kidly.auth.events.gateway.dlt";
+    private static final String LISTENER_ID = "gatewayAuthEventListener";
+    private static final String TOKENS_REVOKED = "auth.tokens-revoked";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
@@ -100,7 +102,7 @@ class MemberTokensRevokedKafkaIntegrationTest {
     @DisplayName("다시 뜨면 이미 읽은 무효화도 되감아 다시 읽어 목록에 넣는다")
     void rewindsOnAssignment() throws Exception {
         var memberId = newMemberId();
-        send(null, null, memberId, "member.tokens-revoked", tokensRevoked(memberId));
+        send(null, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
         // 앞 인스턴스가 이 메시지까지 읽고 책갈피를 남긴 뒤 다시 뜬 상황. 책갈피대로 읽으면 이 메시지를 받지 못한다
         commitGroupOffsetsToEnd();
 
@@ -116,15 +118,15 @@ class MemberTokensRevokedKafkaIntegrationTest {
         var revokedAt = LocalDateTime.now(KST).truncatedTo(ChronoUnit.SECONDS);
         startListener();
 
-        send(null, null, memberId, "member.tokens-revoked", envelope("member.tokens-revoked", memberId,
-            Map.of("memberId", memberId, "revokedAt", revokedAt.toString())));
+        send(null, null, memberId, TOKENS_REVOKED, envelope(TOKENS_REVOKED, memberId,
+            data("MEMBER", memberId, revokedAt.toString())));
 
         AsyncWait.until(TIMEOUT, () -> isRevoked(memberId));
         // 다른 시간대로 읽으면 무효화 시각이 몇 시간 밀려 1초 뒤 토큰도 거절되거나 그 시각 토큰이 통과한다
         var revokedInstant = revokedAt.atZone(KST).toInstant();
         var now = Instant.now();
-        assertThat(revocations.isRevoked(memberId, revokedInstant, now)).isTrue();
-        assertThat(revocations.isRevoked(memberId, revokedInstant.plusSeconds(1), now)).isFalse();
+        assertThat(revocations.isRevoked(member(memberId), revokedInstant, now)).isTrue();
+        assertThat(revocations.isRevoked(member(memberId), revokedInstant.plusSeconds(1), now)).isFalse();
     }
 
     @Test
@@ -137,8 +139,8 @@ class MemberTokensRevokedKafkaIntegrationTest {
         clearPartition(0);
         var fortyMinutesAgo = Instant.now().minus(Duration.ofMinutes(40)).toEpochMilli();
         // 본문의 무효화 시각은 지금이라 읽히면 거절된다. 메시지 시각(timestamp)만 40분 전이다
-        send(0, fortyMinutesAgo, oldMemberId, "member.tokens-revoked", tokensRevoked(oldMemberId));
-        send(0, null, memberId, "member.tokens-revoked", tokensRevoked(memberId));
+        send(0, fortyMinutesAgo, oldMemberId, TOKENS_REVOKED, tokensRevoked(oldMemberId));
+        send(0, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
 
         startListener();
 
@@ -155,8 +157,8 @@ class MemberTokensRevokedKafkaIntegrationTest {
         startListener();
 
         // data가 무효화와 같은 모양이라 종류를 거르지 않으면 목록에 들어간다
-        send(1, null, otherMemberId, "member.changed", envelope("member.changed", otherMemberId, data(otherMemberId)));
-        send(1, null, memberId, "member.tokens-revoked", tokensRevoked(memberId));
+        send(1, null, otherMemberId, "auth.logged-in", envelope("auth.logged-in", otherMemberId, data(otherMemberId)));
+        send(1, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
 
         // 같은 파티션의 뒤 메시지가 반영됐으면 앞 메시지는 이미 처리됐다
         AsyncWait.until(TIMEOUT, () -> isRevoked(memberId));
@@ -169,15 +171,30 @@ class MemberTokensRevokedKafkaIntegrationTest {
     void deadLettersUnreadableBody(CapturedOutput output) throws Exception {
         var memberId = newMemberId();
         var secret = "본문-" + UUID.randomUUID();
-        var body = "{\"data\":{\"memberId\":\"" + secret;
+        var body = "{\"data\":{\"principalId\":\"" + secret;
         startListener();
 
-        send(null, null, memberId, "member.tokens-revoked", body);
+        send(null, null, memberId, TOKENS_REVOKED, body);
 
         AsyncWait.until(TIMEOUT, () -> !deadLetters(memberId).isEmpty());
         assertThat(deadLetters(memberId)).singleElement()
             .satisfies(deadLetter -> assertThat(deadLetter.value()).isEqualTo(body));
         assertThat(output.getOut()).contains("key=" + memberId).doesNotContain(secret);
+    }
+
+    @Test
+    @DisplayName("모르는 주체 종류는 읽지 못한 것으로 보고 DLT로 보내며 목록에 넣지 않는다")
+    void deadLettersUnknownPrincipalType() throws Exception {
+        var memberId = newMemberId();
+        var body = envelope(TOKENS_REVOKED, memberId, data("ROBOT", memberId, nowInKst()));
+        startListener();
+
+        send(null, null, memberId, TOKENS_REVOKED, body);
+
+        AsyncWait.until(TIMEOUT, () -> !deadLetters(memberId).isEmpty());
+        assertThat(deadLetters(memberId)).singleElement()
+            .satisfies(deadLetter -> assertThat(deadLetter.value()).isEqualTo(body));
+        assertThat(isRevoked(memberId)).isFalse();
     }
 
     private void startListener() {
@@ -186,7 +203,11 @@ class MemberTokensRevokedKafkaIntegrationTest {
 
     private boolean isRevoked(long memberId) {
         var now = Instant.now();
-        return revocations.isRevoked(memberId, now.minus(ISSUED_BEFORE), now);
+        return revocations.isRevoked(member(memberId), now.minus(ISSUED_BEFORE), now);
+    }
+
+    private static PrincipalKey member(long memberId) {
+        return new PrincipalKey(PrincipalType.MEMBER, memberId);
     }
 
     private static long newMemberId() {
@@ -194,21 +215,29 @@ class MemberTokensRevokedKafkaIntegrationTest {
     }
 
     private String tokensRevoked(long memberId) {
-        return envelope("member.tokens-revoked", memberId, data(memberId));
+        return envelope(TOKENS_REVOKED, memberId, data(memberId));
     }
 
     private static Map<String, Object> data(long memberId) {
-        return Map.of("memberId", memberId, "revokedAt", nowInKst());
+        return data("MEMBER", memberId, nowInKst());
     }
 
-    // 회원이 보내는 본문과 같은 모양: 공통 칸 7개 + data. 시각은 시간대 없는 한국 시간
+    private static Map<String, Object> data(String principalType, long memberId, String revokedAt) {
+        var data = new LinkedHashMap<String, Object>();
+        data.put("principalType", principalType);
+        data.put("principalId", memberId);
+        data.put("revokedAt", revokedAt);
+        return data;
+    }
+
+    // 인증이 보내는 본문과 같은 모양: 공통 칸 7개 + data. 시각은 시간대 없는 한국 시간
     private String envelope(String eventType, long memberId, Map<String, Object> data) {
         var body = new LinkedHashMap<String, Object>();
         body.put("eventId", UUID.randomUUID().toString());
         body.put("eventType", eventType);
         body.put("schemaVersion", 1);
         body.put("occurredAt", nowInKst());
-        body.put("producer", "member");
+        body.put("producer", "auth");
         body.put("aggregateId", String.valueOf(memberId));
         body.put("correlationId", String.valueOf(memberId));
         body.put("data", data);

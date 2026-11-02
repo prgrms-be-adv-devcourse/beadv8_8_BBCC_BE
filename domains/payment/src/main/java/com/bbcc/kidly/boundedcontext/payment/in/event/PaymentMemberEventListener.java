@@ -11,7 +11,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * kidly.member.events에서 member.registered를 받아 지갑을 만들고(#593), member.withdrawn을 받아 지갑을 동결한다(#670).
- * 회원의 다른 종류(변경 · 토큰 무효화)는 건너뛴다.
+ * 회원의 다른 종류(변경)는 건너뛴다.
  * 스위치(kidly.payment.kafka.consumer.enabled)가 꺼져 있으면 시작하지 않고, 그때는 Spring 리스너가 받는다.
  */
 @Component

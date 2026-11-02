@@ -14,7 +14,7 @@ import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.global.error.BusinessException;
-import com.bbcc.kidly.shared.member.event.MemberTokensRevokedEvent;
+import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -161,7 +161,7 @@ class RefreshTokenServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("재사용을 감지하면 이미 발급된 Access Token도 무효화한다(member.tokens-revoked 발행)")
+    @DisplayName("재사용을 감지하면 이미 발급된 Access Token도 무효화한다(auth.tokens-revoked 발행)")
     void reusedTokenRevokesAccessToken() {
         var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
         var oldToken = refreshTokenService.issue(memberId);
@@ -170,8 +170,8 @@ class RefreshTokenServiceIntegrationTest {
 
         assertInvalid(() -> refreshTokenService.reissue(oldToken));
 
-        assertThat(events.stream(MemberTokensRevokedEvent.class))
-            .singleElement().satisfies(event -> assertThat(event.data().memberId()).isEqualTo(memberId));
+        assertThat(events.stream(AuthTokensRevokedEvent.class))
+            .singleElement().satisfies(event -> assertThat(event.data().principalId()).isEqualTo(memberId));
     }
 
     @Test
@@ -185,7 +185,7 @@ class RefreshTokenServiceIntegrationTest {
 
         assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
         assertThat(refreshTokenService.reissue(newToken).subject().id()).isEqualTo(memberId);
-        assertThat(events.stream(MemberTokensRevokedEvent.class)).isEmpty();
+        assertThat(events.stream(AuthTokensRevokedEvent.class)).isEmpty();
     }
 
     @Test

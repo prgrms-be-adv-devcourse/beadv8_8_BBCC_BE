@@ -15,7 +15,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.ShippingAddressRepository;
 import com.bbcc.kidly.global.error.BusinessException;
-import com.bbcc.kidly.shared.member.event.MemberTokensRevokedEvent;
+import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
@@ -76,14 +76,14 @@ class MemberServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("탈퇴하면 이미 발급된 Access Token을 무효화한다(member.tokens-revoked 발행)")
+    @DisplayName("탈퇴하면 이미 발급된 Access Token을 무효화한다(auth.tokens-revoked 발행)")
     void withdrawRevokesAccessToken() {
         var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
 
         memberService.withdraw(memberId);
 
-        assertThat(events.stream(MemberTokensRevokedEvent.class))
-            .singleElement().satisfies(event -> assertThat(event.data().memberId()).isEqualTo(memberId));
+        assertThat(events.stream(AuthTokensRevokedEvent.class))
+            .singleElement().satisfies(event -> assertThat(event.data().principalId()).isEqualTo(memberId));
     }
 
     @Test
@@ -97,7 +97,7 @@ class MemberServiceIntegrationTest {
         assertThat(memberRepository.findById(memberId))
             .hasValueSatisfying(member -> assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE));
         assertThat(events.stream(MemberWithdrawnEvent.class)).isEmpty();
-        assertThat(events.stream(MemberTokensRevokedEvent.class)).isEmpty();
+        assertThat(events.stream(AuthTokensRevokedEvent.class)).isEmpty();
     }
 
     private ShippingAddressRequest addressRequest(boolean isDefault) {

@@ -65,7 +65,7 @@ spring:
               uri: ${kidly.gateway.app-uri}
               predicates:
                 - Path=/**
-  # Kafka. member.tokens-revoked를 받는다(구독 그룹 kidly.gateway). 값은 kidly-app과 같다
+  # Kafka. auth.tokens-revoked를 받는다(구독 그룹 kidly.gateway). 값은 kidly-app과 같다
   # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
   kafka:
     bootstrap-servers: localhost:9092

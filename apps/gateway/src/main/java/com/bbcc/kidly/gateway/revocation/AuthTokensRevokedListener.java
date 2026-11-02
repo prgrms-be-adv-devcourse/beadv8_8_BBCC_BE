@@ -1,6 +1,6 @@
 package com.bbcc.kidly.gateway.revocation;
 
-import com.bbcc.kidly.shared.member.event.MemberTokensRevokedEvent;
+import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Map;
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * kidly.member.events에서 member.tokens-revoked를 받아 무효화 목록에 넣는다. 다른 종류는 건너뛴다.
+ * kidly.auth.events에서 auth.tokens-revoked를 받아 무효화 목록에 넣는다. 다른 종류는 건너뛴다.
  * 목록이 메모리라 Gateway가 다시 뜨면 빈다. 그래서 파티션을 받을 때마다 "지금 − 보존 기간(31분)"으로 되감아
  * 그동안의 무효화를 다시 읽는다. 그보다 오래된 무효화로 막을 토큰은 이미 만료됐다. 구독 그룹의 책갈피는 쓰지 않는다
  * (그 시각 뒤 메시지가 없는 파티션은 책갈피 · auto.offset.reset 위치에서 읽는다. 거기 있는 메시지는 보존 기간이 지나 목록에 남지 않는다).
@@ -21,7 +21,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Component
 @RequiredArgsConstructor
-public class MemberTokensRevokedListener implements ConsumerSeekAware {
+public class AuthTokensRevokedListener implements ConsumerSeekAware {
 
     // 이벤트 시각은 시간대 없는 한국 시간이다(팀 규칙)
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -35,11 +35,11 @@ public class MemberTokensRevokedListener implements ConsumerSeekAware {
         callback.seekToTimestamp(assignments.keySet(), from.toEpochMilli());
     }
 
-    @KafkaListener(id = "gatewayMemberEventListener", topics = GatewayKafkaListenerConfig.MEMBER_EVENTS,
+    @KafkaListener(id = "gatewayAuthEventListener", topics = GatewayKafkaListenerConfig.AUTH_EVENTS,
         groupId = GatewayKafkaListenerConfig.GROUP, containerFactory = "gatewayKafkaListenerContainerFactory")
     public void on(ConsumerRecord<String, String> record) {
         switch (GatewayKafkaListenerConfig.eventType(record)) {
-            case "member.tokens-revoked" -> apply(jsonMapper.readValue(record.value(), MemberTokensRevokedEvent.class));
+            case "auth.tokens-revoked" -> apply(jsonMapper.readValue(record.value(), AuthTokensRevokedEvent.class));
             default -> {
                 // Gateway가 받지 않는 종류
             }
@@ -47,8 +47,9 @@ public class MemberTokensRevokedListener implements ConsumerSeekAware {
     }
 
     // data나 필드가 없으면 NullPointerException으로 DLT에 간다
-    private void apply(MemberTokensRevokedEvent event) {
+    private void apply(AuthTokensRevokedEvent event) {
         var data = event.data();
-        revocations.revoke(data.memberId(), data.revokedAt().atZone(KST).toInstant(), Instant.now());
+        var principal = new PrincipalKey(data.principalType(), data.principalId());
+        revocations.revoke(principal, data.revokedAt().atZone(KST).toInstant(), Instant.now());
     }
 }

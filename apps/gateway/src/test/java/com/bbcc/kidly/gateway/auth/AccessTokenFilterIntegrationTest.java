@@ -3,11 +3,13 @@ package com.bbcc.kidly.gateway.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.gateway.revocation.AccessTokenRevocations;
+import com.bbcc.kidly.gateway.revocation.PrincipalKey;
 import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend.RecordedRequest;
 import com.bbcc.kidly.gateway.support.TestTokens;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
+import com.bbcc.kidly.shared.auth.PrincipalType;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -169,7 +171,7 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
     @DisplayName("소문자 bearer로 보낸 무효화된 토큰도 검증해 401이다(서비스는 대소문자를 가리지 않고 토큰으로 본다)")
     void rejectsRevokedTokenWithLowerCaseBearer() {
         var now = Instant.now();
-        revocations.revoke(10L, now, now);
+        revocations.revoke(member(10L), now, now);
         var token = TestTokens.issue(10L, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY));
 
         expectUnauthorized(client.get().uri(PATH)
@@ -211,7 +213,7 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
     @DisplayName("무효화 전에 발급된 토큰은 401이다")
     void rejectsRevokedToken() {
         var now = Instant.now();
-        revocations.revoke(8L, now, now);
+        revocations.revoke(member(8L), now, now);
         var token = TestTokens.issue(8L, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY));
 
         expectUnauthorized(bearer(token), PATH);
@@ -221,7 +223,7 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
     @DisplayName("무효화 뒤에 발급된 토큰은 넘긴다")
     void passesTokenIssuedAfterRevocation() {
         var now = Instant.now();
-        revocations.revoke(9L, now.minusSeconds(10), now);
+        revocations.revoke(member(9L), now.minusSeconds(10), now);
         var token = TestTokens.issue(9L, List.of("BUYER"), now, now.plus(VALIDITY));
 
         bearer(token).expectStatus().isOk();
@@ -233,6 +235,10 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
         return client.get().uri(PATH)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
             .exchange();
+    }
+
+    private static PrincipalKey member(Long memberId) {
+        return new PrincipalKey(PrincipalType.MEMBER, memberId);
     }
 
     private RecordedRequest received() {
