@@ -18,3 +18,12 @@
 - 정리: 보낸 지 7일(브로커 보존 기간) 지난 행을 매일 04:00에 지운다. 보내지 않은 행은 지우지 않는다. 릴레이와 같은 스케줄러가 부르므로 Kafka 보내기를 끄면 정리도 돌지 않는다(보낸 행도 생기지 않는다)
 - 본문에 아이의 키 · 몸무게 · 생년월일 · 성별이 있으므로 로그에 남기지 않는다. 실패 로그는 `eventType` · `eventId` · 키 · 원인만, 스케줄러 예외는 예외 종류만 남긴다
 - 설정은 자녀 프로필 안에만 둔다: `out/outbox/ChildProfileKafkaConfig`(토픽 선언 파티션 3 · 복제 1, 전용 템플릿 `max.block.ms` 3초 · `delivery.timeout.ms` 10초, 본문을 찍는 기본 실패 로그 끔), `childprofile.yml`(`kidly.childprofile.outbox.*`)
+
+## 자녀 프로필 서비스 (`apps/childprofile-service`, #682)
+- 이 도메인만 띄우는 서비스. kidly-app도 아직 이 도메인을 가지고 같은 DB · 구독 그룹(`kidly.childprofile`)으로 함께 돈다. kidly-app에서 빼는 건 다음 PR
+- Gateway가 `/api/v1/children/**`를 `KIDLY_CHILDPROFILE_URI`로 보낸다. dev만 서비스(`.env.dev`), 값을 지우면 kidly-app이 받는다
+- 실행: `./gradlew :apps:childprofile-service:bootRun`(포트 8084, 프로필 local). 서버는 profile `childprofile`, `127.0.0.1:8085`, 프로필 `prod`만(초기 데이터는 kidly-app이 넣는다). local은 두 앱 모두 초기 데이터 러너가 돌아, 빈 DB에서 둘을 동시에 띄우면 초기 자녀가 둘 생길 수 있다
+- Flyway: 자기 이력 테이블 `childprofile.flyway_schema_history_childprofile`. 자녀 테이블이 있는 DB는 첫 기동 때 `202610300953`으로 baseline
+- 함께 도는 동안 지킬 것
+  - 이 도메인에 새 마이그레이션을 넣으면 kidly-app과 서비스가 각자 이력으로 둘 다 적용하려 한다. 다음 PR(kidly-app에서 빼기) 전에는 넣지 않는다
+  - 빈 DB에서는 kidly-app이 먼저 마이그레이션해야 한다. 서비스가 먼저 자녀 테이블을 만들면 kidly-app의 init이 `relation "child_profile" already exists`로 실패한다(로컬에서 확인). 서버 compose는 서비스가 `app`의 healthy를 기다린다
