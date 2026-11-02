@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 커뮤니티 모듈의 패키지 배치(주문 배치의 경량판). 계층 규칙(LayerRules) · 컨텍스트 사이 규칙과 따로, 역할별 자리를 고정한다.
+ * 커뮤니티 모듈의 패키지 배치. 계층 규칙(LayerRules) · 컨텍스트 사이 규칙과 따로, 역할별 자리를 고정한다.
  * <ul>
  *   <li>컨텍스트 바로 아래에는 app · domain · in · out만 둔다(새 폴더를 만들지 않는다)</li>
  *   <li>설정은 계층마다 config 한 곳: 스프링 설정(@Configuration)은 in/config · out/config, 설정 값(@ConfigurationProperties)은

@@ -30,7 +30,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 커뮤니티 Kafka 수신 테스트가 쓰는 도구(주문 모듈 것의 복사본): 보내는 쪽 규칙대로 메시지를 넣고(키 · 헤더 2개 · 본문 7칸 + data),
+ * 커뮤니티 Kafka 수신 테스트가 쓰는 도구: 보내는 쪽 규칙대로 메시지를 넣고(키 · 헤더 2개 · 본문 7칸 + data),
  * 커뮤니티 리스너를 그 테스트 안에서만 켜고 끄며(CommunityKafkaListenerTestGuard에서 꺼냄), 그룹의 처리 완료 위치 · DLT를 읽는다. 빈이 아니라 테스트가 직접 만든다.
  * 리스너는 처음 읽는 그룹을 earliest로 읽으므로, 켠 뒤 다른 테스트가 넣어 둔 메시지를 모두 처리할 때까지(lag 0) 기다린다.
  */

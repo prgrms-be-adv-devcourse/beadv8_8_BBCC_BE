@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.function.BooleanSupplier;
 
 /**
- * 비동기 처리(Kafka 수신 등)가 끝나기를 기다린다(주문 모듈 support.AsyncWait와 같은 동작). 시간 안에 안 되면 실패한다.
+ * 비동기 처리(Kafka 수신 등)가 끝나기를 기다린다. 시간 안에 안 되면 실패한다.
  */
 public final class AsyncWait {
 

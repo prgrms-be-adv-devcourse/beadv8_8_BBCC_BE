@@ -55,7 +55,7 @@ public class ReviewEligibility extends ReviewTimeEntity {
 
     private Long optionId;
 
-    // 주문상품 사이즈와 같은 길이(varchar 255)
+    // 사이즈 문자열(varchar 255). 이벤트로 받은 값을 자르지 않고 그대로 담는다
     private String size;
 
     @Column(nullable = false)

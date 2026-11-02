@@ -26,7 +26,7 @@ import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
 /**
- * 커뮤니티가 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT. 구독 그룹은 kidly.community. 주문 팩토리의 경량판이다(DLT 보관 · 재처리 없음).
+ * 커뮤니티가 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT. 구독 그룹은 kidly.community. DLT로 보낸 메시지는 보관 · 재처리하지 않는다.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정을 그대로 받고 커뮤니티 값만 덮어쓴다:
  * <ul>
  *   <li>한 건씩 처리 완료를 표시한다(RECORD)</li>
