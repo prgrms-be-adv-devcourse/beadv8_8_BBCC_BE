@@ -23,10 +23,6 @@ jwt:
   public-key: file:config/jwt/local-public.pem
   private-key: file:config/jwt/local-private.pem
 
-# 로컬은 http라서 Secure 쿠키를 브라우저가 보내지 않는다. 운영은 기본값(true)을 쓴다
-refresh-token:
-  secure-cookie: false
-
 # 카카오 로그인. 키는 카카오 개발자 콘솔에서 받아 환경 변수로 넣는다. 없어도 앱은 뜨고 로그인만 실패한다
 kakao:
   client-id: ${KAKAO_CLIENT_ID:}

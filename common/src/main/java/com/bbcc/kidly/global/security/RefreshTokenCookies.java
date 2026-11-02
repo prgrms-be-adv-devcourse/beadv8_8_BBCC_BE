@@ -1,7 +1,7 @@
-package com.bbcc.kidly.boundedcontext.member.in;
+package com.bbcc.kidly.global.security;
 
-import com.bbcc.kidly.boundedcontext.member.app.RefreshTokenProperties;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.web.server.Cookie;
 import org.springframework.http.HttpHeaders;
@@ -20,10 +20,10 @@ public class RefreshTokenCookies {
     public static final String NAME = "refresh_token";
     private static final String PATH = "/api/v1/auth";
 
-    private final RefreshTokenProperties properties;
+    private final SecurityProperties properties;
 
-    public void add(HttpServletResponse response, String token) {
-        write(response, builder(token).maxAge(properties.validity()));
+    public void add(HttpServletResponse response, String token, Duration maxAge) {
+        write(response, builder(token).maxAge(maxAge));
     }
 
     // 같은 이름 · Path에 Max-Age=0을 보내면 브라우저가 쿠키를 지운다

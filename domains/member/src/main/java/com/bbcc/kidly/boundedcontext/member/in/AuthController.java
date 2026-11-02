@@ -1,8 +1,10 @@
 package com.bbcc.kidly.boundedcontext.member.in;
 
 import com.bbcc.kidly.boundedcontext.member.app.AuthService;
+import com.bbcc.kidly.boundedcontext.member.app.RefreshTokenProperties;
 import com.bbcc.kidly.boundedcontext.member.app.dto.SocialLoginRequest;
 import com.bbcc.kidly.boundedcontext.member.in.dto.LoginResponse;
+import com.bbcc.kidly.global.security.RefreshTokenCookies;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,13 +27,14 @@ public class AuthController {
 
     private final AuthService authService;
     private final RefreshTokenCookies refreshTokenCookies;
+    private final RefreshTokenProperties refreshTokenProperties;
 
     // 프론트가 소셜 제공자에서 받은 인가 코드로 로그인한다. 처음이면 가입된다
     @PostMapping("/api/v1/auth/login/{provider}")
     public LoginResponse login(
         @PathVariable String provider, @Valid @RequestBody SocialLoginRequest request, HttpServletResponse response) {
         var tokens = authService.login(provider, request);
-        refreshTokenCookies.add(response, tokens.refreshToken());
+        refreshTokenCookies.add(response, tokens.refreshToken(), refreshTokenProperties.validity());
         response.setHeader(HttpHeaders.CACHE_CONTROL, NO_STORE);
         return new LoginResponse(tokens.accessToken());
     }
@@ -42,7 +45,7 @@ public class AuthController {
         @CookieValue(name = RefreshTokenCookies.NAME, required = false) String refreshToken,
         HttpServletResponse response) {
         var tokens = authService.reissue(refreshToken);
-        refreshTokenCookies.add(response, tokens.refreshToken());
+        refreshTokenCookies.add(response, tokens.refreshToken(), refreshTokenProperties.validity());
         response.setHeader(HttpHeaders.CACHE_CONTROL, NO_STORE);
         return new LoginResponse(tokens.accessToken());
     }
