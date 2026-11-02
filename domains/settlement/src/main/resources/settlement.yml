@@ -20,6 +20,14 @@ kidly:
       retention: ${SETTLEMENT_OUTBOX_RETENTION:P7D}
       # 정리 실행 시각(cron, 초 분 시 일 월 요일, KST). "-"면 정리하지 않는다
       cleanup-cron: ${SETTLEMENT_OUTBOX_CLEANUP_CRON:0 0 4 * * *}
+    # 영업일 판단에 쓰는 공휴일 특일정보 API(한국천문연구원, 공공데이터포털)
+    # 주소가 비었거나 시간 제한이 1초 미만이면 키 이름이 나오는 오류로 기동 실패 (SettlementHolidayProperties)
+    holiday:
+      base-url: ${SETTLEMENT_HOLIDAY_BASE_URL:https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService}
+      # 인증키. 비어 있어도 기동하지만 공휴일 조회가 실패해 영업일을 판단하지 못한다
+      service-key: ${HOLIDAY_API_SERVICE_KEY:}
+      connect-timeout: PT3S
+      read-timeout: PT5S
     # 정산이 받는 구매확정 · 지급 결과 이벤트. true면 Kafka로만 받고, false면 Kafka 리스너를 시작하지 않고 Spring 이벤트로 받는다
     # 장애 때 되돌리는 스위치다. 같은 이벤트를 양쪽에서 받지 않는다
     kafka:
