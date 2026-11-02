@@ -106,6 +106,11 @@ kidly:
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"
+    # 상품이 받는 판매자 이벤트는 테스트에서 Spring 이벤트로 받는다(다른 도메인 테스트가 지금처럼 Spring 경로로 돈다).
+    # Kafka 수신은 ProductKafkaReceiveIntegrationTest가 그 안에서 상품 리스너를 켜서 본다
+    kafka:
+      consumer:
+        enabled: false
   # 자녀 프로필 아웃박스 릴레이도 같은 이유로 길게 두고, 정리는 끈다. 릴레이 테스트는 ChildProfileOutboxRelayService를 직접 부른다
   childprofile:
     outbox:
