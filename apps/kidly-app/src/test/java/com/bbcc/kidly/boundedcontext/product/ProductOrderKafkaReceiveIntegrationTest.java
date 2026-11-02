@@ -9,9 +9,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
+import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +36,10 @@ import tools.jackson.databind.json.JsonMapper;
 class ProductOrderKafkaReceiveIntegrationTest {
 
     private static final String ORDER_TOPIC = "kidly.order.events";
+    private static final String ORDER_DLT = "kidly.order.events.product.dlt";
+
+    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
+    private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -96,6 +102,69 @@ class ProductOrderKafkaReceiveIntegrationTest {
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.records())
             .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "RESTORED"));
+    }
+
+    @Test
+    @DisplayName("INV-10 같은 주문 생성됨을 Kafka로 두 번 받아도 재고는 한 번만 줄고 차감 기록은 한 줄이다")
+    void deductOnceForRepeatedOrderCreated() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        long orderId = newId();
+        OrderCreatedEvent event = orderCreated(orderId, orderItem(11L, options.navy110(), 2));
+        messages.send(ORDER_TOPIC, event);
+
+        var resent = messages.send(ORDER_TOPIC, event);
+
+        messages.awaitProcessed(ORDER_TOPIC, resent);
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
+        assertThat(inventoryDeductionDb.records())
+            .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+    }
+
+    @Test
+    @DisplayName("INV-09 같은 주문의 주문 취소됨이 주문 생성됨보다 먼저 오면 FAILED를 남기고, 뒤에 온 주문 생성됨은 차감하지 않는다")
+    void skipOrderCreatedAfterCancelled() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        long orderId = newId();
+        messages.send(ORDER_TOPIC, orderCancelled(orderId, cancelledItem(11L, options.navy110(), 2)));
+
+        // 키가 주문 ID로 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
+        var created = messages.send(ORDER_TOPIC, orderCreated(orderId, orderItem(11L, options.navy110(), 2)));
+
+        messages.awaitProcessed(ORDER_TOPIC, created);
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.records())
+            .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "FAILED"));
+    }
+
+    @Test
+    @DisplayName("주문 토픽에서 상품이 받지 않는 종류(부분 취소 등)는 건너뛰고 DLT로 보내지 않으며, 뒤 메시지를 처리한다")
+    void skipUnhandledOrderEvent() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        long orderId = newId();
+        String key = String.valueOf(orderId);
+        messages.sendRaw(ORDER_TOPIC, key, "order-item.cancelled", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
+
+        // 키가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
+        messages.send(ORDER_TOPIC, orderCreated(orderId, orderItem(11L, options.navy110(), 2)));
+
+        AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records().isEmpty());
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
+        assertThat(messages.deadLetters(ORDER_DLT, key)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("주문 생성됨의 본문을 읽지 못하면 재시도 없이 상품의 주문 DLT로 보낸다")
+    void deadLetterUnreadableOrderCreated() throws Exception {
+        String key = String.valueOf(newId());
+        String body = "{\"data\":{\"orderId\":\"숫자 아님\",\"items\":[]}}";
+
+        var sent = messages.sendRaw(ORDER_TOPIC, key, "order.created", UUID.randomUUID(), body);
+
+        AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(ORDER_DLT, key).isEmpty());
+        assertThat(messages.deadLetters(ORDER_DLT, key)).singleElement().satisfies(deadLetter -> {
+            assertThat(deadLetter.value()).isEqualTo(body);
+            assertThat(deadLetter.timestamp() - sent.timestamp()).isLessThan(RETRY_BACKOFF_TOTAL_MS);
+        });
     }
 
     private static long newId() {

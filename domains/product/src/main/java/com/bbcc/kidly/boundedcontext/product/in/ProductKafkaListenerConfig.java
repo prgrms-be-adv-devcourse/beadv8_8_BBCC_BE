@@ -46,6 +46,11 @@ public class ProductKafkaListenerConfig {
         return TopicBuilder.name(SELLER_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
     }
 
+    @Bean
+    NewTopic productOrderEventsDeadLetterTopic() {
+        return TopicBuilder.name(ORDER_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
+    }
+
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
     @Bean
     ConcurrentKafkaListenerContainerFactory<Object, Object> productKafkaListenerContainerFactory(
