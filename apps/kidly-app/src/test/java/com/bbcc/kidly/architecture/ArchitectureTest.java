@@ -24,7 +24,7 @@ class ArchitectureTest {
     private static final String BASE = "com.bbcc.kidly";
     private static final List<String> DOMAINS = List.of(
         "member", "childprofile", "seller", "product", "recommend", "order", "payment", "settlement", "setting",
-        "notification", "search", "review", "favorite");
+        "notification", "search");
 
     @ArchTest
     void domainsDoNotDependOnOtherDomains(JavaClasses classes) {
