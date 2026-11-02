@@ -31,7 +31,17 @@ public final class ProductChangedData {
         return new ProductChangedEvent.Data(
             product.getId(), product.getSellerId(), product.getName(), product.getCategoryId(),
             product.getStatus(), product.getThumbnailUrl(), product.getCreatedAt(), product.isSizeFree(), options,
-            toInfoValueEntries(product));
+            toInfoValueEntries(product), product.getBrand(), product.getDescription(), toSizeSpecs(product));
+    }
+
+    // 실측 행마다 사이즈 이름 · 권장 키 · 실측 값을 상품에 저장된 순서대로 옮긴다
+    private static List<ProductChangedEvent.SizeSpec> toSizeSpecs(Product product) {
+        List<ProductChangedEvent.SizeSpec> sizeSpecs = new ArrayList<>();
+        for (SizeSpec spec : product.getSizeSpecs()) {
+            sizeSpecs.add(new ProductChangedEvent.SizeSpec(spec.getSizeValue().getName(), spec.getMinHeightCm(),
+                spec.getMaxHeightCm(), Map.copyOf(spec.getMeasurements())));
+        }
+        return sizeSpecs;
     }
 
     private static ProductChangedEvent.Option toOption(

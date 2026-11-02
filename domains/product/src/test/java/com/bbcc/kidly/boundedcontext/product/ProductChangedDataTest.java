@@ -67,8 +67,9 @@ class ProductChangedDataTest {
         ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(),
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 0));
 
-        // 옵션 값과 상품 정보 값은 다른 테스트가 확인하므로 여기서는 비교하지 않는다
-        assertThat(data).usingRecursiveComparison().ignoringFields("infoValues", "options.values")
+        // 옵션 값 · 상품 정보 값 · 브랜드 · 설명 · 사이즈별 실측은 다른 테스트가 확인하므로 여기서는 비교하지 않는다
+        assertThat(data).usingRecursiveComparison()
+            .ignoringFields("infoValues", "options.values", "brand", "description", "sizeSpecs")
             .isEqualTo(new ProductChangedEvent.Data(
                 PRODUCT_ID, SELLER_ID, "상품 A", CATEGORY_ID, ProductStatus.ON_SALE, product.getThumbnailUrl(),
                 REGISTERED_AT, false, List.of(
@@ -115,6 +116,52 @@ class ProductChangedDataTest {
             new ProductChangedEvent.AttributeEntry("FABRIC_COMPOSITION", null, "면 95%, 폴리우레탄 5%"),
             new ProductChangedEvent.AttributeEntry("FEATURE", BRUSHED_ID, "기모"),
             new ProductChangedEvent.AttributeEntry("FEATURE", STRETCH_ID, "신축성"));
+    }
+
+    @Test
+    @DisplayName("SALE-08 상품의 브랜드와 설명을 담는다")
+    void carryBrandAndDescription() {
+        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+
+        assertThat(data.brand()).isEqualTo("키들리");
+        assertThat(data.description()).isEqualTo("상품 설명");
+    }
+
+    @Test
+    @DisplayName("SALE-08 실측 행마다 사이즈 · 권장 키 · 실측 값을 상품에 저장된 순서대로 담는다")
+    void carrySizeSpecsInStoredOrder() {
+        withOptionsAndSizeSpecs110And120();
+
+        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+
+        assertThat(data.sizeSpecs()).containsExactly(
+            new ProductChangedEvent.SizeSpec("110", 105, 115, top110Measurements()),
+            new ProductChangedEvent.SizeSpec("120", 115, 125, top120Measurements()));
+    }
+
+    @Test
+    @DisplayName("SIZE-05 사이즈 무관 상품은 FREE 행을 권장 키 없이 실측 값과 함께 담는다")
+    void carryFreeSizeSpecOfSizeFreeProduct() {
+        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.sizeFree()))), clothing.type());
+        product.addSizeSpecs(addSizeSpecs(List.of(
+            spec(clothing.sizeFree(), null, null, top110Measurements()))), top, clothing.type());
+        ReflectionTestUtils.setField(product.getOptions().get(0), "id", OPTION_110_ID);
+
+        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+
+        assertThat(data.sizeSpecs()).containsExactly(
+            new ProductChangedEvent.SizeSpec("FREE", null, null, top110Measurements()));
+    }
+
+    @Test
+    @DisplayName("SALE-08 실측 행이 없는 상품은 사이즈별 실측을 빈 목록으로 담는다")
+    void carryEmptySizeSpecsWithoutSizeSpecRows() {
+        product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
+        ReflectionTestUtils.setField(product.getOptions().get(0), "id", OPTION_110_ID);
+
+        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+
+        assertThat(data.sizeSpecs()).isEmpty();
     }
 
     @Test
