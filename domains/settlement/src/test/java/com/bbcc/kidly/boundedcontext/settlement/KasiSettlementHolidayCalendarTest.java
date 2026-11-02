@@ -8,8 +8,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.bbcc.kidly.boundedcontext.settlement.app.port.HolidayLookupException;
-import com.bbcc.kidly.boundedcontext.settlement.out.holiday.KasiHolidayCalendar;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
+import com.bbcc.kidly.boundedcontext.settlement.out.holiday.KasiSettlementHolidayCalendar;
 import com.bbcc.kidly.boundedcontext.settlement.out.holiday.SettlementHolidayProperties;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
@@ -27,7 +27,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.ResponseActions;
 import org.springframework.web.client.RestClient;
 
-class KasiHolidayCalendarTest {
+class KasiSettlementHolidayCalendarTest {
 
     private static final String BASE_URL = "https://holiday.test/SpcdeInfoService";
     // 실제 키와 같은 64자 16진수 모양의 가짜 키
@@ -37,13 +37,13 @@ class KasiHolidayCalendarTest {
         + "&solYear=2026&solMonth=03&numOfRows=50&pageNo=1";
 
     private MockRestServiceServer server;
-    private KasiHolidayCalendar calendar;
+    private KasiSettlementHolidayCalendar calendar;
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        calendar = new KasiHolidayCalendar(builder, properties(FAKE_KEY));
+        calendar = new KasiSettlementHolidayCalendar(builder, properties(FAKE_KEY));
     }
 
     @Test
@@ -165,10 +165,10 @@ class KasiHolidayCalendarTest {
     void failsWithoutServiceKey(String serviceKey) {
         RestClient.Builder builder = RestClient.builder();
         var noKeyServer = MockRestServiceServer.bindTo(builder).build();
-        var noKeyCalendar = new KasiHolidayCalendar(builder, properties(serviceKey));
+        var noKeyCalendar = new KasiSettlementHolidayCalendar(builder, properties(serviceKey));
 
         assertThatThrownBy(() -> noKeyCalendar.holidaysIn(MARCH))
-            .isInstanceOf(HolidayLookupException.class)
+            .isInstanceOf(SettlementHolidayLookupException.class)
             .hasMessageContaining("인증키가 없습니다");
         noKeyServer.verify();
     }
@@ -180,7 +180,7 @@ class KasiHolidayCalendarTest {
     // 원인 예외(메시지에 URL이 든다)를 붙이지 않았는지까지 확인한다
     private static void assertFailsWithoutKey(ThrowingCallable call, String expectedMessage) {
         assertThatThrownBy(call)
-            .isInstanceOf(HolidayLookupException.class)
+            .isInstanceOf(SettlementHolidayLookupException.class)
             .hasMessageContaining(expectedMessage)
             .hasNoCause()
             .message().doesNotContain(FAKE_KEY);
