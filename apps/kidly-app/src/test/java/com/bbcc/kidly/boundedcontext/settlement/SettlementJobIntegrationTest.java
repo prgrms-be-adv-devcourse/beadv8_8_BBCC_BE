@@ -233,14 +233,49 @@ class SettlementJobIntegrationTest {
     }
 
     @Test
-    @DisplayName("자동 실행은 그 달 1일 0시를 기준으로 관리자 없이 실행한다")
+    @DisplayName("자동 실행은 실행일 0시를 기준으로 관리자 없이 실행한다")
     void scheduled() {
-        var result = settlementRunService.runScheduled(LocalDate.of(2026, 11, 15));
+        var result = settlementRunService.runScheduled(LocalDate.of(2026, 11, 2));
 
-        assertThat(result.cutoffAt()).isEqualTo(LocalDateTime.of(2026, 11, 1, 0, 0));
+        assertThat(result.cutoffAt()).isEqualTo(LocalDateTime.of(2026, 11, 2, 0, 0));
+        assertThat(result.periodEndOn()).isEqualTo(LocalDate.of(2026, 11, 1));
+        assertThat(result.periodStartOn()).isEqualTo(LocalDate.of(2026, 11, 1));
         assertThat(result.triggerType()).isEqualTo("SCHEDULED");
         assertThat(result.requestedBy()).isNull();
         assertThat(result.status()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    @DisplayName("금 · 토 · 일에 확정된 항목은 월요일 자동 실행에서 정산서 하나가 되고 시작일은 금요일이다")
+    void mondaySettlesWeekend() {
+        var friday = save(201L, 10L, 1_000L, LocalDateTime.of(2026, 10, 30, 0, 0));
+        save(202L, 10L, 2_000L, LocalDateTime.of(2026, 10, 31, 12, 0));
+        save(203L, 10L, 3_000L, LocalDateTime.of(2026, 11, 1, 23, 59, 59));
+        var monday = save(204L, 10L, 4_000L, LocalDateTime.of(2026, 11, 2, 0, 0));
+
+        var result = settlementRunService.runScheduled(LocalDate.of(2026, 11, 2));
+
+        assertThat(result.successCount()).isEqualTo(1);
+        assertThat(result.periodStartOn()).isEqualTo(LocalDate.of(2026, 10, 30));
+        assertThat(result.periodEndOn()).isEqualTo(LocalDate.of(2026, 11, 1));
+        var settlement = settlementOf(friday);
+        assertThat(settlement.getTotalSalesAmount()).isEqualTo(6_000L);
+        assertThat(settlement.getPeriodStartOn()).isEqualTo(LocalDate.of(2026, 10, 30));
+        assertThat(settlement.getPeriodEndOn()).isEqualTo(LocalDate.of(2026, 11, 1));
+        assertThat(settlementCount()).isEqualTo(1);
+        assertThat(reload(monday).getStatus()).isEqualTo(SettlementItemStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("같은 날 자동 실행을 두 번 하면 SETTLEMENT_ALREADY_RUN이다")
+    void scheduledTwiceSameDay() {
+        save(201L, 10L, 1_000L, LocalDateTime.of(2026, 11, 1, 10, 0));
+        settlementRunService.runScheduled(LocalDate.of(2026, 11, 2));
+
+        assertErrorCode(() -> settlementRunService.runScheduled(LocalDate.of(2026, 11, 2)),
+            SettlementErrorCode.SETTLEMENT_ALREADY_RUN);
+        assertThat(settlementCount()).isEqualTo(1);
+        assertThat(runCount()).isEqualTo(1);
     }
 
     @Test

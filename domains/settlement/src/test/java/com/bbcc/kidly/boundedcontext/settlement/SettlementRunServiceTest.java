@@ -10,9 +10,12 @@ import static org.mockito.Mockito.lenient;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementRunService;
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementSkipRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +28,7 @@ import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.JobInstance;
 import org.springframework.batch.core.job.parameters.JobParameters;
+import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.batch.core.repository.JobRepository;
@@ -47,6 +51,9 @@ class SettlementRunServiceTest {
 
     @Mock
     private SettlementSkipRepository settlementSkipRepository;
+
+    @Mock
+    private SettlementRepository settlementRepository;
 
     @InjectMocks
     private SettlementRunService settlementRunService;
@@ -129,6 +136,45 @@ class SettlementRunServiceTest {
         lenient().when(jobRepository.getLastJobExecution(INSTANCE)).thenReturn(completed);
 
         assertThatThrownBy(this::runScheduled).isSameAs(failure);
+    }
+
+    @Test
+    @DisplayName("자동 실행은 오늘 0시를 기준으로 하고, 실행의 시작일은 그 종료일 정산서 중 가장 이른 시작일이다")
+    void scheduledUsesTodayAndEarliestStart() throws Exception {
+        var cutoffAt = LocalDateTime.of(2026, 11, 2, 0, 0);
+        givenCompletedRun(cutoffAt);
+        given(settlementRepository.findFirstByPeriodEndOnOrderByPeriodStartOnAsc(LocalDate.of(2026, 11, 1)))
+            .willReturn(Optional.of(SettlementFixture.settlement(
+                10L, LocalDate.of(2026, 10, 28), LocalDate.of(2026, 11, 1))));
+
+        var result = settlementRunService.runScheduled(LocalDate.of(2026, 11, 2));
+
+        assertThat(result.cutoffAt()).isEqualTo(cutoffAt);
+        assertThat(result.periodStartOn()).isEqualTo(LocalDate.of(2026, 10, 28));
+        assertThat(result.periodEndOn()).isEqualTo(LocalDate.of(2026, 11, 1));
+    }
+
+    @Test
+    @DisplayName("그 실행이 만든 정산서가 없으면 실행의 시작일은 종료일이다")
+    void startOnFallsBackToEndOn() throws Exception {
+        givenCompletedRun(LocalDateTime.of(2026, 11, 2, 0, 0));
+        given(settlementRepository.findFirstByPeriodEndOnOrderByPeriodStartOnAsc(LocalDate.of(2026, 11, 1)))
+            .willReturn(Optional.empty());
+
+        var result = settlementRunService.runScheduled(LocalDate.of(2026, 11, 2));
+
+        assertThat(result.periodStartOn()).isEqualTo(LocalDate.of(2026, 11, 1));
+    }
+
+    private void givenCompletedRun(LocalDateTime cutoffAt) throws Exception {
+        given(jobRepository.getLastJobExecution(eq(SettlementJobConfig.JOB_NAME), any(JobParameters.class)))
+            .willReturn(null);
+        given(jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME)).willReturn(Set.of());
+        var parameters = new JobParametersBuilder().addLocalDateTime(SettlementJobConfig.CUTOFF_AT, cutoffAt)
+            .addString(SettlementJobConfig.TRIGGER_TYPE, "SCHEDULED", false).toJobParameters();
+        var completed = new JobExecution(1L, INSTANCE, parameters);
+        completed.setStatus(BatchStatus.COMPLETED);
+        given(jobOperator.start(eq(settlementJob), eq(parameters))).willReturn(completed);
     }
 
     private void runScheduled() {

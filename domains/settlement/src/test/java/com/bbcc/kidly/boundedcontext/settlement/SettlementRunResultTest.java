@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.settlement;
 
 import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.CUTOFF_AT;
+import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.PERIOD_END;
+import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.PERIOD_START;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
@@ -31,6 +33,8 @@ class SettlementRunResultTest {
         assertThat(result.successCount()).isEqualTo(2);
         assertThat(result.failCount()).isZero();
         assertThat(result.cutoffAt()).isEqualTo(CUTOFF_AT);
+        assertThat(result.periodStartOn()).isEqualTo(PERIOD_START);
+        assertThat(result.periodEndOn()).isEqualTo(PERIOD_END);
         assertThat(result.triggerType()).isEqualTo("MANUAL");
         assertThat(result.requestedBy()).isEqualTo(3L);
     }
@@ -68,14 +72,14 @@ class SettlementRunResultTest {
         var skip = SettlementSkip.create(new SettlementSkipCreateInfo(
             RUN_ID, 10L, SettlementSkipPhase.WRITE, "IllegalStateException: 정산 대상이 바뀌었습니다"));
 
-        var result = SettlementRunResult.of(execution(BatchStatus.COMPLETED, 1, 1, 3L), List.of(skip));
+        var result = SettlementRunResult.of(execution(BatchStatus.COMPLETED, 1, 1, 3L), PERIOD_START, List.of(skip));
 
         assertThat(result.skippedSellers()).singleElement()
             .isEqualTo(new SettlementRunResult.SkippedSeller(10L, "WRITE", "IllegalStateException: 정산 대상이 바뀌었습니다"));
     }
 
     private static SettlementRunResult result(BatchStatus status, long writeCount, long skipCount, Long requestedBy) {
-        return SettlementRunResult.of(execution(status, writeCount, skipCount, requestedBy), List.of());
+        return SettlementRunResult.of(execution(status, writeCount, skipCount, requestedBy), PERIOD_START, List.of());
     }
 
     private static JobExecution execution(BatchStatus status, long writeCount, long skipCount, Long requestedBy) {
