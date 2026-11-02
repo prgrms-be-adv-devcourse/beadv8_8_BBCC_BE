@@ -23,13 +23,13 @@ import tools.jackson.core.JacksonException;
 
 /**
  * 상품이 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT를 만든다.
- * 판매자 복사본 리스너(in.replica)와 주문 리스너(in.inventory)가 함께 쓴다.
- * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고,
+ * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정을 그대로 받고,
  * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다.
  * 읽지 못한 메시지와 다시 해도 같은 결과인 예외는 재시도 없이 보낸다.
  * 에러 처리기는 빈으로 등록하지 않으므로 Boot 기본 팩토리와 다른 도메인에 영향이 없다.
  * DLT로 보낼 때는 Boot 기본 KafkaTemplate을 쓴다. 전송 실패는 앱 설정이 본문 없이 토픽 · 키 · eventType · eventId로 남긴다.
- * 리스너는 kidly.product.kafka.consumer.enabled=false로 끌 수 있다.
+ * 리스너가 시작할지는 앱 설정 auto-startup이 아니라 리스너 애노테이션의 스위치(kidly.product.kafka.consumer.enabled)가 정한다.
+ * 스위치를 false로 두면 Kafka 리스너는 시작하지 않고 Spring 리스너가 받는다.
  */
 @Slf4j
 @Configuration
