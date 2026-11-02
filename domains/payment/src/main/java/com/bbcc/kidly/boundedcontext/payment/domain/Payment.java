@@ -19,6 +19,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -112,6 +114,30 @@ public class Payment extends BaseTimeEntity {
         this.refundedAmount += refundAmount;
         this.status = refundedAmount == amount ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED;
         return item;
+    }
+
+    /**
+     * 주문상품별 금액을 모두 환불할 수 있는지 본다. 하나라도 안 되면 아무것도 바꾸지 않고 실패 기록을 남기도록 먼저 확인한다.
+     *
+     * @param amounts 주문상품 ID별 환불할 금액
+     * @return 환불할 수 없는 사유. 모두 환불할 수 있으면 빈 값
+     */
+    public Optional<RefundFailureCode> checkRefundable(Map<Long, Long> amounts) {
+        if (status != PaymentStatus.COMPLETED && status != PaymentStatus.PARTIALLY_REFUNDED) {
+            return Optional.of(RefundFailureCode.INVALID_PAYMENT_STATUS);
+        }
+        for (Map.Entry<Long, Long> amount : amounts.entrySet()) {
+            Optional<PaymentItem> item = items.stream()
+                .filter(candidate -> candidate.getOrderItemId().equals(amount.getKey()))
+                .findFirst();
+            if (item.isEmpty()) {
+                return Optional.of(RefundFailureCode.PAYMENT_ITEM_NOT_FOUND);
+            }
+            if (amount.getValue() > item.get().getAmount() - item.get().getRefundedAmount()) {
+                return Optional.of(RefundFailureCode.REFUND_AMOUNT_EXCEEDED);
+            }
+        }
+        return Optional.empty();
     }
 
     public List<PaymentItem> getItems() {

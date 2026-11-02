@@ -66,6 +66,24 @@
   - `OrderCancellationRetryScheduler`가 주기(`kidly.payment.order-cancellation.retry-interval`, 기본 1분)마다 다시 처리한다. 성공하면 지우고, 실패하면 시도 횟수 · 마지막 오류를 남긴다. 횟수 제한은 없다
   - 위 표대로 같은 취소는 한 번만 반영되므로 여러 번 다시 처리해도 된다
 
+### 판매자 부분 취소 환불 (`app/OrderItemCancellationService`, #711)
+- `order-item.cancelled`(#655)를 Kafka로만 받는다(Spring 리스너 없음). 판매자가 발송 전에 자기 몫을 취소한 것이고, 마지막 몫이 취소돼 주문이 취소돼도 `order.cancelled`는 오지 않는다
+- 이벤트의 주문상품별 `amount`만큼 결제 항목을 환불한다. 환불 이벤트(`payment.refunded`, 계약만 있음)는 받을 도메인이 생기면 발행한다
+- 결제 요청 · 주문 취소와 같은 회원 지갑 락을 먼저 잡고, 취소(`cancellationId`)마다 환불 기록을 하나만 남긴다. 기록이 있으면 건너뛴다(`refund.cancellation_id` UK가 마지막으로 막는다)
+
+| 경우 | 처리 |
+|---|---|
+| 모두 환불 가능 | 지갑에 입금, 원장 `REFUND`(ref_id = 환불 ID), 환불 기록 COMPLETED(`cancellation_id`), 결제 PARTIALLY_REFUNDED(다 돌려주면 REFUNDED) |
+| 결제 상태가 COMPLETED · PARTIALLY_REFUNDED 아님 / 결제에 없는 주문상품 / 남은 금액 초과 | 입금 · 결제 변경 없이 환불 기록 FAILED(`INVALID_PAYMENT_STATUS` · `PAYMENT_ITEM_NOT_FOUND` · `REFUND_AMOUNT_EXCEEDED`), ERROR 로그. 하나라도 안 되면 그 취소 전체를 환불하지 않는다(`Payment.checkRefundable`로 먼저 본다) |
+| 같은 취소의 환불 기록 있음 | 아무것도 안 함 |
+| 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그 |
+| 그 주문의 결제 없음 | `IllegalStateException` → 재시도 없이 DLT. 주문은 결제완료 주문만 판매자 취소를 받고 같은 키라 결제 뒤에 온다 |
+
+- 부분 취소 뒤 같은 주문의 `order.cancelled`가 오면 남은 금액만 환불한다(위 주문 취소 환불)
+- 동결된 지갑에도 환불은 들어온다(#670)
+- 주문 취소처럼 결제 안의 재처리 기록은 없다. DB 오류 같은 실패는 Kafka가 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다
+- 주문 쪽 스위치(`ORDER_PARTIAL_CANCEL_ENABLED`)는 결제 · 상품(#693)이 배포된 뒤 켠다
+
 ## 충전 취소 (#192)
 - `POST /api/v1/wallets/me/charges/{chargeId}/cancel`. 완료(DONE) 충전만 전액 취소한다. 충전액만큼 잔액이 있어야 하고, 모자라면 409 `CHARGE_CANCEL_BALANCE_SHORT`
 - 승인처럼 트랜잭션을 나눈다
@@ -157,6 +175,7 @@
 | `ORDER_PAYMENT_FAILED` | `OrderPaymentService` (잔액 부족 · 금액 불일치) | memberId, orderId, paymentId(불일치면 null), amount, reasonCode |
 | `ORDER_CANCEL_RECORDED` | `OrderCancellationService` (결제 전 취소, `cancelled_order` 저장) | memberId, orderId, reason |
 | `ORDER_REFUNDED` | `OrderCancellationService` | memberId, walletId, orderId, paymentId, refundId, amount, balance, reason |
+| `ORDER_ITEM_REFUNDED` | `OrderItemCancellationService` (부분 취소 환불, 실패한 환불은 남기지 않음) | memberId, walletId, orderId, cancellationId, paymentId, refundId, amount, balance, reason |
 | `PAYOUT_COMPLETED` | `SettlementPayoutService` (처음 처리한 정산서만, 0원 포함) | memberId(판매자), walletId, settlementId, amount, ledgerId, balance |
 | `WALLET_FROZEN` | `WalletService.freeze` (처음 동결할 때만) | memberId, walletId, balance |
 
@@ -166,7 +185,7 @@
 | 토픽 | 이벤트 | 리스너 | 처리(`app/PaymentEventHandler`) | DLT |
 |---|---|---|---|---|
 | `kidly.member.events` | `member.registered` · `member.withdrawn` | `PaymentMemberEventListener` | 지갑 만들기(`createIfAbsent`) · 지갑 동결(#670) | `kidly.member.events.payment.dlt` |
-| `kidly.order.events` | `order.payment-requested` · `order.cancelled` | `PaymentOrderEventListener` | 결제 · 환불(결제 전 취소 기록) | `kidly.order.events.payment.dlt` |
+| `kidly.order.events` | `order.payment-requested` · `order.cancelled` · `order-item.cancelled`(#711) | `PaymentOrderEventListener` | 결제 · 환불(결제 전 취소 기록) · 부분 취소 환불 | `kidly.order.events.payment.dlt` |
 
 - 정산 `settlement.payout-requested`는 별도 스위치로 Kafka 수신을 켠다(#607). 정산은 #612부터 `kidly.settlement.events`로 보낸다. **dev는 켰고**(`deploy/.env.dev`), 기본값 · prod는 꺼져 있다(Spring 이벤트로 받음)
   - 리스너 `in/event/PaymentSettlementEventListener`, DLT `kidly.settlement.events.payment.dlt`(미리 선언). 처리는 `PaymentEventHandler.settlementPayoutRequested`(정산서마다 한 번 입금)
@@ -174,7 +193,7 @@
   - **정산의 Kafka 발행(#612)이 배포된 환경에서만 켠다.** 그 전에 켜면 지급 요청이 어디에도 도착하지 않는다. prod는 main에 #612가 들어간 뒤 `deploy/.env.prod`에 켠다
   - 처음 켜면 그룹 `kidly.payment`가 토픽 처음부터 읽는다. 이미 Spring으로 받은 지급 요청도 다시 오지만 정산서마다 한 번만 입금해 결과는 같다
 - 처리는 `app/PaymentEventHandler` 한 곳에 있고 Kafka 리스너 · Spring 리스너가 같은 처리를 부른다. 같은 이벤트를 다시 받아도 결과는 1회분이다(지갑은 없을 때만, 동결은 한 번만, 주문당 결제 1건, 같은 취소는 한 번만 환불)
-- 헤더 `eventType`으로 고르고 받지 않는 종류(회원 변경 · 토큰 무효화, 주문 생성 · 구매확정 · 부분 취소 · 장바구니 담기)는 본문을 읽지 않고 건너뛴다. 모르는 필드는 무시한다
+- 헤더 `eventType`으로 고르고 받지 않는 종류(회원 변경 · 토큰 무효화, 주문 생성 · 구매확정 · 장바구니 담기)는 본문을 읽지 않고 건너뛴다. 모르는 필드는 무시한다
 - 실패 처리(`in/event/PaymentKafkaListenerConfig`): 한 건씩 처리 완료를 커밋하고, 실패하면 1초 간격으로 3번 더 시도한 뒤 받은 토픽의 DLT 파티션 0으로 보낸다
   - 재시도 없이 바로 DLT: 읽지 못한 본문(`JacksonException`), `BusinessException`, `IllegalArgumentException`(`eventType` 헤더 없음 포함), `IllegalStateException`, NPE. 다시 해도 같아서다
   - DLT 로그에는 토픽 · `eventType` · `eventId` · 키 · 예외 종류만 남긴다(본문에 이메일 · 금액이 있다)
@@ -182,6 +201,7 @@
 - 스위치 `kidly.payment.kafka.consumer.enabled`(기본 true, 환경 변수 `PAYMENT_KAFKA_CONSUMER_ENABLED`)
   - true: Kafka 리스너만 받는다. 같은 이벤트의 Spring 리스너(`app/MemberRegisteredListener` · `MemberWithdrawnListener` · `OrderPaymentRequestedListener` · `OrderCancelledListener`)는 뜨지 않는다
   - false: Kafka 리스너를 시작하지 않고 Spring 리스너로 받는다(장애 때 되돌리는 용도). 같은 이벤트를 양쪽에서 받지 않는다
+  - `order-item.cancelled`는 Spring 리스너가 없다. 꺼 둔 동안 온 부분 취소는 토픽에 남아 있다가 다시 켜면 그룹 위치부터 받는다
   - 테스트 설정은 false라 다른 도메인 테스트(주문 흐름 등)는 Spring 경로로 돈다. Kafka 수신은 `PaymentKafkaReceiveIntegrationTest`가 그 안에서 결제 리스너를 켜서 본다
 - 로컬에서 결제가 받으려면 Kafka가 떠 있어야 한다(`docker compose up -d`에 포함)
 

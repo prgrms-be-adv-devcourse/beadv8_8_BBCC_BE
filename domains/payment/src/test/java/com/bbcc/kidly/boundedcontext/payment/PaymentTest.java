@@ -8,9 +8,11 @@ import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentStatus;
+import com.bbcc.kidly.boundedcontext.payment.domain.RefundFailureCode;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -114,5 +116,28 @@ class PaymentTest {
         assertThatThrownBy(() -> payment.refund(1000L, 1_000L))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(PaymentErrorCode.INVALID_PAYMENT_STATUS);
+    }
+
+    @Test
+    @DisplayName("주문상품별 남은 금액 안이면 환불할 수 있고, 아무것도 바꾸지 않는다")
+    void checkRefundable() {
+        Payment payment = PaymentFixture.completedPayment();
+        payment.refund(1000L, 4_000L);
+
+        assertThat(payment.checkRefundable(Map.of(1000L, 6_000L, 1001L, 5_000L))).isEmpty();
+        assertThat(payment.getRefundedAmount()).isEqualTo(4_000L);
+    }
+
+    @Test
+    @DisplayName("환불할 수 없는 사유를 돌려준다: 남은 금액 초과 · 결제에 없는 주문상품 · 환불할 수 없는 상태")
+    void checkRefundableFailures() {
+        Payment payment = PaymentFixture.completedPayment();
+        assertThat(payment.checkRefundable(Map.of(1001L, 5_001L)))
+            .contains(RefundFailureCode.REFUND_AMOUNT_EXCEEDED);
+        assertThat(payment.checkRefundable(Map.of(9999L, 1L))).contains(RefundFailureCode.PAYMENT_ITEM_NOT_FOUND);
+
+        payment.refund(1000L, 10_000L);
+        payment.refund(1001L, 5_000L);
+        assertThat(payment.checkRefundable(Map.of(1001L, 1L))).contains(RefundFailureCode.INVALID_PAYMENT_STATUS);
     }
 }

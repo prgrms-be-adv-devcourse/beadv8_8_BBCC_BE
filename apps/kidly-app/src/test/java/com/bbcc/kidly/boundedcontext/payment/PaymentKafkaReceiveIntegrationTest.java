@@ -7,6 +7,7 @@ import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -145,6 +146,28 @@ class PaymentKafkaReceiveIntegrationTest {
 
         AsyncWait.until(TIMEOUT, () -> paymentStatuses().equals(List.of("REFUNDED")));
         assertThat(balance()).isEqualTo(20_000L);
+    }
+
+    @Test
+    @DisplayName("결제된 주문의 order-item.cancelled를 받으면 그 주문상품 금액만 환불하고, 같은 취소를 두 번 받아도 한 번만 환불한다")
+    void itemCancelledAfterPayment() throws Exception {
+        createWallet(20_000L);
+        send(ORDER_TOPIC, orderId, "order.payment-requested", envelope(new OrderPaymentRequestedEvent(UUID.randomUUID(),
+            LocalDateTime.now(), new OrderPaymentRequestedEvent.Data(orderId, memberId, 15_000L, List.of(
+                new OrderPaymentRequestedEvent.Item(orderId * 10, 10_000L),
+                new OrderPaymentRequestedEvent.Item(orderId * 10 + 1, 5_000L))))));
+        String cancelled = envelope(new OrderItemCancelledEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new OrderItemCancelledEvent.Data(orderId, memberId, 7L, orderId, "OUT_OF_STOCK",
+                List.of(new OrderItemCancelledEvent.Item(orderId * 10 + 1, 1L, 1, 5_000L)))));
+        send(ORDER_TOPIC, orderId, "order-item.cancelled", cancelled);
+        RecordMetadata second = send(ORDER_TOPIC, orderId, "order-item.cancelled", cancelled);
+
+        awaitProcessed(ORDER_TOPIC, second);
+        assertThat(paymentStatuses()).containsExactly("PARTIALLY_REFUNDED");
+        assertThat(balance()).isEqualTo(10_000L);
+        assertThat(jdbcTemplate.queryForList("select status from payment.refund where cancellation_id = ?",
+            String.class, orderId)).containsExactly("COMPLETED");
+        assertThat(deadLetters()).isEmpty();
     }
 
     @Test
