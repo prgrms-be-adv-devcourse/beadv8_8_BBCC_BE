@@ -16,10 +16,13 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -28,6 +31,7 @@ import org.hibernate.annotations.BatchSize;
 
 /**
  * 추천이 사이즈를 계산하려고 상품 정보 변경됨 이벤트에서 옮겨 둔 상품 정보다.
+ * 브랜드 · 설명 · 사이즈별 실측은 아직 계산에 쓰지 않고, 브랜드별 사이즈 보정과 실측 비교에 쓰려고 함께 옮겨 둔다.
  * 주문 도메인에도 상품 복사본 엔티티 {@code ReplicaProduct}가 있어서, JPA 엔티티 이름이 겹치지 않게 클래스 이름 앞에 도메인 이름을 붙인다.
  */
 @Entity
@@ -77,6 +81,11 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "event_occurred_at", nullable = false)
     private LocalDateTime eventOccurredAt;
 
+    private String brand;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     // 사이즈 줄은 applyIfNewer로만 바꾸도록 getter를 두지 않고, 읽을 때는 toProductSizes를 쓴다
     @Getter(AccessLevel.NONE)
     @BatchSize(size = BATCH_FETCH_SIZE)
@@ -94,9 +103,26 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "size", nullable = false, length = 20)
     private Set<String> sellableSizes = new HashSet<>();
 
+    // 사이즈별 실측 줄은 applyIfNewer로만 바꾸도록 Lombok getter를 두지 않고, getSizeSpecs로 읽기 전용 목록을 돌려준다
+    @Getter(AccessLevel.NONE)
+    @BatchSize(size = BATCH_FETCH_SIZE)
+    @ElementCollection
+    @CollectionTable(schema = "recommend", name = "replica_product_size_spec",
+        joinColumns = @JoinColumn(name = "product_id"))
+    private List<RecommendReplicaSizeSpec> sizeSpecs = new ArrayList<>();
+
+    // 브랜드 · 설명은 새 칸이 없는 예전 메시지에서 null로 오므로 필수 값으로 검사하지 않는다.
+    // 사이즈별 실측은 이벤트가 칸이 없으면 빈 목록으로 바꿔 주므로 null이 오지 않는다
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
-        LocalDateTime occurredAt) {
+        String brand, String description, List<SizeSpecInfo> sizeSpecs, LocalDateTime occurredAt) {
+    }
+
+    /**
+     * 사이즈별 실측 한 줄의 입력 값이다. 키는 실측 항목 코드, 값은 cm다.
+     */
+    public record SizeSpecInfo(String size, Integer minHeightCm, Integer maxHeightCm,
+        Map<String, BigDecimal> measurements) {
     }
 
     /**
@@ -116,7 +142,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
 
     /**
      * 저장된 시각보다 늦게 일어난 상품 변경만 반영한다. 같은 이벤트를 다시 받거나 이전 이벤트가 늦게 도착해도 값이 되돌아가지 않는다.
-     * 반영할 때는 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄도 새 옵션으로 다시 채운다.
+     * 반영할 때는 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄은 새 옵션으로, 사이즈별 실측 줄은 이벤트의 실측으로 다시 채운다.
      */
     public void applyIfNewer(ChangeInfo info) {
         // 저장된 시각보다 늦지 않은 이벤트(다시 받은 이벤트, 늦게 도착한 이전 이벤트)는 다른 값이 비어 있어도 예외 없이 무시하도록 시각을 먼저 비교한다
@@ -144,6 +170,12 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     }
 
     private void apply(ChangeInfo info) {
+        // 실측 줄에 사이즈나 실측 값이 없으면 값을 하나도 바꾸기 전에 실패하도록 새 실측 줄을 먼저 만든다
+        List<RecommendReplicaSizeSpec> newSizeSpecs = new ArrayList<>();
+        for (SizeSpecInfo spec : info.sizeSpecs()) {
+            newSizeSpecs.add(new RecommendReplicaSizeSpec(
+                spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
+        }
         this.sellerId = info.sellerId();
         this.categoryId = info.categoryId();
         this.name = info.name();
@@ -152,10 +184,14 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.thumbnailUrl = info.thumbnailUrl();
         this.productRegisteredAt = info.registeredAt();
         this.sizeFree = info.sizeFree() || hasOnlyOptionsWithoutSize(info.options());
+        this.brand = info.brand();
+        this.description = info.description();
         this.eventOccurredAt = info.occurredAt();
         // 컬렉션 객체를 새로 갈아 끼우지 않고 비운 뒤 다시 채운다
         this.sizes.clear();
         this.sellableSizes.clear();
+        this.sizeSpecs.clear();
+        this.sizeSpecs.addAll(newSizeSpecs);
         for (OptionInfo option : info.options()) {
             if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {
                 this.sellableSizes.add(option.size() == null ? FREE_SIZE : option.size());
@@ -173,6 +209,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             }
             this.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
+    }
+
+    /**
+     * 사이즈별 실측을 읽기 전용 목록으로 돌려준다.
+     */
+    public List<RecommendReplicaSizeSpec> getSizeSpecs() {
+        return Collections.unmodifiableList(sizeSpecs);
     }
 
     /**

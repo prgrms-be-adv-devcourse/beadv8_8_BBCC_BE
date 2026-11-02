@@ -32,7 +32,8 @@ public class RecommendReplicaProductService {
     }
 
     // 이벤트의 상품 등록 시각(createdAt)은 감사 칸과 겹치지 않게 복사본의 상품 등록 시각으로 옮기고,
-    // 옵션에서는 사이즈 · 권장 키 · 가격 · 품절 · 판매 상태를 옮긴다(옵션 이름과 옵션 값은 추천이 쓰지 않는다)
+    // 옵션에서는 사이즈 · 권장 키 · 가격 · 품절 · 판매 상태를 옮긴다(옵션 이름과 옵션 값은 추천이 쓰지 않는다).
+    // 브랜드 · 설명 · 사이즈별 실측도 그대로 옮긴다
     private RecommendReplicaProduct.ChangeInfo toChangeInfo(ProductChangedEvent event) {
         ProductChangedEvent.Data data = event.data();
         return new RecommendReplicaProduct.ChangeInfo(
@@ -45,7 +46,20 @@ public class RecommendReplicaProductService {
             data.createdAt(),
             data.sizeFree(),
             toOptionInfos(data.options()),
+            data.brand(),
+            data.description(),
+            toSizeSpecInfos(data.sizeSpecs()),
             event.occurredAt());
+    }
+
+    // 이벤트의 사이즈별 실측은 칸이 없는 예전 메시지도 빈 목록으로 오므로 null을 검사하지 않는다
+    private List<RecommendReplicaProduct.SizeSpecInfo> toSizeSpecInfos(List<ProductChangedEvent.SizeSpec> sizeSpecs) {
+        List<RecommendReplicaProduct.SizeSpecInfo> infos = new ArrayList<>();
+        for (ProductChangedEvent.SizeSpec spec : sizeSpecs) {
+            infos.add(new RecommendReplicaProduct.SizeSpecInfo(
+                spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
+        }
+        return infos;
     }
 
     // 옵션이 없으면 null을 그대로 넘겨, 값 검사를 엔티티가 맡도록 한다

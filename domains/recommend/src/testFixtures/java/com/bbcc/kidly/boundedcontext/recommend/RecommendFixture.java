@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public final class RecommendFixture {
@@ -61,6 +62,10 @@ public final class RecommendFixture {
     public static final LocalDateTime PRODUCT_A_REGISTERED_AT = LocalDateTime.of(2026, 10, 1, 9, 0);
 
     public static final String PRODUCT_A_NAME = "데일리 맨투맨";
+
+    public static final String PRODUCT_A_BRAND = "키들리";
+
+    public static final String PRODUCT_A_DESCRIPTION = "상품 설명";
 
     /**
      * 상품 변경 이벤트가 일어난 시각. 늦고 이른 이벤트는 이 시각에서 분을 더하거나 빼서 만든다.
@@ -224,6 +229,17 @@ public final class RecommendFixture {
     }
 
     /**
+     * 상품 A의 사이즈별 실측: 110(권장 키 105~115cm), 120(115~125cm)에 총장과 가슴단면이 있다.
+     */
+    public static List<RecommendReplicaProduct.SizeSpecInfo> productASizeSpecInfos() {
+        return List.of(
+            new RecommendReplicaProduct.SizeSpecInfo("110", 105, 115,
+                Map.of("TOTAL_LENGTH", new BigDecimal("42"), "CHEST_WIDTH", new BigDecimal("34"))),
+            new RecommendReplicaProduct.SizeSpecInfo("120", 115, 125,
+                Map.of("TOTAL_LENGTH", new BigDecimal("45"), "CHEST_WIDTH", new BigDecimal("36"))));
+    }
+
+    /**
      * 판매 중인 상품 A의 상품 변경: 110(권장 키 105~115cm), 120(115~125cm) 옵션이 있다.
      */
     public static RecommendReplicaProduct.ChangeInfo productAChange() {
@@ -276,7 +292,8 @@ public final class RecommendFixture {
         Long productId, Long sellerId, LocalDateTime registeredAt) {
         return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId,
             sellerId, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE,
-            PRODUCT_A_THUMBNAIL_URL, registeredAt, false, productAChange().options(), PRODUCT_CHANGED_AT));
+            PRODUCT_A_THUMBNAIL_URL, registeredAt, false, productAChange().options(), PRODUCT_A_BRAND,
+            PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), PRODUCT_CHANGED_AT));
     }
 
     /**
@@ -285,7 +302,8 @@ public final class RecommendFixture {
     public static RecommendReplicaProduct productAReplicaWithStatus(ProductStatus status) {
         return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID,
             PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, status, PRODUCT_A_THUMBNAIL_URL,
-            PRODUCT_A_REGISTERED_AT, false, productAChange().options(), PRODUCT_CHANGED_AT));
+            PRODUCT_A_REGISTERED_AT, false, productAChange().options(), PRODUCT_A_BRAND, PRODUCT_A_DESCRIPTION,
+            productASizeSpecInfos(), PRODUCT_CHANGED_AT));
     }
 
     /**
@@ -352,7 +370,7 @@ public final class RecommendFixture {
         List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree,
-            options, occurredAt);
+            options, PRODUCT_A_BRAND, PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), occurredAt);
     }
 
     /**
@@ -369,7 +387,8 @@ public final class RecommendFixture {
     public static RecommendReplicaProduct replicaProduct(Long productId, ProductStatus status, Long categoryId) {
         return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId, PRODUCT_A_SELLER_ID,
             categoryId, PRODUCT_A_NAME, status, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false,
-            List.of(productOptionInfo("110", 105, 115), productOptionInfo("120", 115, 125)), PRODUCT_CHANGED_AT));
+            List.of(productOptionInfo("110", 105, 115), productOptionInfo("120", 115, 125)), PRODUCT_A_BRAND,
+            PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), PRODUCT_CHANGED_AT));
     }
 
     /**
@@ -379,7 +398,7 @@ public final class RecommendFixture {
         List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             name, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, options,
-            occurredAt);
+            PRODUCT_A_BRAND, PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), occurredAt);
     }
 
     /**
