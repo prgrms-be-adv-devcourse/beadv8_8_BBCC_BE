@@ -2,8 +2,6 @@ package com.bbcc.kidly;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
-import com.bbcc.kidly.boundedcontext.childprofile.in.outbox.ChildProfileOutboxScheduler;
 import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.member.in.outbox.MemberOutboxScheduler;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -52,12 +50,5 @@ class KafkaDisabledIntegrationTest {
     @DisplayName("일반 통합 테스트에서는 커밋 뒤 Kafka로 보내는 판매자 빈을 만들지 않는다")
     void noSellerKafkaRelay() {
         assertThat(context.containsBean("sellerEventRelay")).isFalse();
-    }
-
-    @Test
-    @DisplayName("일반 통합 테스트에서는 자녀 프로필 아웃박스 릴레이와 그 스케줄러를 만들지 않는다")
-    void noChildProfileOutboxRelay() {
-        assertThat(context.getBeanNamesForType(ChildProfileOutboxRelayService.class)).isEmpty();
-        assertThat(context.getBeanNamesForType(ChildProfileOutboxScheduler.class)).isEmpty();
     }
 }

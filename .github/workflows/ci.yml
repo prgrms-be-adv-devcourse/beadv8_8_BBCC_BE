@@ -66,8 +66,10 @@ jobs:
             tasks: :domains:order:integrationTest
           - name: search-service
             tasks: :apps:search-service:integrationTest
+          - name: childprofile-service
+            tasks: :apps:childprofile-service:integrationTest
           - name: 나머지
-            tasks: integrationTest -x :apps:kidly-app:integrationTest -x :domains:order:integrationTest -x :apps:search-service:integrationTest
+            tasks: integrationTest -x :apps:kidly-app:integrationTest -x :domains:order:integrationTest -x :apps:search-service:integrationTest -x :apps:childprofile-service:integrationTest
     steps:
       - uses: actions/checkout@v7
 
