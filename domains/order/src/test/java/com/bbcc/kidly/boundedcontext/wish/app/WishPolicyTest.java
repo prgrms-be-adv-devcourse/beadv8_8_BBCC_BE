@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
+import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.RejectReason;
 import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,5 +42,15 @@ class WishPolicyTest {
     void defaults() {
         assertThat(policy.mergesSameOption()).isTrue();
         assertThat(policy.maxLines()).isEqualTo(50);
+    }
+
+    @Test
+    @DisplayName("조르기 정책 기본값(#701): 메시지 100자, 승인 · 거절은 보호자만, 거절 사유 고정 목록 4개")
+    void requestDefaults() {
+        assertThat(policy.maxMessageLength()).isEqualTo(100);
+        assertThat(policy.canDecide(new ParentWishActor(PARENT_ID))).isTrue();
+        assertThat(policy.canDecide(new TestChildWishActor(CHILD_ID))).isFalse();
+        assertThat(policy.rejectReasons()).containsExactly(
+            RejectReason.TOO_EXPENSIVE, RejectReason.ALREADY_HAVE, RejectReason.NEXT_TIME, RejectReason.OTHER);
     }
 }

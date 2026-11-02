@@ -16,6 +16,8 @@ public record WishResponse(String childId, List<Line> items, long totalAmount) {
      *
      * @param addedBy 담은 사람 종류(PARENT · CHILD)
      * @param addedAt 처음 담은 시각
+     * @param saleStatus 상품의 지금 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED 등, #701). 상품 정보가 없으면 null
+     * @param requestId 이 줄이 든 진행 중인 조르기 ID(#701). 없으면 null
      */
     public record Line(
         String wishItemId,
@@ -32,7 +34,9 @@ public record WishResponse(String childId, List<Line> items, long totalAmount) {
         long lineAmount,
         String sellerName,
         String addedBy,
-        LocalDateTime addedAt) {
+        LocalDateTime addedAt,
+        String saleStatus,
+        String requestId) {
 
         public static Line from(WishView.Line view) {
             return new Line(
@@ -50,7 +54,9 @@ public record WishResponse(String childId, List<Line> items, long totalAmount) {
                 view.lineAmount(),
                 view.sellerName(),
                 view.addedBy(),
-                view.addedAt());
+                view.addedAt(),
+                view.saleStatus(),
+                toText(view.requestId()));
         }
     }
 

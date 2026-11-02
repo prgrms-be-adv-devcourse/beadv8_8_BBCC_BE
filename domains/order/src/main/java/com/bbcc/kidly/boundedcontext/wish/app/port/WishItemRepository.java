@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.wish.app.port;
 
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +24,11 @@ public interface WishItemRepository {
      * 최근에 담은 줄부터 돌려준다.
      */
     List<WishItem> findAllByChildIdAndStatusOrderByIdDesc(Long childId, WishItem.Status status);
+
+    /**
+     * 없는 ID는 빠진다(상태와 상관없이).
+     */
+    List<WishItem> findAllByIdIn(Collection<Long> ids);
 
     long countByChildIdAndStatus(Long childId, WishItem.Status status);
 

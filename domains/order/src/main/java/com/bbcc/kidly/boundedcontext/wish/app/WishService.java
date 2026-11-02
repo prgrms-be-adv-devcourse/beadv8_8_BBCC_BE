@@ -26,7 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 조르기(부모 · 자녀 공용 장바구니) 담기 · 보기 · 빼기(#640). 쓸 수 없는 자녀(남의 자녀 · 삭제된 자녀 · 없는 자녀)와
  * 그 자녀의 줄은 없는 것으로 본다. 상품 표시 · 구매 가능 판단은 장바구니와 같다({@link WishCatalog}: 주문 컨텍스트의 상품 · 판매자 · 자녀 복사본, #641).
- * 합치기 · 최대 줄 수 · 빼기 권한은 {@link WishPolicy}가 정한다.
+ * 합치기 · 최대 줄 수 · 빼기 권한은 {@link WishPolicy}가 정한다. 진행 중인 조르기에 든 줄은 수량을 더하거나 뺄 수 없고(409),
+ * 조르기로 산 주문이 결제된 줄은 목록에서 빠진다(#701, 먼저 {@link WishOrderSettlement}로 결제 결과를 맞춘다).
  */
 @Service
 @Transactional
@@ -37,11 +38,12 @@ public class WishService {
     /**
      * 한 줄 수량 상한. 장바구니와 같은 값이고 요청 DTO의 @Max(99)와 같다.
      */
-    static final int MAX_QUANTITY = 99;
+    static final int MAX_QUANTITY = WishItem.MAX_QUANTITY;
 
     private final WishItemRepository wishItemRepository;
     private final WishCatalog wishCatalog;
     private final WishPolicy wishPolicy;
+    private final WishOrderSettlement wishOrderSettlement;
 
     /**
      * 확인 순서(장바구니와 같음): 옵션 없음 → 자기 상품(부모) → 판매 중 아님 → 자녀 → 수량. 그 뒤 정책: 같은 옵션 합치기 → 최대 줄 수.
@@ -56,11 +58,15 @@ public class WishService {
             throw new BusinessException(WishErrorCode.PRODUCT_NOT_PURCHASABLE);
         }
         requireUsableChild(actor, childId, WishErrorCode.CHILD_NOT_FOUND);
+        wishOrderSettlement.settle(childId);
 
         Optional<WishItem> sameOption = wishPolicy.mergesSameOption()
             ? wishItemRepository.findFirstByChildIdAndOptionIdAndStatusOrderByIdAsc(childId, optionId, Status.ACTIVE)
             : Optional.empty();
         if (sameOption.isPresent()) {
+            if (sameOption.get().isLocked()) {
+                throw new BusinessException(WishErrorCode.WISH_ITEM_IN_REQUEST);
+            }
             if (sameOption.get().getQuantity() + quantity > MAX_QUANTITY) {
                 throw new BusinessException(WishErrorCode.INVALID_QUANTITY);
             }
@@ -85,11 +91,17 @@ public class WishService {
 
     /**
      * 최근에 담은 줄부터. 합계는 구매 가능한 줄만 더한다. 상품 · 판매자 복사본은 한 번씩 읽어 합친다(줄마다 조회하지 않음).
+     * 판매 중이 아닌 상품도 빼지 않고 판매 상태 값으로 보인다. 결제 결과는 저장하지 않고 반영해 본다({@link WishOrderSettlement}).
      */
     @Transactional(readOnly = true)
     public WishView getWishes(WishActor actor, Long childId) {
         requireUsableChild(actor, childId, WishErrorCode.CHILD_NOT_FOUND);
-        List<WishItem> items = wishItemRepository.findAllByChildIdAndStatusOrderByIdDesc(childId, Status.ACTIVE);
+        wishOrderSettlement.settle(childId);
+        // 읽기 전용이라 결제 반영이 DB에 없으므로 상태는 메모리 값으로 다시 거른다
+        List<WishItem> items = wishItemRepository.findAllByChildIdAndStatusOrderByIdDesc(childId, Status.ACTIVE)
+            .stream()
+            .filter(item -> item.getStatus() == Status.ACTIVE)
+            .toList();
         Map<Long, ProductOption> products = wishCatalog.findProductOptions(
                 items.stream().map(WishItem::getOptionId).toList())
             .stream()
@@ -110,7 +122,7 @@ public class WishService {
     }
 
     /**
-     * 쓸 수 없는 자녀의 줄은 없는 줄(404), 쓸 수 있는 자녀의 줄이라도 정책이 막으면 403.
+     * 쓸 수 없는 자녀의 줄은 없는 줄(404), 쓸 수 있는 자녀의 줄이라도 정책이 막으면 403, 진행 중인 조르기에 든 줄은 409.
      */
     public void remove(WishActor actor, Long wishItemId) {
         WishItem item = wishItemRepository.findByIdAndStatus(wishItemId, Status.ACTIVE)
@@ -118,6 +130,13 @@ public class WishService {
         requireUsableChild(actor, item.getChildId(), WishErrorCode.WISH_ITEM_NOT_FOUND);
         if (!wishPolicy.canRemove(actor, item)) {
             throw new BusinessException(WishErrorCode.WISH_ITEM_REMOVE_FORBIDDEN);
+        }
+        wishOrderSettlement.settle(item.getChildId());
+        if (item.getStatus() != Status.ACTIVE) {
+            throw new BusinessException(WishErrorCode.WISH_ITEM_NOT_FOUND);
+        }
+        if (item.isLocked()) {
+            throw new BusinessException(WishErrorCode.WISH_ITEM_IN_REQUEST);
         }
         wishItemRepository.delete(item);
     }
@@ -146,11 +165,12 @@ public class WishService {
     private WishView.Line toLine(WishItem item, ProductOption product, String sellerName) {
         if (product == null) {
             return new WishView.Line(item.getId(), item.getChildId(), item.getOptionId(), null, null, null, null, null,
-                item.getQuantity(), null, false, 0L, null, item.getAddedByType().name(), item.getAddedAt());
+                item.getQuantity(), null, false, 0L, null, item.getAddedByType().name(), item.getAddedAt(), null,
+                item.getRequestId());
         }
         return new WishView.Line(item.getId(), item.getChildId(), item.getOptionId(), product.productId(),
             product.sellerId(), product.productName(), product.optionName(), product.size(), item.getQuantity(),
             product.unitPrice(), product.purchasable(), Math.multiplyExact(product.unitPrice(), item.getQuantity()),
-            sellerName, item.getAddedByType().name(), item.getAddedAt());
+            sellerName, item.getAddedByType().name(), item.getAddedAt(), product.saleStatus(), item.getRequestId());
     }
 }

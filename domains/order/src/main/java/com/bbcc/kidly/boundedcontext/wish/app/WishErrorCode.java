@@ -28,7 +28,18 @@ public enum WishErrorCode implements ErrorCode {
     WISH_ITEM_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "조르기에 더 담을 수 없습니다",
         "조르기에 담을 수 있는 상품 수를 넘었습니다. 다른 상품을 빼고 다시 담아 주세요."),
     WISH_ITEM_REMOVE_FORBIDDEN(HttpStatus.FORBIDDEN, "이 상품은 뺄 수 없습니다",
-        "다른 사람이 담은 상품은 뺄 수 없습니다.");
+        "다른 사람이 담은 상품은 뺄 수 없습니다."),
+    WISH_ITEM_IN_REQUEST(HttpStatus.CONFLICT, "조르는 중인 상품입니다",
+        "진행 중인 조르기에 든 상품은 다른 조르기에 넣거나 수량을 바꾸거나 뺄 수 없습니다."),
+    INVALID_WISH_REQUEST(HttpStatus.BAD_REQUEST, "잘못된 조르기입니다",
+        "조를 상품을 하나 이상 겹치지 않게 고르고, 메시지는 정해진 길이 안으로 적어 주세요."),
+    WISH_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "조르기를 찾을 수 없습니다", "없는 조르기입니다. 목록을 새로고침해 주세요."),
+    WISH_REQUEST_ALREADY_DECIDED(HttpStatus.CONFLICT, "이미 처리한 조르기입니다",
+        "이미 승인했거나 거절한 조르기입니다. 목록을 새로고침해 주세요."),
+    WISH_REQUEST_DECIDE_FORBIDDEN(HttpStatus.FORBIDDEN, "조르기를 처리할 수 없습니다", "조르기는 보호자만 승인하거나 거절할 수 있습니다."),
+    INVALID_APPROVAL(HttpStatus.BAD_REQUEST, "잘못된 승인입니다",
+        "조르기에 든 상품을 하나 이상 겹치지 않게 골라 주세요. 바로 결제는 상품마다 가격과 배송지가 필요합니다."),
+    INVALID_REJECT_REASON(HttpStatus.BAD_REQUEST, "잘못된 거절 사유입니다", "거절 사유를 목록에서 골라 주세요.");
 
     private final HttpStatus status;
     private final String title;

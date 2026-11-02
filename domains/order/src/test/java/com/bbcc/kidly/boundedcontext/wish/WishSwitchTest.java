@@ -4,11 +4,16 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartIntake;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderPlacing;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup;
 import com.bbcc.kidly.boundedcontext.wish.app.WishPolicy;
+import com.bbcc.kidly.boundedcontext.wish.app.WishRequestService;
 import com.bbcc.kidly.boundedcontext.wish.app.WishService;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishItemRepository;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishRequestRepository;
 import com.bbcc.kidly.boundedcontext.wish.in.web.WishController;
+import com.bbcc.kidly.boundedcontext.wish.in.web.WishRequestController;
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -39,25 +44,32 @@ class WishSwitchTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withUserConfiguration(WishScan.class)
         .withBean(ReplicaLookup.class, () -> mock(ReplicaLookup.class))
-        .withBean(WishItemRepository.class, () -> mock(WishItemRepository.class));
+        .withBean(WishItemRepository.class, () -> mock(WishItemRepository.class))
+        .withBean(WishRequestRepository.class, () -> mock(WishRequestRepository.class))
+        .withBean(OrderPlacing.class, () -> mock(OrderPlacing.class))
+        .withBean(CartIntake.class, () -> mock(CartIntake.class));
 
     @Test
-    @DisplayName("스위치가 없으면(기본) 조르기 API · 서비스 · 정책이 뜬다")
+    @DisplayName("스위치가 없으면(기본) 조르기 API · 서비스 · 정책(조르기 보내기 · 승인 포함, #701)이 뜬다")
     void onByDefault() {
         runner.run(context -> {
             assertThat(context).hasSingleBean(WishController.class);
             assertThat(context).hasSingleBean(WishService.class);
             assertThat(context).hasSingleBean(WishPolicy.class);
+            assertThat(context).hasSingleBean(WishRequestController.class);
+            assertThat(context).hasSingleBean(WishRequestService.class);
         });
     }
 
     @Test
-    @DisplayName("스위치가 false면 조르기 API · 서비스 · 정책이 뜨지 않는다")
+    @DisplayName("스위치가 false면 조르기 API · 서비스 · 정책(조르기 보내기 · 승인 포함, #701)이 뜨지 않는다")
     void offWhenDisabled() {
         runner.withPropertyValues(SWITCH + "=false").run(context -> {
             assertThat(context).doesNotHaveBean(WishController.class);
             assertThat(context).doesNotHaveBean(WishService.class);
             assertThat(context).doesNotHaveBean(WishPolicy.class);
+            assertThat(context).doesNotHaveBean(WishRequestController.class);
+            assertThat(context).doesNotHaveBean(WishRequestService.class);
         });
     }
 
