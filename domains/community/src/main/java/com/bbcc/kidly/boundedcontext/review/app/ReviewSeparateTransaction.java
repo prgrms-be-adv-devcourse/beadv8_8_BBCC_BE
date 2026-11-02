@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.review.app;
 
+import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,5 +16,10 @@ public class ReviewSeparateTransaction {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void run(Runnable work) {
         work.run();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public <T> T call(Supplier<T> work) {
+        return work.get();
     }
 }

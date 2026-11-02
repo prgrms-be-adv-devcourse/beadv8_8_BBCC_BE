@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,7 @@ import org.springframework.data.domain.Limit;
 
 class ReviewEligibilityServiceTest {
 
-    private static final LocalDateTime CONFIRMED_AT = LocalDateTime.now().minusMinutes(5);
+    private static final LocalDateTime CONFIRMED_AT = LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123);
 
     private final FakeReviewEligibilities eligibilities = new FakeReviewEligibilities();
     private final ReviewEligibilityService service =
@@ -119,6 +120,11 @@ class ReviewEligibilityServiceTest {
             }
             rows.put(eligibility.getOrderItemId(), eligibility);
             return eligibility;
+        }
+
+        @Override
+        public Optional<ReviewEligibility> findByOrderItemIdAndMemberId(Long orderItemId, Long memberId) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,7 +20,7 @@ import org.springframework.data.domain.Limit;
 
 class ReviewEligibilityQueryServiceTest {
 
-    private static final LocalDateTime BASE = LocalDateTime.now().minusDays(1);
+    private static final LocalDateTime BASE = LocalDateTime.of(2026, 11, 1, 10, 0, 0, 123_456_123);
 
     private final FakeRows rows = new FakeRows();
     private final ReviewEligibilityQueryService service = new ReviewEligibilityQueryService(rows);
@@ -117,6 +118,11 @@ class ReviewEligibilityQueryServiceTest {
 
         @Override
         public ReviewEligibility saveAndFlush(ReviewEligibility eligibility) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<ReviewEligibility> findByOrderItemIdAndMemberId(Long orderItemId, Long memberId) {
             throw new UnsupportedOperationException();
         }
 

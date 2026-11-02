@@ -21,7 +21,8 @@ class ReviewEligibilityQueryIntegrationTest {
 
     private static final long ME = 1L;
     private static final long OTHER = 2L;
-    private static final LocalDateTime BASE = LocalDateTime.now().minusDays(1);
+    // 나노초가 있는 고정 기준 시각(저장은 마이크로초)
+    private static final LocalDateTime BASE = LocalDateTime.of(2026, 11, 1, 10, 0, 0, 123_456_123);
 
     @Autowired
     private ReviewEligibilityQueryService queryService;
@@ -31,6 +32,9 @@ class ReviewEligibilityQueryIntegrationTest {
 
     @Autowired
     private ReviewEligibilityRecorder recorder;
+
+    @Autowired
+    private ReviewService reviewService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -131,18 +135,36 @@ class ReviewEligibilityQueryIntegrationTest {
     }
 
     @Test
+    @DisplayName("이미 리뷰를 쓴 자격은 목록에서 빠지고, 리뷰를 지우면 다시 보인다")
+    void writtenExcludedUntilDeleted() {
+        insert(601, ME, 1, BASE);
+        insert(602, ME, 1, BASE.minusMinutes(1));
+
+        long reviewId = reviewService.write(ME, "닉", "601", 5, "좋아요").reviewId();
+        assertThat(queryService.findEligible(ME, null, null).items()).extracting(EligibleItem::orderItemId)
+            .containsExactly(602L);
+
+        reviewService.delete(ME, reviewId);
+        assertThat(queryService.findEligible(ME, null, null).items()).extracting(EligibleItem::orderItemId)
+            .containsExactly(601L, 602L);
+    }
+
+    @Test
     @DisplayName("한 쪽을 읽는 쿼리는 상품 정보를 포함해 1번이다(자격 수와 상관없이, N+1 없음)")
     void singleQueryPerPage() {
         for (int i = 0; i < 5; i++) {
             insertReplica(10 + i, "상품 " + i, null);
             insert(400 + i, ME, 10 + i, BASE.minusMinutes(i));
         }
+        insert(499, ME, 10, BASE.plusMinutes(1));
+        reviewService.write(ME, "닉", "499", 5, "이미 쓴 리뷰");
         AtomicReference<EligiblePage> first = new AtomicReference<>();
 
         long firstPage = queryCounter.count(() -> first.set(queryService.findEligible(ME, null, "3")));
         long nextPage = queryCounter.count(() -> queryService.findEligible(ME, first.get().nextCursor(), "3"));
 
-        assertThat(first.get().items()).hasSize(3).allSatisfy(item -> assertThat(item.productName()).isNotNull());
+        assertThat(first.get().items()).hasSize(3).allSatisfy(item -> assertThat(item.productName()).isNotNull())
+            .extracting(EligibleItem::orderItemId).doesNotContain(499L);
         assertThat(firstPage).isEqualTo(1);
         assertThat(nextPage).isEqualTo(1);
     }
