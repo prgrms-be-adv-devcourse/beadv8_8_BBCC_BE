@@ -1,5 +1,6 @@
 package com.bbcc.kidly;
 
+import java.util.TimeZone;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
@@ -26,6 +27,7 @@ import org.springframework.context.annotation.FilterType;
 public class SearchServiceApplication {
 
     public static void main(String[] args) {
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"));
         SpringApplication.run(SearchServiceApplication.class, args);
     }
 }
