@@ -38,9 +38,10 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 ## 서버 배포 (`deploy/`)
 - dev · prod(#638). compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(dev) · `127.0.0.1:8084`(prod)(`GATEWAY_PORT`), compose 네트워크로 `http://app:8080`에 넘긴다
 - 상품 목록은 `KIDLY_SEARCH_URI`로 넘긴다. dev는 `.env.dev`에 `http://search-service:8080`(profile `search`도 켜져 있어야 한다), 값이 없는 prod는 기본값 `http://app:8080`이라 앱이 그대로 받는다
-- 자녀 프로필은 `KIDLY_CHILDPROFILE_URI`로 넘긴다. dev는 `.env.dev`에 `http://childprofile-service:8080`(profile `childprofile`도 켜져 있어야 한다), 값이 없는 prod는 기본값 `http://app:8080`. kidly-app이 아직 자녀 도메인을 가지고 있어 이 값만 지우면 앱으로 되돌아간다
+- 자녀 프로필은 `KIDLY_CHILDPROFILE_URI`로 넘긴다. 기본값은 `http://childprofile-service:8080`이고 kidly-app에는 자녀 API가 없다. profile `childprofile`이 꺼진 환경에서는 자녀 API가 실패한다
 - dev · prod 모두 서비스(kidly-app · search-service · childprofile-service)는 JWT를 보지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다. 서비스는 Gateway 뒤에서만 열려야 한다
 - nginx dev · 운영 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(dev 8081 · prod 8080)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
 ## 로컬 실행
 - `docker compose up -d` 뒤 앱(`:apps:kidly-app:bootRun`)과 Gateway(`:apps:gateway:bootRun`, 8083)를 루트에서 띄운다. IDE는 `Kidly 앱 + Gateway` 실행 구성. 프론트 · Swagger는 8083으로 붙는다
+- 자녀 API(`/api/v1/children/**`)는 자녀 프로필 서비스(`:apps:childprofile-service:bootRun`, 8084)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_CHILDPROFILE_URI`를 준다
