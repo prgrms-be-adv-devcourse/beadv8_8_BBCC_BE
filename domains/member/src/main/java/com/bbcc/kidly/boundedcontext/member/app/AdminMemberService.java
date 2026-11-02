@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.member.app.port.AdminMemberFilter;
 import com.bbcc.kidly.boundedcontext.member.app.port.AdminMemberSummary;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberSummaryQuery;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +25,7 @@ public class AdminMemberService {
 
     private final MemberRepository memberRepository;
     private final MemberSummaryQuery memberSummaryQuery;
-    private final AccessTokenRevocationService accessTokenRevocationService;
+    private final MemberTokenRevoker memberTokenRevoker;
 
     @Transactional(readOnly = true)
     public Page<AdminMemberSummary> getMembers(AdminMemberFilter filter, String keyword, Pageable pageable) {
@@ -36,7 +37,7 @@ public class AdminMemberService {
     public void suspend(Long memberId, Long adminId, MemberSuspendRequest request) {
         var now = LocalDateTime.now();
         memberRepository.getById(memberId).suspend(adminId, request.reason(), now);
-        accessTokenRevocationService.revoke(memberId, now);
+        memberTokenRevoker.revoke(memberId, now);
         log.info("회원 정지: memberId={} adminId={}", memberId, adminId);
     }
 
@@ -50,7 +51,7 @@ public class AdminMemberService {
     @Transactional
     public void revokeAdmin(Long memberId, Long adminId) {
         memberRepository.getById(memberId).revokeAdmin(adminId);
-        accessTokenRevocationService.revoke(memberId, LocalDateTime.now());
+        memberTokenRevoker.revoke(memberId, LocalDateTime.now());
         log.info("관리자 해제: memberId={} adminId={}", memberId, adminId);
     }
 }

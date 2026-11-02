@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.member;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
@@ -13,11 +12,10 @@ import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
-import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
-import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
@@ -76,7 +74,7 @@ class MemberKafkaPublishIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private AccessTokenRevocationService revocationService;
+    private MemberTokenRevoker memberTokenRevoker;
 
     @Autowired
     private AdminMemberService adminMemberService;
@@ -121,8 +119,8 @@ class MemberKafkaPublishIntegrationTest {
     @Test
     @DisplayName("가입하면 회원 ID 키로 보내고 헤더 eventType · eventId와 본문 8칸을 채운다")
     void registered() {
-        var member = memberRegistrar.register(new MemberRegisterInfo(
-            new SocialIdentity(OAuthProvider.KAKAO, "kakao-1"), new Nickname("테스트회원"), MemberFixture.EMAIL));
+        var member = memberRegistrar.register(
+            new MemberRegisterInfo("social-account:1", new Nickname("테스트회원"), MemberFixture.EMAIL));
 
         var registered = events.stream(MemberRegisteredEvent.class).findFirst().orElseThrow();
         var record = awaitRecord(registered);
@@ -149,7 +147,7 @@ class MemberKafkaPublishIntegrationTest {
     void tokensRevoked() {
         var revokedAt = LocalDateTime.of(2026, 10, 12, 9, 0, 5);
 
-        transactionTemplate.executeWithoutResult(status -> revocationService.revoke(7L, revokedAt));
+        transactionTemplate.executeWithoutResult(status -> memberTokenRevoker.revoke(7L, revokedAt));
 
         var tokensRevoked = events.stream(MemberTokensRevokedEvent.class).findFirst().orElseThrow();
         var record = awaitRecord(tokensRevoked);
@@ -187,7 +185,7 @@ class MemberKafkaPublishIntegrationTest {
     void tokensRevokedRolledBack() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
         transactionTemplate.executeWithoutResult(status -> {
-            revocationService.revoke(member.getId(), LocalDateTime.now());
+            memberTokenRevoker.revoke(member.getId(), LocalDateTime.now());
             status.setRollbackOnly();
         });
         var rolledBack = events.stream(MemberTokensRevokedEvent.class).findFirst().orElseThrow();

@@ -13,10 +13,7 @@ import java.util.List;
 public record MemberResult(Long id, String nickname, String email, List<Role> roles, SellerStatus sellerStatus,
     List<String> providers) {
 
-    public static MemberResult from(Member member) {
-        var providers = member.getSocialAccounts().stream()
-            .map(account -> account.getIdentity().provider().name())
-            .toList();
+    public static MemberResult from(Member member, List<String> providers) {
         return new MemberResult(member.getId(), member.getNickname(), member.getEmail(), member.roles(),
             member.sellerStatus(), providers);
     }

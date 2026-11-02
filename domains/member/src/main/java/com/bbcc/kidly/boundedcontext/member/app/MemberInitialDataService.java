@@ -7,8 +7,6 @@ import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
-import com.bbcc.kidly.boundedcontext.member.domain.OAuthProvider;
-import com.bbcc.kidly.boundedcontext.member.domain.SocialIdentity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,10 +49,8 @@ public class MemberInitialDataService {
         log.info("회원 초기 데이터를 넣었다");
     }
 
-    // 소셜 계정 ID는 카카오 회원번호(숫자)와 겹치지 않게 seed-번호로 둔다
+    // 가입 키는 인증이 만드는 키(social-account:ID)와 겹치지 않게 seed:번호로 둔다. 소셜 계정은 연결하지 않는다(dev 토큰으로 로그인한다)
     private Member register(int number, String nickname, String email) {
-        return memberRegistrar.register(
-            new MemberRegisterInfo(new SocialIdentity(OAuthProvider.KAKAO, "seed-" + number),
-                new Nickname(nickname), email));
+        return memberRegistrar.register(new MemberRegisterInfo("seed:" + number, new Nickname(nickname), email));
     }
 }

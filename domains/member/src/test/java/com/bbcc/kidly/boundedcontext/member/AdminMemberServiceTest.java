@@ -5,12 +5,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
-import com.bbcc.kidly.boundedcontext.member.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberSummaryQuery;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
+import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,7 +35,7 @@ class AdminMemberServiceTest {
     private MemberSummaryQuery memberSummaryQuery;
 
     @Mock
-    private AccessTokenRevocationService accessTokenRevocationService;
+    private MemberTokenRevoker memberTokenRevoker;
 
     @InjectMocks
     private AdminMemberService adminMemberService;
@@ -47,7 +47,7 @@ class AdminMemberServiceTest {
 
         adminMemberService.suspend(MEMBER_ID, ADMIN_ID, new MemberSuspendRequest("신고 접수"));
 
-        then(accessTokenRevocationService).should().revoke(eq(MEMBER_ID), any(LocalDateTime.class));
+        then(memberTokenRevoker).should().revoke(eq(MEMBER_ID), any(LocalDateTime.class));
     }
 
     @Test
@@ -57,6 +57,6 @@ class AdminMemberServiceTest {
 
         adminMemberService.revokeAdmin(MEMBER_ID, ADMIN_ID);
 
-        then(accessTokenRevocationService).should().revoke(eq(MEMBER_ID), any(LocalDateTime.class));
+        then(memberTokenRevoker).should().revoke(eq(MEMBER_ID), any(LocalDateTime.class));
     }
 }

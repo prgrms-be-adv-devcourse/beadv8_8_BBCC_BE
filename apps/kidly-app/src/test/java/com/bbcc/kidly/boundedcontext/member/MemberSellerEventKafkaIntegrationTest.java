@@ -3,12 +3,14 @@ package com.bbcc.kidly.boundedcontext.member;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.member.app.AuthTokenService;
+import com.bbcc.kidly.boundedcontext.auth.app.port.AccessTokenIssuer;
+import com.bbcc.kidly.boundedcontext.auth.app.port.TokenSubject;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.SellerState;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.auth.Role;
+import com.bbcc.kidly.shared.member.dto.MemberLoginState;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
@@ -82,7 +84,7 @@ class MemberSellerEventKafkaIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private AuthTokenService authTokenService;
+    private AccessTokenIssuer accessTokenIssuer;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -283,7 +285,8 @@ class MemberSellerEventKafkaIntegrationTest {
     }
 
     private List<Role> rolesOfNewToken() {
-        var token = authTokenService.issueAccessToken(memberRepository.getById(memberId));
+        var active = (MemberLoginState.Active) memberRepository.getById(memberId).loginState();
+        var token = accessTokenIssuer.issue(TokenSubject.of(active));
         return IssuedAccessToken.decode(token).roles();
     }
 

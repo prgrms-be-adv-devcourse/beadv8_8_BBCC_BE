@@ -5,7 +5,6 @@ import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.member.dto.MemberLoginState;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -14,23 +13,21 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 회원. 소셜 계정으로 가입 · 로그인한다. 판매자 여부는 역할로 저장하지 않고, 이벤트로 받은 판매자 상태 복사본을 가진다.
+ * 회원. 인증 도메인이 소셜 로그인 뒤 가입 키로 만든다. 판매자 여부는 역할로 저장하지 않고, 이벤트로 받은 판매자 상태 복사본을 가진다.
  * 닉네임 규칙은 {@link Nickname}. 회원끼리 겹치지 않는지는 {@link NicknamePolicy}가 확인하고, DB 유니크 제약이 마지막으로 막는다.
  * 이메일은 가입 때 받고 바꾸지 않는다.
  * 상태는 ACTIVE → SUSPENDED / WITHDRAWN으로만 바뀐다(정지 해제 없음).
- * 탈퇴하면 닉네임 · 이메일을 지우고 소셜 계정 연결을 끊는다. 같은 소셜 계정으로 다시 가입하면 새 회원이 된다.
+ * 탈퇴하면 닉네임 · 이메일을 지운다. 소셜 계정 연결은 인증 도메인이 탈퇴 이벤트를 받아 끊는다.
  */
 @Entity
 @Table(
@@ -72,13 +69,8 @@ public class Member extends BaseTimeEntity {
     // 탈퇴한 회원만 값이 있다
     private LocalDateTime withdrawnAt;
 
-    // 가입을 멱등하게 만드는 키. 가입 때만 정하고 바꾸지 않는다. 키 없이 가입한 회원은 null이다
     @Column(length = 64)
     private String registrationKey;
-
-    // 나중에 같은 사람의 여러 소셜 계정을 한 회원으로 통합할 수 있게 1:N으로 둔다
-    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<SocialAccount> socialAccounts = new ArrayList<>();
 
     private Member(String registrationKey, String nickname, String email) {
         this.registrationKey = registrationKey;
@@ -88,12 +80,8 @@ public class Member extends BaseTimeEntity {
         this.status = MemberStatus.ACTIVE;
     }
 
-    public static Member register(MemberRegisterInfo info, LocalDateTime now) {
-        Member member = new Member(info.registrationKey(), info.nickname().value(), info.email());
-        if (info.identity() != null) {
-            member.socialAccounts.add(new SocialAccount(member, info.identity(), now));
-        }
-        return member;
+    public static Member register(MemberRegisterInfo info) {
+        return new Member(info.registrationKey(), info.nickname().value(), info.email());
     }
 
     // 닉네임이 바뀌면 true. 같은 값이면 바꾸지 않는다. 다른 회원과 겹치는지는 NicknamePolicy가 확인하고, DB 유니크 제약이 마지막으로 막는다
@@ -127,11 +115,6 @@ public class Member extends BaseTimeEntity {
         this.withdrawnAt = now;
         this.nickname = null;
         this.email = null;
-        this.socialAccounts.clear();
-    }
-
-    public boolean canLogin() {
-        return loginState() instanceof MemberLoginState.Active;
     }
 
     public MemberLoginState loginState() {
@@ -194,9 +177,5 @@ public class Member extends BaseTimeEntity {
             roles.add(Role.ADMIN);
         }
         return List.copyOf(roles);
-    }
-
-    public List<SocialAccount> getSocialAccounts() {
-        return Collections.unmodifiableList(socialAccounts);
     }
 }

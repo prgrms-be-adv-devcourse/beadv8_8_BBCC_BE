@@ -14,8 +14,6 @@ public interface MemberRepository {
         return findById(id).orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }
 
-    Optional<Member> findBySocialAccount(SocialIdentity identity);
-
     Optional<Member> findByRegistrationKey(String registrationKey);
 
     boolean existsByNickname(String nickname);
