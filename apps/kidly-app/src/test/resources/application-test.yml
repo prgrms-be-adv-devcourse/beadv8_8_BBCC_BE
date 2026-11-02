@@ -106,8 +106,8 @@ kidly:
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"
-    # 상품이 받는 판매자 이벤트는 테스트에서 Spring 이벤트로 받는다(다른 도메인 테스트가 지금처럼 Spring 경로로 돈다).
-    # Kafka 수신은 ProductKafkaReceiveIntegrationTest가 그 안에서 상품 리스너를 켜서 본다
+    # 상품이 받는 판매자 · 주문 이벤트는 테스트에서 Spring 이벤트로 받는다(다른 도메인 테스트가 지금처럼 Spring 경로로 돈다).
+    # Kafka 수신은 ProductKafkaReceiveIntegrationTest · ProductOrderKafkaReceiveIntegrationTest가 그 안에서 상품 리스너를 켜서 본다
     kafka:
       consumer:
         enabled: false

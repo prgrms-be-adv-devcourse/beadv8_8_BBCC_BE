@@ -36,6 +36,7 @@ import tools.jackson.core.JacksonException;
 public class ProductKafkaListenerConfig {
 
     public static final String SELLER_EVENTS = "kidly.seller.events";
+    public static final String ORDER_EVENTS = "kidly.order.events";
     public static final String GROUP = "kidly.product";
     public static final String AUTO_STARTUP = "${kidly.product.kafka.consumer.enabled:true}";
     private static final String DLT_SUFFIX = ".product.dlt";
@@ -43,6 +44,11 @@ public class ProductKafkaListenerConfig {
     @Bean
     NewTopic productSellerEventsDeadLetterTopic() {
         return TopicBuilder.name(SELLER_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
+    }
+
+    @Bean
+    NewTopic productOrderEventsDeadLetterTopic() {
+        return TopicBuilder.name(ORDER_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다

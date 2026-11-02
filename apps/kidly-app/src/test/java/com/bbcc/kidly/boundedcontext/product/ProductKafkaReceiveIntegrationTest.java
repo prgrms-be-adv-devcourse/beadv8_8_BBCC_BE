@@ -5,13 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSeller;
 import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSellerRepository;
+import com.bbcc.kidly.boundedcontext.product.in.replica.ProductSellerKafkaListener;
 import com.bbcc.kidly.boundedcontext.seller.app.port.SellerEventSender;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
@@ -22,7 +22,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
@@ -56,26 +55,26 @@ class ProductKafkaReceiveIntegrationTest {
     private JsonMapper jsonMapper;
 
     @Autowired
-    private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+    private ProductKafkaListenerTestGuard listenerGuard;
 
     @Autowired
     private KafkaContainer kafka;
 
     private ProductKafkaMessages messages;
 
-    private List<MessageListenerContainer> listeners;
+    private MessageListenerContainer listener;
 
-    // 리스너는 이 테스트 안에서만 켠다
+    // 리스너는 ProductKafkaListenerTestGuard가 들고 있어 이 테스트 안에서만 켠다. 판매자 리스너만 켠다
     @BeforeEach
     void startListeners() {
         messages = new ProductKafkaMessages(kafka.getBootstrapServers(), jsonMapper);
-        listeners = ProductKafkaMessages.startListeners(kafkaListenerEndpointRegistry);
+        listener = ProductKafkaMessages.startListener(listenerGuard, ProductSellerKafkaListener.ID);
     }
 
     // stop()은 처리 중인 메시지가 끝날 때까지 기다리므로 뒤이은 테이블 비우기와 겹치지 않는다
     @AfterEach
     void stopListeners() {
-        listeners.forEach(MessageListenerContainer::stop);
+        listener.stop();
     }
 
     @Test

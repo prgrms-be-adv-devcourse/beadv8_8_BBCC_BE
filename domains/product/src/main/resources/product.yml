@@ -24,7 +24,7 @@ kidly:
       retention: P7D
       # 보존 기간이 지난 메시지를 지우는 시각. 매일 04:00
       cleanup-cron: "0 0 4 * * *"
-    # 상품이 받는 판매자 이벤트. true면 Kafka로만 받고, false면 Kafka 리스너를 시작하지 않고 Spring 이벤트로 받는다
+    # 상품이 받는 판매자 · 주문 이벤트. true면 Kafka로만 받고, false면 Kafka 리스너를 시작하지 않고 Spring 이벤트로 받는다
     # 장애 때 되돌리는 스위치다. 같은 이벤트를 양쪽에서 받지 않는다. true · false만 쓴다(다른 값이면 양쪽 모두 받지 않는다)
     # 로컬 실행은 Kafka가 떠 있어야 받는다(docker compose)
     kafka:

@@ -18,10 +18,12 @@ import tools.jackson.databind.json.JsonMapper;
 @RequiredArgsConstructor
 public class ProductSellerKafkaListener {
 
+    public static final String ID = "productSellerKafkaListener";
+
     private final ProductReplicaSellerService replicaSellerService;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(id = "productSellerKafkaListener", topics = ProductKafkaListenerConfig.SELLER_EVENTS,
+    @KafkaListener(id = ID, topics = ProductKafkaListenerConfig.SELLER_EVENTS,
         groupId = ProductKafkaListenerConfig.GROUP, containerFactory = "productKafkaListenerContainerFactory",
         autoStartup = ProductKafkaListenerConfig.AUTO_STARTUP)
     public void on(ConsumerRecord<String, String> record) {
