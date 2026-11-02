@@ -23,7 +23,6 @@ import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -44,16 +43,13 @@ final class ProductKafkaMessages {
         this.jsonMapper = jsonMapper;
     }
 
-    // 상품 그룹의 리스너만 켜고, 모두 파티션을 배정받을 때까지 기다린다.
+    // 가드가 들고 있는 상품 리스너 중 그 테스트가 보는 리스너 하나만 켜고, 파티션을 배정받을 때까지 기다린다.
     // 읽기 시작 위치가 latest라 파티션을 배정받기 전에 보낸 메시지는 받지 못한다
-    static List<MessageListenerContainer> startListeners(KafkaListenerEndpointRegistry registry) {
-        List<MessageListenerContainer> listeners = registry.getAllListenerContainers().stream()
-            .filter(container -> GROUP.equals(container.getGroupId()))
-            .toList();
-        listeners.forEach(MessageListenerContainer::start);
-        AsyncWait.until(TIMEOUT, () -> listeners.stream()
-            .allMatch(container -> !container.getAssignedPartitions().isEmpty()));
-        return listeners;
+    static MessageListenerContainer startListener(ProductKafkaListenerTestGuard guard, String id) {
+        MessageListenerContainer listener = guard.listener(id);
+        listener.start();
+        AsyncWait.until(TIMEOUT, () -> !listener.getAssignedPartitions().isEmpty());
+        return listener;
     }
 
     // 보내는 도메인과 같은 형식으로 넣는다. 키는 correlationId, 헤더는 eventType · eventId, 본문은 공통 칸 7개 + data다

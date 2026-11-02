@@ -42,6 +42,15 @@ class InventoryDeductionDb {
                 rs.getLong("product_option_id"), rs.getInt("qty"), rs.getString("status")));
     }
 
+    // 한 주문의 차감 기록만 (주문 ID, 주문상품 ID, 옵션 ID, 수량, 상태)로 읽는다. 다른 테스트가 남긴 기록과 섞이지 않는다
+    List<Tuple> records(long orderId) {
+        return jdbcTemplate.query(
+            "select order_id, order_item_id, product_option_id, qty, status from product.inventory_deduction"
+                + " where order_id = ?",
+            (rs, rowNum) -> tuple(rs.getLong("order_id"), rs.getLong("order_item_id"),
+                rs.getLong("product_option_id"), rs.getInt("qty"), rs.getString("status")), orderId);
+    }
+
     long countByStatus(String status) {
         return jdbcTemplate.queryForObject(
             "select count(*) from product.inventory_deduction where status = ?", Long.class, status);

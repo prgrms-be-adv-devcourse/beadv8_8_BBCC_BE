@@ -5,12 +5,14 @@ import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.orderC
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
 import static com.bbcc.kidly.boundedcontext.product.ProductKafkaMessages.TIMEOUT;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
+import com.bbcc.kidly.boundedcontext.product.in.inventory.ProductOrderKafkaListener;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -22,8 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
@@ -65,46 +67,46 @@ class ProductOrderKafkaReceiveIntegrationTest {
     private JsonMapper jsonMapper;
 
     @Autowired
-    private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+    private ProductKafkaListenerTestGuard listenerGuard;
 
     @Autowired
     private KafkaContainer kafka;
 
     private ProductKafkaMessages messages;
 
-    private List<MessageListenerContainer> listeners;
+    private MessageListenerContainer listener;
 
-    // 리스너는 이 테스트 안에서만 켠다
+    // 리스너는 ProductKafkaListenerTestGuard가 들고 있어 이 테스트 안에서만 켠다. 주문 리스너만 켠다
     @BeforeEach
     void startListeners() {
         messages = new ProductKafkaMessages(kafka.getBootstrapServers(), jsonMapper);
-        listeners = ProductKafkaMessages.startListeners(kafkaListenerEndpointRegistry);
+        listener = ProductKafkaMessages.startListener(listenerGuard, ProductOrderKafkaListener.ID);
         messages.awaitCaughtUp(ORDER_TOPIC);
     }
 
     // stop()은 처리 중인 메시지가 끝날 때까지 기다리므로 뒤이은 불변식 확인 · 테이블 비우기와 겹치지 않는다
     @AfterEach
     void stopListenersAndCheckInvariants() {
-        listeners.forEach(MessageListenerContainer::stop);
+        listener.stop();
         inventoryDeductionDb.assertInvariants();
     }
 
     @Test
-    @DisplayName("주문 생성됨을 Kafka로 받아 재고를 줄이고 차감 기록을 DEDUCTED로 남긴다")
+    @DisplayName("INV-04 주문 생성됨을 Kafka로 받아 재고를 줄이고 차감 기록을 DEDUCTED로 남긴다")
     void deductOnOrderCreated() throws Exception {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         long orderId = newId();
 
         messages.send(ORDER_TOPIC, orderCreated(orderId, orderItem(11L, options.navy110(), 2)));
 
-        AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records().isEmpty());
+        AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records(orderId).isEmpty());
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
-        assertThat(inventoryDeductionDb.records())
+        assertThat(inventoryDeductionDb.records(orderId))
             .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "DEDUCTED"));
     }
 
     @Test
-    @DisplayName("주문이 아웃박스로 보낸 주문 생성됨을 Kafka로 받아 재고를 줄인다")
+    @DisplayName("INV-04 주문이 아웃박스로 보낸 주문 생성됨을 Kafka로 받아 재고를 줄이고 차감 기록을 DEDUCTED로 남긴다")
     void deductOnOrderCreatedFromOrderOutbox() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         long orderId = newId();
@@ -113,9 +115,9 @@ class ProductOrderKafkaReceiveIntegrationTest {
             orderCreated(orderId, orderItem(11L, options.navy110(), 2))));
         orderOutboxRelayService.relay();
 
-        AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records().isEmpty());
+        AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records(orderId).isEmpty());
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
-        assertThat(inventoryDeductionDb.records())
+        assertThat(inventoryDeductionDb.records(orderId))
             .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "DEDUCTED"));
     }
 
@@ -128,10 +130,9 @@ class ProductOrderKafkaReceiveIntegrationTest {
 
         messages.send(ORDER_TOPIC, orderCancelled(orderId, cancelledItem(11L, options.navy110(), 2)));
 
-        AsyncWait.until(TIMEOUT, () -> inventoryDeductionDb.countByStatus("RESTORED") == 1);
+        var restored = tuple(orderId, 11L, options.navy110().getId(), 2, "RESTORED");
+        AsyncWait.until(TIMEOUT, () -> List.of(restored).equals(inventoryDeductionDb.records(orderId)));
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
-        assertThat(inventoryDeductionDb.records())
-            .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "RESTORED"));
     }
 
     @Test
@@ -146,7 +147,7 @@ class ProductOrderKafkaReceiveIntegrationTest {
 
         messages.awaitProcessed(ORDER_TOPIC, resent);
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
-        assertThat(inventoryDeductionDb.records())
+        assertThat(inventoryDeductionDb.records(orderId))
             .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "DEDUCTED"));
     }
 
@@ -162,7 +163,7 @@ class ProductOrderKafkaReceiveIntegrationTest {
 
         messages.awaitProcessed(ORDER_TOPIC, created);
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
-        assertThat(inventoryDeductionDb.records())
+        assertThat(inventoryDeductionDb.records(orderId))
             .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "FAILED"));
     }
 
@@ -177,7 +178,7 @@ class ProductOrderKafkaReceiveIntegrationTest {
         // 키가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
         messages.send(ORDER_TOPIC, orderCreated(orderId, orderItem(11L, options.navy110(), 2)));
 
-        AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records().isEmpty());
+        AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records(orderId).isEmpty());
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
         assertThat(messages.deadLetters(ORDER_DLT, key)).isEmpty();
     }
@@ -195,6 +196,26 @@ class ProductOrderKafkaReceiveIntegrationTest {
             assertThat(deadLetter.value()).isEqualTo(body);
             assertThat(deadLetter.timestamp() - sent.timestamp()).isLessThan(RETRY_BACKOFF_TOTAL_MS);
         });
+    }
+
+    @Test
+    @DisplayName("주문 토픽의 메시지에 eventType 헤더가 없으면 어떤 이벤트인지 알 수 없어 재시도 없이 IllegalArgumentException으로 DLT에 보낸다")
+    void deadLetterWithoutEventType() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        long orderId = newId();
+        String key = String.valueOf(orderId);
+        String body = jsonMapper.writeValueAsString(orderCreated(orderId, orderItem(11L, options.navy110(), 2)));
+
+        var sent = messages.sendRaw(ORDER_TOPIC, key, null, UUID.randomUUID(), body);
+
+        AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(ORDER_DLT, key).isEmpty());
+        assertThat(messages.deadLetters(ORDER_DLT, key)).singleElement().satisfies(deadLetter -> {
+            assertThat(deadLetter.timestamp() - sent.timestamp()).isLessThan(RETRY_BACKOFF_TOTAL_MS);
+            var cause = deadLetter.headers().lastHeader(KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN);
+            assertThat(new String(cause.value(), UTF_8)).isEqualTo(IllegalArgumentException.class.getName());
+        });
+        assertThat(inventoryDeductionDb.records(orderId)).isEmpty();
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
     }
 
     private static long newId() {
