@@ -42,13 +42,14 @@ public class ReviewController {
     }
 
     /**
-     * 200. 오류: 400 INVALID_RATING · INVALID_CONTENT, 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND.
+     * 200. 보낸 값(별점 · 본문)만 바꾼다. 오류: 400 NO_FIELDS_TO_UPDATE · INVALID_RATING · INVALID_CONTENT,
+     * 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND.
      */
     @PatchMapping("/{reviewId}")
     public ReviewResponse update(@LoginMember AuthMember member, @PathVariable Long reviewId,
         @RequestBody UpdateReviewRequest request) {
-        return ReviewResponse.from(
-            reviewService.update(member.id(), reviewId, request.ratingValue(), request.content()));
+        return ReviewResponse.from(reviewService.update(member.id(), reviewId, new ReviewService.ReviewChange(
+            request.ratingGiven(), request.ratingValue(), request.contentGiven(), request.contentValue())));
     }
 
     /**

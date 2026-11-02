@@ -22,6 +22,7 @@ public enum ReviewErrorCode implements ErrorCode {
     INVALID_PRODUCT_ID(HttpStatus.BAD_REQUEST, "잘못된 상품 ID입니다", "productId는 상품의 ID(양의 정수)로 보내 주세요."),
     INVALID_ORDER_ITEM_ID(HttpStatus.BAD_REQUEST, "잘못된 주문상품 ID입니다",
         "orderItemId는 리뷰 작성 가능 목록의 orderItemId를 그대로 보내 주세요."),
+    NO_FIELDS_TO_UPDATE(HttpStatus.BAD_REQUEST, "바꿀 값이 없습니다", "바꿀 값을 하나 이상 보내 주세요."),
     REVIEW_NOT_ELIGIBLE(HttpStatus.FORBIDDEN, "리뷰를 쓸 수 없는 주문상품입니다",
         "구매확정한 내 주문상품에만 리뷰를 쓸 수 있습니다. 리뷰 작성 가능 목록에서 골라 주세요."),
     REVIEW_FORBIDDEN(HttpStatus.FORBIDDEN, "내 리뷰가 아닙니다", "내가 쓴 리뷰만 고치거나 지울 수 있습니다."),

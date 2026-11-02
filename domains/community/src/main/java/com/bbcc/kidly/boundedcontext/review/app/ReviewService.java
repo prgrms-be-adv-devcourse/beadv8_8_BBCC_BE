@@ -68,13 +68,25 @@ public class ReviewService {
         }
     }
 
+    /**
+     * 별점 · 본문을 둘 다 고친다.
+     */
     @Transactional
     public ReviewView update(Long memberId, Long reviewId, Integer rating, String content) {
+        return update(memberId, reviewId, new ReviewChange(true, rating, true, content));
+    }
+
+    /**
+     * 보낸 값만 고친다. 별점을 보내지 않으면 집계도 바뀌지 않는다.
+     * 오류: 400 NO_FIELDS_TO_UPDATE · INVALID_RATING · INVALID_CONTENT, 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND.
+     */
+    @Transactional
+    public ReviewView update(Long memberId, Long reviewId, ReviewChange change) {
         Review review = reviews.findForUpdate(reviewId)
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
         int before = review.getRating();
         translateRule(() -> {
-            review.update(memberId, rating, content);
+            review.update(memberId, change.toDomain());
             return null;
         });
         Review saved = reviews.saveAndFlush(review);
@@ -132,7 +144,18 @@ public class ReviewService {
             case RATING -> ReviewErrorCode.INVALID_RATING;
             case CONTENT -> ReviewErrorCode.INVALID_CONTENT;
             case AUTHOR -> ReviewErrorCode.REVIEW_FORBIDDEN;
+            case NO_CHANGES -> ReviewErrorCode.NO_FIELDS_TO_UPDATE;
         };
+    }
+
+    /**
+     * 수정 요청 값. given이 false면 그 값은 보내지 않은 것(그대로 둔다), true인데 값이 null이면 규칙 위반(400)이다.
+     */
+    public record ReviewChange(boolean ratingGiven, Integer rating, boolean contentGiven, String content) {
+
+        Review.Change toDomain() {
+            return new Review.Change(ratingGiven, rating, contentGiven, content);
+        }
     }
 
     /**

@@ -76,6 +76,30 @@ class ReviewStatsIntegrationTest {
         assertThat(stats()).containsEntry("review_count", 0).containsEntry("rating_sum", 0);
     }
 
+    @Test
+    @DisplayName("일부 수정: 본문만 고치면 별점 · 집계 그대로, 별점만 고치면 본문 그대로 · 집계는 차이만큼(DB 확인)")
+    void partialUpdateStoredAndCounted() {
+        eligible(401, PRODUCT);
+        long id = reviewService.write(ME, "닉", "401", 3, "처음 본문").reviewId();
+
+        reviewService.update(ME, id, new ReviewService.ReviewChange(false, null, true, "본문만"));
+        assertThat(review(id)).containsEntry("rating", 3).containsEntry("content", "본문만");
+        assertThat(stats()).containsEntry("review_count", 1).containsEntry("rating_sum", 3);
+
+        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 5, false, null));
+        assertThat(review(id)).containsEntry("rating", 5).containsEntry("content", "본문만");
+        assertThat(stats()).containsEntry("review_count", 1).containsEntry("rating_sum", 5);
+
+        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 1, true, "둘 다"));
+        assertThat(review(id)).containsEntry("rating", 1).containsEntry("content", "둘 다");
+        assertThat(stats()).containsEntry("review_count", 1).containsEntry("rating_sum", 1);
+    }
+
+    private Map<String, Object> review(long id) {
+        return jdbcTemplate.queryForMap("select rating::int as rating, content from community.review where id = ?",
+            id);
+    }
+
     private void eligible(long orderItemId, long productId) {
         jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
             + "option_id, size, confirmed_at, created_at, updated_at) "
