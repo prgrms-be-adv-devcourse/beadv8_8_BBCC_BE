@@ -16,6 +16,7 @@
 - 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙(다른 컨텍스트 참조는 내 out → 상대 `app.port.in`만)은 `OrderContextArchitectureTest`, 패키지 배치(위 in · out · 설정 자리)는 `OrderPackageLayoutArchitectureTest`, 기능 사이 의존 · 포트 규칙은 앱의 `OrderArchitectureTest`가 검사한다
 
 ## 2. 이벤트 수신
+- 복사본 반영(#738)은 종류 · 대상 ID별 트랜잭션 advisory lock(`ReplicaUpdateLock`, `out.lock.ReplicaAdvisoryLock`)을 조회 전에 잡고 커밋 · 롤백까지 유지한다. 행이 없는 최초 생성도 직렬화하고, 상품은 상품 ID 하나로 전체 옵션 · 누락 옵션 처리를 묶는다. 자녀 변경 · 삭제는 같은 잠금을 쓴다. 이 잠금은 스케줄러의 한 서버 실행 잠금과 별개다.
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(`ReplicaProduct` · `ReplicaSeller` · `ReplicaChild`)은 저장된 `occurredAt`보다 늦은 이벤트만 반영하고, 주문 상태는 이미 그 상태면 `ALREADY_DONE`으로 끝낸다
 - 필수 값이 없으면 `EventGuard`로 WARN 한 줄을 남기고 무시한다
 - 받는 길은 스위치 `kidly.order.kafka.consumer.enabled` 하나로 고른다: `true`(기본)면 Kafka 리스너, `false`면 Spring 이벤트(`SpringEventReceiver`). 처리 코드(`…EventListener`)는 같다
