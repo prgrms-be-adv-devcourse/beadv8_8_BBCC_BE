@@ -14,8 +14,8 @@ spring:
     table: flyway_schema_history_product
     # 이미 상품 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 baseline-version으로 baseline을 잡고 그 버전까지 건너뛴다.
     # 빈 DB(테스트)는 baseline 없이 init부터 적용한다
-    # baseline-version은 kidly-app이 마지막으로 적용한 상품 마이그레이션 버전이다. 두 앱이 함께 도는 동안 상품 마이그레이션을 더하면
-    # kidly-app이 먼저 적용하므로, 새 마이그레이션을 더할 때 이 값을 그 버전으로 올린다
+    # baseline-version은 이 모듈을 만들 때 kidly-app이 마지막으로 적용한 상품 마이그레이션 버전이고, 고정한다(baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다).
+    # 두 앱이 함께 도는 동안 더하는 상품 마이그레이션은 두 앱이 각자 적용하므로 두 번 적용돼도 안전하게(IF NOT EXISTS · IF EXISTS) 쓴다
     baseline-on-migrate: true
     baseline-version: 202610292246
     # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다

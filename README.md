@@ -51,7 +51,7 @@
 | `apps/recommend-service` | 추천 서비스(#704). 추천 도메인은 이 서비스에만 있다 |
 | `apps/payment-service` | 결제 서비스(#525). 결제 도메인은 이 서비스에만 있다. 결제 마이그레이션은 서비스 `baseline-version`(`202611021930`, 고정)보다 뒤 버전으로 더한다 |
 | `apps/settlement-service` | 정산 서비스. 앱도 아직 정산 도메인을 가지고 같은 구독 그룹(`kidly.settlement`)으로 함께 돈다(#729). 자동 정산은 Batch JobInstance, 아웃박스 릴레이는 advisory lock으로 한 번만 돈다. 그동안(다음 PR에서 앱의 정산을 빼기 전) 정산 마이그레이션은 앱과 서비스가 각자 적용하므로, 더해야 하면 두 번 적용돼도 안전하게(`IF NOT EXISTS`) 쓴다. 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다. 서비스에는 주문 · 결제가 없어 정산 Kafka 수신 스위치(`SETTLEMENT_KAFKA_CONSUMER_ENABLED`)를 끄면 이벤트를 받지 못한다 |
-| `apps/product-service` | 상품 서비스(#791). 앱도 아직 상품 도메인을 가지고 같은 구독 그룹으로 함께 돈다. 그동안 상품 마이그레이션을 더하면 서비스 baseline-version을 올린다 |
+| `apps/product-service` | 상품 서비스(#791). 앱도 아직 상품 도메인을 가지고 같은 구독 그룹(`kidly.product`)으로 함께 돈다. 상품 아웃박스 릴레이에는 잠금이 없어 그동안 상품 이벤트는 앱만 Kafka로 보내고, 서비스는 아웃박스에 저장만 한다(같은 표라 앱이 보낸다). 상품 Kafka 수신 스위치(`PRODUCT_KAFKA_CONSUMER_ENABLED`)는 두 앱에서 함께 바꾼다. 그동안 상품 마이그레이션은 앱과 서비스가 각자 적용하므로, 더해야 하면 두 번 적용돼도 안전하게(`IF NOT EXISTS`) 쓴다. 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다 |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
