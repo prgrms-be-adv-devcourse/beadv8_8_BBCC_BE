@@ -124,9 +124,11 @@ curl -s localhost:31100/ready                                                   
 
 Slack 메시지 형식은 `grafana/provisioning/alerting/templates.yml` 에 있습니다. 제목은 알림 이름 · 환경, 본문은 규칙의 `summary` · `description` 입니다.
 
+"앱 다운"은 배포 중 일시적인 메트릭 수집 실패로 알리지 않도록 5분 대기합니다. 실제 장애도 그만큼 늦게 알립니다.
+
 ```
 🔴 앱 다운 · dev                        ← warning 은 🟠 주황, 그 밖은 빨강. 같은 그룹에 여러 건이면 끝에 (N건)
-kidly 메트릭을 2분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile, 추천 서비스면 kidly-recommend
+kidly 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile, 추천 서비스면 kidly-recommend
 규칙 보기 · 일시정지
 
 🟠 ERROR 로그 · dev
