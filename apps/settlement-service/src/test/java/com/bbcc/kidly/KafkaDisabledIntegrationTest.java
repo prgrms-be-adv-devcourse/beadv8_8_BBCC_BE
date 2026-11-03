@@ -13,7 +13,7 @@ import org.springframework.context.ApplicationContext;
 
 /**
  * Kafka가 필요 없는 통합 테스트는 Kafka 없이 돈다(회의 10-29 안건 3).
- * Kafka 컨테이너는 @KafkaIntegrationTest에서만 뜨고, Kafka로 보내는 스케줄러는 만들지 않으며(kidly.kafka.producer.enabled),
+ * Kafka 컨테이너를 띄우지 않고, Kafka로 보내는 스케줄러는 만들지 않으며(kidly.kafka.producer.enabled),
  * 구매확정 · 지급 결과는 Kafka 대신 Spring 이벤트로 받는다(kidly.settlement.kafka.consumer.enabled).
  */
 @IntegrationTest

@@ -86,7 +86,7 @@ spring:
             - id: settlement
               uri: ${kidly.gateway.settlement-uri}
               predicates:
-                - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements,/api/v1/seller/settlements/**,/api/v1/admin/settlements,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**
+                - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**
             # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}

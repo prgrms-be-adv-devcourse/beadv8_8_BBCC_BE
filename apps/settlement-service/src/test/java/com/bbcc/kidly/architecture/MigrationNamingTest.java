@@ -15,7 +15,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 /**
  * Flyway 마이그레이션 파일 이름 규칙. 버전은 파일을 만든 시각(yyyyMMddHHmm, KST)이라 PR끼리 번호가 겹치지 않는다.
- * 콜백(beforeValidate 등)은 버전이 없는 SQL이라 따로 허용한다. kidly-app MigrationNamingTest와 같은 규칙이다(kidly-app에는 정산 jar가 없다).
+ * 콜백(beforeValidate 등)은 버전이 없는 SQL이라 따로 허용한다. kidly-app MigrationNamingTest와 같은 규칙이다.
  */
 class MigrationNamingTest {
 
@@ -44,7 +44,7 @@ class MigrationNamingTest {
         assertThat(versions).doesNotHaveDuplicates().isNotEmpty();
     }
 
-    // 정산 도메인 jar의 db/migration/settlement/를 본다 (classpath*: 모든 jar, **: 하위 폴더)
+    // 이 서비스의 db/migration과 정산 도메인 jar의 db/migration/settlement/를 본다 (classpath*: 모든 jar, **: 하위 폴더)
     private static List<String> migrationFileNames() throws IOException {
         Resource[] resources = new PathMatchingResourcePatternResolver()
             .getResources("classpath*:db/migration/**/*.sql");
