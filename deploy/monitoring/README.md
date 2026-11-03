@@ -165,7 +165,7 @@ t3.large 의 Alloy 가 이 폴더를 읽어(`discovery.file`) 대상을 바꾸�
 Gateway 가 켜진 환경(dev · prod)도 같은 식으로 `targets/gateway/<환경>.yml` 에 `127.0.0.1:<GATEWAY_PORT>` 를 써 두고, job 은 `kidly-gateway` 입니다. 모든 요청이 지나가므로 "앱 다운" · "ERROR 로그" 알림은 Gateway 도 봅니다. "5xx 증가" 와 "수집 끊김" 은 앱(job `kidly`)만 봅니다(Gateway 는 앱의 5xx 를 그대로 넘겨 두 번 세게 되고, Alloy 가 끊기면 앱도 함께 끊긴다).
 자녀 프로필 서비스가 켜진 환경(dev · prod)은 `targets/childprofile/<환경>.yml` 에 `127.0.0.1:<CHILDPROFILE_PORT>` 를 써 두고, job 은 `kidly-childprofile` 입니다. 자녀 API 는 이 서비스에만 있어 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 봅니다. "5xx 증가" 는 앱과 이 서비스의 요청을 합쳐 봅니다(자녀 API 가 앱에 있던 때와 같은 범위). "수집 끊김" 은 앱(job `kidly`)만 봅니다.
 추천 서비스가 켜진 환경(dev · prod)은 `targets/recommend/<환경>.yml` 에 `127.0.0.1:<RECOMMEND_PORT>` 를 써 두고, job 은 `kidly-recommend` 입니다. 추천 API 는 이 서비스에만 있어 자녀 프로필 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다.
-정산 서비스가 켜진 환경(지금은 없음)은 `targets/settlement/<환경>.yml` 에 `127.0.0.1:<SETTLEMENT_PORT>` 를 써 두고, job 은 `kidly-settlement` 입니다. 앱도 아직 정산 API 를 가지고 있어 검색 서비스처럼 앱 알림은 보지 않습니다.
+정산 서비스가 켜진 환경(지금은 dev)은 `targets/settlement/<환경>.yml` 에 `127.0.0.1:<SETTLEMENT_PORT>` 를 써 두고, job 은 `kidly-settlement` 입니다. 앱도 아직 정산 API 를 가지고 있어 검색 서비스처럼 앱 알림은 보지 않습니다.
 로그는 Alloy 가 앱 · 검색 서비스 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 정산 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 medium 의 Pod 로그는 `namespace` · `pod` · `container` · `service_name`(컨테이너 이름) 라벨로 들어갑니다(`env` 없음).
 
