@@ -1,6 +1,7 @@
 package com.bbcc.kidly.global.config;
 
 import com.bbcc.kidly.global.security.LoginAdmin;
+import com.bbcc.kidly.global.security.LoginChild;
 import com.bbcc.kidly.global.security.LoginMember;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -18,7 +19,7 @@ public class SwaggerConfig {
 
     // @LoginMember AuthMember는 Gateway 헤더로 만드는 값이라 요청 파라미터가 아니다. 문서에서 뺀다
     static {
-        SpringDocUtils.getConfig().addAnnotationsToIgnore(LoginMember.class, LoginAdmin.class);
+        SpringDocUtils.getConfig().addAnnotationsToIgnore(LoginMember.class, LoginAdmin.class, LoginChild.class);
     }
 
     @Bean
