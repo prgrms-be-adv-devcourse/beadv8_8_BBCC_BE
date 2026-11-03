@@ -226,7 +226,8 @@
 - 로컬 `bootRun`은 `docker compose up -d`로 Kafka를 함께 띄운다. 없으면 메시지가 아웃박스에 쌓이고 릴레이가 주기마다 WARN을 남긴다. Kafka를 띄우면 쌓인 것부터 순서대로 보낸다
 
 ## 결제 서비스 (`apps/payment-service`, #525)
-- 결제 도메인만 띄우는 서비스다. 지금은 더하기만 했고, `kidly-app`도 결제 도메인을 그대로 가지고 같은 DB · 같은 구독 그룹(`kidly.payment`)으로 함께 돈다. Gateway 라우트 · 배포 · `kidly-app`에서 빼기는 다음 PR에서 한다
+- 결제 도메인만 띄우는 서비스다. `kidly-app`도 결제 도메인을 그대로 가지고 같은 DB · 같은 구독 그룹(`kidly.payment`)으로 함께 돈다. `kidly-app`에서 빼기는 다음 PR에서 한다
+- Gateway는 결제 API를 `KIDLY_PAYMENT_URI`로 보낸다(기본값은 `kidly-app`). 배포는 compose profile `payment`(힙 192m · 상한 512m)이고 지금은 dev만 켰다(`deploy/.env.dev`). 토스 키 · 암호화 키 · Kafka 수신 스위치는 `kidly-app`과 같은 값을 받는다
 - 함께 도는 동안 지킬 것
   - 결제 마이그레이션(`db/migration/payment/`)을 더하면 서비스 `application.yml`의 `spring.flyway.baseline-version`을 그 파일 버전으로 올린다. 두 앱이 같은 파일을 각자 이력에 적용하려 하므로, `kidly-app`이 먼저 적용하고 서비스는 baseline으로 건너뛴다
   - 빈 DB에서는 `kidly-app`이 먼저 마이그레이션해야 한다. 서비스가 먼저 결제 테이블을 만들면 `kidly-app`의 init이 실패한다
