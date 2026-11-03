@@ -17,7 +17,7 @@
 5. `./gradlew :apps:member-service:bootRun` — 회원 서비스(8081). 회원 · 인증 · 판매자 API(로그인 포함)는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8081로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `MemberServiceApplication`
 6. `./gradlew :apps:childprofile-service:bootRun` — 자녀 프로필 서비스(8084). 자녀 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8084로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `ChildProfileServiceApplication`. 같은 이유로 `Kidly 앱 + Gateway`에는 넣지 않았다
 7. `./gradlew :apps:recommend-service:bootRun` — 추천 서비스(8086). 추천 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8086으로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `RecommendServiceApplication`
-8. (선택) `./gradlew :apps:payment-service:bootRun` — 결제 서비스(8087). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 결제 API를 받는다
+8. (선택) `./gradlew :apps:payment-service:bootRun` — 결제 서비스(8087). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 결제 API를 받는다. Gateway를 `KIDLY_PAYMENT_URI=http://localhost:8087`로 띄우면 결제 API가 이리로 간다
 9. (선택) `./gradlew :apps:settlement-service:bootRun` — 정산 서비스(8088). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 정산 API를 받는다. Gateway를 `KIDLY_SETTLEMENT_URI=http://localhost:8088`로 띄우면 정산 API가 이리로 간다
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
