@@ -59,7 +59,6 @@ groups:
         labels:
           severity: critical
         annotations:
-          __dashboardUid__: kidly-http
           summary: '{{ $labels.job }} 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)'
 
       # 서비스별 최근 5분 5xx 비율 > 5%이고 오류 추정 건수 >= 5인 상태가 2분 지속될 때 알린다. 초기 후보이며 dev 검증 후 조정한다
@@ -92,7 +91,6 @@ groups:
         labels:
           severity: warning
         annotations:
-          __dashboardUid__: kidly-http
           summary: '{{ $labels.job }} 최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
           logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\", service_name=\"%s\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_response_status_code >= 500","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env $labels.job | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
 
@@ -155,7 +153,6 @@ groups:
         labels:
           severity: warning
         annotations:
-          __dashboardUid__: kidly-http
           summary: '{{ $labels.job }} 최근 5분 ERROR 로그 {{ with $values.A }}{{ printf "%.0f" .Value }}{{ end }}건'
           logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\", service_name=\"%s\", level=\"ERROR\"}","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env $labels.job | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
 
@@ -187,5 +184,4 @@ groups:
         labels:
           severity: critical
         annotations:
-          __dashboardUid__: kidly-http
           summary: '앱 메트릭이 3분 넘게 하나도 들어오지 않습니다 (t3.large 다운 · Alloy 중단 · 서버 간 연결 끊김)'
