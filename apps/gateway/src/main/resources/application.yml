@@ -97,6 +97,8 @@ spring:
               uri: ${kidly.gateway.member-uri}
               predicates:
                 - Path=/v3/api-docs/member
+              filters:
+                - SetPath=/v3/api-docs
             # 정산 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
             - id: settlement-api-docs
               uri: ${kidly.gateway.settlement-uri}
