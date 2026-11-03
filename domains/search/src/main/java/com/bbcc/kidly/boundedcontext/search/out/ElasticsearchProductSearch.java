@@ -101,10 +101,7 @@ public class ElasticsearchProductSearch implements ProductSearch {
             filters.add(Query.of(query -> query.term(term -> term.field("categoryId").value(condition.categoryId()))));
         }
         if (condition.keyword() != null && !condition.keyword().isBlank()) {
-            // 상품명과 같은 nori로 검색어를 형태소로 나누고, 모든 형태소가 상품명에 있어야 맞는다.
-            // 띄어쓰기 · 조사 · 어순이 달라도 찾고(원피스 여아용 → 여아 원피스), 형태소 하나만 맞는 상품까지 넓히지 않는다
-            filters.add(Query.of(query -> query.match(match -> match
-                .field("name").query(condition.keyword().strip()).operator(Operator.And))));
+            filters.add(keywordFilter(condition.keyword().strip()));
         }
         for (Map.Entry<String, List<Long>> entry : condition.attributeValueIds().entrySet()) {
             List<Long> valueIds = entry.getValue();
@@ -119,6 +116,29 @@ public class ElasticsearchProductSearch implements ProductSearch {
                 .field("attributeValues").terms(field -> field.value(values)))));
         }
         return filters;
+    }
+
+    // 검색어는 상품명이나 브랜드에서 찾는다. 둘 중 하나만 맞으면 된다.
+    // 1) 상품명: 검색어 전체를 nori 형태소로 나눠 모든 형태소가 상품명에 있어야 맞는다. 띄어쓰기 · 조사 · 어순이 달라도 찾고
+    //    (원피스 여아용 → 여아 원피스), 형태소 하나만 맞는 상품까지 넓히지 않는다
+    // 2) 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(단어 그대로) 중 한 곳에 있어야 맞는다(키들리 원피스).
+    //    브랜드는 고유명사라 nori가 앞뒤 글자에 따라 다르게 나누므로(키들리 → 키 · 들리, 키들리 원피스 → 키 · 리 · 원피스)
+    //    형태소로 나누지 않고 단어로 맞춘다. 그래서 브랜드는 단어를 다 써야 찾는다(꼬마 → 꼬마숲은 못 찾음)
+    // filter라 점수를 계산하지 않으므로 필드 가중치는 두지 않는다
+    private static Query keywordFilter(String keyword) {
+        List<Query> words = new ArrayList<>();
+        for (String word : keyword.split("\\s+")) {
+            words.add(Query.of(query -> query.bool(bool -> bool
+                .should(matchAll("name", word), matchAll("brand", word))
+                .minimumShouldMatch("1"))));
+        }
+        return Query.of(query -> query.bool(bool -> bool
+            .should(matchAll("name", keyword), Query.of(byWord -> byWord.bool(all -> all.filter(words))))
+            .minimumShouldMatch("1")));
+    }
+
+    private static Query matchAll(String field, String text) {
+        return Query.of(query -> query.match(match -> match.field(field).query(text).operator(Operator.And)));
     }
 
     // 정렬 값이 같으면 상품 ID가 큰 상품이 먼저 온다(같은 조건이면 페이지를 넘겨도 순서가 같다)

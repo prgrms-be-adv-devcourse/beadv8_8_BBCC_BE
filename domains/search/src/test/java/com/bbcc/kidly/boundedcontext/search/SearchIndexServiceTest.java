@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.search.app.SearchIndexService;
@@ -73,6 +74,23 @@ class SearchIndexServiceTest {
             .containsExactly(1L, 7L, "여아 원피스", 3L, ProductStatus.ON_SALE, "https://cdn.kidly.test/a-thumb.jpg",
                 PRODUCT_CREATED_AT, false, 25_000L, false, OCCURRED_AT);
         assertThat(saved.getAttributes()).isEqualTo(Map.of("COLOR", List.of(3L, 5L)));
+    }
+
+    @Test
+    @DisplayName("상품 정보 변경됨의 브랜드를 검색 문서에 옮긴다. 브랜드 칸이 없는 예전 메시지면 null이다")
+    void copiesBrand() {
+        ProductChangedEvent withBrand = new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+            new ProductChangedEvent.Data(1L, 7L, "여아 원피스", 3L, ProductStatus.ON_SALE, null, PRODUCT_CREATED_AT,
+                false, List.of(option(25_000L, false)), List.of(), "키들리", "봄에 입기 좋은 원피스", List.of()));
+        ProductChangedEvent withoutBrand = new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+            new ProductChangedEvent.Data(2L, 7L, "남아 셔츠", 4L, ProductStatus.ON_SALE, null, PRODUCT_CREATED_AT,
+                false, List.of(option(9_000L, false)), List.of()));
+
+        searchIndexService.applyProductChanged(withBrand);
+        searchIndexService.applyProductChanged(withoutBrand);
+
+        verify(productRepository, times(2)).saveIfNewer(productCaptor.capture());
+        assertThat(productCaptor.getAllValues()).extracting(SearchProduct::getBrand).containsExactly("키들리", null);
     }
 
     @Test

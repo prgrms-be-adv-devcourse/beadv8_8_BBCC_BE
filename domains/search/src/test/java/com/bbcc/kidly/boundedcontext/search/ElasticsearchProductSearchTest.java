@@ -93,7 +93,7 @@ class ElasticsearchProductSearchTest {
     }
 
     @Test
-    @DisplayName("카테고리 · 검색어로 거른다. 검색어는 상품명을 형태소로 나눠 모든 형태소가 맞아야 한다")
+    @DisplayName("카테고리 · 검색어로 거른다. 검색어는 형태소로 나눠 모든 형태소가 상품명이나 브랜드에 맞아야 한다")
     void categoryAndKeyword() throws IOException {
         givenProducts(0);
 
@@ -104,10 +104,19 @@ class ElasticsearchProductSearchTest {
             assertThat(filter.term().field()).isEqualTo("categoryId");
             assertThat(filter.term().value().longValue()).isEqualTo(3L);
         });
-        assertThat(filters).filteredOn(Query::isMatch).singleElement().satisfies(filter -> {
-            assertThat(filter.match().field()).isEqualTo("name");
-            assertThat(filter.match().query().stringValue()).isEqualTo("원피스 여아용");
-            assertThat(filter.match().operator()).isEqualTo(Operator.And);
+        assertThat(filters).filteredOn(Query::isBool).singleElement().satisfies(filter -> {
+            List<Query> either = filter.bool().should();
+            assertThat(filter.bool().minimumShouldMatch()).isEqualTo("1");
+            assertThat(either).hasSize(2);
+            assertMatchAll(either.get(0), "name", "원피스 여아용");
+            List<Query> words = either.get(1).bool().filter();
+            assertThat(words).hasSize(2);
+            assertThat(words.get(0).bool().should()).satisfiesExactly(
+                name -> assertMatchAll(name, "name", "원피스"),
+                brand -> assertMatchAll(brand, "brand", "원피스"));
+            assertThat(words.get(1).bool().should()).satisfiesExactly(
+                name -> assertMatchAll(name, "name", "여아용"),
+                brand -> assertMatchAll(brand, "brand", "여아용"));
         });
     }
 
@@ -118,7 +127,7 @@ class ElasticsearchProductSearchTest {
 
         productSearch.search(condition(null, "  ", Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20));
 
-        assertThat(filters(capturedSearch())).noneMatch(Query::isMatch);
+        assertThat(filters(capturedSearch())).noneMatch(Query::isBool);
     }
 
     @Test
@@ -347,6 +356,12 @@ class ElasticsearchProductSearchTest {
         return request.query().bool().filter();
     }
 
+    private static void assertMatchAll(Query query, String field, String text) {
+        assertThat(query.match().field()).isEqualTo(field);
+        assertThat(query.match().query().stringValue()).isEqualTo(text);
+        assertThat(query.match().operator()).isEqualTo(Operator.And);
+    }
+
     private static List<String> sortKeys(List<SortOptions> sorts) {
         return sorts.stream()
             .map(sort -> sort.field().field() + " " + (sort.field().order() == SortOrder.Asc ? "asc" : "desc"))
@@ -355,7 +370,7 @@ class ElasticsearchProductSearchTest {
 
     private static ProductDocument product(Long productId, Long sellerId) {
         return new ProductDocument(productId, "상품 " + productId, "https://cdn.kidly.test/" + productId + ".jpg",
-            sellerId, 3L, "ON_SALE", true, "2026-10-01T09:00:00", 15_000L, false, List.of(),
+            null, sellerId, 3L, "ON_SALE", true, "2026-10-01T09:00:00", 15_000L, false, List.of(),
             "2026-10-15T10:00:00");
     }
 
