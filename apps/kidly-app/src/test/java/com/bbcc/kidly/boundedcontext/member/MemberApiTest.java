@@ -236,7 +236,7 @@ class MemberApiTest {
     void withdrawAdmin() {
         var member = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
 
-        deleteMine(TestMembers.admin(member.getId()))
+        deleteMine(TestMembers.buyer(member.getId()))
             .expectStatus().isEqualTo(HttpStatus.CONFLICT)
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody().jsonPath("$.title").isEqualTo("탈퇴할 수 없는 회원입니다");

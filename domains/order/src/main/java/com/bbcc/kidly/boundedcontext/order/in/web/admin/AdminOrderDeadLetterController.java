@@ -5,8 +5,8 @@ import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.CloseDeadLetterReque
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderDeadLetterResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderDeadLetterSummaryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 주문 DLT 메시지 API(#601). /api/v1/admin/** 라 ADMIN만 호출할 수 있다(공용 보안 설정).
+ * 관리자 주문 DLT 메시지 API(#601). /api/v1/admin/** 라 관리자 주체만 호출할 수 있다(Gateway 검사).
  * 재시도해도 계속 실패해 DLT로 간 메시지를 보고, 재처리하거나 확인 후 종료한다.
  */
 @RestController
@@ -59,7 +59,7 @@ public class AdminOrderDeadLetterController {
      * 재처리 횟수 · 실패 이유를 남겨 모두 200. OPEN이 아니면 409, 다른 재처리가 처리 중이면 409.
      */
     @PostMapping("/{deadLetterId}/reprocess")
-    public OrderDeadLetterResponse reprocess(@PathVariable Long deadLetterId, @LoginMember AuthMember admin) {
+    public OrderDeadLetterResponse reprocess(@PathVariable Long deadLetterId, @LoginAdmin AuthAdmin admin) {
         return OrderDeadLetterResponse.from(deadLetterService.reprocess(deadLetterId, admin.id()));
     }
 
@@ -67,7 +67,7 @@ public class AdminOrderDeadLetterController {
      * 확인 후 종료한다(처리하지 않음, 메모 필수). 이미 종료됐으면 그대로 200, 재처리됐으면 409.
      */
     @PostMapping("/{deadLetterId}/close")
-    public OrderDeadLetterResponse close(@PathVariable Long deadLetterId, @LoginMember AuthMember admin,
+    public OrderDeadLetterResponse close(@PathVariable Long deadLetterId, @LoginAdmin AuthAdmin admin,
         @Valid @RequestBody CloseDeadLetterRequest request) {
         return OrderDeadLetterResponse.from(deadLetterService.close(deadLetterId, admin.id(), request.memo()));
     }

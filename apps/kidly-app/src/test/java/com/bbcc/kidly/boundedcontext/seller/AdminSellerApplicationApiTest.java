@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.seller.domain.SellerPolicy;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationSummaryResponse;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationResponse;
 import com.bbcc.kidly.global.response.PageResponse;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -73,7 +74,7 @@ class AdminSellerApplicationApiTest {
     @DisplayName("모르는 status는 400이다")
     void listInvalidStatus() {
         client.get().uri(PATH + "?status=FOO")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -200,7 +201,7 @@ class AdminSellerApplicationApiTest {
 
     private PageResponse<SellerApplicationSummaryResponse> list(String query) {
         return client.get().uri(PATH + query)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(new ParameterizedTypeReference<PageResponse<SellerApplicationSummaryResponse>>() { })
@@ -210,13 +211,13 @@ class AdminSellerApplicationApiTest {
 
     private RestTestClient.ResponseSpec approve(Long applicationId) {
         return client.post().uri(PATH + "/{id}/approve", applicationId)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec reject(Long applicationId, String reason) {
         return client.post().uri(PATH + "/{id}/reject", applicationId)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(new SellerApplicationRejectRequest(reason))
             .exchange();

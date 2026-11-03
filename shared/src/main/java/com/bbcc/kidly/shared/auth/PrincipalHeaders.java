@@ -3,6 +3,7 @@ package com.bbcc.kidly.shared.auth;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Gateway가 토큰에서 만들어 서비스로 넘기는 주체 헤더. 서비스는 이 헤더를 그대로 믿는다.
@@ -23,6 +24,26 @@ public final class PrincipalHeaders {
             case MEMBER -> List.of(MemberHeaders.MEMBER_ID, MemberHeaders.MEMBER_ROLES, MemberHeaders.MEMBER_NICKNAME);
             case ADMIN -> List.of(ADMIN_ID);
         };
+    }
+
+    public static String idHeader(PrincipalType type) {
+        return switch (type) {
+            case MEMBER -> MemberHeaders.MEMBER_ID;
+            case ADMIN -> ADMIN_ID;
+        };
+    }
+
+    // 없거나, 0-9로만 된 Long 범위의 수가 아니면(부호 · 공백 포함) 빈 값이다
+    public static Optional<Long> parseId(String value) {
+        if (value == null || value.isEmpty() || !value.chars().allMatch(c -> c >= '0' && c <= '9')) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Long.parseLong(value));
+        } catch (NumberFormatException e) {
+            // Long 범위를 넘는다
+            return Optional.empty();
+        }
     }
 
     public static boolean isPrincipalHeader(String name) {

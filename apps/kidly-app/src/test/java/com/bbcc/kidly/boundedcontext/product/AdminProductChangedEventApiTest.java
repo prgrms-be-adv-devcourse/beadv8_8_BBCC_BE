@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -68,7 +69,7 @@ class AdminProductChangedEventApiTest {
         register(PENDING_SELLER_ID);
         eventRecorder.clear();
 
-        republish(TestMembers.admin(ADMIN_ID))
+        republish(TestAdmins.of(ADMIN_ID))
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.publishedCount").isEqualTo(2);
@@ -86,7 +87,7 @@ class AdminProductChangedEventApiTest {
         ProductChangedEvent first = eventRecorder.events(ProductChangedEvent.class).getFirst();
         eventRecorder.clear();
 
-        republish(TestMembers.admin(ADMIN_ID)).expectStatus().isOk();
+        republish(TestAdmins.of(ADMIN_ID)).expectStatus().isOk();
 
         // 아웃박스는 같은 eventId를 한 번만 보내고, 받는 쪽은 저장된 occurredAt보다 늦은 이벤트만 반영한다
         assertThat(eventRecorder.events(ProductChangedEvent.class))
@@ -106,7 +107,7 @@ class AdminProductChangedEventApiTest {
         changeSaleStatus(STOPPED_SELLER_ID, secondProductId, "ON_SALE");
         eventRecorder.clear();
 
-        republish(TestMembers.admin(ADMIN_ID)).expectStatus().isOk();
+        republish(TestAdmins.of(ADMIN_ID)).expectStatus().isOk();
 
         // 판매 시작 때 남은 줄은 빼고, 다시 보낸 이벤트의 줄만 본다
         List<UUID> republishedEventIds = eventRecorder.events(ProductChangedEvent.class).stream()

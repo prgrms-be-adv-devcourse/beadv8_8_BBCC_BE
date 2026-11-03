@@ -6,7 +6,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -56,7 +56,7 @@ class AdminOrderOutboxApiTest {
         Long id = quarantined();
         UUID eventId = repository.findStatus(id).orElseThrow().getEventId();
         for (int i = 0; i < 2; i++) {
-            client.post().uri(PATH + "/" + id + "/retry").headers(TestMembers.admin(99L))
+            client.post().uri(PATH + "/" + id + "/retry").headers(TestAdmins.of(99L))
                 .exchange().expectStatus().isOk().expectBody()
                 .jsonPath("$.status").isEqualTo("PENDING")
                 .jsonPath("$.eventId").isEqualTo(eventId.toString())
@@ -75,11 +75,11 @@ class AdminOrderOutboxApiTest {
     void validatesRetry() {
         Long id = quarantined();
         client.post().uri(PATH + "/" + id + "/retry").exchange().expectStatus().isUnauthorized();
-        client.post().uri(PATH + "/9223372036854775807/retry").headers(TestMembers.admin(99L))
+        client.post().uri(PATH + "/9223372036854775807/retry").headers(TestAdmins.of(99L))
             .exchange().expectStatus().isNotFound();
         transactions.executeWithoutResult(s -> repository.retryQuarantined(id, 99L, LocalDateTime.now()));
         jdbc.update("update orders.order_outbox set sent_at = now() where id = ?", id);
-        client.post().uri(PATH + "/" + id + "/retry").headers(TestMembers.admin(99L))
+        client.post().uri(PATH + "/" + id + "/retry").headers(TestAdmins.of(99L))
             .exchange().expectStatus().isEqualTo(409);
     }
 

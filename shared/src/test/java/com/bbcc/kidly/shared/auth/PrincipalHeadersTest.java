@@ -17,4 +17,9 @@ class PrincipalHeadersTest {
         assertThat(PrincipalHeaders.isPrincipalHeader("X-MEMBER-Foo")).isTrue();
         assertThat(PrincipalHeaders.isPrincipalHeader("Authorization")).isFalse();
     }
+    @Test
+    void idHeadersMatchPrincipalTypes() {
+        assertThat(PrincipalHeaders.idHeader(PrincipalType.MEMBER)).isEqualTo(MemberHeaders.MEMBER_ID);
+        assertThat(PrincipalHeaders.idHeader(PrincipalType.ADMIN)).isEqualTo(PrincipalHeaders.ADMIN_ID);
+    }
 }

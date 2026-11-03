@@ -137,15 +137,6 @@ public class Member extends BaseTimeEntity {
         this.role = MemberRole.ADMIN;
     }
 
-    // 관리자만 해제한다. 본인은 해제할 수 없게 해 관리자가 모두 사라지는 일을 막는다
-    // 바로 반영되도록 호출한 서비스가 Access Token을 무효화한다
-    public void revokeAdmin(Long adminId) {
-        if (!isAdmin() || adminId.equals(id)) {
-            throw new BusinessException(MemberErrorCode.ADMIN_NOT_REVOCABLE);
-        }
-        this.role = MemberRole.USER;
-    }
-
     // 판매자 상태 복사본을 갱신한다. 저장된 값보다 늦게 일어난 변경만 반영한다
     // SELLER 역할을 잃었으면(활성 판매자였다가 아니게 됐으면) true
     public boolean applySellerState(SellerStatus status, LocalDateTime occurredAt) {

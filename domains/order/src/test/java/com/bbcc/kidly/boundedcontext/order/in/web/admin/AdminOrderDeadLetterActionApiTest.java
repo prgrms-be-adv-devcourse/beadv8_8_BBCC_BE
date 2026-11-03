@@ -17,7 +17,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
@@ -98,7 +98,7 @@ class AdminOrderDeadLetterActionApiTest {
             + "ObjectOptimisticLockingFailureException");
 
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -171,7 +171,7 @@ class AdminOrderDeadLetterActionApiTest {
         try (CapturedLogs logs = CapturedLogs.start()) {
             client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
                 .headers(headers -> {
-                    TestMembers.admin(ADMIN_ID).accept(headers);
+                    TestAdmins.of(ADMIN_ID).accept(headers);
                     headers.set("X-Request-Id", requestId);
                 })
                 .exchange()
@@ -195,7 +195,7 @@ class AdminOrderDeadLetterActionApiTest {
         Long id = receive(2L, completed, "java.lang.IllegalStateException");
 
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -216,7 +216,7 @@ class AdminOrderDeadLetterActionApiTest {
 
         for (int attempt = 1; attempt <= 2; attempt++) {
             client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-                .headers(TestMembers.admin(ADMIN_ID))
+                .headers(TestAdmins.of(ADMIN_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -241,7 +241,7 @@ class AdminOrderDeadLetterActionApiTest {
         Long id = idAt(4L);
 
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -283,7 +283,7 @@ class AdminOrderDeadLetterActionApiTest {
 
         closeWith(id, memo).expectStatus().isBadRequest();
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/close")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of())
             .exchange()
@@ -329,13 +329,13 @@ class AdminOrderDeadLetterActionApiTest {
 
     private RestTestClient.ResponseSpec reprocess(Long id) {
         return client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec closeWith(Long id, String memo) {
         return client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/close")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("memo", memo))
             .exchange();
@@ -404,7 +404,7 @@ class AdminOrderDeadLetterActionApiTest {
 
     private List<String> idsOf(String query) {
         return client.get().uri(DEAD_LETTERS_PATH + query)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(Ids.class)

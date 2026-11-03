@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -47,7 +47,7 @@ class AdminSellerChangedEventApiTest {
         sellerRepository.save(suspended);
         eventRecorder.clear();
 
-        republish(TestMembers.admin(ADMIN_ID))
+        republish(TestAdmins.of(ADMIN_ID))
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.publishedCount").isEqualTo(2);

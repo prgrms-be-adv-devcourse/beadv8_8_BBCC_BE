@@ -183,8 +183,8 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     })
     @DisplayName("정산 API는 같은 메서드 · 경로 · 쿼리로 정산 서비스에 넘긴다")
     void routesSettlementsToSettlementService(String path) {
-        // 역할 검사는 RoleFilterIntegrationTest가 본다. 여기서는 라우팅만 보려고 ADMIN · SELLER 둘 다 가진 토큰을 쓴다
-        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerWithAllRoles()).exchange()
+        // 역할 검사는 RoleFilterIntegrationTest가 본다. 여기서는 라우팅만 보려고 경로가 요구하는 주체의 토큰을 쓴다
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
             .expectStatus().isOk();
 
         assertThat(settlementBackend.lastRequest()).hasValueSatisfying(request ->
@@ -198,16 +198,20 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     })
     @DisplayName("정산과 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
     void routesSettlementLookalikesToKidlyApp(String path) {
-        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerWithAllRoles()).exchange()
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
             .expectStatus().isOk();
 
         assertThat(backend.lastRequest()).isPresent();
         assertThat(settlementBackend.lastRequest()).isEmpty();
     }
 
-    private static String bearerWithAllRoles() {
+    private static String bearerAllowedOn(String path) {
         var now = Instant.now();
-        return "Bearer " + TestTokens.issue(7L, List.of("ADMIN", "SELLER"), now, now.plus(Duration.ofMinutes(30)));
+        var expiresAt = now.plus(Duration.ofMinutes(30));
+        var token = path.startsWith("/api/v1/admin/")
+            ? TestTokens.issueAdmin(7L, now, expiresAt)
+            : TestTokens.issue(7L, List.of("SELLER"), now, expiresAt);
+        return "Bearer " + token;
     }
 
     @Test
