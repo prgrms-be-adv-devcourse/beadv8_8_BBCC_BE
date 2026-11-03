@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.product.app.outbox.ProductOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxMessage;
 import com.bbcc.kidly.boundedcontext.product.domain.outbox.ProductOutboxRepository;
+import com.bbcc.kidly.boundedcontext.product.in.outbox.ProductOutboxScheduler;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
@@ -38,6 +39,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
@@ -74,6 +76,9 @@ class ProductOutboxRelayKafkaIntegrationTest {
     @Autowired
     private KafkaContainer kafka;
 
+    @Autowired
+    private ApplicationContext context;
+
     private KafkaConsumer<String, String> consumer;
     private final List<ConsumerRecord<String, String>> received = new ArrayList<>();
 
@@ -91,6 +96,12 @@ class ProductOutboxRelayKafkaIntegrationTest {
     @AfterEach
     void close() {
         consumer.close();
+    }
+
+    @Test
+    @DisplayName("kidly-app은 상품 아웃박스 릴레이를 돌린다(상품 서비스와 함께 도는 동안 릴레이는 kidly-app에서만 돈다)")
+    void relaySchedulerRegistered() {
+        assertThat(context.getBeansOfType(ProductOutboxScheduler.class)).hasSize(1);
     }
 
     @ParameterizedTest(name = "{0}")
