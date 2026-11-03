@@ -14,15 +14,16 @@ class SwaggerApiTest {
     private RestTestClient client;
 
     @Test
-    @DisplayName("API 문서에 @LoginMember AuthMember를 요청 파라미터로 넣지 않는다")
+    @DisplayName("API 문서에 @LoginMember AuthMember · @LoginAdmin AuthAdmin을 요청 파라미터로 넣지 않는다")
     void loginMemberIsNotRequestParameter() {
         client.get().uri("/v3/api-docs")
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.paths['/api/v1/members/me'].get.parameters").doesNotExist()
-            .jsonPath("$.paths['/api/v1/admin/members/{memberId}/revoke-admin'].post.parameters[*].name")
+            .jsonPath("$.paths['/api/v1/admin/members/{memberId}/suspend'].post.parameters[*].name")
             .isEqualTo(List.of("memberId"))
-            .jsonPath("$.paths..parameters[?(@.name == 'member')]").isEmpty();
+            .jsonPath("$.paths..parameters[?(@.name == 'member')]").isEmpty()
+            .jsonPath("$.paths..parameters[?(@.name == 'admin')]").isEmpty();
     }
 }

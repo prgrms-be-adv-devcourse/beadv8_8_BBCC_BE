@@ -5,8 +5,8 @@ import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.AdminMemberFilter;
 import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -43,20 +43,9 @@ public class AdminMemberController {
 
     @PostMapping("/{memberId}/suspend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void suspend(@LoginMember AuthMember admin, @PathVariable Long memberId,
+    public void suspend(@LoginAdmin AuthAdmin admin, @PathVariable Long memberId,
         @Valid @RequestBody MemberSuspendRequest request) {
         adminMemberService.suspend(memberId, admin.id(), request);
     }
 
-    @PostMapping("/{memberId}/grant-admin")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void grantAdmin(@PathVariable Long memberId) {
-        adminMemberService.grantAdmin(memberId);
-    }
-
-    @PostMapping("/{memberId}/revoke-admin")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void revokeAdmin(@LoginMember AuthMember admin, @PathVariable Long memberId) {
-        adminMemberService.revokeAdmin(memberId, admin.id());
-    }
 }
