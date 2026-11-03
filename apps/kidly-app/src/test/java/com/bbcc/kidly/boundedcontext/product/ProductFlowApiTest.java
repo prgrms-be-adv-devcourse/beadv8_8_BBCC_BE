@@ -23,8 +23,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * 판매자가 등록한 상품이 구매자의 상품 목록 · 상세까지 이어지는지 HTTP 요청만으로 확인한다.
  * 판매자 정보 변경됨 · 상품 정보 변경됨은 테스트가 발행하지 않는다. 판매자 승인 · 판매 시작 API가 발행하고,
  * 상품의 리스너가 실제로 받아 판매자 복사본 · 검색용 표를 만든다.
- * 추천은 이 이벤트들을 Kafka로 받으므로(Kafka가 없는 기능 테스트에서는 받지 않는다) 추천까지 이어지는지는
- * RecommendKafkaFromProducersIntegrationTest가 확인한다.
+ * 추천은 이 이벤트들을 Kafka로 받는 별도 서비스(recommend-service)라 이 테스트에서는 보지 않는다.
  * 상품 유형과 카테고리는 API가 없는 기준 데이터라서 매 테스트 전에 저장한다.
  */
 @FunctionalTest

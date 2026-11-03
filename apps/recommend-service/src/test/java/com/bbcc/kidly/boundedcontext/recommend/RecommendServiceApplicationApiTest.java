@@ -65,12 +65,13 @@ class RecommendServiceApplicationApiTest {
             .jsonPath("$.instance").isEqualTo("/api/v1/children");
     }
 
-    // 추천 마이그레이션을 더하고 baseline-version을 올리지 않으면, kidly-app이 이미 적용한 DB에서 다시 적용하려다 기동에 실패한다
+    // baseline-version은 kidly-app이 마지막으로 적용한 추천 마이그레이션 버전이다. 실제 파일 버전이 아니면
+    // kidly-app이 이미 적용한 DB에서 그 파일까지 건너뛰는 경계가 어긋난다
     @Value("${spring.flyway.baseline-version}")
     private String baselineVersion;
 
     @Test
-    @DisplayName("빈 DB에는 init부터 적용하고, 마지막 버전은 baseline-version이며, 테이블은 추천 스키마에만 만든다")
+    @DisplayName("빈 DB에는 init부터 적용하고, baseline-version은 적용한 마이그레이션 버전 중 하나이며, 테이블은 추천 스키마에만 만든다")
     void migratesOnlyRecommendSchema() {
         var schemas = jdbcTemplate.queryForList("""
             SELECT DISTINCT schemaname FROM pg_tables
@@ -84,7 +85,7 @@ class RecommendServiceApplicationApiTest {
 
         assertThat(schemas).containsExactly("recommend");
         assertThat(versions.getFirst()).isEqualTo("202610160256");
-        assertThat(versions.getLast()).isEqualTo(baselineVersion);
+        assertThat(versions).contains(baselineVersion);
     }
 
     @Test
