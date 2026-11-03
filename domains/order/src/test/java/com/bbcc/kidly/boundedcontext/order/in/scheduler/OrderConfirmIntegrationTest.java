@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -40,6 +41,9 @@ class OrderConfirmIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private OrderDeliveredAtSetter deliveredAtSetter;
@@ -133,6 +137,6 @@ class OrderConfirmIntegrationTest {
     }
 
     private OrderDetail.Item itemOf(OrderDetail order) {
-        return orderService.getOrder(BUYER_ID, order.orderId()).items().get(0);
+        return orderQueries.getOrder(BUYER_ID, order.orderId()).items().get(0);
     }
 }

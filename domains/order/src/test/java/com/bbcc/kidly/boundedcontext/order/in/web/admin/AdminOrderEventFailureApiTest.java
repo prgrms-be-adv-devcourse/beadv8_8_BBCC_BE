@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -53,6 +54,9 @@ class AdminOrderEventFailureApiTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -179,7 +183,7 @@ class AdminOrderEventFailureApiTest {
         post(failureId, "retry").expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("RECOVERED");
         post(failureId, "retry").expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("RECOVERED");
 
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).cancelReason()).isEqualTo("OUT_OF_STOCK");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).cancelReason()).isEqualTo("OUT_OF_STOCK");
     }
 
     @Test
@@ -196,7 +200,7 @@ class AdminOrderEventFailureApiTest {
             .expectBody()
             .jsonPath("$.title").isEqualTo("이미 종료된 기록입니다");
 
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
     }
 
     @Test

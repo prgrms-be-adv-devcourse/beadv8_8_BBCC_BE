@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -85,6 +86,9 @@ class OrderEventFailureIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -225,7 +229,7 @@ class OrderEventFailureIntegrationTest {
         Order stored = orderRepository.findById(order.orderId()).orElseThrow();
         assertThat(stored.getStatus()).isEqualTo(Order.Status.CANCELLED);
         assertThat(stored.getCancelReason()).isEqualTo(Order.CancelReason.OUT_OF_STOCK);
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).items().get(0).unavailableReason())
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).items().get(0).unavailableReason())
             .isEqualTo("OUT_OF_STOCK");
         assertThat(cancelledEventsOf(order.orderId())).isEqualTo(1);
         assertThat(adminHistoryCount(order.orderId())).isEqualTo(1);
@@ -281,7 +285,7 @@ class OrderEventFailureIntegrationTest {
         Order stored = orderRepository.findById(order.orderId()).orElseThrow();
         assertThat(stored.getStatus()).isEqualTo(Order.Status.CANCELLED);
         assertThat(stored.getCancelReason()).isEqualTo(Order.CancelReason.PAYMENT_EXPIRED);
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).items().get(0).unavailableReason()).isNull();
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).items().get(0).unavailableReason()).isNull();
         assertThat(cancelledEventsOf(order.orderId())).isEqualTo(1);
     }
 

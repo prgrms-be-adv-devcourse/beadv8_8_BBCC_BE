@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.OrderRows;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.OrderDeadLetterService;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.ReceiveDeadLetterCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -65,6 +66,9 @@ class AdminOrderDeadLetterActionApiTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderQueryService orderQueries;
+
+    @Autowired
     private OrderEventDelivery eventDelivery;
 
     @Autowired
@@ -112,7 +116,7 @@ class AdminOrderDeadLetterActionApiTest {
             .jsonPath("$.orderStatus").isEqualTo("PAID")
             .jsonPath("$.recommendedAction").value(value -> assertThat(value).isNull());
 
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PAID");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PAID");
         assertThat(orderRows.historyRows(order.orderId())).filteredOn(PAID::equals).hasSize(1);
         assertThat(deliveriesOf(order.orderId())).isEqualTo(1L);
         assertThat(openIds()).doesNotContain(String.valueOf(id));
@@ -135,7 +139,7 @@ class AdminOrderDeadLetterActionApiTest {
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
             Long.class, order.orderId())).as("결제 반영 실패 기록").isEqualTo(1L);
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
     }
 
     @Test
@@ -227,7 +231,7 @@ class AdminOrderDeadLetterActionApiTest {
                 .jsonPath("$.handledBy").value(value -> assertThat(value).isNull());
         }
 
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
         assertThat(openIds()).contains(String.valueOf(id));
         assertThat(jdbcTemplate.queryForObject("select last_reprocess_result from orders.order_dead_letter "
             + "where id = ?", String.class, id)).doesNotContain(BODY_MARKER);

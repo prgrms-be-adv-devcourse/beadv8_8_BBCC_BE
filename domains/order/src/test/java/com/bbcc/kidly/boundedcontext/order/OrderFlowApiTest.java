@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
@@ -81,6 +82,9 @@ class OrderFlowApiTest {
 
     @Autowired
     private OrderScheduler orderScheduler;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private OrderService orderService;
@@ -212,7 +216,7 @@ class OrderFlowApiTest {
             .map(OrderCreatedEvent.Item::orderItemId).toList();
 
         eventDelivery.deliver(stockDeducted(orderId));
-        eventDelivery.deliver(PaymentEvents.insufficientBalance(orderService.getOrder(BUYER_ID, orderId), BUYER_ID));
+        eventDelivery.deliver(PaymentEvents.insufficientBalance(orderQueries.getOrder(BUYER_ID, orderId), BUYER_ID));
 
         OrderBody order = detail(orderId);
         assertThat(order.status()).isEqualTo("CANCELLED");
@@ -396,7 +400,7 @@ class OrderFlowApiTest {
 
         assertThat(recorder.events(OrderPaymentRequestedEvent.class))
             .filteredOn(event -> event.data().orderId().equals(orderId)).hasSize(1);
-        PaymentCompletedEvent completed = PaymentEvents.completed(orderService.getOrder(BUYER_ID, orderId), BUYER_ID);
+        PaymentCompletedEvent completed = PaymentEvents.completed(orderQueries.getOrder(BUYER_ID, orderId), BUYER_ID);
 
         eventDelivery.deliver(completed);
         eventDelivery.deliver(completed);
@@ -580,7 +584,7 @@ class OrderFlowApiTest {
      * 결제 도메인이 결제 요청대로 결제한 것처럼 주문과 같은 결제 완료됨을 넣는다.
      */
     private void pay(Long orderId) {
-        eventDelivery.deliver(PaymentEvents.completed(orderService.getOrder(BUYER_ID, orderId), BUYER_ID));
+        eventDelivery.deliver(PaymentEvents.completed(orderQueries.getOrder(BUYER_ID, orderId), BUYER_ID));
     }
 
     private void expire(Long orderId) {

@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.web.admin;
 
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.AdminOrderSummaryResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderStatusHistoryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
@@ -24,7 +24,7 @@ public class AdminOrderController {
 
     public static final String ADMIN_ORDERS_PATH = "/api/v1/admin/orders";
 
-    private final OrderService orderService;
+    private final OrderQueryService orderQueries;
 
     /**
      * 모든 회원의 주문을 최근 주문부터. size는 1~100.
@@ -33,7 +33,7 @@ public class AdminOrderController {
     public PageResponse<AdminOrderSummaryResponse> getAllOrders(
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return PageResponse.from(orderService.getAllOrders(page, size).map(AdminOrderSummaryResponse::from));
+        return PageResponse.from(orderQueries.getAllOrders(page, size).map(AdminOrderSummaryResponse::from));
     }
 
     /**
@@ -41,6 +41,6 @@ public class AdminOrderController {
      */
     @GetMapping("/{orderId}/history")
     public List<OrderStatusHistoryResponse> getHistory(@PathVariable Long orderId) {
-        return orderService.getHistory(orderId).stream().map(OrderStatusHistoryResponse::from).toList();
+        return orderQueries.getHistory(orderId).stream().map(OrderStatusHistoryResponse::from).toList();
     }
 }

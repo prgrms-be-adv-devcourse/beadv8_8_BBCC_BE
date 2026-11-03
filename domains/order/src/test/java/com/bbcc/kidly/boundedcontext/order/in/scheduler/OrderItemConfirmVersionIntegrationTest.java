@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -41,6 +42,9 @@ class OrderItemConfirmVersionIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private OrderDeliveredAtSetter deliveredAtSetter;
@@ -86,7 +90,7 @@ class OrderItemConfirmVersionIntegrationTest {
             orderService.confirmAutomatically(order.orderId(), orderItemId);
         })).isInstanceOf(OptimisticLockingFailureException.class);
 
-        OrderDetail.Item item = orderService.getOrder(BUYER_ID, order.orderId()).items().stream()
+        OrderDetail.Item item = orderQueries.getOrder(BUYER_ID, order.orderId()).items().stream()
             .filter(candidate -> candidate.orderItemId().equals(orderItemId))
             .findFirst()
             .orElseThrow();

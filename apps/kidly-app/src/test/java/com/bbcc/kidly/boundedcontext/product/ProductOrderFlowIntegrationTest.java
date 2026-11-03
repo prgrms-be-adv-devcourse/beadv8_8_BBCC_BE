@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -33,6 +34,9 @@ class ProductOrderFlowIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -83,7 +87,7 @@ class ProductOrderFlowIntegrationTest {
 
         OrderDetail placed = place(navy110, 2);
 
-        OrderDetail order = orderService.getOrder(BUYER_ID, placed.orderId());
+        OrderDetail order = orderQueries.getOrder(BUYER_ID, placed.orderId());
         assertThat(inventoryDeductionDb.availableQty(navy110)).isEqualTo(1);
         assertThat(order.status()).isEqualTo("CANCELLED");
         assertThat(order.cancelReason()).isEqualTo("OUT_OF_STOCK");
