@@ -1,9 +1,14 @@
 package com.bbcc.kidly;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Properties;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.exception.FlywayValidateException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -15,43 +20,66 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * 회원 · 인증 · 판매자 마이그레이션을 회원 서비스로 옮긴 뒤에도, 옛 앱이 그 마이그레이션을 적용한 DB(dev · prod)에서 앱이 뜨는지 본다.
- * 옮긴 버전은 이 앱의 마지막 버전보다 낮으면 missing, 높으면 future로 남는다. 빈 DB로 도는 다른 테스트는 이 상태를 만들지 않는다.
+ * 회원 · 인증 마이그레이션을 회원 서비스로 옮긴 뒤에도, 옛 앱이 그 마이그레이션을 적용한 DB(dev)에서 앱이 뜨는지 본다.
+ * 빈 DB로 도는 다른 테스트는 옮긴 마이그레이션의 이력 행을 만들지 않는다.
  */
 @Tag("integration")
 class KidlyAppMigrationIntegrationTest {
 
-    // 회원 서비스로 옮긴 회원 아웃박스 · 회원 역할 삭제 버전. 앞은 이 앱의 마지막 버전보다 낮고 뒤는 높다
-    private static final String MOVED_LOWER_VERSION = "202610301129";
-    private static final String MOVED_HIGHER_VERSION = "202611031234";
+    // 회원 서비스로 옮긴 회원 아웃박스 · 관리자 계정 비활성 파일. 앞은 이 앱의 마지막 버전보다 낮고 뒤는 높다
+    private static final String MOVED_MEMBER_SCRIPT = "member/V202610301129__member_outbox.sql";
+    private static final String MOVED_AUTH_SCRIPT = "auth/V202611031204__admin_account_disable.sql";
 
-    @Test
-    @DisplayName("회원 서비스로 옮긴 마이그레이션의 이력이 남아 있어도 검증을 통과한다")
-    void ignoresMovedMemberMigrations() {
-        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
-            postgres.start();
-            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
-                postgres.getPassword());
-            appFlyway(dataSource).migrate();
-            var jdbc = new JdbcTemplate(dataSource);
-            insertHistory(jdbc, MOVED_LOWER_VERSION);
-            insertHistory(jdbc, MOVED_HIGHER_VERSION);
+    private PostgreSQLContainer postgres;
+    private DriverManagerDataSource dataSource;
+    private JdbcTemplate jdbc;
 
-            assertThatCode(() -> appFlyway(dataSource).migrate()).doesNotThrowAnyException();
-        }
+    @BeforeEach
+    void migrateEmptyDatabase() {
+        postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"));
+        postgres.start();
+        dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+            postgres.getPassword());
+        jdbc = new JdbcTemplate(dataSource);
+        appFlyway().migrate();
     }
 
-    private static void insertHistory(JdbcTemplate jdbc, String version) {
+    @AfterEach
+    void stopDatabase() {
+        postgres.stop();
+    }
+
+    @Test
+    @DisplayName("회원 서비스로 옮긴 마이그레이션의 이력 행은 지우고 검증을 통과한다")
+    void dropsMovedMemberHistory() {
+        insertHistory("202610301129", MOVED_MEMBER_SCRIPT);
+        insertHistory("202611031204", MOVED_AUTH_SCRIPT);
+
+        assertThatCode(() -> appFlyway().migrate()).doesNotThrowAnyException();
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM public.flyway_schema_history WHERE script IN (?, ?)",
+            Integer.class, MOVED_MEMBER_SCRIPT, MOVED_AUTH_SCRIPT)).isZero();
+    }
+
+    @Test
+    @DisplayName("이 앱이 적용한 마이그레이션 파일이 사라지면 검증에 실패한다")
+    void failsWhenOwnMigrationIsMissing() {
+        insertHistory("202610300000", "orders/V202610300000__removed.sql");
+
+        assertThatThrownBy(() -> appFlyway().migrate()).isInstanceOf(FlywayValidateException.class);
+    }
+
+    private void insertHistory(String version, String script) {
         jdbc.update("""
             INSERT INTO public.flyway_schema_history
                 (installed_rank, version, description, type, script, installed_by, execution_time, success)
-            SELECT max(installed_rank) + 1, ?, 'moved', 'SQL', 'member/moved.sql', 'kidly', 0, true
+            SELECT max(installed_rank) + 1, ?, 'moved', 'SQL', ?, 'kidly', 0, true
             FROM public.flyway_schema_history
-            """, version);
+            """, version, script);
     }
 
     // 앱 application.yml의 spring.flyway 값 그대로
-    private static Flyway appFlyway(DriverManagerDataSource dataSource) {
+    private Flyway appFlyway() {
         var config = appConfig();
         return Flyway.configure()
             .dataSource(dataSource)
@@ -61,7 +89,6 @@ class KidlyAppMigrationIntegrationTest {
             .baselineOnMigrate(Boolean.parseBoolean(config.getProperty("spring.flyway.baseline-on-migrate")))
             .baselineVersion(config.getProperty("spring.flyway.baseline-version"))
             .outOfOrder(Boolean.parseBoolean(config.getProperty("spring.flyway.out-of-order")))
-            .ignoreMigrationPatterns(config.getProperty("spring.flyway.ignore-migration-patterns").split(","))
             .load();
     }
 

@@ -22,11 +22,6 @@ spring:
     baseline-version: 202610160256
     # 버전이 파일을 만든 시각이라, 먼저 만든 PR이 나중에 머지되면 이미 적용된 것보다 옛 버전이 된다. 그래도 적용한다
     out-of-order: true
-    # 회원 · 인증 · 판매자 마이그레이션은 회원 서비스로 옮겨 이 앱의 클래스패스에 없다. 이미 적용한 이력 행은 지우지 않는다.
-    # 회원 서비스가 첫 기동 때 이 이력을 보고 baseline을 잡는다(MemberFlywayMigrationStrategy).
-    # 이 앱의 마지막 버전보다 높은 회원 버전은 future로 남는다. 값을 주면 Flyway 기본값(*:future)을 대신하므로 함께 적는다.
-    # 대가로 이 앱의 마이그레이션 파일을 잘못 지워도 검증이 잡지 못한다(KidlyAppMigrationIntegrationTest)
-    ignore-migration-patterns: "*:future,*:missing"
   jpa:
     open-in-view: false
     hibernate:
