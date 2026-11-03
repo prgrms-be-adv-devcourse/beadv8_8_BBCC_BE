@@ -4,6 +4,7 @@
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
 # 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(dev · prod)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
 # 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다. app 에는 추천 API 가 없어 추천 API 를 쓰는 환경은 모두 켜야 한다
+# 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경에서만 뜬다. 지금은 어느 환경에도 켜지 않았다(켜면 app 주석의 상한 합계에 더해진다)
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -38,7 +39,7 @@ services:
       retries: 12
       start_period: 60s
     # 한 서버에 dev · prod 가 같이 떠도 한 컨테이너가 메모리를 다 써서 다른 환경까지 OOM 으로 죽이지 않게 서비스마다 상한을 둔다
-    # 합계는 prod 3328MiB(app 1024 · postgres 512 · kafka 768 · gateway 512 · 자녀 512) + dev 4352MiB(여기에 검색 1024) = 7680MiB 로 호스트(t3.large 8GiB) 안이다. 남는 512MiB 를 OS · nginx · Alloy 가 쓴다
+    # 상한 합계는 prod 3776MiB(app 1024 · postgres 512 · kafka 768 · gateway 512 · 자녀 512 · 추천 448) + dev 5440MiB(여기에 검색 1024 · 정산 640) = 9216MiB 로 호스트(t3.large 8GiB)를 넘는다. 상한은 폭주를 막는 값이고 실사용 합은 켠 뒤 재서 정한다
     mem_limit: 1g
     restart: unless-stopped
     logging: *logging
@@ -204,6 +205,48 @@ services:
       start_period: 60s
     # 구성이 비슷한 자녀 프로필 서비스가 dev 에서 7일 최대 365MiB(힙 64MiB 안팎)를 썼다. 그보다 조금 넉넉하게 힙 128m · 상한 448m 으로 시작하고, 켠 뒤 재서 정한다
     mem_limit: 448m
+    restart: unless-stopped
+    logging: *logging
+
+  # 정산 서비스(apps/settlement-service, #729). 정산 API · 자동 정산(Spring Batch) · 결제 · 주문 이벤트 수신(구독 그룹 kidly.settlement), 정산 이벤트 발행(아웃박스)
+  # app 도 아직 정산 도메인을 가지고 같은 DB · 구독 그룹으로 함께 돈다. 자동 정산은 Batch JobInstance 로 한 번만 돌고, 아웃박스 릴레이는 advisory lock 으로 한 곳만 보낸다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 필요한 값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
+  settlement-service:
+    image: ${SETTLEMENT_IMAGE}
+    profiles: [settlement]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx256m
+      # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # 정산 영업일 판단용 공휴일 조회 키. 없으면 공휴일 조회가 실패해 자동 정산을 건너뛴다
+      HOLIDAY_API_SERVICE_KEY: ${HOLIDAY_API_SERVICE_KEY:-}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${SETTLEMENT_PORT:-8089}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    # app 이 정산 도메인을 가진 동안(#729)은 app 이 먼저 마이그레이션해야 한다. 서비스는 app 이 이미 적용한 마지막 정산 마이그레이션 버전으로 baseline 을 잡는다
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    # Spring Batch 포함. 측정 전이라 자녀 프로필 서비스 실측(최대 353MiB)을 기준으로 힙 256m · 상한 640m 으로 시작하고, 켠 뒤 재서 정한다
+    mem_limit: 640m
     restart: unless-stopped
     logging: *logging
 
