@@ -4,8 +4,8 @@ import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRejectRequest;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationSummaryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,13 +40,13 @@ public class AdminSellerApplicationController {
 
     // 승인된 행을 화면이 바로 갱신할 수 있게 그 행을 돌려준다
     @PostMapping("/{applicationId}/approve")
-    public SellerApplicationSummaryResponse approve(@LoginMember AuthMember admin, @PathVariable Long applicationId) {
+    public SellerApplicationSummaryResponse approve(@LoginAdmin AuthAdmin admin, @PathVariable Long applicationId) {
         return SellerApplicationSummaryResponse.from(sellerApplicationService.approve(applicationId, admin.id()));
     }
 
     // 승인과 같은 모양으로 거절된 행을 돌려준다
     @PostMapping("/{applicationId}/reject")
-    public SellerApplicationSummaryResponse reject(@LoginMember AuthMember admin, @PathVariable Long applicationId,
+    public SellerApplicationSummaryResponse reject(@LoginAdmin AuthAdmin admin, @PathVariable Long applicationId,
         @Valid @RequestBody SellerApplicationRejectRequest request) {
         return SellerApplicationSummaryResponse.from(
             sellerApplicationService.reject(applicationId, admin.id(), request));

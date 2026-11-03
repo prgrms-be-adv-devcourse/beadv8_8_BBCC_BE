@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
@@ -88,7 +89,7 @@ class OrderHappyPathScenarioTest {
             .expectStatus().isCreated()
             .expectBody(IdBody.class).returnResult().getResponseBody().id();
         client.post().uri("/api/v1/admin/seller-applications/" + applicationId + "/approve")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk();
         assertThat(queryString("select business_name from orders.replica_seller where seller_id = ?", sellerId))
@@ -186,7 +187,7 @@ class OrderHappyPathScenarioTest {
         jdbcTemplate.update("update settlement.settlement_item set confirmed_at = ? where order_item_id = ?",
             LocalDateTime.now().minusDays(1), Long.valueOf(orderItemId));
         client.post().uri("/api/v1/admin/settlements/run")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .body(Map.of("cutoffOn", LocalDate.now().toString()))
             .exchange()
             .expectStatus().isCreated();

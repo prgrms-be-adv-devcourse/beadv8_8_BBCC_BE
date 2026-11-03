@@ -5,8 +5,8 @@ import com.bbcc.kidly.boundedcontext.seller.app.SellerService;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerSuspendRequest;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerChangedRepublishResponse;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +28,7 @@ public class AdminSellerController {
 
     // 정지된 판매자를 돌려준다. 동시 정지는 @Version 충돌로 409
     @PostMapping("/{sellerId}/suspend")
-    public SellerResponse suspend(@LoginMember AuthMember admin, @PathVariable Long sellerId,
+    public SellerResponse suspend(@LoginAdmin AuthAdmin admin, @PathVariable Long sellerId,
         @Valid @RequestBody SellerSuspendRequest request) {
         return SellerResponse.from(sellerService.suspend(sellerId, admin.id(), request));
     }
