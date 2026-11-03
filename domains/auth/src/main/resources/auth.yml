@@ -11,6 +11,13 @@ refresh-token:
   # 재발급할 때마다 다시 이 기간이 된다
   validity: 14d
 
+kidly:
+  auth:
+    admin:
+      bootstrap:
+        email: ${KIDLY_ADMIN_BOOTSTRAP_EMAIL:}
+        password: ${KIDLY_ADMIN_BOOTSTRAP_PASSWORD:}
+
 ---
 spring:
   config:
@@ -28,6 +35,13 @@ kakao:
   client-id: ${KAKAO_CLIENT_ID:}
   client-secret: ${KAKAO_CLIENT_SECRET:}
   redirect-uri: ${KAKAO_REDIRECT_URI:}
+
+kidly:
+  auth:
+    admin:
+      bootstrap:
+        email: admin@kidly.local
+        password: local-admin-password
 
 ---
 spring:

@@ -11,6 +11,8 @@ import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.auth.PrincipalId;
+import com.bbcc.kidly.shared.auth.PrincipalType;
 import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import com.bbcc.kidly.shared.event.DomainEvent;
@@ -143,11 +145,12 @@ class AuthKafkaPublishIntegrationTest {
     @DisplayName("Refresh Token 재사용을 감지하면 401로 끝나도 무효화는 커밋되어 auth.tokens-revoked가 회원 ID 키로 온다")
     void reuseDetectionSendsTokensRevoked() {
         var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var oldToken = refreshTokenService.issue(memberId);
-        refreshTokenService.reissue(oldToken);
+        var oldToken = refreshTokenService.issue(PrincipalId.member(memberId));
+        refreshTokenService.reissue(PrincipalType.MEMBER, oldToken);
         rotatedSecondsAgo(memberId, 11);
 
-        assertThatThrownBy(() -> refreshTokenService.reissue(oldToken)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> refreshTokenService.reissue(PrincipalType.MEMBER, oldToken))
+            .isInstanceOf(BusinessException.class);
 
         assertSent(firstTokensRevoked(), memberId);
     }
@@ -198,7 +201,8 @@ class AuthKafkaPublishIntegrationTest {
 
     private void rotatedSecondsAgo(Long memberId, int seconds) {
         jdbcTemplate.update(
-            "UPDATE auth.refresh_token SET rotated_at = rotated_at - make_interval(secs => ?) WHERE member_id = ?",
+            "UPDATE auth.refresh_token SET rotated_at = rotated_at - make_interval(secs => ?) "
+                + "WHERE principal_type = 'MEMBER' AND principal_id = ?",
             seconds, memberId);
     }
 

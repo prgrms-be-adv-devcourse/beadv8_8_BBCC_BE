@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -131,7 +132,7 @@ class AdminMemberApiTest {
     @DisplayName("정지된 회원은 정지 전에 받은 Refresh Token으로 재발급할 수 없다. 401이다")
     void reissueAfterSuspend() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
-        var refreshToken = refreshTokenService.issue(member.getId());
+        var refreshToken = refreshTokenService.issue(PrincipalId.member(member.getId()));
 
         suspend(member.getId(), REASON).expectStatus().isNoContent();
 
@@ -214,7 +215,7 @@ class AdminMemberApiTest {
     @DisplayName("지정된 회원은 재발급받은 토큰으로 관리자 API를 호출할 수 있다")
     void grantedMemberGetsAdminTokenOnReissue() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
-        var refreshToken = refreshTokenService.issue(member.getId());
+        var refreshToken = refreshTokenService.issue(PrincipalId.member(member.getId()));
 
         grantAdmin(member.getId()).expectStatus().isNoContent();
 
