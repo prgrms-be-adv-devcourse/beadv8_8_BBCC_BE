@@ -61,12 +61,12 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "1. 환경과 서비스를 선택하고 오류가 늘어난 시간을 확인하세요.\n2. Gateway와 하위 서비스 오류가 함께 늘면 하위 서비스를, Gateway만 늘면 연결 실패를 확인하세요. 합산하면 같은 요청을 두 번 셉니다.\n3. 알림의 **로그 보기**로 해당 서비스 로그를 확인하세요. 단발 오류는 알림 없이 로그에 남을 수 있습니다.\n\n**데이터 없음 ≠ 정상**: 미배포 여부와 수집 상태를 확인하세요. 수집 성공도 업무 성공을 보장하지 않습니다. 임계값은 dev 검증 전 초기 후보입니다."
+        "content": "**① 환경·서비스 선택 → ② 오류가 늘어난 시간 확인 → ③ 로그 확인**\n\nGateway와 하위 서비스 오류는 합산하지 않습니다. 함께 늘면 하위 서비스 로그를, Gateway만 늘면 연결 상태를 확인하세요.\n\n**데이터 없음은 정상이 아닙니다.** 미배포·수집 중단을 확인하세요. 임계값은 dev 검증 전 후보입니다."
       }
     },
     {
       "id": 1,
-      "type": "timeseries",
+      "type": "stat",
       "title": "서비스 수집 상태",
       "description": "1=수집 성공, 0=수집 실패. 데이터 없음은 정상 판정이 아니다. 미배포인지 수집 중단인지 확인한다.",
       "datasource": {
@@ -83,7 +83,8 @@
         {
           "refId": "A",
           "expr": "up{job=~\"$service\", env=\"$env\"}",
-          "legendFormat": "{{job}}"
+          "legendFormat": "{{job}}",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -110,13 +111,18 @@
         "overrides": []
       },
       "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi"
-        }
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
       }
     },
     {
