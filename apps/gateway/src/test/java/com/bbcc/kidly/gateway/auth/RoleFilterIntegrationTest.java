@@ -125,6 +125,14 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
             .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
     }
 
+    @Test
+    void rejectsAdminPrincipalBeforeCutover() {
+        var now = Instant.now();
+        expectUnauthorized(client.get().uri(ADMIN_PATH)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestTokens.issueAdmin(7, now, now.plusSeconds(1800)))
+            .exchange(), ADMIN_PATH);
+    }
+
     private ResponseSpec get(String path, String... roles) {
         return client.get().uri(path)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + token(roles))
