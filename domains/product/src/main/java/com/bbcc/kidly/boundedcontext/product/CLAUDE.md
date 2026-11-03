@@ -27,7 +27,7 @@
 | `seller.changed` | `kidly.seller.events` · `in/replica/ProductSellerKafkaListener` | 판매자 복사본(`replica_seller`) 갱신. 상세 · 목록의 상호명 |
 | `product.changed`(자신) | Spring 이벤트 · `in/search/ProductSearchDocumentEventListener` | 검색용 표(`product_search_document`) 갱신 |
 
-- Kafka 스위치가 꺼지면 같은 이벤트를 Spring 리스너(`Product*EventListener`, `@ConditionalOnProperty`)가 받는다
+- Kafka 스위치가 꺼지면 주문 이벤트를 Spring 리스너(`Product*EventListener`, `@ConditionalOnProperty`)가 받는다. 판매자 이벤트는 Kafka로만 받는다
 
 ## Kafka 발행 (아웃박스, #551 · #565)
 - 커밋 직전(`BEFORE_COMMIT`)에 상품이 발행한 이벤트(`producer() = product`)만 `product_outbox`에 저장한다. 업무와 같은 트랜잭션이라 업무가 롤백되면 메시지도 없고, 저장이 실패하면 업무도 롤백된다
@@ -46,8 +46,8 @@
 ## Kafka 수신 (#692 · #693)
 - 구독 그룹 `kidly.product`, 팩토리 `in/ProductKafkaListenerConfig`. 헤더 `eventType`으로 고르고, 받지 않는 종류는 건너뛰며, 헤더가 없으면 DLT로 보낸다
 - 실패하면 1초 간격으로 3번 더 시도한 뒤 `{토픽}.product.dlt`(파티션 `-1`)로 보낸다. 읽지 못한 본문과 다시 해도 같은 예외(NPE · `IllegalArgumentException` · `IllegalStateException` · `BusinessException`)는 바로 보낸다
-- 스위치 `kidly.product.kafka.consumer.enabled`(환경 변수 `PRODUCT_KAFKA_CONSUMER_ENABLED`, 기본 true, 테스트 false). true면 Kafka 리스너만, false면 Spring 리스너만 받는다. 시작 여부는 `spring.kafka.listener.auto-startup`이 아니라 리스너 애노테이션의 `autoStartup`이 정한다
-    - false 동안 Kafka에 쌓인 메시지는 true로 올릴 때 처리된다. Spring 리스너가 이미 처리한 이벤트지만 결과가 1회분이라 안전하다
+- 스위치 `kidly.product.kafka.consumer.enabled`(환경 변수 `PRODUCT_KAFKA_CONSUMER_ENABLED`, 기본 true, 테스트 false). true면 Kafka 리스너가 받고, false면 주문 이벤트만 Spring 리스너가 받는다. 시작 여부는 `spring.kafka.listener.auto-startup`이 아니라 리스너 애노테이션의 `autoStartup`이 정한다
+    - false 동안 Kafka에 쌓인 메시지는 true로 올릴 때 처리된다. 주문 이벤트는 Spring 리스너가 이미 처리했어도 결과가 1회분이다
 - 두 번 받아도 1회분이다. 판매자 복사본은 저장된 시각보다 늦은 변경만 반영하고, 주문 생성됨은 주문상품마다 차감 기록이 한 줄(UNIQUE)이다
 - 키가 주문 ID라 한 주문의 이벤트는 순서대로 처리한다. 취소가 생성보다 먼저 오면 FAILED를 남기고 뒤에 온 생성은 차감하지 않는다(INV-09)
 - 읽기 시작 위치는 팀 규칙대로 `latest`다. 첫 배포 때 파티션 배정 전에 나간 메시지는 받지 못한다
