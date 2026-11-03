@@ -4,7 +4,7 @@
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
 # 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(dev · prod)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
 # 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다. app 에는 추천 API 가 없어 추천 API 를 쓰는 환경은 모두 켜야 한다
-# 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경에서만 뜬다. 지금은 어느 환경에도 켜지 않았다(켜면 app 주석의 상한 합계에 더해진다)
+# 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경에서만 뜬다. 지금은 dev 에서만 켰다(켜면 app 주석의 상한 합계에 더해진다)
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
