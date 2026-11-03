@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSeller;
 import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSellerRepository;
 import com.bbcc.kidly.boundedcontext.product.in.replica.ProductSellerKafkaListener;
-import com.bbcc.kidly.boundedcontext.seller.app.port.SellerEventSender;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
@@ -30,8 +29,6 @@ import tools.jackson.databind.json.JsonMapper;
  * 상품이 판매자 토픽의 메시지를 받아 판매자 복사본에 반영하고, 처리하지 못한 메시지를 DLT로 보내는지 확인한다(#692).
  * 메시지는 판매자 도메인을 거치지 않고 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다. 그래야 다시 받은 메시지 · 깨진 본문 ·
  * 받지 않는 종류처럼 판매자가 만들지 않는 경우를 정확히 넣을 수 있다.
- * 판매자가 실제로 보낸 메시지를 받는지는 판매자의 Kafka 전송기로 보내 확인한다. 테스트 설정은 Spring 경로도 켜 두므로,
- * 판매자 서비스를 거치면 Spring 이벤트로도 복사본이 생겨 Kafka 수신을 확인할 수 없다.
  * 같은 토픽에는 다른 테스트의 메시지도 쌓여 이어서 받을 수 있으므로, 판매자 ID를 테스트마다 새로 만든다.
  */
 @KafkaIntegrationTest
@@ -47,9 +44,6 @@ class ProductKafkaReceiveIntegrationTest {
 
     @Autowired
     private ProductReplicaSellerRepository replicaSellerRepository;
-
-    @Autowired
-    private SellerEventSender sellerEventSender;
 
     @Autowired
     private JsonMapper jsonMapper;
@@ -91,19 +85,6 @@ class ProductKafkaReceiveIntegrationTest {
                 ProductReplicaSeller::getStatus,
                 ProductReplicaSeller::getEventOccurredAt)
             .containsExactly("소소한옷장", SellerStatus.ACTIVE, CHANGED_AT);
-    }
-
-    @Test
-    @DisplayName("판매자의 Kafka 전송기가 보낸 판매자 정보 변경됨을 받아 판매자 복사본에 저장한다")
-    void saveSellerReplicaFromSeller() {
-        Long sellerId = newId();
-
-        sellerEventSender.send(sellerChanged(sellerId, "소소한옷장", CHANGED_AT));
-
-        AsyncWait.until(TIMEOUT, () -> replicaSellerRepository.findById(sellerId).isPresent());
-        assertThat(replicaSellerRepository.findById(sellerId)).get()
-            .extracting(ProductReplicaSeller::getBusinessName, ProductReplicaSeller::getEventOccurredAt)
-            .containsExactly("소소한옷장", CHANGED_AT);
     }
 
     @Test
