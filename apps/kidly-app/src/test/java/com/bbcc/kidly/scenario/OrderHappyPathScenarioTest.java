@@ -2,8 +2,6 @@ package com.bbcc.kidly.scenario;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
-import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
@@ -16,6 +14,8 @@ import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
+import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -37,10 +37,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 전 도메인 정상 흐름 ①~⑦(#359). 사람 행동은 각 도메인의 실제 API, 도메인 사이는 실제 이벤트 · 리스너로만 지난다
- * (예외: 회원 · 판매자는 회원 서비스로, 자녀 API는 자녀 서비스로(#682) 빠져 가입 · 판매자 승인 · 자녀 등록 때 나가는
- * member.registered · seller.changed · child.changed를 테스트가 직접 발행한다). 확인은 단계별 결과
- * (상태 · 재고 · 예치금 · 정산)만 본다.
- * API가 없는 준비만 테스트가 직접 넣는다: 상품 기준 데이터(카테고리 · 상품 유형 · 항목 값)와 구매자 예치금.
+ * (예외: 회원 · 판매자는 회원 서비스로, 자녀 API는 자녀 서비스로(#682), 결제는 결제 서비스로(#525) 빠져 가입 · 판매자 승인 ·
+ * 자녀 등록 · 결제 · 지급 때 나가는 member.registered · seller.changed · child.changed · payment.completed ·
+ * payment.payout-completed를 테스트가 직접 발행한다). 확인은 단계별 결과(상태 · 재고 · 정산)만 본다.
+ * API가 없는 준비만 테스트가 직접 넣는다: 상품 기준 데이터(카테고리 · 상품 유형 · 항목 값).
  */
 @FunctionalTest
 class OrderHappyPathScenarioTest {
@@ -50,15 +50,13 @@ class OrderHappyPathScenarioTest {
     private static final Long SELLER_ID = 2L;
     private static final long PRICE = 25_000L;
     private static final int INITIAL_STOCK = 10;
-    private static final long BUYER_DEPOSIT = 100_000L;
+    private static final long PAYMENT_ID = 1L;
+    private static final long LEDGER_ID = 1L;
     private static final long CHILD_ID = 1L;
     private static final String BUSINESS_NAME = "키들리샵";
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private WalletRepository walletRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -81,7 +79,6 @@ class OrderHappyPathScenarioTest {
     void happyPath() {
         buyerId = signUp(BUYER_ID, "buyer@kidly.test");
         sellerId = signUp(SELLER_ID, "seller@kidly.test");
-        depositToBuyer();
         Long categoryId = saveSockCategory();
 
         // ① 판매자 등록: 회원 서비스가 승인 때 보내는 seller.changed → 주문 판매자 복사본
@@ -121,7 +118,7 @@ class OrderHappyPathScenarioTest {
         assertThat(queryLong("select member_id from orders.replica_child where child_id = ?", childId))
             .as("③ 자녀 등록 뒤 주문 자녀 복사본").isEqualTo(buyerId);
 
-        // ④ 담기 · 주문: order.created → 재고 차감 → stock.deducted → 결제 요청 → 지갑 결제 → payment.completed → PAID
+        // ④ 담기 · 주문: order.created → 재고 차감 → stock.deducted → 결제 요청 → (결제 서비스) payment.completed → PAID
         client.post().uri("/api/v1/cart/items")
             .headers(TestMembers.buyer(buyerId))
             .body(Map.of("optionId", optionId, "childId", String.valueOf(childId), "quantity", 1))
@@ -140,13 +137,16 @@ class OrderHappyPathScenarioTest {
         assertThat(location).as("④ 주문 Location").isNotNull();
         String orderId = location.getPath().substring("/api/v1/orders/".length());
 
-        OrderBody paid = order(orderId);
-        assertThat(paid.status()).as("④ 주문 상태").isEqualTo("PAID");
+        OrderBody pending = order(orderId);
+        assertThat(pending.status()).as("④ 결제 요청 뒤 주문 상태").isEqualTo("PENDING_PAYMENT");
         assertThat(queryLong("select available_qty from product.inventory where product_option_id = ?",
             Long.valueOf(optionId))).as("④ 재고(초기 10 − 1)").isEqualTo(INITIAL_STOCK - 1L);
-        assertThat(balanceOf(buyerId)).as("④ 구매자 예치금").isEqualTo(BUYER_DEPOSIT - PRICE);
-        assertThat(queryString("select status from payment.payment where order_id = ?", Long.valueOf(orderId)))
-            .as("④ 결제 상태").isEqualTo("COMPLETED");
+        Long paidItemId = Long.valueOf(pending.items().getFirst().orderItemId());
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new PaymentCompletedEvent(
+            UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(PAYMENT_ID, Long.valueOf(orderId),
+                buyerId, PRICE, List.of(new PaymentCompletedEvent.Item(paidItemId, PRICE)), LocalDateTime.now()))));
+        OrderBody paid = order(orderId);
+        assertThat(paid.status()).as("④ 주문 상태").isEqualTo("PAID");
         assertThat(paid.deliveries()).as("④ 판매자 배송 건").extracting(DeliveryRow::status).containsExactly("READY");
         assertThat(cartLineCount()).as("④ 주문한 장바구니 줄 정리").isEqualTo(0L);
 
@@ -175,7 +175,7 @@ class OrderHappyPathScenarioTest {
         assertThat(queryLong("select sales_amount from settlement.settlement_item where order_item_id = ? "
             + "and seller_id = ?", Long.valueOf(orderItemId), sellerId)).as("⑥ 판매자 정산 대상 금액").isEqualTo(PRICE);
 
-        // ⑦ 정산 · 지급: 정산 실행 → 지급 요청 → 판매자 지갑 입금 → 정산 지급 완료
+        // ⑦ 정산 · 지급: 정산 실행 → 지급 요청 → (결제 서비스) 판매자 지갑 입금 · payment.payout-completed → 정산 지급 완료
         // 수동 정산은 기준일이 오늘 이하이고, 기준일 0시 전에 확정된 대상만 정산한다. 오늘 확정한 대상을 넣으려고
         // 확정 시각만 지금 − 1일로 옮기고 기준일 = 오늘로 실행한다(정산 운영 코드는 바꾸지 않음)
         jdbcTemplate.update("update settlement.settlement_item set confirmed_at = ? where order_item_id = ?",
@@ -185,6 +185,13 @@ class OrderHappyPathScenarioTest {
             .body(Map.of("cutoffOn", LocalDate.now().toString()))
             .exchange()
             .expectStatus().isCreated();
+        Map<String, Object> requested = jdbcTemplate.queryForMap(
+            "select id, settlement_amount from settlement.settlement where seller_id = ?", sellerId);
+        Long settlementId = ((Number) requested.get("id")).longValue();
+        long requestedAmount = ((Number) requested.get("settlement_amount")).longValue();
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new PaymentPayoutCompletedEvent(
+            UUID.randomUUID(), LocalDateTime.now(), new PaymentPayoutCompletedEvent.Data(settlementId, sellerId,
+                requestedAmount, LEDGER_ID, LocalDateTime.now()))));
         Map<String, Object> settlement = jdbcTemplate.queryForMap("select status, total_sales_amount, fee_rate, "
             + "fee_amount, settlement_amount from settlement.settlement where seller_id = ?", sellerId);
         assertThat(settlement.get("total_sales_amount")).as("⑦ 정산 매출 합계").isEqualTo(PRICE);
@@ -196,11 +203,10 @@ class OrderHappyPathScenarioTest {
         assertThat(feeAmount).as("⑦ 수수료 = 매출 × 수수료율")
             .isEqualTo(BigDecimal.valueOf(PRICE).multiply(feeRate).setScale(0, RoundingMode.DOWN).longValueExact());
         assertThat(settlementAmount).as("⑦ 정산 금액 = 매출 − 수수료").isEqualTo(PRICE - feeAmount);
-        assertThat(balanceOf(sellerId)).as("⑦ 판매자 예치금 = 정산 금액").isEqualTo(settlementAmount);
     }
 
     /**
-     * 0단계 가입: 회원 서비스가 가입 때 보내는 member.registered를 발행한다. 결제 쪽이 받아 지갑을 만든다.
+     * 0단계 가입: 회원 서비스가 가입 때 보내는 member.registered를 발행한다. 지갑은 결제 서비스가 만든다.
      */
     private Long signUp(Long memberId, String email) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new MemberRegisteredEvent(
@@ -229,23 +235,6 @@ class OrderHappyPathScenarioTest {
             navyValueId = navy.getId();
             return socks.getId();
         });
-    }
-
-    /**
-     * 테스트가 만든 데이터: 충전(토스)은 외부 요소라 구매자 예치금만 저장소로 넣는다. 지갑은 가입 이벤트로 결제 쪽이 만들고,
-     * 없으면 쓰는 시점에 만드는 것과 같은 방식(createIfAbsent)으로 먼저 있게 한 뒤 잔액만 더한다(중복 지갑 없음).
-     */
-    private void depositToBuyer() {
-        walletRepository.createIfAbsent(buyerId, LocalDateTime.now());
-        transactionTemplate.executeWithoutResult(status -> {
-            Wallet buyer = walletRepository.findByMemberId(buyerId).orElseThrow();
-            buyer.deposit(BUYER_DEPOSIT);
-            walletRepository.save(buyer);
-        });
-    }
-
-    private long balanceOf(Long memberId) {
-        return walletRepository.findByMemberId(memberId).orElseThrow().getBalance();
     }
 
     private long cartLineCount() {
