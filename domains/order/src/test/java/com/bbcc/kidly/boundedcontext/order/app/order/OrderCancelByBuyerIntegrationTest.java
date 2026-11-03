@@ -66,6 +66,9 @@ class OrderCancelByBuyerIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderQueryService orderQueries;
+
+    @Autowired
     private DeliveryService deliveryService;
 
     @Autowired
@@ -211,7 +214,7 @@ class OrderCancelByBuyerIntegrationTest {
         for (int round = 1; round <= REPEAT; round++) {
             Long buyerId = 4_000L + round;
             Long orderId = place(buyerId, true);
-            PaymentCompletedEvent completed = completedFor(orderService.getOrder(buyerId, orderId), buyerId);
+            PaymentCompletedEvent completed = completedFor(orderQueries.getOrder(buyerId, orderId), buyerId);
 
             ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
                 () -> orderService.cancelByBuyer(buyerId, orderId),
@@ -290,7 +293,7 @@ class OrderCancelByBuyerIntegrationTest {
      * 결제대기 주문에 재처리 대기(PENDING) 결제 반영 실패 기록을 만든다(#353 리스너 실패 보관과 같은 모양).
      */
     private Long pendingRecovery(Long orderId, Long buyerId) {
-        OrderDetail order = orderService.getOrder(buyerId, orderId);
+        OrderDetail order = orderQueries.getOrder(buyerId, orderId);
         return recoveryRepository.save(PaymentRecovery.open(orderId, 500L, buyerId, order.totalAmount(),
             order.items().stream()
                 .map(item -> new PaymentRecovery.PaidItem(item.orderItemId(), item.amount())).toList(),
@@ -389,7 +392,7 @@ class OrderCancelByBuyerIntegrationTest {
 
     private Long placeAndPay(Long buyerId, boolean twoSellers) {
         Long orderId = place(buyerId, twoSellers);
-        orderService.markPaid(MarkPaidCommands.matching(orderService.getOrder(buyerId, orderId), buyerId, 500L));
+        orderService.markPaid(MarkPaidCommands.matching(orderQueries.getOrder(buyerId, orderId), buyerId, 500L));
         deliveryService.createFor(orderId);
         return orderId;
     }

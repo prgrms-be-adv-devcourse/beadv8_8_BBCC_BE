@@ -67,3 +67,7 @@
 - Kafka 수신 · 아웃박스 릴레이 · 주문 스케줄러는 메시지 · 대상 하나를 처리하는 동안 `OrderLogContext`로 MDC에 추적 값을 넣고, 끝나면(예외 포함) 이전 값으로 되돌린다
 - 요청 밖이라 `traceId`가 비어 있으면 `correlationId`를 넣는다. HTTP 요청 안에서는 요청의 `traceId`를 그대로 둔다
 - Kafka 수신은 팩토리의 `OrderLogContextRecordInterceptor`(헤더 eventId · eventType, `correlationId` = 키), DLT 관리자 재처리는 리스너를 직접 부르므로 `KafkaListenerDeadLetterReplayer`가 같은 값을 따로 연다. 아웃박스 릴레이는 메시지의 eventId · eventType · `correlationId`(= 메시지 키), 주문 스케줄러(`OrderScheduler`)는 `correlationId`(= 대상 주문 ID)만 넣는다
+
+## 7. 주문 조회
+
+- 주문 조회(#742)는 `app.order.OrderQueryService`가 상세 · 목록 · 타임라인 · 관리자 목록/이력을 읽기 전용으로 제공한다. 생성 · 결제 · 취소 · 구매확정은 `OrderService`에 두며, 변경 응답 조립은 기존 쓰기 트랜잭션 안에서 조회 도우미를 재사용한다.

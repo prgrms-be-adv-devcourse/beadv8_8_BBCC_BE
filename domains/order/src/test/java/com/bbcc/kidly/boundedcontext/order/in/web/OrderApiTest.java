@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -56,6 +57,9 @@ class OrderApiTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private OrderDeliveredAtSetter deliveredAtSetter;
@@ -327,7 +331,7 @@ class OrderApiTest {
                 .expectBody()
                 .jsonPath("$.orderId").isEqualTo(orderId)
                 .jsonPath("$.status").isEqualTo("CANCELLED");
-            assertThat(orderService.getOrders(BUYER_ID, 0, 20).getTotalElements()).isEqualTo(1);
+            assertThat(orderQueries.getOrders(BUYER_ID, 0, 20).getTotalElements()).isEqualTo(1);
         }
 
         @Test
@@ -356,7 +360,7 @@ class OrderApiTest {
                 .expectBody()
                 .jsonPath("$.title").isEqualTo("이미 다른 주문에 쓴 요청입니다")
                 .jsonPath("$.detail").isEqualTo("주문서를 다시 열어 주문해 주세요.");
-            assertThat(orderService.getOrders(BUYER_ID, 0, 20).getTotalElements()).isEqualTo(1);
+            assertThat(orderQueries.getOrders(BUYER_ID, 0, 20).getTotalElements()).isEqualTo(1);
         }
 
         @Test
@@ -399,7 +403,7 @@ class OrderApiTest {
                 .expectBody()
                 .jsonPath("$.title").isEqualTo("잘못된 요청 키입니다")
                 .jsonPath("$.detail").isEqualTo("주문서를 다시 열어 주문해 주세요.");
-            assertThat(orderService.getOrders(BUYER_ID, 0, 20).getTotalElements()).isZero();
+            assertThat(orderQueries.getOrders(BUYER_ID, 0, 20).getTotalElements()).isZero();
         }
 
         private RestTestClient.ResponseSpec placeWithKey(Long memberId, String key, Map<String, Object> body) {
@@ -793,7 +797,7 @@ class OrderApiTest {
          */
         private void markDelivered(String orderId) {
             orderService.markPaid(MarkPaidCommands.matching(
-                orderService.getOrder(BUYER_ID, Long.valueOf(orderId)), BUYER_ID, 500L));
+                orderQueries.getOrder(BUYER_ID, Long.valueOf(orderId)), BUYER_ID, 500L));
             deliveredAtSetter.recordDelivered(Long.valueOf(orderId), SELLER_ID, LocalDateTime.now());
         }
 

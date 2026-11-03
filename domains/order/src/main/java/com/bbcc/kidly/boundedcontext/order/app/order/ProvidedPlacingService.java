@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 다른 컨텍스트(조르기)에 주문하기 · 결제 진행 조회(#701, {@link OrderPlacing}) · 주문 타임라인(#702, {@link OrderTimelineLookup})을
- * 내준다. 다른 들어오는 포트 구현(app.provided)과 달리 여기 둔다: 주문하기 · 타임라인({@link OrderService})이
+ * 내준다. 다른 들어오는 포트 구현(app.provided)과 달리 여기 둔다: 주문하기 · 타임라인({@link OrderQueryService})이
  * 이 기능 패키지 안에 있기 때문이다. 요청 키(Idempotency-Key)는 쓰지 않는다(부르는 쪽이 한 번만 부르게 막는다).
  */
 @Service
@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProvidedPlacingService implements OrderPlacing, OrderTimelineLookup {
 
     private final OrderService orderService;
+    private final OrderQueryService orderQueries;
     private final OrderRepository orderRepository;
 
     @Override
@@ -58,7 +59,7 @@ public class ProvidedPlacingService implements OrderPlacing, OrderTimelineLookup
         if (orderRepository.findByIdAndMemberId(orderId, memberId).isEmpty()) {
             return Optional.empty();
         }
-        OrderTimeline timeline = orderService.getTimeline(memberId, orderId);
+        OrderTimeline timeline = orderQueries.getTimeline(memberId, orderId);
         return Optional.of(new TimelineView(timeline.orderId(), timeline.status(), timeline.steps().stream()
             .map(step -> new Step(step.step().name(), step.status().name(), step.at()))
             .toList()));

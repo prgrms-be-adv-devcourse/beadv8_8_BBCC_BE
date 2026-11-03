@@ -10,6 +10,7 @@ import static org.mockito.Mockito.reset;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -43,6 +44,9 @@ class DeliveryCompleteTransactionIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderQueryService orderQueries;
+
+    @Autowired
     private DeliveryRepository deliveryRepository;
 
     @Autowired
@@ -72,7 +76,7 @@ class DeliveryCompleteTransactionIntegrationTest {
         deliveryService.complete(SELLER_ID, deliveryId);
 
         assertThat(deliveryOf(order.orderId()).getStatus()).isEqualTo(Delivery.Status.DELIVERED);
-        List<OrderDetail.Item> items = orderService.getOrder(BUYER_ID, order.orderId()).items();
+        List<OrderDetail.Item> items = orderQueries.getOrder(BUYER_ID, order.orderId()).items();
         assertThat(items).filteredOn(item -> item.sellerId().equals(SELLER_ID))
             .singleElement().satisfies(item -> assertThat(item.deliveredAt()).isNotNull());
         assertThat(items).filteredOn(item -> item.sellerId().equals(OTHER_SELLER_ID))
@@ -92,7 +96,7 @@ class DeliveryCompleteTransactionIntegrationTest {
 
         reset(orderRepository);
         assertThat(deliveryOf(order.orderId()).getStatus()).isEqualTo(Delivery.Status.SHIPPING);
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).items())
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).items())
             .allSatisfy(item -> assertThat(item.deliveredAt()).isNull());
     }
 

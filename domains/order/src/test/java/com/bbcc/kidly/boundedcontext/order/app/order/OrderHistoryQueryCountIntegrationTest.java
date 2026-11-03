@@ -27,7 +27,7 @@ class OrderHistoryQueryCountIntegrationTest {
     private static final int MANY = 10;
 
     @Autowired
-    private OrderService orderService;
+    private OrderQueryService orderQueries;
 
     @Autowired
     private OrderRepository orderRepository;
@@ -49,11 +49,11 @@ class OrderHistoryQueryCountIntegrationTest {
 
         assertThat(manyCount).isEqualTo(singleCount);
         assertThat(singleCount).as("주문 있는지 1번 + 이력 1번").isEqualTo(2);
-        assertThat(orderService.getHistory(many)).hasSize(MANY);
+        assertThat(orderQueries.getHistory(many)).hasSize(MANY);
     }
 
     private long countStatements(Long orderId) {
-        return queryCounter.count(() -> orderService.getHistory(orderId));
+        return queryCounter.count(() -> orderQueries.getHistory(orderId));
     }
 
     private Long placeWithHistory(int rows) {

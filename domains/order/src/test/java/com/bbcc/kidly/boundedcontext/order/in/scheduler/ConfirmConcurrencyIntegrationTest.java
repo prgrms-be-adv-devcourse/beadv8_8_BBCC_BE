@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -38,6 +39,9 @@ class ConfirmConcurrencyIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private OrderDeliveredAtSetter deliveredAtSetter;
@@ -72,7 +76,7 @@ class ConfirmConcurrencyIntegrationTest {
                 () -> orderService.confirmAutomatically(order.orderId(), orderItemId)));
 
             assertThat(outcome.unexpected()).as("낙관적 락 말고 다른 예외(%d회차)", round).isEmpty();
-            OrderDetail.Item item = orderService.getOrder(buyerId, order.orderId()).items().stream()
+            OrderDetail.Item item = orderQueries.getOrder(buyerId, order.orderId()).items().stream()
                 .filter(candidate -> candidate.orderItemId().equals(orderItemId))
                 .findFirst()
                 .orElseThrow();
