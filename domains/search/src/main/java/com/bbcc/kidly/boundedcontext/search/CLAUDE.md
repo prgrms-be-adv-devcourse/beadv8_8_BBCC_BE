@@ -4,15 +4,15 @@
 
 ## 진행 상태
 - 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori), Kafka 수신(`in/SearchProductEventListener` · `in/SearchSellerEventListener`), 검색 이벤트 발행(`search.performed`, #611)
-- 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`만 search-service로 넘긴다, `apps/gateway`)
-- 남음: 처음 채우기(상품 · 판매자의 전체 다시 발행), prod 배포(prod에는 Gateway가 없다)
+- 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`만 search-service로 넘긴다, `apps/gateway`), dev 처음 채우기, prod 설정(`deploy/.env.prod`, main 첫 배포 때 나간다)
+- 남음: prod 처음 채우기(main 배포 뒤 판매자 → 상품 다시 발행 API를 한 번씩, `deploy/search/README.md`)
 - kidly-app에는 넣지 않는다. 상품의 목록 API와 경로(`GET /api/v1/products`)가 같아 한 앱에 두면 매핑이 겹친다. `apps/search-service`로만 띄운다
 
 ## 서버 배포 (`deploy/`)
 - 별도 서버 없이 기존 EC2의 같은 compose 프로젝트(`-p dev`)에 컨테이너 `elasticsearch` · `search-service`를 더한다. Kafka는 같은 네트워크의 `kafka:9092`를 쓴다
-- compose profile `search`라 `.env`에 `COMPOSE_PROFILES=search`가 있는 환경에서만 뜬다. 지금은 dev만(`deploy/.env.dev`). prod는 `.env.prod`에 같은 값(`COMPOSE_PROFILES` · `SEARCH_PORT` · `SEARCH_INDEX_PREFIX=prod`)을 넣으면 뜬다
+- compose profile `search`라 `.env`에 `COMPOSE_PROFILES=search`가 있는 환경에서만 뜬다. dev(`deploy/.env.dev`) · prod(`deploy/.env.prod`)다. 환경마다 `SEARCH_PORT`(dev 8082 · prod 8094) · `SEARCH_INDEX_PREFIX` · `KIDLY_SEARCH_URI`를 둔다
 - 이미지: 검색 서비스 `<저장소>-search-service:<커밋 SHA>`, Elasticsearch `<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>`(폴더가 바뀔 때만 빌드). `deploy.yml`이 올린다
-- Elasticsearch는 heap 1g, 포트를 열지 않고 보안(xpack)을 끈다. 검색 서비스는 heap 512m, 서버 `127.0.0.1:8082`(`SEARCH_PORT`)에만 연다
+- Elasticsearch는 heap 1g, 포트를 열지 않고 보안(xpack)을 끈다. 검색 서비스는 heap 512m, 서버 `127.0.0.1:<SEARCH_PORT>`에만 연다
 - 검색 서비스의 `/actuator/health`가 Elasticsearch 연결을 보므로 Elasticsearch가 healthy가 된 뒤에 띄운다
 - 모니터링: Prometheus job `kidly-search`(앱 job `kidly`의 대시보드 · 알림과 나눈다), Loki `service_name=kidly-search`
 

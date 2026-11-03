@@ -38,7 +38,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 
 ## 서버 배포 (`deploy/`)
 - dev · prod(#638). compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(dev) · `127.0.0.1:8084`(prod)(`GATEWAY_PORT`), compose 네트워크로 `http://app:8080`에 넘긴다
-- 상품 목록은 `KIDLY_SEARCH_URI`로 넘긴다. dev는 `.env.dev`에 `http://search-service:8080`(profile `search`도 켜져 있어야 한다), 값이 없는 prod는 기본값 `http://app:8080`이라 앱이 그대로 받는다
+- 상품 목록은 `KIDLY_SEARCH_URI`로 넘긴다. dev · prod는 `.env.dev` · `.env.prod`에 `http://search-service:8080`(profile `search`도 켜져 있어야 한다), 값이 없으면 기본값 `http://app:8080`이라 앱이 받는다
 - 자녀 프로필은 `KIDLY_CHILDPROFILE_URI`로 넘긴다. 기본값은 `http://childprofile-service:8080`이고 kidly-app에는 자녀 API가 없다. profile `childprofile`이 꺼진 환경에서는 자녀 API가 실패한다
 - 추천은 `KIDLY_RECOMMEND_URI`로 넘긴다. 기본값은 `http://recommend-service:8080`이고 kidly-app에는 추천 API가 없다(#704). profile `recommend`가 꺼진 환경에서는 추천 API가 실패한다
 - 정산은 `KIDLY_SETTLEMENT_URI`로 넘긴다. 기본값은 `http://app:8080`이라 정산 서비스가 없는 환경은 kidly-app이 그대로 받는다(#729, kidly-app에도 정산이 함께 있다). 정산 서비스를 켠 환경은 `.env`에 `http://settlement-service:8080`을 둔다(profile `settlement`도 켜져 있어야 한다). 지금은 dev만 켰다(`.env.dev`), prod는 켜지 않았다
