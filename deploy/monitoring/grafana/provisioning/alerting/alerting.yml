@@ -32,7 +32,7 @@ groups:
     folder: Kidly
     interval: 1m
     rules:
-      # t3.large Alloy 가 앱 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 회원 서비스 · 정산 서비스를 5분 넘게 못 읽으면(up=0). 검색 서비스(job kidly-search)는 보지 않는다. Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
+      # t3.large Alloy 가 앱 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 회원 서비스를 5분 넘게 못 읽으면(up=0). 검색·정산 서비스도 포함한다. Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
       # 데이터가 없다는 건 등록된 수집 대상이 없다는 뜻(앱 배포가 targets 파일을 쓰기 전)이라 알리지 않는다. 메트릭이 아예 안 오는 것은 "수집 끊김"이 본다
       - uid: kidly-app-down
         title: 앱 다운
@@ -46,7 +46,7 @@ groups:
             relativeTimeRange: {from: 300, to: 0}
             model:
               refId: A
-              expr: up{job=~"kidly|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement"}
+              expr: up{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement"}
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -61,13 +61,13 @@ groups:
         annotations:
           summary: '{{ $labels.job }} 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)'
 
-      # 최근 5분 요청 중 5xx 비율(앱 · 자녀 프로필 서비스 · 추천 서비스 · 회원 서비스 · 정산 서비스 합산). 요청이 없으면 계산하지 않는다
+      # 서비스별 최근 5분 5xx 비율 > 5%이고 오류 추정 건수 >= 5인 상태가 2분 지속될 때 알린다. 초기 후보이며 dev 검증 후 조정한다
       # Gateway 는 서비스의 5xx 를 그대로 넘겨 두 번 세게 되므로 넣지 않는다
       # /actuator 요청(Prometheus 수집 · docker healthcheck)은 분자 · 분모에서 뺀다
       - uid: kidly-5xx-rate
         title: 5xx 증가
         condition: B
-        for: 0s
+        for: 2m
         noDataState: OK
         execErrState: KeepLast
         data:
@@ -77,8 +77,8 @@ groups:
             model:
               refId: A
               expr: >-
-                sum by (env) (rate(http_server_requests_seconds_count{job=~"kidly|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", status=~"5..", uri!~"/actuator.*"}[5m]))
-                / sum by (env) (rate(http_server_requests_seconds_count{job=~"kidly|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", uri!~"/actuator.*"}[5m]))
+                (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", uri!~"/actuator.*"}[5m])))
+                and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -91,15 +91,14 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: '최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
-          logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_response_status_code >= 500","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
+          summary: '{{ $labels.job }} 최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
+          logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\", service_name=\"%s\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_response_status_code >= 500","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env $labels.job | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
 
-      # 최근 5분 ERROR 로그(앱 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 회원 서비스 · 정산 서비스 따로 센다). increase 는 외삽해 0.9 같은 값이 나오므로 0.5 초과(= 1건 이상)로 본다
-      # "로그 보기" 는 그 서비스 로그만 연다. Loki service_name 은 job 과 같은 이름이다(deploy/monitoring-agent/config.alloy)
-      - uid: kidly-error-log
-        title: ERROR 로그
+      # Gateway는 입구 관점의 별도 경보다. 하위 서비스 오류도 포함하며 자체 연결 실패로 단정하지 않는다.
+      - uid: kidly-gateway-5xx-rate
+        title: Gateway 5xx 증가
         condition: B
-        for: 0s
+        for: 2m
         noDataState: OK
         execErrState: KeepLast
         data:
@@ -108,7 +107,9 @@ groups:
             relativeTimeRange: {from: 600, to: 0}
             model:
               refId: A
-              expr: sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", level="error"}[5m]))
+              expr: >-
+                (sum by (env, job) (increase(http_server_requests_seconds_count{job="kidly-gateway", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job="kidly-gateway", uri!~"/actuator.*"}[5m])))
+                and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job="kidly-gateway", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -117,7 +118,38 @@ groups:
               type: threshold
               expression: A
               conditions:
-                - evaluator: {type: gt, params: [0.5]}
+                - evaluator: {type: gt, params: [0.05]}
+        labels:
+          severity: warning
+        annotations:
+          description: 하위 서비스 5xx도 포함합니다. 서비스 오류 화면과 비교해 Gateway에서만 발생하는 연결 실패인지 확인하세요. 같은 요청을 서비스 오류와 합산하지 마세요.
+          summary: '{{ $labels.job }} 입구 요청의 최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
+          logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\", service_name=\"%s\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_response_status_code >= 500","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env $labels.job | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
+
+      # 서비스별 최근 5분 ERROR 추정 건수 > 4.5가 2분 지속될 때 알린다. increase 외삽 때문에 정수 건수와 다를 수 있다
+      # "로그 보기" 는 그 서비스 로그만 연다. Loki service_name 은 job 과 같은 이름이다(deploy/monitoring-agent/config.alloy)
+      - uid: kidly-error-log
+        title: ERROR 로그
+        condition: B
+        for: 2m
+        noDataState: OK
+        execErrState: KeepLast
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              expr: sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", level="error"}[5m]))
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [4.5]}
         labels:
           severity: warning
         annotations:

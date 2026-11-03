@@ -38,6 +38,7 @@ configMapGenerator:
       - grafana/dashboards/kidly-logs.json
       - grafana/dashboards/kidly-server.json
       - grafana/dashboards/spring-boot.json
+      - grafana/dashboards/kidly-http.json
 
 # 원본은 Environment dev Secret 이고, 워크플로가 secrets/<키> 파일을 매번 만든다(레포에는 없다)
 secretGenerator:
