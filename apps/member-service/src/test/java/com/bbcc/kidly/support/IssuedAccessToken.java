@@ -41,6 +41,7 @@ public record IssuedAccessToken(PrincipalId principal, String nickname, List<Rol
         return switch (principal.type()) {
             case MEMBER -> TestMembers.of(principal.id(), nickname, roles.toArray(Role[]::new));
             case ADMIN -> headers -> headers.set(PrincipalHeaders.ADMIN_ID, String.valueOf(principal.id()));
+            case CHILD -> throw new IllegalStateException("자녀 토큰은 아직 발급하지 않습니다");
         };
     }
 

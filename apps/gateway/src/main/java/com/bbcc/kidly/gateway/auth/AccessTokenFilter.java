@@ -13,6 +13,7 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
@@ -21,8 +22,8 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * 모든 요청에서 밖에서 보낸 X-Member-* · X-Admin-* 헤더를 지우고, Bearer 토큰이 있으면 검증 · 무효화 확인 뒤
- * 주체에 맞는 회원 또는 관리자 헤더를 붙여 넘긴다. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(로그인이 필요한지는 서비스가 정한다).
+ * 모든 요청에서 밖에서 보낸 X-Member-* · X-Admin-* · X-Child-* 헤더를 지우고, Bearer 토큰이 있으면 검증 · 무효화 확인 뒤
+ * 주체에 맞는 회원 · 관리자 · 자녀 헤더를 붙여 넘긴다. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(로그인이 필요한지는 서비스가 정한다).
  * 검증에 실패하면 401. Authorization은 지우지 않고 그대로 넘기지만 서비스는 보지 않는다.
  * 헤더 이름 · 역할 목록 · 닉네임 인코딩은 shared MemberHeaders를, 클레임 이름은 AccessTokenClaims를 따른다.
  * 닉네임 클레임이 없으면 닉네임 헤더를 붙이지 않는다.
@@ -66,7 +67,18 @@ class AccessTokenFilter implements GlobalFilter, Ordered {
             case MEMBER -> withMember(request, jwt, principal);
             case ADMIN -> request.mutate().headers(headers ->
                 headers.set(PrincipalHeaders.ADMIN_ID, Long.toString(principal.id()))).build();
+            case CHILD -> withChild(request, jwt, principal);
         };
+    }
+
+    private static ServerHttpRequest withChild(ServerHttpRequest request, Jwt jwt, PrincipalId principal) {
+        var guardianId = PrincipalHeaders.parseId(jwt.getClaimAsString(AccessTokenClaims.GUARDIAN_ID))
+            .filter(id -> id > 0)
+            .orElseThrow(() -> new BadJwtException("잘못된 보호자 ID입니다"));
+        return request.mutate().headers(headers -> {
+            headers.set(PrincipalHeaders.CHILD_ACCOUNT_ID, Long.toString(principal.id()));
+            headers.set(PrincipalHeaders.CHILD_GUARDIAN_ID, guardianId.toString());
+        }).build();
     }
 
     private static ServerHttpRequest withMember(ServerHttpRequest request, Jwt jwt, PrincipalId principal) {

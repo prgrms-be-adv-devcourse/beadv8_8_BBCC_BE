@@ -146,6 +146,23 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
             .exchange(), ADMIN_PATH);
     }
 
+    @Test
+    void childPathsRequireChildPrincipal() {
+        var path = "/api/v1/child/orders";
+        expectUnauthorized(client.get().uri(path).exchange(), path);
+        expectForbidden(get(path, "BUYER"), path);
+        expectForbidden(getAdmin(path), path);
+        var now = Instant.now();
+        var token = TestTokens.issueChild(7001, 8, now, now.plusSeconds(1800));
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange().expectStatus().isOk();
+        backend.reset();
+        for (var forbidden : List.of(ADMIN_PATH, SELLER_PATH)) {
+            expectForbidden(client.get().uri(forbidden).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .exchange(), forbidden);
+        }
+        client.get().uri("/api/v1/children").exchange().expectStatus().isOk();
+    }
+
     private ResponseSpec getAdmin(String path) {
         var now = Instant.now();
         return client.get().uri(path)

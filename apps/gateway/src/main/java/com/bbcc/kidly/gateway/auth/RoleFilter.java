@@ -30,6 +30,7 @@ import reactor.core.publisher.Mono;
 class RoleFilter implements GlobalFilter, Ordered {
 
     private static final List<Rule> RULES = List.of(
+        new Rule(PathPatternParser.defaultInstance.parse("/api/v1/child/**"), PrincipalType.CHILD, null),
         new Rule(PathPatternParser.defaultInstance.parse("/api/v1/admin/**"), PrincipalType.ADMIN, null),
         new Rule(PathPatternParser.defaultInstance.parse("/api/v1/seller/**"), PrincipalType.MEMBER, Role.SELLER));
 

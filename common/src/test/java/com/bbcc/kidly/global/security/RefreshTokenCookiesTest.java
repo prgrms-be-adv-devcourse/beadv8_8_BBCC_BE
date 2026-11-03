@@ -48,6 +48,15 @@ class RefreshTokenCookiesTest {
     }
 
     @Test
+    void addsChildCookie() {
+        var cookies = new RefreshTokenCookies(new SecurityProperties(true));
+        var response = new MockHttpServletResponse();
+        cookies.add(response, PrincipalType.CHILD, "token", Duration.ofDays(14));
+        assertThat(response.getHeader(HttpHeaders.SET_COOKIE))
+            .startsWith("child_refresh_token=token").contains("Path=/api/v1/auth/child");
+    }
+
+    @Test
     @DisplayName("Secure 설정이 꺼져 있으면 Secure 속성을 싣지 않는다")
     void respectsSecureCookieSetting() {
         var cookies = new RefreshTokenCookies(new SecurityProperties(false));

@@ -10,6 +10,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class PrincipalIdTest {
     @Test
+    void childSubjectIsPrefixed() {
+        assertThat(PrincipalId.parseSubject("child:7")).isEqualTo(PrincipalId.child(7));
+        assertThat(PrincipalId.child(7).toSubject()).isEqualTo("child:7");
+    }
+    @Test
     void memberSubjectStaysBareNumberSoTokensIssuedBeforeAdminsReadAsMembers() {
         assertThat(PrincipalId.parseSubject("42")).isEqualTo(PrincipalId.member(42));
         assertThat(PrincipalId.member(42).toSubject()).isEqualTo("42");
@@ -24,7 +29,7 @@ class PrincipalIdTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"member:3", "ADMIN:3", "admin:", "admin:-1", "+3", "0", "admin:0", " 3",
-        "9223372036854775808", "admin:x"})
+        "9223372036854775808", "admin:x", "child:abc", "child:0"})
     void rejectsInvalidSubject(String subject) {
         assertThatThrownBy(() -> PrincipalId.parseSubject(subject)).isInstanceOf(IllegalArgumentException.class);
     }

@@ -7,8 +7,8 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 1. 보안 응답 헤더(`web/WebFilterConfig`): 모든 응답(400 포함)에 Spring Security 기본 보안 헤더를 붙인다
 2. 요청 ID(`web/RequestIdFilter`): 요청마다 `X-Request-Id`를 새로 만들어 클라이언트가 보낸 값을 덮어쓰고 응답 헤더로도 돌려준다. Gateway 로그(`web/RequestFirewallFilter` · `web/GatewayErrorWebExceptionHandler`)에는 key-value `traceId`로 남긴다. 서비스(`RequestLoggingFilter`)는 같은 헤더 값을 MDC `traceId`로 써서, 값 하나로 Gateway 로그부터 서비스 로그까지 한 요청을 찾는다(#683)
 3. 경로 방화벽(`web/RequestFirewallFilter`): 정규화되지 않거나 위험한 경로 · 메서드를 400으로 막는다
-4. 토큰 검사(`auth/AccessTokenFilter`): 밖에서 온 `X-Member-*` · `X-Admin-*`를 지우고, Bearer 토큰을 검증 · 무효화 확인해 주체별 헤더를 붙인다. 실패하면 401
-5. 역할 검사(`auth/RoleFilter`): `/api/v1/admin/**`는 관리자 주체, `/api/v1/seller/**`는 SELLER 회원 주체. 없으면 401 · 403
+4. 토큰 검사(`auth/AccessTokenFilter`): 밖에서 온 `X-Member-*` · `X-Admin-*` · `X-Child-*`를 지우고, Bearer 토큰을 검증 · 무효화 확인해 주체별 헤더를 붙인다. 실패하면 401
+5. 역할 검사(`auth/RoleFilter`): `/api/v1/admin/**`는 관리자 주체, `/api/v1/seller/**`는 SELLER 회원 주체, `/api/v1/child/**`는 자녀 주체. 없으면 401 · 403
 6. CORS(`application.yml`의 `globalcors`) · 라우팅. 서비스는 CORS를 하지 않는다
 - 1 · 2 · 3은 WebFilter(`web/WebFilterConfig`에 순서대로 등록), 4 · 5는 GlobalFilter(`RoleFilter` 순서 = `AccessTokenFilter.ORDER + 1`)
 - 400 · 401 · 403 · 404 · 500 · 503 · 504 본문은 `web/ProblemResponse`가 쓴다(#668)

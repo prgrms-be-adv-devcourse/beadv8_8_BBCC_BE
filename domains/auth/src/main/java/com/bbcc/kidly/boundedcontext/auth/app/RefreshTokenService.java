@@ -85,6 +85,8 @@ public class RefreshTokenService {
             case ADMIN -> adminAccountRepository.findByIdForUpdate(principal.id())
                 .filter(AdminAccount::isActive)
                 .map(admin -> new TokenSubject.Admin(admin.getId()));
+            // 자녀 계정이 생기면 현재 계정 상태를 조회한다.
+            case CHILD -> Optional.empty();
         };
     }
 
