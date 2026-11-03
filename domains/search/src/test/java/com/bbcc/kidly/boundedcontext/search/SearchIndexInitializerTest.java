@@ -15,6 +15,7 @@ import co.elastic.clients.elasticsearch._types.ErrorResponse;
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
 import co.elastic.clients.elasticsearch.indices.ElasticsearchIndicesClient;
 import co.elastic.clients.elasticsearch.indices.ExistsRequest;
+import co.elastic.clients.elasticsearch.indices.PutMappingRequest;
 import co.elastic.clients.transport.endpoints.BooleanResponse;
 import com.bbcc.kidly.boundedcontext.search.out.SearchIndexInitializer;
 import com.bbcc.kidly.boundedcontext.search.out.SearchIndexProperties;
@@ -30,7 +31,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * 기동할 때 상품 · 판매자 색인이 없으면 정해 둔 설정(nori 분석기 · 필드 타입)으로 만들고, 있으면 건드리지 않는지 확인한다.
+ * 기동할 때 상품 · 판매자 색인이 없으면 정해 둔 설정(nori 분석기 · 필드 타입)으로 만들고, 있으면 설정 파일의 필드를 더하는지 확인한다.
  */
 @ExtendWith(MockitoExtension.class)
 class SearchIndexInitializerTest {
@@ -43,6 +44,9 @@ class SearchIndexInitializerTest {
 
     @Captor
     private ArgumentCaptor<CreateIndexRequest> createCaptor;
+
+    @Captor
+    private ArgumentCaptor<PutMappingRequest> putMappingCaptor;
 
     private SearchIndexInitializer initializer;
 
@@ -57,7 +61,7 @@ class SearchIndexInitializerTest {
     void createsMissingIndexes() throws IOException {
         when(indices.exists(any(ExistsRequest.class))).thenReturn(new BooleanResponse(false));
 
-        initializer.createMissingIndexes();
+        initializer.createOrUpdateIndexes();
 
         verify(indices, times(2)).create(createCaptor.capture());
         List<CreateIndexRequest> requests = createCaptor.getAllValues();
@@ -65,18 +69,36 @@ class SearchIndexInitializerTest {
         CreateIndexRequest products = requests.get(0);
         assertThat(products.mappings().dynamic().jsonValue()).isEqualTo("strict");
         assertThat(products.mappings().properties().get("name").text().analyzer()).isEqualTo("nori");
+        assertThat(products.mappings().properties().get("brand").text().analyzer()).isEqualTo("standard");
         assertThat(products.mappings().properties().get("attributeValues").isKeyword()).isTrue();
         assertThat(requests.get(1).mappings().properties()).containsKeys("sellerId", "businessName", "occurredAt");
     }
 
     @Test
-    @DisplayName("색인이 이미 있으면 다시 만들지 않는다")
-    void skipsExistingIndexes() throws IOException {
+    @DisplayName("색인이 이미 있으면 다시 만들지 않고, 설정 파일의 필드를 보내 새로 더한 필드(브랜드 등)를 넣는다")
+    void addsNewFieldsToExistingIndexes() throws IOException {
         when(indices.exists(any(ExistsRequest.class))).thenReturn(new BooleanResponse(true));
 
-        initializer.createMissingIndexes();
+        initializer.createOrUpdateIndexes();
 
         verify(indices, never()).create(any(CreateIndexRequest.class));
+        verify(indices, times(2)).putMapping(putMappingCaptor.capture());
+        List<PutMappingRequest> requests = putMappingCaptor.getAllValues();
+        assertThat(requests).extracting(request -> request.index().getFirst())
+            .containsExactly("local-products", "local-sellers");
+        PutMappingRequest products = requests.get(0);
+        assertThat(products.dynamic().jsonValue()).isEqualTo("strict");
+        assertThat(products.properties().get("brand").text().analyzer()).isEqualTo("standard");
+        assertThat(products.properties()).containsKeys("name", "attributeValues", "occurredAt");
+    }
+
+    @Test
+    @DisplayName("있는 필드의 타입 · 분석기를 바꾸려 해 Elasticsearch가 거절하면 그대로 던져 기동에 실패한다")
+    void rethrowsMappingConflict() throws IOException {
+        when(indices.exists(any(ExistsRequest.class))).thenReturn(new BooleanResponse(true));
+        when(indices.putMapping(any(PutMappingRequest.class))).thenThrow(error(400, "illegal_argument_exception"));
+
+        assertThatThrownBy(() -> initializer.createOrUpdateIndexes()).isInstanceOf(ElasticsearchException.class);
     }
 
     @Test
@@ -86,7 +108,7 @@ class SearchIndexInitializerTest {
         when(indices.create(any(CreateIndexRequest.class)))
             .thenThrow(error(400, "resource_already_exists_exception"));
 
-        assertThatCode(() -> initializer.createMissingIndexes()).doesNotThrowAnyException();
+        assertThatCode(() -> initializer.createOrUpdateIndexes()).doesNotThrowAnyException();
     }
 
     @Test
@@ -95,7 +117,7 @@ class SearchIndexInitializerTest {
         when(indices.exists(any(ExistsRequest.class))).thenReturn(new BooleanResponse(false));
         when(indices.create(any(CreateIndexRequest.class))).thenThrow(error(400, "illegal_argument_exception"));
 
-        assertThatThrownBy(() -> initializer.createMissingIndexes()).isInstanceOf(ElasticsearchException.class);
+        assertThatThrownBy(() -> initializer.createOrUpdateIndexes()).isInstanceOf(ElasticsearchException.class);
     }
 
     private static ElasticsearchException error(int status, String type) {
