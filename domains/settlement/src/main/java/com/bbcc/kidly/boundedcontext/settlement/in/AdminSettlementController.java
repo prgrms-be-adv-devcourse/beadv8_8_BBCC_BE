@@ -7,8 +7,8 @@ import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunRequest;
 import com.bbcc.kidly.boundedcontext.settlement.in.dto.AdminSettlementSummaryResponse;
 import com.bbcc.kidly.boundedcontext.settlement.in.dto.SettlementRunResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +54,7 @@ public class AdminSettlementController {
     @PostMapping("/settlements/run")
     @ResponseStatus(HttpStatus.CREATED)
     public SettlementRunResponse run(
-        @LoginMember AuthMember admin, @Valid @RequestBody SettlementRunRequest request,
+        @LoginAdmin AuthAdmin admin, @Valid @RequestBody SettlementRunRequest request,
         HttpServletResponse response) {
         var run = settlementRunService.runManually(request.cutoffOn(), admin.id());
         response.setHeader(HttpHeaders.LOCATION, "/api/v1/admin/settlement-runs/" + run.runId());
