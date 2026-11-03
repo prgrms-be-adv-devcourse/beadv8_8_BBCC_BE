@@ -25,7 +25,7 @@
 - Gateway는 Kafka(`kidly.auth.events`)로 토큰 무효화를 받는다. 회원 서비스보다 먼저 떠도 기동은 되지만, 회원 서비스가 한 번 떠서 토픽이 만들어진 뒤에 무효화 목록이 채워진다
 - 회원 · 판매자 토픽(`kidly.member.events` · `kidly.seller.events`)은 회원 서비스가 처음 뜰 때 만든다. 새 Kafka에서는 자녀 토픽과 같은 이유로 그 전에 떠 있던 앱의 리스너(알림 · 결제 · 상품 · 주문)가 그 사이에 나간 메시지(회원 서비스가 뜨며 넣는 초기 회원 · 판매자 데이터 등)를 건너뛴다. 처음 한 번은 회원 서비스를 띄운 뒤 앱을 다시 시작한다
 - 자녀 토픽(`kidly.childprofile.events`)은 자녀 프로필 서비스가 처음 뜰 때 만든다. 새 Kafka(빈 `kafka-data` 볼륨)에서는 그 전에 떠 있던 앱의 주문 리스너와 추천 서비스의 리스너가 몇 초 뒤 메타데이터를 갱신하고서야 토픽을 받고, 책갈피가 없어 그때의 끝(`auto-offset-reset: latest`)부터 읽는다. 그 사이에 나간 자녀 메시지(서비스가 뜨며 넣는 초기 자녀 데이터 등)는 건너뛰고 다시 오지 않는다. 처음 한 번은 자녀 프로필 서비스를 띄운 뒤 앱과 추천 서비스를 다시 시작한다
-- 검색 토픽(`kidly.search.events`)은 검색 서비스가 처음 뜰 때 만든다. 로컬 실행 순서와 prod에는 검색 서비스가 없어 토픽이 없으므로, 추천 서비스는 기동은 되지만 검색 리스너가 토픽을 찾는 `UNKNOWN_TOPIC_OR_PARTITION` WARN을 1초에 한두 줄씩 남긴다. Elasticsearch(`docker compose --profile search up -d`)와 검색 서비스(`./gradlew :apps:search-service:bootRun`)를 한 번 띄워 토픽이 생기면 사라진다
+- 검색 토픽(`kidly.search.events`)은 검색 서비스가 처음 뜰 때 만든다. 로컬 실행 순서에는 검색 서비스가 없어 토픽이 없으므로, 추천 서비스는 기동은 되지만 검색 리스너가 토픽을 찾는 `UNKNOWN_TOPIC_OR_PARTITION` WARN을 1초에 한두 줄씩 남긴다. Elasticsearch(`docker compose --profile search up -d`)와 검색 서비스(`./gradlew :apps:search-service:bootRun`)를 한 번 띄워 토픽이 생기면 사라진다
 - 추천 서비스는 앱이 한 번 뜬 뒤에 띄우므로, 새 Kafka에서는 앱이 처음 뜨며 넣은 초기 판매자 · 상품 데이터의 메시지가 추천 서비스의 구독 그룹(`kidly.recommend`) 책갈피가 생기기 전에 나가 추천 복사본에 들어오지 않는다. 그 뒤 판매자 · 상품을 바꾸거나 새로 만들면 그때부터 들어온다(읽기 시작 위치는 팀 규칙대로 `latest`다)
 
 ## 빌드 · 테스트

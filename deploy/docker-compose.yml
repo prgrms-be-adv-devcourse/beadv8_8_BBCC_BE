@@ -1,6 +1,6 @@
 # 서버용. 배포 때 워크플로가 /opt/app/<env>/ 로 올린다 (env 마다 다른 것은 .env 뿐)
 # deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
-# 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES=search 인 환경(지금은 dev)에서만 뜬다
+# 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES 에 search 가 있는 환경(dev · prod)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
 # 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(dev · prod)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
 # 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다. app 에는 추천 API 가 없어 추천 API 를 쓰는 환경은 모두 켜야 한다
@@ -42,7 +42,7 @@ services:
       retries: 12
       start_period: 60s
     # 한 서버에 dev · prod 가 같이 떠도 한 컨테이너가 메모리를 다 써서 다른 환경까지 OOM 으로 죽이지 않게 서비스마다 상한을 둔다
-    # 상한 합계는 prod 4800MiB(app 1024 · postgres 512 · kafka 768 · gateway 512 · 자녀 512 · 추천 448 · 회원 512 · 결제 512) + dev 6464MiB(여기에 검색 1024 · 정산 640) = 11264MiB 로 호스트(t3.large 8GiB)를 넘는다. 상한은 폭주를 막는 값이고 실사용 합은 켠 뒤 재서 정한다
+    # 상한 합계는 prod 5824MiB(app 1024 · postgres 512 · kafka 768 · 검색 1024 · gateway 512 · 자녀 512 · 추천 448 · 회원 512 · 결제 512) + dev 6464MiB(여기에 정산 640) = 12288MiB 로 호스트(t3.large 8GiB)를 넘는다. 상한은 폭주를 막는 값이고 실사용 합은 켠 뒤 재서 정한다
     # 실사용: 2026-11-03 dev 만 뜬 서버(회원 · 결제 서비스 전)의 2일 최대가 3564MiB(OS 포함)였다. 분리한 서비스는 하나에 280~365MiB 를 쓴다(Prometheus cAdvisor)
     mem_limit: 1g
     restart: unless-stopped
@@ -113,7 +113,7 @@ services:
       JAVA_TOOL_OPTIONS: -Xmx512m
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      # 기본값은 profile 이 꺼진 환경(prod)에서 빈 값 경고를 내지 않으려는 것이다
+      # 기본값은 profile search 가 꺼진 환경에서 빈 값 경고를 내지 않으려는 것이다
       ELASTICSEARCH_URIS: ${ELASTICSEARCH_URIS:-}
       SEARCH_INDEX_PREFIX: ${SEARCH_INDEX_PREFIX:-}
       LOG_PATH: /app/logs
@@ -361,7 +361,7 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       # 같은 compose 네트워크의 app 컨테이너 포트(8080)다. 서버 포트(APP_PORT)가 아니다
       KIDLY_APP_URI: http://app:8080
-      # 상품 목록(GET /api/v1/products)을 받을 곳(#526). 검색이 켜진 환경(dev)은 .env 에 search-service 를 두고, 없으면(prod) 지금처럼 app 이 받는다
+      # 상품 목록(GET /api/v1/products)을 받을 곳(#526). 검색이 켜진 환경(dev · prod)은 .env 에 search-service 를 두고, 없으면 app 이 받는다
       KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://app:8080}
       # 자녀 프로필(/api/v1/children/**)을 받을 곳(#682). app 에는 자녀 API 가 없어 profile childprofile 이 꺼진 환경에서는 자녀 API 가 실패한다
       KIDLY_CHILDPROFILE_URI: ${KIDLY_CHILDPROFILE_URI:-http://childprofile-service:8080}

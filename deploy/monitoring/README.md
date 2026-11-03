@@ -161,7 +161,7 @@ Grafana 화면에서 고친 대시보드 · 알림 규칙은 저장되지 않거
 앱 배포(`deploy/deploy.sh`)가 앱이 healthy 로 뜰 때마다 `/opt/app/monitoring/targets/<환경>.yml` 에 `127.0.0.1:<APP_PORT>` 와 `env` 라벨을 써 둡니다.
 t3.large 의 Alloy 가 이 폴더를 읽어(`discovery.file`) 대상을 바꾸므로 손으로 고칠 것이 없습니다. 수집한 메트릭은 job `kidly` · `env` · `instance`(`127.0.0.1:<포트>`) 라벨로 medium Prometheus 에 들어갑니다. prod 도 첫 배포 때 수집 · 알림이 시작됩니다.
 기동에 실패한 배포는 파일을 바꾸지 않습니다. 이미 있던 환경이면 "앱 다운" 이 그대로 울립니다.
-검색이 켜진 환경(지금은 dev)은 검색 서비스도 `targets/search/<환경>.yml` 에 `127.0.0.1:<SEARCH_PORT>` 로 써 둡니다. 앱 대시보드 · 알림과 섞이지 않게 job 을 `kidly-search` 로 나눠서, 앱 알림(job `kidly`)은 검색 서비스를 보지 않습니다.
+검색이 켜진 환경(dev · prod)은 검색 서비스도 `targets/search/<환경>.yml` 에 `127.0.0.1:<SEARCH_PORT>` 로 써 둡니다. 앱 대시보드 · 알림과 섞이지 않게 job 을 `kidly-search` 로 나눠서, 앱 알림(job `kidly`)은 검색 서비스를 보지 않습니다.
 Gateway 가 켜진 환경(dev · prod)도 같은 식으로 `targets/gateway/<환경>.yml` 에 `127.0.0.1:<GATEWAY_PORT>` 를 써 두고, job 은 `kidly-gateway` 입니다. 모든 요청이 지나가므로 "앱 다운" · "ERROR 로그" 알림은 Gateway 도 봅니다. "5xx 증가" 와 "수집 끊김" 은 앱(job `kidly`)만 봅니다(Gateway 는 앱의 5xx 를 그대로 넘겨 두 번 세게 되고, Alloy 가 끊기면 앱도 함께 끊긴다).
 자녀 프로필 서비스가 켜진 환경(dev · prod)은 `targets/childprofile/<환경>.yml` 에 `127.0.0.1:<CHILDPROFILE_PORT>` 를 써 두고, job 은 `kidly-childprofile` 입니다. 자녀 API 는 이 서비스에만 있어 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 봅니다. "5xx 증가" 는 앱과 이 서비스의 요청을 합쳐 봅니다(자녀 API 가 앱에 있던 때와 같은 범위). "수집 끊김" 은 앱(job `kidly`)만 봅니다.
 추천 서비스가 켜진 환경(dev · prod)은 `targets/recommend/<환경>.yml` 에 `127.0.0.1:<RECOMMEND_PORT>` 를 써 두고, job 은 `kidly-recommend` 입니다. 추천 API 는 이 서비스에만 있어 자녀 프로필 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다.
