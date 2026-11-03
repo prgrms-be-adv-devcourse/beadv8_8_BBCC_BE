@@ -70,8 +70,10 @@ jobs:
             tasks: :apps:childprofile-service:integrationTest
           - name: recommend-service
             tasks: :apps:recommend-service:integrationTest
+          - name: settlement-service
+            tasks: :apps:settlement-service:integrationTest
           - name: 나머지
-            tasks: integrationTest -x :apps:kidly-app:integrationTest -x :domains:order:integrationTest -x :apps:search-service:integrationTest -x :apps:childprofile-service:integrationTest -x :apps:recommend-service:integrationTest
+            tasks: integrationTest -x :apps:kidly-app:integrationTest -x :domains:order:integrationTest -x :apps:search-service:integrationTest -x :apps:childprofile-service:integrationTest -x :apps:recommend-service:integrationTest -x :apps:settlement-service:integrationTest
     steps:
       - uses: actions/checkout@v7
 
@@ -109,8 +111,10 @@ jobs:
             tasks: :apps:childprofile-service:functionalTest
           - name: recommend-service
             tasks: :apps:recommend-service:functionalTest
+          - name: settlement-service
+            tasks: :apps:settlement-service:functionalTest
           - name: 나머지
-            tasks: functionalTest -x :apps:kidly-app:functionalTest -x :apps:search-service:functionalTest -x :apps:childprofile-service:functionalTest -x :apps:recommend-service:functionalTest
+            tasks: functionalTest -x :apps:kidly-app:functionalTest -x :apps:search-service:functionalTest -x :apps:childprofile-service:functionalTest -x :apps:recommend-service:functionalTest -x :apps:settlement-service:functionalTest
     steps:
       - uses: actions/checkout@v7
 
