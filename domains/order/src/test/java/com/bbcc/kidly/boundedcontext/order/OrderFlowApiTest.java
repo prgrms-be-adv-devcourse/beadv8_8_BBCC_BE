@@ -9,8 +9,8 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
