@@ -15,6 +15,8 @@ public enum PaymentErrorCode implements ErrorCode {
     INSUFFICIENT_BALANCE(HttpStatus.CONFLICT, "예치금이 부족합니다", "예치금을 충전한 뒤 다시 시도해 주세요."),
     WALLET_NOT_FOUND(HttpStatus.NOT_FOUND, "지갑을 찾을 수 없습니다", "회원의 예치금 지갑이 없습니다."),
     WALLET_FROZEN(HttpStatus.CONFLICT, "동결된 지갑입니다", "탈퇴한 회원의 예치금 지갑은 충전하거나 결제에 쓸 수 없습니다."),
+    WALLET_NOT_FROZEN(HttpStatus.CONFLICT, "동결되지 않은 지갑입니다", "잔액 환급은 탈퇴로 동결된 지갑만 할 수 있습니다."),
+    BALANCE_CHANGED(HttpStatus.CONFLICT, "잔액이 바뀌었습니다", "지갑 목록을 다시 불러와 지금 잔액으로 다시 요청해 주세요."),
     CHARGE_AMOUNT_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "충전할 수 없는 금액입니다", "1천 원부터 100만 원까지 충전할 수 있습니다."),
     CHARGE_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "충전 금액이 다릅니다", "요청한 충전 금액과 결제 금액이 다릅니다."),
     CHARGE_EXPIRED(HttpStatus.CONFLICT, "만료된 충전입니다", "충전 요청이 만료됐습니다. 다시 요청해 주세요."),

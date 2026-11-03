@@ -118,7 +118,7 @@
 - 아직 없음: 부분 취소 반영, 웹훅 유실 대비 주기 조회
 
 ## 입출금 내역 (`app/WalletService`, #200)
-- `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 ID
+- `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 · 잔액 환급 ID
 - 지갑이 없으면 빈 목록이다(잔액 조회는 0). 종류 · 기간 필터는 없다
 
 ## 회원 탈퇴 지갑 동결 (`app/WalletService.freeze`, #670)
@@ -127,9 +127,16 @@
 - 동결된 지갑은 돈이 나가는 새 요청만 막는다: 충전 요청(409 `WALLET_FROZEN`), 주문 결제(`payment.failed`, 위 주문 결제 참고)
 - 들어오는 돈은 그대로 받는다: 주문 취소 환불, 정산 입금, 탈퇴 전에 시작한 충전의 승인 반영(스케줄러 포함) · 충전 취소 되돌림. 토스에서 직접 취소한 충전을 빼는 것도 그대로 한다(이미 카드로 돌아간 돈)
 - 막는 것은 서비스가 한다. `Wallet.withdraw`는 동결을 보지 않는다
-- 남은 잔액은 운영자가 관리자 조회로 보고 환급한다. 실제 환급(토스 부분 취소 · 계좌 이체)과 환급 완료 기록은 아직 없다
+- 남은 잔액은 운영자가 관리자 조회로 보고 시스템 밖에서 돌려준 뒤 환급을 기록한다(아래 「잔액 환급」). 실제 송금(토스 취소 · 계좌 이체)과 환급 계좌 받기는 범위 밖이다(토스는 테스트 결제)
 - `GET /api/v1/admin/wallets?frozen=true&hasBalance=true`: 동결됐고 잔액이 0보다 큰 지갑. `frozen` · `hasBalance`는 true일 때만 거르고, 둘 다 없으면 모든 지갑이다. 최신순(ID 내림차순), 한 줄은 `walletId` · `memberId` · `balance` · `frozenAt`
 - 동결 뒤 들어온 입금도 잔액에 더해져 그대로 보인다. 지갑별 내역은 원장으로 본다
+
+### 잔액 환급 기록 (`WalletService.returnBalance`, #731)
+- `POST /api/v1/admin/wallets/{walletId}/return-balance` `{ "amount": 목록에서 본 잔액 }` → 200 `balanceReturnId` · `walletId` · `memberId` · `amount` · `balance`(0) · `ledgerId` · `returnedAt`
+- 지갑 락을 잡은 뒤 동결된 지갑이고(아니면 409 `WALLET_NOT_FROZEN`) 요청 금액이 지금 잔액과 같을 때만(아니면 409 `BALANCE_CHANGED`) 처리한다. 없는 지갑은 404, 0원 이하는 400
+  - 금액을 맞춰 보는 것으로 그사이 들어온 입금과 두 번 누르기를 함께 막는다(두 번째는 잔액이 0이라 409)
+- 잔액을 모두 빼고 환급 기록(`balance_return`: 지갑 · 회원 · 금액 · 처리한 관리자)과 원장 `BALANCE_RETURN`(출금, ref_id = 환급 기록 ID)을 남긴다
+- 환급 뒤 다시 입금되면(늦은 정산 등) 다시 조회해 한 번 더 환급한다. 그래서 지갑마다 기록이 여러 건일 수 있다
 
 ## 관리자 결제 조회 (`app/PaymentQueryService`, #312)
 - `GET /api/v1/admin/payments`: 모든 회원의 결제를 최신순(ID 내림차순)으로 준다. `/api/v1/admin/**`라 ADMIN만 호출한다
@@ -178,6 +185,7 @@
 | `ORDER_ITEM_REFUNDED` | `OrderItemCancellationService` (부분 취소 환불, 실패한 환불은 남기지 않음) | memberId, walletId, orderId, cancellationId, paymentId, refundId, amount, balance, reason |
 | `PAYOUT_COMPLETED` | `SettlementPayoutService` (처음 처리한 정산서만, 0원 포함) | memberId(판매자), walletId, settlementId, amount, ledgerId, balance |
 | `WALLET_FROZEN` | `WalletService.freeze` (처음 동결할 때만) | memberId, walletId, balance |
+| `BALANCE_RETURNED` | `WalletService.returnBalance` (탈퇴 회원 잔액 환급 기록) | memberId, walletId, balanceReturnId, amount, balance, ledgerId, returnedBy |
 
 ## Kafka 수신 (#593)
 - 결제가 받는 이벤트 중 보내는 쪽이 Kafka로 보내는 4종을 Kafka로 받는다(`member.withdrawn`은 #670에서 더함). 구독 그룹 `kidly.payment`, 토픽마다 리스너 하나(`in/event`)
