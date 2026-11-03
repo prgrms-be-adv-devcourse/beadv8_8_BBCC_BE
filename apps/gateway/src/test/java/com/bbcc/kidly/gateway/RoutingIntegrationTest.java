@@ -6,13 +6,19 @@ import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend;
 import com.bbcc.kidly.gateway.support.RecordingBackendConfiguration;
+import com.bbcc.kidly.gateway.support.TestTokens;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
@@ -20,7 +26,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 자녀 프로필은 자녀 프로필 서비스로(#682), 추천은 추천 서비스로(#704),
+ * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 자녀 프로필은 자녀 프로필 서비스로(#682), 추천은 추천 서비스로(#704), 정산은 정산 서비스로(#729),
  * 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  */
 @IntegrationTest
@@ -43,11 +49,16 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     @Qualifier(RecordingBackendConfiguration.RECOMMEND)
     private RecordingBackend recommendBackend;
 
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.SETTLEMENT)
+    private RecordingBackend settlementBackend;
+
     @BeforeEach
     void resetServiceBackends() {
         searchBackend.reset();
         childProfileBackend.reset();
         recommendBackend.reset();
+        settlementBackend.reset();
     }
 
     @Test
@@ -157,6 +168,46 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
         assertThat(backend.lastRequest()).isPresent();
         assertThat(recommendBackend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/seller/settlement-targets",
+        "/api/v1/seller/settlements?page=0",
+        "/api/v1/seller/settlements/5",
+        "/api/v1/admin/settlements",
+        "/api/v1/admin/settlements/5/retry",
+        "/api/v1/admin/settlements/run",
+        "/api/v1/admin/settlement-runs/9",
+        "/api/v1/admin/settlement-runs/9/recover"
+    })
+    @DisplayName("정산 API는 같은 메서드 · 경로 · 쿼리로 정산 서비스에 넘긴다")
+    void routesSettlementsToSettlementService(String path) {
+        // 역할 검사는 RoleFilterIntegrationTest가 본다. 여기서는 라우팅만 보려고 ADMIN · SELLER 둘 다 가진 토큰을 쓴다
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerWithAllRoles()).exchange()
+            .expectStatus().isOk();
+
+        assertThat(settlementBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create(path)));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/seller/products", "/api/v1/seller/settlementsx", "/api/v1/admin/settlement", "/api/v1/admin/members"
+    })
+    @DisplayName("정산과 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
+    void routesSettlementLookalikesToKidlyApp(String path) {
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerWithAllRoles()).exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(settlementBackend.lastRequest()).isEmpty();
+    }
+
+    private static String bearerWithAllRoles() {
+        var now = Instant.now();
+        return "Bearer " + TestTokens.issue(7L, List.of("ADMIN", "SELLER"), now, now.plus(Duration.ofMinutes(30)));
     }
 
     @Test

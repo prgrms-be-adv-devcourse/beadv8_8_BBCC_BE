@@ -225,6 +225,8 @@ services:
       KIDLY_CHILDPROFILE_URI: ${KIDLY_CHILDPROFILE_URI:-http://childprofile-service:8080}
       # 추천(/api/v1/recommendations/**)을 받을 곳(#704). app 에는 추천 API 가 없어 profile recommend 가 꺼진 환경에서는 추천 API 가 실패한다
       KIDLY_RECOMMEND_URI: ${KIDLY_RECOMMEND_URI:-http://recommend-service:8080}
+      # 정산(/api/v1/seller/settlement* · /api/v1/admin/settlement*)을 받을 곳(#729). 정산 서비스를 켠 환경은 .env 에 settlement-service 를 두고, 없으면 지금처럼 app 이 받는다
+      KIDLY_SETTLEMENT_URI: ${KIDLY_SETTLEMENT_URI:-http://app:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs
