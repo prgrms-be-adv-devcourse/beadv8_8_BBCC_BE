@@ -283,7 +283,7 @@ services:
     volumes:
       - ./jwt:/app/jwt:ro
       - ./logs:/app/logs
-    # 빈 DB 에서는 app 의 init 이 회원 · 판매자 테이블을 먼저 만들어야 한다. 서비스는 app 이 적용한 이력으로 baseline 을 잡는다
+    # 빈 DB 에서는 app 의 init 이 회원 · 판매자 테이블을 먼저 만들어야 한다. 서비스는 그 버전에서 baseline 을 잡는다(application.yml 의 baseline-version)
     depends_on:
       postgres:
         condition: service_healthy

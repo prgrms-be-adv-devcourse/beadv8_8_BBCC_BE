@@ -13,12 +13,15 @@ spring:
     locations: classpath:db/migration
     # 이력 테이블은 member 스키마에 둔다. 나중에 DB를 나눌 때 스키마와 같이 옮겨지고, 다른 스키마를 건드리지 않는다
     default-schema: member
-    schemas: member,auth,seller
+    # auth는 넣지 않는다. 넣으면 kidly-app이 먼저 만든 DB에서 auth 스키마를 만든 기록이 이력에 먼저 남아 baseline 없이 init부터 돈다.
+    # auth 스키마는 인증 마이그레이션이 만든다
+    schemas: member,seller
     table: flyway_schema_history_member
-    # 이미 회원 테이블이 있는 DB는 첫 기동 때 baseline을 잡는다. 버전은 kidly-app 이력에서 고른다(MemberFlywayMigrationStrategy).
-    # 아래 값은 전략이 버전을 고르지 못할 때 쓰는 회원 · 인증 마지막 파일 버전이다. 빈 DB(테스트)는 baseline 없이 init부터 적용한다
+    # 빈 DB에서는 kidly-app이 먼저 떠서 자기 init · 회원 파일로 회원 테이블을 만든다. 그 DB는 첫 기동 때 baseline을 잡고 그 뒤 파일만 적용한다.
+    # baseline-version은 kidly-app 파일 중 회원 스키마를 바꾸는 마지막 버전이다. kidly-app 파일은 고치지 않으므로 이 값은 바꾸지 않는다.
+    # 빈 DB(테스트)는 baseline 없이 init부터 적용한다(MemberMigrationIntegrationTest)
     baseline-on-migrate: true
-    baseline-version: 202611031234
+    baseline-version: 202610201313
     # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다
     out-of-order: true
   jpa:
