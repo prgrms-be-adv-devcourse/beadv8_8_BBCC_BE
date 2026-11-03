@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.in.dto.DevTokenResponse;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.IssuedAccessToken;
@@ -26,7 +27,7 @@ class DevTokenApiTest {
     void issuedTokenHasMemberId() {
         var token = issue("{\"memberId\": 7, \"roles\": [\"BUYER\"]}");
 
-        assertThat(token.memberId()).isEqualTo(7L);
+        assertThat(token.principal()).isEqualTo(PrincipalId.member(7L));
         assertThat(token.expiresAt()).isAfter(Instant.now());
     }
 

@@ -9,7 +9,6 @@ public final class AdminAccountFixture {
 
     public static final String EMAIL = "admin@kidly.test";
     public static final String PASSWORD = "admin-password-1234";
-    // PASSWORD의 BCrypt 해시. 테스트마다 다시 계산하지 않게 한 번만 만든다
     public static final String PASSWORD_HASH = new BCryptPasswordEncoder().encode(PASSWORD);
     public static final Long CREATED_BY = 1L;
 
@@ -18,6 +17,12 @@ public final class AdminAccountFixture {
 
     public static AdminAccount active() {
         return AdminAccount.create(EMAIL, PASSWORD_HASH, CREATED_BY);
+    }
+
+    public static AdminAccount active(Long id) {
+        var account = active();
+        ReflectionTestUtils.setField(account, "id", id);
+        return account;
     }
 
     public static AdminAccount disabled() {

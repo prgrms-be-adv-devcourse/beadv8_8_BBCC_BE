@@ -46,13 +46,24 @@ class JwtAccessTokenIssuerTest {
     }
 
     @Test
-    @DisplayName("업무 정보는 sub · nickname · roles만 담는다")
-    void onlyAllowedClaims() {
+    @DisplayName("회원 토큰의 업무 정보는 sub · nickname · roles만 담는다")
+    void memberOnlyAllowedClaims() {
         String token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER)));
 
         Jwt jwt = decoderOf(KEY_PAIR).decode(token);
 
         assertThat(jwt.getClaims()).containsOnlyKeys("sub", "nickname", "roles", "iat", "exp");
+    }
+
+    @Test
+    @DisplayName("관리자 토큰은 sub가 admin:{id}이고 nickname · roles 없이 sub · iat · exp만 담는다")
+    void adminOnlyAllowedClaims() {
+        String token = ISSUER.issue(new TokenSubject.Admin(7L));
+
+        Jwt jwt = decoderOf(KEY_PAIR).decode(token);
+
+        assertThat(jwt.getSubject()).isEqualTo("admin:7");
+        assertThat(jwt.getClaims()).containsOnlyKeys("sub", "iat", "exp");
     }
 
     @Test

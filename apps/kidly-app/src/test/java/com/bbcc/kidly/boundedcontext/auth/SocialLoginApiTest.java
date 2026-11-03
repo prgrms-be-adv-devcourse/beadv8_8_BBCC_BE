@@ -136,7 +136,7 @@ class SocialLoginApiTest {
 
     // 발급받은 Access Token의 회원 ID(sub)
     private static Long memberIdOf(String accessToken) {
-        return IssuedAccessToken.decode(accessToken).memberId();
+        return IssuedAccessToken.decode(accessToken).principal().id();
     }
 
     private static String codeBody(String code) {
