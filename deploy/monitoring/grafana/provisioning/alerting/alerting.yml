@@ -32,12 +32,12 @@ groups:
     folder: Kidly
     interval: 1m
     rules:
-      # t3.large Alloy 가 앱 · Gateway · 자녀 프로필 서비스 · 추천 서비스를 2분 넘게 못 읽으면(up=0). 검색 서비스(job kidly-search)는 보지 않는다. Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
+      # t3.large Alloy 가 앱 · Gateway · 자녀 프로필 서비스 · 추천 서비스를 5분 넘게 못 읽으면(up=0). 검색 서비스(job kidly-search)는 보지 않는다. Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
       # 데이터가 없다는 건 등록된 수집 대상이 없다는 뜻(앱 배포가 targets 파일을 쓰기 전)이라 알리지 않는다. 메트릭이 아예 안 오는 것은 "수집 끊김"이 본다
       - uid: kidly-app-down
         title: 앱 다운
         condition: B
-        for: 2m
+        for: 5m
         noDataState: OK
         execErrState: Error
         data:
@@ -59,7 +59,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: '{{ $labels.job }} 메트릭을 2분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)'
+          summary: '{{ $labels.job }} 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)'
 
       # 최근 5분 요청 중 5xx 비율(앱 · 자녀 프로필 서비스 · 추천 서비스 합산). 요청이 없으면 계산하지 않는다
       # Gateway 는 서비스의 5xx 를 그대로 넘겨 두 번 세게 되므로 넣지 않는다
