@@ -36,6 +36,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 /**
  * 활동 기록 서비스가 실제 DB에 검색 · 장바구니 담기를 저장하는 규칙을 확인한다.
+ * Kafka로 받는 연결은 RecommendActivityKafkaIntegrationTest가 확인한다.
  */
 @IntegrationTest
 class ActivityRecordIntegrationTest {
