@@ -43,6 +43,7 @@ public class SearchIndexService {
             data.categoryId(),
             data.status(),
             data.thumbnailUrl(),
+            data.brand(),
             data.createdAt(),
             data.sizeFree(),
             toOptionInfos(data.options()),
