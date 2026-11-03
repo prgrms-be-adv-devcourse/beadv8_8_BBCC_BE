@@ -75,6 +75,13 @@ spring:
               # 추천이 느려도 화면이 추천 영역만 비우고 넘어가도록, 전체 응답 제한(55초) 대신 3초에 끊고 504를 낸다(밀리초)
               metadata:
                 response-timeout: 3000
+            # 추천 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
+            - id: recommend-api-docs
+              uri: ${kidly.gateway.recommend-uri}
+              predicates:
+                - Path=/v3/api-docs/recommend
+              filters:
+                - SetPath=/v3/api-docs
             # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}
