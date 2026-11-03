@@ -2,15 +2,18 @@ package com.bbcc.kidly.scenario;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.in.event.ChildProfileEventListener;
+import com.bbcc.kidly.boundedcontext.order.in.event.SellerReplicaEventListener;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventHandler;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
+import com.bbcc.kidly.boundedcontext.product.app.replica.ProductReplicaSellerService;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -38,7 +41,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 전 도메인 정상 흐름 ①~⑦(#359). 사람 행동은 각 도메인의 실제 API, 도메인 사이는 실제 이벤트 · 리스너로만 지난다
  * (예외: 회원 · 판매자는 회원 서비스로, 자녀 API는 자녀 서비스로(#682) 빠져 가입 · 판매자 승인 · 자녀 등록 때 나가는
- * member.registered · seller.changed · child.changed를 테스트가 직접 발행한다). 확인은 단계별 결과
+ * member.registered · seller.changed · child.changed를 테스트가 직접 처리한다). 확인은 단계별 결과
  * (상태 · 재고 · 예치금 · 정산)만 본다.
  * API가 없는 준비만 테스트가 직접 넣는다: 상품 기준 데이터(카테고리 · 상품 유형 · 항목 값)와 구매자 예치금.
  */
@@ -64,7 +67,16 @@ class OrderHappyPathScenarioTest {
     private EntityManager entityManager;
 
     @Autowired
-    private EventPublisher eventPublisher;
+    private PaymentEventHandler paymentEventHandler;
+
+    @Autowired
+    private SellerReplicaEventListener sellerReplicaEventListener;
+
+    @Autowired
+    private ChildProfileEventListener childProfileEventListener;
+
+    @Autowired
+    private ProductReplicaSellerService replicaSellerService;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -85,9 +97,11 @@ class OrderHappyPathScenarioTest {
         Long categoryId = saveSockCategory();
 
         // ① 판매자 등록: 회원 서비스가 승인 때 보내는 seller.changed → 주문 판매자 복사본
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new SellerChangedEvent(
+        SellerChangedEvent sellerChanged = new SellerChangedEvent(
             UUID.randomUUID(), LocalDateTime.now(),
-            new SellerChangedEvent.Data(sellerId, BUSINESS_NAME, SellerStatus.ACTIVE))));
+            new SellerChangedEvent.Data(sellerId, BUSINESS_NAME, SellerStatus.ACTIVE));
+        sellerReplicaEventListener.onSellerChanged(sellerChanged);
+        replicaSellerService.applySellerChanged(sellerChanged);
         assertThat(queryString("select business_name from orders.replica_seller where seller_id = ?", sellerId))
             .as("① 판매자 승인 뒤 주문 판매자 복사본 상호명").isEqualTo(BUSINESS_NAME);
 
@@ -112,12 +126,12 @@ class OrderHappyPathScenarioTest {
         assertThat(queryString("select product_status from orders.replica_product where option_id = ?",
             Long.valueOf(optionId))).as("② 판매 시작 뒤 주문 상품 복사본 판매 상태").isEqualTo("ON_SALE");
 
-        // ③ 자녀 이벤트 발행: child.changed → 주문 자녀 복사본
+        // ③ 자녀 이벤트 처리: child.changed → 주문 자녀 복사본
         Long childId = CHILD_ID;
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new ChildChangedEvent(
+        childProfileEventListener.onChildChanged(new ChildChangedEvent(
             UUID.randomUUID(), LocalDateTime.now(), new ChildChangedEvent.Data(childId, buyerId,
                 new BigDecimal("120.5"), new BigDecimal("22.0"), Gender.MALE, LocalDate.now().minusYears(7),
-                null, null, false))));
+                null, null, false)));
         assertThat(queryLong("select member_id from orders.replica_child where child_id = ?", childId))
             .as("③ 자녀 등록 뒤 주문 자녀 복사본").isEqualTo(buyerId);
 
@@ -200,11 +214,12 @@ class OrderHappyPathScenarioTest {
     }
 
     /**
-     * 0단계 가입: 회원 서비스가 가입 때 보내는 member.registered를 발행한다. 결제 쪽이 받아 지갑을 만든다.
+     * 0단계 가입: 회원 서비스가 가입 때 보내는 member.registered를 결제 처리기에 넘겨 지갑을 만든다.
      */
     private Long signUp(Long memberId, String email) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new MemberRegisteredEvent(
-            UUID.randomUUID(), LocalDateTime.now(), new MemberRegisteredEvent.Data(memberId, email))));
+        transactionTemplate.executeWithoutResult(status -> paymentEventHandler.memberRegistered(
+            new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
+                new MemberRegisteredEvent.Data(memberId, email))));
         return memberId;
     }
 

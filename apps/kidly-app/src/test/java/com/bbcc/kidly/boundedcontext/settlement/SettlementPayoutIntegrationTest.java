@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.settlement;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventHandler;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementRunService;
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
@@ -44,6 +45,9 @@ class SettlementPayoutIntegrationTest {
 
     @Autowired
     private EventPublisher eventPublisher;
+
+    @Autowired
+    private PaymentEventHandler paymentEventHandler;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -126,8 +130,9 @@ class SettlementPayoutIntegrationTest {
     }
 
     private void registerWallet(Long memberId) {
-        publishInTransaction(new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new MemberRegisteredEvent.Data(memberId, "seller@example.com")));
+        transactionTemplate.executeWithoutResult(status -> paymentEventHandler.memberRegistered(
+            new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
+                new MemberRegisteredEvent.Data(memberId, "seller@example.com"))));
     }
 
     private void publishInTransaction(DomainEvent event) {

@@ -1,13 +1,17 @@
 package com.bbcc.kidly.boundedcontext.order;
 
+import com.bbcc.kidly.boundedcontext.order.in.event.ChildProfileEventListener;
 import com.bbcc.kidly.boundedcontext.order.in.event.PaymentEventListener;
+import com.bbcc.kidly.boundedcontext.order.in.event.SellerReplicaEventListener;
 import com.bbcc.kidly.boundedcontext.order.in.event.StockEventListener;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
+import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.test.util.AopTestUtils;
@@ -25,15 +29,22 @@ public class OrderEventDelivery {
     private final TransactionTemplate transactionTemplate;
     private final PaymentEventListener paymentEventListener;
     private final StockEventListener stockEventListener;
+    private final SellerReplicaEventListener sellerReplicaEventListener;
+    private final ChildProfileEventListener childProfileEventListener;
 
     /**
      * 운영과 같은 길로 보낸다: 한 트랜잭션에서 발행하고 커밋된 뒤 리스너가 받는다(여러 개면 준 순서대로).
      * 리스너 예외는 받는 쪽에서 로그로만 남으므로 결과는 저장된 상태로 확인한다.
+     * 판매자 · 자녀 이벤트는 다른 서비스가 발행해 Kafka로만 받으므로, Kafka 리스너가 부르는 처리 메서드를 그 트랜잭션 안에서 부른다.
      */
     public void deliver(DomainEvent... events) {
         transactionTemplate.executeWithoutResult(status -> {
             for (DomainEvent event : events) {
-                eventPublisher.publish(event);
+                switch (event) {
+                    case SellerChangedEvent seller -> sellerReplicaEventListener.onSellerChanged(seller);
+                    case ChildChangedEvent child -> childProfileEventListener.onChildChanged(child);
+                    default -> eventPublisher.publish(event);
+                }
             }
         });
     }

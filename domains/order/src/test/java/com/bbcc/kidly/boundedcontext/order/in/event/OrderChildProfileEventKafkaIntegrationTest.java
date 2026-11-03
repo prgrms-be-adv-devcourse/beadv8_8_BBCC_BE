@@ -73,18 +73,18 @@ class OrderChildProfileEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("child.changed(등록 → 삭제)를 Kafka로 받은 자녀 복사본이 같은 값을 Spring 이벤트로 받은 것과 같다")
-    void sameAsSpringEvent() {
-        Long springChildId = childId + 1;
-        eventDelivery.deliver(childChanged(springChildId, OCCURRED_AT, false));
+    @DisplayName("child.changed(등록 → 삭제)를 Kafka로 받은 자녀 복사본이 처리 빈을 직접 부른 것과 같다")
+    void sameAsDirectProcessing() {
+        Long directChildId = childId + 1;
+        eventDelivery.deliver(childChanged(directChildId, OCCURRED_AT, false));
         kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, childChanged(childId, OCCURRED_AT, false)));
 
-        assertThat(storedChild(childId)).isNotNull().isEqualTo(storedChild(springChildId));
+        assertThat(storedChild(childId)).isNotNull().isEqualTo(storedChild(directChildId));
 
-        eventDelivery.deliver(childChanged(springChildId, OCCURRED_AT.plusMinutes(1), true));
+        eventDelivery.deliver(childChanged(directChildId, OCCURRED_AT.plusMinutes(1), true));
         kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, childChanged(childId, OCCURRED_AT.plusMinutes(1), true)));
 
-        assertThat(storedChild(childId)).containsEntry("is_deleted", true).isEqualTo(storedChild(springChildId));
+        assertThat(storedChild(childId)).containsEntry("is_deleted", true).isEqualTo(storedChild(directChildId));
     }
 
     @Test
@@ -126,19 +126,19 @@ class OrderChildProfileEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("Kafka와 Spring 모두 최초 삭제를 보존하고 과거 활성 이벤트로 되살리지 않는다")
+    @DisplayName("Kafka와 직접 처리 모두 최초 삭제를 보존하고 과거 활성 이벤트로 되살리지 않는다")
     void deletionBeforeProfileInBothPaths() {
-        Long springId = childId + 1;
+        Long directId = childId + 1;
         var deletion = new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT,
             new ChildChangedEvent.Data(childId, 1L, null, null, null, null, null, null, true));
-        var springDeletion = new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT,
-            new ChildChangedEvent.Data(springId, 1L, null, null, null, null, null, null, true));
-        eventDelivery.deliver(springDeletion, childChanged(springId, OCCURRED_AT.minusMinutes(1), false));
+        var directDeletion = new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+            new ChildChangedEvent.Data(directId, 1L, null, null, null, null, null, null, true));
+        eventDelivery.deliver(directDeletion, childChanged(directId, OCCURRED_AT.minusMinutes(1), false));
         kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, deletion));
         kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, childChanged(childId, OCCURRED_AT.minusMinutes(1), false)));
         kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, deletion));
         assertThat(storedChild(childId)).containsEntry("is_deleted", true).containsEntry("height_cm", null)
-            .isEqualTo(storedChild(springId));
+            .isEqualTo(storedChild(directId));
         assertThat(kafkaClient.deadLetters(TOPIC, deletion.eventId().toString())).isEmpty();
     }
 
