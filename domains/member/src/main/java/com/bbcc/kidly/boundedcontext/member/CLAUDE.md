@@ -27,7 +27,7 @@
 - `member.registered`에 이메일이 있으므로 본문을 로그에 남기지 않는다. 실패 로그 · 기록은 `eventType` · `eventId` · 키 · 원인만, 스케줄러 예외는 예외 종류만 남긴다. 전용 템플릿 둘 다 본문을 찍는 기본 실패 로그를 끈다
 
 ## Access Token 무효화 (#686)
-- 회원은 Access Token을 직접 발급 · 무효화하지 않는다. 탈퇴 · 관리자 정지 · 권한 회수 · 판매자 정지에서 `shared.auth.out.MemberTokenRevoker.revoke(memberId, revokedAt)`만 부른다(호출자 트랜잭션 안에서만, `MemberService` · `AdminMemberService` · `SellerStateService`)
+- 회원은 Access Token을 직접 발급 · 무효화하지 않는다. 탈퇴 · 관리자 정지 · 판매자 정지에서 `shared.auth.out.MemberTokenRevoker.revoke(memberId, revokedAt)`만 부른다(호출자 트랜잭션 안에서만, `MemberService` · `AdminMemberService` · `SellerStateService`)
 - 구현은 인증 도메인(`AccessTokenRevocationService`)이다. `auth.tokens-revoked`를 `kidly.auth.events`로 커밋 뒤 바로 보내고, Gateway가 받아 그 시각까지 발급된 토큰을 거절한다. 잃으면 Gateway가 그 회원의 Access Token을 만료(최대 30분)까지 통과시키지만 그 뒤로는 피해가 없어 아웃박스를 쓰지 않는다(인증 도메인 CLAUDE.md)
 
 ## Kafka 수신 (`in/SellerEventListener`, #608)

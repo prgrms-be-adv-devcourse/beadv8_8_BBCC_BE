@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 결제 반영 실패 API(#353). /api/v1/admin/** 라 ADMIN만 호출할 수 있다(공용 보안 설정).
+ * 관리자 결제 반영 실패 API(#353). /api/v1/admin/** 라 관리자 주체만 호출할 수 있다(Gateway 검사).
  * 예치금은 빠졌는데 결제완료 반영이 실패한 주문을 보고, 재처리하거나 취소(환불)로 끝낸다.
  */
 @RestController

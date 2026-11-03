@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 이벤트 처리 실패 API(#449). /api/v1/admin/** 라 ADMIN만 호출할 수 있다(공용 보안 설정).
+ * 관리자 이벤트 처리 실패 API(#449). /api/v1/admin/** 라 관리자 주체만 호출할 수 있다(Gateway 검사).
  * 재고 차감됨 · 재고 차감 실패 · 결제 실패 처리가 실패한 주문을 보고, 재처리하거나 기록을 종료한다.
  */
 @RestController

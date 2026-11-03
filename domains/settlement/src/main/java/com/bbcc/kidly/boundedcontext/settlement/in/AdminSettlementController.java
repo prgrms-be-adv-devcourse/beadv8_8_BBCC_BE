@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 정산 API. /api/v1/admin/** 라 ADMIN만 호출할 수 있다.
+ * 관리자 정산 API. /api/v1/admin/** 라 관리자 주체만 호출할 수 있다.
  */
 @RestController
 @RequestMapping("/api/v1/admin")
