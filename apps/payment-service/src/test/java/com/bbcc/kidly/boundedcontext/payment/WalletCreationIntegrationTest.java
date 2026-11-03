@@ -2,8 +2,8 @@ package com.bbcc.kidly.boundedcontext.payment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventHandler;
 import com.bbcc.kidly.boundedcontext.payment.out.JpaWalletRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
@@ -17,7 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 class WalletCreationIntegrationTest {
 
     @Autowired
-    private EventPublisher eventPublisher;
+    private PaymentEventHandler paymentEventHandler;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -26,7 +26,7 @@ class WalletCreationIntegrationTest {
     private JpaWalletRepository jpaWalletRepository;
 
     @Test
-    @DisplayName("회원 가입 이벤트가 커밋되면 잔액 0인 지갑을 만든다")
+    @DisplayName("회원 가입을 처리하면 잔액 0인 지갑을 만든다")
     void createWallet() {
         publishInTransaction(memberRegistered(1L));
 
@@ -49,7 +49,7 @@ class WalletCreationIntegrationTest {
     }
 
     private void publishInTransaction(MemberRegisteredEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
+        transactionTemplate.executeWithoutResult(status -> paymentEventHandler.memberRegistered(event));
     }
 
     private static MemberRegisteredEvent memberRegistered(Long memberId) {

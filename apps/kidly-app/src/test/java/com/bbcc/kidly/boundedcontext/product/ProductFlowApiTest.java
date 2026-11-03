@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
+import com.bbcc.kidly.boundedcontext.product.app.replica.ProductReplicaSellerService;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 판매자가 등록한 상품이 구매자의 상품 목록 · 상세까지 이어지는지 HTTP 요청만으로 확인한다.
@@ -49,10 +48,7 @@ class ProductFlowApiTest {
     private ClothingTopSaver clothingTopSaver;
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
+    private ProductReplicaSellerService replicaSellerService;
 
     private SavedClothingTop saved;
 
@@ -79,7 +75,7 @@ class ProductFlowApiTest {
     private void approveSeller() {
         var approved = new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new SellerChangedEvent.Data(SELLER_ID, BUSINESS_NAME, SellerStatus.ACTIVE));
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(approved));
+        replicaSellerService.applySellerChanged(approved);
     }
 
     // 판매자 7이 상품 A를 등록한다. 네이비 110(105 ~ 115cm) · 네이비 120(115 ~ 125cm)이고 둘 다 재고 10, 25,000원이다

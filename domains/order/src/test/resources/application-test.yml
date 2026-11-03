@@ -59,7 +59,7 @@ kidly:
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"
-    # 주문은 Spring 이벤트로 받는다. Kafka 수신 테스트는 그 테스트 안에서 주문 Kafka 리스너를 켠다
+    # 주문은 상품 · 재고 · 결제 이벤트를 Spring으로 받는다. Kafka 수신 테스트는 그 안에서 리스너를 켠다
     kafka:
       consumer:
         enabled: false

@@ -44,6 +44,7 @@ class SettlementPayoutIntegrationTest {
     @Autowired
     private EventPublisher eventPublisher;
 
+
     @Autowired
     private TransactionTemplate transactionTemplate;
 

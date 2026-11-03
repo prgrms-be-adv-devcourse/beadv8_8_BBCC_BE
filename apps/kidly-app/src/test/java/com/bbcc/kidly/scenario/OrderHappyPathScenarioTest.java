@@ -2,6 +2,9 @@ package com.bbcc.kidly.scenario;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.in.event.ChildProfileEventListener;
+import com.bbcc.kidly.boundedcontext.order.in.event.SellerReplicaEventListener;
+import com.bbcc.kidly.boundedcontext.product.app.replica.ProductReplicaSellerService;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
@@ -13,7 +16,6 @@ import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
-import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -37,9 +39,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 전 도메인 정상 흐름 ①~⑦(#359). 사람 행동은 각 도메인의 실제 API, 도메인 사이는 실제 이벤트 · 리스너로만 지난다
- * (예외: 회원 · 판매자는 회원 서비스로, 자녀 API는 자녀 서비스로(#682), 결제는 결제 서비스로(#525) 빠져 가입 · 판매자 승인 ·
- * 자녀 등록 · 결제 · 지급 때 나가는 member.registered · seller.changed · child.changed · payment.completed ·
- * payment.payout-completed를 테스트가 직접 발행한다). 확인은 단계별 결과(상태 · 재고 · 정산)만 본다.
+ * (예외: 회원 · 판매자는 회원 서비스로, 자녀 API는 자녀 서비스로(#682), 결제는 결제 서비스로(#525) 빠져
+ * 판매자 승인 · 자녀 등록 · 결제 · 지급 때 나가는 seller.changed · child.changed · payment.completed ·
+ * payment.payout-completed를 테스트가 직접 넣는다. 판매자 · 자녀 이벤트는 Kafka 리스너가 부르는 처리 메서드로,
+ * kidly-app 안의 주문 · 정산이 Spring으로도 받는 결제 결과는 발행으로 넣는다). 확인은 단계별 결과(상태 · 재고 · 정산)만 본다.
  * API가 없는 준비만 테스트가 직접 넣는다: 상품 기준 데이터(카테고리 · 상품 유형 · 항목 값).
  */
 @FunctionalTest
@@ -65,6 +68,15 @@ class OrderHappyPathScenarioTest {
     private EventPublisher eventPublisher;
 
     @Autowired
+    private SellerReplicaEventListener sellerReplicaEventListener;
+
+    @Autowired
+    private ChildProfileEventListener childProfileEventListener;
+
+    @Autowired
+    private ProductReplicaSellerService replicaSellerService;
+
+    @Autowired
     private TransactionTemplate transactionTemplate;
 
     @Autowired
@@ -77,14 +89,16 @@ class OrderHappyPathScenarioTest {
     @Test
     @DisplayName("가입 → 판매자 등록 → 상품 판매 시작 → 자녀 등록 → 담기 · 주문(재고 · 결제) → 배송 → 구매확정 → 정산 · 지급이 끝까지 이어진다")
     void happyPath() {
-        buyerId = signUp(BUYER_ID, "buyer@kidly.test");
-        sellerId = signUp(SELLER_ID, "seller@kidly.test");
+        buyerId = signUp(BUYER_ID);
+        sellerId = signUp(SELLER_ID);
         Long categoryId = saveSockCategory();
 
         // ① 판매자 등록: 회원 서비스가 승인 때 보내는 seller.changed → 주문 판매자 복사본
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new SellerChangedEvent(
+        SellerChangedEvent sellerChanged = new SellerChangedEvent(
             UUID.randomUUID(), LocalDateTime.now(),
-            new SellerChangedEvent.Data(sellerId, BUSINESS_NAME, SellerStatus.ACTIVE))));
+            new SellerChangedEvent.Data(sellerId, BUSINESS_NAME, SellerStatus.ACTIVE));
+        sellerReplicaEventListener.onSellerChanged(sellerChanged);
+        replicaSellerService.applySellerChanged(sellerChanged);
         assertThat(queryString("select business_name from orders.replica_seller where seller_id = ?", sellerId))
             .as("① 판매자 승인 뒤 주문 판매자 복사본 상호명").isEqualTo(BUSINESS_NAME);
 
@@ -109,12 +123,12 @@ class OrderHappyPathScenarioTest {
         assertThat(queryString("select product_status from orders.replica_product where option_id = ?",
             Long.valueOf(optionId))).as("② 판매 시작 뒤 주문 상품 복사본 판매 상태").isEqualTo("ON_SALE");
 
-        // ③ 자녀 이벤트 발행: child.changed → 주문 자녀 복사본
+        // ③ 자녀 이벤트 처리: child.changed → 주문 자녀 복사본
         Long childId = CHILD_ID;
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new ChildChangedEvent(
+        childProfileEventListener.onChildChanged(new ChildChangedEvent(
             UUID.randomUUID(), LocalDateTime.now(), new ChildChangedEvent.Data(childId, buyerId,
                 new BigDecimal("120.5"), new BigDecimal("22.0"), Gender.MALE, LocalDate.now().minusYears(7),
-                null, null, false))));
+                null, null, false)));
         assertThat(queryLong("select member_id from orders.replica_child where child_id = ?", childId))
             .as("③ 자녀 등록 뒤 주문 자녀 복사본").isEqualTo(buyerId);
 
@@ -206,11 +220,10 @@ class OrderHappyPathScenarioTest {
     }
 
     /**
-     * 0단계 가입: 회원 서비스가 가입 때 보내는 member.registered를 발행한다. 지갑은 결제 서비스가 만든다.
+     * 0단계 가입: 가입은 회원 서비스가 하고 지갑은 결제 서비스가 만든다. kidly-app 안에서 member.registered를 받는 곳이
+     * 없어 회원 ID만 정한다.
      */
-    private Long signUp(Long memberId, String email) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new MemberRegisteredEvent(
-            UUID.randomUUID(), LocalDateTime.now(), new MemberRegisteredEvent.Data(memberId, email))));
+    private Long signUp(Long memberId) {
         return memberId;
     }
 

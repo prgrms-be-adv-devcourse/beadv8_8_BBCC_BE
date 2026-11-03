@@ -21,7 +21,7 @@
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(`ReplicaProduct` · `ReplicaSeller` · `ReplicaChild`)은 저장된 `occurredAt`보다 늦은 이벤트만 반영하고, 주문 상태는 이미 그 상태면 `ALREADY_DONE`으로 끝낸다
 - 프로필 없는 자녀 삭제(#739)도 `replica_child`에 자녀 ID · 보호자 ID · 삭제 시각을 남긴다. 키 · 몸무게는 삭제 행에서만 비어 있을 수 있다(DB CHECK). 과거 · 동일 시각의 활성 이벤트는 무시하고, 더 최신의 정상 프로필은 기존 최신 이벤트 우선 정책대로 반영한다. 자녀 복사본 시각은 DB 정밀도(마이크로초)로 잘라 저장 · 비교한다.
 - 필수 값이 없으면 `EventGuard`로 WARN 한 줄을 남기고 무시한다
-- 받는 길은 스위치 `kidly.order.kafka.consumer.enabled` 하나로 고른다: `true`(기본)면 Kafka 리스너, `false`면 Spring 이벤트(`SpringEventReceiver`). 처리 코드(`…EventListener`)는 같다
+- 상품 · 재고 · 결제의 받는 길은 `kidly.order.kafka.consumer.enabled`가 `true`(기본)면 Kafka, `false`면 Spring 이벤트(`SpringEventReceiver`)다. 판매자 · 자녀는 Kafka로만 받는다
 - Kafka 리스너(`ProductEventKafkaListener` · `SellerEventKafkaListener` · `ChildProfileEventKafkaListener` · `PaymentEventKafkaListener`)는 팩토리 `orderKafkaListenerContainerFactory`(`OrderKafkaListenerConfig`)만 쓴다: 한 건씩 완료, 처음 읽는 그룹은 earliest, 실패하면 1초 간격 3번 재시도 뒤 `{토픽}.order.dlt`, 다시 해도 같은 예외 · 읽기 실패는 바로 DLT. 결제 완료는 DLT로 보내기 전에 `payment_recovery` 보관을 한 번 더 시도하고, 보관되면 보내지 않는다(`PaymentEventKafkaListener.keepAfterRetries`)
 - 처리 실패를 주문이 보관하면 리스너가 처리 완료로 본다. 재고 차감됨 · 재고 차감 실패 · 결제 실패는 `EventFailureKeeper.run`이 `order_event_failure`에, 결제 완료는 `PaymentEventListener`가 `payment_recovery`에 보관하고, 둘 다 `EventFailureKeeper.markHandled`로 처리 완료 표시를 붙인다. 관리자가 재처리 · 종료한다. 보관까지 실패하면 재시도 → DLT. 결제 완료의 동시 처리에서 진 쪽은 주문이 아직 결제대기면 보관 없이 재시도하고, 재시도가 끝나면 위처럼 보관한다(재처리 대기 주문은 결제 마감 만료가 취소하지 않는다)
 - DLT 메시지는 `OrderDeadLetterKafkaListener`가 `order_dead_letter`에 원래 위치(토픽 · 파티션 · 오프셋)당 1건으로 저장한다. 저장 실패는 DLT로 다시 보내지 않고 끝없이 재시도한다. 관리자 재처리는 저장한 본문으로 원래 리스너를 그대로 부른다(원래 토픽에 다시 넣지 않음)

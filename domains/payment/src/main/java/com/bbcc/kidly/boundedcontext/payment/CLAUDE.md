@@ -206,8 +206,8 @@
   - DLT 로그에는 토픽 · `eventType` · `eventId` · 키 · 예외 종류만 남긴다(본문에 이메일 · 금액이 있다)
 - 읽기 시작 위치는 결제 팩토리에서 `earliest`(앱 기본 `latest`를 덮어씀). 처음 Kafka로 바꿀 때 빠지는 메시지가 없게 한다. 이미 Spring으로 처리한 메시지를 다시 읽어도 결과가 1회분이라 안전하다
 - 스위치 `kidly.payment.kafka.consumer.enabled`(기본 true, 환경 변수 `PAYMENT_KAFKA_CONSUMER_ENABLED`)
-  - true: Kafka 리스너만 받는다. 같은 이벤트의 Spring 리스너(`app/MemberRegisteredListener` · `MemberWithdrawnListener` · `OrderPaymentRequestedListener` · `OrderCancelledListener`)는 뜨지 않는다
-  - false: Kafka 리스너를 시작하지 않고 Spring 리스너로 받는다(장애 때 되돌리는 용도). 같은 이벤트를 양쪽에서 받지 않는다
+  - true: Kafka 리스너만 받는다. 주문 Spring 리스너(`OrderPaymentRequestedListener` · `OrderCancelledListener`)는 뜨지 않는다
+  - false: Kafka 리스너를 시작하지 않고 주문 이벤트는 Spring 리스너로 받는다. 회원 이벤트는 Kafka로만 받는다
   - `order-item.cancelled`는 Spring 리스너가 없다. 꺼 둔 동안 온 부분 취소는 토픽에 남아 있다가 다시 켜면 그룹 위치부터 받는다
   - 테스트 설정은 false라 다른 도메인 테스트(주문 흐름 등)는 Spring 경로로 돈다. Kafka 수신은 `PaymentKafkaReceiveIntegrationTest`가 그 안에서 결제 리스너를 켜서 본다
 - 로컬에서 결제가 받으려면 Kafka가 떠 있어야 한다(`docker compose up -d`에 포함)
