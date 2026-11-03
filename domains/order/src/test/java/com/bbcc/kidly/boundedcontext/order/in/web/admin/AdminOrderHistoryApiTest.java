@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import java.net.URI;
 import java.util.List;
@@ -60,7 +61,7 @@ class AdminOrderHistoryApiTest {
             .expectStatus().isOk();
 
         client.get().uri(historyPath(orderId))
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -88,7 +89,7 @@ class AdminOrderHistoryApiTest {
         orderService.cancelForPaymentFailure(Long.valueOf(orderId));
 
         client.get().uri(historyPath(orderId))
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -105,7 +106,7 @@ class AdminOrderHistoryApiTest {
         jdbcTemplate.update("delete from orders.order_status_history where order_id = ?", Long.valueOf(orderId));
 
         client.get().uri(historyPath(orderId))
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -116,7 +117,7 @@ class AdminOrderHistoryApiTest {
     @DisplayName("없는 주문이면 404 ORDER_NOT_FOUND(ProblemDetail)")
     void notFound() {
         client.get().uri(historyPath("999999"))
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isNotFound()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
@@ -130,7 +131,7 @@ class AdminOrderHistoryApiTest {
     @DisplayName("주문 ID가 숫자가 아니면(abc) 400")
     void nonNumericIdIsBadRequest() {
         client.get().uri(historyPath("abc"))
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }

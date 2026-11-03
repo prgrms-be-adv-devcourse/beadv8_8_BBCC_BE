@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.in.web.admin;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxAdminService;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OutboxQuarantineResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +41,7 @@ public class AdminOrderOutboxController {
      * 원인 해결 후 원본 이벤트를 다시 전송 대기시킨다. 이미 대기 중이면 그대로 200, 보냈으면 409.
      */
     @PostMapping("/{outboxId}/retry")
-    public OutboxQuarantineResponse retry(@PathVariable Long outboxId, @LoginMember AuthMember admin) {
+    public OutboxQuarantineResponse retry(@PathVariable Long outboxId, @LoginAdmin AuthAdmin admin) {
         return OutboxQuarantineResponse.from(service.retry(outboxId, admin.id()));
     }
 }
