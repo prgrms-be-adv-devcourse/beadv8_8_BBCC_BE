@@ -50,13 +50,13 @@ class PaymentEventSwitchTest {
     }
 
     @Test
-    @DisplayName("정산 지급 요청은 별도 스위치를 따른다: 기본(값 없음) · false면 Spring 리스너로 받고, true면 뜨지 않는다")
+    @DisplayName("정산 지급 요청은 별도 스위치를 따른다: false면 Spring 리스너로 받고, 기본(값 없음) · true면 뜨지 않는다")
     void settlementSwitch() {
         ApplicationContextRunner settlement = new ApplicationContextRunner()
             .withBean(PaymentEventHandler.class, () -> mock(PaymentEventHandler.class))
             .withUserConfiguration(SettlementPayoutRequestedListener.class);
 
-        settlement.run(context -> assertThat(context).hasSingleBean(SettlementPayoutRequestedListener.class));
+        settlement.run(context -> assertThat(context).doesNotHaveBean(SettlementPayoutRequestedListener.class));
         settlement.withPropertyValues("kidly.payment.kafka.settlement-consumer.enabled=false")
             .run(context -> assertThat(context).hasSingleBean(SettlementPayoutRequestedListener.class));
         settlement.withPropertyValues("kidly.payment.kafka.settlement-consumer.enabled=true")
@@ -69,7 +69,8 @@ class PaymentEventSwitchTest {
         new ApplicationContextRunner()
             .withBean(PaymentEventHandler.class, () -> mock(PaymentEventHandler.class))
             .withUserConfiguration(SettlementPayoutRequestedListener.class)
-            .withPropertyValues("kidly.payment.kafka.consumer.enabled=true")
+            .withPropertyValues("kidly.payment.kafka.consumer.enabled=true",
+                "kidly.payment.kafka.settlement-consumer.enabled=false")
             .run(context -> assertThat(context).hasSingleBean(SettlementPayoutRequestedListener.class));
     }
 }

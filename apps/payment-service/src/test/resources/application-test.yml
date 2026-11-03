@@ -36,3 +36,6 @@ kidly:
     kafka:
       consumer:
         enabled: false
+      # 정산 지급 요청은 테스트에서 Spring 이벤트로 받는다(테스트가 같은 JVM에서 발행한다). Kafka 수신은 PaymentSettlementKafkaReceiveIntegrationTest가 그 안에서 켠다
+      settlement-consumer:
+        enabled: false
