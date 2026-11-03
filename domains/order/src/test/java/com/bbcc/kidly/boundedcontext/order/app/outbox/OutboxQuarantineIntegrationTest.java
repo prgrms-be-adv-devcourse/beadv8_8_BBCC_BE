@@ -141,6 +141,24 @@ class OutboxQuarantineIntegrationTest {
     }
 
     @Test
+    @DisplayName("격리가 있어도 다른 키의 기준을 넘긴 실제 전송 대기는 대표에서 가려지지 않는다")
+    void globalFailureRemainsVisibleWithQuarantine() {
+        Long isolated = save("isolated");
+        save("isolated");
+        Long failing = save("global-failure");
+        transactions.executeWithoutResult(s -> repository.quarantine(isolated, "RecordTooLargeException",
+            LocalDateTime.now()));
+        jdbc.update("update orders.order_outbox set attempt_count = 100, last_error = 'TimeoutException' where id = ?",
+            failing);
+        assertThat(stuckService.getStuckOrders("OUTBOX_STUCK", LocalDateTime.now(), 0, 20)).singleElement()
+            .satisfies(row -> {
+                assertThat(row.targetId()).isEqualTo(failing);
+                assertThat(row.outbox().quarantinedAt()).isNull();
+            });
+        assertThat(repository.countQuarantined()).isOne();
+    }
+
+    @Test
     @DisplayName("브로커 환경 오류가 반복돼도 정상 메시지를 격리하지 않고 전송 여부가 불명확한 메시지에서 멈춘다")
     void repeatedTransientFailureDoesNotQuarantine() {
         Long id = save("a");

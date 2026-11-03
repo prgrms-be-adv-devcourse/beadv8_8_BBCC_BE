@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.port;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -90,9 +90,9 @@ public interface StuckOrderRepository {
     }
 
     /**
-     * 가장 오래된 격리를 우선, 없으면 가장 오래된 미전송 메시지. 전체 격리 목록은 별도 관리자 API에서 본다.
+     * 전송 가능한 미전송의 맨 앞과 가장 오래된 격리를 최대 2건 읽는다. 표시 우선순위는 app이 판단한다.
      */
-    Optional<OutboxHeadRow> findOldestUnsentOutbox();
+    List<OutboxHeadRow> findOutboxAttentionHeads();
 
     long countUnsentOutbox();
 
