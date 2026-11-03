@@ -14,8 +14,10 @@ spring:
     default-schema: settlement
     schemas: settlement
     table: flyway_schema_history_settlement
-    # 이미 정산 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 지금 정산 스키마의 마지막 파일(판매자 · 기간 종료일 유일 제약) 버전으로 baseline을 잡고
-    # 그때까지의 파일을 건너뛴다. 빈 DB(테스트)는 baseline 없이 init부터 적용한다
+    # 이미 정산 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 kidly-app이 정산을 가지고 있던 동안 마지막으로 적용한 파일(판매자 · 기간 종료일 유일 제약)
+    # 버전으로 baseline을 잡고 그때까지의 파일을 건너뛴다. 이제 정산 마이그레이션은 이 서비스만 적용하므로 이 값은 바꾸지 않는다. 빈 DB(테스트)는 baseline 없이 init부터 적용한다
+    # 빈 DB에서 kidly-app이 먼저 뜨면 kidly-app init이 정산 테이블을 init 모양으로만 만든다. 그 DB에서 baseline으로 건너뛴 아웃박스 · 유일 키는
+    # 보강 마이그레이션(V202611031547)이 없을 때만 만든다(SettlementMigrationIntegrationTest)
     baseline-on-migrate: true
     baseline-version: 202611021248
     # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다

@@ -11,8 +11,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
@@ -23,7 +21,6 @@ import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.URI;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,7 +45,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @FunctionalTest
 class OrderHappyPathScenarioTest {
 
-    private static final Long ADMIN_ID = 99L;
     private static final Long BUYER_ID = 1L;
     private static final Long SELLER_ID = 2L;
     private static final long PRICE = 25_000L;
@@ -180,43 +176,12 @@ class OrderHappyPathScenarioTest {
             .containsExactly("DELIVERED");
         assertThat(delivered.items().getFirst().deliveredAt()).as("⑤ 주문상품 배송 완료 시각").isNotNull();
 
-        // ⑥ 구매확정: order-item.purchase-confirmed → 판매자 정산 대상
+        // ⑥ 구매확정: order-item.purchase-confirmed 발행. 정산 대상 · 지급은 정산 서비스(#729)가 받아 처리하므로 여기서는 보지 않는다
         String orderItemId = delivered.items().getFirst().orderItemId();
         client.post().uri("/api/v1/orders/" + orderId + "/items/" + orderItemId + "/confirm")
             .headers(TestMembers.buyer(buyerId))
             .exchange()
             .expectStatus().isOk();
-        assertThat(queryLong("select sales_amount from settlement.settlement_item where order_item_id = ? "
-            + "and seller_id = ?", Long.valueOf(orderItemId), sellerId)).as("⑥ 판매자 정산 대상 금액").isEqualTo(PRICE);
-
-        // ⑦ 정산 · 지급: 정산 실행 → 지급 요청 → (결제 서비스) 판매자 지갑 입금 · payment.payout-completed → 정산 지급 완료
-        // 수동 정산은 기준일이 오늘 이하이고, 기준일 0시 전에 확정된 대상만 정산한다. 오늘 확정한 대상을 넣으려고
-        // 확정 시각만 지금 − 1일로 옮기고 기준일 = 오늘로 실행한다(정산 운영 코드는 바꾸지 않음)
-        jdbcTemplate.update("update settlement.settlement_item set confirmed_at = ? where order_item_id = ?",
-            LocalDateTime.now().minusDays(1), Long.valueOf(orderItemId));
-        client.post().uri("/api/v1/admin/settlements/run")
-            .headers(TestAdmins.of(ADMIN_ID))
-            .body(Map.of("cutoffOn", LocalDate.now().toString()))
-            .exchange()
-            .expectStatus().isCreated();
-        Map<String, Object> requested = jdbcTemplate.queryForMap(
-            "select id, settlement_amount from settlement.settlement where seller_id = ?", sellerId);
-        Long settlementId = ((Number) requested.get("id")).longValue();
-        long requestedAmount = ((Number) requested.get("settlement_amount")).longValue();
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new PaymentPayoutCompletedEvent(
-            UUID.randomUUID(), LocalDateTime.now(), new PaymentPayoutCompletedEvent.Data(settlementId, sellerId,
-                requestedAmount, LEDGER_ID, LocalDateTime.now()))));
-        Map<String, Object> settlement = jdbcTemplate.queryForMap("select status, total_sales_amount, fee_rate, "
-            + "fee_amount, settlement_amount from settlement.settlement where seller_id = ?", sellerId);
-        assertThat(settlement.get("total_sales_amount")).as("⑦ 정산 매출 합계").isEqualTo(PRICE);
-        assertThat(settlement.get("status")).as("⑦ 정산 지급 상태").isEqualTo("PAID");
-        // 수수료율은 정산 설정값이라 행에서 읽고, 수수료 = 매출 × 수수료율(원 단위 버림), 정산 금액 = 매출 − 수수료로 맞춘다
-        BigDecimal feeRate = (BigDecimal) settlement.get("fee_rate");
-        long feeAmount = ((Number) settlement.get("fee_amount")).longValue();
-        long settlementAmount = ((Number) settlement.get("settlement_amount")).longValue();
-        assertThat(feeAmount).as("⑦ 수수료 = 매출 × 수수료율")
-            .isEqualTo(BigDecimal.valueOf(PRICE).multiply(feeRate).setScale(0, RoundingMode.DOWN).longValueExact());
-        assertThat(settlementAmount).as("⑦ 정산 금액 = 매출 − 수수료").isEqualTo(PRICE - feeAmount);
     }
 
     /**
