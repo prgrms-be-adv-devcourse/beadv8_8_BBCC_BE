@@ -19,6 +19,8 @@ services:
     env_file: .env
     environment:
       JAVA_TOOL_OPTIONS: -Xmx512m
+      # glibc malloc arena 를 2개로 묶어 힙 밖 메모리를 줄인다(#758 측정: app RSS 687MB → 499MB)
+      MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "127.0.0.1:${APP_PORT}:8080"     # 외부 비공개. nginx 가 80/443 으로 받아 넘긴다
@@ -107,6 +109,7 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx512m
+      MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       # 기본값은 profile 이 꺼진 환경(prod)에서 빈 값 경고를 내지 않으려는 것이다
       ELASTICSEARCH_URIS: ${ELASTICSEARCH_URIS:-}
@@ -260,6 +263,7 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx256m
+      MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       # 같은 compose 네트워크의 app 컨테이너 포트(8080)다. 서버 포트(APP_PORT)가 아니다
       KIDLY_APP_URI: http://app:8080
