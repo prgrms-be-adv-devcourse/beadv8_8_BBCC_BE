@@ -3,7 +3,7 @@
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES=search 인 환경(지금은 dev)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
 # 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(dev · prod)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
-# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경에서만 뜬다. 지금은 dev 에서만 켰다(켜면 app 주석의 상한 합계에 더해진다)
+# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다. app 에는 추천 API 가 없어 추천 API 를 쓰는 환경은 모두 켜야 한다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -169,7 +169,6 @@ services:
     logging: *logging
 
   # 추천 서비스(apps/recommend-service, #704). 추천 API 와 판매자 · 자녀 · 상품 · 주문 이벤트 수신(구독 그룹 kidly.recommend). 보내는 이벤트는 없다
-  # app 도 아직 추천 도메인을 가지고 같은 DB · 구독 그룹으로 함께 돈다. 같은 메시지를 두 번 받아도 한 번만 반영한다
   # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   recommend-service:
     image: ${RECOMMEND_IMAGE}
@@ -189,7 +188,7 @@ services:
       - "127.0.0.1:${RECOMMEND_PORT:-8087}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # app 이 추천 도메인을 가진 동안(#704)은 app 이 먼저 마이그레이션해야 한다. 서비스는 app 이 이미 적용한 마지막 추천 마이그레이션 버전으로 baseline 을 잡는다
+    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다. app 의 init 이 추천 테이블도 만들어, 서비스가 먼저 만들면 app 의 init 이 실패한다(#704)
     depends_on:
       postgres:
         condition: service_healthy
@@ -224,8 +223,8 @@ services:
       KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://app:8080}
       # 자녀 프로필(/api/v1/children/**)을 받을 곳(#682). app 에는 자녀 API 가 없어 profile childprofile 이 꺼진 환경에서는 자녀 API 가 실패한다
       KIDLY_CHILDPROFILE_URI: ${KIDLY_CHILDPROFILE_URI:-http://childprofile-service:8080}
-      # 추천(/api/v1/recommendations/**)을 받을 곳(#704). 추천 서비스를 켠 환경은 .env 에 recommend-service 를 두고, 없으면 지금처럼 app 이 받는다
-      KIDLY_RECOMMEND_URI: ${KIDLY_RECOMMEND_URI:-http://app:8080}
+      # 추천(/api/v1/recommendations/**)을 받을 곳(#704). app 에는 추천 API 가 없어 profile recommend 가 꺼진 환경에서는 추천 API 가 실패한다
+      KIDLY_RECOMMEND_URI: ${KIDLY_RECOMMEND_URI:-http://recommend-service:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs

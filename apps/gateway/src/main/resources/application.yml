@@ -127,8 +127,8 @@ kidly:
     search-uri: ${KIDLY_SEARCH_URI:http://localhost:8080}
     # 자녀 프로필은 kidly-app에 없다. childprofile-service(8084)를 띄워야 자녀 API가 된다
     childprofile-uri: ${KIDLY_CHILDPROFILE_URI:http://localhost:8084}
-    # 추천도 기본은 kidly-app이 받는다. recommend-service(8086)로 볼 때만 KIDLY_RECOMMEND_URI=http://localhost:8086으로 띄운다
-    recommend-uri: ${KIDLY_RECOMMEND_URI:http://localhost:8080}
+    # 추천은 kidly-app에 없다. recommend-service(8086)를 띄워야 추천 API가 된다
+    recommend-uri: ${KIDLY_RECOMMEND_URI:http://localhost:8086}
 
 cors:
   allowed-origins: http://localhost:5173
