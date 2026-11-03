@@ -132,7 +132,7 @@ class AdminWalletApiTest {
 
     private RestTestClient.ResponseSpec postReturnBalance(Long walletId, long amount) {
         return client.post().uri(ADMIN_WALLETS_PATH + "/" + walletId + "/return-balance")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("amount", amount))
             .exchange();

@@ -5,8 +5,8 @@ import com.bbcc.kidly.boundedcontext.payment.app.dto.ReturnBalanceRequest;
 import com.bbcc.kidly.boundedcontext.payment.in.dto.AdminWalletResponse;
 import com.bbcc.kidly.boundedcontext.payment.in.dto.BalanceReturnResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -50,7 +50,7 @@ public class AdminWalletController {
      * 요청 금액은 목록에서 본 잔액이고, 지금 잔액과 다르면 409다.
      */
     @PostMapping("/{walletId}/return-balance")
-    public BalanceReturnResponse returnBalance(@LoginMember AuthMember admin, @PathVariable Long walletId,
+    public BalanceReturnResponse returnBalance(@LoginAdmin AuthAdmin admin, @PathVariable Long walletId,
         @Valid @RequestBody ReturnBalanceRequest request) {
         return BalanceReturnResponse.from(walletService.returnBalance(walletId, request.amount(), admin.id()));
     }
