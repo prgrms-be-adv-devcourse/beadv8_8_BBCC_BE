@@ -89,7 +89,7 @@ public class RecommendKafkaListenerConfig {
         return errorHandler;
     }
 
-    // 본문(자녀 키 · 몸무게 등이 들어 있을 수 있다)과 예외 메시지(읽지 못한 값이 들어 있다)는 남기지 않는다
+    // 본문(자녀 키 · 몸무게, 검색어 등이 들어 있을 수 있다)과 예외 메시지(읽지 못한 값이 들어 있다)는 남기지 않는다
     private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
         var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
         log.error("처리하지 못한 이벤트를 DLT로 보냅니다. topic={} eventType={} eventId={} key={} exception={}",

@@ -11,7 +11,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * kidly.search.events에서 search.performed를 받아 검색 활동 기록 저장을 맡긴다.
- * 같은 메시지를 다시 받아도 이벤트 ID UNIQUE로 활동 기록은 한 줄만 남으므로 결과는 한 번 받은 것과 같다.
+ * 같은 메시지를 다시 받으면 서비스가 이미 저장된 이벤트 ID를 보고 건너뛰므로 결과는 한 번 받은 것과 같다.
+ * 두 처리가 겹쳐 둘 다 저장하려 하면 이벤트 ID UNIQUE가 하나를 막고, 막힌 쪽은 재시도에서 건너뛴다.
  * 검색어는 회원의 관심사라 로그 · 예외 메시지에 남기지 않는다.
  */
 @Component
