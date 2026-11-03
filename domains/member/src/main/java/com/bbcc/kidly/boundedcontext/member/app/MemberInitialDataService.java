@@ -22,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MemberInitialDataService {
 
+    // 정지한 관리자로 남기는 첫 관리자 계정(인증 도메인의 부트스트랩 관리자)
+    private static final Long ADMIN_ID = 1L;
+
     private final MemberRepository memberRepository;
     private final MemberRegistrar memberRegistrar;
     private final ShippingAddressService shippingAddressService;
@@ -36,15 +39,14 @@ public class MemberInitialDataService {
         }
         var parent = register(1, "테스트보호자", "parent@kidly.test");
         register(2, "테스트판매자", "seller@kidly.test");
-        var admin = register(3, "테스트관리자", "admin@kidly.test");
+        register(3, "테스트관리자", "admin@kidly.test");
         var suspended = register(4, "정지회원", "suspended@kidly.test");
         register(5, "신청대기회원", "pending-seller@kidly.test");
         register(6, "신청거절회원", "rejected-seller@kidly.test");
 
         shippingAddressService.register(parent.getId(),
             new ShippingAddressRequest("홍길동", "010-0000-0000", "00000", "서울시 테스트로 1", null, true));
-        adminMemberService.grantAdmin(admin.getId());
-        adminMemberService.suspend(suspended.getId(), admin.getId(),
+        adminMemberService.suspend(suspended.getId(), ADMIN_ID,
             new MemberSuspendRequest("정지 화면 확인용 초기 데이터"));
         log.info("회원 초기 데이터를 넣었다");
     }

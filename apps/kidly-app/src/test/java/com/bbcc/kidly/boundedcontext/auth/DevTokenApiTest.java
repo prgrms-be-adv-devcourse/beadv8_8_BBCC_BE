@@ -70,6 +70,12 @@ class DevTokenApiTest {
     }
 
     @Test
+    @DisplayName("ADMIN 역할로 회원 토큰을 발급할 수 없다")
+    void adminRole() {
+        expectBadRequest("{\"memberId\": 1, \"roles\": [\"ADMIN\"]}");
+    }
+
+    @Test
     @DisplayName("역할이 비어 있으면 400 ProblemDetail로 응답한다")
     void emptyRoles() {
         expectBadRequest("{\"memberId\": 1, \"roles\": []}");

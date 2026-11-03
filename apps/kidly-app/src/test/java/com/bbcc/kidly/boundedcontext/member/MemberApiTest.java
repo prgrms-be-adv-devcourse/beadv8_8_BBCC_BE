@@ -6,7 +6,6 @@ import com.bbcc.kidly.boundedcontext.auth.SocialAccountFixture;
 import com.bbcc.kidly.boundedcontext.auth.domain.SocialAccountRepository;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.MemberResponse;
 import com.bbcc.kidly.global.security.RefreshTokenCookies;
@@ -229,19 +228,6 @@ class MemberApiTest {
 
         assertThat(memberRepository.findById(member.getId()).orElseThrow().getStatus())
             .isEqualTo(MemberStatus.WITHDRAWN);
-    }
-
-    @Test
-    @DisplayName("관리자가 탈퇴하면 409")
-    void withdrawAdmin() {
-        var member = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
-
-        deleteMine(TestMembers.buyer(member.getId()))
-            .expectStatus().isEqualTo(HttpStatus.CONFLICT)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody().jsonPath("$.title").isEqualTo("탈퇴할 수 없는 회원입니다");
-        assertThat(memberRepository.findById(member.getId()).orElseThrow().getStatus())
-            .isEqualTo(MemberStatus.ACTIVE);
     }
 
     @Test

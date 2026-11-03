@@ -37,7 +37,7 @@ class MemberInitialDataServiceIntegrationTest {
             .mapToObj(id -> memberRepository.getById(id).getNickname())
             .toList();
         assertThat(nicknames).containsExactly("테스트보호자", "테스트판매자", "테스트관리자", "정지회원", "신청대기회원", "신청거절회원");
-        assertThat(memberRepository.getById(3L).isAdmin()).isTrue();
+        assertThat(memberRepository.getById(3L).roles()).containsExactly(com.bbcc.kidly.shared.auth.Role.BUYER);
         assertThat(memberRepository.getById(4L).getStatus()).isEqualTo(MemberStatus.SUSPENDED);
         assertThat(shippingAddressService.getAddresses(1L)).singleElement().satisfies(address -> {
             assertThat(address.id()).isEqualTo(1L);

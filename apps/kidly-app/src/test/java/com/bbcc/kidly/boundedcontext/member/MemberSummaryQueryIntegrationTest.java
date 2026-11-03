@@ -7,7 +7,6 @@ import com.bbcc.kidly.boundedcontext.member.app.port.AdminMemberSummary;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberSummaryQuery;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -36,10 +35,10 @@ class MemberSummaryQueryIntegrationTest {
     private Member seller;
     private Member suspendedSeller;
     private Member suspendedMember;
-    private Member admin;
+    private Member fifth;
     private Member withdrawn;
 
-    // 6번(탈퇴)은 어느 필터에도 나오지 않고, 5번(관리자)은 ADMIN에서만 나온다
+    // 6번(탈퇴)은 어느 필터에도 나오지 않는다
     @BeforeEach
     void setUp() {
         buyer = memberRepository.save(MemberFixture.kakaoMember("1"));
@@ -48,17 +47,18 @@ class MemberSummaryQueryIntegrationTest {
         suspendedMember = MemberFixture.kakaoMember("4");
         suspendedMember.suspend(100L, REASON, MemberFixture.NOW);
         memberRepository.save(suspendedMember);
-        admin = memberRepository.save(MemberFixture.withRole("5", MemberRole.ADMIN));
+        fifth = memberRepository.save(MemberFixture.kakaoMember("5"));
         withdrawn = memberRepository.save(MemberFixture.withStatus("6", MemberStatus.WITHDRAWN));
     }
 
     @Test
-    @DisplayName("ALL이면 관리자 · 탈퇴 회원을 빼고 모두 읽는다")
+    @DisplayName("ALL이면 탈퇴 회원을 빼고 모두 읽는다")
     void findAll() {
         var page = query.findAll(AdminMemberFilter.ALL, null, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).extracting(AdminMemberSummary::id)
-            .containsExactlyInAnyOrder(buyer.getId(), seller.getId(), suspendedSeller.getId(), suspendedMember.getId());
+            .containsExactlyInAnyOrder(buyer.getId(), seller.getId(), suspendedSeller.getId(),
+                suspendedMember.getId(), fifth.getId());
     }
 
     @Test
@@ -67,7 +67,7 @@ class MemberSummaryQueryIntegrationTest {
         var page = query.findAll(AdminMemberFilter.BUYER, null, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).extracting(AdminMemberSummary::id)
-            .containsExactlyInAnyOrder(buyer.getId(), suspendedMember.getId());
+            .containsExactlyInAnyOrder(buyer.getId(), suspendedMember.getId(), fifth.getId());
     }
 
     @Test
@@ -90,37 +90,6 @@ class MemberSummaryQueryIntegrationTest {
             assertThat(row.suspendReason()).isEqualTo(REASON);
             assertThat(row.suspendedAt()).isEqualTo(MemberFixture.NOW);
         });
-    }
-
-    @Test
-    @DisplayName("ADMIN은 관리자 회원만 읽는다")
-    void findAdmins() {
-        var page = query.findAll(AdminMemberFilter.ADMIN, null, PageRequest.of(0, 10));
-
-        assertThat(page.getContent()).extracting(AdminMemberSummary::id).containsExactly(admin.getId());
-    }
-
-    @Test
-    @DisplayName("ADMIN도 keyword로 검색한다")
-    void searchAdmins() {
-        var page = query.findAll(AdminMemberFilter.ADMIN, buyer.getNickname(), PageRequest.of(0, 10));
-
-        assertThat(page.getContent()).isEmpty();
-        assertThat(query.findAll(AdminMemberFilter.ADMIN, admin.getNickname(), PageRequest.of(0, 10)).getContent())
-            .extracting(AdminMemberSummary::id).containsExactly(admin.getId());
-    }
-
-    @Test
-    @DisplayName("판매자인 관리자는 SELLER가 아니라 ADMIN에서 나온다")
-    void sellerAdminOnlyInAdmin() {
-        var sellerAdmin = MemberFixture.withSellerState("7", SellerStatus.ACTIVE);
-        sellerAdmin.grantAdmin();
-        memberRepository.save(sellerAdmin);
-
-        assertThat(query.findAll(AdminMemberFilter.SELLER, null, PageRequest.of(0, 10)).getContent())
-            .extracting(AdminMemberSummary::id).doesNotContain(sellerAdmin.getId());
-        assertThat(query.findAll(AdminMemberFilter.ADMIN, null, PageRequest.of(0, 10)).getContent())
-            .extracting(AdminMemberSummary::id).containsExactlyInAnyOrder(admin.getId(), sellerAdmin.getId());
     }
 
     @Test
@@ -152,7 +121,7 @@ class MemberSummaryQueryIntegrationTest {
         var page = query.findAll(AdminMemberFilter.ALL, null, PageRequest.of(0, 3));
 
         assertThat(page.getContent()).hasSize(3);
-        assertThat(page.getTotalElements()).isEqualTo(4);
+        assertThat(page.getTotalElements()).isEqualTo(5);
         assertThat(page.hasNext()).isTrue();
     }
 
@@ -249,7 +218,8 @@ class MemberSummaryQueryIntegrationTest {
         var page = query.findAll(AdminMemberFilter.ALL, keyword, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).extracting(AdminMemberSummary::id)
-            .containsExactlyInAnyOrder(buyer.getId(), seller.getId(), suspendedSeller.getId(), suspendedMember.getId());
+            .containsExactlyInAnyOrder(buyer.getId(), seller.getId(), suspendedSeller.getId(),
+                suspendedMember.getId(), fifth.getId());
     }
 
     @Test
@@ -287,13 +257,11 @@ class MemberSummaryQueryIntegrationTest {
     }
 
     @Test
-    @DisplayName("ALL에서는 관리자 · 탈퇴 회원을 회원 번호로 찾아도 나오지 않는다")
-    void searchExcludesAdminAndWithdrawn() {
-        var byAdminId = query.findAll(AdminMemberFilter.ALL, String.valueOf(admin.getId()), PageRequest.of(0, 10));
+    @DisplayName("ALL에서는 탈퇴 회원을 회원 번호로 찾아도 나오지 않는다")
+    void searchExcludesWithdrawn() {
         var byWithdrawnId = query.findAll(AdminMemberFilter.ALL, String.valueOf(withdrawn.getId()),
             PageRequest.of(0, 10));
 
-        assertThat(byAdminId.getContent()).isEmpty();
         assertThat(byWithdrawnId.getContent()).isEmpty();
     }
 
