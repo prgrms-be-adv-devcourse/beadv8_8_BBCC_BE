@@ -60,9 +60,10 @@
 ## 판매자 부분 취소의 재고 복구 (InventoryRestorationService, #693)
 - 주문상품 ID로 차감 기록을 읽어 `InventoryRestoration`이 `DEDUCTED`만 고르고, `InventoryRestorer`가 조건부 UPDATE로 되돌린다. 마지막 몫이 취소돼 주문 전체가 취소될 때도 `order.cancelled` 없이 이 이벤트만 온다
 - 이미 `RESTORED`인 주문상품은 다시 되돌리지 않는다. 같은 부분 취소를 두 번 받거나 뒤에 주문 취소됨이 와도 안전하다
-- 판매자 취소는 `PAID` 주문에서만 되고 결제 요청은 `stock.deducted` 뒤에만 나가므로, 그 주문상품에는 `DEDUCTED` 기록이 있어야 한다. 아래 경우는 도메인 사이 버그로 보고 재고와 기록을 바꾸지 않은 채 ERROR 로그(`orderId` · `cancellationId`)만 남긴다. 다시 받아도 같으므로 DLT로 보내지 않는다
+- 판매자 취소는 `PAID` 주문에서만 되고 결제 요청은 `stock.deducted` 뒤에만 나가므로, 그 주문상품에는 `DEDUCTED` 기록이 있어야 한다. 아래 경우는 도메인 사이 버그로 보고 ERROR 로그(`orderId` · `cancellationId`)를 남긴다. 기록이 없거나 모두 `FAILED`면 재고와 기록을 바꾸지 않는다. 다시 받아도 같으므로 DLT로 보내지 않는다
     - 기록이 없음: 주문 취소됨이 먼저 온 경우(INV-09)와 달리 `FAILED`를 남기지 않는다. 결제된 주문이라 뒤늦게 주문 생성됨이 올 수 없어 막을 것이 없다(11-02 정석님)
     - 기록이 모두 `FAILED`: 재고 없이 결제된 주문이라는 뜻이라 더 위험하다
+    - 일부만 기록이 없음: 기록이 있는 `DEDUCTED`는 되돌리고, 없는 주문상품 ID를 ERROR 로그에 남긴다(`InventoryRestoration.orderItemIdsWithoutRecord`, 11-02 정석님). 주문 취소됨 경로는 아직 이 확인을 하지 않는다
 - 수량 일부 취소는 없다. 차감 기록을 통째로 `RESTORED`로 바꾼다
 - 배포 순서: 상품을 먼저 배포한 뒤 주문의 판매자 취소 스위치(`kidly.order.partial-cancel.enabled`)를 켠다
 
