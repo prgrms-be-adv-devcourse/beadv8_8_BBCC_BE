@@ -30,6 +30,9 @@ dependencies {
     // 기능 테스트의 로그인 헤더(TestMembers)
     testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    // 정산 작업 테스트가 실행 기록(JobRepository · JobParameters)을 직접 만든다. 도메인 모듈은 batch를 implementation으로 받아
+    // 앱의 테스트 컴파일 경로에는 없다 (kidly-app과 같은 의존)
+    testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")

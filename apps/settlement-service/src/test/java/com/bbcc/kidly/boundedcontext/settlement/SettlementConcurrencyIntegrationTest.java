@@ -83,7 +83,6 @@ class SettlementConcurrencyIntegrationTest {
             new OrderItemPurchaseConfirmedEvent.Data(101L, 1L, 2L, SELLER_ID, 3L, 4L, 5L,
                 "120", 1, 10_000L, CONFIRMED_AT));
 
-        // 이벤트로 발행하면 같은 이벤트를 받는 다른 도메인 리스너가 먼저 유니크에서 막혀 스레드가 줄을 서므로,
         // 정산 리스너를 바로 불러 정산 쪽 중복 방지(조회 + order_item_id 유니크)만 겨룬다
         var outcomes = runAtOnce(() -> {
             settlementOrderEventListener.on(event);
