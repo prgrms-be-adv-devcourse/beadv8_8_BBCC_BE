@@ -21,6 +21,7 @@
   - 표시 가격: 판매할 수 있는 옵션(ON_SALE · 품절 아님) 중 최저가, 없으면 전체 옵션 중 최저가 (PRICE-05)
   - 품절: 모든 옵션이 품절일 때만 (SALE-07)
   - attributes: 옵션 값 · 상품 정보 값의 값 ID를 항목 code별로 모은다. 직접 입력 항목(값 ID 없음)은 뺀다
+- 브랜드(`brand`)는 받은 값 그대로 옮긴다(#610). 등록하지 않았거나 브랜드 칸이 없는 예전 메시지면 null이다. 설명(`description`) · 사이즈별 실측은 아직 쓰지 않는다(설명 검색은 나중에 따로 정한다)
 - 판매 상태로 거르지 않고 모두 저장한다. 판매중(`ON_SALE`)만 보여 주는 건 검색할 때 한다
 - 상호명은 문서에 넣지 않고 `SearchSeller`로 따로 둔다. 판매자 변경 때 그 판매자의 상품 문서를 모두 고치지 않으려는 것이다
 
@@ -43,15 +44,21 @@
 
 ## Elasticsearch 색인
 - 색인 이름은 `{kidly.search.index.prefix}-products` · `-sellers`. dev와 prod가 Elasticsearch 하나를 색인 이름으로만 나눠 쓸 수 있다(`search.yml`)
-- 필드 타입은 `src/main/resources/elasticsearch/*.json`. `dynamic: strict`라 문서에 없는 필드가 오면 저장이 거절된다. 상품 이름은 한글 형태소 분석기 `nori`(Elasticsearch에 analysis-nori 플러그인 필요)
-- 기동할 때 색인이 없으면 만들고(`out/SearchIndexInitializer`), 있으면 바꾸지 않는다. 필드를 바꾸면 새 색인을 만들어 다시 채운다
+- 필드 타입은 `src/main/resources/elasticsearch/*.json`. `dynamic: strict`라 설정에 없는 필드가 오면 저장이 거절된다. 상품 이름은 한글 형태소 분석기 `nori`(Elasticsearch에 analysis-nori 플러그인 필요)
+  - 브랜드는 `standard`(단어 그대로, 소문자로)다. 고유명사라 nori가 앞뒤 글자에 따라 다르게 나눈다(`키들리` → `키` · `들리`, `키들리 원피스` → `키` · `리` · `원피스`). 그래서 색인한 형태소와 검색어 형태소가 어긋나 찾지 못한다
+- 기동할 때 색인이 없으면 만들고, 있으면 설정 파일의 필드를 보내 새로 더한 필드만 넣는다(`out/SearchIndexInitializer`, put mapping)
+  - 필드를 더하는 것은 색인을 다시 만들지 않아도 된다. 새 필드는 그 뒤에 색인한 문서부터 채워지므로 이미 있는 문서는 상품 · 판매자의 전체 다시 발행으로 채운다
+  - 있는 필드의 타입 · 분석기를 바꾸면 Elasticsearch가 거절해 기동에 실패한다. 그때는 새 색인을 만들어 다시 채운다
 - 항목 값은 `code:값ID` 한 단어로 묶어 keyword 필드 `attributeValues` 하나에 담는다. 항목이 늘어도 필드가 늘지 않는다
 
 ## 목록 검색 (`app/port/ProductSearch`, `out/ElasticsearchProductSearch`)
 - 계약(조건 · 결과 · 정렬 · 페이지)은 상품의 `ProductSearch`(PostgreSQL)와 같다. 목록 API를 옮겨도 응답이 바뀌지 않게 하려는 것이다
 - 판매중(`status = ON_SALE`)만 돌려준다. 조건은 모두 `bool.filter`로 건다. 정렬이 점수가 아니라 정해진 필드라 점수를 계산하지 않는다
   - 카테고리: `categoryId` 일치
-  - 검색어: 상품명을 `match`(nori, `operator: and`)로 찾는다. 검색어의 모든 형태소가 상품명에 있어야 맞는다. 띄어쓰기 · 조사 · 어순이 달라도 찾고(`원피스 여아용` → `여아 원피스`), 형태소 하나만 맞는 상품까지 넓히지 않는다. 앞뒤 공백은 빼고, 공백뿐이면 거르지 않는다
+  - 검색어: 상품명이나 브랜드에서 찾는다(#610). 아래 둘 중 하나만 맞으면 된다. 앞뒤 공백은 빼고, 공백뿐이면 거르지 않는다
+    - 상품명: 검색어 전체를 `match`(nori, `operator: and`)로 찾는다. 모든 형태소가 상품명에 있어야 맞는다. 띄어쓰기 · 조사 · 어순이 달라도 찾고(`원피스 여아용` → `여아 원피스`), 형태소 하나만 맞는 상품까지 넓히지 않는다
+    - 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(`standard`) 중 한 곳에 있어야 맞는다(`키들리 원피스` → 브랜드 키들리 · 상품명 원피스). 브랜드는 단어를 다 써야 찾는다(`꼬마`로 `꼬마숲`은 못 찾음)
+    - filter라 점수를 계산하지 않는다. 그래서 상품명 > 브랜드 같은 가중치는 두지 않았다. 관련도순 정렬을 만들 때 정한다
   - 항목 값: 항목마다 `terms`(`attributeValues`, `code:값ID`) 하나. 같은 항목 안의 값은 하나만 맞으면 되고, 항목끼리는 모두 맞아야 한다. 값이 빈 항목은 쓰지 않는다
 - 정렬: `NEWEST` = `productCreatedAt` 내림차순, `PRICE_ASC` · `PRICE_DESC` = `minPrice`. 값이 같으면 `productId` 내림차순. 관련도순은 아직 없다
 - 상호명: 결과 페이지의 판매자 ID로 판매자 색인을 `mget` 한 번 해서 붙인다(같은 판매자는 한 번). 판매자 문서가 없으면 null. 결과가 없으면 찾지 않는다
