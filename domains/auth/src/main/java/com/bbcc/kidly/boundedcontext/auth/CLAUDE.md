@@ -19,6 +19,9 @@
 
 ## 관리자 계정 · 로그인 (#736)
 - 계정은 `auth.admin_account`(`AdminAccount`): 이메일(앞뒤 공백 제거 · 소문자, UNIQUE) · BCrypt 해시(`out/AuthPasswordConfig`의 `authPasswordEncoder`) · `ACTIVE`/`DISABLED` · 만든 관리자 ID(`created_by`, 첫 관리자만 비어 있다)
+- 관리자 생성은 `POST /api/v1/admin/admins`, 비활성화는 `POST /api/v1/admin/admins/{adminId}/disable`이다. 둘 다 `@LoginAdmin`을 받는다. 생성 시 비밀번호는 12자 이상 · UTF-8 72바이트 이하다
+- 비활성화는 관리자 행을 잠근 뒤 시각과 실행자 ID를 남기고 Refresh Token을 삭제하며 Access Token 무효화를 발행한다. 자기 자신은 비활성화할 수 없고 이미 비활성화된 계정에는 무효화를 다시 발행하지 않는다
+- 생성 · 비활성화는 호출한 관리자의 행도 잠그고 ACTIVE가 아니면 401이다. 비활성화된 관리자의 Access Token은 무효화가 Gateway에 닿기 전까지 잠깐 통과하기 때문이다. 비활성화는 두 행을 ID가 작은 쪽부터 잠가, 두 관리자가 서로를 동시에 비활성화해도 늦은 쪽이 막혀 활성 관리자가 0명이 되지 않는다
 - API는 `/api/v1/auth/admin/{login,reissue,logout}`(`AdminAuthController`). `/api/v1/admin/**` 밑은 Gateway가 관리자 주체를 요구해 로그인 전 요청이 막히므로 `/api/v1/auth` 밑에 둔다
 - 로그인(`AdminAuthService`): 한 트랜잭션에서 이메일로 행을 잠그고(`findByEmailForUpdate`) → 비밀번호 → ACTIVE → Refresh 발급 → Access 발급. 비활성화와 엇갈려 토큰이 남는 창이 없다. 없는 이메일 · 틀린 비밀번호 · DISABLED는 모두 같은 401(`INVALID_ADMIN_CREDENTIALS`)이고, 없는 이메일에도 더미 해시로 `matches`를 한 번 돌려 응답 시간으로 계정 유무가 드러나지 않게 한다. `authenticate`와 `issue`가 나뉘어 있어 MFA는 그 사이에 끼운다. 로그인 시도 제한은 아직 없다
 - 관리자 Access Token은 `sub` · `iat` · `exp`만 담는다(`TokenSubject.Admin`). 관리자는 한 종류라 역할이 없다

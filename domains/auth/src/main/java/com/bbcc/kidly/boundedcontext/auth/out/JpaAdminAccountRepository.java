@@ -15,6 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 public interface JpaAdminAccountRepository extends JpaRepository<AdminAccount, Long>, AdminAccountRepository {
 
     @Override
+    default AdminAccount saveAccount(AdminAccount account) {
+        return saveAndFlush(account);
+    }
+
+    @Override
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from AdminAccount a where a.id = :id")
     Optional<AdminAccount> findByIdForUpdate(@Param("id") Long id);

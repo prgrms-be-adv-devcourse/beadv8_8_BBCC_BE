@@ -17,6 +17,9 @@ public enum AuthErrorCode implements ErrorCode {
     OAUTH_PROVIDER_ERROR(HttpStatus.BAD_GATEWAY, "소셜 로그인에 실패했습니다", "잠시 후 다시 시도해 주세요."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "로그인이 만료되었습니다", "다시 로그인해 주세요."),
     INVALID_ADMIN_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다", "다시 확인해 주세요."),
+    INVALID_ADMIN_PASSWORD(HttpStatus.BAD_REQUEST, "관리자 비밀번호가 올바르지 않습니다", "비밀번호를 다시 확인해 주세요."),
+    ADMIN_NOT_DISABLABLE(HttpStatus.CONFLICT, "자기 자신은 비활성화할 수 없습니다", "다른 관리자에게 요청해 주세요."),
+    ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "관리자를 찾을 수 없습니다", "관리자 ID를 다시 확인해 주세요."),
     EMAIL_REQUIRED(HttpStatus.BAD_REQUEST, "이메일 제공이 필요합니다", "카카오 계정에 이메일을 등록 · 인증한 뒤 다시 로그인해 주세요.");
 
     private final HttpStatus status;
