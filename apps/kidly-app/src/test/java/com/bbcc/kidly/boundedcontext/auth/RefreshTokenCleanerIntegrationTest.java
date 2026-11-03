@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenCleaner;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
@@ -23,8 +24,8 @@ class RefreshTokenCleanerIntegrationTest {
     @DisplayName("만료된 토큰만 지운다")
     void deleteExpired() {
         var now = LocalDateTime.now();
-        refreshTokenRepository.upsert(1L, "expired", now.minusMinutes(1), now.minusDays(14));
-        refreshTokenRepository.upsert(2L, "valid", now.plusDays(1), now);
+        refreshTokenRepository.upsert(PrincipalId.member(1L), "expired", now.minusMinutes(1), now.minusDays(14));
+        refreshTokenRepository.upsert(PrincipalId.member(2L), "valid", now.plusDays(1), now);
 
         refreshTokenCleaner.deleteExpired();
 

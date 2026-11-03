@@ -15,7 +15,7 @@
 
 ## Access Token 무효화 (`AccessTokenRevocationService`, `shared.auth.out.MemberTokenRevoker`)
 - 호출자 트랜잭션 안에서만 부른다(`@Transactional(propagation = MANDATORY)`). 호출자가 커밋해야 효력이 생기고 롤백되면 아무 일도 없다
-- 회원은 `MemberTokenRevoker.revoke(memberId, revokedAt)`로 부른다(탈퇴 · 관리자 정지 · 권한 회수 · 판매자 정지). 인증 안(Refresh Token 재사용 감지)은 `revoke(PrincipalType, principalId, revokedAt)`를 바로 부른다
+- 회원은 `MemberTokenRevoker.revoke(memberId, revokedAt)`로 부른다(탈퇴 · 관리자 정지 · 권한 회수 · 판매자 정지). 인증 안(Refresh Token 재사용 감지)은 `revoke(PrincipalId, revokedAt)`를 바로 부른다
 - `PrincipalType`은 지금 `MEMBER`뿐이다. 관리자 · 자녀 로그인이 생기면 값을 더한다
 - `AuthTokensRevokedEvent`(`auth.tokens-revoked`)를 커밋 뒤 바로 Kafka로 보낸다(`AuthEventRelay` → `kidly.auth.events`). 아웃박스가 아니다: 잃으면 Gateway가 그 주체의 Access Token을 만료(최대 30분)까지 통과시키지만 그 뒤로는 피해가 없다
 - Relay는 `HIGHEST_PRECEDENCE`로 다른 커밋 뒤 리스너보다 먼저 전송 대기열(`auth-kafka-sender` 스레드 하나)에 넣는다. 설정은 `out/kafka/AuthKafkaConfig`(토픽 파티션 3 · 복제 1, 전용 템플릿 `max.block.ms` 3초)

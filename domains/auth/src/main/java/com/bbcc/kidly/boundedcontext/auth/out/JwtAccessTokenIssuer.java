@@ -15,8 +15,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * 주체 ID · 닉네임 · 역할로 Access Token(JWT, RS256)을 발급한다. 개인키는 인증 도메인만 가진다.
- * 닉네임은 화면 표시 · 신청 스냅샷용이다.
+ * 주체로 Access Token(JWT, RS256)을 발급한다. sub는 {@link com.bbcc.kidly.shared.auth.PrincipalId} 형식이고
+ * 회원 토큰에만 닉네임 · 역할이 실린다. 개인키는 인증 도메인만 가진다.
  * JWT의 iat·exp는 epoch 초라서 LocalDateTime 대신 Instant를 쓴다.
  */
 @Component
@@ -35,14 +35,16 @@ public class JwtAccessTokenIssuer implements AccessTokenIssuer {
     @Override
     public String issue(TokenSubject subject) {
         var now = Instant.now();
-        var claims = JwtClaimsSet.builder()
-            .subject(String.valueOf(subject.id()))
-            .claim(AccessTokenClaims.NICKNAME, subject.nickname())
+        var base = JwtClaimsSet.builder()
+            .subject(subject.principal().toSubject())
             .issuedAt(now)
-            .expiresAt(now.plus(validity))
-            .claim(AccessTokenClaims.ROLES, subject.roles().stream().map(Role::name).toList())
-            .build();
+            .expiresAt(now.plus(validity));
+        var claims = switch (subject) {
+            case TokenSubject.Member member -> base
+                .claim(AccessTokenClaims.NICKNAME, member.nickname())
+                .claim(AccessTokenClaims.ROLES, member.roles().stream().map(Role::name).toList());
+        };
         var header = JwsHeader.with(SignatureAlgorithm.RS256).build();
-        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
     }
 }

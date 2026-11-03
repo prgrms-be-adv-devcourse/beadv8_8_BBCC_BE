@@ -293,7 +293,7 @@ class MemberSellerEventKafkaIntegrationTest {
 
     private List<Role> rolesOfNewToken() {
         var active = (MemberLoginState.Active) memberRepository.getById(memberId).loginState();
-        var token = accessTokenIssuer.issue(TokenSubject.of(active));
+        var token = accessTokenIssuer.issue(TokenSubject.Member.of(active));
         return IssuedAccessToken.decode(token).roles();
     }
 

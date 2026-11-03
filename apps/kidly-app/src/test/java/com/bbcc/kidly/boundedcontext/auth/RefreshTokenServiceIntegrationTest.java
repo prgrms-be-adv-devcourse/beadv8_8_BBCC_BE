@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenService;
+import com.bbcc.kidly.boundedcontext.auth.app.dto.ReissuedToken;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshToken;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
@@ -14,6 +15,8 @@ import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.auth.PrincipalId;
+import com.bbcc.kidly.shared.auth.PrincipalType;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
@@ -62,14 +65,14 @@ class RefreshTokenServiceIntegrationTest {
     @Test
     @DisplayName("발급하면 원문은 돌려주고 DB에는 14일짜리 해시만 저장한다")
     void issue() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
+        var member = saveMember();
 
-        var token = refreshTokenService.issue(memberId);
+        var token = refreshTokenService.issue(member);
 
         assertThat(token).matches("[A-Za-z0-9_-]{43}");
         assertThat(refreshTokenRepository.findByTokenHash(RefreshToken.hashOf(token)))
             .hasValueSatisfying(saved -> {
-                assertThat(saved.getMemberId()).isEqualTo(memberId);
+                assertThat(saved.principal()).isEqualTo(member);
                 assertThat(saved.getExpiresAt())
                     .isCloseTo(LocalDateTime.now().plusDays(14), within(1, ChronoUnit.MINUTES));
             });
@@ -78,58 +81,80 @@ class RefreshTokenServiceIntegrationTest {
     @Test
     @DisplayName("다시 로그인하면 토큰이 바뀌어 이전 토큰으로는 재발급할 수 없다")
     void issueAgainReplaces() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var oldToken = refreshTokenService.issue(memberId);
+        var member = saveMember();
+        var oldToken = refreshTokenService.issue(member);
 
-        refreshTokenService.issue(memberId);
+        refreshTokenService.issue(member);
 
         assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
-        assertInvalid(() -> refreshTokenService.reissue(oldToken));
+        assertInvalid(() -> reissueMember(oldToken));
     }
 
     @Test
     @DisplayName("재발급하면 새 토큰을 주고 이전 토큰은 더 이상 쓸 수 없다")
     void reissue() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var oldToken = refreshTokenService.issue(memberId);
+        var member = saveMember();
+        var oldToken = refreshTokenService.issue(member);
 
-        var reissued = refreshTokenService.reissue(oldToken);
+        var reissued = reissueMember(oldToken);
 
-        assertThat(reissued.subject().id()).isEqualTo(memberId);
+        assertThat(reissued.subject().principal()).isEqualTo(member);
         assertThat(reissued.refreshToken()).isNotEqualTo(oldToken);
-        assertInvalid(() -> refreshTokenService.reissue(oldToken));
-        assertThat(refreshTokenService.reissue(reissued.refreshToken()).subject().id()).isEqualTo(memberId);
+        assertInvalid(() -> reissueMember(oldToken));
+        assertThat(reissueMember(reissued.refreshToken()).subject().principal()).isEqualTo(member);
+    }
+
+    @Test
+    @DisplayName("행의 주체 종류가 엔드포인트가 기대한 종류와 다르면 재발급하지 않고, 행은 지우지 않는다")
+    void principalTypeMismatch() {
+        var member = saveMember();
+        var token = refreshTokenService.issue(member);
+
+        assertInvalid(() -> refreshTokenService.reissue(PrincipalType.ADMIN, token));
+
+        assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
+        assertThat(reissueMember(token).subject().principal()).isEqualTo(member);
+    }
+
+    @Test
+    @DisplayName("관리자 토큰 값으로 회원 재발급을 부르면 거절한다")
+    void adminTokenOnMemberReissue() {
+        var token = refreshTokenService.issue(PrincipalId.admin(1L));
+
+        assertInvalid(() -> reissueMember(token));
+
+        assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
     }
 
     @Test
     @DisplayName("모르는 토큰이면 재발급하지 않는다")
     void unknownToken() {
-        assertInvalid(() -> refreshTokenService.reissue("unknown-token"));
+        assertInvalid(() -> reissueMember("unknown-token"));
     }
 
     @Test
     @DisplayName("토큰이 없으면 재발급하지 않는다")
     void missingToken() {
-        assertInvalid(() -> refreshTokenService.reissue(null));
+        assertInvalid(() -> reissueMember(null));
     }
 
     @Test
     @DisplayName("만료된 토큰이면 재발급하지 않는다")
     void expiredToken() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
+        var member = saveMember();
         var now = LocalDateTime.now();
-        refreshTokenRepository.upsert(memberId, RefreshToken.hashOf("expired-token"), now.minusSeconds(1), now);
+        refreshTokenRepository.upsert(member, RefreshToken.hashOf("expired-token"), now.minusSeconds(1), now);
 
-        assertInvalid(() -> refreshTokenService.reissue("expired-token"));
+        assertInvalid(() -> reissueMember("expired-token"));
     }
 
     @Test
     @DisplayName("정지된 회원이면 재발급하지 않고, 행은 지우지 않는다")
     void inactiveMember() {
         var memberId = memberRepository.save(MemberFixture.withStatus(MemberStatus.SUSPENDED)).getId();
-        var token = refreshTokenService.issue(memberId);
+        var token = refreshTokenService.issue(PrincipalId.member(memberId));
 
-        assertInvalid(() -> refreshTokenService.reissue(token));
+        assertInvalid(() -> reissueMember(token));
 
         assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
     }
@@ -137,69 +162,72 @@ class RefreshTokenServiceIntegrationTest {
     @Test
     @DisplayName("탈퇴한 회원이면 재발급하지 않고, 행은 지우지 않는다")
     void withdrawnMember() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var token = refreshTokenService.issue(memberId);
+        var member = saveMember();
+        var token = refreshTokenService.issue(member);
 
-        memberService.withdraw(memberId);
+        memberService.withdraw(member.id());
 
-        assertInvalid(() -> refreshTokenService.reissue(token));
+        assertInvalid(() -> reissueMember(token));
         assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
     }
 
     @Test
     @DisplayName("교체되고 10초가 지난 직전 토큰이 오면 탈취로 보고 회원의 토큰을 지운다")
     void reusedTokenRevokes() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var oldToken = refreshTokenService.issue(memberId);
-        var newToken = refreshTokenService.reissue(oldToken).refreshToken();
-        rotatedSecondsAgo(memberId, 11);
+        var member = saveMember();
+        var oldToken = refreshTokenService.issue(member);
+        var newToken = reissueMember(oldToken).refreshToken();
+        rotatedSecondsAgo(member, 11);
 
-        assertInvalid(() -> refreshTokenService.reissue(oldToken));
+        assertInvalid(() -> reissueMember(oldToken));
 
-        assertInvalid(() -> refreshTokenService.reissue(newToken));
+        assertInvalid(() -> reissueMember(newToken));
         assertThat(jpaRefreshTokenRepository.count()).isZero();
     }
 
     @Test
-    @DisplayName("재사용을 감지하면 이미 발급된 Access Token도 무효화한다(auth.tokens-revoked 발행)")
+    @DisplayName("재사용을 감지하면 그 주체(회원, ID)의 Access Token도 무효화한다(auth.tokens-revoked 발행)")
     void reusedTokenRevokesAccessToken() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var oldToken = refreshTokenService.issue(memberId);
-        refreshTokenService.reissue(oldToken);
-        rotatedSecondsAgo(memberId, 11);
+        var member = saveMember();
+        var oldToken = refreshTokenService.issue(member);
+        reissueMember(oldToken);
+        rotatedSecondsAgo(member, 11);
 
-        assertInvalid(() -> refreshTokenService.reissue(oldToken));
+        assertInvalid(() -> reissueMember(oldToken));
 
         assertThat(events.stream(AuthTokensRevokedEvent.class))
-            .singleElement().satisfies(event -> assertThat(event.data().principalId()).isEqualTo(memberId));
+            .singleElement().satisfies(event -> {
+                assertThat(event.data().principalType()).isEqualTo(PrincipalType.MEMBER);
+                assertThat(event.data().principalId()).isEqualTo(member.id());
+            });
     }
 
     @Test
     @DisplayName("교체 직후 직전 토큰이 오면 동시 재발급으로 보고 거절만 한다")
     void reusedWithinGraceOnlyRejects() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var oldToken = refreshTokenService.issue(memberId);
-        var newToken = refreshTokenService.reissue(oldToken).refreshToken();
+        var member = saveMember();
+        var oldToken = refreshTokenService.issue(member);
+        var newToken = reissueMember(oldToken).refreshToken();
 
-        assertInvalid(() -> refreshTokenService.reissue(oldToken));
+        assertInvalid(() -> reissueMember(oldToken));
 
         assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
-        assertThat(refreshTokenService.reissue(newToken).subject().id()).isEqualTo(memberId);
+        assertThat(reissueMember(newToken).subject().principal()).isEqualTo(member);
         assertThat(events.stream(AuthTokensRevokedEvent.class)).isEmpty();
     }
 
     @Test
     @DisplayName("다시 로그인한 뒤 옛 토큰이 오면 거절만 하고 새로 받은 토큰은 쓸 수 있다")
     void reusedAfterLoginOnlyRejects() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var oldToken = refreshTokenService.issue(memberId);
-        refreshTokenService.reissue(oldToken);
-        rotatedSecondsAgo(memberId, 11);
-        var loginToken = refreshTokenService.issue(memberId);
+        var member = saveMember();
+        var oldToken = refreshTokenService.issue(member);
+        reissueMember(oldToken);
+        rotatedSecondsAgo(member, 11);
+        var loginToken = refreshTokenService.issue(member);
 
-        assertInvalid(() -> refreshTokenService.reissue(oldToken));
+        assertInvalid(() -> reissueMember(oldToken));
 
-        assertThat(refreshTokenService.reissue(loginToken).subject().id()).isEqualTo(memberId);
+        assertThat(reissueMember(loginToken).subject().principal()).isEqualTo(member);
     }
 
     // 어느 쪽이 먼저든 결과는 같다: 한 요청만 교체하고 나머지는 바뀐 해시를 보고 거절된다
@@ -207,13 +235,13 @@ class RefreshTokenServiceIntegrationTest {
     @Test
     @DisplayName("같은 토큰으로 20개가 동시에 재발급하면 한 요청만 성공하고 그 토큰은 계속 쓸 수 있다")
     void concurrentReissue() throws Exception {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var token = refreshTokenService.issue(memberId);
+        var member = saveMember();
+        var token = refreshTokenService.issue(member);
         var start = new CountDownLatch(1);
         Callable<String> reissue = () -> {
             start.await();
             try {
-                return refreshTokenService.reissue(token).refreshToken();
+                return reissueMember(token).refreshToken();
             } catch (BusinessException e) {
                 assertThat(e.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
                 return null;
@@ -234,25 +262,45 @@ class RefreshTokenServiceIntegrationTest {
 
         var reissued = results.stream().filter(Objects::nonNull).toList();
         assertThat(reissued).hasSize(1);
-        assertThat(refreshTokenService.reissue(reissued.getFirst()).subject().id()).isEqualTo(memberId);
+        assertThat(reissueMember(reissued.getFirst()).subject().principal()).isEqualTo(member);
     }
 
     @Test
     @DisplayName("폐기하면 토큰이 지워진다")
     void revoke() {
-        var memberId = memberRepository.save(MemberFixture.kakaoMember()).getId();
-        var token = refreshTokenService.issue(memberId);
+        var member = saveMember();
+        var token = refreshTokenService.issue(member);
 
-        refreshTokenService.revoke(token);
+        refreshTokenService.revoke(PrincipalType.MEMBER, token);
 
         assertThat(jpaRefreshTokenRepository.count()).isZero();
     }
 
+    @Test
+    @DisplayName("폐기도 행의 주체 종류가 기대한 종류와 다르면 지우지 않는다")
+    void revokeIgnoresOtherPrincipalType() {
+        var member = saveMember();
+        var token = refreshTokenService.issue(member);
+
+        refreshTokenService.revoke(PrincipalType.ADMIN, token);
+
+        assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
+    }
+
+    private PrincipalId saveMember() {
+        return PrincipalId.member(memberRepository.save(MemberFixture.kakaoMember()).getId());
+    }
+
+    private ReissuedToken reissueMember(String token) {
+        return refreshTokenService.reissue(PrincipalType.MEMBER, token);
+    }
+
     // 10초를 기다리지 않도록 교체 시각을 과거로 돌린다
-    private void rotatedSecondsAgo(Long memberId, int seconds) {
+    private void rotatedSecondsAgo(PrincipalId principal, int seconds) {
         jdbcTemplate.update(
-            "UPDATE auth.refresh_token SET rotated_at = rotated_at - make_interval(secs => ?) WHERE member_id = ?",
-            seconds, memberId);
+            "UPDATE auth.refresh_token SET rotated_at = rotated_at - make_interval(secs => ?) "
+                + "WHERE principal_type = ? AND principal_id = ?",
+            seconds, principal.type().name(), principal.id());
     }
 
     private static void assertInvalid(ThrowingCallable call) {
