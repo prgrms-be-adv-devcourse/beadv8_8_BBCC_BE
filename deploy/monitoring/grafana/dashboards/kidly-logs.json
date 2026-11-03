@@ -29,6 +29,25 @@
         "sort": 1,
         "includeAll": false,
         "multi": false
+      },
+      {
+        "name": "service",
+        "label": "서비스",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": "label_values({env=\"$env\"}, service_name)",
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
       }
     ]
   },
@@ -85,7 +104,7 @@
           },
           "queryType": "range",
           "legendFormat": "{{http_response_status_code}}",
-          "expr": "sum by (http_response_status_code) (count_over_time({env=\"$env\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", http_response_status_code=\"http.response.status_code\" | __error__=\"\" | http_request_method != \"\" [$__auto]))"
+          "expr": "sum by (http_response_status_code) (count_over_time({env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", http_response_status_code=\"http.response.status_code\" | __error__=\"\" | http_request_method != \"\" [$__auto]))"
         }
       ]
     },
@@ -121,7 +140,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{env=\"$env\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", url_path=\"url.path\", http_response_status_code=\"http.response.status_code\", duration_ms=\"duration_ms\" | __error__=\"\" | http_request_method != \"\" | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
+          "expr": "{env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", url_path=\"url.path\", http_response_status_code=\"http.response.status_code\", duration_ms=\"duration_ms\" | __error__=\"\" | http_request_method != \"\" | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
           "queryType": "range"
         }
       ]
@@ -158,7 +177,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{env=\"$env\", level=\"ERROR\"} | json message=\"message\", error_type=\"error.type\", error_message=\"error.message\", error_stack_trace=\"error.stack_trace\" | line_format `{{ if .message }}{{ .message }}{{ if .error_type }} · {{ .error_type }}: {{ .error_message }}{{ end }}{{ else }}{{ __line__ }}{{ end }}`",
+          "expr": "{env=\"$env\", service_name=~\"${service:regex}\", level=\"ERROR\"} | json message=\"message\", error_type=\"error.type\", error_message=\"error.message\", error_stack_trace=\"error.stack_trace\" | line_format `{{ if .message }}{{ .message }}{{ if .error_type }} · {{ .error_type }}: {{ .error_message }}{{ end }}{{ else }}{{ __line__ }}{{ end }}`",
           "queryType": "range"
         }
       ]
@@ -195,7 +214,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{env=\"$env\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", url_path=\"url.path\", http_response_status_code=\"http.response.status_code\", duration_ms=\"duration_ms\" | __error__=\"\" | http_request_method != \"\" | duration_ms > 1000 | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
+          "expr": "{env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", url_path=\"url.path\", http_response_status_code=\"http.response.status_code\", duration_ms=\"duration_ms\" | __error__=\"\" | http_request_method != \"\" | duration_ms > 1000 | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
           "queryType": "range"
         }
       ]
@@ -236,7 +255,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{env=\"$env\"} |= \"RequestLoggingFilter\" | json method=\"http.request.method\", route=\"http.route\", status=\"http.response.status_code\", duration_ms=\"duration_ms\", ip=\"client.ip\" | __error__=\"\" | method != \"\" | keep method, route, status, duration_ms, ip, memberId, traceId",
+          "expr": "{env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json method=\"http.request.method\", route=\"http.route\", status=\"http.response.status_code\", duration_ms=\"duration_ms\", ip=\"client.ip\" | __error__=\"\" | method != \"\" | keep method, route, status, duration_ms, ip, memberId, traceId",
           "queryType": "range"
         }
       ],
