@@ -6,7 +6,6 @@ import com.bbcc.kidly.boundedcontext.member.app.MemberInitialDataService;
 import com.bbcc.kidly.boundedcontext.member.app.ShippingAddressService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
-import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.stream.LongStream;
 import org.junit.jupiter.api.DisplayName;
@@ -25,11 +24,8 @@ class MemberInitialDataServiceIntegrationTest {
     @Autowired
     private ShippingAddressService shippingAddressService;
 
-    @Autowired
-    private WalletRepository walletRepository;
-
     @Test
-    @DisplayName("회원이 없으면 회원 1~6과 회원 1의 기본 배송지를 넣고, 가입 이벤트로 지갑이 생긴다")
+    @DisplayName("회원이 없으면 회원 1~6과 회원 1의 기본 배송지를 넣는다")
     void load() {
         memberInitialDataService.load();
 
@@ -44,7 +40,6 @@ class MemberInitialDataServiceIntegrationTest {
             assertThat(address.recipientName()).isEqualTo("홍길동");
             assertThat(address.isDefault()).isTrue();
         });
-        assertThat(LongStream.rangeClosed(1, 6)).allMatch(walletRepository::existsByMemberId);
     }
 
     @Test

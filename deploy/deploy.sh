@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 여섯(IMAGE · SEARCH_IMAGE · GATEWAY_IMAGE · CHILDPROFILE_IMAGE · RECOMMEND_IMAGE · SETTLEMENT_IMAGE)을 넘긴다
-# 검색 서비스 이미지는 profile search, Gateway 이미지는 profile gateway, 자녀 프로필 이미지는 profile childprofile, 추천 이미지는 profile recommend, 정산 이미지는 profile settlement 가 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다. Elasticsearch 는 t3.medium k3s(deploy/search)에 있다
+# 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 일곱(IMAGE · SEARCH_IMAGE · GATEWAY_IMAGE · CHILDPROFILE_IMAGE · RECOMMEND_IMAGE · SETTLEMENT_IMAGE · MEMBER_IMAGE)을 넘긴다
+# 검색 서비스 이미지는 profile search, Gateway 이미지는 profile gateway, 자녀 프로필 이미지는 profile childprofile, 추천 이미지는 profile recommend, 정산 이미지는 profile settlement, 회원 이미지는 profile member 가 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다. Elasticsearch 는 t3.medium k3s(deploy/search)에 있다
 set -euo pipefail
 : "${APP_ENV:?APP_ENV 가 필요합니다}" "${IMAGE:?IMAGE 가 필요합니다}"
 : "${SEARCH_IMAGE:?SEARCH_IMAGE 가 필요합니다}" "${GATEWAY_IMAGE:?GATEWAY_IMAGE 가 필요합니다}"
 : "${CHILDPROFILE_IMAGE:?CHILDPROFILE_IMAGE 가 필요합니다}" "${RECOMMEND_IMAGE:?RECOMMEND_IMAGE 가 필요합니다}"
-: "${SETTLEMENT_IMAGE:?SETTLEMENT_IMAGE 가 필요합니다}"
+: "${SETTLEMENT_IMAGE:?SETTLEMENT_IMAGE 가 필요합니다}" "${MEMBER_IMAGE:?MEMBER_IMAGE 가 필요합니다}"
 cd "$(dirname "$0")"
 # docker 가 없는 디렉터리를 root 소유로 만들지 않도록 미리 만든다 (컨테이너는 UID 1001 = deploy 로 돈다)
 mkdir -p logs
-printf 'IMAGE=%s\nSEARCH_IMAGE=%s\nGATEWAY_IMAGE=%s\nCHILDPROFILE_IMAGE=%s\nRECOMMEND_IMAGE=%s\nSETTLEMENT_IMAGE=%s\n' \
-  "$IMAGE" "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$CHILDPROFILE_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" > image.env
+printf 'IMAGE=%s\nSEARCH_IMAGE=%s\nGATEWAY_IMAGE=%s\nCHILDPROFILE_IMAGE=%s\nRECOMMEND_IMAGE=%s\nSETTLEMENT_IMAGE=%s\nMEMBER_IMAGE=%s\n' \
+  "$IMAGE" "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$CHILDPROFILE_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" > image.env
 compose() { docker compose -p "$APP_ENV" --env-file .env --env-file image.env "$@"; }
 # 검색이 켜진 환경인지. 꺼진 환경에서는 search-service 가 목록에 없다
 search_on=false
@@ -38,6 +38,11 @@ settlement_on=false
 if grep -qx settlement-service <<< "$services"; then
   settlement_on=true
 fi
+# 회원 서비스가 켜진 환경인지. 꺼진 환경에서는 member-service 가 목록에 없다
+member_on=false
+if grep -qx member-service <<< "$services"; then
+  member_on=true
+fi
 compose pull
 # 앱이 healthy 가 되지 못하면 워크플로가 원인을 뽑을 수 있게 앱 로그를 남기고 실패한다 (.github/scripts/startup-error.sh)
 # --remove-orphans: compose 에서 뺀 서비스(t3.medium 으로 옮긴 elasticsearch)의 컨테이너를 지운다. 볼륨은 남는다
@@ -45,7 +50,7 @@ if ! compose up -d --wait --remove-orphans; then
   echo "::group::앱 로그 (마지막 1000줄)"
   compose logs app --no-log-prefix --no-color --tail 1000 || true
   echo "::endgroup::"
-  # startup-error.sh 는 위 앱 로그 구간만 읽는다. 검색 · Gateway · 자녀 프로필 · 추천 · 정산 쪽 원인은 실행 화면에서 본다
+  # startup-error.sh 는 위 앱 로그 구간만 읽는다. 검색 · Gateway · 자녀 프로필 · 추천 · 정산 · 회원 쪽 원인은 실행 화면에서 본다
   if [[ "$search_on" == true ]]; then
     echo "::group::검색 서비스 로그 (마지막 300줄)"
     compose logs search-service --no-log-prefix --no-color --tail 300 || true
@@ -70,6 +75,11 @@ if ! compose up -d --wait --remove-orphans; then
   if [[ "$settlement_on" == true ]]; then
     echo "::group::정산 서비스 로그 (마지막 300줄)"
     compose logs settlement-service --no-log-prefix --no-color --tail 300 || true
+    echo "::endgroup::"
+  fi
+  if [[ "$member_on" == true ]]; then
+    echo "::group::회원 서비스 로그 (마지막 300줄)"
+    compose logs member-service --no-log-prefix --no-color --tail 300 || true
     echo "::endgroup::"
   fi
   exit 1
@@ -146,11 +156,23 @@ if [[ "$settlement_on" == true ]]; then
     echo "::warning::모니터링 수집 대상($targets/settlement/$APP_ENV.yml)을 쓰지 못했습니다"
   fi
 fi
+# 회원 서비스도 같은 이유로 Alloy 의 다른 job(kidly-member)이 targets/member/<환경>.yml 을 읽는다
+member_port=$(sed -n 's/^MEMBER_PORT=//p' .env | tail -n 1)
+if [[ "$member_on" == true ]]; then
+  if [[ -z "$member_port" ]]; then
+    echo "::warning::.env 에 MEMBER_PORT 가 없어 회원 서비스 수집 대상을 등록하지 않았습니다"
+  elif ! { mkdir -p "$targets/member" \
+    && printf '# deploy/deploy.sh 가 배포마다 쓴다. Alloy(deploy/monitoring-agent)가 읽는다\n- targets: ["127.0.0.1:%s"]\n  labels:\n    env: %s\n' "$member_port" "$APP_ENV" > "$targets/member/$APP_ENV.tmp" \
+    && chmod 644 "$targets/member/$APP_ENV.tmp" \
+    && mv "$targets/member/$APP_ENV.tmp" "$targets/member/$APP_ENV.yml"; }; then
+    echo "::warning::모니터링 수집 대상($targets/member/$APP_ENV.yml)을 쓰지 못했습니다"
+  fi
+fi
 # 배포마다 이미지가 쌓여 디스크가 차므로 저장소마다 최신 3개만 남기고 지운다
 # 다른 환경 컨테이너가 쓰는 이미지는 docker 가 삭제를 거부해서 남는다 (-f 를 쓰지 않는다)
 # 지운 이미지로 롤백할 때는 GHCR 에서 다시 받는다
 removed=0
-for repo in "${IMAGE%:*}" "${SEARCH_IMAGE%:*}" "${GATEWAY_IMAGE%:*}" "${CHILDPROFILE_IMAGE%:*}" "${RECOMMEND_IMAGE%:*}" "${SETTLEMENT_IMAGE%:*}"; do
+for repo in "${IMAGE%:*}" "${SEARCH_IMAGE%:*}" "${GATEWAY_IMAGE%:*}" "${CHILDPROFILE_IMAGE%:*}" "${RECOMMEND_IMAGE%:*}" "${SETTLEMENT_IMAGE%:*}" "${MEMBER_IMAGE%:*}"; do
   for old in $(docker images -a "$repo" --format '{{if eq .Tag "<none>"}}{{.ID}}{{else}}{{.Repository}}:{{.Tag}}{{end}}' | tail -n +4); do
     if docker rmi "$old" > /dev/null 2>&1; then
       removed=$((removed + 1))

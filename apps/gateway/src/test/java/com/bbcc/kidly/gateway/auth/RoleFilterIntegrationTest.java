@@ -25,7 +25,7 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 @IntegrationTest
 class RoleFilterIntegrationTest extends GatewayTestSupport {
 
-    private static final String ADMIN_PATH = "/api/v1/admin/members";
+    private static final String ADMIN_PATH = "/api/v1/admin/orders";
     private static final String SELLER_PATH = "/api/v1/seller/products";
     private static final String ORIGIN = RecordingBackend.ALLOWED_ORIGIN;
 

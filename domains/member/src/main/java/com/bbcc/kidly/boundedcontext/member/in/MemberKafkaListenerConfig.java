@@ -24,7 +24,7 @@ import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
 /**
- * 회원이 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT(#608).
+ * 회원이 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT(#608). DLT는 받은 토픽마다 하나다.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고,
  * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다.
  * 다시 해도 같은 실패는 재시도 없이 보낸다: 읽지 못한 본문, 업무 규칙 위반(회원 없음 등. 회원은 판매자보다 먼저 있다).
@@ -34,11 +34,16 @@ import tools.jackson.core.JacksonException;
 @Configuration
 class MemberKafkaListenerConfig {
 
-    static final String DLT = "kidly.seller.events.member.dlt";
+    private static final String DLT_SUFFIX = ".member.dlt";
 
     @Bean
     NewTopic memberSellerEventsDeadLetterTopic() {
-        return TopicBuilder.name(DLT).partitions(1).replicas(1).build();
+        return TopicBuilder.name("kidly.seller.events" + DLT_SUFFIX).partitions(1).replicas(1).build();
+    }
+
+    @Bean
+    NewTopic memberMemberEventsDeadLetterTopic() {
+        return TopicBuilder.name("kidly.member.events" + DLT_SUFFIX).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
@@ -55,7 +60,7 @@ class MemberKafkaListenerConfig {
 
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
-            (record, e) -> new TopicPartition(DLT, 0));
+            (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
         var errorHandler = new DefaultErrorHandler((record, e) -> {
             logDeadLetter(record, e);
             deadLetter.accept(record, e);
@@ -76,8 +81,8 @@ class MemberKafkaListenerConfig {
     // 본문(상호명)과 예외 메시지(읽지 못한 값이 들어 있다)는 남기지 않는다
     private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
         var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
-        log.error("처리하지 못한 판매자 이벤트를 DLT로 보냅니다. eventType={} eventId={} key={} exception={}",
-            header(record, "eventType"), header(record, "eventId"), record.key(), exception);
+        log.error("처리하지 못한 이벤트를 DLT로 보냅니다. topic={} eventType={} eventId={} key={} exception={}",
+            record.topic(), header(record, "eventType"), header(record, "eventId"), record.key(), exception);
     }
 
     static String header(ConsumerRecord<?, ?> record, String name) {

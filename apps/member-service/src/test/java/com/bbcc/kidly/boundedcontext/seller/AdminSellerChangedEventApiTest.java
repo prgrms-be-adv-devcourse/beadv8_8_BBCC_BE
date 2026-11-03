@@ -3,11 +3,11 @@ package com.bbcc.kidly.boundedcontext.seller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.time.LocalDateTime;
 import java.util.function.Consumer;
@@ -36,7 +36,7 @@ class AdminSellerChangedEventApiTest {
     private SellerRepository sellerRepository;
 
     @Autowired
-    private OrderFlowEventRecorder eventRecorder;
+    private CommittedEventRecorder eventRecorder;
 
     @Test
     @DisplayName("활성 · 정지 판매자마다 판매자 변경됨이 지금 상태로 한 번씩 나가고, 보낸 판매자 수를 돌려주며, 판매자는 그대로다")
