@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.config;
 
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderKafkaConsumerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderKafkaConsumerProperties;
 import com.bbcc.kidly.boundedcontext.order.in.event.OrderKafkaMessages;
 import com.bbcc.kidly.boundedcontext.order.in.event.OrderLogContextRecordInterceptor;
 import com.bbcc.kidly.boundedcontext.order.in.event.PaymentEventKafkaListener;

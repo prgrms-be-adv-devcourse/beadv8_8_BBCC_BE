@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderKafkaConsumerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
 import java.time.Clock;
 import java.time.Duration;

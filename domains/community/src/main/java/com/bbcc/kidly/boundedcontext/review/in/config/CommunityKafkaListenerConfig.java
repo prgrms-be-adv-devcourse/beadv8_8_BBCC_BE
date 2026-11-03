@@ -3,6 +3,10 @@ package com.bbcc.kidly.boundedcontext.review.in.config;
 import com.bbcc.kidly.boundedcontext.review.in.event.CommunityKafkaMessages;
 import com.bbcc.kidly.boundedcontext.review.in.event.CommunityLogContextRecordInterceptor;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.Arrays;
+import java.util.Map;
+import org.springframework.kafka.KafkaException;
+import org.springframework.util.backoff.ExponentialBackOff;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -26,7 +30,7 @@ import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
 /**
- * 커뮤니티가 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT. 구독 그룹은 kidly.community. DLT로 보낸 메시지는 보관 · 재처리하지 않는다.
+ * 커뮤니티가 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT. 구독 그룹은 kidly.community. DLT는 별도 소비자가 DB에 보관해 관리자 재처리를 지원한다.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정을 그대로 받고 커뮤니티 값만 덮어쓴다:
  * <ul>
  *   <li>한 건씩 처리 완료를 표시한다(RECORD)</li>
@@ -47,6 +51,8 @@ public class CommunityKafkaListenerConfig {
     public static final String ORDER_EVENTS = "kidly.order.events";
 
     private static final String DEAD_LETTER_SUFFIX = ".community.dlt";
+    public static final String ORDER_EVENTS_DLT = ORDER_EVENTS + DEAD_LETTER_SUFFIX;
+    public static final String PRODUCT_EVENTS_DLT = PRODUCT_EVENTS + DEAD_LETTER_SUFFIX;
     private static final long RETRY_INTERVAL_MS = 1000L;
     private static final long RETRY_ATTEMPTS = 3L;
 
@@ -69,14 +75,28 @@ public class CommunityKafkaListenerConfig {
         configurer.configure(factory, consumerFactory);
         factory.getContainerProperties().setAckMode(AckMode.RECORD);
         // 팩토리의 kafkaConsumerProperties는 만들어지는 컨테이너로 복사되지 않아 컨테이너마다 넣는다(ConsumerFactory는 그대로)
-        factory.setContainerCustomizer(container -> container.getContainerProperties().getKafkaConsumerProperties()
-            .setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"));
+        factory.setContainerCustomizer(container -> {
+            container.getContainerProperties().getKafkaConsumerProperties()
+                .setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+            String[] topics = container.getContainerProperties().getTopics();
+            if (topics != null && topics.length > 0
+                && Arrays.stream(topics).allMatch(topic -> topic.endsWith(DEAD_LETTER_SUFFIX))) {
+                var backOff = new ExponentialBackOff(1000L, 2.0);
+                backOff.setMaxInterval(60_000L);
+                var handler = new DefaultErrorHandler(backOff);
+                handler.setClassifications(Map.of(), true);
+                handler.setLogLevel(KafkaException.Level.TRACE);
+                container.setCommonErrorHandler(handler);
+            }
+        });
         // 꺼짐만 강제한다. 켜져 있으면 앱 설정(테스트는 false)을 따른다
         if (!properties.enabled()) {
             factory.setAutoStartup(false);
         }
-        factory.setCommonErrorHandler(errorHandler(new DeadLetterPublishingRecoverer(
-            deadLetterTemplate(producerFactory), (record, e) -> deadLetterPartition(record))));
+        var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
+            (record, e) -> deadLetterPartition(record));
+        deadLetter.setFailIfSendResultIsError(true);
+        factory.setCommonErrorHandler(errorHandler(deadLetter));
         factory.setRecordInterceptor(new CommunityLogContextRecordInterceptor());
         return factory;
     }

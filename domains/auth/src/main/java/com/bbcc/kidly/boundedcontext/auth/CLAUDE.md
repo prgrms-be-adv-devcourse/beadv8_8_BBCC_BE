@@ -14,7 +14,7 @@
   - 가입: `MemberAccounts.register`가 가입 키로 이미 있는 회원을 돌려준다(회원 쪽이 멱등하게 처리한다)
   - 연결: 선점 행이 이미 회원에 연결돼 있으면 선점 단계로 가지 않고 그 회원으로 바로 로그인한다
 - Withdrawn 자가 치유: 연결된 회원이 이미 탈퇴 상태면(`MemberWithdrawnEventListener`가 아직 연결을 못 지운 사이) 그 자리에서 연결을 지우고 새 회원으로 가입시킨다
-- 탈퇴 리스너(`in/MemberWithdrawnEventListener`): `member.withdrawn`을 같은 도메인처럼 Spring 이벤트(`@DomainEventListener`)로 받아 그 회원의 소셜 계정 연결을 모두 끊는다. 같은 소셜 계정으로 다시 로그인하면 새 회원이 된다
+- 탈퇴 리스너(`in/MemberWithdrawnEventListener`): `kidly.member.events`의 `member.withdrawn`을 Kafka로 받아(구독 그룹 `kidly.auth`, DLT `kidly.member.events.auth.dlt`, `in/AuthKafkaListenerConfig`) 그 회원의 소셜 계정 연결을 모두 끊는다. 같은 소셜 계정으로 다시 로그인하면 새 회원이 된다. 두 번 받아도 지울 연결이 없어 결과가 같다
 - 클래스에 트랜잭션을 걸지 않는다. 유니크 충돌 뒤 다시 조회해야 하고, 소셜 제공자 호출이 트랜잭션 밖이라야 제공자가 느려도 DB 커넥션을 붙잡지 않는다
 
 ## 관리자 계정 · 로그인 (#736)

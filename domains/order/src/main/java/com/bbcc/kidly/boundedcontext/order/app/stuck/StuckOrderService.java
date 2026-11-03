@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.stuck;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.config.StuckOrderThresholds;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
 import com.bbcc.kidly.boundedcontext.order.app.port.StuckOrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.dto.StuckOrderResult;

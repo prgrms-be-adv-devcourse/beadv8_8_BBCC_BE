@@ -34,7 +34,7 @@ class SecurityHeadersIntegrationTest extends GatewayTestSupport {
     void keepsBackendCacheControl() {
         backend.addResponseHeader(HttpHeaders.CACHE_CONTROL, "no-store");
 
-        client.post().uri("/api/v1/auth/login").exchange()
+        client.post().uri("/api/v1/orders").exchange()
             .expectStatus().isOk()
             .expectHeader().values(HttpHeaders.CACHE_CONTROL, values -> assertThat(values).containsExactly("no-store"))
             .expectHeader().doesNotExist(HttpHeaders.PRAGMA)

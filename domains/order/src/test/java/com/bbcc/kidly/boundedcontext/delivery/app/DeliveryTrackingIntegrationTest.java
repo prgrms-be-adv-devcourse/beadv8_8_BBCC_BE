@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.delivery.app.dto.TrackingTarget;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -43,6 +44,9 @@ class DeliveryTrackingIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private DeliveryRepository deliveryRepository;
@@ -82,7 +86,7 @@ class DeliveryTrackingIntegrationTest {
         Delivery delivery = deliveryRepository.findById(shipped.getId()).orElseThrow();
         assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.DELIVERED);
         assertThat(delivery.getDeliveredAt()).isEqualTo(first);
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).items())
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).items())
             .singleElement().satisfies(item -> assertThat(item.deliveredAt()).isEqualTo(first));
         assertThat(deliveredHistories(order.orderId()))
             .singleElement().satisfies(history -> {
@@ -130,7 +134,7 @@ class DeliveryTrackingIntegrationTest {
         assertThat(result).isFalse();
         assertThat(deliveryRepository.findById(shipped.getId()).orElseThrow().getStatus())
             .isEqualTo(Delivery.Status.SHIPPING);
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).items())
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).items())
             .singleElement().satisfies(item -> assertThat(item.deliveredAt()).isNull());
         assertThat(deliveredHistories(order.orderId())).isEmpty();
     }
@@ -169,7 +173,7 @@ class DeliveryTrackingIntegrationTest {
         targets.forEach(target -> orderService.confirmAutomatically(target.orderId(), target.orderItemId()));
 
         assertThat(targets).extracting(AutoConfirmTarget::orderId).contains(order.orderId());
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).items())
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).items())
             .singleElement().satisfies(item -> {
                 assertThat(item.status()).isEqualTo("CONFIRMED");
                 assertThat(item.confirmType()).isEqualTo("AUTO");

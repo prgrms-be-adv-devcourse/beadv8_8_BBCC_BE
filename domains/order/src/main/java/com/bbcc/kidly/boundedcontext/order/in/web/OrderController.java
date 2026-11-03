@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.in.web;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacement;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
@@ -38,6 +39,7 @@ public class OrderController {
     public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
     private final OrderService orderService;
+    private final OrderQueryService orderQueries;
     private final OrderPlacement orderPlacement;
 
     /**
@@ -65,7 +67,7 @@ public class OrderController {
         @LoginMember AuthMember member,
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return PageResponse.from(orderService.getOrders(member.id(), page, size).map(OrderSummaryResponse::from));
+        return PageResponse.from(orderQueries.getOrders(member.id(), page, size).map(OrderSummaryResponse::from));
     }
 
     /**
@@ -81,7 +83,7 @@ public class OrderController {
 
     @GetMapping("/{orderId}")
     public OrderDetailResponse getOrder(@LoginMember AuthMember member, @PathVariable Long orderId) {
-        return OrderDetailResponse.from(orderService.getOrder(member.id(), orderId));
+        return OrderDetailResponse.from(orderQueries.getOrder(member.id(), orderId));
     }
 
     /**
@@ -98,7 +100,7 @@ public class OrderController {
      */
     @GetMapping("/{orderId}/timeline")
     public OrderTimelineResponse getTimeline(@LoginMember AuthMember member, @PathVariable Long orderId) {
-        return OrderTimelineResponse.from(orderService.getTimeline(member.id(), orderId));
+        return OrderTimelineResponse.from(orderQueries.getTimeline(member.id(), orderId));
     }
 
     private PlaceOrderCommand toCommand(PlaceOrderRequest request) {

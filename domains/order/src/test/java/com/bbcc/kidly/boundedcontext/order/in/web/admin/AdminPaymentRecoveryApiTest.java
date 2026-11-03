@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -50,6 +51,9 @@ class AdminPaymentRecoveryApiTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private CartService cartService;
@@ -201,7 +205,7 @@ class AdminPaymentRecoveryApiTest {
         post(recoveryId, "retry").expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("RECOVERED");
         post(recoveryId, "retry").expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("RECOVERED");
 
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PAID");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PAID");
     }
 
     @Test
@@ -217,7 +221,7 @@ class AdminPaymentRecoveryApiTest {
             .jsonPath("$.detail").isEqualTo("결제 내용이 주문과 달라 재처리할 수 없습니다. 취소로 종료해 환불해 주세요.");
         post(recoveryId, "cancel").expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("CANCELLED");
 
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).cancelReason()).isEqualTo("PAYMENT_FAILED");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).cancelReason()).isEqualTo("PAYMENT_FAILED");
     }
 
     @Test

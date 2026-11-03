@@ -10,7 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
-import com.bbcc.kidly.boundedcontext.order.app.PaymentCompletionService;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentCompletionService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;
 import com.bbcc.kidly.global.error.BusinessException;

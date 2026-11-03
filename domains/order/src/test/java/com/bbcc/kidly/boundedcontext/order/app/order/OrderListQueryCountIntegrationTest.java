@@ -31,7 +31,7 @@ class OrderListQueryCountIntegrationTest {
     private static final int MANY = 5;
 
     @Autowired
-    private OrderService orderService;
+    private OrderQueryService orderQueries;
 
     @Autowired
     private OrderRepository orderRepository;
@@ -61,12 +61,12 @@ class OrderListQueryCountIntegrationTest {
         assertThat(manyCount).isEqualTo(singleCount);
         assertThat(singleCount).as("주문 페이지 1번 + 그 페이지 주문(주문상품 포함) 1번 + 판매자 상호명 1번").isEqualTo(3);
 
-        List<OrderSummary> single = orderService.getOrders(SINGLE_BUYER_ID, 0, 20).getContent();
+        List<OrderSummary> single = orderQueries.getOrders(SINGLE_BUYER_ID, 0, 20).getContent();
         assertThat(single).extracting(OrderSummary::orderId, OrderSummary::representativeProductName,
                 OrderSummary::itemCount, OrderSummary::sellerName)
             .containsExactly(org.assertj.core.groups.Tuple.tuple(singleOrderId, "단일 대표", 2, "대표 판매자 0"));
 
-        List<OrderSummary> many = orderService.getOrders(MANY_BUYER_ID, 0, 20).getContent();
+        List<OrderSummary> many = orderQueries.getOrders(MANY_BUYER_ID, 0, 20).getContent();
         assertThat(many).extracting(OrderSummary::orderId).containsExactlyElementsOf(manyOrderIds.reversed());
         for (int i = 0; i < MANY; i++) {
             OrderSummary summary = many.get(MANY - 1 - i);
@@ -80,13 +80,13 @@ class OrderListQueryCountIntegrationTest {
     @DisplayName("관리자 전체 주문 목록도 주문이 1건이든 5건이든 쿼리 수가 같다(주문 페이지 1번 + 주문상품 1번)")
     void adminListSameQueryCountRegardlessOfOrderCount() {
         place(SINGLE_BUYER_ID, 0, "첫 주문", "둘째");
-        long singleCount = queryCounter.count(() -> orderService.getAllOrders(0, 20));
+        long singleCount = queryCounter.count(() -> orderQueries.getAllOrders(0, 20));
 
         for (int i = 1; i < MANY; i++) {
             place(MANY_BUYER_ID, i, "대표 " + i, "둘째 " + i);
         }
-        long manyCount = queryCounter.count(() -> orderService.getAllOrders(0, 20));
-        List<AdminOrderSummary> all = orderService.getAllOrders(0, 20).getContent();
+        long manyCount = queryCounter.count(() -> orderQueries.getAllOrders(0, 20));
+        List<AdminOrderSummary> all = orderQueries.getAllOrders(0, 20).getContent();
 
         assertThat(manyCount).isEqualTo(singleCount);
         assertThat(singleCount).as("주문 페이지 1번 + 그 페이지 주문(주문상품 포함) 1번").isEqualTo(2);
@@ -108,7 +108,7 @@ class OrderListQueryCountIntegrationTest {
     }
 
     private long countStatements(Long memberId) {
-        return queryCounter.count(() -> orderService.getOrders(memberId, 0, 20));
+        return queryCounter.count(() -> orderQueries.getOrders(memberId, 0, 20));
     }
 
     /**

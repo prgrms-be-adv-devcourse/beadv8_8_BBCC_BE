@@ -104,7 +104,7 @@ class OrderDeadLetterServiceIntegrationTest {
     @DisplayName("본문을 못 읽은 메시지(eventType 헤더 없음 · 깨진 본문)는 공통 칸 · 관련 주문 ID 빈칸으로 저장한다")
     void unreadableMessageHasEmptyFields() {
         deadLetterService.receive(new ReceiveDeadLetterCommand("kidly.product.events", 0, 3L, null, null, null,
-            "{broken", "com.bbcc.kidly.boundedcontext.order.app.deadletter.UnreadableOrderMessageException",
+            "{broken", "com.bbcc.kidly.boundedcontext.order.in.event.UnreadableOrderMessageException",
             "eventType 헤더 없음", null));
 
         Map<String, Object> row = jdbcTemplate.queryForMap("select * from orders.order_dead_letter");

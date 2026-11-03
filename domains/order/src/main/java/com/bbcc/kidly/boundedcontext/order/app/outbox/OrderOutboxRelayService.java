@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.outbox;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;

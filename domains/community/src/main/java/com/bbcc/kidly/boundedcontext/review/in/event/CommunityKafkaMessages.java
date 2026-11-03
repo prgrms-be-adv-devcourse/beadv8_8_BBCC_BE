@@ -21,7 +21,7 @@ public final class CommunityKafkaMessages {
      */
     public static String header(ConsumerRecord<?, ?> record, String name) {
         Header header = record.headers().lastHeader(name);
-        return header == null ? null : new String(header.value(), UTF_8);
+        return header == null || header.value() == null ? null : new String(header.value(), UTF_8);
     }
 
     /**

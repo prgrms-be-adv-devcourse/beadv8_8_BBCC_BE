@@ -47,6 +47,9 @@ class WaitingRecordsCloseOnCancelIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderQueryService orderQueries;
+
+    @Autowired
     private OrderEventFailureService failureService;
 
     @Autowired
@@ -248,7 +251,7 @@ class WaitingRecordsCloseOnCancelIntegrationTest {
         release.countDown();
         holder.get(10, TimeUnit.SECONDS);
 
-        assertThat(orderService.getOrder(BUYER_ID, orderId).status()).isEqualTo("CANCELLED");
+        assertThat(orderQueries.getOrder(BUYER_ID, orderId).status()).isEqualTo("CANCELLED");
         assertThat(failureRow(failureId)).containsEntry("status", "PENDING");
     }
 
