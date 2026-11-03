@@ -14,11 +14,11 @@ spring:
     default-schema: payment
     schemas: payment
     table: flyway_schema_history_payment
-    # 이미 결제 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 baseline-version으로 baseline을 잡고 그 버전까지 건너뛴다.
+    # 이미 결제 테이블이 있는 DB(dev · 공유 로컬)는 첫 기동 때 baseline-version으로 baseline을 잡고 그 버전까지 건너뛴다.
     # 빈 DB(테스트)는 baseline 없이 init부터 적용한다
-    # kidly-app도 아직 결제 마이그레이션(도메인 모듈의 db/migration/payment/)을 자기 이력(public.flyway_schema_history)으로 적용한다.
-    # 그래서 결제 마이그레이션을 더하면 두 앱이 같은 파일을 각자 적용하려다 늦게 뜬 쪽이 기동에 실패한다.
-    # kidly-app에서 결제를 뺄 때까지 결제 마이그레이션을 더하면, kidly-app이 먼저 적용하게 두고 baseline-version을 그 파일 버전으로 올린다
+    # baseline-version은 kidly-app이 결제 도메인을 가졌을 때 마지막으로 적용한 결제 버전(잔액 환급)으로 고정한다(#525). 새 결제 마이그레이션은 그보다 뒤라 baseline을 잡은 DB에도 적용된다
+    # 빈 DB에서 kidly-app이 먼저 뜨면 kidly-app init이 결제 테이블을 init 모양으로 만들고 이 서비스는 이 버전으로 baseline을 잡아 지갑 동결 · 잔액 환급을 건너뛴다.
+    # 그런 DB는 V202611031535(payment_wallet_columns_if_missing)이 채운다
     baseline-on-migrate: true
     baseline-version: 202611021930
     # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다

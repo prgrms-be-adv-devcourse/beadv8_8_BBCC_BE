@@ -106,6 +106,13 @@ spring:
               uri: ${kidly.gateway.payment-uri}
               predicates:
                 - Path=/api/v1/payments/**,/api/v1/wallets/**,/api/v1/webhooks/toss,/api/v1/admin/payments/**,/api/v1/admin/wallets/**
+            # 결제 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
+            - id: payment-api-docs
+              uri: ${kidly.gateway.payment-uri}
+              predicates:
+                - Path=/v3/api-docs/payment
+              filters:
+                - SetPath=/v3/api-docs
             # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}
@@ -164,8 +171,8 @@ kidly:
     recommend-uri: ${KIDLY_RECOMMEND_URI:http://localhost:8086}
     # 정산도 기본은 kidly-app이 받는다(kidly-app에도 정산이 남아 있다). settlement-service(8088)로 볼 때만 KIDLY_SETTLEMENT_URI=http://localhost:8088로 띄운다
     settlement-uri: ${KIDLY_SETTLEMENT_URI:http://localhost:8080}
-    # 결제는 기본으로 kidly-app이 받는다. payment-service(8087)로 볼 때만 KIDLY_PAYMENT_URI=http://localhost:8087로 띄운다
-    payment-uri: ${KIDLY_PAYMENT_URI:http://localhost:8080}
+    # 결제는 kidly-app에 없다(#525). payment-service(8087)를 띄워야 결제 API가 된다
+    payment-uri: ${KIDLY_PAYMENT_URI:http://localhost:8087}
 
 cors:
   allowed-origins: http://localhost:5173

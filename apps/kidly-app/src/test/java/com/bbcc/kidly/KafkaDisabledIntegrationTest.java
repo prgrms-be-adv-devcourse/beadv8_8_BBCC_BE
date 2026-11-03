@@ -26,8 +26,8 @@ class KafkaDisabledIntegrationTest {
     }
 
     @Test
-    @DisplayName("일반 통합 테스트에서는 결제 아웃박스 릴레이 스케줄러를 만들지 않는다")
+    @DisplayName("일반 통합 테스트에서는 주문 아웃박스 릴레이 스케줄러를 만들지 않는다")
     void noKafkaRelay() {
-        assertThat(context.containsBean("paymentOutboxRelayScheduler")).isFalse();
+        assertThat(context.containsBean("orderOutboxRelayScheduler")).isFalse();
     }
 }

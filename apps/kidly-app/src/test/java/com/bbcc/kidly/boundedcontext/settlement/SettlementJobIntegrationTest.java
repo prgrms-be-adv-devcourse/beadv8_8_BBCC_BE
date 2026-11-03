@@ -81,8 +81,8 @@ class SettlementJobIntegrationTest {
         assertThat(sellerSettlement.getTotalSalesAmount()).isEqualTo(15_009L);
         assertThat(sellerSettlement.getFeeAmount()).isEqualTo(1_500L);
         assertThat(sellerSettlement.getSettlementAmount()).isEqualTo(13_509L);
-        // 판매자 지갑이 없어도 결제가 지갑을 만들어 입금하고 바로 지급 완료로 돌려준다
-        assertThat(sellerSettlement.getStatus()).isEqualTo(SettlementStatus.PAID);
+        // 지급을 요청한 상태다. 입금과 지급 완료 결과는 결제 서비스가 한다(#525)
+        assertThat(sellerSettlement.getStatus()).isEqualTo(SettlementStatus.COMPLETED);
         assertThat(sellerSettlement.getPeriodStartOn()).isEqualTo(PERIOD_START);
         assertThat(sellerSettlement.getPeriodEndOn()).isEqualTo(PERIOD_END);
         assertThat(reload(second).getSettlementId()).isEqualTo(sellerSettlement.getId());
@@ -346,13 +346,14 @@ class SettlementJobIntegrationTest {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM settlement.settlement_skip", Integer.class);
     }
 
+    // 정산이 보낸 지급 요청(정산 아웃박스)의 판매자. 입금은 결제 서비스가 한다(#525)
     private List<Long> payoutSellerIds() {
-        return jdbcTemplate.queryForList("SELECT seller_id FROM payment.payout", Long.class);
+        return PayoutRequests.all(jdbcTemplate).stream().map(PayoutRequests.Request::sellerId).toList();
     }
 
     private Long payoutSettlementId(Long sellerId) {
-        return jdbcTemplate.queryForObject("SELECT settlement_id FROM payment.payout WHERE seller_id = ?", Long.class,
-            sellerId);
+        return PayoutRequests.all(jdbcTemplate).stream().filter(request -> request.sellerId().equals(sellerId))
+            .map(PayoutRequests.Request::settlementId).findFirst().orElseThrow();
     }
 
     private Integer runCount() {

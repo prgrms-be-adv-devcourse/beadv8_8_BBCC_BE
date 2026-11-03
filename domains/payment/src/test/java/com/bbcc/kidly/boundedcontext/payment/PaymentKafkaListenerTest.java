@@ -138,12 +138,12 @@ class PaymentKafkaListenerTest {
     }
 
     @Test
-    @DisplayName("정산 리스너는 별도 스위치(기본 꺼짐)로 시작한다. 정산이 Kafka로 보내기 전에는 켜지 않는다")
+    @DisplayName("정산 리스너는 별도 스위치(기본 켜짐)로 시작한다. 결제 서비스는 정산과 다른 JVM이라 Kafka로만 받는다")
     void settlementStartsBySeparateSwitch() throws NoSuchMethodException {
         KafkaListener kafkaListener = PaymentSettlementEventListener.class.getMethod("on", ConsumerRecord.class)
             .getAnnotation(KafkaListener.class);
 
-        assertThat(kafkaListener.autoStartup()).isEqualTo("${kidly.payment.kafka.settlement-consumer.enabled:false}");
+        assertThat(kafkaListener.autoStartup()).isEqualTo("${kidly.payment.kafka.settlement-consumer.enabled:true}");
         assertThat(kafkaListener.topics()).containsExactly("kidly.settlement.events");
         assertThat(kafkaListener.groupId()).isEqualTo("kidly.payment");
     }

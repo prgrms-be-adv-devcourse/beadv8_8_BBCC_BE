@@ -195,10 +195,9 @@
 | `kidly.member.events` | `member.registered` · `member.withdrawn` | `PaymentMemberEventListener` | 지갑 만들기(`createIfAbsent`) · 지갑 동결(#670) | `kidly.member.events.payment.dlt` |
 | `kidly.order.events` | `order.payment-requested` · `order.cancelled` · `order-item.cancelled`(#711) | `PaymentOrderEventListener` | 결제 · 환불(결제 전 취소 기록) · 부분 취소 환불 | `kidly.order.events.payment.dlt` |
 
-- 정산 `settlement.payout-requested`는 별도 스위치로 Kafka 수신을 켠다(#607). 정산은 #612부터 `kidly.settlement.events`로 보낸다. **dev는 켰고**(`deploy/.env.dev`), 기본값 · prod는 꺼져 있다(Spring 이벤트로 받음)
+- 정산 `settlement.payout-requested`는 별도 스위치로 Kafka 수신을 켠다(#607). 정산은 #612부터 `kidly.settlement.events`로 보낸다. 결제 서비스는 정산과 다른 JVM이라 기본값이 켜짐이다(#525)
   - 리스너 `in/event/PaymentSettlementEventListener`, DLT `kidly.settlement.events.payment.dlt`(미리 선언). 처리는 `PaymentEventHandler.settlementPayoutRequested`(정산서마다 한 번 입금)
-  - 별도 스위치 `kidly.payment.kafka.settlement-consumer.enabled`(기본 false, 환경 변수 `PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED`). false면 Kafka 리스너를 시작하지 않고 Spring 리스너(`app/SettlementPayoutRequestedListener`)로 받는다. true면 Spring 리스너는 뜨지 않는다
-  - **정산의 Kafka 발행(#612)이 배포된 환경에서만 켠다.** 그 전에 켜면 지급 요청이 어디에도 도착하지 않는다. prod는 main에 #612가 들어간 뒤 `deploy/.env.prod`에 켠다
+  - 별도 스위치 `kidly.payment.kafka.settlement-consumer.enabled`(기본 true, 환경 변수 `PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED`). false면 Kafka 리스너를 시작하지 않고 Spring 리스너(`app/SettlementPayoutRequestedListener`)로 받는다. 같은 JVM 안에서 정산이 Spring 이벤트로 보내는 테스트(서비스 `application-test.yml`)만 끈다
   - 처음 켜면 그룹 `kidly.payment`가 토픽 처음부터 읽는다. 이미 Spring으로 받은 지급 요청도 다시 오지만 정산서마다 한 번만 입금해 결과는 같다
 - 처리는 `app/PaymentEventHandler` 한 곳에 있고 Kafka 리스너 · Spring 리스너가 같은 처리를 부른다. 같은 이벤트를 다시 받아도 결과는 1회분이다(지갑은 없을 때만, 동결은 한 번만, 주문당 결제 1건, 같은 취소는 한 번만 환불)
 - 헤더 `eventType`으로 고르고 받지 않는 종류(회원 변경 · 토큰 무효화, 주문 생성 · 구매확정 · 장바구니 담기)는 본문을 읽지 않고 건너뛴다. 모르는 필드는 무시한다
@@ -234,13 +233,9 @@
 - 로컬 `bootRun`은 `docker compose up -d`로 Kafka를 함께 띄운다. 없으면 메시지가 아웃박스에 쌓이고 릴레이가 주기마다 WARN을 남긴다. Kafka를 띄우면 쌓인 것부터 순서대로 보낸다
 
 ## 결제 서비스 (`apps/payment-service`, #525)
-- 결제 도메인만 띄우는 서비스다. `kidly-app`도 결제 도메인을 그대로 가지고 같은 DB · 같은 구독 그룹(`kidly.payment`)으로 함께 돈다. `kidly-app`에서 빼기는 다음 PR에서 한다
-- Gateway는 결제 API를 `KIDLY_PAYMENT_URI`로 보낸다(기본값은 `kidly-app`). 배포는 compose profile `payment`(힙 192m · 상한 512m)이고 지금은 dev만 켰다(`deploy/.env.dev`). 토스 키 · 암호화 키 · Kafka 수신 스위치는 `kidly-app`과 같은 값을 받는다
-- 함께 도는 동안 지킬 것
-  - 결제 마이그레이션(`db/migration/payment/`)을 더하면 서비스 `application.yml`의 `spring.flyway.baseline-version`을 그 파일 버전으로 올린다. 두 앱이 같은 파일을 각자 이력에 적용하려 하므로, `kidly-app`이 먼저 적용하고 서비스는 baseline으로 건너뛴다
-  - 빈 DB에서는 `kidly-app`이 먼저 마이그레이션해야 한다. 서비스가 먼저 결제 테이블을 만들면 `kidly-app`의 init이 실패한다
-- 두 프로세스가 같이 돌아도 되는 이유
-  - 아웃박스 릴레이는 advisory lock을 얻은 쪽만 보낸다
-  - Kafka 수신은 같은 그룹이라 파티션을 나눠 받는다. 같은 이벤트를 다시 받아도 결과는 1회분이다(Kafka 수신 절)
-  - 충전 정리 · 주문 취소 재처리 스케줄러는 두 쪽에서 돈다. 같은 충전을 둘이 집으면 충전을 잠금으로 읽고 상태를 검사해 한쪽만 반영하고, 늦은 쪽은 상태 오류로 WARN을 남긴다. 토스 조회 · 취소 요청은 두 번 갈 수 있다(취소는 멱등 키). 주문 취소 재처리는 같은 취소를 한 번만 환불한다
-- 정산 지급 요청은 스위치(`PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED`)가 꺼져 있으면 Spring 이벤트로만 오므로 `kidly-app`이 처리한다. 서비스만 남기기 전에 켠다
+- 결제 도메인은 이 서비스에만 있다. `kidly-app`에서 뺐다. 결제 API · 이벤트 수신(구독 그룹 `kidly.payment`) · 결제 이벤트 발행은 이 서비스만 한다
+- Gateway는 결제 API와 Swagger '결제' 문서(`/v3/api-docs/payment`)를 `KIDLY_PAYMENT_URI`로 보낸다(기본값 서비스). 배포는 compose profile `payment`(힙 192m · 상한 512m)이고 dev · prod 모두 켠다
+- 마이그레이션: 서비스 이력(`payment.flyway_schema_history_payment`)만 쓴다. 기존 DB는 `baseline-version` `202611021930`(kidly-app이 마지막으로 적용한 결제 버전)으로 baseline을 잡는다. 이 값은 고정이다. 새 결제 마이그레이션은 그보다 뒤 버전으로 더한다
+  - 빈 DB에서는 여전히 `kidly-app`이 먼저 마이그레이션해야 한다(`kidly-app` init에 결제 DDL이 남아 있다). 그때 빠지는 지갑 동결 · 잔액 환급은 `V202611031535`(`IF NOT EXISTS`)가 채운다
+  - `kidly-app` 이력에 남은 결제 도메인 파일 행(`202611021530` · `202611021930`)은 `kidly-app`의 `beforeValidate__drop_payment_domain_history.sql`이 지운다. `kidly-app` 모듈에 있는 결제 파일(`V202610161035` · `V202610200643` · `V202610300905`)은 그대로 둔다
+- 되돌리기는 이미지 재배포다. `kidly-app`에 결제 API가 없어 Gateway 값만으로는 되돌릴 수 없다
