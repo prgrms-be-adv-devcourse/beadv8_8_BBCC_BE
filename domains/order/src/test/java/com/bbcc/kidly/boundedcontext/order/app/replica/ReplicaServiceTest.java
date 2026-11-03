@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.ReplicaUpdateLock;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ProductChangedCommand;
@@ -35,6 +36,9 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 class ReplicaServiceTest {
 
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 10, 13, 9, 0);
+
+    @Mock
+    private ReplicaUpdateLock replicaUpdateLock;
 
     @Mock
     private ProductReplicaRepository productReplicaRepository;

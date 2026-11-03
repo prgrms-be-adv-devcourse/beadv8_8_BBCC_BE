@@ -119,6 +119,11 @@ class ProductReplicaServiceTest {
             violation("23505", ProductReplicaService.PRODUCT_PRIMARY_KEY);
 
         @Override
+        public void lockProduct(Long productId) {
+            // 단위 테스트는 순차 호출만 다룬다. 실제 잠금은 PostgreSQL 동시성 테스트로 검증한다.
+        }
+
+        @Override
         public List<ReplicaProduct> findAllByProductIdIn(Collection<Long> productIds) {
             throw new UnsupportedOperationException();
         }

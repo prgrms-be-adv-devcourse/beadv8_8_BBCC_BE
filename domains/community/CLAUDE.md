@@ -18,6 +18,7 @@
 - 받는 길은 스위치 `kidly.community.kafka.consumer.enabled` 하나로 고른다: `true`(기본)면 Kafka 리스너, `false`면 Spring 이벤트. 처리 코드(`…EventListener`)는 같다
 - Kafka 리스너는 전용 팩토리 `communityKafkaListenerContainerFactory`(`in.config`)만 쓴다: 구독 그룹 `kidly.community`, 한 건씩 완료, 실패하면 1초 간격 3번 재시도 뒤 `{토픽}.community.dlt`, 다시 해도 같은 예외 · 읽기 실패는 바로 DLT. 팩토리 외의 Kafka 객체(템플릿 · 에러 처리기)는 이 구성 코드 안에서 만들고 빈으로 등록하지 않는다
 - DLT 토픽은 파티션 1개이고, 보낼 때는 원래 파티션과 상관없이 0번으로 보낸다. 도메인 이벤트 토픽의 파티션 3 규칙과 별개다
+- 상품 복사본 반영(#738)은 상품 ID별 트랜잭션 advisory lock(`ReplicaProducts.lockProduct`, 저장소 조각 `out.store.ReplicaProductLock`)을 최초 조회 전에 잡고 바깥 트랜잭션의 커밋 · 롤백까지 유지한다. 기존 행의 동시 갱신과 최초 생성을 함께 직렬화한다. 최초 INSERT는 기존 `ReviewSeparateTransaction` 경로를 유지한다(이 안에서는 같은 advisory lock을 다시 잡지 않는다).
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(상품 등)은 저장된 `occurredAt`보다 늦은 이벤트만 반영한다
 - 필수 값이 없으면 `CommunityEventGuard`로 WARN 한 줄을 남기고 무시한다
 - 로그 추적(MDC): Kafka 수신은 메시지 하나를 처리하는 동안 eventId · eventType · `correlationId`(= 키)를 MDC에 넣고, 끝나면(예외 포함) 이전 값으로 되돌린다
@@ -44,7 +45,7 @@
   - 같은 이벤트를 다른 도메인(주문 · 추천 등)도 다시 받는다. 값이 그대로라 덮어쓰기만 일어난다
 
 ## 5. 지금 넣지 않는 것
-- 상태 전이 결과 타입 · `@Version` 낙관적 잠금: 리뷰 · 찜 · 복사본은 상태가 단순하고, 같은 행을 동시에 바꾸는 경쟁은 유일 제약 · 원자적 UPDATE · `occurredAt` 비교로 막는다
+- 상태 전이 결과 타입 · `@Version` 낙관적 잠금: 리뷰 · 찜 · 복사본은 상태가 단순하고, 같은 행을 동시에 바꾸는 경쟁은 유일 제약 · 원자적 UPDATE · 상품별 잠금 안의 `occurredAt` 비교로 막는다
 - 처리 실패 보관 테이블 · DLT 보관 · 관리자 재처리: 수신 실패는 재시도 뒤 DLT로 충분하다. 복사본 · 자격은 같은 이벤트를 다시 받으면 1회분으로 맞춰진다
 - 아웃박스 · 릴레이 스케줄러: 커뮤니티가 이벤트를 발행하지 않는 동안은 필요 없다
 - 필요해지면 이 문서를 먼저 고치고 넣는다
