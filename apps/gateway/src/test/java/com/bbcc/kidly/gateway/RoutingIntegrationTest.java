@@ -342,6 +342,17 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
+    @DisplayName("정산 API 문서는 정산 서비스의 /v3/api-docs로 넘긴다")
+    void routesSettlementApiDocsToSettlementService() {
+        client.get().uri("/v3/api-docs/settlement").exchange()
+            .expectStatus().isOk();
+
+        assertThat(settlementBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/v3/api-docs")));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
     @DisplayName("그 밖의 요청은 같은 경로 · 쿼리로 kidly-app에 넘긴다")
     void routesToKidlyApp() {
         client.get().uri("/api/v1/orders?x=1").exchange()

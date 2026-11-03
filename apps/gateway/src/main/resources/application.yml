@@ -99,6 +99,13 @@ spring:
                 - Path=/v3/api-docs/member
               filters:
                 - SetPath=/v3/api-docs
+            # 정산 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
+            - id: settlement-api-docs
+              uri: ${kidly.gateway.settlement-uri}
+              predicates:
+                - Path=/v3/api-docs/settlement
+              filters:
+                - SetPath=/v3/api-docs
             # 결제 · 지갑 · 충전 · 토스 웹훅 · 결제 관리자 API는 결제 서비스로 간다(#525)
             # kidly-app도 아직 결제 도메인을 가지고 있어, 서비스를 켜지 않은 환경은 기본값(kidly-app)으로 지금처럼 간다
             # 응답 제한은 전체 값(55초)을 쓴다. 충전 승인이 토스를 동기로 부른다(위 httpclient 주석)
@@ -169,8 +176,8 @@ kidly:
     childprofile-uri: ${KIDLY_CHILDPROFILE_URI:http://localhost:8084}
     # 추천은 kidly-app에 없다. recommend-service(8086)를 띄워야 추천 API가 된다
     recommend-uri: ${KIDLY_RECOMMEND_URI:http://localhost:8086}
-    # 정산도 기본은 kidly-app이 받는다(kidly-app에도 정산이 남아 있다). settlement-service(8088)로 볼 때만 KIDLY_SETTLEMENT_URI=http://localhost:8088로 띄운다
-    settlement-uri: ${KIDLY_SETTLEMENT_URI:http://localhost:8080}
+    # 정산은 kidly-app에 없다. settlement-service(8088)를 띄워야 정산 API가 된다
+    settlement-uri: ${KIDLY_SETTLEMENT_URI:http://localhost:8088}
     # 결제는 kidly-app에 없다(#525). payment-service(8087)를 띄워야 결제 API가 된다
     payment-uri: ${KIDLY_PAYMENT_URI:http://localhost:8087}
 

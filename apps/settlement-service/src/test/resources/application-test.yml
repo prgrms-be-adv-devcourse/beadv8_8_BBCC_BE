@@ -27,7 +27,7 @@ kidly:
       relay-interval: P3650D
       cleanup-cron: "-"
     # 정산이 받는 구매확정 · 지급 결과는 테스트에서 Spring 이벤트로 받는다.
-    # Kafka 수신은 그 안에서 정산 리스너를 켜서 보는 테스트가 따로 본다
+    # Kafka 수신은 SettlementKafkaReceiveIntegrationTest가 그 안에서 정산 리스너를 켜서 본다
     kafka:
       consumer:
         enabled: false

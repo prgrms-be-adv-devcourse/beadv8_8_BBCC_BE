@@ -48,7 +48,7 @@ class SettlementMigrationIntegrationTest {
                 SELECT version FROM settlement.flyway_schema_history_settlement
                 WHERE success AND version IS NOT NULL ORDER BY installed_rank
                 """, String.class)).containsExactly("202610160256", "202610160855", "202610161145", "202610172016",
-                "202610201008", "202610301630", BASELINE_VERSION);
+                "202610201008", "202610301630", BASELINE_VERSION, "202611031547");
         }
     }
 
@@ -67,7 +67,7 @@ class SettlementMigrationIntegrationTest {
             assertThat(jdbc.queryForList("""
                 SELECT version FROM settlement.flyway_schema_history_settlement
                 WHERE success AND version IS NOT NULL ORDER BY installed_rank
-                """, String.class)).containsExactly(BASELINE_VERSION);
+                """, String.class)).containsExactly(BASELINE_VERSION, "202611031547");
         }
     }
 

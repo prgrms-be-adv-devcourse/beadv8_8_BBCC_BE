@@ -42,6 +42,6 @@ public class SearchIndexes {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        initializer.createMissingIndexes();
+        initializer.createOrUpdateIndexes();
     }
 }
