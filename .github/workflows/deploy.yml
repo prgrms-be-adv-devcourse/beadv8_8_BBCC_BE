@@ -240,6 +240,7 @@ jobs:
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           HOLIDAY_API_SERVICE_KEY: ${{ secrets.HOLIDAY_API_SERVICE_KEY }}
           KIDLY_ADMIN_BOOTSTRAP_PASSWORD: ${{ secrets.KIDLY_ADMIN_BOOTSTRAP_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SEARCH_ON: ${{ needs.elasticsearch.outputs.search }}
           MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
         run: |
@@ -256,6 +257,8 @@ jobs:
           [[ -z "$HOLIDAY_API_SERVICE_KEY" ]] || keys+=(HOLIDAY_API_SERVICE_KEY)
           # KIDLY_ADMIN_BOOTSTRAP_PASSWORD 가 없으면 첫 관리자를 만들지 않는다. 단 .env 에 이메일이 있는데 비어 있으면 앱이 기동에 실패한다
           [[ -z "$KIDLY_ADMIN_BOOTSTRAP_PASSWORD" ]] || keys+=(KIDLY_ADMIN_BOOTSTRAP_PASSWORD)
+          # OPENAI_API_KEY 가 없으면 검색 서비스가 의미 검색을 끄고 키워드로만 찾는다(#797)
+          [[ -z "$OPENAI_API_KEY" ]] || keys+=(OPENAI_API_KEY)
           # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다
           secret_lines=$(.github/scripts/env-lines.sh "$APP_ENV" "${keys[@]}")
 
