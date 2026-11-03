@@ -5,6 +5,8 @@ import java.util.Optional;
 
 public interface AdminAccountRepository {
 
+    AdminAccount saveAccount(AdminAccount account);
+
     Optional<AdminAccount> findByIdForUpdate(Long id);
 
     Optional<AdminAccount> findByEmailForUpdate(String email);
