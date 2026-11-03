@@ -9,7 +9,9 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.boundedcontext.settlement.out.JpaSettlementItemRepository;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -90,6 +92,10 @@ class SettlementFlowIntegrationTest {
         var event = new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), CONFIRMED_AT,
             new OrderItemPurchaseConfirmedEvent.Data(orderItemId, 1L, 2L, SELLER_ID, 3L, 4L, 5L,
                 "120", 1, amount, CONFIRMED_AT));
+        publishInTransaction(event);
+    }
+
+    private void publishInTransaction(DomainEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }
