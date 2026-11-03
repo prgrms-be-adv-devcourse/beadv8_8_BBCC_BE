@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+import com.bbcc.kidly.boundedcontext.search.domain.ProductEmbedding;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
@@ -138,6 +139,51 @@ class SearchProductTest {
         assertThatNullPointerException()
             .isThrownBy(() -> SearchProduct.create(info))
             .withMessageStartingWith(field);
+    }
+
+    @Test
+    @DisplayName("의미 검색 문장은 상품명 · 브랜드 · 설명을 줄로 잇고, 비어 있는 값은 건너뛴다")
+    void embeddingText() {
+        assertThat(SearchProduct.create(withText("여아 원피스", " 키들리 ", "봄에 입기 좋은 원피스")).getEmbeddingText())
+            .isEqualTo("여아 원피스\n키들리\n봄에 입기 좋은 원피스");
+        assertThat(SearchProduct.create(withText("여아 원피스", null, "  ")).getEmbeddingText()).isEqualTo("여아 원피스");
+    }
+
+    @Test
+    @DisplayName("설명이 길면 앞 2,000자까지만 의미 검색 문장에 쓴다")
+    void embeddingTextIsCapped() {
+        String text = SearchProduct.create(withText("원피스", null, "가".repeat(3_000))).getEmbeddingText();
+
+        assertThat(text).hasSize(2_000).startsWith("원피스\n가");
+    }
+
+    @Test
+    @DisplayName("문장이 같으면 해시가 같고, 한 글자라도 다르면 해시가 다르다")
+    void embeddingTextHash() {
+        String hash = SearchProduct.create(withText("여아 원피스", "키들리", "봄")).getEmbeddingTextHash();
+
+        assertThat(SearchProduct.create(withText("여아 원피스", "키들리", "봄")).getEmbeddingTextHash()).isEqualTo(hash);
+        assertThat(SearchProduct.create(withText("여아 원피스", "키들리", "여름")).getEmbeddingTextHash()).isNotEqualTo(hash);
+        assertThat(hash).hasSize(64);
+    }
+
+    @Test
+    @DisplayName("지금 문장으로 만든 벡터만 붙인다. 다른 문장의 벡터를 붙이려 하면 막는다")
+    void attachEmbedding() {
+        SearchProduct product = SearchProduct.create(withText("여아 원피스", null, null));
+        ProductEmbedding embedding = new ProductEmbedding(product.getEmbeddingTextHash(), List.of(0.1f));
+
+        product.attachEmbedding(embedding);
+
+        assertThat(product.getEmbedding()).isEqualTo(embedding);
+        assertThatIllegalArgumentException()
+            .isThrownBy(() -> product.attachEmbedding(new ProductEmbedding("other", List.of(0.1f))));
+    }
+
+    private static SearchProduct.ChangeInfo withText(String name, String brand, String description) {
+        return new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, name, CATEGORY_ID, ProductStatus.ON_SALE,
+            THUMBNAIL_URL, brand, PRODUCT_CREATED_AT, false,
+            List.of(option(25_000L, false, OptionSaleStatus.ON_SALE)), List.of(), OCCURRED_AT, description);
     }
 
     static Stream<Arguments> changeInfosMissingRequiredValue() {

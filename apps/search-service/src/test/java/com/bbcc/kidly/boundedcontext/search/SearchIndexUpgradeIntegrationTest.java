@@ -35,6 +35,10 @@ import org.springframework.data.domain.PageRequest;
 class SearchIndexUpgradeIntegrationTest {
 
     private static final String BRAND_FIELD = "      \"brand\": { \"type\": \"text\", \"analyzer\": \"standard\" },\n";
+    private static final String EMBEDDING_FIELDS = ",\n"
+        + "      \"embedding\": { \"type\": \"dense_vector\", \"dims\": 512, \"similarity\": \"cosine\", "
+        + "\"index\": true, \"index_options\": { \"type\": \"int8_hnsw\" } },\n"
+        + "      \"embeddingTextHash\": { \"type\": \"keyword\", \"index\": false }";
 
     @Autowired
     private ElasticsearchClient client;
@@ -72,14 +76,35 @@ class SearchIndexUpgradeIntegrationTest {
         assertThat(ids("원피스")).containsExactly(2L, 1L);
     }
 
+    @Test
+    @DisplayName("의미 검색 벡터 필드가 없는 예전 색인에 기동할 때 벡터 필드를 더하고, 있던 문서는 그대로 찾는다(#797)")
+    void addsEmbeddingFieldsToOldIndex() throws IOException {
+        givenOldProductIndex(EMBEDDING_FIELDS);
+        givenOldDocument(1L, "여아 원피스");
+
+        initializer.createOrUpdateIndexes();
+        indexes.refresh();
+
+        var fields = client.indices().getMapping(get -> get.index(properties.productIndex()))
+            .get(properties.productIndex()).mappings().properties();
+        assertThat(fields.get("embedding").denseVector().dims()).isEqualTo(512);
+        assertThat(fields.get("embeddingTextHash").isKeyword()).isTrue();
+        assertThat(ids("원피스")).containsExactly(1L);
+    }
+
     // 지금 설정 파일에서 브랜드 필드만 뺀 예전 설정으로 상품 색인을 다시 만든다
     private void givenOldProductIndex() throws IOException {
+        givenOldProductIndex(BRAND_FIELD);
+    }
+
+    // 지금 설정 파일에서 주어진 필드 정의를 뺀 예전 설정으로 상품 색인을 다시 만든다
+    private void givenOldProductIndex(String removedFields) throws IOException {
         String current;
         try (InputStream settings = getClass().getClassLoader().getResourceAsStream("elasticsearch/products.json")) {
             current = new String(settings.readAllBytes(), StandardCharsets.UTF_8);
         }
-        assertThat(current).contains(BRAND_FIELD);
-        String old = current.replace(BRAND_FIELD, "");
+        assertThat(current).contains(removedFields);
+        String old = current.replace(removedFields, "");
         client.indices().delete(delete -> delete.index(properties.productIndex()).ignoreUnavailable(true));
         client.indices().create(CreateIndexRequest.of(create -> create
             .index(properties.productIndex()).withJson(new StringReader(old))));

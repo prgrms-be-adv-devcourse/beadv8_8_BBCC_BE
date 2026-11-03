@@ -1,10 +1,15 @@
 package com.bbcc.kidly.boundedcontext.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.search.app.SearchIndexService;
+import com.bbcc.kidly.boundedcontext.search.app.port.TextEmbedder;
+import com.bbcc.kidly.boundedcontext.search.domain.ProductEmbedding;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProductRepository;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchSeller;
@@ -17,6 +22,7 @@ import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +47,9 @@ class SearchIndexServiceTest {
 
     @Mock
     private SearchSellerRepository sellerRepository;
+
+    @Mock
+    private TextEmbedder textEmbedder;
 
     @InjectMocks
     private SearchIndexService searchIndexService;
@@ -77,6 +86,56 @@ class SearchIndexServiceTest {
     }
 
     @Test
+    @DisplayName("상품명 · 브랜드 · 설명 문장을 벡터로 바꿔 문장 해시와 함께 검색 문서에 붙인다")
+    void embedsProductText() {
+        when(textEmbedder.embed("여아 원피스\n키들리\n봄에 입기 좋은 원피스")).thenReturn(Optional.of(List.of(0.1f, 0.2f)));
+
+        searchIndexService.applyProductChanged(dressEvent("봄에 입기 좋은 원피스"));
+
+        verify(productRepository).saveIfNewer(productCaptor.capture());
+        SearchProduct saved = productCaptor.getValue();
+        assertThat(saved.getEmbedding().vector()).containsExactly(0.1f, 0.2f);
+        assertThat(saved.getEmbedding().textHash()).isEqualTo(saved.getEmbeddingTextHash());
+    }
+
+    @Test
+    @DisplayName("문장이 저장된 벡터를 만든 문장과 같으면(재고 · 가격만 바뀜) 임베딩 API를 부르지 않고 저장된 벡터를 쓴다")
+    void reusesStoredEmbedding() {
+        String textHash = SearchProduct.create(changeInfoOf(dressEvent("봄 원피스"))).getEmbeddingTextHash();
+        ProductEmbedding stored = new ProductEmbedding(textHash, List.of(0.5f, 0.6f));
+        when(productRepository.findEmbedding(1L)).thenReturn(Optional.of(stored));
+
+        searchIndexService.applyProductChanged(dressEvent("봄 원피스"));
+
+        verify(textEmbedder, never()).embed(anyString());
+        verify(productRepository).saveIfNewer(productCaptor.capture());
+        assertThat(productCaptor.getValue().getEmbedding()).isEqualTo(stored);
+    }
+
+    @Test
+    @DisplayName("문장이 바뀌었으면 저장된 벡터를 버리고 새로 만든다")
+    void reembedsChangedText() {
+        when(productRepository.findEmbedding(1L)).thenReturn(Optional.of(new ProductEmbedding("old", List.of(0.5f))));
+        when(textEmbedder.embed(anyString())).thenReturn(Optional.of(List.of(0.9f)));
+
+        searchIndexService.applyProductChanged(dressEvent("여름 원피스"));
+
+        verify(productRepository).saveIfNewer(productCaptor.capture());
+        assertThat(productCaptor.getValue().getEmbedding().vector()).containsExactly(0.9f);
+    }
+
+    @Test
+    @DisplayName("임베딩 API를 쓸 수 없으면 벡터 없이 저장한다. 키워드 검색은 그대로 된다")
+    void savesWithoutEmbeddingWhenUnavailable() {
+        when(textEmbedder.embed(anyString())).thenReturn(Optional.empty());
+
+        searchIndexService.applyProductChanged(dressEvent("봄 원피스"));
+
+        verify(productRepository).saveIfNewer(productCaptor.capture());
+        assertThat(productCaptor.getValue().getEmbedding()).isNull();
+    }
+
+    @Test
     @DisplayName("상품 정보 변경됨의 브랜드를 검색 문서에 옮긴다. 브랜드 칸이 없는 예전 메시지면 null이다")
     void copiesBrand() {
         ProductChangedEvent withBrand = new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
@@ -105,6 +164,21 @@ class SearchIndexServiceTest {
         assertThat(sellerCaptor.getValue())
             .extracting(SearchSeller::getSellerId, SearchSeller::getBusinessName, SearchSeller::getOccurredAt)
             .containsExactly(7L, "키들리 상점", OCCURRED_AT);
+    }
+
+    private static ProductChangedEvent dressEvent(String description) {
+        return new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+            new ProductChangedEvent.Data(1L, 7L, "여아 원피스", 3L, ProductStatus.ON_SALE, null, PRODUCT_CREATED_AT,
+                false, List.of(option(25_000L, false)), List.of(), "키들리", description, List.of()));
+    }
+
+    // 서비스가 이벤트를 옮기는 것과 같은 값으로 검색 문서를 만든다(문장 해시를 미리 구하려는 것이다)
+    private static SearchProduct.ChangeInfo changeInfoOf(ProductChangedEvent event) {
+        ProductChangedEvent.Data data = event.data();
+        return new SearchProduct.ChangeInfo(data.productId(), data.sellerId(), data.name(), data.categoryId(),
+            data.status(), data.thumbnailUrl(), data.brand(), data.createdAt(), data.sizeFree(),
+            List.of(new SearchProduct.OptionInfo(25_000L, false, OptionSaleStatus.ON_SALE, List.of())), List.of(),
+            event.occurredAt(), data.description());
     }
 
     private static ProductChangedEvent.Option option(

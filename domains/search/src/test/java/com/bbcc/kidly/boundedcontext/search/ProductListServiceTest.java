@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.search;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,11 +16,13 @@ import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchItem;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchSort;
 import com.bbcc.kidly.boundedcontext.search.app.port.SearchEventSender;
 import com.bbcc.kidly.boundedcontext.search.app.port.SearchUnavailableException;
+import com.bbcc.kidly.boundedcontext.search.app.port.TextEmbedder;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +45,9 @@ class ProductListServiceTest {
 
     @Mock
     private SearchEventSender searchEventSender;
+
+    @Mock
+    private TextEmbedder textEmbedder;
 
     @InjectMocks
     private ProductListService productListService;
@@ -76,6 +82,41 @@ class ProductListServiceTest {
             .containsExactly(Map.entry("COLOR", List.of(3L, 5L)), Map.entry("SIZE", List.of(11L)));
         assertThat(condition.sort()).isEqualTo(ProductSearchSort.PRICE_ASC);
         assertThat(capturedPageable()).isEqualTo(PageRequest.of(2, 10));
+    }
+
+    @Test
+    @DisplayName("관련도순으로 검색어를 찾으면 앞뒤 공백을 뺀 검색어를 벡터로 바꿔 함께 넘긴다")
+    void relevanceEmbedsKeyword() {
+        givenEmptyResult();
+        given(textEmbedder.embed("여름 물놀이 옷")).willReturn(Optional.of(List.of(0.1f, 0.2f)));
+
+        productListService.list(new ProductListRequest(null, " 여름 물놀이 옷 ", null, "RELEVANCE", null, null), null);
+
+        ProductSearchCondition condition = capturedCondition();
+        assertThat(condition.sort()).isEqualTo(ProductSearchSort.RELEVANCE);
+        assertThat(condition.keywordVector()).containsExactly(0.1f, 0.2f);
+    }
+
+    @Test
+    @DisplayName("검색어를 벡터로 바꾸지 못하면 벡터 없이(키워드로만) 찾는다")
+    void relevanceWithoutVectorWhenEmbeddingUnavailable() {
+        givenEmptyResult();
+        given(textEmbedder.embed(anyString())).willReturn(Optional.empty());
+
+        productListService.list(new ProductListRequest(null, "원피스", null, "RELEVANCE", null, null), null);
+
+        assertThat(capturedCondition().keywordVector()).isNull();
+    }
+
+    @Test
+    @DisplayName("관련도순이 아니거나 검색어가 없으면 임베딩 API를 부르지 않는다")
+    void otherSortsDoNotEmbed() {
+        givenEmptyResult();
+
+        productListService.list(new ProductListRequest(null, "원피스", null, "NEWEST", null, null), null);
+        productListService.list(new ProductListRequest(null, "  ", null, "RELEVANCE", null, null), null);
+
+        verify(textEmbedder, never()).embed(any());
     }
 
     @Test
