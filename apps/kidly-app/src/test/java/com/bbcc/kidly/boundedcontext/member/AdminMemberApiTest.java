@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.TestAdmins;
+import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -110,6 +111,15 @@ class AdminMemberApiTest {
             .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void suspendRejectsMemberHeader() {
+        client.post().uri(PATH + "/{id}/suspend", 1L)
+            .headers(TestMembers.buyer(ADMIN_ID))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(new MemberSuspendRequest(REASON))
+            .exchange().expectStatus().isUnauthorized();
     }
 
     @Test
