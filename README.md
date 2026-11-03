@@ -44,7 +44,7 @@
 |---|---|
 | `apps/kidly-app` | 실행 앱. 앱 설정, 공통 테스트 기반(`support`, `TestcontainersConfiguration`) |
 | `apps/gateway` | API Gateway(WebFlux). 토큰 검증 · 무효화 확인 · 역할 검사 · CORS · 라우팅 |
-| `apps/member-service` | 회원 서비스. 회원 · 인증 · 판매자 도메인은 이 서비스에만 있다. 첫 기동 때 앱이 적용한 회원 마이그레이션 이력을 보고 baseline을 잡는다(`MemberFlywayMigrationStrategy`) |
+| `apps/member-service` | 회원 서비스. 회원 · 인증 · 판매자 도메인은 이 서비스에만 있다. 빈 DB에서는 앱이 먼저 회원 테이블을 만들고, 서비스는 그 버전에서 baseline을 잡는다 |
 | `apps/childprofile-service` | 자녀 프로필 서비스(#682). 자녀 프로필 도메인은 이 서비스에만 있다 |
 | `apps/recommend-service` | 추천 서비스(#704). 추천 도메인은 이 서비스에만 있다 |
 | `apps/payment-service` | 결제 서비스. 앱도 아직 결제 도메인을 가지고 같은 구독 그룹으로 함께 돈다(#525). 그동안 결제 마이그레이션을 더하면 서비스의 `baseline-version`을 올린다 |
