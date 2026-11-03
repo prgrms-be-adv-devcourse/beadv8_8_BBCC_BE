@@ -27,7 +27,8 @@ public enum PaymentAction {
     ORDER_REFUNDED("주문 취소 환불"),
     ORDER_ITEM_REFUNDED("주문상품 취소 환불"),
     PAYOUT_COMPLETED("정산 지급 완료"),
-    WALLET_FROZEN("탈퇴 회원 지갑 동결");
+    WALLET_FROZEN("탈퇴 회원 지갑 동결"),
+    BALANCE_RETURNED("탈퇴 회원 잔액 환급");
 
     private final String description;
 }
