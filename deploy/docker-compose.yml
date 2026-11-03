@@ -224,6 +224,7 @@ services:
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
+      # 정산 설정(SETTLEMENT_*)은 .env 에 두지 않는다. app 에만 가고 이 서비스에는 안 가서, app 과 함께 도는 동안 두 JVM 값이 달라진다
       # 정산 영업일 판단용 공휴일 조회 키. 없으면 공휴일 조회가 실패해 자동 정산을 건너뛴다
       HOLIDAY_API_SERVICE_KEY: ${HOLIDAY_API_SERVICE_KEY:-}
       LOG_PATH: /app/logs
