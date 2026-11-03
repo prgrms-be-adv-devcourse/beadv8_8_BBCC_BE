@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.app;
+package com.bbcc.kidly.boundedcontext.order.app.deadletter;
 
 /**
  * 저장한 DLT 메시지를 원래 처리로 다시 넘길 값(#601): 원래 위치 · 키 · 원래 헤더(eventType · eventId) · 본문.

@@ -1,7 +1,8 @@
-package com.bbcc.kidly.boundedcontext.order.app.deadletter;
+package com.bbcc.kidly.boundedcontext.order.out.deadletter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.app.port.DeadLetterInspection.Fields;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,9 +20,9 @@ class DeadLetterPayloadsTest {
              "producer":"payment","aggregateId":"500","correlationId":"42","data":{"paymentId":500,"orderId":42}}
             """;
 
-        DeadLetterPayloads.Fields fields = payloads.read(body, "payment.completed", "42");
+        Fields fields = payloads.read(body, "payment.completed", "42");
 
-        assertThat(fields).isEqualTo(new DeadLetterPayloads.Fields(
+        assertThat(fields).isEqualTo(new Fields(
             "payment", LocalDateTime.of(2026, 10, 31, 9, 30), "500", "42", 42L));
     }
 
@@ -38,9 +39,9 @@ class DeadLetterPayloadsTest {
     @Test
     @DisplayName("본문을 읽지 못하면 공통 칸은 빈칸, 주문 이벤트면 관련 주문 ID는 키(주문 ID)에서")
     void unreadableBodyFallsBackToKey() {
-        DeadLetterPayloads.Fields fields = payloads.read("{not json", "stock.deduction-failed", "15");
+        Fields fields = payloads.read("{not json", "stock.deduction-failed", "15");
 
-        assertThat(fields).isEqualTo(new DeadLetterPayloads.Fields(null, null, null, null, 15L));
+        assertThat(fields).isEqualTo(new Fields(null, null, null, null, 15L));
     }
 
     @Test
@@ -50,7 +51,7 @@ class DeadLetterPayloadsTest {
             {"producer":"product","aggregateId":"3","correlationId":"3","data":{"productId":3}}
             """;
 
-        DeadLetterPayloads.Fields fields = payloads.read(body, "product.changed", "3");
+        Fields fields = payloads.read(body, "product.changed", "3");
 
         assertThat(fields.orderId()).isNull();
         assertThat(fields.producer()).isEqualTo("product");
@@ -59,9 +60,9 @@ class DeadLetterPayloadsTest {
     @Test
     @DisplayName("종류를 모르거나(eventType 헤더 없음) 본문 · 키가 없거나 숫자가 아니면 빈칸")
     void missingValuesAreEmpty() {
-        assertThat(payloads.read(null, null, null)).isEqualTo(new DeadLetterPayloads.Fields(null, null, null, null,
+        assertThat(payloads.read(null, null, null)).isEqualTo(new Fields(null, null, null, null,
             null));
         assertThat(payloads.read("{\"occurredAt\":\"어제\",\"data\":{\"orderId\":\"x\"}}", "payment.failed", "abc"))
-            .isEqualTo(new DeadLetterPayloads.Fields(null, null, null, null, null));
+            .isEqualTo(new Fields(null, null, null, null, null));
     }
 }

@@ -2,13 +2,13 @@ package com.bbcc.kidly.boundedcontext.order;
 
 import static com.bbcc.kidly.boundedcontext.cart.in.web.CartController.CART_ITEMS_PATH;
 import static com.bbcc.kidly.boundedcontext.cart.in.web.CartController.CART_PATH;
-import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
 import static com.bbcc.kidly.boundedcontext.delivery.in.web.SellerOrderController.SELLER_ORDERS_PATH;
+import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;

@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.app.deadletter;
+package com.bbcc.kidly.boundedcontext.order.in.event;
 
 /**
  * 받은 메시지를 읽을 수 없다(#601): 종류를 고를 eventType 헤더가 없다. 다시 해도 같으므로 재시도 없이 DLT로 가고(IllegalArgumentException),

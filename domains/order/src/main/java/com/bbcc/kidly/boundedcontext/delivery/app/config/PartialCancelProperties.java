@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.delivery.app;
+package com.bbcc.kidly.boundedcontext.delivery.app.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

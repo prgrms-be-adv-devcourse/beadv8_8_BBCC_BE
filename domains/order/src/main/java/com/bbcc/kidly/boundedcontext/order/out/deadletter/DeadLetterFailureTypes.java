@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.app.deadletter;
+package com.bbcc.kidly.boundedcontext.order.out.deadletter;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.FailureType;
 import jakarta.persistence.PersistenceException;
@@ -19,7 +19,7 @@ import tools.jackson.core.JacksonException;
  */
 final class DeadLetterFailureTypes {
 
-    private static final List<Class<?>> READ = List.of(JacksonException.class, UnreadableOrderMessageException.class);
+    private static final List<Class<?>> READ = List.of(JacksonException.class);
     private static final List<Class<?>> STORE = List.of(DataAccessException.class, TransactionException.class,
         PersistenceException.class, SQLException.class);
 
@@ -27,6 +27,11 @@ final class DeadLetterFailureTypes {
     }
 
     static FailureType of(String exceptionClass) {
+        // 배포 전 DLT 헤더도 계속 읽는다. 수신 계층 클래스에 직접 의존하지 않고 저장된 이름을 비교한다.
+        if ("com.bbcc.kidly.boundedcontext.order.app.deadletter.UnreadableOrderMessageException".equals(exceptionClass)
+            || "com.bbcc.kidly.boundedcontext.order.in.event.UnreadableOrderMessageException".equals(exceptionClass)) {
+            return FailureType.READ_FAILED;
+        }
         Class<?> type = load(exceptionClass);
         if (type == null) {
             return FailureType.PROCESS_FAILED;

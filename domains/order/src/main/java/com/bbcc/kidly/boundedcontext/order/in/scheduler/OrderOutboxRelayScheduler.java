@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
-import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxProperties;
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
