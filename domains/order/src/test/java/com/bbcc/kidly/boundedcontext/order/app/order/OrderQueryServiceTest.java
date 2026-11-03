@@ -11,7 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
-import com.bbcc.kidly.boundedcontext.delivery.app.PartialCancelProperties;
+import com.bbcc.kidly.boundedcontext.delivery.app.config.PartialCancelProperties;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.delivery.out.order.DeliveryOrdersAdapter;
