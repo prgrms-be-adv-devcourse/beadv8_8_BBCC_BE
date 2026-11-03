@@ -38,7 +38,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 
 ## 서버 배포 (`deploy/`)
 - dev · prod(#638). compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(dev) · `127.0.0.1:8084`(prod)(`GATEWAY_PORT`), compose 네트워크로 `http://app:8080`에 넘긴다
-- 상품 목록은 `KIDLY_SEARCH_URI`로 넘긴다. dev · prod는 `.env.dev` · `.env.prod`에 `http://search-service:8080`(profile `search`도 켜져 있어야 한다), 값이 없으면 기본값 `http://app:8080`이라 앱이 받는다
+- 상품 목록은 `KIDLY_SEARCH_URI`로 넘긴다. dev · prod는 `.env.dev` · `.env.prod`에 `http://search-service:8080`을 둔다(profile `search`도 켜져 있어야 한다). 기본값도 `http://search-service:8080`이고 kidly-app에는 상품 목록 API가 없다(#791)
 - 자녀 프로필은 `KIDLY_CHILDPROFILE_URI`로 넘긴다. 기본값은 `http://childprofile-service:8080`이고 kidly-app에는 자녀 API가 없다. profile `childprofile`이 꺼진 환경에서는 자녀 API가 실패한다
 - 추천은 `KIDLY_RECOMMEND_URI`로 넘긴다. 기본값은 `http://recommend-service:8080`이고 kidly-app에는 추천 API가 없다(#704). profile `recommend`가 꺼진 환경에서는 추천 API가 실패한다
 - 정산은 `KIDLY_SETTLEMENT_URI`로 넘긴다. 기본값은 `http://app:8080`이라 정산 서비스가 없는 환경은 kidly-app이 그대로 받는다(#729, kidly-app에도 정산이 함께 있다). 정산 서비스를 켠 환경은 `.env`에 `http://settlement-service:8080`을 둔다(profile `settlement`도 켜져 있어야 한다). 지금은 dev만 켰다(`.env.dev`), prod는 켜지 않았다
@@ -50,6 +50,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - `docker compose up -d` 뒤 앱(`:apps:kidly-app:bootRun`)과 Gateway(`:apps:gateway:bootRun`, 8083)를 루트에서 띄운다. IDE는 `Kidly 앱 + Gateway` 실행 구성. 프론트 · Swagger는 8083으로 붙는다(Swagger의 '자녀 프로필' 문서는 자녀 프로필 서비스가, '추천' 문서는 추천 서비스가 떠 있어야 열린다)
 - 자녀 API(`/api/v1/children/**`)는 자녀 프로필 서비스(`:apps:childprofile-service:bootRun`, 8084)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_CHILDPROFILE_URI`를 준다
 - 추천 API(`/api/v1/recommendations/**`)는 추천 서비스(`:apps:recommend-service:bootRun`, 8086)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_RECOMMEND_URI`를 준다
+- 상품 목록(`GET /api/v1/products`)은 검색 서비스(`:apps:search-service:bootRun`, 8082, Elasticsearch 필요)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_SEARCH_URI`를 준다
 - 정산 API는 기본으로 kidly-app(8080)이 받는다. 정산 서비스(8088)로 볼 때만 `KIDLY_SETTLEMENT_URI=http://localhost:8088`을 준다
 - 회원 · 인증 · 판매자 API는 회원 서비스(`:apps:member-service:bootRun`, 8081)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_MEMBER_URI`를 준다
 - 결제 API(`/api/v1/payments/**` · `/api/v1/wallets/**` 등)는 결제 서비스(`:apps:payment-service:bootRun`, 8087)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_PAYMENT_URI`를 준다

@@ -361,8 +361,8 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       # 같은 compose 네트워크의 app 컨테이너 포트(8080)다. 서버 포트(APP_PORT)가 아니다
       KIDLY_APP_URI: http://app:8080
-      # 상품 목록(GET /api/v1/products)을 받을 곳(#526). 검색이 켜진 환경(dev · prod)은 .env 에 search-service 를 두고, 없으면 app 이 받는다
-      KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://app:8080}
+      # 상품 목록(GET /api/v1/products)을 받을 곳(#526). app 에는 상품 목록 API 가 없어(#791) profile search 가 꺼진 환경에서는 상품 목록이 실패한다
+      KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://search-service:8080}
       # 자녀 프로필(/api/v1/children/**)을 받을 곳(#682). app 에는 자녀 API 가 없어 profile childprofile 이 꺼진 환경에서는 자녀 API 가 실패한다
       KIDLY_CHILDPROFILE_URI: ${KIDLY_CHILDPROFILE_URI:-http://childprofile-service:8080}
       # 추천(/api/v1/recommendations/**)을 받을 곳(#704). app 에는 추천 API 가 없어 profile recommend 가 꺼진 환경에서는 추천 API 가 실패한다
