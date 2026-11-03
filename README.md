@@ -20,6 +20,7 @@
 8. `docker compose --profile search up -d` 뒤 `./gradlew :apps:search-service:bootRun` — 검색 서비스(8082). 상품 목록(`GET /api/v1/products`)은 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8082로 넘긴다). 색인은 처음 뜬 뒤 판매자 · 상품을 바꾸거나 관리자 다시 보내기로 채운다
 9. `./gradlew :apps:payment-service:bootRun` — 결제 서비스(8087). 결제 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8087로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `PaymentServiceApplication`
 10. (선택) `./gradlew :apps:settlement-service:bootRun` — 정산 서비스(8088). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 정산 API를 받는다. Gateway를 `KIDLY_SETTLEMENT_URI=http://localhost:8088`로 띄우면 정산 API가 이리로 간다
+11. (선택) `./gradlew :apps:product-service:bootRun` — 상품 서비스(8089). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 상품 API를 받는다
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - 프론트와 Swagger(http://localhost:8083/swagger-ui.html)는 Gateway 주소(8083)로 붙는다. Swagger 위쪽에서 앱 문서(`kidly`)와 `회원` · `자녀 프로필` · `추천` · `결제` 문서를 고른다(회원 문서는 5, 자녀 문서는 6, 추천 문서는 7, 결제 문서는 8이 떠 있어야 열린다). 앱(8080)에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 앱에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
@@ -50,6 +51,7 @@
 | `apps/recommend-service` | 추천 서비스(#704). 추천 도메인은 이 서비스에만 있다 |
 | `apps/payment-service` | 결제 서비스(#525). 결제 도메인은 이 서비스에만 있다. 결제 마이그레이션은 서비스 `baseline-version`(`202611021930`, 고정)보다 뒤 버전으로 더한다 |
 | `apps/settlement-service` | 정산 서비스. 앱도 아직 정산 도메인을 가지고 같은 구독 그룹(`kidly.settlement`)으로 함께 돈다(#729). 자동 정산은 Batch JobInstance, 아웃박스 릴레이는 advisory lock으로 한 번만 돈다. 그동안(다음 PR에서 앱의 정산을 빼기 전) 정산 마이그레이션은 앱과 서비스가 각자 적용하므로, 더해야 하면 두 번 적용돼도 안전하게(`IF NOT EXISTS`) 쓴다. 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다. 서비스에는 주문 · 결제가 없어 정산 Kafka 수신 스위치(`SETTLEMENT_KAFKA_CONSUMER_ENABLED`)를 끄면 이벤트를 받지 못한다 |
+| `apps/product-service` | 상품 서비스(#791). 앱도 아직 상품 도메인을 가지고 같은 구독 그룹으로 함께 돈다. 그동안 상품 마이그레이션을 더하면 서비스 baseline-version을 올린다 |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
