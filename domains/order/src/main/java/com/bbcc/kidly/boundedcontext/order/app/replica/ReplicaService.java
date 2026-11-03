@@ -80,9 +80,9 @@ public class ReplicaService {
     }
 
     /**
-     * 키 · 몸무게 없이 온 자녀 삭제. 복사본이 있으면 삭제 표시만(늦은 이벤트일 때), 없으면 만들 수 없어 WARN 후 무시한다.
+     * 키 · 몸무게 없이 온 자녀 삭제. 복사본이 있으면 늦은 이벤트일 때 삭제 표시만, 없으면 삭제 복사본을 남긴다.
      */
-    public void applyChildDeleted(Long childId, LocalDateTime occurredAt) {
+    public void applyChildDeleted(Long childId, Long memberId, LocalDateTime occurredAt) {
         replicaUpdateLock.acquire(ReplicaUpdateLock.Kind.CHILD, childId);
         childReplicaRepository.findByChildId(childId)
             .ifPresentOrElse(
@@ -91,7 +91,7 @@ public class ReplicaService {
                         log.debug("복사본 이벤트 무시: event=child.changed childId={} reason=not-newer", childId);
                     }
                 },
-                () -> log.warn("자녀 삭제 이벤트 무시: event=child.changed childId={} reason=replica-not-found", childId));
+                () -> childReplicaRepository.save(ReplicaChild.createDeleted(childId, memberId, occurredAt)));
     }
 
     /**
