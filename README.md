@@ -16,6 +16,7 @@
 4. `./gradlew :apps:gateway:bootRun` — Gateway(8083). 루트에서 실행한다(IDE는 `GatewayApplication`, 3 · 4를 한 번에 `Kidly 앱 + Gateway`)
 5. `./gradlew :apps:childprofile-service:bootRun` — 자녀 프로필 서비스(8084). 자녀 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8084로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `ChildProfileServiceApplication`. 같은 이유로 `Kidly 앱 + Gateway`에는 넣지 않았다
 6. (선택) `./gradlew :apps:recommend-service:bootRun` — 추천 서비스(8086). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 추천 API를 받는다
+7. (선택) `./gradlew :apps:payment-service:bootRun` — 결제 서비스(8087). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 결제 API를 받는다
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - 프론트와 Swagger(http://localhost:8083/swagger-ui.html)는 Gateway 주소(8083)로 붙는다. Swagger 위쪽에서 앱 문서(`kidly`)와 `자녀 프로필` 문서를 고른다(자녀 문서는 5가 떠 있어야 열린다). 앱(8080)에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 앱에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
@@ -40,6 +41,7 @@
 | `apps/gateway` | API Gateway(WebFlux). 토큰 검증 · 무효화 확인 · 역할 검사 · CORS · 라우팅 |
 | `apps/childprofile-service` | 자녀 프로필 서비스(#682). 자녀 프로필 도메인은 이 서비스에만 있다 |
 | `apps/recommend-service` | 추천 서비스. 앱도 아직 추천 도메인을 가지고 같은 구독 그룹으로 함께 돈다(#704). 그동안 추천 마이그레이션을 더하지 않는다 |
+| `apps/payment-service` | 결제 서비스. 앱도 아직 결제 도메인을 가지고 같은 구독 그룹으로 함께 돈다(#525). 그동안 결제 마이그레이션을 더하면 서비스의 `baseline-version`을 올린다 |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
