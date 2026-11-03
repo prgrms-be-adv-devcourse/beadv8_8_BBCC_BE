@@ -14,6 +14,10 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum OrderErrorCode implements ErrorCode {
 
+    OUTBOX_NOT_FOUND(HttpStatus.NOT_FOUND, "아웃박스 메시지를 찾을 수 없습니다",
+        "없는 메시지입니다. 아웃박스 목록을 새로고침해 주세요."),
+    OUTBOX_ALREADY_SENT(HttpStatus.CONFLICT, "이미 전송된 메시지입니다",
+        "전송을 마친 메시지는 다시 대기시킬 수 없습니다."),
     EMPTY_ORDER_ITEMS(HttpStatus.BAD_REQUEST, "주문상품이 없습니다", "주문할 상품을 하나 이상 골라 주세요."),
     DUPLICATE_ORDER_ITEM(HttpStatus.BAD_REQUEST, "같은 주문상품이 두 번 있습니다", "같은 옵션 · 자녀 조합은 한 줄로 주문해 주세요."),
     INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "잘못된 수량입니다", "수량은 1 이상 99 이하여야 합니다."),

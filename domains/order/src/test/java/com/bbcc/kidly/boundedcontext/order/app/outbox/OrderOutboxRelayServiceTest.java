@@ -73,7 +73,7 @@ class OrderOutboxRelayServiceTest {
             order.verify(sender).send(sameMessage(first));
             order.verify(sender).send(sameMessage(second));
             ArgumentCaptor<Limit> limit = ArgumentCaptor.forClass(Limit.class);
-            verify(jpaRepository).findBySentAtIsNullOrderByIdAsc(limit.capture());
+            verify(jpaRepository).findRelayCandidates(limit.capture());
             assertThat(limit.getValue().max()).isEqualTo(100);
             assertThat(first.getSentAt()).isNotNull();
             assertThat(second.getSentAt()).isNotNull();
@@ -135,7 +135,7 @@ class OrderOutboxRelayServiceTest {
     }
 
     private void givenUnsent(OrderOutboxMessage... messages) {
-        when(jpaRepository.findBySentAtIsNullOrderByIdAsc(any())).thenAnswer(invocation ->
+        when(jpaRepository.findRelayCandidates(any())).thenAnswer(invocation ->
             List.of(messages).stream().filter(message -> message.getSentAt() == null).toList());
         for (OrderOutboxMessage message : messages) {
             lenient().when(jpaRepository.findById(message.getId())).thenReturn(Optional.of(message));

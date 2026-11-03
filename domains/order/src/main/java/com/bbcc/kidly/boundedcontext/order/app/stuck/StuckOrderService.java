@@ -22,8 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 관리자 멈춘 주문 조회(#445). 조회만 하고 상태 · 이력은 바꾸지 않는다.
- * 아웃박스 멈춤(#602)은 보내지 못한 맨 앞 메시지 하나만 본다(릴레이가 처음 실패에서 멈추므로 막힌 메시지는 하나): 시도 횟수가
- * 기준 이상이거나 만든 시각 + 기준 시간이 now보다 이전이면 1건. 보내지면 맨 앞이 바뀌어 저절로 빠진다.
+ * 아웃박스 멈춤은 전송 가능한 미전송 맨 앞이 기준을 넘으면 우선 표시한다. 그렇지 않으면 가장 오래된 격리를
+ * 즉시 표시한다(#740). 대표 항목은 0~1건이며 전체 격리는 별도 관리자 목록에서 확인한다.
  * 기준 시각(since) = 저장된 시각 + 기준 시간이 now보다 이전이면(같으면 빠짐) 멈춘 것으로 본다.
  * now는 부른 쪽이 한 요청에 한 번 정해 넘긴다(건수 요약의 여섯 종류가 같은 시각으로 센다).
  */
@@ -119,7 +119,7 @@ public class StuckOrderService {
         };
     }
 
-    // 멈춘 메시지는 하나뿐이라 0 · 1건이다. 둘째 페이지부터는 빈 목록(전체 건수는 그대로)
+    // 대표 메시지 0 · 1건이다. 둘째 페이지부터는 빈 목록(전체 건수는 그대로)
     private Page<StuckOrderResult> getStuckOutbox(LocalDateTime now, PageRequest pageable) {
         Optional<StuckOrderRepository.OutboxHeadRow> stuck = stuckOutbox(now);
         if (stuck.isEmpty()) {
@@ -129,24 +129,30 @@ public class StuckOrderService {
             return new PageImpl<>(List.of(), pageable, 1);
         }
         StuckOrderRepository.OutboxHeadRow head = stuck.get();
-        long backlog = stuckOrderRepository.countUnsentOutbox() - 1;
+        long backlog = head.getQuarantinedAt() == null ? stuckOrderRepository.countUnsentOutbox() - 1
+            : stuckOrderRepository.countUnsentOutboxStreamAfter(head.getId(), head.getTopic(), head.getMessageKey());
         StuckOrderKind kind = StuckOrderKind.OUTBOX_STUCK;
         return new PageImpl<>(List.of(new StuckOrderResult(kind.name(),
             orderIdOf(head.getEventType(), head.getMessageKey()), kind.targetType(), head.getId(), kind.status(),
             outboxSince(head, now),
             new StuckOrderResult.Outbox(head.getId(), head.getEventType(), head.getEventId(), head.getAttemptCount(),
-                head.getCreatedAt(), head.getLastError(), backlog))), pageable, 1);
+                head.getCreatedAt(), head.getLastError(), backlog, head.getQuarantinedAt()))), pageable, 1);
     }
 
-    // 맨 앞 미전송 메시지가 기준(시도 횟수 · 만든 뒤 시간)을 넘었으면 그 메시지
+    // 격리가 있어도 다른 키의 실제 전송 대기/장애를 가리지 않는다. 격리는 새 목록에서도 항상 확인할 수 있다.
     private Optional<StuckOrderRepository.OutboxHeadRow> stuckOutbox(LocalDateTime now) {
-        return stuckOrderRepository.findOldestUnsentOutbox()
-            .filter(head -> head.getAttemptCount() >= thresholds.outboxAttempts()
-                || outboxAgedAt(head).isBefore(now));
+        List<StuckOrderRepository.OutboxHeadRow> heads = stuckOrderRepository.findOutboxAttentionHeads();
+        return heads.stream().filter(head -> head.getQuarantinedAt() == null)
+            .filter(head -> head.getAttemptCount() >= thresholds.outboxAttempts() || outboxAgedAt(head).isBefore(now))
+            .findFirst()
+            .or(() -> heads.stream().filter(head -> head.getQuarantinedAt() != null).findFirst());
     }
 
     // 시간 기준을 넘었으면 만든 시각 + 기준 시간, 시도 횟수 기준만 넘었으면 마지막 시도 시각
     private LocalDateTime outboxSince(StuckOrderRepository.OutboxHeadRow head, LocalDateTime now) {
+        if (head.getQuarantinedAt() != null) {
+            return head.getQuarantinedAt();
+        }
         LocalDateTime agedAt = outboxAgedAt(head);
         return agedAt.isBefore(now) ? agedAt : head.getUpdatedAt();
     }

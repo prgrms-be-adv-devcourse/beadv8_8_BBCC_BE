@@ -88,6 +88,24 @@ class OrderOutboxRelayIntegrationTest {
             Integer.class, id)).as("보내기를 시도한 릴레이는 하나").isOne();
     }
 
+    @Test
+    @DisplayName("영구 실패 메시지와 같은 키는 멈추지만 다른 키는 계속 전송한다")
+    void oversizedMessageDoesNotBlockOtherKey() {
+        outboxRepository.save(OrderOutboxMessage.create(UUID.randomUUID(), "order.created",
+            "kidly.order.events", "blocked", "x".repeat(2_000_000)));
+        Long sameKey = outboxRepository.save(OrderOutboxMessage.create(UUID.randomUUID(), "order.created",
+            "kidly.order.events", "blocked", "{}")).getId();
+        Long otherKey = outboxRepository.save(OrderOutboxMessage.create(UUID.randomUUID(), "order.created",
+            "kidly.order.events", "independent", "{}")).getId();
+
+        relayService.relay();
+
+        assertThat(jdbcTemplate.queryForObject("select sent_at from orders.order_outbox where id = ?",
+            java.time.LocalDateTime.class, otherKey)).isNotNull();
+        assertThat(jdbcTemplate.queryForObject("select sent_at from orders.order_outbox where id = ?",
+            java.time.LocalDateTime.class, sameKey)).isNull();
+    }
+
     private Long saveToUndeclaredTopic() {
         return outboxRepository.save(OrderOutboxMessage.create(UUID.randomUUID(), "order.created",
             "undeclared-" + UUID.randomUUID(), "1024", SECRET_PAYLOAD)).getId();

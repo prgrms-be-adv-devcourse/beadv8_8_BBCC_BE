@@ -4,8 +4,11 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,7 +23,7 @@ public class OrderOutboxStore implements OrderOutboxRepository {
 
     @Override
     public List<OutboxMessage> findUnsent(Limit limit) {
-        return jpaRepository.findBySentAtIsNullOrderByIdAsc(limit).stream().map(OrderOutboxStore::toMessage).toList();
+        return jpaRepository.findRelayCandidates(limit).stream().map(OrderOutboxStore::toMessage).toList();
     }
 
     @Override
@@ -33,6 +36,38 @@ public class OrderOutboxStore implements OrderOutboxRepository {
         OrderOutboxMessage message = find(id);
         message.recordFailure(error);
         return toMessage(message);
+    }
+
+    @Override
+    public OutboxMessage quarantine(Long id, String error, LocalDateTime now) {
+        OrderOutboxMessage message = find(id);
+        message.quarantine(error, now);
+        return toMessage(message);
+    }
+
+    @Override
+    public Page<OutboxStatus> findQuarantined(Pageable pageable) {
+        return jpaRepository.findQuarantined(pageable);
+    }
+
+    @Override
+    public long countQuarantined() {
+        return jpaRepository.countByQuarantinedAtIsNotNull();
+    }
+
+    @Override
+    public Optional<OutboxStatus> findStatus(Long id) {
+        return jpaRepository.findStatusById(id);
+    }
+
+    @Override
+    public boolean lockById(Long id) {
+        return jpaRepository.findByIdForUpdate(id).isPresent();
+    }
+
+    @Override
+    public void retryQuarantined(Long id, Long adminId, LocalDateTime now) {
+        find(id).retryQuarantined(adminId, now);
     }
 
     @Override
