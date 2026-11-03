@@ -128,7 +128,7 @@ Slack 메시지 형식은 `grafana/provisioning/alerting/templates.yml` 에 있�
 
 ```
 🔴 앱 다운 · dev                        ← warning 은 🟠 주황, 그 밖은 빨강. 같은 그룹에 여러 건이면 끝에 (N건)
-kidly 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile, 추천 서비스면 kidly-recommend
+kidly 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile, 추천 서비스면 kidly-recommend, 회원 서비스면 kidly-member, 결제 서비스면 kidly-payment
 규칙 보기 · 일시정지
 
 🟠 ERROR 로그 · dev
@@ -167,7 +167,7 @@ Gateway 가 켜진 환경(dev · prod)도 같은 식으로 `targets/gateway/<환
 추천 서비스가 켜진 환경(dev · prod)은 `targets/recommend/<환경>.yml` 에 `127.0.0.1:<RECOMMEND_PORT>` 를 써 두고, job 은 `kidly-recommend` 입니다. 추천 API 는 이 서비스에만 있어 자녀 프로필 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다.
 회원 서비스가 켜진 환경(dev · prod)은 `targets/member/<환경>.yml` 에 `127.0.0.1:<MEMBER_PORT>` 를 쓰고 job 은 `kidly-member` 입니다. 회원 API 는 이 서비스에만 있어 앱 다운 · ERROR 로그 · 5xx 알림에 포함합니다.
 정산 서비스가 켜진 환경(지금은 dev)은 `targets/settlement/<환경>.yml` 에 `127.0.0.1:<SETTLEMENT_PORT>` 를 써 두고, job 은 `kidly-settlement` 입니다. 앱도 아직 정산 API 를 가지고 있어 검색 서비스처럼 앱 알림은 보지 않습니다.
-결제 서비스가 켜진 환경(지금은 dev)은 `targets/payment/<환경>.yml` 에 `127.0.0.1:<PAYMENT_PORT>` 를 써 두고, job 은 `kidly-payment` 입니다. 앱도 아직 결제 API 를 가지고 있어 정산 서비스처럼 앱 알림은 보지 않습니다.
+결제 서비스가 켜진 환경은 `targets/payment/<환경>.yml` 에 `127.0.0.1:<PAYMENT_PORT>` 를 써 두고, job 은 `kidly-payment` 입니다. Gateway 가 결제 API 를 이 서비스로 보내므로 추천 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 · 회원 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다. 지금은 어느 환경에도 켜지 않았습니다.
 로그는 Alloy 가 앱 · 검색 서비스 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 정산 서비스 · 회원 서비스 · 결제 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 medium 의 Pod 로그는 `namespace` · `pod` · `container` · `service_name`(컨테이너 이름) 라벨로 들어갑니다(`env` 없음).
 
@@ -178,7 +178,7 @@ cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml /
 docker compose -p monitoring logs alloy --tail 50   # 보내기 실패(medium 에 닿지 못함)가 여기 남는다
 ```
 
-환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색 · Gateway · 자녀 프로필 · 추천 · 정산이 켜져 있었으면 `targets/search/<환경>.yml` · `targets/gateway/<환경>.yml` · `targets/childprofile/<환경>.yml` · `targets/recommend/<환경>.yml` · `targets/settlement/<환경>.yml` · `targets/member/<환경>.yml` · `targets/payment/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
+환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색 · Gateway · 자녀 프로필 · 추천 · 정산 · 회원 · 결제가 켜져 있었으면 `targets/search/<환경>.yml` · `targets/gateway/<환경>.yml` · `targets/childprofile/<환경>.yml` · `targets/recommend/<환경>.yml` · `targets/settlement/<환경>.yml` · `targets/member/<환경>.yml` · `targets/payment/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
 
 ## 로그 보기
 

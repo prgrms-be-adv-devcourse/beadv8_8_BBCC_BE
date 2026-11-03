@@ -5,8 +5,7 @@ set -euo pipefail
 : "${APP_ENV:?APP_ENV 가 필요합니다}" "${IMAGE:?IMAGE 가 필요합니다}"
 : "${SEARCH_IMAGE:?SEARCH_IMAGE 가 필요합니다}" "${GATEWAY_IMAGE:?GATEWAY_IMAGE 가 필요합니다}"
 : "${CHILDPROFILE_IMAGE:?CHILDPROFILE_IMAGE 가 필요합니다}" "${RECOMMEND_IMAGE:?RECOMMEND_IMAGE 가 필요합니다}"
-: "${SETTLEMENT_IMAGE:?SETTLEMENT_IMAGE 가 필요합니다}" "${MEMBER_IMAGE:?MEMBER_IMAGE 가 필요합니다}"
-: "${PAYMENT_IMAGE:?PAYMENT_IMAGE 가 필요합니다}"
+: "${SETTLEMENT_IMAGE:?SETTLEMENT_IMAGE 가 필요합니다}" "${MEMBER_IMAGE:?MEMBER_IMAGE 가 필요합니다}" "${PAYMENT_IMAGE:?PAYMENT_IMAGE 가 필요합니다}"
 cd "$(dirname "$0")"
 # docker 가 없는 디렉터리를 root 소유로 만들지 않도록 미리 만든다 (컨테이너는 UID 1001 = deploy 로 돈다)
 mkdir -p logs

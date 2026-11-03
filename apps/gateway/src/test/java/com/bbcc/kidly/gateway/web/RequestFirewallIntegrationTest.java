@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -37,9 +38,15 @@ import org.springframework.http.MediaType;
 @IntegrationTest
 class RequestFirewallIntegrationTest extends GatewayTestSupport {
 
+    // 토스 웹훅은 결제 라우트(#525)로 간다
     @Autowired
     @Qualifier(RecordingBackendConfiguration.PAYMENT)
     private RecordingBackend paymentBackend;
+
+    @BeforeEach
+    void resetPaymentBackend() {
+        paymentBackend.reset();
+    }
 
     // 백엔드가 정규화 · 디코딩 · 매트릭스 제거를 하면 /api/v1/admin/** · /internal/**로 읽힐 수 있는 경로
     private static final List<String> BYPASS_PATHS = List.of(
@@ -193,10 +200,8 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("결제 웹훅은 그대로 결제 서비스에 넘긴다")
+    @DisplayName("결제 웹훅은 그대로 넘긴다")
     void passesPaymentWebhook() {
-        paymentBackend.reset();
-
         client.post().uri("/api/v1/webhooks/toss")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue("{\"eventType\":\"PAYMENT_STATUS_CHANGED\"}")

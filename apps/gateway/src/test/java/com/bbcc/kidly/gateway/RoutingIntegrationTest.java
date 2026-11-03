@@ -42,10 +42,6 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     private RecordingBackend memberBackend;
 
     @Autowired
-    @Qualifier(RecordingBackendConfiguration.PAYMENT)
-    private RecordingBackend paymentBackend;
-
-    @Autowired
     @Qualifier(RecordingBackendConfiguration.SEARCH)
     private RecordingBackend searchBackend;
 
@@ -61,14 +57,18 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     @Qualifier(RecordingBackendConfiguration.SETTLEMENT)
     private RecordingBackend settlementBackend;
 
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.PAYMENT)
+    private RecordingBackend paymentBackend;
+
     @BeforeEach
     void resetServiceBackends() {
         memberBackend.reset();
-        paymentBackend.reset();
         searchBackend.reset();
         childProfileBackend.reset();
         recommendBackend.reset();
         settlementBackend.reset();
+        paymentBackend.reset();
     }
 
     @Test
@@ -260,53 +260,6 @@ class RoutingIntegrationTest extends GatewayTestSupport {
         assertThat(memberBackend.lastRequest()).isEmpty();
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {
-        "/api/v1/payments?page=0",
-        "/api/v1/payments/5",
-        "/api/v1/wallets/me",
-        "/api/v1/wallets/me/ledgers?page=0",
-        "/api/v1/wallets/me/charges",
-        "/api/v1/wallets/me/charges/3",
-        "/api/v1/admin/payments?memberId=7",
-        "/api/v1/admin/wallets"
-    })
-    @DisplayName("결제 API는 같은 메서드 · 경로 · 쿼리로 결제 서비스에 넘긴다")
-    void routesPaymentsToPaymentService(String path) {
-        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
-            .expectStatus().isOk();
-
-        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(request ->
-            assertThat(request.uri()).isEqualTo(URI.create(path)));
-        assertThat(backend.lastRequest()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("토스 웹훅은 토큰 없이도 결제 서비스에 넘긴다")
-    void routesTossWebhookToPaymentServiceWithoutToken() {
-        client.post().uri("/api/v1/webhooks/toss").exchange()
-            .expectStatus().isOk();
-
-        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(request -> {
-            assertThat(request.method()).isEqualTo("POST");
-            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/webhooks/toss"));
-        });
-        assertThat(backend.lastRequest()).isEmpty();
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {
-        "/api/v1/paymentsx", "/api/v1/walletsx", "/api/v1/webhooks/kakao", "/api/v1/admin/payment", "/api/v1/orders"
-    })
-    @DisplayName("결제와 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
-    void routesPaymentLookalikesToKidlyApp(String path) {
-        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
-            .expectStatus().isOk();
-
-        assertThat(backend.lastRequest()).isPresent();
-        assertThat(paymentBackend.lastRequest()).isEmpty();
-    }
-
     private static String bearerAllowedOn(String path) {
         var now = Instant.now();
         var expiresAt = now.plus(Duration.ofMinutes(30));
@@ -325,6 +278,56 @@ class RoutingIntegrationTest extends GatewayTestSupport {
         assertThat(recommendBackend.lastRequest()).hasValueSatisfying(request ->
             assertThat(request.uri()).isEqualTo(URI.create("/v3/api-docs")));
         assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("결제 · 지갑 · 충전 · 토스 웹훅은 같은 메서드 · 경로 · 쿼리로 결제 서비스에 넘긴다")
+    void routesPaymentToPaymentService() {
+        client.get().uri("/api/v1/payments?page=0").exchange()
+            .expectStatus().isOk();
+        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/payments?page=0")));
+
+        client.get().uri("/api/v1/wallets/me/ledgers?size=1").exchange()
+            .expectStatus().isOk();
+        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/wallets/me/ledgers?size=1")));
+
+        client.post().uri("/api/v1/wallets/me/charges/confirm").exchange()
+            .expectStatus().isOk();
+        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.method()).isEqualTo("POST");
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/wallets/me/charges/confirm"));
+        });
+
+        client.post().uri("/api/v1/webhooks/toss").exchange()
+            .expectStatus().isOk();
+        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/webhooks/toss")));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/admin/payments", "/api/v1/admin/wallets"})
+    @DisplayName("결제 관리자 API는 관리자 토큰이면 결제 서비스에 넘긴다")
+    void routesAdminPaymentToPaymentService(String path) {
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isOk();
+
+        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create(path)));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/paymentsx", "/api/v1/walletsx", "/api/v1/webhooks/other"})
+    @DisplayName("결제 경로와 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
+    void routesPaymentLookalikeToKidlyApp(String path) {
+        client.get().uri(path).exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(paymentBackend.lastRequest()).isEmpty();
     }
 
     @Test
