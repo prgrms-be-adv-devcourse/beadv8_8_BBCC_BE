@@ -6,7 +6,7 @@
 # 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다. app 에는 추천 API 가 없어 추천 API 를 쓰는 환경은 모두 켜야 한다
 # 회원(member-service)은 profile member 라 COMPOSE_PROFILES 에 member 가 있는 환경(dev · prod)에서만 뜬다. app 에 회원 · 인증 · 판매자 API 가 없어 이 API 를 쓰는 환경은 모두 켜야 한다
 # 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경에서만 뜬다. 지금은 dev 에서만 켰다(켜면 app 주석의 상한 합계에 더해진다)
-# 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경에서만 뜬다. 지금은 dev 에서만 켰다(켜면 app 주석의 상한 합계에 더해진다)
+# 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다. app 에는 결제 API 가 없어 결제 API 를 쓰는 환경은 모두 켜야 한다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -42,7 +42,7 @@ services:
       retries: 12
       start_period: 60s
     # 한 서버에 dev · prod 가 같이 떠도 한 컨테이너가 메모리를 다 써서 다른 환경까지 OOM 으로 죽이지 않게 서비스마다 상한을 둔다
-    # 상한 합계는 prod 4288MiB(app 1024 · postgres 512 · kafka 768 · gateway 512 · 자녀 512 · 추천 448 · 회원 512) + dev 6464MiB(여기에 검색 1024 · 정산 640 · 결제 512) = 10752MiB 로 호스트(t3.large 8GiB)를 넘는다. 상한은 폭주를 막는 값이고 실사용 합은 켠 뒤 재서 정한다
+    # 상한 합계는 prod 4800MiB(app 1024 · postgres 512 · kafka 768 · gateway 512 · 자녀 512 · 추천 448 · 회원 512 · 결제 512) + dev 6464MiB(여기에 검색 1024 · 정산 640) = 11264MiB 로 호스트(t3.large 8GiB)를 넘는다. 상한은 폭주를 막는 값이고 실사용 합은 켠 뒤 재서 정한다
     # 실사용: 2026-11-03 dev 만 뜬 서버(회원 · 결제 서비스 전)의 2일 최대가 3564MiB(OS 포함)였다. 분리한 서비스는 하나에 280~365MiB 를 쓴다(Prometheus cAdvisor)
     mem_limit: 1g
     restart: unless-stopped
@@ -303,8 +303,8 @@ services:
     logging: *logging
 
   # 결제 서비스(apps/payment-service, #525). 결제 · 지갑 · 충전 API, 토스 웹훅, 회원 · 주문 · 정산 이벤트 수신(구독 그룹 kidly.payment), 결제 이벤트 발행(아웃박스)
-  # app 도 아직 결제 도메인을 가지고 같은 DB · 구독 그룹으로 함께 돈다. 아웃박스 릴레이는 advisory lock 을 얻은 쪽만 보내고, 같은 메시지를 두 번 받아도 결과는 1회분이다
-  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 결제 값(토스 시크릿 키 · paymentKey 암호화 키 · Kafka 수신 스위치)만 넘긴다. 키는 app 과 같은 값이어야 서로 저장한 충전을 취소할 수 있다
+  # 결제 도메인은 이 서비스에만 있다(app 에서 뺐다)
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 결제 값(토스 시크릿 키 · paymentKey 암호화 키 · Kafka 수신 스위치)만 넘긴다. 암호화 키는 app 이 결제를 가졌을 때와 같은 값이어야 그때 저장한 충전을 취소할 수 있다
   # 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
   payment-service:
     image: ${PAYMENT_IMAGE}
@@ -321,15 +321,15 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
       PAYMENT_KEY_ENCRYPTION_KEY: ${PAYMENT_KEY_ENCRYPTION_KEY:-}
-      # app 과 같은 스위치를 같은 값으로 쓴다. 기본값은 payment.yml 과 같다
+      # Kafka 수신 스위치. 결제가 받는 이벤트(회원 · 주문 · 정산)는 다른 JVM 에서 오므로 둘 다 켜져 있어야 한다. 기본값은 payment.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다
       PAYMENT_KAFKA_CONSUMER_ENABLED: ${PAYMENT_KAFKA_CONSUMER_ENABLED:-true}
-      PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED: ${PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED:-false}
+      PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED: ${PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED:-true}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${PAYMENT_PORT:-8092}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # app 이 결제 도메인을 가진 동안(#525)은 app 이 먼저 마이그레이션해야 한다. 서비스는 app 이 이미 적용한 마지막 결제 마이그레이션 버전으로 baseline 을 잡는다
+    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다(app init 에 결제 DDL 이 남아 있다). 서비스는 app 이 결제를 가졌을 때 마지막으로 적용한 버전으로 baseline 을 잡는다
     depends_on:
       postgres:
         condition: service_healthy
@@ -371,8 +371,8 @@ services:
       KIDLY_SETTLEMENT_URI: ${KIDLY_SETTLEMENT_URI:-http://app:8080}
       # 회원 · 인증 · 판매자 API 는 회원 서비스가 받는다
       KIDLY_MEMBER_URI: ${KIDLY_MEMBER_URI:-http://member-service:8080}
-      # 결제(/api/v1/payments/** · /api/v1/wallets/** · /api/v1/webhooks/toss · 결제 관리자 API)를 받을 곳(#525). 결제 서비스를 켠 환경은 .env 에 payment-service 를 두고, 없으면 지금처럼 app 이 받는다
-      KIDLY_PAYMENT_URI: ${KIDLY_PAYMENT_URI:-http://app:8080}
+      # 결제(/api/v1/payments/** · /api/v1/wallets/** · /api/v1/webhooks/toss · 결제 관리자 API)를 받을 곳(#525). app 에는 결제 API 가 없어 profile payment 가 꺼진 환경에서는 결제 API 가 실패한다
+      KIDLY_PAYMENT_URI: ${KIDLY_PAYMENT_URI:-http://payment-service:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs
