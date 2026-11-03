@@ -1,5 +1,6 @@
 package com.bbcc.kidly.gateway.revocation;
 
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -49,7 +50,7 @@ public class AuthTokensRevokedListener implements ConsumerSeekAware {
     // data나 필드가 없으면 NullPointerException으로 DLT에 간다
     private void apply(AuthTokensRevokedEvent event) {
         var data = event.data();
-        var principal = new PrincipalKey(data.principalType(), data.principalId());
+        var principal = new PrincipalId(data.principalType(), data.principalId());
         revocations.revoke(principal, data.revokedAt().atZone(KST).toInstant(), Instant.now());
     }
 }

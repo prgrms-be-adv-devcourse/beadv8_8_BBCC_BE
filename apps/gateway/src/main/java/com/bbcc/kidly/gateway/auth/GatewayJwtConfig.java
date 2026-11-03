@@ -1,8 +1,7 @@
 package com.bbcc.kidly.gateway.auth;
 
 import com.bbcc.kidly.gateway.revocation.AccessTokenRevocations;
-import com.bbcc.kidly.gateway.revocation.PrincipalKey;
-import com.bbcc.kidly.shared.auth.PrincipalType;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import java.time.Instant;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,7 +34,7 @@ class GatewayJwtConfig {
     ReactiveJwtDecoder jwtDecoder(GatewayJwtProperties jwtProperties, AccessTokenRevocations revocations) {
         var decoder = NimbusReactiveJwtDecoder.withPublicKey(jwtProperties.rsaPublicKey()).build();
         OAuth2TokenValidator<Jwt> notRevoked = jwt ->
-            revocations.isRevoked(new PrincipalKey(PrincipalType.MEMBER, Long.valueOf(jwt.getSubject())),
+            revocations.isRevoked(PrincipalId.parseSubject(jwt.getSubject()),
                 jwt.getIssuedAt(), Instant.now())
                 ? OAuth2TokenValidatorResult.failure(REVOKED)
                 : OAuth2TokenValidatorResult.success();

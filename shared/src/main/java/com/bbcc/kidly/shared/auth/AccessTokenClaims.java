@@ -1,7 +1,7 @@
 package com.bbcc.kidly.shared.auth;
 
 /**
- * 회원이 발급하고 Gateway가 읽는 Access Token의 클레임 이름. sub는 회원 ID다.
+ * 회원이 발급하고 Gateway가 읽는 Access Token의 클레임 이름. sub는 {@link PrincipalId} 형식이다.
  */
 public final class AccessTokenClaims {
 

@@ -1,5 +1,6 @@
 package com.bbcc.kidly.gateway.revocation;
 
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -13,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class AccessTokenRevocations {
 
-    private final Map<PrincipalKey, Instant> revokedAts = new ConcurrentHashMap<>();
+    private final Map<PrincipalId, Instant> revokedAts = new ConcurrentHashMap<>();
     private final Duration retention;
 
     public AccessTokenRevocations(Duration retention) {
@@ -26,13 +27,13 @@ public class AccessTokenRevocations {
     }
 
     // 같은 주체에 여러 번 오면 가장 늦은 시각을 남긴다(순서가 바뀌어 와도 같다)
-    public void revoke(PrincipalKey principal, Instant revokedAt, Instant now) {
+    public void revoke(PrincipalId principal, Instant revokedAt, Instant now) {
         revokedAts.merge(principal, revokedAt, (current, incoming) -> incoming.isAfter(current) ? incoming : current);
         // 보존 기간이 지난 기록을 함께 지운다. 무효화는 드물어 매번 훑어도 된다
         revokedAts.values().removeIf(at -> isExpired(at, now));
     }
 
-    public boolean isRevoked(PrincipalKey principal, Instant issuedAt, Instant now) {
+    public boolean isRevoked(PrincipalId principal, Instant issuedAt, Instant now) {
         var revokedAt = revokedAts.get(principal);
         return revokedAt != null && !isExpired(revokedAt, now)
             && issuedAt.getEpochSecond() <= revokedAt.getEpochSecond();
