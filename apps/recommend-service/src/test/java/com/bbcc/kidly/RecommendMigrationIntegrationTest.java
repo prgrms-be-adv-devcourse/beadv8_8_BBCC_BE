@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,7 @@ class RecommendMigrationIntegrationTest {
 
     private static final String INIT_VERSION = "202610160256";
     private static final String LAST_KIDLY_APP_VERSION = "202611021557";
+    private static final String PRODUCT_DETAILS_IF_MISSING_VERSION = "202611030905";
 
     @Test
     @DisplayName("추천 init 테이블만 있는 DB에서 baseline을 잡아도 상품 복사본의 브랜드 · 설명 칸과 사이즈별 실측 표를 만든다")
@@ -38,7 +40,7 @@ class RecommendMigrationIntegrationTest {
             var jdbc = new JdbcTemplate(dataSource);
             createRecommendTablesLikeKidlyApp(dataSource, jdbc, INIT_VERSION);
 
-            serviceFlyway(dataSource).migrate();
+            serviceFlyway(dataSource).load().migrate();
 
             assertThat(columns(jdbc, "replica_product")).contains("brand", "description");
             assertThat(recommendTables(jdbc)).contains("replica_product", "replica_product_size_spec");
@@ -56,10 +58,27 @@ class RecommendMigrationIntegrationTest {
             createRecommendTablesLikeKidlyApp(dataSource, jdbc, LAST_KIDLY_APP_VERSION);
             var before = schema(jdbc);
 
-            serviceFlyway(dataSource).migrate();
+            // 보강 마이그레이션 뒤의 마이그레이션은 새 표를 만들므로 보강 마이그레이션까지만 적용한다
+            serviceFlyway(dataSource).target(PRODUCT_DETAILS_IF_MISSING_VERSION).load().migrate();
 
             assertThat(schema(jdbc)).isEqualTo(before);
             assertThat(historyTypes(jdbc)).first().isEqualTo("BASELINE " + LAST_KIDLY_APP_VERSION);
+        }
+    }
+
+    @Test
+    @DisplayName("kidly-app이 마지막 추천 마이그레이션까지 적용한 DB에서 baseline을 잡아도 활동 기록 표를 만든다")
+    void createsActivityRecordAfterBaseline() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createRecommendTablesLikeKidlyApp(dataSource, jdbc, LAST_KIDLY_APP_VERSION);
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(recommendTables(jdbc)).contains("activity_record");
         }
     }
 
@@ -79,7 +98,7 @@ class RecommendMigrationIntegrationTest {
     }
 
     // 서비스 application.yml의 spring.flyway 값 그대로
-    private static Flyway serviceFlyway(DriverManagerDataSource dataSource) {
+    private static FluentConfiguration serviceFlyway(DriverManagerDataSource dataSource) {
         var config = serviceConfig();
         return Flyway.configure()
             .dataSource(dataSource)
@@ -89,8 +108,7 @@ class RecommendMigrationIntegrationTest {
             .table(config.getProperty("spring.flyway.table"))
             .baselineOnMigrate(Boolean.parseBoolean(config.getProperty("spring.flyway.baseline-on-migrate")))
             .baselineVersion(config.getProperty("spring.flyway.baseline-version"))
-            .outOfOrder(Boolean.parseBoolean(config.getProperty("spring.flyway.out-of-order")))
-            .load();
+            .outOfOrder(Boolean.parseBoolean(config.getProperty("spring.flyway.out-of-order")));
     }
 
     private static Properties serviceConfig() {
