@@ -11,7 +11,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 
 /**
- * POST /wish-requests/{requestId}/approval(#701). 고른 줄만 고른 수량으로 승인한다.
+ * POST /wish/requests/{requestId}/approval(#701 · 경로 #718). 고른 줄만 고른 수량으로 승인한다.
  *
  * @param checkout ORDER(바로 결제) · CART(보호자 장바구니로 옮기기). 다른 값은 400
  * @param shippingAddress 바로 결제의 배송지(바로 결제면 필수). 장바구니로 옮기기면 보내지 않는다

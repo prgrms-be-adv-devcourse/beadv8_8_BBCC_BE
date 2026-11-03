@@ -9,8 +9,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryTrackingProperties;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryTrackingService;
+import com.bbcc.kidly.boundedcontext.delivery.app.config.DeliveryTrackingProperties;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.TrackingTarget;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryJobRunner;
 import java.time.Duration;

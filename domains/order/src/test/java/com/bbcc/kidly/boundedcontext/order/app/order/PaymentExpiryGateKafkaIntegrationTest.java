@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderKafkaConsumerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentEventLag;
 import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import java.time.Clock;

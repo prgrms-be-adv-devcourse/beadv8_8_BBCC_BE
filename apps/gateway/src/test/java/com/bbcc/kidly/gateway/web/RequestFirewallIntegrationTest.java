@@ -150,7 +150,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
     @DisplayName("퍼센트 인코딩한 헤더 값과 Gateway가 붙인 닉네임 헤더는 그대로 넘긴다")
     void passesPercentEncodedHeaders() {
         var nickname = "키들리 엄마+아빠 100%";
-        client.get().uri("/api/v1/members/me")
+        client.get().uri("/api/v1/orders")
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestTokens.issueWithNickname(7L, nickname))
             .header("X-Client-Note", "%ED%82%A4%EB%93%A4%EB%A6%AC%20100%25")
             .exchange()

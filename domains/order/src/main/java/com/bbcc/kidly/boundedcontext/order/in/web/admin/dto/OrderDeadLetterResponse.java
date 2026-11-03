@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * @param stackTraceHead 예외 스택 앞부분(10줄)
  * @param receivedCount DLT로 온 횟수
  * @param status OPEN(확인 대상) · REPROCESSED(재처리됨) · CLOSED(종료됨)
- * @param handledBy 재처리 · 종료한 관리자 회원 ID
+ * @param handledBy 재처리 · 종료한 관리자 ID
  * @param lastReprocessResult 마지막 재처리 실패 이유(성공했거나 시도 전이면 null)
  * @param recommendedAction 실패 유형별 권장 조치 한 줄. 처리 · 종료돼 조치할 것이 없으면 null
  * @param paymentEvent 결제 토픽에서 온 메시지. 돈이 걸려 있어 목록 맨 앞에 온다(#632)

@@ -3,12 +3,13 @@ package com.bbcc.kidly.gateway.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.gateway.revocation.AccessTokenRevocations;
-import com.bbcc.kidly.gateway.revocation.PrincipalKey;
 import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend.RecordedRequest;
 import com.bbcc.kidly.gateway.support.TestTokens;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
+import com.bbcc.kidly.shared.auth.PrincipalHeaders;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -231,14 +232,64 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
         assertThat(received().header(MemberHeaders.MEMBER_ID)).containsExactly("9");
     }
 
+    @Test
+    void stripsAllPrincipalPrefixesWithAndWithoutToken() {
+        var now = Instant.now();
+        for (var token : List.of("", TestTokens.issue(71L, List.of("BUYER"), now, now.plus(VALIDITY)))) {
+            var request = client.get().uri(PATH)
+                .header("x-admin-id", "1")
+                .header("X-Admin-Anything", "forged")
+                .header("X-Member-Foo", "forged");
+            if (!token.isEmpty()) {
+                request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+            }
+            request.exchange().expectStatus().isOk();
+            assertThat(received().header(PrincipalHeaders.ADMIN_ID)).isEmpty();
+            assertThat(received().header("X-Admin-Anything")).isEmpty();
+            assertThat(received().header("X-Member-Foo")).isEmpty();
+        }
+    }
+
+    @Test
+    void forwardsOnlyAdminHeader() {
+        var now = Instant.now();
+        bearer(TestTokens.issueAdmin(7, now, now.plus(VALIDITY))).expectStatus().isOk();
+        assertThat(received().header(PrincipalHeaders.ADMIN_ID)).containsExactly("7");
+        assertThat(received().header(MemberHeaders.MEMBER_ID)).isEmpty();
+        assertThat(received().header(MemberHeaders.MEMBER_ROLES)).isEmpty();
+        assertThat(received().header(MemberHeaders.MEMBER_NICKNAME)).isEmpty();
+    }
+
+    @Test
+    void rejectsInvalidPrincipalSubjects() {
+        var now = Instant.now();
+        for (var subject : List.of("admin:x", "member:7")) {
+            expectUnauthorized(bearer(TestTokens.issueWithSubject(subject, now, now.plus(VALIDITY))), PATH);
+        }
+    }
+
+    @Test
+    void revocationIsSeparatedByPrincipalType() {
+        var now = Instant.now();
+        revocations.revoke(PrincipalId.admin(91), now, now);
+        expectUnauthorized(bearer(TestTokens.issueAdmin(91, now.minusSeconds(5), now.plus(VALIDITY))), PATH);
+        bearer(TestTokens.issue(91, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY)))
+            .expectStatus().isOk();
+        backend.reset();
+        revocations.revoke(PrincipalId.member(92), now, now);
+        var memberToken = TestTokens.issue(92, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY));
+        expectUnauthorized(bearer(memberToken), PATH);
+        bearer(TestTokens.issueAdmin(92, now.minusSeconds(5), now.plus(VALIDITY))).expectStatus().isOk();
+    }
+
     private ResponseSpec bearer(String token) {
         return client.get().uri(PATH)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
             .exchange();
     }
 
-    private static PrincipalKey member(Long memberId) {
-        return new PrincipalKey(PrincipalType.MEMBER, memberId);
+    private static PrincipalId member(Long memberId) {
+        return new PrincipalId(PrincipalType.MEMBER, memberId);
     }
 
     private RecordedRequest received() {

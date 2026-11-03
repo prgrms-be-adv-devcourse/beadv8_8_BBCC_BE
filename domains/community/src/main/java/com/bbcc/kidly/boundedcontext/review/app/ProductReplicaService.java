@@ -29,6 +29,7 @@ public class ProductReplicaService implements ProductReplicaRecorder {
     @Override
     @Transactional
     public void record(ProductChanged changed) {
+        replicaProducts.lockProduct(changed.productId());
         ReplicaProduct.Values values = toValues(changed);
         Optional<ReplicaProduct> stored = replicaProducts.findById(changed.productId());
         if (stored.isPresent()) {
@@ -48,9 +49,9 @@ public class ProductReplicaService implements ProductReplicaRecorder {
 
     private static ReplicaProduct.Values toValues(ProductChanged changed) {
         return new ReplicaProduct.Values(changed.productId(), changed.name(), changed.thumbnailUrl(),
-            changed.productStatus(),
+            changed.productOnSale(),
             changed.options().stream()
-                .map(option -> new ReplicaProduct.OptionState(option.saleStatus(), option.soldOut()))
+                .map(option -> new ReplicaProduct.OptionState(option.onSale(), option.inStock()))
                 .toList(),
             changed.occurredAt());
     }

@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>컨텍스트 바로 아래에는 app · domain · in · out만 둔다(새 폴더를 만들지 않는다)</li>
  *   <li>설정은 계층마다 config 한 곳: 스프링 설정(@Configuration)은 in/config · out/config, 설정 값(@ConfigurationProperties)은
- *       app · in/config · out/config. config에는 설정만 둔다</li>
+ *       app/config · in/config · out/config. config에는 설정만 둔다</li>
  *   <li>out/persistence에는 Spring Data JPA 저장소(인터페이스)만 둔다. 아웃박스 · DLT · 잠금 · Kafka는 각자 패키지에 둔다</li>
  *   <li>관리자 API(/api/v1/admin/**) 컨트롤러는 in/web/admin에만 두고, in/web/admin의 컨트롤러는 관리자 경로만 쓴다</li>
  * </ul>
@@ -53,13 +53,26 @@ class OrderPackageLayoutArchitectureTest {
         .should().resideInAnyPackage(CONFIG)
         .as("스프링 설정(@Configuration)은 in/config · out/config에 둔다");
 
-    // app 설정 값은 쓰는 기능 패키지에 둔다(#651-1)
     @ArchTest
-    static final ArchRule PROPERTIES_LIVE_IN_APP_OR_CONFIG = classes()
+    static final ArchRule PROPERTIES_LIVE_IN_CONFIG = classes()
         .that().resideInAPackage(ALL)
         .and().areAnnotatedWith(ConfigurationProperties.class)
-        .should().resideInAnyPackage(BASE + "*.app..", CONFIG[0], CONFIG[1])
-        .as("설정 값(@ConfigurationProperties)은 app · in/config · out/config에 둔다");
+        .should().resideInAnyPackage(BASE + "*.app.config..", CONFIG[0], CONFIG[1])
+        .as("설정 값(@ConfigurationProperties)은 app/config · in/config · out/config에 둔다");
+
+    @ArchTest
+    static final ArchRule APP_CONFIG_HOLDS_ONLY_PROPERTY_RECORDS = classes()
+        .that().resideInAPackage(BASE + "*.app.config..")
+        .and().areTopLevelClasses()
+        .should().beRecords()
+        .andShould().beAnnotatedWith(ConfigurationProperties.class)
+        .as("app/config에는 설정 record(@ConfigurationProperties)만 둔다");
+
+    @ArchTest
+    static final ArchRule APP_DOES_NOT_USE_JACKSON = noClasses()
+        .that().resideInAPackage(BASE + "*.app..")
+        .should().dependOnClassesThat().resideInAnyPackage("tools.jackson..", "com.fasterxml.jackson..")
+        .as("app은 Jackson으로 메시지를 파싱하지 않는다");
 
     @ArchTest
     static final ArchRule CONFIG_HOLDS_ONLY_SETTINGS = classes()

@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.member.in.dto.MemberResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import com.bbcc.kidly.global.security.RefreshTokenCookies;
+import com.bbcc.kidly.shared.auth.PrincipalType;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,6 @@ public class MemberController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void withdraw(@LoginMember AuthMember member, HttpServletResponse response) {
         memberService.withdraw(member.id());
-        refreshTokenCookies.expire(response);
+        refreshTokenCookies.expire(response, PrincipalType.MEMBER);
     }
 }

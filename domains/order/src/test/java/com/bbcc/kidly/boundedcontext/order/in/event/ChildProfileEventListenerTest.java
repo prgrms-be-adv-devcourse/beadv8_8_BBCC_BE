@@ -112,7 +112,7 @@ class ChildProfileEventListenerTest {
     void deleteWithoutProfileValuesMarksDeleted(String missing, ChildChangedEvent.Data data) {
         listener.onChildChanged(new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT, data));
 
-        verify(replicaService).applyChildDeleted(1L, OCCURRED_AT);
+        verify(replicaService).applyChildDeleted(1L, 1L, OCCURRED_AT);
         verify(replicaService, never()).applyChildChanged(any());
     }
 

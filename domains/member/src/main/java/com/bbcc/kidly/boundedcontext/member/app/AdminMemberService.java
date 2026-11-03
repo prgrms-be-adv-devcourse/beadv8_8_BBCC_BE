@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 관리자의 회원 관리. 정지된 회원은 로그인 · 토큰 재발급이 막히고, 이미 발급된 Access Token도 바로 무효화된다.
- * 관리자 해제도 Access Token을 바로 무효화한다. 관리자 지정은 대상 회원이 토큰을 새로 받을 때(로그인 · 재발급) 반영된다.
  */
 @Slf4j
 @Service
@@ -41,17 +40,4 @@ public class AdminMemberService {
         log.info("회원 정지: memberId={} adminId={}", memberId, adminId);
     }
 
-    // 같은 회원을 동시에 정지 · 지정하면 나중 커밋만 남는다(@Version 없음)
-    @Transactional
-    public void grantAdmin(Long memberId) {
-        memberRepository.getById(memberId).grantAdmin();
-        log.info("관리자 지정: memberId={}", memberId);
-    }
-
-    @Transactional
-    public void revokeAdmin(Long memberId, Long adminId) {
-        memberRepository.getById(memberId).revokeAdmin(adminId);
-        memberTokenRevoker.revoke(memberId, LocalDateTime.now());
-        log.info("관리자 해제: memberId={} adminId={}", memberId, adminId);
-    }
 }

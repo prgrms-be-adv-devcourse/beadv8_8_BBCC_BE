@@ -3,7 +3,8 @@ package com.bbcc.kidly.boundedcontext.wish.in.web;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
-import static com.bbcc.kidly.boundedcontext.wish.in.web.WishController.WISHES_PATH;
+import static com.bbcc.kidly.boundedcontext.wish.in.web.WishController.WISH_ITEMS_PATH;
+import static com.bbcc.kidly.boundedcontext.wish.in.web.WishController.WISH_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.cart.in.web.CartController;
@@ -18,6 +19,7 @@ import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
 import java.net.URI;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +65,7 @@ class WishApiTest {
     @Test
     @DisplayName("담으면 201 + Location, 같은 옵션을 다시 담으면 200으로 수량을 더한다")
     void add() {
-        URI location = client.post().uri(WISHES_PATH)
+        URI location = client.post().uri(WISH_ITEMS_PATH)
             .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("childId", "1", "optionId", "1", "quantity", 2))
             .exchange()
@@ -81,9 +83,10 @@ class WishApiTest {
             .returnResult()
             .getResponseHeaders().getLocation();
         assertThat(location).isNotNull();
-        String wishItemId = location.getPath().substring((WISHES_PATH + "/").length());
+        assertThat(location.getPath()).as("Location은 장바구니 규칙의 줄 경로(#718)").matches("/api/v1/wish/items/\\d+");
+        String wishItemId = location.getPath().substring((WISH_ITEMS_PATH + "/").length());
 
-        client.post().uri(WISHES_PATH)
+        client.post().uri(WISH_ITEMS_PATH)
             .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("childId", "1", "optionId", "1", "quantity", 1))
             .exchange()
@@ -104,7 +107,7 @@ class WishApiTest {
             .expectStatus().isCreated();
         soldOut();
 
-        client.get().uri(WISHES_PATH + "?childId=" + CHILD_ID)
+        client.get().uri(WISH_PATH + "?childId=" + CHILD_ID)
             .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
@@ -130,12 +133,12 @@ class WishApiTest {
     void remove() {
         String wishItemId = addAndReadId();
 
-        client.delete().uri(WISHES_PATH + "/" + wishItemId)
+        client.delete().uri(WISH_ITEMS_PATH + "/" + wishItemId)
             .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isNoContent();
 
-        client.get().uri(WISHES_PATH + "?childId=" + CHILD_ID)
+        client.get().uri(WISH_PATH + "?childId=" + CHILD_ID)
             .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isOk()
@@ -149,25 +152,25 @@ class WishApiTest {
         String wishItemId = addAndReadId();
         Consumer<HttpHeaders> other = TestMembers.buyer(OTHER_PARENT_ID);
 
-        client.get().uri(WISHES_PATH + "?childId=" + CHILD_ID)
+        client.get().uri(WISH_PATH + "?childId=" + CHILD_ID)
             .headers(other)
             .exchange()
             .expectStatus().isNotFound()
             .expectBody()
             .jsonPath("$.detail").isEqualTo("없는 자녀입니다. 자녀를 다시 선택해 주세요.");
-        client.post().uri(WISHES_PATH)
+        client.post().uri(WISH_ITEMS_PATH)
             .headers(other)
             .body(Map.of("childId", "1", "optionId", "1", "quantity", 1))
             .exchange()
             .expectStatus().isNotFound();
-        client.delete().uri(WISHES_PATH + "/" + wishItemId)
+        client.delete().uri(WISH_ITEMS_PATH + "/" + wishItemId)
             .headers(other)
             .exchange()
             .expectStatus().isNotFound()
             .expectBody()
             .jsonPath("$.detail").isEqualTo("이미 조르기에서 빠진 상품입니다. 목록을 새로고침해 주세요.");
 
-        client.get().uri(WISHES_PATH + "?childId=" + CHILD_ID)
+        client.get().uri(WISH_PATH + "?childId=" + CHILD_ID)
             .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectBody()
@@ -178,7 +181,7 @@ class WishApiTest {
     @Test
     @DisplayName("구매할 수 없는 상품은 담을 수 없다(409, 장바구니와 같은 판단)")
     void notPurchasable() {
-        client.post().uri(WISHES_PATH)
+        client.post().uri(WISH_ITEMS_PATH)
             .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("childId", "1", "optionId", String.valueOf(SOLD_OUT_ID), "quantity", 1))
             .exchange()
@@ -190,11 +193,11 @@ class WishApiTest {
     @Test
     @DisplayName("자녀를 주지 않으면 400")
     void childRequired() {
-        client.get().uri(WISHES_PATH)
+        client.get().uri(WISH_PATH)
             .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isBadRequest();
-        client.post().uri(WISHES_PATH)
+        client.post().uri(WISH_ITEMS_PATH)
             .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("optionId", "1", "quantity", 1))
             .exchange()
@@ -202,22 +205,57 @@ class WishApiTest {
     }
 
     @Test
+    @DisplayName("옛 경로(/api/v1/wishes · /api/v1/wish-requests, #718 전)는 모두 404다")
+    void oldPathsNotFound() {
+        String wishItemId = addAndReadId();
+
+        client.get().uri("/api/v1/wishes?childId=" + CHILD_ID).headers(TestMembers.buyer(BUYER_ID))
+            .exchange().expectStatus().isNotFound();
+        client.post().uri("/api/v1/wishes").headers(TestMembers.buyer(BUYER_ID))
+            .body(Map.of("childId", "1", "optionId", "1", "quantity", 1))
+            .exchange().expectStatus().isNotFound();
+        client.delete().uri("/api/v1/wishes/" + wishItemId).headers(TestMembers.buyer(BUYER_ID))
+            .exchange().expectStatus().isNotFound();
+        client.post().uri("/api/v1/wish-requests").headers(TestMembers.buyer(BUYER_ID))
+            .body(Map.of("childId", "1", "wishItemIds", List.of(wishItemId)))
+            .exchange().expectStatus().isNotFound();
+        client.get().uri("/api/v1/wish-requests?childId=" + CHILD_ID).headers(TestMembers.buyer(BUYER_ID))
+            .exchange().expectStatus().isNotFound();
+        for (String path : List.of("/api/v1/wish-requests/1", "/api/v1/wish-requests/1/timeline")) {
+            client.get().uri(path).headers(TestMembers.buyer(BUYER_ID)).exchange().expectStatus().isNotFound();
+        }
+        client.post().uri("/api/v1/wish-requests/1/approval").headers(TestMembers.buyer(BUYER_ID))
+            .body(Map.of("checkout", "CART", "items", List.of(Map.of("wishItemId", wishItemId, "quantity", 1))))
+            .exchange().expectStatus().isNotFound();
+        client.post().uri("/api/v1/wish-requests/1/rejection").headers(TestMembers.buyer(BUYER_ID))
+            .body(Map.of("reason", "OTHER"))
+            .exchange().expectStatus().isNotFound();
+
+        // 옛 경로로는 아무것도 바뀌지 않았다: 줄은 그대로 하나, 조르기는 없음
+        client.get().uri(WISH_PATH + "?childId=" + CHILD_ID).headers(TestMembers.buyer(BUYER_ID))
+            .exchange().expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(1)
+            .jsonPath("$.items[0].requestId").doesNotExist();
+    }
+
+    @Test
     @DisplayName("로그인하지 않으면 401")
     void unauthorized() {
-        client.get().uri(WISHES_PATH + "?childId=" + CHILD_ID)
+        client.get().uri(WISH_PATH + "?childId=" + CHILD_ID)
             .exchange()
             .expectStatus().isUnauthorized();
     }
 
     private String addAndReadId() {
-        URI location = client.post().uri(WISHES_PATH)
+        URI location = client.post().uri(WISH_ITEMS_PATH)
             .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("childId", "1", "optionId", "1", "quantity", 1))
             .exchange()
             .expectStatus().isCreated()
             .returnResult(Void.class)
             .getResponseHeaders().getLocation();
-        return location.getPath().substring((WISHES_PATH + "/").length());
+        return location.getPath().substring((WISH_ITEMS_PATH + "/").length());
     }
 
     private void soldOut() {

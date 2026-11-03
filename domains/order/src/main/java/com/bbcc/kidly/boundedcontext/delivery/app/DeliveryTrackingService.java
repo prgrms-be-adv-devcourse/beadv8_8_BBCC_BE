@@ -35,7 +35,14 @@ public class DeliveryTrackingService {
             case INVALID_TRACKING_NUMBER -> deliveryService.stopTracking(target.deliveryId(), result.reason());
             case IN_PROGRESS -> {
             }
-            case UNAVAILABLE -> log.warn("택배 조회 실패: deliveryId={} reason={}", target.deliveryId(), result.reason());
+            case UNAVAILABLE -> {
+                // 서킷이 열려 건너뛴 건은 서킷 상태가 바뀔 때 한 줄(WARN)로 이미 알렸으므로 건마다 WARN을 쌓지 않는다(#708)
+                if (result.isCircuitOpen()) {
+                    log.debug("택배 조회 건너뜀: deliveryId={} reason={}", target.deliveryId(), result.reason());
+                } else {
+                    log.warn("택배 조회 실패: deliveryId={} reason={}", target.deliveryId(), result.reason());
+                }
+            }
         }
     }
 }

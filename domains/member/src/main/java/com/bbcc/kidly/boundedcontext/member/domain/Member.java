@@ -52,10 +52,6 @@ public class Member extends BaseTimeEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private MemberRole role;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private MemberStatus status;
 
     // 판매자가 아니면 null
@@ -76,7 +72,6 @@ public class Member extends BaseTimeEntity {
         this.registrationKey = registrationKey;
         this.nickname = nickname;
         this.email = email;
-        this.role = MemberRole.USER;
         this.status = MemberStatus.ACTIVE;
     }
 
@@ -97,18 +92,18 @@ public class Member extends BaseTimeEntity {
         return true;
     }
 
-    // ACTIVE 회원만 정지할 수 있다. 관리자는 정지하면 되돌릴 방법이 없어 막는다(해제 없음)
+    // ACTIVE 회원만 정지할 수 있다
     public void suspend(Long adminId, String reason, LocalDateTime now) {
-        if (status != MemberStatus.ACTIVE || isAdmin()) {
+        if (status != MemberStatus.ACTIVE) {
             throw new BusinessException(MemberErrorCode.MEMBER_NOT_SUSPENDABLE);
         }
         this.status = MemberStatus.SUSPENDED;
         this.suspension = new MemberSuspension(reason, adminId, now);
     }
 
-    // ACTIVE이고 관리자가 아닌 회원만 탈퇴한다. 관리자는 권한을 해제한 뒤 탈퇴한다
+    // ACTIVE 회원만 탈퇴할 수 있다
     public void withdraw(LocalDateTime now) {
-        if (status != MemberStatus.ACTIVE || isAdmin()) {
+        if (status != MemberStatus.ACTIVE) {
             throw new BusinessException(MemberErrorCode.MEMBER_NOT_WITHDRAWABLE);
         }
         this.status = MemberStatus.WITHDRAWN;
@@ -123,27 +118,6 @@ public class Member extends BaseTimeEntity {
             case SUSPENDED -> new MemberLoginState.Suspended(id);
             case WITHDRAWN -> new MemberLoginState.Withdrawn(id);
         };
-    }
-
-    public boolean isAdmin() {
-        return role == MemberRole.ADMIN;
-    }
-
-    // ACTIVE이고 관리자가 아닌 회원만 지정한다. 역할은 대상 회원이 토큰을 새로 받을 때 반영된다
-    public void grantAdmin() {
-        if (status != MemberStatus.ACTIVE || isAdmin()) {
-            throw new BusinessException(MemberErrorCode.ADMIN_NOT_GRANTABLE);
-        }
-        this.role = MemberRole.ADMIN;
-    }
-
-    // 관리자만 해제한다. 본인은 해제할 수 없게 해 관리자가 모두 사라지는 일을 막는다
-    // 바로 반영되도록 호출한 서비스가 Access Token을 무효화한다
-    public void revokeAdmin(Long adminId) {
-        if (!isAdmin() || adminId.equals(id)) {
-            throw new BusinessException(MemberErrorCode.ADMIN_NOT_REVOCABLE);
-        }
-        this.role = MemberRole.USER;
     }
 
     // 판매자 상태 복사본을 갱신한다. 저장된 값보다 늦게 일어난 변경만 반영한다
@@ -172,9 +146,6 @@ public class Member extends BaseTimeEntity {
         roles.add(Role.BUYER);
         if (isActiveSeller()) {
             roles.add(Role.SELLER);
-        }
-        if (isAdmin()) {
-            roles.add(Role.ADMIN);
         }
         return List.copyOf(roles);
     }

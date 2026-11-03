@@ -4,14 +4,11 @@ spring:
   # 도메인별 설정 파일. 서비스를 나누면 각 파일이 그 서비스의 application.yml이 된다
   config:
     import:
-      - classpath:auth.yml
       - classpath:payment.yml
       - classpath:order.yml
       - classpath:settlement.yml
       - classpath:product.yml
       - classpath:notification.yml
-      - classpath:childprofile.yml
-      - classpath:member.yml
       - classpath:community.yml
   profiles:
     default: local
@@ -20,11 +17,16 @@ spring:
     locations: classpath:db/migration
     # 이력 테이블은 public에 둔다. 도메인 스키마도 함께 검사해 테이블이 이미 있으면 첫 마이그레이션(init) 버전으로 baseline을 잡고 건너뛴다
     default-schema: public
-    schemas: public,auth,childprofile,member,orders,payment,product,recommend,seller,settlement,setting,notification,community
+    schemas: public,orders,payment,product,settlement,setting,notification,community
     baseline-on-migrate: true
     baseline-version: 202610160256
     # 버전이 파일을 만든 시각이라, 먼저 만든 PR이 나중에 머지되면 이미 적용된 것보다 옛 버전이 된다. 그래도 적용한다
     out-of-order: true
+    # 회원 · 인증 · 판매자 마이그레이션은 회원 서비스로 옮겨 이 앱의 클래스패스에 없다. 이미 적용한 이력 행은 지우지 않는다.
+    # 회원 서비스가 첫 기동 때 이 이력을 보고 baseline을 잡는다(MemberFlywayMigrationStrategy).
+    # 이 앱의 마지막 버전보다 높은 회원 버전은 future로 남는다. 값을 주면 Flyway 기본값(*:future)을 대신하므로 함께 적는다.
+    # 대가로 이 앱의 마이그레이션 파일을 잘못 지워도 검증이 잡지 못한다(KidlyAppMigrationIntegrationTest)
+    ignore-migration-patterns: "*:future,*:missing"
   jpa:
     open-in-view: false
     hibernate:
@@ -62,6 +64,18 @@ springdoc:
   swagger-ui:
     operations-sorter: method
     tags-sorter: alpha
+    # 회원 · 인증 · 판매자 API는 회원 서비스에, 자녀 API는 자녀 프로필 서비스에(#682), 추천 API는 추천 서비스에만 있다(#704).
+    # Gateway(/v3/api-docs/member · /v3/api-docs/childprofile · /v3/api-docs/recommend)가
+    # 그 문서를 넘겨 주므로 Gateway로 연 Swagger에서만 보인다
+    urls:
+      - name: kidly
+        url: /v3/api-docs
+      - name: 회원
+        url: /v3/api-docs/member
+      - name: 자녀 프로필
+        url: /v3/api-docs/childprofile
+      - name: 추천
+        url: /v3/api-docs/recommend
 
 # 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다 (deploy/nginx)
 management:

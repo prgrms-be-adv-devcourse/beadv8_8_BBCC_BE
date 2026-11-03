@@ -71,10 +71,12 @@ final class RecommendKafkaMessages {
             jsonMapper.writeValueAsString(body));
     }
 
-    // 보내는 도메인이 보내지 않는 메시지(다른 종류 · 깨진 본문)를 그대로 넣는다
+    // 보내는 도메인이 보내지 않는 메시지(다른 종류 · 깨진 본문 · eventType 헤더 없음)를 그대로 넣는다. eventType이 null이면 그 헤더를 넣지 않는다
     RecordMetadata sendRaw(String topic, String key, String eventType, UUID eventId, String body) throws Exception {
         var record = new ProducerRecord<>(topic, key, body);
-        record.headers().add("eventType", eventType.getBytes(UTF_8));
+        if (eventType != null) {
+            record.headers().add("eventType", eventType.getBytes(UTF_8));
+        }
         record.headers().add("eventId", eventId.toString().getBytes(UTF_8));
         try (var producer = new KafkaProducer<String, String>(Map.of(
             ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,

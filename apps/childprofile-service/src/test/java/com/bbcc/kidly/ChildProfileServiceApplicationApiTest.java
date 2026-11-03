@@ -92,6 +92,6 @@ class ChildProfileServiceApplicationApiTest {
             """, String.class);
 
         assertThat(schemas).containsExactly("childprofile");
-        assertThat(versions).containsExactly("202610160256", "202610300953");
+        assertThat(versions).containsExactly("202610160256", "202610300953", "202611021428");
     }
 }

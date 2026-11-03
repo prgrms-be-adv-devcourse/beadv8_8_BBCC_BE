@@ -3,7 +3,8 @@ package com.bbcc.kidly.boundedcontext.wish.in.web;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.BUYER_ID;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
-import static com.bbcc.kidly.boundedcontext.wish.in.web.WishController.WISHES_PATH;
+import static com.bbcc.kidly.boundedcontext.wish.in.web.WishController.WISH_ITEMS_PATH;
+import static com.bbcc.kidly.boundedcontext.wish.in.web.WishController.WISH_PATH;
 import static com.bbcc.kidly.boundedcontext.wish.in.web.WishRequestController.WISH_REQUESTS_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -59,14 +60,14 @@ class WishRequestApiTest {
             new ReplicaSeller.Values(SELLER_ID, "키들리 상점", "ACTIVE", LocalDateTime.now())));
         // 자녀 1의 보호자는 BUYER_ID
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
-        URI location = client.post().uri(WISHES_PATH)
+        URI location = client.post().uri(WISH_ITEMS_PATH)
             .headers(TestMembers.buyer(BUYER_ID))
             .body(Map.of("childId", "1", "optionId", "1", "quantity", 2))
             .exchange()
             .expectStatus().isCreated()
             .returnResult(Void.class)
             .getResponseHeaders().getLocation();
-        wishItemId = location.getPath().substring((WISHES_PATH + "/").length());
+        wishItemId = location.getPath().substring((WISH_ITEMS_PATH + "/").length());
     }
 
     @Test
@@ -100,7 +101,7 @@ class WishRequestApiTest {
             .expectBody()
             .jsonPath("$.length()").isEqualTo(1)
             .jsonPath("$[0].requestId").isEqualTo(requestId);
-        client.get().uri(WISHES_PATH + "?childId=1")
+        client.get().uri(WISH_PATH + "?childId=1")
             .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectBody()
@@ -119,7 +120,7 @@ class WishRequestApiTest {
             .expectStatus().isEqualTo(409)
             .expectBody()
             .jsonPath("$.title").isEqualTo("조르는 중인 상품입니다");
-        client.delete().uri(WISHES_PATH + "/" + wishItemId)
+        client.delete().uri(WISH_ITEMS_PATH + "/" + wishItemId)
             .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
             .expectStatus().isEqualTo(409);
@@ -295,6 +296,7 @@ class WishRequestApiTest {
             .returnResult(Void.class)
             .getResponseHeaders().getLocation();
         assertThat(location).isNotNull();
+        assertThat(location.getPath()).as("Location은 공용 장바구니 아래 조르기 경로(#718)").matches("/api/v1/wish/requests/\\d+");
         return location.getPath().substring((WISH_REQUESTS_PATH + "/").length());
     }
 }

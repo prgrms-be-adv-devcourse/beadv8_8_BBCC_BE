@@ -3,7 +3,9 @@ package com.bbcc.kidly.boundedcontext.delivery.out.tracker;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker.TrackingResult;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
+import com.bbcc.kidly.boundedcontext.delivery.out.config.DeliveryTrackerCircuitBreakerProperties;
 import com.bbcc.kidly.boundedcontext.delivery.out.config.DeliveryTrackerProperties;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.EnumMap;
@@ -13,7 +15,9 @@ import org.springframework.web.client.RestClient;
 
 /**
  * DeliveryStatusChecker의 Delivery Tracker 구현. 택배사 enum → Delivery Tracker 택배사 ID 변환,
- * 응답 → TrackingResult 변환, 호출 간격 유지(호출 한도 초당 10회)를 맡는다. 외부 서비스 ID는 domain에 두지 않는다.
+ * 응답 → TrackingResult 변환, 호출 간격 유지(호출 한도 초당 10회), 서킷브레이커(#708)를 맡는다. 외부 서비스 ID는 domain에 두지 않는다.
+ * 서킷이 열려 있으면 부르지 않고(호출 간격도 기다리지 않음) UNAVAILABLE(사유 CIRCUIT_OPEN)을 돌려준다: 기존 일시 오류처럼 다음 실행에서
+ * 다시 조회한다.
  */
 public class DeliveryTrackerChecker implements DeliveryStatusChecker {
 
@@ -29,12 +33,15 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
     private static final String DELIVERED = "DELIVERED";
 
     private final DeliveryTrackerClient client;
+    private final TrackerCircuitBreaker circuitBreaker;
     private final long minCallIntervalNanos;
     private final ZoneId zone;
     private long lastCallNanos;
 
-    DeliveryTrackerChecker(DeliveryTrackerClient client, Duration minCallInterval, ZoneId zone) {
+    DeliveryTrackerChecker(DeliveryTrackerClient client, TrackerCircuitBreaker circuitBreaker, Duration minCallInterval,
+        ZoneId zone) {
         this.client = client;
+        this.circuitBreaker = circuitBreaker;
         this.minCallIntervalNanos = minCallInterval.toNanos();
         this.zone = zone;
     }
@@ -42,10 +49,10 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
     /**
      * 빈 설정(out/config의 DeliveryTrackerConfig, #651)이 쓴다. 클라이언트는 받은 빌더를 그대로 써서 테스트에서 가짜 서버를 붙일 수 있다.
      */
-    public static DeliveryStatusChecker create(DeliveryTrackerProperties properties, RestClient.Builder builder,
-        ZoneId zone) {
-        return new DeliveryTrackerChecker(new DeliveryTrackerClient(properties, builder), properties.minCallInterval(),
-            zone);
+    public static DeliveryStatusChecker create(DeliveryTrackerProperties properties,
+        DeliveryTrackerCircuitBreakerProperties circuitBreaker, RestClient.Builder builder, ZoneId zone, Clock clock) {
+        return new DeliveryTrackerChecker(new DeliveryTrackerClient(properties, builder),
+            TrackerCircuitBreaker.create(circuitBreaker, clock), properties.minCallInterval(), zone);
     }
 
     @Override
@@ -55,9 +62,12 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
 
     @Override
     public TrackingResult check(Delivery.Carrier carrier, String trackingNumber) {
-        waitForCallInterval();
         try {
-            TrackResult result = client.track(CARRIER_IDS.get(carrier), trackingNumber);
+            TrackResult result = circuitBreaker.callIfPermitted(this::waitForCallInterval,
+                () -> client.track(CARRIER_IDS.get(carrier), trackingNumber));
+            if (result == null) {
+                return TrackingResult.circuitOpen();
+            }
             if (!DELIVERED.equals(result.statusCode())) {
                 return TrackingResult.inProgress();
             }

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.replica;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.ReplicaUpdateLock;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ProductChangedCommand;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ReplicaService {
 
+    private final ReplicaUpdateLock replicaUpdateLock;
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
     private final SellerReplicaRepository sellerReplicaRepository;
@@ -35,6 +37,7 @@ public class ReplicaService {
      * 옵션마다 없으면 만들고 있으면 늦은 변경일 때만 덮어쓴다. 변경에서 빠진 옵션은 행을 남기고 품절로 바꾼다.
      */
     public void applyProductChanged(ProductChangedCommand command) {
+        replicaUpdateLock.acquire(ReplicaUpdateLock.Kind.PRODUCT, command.productId());
         Map<Long, ReplicaProduct> stored = productReplicaRepository.findAllByProductId(command.productId())
             .stream()
             .collect(Collectors.toMap(ReplicaProduct::getOptionId, Function.identity()));
@@ -55,6 +58,7 @@ public class ReplicaService {
      * 없으면 만들고 있으면 늦은 변경일 때만 덮어쓴다. 삭제도 행을 남기고 삭제 표시만 한다.
      */
     public void applyChildChanged(ChildChangedCommand command) {
+        replicaUpdateLock.acquire(ReplicaUpdateLock.Kind.CHILD, command.childId());
         ReplicaChild.Values values = new ReplicaChild.Values(
             command.childId(),
             command.memberId(),
@@ -76,9 +80,10 @@ public class ReplicaService {
     }
 
     /**
-     * 키 · 몸무게 없이 온 자녀 삭제. 복사본이 있으면 삭제 표시만(늦은 이벤트일 때), 없으면 만들 수 없어 WARN 후 무시한다.
+     * 키 · 몸무게 없이 온 자녀 삭제. 복사본이 있으면 늦은 이벤트일 때 삭제 표시만, 없으면 삭제 복사본을 남긴다.
      */
-    public void applyChildDeleted(Long childId, LocalDateTime occurredAt) {
+    public void applyChildDeleted(Long childId, Long memberId, LocalDateTime occurredAt) {
+        replicaUpdateLock.acquire(ReplicaUpdateLock.Kind.CHILD, childId);
         childReplicaRepository.findByChildId(childId)
             .ifPresentOrElse(
                 replica -> {
@@ -86,13 +91,14 @@ public class ReplicaService {
                         log.debug("복사본 이벤트 무시: event=child.changed childId={} reason=not-newer", childId);
                     }
                 },
-                () -> log.warn("자녀 삭제 이벤트 무시: event=child.changed childId={} reason=replica-not-found", childId));
+                () -> childReplicaRepository.save(ReplicaChild.createDeleted(childId, memberId, occurredAt)));
     }
 
     /**
      * 없으면 만들고 있으면 늦은 변경일 때만 덮어쓴다.
      */
     public void applySellerChanged(SellerChangedCommand command) {
+        replicaUpdateLock.acquire(ReplicaUpdateLock.Kind.SELLER, command.sellerId());
         ReplicaSeller.Values values = new ReplicaSeller.Values(
             command.sellerId(), command.businessName(), command.status(), command.occurredAt());
         sellerReplicaRepository.findBySellerId(command.sellerId())

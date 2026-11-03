@@ -73,6 +73,18 @@ class InventoryRestorationTest {
     }
 
     @Test
+    @DisplayName("요청한 주문상품 중 차감 기록이 없는 주문상품 ID를 오름차순으로 고른다")
+    void pickOrderItemIdsWithoutRecord() {
+        Options options = InventoryDeductionFixture.onSaleOptions();
+        List<InventoryDeduction> records = deductedRecords(ORDER_ID, item(11L, options.navy110(), 2));
+
+        List<Long> missing = InventoryRestoration.of(ORDER_ID, records)
+            .orderItemIdsWithoutRecord(List.of(13L, 11L, 12L));
+
+        assertThat(missing).containsExactly(12L, 13L);
+    }
+
+    @Test
     @DisplayName("INV-09 주문상품의 차감 기록이 하나도 없으면 주문 취소됨이 주문 생성됨보다 먼저 온 주문이다")
     void cancelledBeforeCreatedWhenNoRecord() {
         InventoryRestoration restoration = InventoryRestoration.of(ORDER_ID, List.of());

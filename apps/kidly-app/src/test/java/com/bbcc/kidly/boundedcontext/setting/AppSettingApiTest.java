@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.setting;
 
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.support.FunctionalTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ class AppSettingApiTest {
     @DisplayName("관리자가 바꾸면 바뀐 설정을 돌려주고, 조회에도 반영된다")
     void update() {
         client.put().uri(ADMIN_PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body("""
                 {"useMock": false}
@@ -54,7 +54,7 @@ class AppSettingApiTest {
     @DisplayName("시연 역할 전환만 보내면 그것만 바꾸고 목 데이터는 그대로 둔다")
     void updateDemoRoleSwitchOnly() {
         client.put().uri(ADMIN_PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body("""
                 {"demoRoleSwitch": false}
@@ -77,7 +77,7 @@ class AppSettingApiTest {
     @DisplayName("바꿀 값이 하나도 없으면 400")
     void missingValue() {
         client.put().uri(ADMIN_PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body("""
                 {}

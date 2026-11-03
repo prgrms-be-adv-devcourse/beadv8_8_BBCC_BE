@@ -232,3 +232,14 @@
 - 설정은 결제 안(`out.kafka.PaymentKafkaConfig`)에만 둔다: 토픽 선언(파티션 3 · 복제 1, 파티션 수는 바꾸지 않는다)과 결제 전용 템플릿. 템플릿은 Boot 프로듀서 설정(주소)에 직렬화 · `acks=all` · `enable.idempotence=true` · `max.block.ms`(3초) · `request.timeout.ms`(5초) · `delivery.timeout.ms`(10초) · `linger.ms`(0)를 덮어쓰고 본문을 찍는 기본 실패 로그를 끈다. 빈으로 두지 않아 앱 `spring.kafka`와 Boot 기본 `KafkaTemplate`은 그대로다
   - 릴레이는 스케줄러 스레드(앱 전체 1개) · DB 트랜잭션을 쥔 채 기다리므로, 브로커가 죽어 있으면 한 주기가 최대 약 13초 걸려 그만큼 다른 스케줄러가 늦어질 수 있다
 - 로컬 `bootRun`은 `docker compose up -d`로 Kafka를 함께 띄운다. 없으면 메시지가 아웃박스에 쌓이고 릴레이가 주기마다 WARN을 남긴다. Kafka를 띄우면 쌓인 것부터 순서대로 보낸다
+
+## 결제 서비스 (`apps/payment-service`, #525)
+- 결제 도메인만 띄우는 서비스다. 지금은 더하기만 했고, `kidly-app`도 결제 도메인을 그대로 가지고 같은 DB · 같은 구독 그룹(`kidly.payment`)으로 함께 돈다. Gateway 라우트 · 배포 · `kidly-app`에서 빼기는 다음 PR에서 한다
+- 함께 도는 동안 지킬 것
+  - 결제 마이그레이션(`db/migration/payment/`)을 더하면 서비스 `application.yml`의 `spring.flyway.baseline-version`을 그 파일 버전으로 올린다. 두 앱이 같은 파일을 각자 이력에 적용하려 하므로, `kidly-app`이 먼저 적용하고 서비스는 baseline으로 건너뛴다
+  - 빈 DB에서는 `kidly-app`이 먼저 마이그레이션해야 한다. 서비스가 먼저 결제 테이블을 만들면 `kidly-app`의 init이 실패한다
+- 두 프로세스가 같이 돌아도 되는 이유
+  - 아웃박스 릴레이는 advisory lock을 얻은 쪽만 보낸다
+  - Kafka 수신은 같은 그룹이라 파티션을 나눠 받는다. 같은 이벤트를 다시 받아도 결과는 1회분이다(Kafka 수신 절)
+  - 충전 정리 · 주문 취소 재처리 스케줄러는 두 쪽에서 돈다. 같은 충전을 둘이 집으면 충전을 잠금으로 읽고 상태를 검사해 한쪽만 반영하고, 늦은 쪽은 상태 오류로 WARN을 남긴다. 토스 조회 · 취소 요청은 두 번 갈 수 있다(취소는 멱등 키). 주문 취소 재처리는 같은 취소를 한 번만 환불한다
+- 정산 지급 요청은 스위치(`PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED`)가 꺼져 있으면 Spring 이벤트로만 오므로 `kidly-app`이 처리한다. 서비스만 남기기 전에 켠다

@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.in.web.admin;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderEventFailureService;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderEventFailureResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 이벤트 처리 실패 API(#449). /api/v1/admin/** 라 ADMIN만 호출할 수 있다(공용 보안 설정).
+ * 관리자 이벤트 처리 실패 API(#449). /api/v1/admin/** 라 관리자 주체만 호출할 수 있다(Gateway 검사).
  * 재고 차감됨 · 재고 차감 실패 · 결제 실패 처리가 실패한 주문을 보고, 재처리하거나 기록을 종료한다.
  */
 @RestController
@@ -45,7 +45,7 @@ public class AdminOrderEventFailureController {
      * 다시 실패하면 PENDING(시도 횟수 · 이유 갱신), 모두 200. 이미 복구됐으면 그대로 200.
      */
     @PostMapping("/{failureId}/retry")
-    public OrderEventFailureResponse retry(@PathVariable Long failureId, @LoginMember AuthMember admin) {
+    public OrderEventFailureResponse retry(@PathVariable Long failureId, @LoginAdmin AuthAdmin admin) {
         return OrderEventFailureResponse.from(failureRetry.retry(failureId, admin.id()));
     }
 

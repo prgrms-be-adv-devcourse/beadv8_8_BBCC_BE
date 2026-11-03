@@ -36,8 +36,13 @@ public class CommunityProductEventKafkaListener {
     @KafkaListener(id = ID, topics = CommunityKafkaListenerConfig.PRODUCT_EVENTS,
         groupId = CommunityKafkaListenerConfig.GROUP, containerFactory = CommunityKafkaListenerConfig.FACTORY)
     public void on(ConsumerRecord<String, String> record) {
+        handle(record);
+    }
+
+    public boolean handle(ConsumerRecord<String, String> record) {
         if (PRODUCT_CHANGED.equals(CommunityKafkaMessages.eventType(record))) {
-            productEventListener.onProductChanged(productChangedReader.readValue(record.value()));
+            return productEventListener.onProductChanged(productChangedReader.readValue(record.value()));
         }
+        return false;
     }
 }
