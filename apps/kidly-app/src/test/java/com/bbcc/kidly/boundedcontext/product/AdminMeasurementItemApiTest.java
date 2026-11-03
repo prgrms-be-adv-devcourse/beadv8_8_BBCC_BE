@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +37,7 @@ class AdminMeasurementItemApiTest {
     void createMeasurementItem() {
         AtomicReference<String> location = new AtomicReference<>();
 
-        post(TestMembers.admin(ADMIN_ID), Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm"))
+        post(TestAdmins.of(ADMIN_ID), Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm"))
             .expectStatus().isCreated()
             .expectHeader().value(HttpHeaders.LOCATION, location::set)
             .expectBody()
@@ -51,13 +51,13 @@ class AdminMeasurementItemApiTest {
     @Test
     @DisplayName("실측 항목 목록은 ID 순서다")
     void listMeasurementItems() {
-        post(TestMembers.admin(ADMIN_ID), Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm"))
+        post(TestAdmins.of(ADMIN_ID), Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm"))
             .expectStatus().isCreated();
-        post(TestMembers.admin(ADMIN_ID), Map.of("name", "어깨너비", "code", "SHOULDER_WIDTH", "unit", "cm"))
+        post(TestAdmins.of(ADMIN_ID), Map.of("name", "어깨너비", "code", "SHOULDER_WIDTH", "unit", "cm"))
             .expectStatus().isCreated();
 
         client.get().uri(PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -70,7 +70,7 @@ class AdminMeasurementItemApiTest {
     @MethodSource("invalidRequests")
     @DisplayName("실측 항목 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
     void rejectInvalidMeasurementItem(Map<String, Object> body) {
-        post(TestMembers.admin(ADMIN_ID), body)
+        post(TestAdmins.of(ADMIN_ID), body)
             .expectStatus().isBadRequest()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody()
@@ -95,10 +95,10 @@ class AdminMeasurementItemApiTest {
     @Test
     @DisplayName("같은 코드의 실측 항목을 만들면 409를 준다")
     void rejectDuplicateCode() {
-        post(TestMembers.admin(ADMIN_ID), Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm"))
+        post(TestAdmins.of(ADMIN_ID), Map.of("name", "총장", "code", "TOTAL_LENGTH", "unit", "cm"))
             .expectStatus().isCreated();
 
-        post(TestMembers.admin(ADMIN_ID), Map.of("name", "기장", "code", "TOTAL_LENGTH", "unit", "cm"))
+        post(TestAdmins.of(ADMIN_ID), Map.of("name", "기장", "code", "TOTAL_LENGTH", "unit", "cm"))
             .expectStatus().isEqualTo(HttpStatus.CONFLICT)
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -72,7 +73,7 @@ class AdminProductSaleStatusApiTest {
     void stopSaleByAdmin() {
         startSaleBySeller();
 
-        changeSaleStatusByAdmin(TestMembers.admin(ADMIN_ID), STOPPED)
+        changeSaleStatusByAdmin(TestAdmins.of(ADMIN_ID), STOPPED)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.productId").isEqualTo(productId)
@@ -95,12 +96,12 @@ class AdminProductSaleStatusApiTest {
             if (given.equals("판매자가 판매중지한 상품")) {
                 changeSaleStatusBySeller(STOPPED);
             } else {
-                changeSaleStatusByAdmin(TestMembers.admin(ADMIN_ID), STOPPED).expectStatus().isOk();
+                changeSaleStatusByAdmin(TestAdmins.of(ADMIN_ID), STOPPED).expectStatus().isOk();
             }
             eventRecorder.clear();
         }
 
-        changeSaleStatusByAdmin(TestMembers.admin(ADMIN_ID), ON_SALE)
+        changeSaleStatusByAdmin(TestAdmins.of(ADMIN_ID), ON_SALE)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.status").isEqualTo("ON_SALE")
@@ -120,7 +121,7 @@ class AdminProductSaleStatusApiTest {
         changeSaleStatusBySeller(STOPPED);
         eventRecorder.clear();
 
-        changeSaleStatusByAdmin(TestMembers.admin(ADMIN_ID), STOPPED)
+        changeSaleStatusByAdmin(TestAdmins.of(ADMIN_ID), STOPPED)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.status").isEqualTo("STOPPED")
@@ -133,7 +134,7 @@ class AdminProductSaleStatusApiTest {
     @Test
     @DisplayName("관리자도 판매대기 상품에 STOPPED를 보내면 409이고 이벤트가 나가지 않는다")
     void rejectStopSaleByAdminOfPendingProduct() {
-        expectProblem(changeSaleStatusByAdmin(TestMembers.admin(ADMIN_ID), STOPPED), HttpStatus.CONFLICT,
+        expectProblem(changeSaleStatusByAdmin(TestAdmins.of(ADMIN_ID), STOPPED), HttpStatus.CONFLICT,
             "판매를 시작하지 않은 상품입니다", "판매를 시작한 상품만 판매를 중지할 수 있습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
@@ -146,7 +147,7 @@ class AdminProductSaleStatusApiTest {
         jdbcTemplate.update("delete from product.size_spec where product_id = ? and attribute_value_id = "
             + "(select id from product.attribute_value where name = '120')", Long.valueOf(productId));
 
-        expectProblem(changeSaleStatusByAdmin(TestMembers.admin(ADMIN_ID), ON_SALE), HttpStatus.CONFLICT,
+        expectProblem(changeSaleStatusByAdmin(TestAdmins.of(ADMIN_ID), ON_SALE), HttpStatus.CONFLICT,
             "판매를 시작할 수 없습니다", "판매를 시작할 수 없습니다. 120 사이즈에 실측과 권장 키가 없습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
@@ -155,10 +156,10 @@ class AdminProductSaleStatusApiTest {
     @Test
     @DisplayName("없는 상품이면 404, 정해진 값이 아닌 판매 상태면 400이다")
     void rejectMissingProductAndInvalidStatus() {
-        expectProblem(changeSaleStatusByAdmin(TestMembers.admin(ADMIN_ID), Map.of("status", "FOO")),
+        expectProblem(changeSaleStatusByAdmin(TestAdmins.of(ADMIN_ID), Map.of("status", "FOO")),
             HttpStatus.BAD_REQUEST, "잘못된 요청입니다", "status: 판매 시작(ON_SALE)이나 판매 중지(STOPPED)만 요청할 수 있습니다.");
         productId = "999999";
-        expectProblem(changeSaleStatusByAdmin(TestMembers.admin(ADMIN_ID), STOPPED), HttpStatus.NOT_FOUND,
+        expectProblem(changeSaleStatusByAdmin(TestAdmins.of(ADMIN_ID), STOPPED), HttpStatus.NOT_FOUND,
             "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
     }
 

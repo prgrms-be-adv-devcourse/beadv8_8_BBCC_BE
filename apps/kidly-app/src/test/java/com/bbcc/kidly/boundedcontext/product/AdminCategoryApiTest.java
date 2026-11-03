@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -41,7 +41,7 @@ class AdminCategoryApiTest {
     void createTopLevelMiddleCategory() {
         AtomicReference<String> location = new AtomicReference<>();
 
-        post(TestMembers.admin(ADMIN_ID), category("의류", null, null, List.of()))
+        post(TestAdmins.of(ADMIN_ID), category("의류", null, null, List.of()))
             .expectStatus().isCreated()
             .expectHeader().value(HttpHeaders.LOCATION, location::set)
             .expectBody()
@@ -64,7 +64,7 @@ class AdminCategoryApiTest {
         String shoulderWidth = createMeasurementItem("어깨너비", "SHOULDER_WIDTH");
 
         // 실측 항목은 ID 순서와 다르게 어깨너비를 먼저 넘긴다
-        post(TestMembers.admin(ADMIN_ID), category("상의", parentId, productTypeId, List.of(shoulderWidth, totalLength)))
+        post(TestAdmins.of(ADMIN_ID), category("상의", parentId, productTypeId, List.of(shoulderWidth, totalLength)))
             .expectStatus().isCreated()
             .expectBody()
             .jsonPath("$.name").isEqualTo("상의")
@@ -88,7 +88,7 @@ class AdminCategoryApiTest {
         String goodsId = createdCategoryId(category("잡화", null, null, List.of()));
 
         client.get().uri(PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -110,7 +110,7 @@ class AdminCategoryApiTest {
     @MethodSource("invalidRequests")
     @DisplayName("카테고리 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
     void rejectInvalidCategory(Map<String, Object> body) {
-        assertProblem(post(TestMembers.admin(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
+        assertProblem(post(TestAdmins.of(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
     }
 
     // 요청 검증에서 막히므로 부모 · 유형 · 실측 항목 ID는 실제로 없는 값이어도 된다
@@ -130,7 +130,7 @@ class AdminCategoryApiTest {
         String topId = createdCategoryId(category("상의", null, productTypeId, List.of()));
 
         RestTestClient.ResponseSpec response =
-            post(TestMembers.admin(ADMIN_ID), category("반팔", topId, null, List.of()));
+            post(TestAdmins.of(ADMIN_ID), category("반팔", topId, null, List.of()));
 
         assertProblem(response, HttpStatus.BAD_REQUEST);
         response.expectBody().jsonPath("$.title").isEqualTo("카테고리를 만들 수 없는 위치입니다");
@@ -142,11 +142,11 @@ class AdminCategoryApiTest {
         String productTypeId = createProductType("의류", "COLOR");
 
         RestTestClient.ResponseSpec unknownParent =
-            post(TestMembers.admin(ADMIN_ID), category("의류", "999999", null, List.of()));
+            post(TestAdmins.of(ADMIN_ID), category("의류", "999999", null, List.of()));
         RestTestClient.ResponseSpec unknownType =
-            post(TestMembers.admin(ADMIN_ID), category("상의", null, "999999", List.of()));
+            post(TestAdmins.of(ADMIN_ID), category("상의", null, "999999", List.of()));
         RestTestClient.ResponseSpec unknownItem =
-            post(TestMembers.admin(ADMIN_ID), category("상의", null, productTypeId, List.of("999999")));
+            post(TestAdmins.of(ADMIN_ID), category("상의", null, productTypeId, List.of("999999")));
 
         assertProblem(unknownParent, HttpStatus.NOT_FOUND);
         unknownParent.expectBody().jsonPath("$.title").isEqualTo("카테고리를 찾을 수 없습니다");
@@ -162,7 +162,7 @@ class AdminCategoryApiTest {
         String clothingId = createdCategoryId(category("의류", null, null, List.of()));
         createdCategoryId(category("아동복", clothingId, null, List.of()));
 
-        assertProblem(post(TestMembers.admin(ADMIN_ID), category("아동복", clothingId, null, List.of())),
+        assertProblem(post(TestAdmins.of(ADMIN_ID), category("아동복", clothingId, null, List.of())),
             HttpStatus.CONFLICT);
     }
 
@@ -172,13 +172,13 @@ class AdminCategoryApiTest {
         String productTypeId = createProductType("의류", "COLOR");
         createdCategoryId(category("의류", null, null, List.of()));
 
-        assertProblem(post(TestMembers.admin(ADMIN_ID), category("의류", null, null, List.of())), HttpStatus.CONFLICT);
+        assertProblem(post(TestAdmins.of(ADMIN_ID), category("의류", null, null, List.of())), HttpStatus.CONFLICT);
         assertProblem(
-            post(TestMembers.admin(ADMIN_ID), category("의류", null, productTypeId, List.of())), HttpStatus.CONFLICT);
+            post(TestAdmins.of(ADMIN_ID), category("의류", null, productTypeId, List.of())), HttpStatus.CONFLICT);
     }
 
     private String createdCategoryId(Map<String, Object> body) {
-        return createdId(post(TestMembers.admin(ADMIN_ID), body), "categoryId");
+        return createdId(post(TestAdmins.of(ADMIN_ID), body), "categoryId");
     }
 
     // 항목 코드가 겹치지 않게 유형마다 다른 코드를 받는다. 그 항목의 값을 모두 허용하는 필수 옵션 항목 하나로 유형을 만든다
@@ -214,7 +214,7 @@ class AdminCategoryApiTest {
 
     private RestTestClient.ResponseSpec postTo(String path, Object body) {
         return client.post().uri(path)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();

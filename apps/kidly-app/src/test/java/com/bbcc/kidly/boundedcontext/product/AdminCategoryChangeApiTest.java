@@ -10,7 +10,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.support.FunctionalTest;
 import jakarta.persistence.EntityManager;
 import java.util.Arrays;
@@ -167,7 +167,7 @@ class AdminCategoryChangeApiTest {
     }
 
     private RestTestClient.ResponseSpec put(String path, Object body) {
-        return putWith(TestMembers.admin(ADMIN_ID), path, body);
+        return putWith(TestAdmins.of(ADMIN_ID), path, body);
     }
 
     private RestTestClient.ResponseSpec putWith(Consumer<HttpHeaders> login, String path, Object body) {

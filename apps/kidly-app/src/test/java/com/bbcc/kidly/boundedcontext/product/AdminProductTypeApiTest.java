@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,7 +46,7 @@ class AdminProductTypeApiTest {
         AtomicReference<String> location = new AtomicReference<>();
 
         // 연결은 항목 ID 순서와 다르게 사이즈를 먼저 넘기고, 허용 값은 ID가 큰 오트밀을 먼저 넘긴다
-        post(TestMembers.admin(ADMIN_ID), Map.of(
+        post(TestAdmins.of(ADMIN_ID), Map.of(
             "name", "의류",
             "attributes", List.of(
                 link(size.id(), "OPTION", true, true, true, false, List.of()),
@@ -81,16 +81,16 @@ class AdminProductTypeApiTest {
     void listProductTypes() {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비", "그레이"));
         CreatedAttribute size = createAttribute("SIZE", "LIST", List.of("110"));
-        post(TestMembers.admin(ADMIN_ID), Map.of("name", "의류", "attributes", List.of(
+        post(TestAdmins.of(ADMIN_ID), Map.of("name", "의류", "attributes", List.of(
             link(color.id(), "OPTION", true, false, false, false, List.of(color.valueId("그레이"))),
             link(size.id(), "OPTION", true, true, true, false, List.of()))))
             .expectStatus().isCreated();
-        post(TestMembers.admin(ADMIN_ID), Map.of("name", "잡화", "attributes", List.of(
+        post(TestAdmins.of(ADMIN_ID), Map.of("name", "잡화", "attributes", List.of(
             link(color.id(), "OPTION", true, true, false, false, List.of()))))
             .expectStatus().isCreated();
 
         client.get().uri(PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -107,7 +107,7 @@ class AdminProductTypeApiTest {
     @MethodSource("invalidRequests")
     @DisplayName("유형 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
     void rejectInvalidProductType(Map<String, Object> body) {
-        assertProblem(post(TestMembers.admin(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
+        assertProblem(post(TestAdmins.of(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
     }
 
     // 요청 검증에서 막히므로 항목 ID는 실제로 없는 값이어도 된다
@@ -133,7 +133,7 @@ class AdminProductTypeApiTest {
         CreatedAttribute material = createAttribute("MAIN_MATERIAL", "LIST", List.of("면"));
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
 
-        RestTestClient.ResponseSpec response = post(TestMembers.admin(ADMIN_ID), type("의류", List.of(
+        RestTestClient.ResponseSpec response = post(TestAdmins.of(ADMIN_ID), type("의류", List.of(
             link(material.id(), "INFO", true, true, false, false, List.of()),
             link(color.id(), "OPTION", false, true, false, false, List.of()))));
 
@@ -149,7 +149,7 @@ class AdminProductTypeApiTest {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
         CreatedAttribute size = createAttribute("SIZE", "LIST", List.of("110"));
 
-        RestTestClient.ResponseSpec response = post(TestMembers.admin(ADMIN_ID), type("의류", List.of(
+        RestTestClient.ResponseSpec response = post(TestAdmins.of(ADMIN_ID), type("의류", List.of(
             link(color.id(), "OPTION", true, false, false, false, List.of(size.valueId("110"))),
             link(size.id(), "OPTION", true, true, true, false, List.of()))));
 
@@ -164,9 +164,9 @@ class AdminProductTypeApiTest {
     void rejectUnknownAttributeOrValue() {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
 
-        RestTestClient.ResponseSpec unknownAttribute = post(TestMembers.admin(ADMIN_ID), type("의류", List.of(
+        RestTestClient.ResponseSpec unknownAttribute = post(TestAdmins.of(ADMIN_ID), type("의류", List.of(
             link("999999", "OPTION", true, true, false, false, List.of()))));
-        RestTestClient.ResponseSpec unknownValue = post(TestMembers.admin(ADMIN_ID), type("의류", List.of(
+        RestTestClient.ResponseSpec unknownValue = post(TestAdmins.of(ADMIN_ID), type("의류", List.of(
             link(color.id(), "OPTION", true, false, false, false, List.of("999999")))));
 
         assertProblem(unknownAttribute, HttpStatus.NOT_FOUND);
@@ -180,9 +180,9 @@ class AdminProductTypeApiTest {
     void rejectDuplicateProductType() {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
         Map<String, Object> colorLink = link(color.id(), "OPTION", true, true, false, false, List.of());
-        post(TestMembers.admin(ADMIN_ID), type("의류", List.of(colorLink))).expectStatus().isCreated();
+        post(TestAdmins.of(ADMIN_ID), type("의류", List.of(colorLink))).expectStatus().isCreated();
 
-        assertProblem(post(TestMembers.admin(ADMIN_ID), type("의류", List.of(colorLink))), HttpStatus.CONFLICT);
+        assertProblem(post(TestAdmins.of(ADMIN_ID), type("의류", List.of(colorLink))), HttpStatus.CONFLICT);
     }
 
     @Test
@@ -191,7 +191,7 @@ class AdminProductTypeApiTest {
         CreatedAttribute color = createAttribute("COLOR", "PALETTE", List.of("네이비"));
         Map<String, Object> colorLink = link(color.id(), "OPTION", true, true, false, false, List.of());
 
-        assertProblem(post(TestMembers.admin(ADMIN_ID), type("잡화", List.of(colorLink, colorLink))),
+        assertProblem(post(TestAdmins.of(ADMIN_ID), type("잡화", List.of(colorLink, colorLink))),
             HttpStatus.BAD_REQUEST);
     }
 
@@ -238,7 +238,7 @@ class AdminProductTypeApiTest {
             values.add(value);
         }
         Map<?, ?> body = client.post().uri(ATTRIBUTES_PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("name", code, "code", code, "inputType", inputType, "values", values))
             .exchange()

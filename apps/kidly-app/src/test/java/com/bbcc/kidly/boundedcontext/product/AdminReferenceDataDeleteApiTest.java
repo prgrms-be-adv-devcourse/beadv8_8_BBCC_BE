@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.support.FunctionalTest;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
@@ -114,7 +114,7 @@ class AdminReferenceDataDeleteApiTest {
     }
 
     private RestTestClient.ResponseSpec delete(String path) {
-        return deleteWith(TestMembers.admin(ADMIN_ID), path);
+        return deleteWith(TestAdmins.of(ADMIN_ID), path);
     }
 
     private RestTestClient.ResponseSpec deleteWith(Consumer<HttpHeaders> login, String path) {
