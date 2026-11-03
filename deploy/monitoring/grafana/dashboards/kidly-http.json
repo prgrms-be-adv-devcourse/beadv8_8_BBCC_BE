@@ -244,9 +244,10 @@
     {
       "title": "로그 확인",
       "type": "link",
-      "url": "/d/kidly-logs?var-env=${env:percentencode}&var-service=${service:percentencode}",
+      "url": "/d/kidly-logs",
       "keepTime": true,
-      "targetBlank": false
+      "targetBlank": false,
+      "includeVars": true
     }
   ]
 }
