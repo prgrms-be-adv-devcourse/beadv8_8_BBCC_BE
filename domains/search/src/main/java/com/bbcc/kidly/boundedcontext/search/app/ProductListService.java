@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchItem;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchSort;
 import com.bbcc.kidly.boundedcontext.search.app.port.SearchEventSender;
 import com.bbcc.kidly.boundedcontext.search.app.port.SearchUnavailableException;
+import com.bbcc.kidly.boundedcontext.search.app.port.TextEmbedder;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Service;
 /**
  * 구매자 상품 목록 조회 유스케이스다. 요청을 검색 조건으로 바꿔 검색 색인에서 찾는다.
  * 로그인 회원이 검색어로 찾은 첫 페이지면 검색 이벤트(search.performed)를 보낸다(#611).
+ * 관련도순(RELEVANCE)으로 검색어를 찾으면 검색어를 의미 검색 벡터로 바꿔 함께 넘긴다(#797). 바꾸지 못하면 키워드로만 찾는다.
  * DB를 쓰지 않으므로 트랜잭션을 열지 않는다.
  */
 @Slf4j
@@ -34,16 +36,20 @@ public class ProductListService {
 
     private final ProductSearch productSearch;
     private final SearchEventSender searchEventSender;
+    private final TextEmbedder textEmbedder;
 
     /**
      * @param memberId 로그인 회원 ID. 비로그인이면 null
      */
     public Page<ProductSearchItem> list(ProductListRequest request, Long memberId) {
+        String keyword = stripKeyword(request.keyword());
+        ProductSearchSort sort = ProductSearchSort.valueOf(request.sortOrDefault());
         ProductSearchCondition condition = new ProductSearchCondition(
             request.categoryId(),
-            stripKeyword(request.keyword()),
+            keyword,
             groupByCode(request.attributesOrEmpty()),
-            ProductSearchSort.valueOf(request.sortOrDefault()));
+            sort,
+            keywordVector(keyword, sort));
         Page<ProductSearchItem> result = search(condition, request);
         if (isNewSearchByMember(memberId, condition, request)) {
             searchEventSender.send(searchPerformed(memberId, condition, result.getTotalElements()));
@@ -61,6 +67,14 @@ public class ProductListService {
                 e.getCause() == null ? null : e.getCause().getClass().getSimpleName());
             throw new BusinessException(SearchErrorCode.SEARCH_UNAVAILABLE);
         }
+    }
+
+    // 의미 검색은 관련도순일 때만 쓴다. 다른 정렬은 키워드 결과만 보여 주므로 API를 부르지 않는다
+    private List<Float> keywordVector(String keyword, ProductSearchSort sort) {
+        if (sort != ProductSearchSort.RELEVANCE || keyword == null || keyword.isEmpty()) {
+            return null;
+        }
+        return textEmbedder.embed(keyword).orElse(null);
     }
 
     // 추천이 쓰는 건 회원이 무엇을 찾았는지다. 검색어 없는 둘러보기와 같은 검색의 다음 페이지는 새 검색이 아니다
