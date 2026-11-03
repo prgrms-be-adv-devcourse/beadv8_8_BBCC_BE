@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.outbox;
 
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;

@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.app.order;
+package com.bbcc.kidly.boundedcontext.order.app.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

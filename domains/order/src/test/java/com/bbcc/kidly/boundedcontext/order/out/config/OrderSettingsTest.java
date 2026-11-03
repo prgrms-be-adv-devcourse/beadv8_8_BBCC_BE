@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderScheduleIntervals;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;

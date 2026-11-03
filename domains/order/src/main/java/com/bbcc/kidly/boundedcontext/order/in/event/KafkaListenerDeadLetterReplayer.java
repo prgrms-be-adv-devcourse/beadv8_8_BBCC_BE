@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.in.event;
 
-import com.bbcc.kidly.boundedcontext.order.app.DeadLetterReplay;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.UnknownDeadLetterSourceException;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeadLetterReplayer;
@@ -11,8 +12,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.record.TimestampType;
 import org.springframework.stereotype.Component;
-import static java.nio.charset.StandardCharsets.UTF_8;
-
 
 /**
  * 저장한 DLT 메시지로 원래 Kafka 메시지를 다시 만들어 원래 토픽의 리스너에 그대로 넘긴다(#601).
@@ -28,7 +27,7 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
     private final PaymentEventKafkaListener paymentListener;
 
     @Override
-    public DeadLetterReplay.Outcome replay(DeadLetterReplay message) {
+    public Outcome replay(Message message) {
         ConsumerRecord<String, String> record = record(message);
         // 관리자 요청에서 리스너를 직접 부르므로 Kafka 인터셉터를 지나지 않는다. 같은 추적 값을 여기서 둔다(traceId는 요청 값 유지)
         try (var ignored = OrderLogContext.open(message.eventId(), message.eventType(), message.messageKey())) {
@@ -36,7 +35,7 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
         }
     }
 
-    private DeadLetterReplay.Outcome replayWatched(DeadLetterReplay message, ConsumerRecord<String, String> record) {
+    private Outcome replayWatched(Message message, ConsumerRecord<String, String> record) {
         boolean handedOff = EventHandOffs.watch(() -> {
             switch (message.sourceTopic()) {
                 case OrderKafkaListenerConfig.PRODUCT_EVENTS -> productListener.on(record);
@@ -46,11 +45,11 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
                 default -> throw new UnknownDeadLetterSourceException(message.sourceTopic());
             }
         });
-        return handedOff ? DeadLetterReplay.Outcome.HANDED_OFF : DeadLetterReplay.Outcome.PROCESSED;
+        return new Outcome(handedOff);
     }
 
     // 원래 위치 · 키 · 본문, 원래 헤더 eventType · eventId(없던 헤더는 넣지 않는다)
-    private static ConsumerRecord<String, String> record(DeadLetterReplay message) {
+    private static ConsumerRecord<String, String> record(Message message) {
         RecordHeaders headers = new RecordHeaders();
         if (message.eventType() != null) {
             headers.add(OrderKafkaMessages.EVENT_TYPE, message.eventType().getBytes(UTF_8));

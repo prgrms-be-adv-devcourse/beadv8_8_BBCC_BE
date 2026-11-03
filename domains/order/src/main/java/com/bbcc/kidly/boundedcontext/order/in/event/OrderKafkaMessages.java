@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.bbcc.kidly.boundedcontext.order.app.deadletter.UnreadableOrderMessageException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 

@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.app.deadletter;
+package com.bbcc.kidly.boundedcontext.order.out.deadletter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -15,6 +15,7 @@ class DeadLetterFailureTypesTest {
         "tools.jackson.databind.exc.InvalidFormatException, READ_FAILED",
         "tools.jackson.core.exc.StreamReadException, READ_FAILED",
         "com.bbcc.kidly.boundedcontext.order.app.deadletter.UnreadableOrderMessageException, READ_FAILED",
+        "com.bbcc.kidly.boundedcontext.order.in.event.UnreadableOrderMessageException, READ_FAILED",
         // 보관 실패: DB · 트랜잭션(결제 완료 동시 처리에서 진 쪽의 낙관적 락 포함)
         "org.springframework.dao.DataIntegrityViolationException, STORE_FAILED",
         "org.springframework.orm.ObjectOptimisticLockingFailureException, STORE_FAILED",

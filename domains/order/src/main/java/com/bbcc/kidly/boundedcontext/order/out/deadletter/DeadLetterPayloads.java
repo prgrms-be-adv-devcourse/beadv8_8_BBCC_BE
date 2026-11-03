@@ -1,5 +1,7 @@
-package com.bbcc.kidly.boundedcontext.order.app.deadletter;
+package com.bbcc.kidly.boundedcontext.order.out.deadletter;
 
+import com.bbcc.kidly.boundedcontext.order.app.port.DeadLetterInspection;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.FailureType;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Set;
@@ -14,7 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
  * (이 이벤트들의 키 = correlationId = 주문 ID) 꺼낸다. 상품 · 판매자 · 자녀 이벤트는 주문이 없다.
  */
 @Component
-class DeadLetterPayloads {
+class DeadLetterPayloads implements DeadLetterInspection {
 
     private static final Set<String> ORDER_EVENT_TYPES = Set.of("payment.completed", "payment.failed",
         "stock.deducted", "stock.deduction-failed");
@@ -25,10 +27,8 @@ class DeadLetterPayloads {
         this.jsonMapper = jsonMapper;
     }
 
-    record Fields(String producer, LocalDateTime occurredAt, String aggregateId, String correlationId, Long orderId) {
-    }
-
-    Fields read(String payload, String eventType, String key) {
+    @Override
+    public Fields read(String payload, String eventType, String key) {
         JsonNode body = tree(payload);
         Long orderId = null;
         // Set.of는 null을 물으면 예외라 종류를 모르는 경우(eventType 헤더 없음)를 먼저 거른다
@@ -40,6 +40,11 @@ class DeadLetterPayloads {
         }
         return new Fields(text(body, "producer"), dateTime(text(body, "occurredAt")), text(body, "aggregateId"),
             text(body, "correlationId"), orderId);
+    }
+
+    @Override
+    public FailureType failureType(String exceptionClass) {
+        return DeadLetterFailureTypes.of(exceptionClass);
     }
 
     // 읽지 못하면 빈 노드(모든 칸이 없음)

@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.app.stuck;
+package com.bbcc.kidly.boundedcontext.order.app.config;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;

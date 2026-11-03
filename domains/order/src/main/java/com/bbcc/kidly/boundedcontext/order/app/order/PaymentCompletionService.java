@@ -1,6 +1,6 @@
-package com.bbcc.kidly.boundedcontext.order.app;
+package com.bbcc.kidly.boundedcontext.order.app.order;
 
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderedCartCleaner;
@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 결제 완료 반영: 결제완료 → 판매자별 주문 만들기 → 장바구니 정리를 한 트랜잭션으로 묶는다(중간에 실패하면 모두 되돌림).
  * 결제 완료 리스너와 관리자 재처리(#353)가 같은 순서를 쓴다. 기능(주문 · 배송 · 장바구니)끼리는 서로 부르지 않으므로
- * 여러 기능을 잇는 이 유스케이스는 app 바로 아래에 둔다(#532). 배송 · 장바구니는 주문의 포트(OrderDeliveries ·
+ * 결제 완료 유스케이스는 주문 기능 패키지에 둔다(#763). 배송 · 장바구니는 주문의 포트(OrderDeliveries ·
  * OrderedCartCleaner)로 부르고 이 트랜잭션에 합류한다(#617 · #641).
  */
 @Service

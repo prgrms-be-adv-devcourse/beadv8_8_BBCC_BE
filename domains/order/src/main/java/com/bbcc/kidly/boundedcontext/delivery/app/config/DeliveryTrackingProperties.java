@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.delivery.app;
+package com.bbcc.kidly.boundedcontext.delivery.app.config;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
