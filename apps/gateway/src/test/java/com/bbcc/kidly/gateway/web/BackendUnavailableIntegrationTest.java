@@ -38,6 +38,7 @@ class BackendUnavailableIntegrationTest {
         registry.add("kidly.gateway.app-uri", () -> "http://127.0.0.1:" + closedPort);
         registry.add("kidly.gateway.search-uri", () -> "http://127.0.0.1:" + closedPort);
         registry.add("kidly.gateway.childprofile-uri", () -> "http://127.0.0.1:" + closedPort);
+        registry.add("kidly.gateway.recommend-uri", () -> "http://127.0.0.1:" + closedPort);
     }
 
     @BeforeEach

@@ -44,8 +44,8 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 추천이 판매자 · 자녀 · 상품 토픽의 메시지를 받아 복사본에 반영하고, 처리하지 못한 메시지를 DLT로 보내는지 확인한다(#576).
  * 메시지는 보내는 도메인을 거치지 않고 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다. 그래야 다시 받은 메시지 · 깨진 본문 ·
- * 받지 않는 종류처럼 보내는 도메인이 만들지 않는 경우를 정확히 넣을 수 있다. 보내는 도메인이 실제로 보낸 메시지를 받는지는
- * RecommendKafkaFromProducersIntegrationTest가 확인한다.
+ * 받지 않는 종류처럼 보내는 도메인이 만들지 않는 경우를 정확히 넣을 수 있다. 보내는 도메인은 다른 앱이라 이 테스트에서 띄우지 않고,
+ * 그 형식으로 보내는지는 보내는 도메인의 Kafka 발행 테스트가 확인한다.
  * 같은 토픽에는 다른 테스트의 메시지도 쌓여 이어서 받을 수 있으므로, 판매자 · 자녀 · 상품 ID를 테스트마다 새로 만든다.
  */
 @KafkaIntegrationTest
@@ -90,9 +90,9 @@ class RecommendKafkaListenerIntegrationTest {
 
     // 리스너는 이 테스트 안에서만 켠다
     @BeforeEach
-    void startListeners() throws Exception {
+    void startListeners() {
         messages = new RecommendKafkaMessages(kafka.getBootstrapServers(), jsonMapper);
-        listeners = RecommendKafkaMessages.startListeners(kafkaListenerEndpointRegistry, kafka.getBootstrapServers());
+        listeners = RecommendKafkaMessages.startListeners(kafkaListenerEndpointRegistry);
     }
 
     // stop()은 처리 중인 메시지가 끝날 때까지 기다리므로 뒤이은 테이블 비우기와 겹치지 않는다

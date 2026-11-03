@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.review.in.event;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ProductReplicaRecorder;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ProductReplicaRecorder.Option;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ProductReplicaRecorder.ProductChanged;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -53,12 +55,13 @@ public class CommunityProductEventListener {
     }
 
     /**
-     * 상품 · 옵션 판매 상태는 enum 이름 문자열로 옮긴다(in은 domain을 쓰지 않음). 모르는 값을 읽어 null이면 null로 넘긴다.
+     * 상품 용어를 커뮤니티 값으로 바꾸는 곳은 여기 한 곳이다: 상품 판매 상태 → 판매 중 여부, 옵션 판매 상태 · 품절 → 판매 중 여부 ·
+     * 재고 유무. 판매 중(ON_SALE)만 true이고 그 밖(중지 · 판매 전 · 모르는 값을 읽은 null)은 false다.
      */
     private static ProductChanged toChanged(ProductChangedEvent event) {
         ProductChangedEvent.Data data = event.data();
         return new ProductChanged(data.productId(), data.name(), data.thumbnailUrl(),
-            data.status() == null ? null : data.status().name(), toOptions(data.options()), event.occurredAt());
+            data.status() == ProductStatus.ON_SALE, toOptions(data.options()), event.occurredAt());
     }
 
     private static List<Option> toOptions(List<ProductChangedEvent.Option> options) {
@@ -67,8 +70,7 @@ public class CommunityProductEventListener {
         }
         return options.stream()
             .filter(option -> option != null)
-            .map(option -> new Option(option.saleStatus() == null ? null : option.saleStatus().name(),
-                option.soldOut()))
+            .map(option -> new Option(option.saleStatus() == OptionSaleStatus.ON_SALE, !option.soldOut()))
             .toList();
     }
 }

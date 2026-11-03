@@ -67,6 +67,21 @@ spring:
                 - Path=/v3/api-docs/childprofile
               filters:
                 - SetPath=/v3/api-docs
+            # 추천 API는 추천 서비스로 간다(#704)
+            - id: recommend
+              uri: ${kidly.gateway.recommend-uri}
+              predicates:
+                - Path=/api/v1/recommendations/**
+              # 추천이 느려도 화면이 추천 영역만 비우고 넘어가도록, 전체 응답 제한(55초) 대신 3초에 끊고 504를 낸다(밀리초)
+              metadata:
+                response-timeout: 3000
+            # 추천 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
+            - id: recommend-api-docs
+              uri: ${kidly.gateway.recommend-uri}
+              predicates:
+                - Path=/v3/api-docs/recommend
+              filters:
+                - SetPath=/v3/api-docs
             # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}
@@ -108,7 +123,7 @@ spring:
     activate:
       on-profile: local
 
-# kidly-app(8080) · search-service(8082) · childprofile-service(8084)와 같이 띄운다
+# kidly-app(8080) · search-service(8082) · childprofile-service(8084) · recommend-service(8086)와 같이 띄운다
 server:
   port: 8083
 
@@ -119,6 +134,8 @@ kidly:
     search-uri: ${KIDLY_SEARCH_URI:http://localhost:8080}
     # 자녀 프로필은 kidly-app에 없다. childprofile-service(8084)를 띄워야 자녀 API가 된다
     childprofile-uri: ${KIDLY_CHILDPROFILE_URI:http://localhost:8084}
+    # 추천은 kidly-app에 없다. recommend-service(8086)를 띄워야 추천 API가 된다
+    recommend-uri: ${KIDLY_RECOMMEND_URI:http://localhost:8086}
 
 cors:
   allowed-origins: http://localhost:5173
@@ -148,6 +165,7 @@ kidly:
     app-uri: ${KIDLY_APP_URI}
     search-uri: ${KIDLY_SEARCH_URI}
     childprofile-uri: ${KIDLY_CHILDPROFILE_URI}
+    recommend-uri: ${KIDLY_RECOMMEND_URI}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}

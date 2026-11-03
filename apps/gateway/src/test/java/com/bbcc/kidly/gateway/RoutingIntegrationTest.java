@@ -20,7 +20,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 자녀 프로필은 자녀 프로필 서비스로(#682), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
+ * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 자녀 프로필은 자녀 프로필 서비스로(#682), 추천은 추천 서비스로(#704),
+ * 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  */
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
@@ -38,10 +39,15 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     @Qualifier(RecordingBackendConfiguration.CHILDPROFILE)
     private RecordingBackend childProfileBackend;
 
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.RECOMMEND)
+    private RecordingBackend recommendBackend;
+
     @BeforeEach
     void resetServiceBackends() {
         searchBackend.reset();
         childProfileBackend.reset();
+        recommendBackend.reset();
     }
 
     @Test
@@ -124,6 +130,44 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
         assertThat(backend.lastRequest()).isPresent();
         assertThat(childProfileBackend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("추천 API 두 개는 같은 메서드 · 경로 · 쿼리로 추천 서비스에 넘긴다")
+    void routesRecommendationsToRecommendService() {
+        client.get().uri("/api/v1/recommendations/products?childId=11&page=0").exchange()
+            .expectStatus().isOk();
+        assertThat(recommendBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.method()).isEqualTo("GET");
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/recommendations/products?childId=11&page=0"));
+        });
+
+        client.get().uri("/api/v1/recommendations/size?productId=31&childId=11").exchange()
+            .expectStatus().isOk();
+        assertThat(recommendBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/recommendations/size?productId=31&childId=11")));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("recommendations로 시작하기만 하는 다른 경로는 kidly-app에 넘긴다")
+    void routesRecommendationsPrefixLookalikeToKidlyApp() {
+        client.get().uri("/api/v1/recommendationsx").exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(recommendBackend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("추천 API 문서는 추천 서비스의 /v3/api-docs로 넘긴다")
+    void routesRecommendApiDocsToRecommendService() {
+        client.get().uri("/v3/api-docs/recommend").exchange()
+            .expectStatus().isOk();
+
+        assertThat(recommendBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/v3/api-docs")));
+        assertThat(backend.lastRequest()).isEmpty();
     }
 
     @Test
