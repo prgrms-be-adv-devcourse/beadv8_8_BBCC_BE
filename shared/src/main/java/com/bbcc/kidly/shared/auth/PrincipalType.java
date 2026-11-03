@@ -5,5 +5,6 @@ package com.bbcc.kidly.shared.auth;
  */
 public enum PrincipalType {
     MEMBER,
-    ADMIN
+    ADMIN,
+    CHILD
 }

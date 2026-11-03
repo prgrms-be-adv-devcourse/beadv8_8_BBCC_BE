@@ -24,6 +24,10 @@ public record PrincipalId(PrincipalType type, long id) {
         return new PrincipalId(PrincipalType.ADMIN, id);
     }
 
+    public static PrincipalId child(long id) {
+        return new PrincipalId(PrincipalType.CHILD, id);
+    }
+
     public String toSubject() {
         return subjectPrefix(type) + id;
     }
@@ -46,6 +50,7 @@ public record PrincipalId(PrincipalType type, long id) {
         return switch (type) {
             case MEMBER -> "";
             case ADMIN -> "admin:";
+            case CHILD -> "child:";
         };
     }
 }

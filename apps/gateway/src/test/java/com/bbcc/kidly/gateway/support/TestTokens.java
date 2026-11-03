@@ -46,6 +46,18 @@ public final class TestTokens {
         return encode(LOCAL, PrincipalId.admin(adminId).toSubject(), List.of(), null, issuedAt, expiresAt);
     }
 
+    public static String issueChild(long accountId, long guardianId, Instant issuedAt, Instant expiresAt) {
+        return issueChildWithGuardian(accountId, guardianId, issuedAt, expiresAt);
+    }
+
+    public static String issueChildWithGuardian(long accountId, Object guardianId, Instant issuedAt,
+        Instant expiresAt) {
+        var claims = JwtClaimsSet.builder().subject(PrincipalId.child(accountId).toSubject())
+            .issuedAt(issuedAt).expiresAt(expiresAt).claim(AccessTokenClaims.GUARDIAN_ID, guardianId).build();
+        return LOCAL.encode(JwtEncoderParameters.from(JwsHeader.with(SignatureAlgorithm.RS256).build(), claims))
+            .getTokenValue();
+    }
+
     // 회원이 발급하는 토큰처럼 nickname 클레임을 넣는다
     public static String issueWithNickname(long memberId, String nickname) {
         var now = Instant.now();

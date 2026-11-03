@@ -282,6 +282,25 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
         bearer(TestTokens.issueAdmin(92, now.minusSeconds(5), now.plus(VALIDITY))).expectStatus().isOk();
     }
 
+    @Test
+    void forwardsChildHeadersAndRejectsInvalidOrRevokedChild() {
+        var now = Instant.now();
+        var token = TestTokens.issueChild(7, 8, now, now.plus(VALIDITY));
+        client.get().uri(PATH).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+            .header(PrincipalHeaders.CHILD_ACCOUNT_ID, "1").header(MemberHeaders.MEMBER_ID, "1")
+            .exchange().expectStatus().isOk();
+        assertThat(received().header(PrincipalHeaders.CHILD_ACCOUNT_ID)).containsExactly("7");
+        assertThat(received().header(PrincipalHeaders.CHILD_GUARDIAN_ID)).containsExactly("8");
+        assertThat(received().header(MemberHeaders.MEMBER_ID)).isEmpty();
+        assertThat(received().header(PrincipalHeaders.ADMIN_ID)).isEmpty();
+        backend.reset();
+        expectUnauthorized(bearer(TestTokens.issueWithSubject("child:7", now, now.plus(VALIDITY))), PATH);
+        expectUnauthorized(bearer(TestTokens.issueChild(7, 0, now, now.plus(VALIDITY))), PATH);
+        expectUnauthorized(bearer(TestTokens.issueChildWithGuardian(7, "abc", now, now.plus(VALIDITY))), PATH);
+        revocations.revoke(PrincipalId.child(7), now, now);
+        expectUnauthorized(bearer(token), PATH);
+    }
+
     private ResponseSpec bearer(String token) {
         return client.get().uri(PATH)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)

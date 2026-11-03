@@ -21,6 +21,8 @@ public class RefreshTokenCookies {
     public static final String NAME = "refresh_token";
     public static final String ADMIN_NAME = "admin_refresh_token";
 
+    public static final String CHILD_NAME = "child_refresh_token";
+
     private final SecurityProperties properties;
 
     public void add(HttpServletResponse response, PrincipalType type, String token, Duration maxAge) {
@@ -45,6 +47,7 @@ public class RefreshTokenCookies {
         return switch (type) {
             case MEMBER -> new Spec(NAME, "/api/v1/auth");
             case ADMIN -> new Spec(ADMIN_NAME, "/api/v1/auth/admin");
+            case CHILD -> new Spec(CHILD_NAME, "/api/v1/auth/child");
         };
     }
 

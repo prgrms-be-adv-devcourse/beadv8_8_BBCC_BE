@@ -58,9 +58,9 @@
 
 토큰 검증 · 무효화 확인 · 역할 검사 · CORS는 Gateway만 한다. 서비스는 Spring Security 없이 Gateway가 붙인 헤더로 로그인 회원을 안다.
 
-- Gateway는 밖에서 온 `X-Member-*` · `X-Admin-*`를 지우고, 검증을 통과한 회원 토큰이면 `X-Member-Id` · `X-Member-Roles` · `X-Member-Nickname`(UTF-8 퍼센트 인코딩)을, 관리자 토큰이면 `X-Admin-Id`만 붙인다. 계약은 `shared`의 `com.bbcc.kidly.shared.auth`(토큰 주체 `PrincipalId` · 주체 헤더 `PrincipalHeaders` · 회원 헤더 `MemberHeaders` · 역할 `Role` · 토큰 클레임 이름 `AccessTokenClaims`)다
-- 회원 로그인이 필요한 API는 `@LoginMember AuthMember`(회원 ID · 닉네임)를, 관리자 로그인이 필요한 API는 `@LoginAdmin AuthAdmin`(관리자 ID)을 받는다. 헤더가 없거나 잘못되면 401이다. 그 밖의 API는 공개다
-- `/api/v1/admin/**`는 관리자 주체, `/api/v1/seller/**`는 SELLER 역할의 회원 주체만 Gateway가 통과시킨다(토큰이 없으면 401, 주체 또는 역할이 다르면 403). 서비스는 역할 경로를 검사하지 않는다
+- Gateway는 밖에서 온 `X-Member-*` · `X-Admin-*` · `X-Child-*`를 지우고, 검증을 통과한 회원 토큰이면 `X-Member-Id` · `X-Member-Roles` · `X-Member-Nickname`(UTF-8 퍼센트 인코딩)을, 관리자 토큰이면 `X-Admin-Id`만, 자녀 토큰이면 `X-Child-Account-Id` · `X-Child-Guardian-Id`만 붙인다. 계약은 `shared`의 `com.bbcc.kidly.shared.auth`(토큰 주체 `PrincipalId` · 주체 헤더 `PrincipalHeaders` · 회원 헤더 `MemberHeaders` · 역할 `Role` · 토큰 클레임 이름 `AccessTokenClaims`)다
+- 회원 로그인이 필요한 API는 `@LoginMember AuthMember`(회원 ID · 닉네임)를, 관리자 로그인이 필요한 API는 `@LoginAdmin AuthAdmin`(관리자 ID)을, 자녀 전용 API는 `@LoginChild AuthChild`(자녀 계정 ID · 보호자 회원 ID)를 받는다. 자녀 토큰에는 `X-Member-Id`가 없어 회원 API는 401이다. 헤더가 없거나 잘못되면 401이다. 그 밖의 API는 공개다
+- `/api/v1/admin/**`는 관리자 주체, `/api/v1/seller/**`는 SELLER 역할의 회원 주체만, `/api/v1/child/**`는 자녀 주체만 Gateway가 통과시킨다(토큰이 없으면 401, 주체 또는 역할이 다르면 403). 서비스는 역할 경로를 검사하지 않는다
 - Gateway는 보안 응답 헤더를 붙이고, 정규화되지 않은 경로 · 위험한 요청은 400으로 막는다
 
 서비스는 Gateway 뒤에서만 열린다는 전제다(dev 8083 · prod 8084 · 로컬 8083). Gateway를 거치지 않고 서비스에 닿을 수 있으면 `X-Member-*` 헤더를 위조할 수 있다. 자세한 Gateway 동작은 [`apps/gateway/CLAUDE.md`](apps/gateway/CLAUDE.md)

@@ -11,6 +11,8 @@ import java.util.Optional;
  */
 public final class PrincipalHeaders {
 
+    public static final String CHILD_ACCOUNT_ID = "X-Child-Account-Id";
+    public static final String CHILD_GUARDIAN_ID = "X-Child-Guardian-Id";
     public static final String ADMIN_ID = "X-Admin-Id";
     public static final List<String> ALL = Arrays.stream(PrincipalType.values())
         .flatMap(type -> namesOf(type).stream())
@@ -23,6 +25,7 @@ public final class PrincipalHeaders {
         return switch (type) {
             case MEMBER -> List.of(MemberHeaders.MEMBER_ID, MemberHeaders.MEMBER_ROLES, MemberHeaders.MEMBER_NICKNAME);
             case ADMIN -> List.of(ADMIN_ID);
+            case CHILD -> List.of(CHILD_ACCOUNT_ID, CHILD_GUARDIAN_ID);
         };
     }
 
@@ -30,6 +33,7 @@ public final class PrincipalHeaders {
         return switch (type) {
             case MEMBER -> MemberHeaders.MEMBER_ID;
             case ADMIN -> ADMIN_ID;
+            case CHILD -> CHILD_ACCOUNT_ID;
         };
     }
 
@@ -56,6 +60,7 @@ public final class PrincipalHeaders {
         return switch (type) {
             case MEMBER -> "x-member-";
             case ADMIN -> "x-admin-";
+            case CHILD -> "x-child-";
         };
     }
 }
