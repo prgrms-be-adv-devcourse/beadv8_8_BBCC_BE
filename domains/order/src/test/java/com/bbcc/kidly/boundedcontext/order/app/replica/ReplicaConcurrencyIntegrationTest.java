@@ -63,7 +63,7 @@ class ReplicaConcurrencyIntegrationTest {
     @DisplayName("자녀 삭제와 과거 수정이 겹쳐도 최신 삭제 표시를 유지한다")
     void childDeletionKeepsNewest() throws Exception {
         apply("child", BASE);
-        newerCommitsBeforeOlder(() -> service.applyChildDeleted(1L, BASE.plusMinutes(2)),
+        newerCommitsBeforeOlder(() -> service.applyChildDeleted(1L, 1L, BASE.plusMinutes(2)),
             () -> apply("child", BASE.plusMinutes(1)));
         assertThat(jdbcTemplate.queryForObject("select is_deleted from orders.replica_child", Boolean.class)).isTrue();
         assertThat(jdbcTemplate.queryForObject("select event_occurred_at from orders.replica_child",

@@ -18,6 +18,7 @@
 ## 2. 이벤트 수신
 - 복사본 반영(#738)은 종류 · 대상 ID별 트랜잭션 advisory lock(`ReplicaUpdateLock`, `out.lock.ReplicaAdvisoryLock`)을 조회 전에 잡고 커밋 · 롤백까지 유지한다. 행이 없는 최초 생성도 직렬화하고, 상품은 상품 ID 하나로 전체 옵션 · 누락 옵션 처리를 묶는다. 자녀 변경 · 삭제는 같은 잠금을 쓴다. 이 잠금은 스케줄러의 한 서버 실행 잠금과 별개다.
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(`ReplicaProduct` · `ReplicaSeller` · `ReplicaChild`)은 저장된 `occurredAt`보다 늦은 이벤트만 반영하고, 주문 상태는 이미 그 상태면 `ALREADY_DONE`으로 끝낸다
+- 프로필 없는 자녀 삭제(#739)도 `replica_child`에 자녀 ID · 보호자 ID · 삭제 시각을 남긴다. 키 · 몸무게는 삭제 행에서만 비어 있을 수 있다(DB CHECK). 과거 · 동일 시각의 활성 이벤트는 무시하고, 더 최신의 정상 프로필은 기존 최신 이벤트 우선 정책대로 반영한다. 자녀 복사본 시각은 DB 정밀도(마이크로초)로 잘라 저장 · 비교한다.
 - 필수 값이 없으면 `EventGuard`로 WARN 한 줄을 남기고 무시한다
 - 받는 길은 스위치 `kidly.order.kafka.consumer.enabled` 하나로 고른다: `true`(기본)면 Kafka 리스너, `false`면 Spring 이벤트(`SpringEventReceiver`). 처리 코드(`…EventListener`)는 같다
 - Kafka 리스너(`ProductEventKafkaListener` · `SellerEventKafkaListener` · `ChildProfileEventKafkaListener` · `PaymentEventKafkaListener`)는 팩토리 `orderKafkaListenerContainerFactory`(`OrderKafkaListenerConfig`)만 쓴다: 한 건씩 완료, 처음 읽는 그룹은 earliest, 실패하면 1초 간격 3번 재시도 뒤 `{토픽}.order.dlt`, 다시 해도 같은 예외 · 읽기 실패는 바로 DLT. 결제 완료는 DLT로 보내기 전에 `payment_recovery` 보관을 한 번 더 시도하고, 보관되면 보내지 않는다(`PaymentEventKafkaListener.keepAfterRetries`)

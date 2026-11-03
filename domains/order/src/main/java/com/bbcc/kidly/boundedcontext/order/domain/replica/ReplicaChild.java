@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -53,10 +54,10 @@ public class ReplicaChild extends OrderTimeEntity {
     @Column(length = 50)
     private String name;
 
-    @Column(nullable = false, precision = 4, scale = 1)
+    @Column(precision = 4, scale = 1)
     private BigDecimal heightCm;
 
-    @Column(nullable = false, precision = 4, scale = 1)
+    @Column(precision = 4, scale = 1)
     private BigDecimal weightKg;
 
     @Column(length = 20)
@@ -76,12 +77,19 @@ public class ReplicaChild extends OrderTimeEntity {
     }
 
     /**
+     * 프로필을 모르는 삭제도 ID · 보호자 · 삭제 시각을 남긴다. 프로필 없는 활성 행은 DB 제약으로 허용하지 않는다.
+     */
+    public static ReplicaChild createDeleted(Long childId, Long memberId, LocalDateTime occurredAt) {
+        return create(new Values(childId, memberId, null, null, null, null, true, occurredAt));
+    }
+
+    /**
      * 저장된 값보다 늦게 발생한 이벤트일 때만 덮어쓴다.
      *
      * @return 반영했으면 true
      */
     public boolean applyIfNewer(Values values) {
-        if (!values.occurredAt().isAfter(eventOccurredAt)) {
+        if (!storedTime(values.occurredAt()).isAfter(eventOccurredAt)) {
             return false;
         }
         apply(values);
@@ -94,16 +102,20 @@ public class ReplicaChild extends OrderTimeEntity {
      * @return 반영했으면 true
      */
     public boolean markDeletedIfNewer(LocalDateTime occurredAt) {
-        if (!occurredAt.isAfter(eventOccurredAt)) {
+        if (!storedTime(occurredAt).isAfter(eventOccurredAt)) {
             return false;
         }
         deleted = true;
-        eventOccurredAt = occurredAt;
+        eventOccurredAt = storedTime(occurredAt);
         return true;
     }
 
     public boolean isOwnedBy(Long memberId) {
         return this.memberId.equals(memberId);
+    }
+
+    private static LocalDateTime storedTime(LocalDateTime at) {
+        return at.truncatedTo(ChronoUnit.MICROS);
     }
 
     private void apply(Values values) {
@@ -113,6 +125,6 @@ public class ReplicaChild extends OrderTimeEntity {
         weightKg = values.weightKg();
         bodyType = values.bodyType();
         deleted = values.deleted();
-        eventOccurredAt = values.occurredAt();
+        eventOccurredAt = storedTime(values.occurredAt());
     }
 }
