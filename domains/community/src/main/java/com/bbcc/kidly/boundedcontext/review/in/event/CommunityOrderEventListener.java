@@ -22,11 +22,13 @@ public class CommunityOrderEventListener {
      * 자격을 만들 수 없는 값(데이터 · 주문상품 ID · 회원 ID · 상품 ID · 발생 시각)이 없으면 WARN 한 줄을 남기고 건너뛴다.
      * 구매확정 시각이 없으면 이벤트 발생 시각을 쓴다.
      */
-    public void onPurchaseConfirmed(OrderItemPurchaseConfirmedEvent event) {
+    public boolean onPurchaseConfirmed(OrderItemPurchaseConfirmedEvent event) {
         if (CommunityEventGuard.accept("구매확정", event, "orderItemId", orderItemIdOf(event),
             missingRequiredValue(event))) {
             reviewEligibilityRecorder.record(toConfirmed(event));
+            return true;
         }
+        return false;
     }
 
     private static String missingRequiredValue(OrderItemPurchaseConfirmedEvent event) {

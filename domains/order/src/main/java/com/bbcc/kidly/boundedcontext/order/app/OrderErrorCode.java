@@ -14,6 +14,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum OrderErrorCode implements ErrorCode {
 
+    INVALID_CONFIRMATION_REPLAY_RANGE(HttpStatus.BAD_REQUEST, "잘못된 구매확정 복구 범위입니다",
+        "0 이상 커서와 상한, 1~100 크기로 요청해 주세요. 커서는 상한을 넘을 수 없습니다."),
     OUTBOX_NOT_FOUND(HttpStatus.NOT_FOUND, "아웃박스 메시지를 찾을 수 없습니다",
         "없는 메시지입니다. 아웃박스 목록을 새로고침해 주세요."),
     OUTBOX_ALREADY_SENT(HttpStatus.CONFLICT, "이미 전송된 메시지입니다",
