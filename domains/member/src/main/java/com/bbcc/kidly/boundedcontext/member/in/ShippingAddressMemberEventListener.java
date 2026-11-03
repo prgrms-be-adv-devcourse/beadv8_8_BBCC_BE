@@ -1,22 +1,34 @@
 package com.bbcc.kidly.boundedcontext.member.in;
 
 import com.bbcc.kidly.boundedcontext.member.app.ShippingAddressService;
-import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import lombok.RequiredArgsConstructor;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 회원이 탈퇴하면 그 회원의 배송지를 모두 삭제한다.
+ * kidly.member.events에서 member.withdrawn을 받아 그 회원의 배송지를 모두 삭제한다.
+ * 같은 메시지를 다시 받아도 지울 배송지가 없어 아무 일도 하지 않는다. 트랜잭션은 ShippingAddressService.deleteAll이 연다.
  */
 @Component
 @RequiredArgsConstructor
 public class ShippingAddressMemberEventListener {
 
     private final ShippingAddressService shippingAddressService;
+    private final JsonMapper jsonMapper;
 
-    @DomainEventListener
-    public void on(MemberWithdrawnEvent event) {
+    @KafkaListener(id = "memberMemberEventListener", topics = "kidly.member.events",
+        groupId = "kidly.member", containerFactory = "memberKafkaListenerContainerFactory")
+    public void on(ConsumerRecord<String, String> record) {
+        switch (MemberKafkaListenerConfig.header(record, "eventType")) {
+            case "member.withdrawn" -> onWithdrawn(jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
+            default -> { }  // 회원이 받지 않는 종류
+        }
+    }
+
+    private void onWithdrawn(MemberWithdrawnEvent event) {
         shippingAddressService.deleteAll(event.data().memberId());
     }
 }
