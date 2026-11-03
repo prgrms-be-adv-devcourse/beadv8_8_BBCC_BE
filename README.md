@@ -17,6 +17,7 @@
 5. `./gradlew :apps:childprofile-service:bootRun` — 자녀 프로필 서비스(8084). 자녀 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8084로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `ChildProfileServiceApplication`. 같은 이유로 `Kidly 앱 + Gateway`에는 넣지 않았다
 6. `./gradlew :apps:recommend-service:bootRun` — 추천 서비스(8086). 추천 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8086으로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `RecommendServiceApplication`
 7. (선택) `./gradlew :apps:payment-service:bootRun` — 결제 서비스(8087). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 결제 API를 받는다
+8. (선택) `./gradlew :apps:settlement-service:bootRun` — 정산 서비스(8088). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 정산 API를 받는다. Gateway를 `KIDLY_SETTLEMENT_URI=http://localhost:8088`로 띄우면 정산 API가 이리로 간다
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - 프론트와 Swagger(http://localhost:8083/swagger-ui.html)는 Gateway 주소(8083)로 붙는다. Swagger 위쪽에서 앱 문서(`kidly`)와 `자녀 프로필` · `추천` 문서를 고른다(자녀 문서는 5, 추천 문서는 6이 떠 있어야 열린다). 앱(8080)에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 앱에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
@@ -43,6 +44,7 @@
 | `apps/childprofile-service` | 자녀 프로필 서비스(#682). 자녀 프로필 도메인은 이 서비스에만 있다 |
 | `apps/recommend-service` | 추천 서비스(#704). 추천 도메인은 이 서비스에만 있다 |
 | `apps/payment-service` | 결제 서비스. 앱도 아직 결제 도메인을 가지고 같은 구독 그룹으로 함께 돈다(#525). 그동안 결제 마이그레이션을 더하면 서비스의 `baseline-version`을 올린다 |
+| `apps/settlement-service` | 정산 서비스. 앱도 아직 정산 도메인을 가지고 같은 구독 그룹(`kidly.settlement`)으로 함께 돈다(#729). 자동 정산은 Batch JobInstance, 아웃박스 릴레이는 advisory lock으로 한 번만 돈다. 그동안 정산 마이그레이션을 더하면 서비스의 `baseline-version`을 올린다. 서비스에는 주문 · 결제가 없어 정산 Kafka 수신 스위치(`SETTLEMENT_KAFKA_CONSUMER_ENABLED`)를 끄면 이벤트를 받지 못한다 |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
