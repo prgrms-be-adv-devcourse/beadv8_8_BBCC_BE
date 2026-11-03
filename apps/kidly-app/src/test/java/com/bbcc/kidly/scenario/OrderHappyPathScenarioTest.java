@@ -11,11 +11,11 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
-import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -50,7 +50,6 @@ class OrderHappyPathScenarioTest {
     private static final long PRICE = 25_000L;
     private static final int INITIAL_STOCK = 10;
     private static final long PAYMENT_ID = 1L;
-    private static final long LEDGER_ID = 1L;
     private static final long CHILD_ID = 1L;
     private static final String BUSINESS_NAME = "키들리샵";
 
