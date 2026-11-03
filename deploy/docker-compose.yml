@@ -172,7 +172,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # 추천 서비스(apps/recommend-service, #704). 추천 API 와 판매자 · 자녀 · 상품 · 주문 이벤트 수신(구독 그룹 kidly.recommend). 보내는 이벤트는 없다
+  # 추천 서비스(apps/recommend-service, #704). 추천 API 와 판매자 · 자녀 · 상품 · 주문 · 검색 이벤트 수신(구독 그룹 kidly.recommend). 보내는 이벤트는 없다
   # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   recommend-service:
     image: ${RECOMMEND_IMAGE}
