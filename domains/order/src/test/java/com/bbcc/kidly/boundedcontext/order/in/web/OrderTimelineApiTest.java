@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
@@ -53,6 +54,9 @@ class OrderTimelineApiTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private DeliveryService deliveryService;
@@ -142,7 +146,7 @@ class OrderTimelineApiTest {
     @DisplayName("응답 모양(예시 ②): 결제 요청 전 재고 부족 취소면 PAID 없이 CANCELLED(approximate true), 나머지 NOT_APPLICABLE · []")
     void responseShapeOfOutOfStock() {
         Long orderId = place();
-        OrderDetail detail = orderService.getOrder(BUYER_ID, orderId);
+        OrderDetail detail = orderQueries.getOrder(BUYER_ID, orderId);
         orderService.cancelForStockDeductionFailure(new StockDeductionFailedCommand(orderId, List.of(
             new StockDeductionFailedCommand.Item(detail.items().get(0).orderItemId(), "OUT_OF_STOCK"))));
 
@@ -204,7 +208,7 @@ class OrderTimelineApiTest {
         assertThat(LocalDateTime.parse(step(delivered, "DELIVERED").get("at").asString())).isEqualTo(sameDeliveredAt);
         assertThat(step(delivered, "CONFIRMED").get("status").asString()).isEqualTo("WAITING");
 
-        List<OrderDetail.Item> items = orderService.getOrder(BUYER_ID, orderId).items();
+        List<OrderDetail.Item> items = orderQueries.getOrder(BUYER_ID, orderId).items();
         client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + items.get(0).orderItemId() + "/confirm")
             .headers(TestMembers.buyer(BUYER_ID))
             .exchange()
@@ -306,7 +310,7 @@ class OrderTimelineApiTest {
 
     private void payAndCreateDeliveries(Long orderId) {
         markPaymentRequested(orderId);
-        orderService.markPaid(MarkPaidCommands.matching(orderService.getOrder(BUYER_ID, orderId), BUYER_ID, 500L));
+        orderService.markPaid(MarkPaidCommands.matching(orderQueries.getOrder(BUYER_ID, orderId), BUYER_ID, 500L));
         deliveryService.createFor(orderId);
     }
 

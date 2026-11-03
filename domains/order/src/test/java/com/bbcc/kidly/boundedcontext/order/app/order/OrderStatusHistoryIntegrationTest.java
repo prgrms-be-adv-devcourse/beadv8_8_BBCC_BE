@@ -59,6 +59,9 @@ class OrderStatusHistoryIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderQueryService orderQueries;
+
+    @Autowired
     private DeliveryService deliveryService;
 
     @Autowired
@@ -146,7 +149,7 @@ class OrderStatusHistoryIntegrationTest {
     @DisplayName("구매확정: 직접(구매자 · DIRECT) · 자동(시스템 · AUTO) 주문상품 ORDERED>CONFIRMED 1줄씩, 다시 확정해도 0줄")
     void confirm() {
         Long orderId = placeAndPay(true);
-        List<OrderDetail.Item> items = orderService.getOrder(BUYER_ID, orderId).items();
+        List<OrderDetail.Item> items = orderQueries.getOrder(BUYER_ID, orderId).items();
         Long direct = items.get(0).orderItemId();
         Long auto = items.get(1).orderItemId();
         deliveredAtSetter.recordDelivered(orderId, SELLER_ID, LocalDateTime.now().minusDays(1));

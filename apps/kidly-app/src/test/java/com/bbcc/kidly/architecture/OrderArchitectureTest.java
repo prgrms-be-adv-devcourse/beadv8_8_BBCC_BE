@@ -161,7 +161,7 @@ class OrderArchitectureTest {
         .map(context -> slices()
             .matching(BASE + context + ".app.(*)..")
             .should().notDependOnEachOther()
-            .ignoreDependency(alwaysTrue(), resideInAPackage(BASE + context + ".app.port.."))
+            .ignoreDependency(alwaysTrue(), resideInAPackage(BASE + context + ".app.[port|config].."))
             .allowEmptyShould(true))
         .toList());
 

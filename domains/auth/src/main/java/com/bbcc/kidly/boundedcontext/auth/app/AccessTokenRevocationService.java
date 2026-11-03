@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.auth.app;
 
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.auth.PrincipalType;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
 import java.time.LocalDateTime;
@@ -28,18 +28,18 @@ public class AccessTokenRevocationService implements MemberTokenRevoker {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void revoke(Long memberId, LocalDateTime revokedAt) {
-        revoke(PrincipalType.MEMBER, memberId, revokedAt);
+        revoke(PrincipalId.member(memberId), revokedAt);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void revoke(PrincipalType type, Long principalId, LocalDateTime revokedAt) {
-        eventPublisher.publish(new AuthTokensRevokedEvent(
-            UUID.randomUUID(), revokedAt, new AuthTokensRevokedEvent.Data(type, principalId, revokedAt)));
+    public void revoke(PrincipalId principal, LocalDateTime revokedAt) {
+        eventPublisher.publish(new AuthTokensRevokedEvent(UUID.randomUUID(), revokedAt,
+            new AuthTokensRevokedEvent.Data(principal.type(), principal.id(), revokedAt)));
         // 감사 로그. 롤백된 무효화는 남기지 않는다
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                log.info("Access Token 무효화: type={} principalId={}", type, principalId);
+                log.info("Access Token 무효화: type={} principalId={}", principal.type(), principal.id());
             }
         });
     }

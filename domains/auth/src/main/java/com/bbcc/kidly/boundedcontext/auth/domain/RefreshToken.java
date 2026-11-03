@@ -1,9 +1,10 @@
 package com.bbcc.kidly.boundedcontext.auth.domain;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import jakarta.persistence.Column;
+import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -21,7 +22,7 @@ import org.springframework.security.crypto.keygen.Base64StringKeyGenerator;
 import org.springframework.security.crypto.keygen.StringKeyGenerator;
 
 /**
- * 회원의 Refresh Token. 회원당 1개이고(PK가 member_id), 원문 대신 SHA-256 해시만 저장한다.
+ * 주체(회원 · 관리자)의 Refresh Token. 주체당 1개이고(PK가 (principal_type, principal_id)), 원문 대신 SHA-256 해시만 저장한다.
  * 발급 · 교체는 동시 요청에도 한 행만 남도록 {@link RefreshTokenRepository}의 쿼리 한 번으로 한다.
  */
 @Entity
@@ -43,9 +44,8 @@ public class RefreshToken extends BaseTimeEntity {
     // 교체 직후 직전 토큰이 오는 것은 탭 여러 개가 동시에 재발급한 것이라 이 시간 안에는 탈취로 보지 않는다
     private static final Duration REUSE_GRACE = Duration.ofSeconds(10);
 
-    @Id
-    @Column(name = "member_id")
-    private Long memberId;
+    @EmbeddedId
+    private RefreshTokenId id;
 
     @Column(name = "token_hash", nullable = false, length = 64)
     private String tokenHash;
@@ -71,6 +71,10 @@ public class RefreshToken extends BaseTimeEntity {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256은 모든 JVM이 지원해야 한다", e);
         }
+    }
+
+    public PrincipalId principal() {
+        return id.toPrincipalId();
     }
 
     public boolean isUsable(LocalDateTime now) {

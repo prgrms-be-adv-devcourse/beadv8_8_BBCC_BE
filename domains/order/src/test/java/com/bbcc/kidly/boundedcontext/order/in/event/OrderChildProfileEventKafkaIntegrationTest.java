@@ -125,6 +125,23 @@ class OrderChildProfileEventKafkaIntegrationTest {
         assertThat(output.getOut()).contains("eventId=" + eventId).doesNotContain(marker);
     }
 
+    @Test
+    @DisplayName("Kafka와 Spring 모두 최초 삭제를 보존하고 과거 활성 이벤트로 되살리지 않는다")
+    void deletionBeforeProfileInBothPaths() {
+        Long springId = childId + 1;
+        var deletion = new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+            new ChildChangedEvent.Data(childId, 1L, null, null, null, null, null, null, true));
+        var springDeletion = new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+            new ChildChangedEvent.Data(springId, 1L, null, null, null, null, null, null, true));
+        eventDelivery.deliver(springDeletion, childChanged(springId, OCCURRED_AT.minusMinutes(1), false));
+        kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, deletion));
+        kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, childChanged(childId, OCCURRED_AT.minusMinutes(1), false)));
+        kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, deletion));
+        assertThat(storedChild(childId)).containsEntry("is_deleted", true).containsEntry("height_cm", null)
+            .isEqualTo(storedChild(springId));
+        assertThat(kafkaClient.deadLetters(TOPIC, deletion.eventId().toString())).isEmpty();
+    }
+
     private Map<String, Object> storedChild(Long id) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("select member_id, name, height_cm, weight_kg, "
             + "body_type, is_deleted, event_occurred_at from orders.replica_child where child_id = ?", id);

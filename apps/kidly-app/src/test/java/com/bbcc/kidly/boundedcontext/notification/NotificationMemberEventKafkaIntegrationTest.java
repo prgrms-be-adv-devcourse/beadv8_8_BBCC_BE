@@ -9,13 +9,13 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,12 +41,13 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * member.registered가 커밋되면 kidly.member.events를 거쳐 환영 메일을 저장하고 별도 스레드에서 보낸다(#567).
- * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
+ * 이 앱에는 회원 도메인이 없으므로(회원 서비스) 회원이 보내는 형식(키 correlationId, 헤더 eventType · eventId,
+ * 본문 공통 칸 7개 + data)으로 토픽에 직접 넣는다. 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
  * 회원 ID · 이메일을 테스트마다 새로 만들고, 결과는 이 테스트의 받는 사람 · 키로 걸러 본다.
  */
 @KafkaIntegrationTest
@@ -62,10 +63,7 @@ class NotificationMemberEventKafkaIntegrationTest {
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
+    private JsonMapper jsonMapper;
 
     @Autowired
     private JpaNotificationRepository jpaNotificationRepository;
@@ -101,8 +99,8 @@ class NotificationMemberEventKafkaIntegrationTest {
 
     @Test
     @DisplayName("가입 이벤트가 커밋되면 Kafka로 받아 환영 메일을 저장하고 비동기로 보낸다")
-    void sendWelcomeEmail() {
-        publishInTransaction(memberRegistered(email));
+    void sendWelcomeEmail() throws Exception {
+        send(memberRegistered(email));
 
         AsyncWait.until(TIMEOUT, () -> statusesOf(email).equals(List.of(NotificationStatus.SENT)));
         assertThat(notificationsOf(email)).singleElement().satisfies(notification -> {
@@ -120,11 +118,11 @@ class NotificationMemberEventKafkaIntegrationTest {
 
     @Test
     @DisplayName("같은 가입 이벤트를 두 번 받아도 메일은 한 통이다")
-    void duplicateEvent() {
+    void duplicateEvent() throws Exception {
         var event = memberRegistered(email);
 
-        publishInTransaction(event);
-        publishInTransaction(event);
+        send(event);
+        send(event);
 
         AsyncWait.until(TIMEOUT, () -> statusesOf(email).equals(List.of(NotificationStatus.SENT)));
         assertThat(sentTo(email)).hasSize(1);
@@ -132,10 +130,10 @@ class NotificationMemberEventKafkaIntegrationTest {
 
     @Test
     @DisplayName("초기 데이터처럼 예약 도메인으로 가입하면 메일을 보내지 않는다")
-    void skipReservedDomain() {
+    void skipReservedDomain() throws Exception {
         var reserved = "parent-" + UUID.randomUUID() + "@kidly.test";
 
-        publishInTransaction(memberRegistered(reserved));
+        send(memberRegistered(reserved));
 
         AsyncWait.until(TIMEOUT, () -> statusesOf(reserved).equals(List.of(NotificationStatus.SKIPPED)));
         assertThat(sentTo(reserved)).isEmpty();
@@ -147,7 +145,7 @@ class NotificationMemberEventKafkaIntegrationTest {
         sendRaw("member.changed", "받지 않는 종류라 읽지 않는 본문");
 
         // 키(회원 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
-        publishInTransaction(memberRegistered(email));
+        send(memberRegistered(email));
 
         AsyncWait.until(TIMEOUT, () -> statusesOf(email).equals(List.of(NotificationStatus.SENT)));
         assertThat(deadLetters()).isEmpty();
@@ -187,8 +185,18 @@ class NotificationMemberEventKafkaIntegrationTest {
         return fakeNotificationEmailSender.sent().stream().filter(sent -> sent.to().equals(recipient)).toList();
     }
 
-    private void publishInTransaction(MemberRegisteredEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
+    // 회원이 보내는 형식 그대로 넣는다. 키는 correlationId(회원 ID)다
+    private void send(MemberRegisteredEvent event) throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("eventId", event.eventId());
+        body.put("eventType", event.eventType());
+        body.put("schemaVersion", event.schemaVersion());
+        body.put("occurredAt", event.occurredAt());
+        body.put("producer", event.producer());
+        body.put("aggregateId", event.aggregateId());
+        body.put("correlationId", event.correlationId());
+        body.put("data", event.data());
+        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(body));
     }
 
     private MemberRegisteredEvent memberRegistered(String recipient) {
@@ -198,8 +206,12 @@ class NotificationMemberEventKafkaIntegrationTest {
 
     // 회원이 보내지 않는 메시지(다른 종류 · 깨진 본문)를 이 테스트의 회원 ID 키로 직접 넣는다
     private RecordMetadata sendRaw(String eventType, String body) throws Exception {
+        return sendRaw(eventType, UUID.randomUUID(), body);
+    }
+
+    private RecordMetadata sendRaw(String eventType, UUID eventId, String body) throws Exception {
         var record = new ProducerRecord<>(TOPIC, String.valueOf(memberId), body);
-        record.headers().add("eventId", UUID.randomUUID().toString().getBytes(UTF_8));
+        record.headers().add("eventId", eventId.toString().getBytes(UTF_8));
         record.headers().add("eventType", eventType.getBytes(UTF_8));
         try (var producer = new KafkaProducer<String, String>(Map.of(
             ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),

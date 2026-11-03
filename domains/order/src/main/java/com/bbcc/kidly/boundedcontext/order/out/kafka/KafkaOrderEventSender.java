@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.errors.RecordTooLargeException;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -76,6 +77,16 @@ class KafkaOrderEventSender implements OrderEventSender, DisposableBean {
             Thread.currentThread().interrupt();
             throw failed(e);
         }
+    }
+
+    @Override
+    public boolean isPermanentFailure(RuntimeException error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof RecordTooLargeException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

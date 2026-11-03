@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.app.deadletter.UnreadableOrderMessageException;
 import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;

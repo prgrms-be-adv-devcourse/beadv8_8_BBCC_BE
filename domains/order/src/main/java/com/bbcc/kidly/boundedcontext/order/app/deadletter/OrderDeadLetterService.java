@@ -1,10 +1,10 @@
 package com.bbcc.kidly.boundedcontext.order.app.deadletter;
 
-import com.bbcc.kidly.boundedcontext.order.app.DeadLetterReplay;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.OrderDeadLetterDetail;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.OrderDeadLetterSummary;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.ReceiveDeadLetterCommand;
+import com.bbcc.kidly.boundedcontext.order.app.port.DeadLetterInspection;
 import com.bbcc.kidly.boundedcontext.order.app.port.DeadLetterReplayer;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeadLetterRepository.DeadLetter;
@@ -48,7 +48,7 @@ public class OrderDeadLetterService {
 
     private final OrderDeadLetterRepository deadLetterRepository;
     private final OrderRepository orderRepository;
-    private final DeadLetterPayloads payloads;
+    private final DeadLetterInspection payloads;
     private final DeadLetterReplayer replayer;
     private final PlatformTransactionManager transactionManager;
 
@@ -58,12 +58,12 @@ public class OrderDeadLetterService {
      */
     @Transactional
     public void receive(ReceiveDeadLetterCommand command) {
-        DeadLetterPayloads.Fields fields = payloads.read(command.payload(), command.eventType(),
+        DeadLetterInspection.Fields fields = payloads.read(command.payload(), command.eventType(),
             command.messageKey());
         deadLetterRepository.saveReceived(new Received(command.sourceTopic(), command.sourcePartition(),
             command.sourceOffset(), command.messageKey(), command.eventType(), command.eventId(), command.payload(),
             fields.producer(), fields.occurredAt(), fields.aggregateId(), fields.correlationId(), fields.orderId(),
-            DeadLetterFailureTypes.of(command.exceptionClass()), command.exceptionClass(),
+            payloads.failureType(command.exceptionClass()), command.exceptionClass(),
             command.exceptionMessage(), command.stackTrace(), LocalDateTime.now()));
     }
 
@@ -171,7 +171,12 @@ public class OrderDeadLetterService {
         withoutTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
         return withoutTransaction.execute(status -> {
             try {
-                return new ReplayAttempt(replayer.replay(message), null);
+                DeadLetterReplayer.Outcome outcome = replayer.replay(new DeadLetterReplayer.Message(
+                    message.sourceTopic(),
+                    message.sourcePartition(), message.sourceOffset(), message.messageKey(), message.eventType(),
+                    message.eventId(), message.payload()));
+                return new ReplayAttempt(outcome.handedOff()
+                    ? DeadLetterReplay.Outcome.HANDED_OFF : DeadLetterReplay.Outcome.PROCESSED, null);
             } catch (RuntimeException e) {
                 return new ReplayAttempt(null,
                     NestedExceptionUtils.getMostSpecificCause(e).getClass().getSimpleName());

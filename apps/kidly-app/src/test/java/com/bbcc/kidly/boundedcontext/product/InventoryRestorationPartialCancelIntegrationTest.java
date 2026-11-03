@@ -177,6 +177,24 @@ class InventoryRestorationPartialCancelIntegrationTest {
         assertThat(output.getOut()).containsPattern("ERROR .*거절한 주문상품의 주문상품 취소됨");
     }
 
+    @Test
+    @DisplayName("INV-04 부분 취소한 주문상품 중 일부만 차감 기록이 있으면 있는 DEDUCTED만 되돌리고, 기록이 없는 주문상품은 도메인 사이 버그라 ERROR 로그를 남긴다")
+    void restoreRecordedAndLogMissingOrderItems(CapturedOutput output) {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+
+        publishInTransaction(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
+            cancelledOrderItem(11L, options.navy110(), 2),
+            cancelledOrderItem(14L, options.navy120(), 1)));
+
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+        assertThat(inventoryDeductionDb.availableQty(options.navy120())).isEqualTo(5);
+        assertThat(inventoryDeductionDb.records())
+            .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "RESTORED"));
+        assertThat(output.getOut())
+            .containsPattern("ERROR .*차감 기록이 없는 주문상품이 든 주문상품 취소됨.*orderItemIds=\\[14\\]");
+    }
+
     private void publishInTransaction(DomainEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }

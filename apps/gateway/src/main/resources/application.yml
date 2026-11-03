@@ -82,6 +82,23 @@ spring:
                 - Path=/v3/api-docs/recommend
               filters:
                 - SetPath=/v3/api-docs
+            # 정산 API(판매자 · 관리자)는 정산 서비스로 간다(#729). 경로는 정산 컨트롤러 기준이고 역할 검사(RoleFilter)는 원래 경로로 한다
+            - id: settlement
+              uri: ${kidly.gateway.settlement-uri}
+              predicates:
+                - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**
+            # 회원 · 인증 · 판매자 API는 회원 서비스로 간다
+            - id: member
+              uri: ${kidly.gateway.member-uri}
+              predicates:
+                - Path=/api/v1/auth/**,/api/v1/members/**,/api/v1/seller/me/**,/api/v1/admin/admins/**,/api/v1/admin/members/**,/api/v1/admin/sellers/**,/api/v1/admin/seller-applications/**,/api/v1/dev/**
+            # 회원 API 문서는 회원 서비스의 문서를 읽는다
+            - id: member-api-docs
+              uri: ${kidly.gateway.member-uri}
+              predicates:
+                - Path=/v3/api-docs/member
+              filters:
+                - SetPath=/v3/api-docs
             # 결제 · 지갑 · 충전 · 토스 웹훅 · 결제 관리자 API는 결제 서비스로 간다(#525)
             # kidly-app도 아직 결제 도메인을 가지고 있어, 서비스를 켜지 않은 환경은 기본값(kidly-app)으로 지금처럼 간다
             # 응답 제한은 전체 값(55초)을 쓴다. 충전 승인이 토스를 동기로 부른다(위 httpclient 주석)
@@ -130,19 +147,23 @@ spring:
     activate:
       on-profile: local
 
-# kidly-app(8080) · search-service(8082) · childprofile-service(8084) · recommend-service(8086) · payment-service(8087)와 같이 띄운다
+# kidly-app(8080) · member-service(8081) · search-service(8082) · childprofile-service(8084) · recommend-service(8086) · payment-service(8087) · settlement-service(8088)와 같이 띄운다
 server:
   port: 8083
 
 kidly:
   gateway:
     app-uri: http://localhost:8080
+    # 회원 · 인증 · 판매자는 kidly-app에 없다. member-service(8081)를 띄워야 회원 API가 된다
+    member-uri: ${KIDLY_MEMBER_URI:http://localhost:8081}
     # 상품 목록도 기본은 kidly-app이 받는다. search-service(8082)로 볼 때만 KIDLY_SEARCH_URI=http://localhost:8082로 띄운다
     search-uri: ${KIDLY_SEARCH_URI:http://localhost:8080}
     # 자녀 프로필은 kidly-app에 없다. childprofile-service(8084)를 띄워야 자녀 API가 된다
     childprofile-uri: ${KIDLY_CHILDPROFILE_URI:http://localhost:8084}
     # 추천은 kidly-app에 없다. recommend-service(8086)를 띄워야 추천 API가 된다
     recommend-uri: ${KIDLY_RECOMMEND_URI:http://localhost:8086}
+    # 정산도 기본은 kidly-app이 받는다(kidly-app에도 정산이 남아 있다). settlement-service(8088)로 볼 때만 KIDLY_SETTLEMENT_URI=http://localhost:8088로 띄운다
+    settlement-uri: ${KIDLY_SETTLEMENT_URI:http://localhost:8080}
     # 결제는 기본으로 kidly-app이 받는다. payment-service(8087)로 볼 때만 KIDLY_PAYMENT_URI=http://localhost:8087로 띄운다
     payment-uri: ${KIDLY_PAYMENT_URI:http://localhost:8080}
 
@@ -172,9 +193,11 @@ logging:
 kidly:
   gateway:
     app-uri: ${KIDLY_APP_URI}
+    member-uri: ${KIDLY_MEMBER_URI}
     search-uri: ${KIDLY_SEARCH_URI}
     childprofile-uri: ${KIDLY_CHILDPROFILE_URI}
     recommend-uri: ${KIDLY_RECOMMEND_URI}
+    settlement-uri: ${KIDLY_SETTLEMENT_URI}
     payment-uri: ${KIDLY_PAYMENT_URI}
 
 cors:

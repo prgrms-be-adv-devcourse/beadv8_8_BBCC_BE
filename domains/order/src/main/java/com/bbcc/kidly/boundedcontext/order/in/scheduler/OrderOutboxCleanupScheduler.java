@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxCleanupService;
-import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

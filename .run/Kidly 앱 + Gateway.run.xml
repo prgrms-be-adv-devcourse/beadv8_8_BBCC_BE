@@ -2,5 +2,6 @@
   <configuration default="false" name="Kidly 앱 + Gateway" type="CompoundRunConfigurationType">
     <toRun type="SpringBootApplicationConfigurationType" name="KidlyApplication" />
     <toRun type="SpringBootApplicationConfigurationType" name="GatewayApplication" />
+    <toRun type="SpringBootApplicationConfigurationType" name="MemberServiceApplication" />
   </configuration>
 </component>

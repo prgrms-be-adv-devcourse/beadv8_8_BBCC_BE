@@ -4,7 +4,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.order.app.deadletter.UnreadableOrderMessageException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

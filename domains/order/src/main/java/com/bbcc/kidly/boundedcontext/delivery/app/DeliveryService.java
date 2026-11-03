@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.delivery.app;
 
+import com.bbcc.kidly.boundedcontext.delivery.app.config.PartialCancelProperties;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.TrackingTarget;

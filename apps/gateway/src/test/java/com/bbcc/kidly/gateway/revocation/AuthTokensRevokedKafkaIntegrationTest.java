@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.gateway.support.AsyncWait;
 import com.bbcc.kidly.gateway.support.KafkaIntegrationTest;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import java.time.Duration;
 import java.time.Instant;
@@ -206,8 +207,8 @@ class AuthTokensRevokedKafkaIntegrationTest {
         return revocations.isRevoked(member(memberId), now.minus(ISSUED_BEFORE), now);
     }
 
-    private static PrincipalKey member(long memberId) {
-        return new PrincipalKey(PrincipalType.MEMBER, memberId);
+    private static PrincipalId member(long memberId) {
+        return new PrincipalId(PrincipalType.MEMBER, memberId);
     }
 
     private static long newMemberId() {

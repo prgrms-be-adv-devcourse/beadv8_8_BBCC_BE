@@ -9,7 +9,7 @@
 - `app`: 유스케이스 서비스. 오류 코드는 컨텍스트마다 `ErrorCode`를 구현한 enum(`ReviewErrorCode` · `FavoriteErrorCode`)과 `BusinessException`
 - `app.port`: 나가는 것(저장소 · 다른 컨텍스트)의 인터페이스, `app.port.in`: 다른 컨텍스트가 들어오는 인터페이스. 둘 다 최상위는 인터페이스만 두고, 주고받는 값은 그 인터페이스 안에 둔다(값은 record, 종류는 enum). 나가는 포트 구현은 `out`(저장소는 Spring Data `Jpa…Repository`가 포트를 상속), 들어오는 포트 구현은 app
 - `in`: `web`(컨트롤러 · `dto`, 관리자 API가 생기면 `web.admin`) · `event`(이벤트 수신 · 매퍼) · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
-- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 인터페이스 · 구현. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 넷만 둔다(`CommunityPackageLayoutArchitectureTest`)
+- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 · 기술 보관 행/저장소 어댑터. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 넷만 둔다(`CommunityPackageLayoutArchitectureTest`)
 - 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`
 - 한 앱 안에서 빈 · 엔티티 이름이 다른 도메인과 겹치면 기동이 실패한다: 다른 도메인에 같은 이름이 있을 수 있는 클래스(`…EventListener` · `SpringEventReceiver` · `EventGuard` 등)는 `Community` 접두어를 붙이고, 엔티티는 `@Entity(name = "Community…")`로 이름을 정한다
 - 검사: 계층 규칙은 `LayerArchitectureTest`(`LayerRules`), 컨텍스트 사이 규칙(내 out → 상대 `app.port.in`만)은 `CommunityContextArchitectureTest`, 패키지 배치는 `CommunityPackageLayoutArchitectureTest`. 컨텍스트 루트의 `package-info`는 `@NullMarked`로 클래스를 남겨 뼈대만 있을 때도 검사 대상이 비지 않게 한다
@@ -46,7 +46,10 @@
 
 ## 5. 지금 넣지 않는 것
 - 상태 전이 결과 타입 · `@Version` 낙관적 잠금: 리뷰 · 찜 · 복사본은 상태가 단순하고, 같은 행을 동시에 바꾸는 경쟁은 유일 제약 · 원자적 UPDATE · 상품별 잠금 안의 `occurredAt` 비교로 막는다
-- 처리 실패 보관 테이블 · DLT 보관 · 관리자 재처리: 수신 실패는 재시도 뒤 DLT로 충분하다. 복사본 · 자격은 같은 이벤트를 다시 받으면 1회분으로 맞춰진다
+- DLT 복구(#741): 커뮤니티 소유 DLT 두 개를 전용 컨테이너 처리기로 읽어 `community.dead_letter`에 보관한다. DLT 토픽 · 파티션 · 오프셋당 1건이며 DB 저장 전에는 처리 완료로 넘기지 않는다. 저장 실패는 최대 60초 간격으로 끝없이 재시도하고 DLT의 DLT는 만들지 않는다. 원본 본문은 DB에만 보관하고 로그 · 관리자 응답에 넣지 않는다.
+- 관리자는 `/api/v1/admin/community/dead-letters` 목록 · 상세 · `/{id}/reprocess`로 복구한다. 정상 Kafka 처리기와 같은 decode/검증/저장 경로를 직접 호출하고 원래 토픽에 보내지 않는다. 미지원/깨진 메시지는 OPEN과 실패 종류를 유지하며 성공하면 REPROCESSED다. 이미 성공한 기록은 재실행하지 않는다. 동시 재처리도 자격은 주문상품당 1건이고, 늦게 끝난 실패가 성공 기록을 되돌리지 않는다.
+- 재처리 중 DLT 행 잠금이나 바깥 트랜잭션을 유지하지 않는다. 실제 반영은 원래 처리기의 트랜잭션으로, 처리 결과는 별도 짧은 조건부 UPDATE로 기록한다. 반영 후 결과 기록이 실패하면 OPEN이 남고 다시 시도해도 1회분으로 수렴한다. DLT DB 행은 자동 삭제하지 않는다.
+- Kafka DLT는 별도 보존 기간을 지정하지 않아 브로커 정책을 따른다(환경의 `retention.ms` 확인). 보관 소비자가 중단돼 Kafka 보존 기간을 넘긴 누락은 주문 소유 관리자 API `/api/v1/admin/orders/purchase-confirmed-events`로 구매확정 사실을 재발행해 복구한다. 기존 `order-item.purchase-confirmed` 계약 · 주문 키 · 실제 confirmedAt을 유지하고, 커뮤니티는 정상 수신 경로로 자격을 채운다. 주문 외 스키마 직접 조회나 수신 그룹 오프셋 변경은 하지 않는다.
 - 아웃박스 · 릴레이 스케줄러: 커뮤니티가 이벤트를 발행하지 않는 동안은 필요 없다
 - 필요해지면 이 문서를 먼저 고치고 넣는다
 

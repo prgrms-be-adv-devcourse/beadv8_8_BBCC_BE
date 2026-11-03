@@ -7,10 +7,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,10 +23,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 판매자가 등록한 상품이 구매자의 상품 목록 · 상세까지 이어지는지 HTTP 요청만으로 확인한다.
- * 판매자 정보 변경됨 · 상품 정보 변경됨은 테스트가 발행하지 않는다. 판매자 승인 · 판매 시작 API가 발행하고,
+ * 판매자 승인은 회원 서비스에 있어 그때 나가는 판매자 정보 변경됨만 테스트가 발행한다. 상품 정보 변경됨은 판매 시작 API가 발행하고,
  * 상품의 리스너가 실제로 받아 판매자 복사본 · 검색용 표를 만든다.
  * 추천은 이 이벤트들을 Kafka로 받는 별도 서비스(recommend-service)라 이 테스트에서는 보지 않는다.
  * 상품 유형과 카테고리는 API가 없는 기준 데이터라서 매 테스트 전에 저장한다.
@@ -29,14 +35,11 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @FunctionalTest
 class ProductFlowApiTest {
 
-    private static final String APPLY_PATH = "/api/v1/members/me/seller-application";
-    private static final String APPROVE_PATH = "/api/v1/admin/seller-applications/{applicationId}/approve";
     private static final String SELLER_PRODUCTS_PATH = "/api/v1/seller/products";
     private static final String PRODUCTS_PATH = "/api/v1/products";
 
     // 판매자 ID는 회원 ID와 같다
     private static final long SELLER_ID = 7L;
-    private static final long ADMIN_ID = 99L;
     private static final String BUSINESS_NAME = "키들리 상점";
 
     @Autowired
@@ -44,6 +47,12 @@ class ProductFlowApiTest {
 
     @Autowired
     private ClothingTopSaver clothingTopSaver;
+
+    @Autowired
+    private EventPublisher eventPublisher;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     private SavedClothingTop saved;
 
@@ -66,25 +75,11 @@ class ProductFlowApiTest {
         expectBuyerDetail(productId);
     }
 
-    // 회원 7이 판매자 신청을 하고 관리자가 승인한다. 승인이 보낸 판매자 정보 변경됨으로 상품이 상호명을 받는다
+    // 회원 서비스가 회원 7의 판매자 신청을 승인할 때 보내는 판매자 정보 변경됨이다. 상품이 받아 상호명을 저장한다
     private void approveSeller() {
-        AtomicReference<Object> applicationId = new AtomicReference<>();
-        client.post().uri(APPLY_PATH)
-            .headers(TestMembers.buyer(SELLER_ID))
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(Map.of("businessName", BUSINESS_NAME, "representativeName", "김판매",
-                "businessRegistrationNumber", "1234567890"))
-            .exchange()
-            .expectStatus().isCreated()
-            .expectBody()
-            .jsonPath("$.id").value(applicationId::set);
-
-        client.post().uri(APPROVE_PATH, applicationId.get())
-            .headers(TestMembers.admin(ADMIN_ID))
-            .exchange()
-            .expectStatus().isOk()
-            .expectBody()
-            .jsonPath("$.status").isEqualTo("APPROVED");
+        var approved = new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new SellerChangedEvent.Data(SELLER_ID, BUSINESS_NAME, SellerStatus.ACTIVE));
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(approved));
     }
 
     // 판매자 7이 상품 A를 등록한다. 네이비 110(105 ~ 115cm) · 네이비 120(115 ~ 125cm)이고 둘 다 재고 10, 25,000원이다

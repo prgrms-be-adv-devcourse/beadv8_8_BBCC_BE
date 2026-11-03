@@ -18,6 +18,6 @@ public class DevTokenService {
 
     public String issue(DevTokenRequest request) {
         var nickname = StringUtils.hasText(request.nickname()) ? request.nickname() : "회원" + request.memberId();
-        return accessTokenIssuer.issue(new TokenSubject(request.memberId(), nickname, request.roles()));
+        return accessTokenIssuer.issue(new TokenSubject.Member(request.memberId(), nickname, request.roles()));
     }
 }

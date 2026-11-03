@@ -7,7 +7,7 @@ import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.WALLET_ID;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.List;
@@ -88,7 +88,7 @@ class AdminPaymentApiTest {
 
     private RestTestClient.ResponseSpec getAsAdmin(String uri) {
         return client.get().uri(uri)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange();
     }
 }

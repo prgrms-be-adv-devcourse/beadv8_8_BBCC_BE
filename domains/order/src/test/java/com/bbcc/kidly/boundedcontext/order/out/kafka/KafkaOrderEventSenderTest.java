@@ -8,6 +8,10 @@ import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.errors.RecordTooLargeException;
+import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.common.errors.AuthenticationException;
+import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,5 +62,24 @@ class KafkaOrderEventSenderTest {
         new KafkaOrderEventSender(bootFactory).destroy();
 
         verify(copied).destroy();
+    }
+    @Test
+    @DisplayName("크기 초과만 영구 실패이며 래퍼 예외 안에서도 찾는다. 환경 · 타임아웃 · 기타 오류는 격리하지 않는다")
+    void classifiesOnlyKnownPermanentRejection() {
+        var factory = new DefaultKafkaProducerFactory<String, String>(Map.of(
+            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:1"));
+        KafkaOrderEventSender sender = new KafkaOrderEventSender(factory);
+        try {
+            assertThat(sender.isPermanentFailure(new RecordTooLargeException("size"))).isTrue();
+            assertThat(sender.isPermanentFailure(new IllegalStateException("wrapped",
+                new RecordTooLargeException("size")))).isTrue();
+            assertThat(sender.isPermanentFailure(new TimeoutException("timeout"))).isFalse();
+            assertThat(sender.isPermanentFailure(new AuthenticationException("auth"))).isFalse();
+            assertThat(sender.isPermanentFailure(new SerializationException("config"))).isFalse();
+            assertThat(sender.isPermanentFailure(new IllegalStateException("unknown"))).isFalse();
+        } finally {
+            sender.destroy();
+            factory.destroy();
+        }
     }
 }

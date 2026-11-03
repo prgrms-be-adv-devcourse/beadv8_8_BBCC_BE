@@ -26,8 +26,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 자녀 프로필은 자녀 프로필 서비스로(#682), 추천은 추천 서비스로(#704),
- * 결제는 결제 서비스로(#525), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
+ * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 자녀 프로필은 자녀 프로필 서비스로(#682), 추천은 추천 서비스로(#704), 정산은 정산 서비스로(#729),
+ * 회원 · 인증 · 판매자는 회원 서비스로, 결제는 결제 서비스로(#525), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  */
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
@@ -36,6 +36,10 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     // nginx dev 블록이 받는 이름. 허용 origin(프론트)에는 없다
     private static final String NGINX_HOST = "dev-api.example";
     private static final String CLIENT_IP = "1.2.3.4";
+
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.MEMBER)
+    private RecordingBackend memberBackend;
 
     @Autowired
     @Qualifier(RecordingBackendConfiguration.SEARCH)
@@ -50,14 +54,20 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     private RecordingBackend recommendBackend;
 
     @Autowired
+    @Qualifier(RecordingBackendConfiguration.SETTLEMENT)
+    private RecordingBackend settlementBackend;
+
+    @Autowired
     @Qualifier(RecordingBackendConfiguration.PAYMENT)
     private RecordingBackend paymentBackend;
 
     @BeforeEach
     void resetServiceBackends() {
+        memberBackend.reset();
         searchBackend.reset();
         childProfileBackend.reset();
         recommendBackend.reset();
+        settlementBackend.reset();
         paymentBackend.reset();
     }
 
@@ -170,6 +180,95 @@ class RoutingIntegrationTest extends GatewayTestSupport {
         assertThat(recommendBackend.lastRequest()).isEmpty();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/seller/settlement-targets",
+        "/api/v1/seller/settlements?page=0",
+        "/api/v1/seller/settlements/5",
+        "/api/v1/admin/settlements",
+        "/api/v1/admin/settlements/5/retry",
+        "/api/v1/admin/settlements/run",
+        "/api/v1/admin/settlement-runs/9",
+        "/api/v1/admin/settlement-runs/9/recover"
+    })
+    @DisplayName("정산 API는 같은 메서드 · 경로 · 쿼리로 정산 서비스에 넘긴다")
+    void routesSettlementsToSettlementService(String path) {
+        // 역할 검사는 RoleFilterIntegrationTest가 본다. 여기서는 라우팅만 보려고 경로가 요구하는 주체의 토큰을 쓴다
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isOk();
+
+        assertThat(settlementBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create(path)));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/seller/products", "/api/v1/seller/settlementsx", "/api/v1/admin/settlement", "/api/v1/admin/orders"
+    })
+    @DisplayName("정산과 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
+    void routesSettlementLookalikesToKidlyApp(String path) {
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(settlementBackend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/auth/login/kakao?x=1", "/api/v1/auth/logout?x=1", "/api/v1/auth/reissue?x=1",
+        "/api/v1/auth/admin/login?x=1", "/api/v1/auth/admin/logout?x=1", "/api/v1/auth/admin/reissue?x=1",
+        "/api/v1/dev/tokens?x=1", "/api/v1/members/me?x=1", "/api/v1/members/me/addresses/1?x=1",
+        "/api/v1/members/me/seller-application?x=1", "/api/v1/seller/me?x=1",
+        "/api/v1/admin/admins/1?x=1", "/api/v1/admin/members/1?x=1",
+        "/api/v1/admin/sellers/1/changed-events?x=1", "/api/v1/admin/seller-applications/1?x=1"
+    })
+    @DisplayName("회원 API는 같은 메서드 · 경로 · 쿼리로 회원 서비스에 넘긴다")
+    void routesMembersToMemberService(String path) {
+        var request = client.patch().uri(path);
+        if (path.startsWith("/api/v1/admin/") || path.startsWith("/api/v1/seller/")) {
+            request.header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path));
+        }
+        request.exchange().expectStatus().isOk();
+
+        assertThat(memberBackend.lastRequest()).hasValueSatisfying(recorded -> {
+            assertThat(recorded.method()).isEqualTo("PATCH");
+            assertThat(recorded.uri()).isEqualTo(URI.create(path));
+        });
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("회원 API 문서는 회원 서비스의 /v3/api-docs로 넘긴다")
+    void routesMemberApiDocsToMemberService() {
+        client.get().uri("/v3/api-docs/member").exchange().expectStatus().isOk();
+
+        assertThat(memberBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/v3/api-docs")));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/membersx", "/api/v1/seller/products", "/api/v1/admin/memberships"})
+    @DisplayName("회원 경로와 이름만 비슷한 경로는 kidly-app에 넘긴다")
+    void routesMemberLookalikesToKidlyApp(String path) {
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(memberBackend.lastRequest()).isEmpty();
+    }
+
+    private static String bearerAllowedOn(String path) {
+        var now = Instant.now();
+        var expiresAt = now.plus(Duration.ofMinutes(30));
+        var token = path.startsWith("/api/v1/admin/")
+            ? TestTokens.issueAdmin(7L, now, expiresAt)
+            : TestTokens.issue(7L, List.of("SELLER"), now, expiresAt);
+        return "Bearer " + token;
+    }
+
     @Test
     @DisplayName("추천 API 문서는 추천 서비스의 /v3/api-docs로 넘긴다")
     void routesRecommendApiDocsToRecommendService() {
@@ -210,13 +309,9 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/admin/payments", "/api/v1/admin/wallets"})
-    @DisplayName("결제 관리자 API는 ADMIN 토큰이면 결제 서비스에 넘긴다")
+    @DisplayName("결제 관리자 API는 관리자 토큰이면 결제 서비스에 넘긴다")
     void routesAdminPaymentToPaymentService(String path) {
-        var now = Instant.now();
-        client.get().uri(path)
-            .header(HttpHeaders.AUTHORIZATION,
-                "Bearer " + TestTokens.issue(7L, List.of("ADMIN"), now, now.plus(Duration.ofMinutes(30))))
-            .exchange()
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
             .expectStatus().isOk();
 
         assertThat(paymentBackend.lastRequest()).hasValueSatisfying(request ->
@@ -238,12 +333,12 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     @Test
     @DisplayName("그 밖의 요청은 같은 경로 · 쿼리로 kidly-app에 넘긴다")
     void routesToKidlyApp() {
-        client.get().uri("/api/v1/members/me?x=1").exchange()
+        client.get().uri("/api/v1/orders?x=1").exchange()
             .expectStatus().isOk();
 
         assertThat(backend.lastRequest()).hasValueSatisfying(request -> {
             assertThat(request.method()).isEqualTo("GET");
-            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/members/me?x=1"));
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/orders?x=1"));
         });
     }
 

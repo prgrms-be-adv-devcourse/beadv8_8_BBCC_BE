@@ -11,11 +11,14 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
-import com.bbcc.kidly.support.IssuedAccessToken;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -34,14 +37,17 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 전 도메인 정상 흐름 ①~⑦(#359). 사람 행동은 각 도메인의 실제 API, 도메인 사이는 실제 이벤트 · 리스너로만 지난다
- * (③은 예외: 자녀 API가 앱 밖으로 빠져(#682) child.changed를 테스트가 직접 발행한다). 확인은 단계별 결과
- * (상태 · 재고 · 예치금 · 정산)만 본다. 회원은 실제 로그인 API로 가입시킨다(카카오는 support/FakeOAuthClient 대역).
+ * (예외: 회원 · 판매자는 회원 서비스로, 자녀 API는 자녀 서비스로(#682) 빠져 가입 · 판매자 승인 · 자녀 등록 때 나가는
+ * member.registered · seller.changed · child.changed를 테스트가 직접 발행한다). 확인은 단계별 결과
+ * (상태 · 재고 · 예치금 · 정산)만 본다.
  * API가 없는 준비만 테스트가 직접 넣는다: 상품 기준 데이터(카테고리 · 상품 유형 · 항목 값)와 구매자 예치금.
  */
 @FunctionalTest
 class OrderHappyPathScenarioTest {
 
     private static final Long ADMIN_ID = 99L;
+    private static final Long BUYER_ID = 1L;
+    private static final Long SELLER_ID = 2L;
     private static final long PRICE = 25_000L;
     private static final int INITIAL_STOCK = 10;
     private static final long BUYER_DEPOSIT = 100_000L;
@@ -73,28 +79,17 @@ class OrderHappyPathScenarioTest {
     @Test
     @DisplayName("가입 → 판매자 등록 → 상품 판매 시작 → 자녀 등록 → 담기 · 주문(재고 · 결제) → 배송 → 구매확정 → 정산 · 지급이 끝까지 이어진다")
     void happyPath() {
-        buyerId = signUp("scenario-buyer");
-        sellerId = signUp("scenario-seller");
-        assertThat(sellerId).as("0 구매자 · 판매자는 다른 회원").isNotEqualTo(buyerId);
+        buyerId = signUp(BUYER_ID, "buyer@kidly.test");
+        sellerId = signUp(SELLER_ID, "seller@kidly.test");
         depositToBuyer();
         Long categoryId = saveSockCategory();
 
-        // ① 판매자 등록: 신청 → 관리자 승인 → seller.changed → 주문 판매자 복사본
-        Long applicationId = client.post().uri("/api/v1/members/me/seller-application")
-            .headers(TestMembers.buyer(sellerId))
-            .body(Map.of("businessName", BUSINESS_NAME, "representativeName", "김판매",
-                "businessRegistrationNumber", "1234567890"))
-            .exchange()
-            .expectStatus().isCreated()
-            .expectBody(IdBody.class).returnResult().getResponseBody().id();
-        client.post().uri("/api/v1/admin/seller-applications/" + applicationId + "/approve")
-            .headers(TestMembers.admin(ADMIN_ID))
-            .exchange()
-            .expectStatus().isOk();
+        // ① 판매자 등록: 회원 서비스가 승인 때 보내는 seller.changed → 주문 판매자 복사본
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new SellerChangedEvent(
+            UUID.randomUUID(), LocalDateTime.now(),
+            new SellerChangedEvent.Data(sellerId, BUSINESS_NAME, SellerStatus.ACTIVE))));
         assertThat(queryString("select business_name from orders.replica_seller where seller_id = ?", sellerId))
             .as("① 판매자 승인 뒤 주문 판매자 복사본 상호명").isEqualTo(BUSINESS_NAME);
-        // 회원은 seller.changed를 Kafka로 받아(Kafka가 없는 기능 테스트에서는 받지 않는다) 회원 판매자 상태는
-        // MemberSellerEventKafkaIntegrationTest가 본다. 이후 판매자 요청은 SELLER 토큰을 직접 만들어 보낸다
 
         // ② 상품 등록 · 판매 시작: product.changed → 주문 상품 복사본 구매 가능
         ProductBody product = client.post().uri("/api/v1/seller/products")
@@ -186,7 +181,7 @@ class OrderHappyPathScenarioTest {
         jdbcTemplate.update("update settlement.settlement_item set confirmed_at = ? where order_item_id = ?",
             LocalDateTime.now().minusDays(1), Long.valueOf(orderItemId));
         client.post().uri("/api/v1/admin/settlements/run")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .body(Map.of("cutoffOn", LocalDate.now().toString()))
             .exchange()
             .expectStatus().isCreated();
@@ -205,25 +200,12 @@ class OrderHappyPathScenarioTest {
     }
 
     /**
-     * 0단계 가입: 실제 로그인 API로 구매자 · 판매자를 가입시킨다(처음 로그인이면 가입). 카카오는 외부 요소라
-     * 테스트 대역(support/FakeOAuthClient, 인가 코드를 그대로 소셜 사용자 ID로 씀)이 대신하고, 코드가 다르면 다른 회원이다.
-     * 가입 이벤트로 결제 쪽이 지갑을 만든다. 받은 Access Token의 클레임으로 Gateway 헤더를 붙여(서비스는 토큰을 보지 않는다)
-     * 내 정보를 조회하고, 그 회원 ID를 이후 요청에 쓴다.
+     * 0단계 가입: 회원 서비스가 가입 때 보내는 member.registered를 발행한다. 결제 쪽이 받아 지갑을 만든다.
      */
-    private Long signUp(String authorizationCode) {
-        TokenBody login = client.post().uri("/api/v1/auth/login/kakao")
-            .body(Map.of("code", authorizationCode))
-            .exchange()
-            .expectStatus().isOk()
-            .expectBody(TokenBody.class).returnResult().getResponseBody();
-        assertThat(login).as("0 가입 로그인 응답").isNotNull();
-        IdBody me = client.get().uri("/api/v1/members/me")
-            .headers(IssuedAccessToken.decode(login.accessToken()).headers())
-            .exchange()
-            .expectStatus().isOk()
-            .expectBody(IdBody.class).returnResult().getResponseBody();
-        assertThat(me).as("0 가입 뒤 내 정보").isNotNull();
-        return me.id();
+    private Long signUp(Long memberId, String email) {
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new MemberRegisteredEvent(
+            UUID.randomUUID(), LocalDateTime.now(), new MemberRegisteredEvent.Data(memberId, email))));
+        return memberId;
     }
 
     /**
@@ -286,12 +268,6 @@ class OrderHappyPathScenarioTest {
 
     private Long queryLong(String sql, Object... args) {
         return jdbcTemplate.queryForObject(sql, Long.class, args);
-    }
-
-    private record TokenBody(String accessToken) {
-    }
-
-    private record IdBody(Long id) {
     }
 
     private record ProductBody(String productId, List<OptionRow> options) {

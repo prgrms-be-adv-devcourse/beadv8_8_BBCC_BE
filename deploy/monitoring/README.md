@@ -124,9 +124,11 @@ curl -s localhost:31100/ready                                                   
 
 Slack 메시지 형식은 `grafana/provisioning/alerting/templates.yml` 에 있습니다. 제목은 알림 이름 · 환경, 본문은 규칙의 `summary` · `description` 입니다.
 
+"앱 다운"은 배포 중 일시적인 메트릭 수집 실패로 알리지 않도록 5분 대기합니다. 실제 장애도 그만큼 늦게 알립니다.
+
 ```
 🔴 앱 다운 · dev                        ← warning 은 🟠 주황, 그 밖은 빨강. 같은 그룹에 여러 건이면 끝에 (N건)
-kidly 메트릭을 2분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile, 추천 서비스면 kidly-recommend, 결제 서비스면 kidly-payment
+kidly 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile, 추천 서비스면 kidly-recommend, 회원 서비스면 kidly-member, 결제 서비스면 kidly-payment
 규칙 보기 · 일시정지
 
 🟠 ERROR 로그 · dev
@@ -163,18 +165,20 @@ t3.large 의 Alloy 가 이 폴더를 읽어(`discovery.file`) 대상을 바꾸�
 Gateway 가 켜진 환경(dev · prod)도 같은 식으로 `targets/gateway/<환경>.yml` 에 `127.0.0.1:<GATEWAY_PORT>` 를 써 두고, job 은 `kidly-gateway` 입니다. 모든 요청이 지나가므로 "앱 다운" · "ERROR 로그" 알림은 Gateway 도 봅니다. "5xx 증가" 와 "수집 끊김" 은 앱(job `kidly`)만 봅니다(Gateway 는 앱의 5xx 를 그대로 넘겨 두 번 세게 되고, Alloy 가 끊기면 앱도 함께 끊긴다).
 자녀 프로필 서비스가 켜진 환경(dev · prod)은 `targets/childprofile/<환경>.yml` 에 `127.0.0.1:<CHILDPROFILE_PORT>` 를 써 두고, job 은 `kidly-childprofile` 입니다. 자녀 API 는 이 서비스에만 있어 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 봅니다. "5xx 증가" 는 앱과 이 서비스의 요청을 합쳐 봅니다(자녀 API 가 앱에 있던 때와 같은 범위). "수집 끊김" 은 앱(job `kidly`)만 봅니다.
 추천 서비스가 켜진 환경(dev · prod)은 `targets/recommend/<환경>.yml` 에 `127.0.0.1:<RECOMMEND_PORT>` 를 써 두고, job 은 `kidly-recommend` 입니다. 추천 API 는 이 서비스에만 있어 자녀 프로필 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다.
-결제 서비스가 켜진 환경은 `targets/payment/<환경>.yml` 에 `127.0.0.1:<PAYMENT_PORT>` 를 써 두고, job 은 `kidly-payment` 입니다. Gateway 가 결제 API 를 이 서비스로 보내므로 추천 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다. 지금은 어느 환경에도 켜지 않았습니다.
-로그는 Alloy 가 앱 · 검색 서비스 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 결제 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
+회원 서비스가 켜진 환경(dev · prod)은 `targets/member/<환경>.yml` 에 `127.0.0.1:<MEMBER_PORT>` 를 쓰고 job 은 `kidly-member` 입니다. 회원 API 는 이 서비스에만 있어 앱 다운 · ERROR 로그 · 5xx 알림에 포함합니다.
+정산 서비스가 켜진 환경(지금은 dev)은 `targets/settlement/<환경>.yml` 에 `127.0.0.1:<SETTLEMENT_PORT>` 를 써 두고, job 은 `kidly-settlement` 입니다. 앱도 아직 정산 API 를 가지고 있어 검색 서비스처럼 앱 알림은 보지 않습니다.
+결제 서비스가 켜진 환경은 `targets/payment/<환경>.yml` 에 `127.0.0.1:<PAYMENT_PORT>` 를 써 두고, job 은 `kidly-payment` 입니다. Gateway 가 결제 API 를 이 서비스로 보내므로 추천 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 · 회원 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다. 지금은 어느 환경에도 켜지 않았습니다.
+로그는 Alloy 가 앱 · 검색 서비스 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 정산 서비스 · 회원 서비스 · 결제 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 medium 의 Pod 로그는 `namespace` · `pod` · `container` · `service_name`(컨테이너 이름) 라벨로 들어갑니다(`env` 없음).
 
 t3.large 에서:
 
 ```bash
-cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml /opt/app/monitoring/targets/gateway/*.yml /opt/app/monitoring/targets/childprofile/*.yml /opt/app/monitoring/targets/recommend/*.yml /opt/app/monitoring/targets/payment/*.yml
+cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml /opt/app/monitoring/targets/gateway/*.yml /opt/app/monitoring/targets/childprofile/*.yml /opt/app/monitoring/targets/recommend/*.yml /opt/app/monitoring/targets/settlement/*.yml /opt/app/monitoring/targets/member/*.yml /opt/app/monitoring/targets/payment/*.yml
 docker compose -p monitoring logs alloy --tail 50   # 보내기 실패(medium 에 닿지 못함)가 여기 남는다
 ```
 
-환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색 · Gateway · 자녀 프로필 · 추천 · 결제가 켜져 있었으면 `targets/search/<환경>.yml` · `targets/gateway/<환경>.yml` · `targets/childprofile/<환경>.yml` · `targets/recommend/<환경>.yml` · `targets/payment/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
+환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색 · Gateway · 자녀 프로필 · 추천 · 정산 · 회원 · 결제가 켜져 있었으면 `targets/search/<환경>.yml` · `targets/gateway/<환경>.yml` · `targets/childprofile/<환경>.yml` · `targets/recommend/<환경>.yml` · `targets/settlement/<환경>.yml` · `targets/member/<환경>.yml` · `targets/payment/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
 
 ## 로그 보기
 
@@ -204,7 +208,7 @@ Logs Drilldown 앱 버전은 `k8s/grafana.yaml` 의 `GF_PLUGINS_PREINSTALL` 로 
 
 **Grafana 를 올릴 때 확인**: 앱 버전(`GF_PLUGINS_PREINSTALL`), 기능 플래그 `kubernetesLogsDrilldown`(실험 기능), 기본 열 API 경로 `apis/logsdrilldown.grafana.app/v1beta1/.../logsdrilldowndefaultcolumns`(`deploy.sh`). 경로가 바뀌면 `deploy.sh` 가 실패해 `#4팀-알림` 에 모니터링 배포 실패가 옵니다 — 컨테이너는 이미 새로 떠 있어 수집 · 알림은 그대로입니다.
 
-서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`, Gateway `kidly-gateway`, 자녀 프로필 서비스 `kidly-childprofile`, 추천 서비스 `kidly-recommend`, 결제 서비스 `kidly-payment`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
+서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`, Gateway `kidly-gateway`, 자녀 프로필 서비스 `kidly-childprofile`, 추천 서비스 `kidly-recommend`, 정산 서비스 `kidly-settlement`, 회원 서비스 `kidly-member`, 결제 서비스 `kidly-payment`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
 로그 줄을 펼치면 traceId 옆 "같은 요청 로그 보기" 링크로 그 요청의 로그를 모두 엽니다(Explore, 최근 24시간).
 나머지 필드는 `| json` 으로 펼쳐 거릅니다. 점은 `_` 로 바뀝니다.
 

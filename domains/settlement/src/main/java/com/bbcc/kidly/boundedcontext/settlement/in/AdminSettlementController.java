@@ -7,8 +7,8 @@ import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunRequest;
 import com.bbcc.kidly.boundedcontext.settlement.in.dto.AdminSettlementSummaryResponse;
 import com.bbcc.kidly.boundedcontext.settlement.in.dto.SettlementRunResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 정산 API. /api/v1/admin/** 라 ADMIN만 호출할 수 있다.
+ * 관리자 정산 API. /api/v1/admin/** 라 관리자 주체만 호출할 수 있다.
  */
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -54,7 +54,7 @@ public class AdminSettlementController {
     @PostMapping("/settlements/run")
     @ResponseStatus(HttpStatus.CREATED)
     public SettlementRunResponse run(
-        @LoginMember AuthMember admin, @Valid @RequestBody SettlementRunRequest request,
+        @LoginAdmin AuthAdmin admin, @Valid @RequestBody SettlementRunRequest request,
         HttpServletResponse response) {
         var run = settlementRunService.runManually(request.cutoffOn(), admin.id());
         response.setHeader(HttpHeaders.LOCATION, "/api/v1/admin/settlement-runs/" + run.runId());

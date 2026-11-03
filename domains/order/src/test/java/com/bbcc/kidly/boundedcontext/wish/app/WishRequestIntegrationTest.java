@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
@@ -70,6 +71,9 @@ class WishRequestIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private CartService cartService;
@@ -178,7 +182,7 @@ class WishRequestIntegrationTest {
             assertThat(approved.items()).extracting(WishRequestView.Line::wishItemId,
                     WishRequestView.Line::approvedQuantity)
                 .containsExactly(tuple(itemA, 3), tuple(itemB, null));
-            OrderDetail order = orderService.getOrder(BUYER_ID, approved.orderId());
+            OrderDetail order = orderQueries.getOrder(BUYER_ID, approved.orderId());
             assertThat(order.status()).isEqualTo("PENDING_PAYMENT");
             assertThat(order.items()).extracting(OrderDetail.Item::optionId, OrderDetail.Item::quantity,
                     item -> item.child().childId())
@@ -215,7 +219,7 @@ class WishRequestIntegrationTest {
         void paymentFailedStays() {
             Long requestId = send(itemA).requestId();
             Long orderId = approveOrder(requestId, 2).orderId();
-            OrderDetail order = orderService.getOrder(BUYER_ID, orderId);
+            OrderDetail order = orderQueries.getOrder(BUYER_ID, orderId);
 
             eventDelivery.deliver(stockDeducted(orderId), PaymentEvents.insufficientBalance(order, BUYER_ID));
 
@@ -315,7 +319,7 @@ class WishRequestIntegrationTest {
             Delivery delivery = deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId).getFirst();
             deliveryService.ship(SELLER_ID, delivery.getId(), "CJ", "1234567890");
             deliveryService.complete(SELLER_ID, delivery.getId());
-            Long orderItemId = orderService.getOrder(BUYER_ID, orderId).items().getFirst().orderItemId();
+            Long orderItemId = orderQueries.getOrder(BUYER_ID, orderId).items().getFirst().orderItemId();
             orderService.confirmByBuyer(BUYER_ID, orderId, orderItemId);
 
             assertThat(steps(wishRequestService.getTimeline(new TestChildWishActor(CHILD_ID), requestId)))
@@ -332,7 +336,7 @@ class WishRequestIntegrationTest {
             Long requestId = send(itemA).requestId();
             Long orderId = approveOrder(requestId, 2).orderId();
             eventDelivery.deliver(stockDeducted(orderId),
-                PaymentEvents.insufficientBalance(orderService.getOrder(BUYER_ID, orderId), BUYER_ID));
+                PaymentEvents.insufficientBalance(orderQueries.getOrder(BUYER_ID, orderId), BUYER_ID));
 
             assertThat(wishRequestService.getTimeline(PARENT, requestId).steps())
                 .extracting(WishTimelineView.Step::step, WishTimelineView.Step::status)
@@ -442,7 +446,7 @@ class WishRequestIntegrationTest {
 
     private void pay(Long orderId) {
         eventDelivery.deliver(stockDeducted(orderId));
-        eventDelivery.deliver(PaymentEvents.completed(orderService.getOrder(BUYER_ID, orderId), BUYER_ID));
+        eventDelivery.deliver(PaymentEvents.completed(orderQueries.getOrder(BUYER_ID, orderId), BUYER_ID));
     }
 
     private static StockDeductedEvent stockDeducted(Long orderId) {
