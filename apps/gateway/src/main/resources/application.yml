@@ -87,6 +87,12 @@ spring:
               uri: ${kidly.gateway.settlement-uri}
               predicates:
                 - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**
+            # 결제 API(결제 · 지갑 · 충전 · 토스 웹훅 · 관리자)는 결제 서비스로 간다(#525). 충전은 /api/v1/wallets/me/charges 라 지갑 경로에 들어 있다
+            # 토스 웹훅은 토큰 없이 오는 공개 API다. 역할 검사(RoleFilter)는 원래 경로로 한다
+            - id: payment
+              uri: ${kidly.gateway.payment-uri}
+              predicates:
+                - Path=/api/v1/payments/**,/api/v1/wallets/**,/api/v1/webhooks/toss,/api/v1/admin/payments/**,/api/v1/admin/wallets/**
             # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}
@@ -128,7 +134,7 @@ spring:
     activate:
       on-profile: local
 
-# kidly-app(8080) · search-service(8082) · childprofile-service(8084) · recommend-service(8086) · settlement-service(8088)와 같이 띄운다
+# kidly-app(8080) · search-service(8082) · childprofile-service(8084) · recommend-service(8086) · payment-service(8087) · settlement-service(8088)와 같이 띄운다
 server:
   port: 8083
 
@@ -143,6 +149,8 @@ kidly:
     recommend-uri: ${KIDLY_RECOMMEND_URI:http://localhost:8086}
     # 정산도 기본은 kidly-app이 받는다(kidly-app에도 정산이 남아 있다). settlement-service(8088)로 볼 때만 KIDLY_SETTLEMENT_URI=http://localhost:8088로 띄운다
     settlement-uri: ${KIDLY_SETTLEMENT_URI:http://localhost:8080}
+    # 결제도 기본은 kidly-app이 받는다(kidly-app에도 결제가 남아 있다). payment-service(8087)로 볼 때만 KIDLY_PAYMENT_URI=http://localhost:8087로 띄운다
+    payment-uri: ${KIDLY_PAYMENT_URI:http://localhost:8080}
 
 cors:
   allowed-origins: http://localhost:5173
@@ -174,6 +182,7 @@ kidly:
     childprofile-uri: ${KIDLY_CHILDPROFILE_URI}
     recommend-uri: ${KIDLY_RECOMMEND_URI}
     settlement-uri: ${KIDLY_SETTLEMENT_URI}
+    payment-uri: ${KIDLY_PAYMENT_URI}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}

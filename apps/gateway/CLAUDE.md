@@ -16,7 +16,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
   - 503 · 504 · 500: `web/GatewayErrorWebExceptionHandler`
   - 백엔드 호출 timeout(`application.yml`의 `spring.cloud.gateway.server.webflux.httpclient`): 연결 3초, 응답 55초. 55초는 결제 승인(Toss 연결 3초 + 읽기 30초)보다 길고 nginx 기본 `proxy_read_timeout` 60초보다 짧다. 테스트는 `application-test.yml`에서 응답 1초로 줄인다
   - 추천 라우트만 응답 3초(라우트 `metadata.response-timeout`, #704). 추천이 느려도 화면이 추천 영역만 비우고 넘어가게 한다. 테스트는 전체 1초 설정과 상관없이 라우트 값을 쓴다(`BackendTimeoutIntegrationTest`)
-- 라우트: `application.yml`로만. `/internal/**`은 404, `GET /api/v1/products`(상품 목록, 경로가 정확히 같을 때만)는 `kidly.gateway.search-uri`(#526), `/api/v1/children` · `/api/v1/children/**`(자녀 프로필)는 `kidly.gateway.childprofile-uri`(#682), `/v3/api-docs/childprofile`은 같은 서비스의 `/v3/api-docs`(kidly-app Swagger의 '자녀 프로필' 문서, `SetPath`), `/api/v1/recommendations/**`(추천)는 `kidly.gateway.recommend-uri`(#704), `/v3/api-docs/recommend`는 같은 서비스의 `/v3/api-docs`('추천' 문서), `/api/v1/seller/settlement-targets` · `/api/v1/seller/settlements[/**]` · `/api/v1/admin/settlements[/**]` · `/api/v1/admin/settlement-runs/**`(정산)는 `kidly.gateway.settlement-uri`(#729), 나머지는 kidly-app
+- 라우트: `application.yml`로만. `/internal/**`은 404, `GET /api/v1/products`(상품 목록, 경로가 정확히 같을 때만)는 `kidly.gateway.search-uri`(#526), `/api/v1/children` · `/api/v1/children/**`(자녀 프로필)는 `kidly.gateway.childprofile-uri`(#682), `/v3/api-docs/childprofile`은 같은 서비스의 `/v3/api-docs`(kidly-app Swagger의 '자녀 프로필' 문서, `SetPath`), `/api/v1/recommendations/**`(추천)는 `kidly.gateway.recommend-uri`(#704), `/v3/api-docs/recommend`는 같은 서비스의 `/v3/api-docs`('추천' 문서), `/api/v1/seller/settlement-targets` · `/api/v1/seller/settlements[/**]` · `/api/v1/admin/settlements[/**]` · `/api/v1/admin/settlement-runs/**`(정산)는 `kidly.gateway.settlement-uri`(#729), `/api/v1/payments[/**]` · `/api/v1/wallets[/**]`(충전 `/api/v1/wallets/me/charges/**` 포함) · `/api/v1/webhooks/toss` · `/api/v1/admin/payments[/**]` · `/api/v1/admin/wallets[/**]`(결제)는 `kidly.gateway.payment-uri`(#525), 나머지는 kidly-app
 - nginx가 넣은 `Host` · `X-Forwarded-*`는 덧붙이지 않고 그대로 넘긴다(`PreserveHostHeader`, `trusted-proxies`, `x-forwarded.*-enabled: false`). Gateway 자신은 `server.forward-headers-strategy: native`로 https · 원래 호스트로 본다(같은 출처 판단)
 
 ## 무효화 목록
@@ -42,7 +42,8 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 자녀 프로필은 `KIDLY_CHILDPROFILE_URI`로 넘긴다. 기본값은 `http://childprofile-service:8080`이고 kidly-app에는 자녀 API가 없다. profile `childprofile`이 꺼진 환경에서는 자녀 API가 실패한다
 - 추천은 `KIDLY_RECOMMEND_URI`로 넘긴다. 기본값은 `http://recommend-service:8080`이고 kidly-app에는 추천 API가 없다(#704). profile `recommend`가 꺼진 환경에서는 추천 API가 실패한다
 - 정산은 `KIDLY_SETTLEMENT_URI`로 넘긴다. 기본값은 `http://app:8080`이라 정산 서비스가 없는 환경은 kidly-app이 그대로 받는다(#729, kidly-app에도 정산이 함께 있다). 정산 서비스를 켠 환경은 `.env`에 `http://settlement-service:8080`을 둔다(profile `settlement`도 켜져 있어야 한다). 지금은 dev만 켰다(`.env.dev`), prod는 켜지 않았다
-- dev · prod 모두 서비스(kidly-app · search-service · childprofile-service · recommend-service · settlement-service)는 JWT를 보지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다. 서비스는 Gateway 뒤에서만 열려야 한다
+- 결제는 `KIDLY_PAYMENT_URI`로 넘긴다. 기본값은 `http://app:8080`이라 결제 서비스가 없는 환경은 kidly-app이 그대로 받는다(#525, kidly-app에도 결제가 함께 있다). 결제 서비스를 켠 환경은 `.env`에 `http://payment-service:8080`을 둔다(profile `payment`도 켜져 있어야 한다). 지금은 dev만 켰다(`.env.dev`), prod는 켜지 않았다. 토스 웹훅(`/api/v1/webhooks/toss`)은 토큰 없이 오는 공개 API라 그대로 넘긴다
+- dev · prod 모두 서비스(kidly-app · search-service · childprofile-service · recommend-service · settlement-service · payment-service)는 JWT를 보지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다. 서비스는 Gateway 뒤에서만 열려야 한다
 - nginx dev · 운영 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(dev 8081 · prod 8080)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
 ## 로컬 실행
@@ -50,3 +51,4 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 자녀 API(`/api/v1/children/**`)는 자녀 프로필 서비스(`:apps:childprofile-service:bootRun`, 8084)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_CHILDPROFILE_URI`를 준다
 - 추천 API(`/api/v1/recommendations/**`)는 추천 서비스(`:apps:recommend-service:bootRun`, 8086)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_RECOMMEND_URI`를 준다
 - 정산 API는 기본으로 kidly-app(8080)이 받는다. 정산 서비스(8088)로 볼 때만 `KIDLY_SETTLEMENT_URI=http://localhost:8088`을 준다
+- 결제 API는 기본으로 kidly-app(8080)이 받는다. 결제 서비스(8087)로 볼 때만 `KIDLY_PAYMENT_URI=http://localhost:8087`을 준다

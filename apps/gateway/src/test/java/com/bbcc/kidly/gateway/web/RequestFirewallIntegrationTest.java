@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend;
+import com.bbcc.kidly.gateway.support.RecordingBackendConfiguration;
 import com.bbcc.kidly.gateway.support.TestTokens;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
 import java.io.BufferedReader;
@@ -23,6 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -33,6 +36,10 @@ import org.springframework.http.MediaType;
  */
 @IntegrationTest
 class RequestFirewallIntegrationTest extends GatewayTestSupport {
+
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.PAYMENT)
+    private RecordingBackend paymentBackend;
 
     // 백엔드가 정규화 · 디코딩 · 매트릭스 제거를 하면 /api/v1/admin/** · /internal/**로 읽힐 수 있는 경로
     private static final List<String> BYPASS_PATHS = List.of(
@@ -186,15 +193,17 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("결제 웹훅은 그대로 넘긴다")
+    @DisplayName("결제 웹훅은 그대로 결제 서비스에 넘긴다")
     void passesPaymentWebhook() {
+        paymentBackend.reset();
+
         client.post().uri("/api/v1/webhooks/toss")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue("{\"eventType\":\"PAYMENT_STATUS_CHANGED\"}")
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo("/api/v1/webhooks/toss"));
     }
 
