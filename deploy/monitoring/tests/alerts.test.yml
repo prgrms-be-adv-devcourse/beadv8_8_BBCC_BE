@@ -1,0 +1,59 @@
+rule_files: [rules.yml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="kidly-search",env="dev"}'
+        values: '0+0x10 1+0x10'
+      - series: 'up{job="kidly-settlement",env="dev"}'
+        values: '0+0x10 1+0x10'
+      - series: 'up{job="kidly-search",env="prod"}'
+        values: '1+0x21'
+      - series: 'http_server_requests_seconds_count{job="kidly-search",env="dev",uri="/api/products",status="500"}'
+        values: '0+10x10 100+0x10'
+      - series: 'http_server_requests_seconds_count{job="kidly-member",env="dev",uri="/api/members",status="200"}'
+        values: '0+10000x21'
+      - series: 'http_server_requests_seconds_count{job="kidly-settlement",env="dev",uri="/api/settlements",status="500"}'
+        values: '0 1+0x20'
+      - series: 'http_server_requests_seconds_count{job="kidly-gateway",env="dev",uri="UNKNOWN",status="503"}'
+        values: '0+10x10 100+0x10'
+      - series: 'logback_events_total{job="kidly-search",env="dev",level="error"}'
+        values: '0+10x10 100+0x10'
+      - series: 'logback_events_total{job="kidly-settlement",env="dev",level="error"}'
+        values: '0 1+0x20'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: kidly-app-down
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: kidly-5xx-rate
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: kidly-app-down
+        exp_alerts:
+          - exp_labels: {job: kidly-search, env: dev}
+          - exp_labels: {job: kidly-settlement, env: dev}
+      - eval_time: 10m
+        alertname: kidly-5xx-rate
+        exp_alerts:
+          - exp_labels: {job: kidly-search, env: dev}
+      - eval_time: 10m
+        alertname: kidly-gateway-5xx-rate
+        exp_alerts:
+          - exp_labels: {job: kidly-gateway, env: dev}
+      - eval_time: 10m
+        alertname: kidly-error-log
+        exp_alerts:
+          - exp_labels: {job: kidly-search, env: dev}
+      - eval_time: 20m
+        alertname: kidly-app-down
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: kidly-5xx-rate
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: kidly-gateway-5xx-rate
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: kidly-error-log
+        exp_alerts: []

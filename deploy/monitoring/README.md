@@ -288,3 +288,10 @@ Gateway는 입구에서 본 요청이라 하위 서비스와 합산하지 않습
 시험 PR을 develop으로 롤백할 때 새로 추가한 Grafana 규칙은 파일에서 빠졌다는 이유만으로 삭제되지 않을 수 있습니다.
 이번 PR에서 새로 추가한 규칙은 `kidly-gateway-5xx-rate`입니다. 원복 시 임시 provisioning `deleteRules`로 해당 UID만 제거하고,
 원래 파일을 다시 적용한 뒤 기존 4개 규칙만 남는지 확인합니다. 다른 규칙이나 Secret은 삭제하지 않습니다.
+
+### 알림 쿼리 회귀 검증
+
+`ruby deploy/monitoring/tests/check-alerts.rb /path/to/promtool`로 실제 provisioning에서 쿼리·임계값·대기시간을 읽어 검사합니다.
+Prometheus `promtool`이 이미 있는 환경에서 실행하며 이 검사를 위해 새 이미지를 자동으로 받지 않습니다.
+검색·정산 다운, 환경 분리, 다른 서비스의 정상 트래픽에 가려지지 않는 5xx, Gateway 별도 경보,
+단발 ERROR/5xx 억제와 복구 해제를 검사합니다. Grafana 평가·Slack 전송·실제 화면은 dev에서 별도 검증합니다.
