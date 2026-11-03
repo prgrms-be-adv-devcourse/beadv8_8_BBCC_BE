@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.payment;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.MEMBER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventHandler;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.boundedcontext.payment.out.JpaWalletRepository;
@@ -20,7 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * member.withdrawn 커밋 → 지갑 동결(#670). 테스트 설정은 Kafka 수신 스위치가 꺼져 있어 Spring 리스너로 받는다.
+ * member.withdrawn 처리 → 지갑 동결(#670).
  * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest
@@ -28,6 +29,9 @@ class WalletFreezeIntegrationTest {
 
     @Autowired
     private EventPublisher eventPublisher;
+
+    @Autowired
+    private PaymentEventHandler paymentEventHandler;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -39,11 +43,11 @@ class WalletFreezeIntegrationTest {
     private JpaWalletRepository jpaWalletRepository;
 
     @Test
-    @DisplayName("회원 탈퇴 이벤트가 커밋되면 지갑을 동결하고 잔액은 그대로 둔다")
+    @DisplayName("회원 탈퇴를 처리하면 지갑을 동결하고 잔액은 그대로 둔다")
     void freezeOnWithdrawn() {
         walletRepository.save(PaymentFixture.wallet(5_000L));
 
-        publishInTransaction(memberWithdrawn());
+        paymentEventHandler.memberWithdrawn(memberWithdrawn());
 
         assertThat(jpaWalletRepository.findAll()).singleElement().satisfies(wallet -> {
             assertThat(wallet.isFrozen()).isTrue();
@@ -54,11 +58,10 @@ class WalletFreezeIntegrationTest {
     @Test
     @DisplayName("같은 회원의 탈퇴를 두 번 받아도 처음 동결한 시각을 그대로 둔다")
     void duplicateEvent() {
-        // 같은 eventId를 다시 발행하면 회원 아웃박스가 막으므로, 같은 회원의 탈퇴 이벤트를 따로 두 번 보낸다
-        publishInTransaction(memberWithdrawn());
+        paymentEventHandler.memberWithdrawn(memberWithdrawn());
         LocalDateTime frozenAt = jpaWalletRepository.findAll().getFirst().getFrozenAt();
 
-        publishInTransaction(memberWithdrawn());
+        paymentEventHandler.memberWithdrawn(memberWithdrawn());
 
         assertThat(jpaWalletRepository.findAll()).singleElement()
             .extracting(Wallet::getFrozenAt).isEqualTo(frozenAt);
@@ -67,7 +70,7 @@ class WalletFreezeIntegrationTest {
     @Test
     @DisplayName("지갑이 없으면 동결된 빈 지갑을 만든다")
     void freezeWithoutWallet() {
-        publishInTransaction(memberWithdrawn());
+        paymentEventHandler.memberWithdrawn(memberWithdrawn());
 
         assertThat(jpaWalletRepository.findAll()).singleElement().satisfies(wallet -> {
             assertThat(wallet.getMemberId()).isEqualTo(MEMBER_ID);
@@ -80,7 +83,7 @@ class WalletFreezeIntegrationTest {
     @DisplayName("동결된 지갑에도 정산 입금은 들어온다")
     void payoutIntoFrozenWallet() {
         walletRepository.save(PaymentFixture.wallet(1_000L));
-        publishInTransaction(memberWithdrawn());
+        paymentEventHandler.memberWithdrawn(memberWithdrawn());
 
         publishInTransaction(new SettlementPayoutRequestedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new SettlementPayoutRequestedEvent.Data(31L, MEMBER_ID, 270_000L,

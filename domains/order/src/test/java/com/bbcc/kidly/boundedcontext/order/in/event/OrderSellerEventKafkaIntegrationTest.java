@@ -71,14 +71,14 @@ class OrderSellerEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("seller.changed를 Kafka로 받은 판매자 복사본이 같은 값을 Spring 이벤트로 받은 것과 같다")
-    void sameAsSpringEvent() {
-        Long springSellerId = sellerId + 1;
-        eventDelivery.deliver(sellerChanged(springSellerId, "키들리샵", SellerStatus.ACTIVE));
+    @DisplayName("seller.changed를 Kafka로 받은 판매자 복사본이 처리 빈을 직접 부른 것과 같다")
+    void sameAsDirectProcessing() {
+        Long directSellerId = sellerId + 1;
+        eventDelivery.deliver(sellerChanged(directSellerId, "키들리샵", SellerStatus.ACTIVE));
 
         kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, sellerChanged(sellerId, "키들리샵", SellerStatus.ACTIVE)));
 
-        assertThat(storedSeller(sellerId)).isNotNull().isEqualTo(storedSeller(springSellerId));
+        assertThat(storedSeller(sellerId)).isNotNull().isEqualTo(storedSeller(directSellerId));
     }
 
     @Test
