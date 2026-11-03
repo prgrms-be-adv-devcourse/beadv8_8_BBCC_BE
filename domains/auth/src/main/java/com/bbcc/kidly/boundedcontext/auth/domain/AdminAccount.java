@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.auth.domain;
 
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -41,6 +43,12 @@ public class AdminAccount extends BaseTimeEntity {
     @Column(name = "created_by")
     private Long createdBy;
 
+    @Column(name = "disabled_at")
+    private LocalDateTime disabledAt;
+
+    @Column(name = "disabled_by")
+    private Long disabledBy;
+
     private AdminAccount(String email, String passwordHash, Long createdBy) {
         this.email = email;
         this.passwordHash = passwordHash;
@@ -58,5 +66,19 @@ public class AdminAccount extends BaseTimeEntity {
 
     public boolean isActive() {
         return status == AdminStatus.ACTIVE;
+    }
+
+    public boolean disable(Long actorId, LocalDateTime now) {
+        // 자신을 비활성화하지 못하게 해 관리자가 스스로 마지막 계정을 없애지 못한다.
+        if (id.equals(actorId)) {
+            throw new BusinessException(AuthErrorCode.ADMIN_NOT_DISABLABLE);
+        }
+        if (!isActive()) {
+            return false;
+        }
+        status = AdminStatus.DISABLED;
+        disabledAt = now;
+        disabledBy = actorId;
+        return true;
     }
 }

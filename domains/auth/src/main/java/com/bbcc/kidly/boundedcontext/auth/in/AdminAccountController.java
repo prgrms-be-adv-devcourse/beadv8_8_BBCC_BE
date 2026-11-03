@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -30,5 +31,11 @@ public class AdminAccountController {
         var account = adminAccountService.create(actor.id(), request.email(), request.password());
         response.setHeader(HttpHeaders.LOCATION, "/api/v1/admin/admins/" + account.id());
         return account;
+    }
+
+    @PostMapping("/{adminId}/disable")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void disable(@LoginAdmin AuthAdmin actor, @PathVariable Long adminId) {
+        adminAccountService.disable(actor.id(), adminId);
     }
 }
