@@ -1,0 +1,229 @@
+{
+  "uid": "kidly-http",
+  "title": "Kidly 서비스 오류",
+  "schemaVersion": 39,
+  "tags": [
+    "kidly",
+    "http"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "환경",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(up{job=~\"kidly|kidly-gateway|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement\"}, env)",
+        "refresh": 1,
+        "current": {
+          "text": "prod",
+          "value": "prod"
+        }
+      },
+      {
+        "name": "service",
+        "label": "서비스",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(up{env=\"$env\", job=~\"kidly|kidly-gateway|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement\"}, job)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "kidly|kidly-gateway|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 10,
+      "type": "text",
+      "title": "알림을 받았다면 여기부터 확인하세요",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "1. 환경과 서비스를 선택하고 오류가 늘어난 시간을 확인하세요.\n2. Gateway와 하위 서비스 오류가 함께 늘면 하위 서비스를, Gateway만 늘면 연결 실패를 확인하세요. 합산하면 같은 요청을 두 번 셉니다.\n3. 알림의 **로그 보기**로 해당 서비스 로그를 확인하세요. 단발 오류는 알림 없이 로그에 남을 수 있습니다.\n\n**데이터 없음 ≠ 정상**: 미배포 여부와 수집 상태를 확인하세요. 수집 성공도 업무 성공을 보장하지 않습니다. 임계값은 dev 검증 전 초기 후보입니다."
+      }
+    },
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "서비스 수집 상태",
+      "description": "1=수집 성공, 0=수집 실패. 데이터 없음은 정상 판정이 아니다. 미배포인지 수집 중단인지 확인한다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"$service\", env=\"$env\"}",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "최근 5분 서버 오류 건수",
+      "description": "5xx 추정 건수. Gateway는 하위 오류를 포함하므로 서비스와 합산하지 않는다. increase는 외삽으로 소수가 나올 수 있다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job) (increase(http_server_requests_seconds_count{job=~\"$service\", env=\"$env\", uri!~\"/actuator.*\", status=~\"5..\"}[5m]))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "최근 5분 서버 오류 비율",
+      "description": "서비스별 5xx 비율. 요청 없음은 비율을 판단할 수 없다. 초기 알림 후보: 5% 초과·5건 이상이 2분 지속.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{job=~\"$service\", env=\"$env\", uri!~\"/actuator.*\", status=~\"5..\"}[5m])) / sum by (job) (rate(http_server_requests_seconds_count{job=~\"$service\", env=\"$env\", uri!~\"/actuator.*\"}[5m]))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "초당 요청 수",
+      "description": "상태 점검 요청은 제외한다. Gateway는 입구 트래픽으로 하위 서비스와 중복된다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{job=~\"$service\", env=\"$env\", uri!~\"/actuator.*\"}[5m]))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ],
+  "links": [
+    {
+      "title": "로그 확인",
+      "type": "link",
+      "url": "/d/kidly-logs?var-env=$env",
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ]
+}
