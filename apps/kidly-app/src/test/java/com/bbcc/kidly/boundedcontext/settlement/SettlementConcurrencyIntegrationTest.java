@@ -110,7 +110,7 @@ class SettlementConcurrencyIntegrationTest {
             .allSatisfy(outcome -> assertThat(outcome.error()).isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.CONFLICT)));
         assertThat(count("SELECT count(*) FROM settlement.settlement")).isEqualTo(1);
-        assertThat(count("SELECT count(*) FROM payment.payout")).isEqualTo(1);
+        assertThat(PayoutRequests.all(jdbcTemplate)).hasSize(1);
     }
 
     @Test

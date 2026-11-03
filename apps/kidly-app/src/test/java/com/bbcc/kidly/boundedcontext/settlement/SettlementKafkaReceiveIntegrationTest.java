@@ -23,10 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -35,6 +37,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
@@ -96,12 +99,27 @@ class SettlementKafkaReceiveIntegrationTest {
     // 파티션을 배정받은 뒤에 보내야 이 테스트의 메시지를 놓치지 않는다
     @BeforeEach
     void startListeners() {
+        createPaymentTopic();
         for (String id : LISTENER_IDS) {
             MessageListenerContainer listener = listenerGuard.listener(id);
             listener.start();
             listeners.add(listener);
         }
         AsyncWait.until(TIMEOUT, () -> listeners.stream().noneMatch(l -> l.getAssignedPartitions().isEmpty()));
+    }
+
+    // 결제 토픽은 결제 서비스가 선언한다(#525). kidly-app에는 결제가 없어 테스트가 같은 모양(파티션 3)으로 만든다
+    private void createPaymentTopic() {
+        try (Admin admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
+            kafka.getBootstrapServers()))) {
+            admin.createTopics(List.of(new NewTopic(PAYMENT_TOPIC, 3, (short) 1))).all().get(10, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            if (!(e.getCause() instanceof TopicExistsException)) {
+                throw new IllegalStateException("결제 토픽을 만들지 못했습니다", e);
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("결제 토픽을 만들지 못했습니다", e);
+        }
     }
 
     // stop()은 처리 중인 메시지가 끝날 때까지 기다리므로 뒤이은 테이블 비우기와 겹치지 않는다

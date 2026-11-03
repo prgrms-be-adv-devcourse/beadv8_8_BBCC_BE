@@ -21,6 +21,9 @@ import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -37,6 +40,15 @@ class AdminSettlementApiTest {
 
     @Autowired
     private SettlementRepository settlementRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EventPublisher eventPublisher;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private JobRepository jobRepository;
@@ -180,12 +192,16 @@ class AdminSettlementApiTest {
     }
 
     @Test
-    @DisplayName("지급 결과를 받지 못한 정산서를 재요청하면 204이고, 지급 완료된 뒤 다시 요청하면 409이다")
+    @DisplayName("지급 결과를 받지 못한 정산서를 재요청하면 204이고 지급을 다시 요청한다. 지급 완료된 뒤 다시 요청하면 409이다")
     void retryPayout() {
         var settlement = settlementRepository.save(SettlementFixture.settlement(10_000L));
 
         retry(settlement.getId()).expectStatus().isNoContent();
 
+        // 입금과 지급 완료 결과는 결제 서비스가 한다(#525). 테스트가 결과를 대신 발행한다
+        var requests = PayoutRequests.of(jdbcTemplate, settlement.getId());
+        assertThat(requests).hasSize(1);
+        PayoutRequests.complete(eventPublisher, transactionTemplate, requests.getFirst());
         assertThat(settlementRepository.findById(settlement.getId()).orElseThrow().getStatus())
             .isEqualTo(SettlementStatus.PAID);
         retry(settlement.getId()).expectStatus().isEqualTo(409)

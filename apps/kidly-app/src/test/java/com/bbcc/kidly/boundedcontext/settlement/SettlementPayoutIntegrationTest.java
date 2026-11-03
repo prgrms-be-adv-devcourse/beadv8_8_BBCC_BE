@@ -9,7 +9,6 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
-import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDate;
@@ -21,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
-// 지급 요청은 결제의 실제 리스너가 처리하고, 그 결과가 정산서에 반영되는 흐름을 검증한다
+// 정산이 지급을 요청하고, 지급 결과가 정산서에 반영되는 흐름을 검증한다. 입금은 결제 서비스가 하므로(#525) 결과는 테스트가 발행한다(PayoutRequests)
 @IntegrationTest
 class SettlementPayoutIntegrationTest {
 
@@ -49,38 +48,36 @@ class SettlementPayoutIntegrationTest {
     private TransactionTemplate transactionTemplate;
 
     @Test
-    @DisplayName("판매자 지갑이 있으면 정산서가 지급 완료가 된다")
+    @DisplayName("정산서마다 정산금액으로 지급을 요청하고, 지급 완료 결과를 받으면 정산서가 지급 완료가 된다")
     void paid() {
-        registerWallet(SELLER_ID);
         saveItem(1L, 10_000L);
 
         settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
+
+        var requested = onlySettlement();
+        assertThat(requested.getStatus()).isEqualTo(SettlementStatus.COMPLETED);
+        var requests = PayoutRequests.all(jdbcTemplate);
+        assertThat(requests).containsExactly(
+            new PayoutRequests.Request(requested.getId(), SELLER_ID, requested.getSettlementAmount()));
+
+        PayoutRequests.complete(eventPublisher, transactionTemplate, requests.getFirst());
 
         var settlement = onlySettlement();
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.PAID);
         assertThat(settlement.getPaidAt()).isNotNull();
-    }
-
-    @Test
-    @DisplayName("판매자 지갑이 없어도 결제가 지갑을 만들어 입금하므로 정산서가 지급 완료가 된다")
-    void walletMissing() {
-        saveItem(1L, 10_000L);
-
-        settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
-
-        var settlement = onlySettlement();
-        assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.PAID);
         assertThat(settlement.getFailReason()).isNull();
     }
 
     @Test
-    @DisplayName("0원 정산도 지급 완료가 된다")
+    @DisplayName("0원 정산도 지급을 요청하고 지급 완료가 된다")
     void zeroAmount() {
-        registerWallet(SELLER_ID);
         saveItem(1L, 0L);
 
         settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
 
+        var requests = PayoutRequests.all(jdbcTemplate);
+        assertThat(requests).singleElement().extracting(PayoutRequests.Request::amount).isEqualTo(0L);
+        PayoutRequests.complete(eventPublisher, transactionTemplate, requests.getFirst());
         assertThat(onlySettlement().getStatus()).isEqualTo(SettlementStatus.PAID);
     }
 
@@ -123,11 +120,6 @@ class SettlementPayoutIntegrationTest {
 
     private void saveItem(Long orderItemId, long salesAmount) {
         settlementItemRepository.save(SettlementFixture.item(orderItemId, SELLER_ID, salesAmount, CONFIRMED_AT));
-    }
-
-    private void registerWallet(Long memberId) {
-        publishInTransaction(new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new MemberRegisteredEvent.Data(memberId, "seller@example.com")));
     }
 
     private void publishInTransaction(DomainEvent event) {
