@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.review.in.web.admin;
 import com.bbcc.kidly.boundedcontext.review.app.CommunityDeadLetterService;
 import com.bbcc.kidly.boundedcontext.review.in.web.admin.dto.CommunityDeadLetterResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +39,7 @@ public class AdminCommunityDeadLetterController {
      * 처리 실패도 200/OPEN으로 이력을 반환한다. 이미 성공했으면 재실행 없이 200이다.
      */
     @PostMapping("/{id}/reprocess")
-    public CommunityDeadLetterResponse reprocess(@PathVariable Long id, @LoginMember AuthMember admin) {
+    public CommunityDeadLetterResponse reprocess(@PathVariable Long id, @LoginAdmin AuthAdmin admin) {
         return CommunityDeadLetterResponse.from(service.reprocess(id, admin.id()));
     }
 }

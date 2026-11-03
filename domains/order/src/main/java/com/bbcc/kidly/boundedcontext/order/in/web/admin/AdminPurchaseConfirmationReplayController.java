@@ -2,8 +2,8 @@ package com.bbcc.kidly.boundedcontext.order.in.web.admin;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.PurchaseConfirmationRepublishService;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.PurchaseConfirmationReplayResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +27,7 @@ public class AdminPurchaseConfirmationReplayController {
         @RequestParam(defaultValue = "0") @Min(0) long afterOrderItemId,
         @RequestParam(required = false) @Min(0) Long throughOrderItemId,
         @RequestParam(defaultValue = "100") @Min(1) @Max(100) int size,
-        @LoginMember AuthMember admin) {
+        @LoginAdmin AuthAdmin admin) {
         return PurchaseConfirmationReplayResponse.from(
             service.republish(afterOrderItemId, throughOrderItemId, size, admin.id()));
     }

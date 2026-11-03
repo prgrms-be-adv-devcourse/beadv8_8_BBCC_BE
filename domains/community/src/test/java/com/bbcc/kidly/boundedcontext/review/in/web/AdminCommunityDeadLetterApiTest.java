@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.review.in.web;
 import com.bbcc.kidly.boundedcontext.review.app.CommunityDeadLetterService;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.Received;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class AdminCommunityDeadLetterApiTest {
         client.get().uri(PATH).exchange().expectStatus().isOk().expectBody()
             .jsonPath("$.content[0].deadLetterId").isEqualTo(id.toString())
             .jsonPath("$.content[0].payload").doesNotExist();
-        client.post().uri(PATH + "/" + id + "/reprocess").headers(TestMembers.admin(99L))
+        client.post().uri(PATH + "/" + id + "/reprocess").headers(TestAdmins.of(99L))
             .exchange().expectStatus().isOk().expectBody()
             .jsonPath("$.status").isEqualTo("OPEN")
             .jsonPath("$.replayCount").isEqualTo(1)
