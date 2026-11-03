@@ -8,7 +8,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberSuspension;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
@@ -38,7 +37,6 @@ class MemberTest {
         assertThat(member.getRegistrationKey()).isEqualTo("social-account:1");
         assertThat(member.getNickname()).isEqualTo("테스트회원");
         assertThat(member.getEmail()).isEqualTo(EMAIL);
-        assertThat(member.getRole()).isEqualTo(MemberRole.USER);
         assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
     }
 
@@ -156,17 +154,6 @@ class MemberTest {
     }
 
     @Test
-    @DisplayName("관리자는 정지할 수 없다")
-    void suspendRejectsAdmin() {
-        var member = MemberFixture.withRole(MemberRole.ADMIN);
-
-        assertThatThrownBy(() -> member.suspend(ADMIN_ID, REASON, NOW))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_SUSPENDABLE));
-        assertStillActive(member);
-    }
-
-    @Test
     @DisplayName("탈퇴하면 WITHDRAWN이고 탈퇴 시각이 남으며 닉네임 · 이메일이 지워진다")
     void withdraw() {
         var member = MemberFixture.kakaoMember();
@@ -191,58 +178,6 @@ class MemberTest {
         assertThat(member.getStatus()).isEqualTo(status);
         assertThat(member.getWithdrawnAt()).isNull();
         assertThat(member.getNickname()).isEqualTo(MemberFixture.NICKNAME);
-    }
-
-    @Test
-    @DisplayName("관리자는 탈퇴할 수 없다")
-    void withdrawRejectsAdmin() {
-        var member = MemberFixture.withRole(MemberRole.ADMIN);
-
-        assertThatThrownBy(() -> member.withdraw(NOW))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_WITHDRAWABLE));
-        assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
-    }
-
-    @Test
-    @DisplayName("관리자로 지정하면 ADMIN이고 토큰 역할에 ADMIN이 들어간다")
-    void grantAdmin() {
-        var member = MemberFixture.kakaoMember();
-
-        member.grantAdmin();
-
-        assertThat(member.getRole()).isEqualTo(MemberRole.ADMIN);
-        assertThat(member.roles()).containsExactly(Role.BUYER, Role.ADMIN);
-    }
-
-    @ParameterizedTest
-    @EnumSource(value = MemberStatus.class, names = {"SUSPENDED", "WITHDRAWN"})
-    @DisplayName("정지 · 탈퇴한 회원은 관리자로 지정할 수 없다")
-    void grantAdminRejectsInactive(MemberStatus status) {
-        var member = MemberFixture.withStatus(status);
-
-        assertThatThrownBy(member::grantAdmin)
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.ADMIN_NOT_GRANTABLE));
-        assertThat(member.getRole()).isEqualTo(MemberRole.USER);
-    }
-
-    @Test
-    @DisplayName("이미 관리자인 회원은 다시 지정할 수 없다")
-    void grantAdminRejectsAdmin() {
-        var member = MemberFixture.withRole(MemberRole.ADMIN);
-
-        assertThatThrownBy(member::grantAdmin)
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.ADMIN_NOT_GRANTABLE));
-        assertThat(member.getRole()).isEqualTo(MemberRole.ADMIN);
-    }
-
-    @Test
-    @DisplayName("역할이 ADMIN이면 관리자다")
-    void admin() {
-        assertThat(MemberFixture.withRole(MemberRole.ADMIN).isAdmin()).isTrue();
-        assertThat(MemberFixture.kakaoMember().isAdmin()).isFalse();
     }
 
     @Test
@@ -337,28 +272,9 @@ class MemberTest {
         assertThat(MemberFixture.withSellerState(SellerStatus.SUSPENDED).roles()).containsExactly(Role.BUYER);
     }
 
-    @Test
-    @DisplayName("관리자는 BUYER와 ADMIN 역할을 가진다")
-    void rolesOfAdmin() {
-        assertThat(MemberFixture.withRole(MemberRole.ADMIN).roles()).containsExactly(Role.BUYER, Role.ADMIN);
-    }
-
-    @Test
-    @DisplayName("판매자인 관리자는 BUYER, SELLER, ADMIN 순서로 역할을 가진다")
-    void rolesOfSellerAdmin() {
-        var member = MemberFixture.withRole(MemberRole.ADMIN);
-        member.applySellerState(SellerStatus.ACTIVE, NOW);
-
-        assertThat(member.roles()).containsExactly(Role.BUYER, Role.SELLER, Role.ADMIN);
-    }
-
     private static Member withId(Member member) {
         ReflectionTestUtils.setField(member, "id", MEMBER_ID);
         return member;
     }
 
-    private void assertStillActive(Member member) {
-        assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
-        assertThat(member.getSuspension()).isNull();
-    }
 }

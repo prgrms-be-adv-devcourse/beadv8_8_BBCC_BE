@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.member;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.auth.SocialAccountFixture;
 import com.bbcc.kidly.boundedcontext.auth.domain.SocialAccountRepository;
@@ -9,12 +8,9 @@ import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.ShippingAddressService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.ShippingAddressRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.DefaultShippingAddressRepository;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.ShippingAddressRepository;
-import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -84,20 +80,6 @@ class MemberServiceIntegrationTest {
 
         assertThat(events.stream(AuthTokensRevokedEvent.class))
             .singleElement().satisfies(event -> assertThat(event.data().principalId()).isEqualTo(memberId));
-    }
-
-    @Test
-    @DisplayName("관리자는 탈퇴할 수 없고 이벤트를 발행하지 않는다")
-    void adminCannotWithdraw() {
-        var memberId = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN)).getId();
-
-        assertThatThrownBy(() -> memberService.withdraw(memberId))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_WITHDRAWABLE));
-        assertThat(memberRepository.findById(memberId))
-            .hasValueSatisfying(member -> assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE));
-        assertThat(events.stream(MemberWithdrawnEvent.class)).isEmpty();
-        assertThat(events.stream(AuthTokensRevokedEvent.class)).isEmpty();
     }
 
     private ShippingAddressRequest addressRequest(boolean isDefault) {

@@ -7,7 +7,6 @@ import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberPolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
@@ -107,7 +106,7 @@ class AdminMemberApiTest {
     @Test
     @DisplayName("모르는 filter는 400이다")
     void listInvalidFilter() {
-        client.get().uri(PATH + "?filter=FOO")
+        client.get().uri(PATH + "?filter=ADMIN")
             .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
@@ -161,16 +160,6 @@ class AdminMemberApiTest {
     }
 
     @Test
-    @DisplayName("관리자 회원은 정지할 수 없다. 409다")
-    void suspendAdmin() {
-        var admin = memberRepository.save(MemberFixture.withRole(MemberRole.ADMIN));
-
-        suspend(admin.getId(), REASON).expectStatus().isEqualTo(HttpStatus.CONFLICT)
-            .expectBody()
-            .jsonPath("$.title").isEqualTo(MemberErrorCode.MEMBER_NOT_SUSPENDABLE.title());
-    }
-
-    @Test
     @DisplayName("없는 회원을 정지하면 404다")
     void suspendMissing() {
         suspend(999L, REASON).expectStatus().isNotFound();
@@ -193,17 +182,6 @@ class AdminMemberApiTest {
 
         suspend(member.getId(), "가".repeat(MemberPolicy.SUSPEND_REASON_MAX_LENGTH + 1))
             .expectStatus().isBadRequest();
-    }
-
-    @Test
-    @DisplayName("filter=ADMIN이면 관리자만 준다")
-    void listAdmins() {
-        memberRepository.save(MemberFixture.kakaoMember("1"));
-        var admin = memberRepository.save(MemberFixture.withRole("2", MemberRole.ADMIN));
-
-        var page = list("?filter=ADMIN");
-
-        assertThat(page.content()).extracting(AdminMemberSummaryResponse::id).containsExactly(admin.getId());
     }
 
     private PageResponse<AdminMemberSummaryResponse> list(String query) {

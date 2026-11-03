@@ -40,11 +40,4 @@ public class AdminMemberService {
         log.info("회원 정지: memberId={} adminId={}", memberId, adminId);
     }
 
-    // 같은 회원을 동시에 정지 · 지정하면 나중 커밋만 남는다(@Version 없음)
-    @Transactional
-    public void grantAdmin(Long memberId) {
-        memberRepository.getById(memberId).grantAdmin();
-        log.info("관리자 지정: memberId={}", memberId);
-    }
-
 }

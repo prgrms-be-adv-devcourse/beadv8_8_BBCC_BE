@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
@@ -172,14 +171,14 @@ class MemberAccountsServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("활성 회원의 로그인 상태는 판매자 · 관리자 역할을 담는다")
-    void findLoginStateOfSellerAdmin() {
-        var member = MemberFixture.withRole("kakao-1", MemberRole.ADMIN);
+    @DisplayName("활성 회원의 로그인 상태는 판매자 역할을 담는다")
+    void findLoginStateOfSeller() {
+        var member = MemberFixture.kakaoMember("kakao-1");
         member.applySellerState(SellerStatus.ACTIVE, MemberFixture.NOW);
         var saved = memberRepository.save(member);
 
         assertThat(memberAccounts.findLoginState(saved.getId())).contains(new MemberLoginState.Active(
-            saved.getId(), saved.getNickname(), List.of(Role.BUYER, Role.SELLER, Role.ADMIN)));
+            saved.getId(), saved.getNickname(), List.of(Role.BUYER, Role.SELLER)));
     }
 
     @Test
@@ -202,8 +201,8 @@ class MemberAccountsServiceIntegrationTest {
 
     private void occupyAllNumberedNicknames(String base) {
         jdbcTemplate.update("""
-            insert into member.member (nickname, email, role, status, created_at, updated_at)
-            select ? || n, null, 'USER', 'ACTIVE', now(), now()
+            insert into member.member (nickname, email, status, created_at, updated_at)
+            select ? || n, null, 'ACTIVE', now(), now()
             from (select '' as n union all select generate_series(?, ?)::text) numbers
             """, base, Nickname.MIN_NUMBER, Nickname.MAX_NUMBER);
     }
