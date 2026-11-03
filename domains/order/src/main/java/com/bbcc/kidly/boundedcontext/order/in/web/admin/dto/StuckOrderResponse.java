@@ -31,14 +31,15 @@ public record StuckOrderResponse(
      * @param backlogCount 이 메시지 뒤에 밀린 미전송 메시지 수
      */
     public record Outbox(String outboxId, String eventType, String eventId, int attemptCount,
-        LocalDateTime createdAt, String lastError, long backlogCount) {
+        LocalDateTime createdAt, String lastError, long backlogCount, LocalDateTime quarantinedAt) {
 
         static Outbox from(StuckOrderResult.Outbox outbox) {
             if (outbox == null) {
                 return null;
             }
             return new Outbox(String.valueOf(outbox.outboxId()), outbox.eventType(), outbox.eventId().toString(),
-                outbox.attemptCount(), outbox.createdAt(), outbox.lastError(), outbox.backlogCount());
+                outbox.attemptCount(), outbox.createdAt(), outbox.lastError(), outbox.backlogCount(),
+                outbox.quarantinedAt());
         }
     }
 

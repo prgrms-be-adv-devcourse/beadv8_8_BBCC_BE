@@ -109,7 +109,7 @@ class OrderOutboxRelayLogContextTest {
     }
 
     private void givenUnsent(OrderOutboxMessage... messages) {
-        when(jpaRepository.findBySentAtIsNullOrderByIdAsc(any())).thenReturn(List.of(messages));
+        when(jpaRepository.findRelayCandidates(any())).thenReturn(List.of(messages));
         for (OrderOutboxMessage message : messages) {
             lenient().when(jpaRepository.findById(message.getId())).thenReturn(Optional.of(message));
         }

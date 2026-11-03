@@ -114,18 +114,25 @@ public interface JpaStuckOrderRepository extends Repository<Order, Long>, StuckO
         return findUnsentOutboxOrderByIdAsc(Limit.of(1)).stream().findFirst();
     }
 
-    // 미전송 부분 인덱스(idx_order_outbox_unsent)를 id 순으로 읽는다
+    // 두 부분 인덱스에서 최소 ID를 찾는다. 전체 미전송에 대한 CASE 정렬을 피한다.
     @Query("""
         select m.id as id, m.eventId as eventId, m.eventType as eventType, m.messageKey as messageKey,
                m.attemptCount as attemptCount, m.lastError as lastError, m.createdAt as createdAt,
-               m.updatedAt as updatedAt
+               m.updatedAt as updatedAt, m.topic as topic, m.quarantinedAt as quarantinedAt
         from OrderOutboxMessage m
-        where m.sentAt is null
-        order by m.id asc
+        where m.id = coalesce(
+            (select min(q.id) from OrderOutboxMessage q where q.sentAt is null and q.quarantinedAt is not null),
+            (select min(u.id) from OrderOutboxMessage u where u.sentAt is null))
         """)
     List<OutboxHeadRow> findUnsentOutboxOrderByIdAsc(Limit limit);
 
     @Override
     @Query("select count(m) from OrderOutboxMessage m where m.sentAt is null")
     long countUnsentOutbox();
+    @Override
+    @Query("""
+        select count(m) from OrderOutboxMessage m
+        where m.sentAt is null and m.id > :id and m.topic = :topic and m.messageKey = :key
+        """)
+    long countUnsentOutboxStreamAfter(Long id, String topic, String key);
 }

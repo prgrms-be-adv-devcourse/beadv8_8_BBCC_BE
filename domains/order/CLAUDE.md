@@ -31,7 +31,9 @@
 - 장바구니는 담기에 성공하면(새 줄 · 같은 줄 합치기) `cart.item-added`(`CartItemAddedEvent`, 키 = 회원 ID)를 같은 길로 낸다: `cart/app/port/CartEvents` → `cart/out/order` 어댑터 → 주문 `app/port/in/OrderEventIssuer`(구현 `ProvidedEventService`, #654). 받는 도메인에 맞춘 필드는 넣지 않는다
 - 조르기는 담기 · 보내기 · 승인 · 거절에 성공하면 `wish.item-added` · `wish.sent` · `wish.approved` · `wish.rejected`(`shared.order.event.Wish…Event`, 키 = 자녀 프로필 ID, data = 대상 ID(조르기 · 담기는 줄) · 자녀 · 보호자 회원 ID · items[productId · optionId · quantity] · 거절 사유)를 같은 길로 낸다: `wish/app/port/WishEvents` → `wish/out/order` 어댑터 → `OrderEventIssuer`(#702). 실패 · 롤백 · 동시 처리에서 진 쪽은 이벤트가 남지 않는다. 사실만 담고 문구 · 개인정보는 넣지 않는다
 - 관리자 멈춘 주문(아웃박스 멈춤)은 eventType 접두(`order.` · `order-item.`)로 메시지 키가 주문 ID인지 판별한다 — 새 주문 이벤트 종류가 이 접두를 벗어나면 `StuckOrderService` 목록을 같이 고친다
-- `OrderOutboxRelayScheduler`가 안 보낸 메시지를 한 트랜잭션에서 id 순서로 batch만큼 보내고(`KafkaOrderEventSender`), 보내다 실패하면 그 메시지에서 멈춘다. 보낸 메시지는 `OrderOutboxCleanupScheduler`가 보관 기간 뒤 한 트랜잭션의 delete 한 번으로 지운다
+- `OrderOutboxRelayScheduler`가 전송 가능한 메시지를 한 트랜잭션에서 id 순서로 batch만큼 보낸다(`KafkaOrderEventSender`). 타임아웃 · 연결 · 인증 · 알 수 없는 실패는 전송 여부가 불명확하거나 환경 문제이므로 기존처럼 그 자리에서 멈추고 재시도한다. 횟수가 많다는 이유로 격리하지 않는다.
+- 아웃박스 영구 실패 격리(#740): Kafka가 크기 초과(`RecordTooLargeException`)로 거절한 경우만 격리한다. 같은 토픽 · 메시지 키의 후속 행은 같은 배치에서도 건너뛰고, 다음 조회에서도 LIMIT 전에 제외한다. 다른 키는 계속 보낸다. 순서 기준은 기존 Kafka 계약의 `(topic, correlationId)` 그대로다. 다른 업무라도 토픽 · 숫자 키가 같으면 보수적으로 함께 보류한다. 이벤트 ID · 본문 · 키는 바꾸지 않는다.
+- 보낸 뒤 DB 커밋이 실패하면 격리 · 보냄 기록이 함께 롤백되므로, 다음 실행에서 같은 이벤트 ID로 다시 보낸다(at-least-once). 받는 쪽의 기존 멱등 처리가 필요하다. 보낸 행만 기존 보관 기간 뒤 정리하며, 격리 행과 그 후속 행은 지우지 않는다.
 - 주기 작업(결제 마감 만료 · 자동 구매확정 · 아웃박스 릴레이 · 정리)은 `SingleServerJobRunner`로 한 번에 한 서버에서만 돈다(PostgreSQL advisory lock `kidly.order.{작업}`). 작업은 잠금 트랜잭션 밖에서 돈다
 - 주기 작업(결제 마감 만료 · 자동 구매확정 · 택배 조회)은 메모리 순환 커서(`RotatingCursor`, #656)로 지난 실행이 상한(max-per-run)에서 멈춘 곳 다음부터 이어 읽고 끝에 닿으면 처음으로 돌아간다(서버마다 따로, 재기동하면 처음부터). 상한에 닿고 남은 대상이 있는 실행의 실행 로그는 WARN 한 줄이다
 - 결제 마감 만료 · 자동 구매확정(`OrderScheduler`)은 대상 주문 하나 = 트랜잭션 하나다. 한 건이 실패해도 로그만 남기고 다음 건을 처리한다
@@ -51,6 +53,9 @@
 
 ## 5. 관리자 확인 대상
 - 관리자 화면 · 목록 · WARN/ERROR 로그에는 사람이 실제로 조치해야 하는 것만 남긴다
+- 격리 아웃박스(#740): `GET /api/v1/admin/orders/outbox/quarantined`(id 순, page · size 1~100) · `GET /api/v1/admin/orders/outbox/{id}`는 본문 없이 메타데이터만 보여 준다. 격리 시 WARN 한 줄을 남기고, 격리 중인 행을 주기마다 다시 보내거나 경고하지 않는다. `OUTBOX_STUCK` 대표 항목은 가장 오래된 격리를 우선 표시하며 시간 · 시도 임계값을 기다리지 않는다. 전체 격리는 새 목록에서 본다. 격리 항목의 backlog는 같은 토픽 · 키의 후속 미전송 건수이고, 일반 장애 항목은 기존 전체 backlog다.
+- 운영자는 격리 원인(메시지 크기와 생산자 · 토픽/브로커 한도)을 확인해 해결한 뒤 `POST /api/v1/admin/orders/outbox/{id}/retry`로 같은 이벤트를 전송 대기시킨다. 재시도자 · 시각 · 횟수를 기록하고 원본 · 전송 시도 이력은 유지한다. 이미 대기 중이면 변경 없이 200, 이미 보냈으면 409, 없으면 404다. 정상 전송까지 같은 키의 후속 순서는 유지된다. 다시 거절되면 다시 격리된다.
+- 이벤트를 건너뛰어 결제 · 재고 · 리뷰 등의 사실을 잃지 않도록 격리 행의 폐기/보냄 처리 API는 두지 않는다. 해결 전에는 해당 키를 계속 보류한다. 알림·조치는 격리 WARN과 관리자 목록/OUTBOX_STUCK을 기준으로 한다.
 - DLT 메시지 목록은 상태를 주지 않으면 `OPEN`만 보인다(처리 · 종료된 건은 상태로 걸러 본다). 결제 토픽에서 온 메시지가 먼저 온다(`paymentEvent`). 이벤트 처리 실패 · 결제 반영 실패 목록은 상태를 주지 않으면 모든 상태가 보인다
 - 이미 해결됐거나 저절로 맞춰지는 건은 그 자리에서 닫거나(예: 주문 취소 시 대기 기록) 로그 수준을 내린다(예: 같은 메시지의 반복 저장 실패는 첫 번만 ERROR, 이후 DEBUG)
 - 로그는 결과 하나에 한 줄이고, 본문 · 예외 메시지 · 개인정보를 넣지 않는다(eventType · eventId · 키 · ID · 예외 종류만)

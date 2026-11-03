@@ -73,6 +73,10 @@ public interface StuckOrderRepository {
 
         String getMessageKey();
 
+        String getTopic();
+
+        LocalDateTime getQuarantinedAt();
+
         int getAttemptCount();
 
         String getLastError();
@@ -86,9 +90,11 @@ public interface StuckOrderRepository {
     }
 
     /**
-     * 보내지 못한 메시지 중 맨 앞(id가 가장 작은 것). 릴레이는 id 순으로 보내다 처음 실패한 메시지에서 멈추므로 막힌 메시지다.
+     * 가장 오래된 격리를 우선, 없으면 가장 오래된 미전송 메시지. 전체 격리 목록은 별도 관리자 API에서 본다.
      */
     Optional<OutboxHeadRow> findOldestUnsentOutbox();
 
     long countUnsentOutbox();
+
+    long countUnsentOutboxStreamAfter(Long id, String topic, String key);
 }

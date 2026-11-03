@@ -32,6 +32,11 @@ public record StuckOrderResult(
      * @param backlogCount 이 메시지 뒤에 밀린 미전송 메시지 수
      */
     public record Outbox(Long outboxId, String eventType, UUID eventId, int attemptCount, LocalDateTime createdAt,
-        String lastError, long backlogCount) {
+        String lastError, long backlogCount, LocalDateTime quarantinedAt) {
+
+        public Outbox(Long outboxId, String eventType, UUID eventId, int attemptCount, LocalDateTime createdAt,
+            String lastError, long backlogCount) {
+            this(outboxId, eventType, eventId, attemptCount, createdAt, lastError, backlogCount, null);
+        }
     }
 }
