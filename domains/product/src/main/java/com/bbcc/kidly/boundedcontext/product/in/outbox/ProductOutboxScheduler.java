@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component;
  * 앱의 스케줄러 스레드는 다른 도메인 스케줄러와 함께 쓰는 하나뿐이다.
  * 브로커가 멈추면 릴레이 한 번이 최대 약 17초 걸려 그만큼 다른 스케줄러가 늦어질 수 있다.
  * kidly.kafka.producer.enabled가 false면 만들지 않는다(Kafka 없이 도는 테스트). 값이 없으면 만든다. 아웃박스 저장은 그때도 한다.
- * 릴레이에는 잠금이 없어 한 프로세스에서만 돌아야 한다. kidly-app과 상품 서비스가 함께 도는 동안 한쪽은
- * kidly.product.outbox.relay.enabled를 false로 둔다(#791). 값이 없으면 만든다.
+ * 릴레이에는 잠금이 없어 한 프로세스에서만 돌아야 한다. kidly.product.outbox.relay.enabled가 false면 만들지 않고, 값이 없으면 만든다.
+ * 지금은 이 스위치를 끄지 않는다. 릴레이를 돌리는 곳은 상품 서비스뿐이라 끄면 상품 이벤트 전송과 정리가 멈춘다.
  */
 @Slf4j
 @Component

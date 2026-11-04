@@ -54,4 +54,24 @@ class ChildAuthServiceTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CHILD_CREDENTIALS));
         verifyNoInteractions(refreshTokens);
     }
+
+    @Test
+    void rejectsPasswordChangedWhileComparing() {
+        var accounts = mock(ChildAccountRepository.class);
+        var encoder = mock(PasswordEncoder.class);
+        when(encoder.encode(anyString())).thenReturn("dummy");
+        when(encoder.matches("password", "hash")).thenReturn(true);
+        var account = mock(ChildAccount.class);
+        when(account.getId()).thenReturn(1L);
+        when(account.getPasswordHash()).thenReturn("hash");
+        when(accounts.findByLoginId("child")).thenReturn(Optional.of(account));
+        when(accounts.findByIdAndPasswordHashForUpdate(1L, "hash")).thenReturn(Optional.empty());
+        var refreshTokens = mock(RefreshTokenService.class);
+        var service = new ChildAuthService(accounts, encoder, refreshTokens, mock(AccessTokenIssuer.class));
+
+        assertThatThrownBy(() -> service.login(new ChildLoginRequest("child", "password")))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CHILD_CREDENTIALS));
+        verifyNoInteractions(refreshTokens);
+    }
 }

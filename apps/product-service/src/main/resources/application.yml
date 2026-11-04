@@ -15,7 +15,7 @@ spring:
     # 이미 상품 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 baseline-version으로 baseline을 잡고 그 버전까지 건너뛴다.
     # 빈 DB(테스트)는 baseline 없이 init부터 적용한다
     # baseline-version은 이 모듈을 만들 때 kidly-app이 마지막으로 적용한 상품 마이그레이션 버전이고, 고정한다(baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다).
-    # 두 앱이 함께 도는 동안 더하는 상품 마이그레이션은 두 앱이 각자 적용하므로 두 번 적용돼도 안전하게(IF NOT EXISTS · IF EXISTS) 쓴다
+    # kidly-app은 자기 폴더의 init에 든 상품 표까지만 만들고, 상품 모듈의 마이그레이션(db/migration/product)은 이 서비스만 적용한다
     baseline-on-migrate: true
     baseline-version: 202610292246
     # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다
@@ -59,16 +59,6 @@ management:
     web:
       exposure:
         include: health,prometheus
-
----
-# 이 문서는 product.yml(가져온 파일)보다 뒤에 있어야 한다. 가져온 파일의 값이 가져온 문서의 값보다 우선하므로, 같은 문서에 두면 product.yml의 기본값(true)이 이긴다
-kidly:
-  product:
-    outbox:
-      # 상품 아웃박스 릴레이에는 잠금이 없다. kidly-app이 상품을 가진 동안은 kidly-app만 릴레이를 돌리고 이 서비스는 저장만 한다
-      # (같은 표라 이 서비스가 저장한 행도 kidly-app이 보낸다). kidly-app에서 상품을 뺄 때 이 줄을 지운다
-      relay:
-        enabled: false
 
 ---
 spring:

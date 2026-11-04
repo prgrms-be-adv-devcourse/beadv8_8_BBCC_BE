@@ -4,22 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.in.event.ChildProfileEventListener;
 import com.bbcc.kidly.boundedcontext.order.in.event.SellerReplicaEventListener;
-import com.bbcc.kidly.boundedcontext.product.app.replica.ProductReplicaSellerService;
-import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
-import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
-import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
-import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
-import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
-import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
+import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
-import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDate;
@@ -36,11 +33,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 전 도메인 정상 흐름 ①~⑦(#359). 사람 행동은 각 도메인의 실제 API, 도메인 사이는 실제 이벤트 · 리스너로만 지난다
- * (예외: 회원 · 판매자는 회원 서비스로, 자녀 API는 자녀 서비스로(#682), 결제는 결제 서비스로(#525) 빠져
- * 판매자 승인 · 자녀 등록 · 결제 · 지급 때 나가는 seller.changed · child.changed · payment.completed ·
- * payment.payout-completed를 테스트가 직접 넣는다. 판매자 · 자녀 이벤트는 Kafka 리스너가 부르는 처리 메서드로,
- * kidly-app 안의 주문 · 정산이 Spring으로도 받는 결제 결과는 발행으로 넣는다). 확인은 단계별 결과(상태 · 재고 · 정산)만 본다.
- * API가 없는 준비만 테스트가 직접 넣는다: 상품 기준 데이터(카테고리 · 상품 유형 · 항목 값).
+ * (예외: 회원 · 판매자는 회원 서비스로, 자녀 API는 자녀 서비스로(#682), 결제는 결제 서비스로(#525), 상품은 상품 서비스로(#791)
+ * 빠져 판매자 승인 · 자녀 등록 · 상품 판매 시작 · 재고 차감 · 결제 때 나가는 seller.changed · child.changed ·
+ * product.changed · stock.deducted · payment.completed를 테스트가 직접 넣는다. 판매자 · 자녀 이벤트는 Kafka 리스너가 부르는
+ * 처리 메서드로, kidly-app 안의 주문이 Spring으로도 받는 상품 · 재고 · 결제 결과는 발행으로 넣는다). 확인은 단계별 결과(상태 · 결제 요청)만 본다.
  */
 @FunctionalTest
 class OrderHappyPathScenarioTest {
@@ -48,16 +44,15 @@ class OrderHappyPathScenarioTest {
     private static final Long BUYER_ID = 1L;
     private static final Long SELLER_ID = 2L;
     private static final long PRICE = 25_000L;
-    private static final int INITIAL_STOCK = 10;
+    private static final long PRODUCT_ID = 1L;
+    private static final long OPTION_ID = 1L;
+    private static final long CATEGORY_ID = 1L;
     private static final long PAYMENT_ID = 1L;
     private static final long CHILD_ID = 1L;
     private static final String BUSINESS_NAME = "키들리샵";
 
     @Autowired
     private RestTestClient client;
-
-    @Autowired
-    private EntityManager entityManager;
 
     @Autowired
     private EventPublisher eventPublisher;
@@ -69,9 +64,6 @@ class OrderHappyPathScenarioTest {
     private ChildProfileEventListener childProfileEventListener;
 
     @Autowired
-    private ProductReplicaSellerService replicaSellerService;
-
-    @Autowired
     private TransactionTemplate transactionTemplate;
 
     @Autowired
@@ -79,44 +71,29 @@ class OrderHappyPathScenarioTest {
 
     private Long buyerId;
     private Long sellerId;
-    private Long navyValueId;
 
     @Test
-    @DisplayName("가입 → 판매자 등록 → 상품 판매 시작 → 자녀 등록 → 담기 · 주문(재고 · 결제) → 배송 → 구매확정 → 정산 · 지급이 끝까지 이어진다")
+    @DisplayName("가입 → 판매자 등록 → 상품 판매 시작 → 자녀 등록 → 담기 · 주문(재고 · 결제) → 배송 → 구매확정이 끝까지 이어진다")
     void happyPath() {
         buyerId = signUp(BUYER_ID);
         sellerId = signUp(SELLER_ID);
-        Long categoryId = saveSockCategory();
 
         // ① 판매자 등록: 회원 서비스가 승인 때 보내는 seller.changed → 주문 판매자 복사본
         SellerChangedEvent sellerChanged = new SellerChangedEvent(
             UUID.randomUUID(), LocalDateTime.now(),
             new SellerChangedEvent.Data(sellerId, BUSINESS_NAME, SellerStatus.ACTIVE));
         sellerReplicaEventListener.onSellerChanged(sellerChanged);
-        replicaSellerService.applySellerChanged(sellerChanged);
         assertThat(queryString("select business_name from orders.replica_seller where seller_id = ?", sellerId))
             .as("① 판매자 승인 뒤 주문 판매자 복사본 상호명").isEqualTo(BUSINESS_NAME);
 
-        // ② 상품 등록 · 판매 시작: product.changed → 주문 상품 복사본 구매 가능
-        ProductBody product = client.post().uri("/api/v1/seller/products")
-            .headers(TestMembers.seller(sellerId))
-            .body(Map.of("name", "줄무늬 양말", "categoryId", categoryId, "imageUrls", List.of(),
-                "attributes", List.of(),
-                "options", List.of(Map.of("valueIds", List.of(navyValueId), "initialQuantity", INITIAL_STOCK)),
-                "prices", List.of(Map.of("valueIds", List.of(), "price", PRICE)),
-                "sizeSpecs", List.of()))
-            .exchange()
-            .expectStatus().isCreated()
-            .expectBody(ProductBody.class).returnResult().getResponseBody();
-        assertThat(product).as("② 상품 등록 응답").isNotNull();
-        String optionId = product.options().getFirst().optionId();
-        client.put().uri("/api/v1/seller/products/" + product.productId() + "/sale-status")
-            .headers(TestMembers.seller(sellerId))
-            .body(Map.of("status", "ON_SALE"))
-            .exchange()
-            .expectStatus().isOk();
+        // ② 상품 판매 시작: 상품 서비스가 보내는 product.changed → 주문 상품 복사본 구매 가능
+        String optionId = String.valueOf(OPTION_ID);
+        publish(new ProductChangedEvent(UUID.randomUUID(), LocalDateTime.now(), new ProductChangedEvent.Data(
+            PRODUCT_ID, sellerId, "줄무늬 양말", CATEGORY_ID, ProductStatus.ON_SALE, null, LocalDateTime.now(), false,
+            List.of(new ProductChangedEvent.Option(OPTION_ID, "색상: 네이비", null, PRICE, null, null, false,
+                OptionSaleStatus.ON_SALE)))));
         assertThat(queryString("select product_status from orders.replica_product where option_id = ?",
-            Long.valueOf(optionId))).as("② 판매 시작 뒤 주문 상품 복사본 판매 상태").isEqualTo("ON_SALE");
+            OPTION_ID)).as("② 판매 시작 뒤 주문 상품 복사본 판매 상태").isEqualTo("ON_SALE");
 
         // ③ 자녀 이벤트 처리: child.changed → 주문 자녀 복사본
         Long childId = CHILD_ID;
@@ -127,7 +104,7 @@ class OrderHappyPathScenarioTest {
         assertThat(queryLong("select member_id from orders.replica_child where child_id = ?", childId))
             .as("③ 자녀 등록 뒤 주문 자녀 복사본").isEqualTo(buyerId);
 
-        // ④ 담기 · 주문: order.created → 재고 차감 → stock.deducted → 결제 요청 → (결제 서비스) payment.completed → PAID
+        // ④ 담기 · 주문: order.created → (상품 서비스) 재고 차감 · stock.deducted → 결제 요청 → (결제 서비스) payment.completed → PAID
         client.post().uri("/api/v1/cart/items")
             .headers(TestMembers.buyer(buyerId))
             .body(Map.of("optionId", optionId, "childId", String.valueOf(childId), "quantity", 1))
@@ -147,13 +124,18 @@ class OrderHappyPathScenarioTest {
         String orderId = location.getPath().substring("/api/v1/orders/".length());
 
         OrderBody pending = order(orderId);
-        assertThat(pending.status()).as("④ 결제 요청 뒤 주문 상태").isEqualTo("PENDING_PAYMENT");
-        assertThat(queryLong("select available_qty from product.inventory where product_option_id = ?",
-            Long.valueOf(optionId))).as("④ 재고(초기 10 − 1)").isEqualTo(INITIAL_STOCK - 1L);
+        assertThat(pending.status()).as("④ 재고 차감 전 주문 상태").isEqualTo("PENDING_PAYMENT");
+        assertThat(orderOutboxCount(orderId, "order.created")).as("④ 주문하면 상품 서비스로 주문 생성됨을 보낸다").isEqualTo(1L);
+        assertThat(orderOutboxCount(orderId, "order.payment-requested")).as("④ 재고 차감 전에는 결제를 요청하지 않는다")
+            .isZero();
+        publish(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new StockDeductedEvent.Data(Long.valueOf(orderId))));
+        assertThat(orderOutboxCount(orderId, "order.payment-requested")).as("④ 재고 차감됨을 받으면 결제 요청")
+            .isEqualTo(1L);
         Long paidItemId = Long.valueOf(pending.items().getFirst().orderItemId());
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(new PaymentCompletedEvent(
+        publish(new PaymentCompletedEvent(
             UUID.randomUUID(), LocalDateTime.now(), new PaymentCompletedEvent.Data(PAYMENT_ID, Long.valueOf(orderId),
-                buyerId, PRICE, List.of(new PaymentCompletedEvent.Item(paidItemId, PRICE)), LocalDateTime.now()))));
+                buyerId, PRICE, List.of(new PaymentCompletedEvent.Item(paidItemId, PRICE)), LocalDateTime.now())));
         OrderBody paid = order(orderId);
         assertThat(paid.status()).as("④ 주문 상태").isEqualTo("PAID");
         assertThat(paid.deliveries()).as("④ 판매자 배송 건").extracting(DeliveryRow::status).containsExactly("READY");
@@ -191,27 +173,13 @@ class OrderHappyPathScenarioTest {
         return memberId;
     }
 
-    /**
-     * 테스트가 만든 데이터: 상품 기준 데이터를 만드는 API가 없어서, 상품 도메인의 공개 팩토리로 최소 기준 데이터
-     * (색상 옵션 하나인 양말 유형 · 잡화 > 양말 카테고리 · 네이비 값)를 저장한다. 사이즈 · 실측 항목은 없다.
-     */
-    private Long saveSockCategory() {
-        return transactionTemplate.execute(status -> {
-            Attribute color = Attribute.create("색상", "COLOR", AttributeInputType.PALETTE);
-            AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
-            ProductType sock = ProductType.define("양말", List.of(
-                new ProductType.LinkInfo(color, AttributeRole.OPTION, true, true, false, false, List.of())));
-            Category goods = Category.createMiddle("잡화", null);
-            Category socks = Category.createLeaf(new Category.LeafInfo("양말", goods, sock, List.of()));
-            entityManager.persist(color);
-            entityManager.persist(navy);
-            entityManager.persist(sock);
-            entityManager.persist(goods);
-            entityManager.persist(socks);
-            entityManager.flush();
-            navyValueId = navy.getId();
-            return socks.getId();
-        });
+    private void publish(DomainEvent event) {
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
+    }
+
+    private long orderOutboxCount(String orderId, String eventType) {
+        return queryLong("select count(*) from orders.order_outbox where message_key = ? and event_type = ?",
+            orderId, eventType);
     }
 
     private long cartLineCount() {
@@ -234,12 +202,6 @@ class OrderHappyPathScenarioTest {
 
     private Long queryLong(String sql, Object... args) {
         return jdbcTemplate.queryForObject(sql, Long.class, args);
-    }
-
-    private record ProductBody(String productId, List<OptionRow> options) {
-    }
-
-    private record OptionRow(String optionId) {
     }
 
     private record OrderBody(String status, List<ItemRow> items, List<DeliveryRow> deliveries) {

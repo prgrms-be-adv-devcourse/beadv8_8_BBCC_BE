@@ -67,18 +67,3 @@ kidly:
     retry-interval: P3650D
     # 각자의 OS 환경 변수(NOTIFICATION_SITE_URL)와 상관없이 같은 주소를 쓴다
     site-url: http://localhost:5173
-  # 테스트는 AWS에 접근하지 않는다. 가짜 자격 증명으로 업로드 주소 형식만 만든다
-  product:
-    image:
-      s3:
-        key-prefix: test
-        fake-credentials: true
-    # 상품 아웃박스 릴레이도 같은 이유로 길게 두고, 정리는 끈다. 릴레이 테스트는 ProductOutboxRelayService를, 정리 테스트는 ProductOutboxCleanupService를 직접 부른다
-    outbox:
-      relay-interval: P3650D
-      cleanup-cron: "-"
-    # 상품이 받는 주문 이벤트는 테스트에서 Spring 이벤트로 받는다.
-    # Kafka 수신은 ProductKafkaReceiveIntegrationTest · ProductOrderKafkaReceiveIntegrationTest가 그 안에서 상품 리스너를 켜서 본다
-    kafka:
-      consumer:
-        enabled: false

@@ -83,8 +83,10 @@ jobs:
             tasks: integrationTest
           - name: payment-service
             tasks: :apps:payment-service:integrationTest
+          - name: product-service
+            tasks: :apps:product-service:integrationTest
           - name: 나머지
-            tasks: integrationTest -x :apps:kidly-app:integrationTest -x :domains:order:integrationTest -x :apps:search-service:integrationTest -x :apps:recommend-service:integrationTest -x :apps:settlement-service:integrationTest -x :apps:payment-service:integrationTest
+            tasks: integrationTest -x :apps:kidly-app:integrationTest -x :domains:order:integrationTest -x :apps:search-service:integrationTest -x :apps:recommend-service:integrationTest -x :apps:settlement-service:integrationTest -x :apps:payment-service:integrationTest -x :apps:product-service:integrationTest
     steps:
       - uses: actions/checkout@v7
 
@@ -129,8 +131,10 @@ jobs:
             tasks: functionalTest
           - name: payment-service
             tasks: :apps:payment-service:functionalTest
+          - name: product-service
+            tasks: :apps:product-service:functionalTest
           - name: 나머지
-            tasks: functionalTest -x :apps:kidly-app:functionalTest -x :apps:search-service:functionalTest -x :apps:recommend-service:functionalTest -x :apps:settlement-service:functionalTest -x :apps:payment-service:functionalTest
+            tasks: functionalTest -x :apps:kidly-app:functionalTest -x :apps:search-service:functionalTest -x :apps:recommend-service:functionalTest -x :apps:settlement-service:functionalTest -x :apps:payment-service:functionalTest -x :apps:product-service:functionalTest
     steps:
       - uses: actions/checkout@v7
 

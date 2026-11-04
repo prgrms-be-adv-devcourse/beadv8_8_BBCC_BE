@@ -13,7 +13,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /**
  * 상품 아웃박스 릴레이는 한 프로세스에서만 돌아야 한다(릴레이에 잠금이 없다).
- * kidly-app과 상품 서비스가 함께 도는 동안 한쪽에서만 돌리도록 릴레이 스위치(kidly.product.outbox.relay.enabled)를 둔다(#791).
+ * 릴레이 스위치(kidly.product.outbox.relay.enabled)가 false면 스케줄러를 만들지 않는다. 지금은 어느 환경에서도 끄지 않는다(#791).
  */
 class ProductOutboxRelaySwitchTest {
 

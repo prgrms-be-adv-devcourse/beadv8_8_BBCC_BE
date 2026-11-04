@@ -28,15 +28,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 상품 서비스가 구독 그룹(kidly.product)으로 Kafka에 붙어 받은 메시지를 반영하는지 본다(#791).
- * 받는 종류마다의 처리는 kidly-app의 상품 수신 테스트가 확인하고, 여기서는 서비스가 Kafka에 붙는지만 판매자 메시지 하나로 본다.
- * kidly-app이 상품을 가진 동안 이 서비스는 아웃박스 릴레이를 돌리지 않는다(kidly-app만 보낸다).
+ * 받는 종류마다의 처리는 상품 수신 테스트(ProductKafkaReceiveIntegrationTest 등)가 확인하고, 여기서는 서비스가 Kafka에 붙는지만 판매자 메시지 하나로 본다.
+ * Kafka 보내기가 켜진 컨텍스트에서는 이 서비스가 상품 아웃박스 릴레이 스케줄러를 만든다(릴레이는 이 서비스에서만 돈다).
  */
 @KafkaIntegrationTest
 class ProductServiceKafkaIntegrationTest {
@@ -52,7 +51,7 @@ class ProductServiceKafkaIntegrationTest {
     private JsonMapper jsonMapper;
 
     @Autowired
-    private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+    private ProductKafkaListenerTestGuard listenerGuard;
 
     @Autowired
     private KafkaContainer kafka;
@@ -62,12 +61,11 @@ class ProductServiceKafkaIntegrationTest {
 
     private MessageListenerContainer sellerListener;
 
-    // 리스너는 이 테스트 안에서만 켠다. 읽기 시작 위치가 latest라 파티션을 배정받은 뒤에 보내야 받는다
+    // 리스너는 ProductKafkaListenerTestGuard가 레지스트리에서 빼 들고 있어 이 테스트 안에서만 켠다.
+    // 읽기 시작 위치가 latest라 파티션을 배정받은 뒤에 보내야 받는다
     @BeforeEach
     void startListener() {
-        sellerListener = kafkaListenerEndpointRegistry.getListenerContainer(ProductSellerKafkaListener.ID);
-        sellerListener.start();
-        AsyncWait.until(TIMEOUT, () -> !sellerListener.getAssignedPartitions().isEmpty());
+        sellerListener = ProductKafkaMessages.startListener(listenerGuard, ProductSellerKafkaListener.ID);
     }
 
     // stop()은 처리 중인 메시지가 끝날 때까지 기다리므로 뒤이은 테이블 비우기와 겹치지 않는다
@@ -91,11 +89,10 @@ class ProductServiceKafkaIntegrationTest {
             .containsExactly("소소한옷장", SellerStatus.ACTIVE);
     }
 
-    // Kafka 보내기가 켜진 컨텍스트에서도 릴레이 스위치가 꺼져 있어 스케줄러가 없다
     @Test
-    @DisplayName("kidly-app이 상품을 가진 동안 상품 서비스는 아웃박스 릴레이 스케줄러를 만들지 않는다")
-    void noOutboxRelay() {
-        assertThat(context.getBeanNamesForType(ProductOutboxScheduler.class)).isEmpty();
+    @DisplayName("Kafka 보내기가 켜진 상품 서비스는 아웃박스 릴레이 스케줄러를 만든다")
+    void outboxRelayEnabled() {
+        assertThat(context.getBeansOfType(ProductOutboxScheduler.class)).hasSize(1);
     }
 
     // 회원 서비스가 보내는 형식 그대로다: 키는 correlationId, 헤더 eventType · eventId, 본문은 공통 칸 7개 + data

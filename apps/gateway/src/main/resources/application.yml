@@ -49,7 +49,7 @@ spring:
                 - Path=/internal/**
               filters:
                 - NotFound
-            # 상품 목록 조회만 검색 서비스로 간다(#526). 상세(/api/v1/products/{id}) · 다른 메서드는 kidly-app(상품)에 남는다. kidly-app에는 상품 목록 API가 없다(#791)
+            # 상품 목록 조회만 검색 서비스로 간다(#526). 상세(/api/v1/products/{id}) · 다른 메서드는 상품 서비스로 간다. kidly-app에는 상품 API가 없다(#791)
             - id: search-product-list
               uri: ${kidly.gateway.search-uri}
               predicates:
@@ -114,12 +114,18 @@ spring:
               filters:
                 - SetPath=/v3/api-docs
             # 상품 API(공개 · 판매자 · 관리자)는 상품 서비스로 간다(#791)
-            # kidly-app도 아직 상품 도메인을 가지고 있어, 서비스를 켜지 않은 환경은 기본값(kidly-app)으로 지금처럼 간다
             # GET /api/v1/products(목록)는 위의 search-product-list가 먼저 잡는다. 이 라우트를 그 위로 옮기면 목록도 상품 서비스로 간다
             - id: product
               uri: ${kidly.gateway.product-uri}
               predicates:
                 - Path=/api/v1/products/**,/api/v1/categories/**,/api/v1/seller/products/**,/api/v1/seller/product-images/**,/api/v1/seller/options/**,/api/v1/admin/products/**,/api/v1/admin/categories/**,/api/v1/admin/product-types/**,/api/v1/admin/attributes/**,/api/v1/admin/measurement-items/**
+            # 상품 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
+            - id: product-api-docs
+              uri: ${kidly.gateway.product-uri}
+              predicates:
+                - Path=/v3/api-docs/product
+              filters:
+                - SetPath=/v3/api-docs
             # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}
@@ -161,7 +167,7 @@ spring:
     activate:
       on-profile: local
 
-# kidly-app(8080) · member-service(8081) · search-service(8082) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) · (선택) product-service(8089)와 같이 띄운다
+# kidly-app(8080) · member-service(8081) · search-service(8082) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) · product-service(8089)와 같이 띄운다
 server:
   port: 8083
 
@@ -178,8 +184,8 @@ kidly:
     settlement-uri: ${KIDLY_SETTLEMENT_URI:http://localhost:8088}
     # 결제는 kidly-app에 없다(#525). payment-service(8087)를 띄워야 결제 API가 된다
     payment-uri: ${KIDLY_PAYMENT_URI:http://localhost:8087}
-    # 상품은 기본으로 kidly-app이 받는다. product-service(8089)로 볼 때만 KIDLY_PRODUCT_URI=http://localhost:8089로 띄운다
-    product-uri: ${KIDLY_PRODUCT_URI:http://localhost:8080}
+    # 상품은 kidly-app에 없다(#791). product-service(8089)를 띄워야 상품 API가 된다
+    product-uri: ${KIDLY_PRODUCT_URI:http://localhost:8089}
 
 cors:
   allowed-origins: http://localhost:5173
