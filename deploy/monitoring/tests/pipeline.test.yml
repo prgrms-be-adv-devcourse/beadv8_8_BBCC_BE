@@ -72,3 +72,48 @@ tests:
         alertname: kidly-inventory-missing
         exp_alerts:
           - exp_labels: {env: prod}
+  - interval: 1m
+    input_series:
+      - series: 'kidly_environment_enabled{env="dev"}'
+        values: '0+0x20'
+      - series: 'kidly_environment_transition_active{env="dev"}'
+        values: '1+0x20'
+      - series: 'kidly_environment_changed_timestamp_seconds{env="dev"}'
+        values: '0+0x20'
+      - series: 'kidly_environment_transition_active{env="prod"}'
+        values: '0+0x20'
+      - series: 'kidly_environment_changed_timestamp_seconds{env="prod"}'
+        values: '0+0x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: kidly-operation-stuck
+        exp_alerts:
+          - exp_labels: {env: dev}
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_remote_storage_queue_highest_sent_timestamp_seconds{job="kidly-alloy",collector="app"}'
+        values: '0+0x20'
+      - series: 'prometheus_remote_storage_samples_pending{job="kidly-alloy",collector="app"}'
+        values: '100+0x20'
+      - series: 'loki_write_dropped_entries_total{job="kidly-alloy",collector="app"}'
+        values: '0+1x20'
+      - series: 'loki_write_batch_retries_total{job="kidly-alloy",collector="app"}'
+        values: '0+0x20'
+      - series: 'loki_ingester_chunks_flush_failures_total{job="kidly-monitoring-store",store="loki"}'
+        values: '0+1x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: kidly-write-backlog
+        exp_alerts:
+          - exp_labels: {collector: app}
+      - eval_time: 15m
+        alertname: kidly-log-loss
+        exp_alerts:
+          - exp_labels: {collector: app}
+      - eval_time: 15m
+        alertname: kidly-log-retries
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: kidly-store-failures
+        exp_alerts:
+          - exp_labels: {store: loki}
