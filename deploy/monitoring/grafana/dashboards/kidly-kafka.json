@@ -122,8 +122,8 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "offset 확인 전",
-      "description": "음수 offset으로 lag를 확정할 수 없는 파티션 수입니다. 데이터 없음을 0으로 바꾸지 않습니다.",
+      "title": "미처리 건수",
+      "description": "소비까지 남은 lag 합계입니다. offset 미확정 파티션이 있으면 산정 전, 지표가 없으면 데이터 없음으로 표시합니다. 업무 성공 건수는 아닙니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -137,7 +137,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} < 0) or (0 * count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}))",
+          "expr": "(sum(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}) unless on() (count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} < 0) > 0)) or (-1 * (count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} < 0) > bool 0))",
           "instant": true,
           "datasource": {
             "type": "prometheus",
@@ -151,7 +151,20 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "blue"
-          }
+          },
+          "unit": "short",
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "산정 전",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
@@ -198,7 +211,22 @@
           "color": {
             "mode": "fixed",
             "fixedColor": "blue"
-          }
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "수집 실패",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "수집 중",
+                  "color": "green"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
@@ -214,60 +242,60 @@
       }
     },
     {
-      "id": 4,
-      "type": "timeseries",
-      "title": "그룹·토픽별 미처리",
-      "description": "모든 파티션 offset이 확인된 그룹·토픽만 합산합니다. 데이터 없음·음수 offset·미배포를 미처리 0으로 해석하지 않습니다.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 5
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "(sum by(env,consumergroup,topic) (kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}) and on(env,consumergroup,topic) (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}) >= 0))",
-          "legendFormat": "{{consumergroup}} · {{topic}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "데이터 없음"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
       "id": 5,
       "type": "row",
-      "title": "토픽 offset 증가 추정 (필요할 때 펼치기)",
+      "title": "그룹·토픽 상세 (필요할 때 펼치기)",
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 5
       },
       "panels": [
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "그룹·토픽별 미처리",
+          "description": "모든 파티션 offset이 확인된 그룹·토픽만 합산합니다. 데이터 없음·음수 offset·미배포를 미처리 0으로 해석하지 않습니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 6
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "(sum by(env,consumergroup,topic) (kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}) and on(env,consumergroup,topic) (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}) >= 0))",
+              "legendFormat": "{{consumergroup}} · {{topic}}",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "noValue": "데이터 없음"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        },
         {
           "id": 6,
           "type": "timeseries",
