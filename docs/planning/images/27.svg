@@ -1,0 +1,41 @@
+<svg viewBox="0 0 860 300" width="860" height="300" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans KR, sans-serif" font-size="11.5">
+  <defs>
+    <marker id="c1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker>
+    <marker id="c2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker>
+  </defs>
+  
+  <rect x="10" y="20" width="120" height="40" rx="6" fill="#f1f5f9" stroke="#94a3b8"/><text x="70" y="45" text-anchor="middle" font-weight="700">화면</text>
+  <line x1="130" y1="40" x2="186" y2="40" stroke="#475569" stroke-width="1.5" marker-end="url(#c1)"/>
+  <rect x="190" y="20" width="130" height="40" rx="6" fill="#f1f5f9" stroke="#94a3b8"/><text x="255" y="45" text-anchor="middle" font-weight="700">Gateway</text>
+  <line x1="320" y1="34" x2="476" y2="34" stroke="#475569" stroke-width="1.5" marker-end="url(#c1)"/>
+  <text x="398" y="27" text-anchor="middle" font-size="10.5">GET /api/v1/products 만 (dev)</text>
+  <line x1="255" y1="60" x2="255" y2="96" stroke="#475569" stroke-width="1.5" marker-end="url(#c1)"/>
+  <rect x="190" y="100" width="130" height="40" rx="6" fill="#f8fafc" stroke="#94a3b8"/><text x="255" y="118" text-anchor="middle" font-weight="700">kidly-app</text><text x="255" y="133" text-anchor="middle" font-size="10.5" fill="#475569">상세 · 나머지 경로</text>
+  
+  <rect x="480" y="14" width="200" height="130" rx="10" fill="#fff" stroke="#0e7490" stroke-width="1.6"/>
+  <text x="580" y="36" text-anchor="middle" font-weight="700" font-size="13">search-service</text>
+  <text x="580" y="54" text-anchor="middle" font-size="10.5" fill="#475569">t3.large compose · DB 없음</text>
+  <text x="580" y="74" text-anchor="middle" font-size="10.5">목록 검색 · 색인 · 검색어 이벤트</text>
+  <text x="580" y="94" text-anchor="middle" font-size="10.5" fill="#475569">그룹 kidly.search</text>
+  <text x="580" y="112" text-anchor="middle" font-size="10.5" fill="#475569">실패 → {토픽}.search.dlt</text>
+  <text x="580" y="130" text-anchor="middle" font-size="10.5" fill="#b91c1c">ES 장애 → 503</text>
+  <line x1="680" y1="60" x2="716" y2="60" stroke="#475569" stroke-width="1.5" marker-end="url(#c1)"/>
+  <rect x="720" y="20" width="130" height="96" rx="8" fill="#ecfeff" stroke="#0e7490"/>
+  <text x="785" y="42" text-anchor="middle" font-weight="700">Elasticsearch</text>
+  <text x="785" y="60" text-anchor="middle" font-size="10.5">{env}-products</text>
+  <text x="785" y="75" text-anchor="middle" font-size="10.5">{env}-sellers</text>
+  <text x="785" y="91" text-anchor="middle" font-size="10.5" fill="#475569">nori 형태소 분석</text>
+  <text x="785" y="107" text-anchor="middle" font-size="10.5" fill="#0e7490">t3.medium k3s</text>
+  
+  <rect x="10" y="190" width="200" height="40" rx="6" fill="#f5f3ff" stroke="#a78bfa"/><text x="20" y="207" font-size="11" font-weight="700">kidly.product.events</text><text x="20" y="222" font-size="10.5" fill="#475569">product.changed (상품)</text>
+  <rect x="10" y="240" width="200" height="40" rx="6" fill="#f5f3ff" stroke="#a78bfa"/><text x="20" y="257" font-size="11" font-weight="700">kidly.seller.events</text><text x="20" y="272" font-size="10.5" fill="#475569">seller.changed (판매자)</text>
+  <path d="M210 210 C 360 210, 440 160, 520 146" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#c2)"/>
+  <path d="M210 260 C 380 260, 470 180, 540 146" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#c2)"/>
+  
+  <path d="M640 144 C 660 190, 680 210, 700 214" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#c2)"/>
+  <rect x="704" y="190" width="146" height="50" rx="6" fill="#f5f3ff" stroke="#a78bfa"/>
+  <text x="714" y="208" font-size="11" font-weight="700">kidly.search.events</text>
+  <text x="714" y="224" font-size="10.5" fill="#475569">search.performed</text>
+  <text x="714" y="236" font-size="10" fill="#475569">→ 추천 (구독 예정)</text>
+  <text x="430" y="292" text-anchor="middle" font-size="10.5" fill="#475569">색인은 occurredAt을 외부 버전으로 써서 늦게 온 옛 이벤트를 거절 · 처음 채우기는 상품 · 판매자 전체 다시 보내기</text>
+</svg>
