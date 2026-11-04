@@ -17,7 +17,9 @@ public enum SettlementErrorCode implements ErrorCode {
     SETTLEMENT_RUN_NOT_RECOVERABLE(
         HttpStatus.CONFLICT, "정리할 수 없는 정산 실행입니다", "실행 중으로 남은 정산 실행만 정리할 수 있습니다."),
     SETTLEMENT_NOT_RETRYABLE(
-        HttpStatus.CONFLICT, "지급을 다시 요청할 수 없는 정산서입니다", "지급 결과를 받지 못한 정산서(COMPLETED)만 다시 요청할 수 있습니다.");
+        HttpStatus.CONFLICT, "지급을 다시 요청할 수 없는 정산서입니다", "지급 결과를 받지 못한 정산서(COMPLETED)만 다시 요청할 수 있습니다."),
+    DEAD_LETTER_NOT_FOUND(HttpStatus.NOT_FOUND, "DLT 메시지를 찾을 수 없습니다", "DLT 목록을 새로고침해 주세요."),
+    INVALID_DEAD_LETTER_STATE(HttpStatus.BAD_REQUEST, "잘못된 DLT 상태입니다", "상태는 OPEN 또는 REPROCESSED입니다.");
 
     private final HttpStatus status;
     private final String title;
