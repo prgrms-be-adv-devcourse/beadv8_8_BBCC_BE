@@ -30,7 +30,7 @@ Logs Drilldown 앱 버전은 `k8s/grafana.yaml` 의 `GF_PLUGINS_PREINSTALL` 로 
 
 **Grafana 를 올릴 때 확인**: 앱 버전(`GF_PLUGINS_PREINSTALL`), 기능 플래그 `kubernetesLogsDrilldown`(실험 기능), 기본 열 API 경로 `apis/logsdrilldown.grafana.app/v1beta1/.../logsdrilldowndefaultcolumns`(`deploy.sh`). 경로가 바뀌면 `deploy.sh` 가 실패해 `#4팀-알림` 에 모니터링 배포 실패가 옵니다 — 컨테이너는 이미 새로 떠 있어 수집 · 알림은 그대로입니다.
 
-서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`, Gateway `kidly-gateway`, 추천 서비스 `kidly-recommend`, 정산 서비스 `kidly-settlement`, 회원 서비스 `kidly-member`, 결제 서비스 `kidly-payment`, 상품 서비스 `kidly-product`, 주문 서비스 `kidly-order`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
+서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`, Gateway `kidly-gateway`, 추천 서비스 `kidly-recommend`, 정산 서비스 `kidly-settlement`, 회원 서비스 `kidly-member`, 결제 서비스 `kidly-payment`, 상품 서비스 `kidly-product`, 주문 서비스 `kidly-order`, 커뮤니티 서비스 `kidly-community`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
 로그 줄을 펼치면 traceId 옆 "같은 요청 로그 보기" 링크로 그 요청의 로그를 모두 엽니다(Explore, 최근 24시간).
 나머지 필드는 `| json` 으로 펼쳐 거릅니다. 점은 `_` 로 바뀝니다.
 
