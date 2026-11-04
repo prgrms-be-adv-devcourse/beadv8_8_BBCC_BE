@@ -1,0 +1,37 @@
+spring:
+  # Kafka 리스너는 저절로 시작하지 않는다. 켜 두면 앞 테스트가 보낸 메시지를 다음 테스트 도중에 받아 처리해 테스트끼리 간섭한다.
+  # 주문 Kafka 수신 테스트는 주문 모듈(domains/order)에서 돈다
+  kafka:
+    listener:
+      auto-startup: false
+    # 이 서비스 테스트에는 Kafka 컨테이너가 없다. 기동할 때 토픽을 만들려고 Kafka에 붙지 않는다
+    admin:
+      auto-create: false
+
+# 테스트는 PC마다 결과가 같아야 하므로 각자의 .env를 읽지 않는다
+springdotenv:
+  enabled: false
+
+kidly:
+  # 커밋 뒤 Kafka로 보내는 빈을 끄는 팀 공통 값이라 kidly-app과 같게 둔다
+  kafka:
+    producer:
+      enabled: false
+  # 스케줄러가 테스트 중 다른 스레드에서 저절로 돌지 않게 kidly-app 테스트와 같이 주기를 아주 길게 두고, 정리는 끈다
+  order:
+    payment-expiry-interval: P3650D
+    # 테스트는 실제 택배 조회 API를 부르지 않는다(인증값 비움 = 비활성)
+    delivery-tracking:
+      interval: P3650D
+    delivery-tracker:
+      client-id: ""
+      client-secret: ""
+    auto-confirm:
+      interval: P3650D
+    outbox:
+      relay-interval: P3650D
+      cleanup-cron: "-"
+    # 주문 Kafka 리스너는 저절로 시작하지 않는다(이 스위치가 리스너의 autoStartup이다). kidly-app 테스트와 같다
+    kafka:
+      consumer:
+        enabled: false

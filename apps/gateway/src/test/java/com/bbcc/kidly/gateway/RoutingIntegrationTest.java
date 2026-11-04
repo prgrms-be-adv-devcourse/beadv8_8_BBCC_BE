@@ -28,7 +28,7 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 /**
  * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 추천은 추천 서비스로(#704), 정산은 정산 서비스로(#729),
  * 회원 · 인증 · 판매자 · 자녀 프로필은 회원 서비스로(#809), 결제는 결제 서비스로(#525), 상품은 상품 서비스로(#791),
- * 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
+ * 주문 · 장바구니 · 배송 · 조르기는 주문 서비스로, 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  */
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
@@ -183,7 +183,7 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
     @ParameterizedTest
     @ValueSource(strings = {
-        "/api/v1/seller/orders", "/api/v1/seller/settlementsx", "/api/v1/admin/settlement", "/api/v1/admin/orders"
+        "/api/v1/seller/ordersx", "/api/v1/seller/settlementsx", "/api/v1/admin/settlement", "/api/v1/admin/settings"
     })
     @DisplayName("정산과 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
     void routesSettlementLookalikesToKidlyApp(String path) {
@@ -229,7 +229,7 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/membersx", "/api/v1/seller/orders", "/api/v1/admin/memberships"})
+    @ValueSource(strings = {"/api/v1/membersx", "/api/v1/seller/ordersx", "/api/v1/admin/memberships"})
     @DisplayName("회원 경로와 이름만 비슷한 경로는 kidly-app에 넘긴다")
     void routesMemberLookalikesToKidlyApp(String path) {
         client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
@@ -366,6 +366,55 @@ class RoutingIntegrationTest extends GatewayTestSupport {
         assertThat(productBackend.lastRequest()).isEmpty();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/orders?page=0", "/api/v1/orders/5", "/api/v1/orders/5/items/6/confirm", "/api/v1/orders/5/timeline",
+        "/api/v1/cart", "/api/v1/cart/items/3", "/api/v1/wish?childId=2", "/api/v1/wish/items/4",
+        "/api/v1/wish/requests/7/approval", "/api/v1/seller/orders?page=0", "/api/v1/seller/orders/9/ship",
+        "/api/v1/admin/orders?page=0", "/api/v1/admin/orders/5/history", "/api/v1/admin/orders/stuck/summary",
+        "/api/v1/admin/orders/event-failures/1/retry", "/api/v1/admin/orders/recoveries/1/cancel",
+        "/api/v1/admin/orders/dead-letters/1/reprocess", "/api/v1/admin/orders/outbox/quarantined",
+        "/api/v1/admin/orders/purchase-confirmed-events"
+    })
+    @DisplayName("주문 · 장바구니 · 조르기 · 판매자 주문 · 주문 관리자 API는 같은 메서드 · 경로 · 쿼리로 주문 서비스에 넘긴다")
+    void routesOrderApisToOrderService(String path) {
+        var request = client.patch().uri(path);
+        if (path.startsWith("/api/v1/admin/") || path.startsWith("/api/v1/seller/")) {
+            request.header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path));
+        }
+        request.exchange().expectStatus().isOk();
+
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(recorded -> {
+            assertThat(recorded.method()).isEqualTo("PATCH");
+            assertThat(recorded.uri()).isEqualTo(URI.create(path));
+        });
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/ordersx", "/api/v1/carts", "/api/v1/wishlist", "/api/v1/seller/ordersx", "/api/v1/admin/ordersx"
+    })
+    @DisplayName("주문 경로와 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
+    void routesOrderLookalikesToKidlyApp(String path) {
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(orderBackend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("주문 API 문서는 주문 서비스의 /v3/api-docs로 넘긴다")
+    void routesOrderApiDocsToOrderService() {
+        client.get().uri("/v3/api-docs/order").exchange()
+            .expectStatus().isOk();
+
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/v3/api-docs")));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
     @Test
     @DisplayName("결제 API 문서는 결제 서비스의 /v3/api-docs로 넘긴다")
     void routesPaymentApiDocsToPaymentService() {
@@ -402,12 +451,12 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     @Test
     @DisplayName("그 밖의 요청은 같은 경로 · 쿼리로 kidly-app에 넘긴다")
     void routesToKidlyApp() {
-        client.get().uri("/api/v1/orders?x=1").exchange()
+        client.get().uri("/api/v1/unrouted?x=1").exchange()
             .expectStatus().isOk();
 
         assertThat(backend.lastRequest()).hasValueSatisfying(request -> {
             assertThat(request.method()).isEqualTo("GET");
-            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/orders?x=1"));
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/unrouted?x=1"));
         });
     }
 
@@ -499,7 +548,7 @@ class RoutingIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).isPresent();
+        assertThat(orderBackend.lastRequest()).isPresent();
     }
 
     private ResponseSpec preflight(String origin) {

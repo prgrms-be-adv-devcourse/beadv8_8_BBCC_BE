@@ -32,7 +32,7 @@ class SecurityHeadersIntegrationTest extends GatewayTestSupport {
     @Test
     @DisplayName("백엔드가 Cache-Control을 정하면 그대로 두고 Pragma · Expires도 붙이지 않는다")
     void keepsBackendCacheControl() {
-        backend.addResponseHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        orderBackend.addResponseHeader(HttpHeaders.CACHE_CONTROL, "no-store");
 
         client.post().uri("/api/v1/orders").exchange()
             .expectStatus().isOk()

@@ -1,0 +1,104 @@
+spring:
+  application:
+    name: kidly-order
+  # 주문 도메인 설정(결제 마감 · 자동 구매확정 · 아웃박스 · Kafka 수신 · 조르기 · 택배 조회 등)
+  config:
+    import: classpath:order.yml
+  profiles:
+    default: local
+  # 자기 스키마만 다룬다. 이력은 kidly-app(public.flyway_schema_history)과 따로 쓴다
+  flyway:
+    locations: classpath:db/migration
+    # 이력 테이블은 orders 스키마에 둔다. 나중에 DB를 나눌 때 스키마와 같이 옮겨지고, 다른 스키마를 건드리지 않는다
+    default-schema: orders
+    schemas: orders
+    table: flyway_schema_history_order
+    # 이미 주문 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 baseline-version으로 baseline을 잡고 그 버전까지 건너뛴다.
+    # 빈 DB(테스트)는 baseline 없이 init부터 적용한다
+    # baseline-version은 이 모듈을 만들 때 kidly-app이 마지막으로 적용한 주문 마이그레이션 버전(아웃박스 격리)이고, 고정한다(baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다).
+    # 두 앱이 함께 도는 동안 더하는 주문 마이그레이션은 두 앱이 각자 적용하므로 두 번 적용돼도 안전하게(IF NOT EXISTS · IF EXISTS) 쓴다
+    baseline-on-migrate: true
+    baseline-version: 202611031100
+    # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다
+    out-of-order: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        # kidly-app과 같다. 트랜잭션이 끝나면 DB 연결을 바로 돌려주고(커밋 뒤 리스너가 연결을 더 쥐지 않게),
+        # 그래서 DB가 막지 못하는 읽기 전용 트랜잭션의 쓰기를 SQL을 보내기 전에 막는다
+        connection:
+          handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
+        session_factory:
+          statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
+  # Kafka. 주문이 받는 상품 · 판매자 · 자녀 · 결제 이벤트를 받는다(구독 그룹 kidly.order). producer는 아웃박스 릴레이와 DLT로 보낼 때 쓴다. 값은 kidly-app과 같다
+  # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app과 같은 구독 그룹이라 책갈피를 이어 쓴다
+      # 다만 주문 리스너 팩토리(OrderKafkaListenerConfig)가 처음 읽는 그룹은 earliest로 덮어쓴다. 이 값은 그 밖의 컨슈머에만 적용된다
+      auto-offset-reset: latest
+
+springdoc:
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha
+
+# 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kidly
+    username: kidly
+    password: kidly
+
+# kidly-app(8080) · member-service(8081) · search-service(8082) · gateway(8083) · recommend-service(8086) ·
+# payment-service(8087) · settlement-service(8088) · product-service(8089) · notification-service(8090)와 같이 띄울 수 있게 포트를 나눈다
+server:
+  port: 8091
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+server:
+  forward-headers-strategy: native
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}
+  # kidly-app application-prod.yml과 같다. 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘지 않게 예외마다 프레임 수만 줄인다
+  structured:
+    json:
+      stacktrace:
+        max-throwable-depth: 30

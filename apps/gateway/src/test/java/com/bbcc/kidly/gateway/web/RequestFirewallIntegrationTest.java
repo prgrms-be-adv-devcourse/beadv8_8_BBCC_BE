@@ -171,7 +171,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(request -> {
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(request -> {
             assertThat(request.header(MemberHeaders.MEMBER_NICKNAME)).singleElement()
                 .satisfies(value -> assertThat(URLDecoder.decode(value, StandardCharsets.UTF_8)).isEqualTo(nickname));
             assertThat(request.header("X-Client-Note")).containsExactly("%ED%82%A4%EB%93%A4%EB%A6%AC%20100%25");
@@ -196,7 +196,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.method(HttpMethod.valueOf(method)).uri("/api/v1/orders/1").exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.method()).isEqualTo(method));
     }
 
