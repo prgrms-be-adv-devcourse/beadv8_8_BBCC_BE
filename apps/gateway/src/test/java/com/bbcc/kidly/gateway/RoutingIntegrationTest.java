@@ -27,7 +27,7 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
  * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 자녀 프로필은 자녀 프로필 서비스로(#682), 추천은 추천 서비스로(#704), 정산은 정산 서비스로(#729),
- * 회원 · 인증 · 판매자는 회원 서비스로, 결제는 결제 서비스로(#525), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
+ * 회원 · 인증 · 판매자는 회원 서비스로, 결제는 결제 서비스로(#525), 상품은 상품 서비스로(#791), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  */
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
@@ -91,28 +91,19 @@ class RoutingIntegrationTest extends GatewayTestSupport {
             assertThat(request.uri().getQuery()).isEqualTo("keyword=원피스&sort=NEWEST&page=0");
         });
         assertThat(backend.lastRequest()).isEmpty();
+        assertThat(productBackend.lastRequest()).isEmpty();
     }
 
     @Test
-    @DisplayName("상품 상세는 상품(kidly-app)에 넘긴다")
-    void routesProductDetailToKidlyApp() {
-        client.get().uri("/api/v1/products/1").exchange()
-            .expectStatus().isOk();
-
-        assertThat(backend.lastRequest()).hasValueSatisfying(request ->
-            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/products/1")));
-        assertThat(searchBackend.lastRequest()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("상품 목록 경로라도 GET이 아니면 kidly-app에 넘긴다")
-    void routesNonGetProductsToKidlyApp() {
+    @DisplayName("상품 목록 경로라도 GET이 아니면 상품 서비스에 넘긴다")
+    void routesNonGetProductsToProductService() {
         client.post().uri("/api/v1/products").exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(request ->
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(request ->
             assertThat(request.method()).isEqualTo("POST"));
         assertThat(searchBackend.lastRequest()).isEmpty();
+        assertThat(backend.lastRequest()).isEmpty();
     }
 
     @Test
@@ -204,7 +195,7 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
     @ParameterizedTest
     @ValueSource(strings = {
-        "/api/v1/seller/products", "/api/v1/seller/settlementsx", "/api/v1/admin/settlement", "/api/v1/admin/orders"
+        "/api/v1/seller/orders", "/api/v1/seller/settlementsx", "/api/v1/admin/settlement", "/api/v1/admin/orders"
     })
     @DisplayName("정산과 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
     void routesSettlementLookalikesToKidlyApp(String path) {
@@ -250,7 +241,7 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/membersx", "/api/v1/seller/products", "/api/v1/admin/memberships"})
+    @ValueSource(strings = {"/api/v1/membersx", "/api/v1/seller/orders", "/api/v1/admin/memberships"})
     @DisplayName("회원 경로와 이름만 비슷한 경로는 kidly-app에 넘긴다")
     void routesMemberLookalikesToKidlyApp(String path) {
         client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
@@ -328,6 +319,63 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
         assertThat(backend.lastRequest()).isPresent();
         assertThat(paymentBackend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("공개 상품 상세 · 카테고리 API는 같은 메서드 · 경로 · 쿼리로 상품 서비스에 넘긴다")
+    void routesPublicProductApisToProductService() {
+        client.get().uri("/api/v1/products/1").exchange()
+            .expectStatus().isOk();
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.method()).isEqualTo("GET");
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/products/1"));
+        });
+
+        client.get().uri("/api/v1/categories?x=1").exchange()
+            .expectStatus().isOk();
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/categories?x=1")));
+
+        client.get().uri("/api/v1/categories/3/attributes").exchange()
+            .expectStatus().isOk();
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/categories/3/attributes")));
+        assertThat(searchBackend.lastRequest()).isEmpty();
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/seller/products?page=0", "/api/v1/seller/products/5", "/api/v1/seller/products/5/sale-status",
+        "/api/v1/seller/product-images/upload-urls", "/api/v1/seller/options/9/inventory-adjustments",
+        "/api/v1/admin/products/5/sale-status", "/api/v1/admin/products/changed-events",
+        "/api/v1/admin/categories", "/api/v1/admin/categories/3", "/api/v1/admin/product-types",
+        "/api/v1/admin/attributes/2/values", "/api/v1/admin/measurement-items/4"
+    })
+    @DisplayName("판매자 · 관리자 상품 API는 그 역할의 토큰이면 같은 메서드 · 경로 · 쿼리로 상품 서비스에 넘긴다")
+    void routesSellerAndAdminProductApisToProductService(String path) {
+        client.patch().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isOk();
+
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.method()).isEqualTo("PATCH");
+            assertThat(request.uri()).isEqualTo(URI.create(path));
+        });
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/productsx", "/api/v1/categoriesx", "/api/v1/seller/productsx", "/api/v1/admin/productsx",
+        "/api/v1/seller/optionsx", "/api/v1/admin/attributesx"
+    })
+    @DisplayName("상품 경로와 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
+    void routesProductLookalikesToKidlyApp(String path) {
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(productBackend.lastRequest()).isEmpty();
     }
 
     @Test
@@ -425,7 +473,7 @@ class RoutingIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(request -> {
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(request -> {
             assertThat(request.header(HttpHeaders.HOST)).containsExactly(NGINX_HOST);
             // Tomcat은 오른쪽부터 내부 프록시(사설 · 루프백)를 건너뛴 첫 값을 클라이언트로 본다
             var forwardedFor = request.header("X-Forwarded-For").stream()

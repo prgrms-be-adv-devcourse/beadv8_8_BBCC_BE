@@ -46,7 +46,7 @@ groups:
             relativeTimeRange: {from: 300, to: 0}
             model:
               refId: A
-              expr: up{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement"}
+              expr: up{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement"}
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -77,8 +77,8 @@ groups:
             model:
               refId: A
               expr: >-
-                (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", uri!~"/actuator.*"}[5m])))
-                and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)
+                (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*"}[5m])))
+                and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -140,7 +140,7 @@ groups:
             relativeTimeRange: {from: 600, to: 0}
             model:
               refId: A
-              expr: sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement", level="error"}[5m]))
+              expr: sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", level="error"}[5m]))
               instant: true
           - refId: B
             datasourceUid: __expr__

@@ -31,7 +31,7 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 @IntegrationTest
 class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
 
-    // kidly-app으로 가는 공개 API. 목록(/api/v1/products)은 검색 서비스로 간다
+    // 상품 서비스로 가는 공개 API. 목록(/api/v1/products)은 검색 서비스로 간다
     private static final String PATH = "/api/v1/products/1";
     private static final Duration VALIDITY = Duration.ofMinutes(30);
 
@@ -303,7 +303,7 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
         expectUnauthorized(bearer(TestTokens.issueAdmin(91, now.minusSeconds(5), now.plus(VALIDITY))), PATH);
         bearer(TestTokens.issue(91, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY)))
             .expectStatus().isOk();
-        backend.reset();
+        productBackend.reset();
         revocations.revoke(PrincipalId.member(92), now, now);
         var memberToken = TestTokens.issue(92, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY));
         expectUnauthorized(bearer(memberToken), PATH);
@@ -321,7 +321,7 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
         assertThat(received().header(PrincipalHeaders.CHILD_GUARDIAN_ID)).containsExactly("8");
         assertThat(received().header(MemberHeaders.MEMBER_ID)).isEmpty();
         assertThat(received().header(PrincipalHeaders.ADMIN_ID)).isEmpty();
-        backend.reset();
+        productBackend.reset();
         expectUnauthorized(bearer(TestTokens.issueWithSubject("child:7", now, now.plus(VALIDITY))), PATH);
         expectUnauthorized(bearer(TestTokens.issueChild(7, 0, now, now.plus(VALIDITY))), PATH);
         expectUnauthorized(bearer(TestTokens.issueChildWithGuardian(7, "abc", now, now.plus(VALIDITY))), PATH);
@@ -340,6 +340,6 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
     }
 
     private RecordedRequest received() {
-        return backend.lastRequest().orElseThrow(() -> new AssertionError("백엔드가 요청을 받지 않았습니다"));
+        return productBackend.lastRequest().orElseThrow(() -> new AssertionError("백엔드가 요청을 받지 않았습니다"));
     }
 }
