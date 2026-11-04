@@ -72,7 +72,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
     void passesAdmin() {
         getAdmin(ADMIN_PATH).expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo(ADMIN_PATH));
     }
 

@@ -126,6 +126,19 @@ spring:
                 - Path=/v3/api-docs/product
               filters:
                 - SetPath=/v3/api-docs
+            # 주문 · 장바구니 · 배송(판매자 주문) · 조르기 API와 주문 관리자 API(DLT · 아웃박스 · 멈춘 주문 · 결제 복구 · 이벤트 처리 실패 · 구매확정 재발행)는 주문 서비스로 간다
+            # kidly-app도 아직 주문 도메인을 가지고 있어, 서비스를 켜지 않은 환경은 기본값(kidly-app)으로 지금처럼 간다
+            - id: order
+              uri: ${kidly.gateway.order-uri}
+              predicates:
+                - Path=/api/v1/orders/**,/api/v1/cart/**,/api/v1/wish/**,/api/v1/seller/orders/**,/api/v1/admin/orders/**
+            # 주문 API 문서. Gateway로 연 Swagger가 이 경로로 서비스의 /v3/api-docs를 읽는다(kidly-app Swagger 목록에는 kidly-app에서 주문을 뺄 때 더한다)
+            - id: order-api-docs
+              uri: ${kidly.gateway.order-uri}
+              predicates:
+                - Path=/v3/api-docs/order
+              filters:
+                - SetPath=/v3/api-docs
             # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
             - id: kidly-app
               uri: ${kidly.gateway.app-uri}
@@ -167,7 +180,7 @@ spring:
     activate:
       on-profile: local
 
-# kidly-app(8080) · member-service(8081) · search-service(8082) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) · product-service(8089)와 같이 띄운다
+# kidly-app(8080) · member-service(8081) · search-service(8082) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) · product-service(8089) · (선택) order-service(8090)와 같이 띄운다
 server:
   port: 8083
 
@@ -186,6 +199,8 @@ kidly:
     payment-uri: ${KIDLY_PAYMENT_URI:http://localhost:8087}
     # 상품은 kidly-app에 없다(#791). product-service(8089)를 띄워야 상품 API가 된다
     product-uri: ${KIDLY_PRODUCT_URI:http://localhost:8089}
+    # 주문은 기본으로 kidly-app이 받는다. order-service(8090)로 볼 때만 KIDLY_ORDER_URI=http://localhost:8090으로 띄운다
+    order-uri: ${KIDLY_ORDER_URI:http://localhost:8080}
 
 cors:
   allowed-origins: http://localhost:5173
@@ -219,6 +234,7 @@ kidly:
     settlement-uri: ${KIDLY_SETTLEMENT_URI}
     payment-uri: ${KIDLY_PAYMENT_URI}
     product-uri: ${KIDLY_PRODUCT_URI}
+    order-uri: ${KIDLY_ORDER_URI}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}
