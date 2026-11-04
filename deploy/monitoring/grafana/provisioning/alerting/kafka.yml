@@ -1,0 +1,92 @@
+---
+apiVersion: 1
+groups:
+- orgId: 1
+  name: kidly-kafka
+  folder: Kidly
+  interval: 1m
+  rules:
+  - uid: kidly-kafka-unavailable
+    title: Kafka 관측 불가
+    condition: B
+    for: 3m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: max by(env) (kidly_kafka_exporter_expected == 1) unless on(env) max
+          by(env) ((up{job="kidly-kafka"} == 1) and on(env,instance) (time() - timestamp(up{job="kidly-kafka"})
+          < 60) and on(env,instance) (kafka_brokers{job="kidly-kafka"} >= 1))
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.env }} Kafka 브로커 또는 exporter를 3분간 확인하지 못했습니다"
+      description: 환경 운영 상태·exporter·Kafka 상태와 loopback 수집 경로를 확인하세요. exporter UP만으로
+        업무 처리 성공을 보장하지 않습니다.
+    isPaused: false
+  - uid: kidly-kafka-lag-growing
+    title: Kafka 미처리 증가
+    condition: B
+    for: 5m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: ((sum by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+          and on(env,consumergroup,topic) (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+          >= 0)) > 0) and on(env,consumergroup,topic) (deriv((sum by(env,consumergroup,topic)
+          (kafka_consumergroup_lag{job="kidly-kafka"}) and on(env,consumergroup,topic)
+          (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+          >= 0))[10m:30s]) > 0) and on(env,consumergroup,topic) (min_over_time((sum
+          by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+          and on(env,consumergroup,topic) (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+          >= 0))[10m:30s]) > 0) and on(env) max by(env) (kidly_kafka_exporter_expected
+          == 1) and on(env) max by(env) ((up{job="kidly-kafka"} == 1) and on(env,instance)
+          (time() - timestamp(up{job="kidly-kafka"}) < 60) and on(env,instance) (kafka_brokers{job="kidly-kafka"}
+          >= 1)) and on(env,consumergroup,topic) (count_over_time((sum by(env,consumergroup,topic)
+          (kafka_consumergroup_lag{job="kidly-kafka"}) and on(env,consumergroup,topic)
+          (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+          >= 0))[10m:30s]) >= 20)
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.env }} {{ $labels.consumergroup }} 미처리가 지속 증가합니다"
+      description: 최근 10분 미처리가 남아 있고 증가 추세가 5분 지속됐습니다. 그룹·토픽별 소비 진행·도메인 처리 실패를 확인하세요.
+        임의 offset 변경·재처리는 하지 마세요. 그룹별 허용 대기시간 합의 전에는 이 규칙을 활성화하지 않습니다.
+    isPaused: true

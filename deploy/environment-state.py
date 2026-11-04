@@ -34,6 +34,8 @@ def validate(data):
         raise ValueError('Invalid operation phase')
     if not isinstance(data.get('changed_at'), (int, float)) or data['changed_at'] < 0:
         raise ValueError('Invalid timestamp')
+    if 'kafka_exporter_expected' in data and type(data['kafka_exporter_expected']) is not bool:
+        raise ValueError('Invalid Kafka exporter intention')
     jobs = data.get('jobs')
     allowed = {entry[0] for entry in SERVICES.values()}
     if not isinstance(jobs, list) or not jobs or len(jobs) != len(set(jobs)) or not set(jobs) <= allowed:
@@ -71,6 +73,8 @@ def metrics(data):
         'kidly_environment_changed_timestamp_seconds{env="%s"} %s' % (env, data['changed_at']),
         'kidly_environment_transition_active{env="%s"} %d' % (env, data['phase'] in ('starting', 'stopping')),
     ]
+    lines.append('kidly_kafka_exporter_expected{env="%s"} %d' %
+                 (env, data['enabled'] and data.get('kafka_exporter_expected', False)))
     lines += ['kidly_app_expected{env="%s",app_job="%s"} %d' % (env, job, data['enabled']) for job in data['jobs']]
     return '\n'.join(lines) + '\n'
 
@@ -106,6 +110,21 @@ def configuration(env):
     return targets
 
 
+def kafka_target(env):
+    # Read only monitoring keys; never expose application secrets.
+    values = {}
+    for line in (ROOT / env / '.env').read_text().splitlines():
+        key, sep, value = line.partition('=')
+        if sep and key in ('COMPOSE_PROFILES', 'KAFKA_EXPORTER_PORT'):
+            values[key] = value.strip().strip('"\'')
+    if 'kafka-monitoring' not in values.get('COMPOSE_PROFILES', '').split(','):
+        return None
+    port = values.get('KAFKA_EXPORTER_PORT', '')
+    if not port.isdigit() or not 0 < int(port) < 65536:
+        raise ValueError('Missing or invalid KAFKA_EXPORTER_PORT')
+    return int(port)
+
+
 def snapshot(env):
     if not (ROOT / env / '.env').exists():
         return None
@@ -114,12 +133,12 @@ def snapshot(env):
         return None
     jobs = [job for _, job, _ in configuration(env)]
     if data:
-        return dict(data, jobs=jobs)
+        return dict(data, jobs=jobs, kafka_exporter_expected=kafka_target(env) is not None)
     # Never infer intentional shutdown from a missing container or a failed scrape.
     # Only previously registered environments are adopted automatically.
     if not (ROOT / 'monitoring' / 'targets' / (env + '.yml')).exists():
         return None
-    return {'env': env, 'enabled': True, 'phase': 'running', 'changed_at': time.time(), 'jobs': jobs}
+    return {'env': env, 'enabled': True, 'phase': 'running', 'changed_at': time.time(), 'jobs': jobs, 'kafka_exporter_expected': kafka_target(env) is not None}
 
 
 def register_targets(env):
@@ -128,6 +147,12 @@ def register_targets(env):
     for service, _, port in configured:
         suffix = '' if service == 'app' else SERVICES[service][2]
         atomic(root / suffix / (env + '.yml'), '- targets: ["127.0.0.1:%d"]\n  labels:\n    env: %s\n' % (port, env))
+    kafka_port = kafka_target(env)
+    if kafka_port is not None:
+        atomic(root / 'kafka' / (env + '.yml'),
+               '- targets: ["127.0.0.1:%d"]\n  labels:\n    env: %s\n' % (kafka_port, env))
+    else:
+        (root / 'kafka' / (env + '.yml')).unlink(missing_ok=True)
     active = {service for service, _, _ in configured}
     for service, (_, _, profile) in SERVICES.items():
         if service not in active:
@@ -159,7 +184,7 @@ def control(env, action):
     with lock('environment-operation'), lock(env):
         targets = configuration(env)
         data = {'env': env, 'enabled': action == 'resume', 'phase': 'starting' if action == 'resume' else 'stopping',
-                'changed_at': time.time(), 'jobs': [job for _, job, _ in targets]}
+                'changed_at': time.time(), 'jobs': [job for _, job, _ in targets], 'kafka_exporter_expected': kafka_target(env) is not None}
         if action == 'resume':
             # Monitor a failed startup; do not silently leave the environment disabled.
             write(data)
@@ -177,6 +202,7 @@ def control(env, action):
             root = ROOT / 'monitoring' / 'targets'
             for _, _, profile in SERVICES.values():
                 (root / profile / (env + '.yml')).unlink(missing_ok=True)
+            (root / 'kafka' / (env + '.yml')).unlink(missing_ok=True)
             data['phase'] = 'stopped'
         write(data)
         return data
@@ -193,12 +219,14 @@ def main():
         print(json.dumps(snapshot(env)))
     elif action == 'plan':
         data = {'env': env, 'enabled': True, 'phase': 'running', 'changed_at': time.time(),
-                'jobs': [job for _, job, _ in configuration(env)]}
+                'jobs': [job for _, job, _ in configuration(env)],
+                'kafka_exporter_expected': kafka_target(env) is not None}
         print(json.dumps(validate(data)))
     elif action == 'targets':
         register_targets(env)
         data = {'env': env, 'enabled': True, 'phase': 'running', 'changed_at': time.time(),
-                'jobs': [job for _, job, _ in configuration(env)]}
+                'jobs': [job for _, job, _ in configuration(env)],
+                'kafka_exporter_expected': kafka_target(env) is not None}
         write(data)
     elif action == 'inventory':
         data = validate(json.load(sys.stdin))

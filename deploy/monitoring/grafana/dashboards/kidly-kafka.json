@@ -1,0 +1,327 @@
+{
+  "uid": "kidly-kafka",
+  "title": "Kidly Kafka 처리",
+  "tags": [
+    "kidly"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "환경·수집 등록",
+      "description": "운영 중지·수집 미도입·감시 중을 구분합니다. 데이터 없음은 환경 미등록 또는 의도 목록 수집 장애입니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(kidly_environment_enabled{env=\"$env\"}) * (1 + max(kidly_kafka_exporter_expected{env=\"$env\"}))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "데이터 없음",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "운영 중지",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "수집 미도입",
+                  "color": "gray"
+                },
+                "2": {
+                  "text": "감시 중",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "브로커 발견 수",
+      "description": "정상 후보는 1개입니다. 값이 없으면 exporter·기대 목록·환경 운영 상태부터 확인합니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "kafka_brokers{job=\"kidly-kafka\",env=\"$env\"}",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "데이터 없음",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "offset 확인 전",
+      "description": "음수 offset으로 lag를 확정할 수 없는 파티션 수입니다. 데이터 없음을 0으로 바꾸지 않습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} < 0) or (0 * count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}))",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "데이터 없음",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "수집 상태",
+      "description": "1은 exporter HTTP 수집 성공입니다. 브로커 발견 수와 함께 확인하며 업무 정상 보장은 아닙니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time(up{job=\"kidly-kafka\",env=\"$env\"}[1m])",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "데이터 없음",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "그룹·토픽별 미처리",
+      "description": "모든 파티션 offset이 확인된 그룹·토픽만 합산합니다. 데이터 없음·음수 offset·미배포를 미처리 0으로 해석하지 않습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by(env,consumergroup,topic) (kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}) and on(env,consumergroup,topic) (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}) >= 0))",
+          "legendFormat": "{{consumergroup}} · {{topic}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "데이터 없음"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "토픽 offset 증가 추정 (필요할 때 펼치기)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "panels": [
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "토픽 offset 증가율",
+          "description": "업무 성공 건수나 정확한 유입 메시지 수가 아닙니다. 재시작·보관·로그 압축과 내부 레코드 영향을 고려합니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 15
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by(topic) (clamp_min(delta(kafka_topic_partition_current_offset{job=\"kidly-kafka\",env=\"$env\"}[5m]),0)) / 300",
+              "legendFormat": "{{topic}}",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "환경",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(kidly_kafka_exporter_expected, env)",
+        "refresh": 1,
+        "current": {
+          "text": "prod",
+          "value": "prod"
+        }
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "서비스 상태",
+      "type": "link",
+      "url": "/d/kidly-http?var-env=${env}&from=${__from}&to=${__to}"
+    }
+  ]
+}
