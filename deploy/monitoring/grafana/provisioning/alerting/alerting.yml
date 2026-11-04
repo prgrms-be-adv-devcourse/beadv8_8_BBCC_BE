@@ -47,7 +47,7 @@ groups:
             model:
               refId: A
               expr: >-
-                (up{job=~"kidly|kidly-search|kidly-gateway|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-settlement|kidly-notification"}) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
+                (up{job=~"kidly|kidly-search|kidly-gateway|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-community|kidly-settlement|kidly-notification"}) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -78,7 +78,7 @@ groups:
             model:
               refId: A
               expr: >-
-                ((sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-settlement", uri!~"/actuator.*"}[5m]))) and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
+                ((sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-community|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-community|kidly-settlement", uri!~"/actuator.*"}[5m]))) and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-community|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -140,7 +140,7 @@ groups:
             model:
               refId: A
               expr: >-
-                (sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-search|kidly-gateway|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-settlement|kidly-notification", level="error"}[5m]))) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
+                (sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-search|kidly-gateway|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-community|kidly-settlement|kidly-notification", level="error"}[5m]))) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__

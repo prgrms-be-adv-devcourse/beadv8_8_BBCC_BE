@@ -23,6 +23,7 @@ SERVICES = {
     'product-service': ('kidly-product', 'PRODUCT_PORT', 'product'),
     'notification-service': ('kidly-notification', 'NOTIFICATION_PORT', 'notification'),
     'order-service': ('kidly-order', 'ORDER_PORT', 'order'),
+    'community-service': ('kidly-community', 'COMMUNITY_PORT', 'community'),
 }
 
 

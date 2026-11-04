@@ -43,6 +43,7 @@ class BackendUnavailableIntegrationTest {
         registry.add("kidly.gateway.payment-uri", () -> "http://127.0.0.1:" + closedPort);
         registry.add("kidly.gateway.product-uri", () -> "http://127.0.0.1:" + closedPort);
         registry.add("kidly.gateway.order-uri", () -> "http://127.0.0.1:" + closedPort);
+        registry.add("kidly.gateway.community-uri", () -> "http://127.0.0.1:" + closedPort);
     }
 
     @BeforeEach

@@ -120,6 +120,18 @@ class EnvironmentStateTests(unittest.TestCase):
         self.assertFalse(target.exists())
         self.assertIn('kidly-order', stopped['jobs'])
 
+    def test_community_profile_survives_resume_and_stop(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=search,community\nAPP_PORT=8081\nSEARCH_PORT=8082\nCOMMUNITY_PORT=8102\n')
+        with patch.object(state, 'run', return_value=''):
+            running = state.control('dev', 'resume')
+            target = self.root / 'monitoring/targets/community/dev.yml'
+            self.assertIn('kidly-community', running['jobs'])
+            self.assertIn('127.0.0.1:8102', target.read_text())
+            stopped = state.control('dev', 'stop')
+        self.assertFalse(target.exists())
+        self.assertIn('kidly-community', stopped['jobs'])
+
     def test_invalid_state_does_not_replace_good_inventory(self):
         state.write(self.data, monitoring=True)
         for invalid in [dict(self.data, env='other'), dict(self.data, enabled='false'),

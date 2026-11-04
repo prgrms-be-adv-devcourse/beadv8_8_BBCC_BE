@@ -28,7 +28,7 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 /**
  * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 추천은 추천 서비스로(#704), 정산은 정산 서비스로(#729),
  * 회원 · 인증 · 판매자 · 자녀 프로필은 회원 서비스로(#809), 결제는 결제 서비스로(#525), 상품은 상품 서비스로(#791),
- * 주문 · 장바구니 · 배송 · 조르기는 주문 서비스로, 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
+ * 주문 · 장바구니 · 배송 · 조르기는 주문 서비스로, 리뷰 · 찜은 커뮤니티 서비스로, 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  */
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
@@ -402,6 +402,49 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
         assertThat(backend.lastRequest()).isPresent();
         assertThat(orderBackend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/reviews?productId=1", "/api/v1/reviews/3", "/api/v1/reviews/me", "/api/v1/reviews/summary?productId=1",
+        "/api/v1/reviews/eligible", "/api/v1/favorites", "/api/v1/favorites/5", "/api/v1/favorites/summary?productId=5",
+        "/api/v1/admin/community/dead-letters", "/api/v1/admin/community/dead-letters/2/reprocess"
+    })
+    @DisplayName("리뷰 · 찜 · 커뮤니티 관리자 API는 같은 메서드 · 경로 · 쿼리로 커뮤니티 서비스에 넘긴다")
+    void routesCommunityApisToCommunityService(String path) {
+        var request = client.patch().uri(path);
+        if (path.startsWith("/api/v1/admin/")) {
+            request.header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path));
+        }
+        request.exchange().expectStatus().isOk();
+
+        assertThat(communityBackend.lastRequest()).hasValueSatisfying(recorded -> {
+            assertThat(recorded.method()).isEqualTo("PATCH");
+            assertThat(recorded.uri()).isEqualTo(URI.create(path));
+        });
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/reviewsx", "/api/v1/favoritesx", "/api/v1/admin/communityx"})
+    @DisplayName("커뮤니티 경로와 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
+    void routesCommunityLookalikesToKidlyApp(String path) {
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(communityBackend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("커뮤니티 API 문서는 커뮤니티 서비스의 /v3/api-docs로 넘긴다")
+    void routesCommunityApiDocsToCommunityService() {
+        client.get().uri("/v3/api-docs/community").exchange()
+            .expectStatus().isOk();
+
+        assertThat(communityBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/v3/api-docs")));
+        assertThat(backend.lastRequest()).isEmpty();
     }
 
     @Test
