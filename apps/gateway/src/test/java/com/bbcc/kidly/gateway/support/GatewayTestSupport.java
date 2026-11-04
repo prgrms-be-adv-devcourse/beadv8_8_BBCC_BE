@@ -13,7 +13,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * 통합 테스트(@IntegrationTest)가 상속한다: 실제 포트로 뜬 Gateway에 보내는 client와 가짜 백엔드(kidly-app · 상품 서비스 · 주문 서비스)를 테스트마다 새로 준비한다.
+ * 통합 테스트(@IntegrationTest)가 상속한다: 실제 포트로 뜬 Gateway에 보내는 client와 가짜 백엔드(kidly-app · 상품 · 주문 · 커뮤니티 서비스)를 테스트마다 새로 준비한다.
  * Gateway가 막은 응답은 expectBadRequest · expectUnauthorized · expectForbidden으로 본다.
  */
 public abstract class GatewayTestSupport {
@@ -34,6 +34,11 @@ public abstract class GatewayTestSupport {
     @Qualifier(RecordingBackendConfiguration.ORDER)
     protected RecordingBackend orderBackend;
 
+    // 리뷰 · 찜 · 커뮤니티 관리자 API는 커뮤니티 서비스 라우트로 간다
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.COMMUNITY)
+    protected RecordingBackend communityBackend;
+
     protected WebTestClient client;
 
     @BeforeEach
@@ -41,6 +46,7 @@ public abstract class GatewayTestSupport {
         backend.reset();
         productBackend.reset();
         orderBackend.reset();
+        communityBackend.reset();
         client = WebTestClient.bindToServer().baseUrl(baseUrl()).build();
     }
 
@@ -72,6 +78,7 @@ public abstract class GatewayTestSupport {
         assertThat(backend.lastRequest()).isEmpty();
         assertThat(productBackend.lastRequest()).isEmpty();
         assertThat(orderBackend.lastRequest()).isEmpty();
+        assertThat(communityBackend.lastRequest()).isEmpty();
     }
 
     // 5필드 ProblemDetail 본문을 본다. 백엔드까지 갔다가 실패한 응답(503 · 504)에도 쓰므로 백엔드 호출 여부는 보지 않는다.
