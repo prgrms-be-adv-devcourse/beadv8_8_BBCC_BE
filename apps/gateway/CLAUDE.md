@@ -21,17 +21,18 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 
 ## 무효화 목록
 - `revocation/AccessTokenRevocations`: `PrincipalId`(주체 종류, 주체 ID) → 무효화 시각, 메모리. 그 시각까지(초 단위, 같은 초 포함) 발급된 토큰은 401
-- `kidly.auth.events`의 `auth.tokens-revoked`를 받아 채운다(발행은 인증 도메인, `domains/auth`). 구독 그룹 `kidly.gateway`, 다른 종류는 건너뛴다
+- `kidly.auth.events`의 `auth.tokens-revoked`를 받아 채운다(발행은 회원 서비스의 인증 모듈, `apps/member-service/auth`). 구독 그룹 `kidly.gateway`, 다른 종류는 건너뛴다
 - 메모리라 다시 뜨면 빈다. 그래서 파티션을 받을 때마다 31분 전(Access Token 유효 기간 30분 + 시계 오차 60초)으로 되감아 다시 읽는다. 구독 그룹의 책갈피로 시작 위치를 정하지 않는다(31분 안에 메시지가 없는 파티션만 책갈피 위치에서 읽는다. 거기 있는 메시지는 보존 기간이 지나 결과가 같다)
 - 읽기 실패는 재시도 없이 DLT `kidly.auth.events.gateway.dlt` + ERROR 로그(본문 없이 `eventType` · `eventId` · 키)
 - 31분 안에서 읽지 못해 DLT로 간 메시지는 Gateway가 다시 뜰 때마다 다시 읽혀 DLT로 다시 간다(ERROR 로그도 다시)
-- `jwt.access-token-validity`는 인증 도메인(`domains/auth`)의 `auth.yml`과 같아야 한다
+- `jwt.access-token-validity`는 회원 서비스 인증 모듈의 `auth.yml`(`apps/member-service/auth/src/main/resources`)과 같아야 한다
 - 한계: 기동 직후 되감아 다 읽기 전에는 무효화된 토큰도 통과한다. 서비스는 토큰을 보지 않으므로 dev · prod 모두 이 사이는 실제로 뚫린다(prod 전환 전 readiness로 줄일 일)
 
 ## 지켜야 할 것
 - CORS 값(허용 origin · 메서드 · 노출 헤더)은 Gateway(`application.yml`)에서만 바꾼다
 - 주체 헤더 이름 · 접두어는 `PrincipalHeaders`, 토큰 주체는 `PrincipalId`에 있다. 회원 헤더 이름 · 역할 목록(쉼표) · 닉네임 인코딩(UTF-8 퍼센트 인코딩, 공백 `%20`) · 회원 ID 해석은 `MemberHeaders`, 역할은 `Role`, 토큰 클레임 이름은 `AccessTokenClaims`에 있다(모두 `shared`의 `com.bbcc.kidly.shared.auth`). Gateway · `common` · 회원이 같은 코드를 쓰므로 한 곳만 고친다
 - 400 · 401 · 403 · 404 · 500 본문은 서비스와 같아야 한다(문구 `common` `CommonErrorCode`의 `INVALID_INPUT` · `UNAUTHORIZED` · `FORBIDDEN` · `NOT_FOUND` · `INTERNAL_ERROR`, 5필드 `ProblemDetails`). 모듈이 달라 테스트로 묶지 못하므로 한쪽을 바꾸면 `web/ProblemResponse`도 바꾼다
+- 로그아웃(`/api/v1/auth/logout`)은 Refresh Token 쿠키로만 인증하므로 Access Token을 검증하지 않고 주체 헤더 없이 넘긴다. 탈퇴로 무효화된 토큰이 함께 와도 쿠키를 지울 수 있어야 한다(`auth/AccessTokenFilter`)
 - 역할이 필요한 경로를 더하면 `auth/RoleFilter`의 `RULES`에 더한다. 서비스는 역할 경로를 검사하지 않는다
 - 역할 검사(`auth/RoleFilter`)는 원래 요청 경로로 한다. 경로를 바꾸는 라우트 필터(`RewritePath` · `StripPrefix` 등)로 `/api/v1/admin` · `/api/v1/seller`에 닿게 하는 라우트를 만들지 않는다(바뀐 경로는 역할 검사를 받지 않는다)
 - 라우트 추가: `application.yml`의 `routes`에 더한다. 검색처럼 kidly-app이 아닌 서비스의 경로는 `kidly-app` 라우트(`/**`) 위에 둔다(위에서부터 맞춘다)
@@ -52,5 +53,5 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 추천 API(`/api/v1/recommendations/**`)는 추천 서비스(`:apps:recommend-service:bootRun`, 8086)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_RECOMMEND_URI`를 준다
 - 상품 목록(`GET /api/v1/products`)은 검색 서비스(`:apps:search-service:bootRun`, 8082, Elasticsearch 필요)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_SEARCH_URI`를 준다
 - 정산 API(`/api/v1/seller/settlement*` · `/api/v1/admin/settlement*`)는 정산 서비스(`:apps:settlement-service:bootRun`, 8088)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_SETTLEMENT_URI`를 준다
-- 회원 · 인증 · 판매자 API는 회원 서비스(`:apps:member-service:bootRun`, 8081)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_MEMBER_URI`를 준다
+- 회원 · 인증 · 판매자 API는 회원 서비스(`cd apps/member-service && ./gradlew bootRun`, 8081. 루트 빌드에 없다)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_MEMBER_URI`를 준다
 - 결제 API(`/api/v1/payments/**` · `/api/v1/wallets/**` 등)는 결제 서비스(`:apps:payment-service:bootRun`, 8087)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_PAYMENT_URI`를 준다
