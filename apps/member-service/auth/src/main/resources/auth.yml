@@ -13,6 +13,8 @@ refresh-token:
 
 kidly:
   auth:
+    outbox:
+      relay-interval: PT1S
     admin:
       bootstrap:
         email: ${KIDLY_ADMIN_BOOTSTRAP_EMAIL:}

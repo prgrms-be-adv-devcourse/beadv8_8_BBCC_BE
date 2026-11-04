@@ -33,6 +33,30 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
 
+    @Test
+    void routesChildProfileToMemberService() {
+        var now = Instant.now();
+        var token = TestTokens.issueChild(7001, 8, now, now.plusSeconds(1800));
+        client.get().uri("/api/v1/child/profile").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+            .exchange().expectStatus().isOk();
+        assertThat(memberBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri().getPath()).isEqualTo("/api/v1/child/profile"));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    void routesOtherChildPathsToKidlyApp() {
+        var now = Instant.now();
+        var token = TestTokens.issueChild(7001, 8, now, now.plusSeconds(1800));
+        for (var path : List.of("/api/v1/child/profiles", "/api/v1/child/orders")) {
+            client.get().uri(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .exchange().expectStatus().isOk();
+            assertThat(backend.lastRequest()).hasValueSatisfying(request ->
+                assertThat(request.uri().getPath()).isEqualTo(path));
+            assertThat(memberBackend.lastRequest()).isEmpty();
+        }
+    }
+
     private static final String ORIGIN = RecordingBackend.ALLOWED_ORIGIN;
     // nginx dev 블록이 받는 이름. 허용 origin(프론트)에는 없다
     private static final String NGINX_HOST = "dev-api.example";

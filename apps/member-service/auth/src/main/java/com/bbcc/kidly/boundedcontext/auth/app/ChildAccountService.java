@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.auth.app;
 
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountCreateRequest;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountResponse;
+import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccount;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
@@ -10,8 +11,10 @@ import com.bbcc.kidly.boundedcontext.auth.domain.ChildProfileReplicaRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.auth.PrincipalId;
+import com.bbcc.kidly.shared.auth.event.ChildAccountChangedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,7 @@ public class ChildAccountService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokens;
     private final AccessTokenRevocationService revocationService;
+    private final AuthEventOutbox outbox;
 
     @Transactional(readOnly = true)
     public List<ChildAccountResponse> list(Long guardianId) {
@@ -44,7 +48,9 @@ public class ChildAccountService {
         var password = validatePassword(request.password());
         var account = ChildAccount.create(request.loginId(), passwordEncoder.encode(password.value()), guardianId,
             request.childProfileId());
-        return ChildAccountResponse.from(accounts.saveAccount(account));
+        var saved = accounts.saveAccount(account);
+        appendChange(saved, false);
+        return ChildAccountResponse.from(saved);
     }
 
     @Transactional
@@ -71,6 +77,13 @@ public class ChildAccountService {
     void deleteAccount(ChildAccount account) {
         accounts.delete(account);
         revokeTokens(account.getId());
+        appendChange(account, true);
+    }
+
+    private void appendChange(ChildAccount account, boolean deleted) {
+        outbox.append(new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new ChildAccountChangedEvent.Data(account.getId(), account.getChildProfileId(), account.getGuardianId(),
+                deleted)));
     }
 
     private ChildAccount ownedAccount(Long guardianId, Long accountId) {

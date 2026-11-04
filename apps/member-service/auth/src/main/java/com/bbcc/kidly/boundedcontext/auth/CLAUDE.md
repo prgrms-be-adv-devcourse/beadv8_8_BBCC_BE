@@ -33,6 +33,8 @@
 - `child.changed`를 받아 프로필 ID와 보호자 ID만 복사한다. 삭제 시 복사본과 계정 · Refresh Token을 지우고 Access Token을 무효화한다
 - 부모는 복사본을 잠그고 소유권을 확인해 `POST /api/v1/auth/child-accounts`로 계정을 만든다. 아이디는 소문자 영문 · 숫자 4~20자, 비밀번호는 8자 이상 · UTF-8 72바이트 이하다
 - `/api/v1/auth/child/{login,reissue,logout}`은 자녀 계정으로 로그인한다. 토큰은 `child:{계정 ID}`와 `guardianId`를 담고 쿠키는 `child_refresh_token`(Path `/api/v1/auth/child`)이다
+- 계정 생성 · 삭제는 `child-account.changed`를 같은 트랜잭션에서 `auth.auth_outbox`에 기록한다. 계정 ID가 키이며 릴레이가 ID 순으로 보내고 성공한 행을 지운다. 실패하면 해당 행부터 다음 주기에 다시 시도한다
+- 저장은 `out/outbox/JpaAuthEventOutbox`, 릴레이는 `in/outbox/AuthOutboxScheduler` → `app/outbox/AuthOutboxRelayService` → `out/outbox/KafkaAuthOutboxSender`다. 트랜잭션 advisory lock으로 릴레이를 하나만 실행한다
 
 ## Access Token 무효화 (`AccessTokenRevocationService`, `shared.auth.out.MemberTokenRevoker`)
 - 호출자 트랜잭션 안에서만 부른다(`@Transactional(propagation = MANDATORY)`). 호출자가 커밋해야 효력이 생기고 롤백되면 아무 일도 없다

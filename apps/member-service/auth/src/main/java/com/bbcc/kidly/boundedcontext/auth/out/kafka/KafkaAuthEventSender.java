@@ -5,8 +5,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventSender;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import java.time.Duration;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
@@ -66,24 +64,11 @@ public class KafkaAuthEventSender implements AuthEventSender, DisposableBean {
     }
 
     private ProducerRecord<String, String> toRecord(DomainEvent event) {
-        var record = new ProducerRecord<>(TOPIC, event.correlationId(), toBody(event));
+        var record = new ProducerRecord<>(TOPIC, event.correlationId(), AuthEventEnvelope.toJson(jsonMapper, event));
         record.headers()
             .add("eventType", event.eventType().getBytes(UTF_8))
             .add("eventId", event.eventId().toString().getBytes(UTF_8));
         return record;
-    }
-
-    private String toBody(DomainEvent event) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
-        return jsonMapper.writeValueAsString(body);
     }
 
     // 본문은 남기지 않는다(팀 규칙)

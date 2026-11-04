@@ -163,6 +163,14 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
         client.get().uri("/api/v1/children").exchange().expectStatus().isOk();
     }
 
+    @Test
+    void childProfileRequiresChildPrincipal() {
+        var path = "/api/v1/child/profile";
+        expectUnauthorized(client.get().uri(path).exchange(), path);
+        expectForbidden(get(path, "BUYER"), path);
+        expectForbidden(getAdmin(path), path);
+    }
+
     private ResponseSpec getAdmin(String path) {
         var now = Instant.now();
         return client.get().uri(path)
