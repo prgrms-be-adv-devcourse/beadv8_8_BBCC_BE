@@ -219,7 +219,16 @@ groups:
         to: 0
       model:
         refId: A
-        expr: sum by(store) (increase({job="kidly-monitoring-store",__name__=~"prometheus_tsdb_(wal_writes_failed_total|wal_truncations_failed_total|compactions_failed_total|head_truncations_failed_total)|loki_ingester_chunks_flush_failures_total"}[5m]))
+        expr: sum by(store) (label_replace(increase(prometheus_tsdb_wal_writes_failed_total{job="kidly-monitoring-store"}[5m]),
+          "failure_kind", "prometheus_tsdb_wal_writes_failed_total", "store", ".*")
+          or label_replace(increase(prometheus_tsdb_wal_truncations_failed_total{job="kidly-monitoring-store"}[5m]),
+          "failure_kind", "prometheus_tsdb_wal_truncations_failed_total", "store",
+          ".*") or label_replace(increase(prometheus_tsdb_compactions_failed_total{job="kidly-monitoring-store"}[5m]),
+          "failure_kind", "prometheus_tsdb_compactions_failed_total", "store", ".*")
+          or label_replace(increase(prometheus_tsdb_head_truncations_failed_total{job="kidly-monitoring-store"}[5m]),
+          "failure_kind", "prometheus_tsdb_head_truncations_failed_total", "store",
+          ".*") or label_replace(increase(loki_ingester_chunks_flush_failures_total{job="kidly-monitoring-store"}[5m]),
+          "failure_kind", "loki_ingester_chunks_flush_failures_total", "store", ".*"))
         instant: true
     - refId: B
       datasourceUid: __expr__

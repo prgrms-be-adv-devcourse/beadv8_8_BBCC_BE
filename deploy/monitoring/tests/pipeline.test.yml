@@ -137,3 +137,20 @@ tests:
         alertname: kidly-scrape-missing
         exp_alerts:
           - exp_labels: {env: dev, job: kidly, app_job: kidly}
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_tsdb_wal_writes_failed_total{job="kidly-monitoring-store",store="prometheus"}'
+        values: '0+0x20'
+      - series: 'prometheus_tsdb_wal_truncations_failed_total{job="kidly-monitoring-store",store="prometheus"}'
+        values: '0+0x20'
+      - series: 'prometheus_tsdb_compactions_failed_total{job="kidly-monitoring-store",store="prometheus"}'
+        values: '0+1x20'
+      - series: 'prometheus_tsdb_head_truncations_failed_total{job="kidly-monitoring-store",store="prometheus"}'
+        values: '0+0x20'
+      - series: 'loki_ingester_chunks_flush_failures_total{job="kidly-monitoring-store",store="loki"}'
+        values: '0+0x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: kidly-store-failures
+        exp_alerts:
+          - exp_labels: {store: prometheus}
