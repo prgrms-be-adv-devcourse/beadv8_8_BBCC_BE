@@ -8,7 +8,7 @@
   "timezone": "browser",
   "editable": true,
   "schemaVersion": 41,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": {
     "from": "now-1h",
@@ -39,8 +39,8 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "CPU",
-      "description": "최근 2분 평균. 모든 코어를 합쳐 100% 가 최대",
+      "title": "CPU 사용률",
+      "description": "최근 2분 평균입니다. 단독 고사용률로 호출하지 않습니다. 지속되면 아래 상세를 펼쳐 어떤 컨테이너인지 확인하세요.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -76,7 +76,20 @@
           },
           "color": {
             "mode": "thresholds"
-          }
+          },
+          "noValue": "데이터 없음",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "데이터 없음",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
@@ -88,7 +101,7 @@
           "fields": "",
           "values": false
         },
-        "graphMode": "area",
+        "graphMode": "none",
         "colorMode": "value",
         "textMode": "value",
         "justifyMode": "center"
@@ -100,17 +113,17 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{job=\"integrations/unix\", instance=\"$instance\", mode=\"idle\"}[2m])))",
+          "expr": "(100 * (1 - avg(rate(node_cpu_seconds_total{job=\"integrations/unix\", instance=\"$instance\", mode=\"idle\"}[2m])))) and on () (max(time() - timestamp(node_memory_MemAvailable_bytes{job=\"integrations/unix\",instance=\"$instance\"})) < 60)",
           "legendFormat": "",
-          "instant": false
+          "instant": true
         }
       ]
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "메모리",
-      "description": "MemTotal 중 MemAvailable 을 뺀 비율 (캐시 · 버퍼는 사용 중으로 치지 않는다)",
+      "title": "사용 가능 메모리",
+      "description": "캐시 회수 가능량을 포함한 MemAvailable입니다. 10% 미만이 5분 지속되면 알립니다. 추가 기동을 보류하고 컨테이너 사용량을 확인하세요.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -131,22 +144,31 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
               },
               {
-                "color": "orange",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 90
+                "color": "green",
+                "value": 10
               }
             ]
           },
           "color": {
             "mode": "thresholds"
-          }
+          },
+          "noValue": "데이터 없음",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "데이터 없음",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
@@ -158,7 +180,7 @@
           "fields": "",
           "values": false
         },
-        "graphMode": "area",
+        "graphMode": "none",
         "colorMode": "value",
         "textMode": "value",
         "justifyMode": "center"
@@ -170,17 +192,17 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"integrations/unix\", instance=\"$instance\"} / node_memory_MemTotal_bytes{job=\"integrations/unix\", instance=\"$instance\"})",
+          "expr": "(100 * node_memory_MemAvailable_bytes{job=\"integrations/unix\", instance=\"$instance\"} / node_memory_MemTotal_bytes{job=\"integrations/unix\", instance=\"$instance\"}) and on () (max(time() - timestamp(node_memory_MemAvailable_bytes{job=\"integrations/unix\",instance=\"$instance\"})) < 60)",
           "legendFormat": "",
-          "instant": false
+          "instant": true
         }
       ]
     },
     {
       "id": 3,
       "type": "stat",
-      "title": "디스크 (/)",
-      "description": "루트 파일시스템 사용 비율",
+      "title": "루트 디스크 사용률",
+      "description": "80% 초과가 10분 지속되면 알립니다. 데이터·로그 보관량을 확인하세요. DB·Kafka 볼륨은 임의로 삭제하지 마세요.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -206,7 +228,7 @@
               },
               {
                 "color": "orange",
-                "value": 70
+                "value": 80
               },
               {
                 "color": "red",
@@ -216,7 +238,20 @@
           },
           "color": {
             "mode": "thresholds"
-          }
+          },
+          "noValue": "데이터 없음",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "데이터 없음",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
@@ -228,7 +263,7 @@
           "fields": "",
           "values": false
         },
-        "graphMode": "area",
+        "graphMode": "none",
         "colorMode": "value",
         "textMode": "value",
         "justifyMode": "center"
@@ -240,17 +275,17 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "100 * (1 - node_filesystem_avail_bytes{job=\"integrations/unix\", instance=\"$instance\", mountpoint=\"/\"} / node_filesystem_size_bytes{job=\"integrations/unix\", instance=\"$instance\", mountpoint=\"/\"})",
+          "expr": "(100 * (1 - node_filesystem_avail_bytes{job=\"integrations/unix\", instance=\"$instance\", mountpoint=\"/\"} / node_filesystem_size_bytes{job=\"integrations/unix\", instance=\"$instance\", mountpoint=\"/\"})) and on () (max(time() - timestamp(node_memory_MemAvailable_bytes{job=\"integrations/unix\",instance=\"$instance\"})) < 60)",
           "legendFormat": "",
-          "instant": false
+          "instant": true
         }
       ]
     },
     {
       "id": 4,
       "type": "stat",
-      "title": "업타임",
-      "description": "호스트가 마지막으로 부팅된 뒤 지난 시간",
+      "title": "최근 24시간 OOM 종료",
+      "description": "선택한 서버가 메모리 부족으로 프로세스를 종료한 횟수의 추정값입니다. 0이어도 수집 이전·수집 공백·재부팅 중 발생까지 부정하지 않습니다. 커널 기록과 컨테이너 OOMKilled를 확인하세요.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -263,22 +298,38 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "dtdurations",
+          "unit": "short",
           "decimals": 0,
           "min": 0,
-          "max": null,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "text",
+                "color": "green",
                 "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.001
               }
             ]
           },
           "color": {
             "mode": "thresholds"
-          }
+          },
+          "noValue": "데이터 없음",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "데이터 없음",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
@@ -290,7 +341,7 @@
           "fields": "",
           "values": false
         },
-        "graphMode": "area",
+        "graphMode": "none",
         "colorMode": "value",
         "textMode": "value",
         "justifyMode": "center"
@@ -302,405 +353,498 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "time() - node_boot_time_seconds{job=\"integrations/unix\", instance=\"$instance\"}",
+          "expr": "(increase(node_vmstat_oom_kill{job=\"integrations/unix\", instance=\"$instance\"}[24h])) and on () (max(time() - timestamp(node_memory_MemAvailable_bytes{job=\"integrations/unix\",instance=\"$instance\"})) < 60)",
           "legendFormat": "",
-          "instant": false
+          "instant": true
         }
       ]
     },
     {
-      "id": 5,
-      "type": "timeseries",
-      "title": "CPU 사용률",
-      "description": "최근 2분 평균",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "id": 20,
+      "type": "row",
+      "title": "서버·컨테이너 상세 (필요할 때 펼치기)",
+      "collapsed": true,
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 1,
+        "w": 24,
         "x": 0,
         "y": 5
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 15,
-            "showPoints": "never",
-            "gradientMode": "opacity"
-          },
-          "max": 100
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
+      "panels": [
         {
-          "refId": "A",
+          "id": 11,
+          "type": "stat",
+          "title": "루트 inode 여유",
+          "description": "파일을 새로 만들 수 있는 여유입니다. 여유 10% 미만이 10분 지속되면 알립니다. df -i /로 확인하고 작은 파일 급증 경로를 찾으세요.",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{job=\"integrations/unix\", instance=\"$instance\", mode=\"idle\"}[2m])))",
-          "legendFormat": "사용"
-        }
-      ]
-    },
-    {
-      "id": 6,
-      "type": "timeseries",
-      "title": "메모리",
-      "description": "사용 = MemTotal - MemAvailable",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 5
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "min": 0,
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 15,
-            "showPoints": "never",
-            "gradientMode": "opacity"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "전체"
-            },
-            "properties": [
-              {
-                "id": "custom.fillOpacity",
-                "value": 0
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 6
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 1,
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 10
+                  }
+                ]
               },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
-                }
+              "color": {
+                "mode": "thresholds"
               },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "text"
+              "noValue": "데이터 없음",
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "데이터 없음",
+                      "color": "gray"
+                    }
+                  }
                 }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "node_memory_MemTotal_bytes{job=\"integrations/unix\", instance=\"$instance\"} - node_memory_MemAvailable_bytes{job=\"integrations/unix\", instance=\"$instance\"}",
-          "legendFormat": "사용"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "node_memory_MemTotal_bytes{job=\"integrations/unix\", instance=\"$instance\"}",
-          "legendFormat": "전체"
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "type": "timeseries",
-      "title": "디스크 I/O",
-      "description": "모든 디스크 합. 쓰기는 아래쪽으로 그린다",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 13
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Bps",
-          "min": null,
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 15,
-            "showPoints": "never",
-            "gradientMode": "opacity"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "쓰기"
+              ]
             },
-            "properties": [
-              {
-                "id": "custom.transform",
-                "value": "negative-Y"
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
+            "overrides": []
           },
-          "expr": "sum(rate(node_disk_read_bytes_total{job=\"integrations/unix\", instance=\"$instance\"}[2m]))",
-          "legendFormat": "읽기"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(node_disk_written_bytes_total{job=\"integrations/unix\", instance=\"$instance\"}[2m]))",
-          "legendFormat": "쓰기"
-        }
-      ]
-    },
-    {
-      "id": 8,
-      "type": "timeseries",
-      "title": "네트워크",
-      "description": "물리 인터페이스(eth · en*) 합. 송신은 아래쪽으로 그린다",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 13
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Bps",
-          "min": null,
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 15,
-            "showPoints": "never",
-            "gradientMode": "opacity"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "송신"
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
             },
-            "properties": [
+            "graphMode": "none",
+            "colorMode": "value",
+            "textMode": "value",
+            "justifyMode": "center"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "(100 * node_filesystem_files_free{job=\"integrations/unix\",instance=\"$instance\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_files{job=\"integrations/unix\",instance=\"$instance\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}) and on () (max(time() - timestamp(node_memory_MemAvailable_bytes{job=\"integrations/unix\",instance=\"$instance\"})) < 60)",
+              "legendFormat": "",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "CPU 사용률",
+          "description": "최근 2분 평균",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 6
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              },
+              "max": 100
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{job=\"integrations/unix\", instance=\"$instance\", mode=\"idle\"}[2m])))",
+              "legendFormat": "사용"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "메모리 여유 추이",
+          "description": "사용 = MemTotal - MemAvailable",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 14
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              }
+            },
+            "overrides": [
               {
-                "id": "custom.transform",
-                "value": "negative-Y"
+                "matcher": {
+                  "id": "byName",
+                  "options": "전체"
+                },
+                "properties": [
+                  {
+                    "id": "custom.fillOpacity",
+                    "value": 0
+                  },
+                  {
+                    "id": "custom.lineStyle",
+                    "value": {
+                      "fill": "dash",
+                      "dash": [
+                        10,
+                        10
+                      ]
+                    }
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "text"
+                    }
+                  }
+                ]
               }
             ]
-          }
-        ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "node_memory_MemAvailable_bytes{job=\"integrations/unix\",instance=\"$instance\"}",
+              "legendFormat": "사용 가능"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "node_memory_MemTotal_bytes{job=\"integrations/unix\", instance=\"$instance\"}",
+              "legendFormat": "전체"
+            }
+          ]
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
         {
-          "refId": "A",
+          "id": 7,
+          "type": "timeseries",
+          "title": "디스크 I/O",
+          "description": "모든 디스크 합. 쓰기는 아래쪽으로 그린다",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(node_network_receive_bytes_total{job=\"integrations/unix\", instance=\"$instance\", device=~\"eth.*|en.*\"}[2m]))",
-          "legendFormat": "수신"
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 14
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "min": null,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "쓰기"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum(rate(node_disk_read_bytes_total{job=\"integrations/unix\", instance=\"$instance\"}[2m]))",
+              "legendFormat": "읽기"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum(rate(node_disk_written_bytes_total{job=\"integrations/unix\", instance=\"$instance\"}[2m]))",
+              "legendFormat": "쓰기"
+            }
+          ]
         },
         {
-          "refId": "B",
+          "id": 8,
+          "type": "timeseries",
+          "title": "네트워크",
+          "description": "물리 인터페이스(eth · en*) 합. 송신은 아래쪽으로 그린다",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(node_network_transmit_bytes_total{job=\"integrations/unix\", instance=\"$instance\", device=~\"eth.*|en.*\"}[2m]))",
-          "legendFormat": "송신"
-        }
-      ]
-    },
-    {
-      "id": 9,
-      "type": "timeseries",
-      "title": "컨테이너 CPU",
-      "description": "컨테이너별 최근 2분 평균. 코어 하나를 다 쓰면 100%",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 21
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 15,
-            "showPoints": "never",
-            "gradientMode": "opacity"
-          }
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 22
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "min": null,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "송신"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum(rate(node_network_receive_bytes_total{job=\"integrations/unix\", instance=\"$instance\", device=~\"eth.*|en.*\"}[2m]))",
+              "legendFormat": "수신"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum(rate(node_network_transmit_bytes_total{job=\"integrations/unix\", instance=\"$instance\", device=~\"eth.*|en.*\"}[2m]))",
+              "legendFormat": "송신"
+            }
+          ]
         },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
         {
-          "refId": "A",
+          "id": 9,
+          "type": "timeseries",
+          "title": "컨테이너 CPU",
+          "description": "컨테이너별 최근 2분 평균. 코어 하나를 다 쓰면 100%",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{job=\"integrations/cadvisor\", instance=\"$instance\", name!=\"\"}[2m])) * 100",
-          "legendFormat": "{{name}}"
-        }
-      ]
-    },
-    {
-      "id": 10,
-      "type": "timeseries",
-      "title": "컨테이너 메모리",
-      "description": "working set (캐시 중 회수 가능한 부분은 뺀 값). docker stats 와 같은 기준",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 21
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "min": 0,
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 15,
-            "showPoints": "never",
-            "gradientMode": "opacity"
-          }
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 22
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{job=\"integrations/cadvisor\", instance=\"$instance\", name!=\"\"}[2m])) * 100",
+              "legendFormat": "{{name}}"
+            }
+          ]
         },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
         {
-          "refId": "A",
+          "id": 10,
+          "type": "timeseries",
+          "title": "컨테이너 메모리",
+          "description": "앱 서버의 컨테이너 working set입니다. 모니터링 서버는 cAdvisor를 수집하지 않아 이 패널이 비어 있습니다. 환경별 제한·실제 사용량을 함께 보고, 컨테이너별 최고값을 더해 호스트 동시 최고값으로 판단하지 마세요.",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "container_memory_working_set_bytes{job=\"integrations/cadvisor\", instance=\"$instance\", name!=\"\"}",
-          "legendFormat": "{{name}}"
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 30
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (name) (container_memory_working_set_bytes{job=\"integrations/cadvisor\",instance=\"$instance\",name!=\"\"} and (time() - timestamp(container_memory_working_set_bytes{job=\"integrations/cadvisor\",instance=\"$instance\",name!=\"\"}) < 30))",
+              "legendFormat": "{{name}}"
+            }
+          ]
         }
       ]
     }
