@@ -303,3 +303,20 @@ prometheus.remote_write "medium" {
 		url = string.format("http://%s:30090/api/v1/write", sys.env("MONITORING_HOST"))
 	}
 }
+
+// Self-observation shares remote write; inventory on medium detects a complete delivery outage.
+prometheus.scrape "alloy_self" {
+    targets = [{"__address__" = "127.0.0.1:12345", "collector" = "app"}]
+    job_name = "kidly-alloy"
+    scrape_interval = "15s"
+    forward_to = [prometheus.relabel.alloy_health.receiver]
+}
+
+prometheus.relabel "alloy_health" {
+    forward_to = [prometheus.remote_write.medium.receiver]
+    rule {
+        source_labels = ["__name__"]
+        regex = "up|prometheus_remote_storage_(samples_pending|queue_highest_sent_timestamp_seconds|samples_failed_total|samples_dropped_total)|loki_write_(batch_retries_total|dropped_entries_total)"
+        action = "keep"
+    }
+}

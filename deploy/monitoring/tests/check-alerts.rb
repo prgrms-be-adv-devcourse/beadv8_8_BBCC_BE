@@ -6,8 +6,8 @@ require 'yaml'
 require 'tmpdir'
 require 'fileutils'
 
-source = File.expand_path('../grafana/provisioning/alerting/alerting.yml', __dir__)
-rules = YAML.load_file(source).fetch('groups').flat_map { |group| group.fetch('rules') }.map do |rule|
+sources = Dir[File.expand_path('../grafana/provisioning/alerting/*.yml', __dir__)]
+rules = sources.flat_map { |path| (YAML.load_file(path)['groups'] || []) }.flat_map { |group| group.fetch('rules') }.map do |rule|
   query = rule.fetch('data').find { |data| data.fetch('refId') == 'A' }.fetch('model').fetch('expr')
   threshold = rule.fetch('data').find { |data| data.fetch('refId') == 'B' }
                   .fetch('model').fetch('conditions').first.fetch('evaluator')
@@ -16,10 +16,13 @@ rules = YAML.load_file(source).fetch('groups').flat_map { |group| group.fetch('r
 end
 Dir.mktmpdir('kidly-alert-check-') do |directory|
   File.write(File.join(directory, 'rules.yml'), { 'groups' => [{ 'name' => 'kidly', 'rules' => rules }] }.to_yaml)
-  FileUtils.cp(File.join(__dir__, 'alerts.test.yml'), File.join(directory, 'tests.yml'))
+  tests = Dir[File.join(__dir__, '*.test.yml')].map do |path|
+    FileUtils.cp(path, directory)
+    File.basename(path)
+  end
   tool = File.expand_path(ARGV.fetch(0))
   Dir.chdir(directory) do
     abort 'Rule syntax check failed' unless system(tool, 'check', 'rules', 'rules.yml')
-    abort 'Alert behavior check failed' unless system(tool, 'test', 'rules', 'tests.yml')
+    abort 'Alert behavior check failed' unless system(tool, 'test', 'rules', *tests)
   end
 end

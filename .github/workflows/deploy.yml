@@ -47,12 +47,28 @@ on:
 permissions:
   contents: read
 
-# 같은 환경(dev · prod)으로 가는 배포는 한 번에 하나만 돈다. 진행 중인 배포는 취소하지 않고, 대기 중인 run 은 최신 것으로 대체된다
+# 같은 환경(dev · prod)으로 가는 배포는 한 번에 하나만 돈다. 진행 중인 배포는 취소하지 않고, 최대 100개까지 대기시킨다
 concurrency:
   group: deploy-${{ github.ref_name == 'main' && 'prod' || 'dev' }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
+  monitoring-location:
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      host: ${{ steps.location.outputs.host }}
+      known_hosts: ${{ steps.location.outputs.known_hosts }}
+    steps:
+      - id: location
+        env:
+          MONITORING_SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
+          MONITORING_KNOWN_HOSTS: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$MONITORING_SSH_HOST" && test -n "$MONITORING_KNOWN_HOSTS"
+          echo "host=$MONITORING_SSH_HOST" >> "$GITHUB_OUTPUT"
+          echo "known_hosts=$(printf '%s' "$MONITORING_KNOWN_HOSTS" | base64 -w0)" >> "$GITHUB_OUTPUT"
   # PR 때 돈 CI 는 그때의 develop 기준이라, 머지된 커밋을 다시 검사한다. 롤백이면 이미 배포됐던 커밋이라 생략한다
   ci:
     if: inputs.sha == ''
@@ -200,9 +216,9 @@ jobs:
             "GHCR_USER=$GHCR_USER ES_IMAGE=$ES_IMAGE /opt/app/search/deploy.sh"
 
   deploy:
-    needs: [ci, build, elasticsearch]
+    needs: [ci, build, elasticsearch, monitoring-location]
     # CI 와 빌드가 모두 성공했거나 롤백(둘 다 생략)인 경우만 배포한다. Elasticsearch 배포가 실패하면 앱도 올리지 않는다
-    if: ${{ !cancelled() && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) && needs.elasticsearch.result != 'failure' }}
+    if: ${{ !cancelled() && needs.monitoring-location.result == 'success' && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) && needs.elasticsearch.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -247,7 +263,7 @@ jobs:
           umask 077
           out="$RUNNER_TEMP/deploy-files"
           mkdir -p "$out/jwt"
-          cp -p deploy/docker-compose.yml deploy/deploy.sh "$out/"
+          cp -p deploy/docker-compose.yml deploy/deploy.sh deploy/environment-state.py "$out/"
 
           # 한 줄짜리 비밀. .env 뒤에 붙인다
           keys=(DB_PASSWORD KAKAO_CLIENT_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
@@ -291,7 +307,7 @@ jobs:
           APP_ENV: ${{ vars.APP_ENV }}
         run: |
           dir="/opt/app/$APP_ENV"
-          tar -C "$RUNNER_TEMP/deploy-files" -czf - docker-compose.yml deploy.sh .env jwt \
+          tar -C "$RUNNER_TEMP/deploy-files" -czf - docker-compose.yml deploy.sh environment-state.py .env jwt \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
               "mkdir -p $dir && tar -xzf - --no-same-owner -C $dir && chmod 700 $dir/jwt && chmod 600 $dir/.env $dir/jwt/private.pem"
 
@@ -319,6 +335,17 @@ jobs:
               PRODUCT_IMAGE=$IMAGE-product-service:$SHA \
               /opt/app/$APP_ENV/deploy.sh
           " 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+
+      - name: 운영 대상 목록 동기화
+        if: success()
+        env:
+          APP_SSH_HOST: ${{ vars.SSH_HOST }}
+          MONITORING_SSH_HOST: ${{ needs.monitoring-location.outputs.host }}
+          MONITORING_KNOWN_HOSTS_B64: ${{ needs.monitoring-location.outputs.known_hosts }}
+          APP_ENV: ${{ vars.APP_ENV }}
+        run: |
+          printf '%s' "$MONITORING_KNOWN_HOSTS_B64" | base64 --decode >> ~/.ssh/known_hosts
+          python3 .github/scripts/environment-operation.py sync "$APP_ENV"
 
       # deploy-notify.yml 이 이 주석(title 앱 기동 실패)을 읽어 장애 채널로 원인을 보낸다. 실행 화면 맨 위에도 보인다
       - name: 기동 실패 원인 남기기

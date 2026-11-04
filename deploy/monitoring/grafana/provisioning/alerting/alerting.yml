@@ -46,7 +46,8 @@ groups:
             relativeTimeRange: {from: 300, to: 0}
             model:
               refId: A
-              expr: up{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement"}
+              expr: >-
+                (up{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement"}) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -77,8 +78,7 @@ groups:
             model:
               refId: A
               expr: >-
-                (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*"}[5m])))
-                and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)
+                ((sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*"}[5m]))) and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -108,8 +108,7 @@ groups:
             model:
               refId: A
               expr: >-
-                (sum by (env, job) (increase(http_server_requests_seconds_count{job="kidly-gateway", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job="kidly-gateway", uri!~"/actuator.*"}[5m])))
-                and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job="kidly-gateway", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)
+                ((sum by (env, job) (increase(http_server_requests_seconds_count{job="kidly-gateway", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job="kidly-gateway", uri!~"/actuator.*"}[5m]))) and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job="kidly-gateway", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -140,7 +139,8 @@ groups:
             relativeTimeRange: {from: 600, to: 0}
             model:
               refId: A
-              expr: sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", level="error"}[5m]))
+              expr: >-
+                (sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", level="error"}[5m]))) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -171,7 +171,9 @@ groups:
             relativeTimeRange: {from: 300, to: 0}
             model:
               refId: A
-              expr: absent_over_time(up{job="kidly"}[3m])
+              expr: >-
+                (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)") unless on (env, job) max by (env, job) (present_over_time(up{job=~"kidly|kidly-.*"}[3m]))) and on () (max(last_over_time(up{job="kidly-alloy",collector="app"}[1m])) == 1)
+                unless on(env) ((kidly_environment_transition_active == 1) and on(env) ((time() - kidly_environment_changed_timestamp_seconds) < 300))
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -184,4 +186,5 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: '앱 메트릭이 3분 넘게 하나도 들어오지 않습니다 (t3.large 다운 · Alloy 중단 · 서버 간 연결 끊김)'
+          summary: '{{ $labels.job }} 수집 데이터가 3분 이상 없습니다'
+          description: 운영 대상은 유지돼 있습니다. targets 등록과 Alloy의 해당 서비스 수집 상태를 확인하세요. 의도적 중지는 environment-operation을 사용하세요.
