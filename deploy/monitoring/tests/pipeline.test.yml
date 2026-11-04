@@ -117,3 +117,23 @@ tests:
         alertname: kidly-store-failures
         exp_alerts:
           - exp_labels: {store: loki}
+  - interval: 1m
+    input_series:
+      - series: 'kidly_environment_enabled{env="dev"}'
+        values: '1+0x15'
+      - series: 'kidly_environment_transition_active{env="dev"}'
+        values: '1+0x15'
+      - series: 'kidly_environment_changed_timestamp_seconds{env="dev"}'
+        values: '0+0x15'
+      - series: 'kidly_app_expected{env="dev",app_job="kidly"}'
+        values: '1+0x15'
+      - series: 'up{job="kidly-alloy",collector="app"}'
+        values: '1+0x15'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: kidly-scrape-missing
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: kidly-scrape-missing
+        exp_alerts:
+          - exp_labels: {env: dev, job: kidly, app_job: kidly}
