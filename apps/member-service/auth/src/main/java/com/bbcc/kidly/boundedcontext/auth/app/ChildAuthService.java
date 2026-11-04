@@ -46,10 +46,10 @@ public class ChildAuthService {
         if (!matches) {
             throw rejected("wrong-password childAccountId=" + accountId);
         }
-        // BCrypt 비교는 잠그기 전에 한다. 잠금을 쥔 채 비교하면 같은 아이디로 몰린 로그인이 재발급 · 삭제 처리를 붙잡는다
-        // 잠근 뒤 다시 읽어, 비교하는 사이 자녀 삭제로 지워진 계정에는 토큰을 주지 않는다
-        var child = accounts.findByIdForUpdate(accountId)
-            .orElseThrow(() -> rejected("deleted childAccountId=" + accountId));
+        // BCrypt 비교는 잠그기 전에 한다. 잠금을 쥔 채 비교하면 재발급 · 삭제 처리를 붙잡는다
+        // 비교한 해시를 DB에서 다시 확인해 삭제되거나 변경된 계정에는 토큰을 주지 않는다
+        var child = accounts.findByIdAndPasswordHashForUpdate(accountId, hash)
+            .orElseThrow(() -> rejected("deleted-or-password-changed childAccountId=" + accountId));
         var refresh = refreshTokens.issue(PrincipalId.child(child.getId()));
         log.info("자녀 로그인: childAccountId={}", child.getId());
         return new AuthTokens(issuer.issue(new TokenSubject.Child(child.getId(), child.getGuardianId())), refresh);
