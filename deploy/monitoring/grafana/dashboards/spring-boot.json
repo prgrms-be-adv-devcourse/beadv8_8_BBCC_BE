@@ -146,7 +146,7 @@
           "step": 14400
         }
       ],
-      "title": "Uptime",
+      "title": "실행 시간",
       "type": "stat"
     },
     {
@@ -232,7 +232,7 @@
           "step": 14400
         }
       ],
-      "title": "Heap Used",
+      "title": "힙 사용률",
       "type": "gauge"
     },
     {
@@ -328,7 +328,7 @@
           "step": 14400
         }
       ],
-      "title": "Non-Heap Used",
+      "title": "힙 외 사용률",
       "type": "gauge"
     },
     {
@@ -392,7 +392,7 @@
       ],
       "thresholds": [],
       "timeRegions": [],
-      "title": "Process Open Files",
+      "title": "열린 파일 수",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -499,7 +499,7 @@
           "step": 14400
         }
       ],
-      "title": "Start time",
+      "title": "기동 시각",
       "type": "stat"
     },
     {
@@ -614,7 +614,7 @@
           "refId": "B"
         }
       ],
-      "title": "CPU Usage",
+      "title": "CPU 사용률",
       "type": "timeseries"
     },
     {
@@ -729,7 +729,7 @@
           "refId": "B"
         }
       ],
-      "title": "Load Average",
+      "title": "실행 대기 부하",
       "type": "timeseries"
     },
     {
@@ -1134,7 +1134,7 @@
               "refId": "C"
             }
           ],
-          "title": "Threads",
+          "title": "스레드 수",
           "type": "timeseries"
         },
         {
@@ -1243,7 +1243,7 @@
               "refId": "B"
             }
           ],
-          "title": "Direct Buffers",
+          "title": "직접 버퍼",
           "type": "timeseries"
         },
         {
@@ -1352,7 +1352,7 @@
               "refId": "B"
             }
           ],
-          "title": "Mapped Buffers",
+          "title": "매핑 버퍼",
           "type": "timeseries"
         },
         {
@@ -1461,7 +1461,7 @@
               "refId": "B"
             }
           ],
-          "title": "Memory Allocate/Promote",
+          "title": "메모리 할당·이동",
           "type": "timeseries"
         }
       ],
@@ -1590,7 +1590,7 @@
               "refId": "A"
             }
           ],
-          "title": "GC Count",
+          "title": "GC 발생",
           "type": "timeseries"
         },
         {
@@ -1692,7 +1692,7 @@
               "refId": "A"
             }
           ],
-          "title": "GC Stop the World Duration",
+          "title": "GC 전체 정지 시간",
           "type": "timeseries"
         }
       ],
@@ -1798,8 +1798,9 @@
               "refId": "A"
             }
           ],
-          "title": "Connections Size",
-          "type": "stat"
+          "title": "연결 풀 상한",
+          "type": "stat",
+          "description": "선택 서비스의 Hikari 연결 풀 지표입니다. DB 서버 전체 max_connections와 다릅니다. Gateway·검색처럼 풀을 제공하지 않는 서비스는 데이터가 없습니다."
         },
         {
           "datasource": {
@@ -1925,8 +1926,9 @@
               "refId": "C"
             }
           ],
-          "title": "Connections",
-          "type": "timeseries"
+          "title": "활성·유휴 연결",
+          "type": "timeseries",
+          "description": "선택 서비스의 Hikari 연결 풀 지표입니다. DB 서버 전체 max_connections와 다릅니다. Gateway·검색처럼 풀을 제공하지 않는 서비스는 데이터가 없습니다."
         },
         {
           "datasource": {
@@ -2004,8 +2006,9 @@
               "refId": "A"
             }
           ],
-          "title": "Connection Timeout Count",
-          "type": "stat"
+          "title": "연결 시간 초과 누적",
+          "type": "stat",
+          "description": "선택 서비스의 Hikari 연결 풀 지표입니다. DB 서버 전체 max_connections와 다릅니다. Gateway·검색처럼 풀을 제공하지 않는 서비스는 데이터가 없습니다."
         },
         {
           "aliasColors": {},
@@ -2066,7 +2069,7 @@
           ],
           "thresholds": [],
           "timeRegions": [],
-          "title": "Connection Creation Time",
+          "title": "연결 생성 시간",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -2092,7 +2095,8 @@
           ],
           "yaxis": {
             "align": false
-          }
+          },
+          "description": "선택 서비스의 Hikari 연결 풀 지표입니다. DB 서버 전체 max_connections와 다릅니다. Gateway·검색처럼 풀을 제공하지 않는 서비스는 데이터가 없습니다."
         },
         {
           "aliasColors": {},
@@ -2153,7 +2157,7 @@
           ],
           "thresholds": [],
           "timeRegions": [],
-          "title": "Connection Usage Time",
+          "title": "연결 점유 시간",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -2179,7 +2183,8 @@
           ],
           "yaxis": {
             "align": false
-          }
+          },
+          "description": "선택 서비스의 Hikari 연결 풀 지표입니다. DB 서버 전체 max_connections와 다릅니다. Gateway·검색처럼 풀을 제공하지 않는 서비스는 데이터가 없습니다."
         },
         {
           "aliasColors": {},
@@ -2240,7 +2245,7 @@
           ],
           "thresholds": [],
           "timeRegions": [],
-          "title": "Connection Acquire Time",
+          "title": "연결 획득 시간",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -2266,7 +2271,8 @@
           ],
           "yaxis": {
             "align": false
-          }
+          },
+          "description": "선택 서비스의 Hikari 연결 풀 지표입니다. DB 서버 전체 max_connections와 다릅니다. Gateway·검색처럼 풀을 제공하지 않는 서비스는 데이터가 없습니다."
         }
       ],
       "targets": [
@@ -2389,7 +2395,7 @@
               "refId": "A"
             }
           ],
-          "title": "Request Count",
+          "title": "요청 수",
           "type": "timeseries"
         },
         {
@@ -2490,8 +2496,9 @@
               "refId": "A"
             }
           ],
-          "title": "Response Time",
-          "type": "timeseries"
+          "title": "경로별 평균 응답시간",
+          "type": "timeseries",
+          "description": "예외가 없는 요청의 최근 평균입니다. p95/p99가 아니며 평균은 느린 요청 일부를 숨길 수 있습니다."
         }
       ],
       "targets": [
@@ -2621,8 +2628,9 @@
               "refId": "A"
             }
           ],
-          "title": "INFO logs",
-          "type": "timeseries"
+          "title": "INFO 발생률",
+          "type": "timeseries",
+          "description": "로그 발생률이며 누적 건수·업무 실패 건수가 아닙니다. 반복 오류는 서비스 오류 화면과 로그로 확인하세요."
         },
         {
           "datasource": {
@@ -2725,8 +2733,9 @@
               "refId": "A"
             }
           ],
-          "title": "ERROR logs",
-          "type": "timeseries"
+          "title": "ERROR 발생률",
+          "type": "timeseries",
+          "description": "로그 발생률이며 누적 건수·업무 실패 건수가 아닙니다. 반복 오류는 서비스 오류 화면과 로그로 확인하세요."
         },
         {
           "datasource": {
@@ -2829,8 +2838,9 @@
               "refId": "A"
             }
           ],
-          "title": "WARN logs",
-          "type": "timeseries"
+          "title": "WARN 발생률",
+          "type": "timeseries",
+          "description": "로그 발생률이며 누적 건수·업무 실패 건수가 아닙니다. 반복 오류는 서비스 오류 화면과 로그로 확인하세요."
         },
         {
           "datasource": {
@@ -2933,8 +2943,9 @@
               "refId": "A"
             }
           ],
-          "title": "DEBUG logs",
-          "type": "timeseries"
+          "title": "DEBUG 발생률",
+          "type": "timeseries",
+          "description": "로그 발생률이며 누적 건수·업무 실패 건수가 아닙니다. 반복 오류는 서비스 오류 화면과 로그로 확인하세요."
         },
         {
           "datasource": {
@@ -3037,8 +3048,9 @@
               "refId": "A"
             }
           ],
-          "title": "TRACE logs",
-          "type": "timeseries"
+          "title": "TRACE 발생률",
+          "type": "timeseries",
+          "description": "로그 발생률이며 누적 건수·업무 실패 건수가 아닙니다. 반복 오류는 서비스 오류 화면과 로그로 확인하세요."
         }
       ],
       "targets": [

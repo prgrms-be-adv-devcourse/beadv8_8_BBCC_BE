@@ -108,6 +108,26 @@ class EnvironmentStateTests(unittest.TestCase):
         self.assertFalse(target.exists())
         self.assertIn('kidly-product', stopped['jobs'])
 
+    def test_kafka_exporter_has_separate_intent_and_discovery(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=search,kafka-monitoring\nAPP_PORT=8081\nSEARCH_PORT=8082\n'
+            'KAFKA_EXPORTER_PORT=9308\n')
+        with patch.object(state, 'run', return_value=''):
+            running = state.control('dev', 'resume')
+            self.assertTrue(running['kafka_exporter_expected'])
+            self.assertNotIn('kidly-kafka', running['jobs'])
+            target = self.root / 'monitoring/targets/kafka/dev.yml'
+            self.assertIn('127.0.0.1:9308', target.read_text())
+            self.assertIn('kidly_kafka_exporter_expected{env="dev"} 1', state.metrics(running))
+            stopped = state.control('dev', 'stop')
+        self.assertFalse(target.exists())
+        self.assertIn('kidly_kafka_exporter_expected{env="dev"} 0', state.metrics(stopped))
+
+    def test_old_inventory_does_not_expect_uninstalled_exporter(self):
+        self.assertIn('kidly_kafka_exporter_expected{env="dev"} 0', state.metrics(self.data))
+        with self.assertRaises(ValueError):
+            state.validate(dict(self.data, kafka_exporter_expected='true'))
+
     def test_invalid_state_does_not_replace_good_inventory(self):
         state.write(self.data, monitoring=True)
         for invalid in [dict(self.data, env='other'), dict(self.data, enabled='false'),
