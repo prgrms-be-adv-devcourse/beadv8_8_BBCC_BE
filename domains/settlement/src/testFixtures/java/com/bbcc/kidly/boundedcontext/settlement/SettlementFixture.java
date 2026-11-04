@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.springframework.util.ReflectionUtils;
 
 public final class SettlementFixture {
 
@@ -30,8 +31,13 @@ public final class SettlementFixture {
 
     // 아직 보내지 않은 settlement.payout-requested 아웃박스 메시지. 키는 정산서 ID(31)
     public static SettlementOutboxMessage outboxMessage() {
-        return SettlementOutboxMessage.create(UUID.randomUUID(), "settlement.payout-requested",
+        var message = SettlementOutboxMessage.create(UUID.randomUUID(), "settlement.payout-requested",
             "kidly.settlement.events", "31", "{\"eventType\":\"settlement.payout-requested\"}");
+        // 저장 전이라 JPA Auditing이 채우는 createdAt이 없다. 보낸 지연 계산에 필요해 직접 채운다
+        var createdAt = ReflectionUtils.findField(SettlementOutboxMessage.class, "createdAt");
+        ReflectionUtils.makeAccessible(createdAt);
+        ReflectionUtils.setField(createdAt, message, NOW);
+        return message;
     }
 
     public static SettlementItem item(Long orderItemId) {

@@ -2,8 +2,10 @@ package com.bbcc.kidly.boundedcontext.settlement.app;
 
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutFailedEvent;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +19,17 @@ import org.springframework.util.Assert;
 public class SettlementPayoutResultService {
 
     private final SettlementRepository settlementRepository;
+    private final SettlementMetrics metrics;
 
     @Transactional
     public void markPaid(PaymentPayoutCompletedEvent.Data data) {
-        getMatching(data.settlementId(), data.sellerId(), data.amount()).markPaid(data.paidAt());
+        var settlement = getMatching(data.settlementId(), data.sellerId(), data.amount());
+        // 같은 결과를 다시 받으면 이미 PAID라 지표를 한 번만 남긴다
+        boolean alreadyPaid = settlement.getStatus() == SettlementStatus.PAID;
+        settlement.markPaid(data.paidAt());
+        if (!alreadyPaid) {
+            metrics.recordPayout(Duration.between(settlement.getCompletedAt(), data.paidAt()));
+        }
     }
 
     @Transactional

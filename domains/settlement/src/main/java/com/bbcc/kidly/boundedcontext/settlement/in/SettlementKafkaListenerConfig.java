@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.settlement.in;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.bbcc.kidly.boundedcontext.settlement.app.SettlementMetrics;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -59,7 +60,7 @@ class SettlementKafkaListenerConfig {
     @Bean
     ConcurrentKafkaListenerContainerFactory<Object, Object> settlementKafkaListenerContainerFactory(
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
-        ProducerFactory<String, String> producerFactory) {
+        ProducerFactory<String, String> producerFactory, SettlementMetrics metrics) {
         var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
         configurer.configure(factory, consumerFactory);
         factory.getContainerProperties().setAckMode(AckMode.RECORD);
@@ -71,6 +72,7 @@ class SettlementKafkaListenerConfig {
             (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
         factory.setCommonErrorHandler(errorHandler((record, e) -> {
             logDeadLetter(record, e);
+            metrics.countDeadLetter(record.topic());
             deadLetter.accept(record, e);
         }));
         return factory;

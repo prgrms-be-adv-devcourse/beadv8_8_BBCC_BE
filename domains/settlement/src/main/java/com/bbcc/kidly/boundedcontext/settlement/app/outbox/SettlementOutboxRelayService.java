@@ -1,10 +1,12 @@
 package com.bbcc.kidly.boundedcontext.settlement.app.outbox;
 
+import com.bbcc.kidly.boundedcontext.settlement.app.SettlementMetrics;
 import com.bbcc.kidly.boundedcontext.settlement.app.outbox.SettlementOutboxRelayResult.Outcome;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementEventSendException;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementEventSender;
 import com.bbcc.kidly.boundedcontext.settlement.domain.outbox.SettlementOutboxMessage;
 import com.bbcc.kidly.boundedcontext.settlement.domain.outbox.SettlementOutboxRepository;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class SettlementOutboxRelayService {
     private final SettlementOutboxRepository outboxRepository;
     private final SettlementEventSender sender;
     private final SettlementOutboxProperties properties;
+    private final SettlementMetrics metrics;
 
     /**
      * 한 트랜잭션에서 릴레이 잠금을 얻고 안 보낸 메시지를 id 순서로 batch-size건 보낸다. 잠금을 못 얻으면 아무것도 하지 않는다.
@@ -47,7 +50,9 @@ public class SettlementOutboxRelayService {
                     message.getAttemptCount(), e.getMessage());
                 return new SettlementOutboxRelayResult(Outcome.STOPPED, unsent.size(), sent);
             }
-            message.markSent(LocalDateTime.now());
+            LocalDateTime now = LocalDateTime.now();
+            message.markSent(now);
+            metrics.recordSent(Duration.between(message.getCreatedAt(), now));
             sent++;
         }
         return new SettlementOutboxRelayResult(Outcome.COMPLETED, unsent.size(), sent);
