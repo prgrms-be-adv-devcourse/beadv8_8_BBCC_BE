@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
@@ -53,6 +54,9 @@ class SellerNameApiTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderQueryService orderQueries;
+
+    @Autowired
     private OrderDeliveredAtSetter deliveredAtSetter;
 
     @BeforeEach
@@ -81,9 +85,9 @@ class SellerNameApiTest {
         String orderId = placeOrder();
         publishSeller(OCCURRED_AT, "키들리샵");
         orderService.markPaid(MarkPaidCommands.matching(
-            orderService.getOrder(BUYER_ID, Long.valueOf(orderId)), BUYER_ID, 500L));
+            orderQueries.getOrder(BUYER_ID, Long.valueOf(orderId)), BUYER_ID, 500L));
         deliveredAtSetter.recordDelivered(Long.valueOf(orderId), SELLER_ID, LocalDateTime.now());
-        String orderItemId = String.valueOf(orderService.getOrder(BUYER_ID, Long.valueOf(orderId))
+        String orderItemId = String.valueOf(orderQueries.getOrder(BUYER_ID, Long.valueOf(orderId))
             .items().getFirst().orderItemId());
 
         client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + orderItemId + "/confirm")

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.ReplicaUpdateLock;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ProductChangedCommand;
@@ -35,6 +36,9 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 class ReplicaServiceTest {
 
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 10, 13, 9, 0);
+
+    @Mock
+    private ReplicaUpdateLock replicaUpdateLock;
 
     @Mock
     private ProductReplicaRepository productReplicaRepository;
@@ -204,22 +208,29 @@ class ReplicaServiceTest {
         ReplicaChild existing = ReplicaChild.create(childValues("115.0", OCCURRED_AT));
         when(childReplicaRepository.findByChildId(1L)).thenReturn(Optional.of(existing));
 
-        replicaService.applyChildDeleted(1L, OCCURRED_AT.minusSeconds(1));
+        replicaService.applyChildDeleted(1L, 1L, OCCURRED_AT.minusSeconds(1));
         assertThat(existing.isDeleted()).isFalse();
 
-        replicaService.applyChildDeleted(1L, OCCURRED_AT.plusSeconds(1));
+        replicaService.applyChildDeleted(1L, 1L, OCCURRED_AT.plusSeconds(1));
         assertThat(existing.isDeleted()).isTrue();
         assertThat(existing.getHeightCm()).isEqualByComparingTo(new BigDecimal("115.0"));
         verify(childReplicaRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("키 · 몸무게 없는 삭제: 복사본이 없으면 만들 수 없어 저장 없이 WARN만 남긴다")
-    void ignoresDeleteWithoutReplica(CapturedOutput output) {
-        replicaService.applyChildDeleted(1L, OCCURRED_AT);
+    @DisplayName("키 · 몸무게 없는 삭제: 복사본이 없어도 보호자와 삭제 시각을 저장한다")
+    void savesDeleteWithoutReplica(CapturedOutput output) {
+        replicaService.applyChildDeleted(1L, 1L, OCCURRED_AT);
 
-        verify(childReplicaRepository, never()).save(any());
-        assertThat(output).containsPattern("WARN.*event=child.changed childId=1 reason=replica-not-found");
+        verify(childReplicaRepository).save(savedChild.capture());
+        ReplicaChild saved = savedChild.getValue();
+        assertThat(saved.getChildId()).isEqualTo(1L);
+        assertThat(saved.getMemberId()).isEqualTo(1L);
+        assertThat(saved.isDeleted()).isTrue();
+        assertThat(saved.getHeightCm()).isNull();
+        assertThat(saved.getWeightKg()).isNull();
+        assertThat(saved.getEventOccurredAt()).isEqualTo(OCCURRED_AT);
+        assertThat(output).doesNotContain("reason=replica-not-found");
     }
 
     // ── 판매자 ──

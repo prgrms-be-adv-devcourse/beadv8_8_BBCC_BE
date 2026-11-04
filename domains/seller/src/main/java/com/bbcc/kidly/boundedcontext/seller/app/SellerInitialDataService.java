@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 기획서 7.1 공통 초기 데이터 중 판매자를 넣는다. 회원 초기 데이터의 관리자(회원 3)가 회원 2를 승인해 판매자 2(테스트상점)를 만들고,
+ * 기획서 7.1 공통 초기 데이터 중 판매자를 넣는다. 관리자 계정 1이 회원 2를 승인해 판매자 2(테스트상점)를 만들고,
  * 신청 목록 · 거절 화면 확인용으로 회원 5는 대기, 회원 6은 거절 상태 신청을 둔다.
  * 판매자 신청이 하나도 없을 때만 넣는다 (이미 있는 신청과 겹쳐 기동이 실패하지 않게).
  */
@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SellerInitialDataService {
 
     private static final Long SELLER_ID = 2L;
-    private static final Long ADMIN_ID = 3L;
+    private static final Long ADMIN_ID = 1L;
     private static final Long PENDING_APPLICANT_ID = 5L;
     private static final Long REJECTED_APPLICANT_ID = 6L;
 

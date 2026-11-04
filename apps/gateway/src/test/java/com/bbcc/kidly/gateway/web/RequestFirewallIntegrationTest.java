@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend;
+import com.bbcc.kidly.gateway.support.RecordingBackendConfiguration;
 import com.bbcc.kidly.gateway.support.TestTokens;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
 import java.io.BufferedReader;
@@ -18,11 +19,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -33,6 +37,16 @@ import org.springframework.http.MediaType;
  */
 @IntegrationTest
 class RequestFirewallIntegrationTest extends GatewayTestSupport {
+
+    // 토스 웹훅은 결제 라우트(#525)로 간다
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.PAYMENT)
+    private RecordingBackend paymentBackend;
+
+    @BeforeEach
+    void resetPaymentBackend() {
+        paymentBackend.reset();
+    }
 
     // 백엔드가 정규화 · 디코딩 · 매트릭스 제거를 하면 /api/v1/admin/** · /internal/**로 읽힐 수 있는 경로
     private static final List<String> BYPASS_PATHS = List.of(
@@ -150,7 +164,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
     @DisplayName("퍼센트 인코딩한 헤더 값과 Gateway가 붙인 닉네임 헤더는 그대로 넘긴다")
     void passesPercentEncodedHeaders() {
         var nickname = "키들리 엄마+아빠 100%";
-        client.get().uri("/api/v1/members/me")
+        client.get().uri("/api/v1/orders")
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestTokens.issueWithNickname(7L, nickname))
             .header("X-Client-Note", "%ED%82%A4%EB%93%A4%EB%A6%AC%20100%25")
             .exchange()
@@ -194,7 +208,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo("/api/v1/webhooks/toss"));
     }
 

@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.member;
 
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -42,15 +41,6 @@ public final class MemberFixture {
         return member;
     }
 
-    // 관리자 지정 · 탈퇴 규칙(ACTIVE만 가능)을 거치지 않도록 테스트에서는 필드를 직접 바꾼다
-    public static Member withRole(MemberRole role) {
-        return withRole(kakaoMember(), role);
-    }
-
-    public static Member withRole(String providerUserId, MemberRole role) {
-        return withRole(kakaoMember(providerUserId), role);
-    }
-
     public static Member withStatus(MemberStatus status) {
         return withStatus(kakaoMember(), status);
     }
@@ -70,11 +60,6 @@ public final class MemberFixture {
     private static Member register(String providerUserId, String nickname) {
         var email = providerUserId + "@example.com";
         return Member.register(new MemberRegisterInfo(null, new Nickname(nickname), email));
-    }
-
-    private static Member withRole(Member member, MemberRole role) {
-        ReflectionTestUtils.setField(member, "role", role);
-        return member;
     }
 
     private static Member withStatus(Member member, MemberStatus status) {

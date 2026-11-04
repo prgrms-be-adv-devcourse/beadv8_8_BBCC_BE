@@ -29,6 +29,9 @@ public class SearchProduct {
 
     private String thumbnailUrl;
 
+    // 상품명과 함께 검색어로 찾는 브랜드다. 등록하지 않은 상품이면 null이다
+    private String brand;
+
     private Long sellerId;
 
     private Long categoryId;
@@ -53,7 +56,7 @@ public class SearchProduct {
     private Map<String, List<Long>> attributes;
 
     public record ChangeInfo(Long productId, Long sellerId, String name, Long categoryId, ProductStatus status,
-        String thumbnailUrl, LocalDateTime productCreatedAt, boolean sizeFree, List<OptionInfo> options,
+        String thumbnailUrl, String brand, LocalDateTime productCreatedAt, boolean sizeFree, List<OptionInfo> options,
         List<AttributeEntryInfo> infoValues, LocalDateTime occurredAt) {
     }
 
@@ -79,6 +82,7 @@ public class SearchProduct {
         product.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         product.name = requireNonNull(info.name(), "name은 필수입니다");
         product.thumbnailUrl = info.thumbnailUrl();
+        product.brand = info.brand();
         product.sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
         product.categoryId = requireNonNull(info.categoryId(), "categoryId는 필수입니다");
         product.status = requireNonNull(info.status(), "status는 필수입니다");

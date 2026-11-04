@@ -59,7 +59,7 @@ class StuckOrderQueryCountIntegrationTest {
     }
 
     @Test
-    @DisplayName("건수 요약: 대상 수와 상관없이 종류마다 1번씩 7번(아웃박스 멈춤은 맨 앞 미전송 1번)")
+    @DisplayName("건수 요약: 대상 수와 상관없이 종류마다 1번씩 7번(아웃박스 전송 대기 · 격리 후보는 한 쿼리)")
     void summaryQueryCountFixed() {
         LocalDateTime now = LocalDateTime.now();
         long empty = countStatements(() -> stuckOrderService.getSummary(now));

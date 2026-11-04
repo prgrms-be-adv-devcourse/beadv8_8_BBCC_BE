@@ -12,10 +12,8 @@ import org.springframework.http.HttpStatus;
 public enum MemberErrorCode implements ErrorCode {
 
     LOGIN_NOT_ALLOWED(HttpStatus.FORBIDDEN, "로그인할 수 없는 회원입니다", "정지되었거나 탈퇴한 회원입니다."),
-    MEMBER_NOT_SUSPENDABLE(HttpStatus.CONFLICT, "정지할 수 없는 회원입니다", "이미 정지 · 탈퇴했거나 관리자인 회원입니다."),
-    MEMBER_NOT_WITHDRAWABLE(HttpStatus.CONFLICT, "탈퇴할 수 없는 회원입니다", "이미 정지 · 탈퇴했거나 관리자인 회원입니다."),
-    ADMIN_NOT_GRANTABLE(HttpStatus.CONFLICT, "관리자로 지정할 수 없는 회원입니다", "정지 · 탈퇴했거나 이미 관리자인 회원입니다."),
-    ADMIN_NOT_REVOCABLE(HttpStatus.CONFLICT, "관리자 권한을 해제할 수 없는 회원입니다", "관리자가 아니거나 본인입니다."),
+    MEMBER_NOT_SUSPENDABLE(HttpStatus.CONFLICT, "정지할 수 없는 회원입니다", "이미 정지 · 탈퇴한 회원입니다."),
+    MEMBER_NOT_WITHDRAWABLE(HttpStatus.CONFLICT, "탈퇴할 수 없는 회원입니다", "이미 정지 · 탈퇴한 회원입니다."),
     DEFAULT_SHIPPING_ADDRESS_NOT_DELETABLE(HttpStatus.CONFLICT, "기본 배송지는 삭제할 수 없습니다", "다른 배송지를 기본으로 바꾼 뒤 삭제해 주세요."),
     NICKNAME_ALREADY_USED(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다", "다른 닉네임을 입력해 주세요.");
 

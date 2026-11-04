@@ -1,5 +1,9 @@
 package com.bbcc.kidly.support;
 
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.AuthChild;
+import com.bbcc.kidly.global.security.LoginChild;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import java.util.Map;
@@ -22,6 +26,16 @@ public class TestApiController {
     @GetMapping(LOGIN_MEMBER_PATH)
     AuthMember loginMember(@LoginMember AuthMember member) {
         return member;
+    }
+
+    @GetMapping("/api/v1/test/login-admin")
+    AuthAdmin loginAdmin(@LoginAdmin AuthAdmin admin) {
+        return admin;
+    }
+
+    @GetMapping("/api/v1/test/login-child")
+    AuthChild loginChild(@LoginChild AuthChild child) {
+        return child;
     }
 
     @GetMapping(PUBLIC_PATH)

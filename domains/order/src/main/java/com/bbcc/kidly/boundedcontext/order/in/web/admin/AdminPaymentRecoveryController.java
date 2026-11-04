@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.in.web.admin;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.PaymentRecoveryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.global.security.AuthAdmin;
+import com.bbcc.kidly.global.security.LoginAdmin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자 결제 반영 실패 API(#353). /api/v1/admin/** 라 ADMIN만 호출할 수 있다(공용 보안 설정).
+ * 관리자 결제 반영 실패 API(#353). /api/v1/admin/** 라 관리자 주체만 호출할 수 있다(Gateway 검사).
  * 예치금은 빠졌는데 결제완료 반영이 실패한 주문을 보고, 재처리하거나 취소(환불)로 끝낸다.
  */
 @RestController
@@ -45,7 +45,7 @@ public class AdminPaymentRecoveryController {
      * 이미 복구됐으면 그대로 200.
      */
     @PostMapping("/{recoveryId}/retry")
-    public PaymentRecoveryResponse retry(@PathVariable Long recoveryId, @LoginMember AuthMember admin) {
+    public PaymentRecoveryResponse retry(@PathVariable Long recoveryId, @LoginAdmin AuthAdmin admin) {
         return PaymentRecoveryResponse.from(recoveryRetry.retry(recoveryId, admin.id()));
     }
 
@@ -53,7 +53,7 @@ public class AdminPaymentRecoveryController {
      * 주문을 취소해(결제 환불 · 재고 복구) 기록을 CANCELLED로 끝낸다. 이미 취소로 종료됐으면 그대로 200.
      */
     @PostMapping("/{recoveryId}/cancel")
-    public PaymentRecoveryResponse cancel(@PathVariable Long recoveryId, @LoginMember AuthMember admin) {
+    public PaymentRecoveryResponse cancel(@PathVariable Long recoveryId, @LoginAdmin AuthAdmin admin) {
         return PaymentRecoveryResponse.from(recoveryService.cancel(recoveryId, admin.id()));
     }
 }

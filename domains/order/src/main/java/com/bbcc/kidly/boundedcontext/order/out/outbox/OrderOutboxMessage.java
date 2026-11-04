@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Kafka로 보낼 주문 이벤트(#540). 업무 개념이 아닌 전달 장치라 out에 둔다(#642). 이벤트를 발행하는 업무 트랜잭션 안에서 저장해, 업무가 롤백되면 메시지도 남지 않는다.
- * 릴레이가 id 순서대로 아직 보내지 않은 메시지를 보내고 보낸 시각을 기록한다. 보낸 메시지는 일정 기간 뒤 지운다.
+ * 릴레이가 전송 가능한 메시지를 id 순서대로 보내고 보낸 시각을 기록한다. 영구 실패는 격리해 원본을 보존한다. 보낸 메시지는 일정 기간 뒤 지운다.
  * 인덱스(안 보낸 메시지 · 보낸 시각)는 부분 인덱스라 마이그레이션에만 둔다.
  */
 @Entity
@@ -53,6 +53,15 @@ public class OrderOutboxMessage extends OrderTimeEntity {
 
     private LocalDateTime sentAt;
 
+    private LocalDateTime quarantinedAt;
+
+    private LocalDateTime lastRetriedAt;
+
+    private Long lastRetriedBy;
+
+    @Column(nullable = false)
+    private int retryCount;
+
     /**
      * 보내지 않은 메시지(시도 0)를 만든다.
      *
@@ -78,6 +87,9 @@ public class OrderOutboxMessage extends OrderTimeEntity {
         if (sentAt != null) {
             return;
         }
+        if (quarantinedAt != null) {
+            throw new IllegalStateException("격리 중인 아웃박스 메시지는 보냄으로 바꿀 수 없습니다.");
+        }
         this.attemptCount++;
         this.sentAt = now;
     }
@@ -88,5 +100,28 @@ public class OrderOutboxMessage extends OrderTimeEntity {
     public void recordFailure(String error) {
         this.attemptCount++;
         this.lastError = error.length() > LAST_ERROR_LENGTH ? error.substring(0, LAST_ERROR_LENGTH) : error;
+    }
+    /**
+     * 확실한 메시지 영구 실패만 격리한다. 본문 · 이벤트 ID는 바꾸지 않고 같은 키의 후속 전송을 막는다.
+     */
+    public void quarantine(String error, LocalDateTime now) {
+        if (sentAt != null || quarantinedAt != null) {
+            throw new IllegalStateException("보냈거나 이미 격리된 아웃박스 메시지입니다.");
+        }
+        recordFailure(error);
+        quarantinedAt = now;
+    }
+
+    /**
+     * 원인을 해결한 관리자가 같은 이벤트를 다시 전송 대기시킨다. 두 번 눌러도 기록은 한 번만 바뀐다.
+     */
+    public void retryQuarantined(Long adminId, LocalDateTime now) {
+        if (quarantinedAt == null) {
+            return;
+        }
+        quarantinedAt = null;
+        lastRetriedBy = adminId;
+        lastRetriedAt = now;
+        retryCount++;
     }
 }

@@ -392,6 +392,32 @@ class RequestLoggingFilterTest {
         assertThat(MDC.get(RequestLoggingFilter.MEMBER_ID_MDC_KEY)).isNull();
     }
 
+    @Test
+    void logsAndClearsAdminId() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/api/v1/admin/test");
+        request.addHeader("X-Admin-Id", "7");
+        var duringRequest = new AtomicReference<String>();
+        filter.doFilter(request, new MockHttpServletResponse(),
+            (req, res) -> duringRequest.set(MDC.get(RequestLoggingFilter.ADMIN_ID_MDC_KEY)));
+        assertThat(duringRequest).hasValue("7");
+        assertThat(appender.list.getFirst().getMDCPropertyMap())
+            .containsEntry(RequestLoggingFilter.ADMIN_ID_MDC_KEY, "7");
+        assertThat(MDC.get(RequestLoggingFilter.ADMIN_ID_MDC_KEY)).isNull();
+    }
+
+    @Test
+    void childAccountIdIsAddedAndCleared() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/api/v1/child/test");
+        request.addHeader("X-Child-Account-Id", "7");
+        var duringRequest = new AtomicReference<String>();
+        filter.doFilter(request, new MockHttpServletResponse(),
+            (req, res) -> duringRequest.set(MDC.get(RequestLoggingFilter.CHILD_ACCOUNT_ID_MDC_KEY)));
+        assertThat(duringRequest).hasValue("7");
+        assertThat(appender.list.getFirst().getMDCPropertyMap())
+            .containsEntry(RequestLoggingFilter.CHILD_ACCOUNT_ID_MDC_KEY, "7");
+        assertThat(MDC.get(RequestLoggingFilter.CHILD_ACCOUNT_ID_MDC_KEY)).isNull();
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"abc", "7 OR 1=1", "", "-7", "9999999999999999999", "12345678901234567890"})
     @DisplayName("X-Member-Id 헤더가 Long 범위의 숫자가 아니면 MDC에 넣지 않는다")

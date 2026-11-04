@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +38,7 @@ class AdminAttributeApiTest {
     void createAttribute() {
         AtomicReference<String> location = new AtomicReference<>();
 
-        post(TestMembers.admin(ADMIN_ID), PATH, Map.of(
+        post(TestAdmins.of(ADMIN_ID), PATH, Map.of(
             "name", "색상",
             "code", "COLOR",
             "inputType", "PALETTE",
@@ -65,7 +65,7 @@ class AdminAttributeApiTest {
         String valuesPath = PATH + "/" + attributeId + "/values";
         AtomicReference<String> location = new AtomicReference<>();
 
-        post(TestMembers.admin(ADMIN_ID), valuesPath, Map.of("name", "오트밀", "colorCode", "#e3d3bc"))
+        post(TestAdmins.of(ADMIN_ID), valuesPath, Map.of("name", "오트밀", "colorCode", "#e3d3bc"))
             .expectStatus().isCreated()
             .expectHeader().value(HttpHeaders.LOCATION, location::set)
             .expectBody()
@@ -78,16 +78,16 @@ class AdminAttributeApiTest {
     @Test
     @DisplayName("항목 목록은 항목과 값 모두 ID 순서이고, 값이 없는 항목은 빈 목록, 색 코드가 없는 값은 null이다")
     void listAttributes() {
-        post(TestMembers.admin(ADMIN_ID), PATH, Map.of("name", "색상", "code", "COLOR", "inputType", "PALETTE",
+        post(TestAdmins.of(ADMIN_ID), PATH, Map.of("name", "색상", "code", "COLOR", "inputType", "PALETTE",
             "values", List.of(Map.of("name", "네이비", "colorCode", "#2f3e5c"))))
             .expectStatus().isCreated();
-        post(TestMembers.admin(ADMIN_ID), PATH, Map.of("name", "사이즈", "code", "SIZE", "inputType", "LIST",
+        post(TestAdmins.of(ADMIN_ID), PATH, Map.of("name", "사이즈", "code", "SIZE", "inputType", "LIST",
             "values", List.of(Map.of("name", "110"), Map.of("name", "120"))))
             .expectStatus().isCreated();
         createdAttributeId("FABRIC_COMPOSITION", "TEXT");
 
         client.get().uri(PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -106,7 +106,7 @@ class AdminAttributeApiTest {
     @MethodSource("invalidAttributeRequests")
     @DisplayName("항목 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
     void rejectInvalidAttribute(Map<String, Object> body) {
-        assertProblem(post(TestMembers.admin(ADMIN_ID), PATH, body), HttpStatus.BAD_REQUEST);
+        assertProblem(post(TestAdmins.of(ADMIN_ID), PATH, body), HttpStatus.BAD_REQUEST);
     }
 
     static Stream<Named<Map<String, Object>>> invalidAttributeRequests() {
@@ -129,7 +129,7 @@ class AdminAttributeApiTest {
     void rejectInvalidValue(Map<String, Object> body) {
         String attributeId = createdAttributeId("COLOR", "PALETTE");
 
-        assertProblem(post(TestMembers.admin(ADMIN_ID), PATH + "/" + attributeId + "/values", body),
+        assertProblem(post(TestAdmins.of(ADMIN_ID), PATH + "/" + attributeId + "/values", body),
             HttpStatus.BAD_REQUEST);
     }
 
@@ -143,7 +143,7 @@ class AdminAttributeApiTest {
     @Test
     @DisplayName("없는 항목에 목록 값을 더하면 404와 ProblemDetail을 준다")
     void rejectValueOfMissingAttribute() {
-        assertProblem(post(TestMembers.admin(ADMIN_ID), PATH + "/999/values", Map.of("name", "레드")),
+        assertProblem(post(TestAdmins.of(ADMIN_ID), PATH + "/999/values", Map.of("name", "레드")),
             HttpStatus.NOT_FOUND);
     }
 
@@ -152,7 +152,7 @@ class AdminAttributeApiTest {
     void rejectDuplicateAttributeCode() {
         createdAttributeId("COLOR", "PALETTE");
 
-        assertProblem(post(TestMembers.admin(ADMIN_ID), PATH, attribute("색상2", "COLOR", "PALETTE", List.of())),
+        assertProblem(post(TestAdmins.of(ADMIN_ID), PATH, attribute("색상2", "COLOR", "PALETTE", List.of())),
             HttpStatus.CONFLICT);
     }
 
@@ -161,9 +161,9 @@ class AdminAttributeApiTest {
     void rejectDuplicateValueName() {
         String attributeId = createdAttributeId("COLOR", "PALETTE");
         String valuesPath = PATH + "/" + attributeId + "/values";
-        post(TestMembers.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")).expectStatus().isCreated();
+        post(TestAdmins.of(ADMIN_ID), valuesPath, Map.of("name", "네이비")).expectStatus().isCreated();
 
-        assertProblem(post(TestMembers.admin(ADMIN_ID), valuesPath, Map.of("name", "네이비")), HttpStatus.CONFLICT);
+        assertProblem(post(TestAdmins.of(ADMIN_ID), valuesPath, Map.of("name", "네이비")), HttpStatus.CONFLICT);
     }
 
     private static Map<String, Object> attribute(String name, String code, String inputType, List<?> values) {
@@ -172,7 +172,7 @@ class AdminAttributeApiTest {
 
     // 값 없이 항목 하나를 만들고 그 ID를 돌려준다
     private String createdAttributeId(String code, String inputType) {
-        Map<?, ?> body = post(TestMembers.admin(ADMIN_ID), PATH,
+        Map<?, ?> body = post(TestAdmins.of(ADMIN_ID), PATH,
             Map.of("name", code, "code", code, "inputType", inputType, "values", List.of()))
             .expectStatus().isCreated()
             .expectBody(Map.class)

@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -12,8 +13,6 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
-import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
@@ -24,7 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 주문하기부터 결제완료 또는 재고 부족 취소까지를 실제 상품 재고 차감으로 잇는다.
+ * 주문하기부터 결제 요청 또는 재고 부족 취소까지를 실제 상품 재고 차감으로 잇는다. 결제는 결제 서비스가 한다(#525).
  * 재고 차감됨과 재고 부족함은 테스트가 보내지 않고 상품 리스너가 보낸다.
  * 주문의 상품 복사본은 상품 쪽에 저장한 옵션과 같은 옵션 ID와 판매가로 만든다.
  */
@@ -35,13 +34,13 @@ class ProductOrderFlowIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderQueryService orderQueries;
+
+    @Autowired
     private ProductReplicaRepository productReplicaRepository;
 
     @Autowired
     private OrderRepository orderRepository;
-
-    @Autowired
-    private WalletRepository walletRepository;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -58,21 +57,22 @@ class ProductOrderFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("주문하기를 부르면 상품이 재고를 줄이고 재고 차감됨을 보내, 예치금 결제를 거쳐 주문이 결제완료가 된다")
-    void placedOrderIsPaidAfterStockDeduction() {
+    @DisplayName("주문하기를 부르면 상품이 재고를 줄이고 재고 차감됨을 보내, 주문이 결제를 요청하고 결제를 기다린다")
+    void placedOrderRequestsPaymentAfterStockDeduction() {
         ProductOption navy110 = productOptionSaver.saveOnSaleNavy110And120(10, 5).navy110();
         saveReplicaOf(navy110);
-        Wallet wallet = Wallet.create(BUYER_ID);
-        wallet.deposit(navy110.getPrice() * 2);
-        walletRepository.save(wallet);
 
         OrderDetail order = place(navy110, 2);
 
         assertThat(inventoryDeductionDb.availableQty(navy110)).isEqualTo(8);
         assertThat(inventoryDeductionDb.countByStatus("DEDUCTED")).isEqualTo(1);
         assertThat(orderRepository.findById(order.orderId())).get()
-            .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
+            .extracting(Order::getStatus).isEqualTo(Order.Status.PENDING_PAYMENT);
         assertThat(outboxEventTypes(order.orderId())).containsExactly("stock.deducted");
+        // 결제 서비스는 이 결제 요청을 Kafka로 받는다(주문 ID 키)
+        assertThat(jdbcTemplate.queryForList(
+            "select event_type from orders.order_outbox where message_key = ? order by id", String.class,
+            String.valueOf(order.orderId()))).contains("order.payment-requested");
     }
 
     @Test
@@ -83,7 +83,7 @@ class ProductOrderFlowIntegrationTest {
 
         OrderDetail placed = place(navy110, 2);
 
-        OrderDetail order = orderService.getOrder(BUYER_ID, placed.orderId());
+        OrderDetail order = orderQueries.getOrder(BUYER_ID, placed.orderId());
         assertThat(inventoryDeductionDb.availableQty(navy110)).isEqualTo(1);
         assertThat(order.status()).isEqualTo("CANCELLED");
         assertThat(order.cancelReason()).isEqualTo("OUT_OF_STOCK");

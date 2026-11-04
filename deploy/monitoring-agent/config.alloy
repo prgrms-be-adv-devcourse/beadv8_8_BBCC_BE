@@ -1,8 +1,8 @@
 // t3.large(앱 서버)의 수집기. 앱 로그 · 앱 메트릭 · 호스트 · 컨테이너 메트릭을 t3.medium k3s(deploy/monitoring)로 보낸다
 // 받는 곳은 medium 의 NodePort(Loki 31100, Prometheus 30090)다. 주소는 .env 의 MONITORING_HOST(medium 사설 IP)
 
-// dev · prod 앱 컨테이너(compose 서비스 app · search-service · gateway · childprofile-service) 로그를 Loki 로 보낸다
-// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(app → kidly, search-service → kidly-search, gateway → kidly-gateway, childprofile-service → kidly-childprofile), level 라벨은 로그 줄에서 뽑는다
+// dev · prod 앱 컨테이너(compose 서비스 app · search-service · gateway · childprofile-service · recommend-service · settlement-service · member-service · payment-service) 로그를 Loki 로 보낸다
+// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(app → kidly, search-service → kidly-search, gateway → kidly-gateway, childprofile-service → kidly-childprofile, recommend-service → kidly-recommend, settlement-service → kidly-settlement, member-service → kidly-member, payment-service → kidly-payment), level 라벨은 로그 줄에서 뽑는다
 // 서버 콘솔은 ECS JSON 한 줄이다. 텍스트 줄은 JSON 이전 이미지가 남긴 것이라 전환 기간에만 쓰인다
 
 discovery.docker "containers" {
@@ -14,7 +14,7 @@ discovery.relabel "kidly_app" {
 
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "app|search-service|gateway|childprofile-service"
+		regex         = "app|search-service|gateway|childprofile-service|recommend-service|settlement-service|member-service|payment-service"
 		action        = "keep"
 	}
 
@@ -56,6 +56,34 @@ discovery.relabel "kidly_app" {
 		regex         = "childprofile-service"
 		target_label  = "service_name"
 		replacement   = "kidly-childprofile"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "recommend-service"
+		target_label  = "service_name"
+		replacement   = "kidly-recommend"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "settlement-service"
+		target_label  = "service_name"
+		replacement   = "kidly-settlement"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "member-service"
+		target_label  = "service_name"
+		replacement   = "kidly-member"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "payment-service"
+		target_label  = "service_name"
+		replacement   = "kidly-payment"
 	}
 }
 
@@ -162,6 +190,62 @@ discovery.file "kidly_childprofile" {
 prometheus.scrape "kidly_childprofile" {
 	job_name        = "kidly-childprofile"
 	targets         = discovery.file.kidly_childprofile.targets
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.medium.receiver]
+}
+
+// 추천 서비스(apps/recommend-service). 검색 서비스와 같은 이유로 job 을 나눈다
+// 추천 서비스가 켜진 환경만 앱 배포가 targets/recommend/<환경>.yml 로 써 둔다
+discovery.file "kidly_recommend" {
+	files = ["/etc/alloy/targets/recommend/*.yml"]
+}
+
+prometheus.scrape "kidly_recommend" {
+	job_name        = "kidly-recommend"
+	targets         = discovery.file.kidly_recommend.targets
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.medium.receiver]
+}
+
+// 정산 서비스(apps/settlement-service). 검색 서비스와 같은 이유로 job 을 나눈다
+// 정산 서비스가 켜진 환경만 앱 배포가 targets/settlement/<환경>.yml 로 써 둔다
+discovery.file "kidly_settlement" {
+	files = ["/etc/alloy/targets/settlement/*.yml"]
+}
+
+prometheus.scrape "kidly_settlement" {
+	job_name        = "kidly-settlement"
+	targets         = discovery.file.kidly_settlement.targets
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.medium.receiver]
+}
+
+// 회원 서비스(apps/member-service). 검색 서비스와 같은 이유로 job 을 나눈다
+// 회원 서비스가 켜진 환경만 앱 배포가 targets/member/<환경>.yml 로 써 둔다
+discovery.file "kidly_member" {
+	files = ["/etc/alloy/targets/member/*.yml"]
+}
+
+prometheus.scrape "kidly_member" {
+	job_name        = "kidly-member"
+	targets         = discovery.file.kidly_member.targets
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.medium.receiver]
+}
+
+// 결제 서비스(apps/payment-service). 검색 서비스와 같은 이유로 job 을 나눈다
+// 결제 서비스가 켜진 환경만 앱 배포가 targets/payment/<환경>.yml 로 써 둔다
+discovery.file "kidly_payment" {
+	files = ["/etc/alloy/targets/payment/*.yml"]
+}
+
+prometheus.scrape "kidly_payment" {
+	job_name        = "kidly-payment"
+	targets         = discovery.file.kidly_payment.targets
 	metrics_path    = "/actuator/prometheus"
 	scrape_interval = "15s"
 	forward_to      = [prometheus.remote_write.medium.receiver]

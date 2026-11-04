@@ -3,14 +3,10 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
-import com.bbcc.kidly.boundedcontext.order.app.order.dto.AdminOrderSummary;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.LostPaymentRecheck;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
-import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderStatusHistoryResult;
-import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderSummary;
-import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderTimeline;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
@@ -39,27 +35,22 @@ import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Limit;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 주문하기 · 결제 요청 · 주문 조회. 남의 주문은 없는 주문으로 본다.
+ * 주문 생성 · 결제 반영 · 취소 · 구매확정. 조회는 OrderQueryService가 담당한다.
  * 로그: 상태가 바뀌면 INFO, 받은 요청을 무시하면 DEBUG(결과 · 현재 상태), 받은 이벤트의 주문이 없으면 WARN.
  * 개인 정보(배송지 · 연락처 · 자녀 이름 · 키 · 몸무게)는 남기지 않는다.
  */
@@ -79,6 +70,7 @@ public class OrderService {
     private final OrderEventOutbox outbox;
     private final Order.Policy orderPolicy;
     private final WaitingRecordCloser waitingRecordCloser;
+    private final OrderQueryService orderQueries;
 
     /**
      * 복사본이 없는 옵션 · 자녀는 여기서 404. 나머지 검사(빈 항목 · 중복 · 수량 · 가격 · 판매 중 · 자기 상품 · 자녀)는
@@ -114,7 +106,7 @@ public class OrderService {
                     throw new BusinessException(OrderErrorCode.IDEMPOTENCY_KEY_REUSED);
                 }
                 log.debug("주문 요청 반복: orderId={} result=same-request", order.getId());
-                return new PlaceOrderResult(detailOf(order.getId(), order), false);
+                return new PlaceOrderResult(orderQueries.detailOf(order.getId(), order), false);
             });
     }
 
@@ -147,7 +139,7 @@ public class OrderService {
                 .toList())));
         log.info("주문 생성: orderId={} itemCount={} totalAmount={}",
             order.getId(), order.getItems().size(), order.getTotalAmount());
-        return OrderDetail.from(order, List.of(), sellerNamesOf(List.of(order)));
+        return OrderDetail.from(order, List.of(), orderQueries.sellerNamesOf(List.of(order)));
     }
 
     /**
@@ -400,117 +392,7 @@ public class OrderService {
         } else {
             logIgnored("cancel-by-buyer", order, result);
         }
-        return OrderDetail.from(order, deliveries, sellerNamesOf(List.of(order)));
-    }
-
-    @Transactional(readOnly = true)
-    public OrderDetail getOrder(Long memberId, Long orderId) {
-        return orderRepository.findByIdAndMemberId(orderId, memberId)
-            .map(order -> detailOf(orderId, order))
-            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-    }
-
-    private OrderDetail detailOf(Long orderId, Order order) {
-        return OrderDetail.from(order, orderDeliveries.findByOrder(orderId),
-            sellerNamesOf(List.of(order)));
-    }
-
-    /**
-     * 주문(주문상품 포함) · 배송 건 · 판매자 상호명을 한 번씩 읽어 타임라인을 만든다(#352). 남의 주문은 없는 주문으로 본다.
-     */
-    @Transactional(readOnly = true)
-    public OrderTimeline getTimeline(Long memberId, Long orderId) {
-        Order order = orderRepository.findWithItemsByIdAndMemberId(orderId, memberId)
-            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-        return OrderTimeline.from(order, orderDeliveries.findByOrder(orderId),
-            sellerNamesOf(List.of(order)));
-    }
-
-    /**
-     * 관리자용 주문 상태 이력(#442). 오래된 것부터(같은 시각은 저장 순서). 주문이 없으면 404, 이력이 없으면 빈 목록.
-     */
-    @Transactional(readOnly = true)
-    public List<OrderStatusHistoryResult> getHistory(Long orderId) {
-        if (!orderRepository.existsById(orderId)) {
-            throw new BusinessException(OrderErrorCode.ORDER_NOT_FOUND);
-        }
-        return historyRepository.findAllByOrderIdOrderByOccurredAtAscIdAsc(orderId).stream()
-            .map(OrderStatusHistoryResult::from)
-            .toList();
-    }
-
-    /**
-     * 최근 주문부터. 그 페이지 주문들의 주문상품 · 판매자 상호명은 한 번씩 읽어 합친다(주문 수와 상관없이 쿼리 수 일정).
-     * 주문상품을 읽지 못한 주문은 목록 전체를 실패시키지 않고 대표 상품명 없이 내리고 WARN만 남긴다.
-     */
-    @Transactional(readOnly = true)
-    public Page<OrderSummary> getOrders(Long memberId, int page, int size) {
-        PageRequest pageable = PageRequest.of(page, size);
-        // 저장소는 offset(page × size)이 int를 넘으면 조회하지 못하므로(500), 조회 없이 빈 페이지로 답한다
-        if (pageable.getOffset() > Integer.MAX_VALUE) {
-            return new PageImpl<>(List.of(), pageable, orderRepository.countByMemberId(memberId));
-        }
-        Page<Order> orders = orderRepository.findAllByMemberIdOrderByIdDesc(memberId, pageable);
-        if (orders.isEmpty()) {
-            return orders.map(OrderSummary::withoutItems);
-        }
-        Map<Long, Order> withItems = orderRepository.findAllWithItemsByIdIn(
-                orders.getContent().stream().map(Order::getId).toList())
-            .stream()
-            .collect(Collectors.toMap(Order::getId, Function.identity()));
-        Map<Long, String> sellerNames = sellerNamesOf(withItems.values());
-        return orders.map(order -> {
-            Order loaded = withItems.get(order.getId());
-            if (loaded == null) {
-                log.warn("주문 목록 주문상품 없음: reason=order-items-not-found orderId={}", order.getId());
-                return OrderSummary.withoutItems(order);
-            }
-            return OrderSummary.from(loaded, sellerNames);
-        });
-    }
-
-    /**
-     * 관리자 전체 주문 목록. 최근 주문부터, 그 페이지 주문들의 주문상품은 한 번에 읽어 주문상품 수를 센다
-     * (주문 수와 상관없이 쿼리 수 일정). 주문상품을 읽지 못한 주문은 주문상품 수 0으로 내리고 WARN만 남긴다.
-     */
-    @Transactional(readOnly = true)
-    public Page<AdminOrderSummary> getAllOrders(int page, int size) {
-        PageRequest pageable = PageRequest.of(page, size);
-        // 저장소는 offset(page × size)이 int를 넘으면 조회하지 못하므로(500), 조회 없이 빈 페이지로 답한다
-        if (pageable.getOffset() > Integer.MAX_VALUE) {
-            return new PageImpl<>(List.of(), pageable, orderRepository.count());
-        }
-        Page<Order> orders = orderRepository.findAllByOrderByIdDesc(pageable);
-        if (orders.isEmpty()) {
-            return orders.map(AdminOrderSummary::withoutItems);
-        }
-        Map<Long, Order> withItems = orderRepository.findAllWithItemsByIdIn(
-                orders.getContent().stream().map(Order::getId).toList())
-            .stream()
-            .collect(Collectors.toMap(Order::getId, Function.identity()));
-        return orders.map(order -> {
-            Order loaded = withItems.get(order.getId());
-            if (loaded == null) {
-                log.warn("관리자 주문 목록 주문상품 없음: reason=order-items-not-found orderId={}", order.getId());
-                return AdminOrderSummary.withoutItems(order);
-            }
-            return AdminOrderSummary.from(loaded);
-        });
-    }
-
-    /**
-     * 주문들의 주문상품 판매자 상호명을 한 번에 읽는다(판매자마다 조회하지 않음). 복사본이 없는 판매자는 빠진다.
-     */
-    private Map<Long, String> sellerNamesOf(Collection<Order> orders) {
-        Set<Long> sellerIds = orders.stream()
-            .flatMap(order -> order.getItems().stream())
-            .map(item -> item.getProduct().sellerId())
-            .collect(Collectors.toSet());
-        if (sellerIds.isEmpty()) {
-            return Map.of();
-        }
-        return sellerReplicaRepository.findAllBySellerIdIn(sellerIds).stream()
-            .collect(Collectors.toMap(ReplicaSeller::getSellerId, ReplicaSeller::getBusinessName));
+        return OrderDetail.from(order, deliveries, orderQueries.sellerNamesOf(List.of(order)));
     }
 
     /**

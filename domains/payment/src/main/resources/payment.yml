@@ -30,7 +30,7 @@ kidly:
     kafka:
       consumer:
         enabled: ${PAYMENT_KAFKA_CONSUMER_ENABLED:true}
-      # 정산 지급 요청(settlement.payout-requested)을 Kafka로 받을지(#607). 기본 false: 지금처럼 Spring 이벤트로 받는다
-      # 정산이 kidly.settlement.events로 보내는 코드가 배포된 뒤에만 켠다. 그 전에 켜면 지급 요청이 어디에도 도착하지 않는다
+      # 정산 지급 요청(settlement.payout-requested)을 Kafka로 받을지(#607). 기본 true: 결제 서비스는 정산과 다른 JVM이라 Spring 이벤트가 오지 않는다(#525)
+      # false는 같은 JVM 안에서 정산이 Spring 이벤트로 보내는 테스트용이다
       settlement-consumer:
-        enabled: ${PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED:false}
+        enabled: ${PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED:true}

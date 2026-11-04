@@ -1,0 +1,41 @@
+spring:
+  # Kafka 리스너는 저절로 시작하지 않는다. 켜 두면 앞 테스트가 보낸 메시지를 다음 테스트 도중에 받아 처리해 테스트끼리 간섭한다.
+  # Kafka 수신을 확인하는 테스트는 그 안에서 자기 리스너만 켜고 끈다
+  kafka:
+    listener:
+      auto-startup: false
+    # Kafka 컨테이너는 @KafkaIntegrationTest에서만 뜬다. 다른 테스트는 기동할 때 토픽을 만들려고 Kafka에 붙지 않는다
+    admin:
+      auto-create: false
+
+# 테스트는 PC마다 결과가 같아야 하므로 각자의 .env를 읽지 않는다
+springdotenv:
+  enabled: false
+
+# kidly-app 테스트와 같은 개발용 paymentKey 암호화 키. 운영 키와 다르다
+payment:
+  key-encryption:
+    key: KIeLA4Q8UtNSoUDGDN4LsHMvk1JvINovlqKzRlonMaI=
+
+kidly:
+  # 커밋 뒤 Kafka로 보내지 않는다(kidly-app과 같다). Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
+  kafka:
+    producer:
+      enabled: false
+  # 결제 스케줄러가 테스트 중 다른 스레드에서 저절로 돌지 않게 kidly-app 테스트와 같이 주기를 아주 길게 두고, 정리는 끈다
+  payment:
+    charge:
+      reconcile-interval: P3650D
+    order-cancellation:
+      retry-interval: P3650D
+    outbox:
+      relay-interval: P3650D
+      cleanup-cron: "-"
+    # 결제 Kafka 리스너는 저절로 시작하지 않는다(이 스위치가 리스너의 autoStartup이다). kidly-app 테스트와 같다.
+    # Kafka 수신은 PaymentServiceKafkaIntegrationTest가 그 안에서 결제 리스너를 켜서 본다
+    kafka:
+      consumer:
+        enabled: false
+      # 정산 지급 요청은 테스트에서 Spring 이벤트로 받는다(테스트가 같은 JVM에서 발행한다). Kafka 수신은 PaymentSettlementKafkaReceiveIntegrationTest가 그 안에서 켠다
+      settlement-consumer:
+        enabled: false

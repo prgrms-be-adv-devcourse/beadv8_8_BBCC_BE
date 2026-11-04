@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
  * (배송 컨텍스트는 자기 요청 이름을 주문의 들어오는 포트로 넘긴다, #617 · #641).
  * source는 관리자가 이력에서 바로 알아볼 수 있게 HTTP 경로 틀(path 변수는 이름 그대로) · 스케줄러 작업 이름 · 받은 이벤트 타입이다.
  *
- * @param id 회원 ID(구매자 · 판매자 · 관리자). 시스템 · 이벤트는 null
+ * @param id 구매자 · 판매자는 회원 ID, 관리자는 관리자 ID. 시스템 · 이벤트는 null
  */
 public record OrderActor(OrderStatusHistory.ActorType type, Long id, String source) {
 
@@ -32,8 +32,8 @@ public record OrderActor(OrderStatusHistory.ActorType type, Long id, String sour
         return new OrderActor(OrderStatusHistory.ActorType.SELLER, memberId, source);
     }
 
-    public static OrderActor admin(Long memberId, String source) {
-        return new OrderActor(OrderStatusHistory.ActorType.ADMIN, memberId, source);
+    public static OrderActor admin(Long adminId, String source) {
+        return new OrderActor(OrderStatusHistory.ActorType.ADMIN, adminId, source);
     }
 
     public static OrderActor system(String job) {

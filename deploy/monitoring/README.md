@@ -124,9 +124,11 @@ curl -s localhost:31100/ready                                                   
 
 Slack 메시지 형식은 `grafana/provisioning/alerting/templates.yml` 에 있습니다. 제목은 알림 이름 · 환경, 본문은 규칙의 `summary` · `description` 입니다.
 
+"앱 다운"은 배포 중 일시적인 메트릭 수집 실패로 알리지 않도록 5분 대기합니다. 실제 장애도 그만큼 늦게 알립니다.
+
 ```
 🔴 앱 다운 · dev                        ← warning 은 🟠 주황, 그 밖은 빨강. 같은 그룹에 여러 건이면 끝에 (N건)
-kidly 메트릭을 2분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile
+kidly 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile, 추천 서비스면 kidly-recommend, 정산 서비스면 kidly-settlement
 규칙 보기 · 일시정지
 
 🟠 ERROR 로그 · dev
@@ -159,20 +161,24 @@ Grafana 화면에서 고친 대시보드 · 알림 규칙은 저장되지 않거
 앱 배포(`deploy/deploy.sh`)가 앱이 healthy 로 뜰 때마다 `/opt/app/monitoring/targets/<환경>.yml` 에 `127.0.0.1:<APP_PORT>` 와 `env` 라벨을 써 둡니다.
 t3.large 의 Alloy 가 이 폴더를 읽어(`discovery.file`) 대상을 바꾸므로 손으로 고칠 것이 없습니다. 수집한 메트릭은 job `kidly` · `env` · `instance`(`127.0.0.1:<포트>`) 라벨로 medium Prometheus 에 들어갑니다. prod 도 첫 배포 때 수집 · 알림이 시작됩니다.
 기동에 실패한 배포는 파일을 바꾸지 않습니다. 이미 있던 환경이면 "앱 다운" 이 그대로 울립니다.
-검색이 켜진 환경(지금은 dev)은 검색 서비스도 `targets/search/<환경>.yml` 에 `127.0.0.1:<SEARCH_PORT>` 로 써 둡니다. 앱 대시보드 · 알림과 섞이지 않게 job 을 `kidly-search` 로 나눠서, 앱 알림(job `kidly`)은 검색 서비스를 보지 않습니다.
+검색이 켜진 환경(dev · prod)은 검색 서비스도 `targets/search/<환경>.yml` 에 `127.0.0.1:<SEARCH_PORT>` 로 써 둡니다. 앱 대시보드 · 알림과 섞이지 않게 job 을 `kidly-search` 로 나눠서, 앱 알림(job `kidly`)은 검색 서비스를 보지 않습니다.
 Gateway 가 켜진 환경(dev · prod)도 같은 식으로 `targets/gateway/<환경>.yml` 에 `127.0.0.1:<GATEWAY_PORT>` 를 써 두고, job 은 `kidly-gateway` 입니다. 모든 요청이 지나가므로 "앱 다운" · "ERROR 로그" 알림은 Gateway 도 봅니다. "5xx 증가" 와 "수집 끊김" 은 앱(job `kidly`)만 봅니다(Gateway 는 앱의 5xx 를 그대로 넘겨 두 번 세게 되고, Alloy 가 끊기면 앱도 함께 끊긴다).
 자녀 프로필 서비스가 켜진 환경(dev · prod)은 `targets/childprofile/<환경>.yml` 에 `127.0.0.1:<CHILDPROFILE_PORT>` 를 써 두고, job 은 `kidly-childprofile` 입니다. 자녀 API 는 이 서비스에만 있어 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 봅니다. "5xx 증가" 는 앱과 이 서비스의 요청을 합쳐 봅니다(자녀 API 가 앱에 있던 때와 같은 범위). "수집 끊김" 은 앱(job `kidly`)만 봅니다.
-로그는 Alloy 가 앱 · 검색 서비스 · Gateway · 자녀 프로필 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
+추천 서비스가 켜진 환경(dev · prod)은 `targets/recommend/<환경>.yml` 에 `127.0.0.1:<RECOMMEND_PORT>` 를 써 두고, job 은 `kidly-recommend` 입니다. 추천 API 는 이 서비스에만 있어 자녀 프로필 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다.
+회원 서비스가 켜진 환경(dev · prod)은 `targets/member/<환경>.yml` 에 `127.0.0.1:<MEMBER_PORT>` 를 쓰고 job 은 `kidly-member` 입니다. 회원 API 는 이 서비스에만 있어 앱 다운 · ERROR 로그 · 5xx 알림에 포함합니다.
+정산 서비스가 켜진 환경(dev · prod)은 `targets/settlement/<환경>.yml` 에 `127.0.0.1:<SETTLEMENT_PORT>` 를 써 두고, job 은 `kidly-settlement` 입니다. 정산 API 는 이 서비스에만 있어 추천 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 서비스와 합쳐 봅니다.
+결제 서비스가 켜진 환경(dev · prod)은 `targets/payment/<환경>.yml` 에 `127.0.0.1:<PAYMENT_PORT>` 를 써 두고, job 은 `kidly-payment` 입니다. 결제 API 는 이 서비스에만 있어 추천 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다.
+로그는 Alloy 가 앱 · 검색 서비스 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 정산 서비스 · 회원 서비스 · 결제 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 medium 의 Pod 로그는 `namespace` · `pod` · `container` · `service_name`(컨테이너 이름) 라벨로 들어갑니다(`env` 없음).
 
 t3.large 에서:
 
 ```bash
-cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml /opt/app/monitoring/targets/gateway/*.yml /opt/app/monitoring/targets/childprofile/*.yml
+cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml /opt/app/monitoring/targets/gateway/*.yml /opt/app/monitoring/targets/childprofile/*.yml /opt/app/monitoring/targets/recommend/*.yml /opt/app/monitoring/targets/settlement/*.yml /opt/app/monitoring/targets/member/*.yml /opt/app/monitoring/targets/payment/*.yml
 docker compose -p monitoring logs alloy --tail 50   # 보내기 실패(medium 에 닿지 못함)가 여기 남는다
 ```
 
-환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색 · Gateway · 자녀 프로필이 켜져 있었으면 `targets/search/<환경>.yml` · `targets/gateway/<환경>.yml` · `targets/childprofile/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
+환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색 · Gateway · 자녀 프로필 · 추천 · 정산이 켜져 있었으면 `targets/search/<환경>.yml` · `targets/gateway/<환경>.yml` · `targets/childprofile/<환경>.yml` · `targets/recommend/<환경>.yml` · `targets/settlement/<환경>.yml` · `targets/member/<환경>.yml` · `targets/payment/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
 
 ## 로그 보기
 
@@ -202,7 +208,7 @@ Logs Drilldown 앱 버전은 `k8s/grafana.yaml` 의 `GF_PLUGINS_PREINSTALL` 로 
 
 **Grafana 를 올릴 때 확인**: 앱 버전(`GF_PLUGINS_PREINSTALL`), 기능 플래그 `kubernetesLogsDrilldown`(실험 기능), 기본 열 API 경로 `apis/logsdrilldown.grafana.app/v1beta1/.../logsdrilldowndefaultcolumns`(`deploy.sh`). 경로가 바뀌면 `deploy.sh` 가 실패해 `#4팀-알림` 에 모니터링 배포 실패가 옵니다 — 컨테이너는 이미 새로 떠 있어 수집 · 알림은 그대로입니다.
 
-서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`, Gateway `kidly-gateway`, 자녀 프로필 서비스 `kidly-childprofile`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
+서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`, Gateway `kidly-gateway`, 자녀 프로필 서비스 `kidly-childprofile`, 추천 서비스 `kidly-recommend`, 정산 서비스 `kidly-settlement`, 회원 서비스 `kidly-member`, 결제 서비스 `kidly-payment`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
 로그 줄을 펼치면 traceId 옆 "같은 요청 로그 보기" 링크로 그 요청의 로그를 모두 엽니다(Explore, 최근 24시간).
 나머지 필드는 `| json` 으로 펼쳐 거릅니다. 점은 `_` 로 바뀝니다.
 
@@ -256,3 +262,37 @@ JSON 이전 이미지의 텍스트 로그도 `level` 라벨로는 그대로 찾�
 - **앱이 막 재시작한 직후의 ERROR 는 건수 알림에서 빠질 수 있습니다.** 첫 수집(15초) 전에 난 ERROR 는 카운터에 잡히지 않습니다. 로그(Loki)에는 남습니다.
 - **Alloy 는 로그를 읽으려고 `/var/run/docker.sock` 을 마운트합니다.** `:ro` 여도 Docker API 는 막지 못해, Alloy 가 침해되면 서버 root 와 같은 권한이 됩니다. 127.0.0.1 에만 열고 원격 설정을 쓰지 않는 것으로 위험을 줄였습니다. 더 줄이려면 `docker-socket-proxy` 로 `containers` · `events` 만 열 수 있습니다. 컨테이너 메트릭(cAdvisor)을 위해 `privileged` 로 돌고 호스트 `/` · `/proc` · `/sys` 를 읽기 전용으로 마운트하는데, docker.sock 으로 이미 같은 권한이라 더 넓어지는 것은 아닙니다.
 - **컨테이너 메트릭은 로컬(Docker Desktop)에서는 안 나옵니다.** Docker Desktop 은 containerd 이미지 저장소를 써서 cAdvisor 가 컨테이너를 못 읽습니다(`failed to identify the read-write layer ID`). 서버(overlay2)에서는 나옵니다. 호스트 메트릭은 로컬에서도 Docker VM 기준으로 나옵니다.
+
+
+## 서비스 오류 알림 점검 (#771)
+
+`Kidly 서비스 오류`는 환경·서비스별 수집 상태, 5xx 추정 건수·비율, 요청량을 보여 줍니다.
+수집 상태 1은 메트릭 수집 성공일 뿐 업무 정상 보장은 아닙니다. 데이터 없음은 미배포 또는 수집 누락을 확인합니다.
+Gateway는 입구에서 본 요청이라 하위 서비스와 합산하지 않습니다. Gateway에서만 오류가 증가하면 연결 실패를 확인하고,
+같은 시간 하위 서비스 오류도 증가하면 그 서비스 로그부터 확인합니다. 현재 HTTP 지표만으로 Gateway 자체 오류와 전달 오류를 정확히 분리할 수는 없습니다.
+
+- 앱 다운: 현재 수집 job 전체(검색·정산·회원·결제 포함), up=0이 5분 지속.
+- 서비스별 5xx: 최근 5분 비율 5% 초과와 추정 오류 5건 이상이 2분 지속. Gateway는 별도 규칙.
+- ERROR: 서비스별 최근 5분 추정 건수 4.5 초과가 2분 지속. 단발 오류도 Loki에는 남습니다.
+- 위 오류 임계값은 **초기 기준**입니다. dev의 다운·Gateway 오류 발화/복구와 합성 지표의 서비스별 5xx·ERROR 동작을 검증했으며, 실제 운영 트래픽과 부하 결과에 따라 조정합니다.
+- 새 5xx 상태 시계열의 첫 수집 이전 오류와 재시작 직후 오류 일부는 increase에서 빠질 수 있습니다. 최소 오류 건수 조건만으로 판단하지 말고 Loki 로그도 함께 확인합니다.
+- increase는 외삽하므로 실제 로그 건수와 소수 차이가 날 수 있습니다. 5xx 로그 링크는 해당 환경·서비스로 좁힙니다.
+
+### dev 검증 순서
+
+1. `deploy.yml`과 `monitoring-deploy.yml`에 진행 중인 배포가 없는지 먼저 확인하고 시험 중 배포와 겹치지 않도록 조율합니다. Grafana Explore에서 서비스별 최근 24시간 요청량·5xx·ERROR를 조회해 임계값 근거를 남깁니다.
+2. 변경은 미머지 브랜치이므로 자동 반영되지 않습니다. dev와 prod가 공유하는 Grafana 규칙에 대한 시험 배포는 영향 범위를 확인받고 진행합니다.
+3. 합의된 dev 서비스만 중단하여 앱 다운 발화·복구를 확인합니다. 5xx/ERROR는 정상 요청과 통제된 오류를 섞어 단발·반복 조건을 확인합니다.
+4. Slack 실제 수신과 해결, 화면 필터·데이터 없음 표시·로그 이동을 기록하고 시험 설정을 원복합니다.
+5. 앱 코드·설정 변경, 공통 라벨 도입은 이 변경에 포함하지 않습니다. 환경별 수집 부재는 #772에서 보완합니다.
+
+시험 PR을 develop으로 롤백할 때 새로 추가한 Grafana 규칙은 파일에서 빠졌다는 이유만으로 삭제되지 않을 수 있습니다.
+이번 PR에서 새로 추가한 규칙은 `kidly-gateway-5xx-rate`입니다. 원복 시 임시 provisioning `deleteRules`로 해당 UID만 제거하고,
+원래 파일을 다시 적용한 뒤 기존 4개 규칙만 남는지 확인합니다. 다른 규칙이나 Secret은 삭제하지 않습니다.
+
+### 알림 쿼리 회귀 검증
+
+`ruby deploy/monitoring/tests/check-alerts.rb /path/to/promtool`로 실제 provisioning에서 쿼리·임계값·대기시간을 읽어 검사합니다.
+Prometheus `promtool`이 이미 있는 환경에서 실행하며 이 검사를 위해 새 이미지를 자동으로 받지 않습니다.
+검색·정산 다운, 환경 분리, 다른 서비스의 정상 트래픽에 가려지지 않는 5xx, Gateway 별도 경보,
+단발 ERROR/5xx 억제와 복구 해제를 검사합니다. Grafana 평가·Slack 전송·실제 화면은 dev에서 별도 검증합니다.

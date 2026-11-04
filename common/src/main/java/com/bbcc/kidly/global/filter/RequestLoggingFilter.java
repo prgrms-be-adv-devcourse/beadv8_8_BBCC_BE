@@ -1,6 +1,7 @@
 package com.bbcc.kidly.global.filter;
 
 import com.bbcc.kidly.shared.auth.MemberHeaders;
+import com.bbcc.kidly.shared.auth.PrincipalHeaders;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -46,6 +47,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     public static final String TRACE_ID_MDC_KEY = "traceId";
     public static final String MEMBER_ID_MDC_KEY = "memberId";
+    public static final String CHILD_ACCOUNT_ID_MDC_KEY = "childAccountId";
+    public static final String ADMIN_ID_MDC_KEY = "adminId";
     public static final String TRACE_ID_HEADER = "X-Request-Id";
     private static final Pattern TRACE_ID_PATTERN =
         Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -67,6 +70,10 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         String traceId = resolveTraceId(request);
         MDC.put(TRACE_ID_MDC_KEY, traceId);
         memberId(request).ifPresent(memberId -> MDC.put(MEMBER_ID_MDC_KEY, String.valueOf(memberId)));
+        PrincipalHeaders.parseId(request.getHeader(PrincipalHeaders.ADMIN_ID))
+            .ifPresent(id -> MDC.put(ADMIN_ID_MDC_KEY, String.valueOf(id)));
+        PrincipalHeaders.parseId(request.getHeader(PrincipalHeaders.CHILD_ACCOUNT_ID))
+            .ifPresent(id -> MDC.put(CHILD_ACCOUNT_ID_MDC_KEY, String.valueOf(id)));
         response.setHeader(TRACE_ID_HEADER, traceId);
 
         var path = PathContainer.parsePath(request.getRequestURI());
@@ -91,6 +98,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             } finally {
                 MDC.remove(TRACE_ID_MDC_KEY);
                 MDC.remove(MEMBER_ID_MDC_KEY);
+                MDC.remove(ADMIN_ID_MDC_KEY);
+                MDC.remove(CHILD_ACCOUNT_ID_MDC_KEY);
                 if (loggedResponse instanceof ContentCachingResponseWrapper cachedResponse) {
                     cachedResponse.copyBodyToResponse();
                 }

@@ -16,6 +16,8 @@ import com.bbcc.kidly.boundedcontext.auth.app.port.AccessTokenIssuer;
 import com.bbcc.kidly.boundedcontext.auth.app.port.TokenSubject;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.auth.PrincipalId;
+import com.bbcc.kidly.shared.auth.PrincipalType;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.member.dto.MemberLoginState;
 import java.util.List;
@@ -32,7 +34,9 @@ class AuthServiceTest {
     private static final Long MEMBER_ID = 1L;
     private static final MemberLoginState.Active ACTIVE =
         new MemberLoginState.Active(MEMBER_ID, "테스트회원", List.of(Role.BUYER, Role.SELLER));
-    private static final TokenSubject SUBJECT = new TokenSubject(MEMBER_ID, "테스트회원", List.of(Role.BUYER, Role.SELLER));
+    private static final PrincipalId PRINCIPAL = PrincipalId.member(MEMBER_ID);
+    private static final TokenSubject SUBJECT =
+        new TokenSubject.Member(MEMBER_ID, "테스트회원", List.of(Role.BUYER, Role.SELLER));
 
     @Mock
     private SocialLoginService socialLoginService;
@@ -51,14 +55,14 @@ class AuthServiceTest {
     void login() {
         var request = new SocialLoginRequest("code");
         given(socialLoginService.signIn("kakao", request)).willReturn(ACTIVE);
-        given(refreshTokenService.issue(MEMBER_ID)).willReturn("refresh");
+        given(refreshTokenService.issue(PRINCIPAL)).willReturn("refresh");
         given(accessTokenIssuer.issue(SUBJECT)).willReturn("access");
 
         var tokens = authService.login("kakao", request);
 
         assertThat(tokens).isEqualTo(new AuthTokens("access", "refresh"));
         var order = inOrder(refreshTokenService, accessTokenIssuer);
-        order.verify(refreshTokenService).issue(MEMBER_ID);
+        order.verify(refreshTokenService).issue(PRINCIPAL);
         order.verify(accessTokenIssuer).issue(SUBJECT);
     }
 
@@ -78,18 +82,18 @@ class AuthServiceTest {
     @Test
     @DisplayName("재발급하면 Refresh Token을 바꾸고, 확인에 쓴 회원으로 Access Token을 발급한다")
     void reissue() {
-        given(refreshTokenService.reissue("old")).willReturn(new ReissuedToken(SUBJECT, "new"));
+        given(refreshTokenService.reissue(PrincipalType.MEMBER, "old")).willReturn(new ReissuedToken(SUBJECT, "new"));
         given(accessTokenIssuer.issue(SUBJECT)).willReturn("access");
 
         assertThat(authService.reissue("old")).isEqualTo(new AuthTokens("access", "new"));
     }
 
     @Test
-    @DisplayName("로그아웃하면 Refresh Token을 폐기한다")
+    @DisplayName("로그아웃하면 회원 Refresh Token을 폐기한다")
     void logout() {
         authService.logout("refresh");
 
-        then(refreshTokenService).should().revoke("refresh");
+        then(refreshTokenService).should().revoke(PrincipalType.MEMBER, "refresh");
     }
 
     @Test

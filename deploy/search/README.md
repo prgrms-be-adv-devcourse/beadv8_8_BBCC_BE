@@ -13,7 +13,7 @@
 | 메모리 | heap 1GB, request 1536Mi · limit 2Gi (실측 최대 1.42GB) |
 | 검색 서비스 접속 | `ELASTICSEARCH_URIS=http://<medium 사설 IP>:30920`. IP 는 레포(공개)에 쓰지 않고 deploy 워크플로가 Environment 변수 `MONITORING_PRIVATE_IP` 로 서버 `.env` 에 붙인다 |
 
-색인 이름 앞의 환경 이름(`SEARCH_INDEX_PREFIX`)으로 dev · prod 가 이 ES 하나를 나눠 쓸 수는 있지만, 지금은 dev 만 씁니다. dev 배포(기능 브랜치 배포 포함)가 이 ES 의 이미지를 바꾸고 다시 띄우므로, prod 검색을 켜기 전에 나눌지 다시 정합니다.
+dev · prod 는 이 ES 하나를 색인 이름 앞의 환경 이름(`SEARCH_INDEX_PREFIX`, `dev-*` · `prod-*`)으로 나눠 씁니다. 배포(dev 는 기능 브랜치 배포 포함)가 `docker/elasticsearch` 가 바뀌어 이 ES 의 이미지를 바꾸면 ES 가 다시 뜨는 동안 두 환경의 검색이 함께 멈춥니다.
 
 ## 준비 (처음 한 번)
 
@@ -57,14 +57,16 @@ t3.large 에서 `curl -s http://<medium 사설 IP>:30920/_cluster/health` 가 �
 
 ## 색인 다시 채우기
 
-ES 를 새로 만들면(처음 옮길 때, PVC 를 지웠을 때) 색인이 비어 있습니다. 검색 서비스는 이벤트로만 색인하므로 상품 이벤트를 다시 보냅니다(#577).
+ES 를 새로 만들면(처음 옮길 때, PVC 를 지웠을 때) 색인이 비어 있습니다. 검색 서비스는 이벤트로만 색인하므로 판매자 · 상품 이벤트를 다시 보냅니다(#577).
 
 ```bash
 # 관리자 토큰으로. 판매중 · 판매중지 상품마다 상품 정보 변경됨을 한 번씩 다시 보내고 보낸 수를 돌려준다
+# 판매자를 먼저(상호명), 그다음 상품. prod 는 https://kidly.kro.kr
+curl -X POST -H "Authorization: Bearer <관리자 토큰>" https://dev.kidly.kro.kr/api/v1/admin/sellers/changed-events
 curl -X POST -H "Authorization: Bearer <관리자 토큰>" https://dev.kidly.kro.kr/api/v1/admin/products/changed-events
 ```
 
-판매자 색인(`<prefix>-sellers`)을 다시 보내는 API 는 아직 없습니다.
+prod 는 검색 서비스가 처음 뜬 main 배포 뒤에 한 번 채웁니다.
 
 ## t3.large 에서 옮긴 뒤 정리
 

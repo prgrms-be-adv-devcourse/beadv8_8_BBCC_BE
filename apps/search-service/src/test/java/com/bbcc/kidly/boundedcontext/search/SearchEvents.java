@@ -26,12 +26,19 @@ final class SearchEvents {
 
     static ProductChangedEvent product(long productId, String name, long sellerId, long categoryId,
         ProductStatus status, long price, long colorValueId, int createdDay, LocalDateTime occurredAt) {
+        return product(productId, name, null, sellerId, categoryId, status, price, colorValueId, createdDay,
+            occurredAt);
+    }
+
+    // 브랜드가 있는 상품이다. 설명 · 사이즈별 실측은 검색이 쓰지 않아 비워 둔다
+    static ProductChangedEvent product(long productId, String name, String brand, long sellerId, long categoryId,
+        ProductStatus status, long price, long colorValueId, int createdDay, LocalDateTime occurredAt) {
         ProductChangedEvent.Option option = new ProductChangedEvent.Option(productId * 10, "기본", "110", price,
             null, null, false, OptionSaleStatus.ON_SALE,
             List.of(new ProductChangedEvent.AttributeEntry("COLOR", colorValueId, "색상 " + colorValueId)));
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(productId, sellerId,
             name, categoryId, status, "https://cdn.kidly.test/" + productId + ".jpg",
-            LocalDateTime.of(2026, 10, createdDay, 9, 0), false, List.of(option)));
+            LocalDateTime.of(2026, 10, createdDay, 9, 0), false, List.of(option), List.of(), brand, null, List.of()));
     }
 
     static SellerChangedEvent seller(long sellerId, String businessName) {

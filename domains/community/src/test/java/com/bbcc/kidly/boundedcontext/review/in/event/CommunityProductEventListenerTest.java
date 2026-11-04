@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -48,22 +49,45 @@ class CommunityProductEventListenerTest {
             option(OptionSaleStatus.ON_SALE, false), option(OptionSaleStatus.STOPPED, true)))));
 
         verify(recorder).record(command.capture());
-        assertThat(command.getValue()).isEqualTo(new ProductChanged(1L, "상품 A", "https://img/1.png", "ON_SALE",
-            List.of(new ProductReplicaRecorder.Option("ON_SALE", false),
-                new ProductReplicaRecorder.Option("STOPPED", true)), OCCURRED_AT));
+        assertThat(command.getValue()).isEqualTo(new ProductChanged(1L, "상품 A", "https://img/1.png", true,
+            List.of(new ProductReplicaRecorder.Option(true, true),
+                new ProductReplicaRecorder.Option(false, false)), OCCURRED_AT));
     }
 
     @Test
-    @DisplayName("상품 · 옵션 상태가 없으면(모르는 값을 읽은 경우) null로, 옵션 목록이 없으면 빈 목록으로 넘긴다")
+    @DisplayName("상품 · 옵션 상태가 없으면(모르는 값을 읽은 경우) 판매 중 아님으로, 옵션 목록이 없으면 빈 목록으로 넘긴다")
     void nullStatusesAndOptions() {
         listener.onProductChanged(event(data(1L, "상품 A", null, null)));
         listener.onProductChanged(event(data(1L, "상품 A", ProductStatus.ON_SALE, List.of(option(null, false)))));
 
         verify(recorder, org.mockito.Mockito.times(2)).record(command.capture());
-        assertThat(command.getAllValues().get(0).productStatus()).isNull();
+        assertThat(command.getAllValues().get(0).productOnSale()).isFalse();
         assertThat(command.getAllValues().get(0).options()).isEmpty();
         assertThat(command.getAllValues().get(1).options())
-            .containsExactly(new ProductReplicaRecorder.Option(null, false));
+            .containsExactly(new ProductReplicaRecorder.Option(false, true));
+    }
+
+    @ParameterizedTest(name = "상품 {0} → 판매 중 {1}")
+    @CsvSource(nullValues = "null", value = {"ON_SALE, true", "STOPPED, false", "SALE_PENDING, false",
+        "null, false"})
+    @DisplayName("상품 판매 상태는 '판매 중 여부'로만 바꿔 넘긴다(판매 중만 true, 중지 · 판매 전 · 모르는 값은 false)")
+    void productStatusToOnSale(ProductStatus status, boolean expected) {
+        listener.onProductChanged(event(data(1L, "상품 A", status, List.of())));
+
+        verify(recorder).record(command.capture());
+        assertThat(command.getValue().productOnSale()).isEqualTo(expected);
+    }
+
+    @ParameterizedTest(name = "옵션 {0} · 품절 {1} → 판매 중 {2} · 재고 {3}")
+    @CsvSource(nullValues = "null", value = {"ON_SALE, false, true, true", "ON_SALE, true, true, false",
+        "STOPPED, false, false, true", "STOPPED, true, false, false", "null, false, false, true"})
+    @DisplayName("옵션은 '판매 중 여부 · 재고 유무'로만 바꿔 넘긴다(판매 중 옵션만 true, 재고 = 품절 아님)")
+    void optionToOnSaleAndInStock(OptionSaleStatus saleStatus, boolean soldOut, boolean onSale, boolean inStock) {
+        listener.onProductChanged(event(data(1L, "상품 A", ProductStatus.ON_SALE, List.of(option(saleStatus,
+            soldOut)))));
+
+        verify(recorder).record(command.capture());
+        assertThat(command.getValue().options()).containsExactly(new ProductReplicaRecorder.Option(onSale, inStock));
     }
 
     @ParameterizedTest(name = "{0}")

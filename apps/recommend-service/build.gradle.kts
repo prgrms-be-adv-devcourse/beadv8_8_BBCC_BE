@@ -12,8 +12,7 @@ dependencies {
     // DB 드라이버
     runtimeOnly("org.postgresql:postgresql")
 
-    // 스키마 마이그레이션이다. init은 이 서비스의 db/migration에 있고, 그 뒤 파일은 도메인 모듈의 db/migration/recommend/에 둔다.
-    // kidly-app에서 추천을 빼기 전에는 추천 마이그레이션을 더하지 않는다(application.yml의 baseline 주석)
+    // 스키마 마이그레이션이다. init은 이 서비스의 db/migration에 있고, 그 뒤 파일은 도메인 모듈의 db/migration/recommend/에 둔다
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
 

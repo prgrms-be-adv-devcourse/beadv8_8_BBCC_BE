@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -44,6 +45,9 @@ class OrderCancelApiTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private DeliveryService deliveryService;
@@ -114,7 +118,7 @@ class OrderCancelApiTest {
             .jsonPath("$.title").isEqualTo("이미 발송된 상품이 있습니다")
             .jsonPath("$.detail").isEqualTo("판매자가 발송을 시작해 취소할 수 없습니다. 판매자에게 문의해 주세요.");
 
-        assertThat(orderService.getOrder(BUYER_ID, orderId).status()).isEqualTo("PAID");
+        assertThat(orderQueries.getOrder(BUYER_ID, orderId).status()).isEqualTo("PAID");
         assertThat(deliveryOf(orderId, OTHER_SELLER_ID).getStatus()).isEqualTo(Delivery.Status.READY);
         assertThat(cancelledEvents(orderId)).isEmpty();
     }
@@ -151,7 +155,7 @@ class OrderCancelApiTest {
         client.post().uri(ORDERS_PATH + "/" + orderId + "/cancel")
             .exchange()
             .expectStatus().isUnauthorized();
-        assertThat(orderService.getOrder(BUYER_ID, orderId).status()).isEqualTo("PENDING_PAYMENT");
+        assertThat(orderQueries.getOrder(BUYER_ID, orderId).status()).isEqualTo("PENDING_PAYMENT");
     }
 
     @Test
@@ -216,7 +220,7 @@ class OrderCancelApiTest {
 
     private Long placeAndPay() {
         Long orderId = place();
-        OrderDetail order = orderService.getOrder(BUYER_ID, orderId);
+        OrderDetail order = orderQueries.getOrder(BUYER_ID, orderId);
         orderService.markPaid(MarkPaidCommands.matching(order, BUYER_ID, 500L));
         deliveryService.createFor(orderId);
         return orderId;

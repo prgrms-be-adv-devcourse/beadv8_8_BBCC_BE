@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.OrderRows;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.OrderDeadLetterService;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.ReceiveDeadLetterCommand;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -17,7 +18,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
@@ -65,6 +66,9 @@ class AdminOrderDeadLetterActionApiTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderQueryService orderQueries;
+
+    @Autowired
     private OrderEventDelivery eventDelivery;
 
     @Autowired
@@ -98,7 +102,7 @@ class AdminOrderDeadLetterActionApiTest {
             + "ObjectOptimisticLockingFailureException");
 
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -112,7 +116,7 @@ class AdminOrderDeadLetterActionApiTest {
             .jsonPath("$.orderStatus").isEqualTo("PAID")
             .jsonPath("$.recommendedAction").value(value -> assertThat(value).isNull());
 
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PAID");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PAID");
         assertThat(orderRows.historyRows(order.orderId())).filteredOn(PAID::equals).hasSize(1);
         assertThat(deliveriesOf(order.orderId())).isEqualTo(1L);
         assertThat(openIds()).doesNotContain(String.valueOf(id));
@@ -135,7 +139,7 @@ class AdminOrderDeadLetterActionApiTest {
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
             Long.class, order.orderId())).as("결제 반영 실패 기록").isEqualTo(1L);
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
     }
 
     @Test
@@ -171,7 +175,7 @@ class AdminOrderDeadLetterActionApiTest {
         try (CapturedLogs logs = CapturedLogs.start()) {
             client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
                 .headers(headers -> {
-                    TestMembers.admin(ADMIN_ID).accept(headers);
+                    TestAdmins.of(ADMIN_ID).accept(headers);
                     headers.set("X-Request-Id", requestId);
                 })
                 .exchange()
@@ -195,7 +199,7 @@ class AdminOrderDeadLetterActionApiTest {
         Long id = receive(2L, completed, "java.lang.IllegalStateException");
 
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -216,7 +220,7 @@ class AdminOrderDeadLetterActionApiTest {
 
         for (int attempt = 1; attempt <= 2; attempt++) {
             client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-                .headers(TestMembers.admin(ADMIN_ID))
+                .headers(TestAdmins.of(ADMIN_ID))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -227,7 +231,7 @@ class AdminOrderDeadLetterActionApiTest {
                 .jsonPath("$.handledBy").value(value -> assertThat(value).isNull());
         }
 
-        assertThat(orderService.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
+        assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).status()).isEqualTo("PENDING_PAYMENT");
         assertThat(openIds()).contains(String.valueOf(id));
         assertThat(jdbcTemplate.queryForObject("select last_reprocess_result from orders.order_dead_letter "
             + "where id = ?", String.class, id)).doesNotContain(BODY_MARKER);
@@ -241,7 +245,7 @@ class AdminOrderDeadLetterActionApiTest {
         Long id = idAt(4L);
 
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -283,7 +287,7 @@ class AdminOrderDeadLetterActionApiTest {
 
         closeWith(id, memo).expectStatus().isBadRequest();
         client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/close")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of())
             .exchange()
@@ -329,13 +333,13 @@ class AdminOrderDeadLetterActionApiTest {
 
     private RestTestClient.ResponseSpec reprocess(Long id) {
         return client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/reprocess")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange();
     }
 
     private RestTestClient.ResponseSpec closeWith(Long id, String memo) {
         return client.post().uri(DEAD_LETTERS_PATH + "/" + id + "/close")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("memo", memo))
             .exchange();
@@ -404,7 +408,7 @@ class AdminOrderDeadLetterActionApiTest {
 
     private List<String> idsOf(String query) {
         return client.get().uri(DEAD_LETTERS_PATH + query)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody(Ids.class)

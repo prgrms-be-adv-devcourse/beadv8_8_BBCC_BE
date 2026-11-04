@@ -118,7 +118,7 @@
 - 아직 없음: 부분 취소 반영, 웹훅 유실 대비 주기 조회
 
 ## 입출금 내역 (`app/WalletService`, #200)
-- `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 ID
+- `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 · 잔액 환급 ID
 - 지갑이 없으면 빈 목록이다(잔액 조회는 0). 종류 · 기간 필터는 없다
 
 ## 회원 탈퇴 지갑 동결 (`app/WalletService.freeze`, #670)
@@ -127,9 +127,16 @@
 - 동결된 지갑은 돈이 나가는 새 요청만 막는다: 충전 요청(409 `WALLET_FROZEN`), 주문 결제(`payment.failed`, 위 주문 결제 참고)
 - 들어오는 돈은 그대로 받는다: 주문 취소 환불, 정산 입금, 탈퇴 전에 시작한 충전의 승인 반영(스케줄러 포함) · 충전 취소 되돌림. 토스에서 직접 취소한 충전을 빼는 것도 그대로 한다(이미 카드로 돌아간 돈)
 - 막는 것은 서비스가 한다. `Wallet.withdraw`는 동결을 보지 않는다
-- 남은 잔액은 운영자가 관리자 조회로 보고 환급한다. 실제 환급(토스 부분 취소 · 계좌 이체)과 환급 완료 기록은 아직 없다
+- 남은 잔액은 운영자가 관리자 조회로 보고 시스템 밖에서 돌려준 뒤 환급을 기록한다(아래 「잔액 환급」). 실제 송금(토스 취소 · 계좌 이체)과 환급 계좌 받기는 범위 밖이다(토스는 테스트 결제)
 - `GET /api/v1/admin/wallets?frozen=true&hasBalance=true`: 동결됐고 잔액이 0보다 큰 지갑. `frozen` · `hasBalance`는 true일 때만 거르고, 둘 다 없으면 모든 지갑이다. 최신순(ID 내림차순), 한 줄은 `walletId` · `memberId` · `balance` · `frozenAt`
 - 동결 뒤 들어온 입금도 잔액에 더해져 그대로 보인다. 지갑별 내역은 원장으로 본다
+
+### 잔액 환급 기록 (`WalletService.returnBalance`, #731)
+- `POST /api/v1/admin/wallets/{walletId}/return-balance` `{ "amount": 목록에서 본 잔액 }` → 200 `balanceReturnId` · `walletId` · `memberId` · `amount` · `balance`(0) · `ledgerId` · `returnedAt`
+- 지갑 락을 잡은 뒤 동결된 지갑이고(아니면 409 `WALLET_NOT_FROZEN`) 요청 금액이 지금 잔액과 같을 때만(아니면 409 `BALANCE_CHANGED`) 처리한다. 없는 지갑은 404, 0원 이하는 400
+  - 금액을 맞춰 보는 것으로 그사이 들어온 입금과 두 번 누르기를 함께 막는다(두 번째는 잔액이 0이라 409)
+- 잔액을 모두 빼고 환급 기록(`balance_return`: 지갑 · 회원 · 금액 · 처리한 관리자)과 원장 `BALANCE_RETURN`(출금, ref_id = 환급 기록 ID)을 남긴다
+- 환급 뒤 다시 입금되면(늦은 정산 등) 다시 조회해 한 번 더 환급한다. 그래서 지갑마다 기록이 여러 건일 수 있다
 
 ## 관리자 결제 조회 (`app/PaymentQueryService`, #312)
 - `GET /api/v1/admin/payments`: 모든 회원의 결제를 최신순(ID 내림차순)으로 준다. `/api/v1/admin/**`라 ADMIN만 호출한다
@@ -178,6 +185,7 @@
 | `ORDER_ITEM_REFUNDED` | `OrderItemCancellationService` (부분 취소 환불, 실패한 환불은 남기지 않음) | memberId, walletId, orderId, cancellationId, paymentId, refundId, amount, balance, reason |
 | `PAYOUT_COMPLETED` | `SettlementPayoutService` (처음 처리한 정산서만, 0원 포함) | memberId(판매자), walletId, settlementId, amount, ledgerId, balance |
 | `WALLET_FROZEN` | `WalletService.freeze` (처음 동결할 때만) | memberId, walletId, balance |
+| `BALANCE_RETURNED` | `WalletService.returnBalance` (탈퇴 회원 잔액 환급 기록) | memberId, walletId, balanceReturnId, amount, balance, ledgerId, returnedBy |
 
 ## Kafka 수신 (#593)
 - 결제가 받는 이벤트 중 보내는 쪽이 Kafka로 보내는 4종을 Kafka로 받는다(`member.withdrawn`은 #670에서 더함). 구독 그룹 `kidly.payment`, 토픽마다 리스너 하나(`in/event`)
@@ -187,10 +195,9 @@
 | `kidly.member.events` | `member.registered` · `member.withdrawn` | `PaymentMemberEventListener` | 지갑 만들기(`createIfAbsent`) · 지갑 동결(#670) | `kidly.member.events.payment.dlt` |
 | `kidly.order.events` | `order.payment-requested` · `order.cancelled` · `order-item.cancelled`(#711) | `PaymentOrderEventListener` | 결제 · 환불(결제 전 취소 기록) · 부분 취소 환불 | `kidly.order.events.payment.dlt` |
 
-- 정산 `settlement.payout-requested`는 별도 스위치로 Kafka 수신을 켠다(#607). 정산은 #612부터 `kidly.settlement.events`로 보낸다. **dev는 켰고**(`deploy/.env.dev`), 기본값 · prod는 꺼져 있다(Spring 이벤트로 받음)
+- 정산 `settlement.payout-requested`는 별도 스위치로 Kafka 수신을 켠다(#607). 정산은 #612부터 `kidly.settlement.events`로 보낸다. 결제 서비스는 정산과 다른 JVM이라 기본값이 켜짐이다(#525)
   - 리스너 `in/event/PaymentSettlementEventListener`, DLT `kidly.settlement.events.payment.dlt`(미리 선언). 처리는 `PaymentEventHandler.settlementPayoutRequested`(정산서마다 한 번 입금)
-  - 별도 스위치 `kidly.payment.kafka.settlement-consumer.enabled`(기본 false, 환경 변수 `PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED`). false면 Kafka 리스너를 시작하지 않고 Spring 리스너(`app/SettlementPayoutRequestedListener`)로 받는다. true면 Spring 리스너는 뜨지 않는다
-  - **정산의 Kafka 발행(#612)이 배포된 환경에서만 켠다.** 그 전에 켜면 지급 요청이 어디에도 도착하지 않는다. prod는 main에 #612가 들어간 뒤 `deploy/.env.prod`에 켠다
+  - 별도 스위치 `kidly.payment.kafka.settlement-consumer.enabled`(기본 true, 환경 변수 `PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED`). false면 Kafka 리스너를 시작하지 않고 Spring 리스너(`app/SettlementPayoutRequestedListener`)로 받는다. 같은 JVM 안에서 정산이 Spring 이벤트로 보내는 테스트(서비스 `application-test.yml`)만 끈다
   - 처음 켜면 그룹 `kidly.payment`가 토픽 처음부터 읽는다. 이미 Spring으로 받은 지급 요청도 다시 오지만 정산서마다 한 번만 입금해 결과는 같다
 - 처리는 `app/PaymentEventHandler` 한 곳에 있고 Kafka 리스너 · Spring 리스너가 같은 처리를 부른다. 같은 이벤트를 다시 받아도 결과는 1회분이다(지갑은 없을 때만, 동결은 한 번만, 주문당 결제 1건, 같은 취소는 한 번만 환불)
 - 헤더 `eventType`으로 고르고 받지 않는 종류(회원 변경 · 토큰 무효화, 주문 생성 · 구매확정 · 장바구니 담기)는 본문을 읽지 않고 건너뛴다. 모르는 필드는 무시한다
@@ -199,8 +206,8 @@
   - DLT 로그에는 토픽 · `eventType` · `eventId` · 키 · 예외 종류만 남긴다(본문에 이메일 · 금액이 있다)
 - 읽기 시작 위치는 결제 팩토리에서 `earliest`(앱 기본 `latest`를 덮어씀). 처음 Kafka로 바꿀 때 빠지는 메시지가 없게 한다. 이미 Spring으로 처리한 메시지를 다시 읽어도 결과가 1회분이라 안전하다
 - 스위치 `kidly.payment.kafka.consumer.enabled`(기본 true, 환경 변수 `PAYMENT_KAFKA_CONSUMER_ENABLED`)
-  - true: Kafka 리스너만 받는다. 같은 이벤트의 Spring 리스너(`app/MemberRegisteredListener` · `MemberWithdrawnListener` · `OrderPaymentRequestedListener` · `OrderCancelledListener`)는 뜨지 않는다
-  - false: Kafka 리스너를 시작하지 않고 Spring 리스너로 받는다(장애 때 되돌리는 용도). 같은 이벤트를 양쪽에서 받지 않는다
+  - true: Kafka 리스너만 받는다. 주문 Spring 리스너(`OrderPaymentRequestedListener` · `OrderCancelledListener`)는 뜨지 않는다
+  - false: Kafka 리스너를 시작하지 않고 주문 이벤트는 Spring 리스너로 받는다. 회원 이벤트는 Kafka로만 받는다
   - `order-item.cancelled`는 Spring 리스너가 없다. 꺼 둔 동안 온 부분 취소는 토픽에 남아 있다가 다시 켜면 그룹 위치부터 받는다
   - 테스트 설정은 false라 다른 도메인 테스트(주문 흐름 등)는 Spring 경로로 돈다. Kafka 수신은 `PaymentKafkaReceiveIntegrationTest`가 그 안에서 결제 리스너를 켜서 본다
 - 로컬에서 결제가 받으려면 Kafka가 떠 있어야 한다(`docker compose up -d`에 포함)
@@ -224,3 +231,11 @@
 - 설정은 결제 안(`out.kafka.PaymentKafkaConfig`)에만 둔다: 토픽 선언(파티션 3 · 복제 1, 파티션 수는 바꾸지 않는다)과 결제 전용 템플릿. 템플릿은 Boot 프로듀서 설정(주소)에 직렬화 · `acks=all` · `enable.idempotence=true` · `max.block.ms`(3초) · `request.timeout.ms`(5초) · `delivery.timeout.ms`(10초) · `linger.ms`(0)를 덮어쓰고 본문을 찍는 기본 실패 로그를 끈다. 빈으로 두지 않아 앱 `spring.kafka`와 Boot 기본 `KafkaTemplate`은 그대로다
   - 릴레이는 스케줄러 스레드(앱 전체 1개) · DB 트랜잭션을 쥔 채 기다리므로, 브로커가 죽어 있으면 한 주기가 최대 약 13초 걸려 그만큼 다른 스케줄러가 늦어질 수 있다
 - 로컬 `bootRun`은 `docker compose up -d`로 Kafka를 함께 띄운다. 없으면 메시지가 아웃박스에 쌓이고 릴레이가 주기마다 WARN을 남긴다. Kafka를 띄우면 쌓인 것부터 순서대로 보낸다
+
+## 결제 서비스 (`apps/payment-service`, #525)
+- 결제 도메인은 이 서비스에만 있다. `kidly-app`에서 뺐다. 결제 API · 이벤트 수신(구독 그룹 `kidly.payment`) · 결제 이벤트 발행은 이 서비스만 한다
+- Gateway는 결제 API와 Swagger '결제' 문서(`/v3/api-docs/payment`)를 `KIDLY_PAYMENT_URI`로 보낸다(기본값 서비스). 배포는 compose profile `payment`(힙 192m · 상한 512m)이고 dev · prod 모두 켠다
+- 마이그레이션: 서비스 이력(`payment.flyway_schema_history_payment`)만 쓴다. 기존 DB는 `baseline-version` `202611021930`(kidly-app이 마지막으로 적용한 결제 버전)으로 baseline을 잡는다. 이 값은 고정이다. 새 결제 마이그레이션은 그보다 뒤 버전으로 더한다
+  - 빈 DB에서는 여전히 `kidly-app`이 먼저 마이그레이션해야 한다(`kidly-app` init에 결제 DDL이 남아 있다). 그때 빠지는 지갑 동결 · 잔액 환급은 `V202611031535`(`IF NOT EXISTS`)가 채운다
+  - `kidly-app` 이력에 남은 결제 도메인 파일 행(`202611021530` · `202611021930`)은 `kidly-app`의 `beforeValidate__drop_payment_domain_history.sql`이 지운다. `kidly-app` 모듈에 있는 결제 파일(`V202610161035` · `V202610200643` · `V202610300905`)은 그대로 둔다
+- 되돌리기는 이미지 재배포다. `kidly-app`에 결제 API가 없어 Gateway 값만으로는 되돌릴 수 없다

@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.in.web.admin;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
-import com.bbcc.kidly.boundedcontext.order.app.PaymentCompletionService;
+import com.bbcc.kidly.boundedcontext.order.app.order.PaymentCompletionService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PaymentRecoveryResult;

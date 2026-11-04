@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 카카오 로그인 전까지 Swagger · Postman에서 로그인이 필요한 API를 호출할 토큰을 발급한다.
- * local · test 프로필에서만 등록된다. 운영에 열리면 누구나 ADMIN 토큰을 받을 수 있다.
+ * local · test 프로필에서만 등록된다. 운영에 열리면 누구나 회원 토큰을 받을 수 있다.
  */
 @DevOnly
 @RestController

@@ -3,9 +3,13 @@ package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 import static java.util.Objects.requireNonNull;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * 주문 취소됨 하나로 되돌릴 재고 복구 대상이다. 주문상품의 차감 기록으로 취소가 먼저 온 주문인지, 거절한 주문인지,
@@ -35,6 +39,22 @@ public final class InventoryRestoration {
     // 주문 취소됨이 주문 생성됨보다 먼저 온 주문이라 주문상품마다 FAILED를 남겨야 한다 (INV-09)
     public boolean isCancelledBeforeCreated() {
         return records.isEmpty();
+    }
+
+    // 요청한 주문상품 중 차감 기록이 없는 주문상품 ID를 오름차순으로 돌려준다
+    // 차감 기록은 주문상품마다 한 행이므로, 기록이 없는 주문상품은 상품이 차감을 판단한 적이 없는 주문상품이다
+    public List<Long> orderItemIdsWithoutRecord(Collection<Long> requestedOrderItemIds) {
+        Set<Long> recorded = new HashSet<>();
+        for (InventoryDeduction record : records) {
+            recorded.add(record.getOrderItemId());
+        }
+        List<Long> missing = new ArrayList<>();
+        for (Long orderItemId : new TreeSet<>(requestedOrderItemIds)) {
+            if (!recorded.contains(orderItemId)) {
+                missing.add(orderItemId);
+            }
+        }
+        return missing;
     }
 
     // 재고 부족이나 판매중지로 거절해 줄인 재고가 없는 주문이다

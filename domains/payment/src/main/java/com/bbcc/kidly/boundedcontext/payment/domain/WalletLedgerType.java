@@ -16,7 +16,9 @@ public enum WalletLedgerType {
     CHARGE_CANCEL_REVERT(true),
     PAYMENT(false),
     REFUND(true),
-    SETTLEMENT(true);
+    SETTLEMENT(true),
+    // 탈퇴 회원 지갑의 남은 잔액을 운영자가 환급했다고 정리한다(실제 송금 없음, #731)
+    BALANCE_RETURN(false);
 
     private final boolean deposit;
 }

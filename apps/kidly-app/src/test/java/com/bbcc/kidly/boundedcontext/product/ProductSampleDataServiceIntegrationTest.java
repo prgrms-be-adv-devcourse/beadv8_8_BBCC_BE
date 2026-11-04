@@ -4,16 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.boundedcontext.member.app.MemberInitialDataService;
-import com.bbcc.kidly.boundedcontext.product.app.port.search.ProductSearchItem;
+import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductSummary;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductDetailService;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductSampleDataService;
 import com.bbcc.kidly.boundedcontext.product.app.product.SellerProductService;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductDetailResult;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetailResult;
-import com.bbcc.kidly.boundedcontext.product.app.search.ProductListService;
-import com.bbcc.kidly.boundedcontext.product.app.search.dto.ProductListRequest;
 import com.bbcc.kidly.boundedcontext.product.app.type.ProductReferenceDataService;
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSeller;
+import com.bbcc.kidly.boundedcontext.product.domain.replica.ProductReplicaSellerRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
@@ -22,16 +21,16 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
-import com.bbcc.kidly.boundedcontext.seller.app.SellerInitialDataService;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 
 @IntegrationTest
 class ProductSampleDataServiceIntegrationTest {
@@ -39,19 +38,13 @@ class ProductSampleDataServiceIntegrationTest {
     private static final Long SELLER_ID = 2L;
 
     @Autowired
-    private MemberInitialDataService memberInitialDataService;
-
-    @Autowired
-    private SellerInitialDataService sellerInitialDataService;
+    private ProductReplicaSellerRepository replicaSellerRepository;
 
     @Autowired
     private ProductReferenceDataService productReferenceDataService;
 
     @Autowired
     private ProductSampleDataService productSampleDataService;
-
-    @Autowired
-    private ProductListService productListService;
 
     @Autowired
     private ProductDetailService productDetailService;
@@ -71,30 +64,23 @@ class ProductSampleDataServiceIntegrationTest {
     @Autowired
     private CategoryRepository categoryRepository;
 
-    // 앱 시작 때와 같은 순서로 회원 초기 데이터를 먼저 넣는다. 판매자 초기 데이터는 판매자가 없는 경우를 보려고 테스트마다 넣는다
-    @BeforeEach
-    void setUp() {
-        memberInitialDataService.load();
-    }
-
     // 추천은 판매 시작 이벤트를 Kafka로 받아서, Kafka가 없는 이 테스트에서는 자녀 맞춤 목록까지 확인하지 않는다
     @Test
-    @DisplayName("판매자 2의 샘플 상품 두 개를 판매 중으로 넣고, 판매 시작 이벤트로 목록에 나온다")
+    @DisplayName("판매자 2의 샘플 상품 두 개를 판매 중으로 넣는다")
     void load() {
-        sellerInitialDataService.load();
+        saveSellerReplica();
         productReferenceDataService.load();
 
         productSampleDataService.load();
 
-        List<ProductSearchItem> items = productListService.list(
-            new ProductListRequest(null, null, null, "PRICE_ASC", null, null)).getContent();
+        List<SellerProductSummary> items = sampleProducts();
         assertThat(items)
-            .extracting(ProductSearchItem::name, ProductSearchItem::businessName, ProductSearchItem::minPrice)
-            .containsExactly(
-                tuple("네이비 데일리 맨투맨", "테스트상점", 25_000L),
-                tuple("그레이 조거 팬츠", "테스트상점", 30_000L));
+            .extracting(SellerProductSummary::name, SellerProductSummary::status, SellerProductSummary::minPrice)
+            .containsExactlyInAnyOrder(
+                tuple("네이비 데일리 맨투맨", ProductStatus.ON_SALE, 25_000L),
+                tuple("그레이 조거 팬츠", ProductStatus.ON_SALE, 30_000L));
 
-        Long topId = items.get(0).productId();
+        Long topId = productId(items, "네이비 데일리 맨투맨");
         ProductDetailResult top = productDetailService.findDetail(topId);
         assertThat(top.brand()).isEqualTo("BBCC");
         assertThat(top.status()).isEqualTo("ON_SALE");
@@ -113,7 +99,7 @@ class ProductSampleDataServiceIntegrationTest {
                     Map.of("TOTAL_LENGTH", 45, "SHOULDER_WIDTH", 32, "CHEST_WIDTH", 36, "SLEEVE_LENGTH", 41)));
         assertThat(availableQuantities(topId)).containsExactly(10, 10);
 
-        Long bottomId = items.get(1).productId();
+        Long bottomId = productId(items, "그레이 조거 팬츠");
         ProductDetailResult bottom = productDetailService.findDetail(bottomId);
         assertThat(bottom.brand()).isEqualTo("BBCC");
         assertThat(bottom.options()).extracting(ProductDetailResult.Option::optionName)
@@ -130,25 +116,23 @@ class ProductSampleDataServiceIntegrationTest {
     @Test
     @DisplayName("상품이 하나라도 있으면 샘플 상품을 넣지 않는다")
     void skipWhenProductExists() {
-        sellerInitialDataService.load();
+        saveSellerReplica();
         productReferenceDataService.load();
         productSampleDataService.load();
 
         productSampleDataService.load();
 
-        assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null)).getContent())
-            .hasSize(2);
+        assertThat(sampleProducts()).hasSize(2);
     }
 
     @Test
     @DisplayName("기준 데이터에 상의 · 하의가 없으면 샘플 상품을 넣지 않고 앱 시작을 막지 않는다")
     void skipWhenReferenceDataMissing() {
-        sellerInitialDataService.load();
+        saveSellerReplica();
 
         assertThatCode(() -> productSampleDataService.load()).doesNotThrowAnyException();
 
-        assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null)).getContent())
-            .isEmpty();
+        assertThat(sampleProducts()).isEmpty();
     }
 
     @Test
@@ -158,20 +142,32 @@ class ProductSampleDataServiceIntegrationTest {
 
         assertThatCode(() -> productSampleDataService.load()).doesNotThrowAnyException();
 
-        assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null)).getContent())
-            .isEmpty();
+        assertThat(sampleProducts()).isEmpty();
     }
 
     @Test
     @DisplayName("기준 데이터에 샘플 상품이 쓰는 값이 없으면 샘플 상품을 넣지 않고 앱 시작을 막지 않는다")
     void skipWhenValueMissing() {
-        sellerInitialDataService.load();
+        saveSellerReplica();
         saveReferenceDataWithoutNavy();
 
         assertThatCode(() -> productSampleDataService.load()).doesNotThrowAnyException();
 
-        assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null)).getContent())
-            .isEmpty();
+        assertThat(sampleProducts()).isEmpty();
+    }
+
+    // 판매자 2가 등록한 상품(판매 상태와 상관없이)
+    private List<SellerProductSummary> sampleProducts() {
+        return sellerProductService.findMyProducts(SELLER_ID, PageRequest.of(0, 10)).getContent();
+    }
+
+    private static Long productId(List<SellerProductSummary> items, String name) {
+        return items.stream().filter(item -> item.name().equals(name)).findFirst().orElseThrow().productId();
+    }
+
+    // 회원 서비스의 판매자 초기 데이터가 판매자 2(테스트상점)를 승인해 보낸 seller.changed를 받은 상태다
+    private void saveSellerReplica() {
+        replicaSellerRepository.save(ProductReplicaSeller.create(ProductReplicaSellerFixture.sellerApproved()));
     }
 
     // 의류 > 상의 · 하의는 있지만 색상 값에 네이비가 없는 기준 데이터다

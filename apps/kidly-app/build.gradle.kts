@@ -10,8 +10,7 @@ dependencies {
 
     // 도메인 모듈과 그 Fixture(src/testFixtures). 통합 · 기능 테스트가 도메인 Fixture를 쓴다
     listOf(
-        "auth", "member", "seller", "setting", "notification",
-        "product", "recommend", "order", "payment", "settlement", "community",
+        "setting", "notification", "product", "order", "community",
     ).forEach { domain ->
         implementation(project(":domains:$domain"))
         testImplementation(testFixtures(project(":domains:$domain")))
@@ -46,8 +45,6 @@ dependencies {
     testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
-    // 회원이 발급한 Access Token을 읽는다(support.IssuedAccessToken, nimbus-jose-jwt). 버전은 Spring Security BOM이 관리한다
-    testImplementation("org.springframework.security:spring-security-oauth2-jose")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")

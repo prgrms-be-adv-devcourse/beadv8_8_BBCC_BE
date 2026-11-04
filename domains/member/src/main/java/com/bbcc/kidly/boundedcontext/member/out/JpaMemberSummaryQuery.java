@@ -5,7 +5,6 @@ import static com.bbcc.kidly.boundedcontext.member.domain.QMember.member;
 import com.bbcc.kidly.boundedcontext.member.app.port.AdminMemberFilter;
 import com.bbcc.kidly.boundedcontext.member.app.port.AdminMemberSummary;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberSummaryQuery;
-import com.bbcc.kidly.boundedcontext.member.domain.MemberRole;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -51,15 +50,12 @@ public class JpaMemberSummaryQuery implements MemberSummaryQuery {
         return member.status.ne(MemberStatus.WITHDRAWN);
     }
 
-    // 관리자는 ADMIN에서만 나온다. 나머지는 일반 회원 중에서 거른다
     private BooleanExpression filterBy(AdminMemberFilter filter) {
-        var isUser = member.role.eq(MemberRole.USER);
         return switch (filter) {
-            case ALL -> isUser;
-            case BUYER -> isUser.and(member.sellerState.status.isNull());
-            case SELLER -> isUser.and(member.sellerState.status.isNotNull());
-            case SUSPENDED -> isUser.and(member.status.eq(MemberStatus.SUSPENDED));
-            case ADMIN -> member.role.eq(MemberRole.ADMIN);
+            case ALL -> null;
+            case BUYER -> member.sellerState.status.isNull();
+            case SELLER -> member.sellerState.status.isNotNull();
+            case SUSPENDED -> member.status.eq(MemberStatus.SUSPENDED);
         };
     }
 

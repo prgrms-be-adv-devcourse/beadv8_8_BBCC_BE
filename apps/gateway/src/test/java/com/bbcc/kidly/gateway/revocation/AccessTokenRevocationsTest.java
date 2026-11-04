@@ -2,6 +2,7 @@ package com.bbcc.kidly.gateway.revocation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import java.time.Duration;
 import java.time.Instant;
@@ -11,8 +12,8 @@ import org.junit.jupiter.api.Test;
 class AccessTokenRevocationsTest {
 
     private static final Duration RETENTION = Duration.ofMinutes(31);
-    private static final PrincipalKey MEMBER_1 = new PrincipalKey(PrincipalType.MEMBER, 1L);
-    private static final PrincipalKey MEMBER_2 = new PrincipalKey(PrincipalType.MEMBER, 2L);
+    private static final PrincipalId MEMBER_1 = new PrincipalId(PrincipalType.MEMBER, 1L);
+    private static final PrincipalId MEMBER_2 = new PrincipalId(PrincipalType.MEMBER, 2L);
     private static final Instant REVOKED_AT = Instant.parse("2026-10-30T00:00:00.500Z");
 
     private final AccessTokenRevocations revocations = new AccessTokenRevocations(RETENTION);

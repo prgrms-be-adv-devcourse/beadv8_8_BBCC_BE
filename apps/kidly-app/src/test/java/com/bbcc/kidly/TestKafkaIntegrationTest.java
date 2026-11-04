@@ -43,9 +43,9 @@ class TestKafkaIntegrationTest {
     private ApplicationContext context;
 
     @Test
-    @DisplayName("Kafka 통합 테스트에서는 결제 아웃박스 릴레이 스케줄러를 만든다")
+    @DisplayName("Kafka 통합 테스트에서는 주문 아웃박스 릴레이 스케줄러를 만든다")
     void kafkaRelayEnabled() {
-        assertThat(context.containsBean("paymentOutboxRelayScheduler")).isTrue();
+        assertThat(context.containsBean("orderOutboxRelayScheduler")).isTrue();
     }
 
     @Test

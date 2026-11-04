@@ -1,6 +1,7 @@
 package com.bbcc.kidly.gateway.support;
 
 import com.bbcc.kidly.shared.auth.AccessTokenClaims;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -39,6 +40,22 @@ public final class TestTokens {
 
     public static String issue(long memberId, List<String> roles, Instant issuedAt, Instant expiresAt) {
         return encode(LOCAL, String.valueOf(memberId), roles, null, issuedAt, expiresAt);
+    }
+
+    public static String issueAdmin(long adminId, Instant issuedAt, Instant expiresAt) {
+        return encode(LOCAL, PrincipalId.admin(adminId).toSubject(), List.of(), null, issuedAt, expiresAt);
+    }
+
+    public static String issueChild(long accountId, long guardianId, Instant issuedAt, Instant expiresAt) {
+        return issueChildWithGuardian(accountId, guardianId, issuedAt, expiresAt);
+    }
+
+    public static String issueChildWithGuardian(long accountId, Object guardianId, Instant issuedAt,
+        Instant expiresAt) {
+        var claims = JwtClaimsSet.builder().subject(PrincipalId.child(accountId).toSubject())
+            .issuedAt(issuedAt).expiresAt(expiresAt).claim(AccessTokenClaims.GUARDIAN_ID, guardianId).build();
+        return LOCAL.encode(JwtEncoderParameters.from(JwsHeader.with(SignatureAlgorithm.RS256).build(), claims))
+            .getTokenValue();
     }
 
     // 회원이 발급하는 토큰처럼 nickname 클레임을 넣는다

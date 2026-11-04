@@ -14,6 +14,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum ReviewErrorCode implements ErrorCode {
 
+    DEAD_LETTER_NOT_FOUND(HttpStatus.NOT_FOUND, "DLT 메시지를 찾을 수 없습니다", "DLT 목록을 새로고침해 주세요."),
+    INVALID_DEAD_LETTER_STATE(HttpStatus.BAD_REQUEST, "잘못된 DLT 상태입니다", "상태는 OPEN 또는 REPROCESSED입니다."),
     INVALID_PAGE_SIZE(HttpStatus.BAD_REQUEST, "잘못된 페이지 크기입니다", "size는 1 이상 50 이하 정수로 보내 주세요."),
     INVALID_CURSOR(HttpStatus.BAD_REQUEST, "잘못된 커서입니다",
         "cursor는 직전 응답의 nextCursor를 그대로 보내 주세요. 처음부터 읽으려면 cursor를 빼고 보내 주세요."),
