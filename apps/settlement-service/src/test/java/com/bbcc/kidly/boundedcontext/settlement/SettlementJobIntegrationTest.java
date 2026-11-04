@@ -303,6 +303,25 @@ class SettlementJobIntegrationTest {
     }
 
     @Test
+    @DisplayName("실행 중 기록이 30분 넘게 진행이 없으면 다음 실행이 FAILED로 닫고 같은 기준일을 정산한다")
+    void staleRunRecoveredThenRun() {
+        save(201L, 10L, 5_000L, CUTOFF_AT.minusDays(1));
+        var stale = startExecution(CUTOFF_AT);
+        var longAgo = LocalDateTime.now().minusMinutes(31);
+        jdbcTemplate.update("UPDATE settlement.BATCH_STEP_EXECUTION SET last_updated = ?, start_time = ? "
+            + "WHERE job_execution_id = ?", longAgo, longAgo, stale.getId());
+        jdbcTemplate.update("UPDATE settlement.BATCH_JOB_EXECUTION SET last_updated = ?, start_time = ? "
+            + "WHERE job_execution_id = ?", longAgo, longAgo, stale.getId());
+
+        var result = settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
+
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        assertThat(result.successCount()).isEqualTo(1);
+        assertThat(settlementRunService.getRun(stale.getId()).status()).isEqualTo("FAILED");
+        assertThat(runCount()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("끝난 실행은 정리할 수 없다. SETTLEMENT_RUN_NOT_RECOVERABLE이다")
     void recoverNotRunning() {
         var completed = settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);

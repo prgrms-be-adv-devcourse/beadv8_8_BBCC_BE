@@ -10,6 +10,8 @@ kidly:
     payout-retry-cron: ${SETTLEMENT_PAYOUT_RETRY_CRON:0 */10 * * * *}
     # 한 트랜잭션에서 처리하는 판매자 수(1 이상). 실패하면 그 묶음을 판매자 1명씩 다시 처리한다
     chunk-size: ${SETTLEMENT_CHUNK_SIZE:100}
+    # 실행 기록이 STARTED인데 이 시간 넘게 진행(step 갱신)이 없으면 죽은 것으로 보고 다음 실행이 FAILED로 닫고 진행한다(1분 이상). 정산은 수 초면 끝난다
+    stale-run-after: ${SETTLEMENT_STALE_RUN_AFTER:PT30M}
     # 정산 이벤트 아웃박스. 업무 트랜잭션이 저장한 메시지를 릴레이가 Kafka(kidly.settlement.events)로 보낸다
     # 값이 비었거나 형식이 맞지 않으면 키 이름이 나오는 오류로 기동 실패 (SettlementOutboxProperties)
     outbox:
