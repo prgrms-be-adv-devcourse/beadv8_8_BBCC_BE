@@ -150,8 +150,9 @@ class EnvironmentStateTests(unittest.TestCase):
     def test_kafka_profile_whitespace_and_comments(self):
         (self.root / 'dev/.env').write_text(
             'COMPOSE_PROFILES="search, kafka-monitoring" # enabled\n'
-            'KAFKA_EXPORTER_PORT=9308 # loopback port\n')
+            'KAFKA_EXPORTER_PORT=9308 # loopback port\nAPP_PORT=8081\nSEARCH_PORT=8082\n')
         self.assertEqual(9308, state.kafka_target('dev'))
+        self.assertEqual({'kidly', 'kidly-search'}, {target[1] for target in state.configuration('dev')})
 
     def test_invalid_kafka_port_is_rejected_before_inventory_mutation(self):
         state.write(self.data, monitoring=True)

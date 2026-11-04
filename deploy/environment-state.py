@@ -98,7 +98,7 @@ def configuration(env):
     for line in (directory / '.env').read_text().splitlines():
         key, sep, value = line.partition('=')
         if sep and key in {'COMPOSE_PROFILES'} | {entry[1] for entry in SERVICES.values()}:
-            result[key] = value.strip().strip('\"\'')
+            result[key] = ' '.join(shlex.split(value, comments=True))
     profiles = {item.strip() for item in result.get('COMPOSE_PROFILES', '').split(',')}
     targets = []
     for service, (job, port_key, profile) in SERVICES.items():
