@@ -21,16 +21,24 @@ permissions:
 concurrency:
   group: deploy-${{ inputs.environment }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   location:
-    if: inputs.environment == 'dev' || github.ref_name == 'main'
     runs-on: ubuntu-latest
     environment: dev
     outputs:
       host: ${{ steps.location.outputs.host }}
       known_hosts: ${{ steps.location.outputs.known_hosts }}
     steps:
+      - name: prod 실행 브랜치 확인
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+        run: |
+          if [[ "$TARGET_ENV" == prod && "$GITHUB_REF_NAME" != main ]]; then
+            echo "::error::prod 운영 변경은 main 브랜치에서 실행하세요"
+            exit 1
+          fi
       - id: location
         env:
           MONITORING_SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}

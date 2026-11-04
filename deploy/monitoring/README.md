@@ -351,3 +351,8 @@ Alloy 자기 지표와 Prometheus/Loki 저장 오류는 필요한 이름만 필�
 - `python3 -m unittest discover -s deploy/monitoring/tests -p 'test_*.py' -v`: 상태 전이, 중지 확인 선행, 실패 복원, 다른 환경 실행 방지, 볼륨 보존.
 - `ruby deploy/monitoring/tests/check-alerts.rb /path/to/promtool`: 기존 규칙과 운영 중지 무알림, prod 서비스 누락, 수집기 전체 중단, 상태 파일 소실.
 - `monitoring-check`가 위 검사를 PR마다 실행합니다. 실제 Actions·Docker·전송/Slack 경로는 별도 dev 검증 결과를 PR에 기록합니다.
+
+동시 실행 큐는 `deploy`와 `environment-operation` 양쪽에서 `queue: max`를 사용해 최대 100개까지 대기시킵니다.
+큐 상한·수동 취소는 가능하므로 반대 방향의 작업을 연속 예약하지 말고 완료를 확인한 뒤 다음 작업을 실행합니다.
+재개 실패의 `starting`은 감시를 유지하는 상태이므로 자동 배포에 의한 복구를 허용합니다.
+`up --wait`와 targets 등록이 성공했을 때만 `running`으로 전환하고, 실패 중에는 의도적 중지로 취급하지 않습니다.

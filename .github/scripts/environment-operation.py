@@ -43,14 +43,15 @@ def install(host):
                     shlex.join(['mv', temporary, SCRIPT])], check=True)
 
 
-def wait_disabled(env, changed_at):
+def wait_disabled(env, changed_at, timeout=120):
     # Ensure the new intention has reached Prometheus before stopping containers.
-    for _ in range(12):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
         query = 'max(kidly_environment_enabled{env="' + env + '"} == 0 and on(env) (kidly_environment_changed_timestamp_seconds >= ' + str(changed_at) + '))'
-        command = shlex.join(['curl', '-fsS', 'http://127.0.0.1:30090/api/v1/query',
+        command = shlex.join(['curl', '-fsS', '--connect-timeout', '3', '--max-time', '5', 'http://127.0.0.1:30090/api/v1/query',
                               '--data-urlencode', 'query=' + query])
         result = subprocess.run(['ssh', '-i', KEY, '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
-                                 'deploy@' + MEDIUM, command], capture_output=True, text=True)
+                                 'deploy@' + MEDIUM, command], capture_output=True, text=True, timeout=20)
         if result.returncode == 0:
             values = json.loads(result.stdout).get('data', {}).get('result', [])
             if values and float(values[0]['value'][1]) == 0:

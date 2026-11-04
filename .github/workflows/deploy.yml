@@ -47,10 +47,11 @@ on:
 permissions:
   contents: read
 
-# 같은 환경(dev · prod)으로 가는 배포는 한 번에 하나만 돈다. 진행 중인 배포는 취소하지 않고, 대기 중인 run 은 최신 것으로 대체된다
+# 같은 환경(dev · prod)으로 가는 배포는 한 번에 하나만 돈다. 진행 중인 배포는 취소하지 않고, 최대 100개까지 대기시킨다
 concurrency:
   group: deploy-${{ github.ref_name == 'main' && 'prod' || 'dev' }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   monitoring-location:
@@ -127,7 +128,7 @@ jobs:
   elasticsearch:
     needs: [ci, build]
     # CI 와 빌드가 모두 성공했거나 롤백(둘 다 생략)인 경우만
-    if: ${{ !cancelled() && needs.monitoring-location.result == 'success' && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) }}
+    if: ${{ !cancelled() && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
