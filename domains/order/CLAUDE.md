@@ -29,7 +29,7 @@
 
 ## 3. 이벤트 발행과 주기 작업
 - 주문 이벤트는 루트 규칙대로 `EventPublisher`로 발행하고, 같은 트랜잭션에서 `order_outbox`에 저장된다(`OrderOutboxWriter`). 업무가 롤백되면 메시지도 남지 않는다
-- 장바구니는 담기에 성공하면(새 줄 · 같은 줄 합치기) `cart.item-added`(`CartItemAddedEvent`, 키 = 회원 ID)를 같은 길로 낸다: `cart/app/port/CartEvents` → `cart/out/order` 어댑터 → 주문 `app/port/in/OrderEventIssuer`(구현 `ProvidedEventService`, #654). 받는 도메인에 맞춘 필드는 넣지 않는다
+- 장바구니는 담기에 성공하면(새 줄 · 같은 줄 합치기) `cart.item-added`(`CartItemAddedEvent`, 키 = 회원 ID), 사용자가 줄을 빼면(`DELETE /api/v1/cart/items/{id}`) `cart.item-removed`(`CartItemRemovedEvent`, 키 = 회원 ID, quantity = 뺄 때 줄 수량, #709)를 같은 길로 낸다: `cart/app/port/CartEvents` → `cart/out/order` 어댑터 → 주문 `app/port/in/OrderEventIssuer`(구현 `ProvidedEventService`, #654). 결제완료 정리(`clearOrdered`, 산 것) · 수량 변경은 내지 않는다. 받는 도메인에 맞춘 필드는 넣지 않는다
 - 조르기는 담기 · 보내기 · 승인 · 거절에 성공하면 `wish.item-added` · `wish.sent` · `wish.approved` · `wish.rejected`(`shared.order.event.Wish…Event`, 키 = 자녀 프로필 ID, data = 대상 ID(조르기 · 담기는 줄) · 자녀 · 보호자 회원 ID · items[productId · optionId · quantity] · 거절 사유)를 같은 길로 낸다: `wish/app/port/WishEvents` → `wish/out/order` 어댑터 → `OrderEventIssuer`(#702). 실패 · 롤백 · 동시 처리에서 진 쪽은 이벤트가 남지 않는다. 사실만 담고 문구 · 개인정보는 넣지 않는다
 - 관리자 멈춘 주문(아웃박스 멈춤)은 eventType 접두(`order.` · `order-item.`)로 메시지 키가 주문 ID인지 판별한다 — 새 주문 이벤트 종류가 이 접두를 벗어나면 `StuckOrderService` 목록을 같이 고친다
 - `OrderOutboxRelayScheduler`가 전송 가능한 메시지를 한 트랜잭션에서 id 순서로 batch만큼 보낸다(`KafkaOrderEventSender`). 타임아웃 · 연결 · 인증 · 알 수 없는 실패는 전송 여부가 불명확하거나 환경 문제이므로 기존처럼 그 자리에서 멈추고 재시도한다. 횟수가 많다는 이유로 격리하지 않는다.

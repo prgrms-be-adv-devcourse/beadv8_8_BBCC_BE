@@ -33,6 +33,7 @@ import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.WishItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
+import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
@@ -247,6 +248,36 @@ class OrderOutboxKafkaIntegrationTest {
         }
         assertThat(inOrder).extracting(ConsumerRecord::partition).containsOnly(inOrder.getFirst().partition());
         assertThat(inOrder).extracting(ConsumerRecord::offset).isSorted();
+    }
+
+    @Test
+    @DisplayName("장바구니 빼기(#709)도 같은 토픽에 도착한다: 키 = 회원 ID, 헤더 eventType · eventId, 본문 7칸 + data, "
+        + "담기와 같은 파티션에 일어난 순서대로")
+    void deliversCartItemRemoved() {
+        Long cartItemId = cartService.addItem(BUYER_ID, 1L, null, 2).line().cartItemId();
+        cartService.removeItem(BUYER_ID, cartItemId);
+        CartItemAddedEvent added = recorder.events(CartItemAddedEvent.class).getFirst();
+        CartItemRemovedEvent removed = recorder.events(CartItemRemovedEvent.class).getFirst();
+
+        OutboxRelayResult result = relayService.relay();
+
+        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 2, 2));
+        Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
+            Set.of(added.eventId().toString(), removed.eventId().toString()));
+        ConsumerRecord<String, String> addedRecord = received.get(added.eventId().toString());
+        ConsumerRecord<String, String> removedRecord = received.get(removed.eventId().toString());
+        assertThat(removedRecord.key()).isEqualTo(String.valueOf(BUYER_ID));
+        assertThat(header(removedRecord, "eventType")).isEqualTo("cart.item-removed");
+        assertThat(header(removedRecord, "eventId")).isEqualTo(removed.eventId().toString());
+        assertThat(removedRecord.headers().lastHeader("__TypeId__")).isNull();
+        JsonNode body = jsonMapper.readTree(removedRecord.value());
+        assertThat(body.propertyNames()).containsExactly("eventId", "eventType", "schemaVersion",
+            "occurredAt", "producer", "aggregateId", "correlationId", "data");
+        assertThat(body.get("aggregateId").asString()).isEqualTo(String.valueOf(cartItemId));
+        assertThat(body.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(removed.data()));
+        // 같은 회원의 담기 · 빼기는 같은 파티션에 일어난 순서대로 쌓인다
+        assertThat(removedRecord.partition()).isEqualTo(addedRecord.partition());
+        assertThat(removedRecord.offset()).isGreaterThan(addedRecord.offset());
     }
 
     @Test
