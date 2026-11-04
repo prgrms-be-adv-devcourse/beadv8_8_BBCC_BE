@@ -7,6 +7,7 @@
 # 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경(dev · prod)에서만 뜬다. app 에는 정산 API 가 없어 정산 API 를 쓰는 환경은 모두 켜야 한다
 # 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다. app 에는 결제 API 가 없어 결제 API 를 쓰는 환경은 모두 켜야 한다
 # 상품(product-service)은 profile product 라 COMPOSE_PROFILES 에 product 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다). app 도 아직 상품 도메인을 가지고 있어 켜지 않은 환경은 app 이 상품 API 를 받는다
+# 알림(notification-service)은 profile notification 이라 COMPOSE_PROFILES 에 notification 이 있는 환경에서만 뜬다. 지금은 어느 환경에도 켜지 않았다(켜면 app 주석의 상한 합계에 더해진다). app 도 아직 알림 도메인을 가지고 있어 켜지 않은 환경은 app 이 환영 메일을 보낸다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -359,6 +360,54 @@ services:
       retries: 12
       start_period: 60s
     # 힙 192m · 상한 512m 은 메모리 논의에서 정한 시작값이다. 켠 뒤 재서 정한다
+    mem_limit: 512m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 알림 서비스(apps/notification-service). 회원 가입 이벤트 수신(구독 그룹 kidly.notification) → 환영 메일 저장 · Gmail SMTP 발송 · 실패 재발송(1분마다). HTTP API 는 없다
+  # app 도 아직 알림 도메인을 가지고 같은 DB · 같은 구독 그룹으로 함께 돈다. 한 메시지는 그룹 안에서 한쪽만 받고, 재발송은 알림 행의 버전(낙관적 잠금)으로 한쪽만 맡는다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 메일 값만 넘긴다. MAIL_PASSWORD 는 파일에 없고 배포 워크플로가 Secret 에서 서버 .env 에 붙인 값을 받는다(없으면 보내지 않고 로그만 남긴다)
+  notification-service:
+    image: ${NOTIFICATION_IMAGE}
+    profiles: [notification]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx192m
+      # 힙 밖 네이티브 메모리가 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # 메일 계정 · 켜기 · 보내는 주소. 기본값은 notification.yml 과 같다. app 과 같은 값을 .env 에서 받는다
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_ENABLED: ${MAIL_ENABLED:-true}
+      MAIL_FROM: ${MAIL_FROM:-}
+      # 메일 본문의 사이트 주소. 서비스 prod 설정이 기본값 없이 요구하므로 app 과 같은 값을 .env 에서 받는다
+      NOTIFICATION_SITE_URL: ${NOTIFICATION_SITE_URL}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${NOTIFICATION_PORT:-8099}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. HTTP API 가 없어 Gateway 라우트도 없다
+    volumes:
+      - ./logs:/app/logs
+    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다(알림 테이블은 app 이 만든다). 서비스는 app 이 적용한 알림 버전으로 baseline 을 잡는다
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    # 힙 192m · 상한 512m 은 상품 서비스와 같은 시작값이다. 켠 뒤 재서 정한다
     mem_limit: 512m
     oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
