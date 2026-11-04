@@ -40,7 +40,7 @@
         "query": "label_values(kidly_app_expected{env=\"$env\"}, app_job)",
         "refresh": 1,
         "includeAll": true,
-        "allValue": "kidly|kidly-gateway|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement",
+        "allValue": "kidly|kidly-gateway|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-order|kidly-settlement",
         "current": {
           "text": "All",
           "value": "$__all"

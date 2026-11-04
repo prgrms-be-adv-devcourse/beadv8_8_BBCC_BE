@@ -7,6 +7,7 @@
 # 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경(dev · prod)에서만 뜬다. app 에는 정산 API 가 없어 정산 API 를 쓰는 환경은 모두 켜야 한다
 # 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다. app 에는 결제 API 가 없어 결제 API 를 쓰는 환경은 모두 켜야 한다
 # 상품(product-service)은 profile product 라 COMPOSE_PROFILES 에 product 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다). app 에는 상품 API 가 없어 상품 API 를 쓰는 환경은 모두 켜야 한다
+# 주문(order-service)은 profile order 라 COMPOSE_PROFILES 에 order 가 있는 환경에서만 뜬다. dev 에만 켰다. app 도 아직 주문 도메인을 가지고 있어 켜지 않은 환경은 app 이 주문 API 를 받는다
 # 알림(notification-service)은 profile notification 이라 COMPOSE_PROFILES 에 notification 이 있는 환경에서만 뜬다. 지금은 어느 환경에도 켜지 않았다(켜면 app 주석의 상한 합계에 더해진다). app 도 아직 알림 도메인을 가지고 있어 켜지 않은 환경은 app 이 환영 메일을 보낸다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
@@ -413,6 +414,56 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # 주문 서비스(apps/order-service). 주문 · 장바구니 · 배송 · 조르기 API, 상품 · 판매자 · 자녀 · 결제 이벤트 수신(구독 그룹 kidly.order), 주문 이벤트 아웃박스 릴레이
+  # app 도 아직 주문 도메인을 가지고 같은 DB · 같은 구독 그룹으로 함께 돈다. 수신은 두 앱이 파티션을 나눠 받고(결과는 1회분), 스케줄러 · 아웃박스 릴레이는 DB 잠금(advisory lock)으로 한 번에 한 곳에서만 돈다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 주문 값(스위치 · 택배 조회 인증값)만 넘긴다. 스위치는 app 과 같은 값이어야 해서 app 이 읽는 .env 의 같은 이름을 받는다
+  # 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
+  order-service:
+    image: ${ORDER_IMAGE}
+    profiles: [order]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx256m
+      # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # Kafka 수신 스위치. 기본값은 order.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다. 끄면 리스너가 그룹에 붙지 않으므로 app 과 함께 끈다(한쪽만 끄면 다른 쪽이 모든 파티션을 받는다)
+      ORDER_KAFKA_CONSUMER_ENABLED: ${ORDER_KAFKA_CONSUMER_ENABLED:-true}
+      # 판매자 발송 전 부분 취소 · 조르기 스위치. app 과 같은 값이어야 같은 요청이 어느 앱에 가도 결과가 같다. 기본값은 order.yml 과 같다
+      ORDER_PARTIAL_CANCEL_ENABLED: ${ORDER_PARTIAL_CANCEL_ENABLED:-false}
+      ORDER_WISH_ENABLED: ${ORDER_WISH_ENABLED:-true}
+      # 택배 조회(Delivery Tracker) 인증값. 비어 있으면 택배 조회만 꺼진다(판매자 수동 배송 완료는 그대로)
+      DELIVERY_TRACKER_CLIENT_ID: ${DELIVERY_TRACKER_CLIENT_ID:-}
+      DELIVERY_TRACKER_CLIENT_SECRET: ${DELIVERY_TRACKER_CLIENT_SECRET:-}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${ORDER_PORT:-8100}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다(주문 테이블은 app 이 만든다). 서비스는 app 이 마지막으로 적용한 주문 버전으로 baseline 을 잡는다
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    # 주문은 스케줄러 · Kafka 리스너가 많아 정산 서비스와 같은 힙 256m · 상한 640m 으로 시작한다. 켠 뒤 재서 정한다
+    mem_limit: 640m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
   # Gateway(apps/gateway, #608). nginx 뒤에서 토큰 검증 · 무효화 확인 · CORS 를 하고 app 으로 넘긴다. 상품 목록은 KIDLY_SEARCH_URI 로 넘긴다(#526)
   # 토큰 무효화 이벤트를 받는다(구독 그룹 kidly.gateway). DB 가 없어 비밀이 든 .env 대신 필요한 값만 넘기고 공개키만 마운트한다
   gateway:
@@ -438,6 +489,8 @@ services:
       KIDLY_PAYMENT_URI: ${KIDLY_PAYMENT_URI:-http://payment-service:8080}
       # 상품 API(공개 · 판매자 · 관리자)를 받을 곳(#791). app 에는 상품 API 가 없어 profile product 가 꺼진 환경에서는 상품 API 가 실패한다
       KIDLY_PRODUCT_URI: ${KIDLY_PRODUCT_URI:-http://product-service:8080}
+      # 주문 · 장바구니 · 배송 · 조르기 · 주문 관리자 API 를 받을 곳. 주문 서비스를 켠 환경은 .env 에 http://order-service:8080 을 두고(profile order 도 켠다), 없으면 지금처럼 app 이 받는다
+      KIDLY_ORDER_URI: ${KIDLY_ORDER_URI:-http://app:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs

@@ -4,7 +4,7 @@
 # 배포 전에 CI(ci.yml)를 이미지 빌드와 동시에 돌리고, 둘 다 성공해야 서버에 올린다.
 # 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 CI · 빌드 없이 그 이미지를 배포한다.
 # 롤백 때도 compose · .env 는 실행한 브랜치의 현재 것이 올라간다. 설정 키가 바뀐 커밋으로 되돌릴 땐 주의한다.
-# 이미지는 열이다: 앱(<저장소>:<SHA>), 검색 서비스(<저장소>-search-service:<SHA>), Gateway(<저장소>-gateway:<SHA>), 추천 서비스(<저장소>-recommend-service:<SHA>), 정산 서비스(<저장소>-settlement-service:<SHA>), 회원 서비스(<저장소>-member-service:<SHA>), 결제 서비스(<저장소>-payment-service:<SHA>), 상품 서비스(<저장소>-product-service:<SHA>), 알림 서비스(<저장소>-notification-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
+# 이미지는 열하나다: 앱(<저장소>:<SHA>), 검색 서비스(<저장소>-search-service:<SHA>), Gateway(<저장소>-gateway:<SHA>), 추천 서비스(<저장소>-recommend-service:<SHA>), 정산 서비스(<저장소>-settlement-service:<SHA>), 회원 서비스(<저장소>-member-service:<SHA>), 결제 서비스(<저장소>-payment-service:<SHA>), 상품 서비스(<저장소>-product-service:<SHA>), 알림 서비스(<저장소>-notification-service:<SHA>), 주문 서비스(<저장소>-order-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
 # Elasticsearch 는 앱 서버가 아니라 t3.medium k3s(deploy/search)에 뜬다. 검색이 켜진 환경이면 elasticsearch job 이 앱보다 먼저 올린다.
 # 검색 서비스 이미지가 없는 커밋(검색 배포 전)으로는 검색이 켜진 환경(dev)을 SHA 롤백할 수 없다.
 # 같은 이유로 Gateway 이미지가 없는 커밋(Gateway 배포 전)으로는 Gateway 가 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
@@ -15,6 +15,7 @@
 # 회원 서비스 이미지가 없는 커밋으로는 회원 서비스가 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
 # 같은 이유로 결제 서비스 이미지가 없는 커밋(#525 배포 전)으로는 결제 서비스가 켜진 환경을 SHA 롤백할 수 없다.
 # 같은 이유로 상품 서비스 이미지가 없는 커밋(#791 배포 전)으로는 상품 서비스가 켜진 환경을 SHA 롤백할 수 없다.
+# 같은 이유로 주문 서비스 이미지가 없는 커밋(주문 서비스 배포 전)으로는 주문 서비스가 켜진 환경을 SHA 롤백할 수 없다.
 # 같은 이유로 앱에서 상품 도메인을 뺀 커밋(#791) 이전 SHA 로는 롤백할 수 없다. 이전 앱이 이력에서 지운 상품 도메인 마이그레이션(202610292246 · 202611040911 · 202611041223)을 다시 적용하다 아웃박스 표가 이미 있어 실패한다(202610292246). 되돌리려면 지운 이력 행(script product/V202610292246__product_outbox.sql · product/V202611040911__drop_product_search_document.sql · product/V202611041223__product_outbox_if_missing.sql)을 public.flyway_schema_history 에 다시 넣는다.
 # 같은 이유로 알림 서비스 이미지가 없는 커밋(알림 서비스 배포 전)으로는 알림 서비스가 켜진 환경을 SHA 롤백할 수 없다.
 # #638(회원 토큰 무효화 테이블 삭제) 이전 SHA 로는 롤백할 수 없다. 이전 앱이 그 테이블을 검증(ddl-auto: validate)해서 뜨지 않는다. 되돌리려면 테이블을 다시 만든다.
@@ -89,7 +90,7 @@ jobs:
     # 앱 모듈(apps/ 아래 폴더)마다 따로 빌드한다. 하나라도 실패하면 배포하지 않는다
     strategy:
       matrix:
-        app: [kidly-app, search-service, gateway, recommend-service, settlement-service, member-service, payment-service, product-service, notification-service]
+        app: [kidly-app, search-service, gateway, recommend-service, settlement-service, member-service, payment-service, product-service, notification-service, order-service]
     steps:
       - uses: actions/checkout@v7
 
@@ -336,6 +337,7 @@ jobs:
               RECOMMEND_IMAGE=$IMAGE-recommend-service:$SHA SETTLEMENT_IMAGE=$IMAGE-settlement-service:$SHA \
               MEMBER_IMAGE=$IMAGE-member-service:$SHA PAYMENT_IMAGE=$IMAGE-payment-service:$SHA \
               PRODUCT_IMAGE=$IMAGE-product-service:$SHA NOTIFICATION_IMAGE=$IMAGE-notification-service:$SHA \
+              ORDER_IMAGE=$IMAGE-order-service:$SHA \
               /opt/app/$APP_ENV/deploy.sh
           " 2>&1 | tee "$RUNNER_TEMP/deploy.log"
 
