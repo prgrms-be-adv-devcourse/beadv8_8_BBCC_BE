@@ -73,9 +73,9 @@ spring:
     password: kidly
 
 # kidly-app(8080) · member-service(8081) · search-service(8082) · gateway(8083) · recommend-service(8086) ·
-# payment-service(8087) · settlement-service(8088) · product-service(8089) · order-service(8090)와 같이 띄울 수 있게 포트를 나눈다
+# payment-service(8087) · settlement-service(8088) · product-service(8089) · notification-service(8090) · order-service(8091)와 같이 띄울 수 있게 포트를 나눈다
 server:
-  port: 8091
+  port: 8092
 
 ---
 spring:
