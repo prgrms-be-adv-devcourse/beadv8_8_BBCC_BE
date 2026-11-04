@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+"""Environment lifecycle and independent monitoring inventory; Python stdlib only."""
+import contextlib
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+
+ROOT = Path(os.environ.get('KIDLY_APP_ROOT', '/opt/app'))
+STATE = ROOT / 'monitoring' / 'operations'
+SERVICES = {
+    'app': ('kidly', 'APP_PORT', ''),
+    'search-service': ('kidly-search', 'SEARCH_PORT', 'search'),
+    'gateway': ('kidly-gateway', 'GATEWAY_PORT', 'gateway'),
+    'childprofile-service': ('kidly-childprofile', 'CHILDPROFILE_PORT', 'childprofile'),
+    'recommend-service': ('kidly-recommend', 'RECOMMEND_PORT', 'recommend'),
+    'settlement-service': ('kidly-settlement', 'SETTLEMENT_PORT', 'settlement'),
+    'member-service': ('kidly-member', 'MEMBER_PORT', 'member'),
+    'payment-service': ('kidly-payment', 'PAYMENT_PORT', 'payment'),
+    'product-service': ('kidly-product', 'PRODUCT_PORT', 'product'),
+}
+
+
+def validate(data):
+    if data.get('env') not in ('dev', 'prod') or type(data.get('enabled')) is not bool:
+        raise ValueError('Invalid environment state')
+    if data.get('phase') not in ('running', 'stopped', 'stopping', 'starting'):
+        raise ValueError('Invalid operation phase')
+    if not isinstance(data.get('changed_at'), (int, float)) or data['changed_at'] < 0:
+        raise ValueError('Invalid timestamp')
+    jobs = data.get('jobs')
+    allowed = {entry[0] for entry in SERVICES.values()}
+    if not isinstance(jobs, list) or not jobs or len(jobs) != len(set(jobs)) or not set(jobs) <= allowed:
+        raise ValueError('Invalid expected services')
+    if data['phase'] == 'running' and not data['enabled'] or data['phase'] == 'stopped' and data['enabled']:
+        raise ValueError('Inconsistent environment phase')
+    return data
+
+
+def atomic(path, content):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix='.' + path.name, dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as output:
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        os.chmod(name, 0o644)
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def load(env):
+    path = STATE / (env + '.json')
+    return validate(json.loads(path.read_text())) if path.exists() else None
+
+
+def metrics(data):
+    validate(data)
+    env = data['env']
+    lines = [
+        'kidly_environment_enabled{env="%s"} %d' % (env, data['enabled']),
+        'kidly_environment_changed_timestamp_seconds{env="%s"} %s' % (env, data['changed_at']),
+        'kidly_environment_transition_active{env="%s"} %d' % (env, data['phase'] in ('starting', 'stopping')),
+    ]
+    lines += ['kidly_app_expected{env="%s",app_job="%s"} %d' % (env, job, data['enabled']) for job in data['jobs']]
+    return '\n'.join(lines) + '\n'
+
+
+def write(data, monitoring=False):
+    validate(data)
+    # JSON is durable control state. The exporter file is a separately validated atomic projection.
+    atomic(STATE / (data['env'] + '.json'), json.dumps(data) + '\n')
+    if monitoring:
+        atomic(STATE / (data['env'] + '.prom'), metrics(data))
+        registered = [validate(json.loads(path.read_text())) for path in STATE.glob('*.json')]
+        anchor = 'kidly_monitoring_inventory_present 1\nkidly_monitoring_inventory_initialized 1\n'
+        anchor += ''.join('kidly_environment_registered{env="%s"} 1\n' % item['env'] for item in registered)
+        atomic(STATE / 'inventory.prom', anchor)
+
+
+def configuration(env):
+    directory = ROOT / env
+    result = {}
+    for line in (directory / '.env').read_text().splitlines():
+        key, sep, value = line.partition('=')
+        if sep and key in {'COMPOSE_PROFILES'} | {entry[1] for entry in SERVICES.values()}:
+            result[key] = value.strip().strip('\"\'')
+    profiles = set(result.get('COMPOSE_PROFILES', '').split(','))
+    targets = []
+    for service, (job, port_key, profile) in SERVICES.items():
+        if profile and profile not in profiles:
+            continue
+        port = result.get(port_key, '')
+        if not port.isdigit() or not 0 < int(port) < 65536:
+            raise ValueError('Missing or invalid port: ' + port_key)
+        targets.append((service, job, int(port)))
+    return targets
+
+
+def snapshot(env):
+    if not (ROOT / env / '.env').exists():
+        return None
+    data = load(env)
+    if not data and not (ROOT / 'monitoring' / 'targets' / (env + '.yml')).exists():
+        return None
+    jobs = [job for _, job, _ in configuration(env)]
+    if data:
+        return dict(data, jobs=jobs)
+    # Never infer intentional shutdown from a missing container or a failed scrape.
+    # Only previously registered environments are adopted automatically.
+    if not (ROOT / 'monitoring' / 'targets' / (env + '.yml')).exists():
+        return None
+    return {'env': env, 'enabled': True, 'phase': 'running', 'changed_at': time.time(), 'jobs': jobs}
+
+
+def register_targets(env):
+    root = ROOT / 'monitoring' / 'targets'
+    configured = configuration(env)
+    for service, _, port in configured:
+        suffix = '' if service == 'app' else SERVICES[service][2]
+        atomic(root / suffix / (env + '.yml'), '- targets: ["127.0.0.1:%d"]\n  labels:\n    env: %s\n' % (port, env))
+    active = {service for service, _, _ in configured}
+    for service, (_, _, profile) in SERVICES.items():
+        if service not in active:
+            (root / profile / (env + '.yml')).unlink(missing_ok=True)
+
+
+def run(command, capture=False):
+    result = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
+    if result.returncode:
+        raise RuntimeError('Server command failed; inspect container health (secret values are not printed)')
+    return result.stdout.strip() if capture else None
+
+
+def compose(env, *args):
+    return ['docker', 'compose', '-p', env, '-f', str(ROOT / env / 'docker-compose.yml'), '--project-directory', str(ROOT / env),
+            '--env-file', str(ROOT / env / '.env'), '--env-file', str(ROOT / env / 'image.env'), *args]
+
+
+@contextlib.contextmanager
+def lock(env):
+    STATE.mkdir(parents=True, exist_ok=True)
+    with (STATE / (env + '.lock')).open('a') as file:
+        fcntl.flock(file, fcntl.LOCK_EX)
+        yield
+
+
+def check_capacity(env):
+    other = 'prod' if env == 'dev' else 'dev'
+    if run(['docker', 'ps', '-q', '--filter', 'label=com.docker.compose.project=' + other], capture=True):
+        raise RuntimeError('Other environment is running; stop it before resuming this environment')
+
+
+def control(env, action):
+    with lock('capacity'), lock(env):
+        targets = configuration(env)
+        data = {'env': env, 'enabled': action == 'resume', 'phase': 'starting' if action == 'resume' else 'stopping',
+                'changed_at': time.time(), 'jobs': [job for _, job, _ in targets]}
+        if action == 'resume':
+            check_capacity(env)
+            # Monitor a failed startup; do not silently leave the environment disabled.
+            write(data)
+            run(compose(env, 'up', '-d', '--wait', '--wait-timeout', '180', '--pull', 'never'))
+            register_targets(env)
+            data['phase'] = 'running'
+        else:
+            old = load(env)
+            write(data)  # Automatic deployment must see this before containers are stopped.
+            try:
+                run(compose(env, 'stop', '--timeout', '30'))
+            except Exception:
+                write(old or dict(data, enabled=True, phase='running'))
+                raise
+            root = ROOT / 'monitoring' / 'targets'
+            for _, _, profile in SERVICES.values():
+                (root / profile / (env + '.yml')).unlink(missing_ok=True)
+            data['phase'] = 'stopped'
+        write(data)
+        return data
+
+
+def main():
+    action, env = sys.argv[1:3]
+    if env not in ('dev', 'prod'):
+        raise ValueError('Environment must be dev or prod')
+    if action == 'mode':
+        data = load(env)
+        print('stopped' if data and not data['enabled'] else 'running')
+    elif action == 'check-capacity':
+        check_capacity(env)
+    elif action == 'snapshot':
+        print(json.dumps(snapshot(env)))
+    elif action == 'plan':
+        data = {'env': env, 'enabled': True, 'phase': 'running', 'changed_at': time.time(),
+                'jobs': [job for _, job, _ in configuration(env)]}
+        print(json.dumps(validate(data)))
+    elif action == 'targets':
+        register_targets(env)
+        data = {'env': env, 'enabled': True, 'phase': 'running', 'changed_at': time.time(),
+                'jobs': [job for _, job, _ in configuration(env)]}
+        write(data)
+    elif action == 'inventory':
+        data = validate(json.load(sys.stdin))
+        if data['env'] != env:
+            raise ValueError('State/environment mismatch')
+        with lock('inventory'):
+            write(data, monitoring=True)
+    elif action in ('stop', 'resume'):
+        print(json.dumps(control(env, action)))
+    else:
+        raise ValueError('Unsupported operation')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        # No compose output, connection values, tokens, or application logs are printed.
+        print('Environment operation failed: ' + type(error).__name__ + ': ' + str(error), file=sys.stderr)
+        sys.exit(1)

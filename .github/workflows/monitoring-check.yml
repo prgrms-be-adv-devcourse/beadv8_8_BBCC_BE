@@ -1,0 +1,34 @@
+name: monitoring-check
+on:
+  pull_request:
+    paths:
+      - deploy/**
+      - .github/scripts/environment-operation.py
+      - .github/workflows/**
+permissions:
+  contents: read
+concurrency:
+  group: monitoring-check-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: 운영 상태·실패 복구 검증
+        run: python3 -m unittest discover -s deploy/monitoring/tests -p 'test_*.py' -v
+      - name: 설정 문법 검증
+        run: |
+          bash -n deploy/deploy.sh deploy/monitoring/deploy.sh
+          ruby -ryaml -e 'ARGV.each { |p| YAML.load_file(p) }' .github/workflows/{deploy,monitoring-deploy,environment-operation,monitoring-check}.yml deploy/monitoring/grafana/provisioning/alerting/*.yml
+          python3 -c 'import json,pathlib; [json.loads(p.read_text()) for p in pathlib.Path("deploy/monitoring/grafana/dashboards").glob("*.json")]'
+      - name: 알림 발화·중지 억제·복구 검증
+        run: |
+          # Same image already used by the monitoring stack, no additional dependency.
+          cat > "$RUNNER_TEMP/promtool-check" <<'SH'
+          #!/bin/sh
+          exec docker run --rm --network none -v "$PWD:/checks:ro" -w /checks --entrypoint /bin/promtool prom/prometheus:v3.5.0 "$@"
+          SH
+          chmod 700 "$RUNNER_TEMP/promtool-check"
+          docker pull prom/prometheus:v3.5.0
+          ruby deploy/monitoring/tests/check-alerts.rb "$RUNNER_TEMP/promtool-check"

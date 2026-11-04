@@ -1,0 +1,92 @@
+"""Lifecycle failure/intent tests without connecting to any server or starting containers."""
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+spec = importlib.util.spec_from_file_location('state', Path(__file__).resolve().parents[2] / 'environment-state.py')
+state = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(state)
+
+
+class EnvironmentStateTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.root_patch = patch.object(state, 'ROOT', self.root)
+        self.state_patch = patch.object(state, 'STATE', self.root / 'monitoring/operations')
+        self.root_patch.start()
+        self.state_patch.start()
+        self.addCleanup(self.root_patch.stop)
+        self.addCleanup(self.state_patch.stop)
+        env = self.root / 'dev'
+        env.mkdir()
+        (env / '.env').write_text('COMPOSE_PROFILES=search\nAPP_PORT=8081\nSEARCH_PORT=8082\nDB_PASSWORD=do-not-print\n')
+        self.data = {'env': 'dev', 'enabled': True, 'phase': 'running', 'changed_at': 100,
+                     'jobs': ['kidly', 'kidly-search']}
+
+    def test_missing_targets_does_not_unregister_inventory(self):
+        state.write(self.data)
+        self.assertEqual(state.snapshot('dev')['jobs'], self.data['jobs'])
+        state.write(self.data, monitoring=True)
+        (state.STATE / 'dev.prom').unlink()
+        self.assertIn('kidly_environment_registered{env="dev"} 1', (state.STATE / 'inventory.prom').read_text())
+
+    def test_stop_removes_only_discovery_and_preserves_expected_jobs(self):
+        state.write(self.data)
+        state.register_targets('dev')
+        with patch.object(state, 'run') as run:
+            result = state.control('dev', 'stop')
+        self.assertFalse(result['enabled'])
+        self.assertEqual(result['phase'], 'stopped')
+        self.assertFalse((self.root / 'monitoring/targets/dev.yml').exists())
+        self.assertEqual(state.load('dev')['jobs'], self.data['jobs'])
+        self.assertNotIn('--volumes', repr(run.call_args_list))
+        self.assertNotIn('down', repr(run.call_args_list))
+
+    def test_failed_stop_restores_local_monitoring_intent(self):
+        state.write(self.data)
+        with patch.object(state, 'run', side_effect=RuntimeError('stop failed')):
+            with self.assertRaises(RuntimeError):
+                state.control('dev', 'stop')
+        self.assertTrue(state.load('dev')['enabled'])
+
+    def test_resume_refuses_other_running_environment_before_mutating_state(self):
+        stopped = dict(self.data, enabled=False, phase='stopped')
+        state.write(stopped)
+        with patch.object(state, 'run', return_value='other-container'):
+            with self.assertRaises(RuntimeError):
+                state.control('dev', 'resume')
+        self.assertEqual(state.load('dev'), stopped)
+
+    def test_failed_resume_remains_expected_and_transitioning(self):
+        state.write(dict(self.data, enabled=False, phase='stopped'))
+        with patch.object(state, 'run', side_effect=['', RuntimeError('startup failed')]):
+            with self.assertRaises(RuntimeError):
+                state.control('dev', 'resume')
+        self.assertTrue(state.load('dev')['enabled'])
+        self.assertEqual(state.load('dev')['phase'], 'starting')
+
+    def test_resume_registers_actual_profiles_without_pull_or_data_deletion(self):
+        state.write(dict(self.data, enabled=False, phase='stopped'))
+        with patch.object(state, 'run', return_value='') as run:
+            result = state.control('dev', 'resume')
+        self.assertEqual(result['phase'], 'running')
+        self.assertTrue((self.root / 'monitoring/targets/search/dev.yml').exists())
+        self.assertIn("'never'", repr(run.call_args_list))
+
+    def test_invalid_state_does_not_replace_good_inventory(self):
+        state.write(self.data, monitoring=True)
+        for invalid in [dict(self.data, env='other'), dict(self.data, enabled='false'),
+                        dict(self.data, jobs=['untrusted']), dict(self.data, phase='stopped')]:
+            with self.assertRaises(ValueError):
+                state.write(invalid, monitoring=True)
+        self.assertEqual(state.load('dev'), self.data)
+        self.assertNotIn('do-not-print', state.metrics(self.data))
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -1,0 +1,74 @@
+rule_files: [rules.yml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'kidly_monitoring_inventory_present'
+        values: '1+0x25'
+      - series: 'kidly_monitoring_inventory_initialized'
+        values: '1+0x25'
+      - series: 'kidly_environment_enabled{env="dev"}'
+        values: '0+0x25'
+      - series: 'kidly_environment_enabled{env="prod"}'
+        values: '1+0x25'
+      - series: 'kidly_app_expected{env="dev",app_job="kidly-search"}'
+        values: '0+0x25'
+      - series: 'kidly_app_expected{env="prod",app_job="kidly-search"}'
+        values: '1+0x25'
+      - series: 'kidly_app_expected{env="prod",app_job="kidly-settlement"}'
+        values: '1+0x25'
+      - series: 'up{job="kidly-alloy",collector="app"}'
+        values: '1+0x25'
+      - series: 'up{job="kidly-search",env="dev"}'
+        values: '0+0x25'
+      - series: 'up{job="kidly-settlement",env="prod"}'
+        values: '1+0x25'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: kidly-app-down
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: kidly-scrape-missing
+        exp_alerts:
+          - exp_labels: {env: prod, app_job: kidly-search, job: kidly-search}
+      - eval_time: 10m
+        alertname: kidly-agent-missing
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: kidly-inventory-missing
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'kidly_environment_enabled{env="prod"}'
+        values: '1+0x20'
+      - series: 'kidly_app_expected{env="prod",app_job="kidly-search"}'
+        values: '1+0x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: kidly-agent-missing
+        exp_alerts:
+          - exp_labels: {job: kidly-alloy, collector: app}
+      - eval_time: 10m
+        alertname: kidly-scrape-missing
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'kidly_environment_enabled{env="dev"}'
+        values: '0+0x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: kidly-agent-missing
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'kidly_monitoring_inventory_present'
+        values: '1+0x20'
+      - series: 'kidly_monitoring_inventory_initialized'
+        values: '1+0x20'
+      - series: 'kidly_environment_registered{env="prod"}'
+        values: '1+0x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: kidly-inventory-missing
+        exp_alerts:
+          - exp_labels: {env: prod}
