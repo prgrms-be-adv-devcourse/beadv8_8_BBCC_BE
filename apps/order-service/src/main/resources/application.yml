@@ -16,7 +16,7 @@ spring:
     # 이미 주문 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 baseline-version으로 baseline을 잡고 그 버전까지 건너뛴다.
     # 빈 DB(테스트)는 baseline 없이 init부터 적용한다
     # baseline-version은 이 모듈을 만들 때 kidly-app이 마지막으로 적용한 주문 마이그레이션 버전(아웃박스 격리)이고, 고정한다(baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다).
-    # 두 앱이 함께 도는 동안 더하는 주문 마이그레이션은 두 앱이 각자 적용하므로 두 번 적용돼도 안전하게(IF NOT EXISTS · IF EXISTS) 쓴다
+    # kidly-app에서 주문을 뺀 뒤(#826) 주문 마이그레이션은 이 서비스만 적용한다. 빈 DB에서 kidly-app이 init까지만 만든 표는 보강 마이그레이션(V202611041730)이 채운다
     baseline-on-migrate: true
     baseline-version: 202611031100
     # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다
