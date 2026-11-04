@@ -8,12 +8,24 @@ import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshToken;
+import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
+import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import com.bbcc.kidly.support.KafkaMessages;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -53,6 +65,12 @@ class AuthChildProfileEventKafkaIntegrationTest {
     private RefreshTokenService refreshTokens;
     @Autowired
     private RefreshTokenRepository tokens;
+    @Autowired
+    private ChildProfileService childProfiles;
+    @Autowired
+    private ChildProfileRepository profiles;
+    @Autowired
+    private ChildProfileOutboxRelayService relay;
 
     private final Long childId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
     private KafkaMessages messages;
@@ -135,6 +153,42 @@ class AuthChildProfileEventKafkaIntegrationTest {
             var data = jsonMapper.readTree(found.getFirst()).get("data");
             assertThat(data.get("principalType").asString()).isEqualTo("CHILD");
             assertThat(data.get("principalId").asLong()).isEqualTo(account.getId());
+        }
+    }
+
+    @Test
+    void withdrawalRemovesChildAccountAndRefreshToken() throws Exception {
+        var memberListener = registry.getListenerContainer("childProfileMemberEventListener");
+        memberListener.start();
+        try {
+            AsyncWait.until(TIMEOUT, () -> !memberListener.getAssignedPartitions().isEmpty());
+            var memberId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+            var profile = childProfiles.register(memberId, new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15),
+                Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE));
+            relay.relay();
+            AsyncWait.until(TIMEOUT, () -> repository.findById(profile.id()).isPresent());
+            var account = accounts.saveAccount(ChildAccount.create(UUID.randomUUID().toString().substring(0, 16),
+                "hash", memberId, profile.id()));
+            var token = refreshTokens.issue(PrincipalId.child(account.getId()));
+            var event = new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.now(),
+                new MemberWithdrawnEvent.Data(memberId));
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("eventId", event.eventId());
+            body.put("eventType", event.eventType());
+            body.put("schemaVersion", event.schemaVersion());
+            body.put("occurredAt", event.occurredAt());
+            body.put("producer", event.producer());
+            body.put("aggregateId", event.aggregateId());
+            body.put("correlationId", event.correlationId());
+            body.put("data", event.data());
+            messages.sendRaw("kidly.member.events", Long.toString(memberId), event.eventType(), event.eventId(),
+                jsonMapper.writeValueAsString(body));
+            AsyncWait.until(TIMEOUT, () -> profiles.findAllByMemberId(memberId).isEmpty());
+            relay.relay();
+            AsyncWait.until(TIMEOUT, () -> accounts.findByChildProfileId(profile.id()).isEmpty()
+                && tokens.findByTokenHash(RefreshToken.hashOf(token)).isEmpty());
+        } finally {
+            memberListener.stop();
         }
     }
 }
