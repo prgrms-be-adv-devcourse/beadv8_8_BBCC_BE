@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.auth.app;
 
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildProfileReplicaRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
+import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ public class ChildProfileReplicaService {
     private final ChildProfileReplicaRepository repository;
     private final ChildAccountRepository accounts;
     private final AccessTokenRevocationService revocationService;
+    private final RefreshTokenRepository refreshTokens;
 
     @Transactional
     public void apply(Long childId, Long guardianId, boolean deleted) {
@@ -24,7 +26,9 @@ public class ChildProfileReplicaService {
             repository.deleteById(childId);
             accounts.findByChildProfileId(childId).ifPresent(account -> {
                 accounts.delete(account);
-                revocationService.revoke(PrincipalId.child(account.getId()), LocalDateTime.now());
+                var principal = PrincipalId.child(account.getId());
+                refreshTokens.deleteByPrincipal(principal);
+                revocationService.revoke(principal, LocalDateTime.now());
             });
         } else {
             repository.insertIfAbsent(childId, guardianId, LocalDateTime.now());

@@ -51,7 +51,7 @@ public interface JpaRefreshTokenRepository extends JpaRepository<RefreshToken, R
 
     @Override
     @Transactional
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
         DELETE FROM RefreshToken t
         WHERE t.id.type = :#{#principal.type()} AND t.id.principalId = :#{#principal.id()}

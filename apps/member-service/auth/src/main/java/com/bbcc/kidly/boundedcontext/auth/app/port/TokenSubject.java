@@ -28,4 +28,11 @@ public sealed interface TokenSubject {
             return PrincipalId.admin(id);
         }
     }
+
+    record Child(Long id, Long guardianId) implements TokenSubject {
+        @Override
+        public PrincipalId principal() {
+            return PrincipalId.child(id);
+        }
+    }
 }

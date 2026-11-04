@@ -10,11 +10,13 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface JpaChildProfileReplicaRepository extends JpaRepository<ChildProfileReplica, Long>,
     ChildProfileReplicaRepository {
 
     @Override
+    @Transactional
     @Modifying
     @Query(value = """
         INSERT INTO auth.child_profile_replica (id, guardian_id, created_at, updated_at)

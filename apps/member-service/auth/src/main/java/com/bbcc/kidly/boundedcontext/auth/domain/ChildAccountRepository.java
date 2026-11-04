@@ -7,5 +7,7 @@ public interface ChildAccountRepository {
     boolean existsByLoginId(String loginId);
     boolean existsByChildProfileId(Long childProfileId);
     Optional<ChildAccount> findByChildProfileId(Long childProfileId);
+    Optional<ChildAccount> findByIdForUpdate(Long id);
+    Optional<ChildAccount> findByLoginId(String loginId);
     void delete(ChildAccount account);
 }

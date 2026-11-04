@@ -43,6 +43,7 @@ public class JwtAccessTokenIssuer implements AccessTokenIssuer {
                 .claim(AccessTokenClaims.NICKNAME, member.nickname())
                 .claim(AccessTokenClaims.ROLES, member.roles().stream().map(Role::name).toList());
             case TokenSubject.Admin _ -> base;
+            case TokenSubject.Child child -> base.claim(AccessTokenClaims.GUARDIAN_ID, child.guardianId());
         };
         var header = JwsHeader.with(SignatureAlgorithm.RS256).build();
         return jwtEncoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
