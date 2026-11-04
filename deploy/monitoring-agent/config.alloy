@@ -365,6 +365,7 @@ prometheus.relabel "alloy_health" {
 
 // Broker metrics use /metrics, not the application actuator path.
 discovery.file "kidly_kafka" {
+    refresh_interval = "30s"
     files = ["/etc/alloy/targets/kafka/*.yml"]
 }
 prometheus.scrape "kidly_kafka" {
