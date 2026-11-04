@@ -10,7 +10,6 @@ import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,13 +48,13 @@ class RequestLoggingApiTest {
     }
 
     @Test
-    @DisplayName("로그인 요청의 끝 로그에 회원 ID · 경로 패턴 · 가린 헤더와 본문을 남기고, 응답 본문은 그대로 보낸다")
+    @DisplayName("로그인 요청의 본문·헤더·식별값은 로그에서 제외하고 응답은 보존한다")
     void logsRequestDetails() {
         var body = "{\"password\":\"pw\",\"name\":\"홍길동\",\"amount\":1000}";
 
         client.post().uri(ECHO_PATH)
             .headers(TestMembers.buyer(7L))
-            // 서비스는 토큰을 보지 않지만, 들어온 Authorization 헤더는 로그에서 가린다
+            // 서비스는 토큰을 보지 않으며, 들어온 Authorization 헤더도 로그에 남기지 않는다
             .header(HttpHeaders.AUTHORIZATION, "Bearer secret-token")
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
@@ -66,15 +65,12 @@ class RequestLoggingApiTest {
         var end = appender.list.stream()
             .filter(event -> event.getFormattedMessage().startsWith("POST " + ECHO_PATH))
             .findFirst().orElseThrow();
-        assertThat(end.getMDCPropertyMap()).containsEntry(RequestLoggingFilter.MEMBER_ID_MDC_KEY, "7");
+        assertThat(end.getMDCPropertyMap()).doesNotContainKey(RequestLoggingFilter.MEMBER_ID_MDC_KEY);
         var fields = new LinkedHashMap<String, Object>();
         end.getKeyValuePairs().forEach(pair -> fields.put(pair.key, pair.value));
         assertThat(fields).containsEntry("http.route", ECHO_PATH)
-            .containsEntry("http.request.body.content", "{\"password\":\"***\",\"name\":\"홍길동\",\"amount\":1000}")
-            .containsEntry("http.response.body.content", "{\"password\":\"***\",\"name\":\"홍길동\",\"amount\":1000}");
-        assertThat(fields.get("http.request.headers")).asInstanceOf(InstanceOfAssertFactories.MAP)
-            .containsEntry("authorization", "***");
-        assertThat(fields.get("client.ip")).isNotNull();
+            .doesNotContainKeys("http.request.body.content", "http.response.body.content",
+                "http.request.headers", "http.response.headers", "client.ip", "url.query");
     }
 
     @Test
