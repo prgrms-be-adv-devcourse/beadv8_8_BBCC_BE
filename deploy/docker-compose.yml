@@ -108,6 +108,31 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # 승인된 Kafka 관측 전용. 앱·DB 비밀값이나 Docker 소켓을 넘기지 않는다.
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.11.0@sha256:54d4296c5b8ce01232f6762e06cbc3eec25887c0b5c5940ccb9e891ac7fc51d8
+    profiles: [kafka-monitoring]
+    command:
+      - --kafka.server=kafka:9092
+      - --kafka.version=4.0.0
+      - --topic.workers=2
+      - '--topic.filter=^kidly\.'
+      - '--group.filter=^kidly\.'
+    ports:
+      - "127.0.0.1:${KAFKA_EXPORTER_PORT}:9308"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    cpus: 0.2
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
   # 검색 서비스(apps/search-service). 상품 목록 검색 API 와 상품 · 판매자 이벤트 수신(구독 그룹 kidly.search)
   # 비밀이 든 .env 를 통째로 넘기지 않고 필요한 값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   # /actuator/health 가 Elasticsearch 연결을 본다. ES 는 t3.medium k3s(deploy/search), 앱 배포 전에 deploy 워크플로가 먼저 올린다

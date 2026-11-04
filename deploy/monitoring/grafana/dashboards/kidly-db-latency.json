@@ -1,0 +1,431 @@
+{
+  "uid": "kidly-db-latency",
+  "title": "Kidly 응답·DB 연결",
+  "tags": [
+    "kidly"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "앱 DB 풀 사용률",
+      "description": "선택한 서비스의 풀 상한 대비 사용률입니다. PostgreSQL 전체 max_connections와 다릅니다. 풀 상한·호출 기준은 담당자와 확정합니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * sum(hikaricp_connections_active{env=\"$env\",job=~\"$service\"}) / sum(hikaricp_connections_max{env=\"$env\",job=~\"$service\"})",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "데이터 없음",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "DB 연결 대기",
+      "description": "연결을 얻지 못해 기다리는 요청 수입니다. 지속되면 풀 점유와 DB 연결 수·느린 트랜잭션을 확인합니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(hikaricp_connections_pending{env=\"$env\",job=~\"$service\"})",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "데이터 없음",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "연결 시간 초과 · 5분",
+      "description": "최근 5분 연결 획득 실패의 추정 건수입니다. 카운터 첫 수집·재시작 직후 일부는 빠질 수 있습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(hikaricp_connections_timeout_total{env=\"$env\",job=~\"$service\"}[5m]))",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "noValue": "데이터 없음",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "평균 연결 획득 시간",
+      "description": "최근 5분 연결 획득의 평균입니다. p95/p99가 아니며 요청이 없거나 지표가 없으면 데이터 없음으로 표시합니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(hikaricp_connections_acquire_seconds_sum{env=\"$env\",job=~\"$service\"}[5m])) / (sum(rate(hikaricp_connections_acquire_seconds_count{env=\"$env\",job=~\"$service\"}[5m])) > 0)",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1,
+          "noValue": "데이터 없음",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "type": "text",
+      "title": "이 화면의 범위",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**환경·서비스를 먼저 선택하세요.** 앱 연결 풀 지표이며 DB 전체 연결 수와 다릅니다.\n\n현재 HTTP histogram 수집이 확인되지 않아 p95/p99를 표시하지 않습니다. 평균은 꼬리 지연을 숨길 수 있습니다. 풀 크기·DB 상한·응답시간 목표는 팀 확인과 부하 측정 후 확정합니다. 데이터 없음은 정상 판정이 아닙니다."
+      }
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "서비스·경로 상세 (필요할 때 펼치기)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "panels": [
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "서비스별 DB 풀 상한",
+          "description": "선택 환경의 앱 풀 상한 합계입니다. 별도 dev/prod DB의 상한을 서로 합치지 않습니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 10
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum by(job) (hikaricp_connections_max{env=\"$env\",job=~\"$service\"})",
+              "legendFormat": "{{job}}",
+              "instant": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "noValue": "데이터 없음"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "서비스별 연결 대기",
+          "description": "순간 대기와 지속 대기를 구분합니다. 실제 DB 연결 수 확인은 별도 읽기 점검이 필요합니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 10
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum by(job) (hikaricp_connections_pending{env=\"$env\",job=~\"$service\"})",
+              "legendFormat": "{{job}}",
+              "instant": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "noValue": "데이터 없음"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "정규화 경로별 평균 응답시간",
+          "description": "최근 5분 평균이며 p95/p99가 아닙니다. URI는 프레임워크의 정규화 경로이며 가변 ID를 새 라벨로 만들지 않습니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 18
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum by(job,uri) (rate(http_server_requests_seconds_sum{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])) / (sum by(job,uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])) > 0)",
+              "legendFormat": "{{job}} {{uri}}",
+              "instant": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "noValue": "데이터 없음"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "환경",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(kidly_environment_enabled, env)",
+        "refresh": 1,
+        "current": {
+          "text": "prod",
+          "value": "prod"
+        }
+      },
+      {
+        "name": "service",
+        "label": "서비스",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(kidly_app_expected{env=\"$env\"}, app_job)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "kidly|kidly-.*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "서비스 상태",
+      "type": "link",
+      "url": "/d/kidly-http?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
+    },
+    {
+      "title": "로그 확인",
+      "type": "link",
+      "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
+    }
+  ]
+}
