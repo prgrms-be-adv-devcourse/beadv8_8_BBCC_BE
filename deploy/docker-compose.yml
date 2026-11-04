@@ -43,7 +43,7 @@ services:
       retries: 12
       start_period: 60s
     # 한 서버에 dev · prod 가 같이 떠도 한 컨테이너가 메모리를 다 써서 다른 환경까지 OOM 으로 죽이지 않게 서비스마다 상한을 둔다
-    # 상한 합계는 prod 5824MiB(app 1024 · postgres 512 · kafka 768 · 검색 1024 · gateway 512 · 자녀 512 · 추천 448 · 회원 512 · 결제 512) + dev 6464MiB(여기에 정산 640) = 12288MiB 로 호스트(t3.large 8GiB)를 넘는다. 상한은 폭주를 막는 값이고 실사용 합은 켠 뒤 재서 정한다
+    # 상한 합계는 prod 5824MiB(app 1024 · postgres 512 · kafka 768 · 검색 1024 · gateway 512 · 자녀 512 · 추천 448 · 회원 512 · 결제 512) + dev 6976MiB(여기에 정산 640 · 상품 512) = 12800MiB 로 호스트(t3.large 8GiB)를 넘는다. 상한은 폭주를 막는 값이고 실사용 합은 켠 뒤 재서 정한다
     # 실사용: 2026-11-03 dev 만 뜬 서버(회원 · 결제 서비스 전)의 2일 최대가 3564MiB(OS 포함)였다. 분리한 서비스는 하나에 280~365MiB 를 쓴다(Prometheus cAdvisor)
     mem_limit: 1g
     restart: unless-stopped
@@ -372,7 +372,7 @@ services:
       PRODUCT_KAFKA_CONSUMER_ENABLED: ${PRODUCT_KAFKA_CONSUMER_ENABLED:-true}
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${PRODUCT_PORT:-8095}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${PRODUCT_PORT:-8097}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다(상품 테이블은 app 이 만든다). 서비스는 app 이 마지막으로 적용한 상품 버전으로 baseline 을 잡는다
