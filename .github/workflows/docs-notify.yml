@@ -1,5 +1,6 @@
 # develop · main 에 docs/ 변경이 들어오면 Slack 프로젝트 채널에 알린다.
 # docs/ 만 바뀐 push 는 deploy.yml 이 건너뛰어 배포 알림도 오지 않으므로 따로 알린다
+# 파일마다 바뀐 줄 수 · diff 링크 · 바뀐 절 제목을 적는다(.github/scripts/docs-notify.py)
 name: Docs Notify
 
 on:
@@ -15,6 +16,9 @@ jobs:
       contents: read
       pull-requests: read
     steps:
+      # 바뀐 절 제목을 push 된 커밋의 파일에서 찾는다
+      - uses: actions/checkout@v7
+
       - name: Send to Slack
         env:
           # 프로젝트 채널의 웹훅. 일일 요약(slack-daily-summary.yml)과 같은 채널이다
@@ -35,39 +39,4 @@ jobs:
             echo "SLACK_DAILY_SUMMARY_WEBHOOK_URL 이 없어 알림을 보내지 않는다"
             exit 0
           fi
-
-          # 이번 push 에서 바뀐 docs/ 파일. 그림은 목록에서 뺀다
-          files=$(gh api "repos/$REPO/compare/$BEFORE...$SHA" \
-            --jq '.files[] | select(.filename | startswith("docs/")) | select(.filename | test("/images/") | not) | "• `\(.filename)` (\(.status))"' \
-            2>/dev/null) || files=""
-          if [ -z "$files" ]; then
-            files="• 그림만 바뀌었거나 목록을 가져오지 못했다"
-          fi
-
-          # PR 머지로 들어왔으면 PR 링크와 제목을, 직접 push 면 비교 링크와 커밋 제목을 쓴다
-          pr=$(gh api "repos/$REPO/commits/$SHA/pulls" \
-            --jq '[.[] | select(.merged_at != null)][0] | "\(.number)\t\(.title)\t\(.html_url)\t\(.user.login)"' 2>/dev/null) || pr=""
-          if [[ "$pr" =~ ^[0-9]+$'\t' ]]; then
-            IFS=$'\t' read -r PR_NUMBER PR_TITLE URL AUTHOR <<< "$pr"
-            TITLE="#$PR_NUMBER $PR_TITLE"
-          else
-            TITLE=$(printf '%s' "$COMMIT_MSG" | head -n1)
-            URL="$COMPARE_URL"
-            AUTHOR="$ACTOR"
-          fi
-
-          # 매핑에 없거나 JSON이 잘못되면 GitHub 아이디를 그대로 쓴다
-          name=$(printf '%s' "${NAME_MAP:-null}" | jq -r --arg u "$AUTHOR" '.[$u] // empty' 2>/dev/null)
-          META="📄 문서 변경 · ${name:-$AUTHOR} · \`$REF\`"
-
-          jq -n --arg title "$TITLE" --arg url "$URL" --arg meta "$META" --arg files "$files" '
-            def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
-            {attachments: [{
-              color: "#0969da",
-              fallback: "\($meta) | \($title)",
-              blocks: [
-                {type: "section", text: {type: "mrkdwn", text: "*<\($url)|\($title | esc)>*\n\($files | esc)"}},
-                {type: "context", elements: [{type: "mrkdwn", text: ($meta | esc)}]}
-              ]
-            }]}' \
-            | curl -sS -f -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK_URL"
+          python3 .github/scripts/docs-notify.py
