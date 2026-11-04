@@ -4,7 +4,7 @@ import com.bbcc.kidly.boundedcontext.auth.app.port.OAuthClient;
 import com.bbcc.kidly.boundedcontext.auth.app.port.OAuthProfile;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
 import com.bbcc.kidly.boundedcontext.auth.domain.OAuthProvider;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.member.support.error.BusinessException;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 

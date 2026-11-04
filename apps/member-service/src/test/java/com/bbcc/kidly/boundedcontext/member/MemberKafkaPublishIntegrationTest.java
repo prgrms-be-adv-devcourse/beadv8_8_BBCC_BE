@@ -12,7 +12,6 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
@@ -36,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -70,7 +70,7 @@ class MemberKafkaPublishIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private EventPublisher eventPublisher;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -143,7 +143,7 @@ class MemberKafkaPublishIntegrationTest {
         // 탈퇴는 커밋 뒤 전송으로 나가지 않은 것이다
         var changed = new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new MemberChangedEvent.Data(member.getId(), "확인용닉네임"));
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(changed));
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(changed));
         awaitRecord(changed);
         assertThat(findRecord(withdrawn)).isEmpty();
 
@@ -184,7 +184,7 @@ class MemberKafkaPublishIntegrationTest {
         var rolledBack = new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new MemberChangedEvent.Data(member.getId(), "롤백닉네임"));
         transactionTemplate.executeWithoutResult(status -> {
-            eventPublisher.publish(rolledBack);
+            eventPublisher.publishEvent(rolledBack);
             status.setRollbackOnly();
         });
         memberService.update(member.getId(), new MemberUpdateRequest("새닉네임"));

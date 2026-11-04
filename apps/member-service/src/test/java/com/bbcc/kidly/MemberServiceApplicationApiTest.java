@@ -2,7 +2,7 @@ package com.bbcc.kidly;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

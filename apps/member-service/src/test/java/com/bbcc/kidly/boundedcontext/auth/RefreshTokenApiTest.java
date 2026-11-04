@@ -157,6 +157,33 @@ class RefreshTokenApiTest {
     }
 
     @Test
+    @DisplayName("탈퇴한 뒤 로그아웃하면 쿠키를 지우고, 그 토큰으로는 재발급할 수 없다")
+    void logoutAfterWithdraw() {
+        var loginResult = client.post().uri(LOGIN_PATH)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(new SocialLoginRequest("kakao-1"))
+            .exchange()
+            .expectStatus().isOk()
+            .returnResult(LoginResponse.class);
+        var token = loginResult.getResponseCookies().getFirst(COOKIE).getValue();
+        var issued = IssuedAccessToken.decode(loginResult.getResponseBody().accessToken());
+
+        client.delete().uri("/api/v1/members/me")
+            .headers(issued.headers())
+            .exchange()
+            .expectStatus().isNoContent();
+
+        client.post().uri(LOGOUT_PATH)
+            .cookie(COOKIE, token)
+            .exchange()
+            .expectStatus().isNoContent()
+            .expectCookie().maxAge(COOKIE, Duration.ZERO)
+            .expectCookie().path(COOKIE, "/api/v1/auth");
+
+        expectInvalid(reissue(token));
+    }
+
+    @Test
     @DisplayName("쿠키 없이 로그아웃해도 204")
     void logoutWithoutCookie() {
         client.post().uri(LOGOUT_PATH)

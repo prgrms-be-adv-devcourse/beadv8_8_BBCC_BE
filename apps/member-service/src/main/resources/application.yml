@@ -35,7 +35,7 @@ spring:
         connection:
           handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
         session_factory:
-          statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
+          statement_inspector: com.bbcc.kidly.member.config.ReadOnlyWriteGuard
   # Kafka. 회원 · 인증 · 판매자 이벤트를 보내고, 회원 · 판매자 이벤트를 받는다(구독 그룹 kidly.member · kidly.auth · kidly.seller). 값은 kidly-app과 같다
   # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
   kafka:

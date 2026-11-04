@@ -5,7 +5,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -37,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -62,7 +62,7 @@ class SellerMemberEventKafkaIntegrationTest {
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
-    private EventPublisher eventPublisher;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -180,7 +180,7 @@ class SellerMemberEventKafkaIntegrationTest {
     }
 
     private void publishInTransaction(MemberChangedEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(event));
     }
 
     private MemberChangedEvent memberChanged(String nickname, LocalDateTime occurredAt) {

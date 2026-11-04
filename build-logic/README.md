@@ -61,7 +61,7 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
 
 ### 5. 도메인 공통 스택은 모든 도메인이 쓰는 것만
 
-`kidly.domain`에는 모든 도메인 코드가 쓰는 것(webmvc · validation · data-jpa · QueryDSL)만 넣는다. 한 도메인만 쓰는 것은 그 도메인 빌드 파일에 둔다: auth=JWT 발급(spring-security-oauth2-jose), notification=mail, product=AWS S3, settlement=batch. Swagger UI(springdoc)는 실행되는 앱(서비스)이 화면을 여는 것이라 앱 모듈에 둔다.
+`kidly.domain`에는 모든 도메인 코드가 쓰는 것(webmvc · validation · data-jpa · QueryDSL)만 넣는다. 한 도메인만 쓰는 것은 그 도메인 빌드 파일에 둔다: notification=mail, product=AWS S3, settlement=batch. Swagger UI(springdoc)는 실행되는 앱(서비스)이 화면을 여는 것이라 앱 모듈에 둔다.
 
 ## 도메인 옮기는 법
 
@@ -74,7 +74,7 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
 | Fixture · 테스트 헬퍼 중 **단위 테스트가 쓰는 것** (와 그것이 쓰는 헬퍼) | 같은 곳 | `domains/{d}/src/testFixtures/java/...` |
 | 도메인 전용 리소스 (`{d}.yml`, `data/{d}/**`) | `apps/kidly-app/src/main/resources` | `domains/{d}/src/main/resources` |
 | 통합 · 기능 테스트(`@IntegrationTest` · `@FunctionalTest`)와 그것만 쓰는 헬퍼 | | 앱에 남긴다 |
-| 계층 규칙 테스트 | `domains/member/src/test/java/com/bbcc/kidly/architecture/LayerArchitectureTest.java` | `domains/{d}/src/test/java/com/bbcc/kidly/architecture/`에 **복사**한다. 빠뜨리면 `archTest`가 실패한다(`checkLayerArchitectureTest`: 그 도메인에 테스트가 하나도 없어도 실패) |
+| 계층 규칙 테스트 | `apps/member-service/member/src/test/java/com/bbcc/kidly/architecture/LayerArchitectureTest.java` | `domains/{d}/src/test/java/com/bbcc/kidly/architecture/`에 **복사**한다. 빠뜨리면 `archTest`가 실패한다(`checkLayerArchitectureTest`: 그 도메인에 테스트가 하나도 없어도 실패) |
 
 - 앱에 남는 것: `KidlyApplication`, `application*.yml`, `logback-spring.xml`, `db/migration`(기존 파일), `support` · `scenario` · `architecture` 테스트, test 리소스
 - 테스트 Fixture는 `src/testFixtures`에 두면 그 도메인 단위 테스트와 앱(나중엔 서비스)의 통합 테스트가 같이 쓴다. 앱은 모든 도메인의 `testFixtures(...)`를 이미 의존한다
@@ -165,3 +165,7 @@ Flyway 파일이 전부 `kidly-app`에 있어 서비스는 자기 테이블을 �
 | 서비스(실행 모듈) 추가 | "서비스 모듈 만드는 법" |
 
 빌드 설정 파일은 git 규칙에 따라 프로젝트 관리자가 고친다. 바꿔야 하면 먼저 알린다.
+
+## 회원 서비스
+
+`apps/member-service`는 build-logic을 쓰지 않는 별도 Gradle 빌드다. 공통 설정은 그 폴더의 `build.gradle.kts`에 있다. 이 저장소에서는 `shared`만 `includeBuild`로 가져가며, 그때 `shared/settings.gradle.kts`가 build-logic을 읽는다. [구조와 실행](../apps/member-service/README.md)
