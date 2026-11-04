@@ -43,4 +43,8 @@ public class ChildAccount extends BaseTimeEntity {
         account.childProfileId = childProfileId;
         return account;
     }
+
+    public void changePassword(String hash) {
+        this.passwordHash = hash;
+    }
 }

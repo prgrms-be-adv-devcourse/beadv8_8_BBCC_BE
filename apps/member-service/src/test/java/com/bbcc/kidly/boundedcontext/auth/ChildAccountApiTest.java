@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountCreateRequest;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountResponse;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildLoginRequest;
 import com.bbcc.kidly.boundedcontext.auth.in.dto.LoginResponse;
+import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountPasswordRequest;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildProfileReplicaRepository;
 import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -61,6 +62,35 @@ class ChildAccountApiTest {
         client.post().uri("/api/v1/auth/child-accounts").contentType(MediaType.APPLICATION_JSON)
             .body(new ChildAccountCreateRequest(102L, "child2", "password")).exchange()
             .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void resetsPasswordAndRevokesRefreshToken() {
+        replicas.insertIfAbsent(105L, 11L, LocalDateTime.now());
+        var account = create(11L, 105L, "child5", "password").expectStatus().isCreated()
+            .returnResult(ChildAccountResponse.class).getResponseBody();
+        var cookie = client.post().uri("/api/v1/auth/child/login").contentType(MediaType.APPLICATION_JSON)
+            .body(new ChildLoginRequest("child5", "password")).exchange().expectStatus().isOk()
+            .returnResult().getResponseCookies().getFirst("child_refresh_token");
+        reset(12L, account.id(), "new-password").expectStatus().isNotFound();
+        reset(11L, Long.MAX_VALUE, "new-password").expectStatus().isNotFound();
+        reset(11L, account.id(), "short").expectStatus().isBadRequest();
+        client.patch().uri("/api/v1/auth/child-accounts/{id}/password", account.id())
+            .contentType(MediaType.APPLICATION_JSON).body(new ChildAccountPasswordRequest("new-password"))
+            .exchange().expectStatus().isUnauthorized();
+        reset(11L, account.id(), "new-password").expectStatus().isNoContent();
+        client.post().uri("/api/v1/auth/child/reissue").cookie(cookie.getName(), cookie.getValue())
+            .exchange().expectStatus().isUnauthorized();
+        client.post().uri("/api/v1/auth/child/login").contentType(MediaType.APPLICATION_JSON)
+            .body(new ChildLoginRequest("child5", "password")).exchange().expectStatus().isUnauthorized();
+        client.post().uri("/api/v1/auth/child/login").contentType(MediaType.APPLICATION_JSON)
+            .body(new ChildLoginRequest("child5", "new-password")).exchange().expectStatus().isOk();
+    }
+
+    private RestTestClient.ResponseSpec reset(Long guardian, Long id, String password) {
+        return client.patch().uri("/api/v1/auth/child-accounts/{id}/password", id)
+            .headers(TestMembers.buyer(guardian)).contentType(MediaType.APPLICATION_JSON)
+            .body(new ChildAccountPasswordRequest(password)).exchange();
     }
 
     private RestTestClient.ResponseSpec create(Long guardian, Long profile, String login, String password) {

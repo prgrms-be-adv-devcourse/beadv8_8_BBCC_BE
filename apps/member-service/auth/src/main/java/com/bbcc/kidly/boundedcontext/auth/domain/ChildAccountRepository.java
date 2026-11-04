@@ -8,6 +8,7 @@ public interface ChildAccountRepository {
     boolean existsByChildProfileId(Long childProfileId);
     Optional<ChildAccount> findByChildProfileId(Long childProfileId);
     Optional<ChildAccount> findByIdForUpdate(Long id);
+    Optional<ChildAccount> findByIdAndPasswordHashForUpdate(Long id, String passwordHash);
     Optional<ChildAccount> findByLoginId(String loginId);
     void delete(ChildAccount account);
 }
