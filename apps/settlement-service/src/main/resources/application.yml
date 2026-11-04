@@ -50,6 +50,12 @@ spring:
       # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app과 같은 구독 그룹이라 책갈피를 이어 쓴다
       # 다만 정산 리스너 팩토리(SettlementKafkaListenerConfig)가 earliest로 덮어쓴다. 이 값은 그 밖의 컨슈머에만 적용된다
       auto-offset-reset: latest
+  task:
+    scheduling:
+      shutdown:
+        # 정산 Batch는 스케줄러 스레드에서 동기로 돈다. SIGTERM 때 돌던 정산을 최대 30초 기다린 뒤 끈다(기본은 기다리지 않아 기록이 STARTED로 남는다)
+        await-termination: true
+        await-termination-period: 30s
 
 springdoc:
   swagger-ui:

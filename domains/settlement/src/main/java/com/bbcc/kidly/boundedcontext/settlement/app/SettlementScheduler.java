@@ -46,6 +46,7 @@ public class SettlementScheduler {
 
     // 서버가 실행 도중 죽으면 기록이 STARTED로 남아 매시간 "실행 중"으로 건너뛴다. 정산은 몇 초면 끝나므로
     // 2시간 넘게 "실행 중"이면 멈춘 것이다. ERROR는 Grafana 알림으로 이어지고, 관리자 복구(settlement-runs/{id}/recover)가 필요하다
+    // 진행 없는 기록은 다음 실행이 stale-run-after(기본 30분) 뒤 스스로 닫으므로, 이 알림은 그것도 못 닫은 경우다
     private void alertIfStuck(BusinessException e) {
         if (e.getErrorCode() != SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS) {
             return;
