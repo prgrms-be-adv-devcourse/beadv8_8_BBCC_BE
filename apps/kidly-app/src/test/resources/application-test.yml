@@ -19,10 +19,7 @@ springdotenv:
 # 결제 마감 만료 스케줄러가 테스트 중 다른 스레드에서 저절로 돌지 않게 주기를 아주 길게 둔다.
 # 만료 테스트는 OrderScheduler.expireOverduePayments()를 직접 부른다
 kidly:
-  # 테스트에서는 실제 메일을 보내지 않는다 (로그 발송기)
-  mail:
-    enabled: false
-  # 커밋 뒤 Kafka로 보내지 않는다(메일과 같은 방식). Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
+  # 커밋 뒤 Kafka로 보내지 않는다. Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
   kafka:
     producer:
       enabled: false
@@ -62,8 +59,3 @@ kidly:
     kafka:
       consumer:
         enabled: false
-  # 알림 재시도 스케줄러도 같은 이유로 길게 둔다. 재시도 테스트는 NotificationRetryScheduler를 직접 부른다
-  notification:
-    retry-interval: P3650D
-    # 각자의 OS 환경 변수(NOTIFICATION_SITE_URL)와 상관없이 같은 주소를 쓴다
-    site-url: http://localhost:5173
