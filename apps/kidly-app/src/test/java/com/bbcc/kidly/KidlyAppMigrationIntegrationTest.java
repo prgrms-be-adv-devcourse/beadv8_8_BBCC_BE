@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import java.util.Properties;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.exception.FlywayValidateException;
@@ -35,6 +36,23 @@ class KidlyAppMigrationIntegrationTest {
         "product/V202611040911__drop_product_search_document.sql";
     private static final String MOVED_PRODUCT_OUTBOX_IF_MISSING_SCRIPT =
         "product/V202611041223__product_outbox_if_missing.sql";
+
+    // 주문 서비스 · 커뮤니티 서비스로 옮긴 도메인 모듈 파일(#826 · #827)
+    private static final List<String> MOVED_ORDER_COMMUNITY_SCRIPTS = List.of(
+        "orders/V202610292033__order_outbox.sql",
+        "orders/V202610310156__order_dead_letter.sql",
+        "orders/V202611010239__wish_item.sql",
+        "orders/V202611011756__order_delivery_tracking_stopped_at.sql",
+        "orders/V202611020031__order_item_seller_cancel.sql",
+        "orders/V202611021347__wish_request.sql",
+        "orders/V202611031010__order_child_deletion_tombstone.sql",
+        "orders/V202611031100__order_outbox_quarantine.sql",
+        "community/V202611020103__community_schema.sql",
+        "community/V202611020132__community_replica_product.sql",
+        "community/V202611021048__community_review_eligibility.sql",
+        "community/V202611021140__community_review.sql",
+        "community/V202611021458__community_favorite.sql",
+        "community/V202611031200__community_dead_letter.sql");
 
     private PostgreSQLContainer postgres;
     private DriverManagerDataSource dataSource;
@@ -82,11 +100,29 @@ class KidlyAppMigrationIntegrationTest {
     }
 
     @Test
+    @DisplayName("주문 · 커뮤니티 서비스로 옮긴 마이그레이션의 이력 행은 지우고 검증을 통과한다")
+    void dropsMovedOrderAndCommunityHistory() {
+        MOVED_ORDER_COMMUNITY_SCRIPTS.forEach(script -> insertHistory(versionOf(script), script));
+
+        assertThatCode(() -> appFlyway().migrate()).doesNotThrowAnyException();
+        assertThat(jdbc.queryForObject(
+            """
+                SELECT count(*) FROM public.flyway_schema_history
+                WHERE script LIKE 'orders/%' OR script LIKE 'community/%'
+                """, Integer.class)).isZero();
+    }
+
+    @Test
     @DisplayName("이 앱이 적용한 마이그레이션 파일이 사라지면 검증에 실패한다")
     void failsWhenOwnMigrationIsMissing() {
         insertHistory("202610300000", "orders/V202610300000__removed.sql");
 
         assertThatThrownBy(() -> appFlyway().migrate()).isInstanceOf(FlywayValidateException.class);
+    }
+
+    // orders/V202610292033__order_outbox.sql → 202610292033
+    private static String versionOf(String script) {
+        return script.substring(script.indexOf("/V") + 2, script.indexOf("__"));
     }
 
     private void insertHistory(String version, String script) {

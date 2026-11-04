@@ -16,7 +16,7 @@ spring:
     # 이미 커뮤니티 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 baseline-version으로 baseline을 잡고 그 버전까지 건너뛴다.
     # 빈 DB(테스트)는 baseline 없이 커뮤니티 스키마 마이그레이션부터 적용한다(커뮤니티는 init.sql에 구문이 없고 처음부터 도메인 모듈 파일만 있다)
     # baseline-version은 이 모듈을 만들 때 kidly-app이 마지막으로 적용한 커뮤니티 마이그레이션 버전(DLT 보관)이고, 고정한다(baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다).
-    # 두 앱이 함께 도는 동안 더하는 커뮤니티 마이그레이션은 두 앱이 각자 적용하므로 두 번 적용돼도 안전하게(IF NOT EXISTS · IF EXISTS) 쓴다
+    # kidly-app에서 커뮤니티를 뺀 뒤(#827) 커뮤니티 마이그레이션은 이 서비스만 적용한다. 새 테이블이 이미 있는 DB는 baseline으로 건너뛰고, 빈 DB는 처음부터 만든다(kidly-app init에는 커뮤니티 구문이 없다)
     baseline-on-migrate: true
     baseline-version: 202611031200
     # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다
