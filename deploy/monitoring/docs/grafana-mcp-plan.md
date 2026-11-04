@@ -28,3 +28,14 @@ Viewer·읽기 전용이라고 개인정보 반출을 막아 주지는 않습니
 Loki를 켤 때는 제공자·처리 지역·보관 정책과 반출 범위를 승인받습니다. 기본 후보는 dev 한 서비스·최근 15분·최대 20건이며, 본문·헤더·개인 식별값은 보내지 않습니다. AI나 도구가 임의로 이 범위를 넓히지 않습니다.
 
 공식 근거: [v2.2.0 릴리스](https://github.com/grafana/mcp-grafana/releases/tag/v2.2.0), [공식 사용법·권한·라이선스](https://github.com/grafana/mcp-grafana#readme).
+
+## 리뷰 반영: Viewer와 로그 접근의 한계
+
+현재 이미지는 Grafana 12.4.12입니다. 공식 문서상 datasource별 조회 권한은 Enterprise/Cloud 기능이며, OSS Viewer는 접근 가능한 조직의 datasource에 임의 쿼리를 보낼 수 있습니다.
+따라서 **Viewer + Loki 도구 제외만으로 메트릭 전용 접근을 보장하지 않습니다.** 도구 허용 목록은 추가 제한이며 datasource 권한 경계가 아닙니다. 다른 조회 도구의 우회 가능성을 검증하지 않은 상태에서 토큰을 발급·연결하지 않습니다.
+
+향후 연결 승인 시에는 Prometheus만 있는 별도 조직 등 실제 datasource 격리 방식을 먼저 정합니다. 별도 조직을 쓰면 기존 조직의 대시보드·알림이 그대로 조회되지 않는 한계도 함께 검토합니다. 이를 해결한다고 Editor/Admin으로 올리거나 Loki 접근을 묵인하지 않습니다.
+별도 계정·조직·프록시를 지금 생성하지 않았으며, 사용자의 현재 결정대로 연결안만 검토합니다.
+
+토큰은 최초 시험 **7일**, 이후 운영도 **30일 이하** 만료를 제안합니다. 종료·분실·담당자 변경 시 즉시 폐기하고 새 토큰을 발급하며 값을 로그·PR에 남기지 않습니다.
+근거: [공식 datasource 관리·Viewer 조회 범위](https://grafana.com/docs/grafana/latest/administration/data-source-management/), [공식 역할·권한](https://grafana.com/docs/grafana/latest/administration/roles-and-permissions/).
