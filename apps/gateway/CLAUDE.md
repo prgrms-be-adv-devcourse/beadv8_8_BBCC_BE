@@ -44,8 +44,8 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 정산은 `KIDLY_SETTLEMENT_URI`로 넘긴다. 기본값은 `http://settlement-service:8080`이다. kidly-app에는 정산 API가 없어 정산 API를 쓰는 환경(dev · prod)은 모두 profile `settlement`를 켠다(#729)
 - 결제는 `KIDLY_PAYMENT_URI`로 넘긴다. 기본값은 `http://payment-service:8080`이고 kidly-app에는 결제 API가 없다(#525). profile `payment`가 꺼진 환경에서는 결제 API가 실패한다. 토스 웹훅(`/api/v1/webhooks/toss`)은 토큰 없이 오는 공개 API라 그대로 넘긴다
 - 상품은 `KIDLY_PRODUCT_URI`로 넘긴다. 기본값은 `http://product-service:8080`이고 kidly-app에는 상품 API가 없다(#791). profile `product`가 꺼진 환경에서는 상품 API가 실패한다. dev · prod 모두 켰다(prod는 첫 main 배포 때 뜬다)
-- 주문은 `KIDLY_ORDER_URI`로 넘긴다. 서비스를 켠 환경은 `.env`에 `http://order-service:8080`(profile `order`도 켜져 있어야 한다), 값이 없으면 기본값 `http://app:8080`이다. kidly-app이 아직 주문 도메인을 가지고 있어 이 값만 지우면 앱으로 되돌아간다
-- 커뮤니티는 `KIDLY_COMMUNITY_URI`로 넘긴다. 서비스를 켠 환경은 `.env`에 `http://community-service:8080`(profile `community`도 켜져 있어야 한다), 값이 없으면 기본값 `http://app:8080`이다. kidly-app이 아직 커뮤니티 도메인을 가지고 있어 이 값만 지우면 앱으로 되돌아간다
+- 주문은 `KIDLY_ORDER_URI`로 넘긴다. 기본값은 `http://order-service:8080`이고 kidly-app에는 주문 API가 없다(#826). profile `order`가 꺼진 환경에서는 주문 API가 실패한다
+- 커뮤니티는 `KIDLY_COMMUNITY_URI`로 넘긴다. 기본값은 `http://community-service:8080`이고 kidly-app에는 리뷰 · 찜 API가 없다(#827). profile `community`가 꺼진 환경에서는 리뷰 · 찜 API가 실패한다
 - dev · prod 모두 서비스(kidly-app · search-service · recommend-service · settlement-service · member-service · payment-service · product-service · order-service · community-service)는 JWT를 보지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다. 서비스는 Gateway 뒤에서만 열려야 한다
 - nginx dev · 운영 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(dev 8081 · prod 8080)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
@@ -57,5 +57,5 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 회원 · 인증 · 판매자 API는 회원 서비스(`cd apps/member-service && ./gradlew bootRun`, 8081. 루트 빌드에 없다)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_MEMBER_URI`를 준다
 - 결제 API(`/api/v1/payments/**` · `/api/v1/wallets/**` 등)는 결제 서비스(`:apps:payment-service:bootRun`, 8087)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_PAYMENT_URI`를 준다
 - 상품 API(`/api/v1/products/**` · `/api/v1/seller/products/**` 등)는 상품 서비스(`:apps:product-service:bootRun`, 8089)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_PRODUCT_URI`를 준다
-- 주문 API는 기본으로 kidly-app이 받는다. 주문 서비스(`:apps:order-service:bootRun`, 8091)로 볼 때만 `KIDLY_ORDER_URI=http://localhost:8091`을 준다
-- 리뷰 · 찜 API는 기본으로 kidly-app이 받는다. 커뮤니티 서비스(`:apps:community-service:bootRun`, 8092)로 볼 때만 `KIDLY_COMMUNITY_URI=http://localhost:8092`를 준다
+- 주문 API는 주문 서비스(`:apps:order-service:bootRun`, 8091)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_ORDER_URI`를 준다
+- 리뷰 · 찜 API는 커뮤니티 서비스(`:apps:community-service:bootRun`, 8092)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_COMMUNITY_URI`를 준다
