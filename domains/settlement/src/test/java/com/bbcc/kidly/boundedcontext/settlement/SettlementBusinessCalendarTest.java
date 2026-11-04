@@ -55,15 +55,21 @@ class SettlementBusinessCalendarTest {
     }
 
     @Test
-    @DisplayName("공휴일을 조회하지 못하면 예외를 그대로 올리고, 다음 호출 때 다시 조회한다")
-    void propagatesLookupFailureWithoutCaching() {
+    @DisplayName("공휴일을 조회하지 못하면 예외를 올리고, 5분 동안은 API를 다시 부르지 않는다. 비우면 다시 조회한다")
+    void propagatesLookupFailureAndBacksOff() {
         given(holidayCalendar.holidaysIn(Y2026))
             .willThrow(new SettlementHolidayLookupException("공휴일 API 인증키가 없습니다"))
             .willReturn(Set.of());
 
         assertThatThrownBy(() -> calendar.isBusinessDay(LocalDate.of(2026, 3, 3)))
             .isInstanceOf(SettlementHolidayLookupException.class);
+        assertThatThrownBy(() -> calendar.isBusinessDay(LocalDate.of(2026, 3, 3)))
+            .isInstanceOf(SettlementHolidayLookupException.class);
+        verify(holidayCalendar, times(1)).holidaysIn(Y2026);
+
+        calendar.clearCache();
         assertThat(calendar.isBusinessDay(LocalDate.of(2026, 3, 3))).isTrue();
+        verify(holidayCalendar, times(2)).holidaysIn(Y2026);
     }
 
     @Test
