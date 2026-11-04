@@ -87,7 +87,7 @@
     - 상품 하나의 데이터가 깨지면 매번 전체가 500이다. 그 상품을 고친 뒤 다시 부른다
 
 ## 검색 분리 (10-29)
-- 순서: 상품 이벤트 Kafka 발행 → 검색 서비스가 `product.changed`로 색인 · 다시 보내기(#577) → 목록 경로를 검색 서비스로 전환 → 상품의 `search` 코드 삭제(#796) → `product_search_document` 삭제 마이그레이션(남음)
+- 순서: 상품 이벤트 Kafka 발행 → 검색 서비스가 `product.changed`로 색인 · 다시 보내기(#577) → 목록 경로를 검색 서비스로 전환 → 상품의 `search` 코드 삭제(#796) → `product_search_document` 삭제 마이그레이션(#791)
 - 표는 엔티티를 지운 뒤 Flyway로 지운다. `ddl-auto: validate`라 엔티티가 남은 채 표를 먼저 지우면 앱이 뜨지 않는다
 
 ## 상품 서비스 (apps/product-service, #791)
@@ -97,4 +97,4 @@
     - kidly-app 쪽 릴레이는 `ProductOutboxRelayKafkaIntegrationTest`가 스케줄러 빈을 확인한다
 - 수신: 같은 그룹이라 두 앱이 파티션을 나눠 받는다. 결과가 1회분이라 어느 쪽이 받아도 같다. 수신 스위치 `PRODUCT_KAFKA_CONSUMER_ENABLED`는 두 앱에서 함께 바꾼다(한쪽만 끄면 그쪽 파티션만 Spring 이벤트로 받는 것이 아니라 아예 받지 않는다)
 - 마이그레이션: 서비스는 자기 이력 표 `flyway_schema_history_product`를 쓰고 baseline-version `202610292246`(고정)에서 baseline을 잡는다. baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다. 함께 도는 동안 더하는 상품 마이그레이션은 두 앱이 각자 적용하므로 `IF NOT EXISTS` · `IF EXISTS`로 쓴다. 파일은 지금처럼 `domains/product`의 `db/migration/product`에 하나만 두면 두 앱 모두 읽는다(`ProductMigrationIntegrationTest`가 kidly-app이 모두 적용한 DB에서 스키마가 바뀌지 않는지 본다)
-- 남은 일: `product_search_document` 삭제, Gateway 라우트 · Swagger '상품' 문서 · 배포(메모리 결정 뒤), kidly-app에서 상품 빼기(그때 릴레이 겹침을 배포 순서나 advisory lock으로 막는다)
+- 남은 일: Gateway 라우트 · Swagger '상품' 문서 · 배포(메모리 결정 뒤), kidly-app에서 상품 빼기(그때 릴레이 겹침을 배포 순서나 advisory lock으로 막는다)
