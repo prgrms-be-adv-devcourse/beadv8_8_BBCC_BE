@@ -80,3 +80,33 @@ tests:
   - eval_time: 20m
     alertname: kidly-kafka-lag-growing
     exp_alerts: []
+- name: reachable exporter with no broker still alerts
+  interval: 1m
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 1+0x10
+  - series: up{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x10
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 0+0x10
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: kidly-kafka-unavailable
+    exp_alerts:
+    - exp_labels:
+        env: dev
+- name: old successful scrape cannot hide lost observations
+  interval: 1m
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 1+0x10
+  - series: up{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: '1 _ _ _ _ _ _'
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x10
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: kidly-kafka-unavailable
+    exp_alerts:
+    - exp_labels:
+        env: dev

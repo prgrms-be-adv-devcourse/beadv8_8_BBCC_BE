@@ -4,6 +4,7 @@ import contextlib
 import fcntl
 import json
 import os
+import shlex
 from pathlib import Path
 import subprocess
 import sys
@@ -98,7 +99,7 @@ def configuration(env):
         key, sep, value = line.partition('=')
         if sep and key in {'COMPOSE_PROFILES'} | {entry[1] for entry in SERVICES.values()}:
             result[key] = value.strip().strip('\"\'')
-    profiles = set(result.get('COMPOSE_PROFILES', '').split(','))
+    profiles = {item.strip() for item in result.get('COMPOSE_PROFILES', '').split(',')}
     targets = []
     for service, (job, port_key, profile) in SERVICES.items():
         if profile and profile not in profiles:
@@ -116,8 +117,8 @@ def kafka_target(env):
     for line in (ROOT / env / '.env').read_text().splitlines():
         key, sep, value = line.partition('=')
         if sep and key in ('COMPOSE_PROFILES', 'KAFKA_EXPORTER_PORT'):
-            values[key] = value.strip().strip('"\'')
-    if 'kafka-monitoring' not in values.get('COMPOSE_PROFILES', '').split(','):
+            values[key] = ' '.join(shlex.split(value, comments=True))
+    if 'kafka-monitoring' not in {item.strip() for item in values.get('COMPOSE_PROFILES', '').split(',')}:
         return None
     port = values.get('KAFKA_EXPORTER_PORT', '')
     if not port.isdigit() or not 0 < int(port) < 65536:
