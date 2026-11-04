@@ -49,4 +49,4 @@ max_over_time((sum(max by (instance, name) (container_memory_working_set_bytes{j
 increase(node_vmstat_oom_kill{job="integrations/unix"}[24h])
 ```
 
-`ruby deploy/monitoring/tests/check-resources.rb /path/to/promtool`で実際の規則の継続時間・復旧・ホスト分離・収集中断を検査します。
+`ruby deploy/monitoring/tests/check-resources.rb /path/to/promtool`로 실제 규칙의 지속 시간·복구·호스트 분리·수집 중단을 검사합니다.
