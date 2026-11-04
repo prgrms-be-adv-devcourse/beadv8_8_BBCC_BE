@@ -1,8 +1,8 @@
 // t3.large(앱 서버)의 수집기. 앱 로그 · 앱 메트릭 · 호스트 · 컨테이너 메트릭을 t3.medium k3s(deploy/monitoring)로 보낸다
 // 받는 곳은 medium 의 NodePort(Loki 31100, Prometheus 30090)다. 주소는 .env 의 MONITORING_HOST(medium 사설 IP)
 
-// dev · prod 앱 컨테이너(compose 서비스 app · search-service · gateway · recommend-service · settlement-service · member-service · payment-service · product-service) 로그를 Loki 로 보낸다
-// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(app → kidly, search-service → kidly-search, gateway → kidly-gateway, recommend-service → kidly-recommend, settlement-service → kidly-settlement, member-service → kidly-member, payment-service → kidly-payment, product-service → kidly-product), level 라벨은 로그 줄에서 뽑는다
+// dev · prod 앱 컨테이너(compose 서비스 app · search-service · gateway · recommend-service · settlement-service · member-service · payment-service · product-service · notification-service) 로그를 Loki 로 보낸다
+// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(app → kidly, search-service → kidly-search, gateway → kidly-gateway, recommend-service → kidly-recommend, settlement-service → kidly-settlement, member-service → kidly-member, payment-service → kidly-payment, product-service → kidly-product, notification-service → kidly-notification), level 라벨은 로그 줄에서 뽑는다
 // 서버 콘솔은 ECS JSON 한 줄이다. 텍스트 줄은 JSON 이전 이미지가 남긴 것이라 전환 기간에만 쓰인다
 
 discovery.docker "containers" {
@@ -14,7 +14,7 @@ discovery.relabel "kidly_app" {
 
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "app|search-service|gateway|recommend-service|settlement-service|member-service|payment-service|product-service"
+		regex         = "app|search-service|gateway|recommend-service|settlement-service|member-service|payment-service|product-service|notification-service"
 		action        = "keep"
 	}
 
@@ -84,6 +84,13 @@ discovery.relabel "kidly_app" {
 		regex         = "product-service"
 		target_label  = "service_name"
 		replacement   = "kidly-product"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "notification-service"
+		target_label  = "service_name"
+		replacement   = "kidly-notification"
 	}
 }
 
@@ -246,6 +253,20 @@ discovery.file "kidly_product" {
 prometheus.scrape "kidly_product" {
 	job_name        = "kidly-product"
 	targets         = discovery.file.kidly_product.targets
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.medium.receiver]
+}
+
+// 알림 서비스(apps/notification-service). 검색 서비스와 같은 이유로 job 을 나눈다
+// 알림 서비스가 켜진 환경만 앱 배포가 targets/notification/<환경>.yml 로 써 둔다
+discovery.file "kidly_notification" {
+	files = ["/etc/alloy/targets/notification/*.yml"]
+}
+
+prometheus.scrape "kidly_notification" {
+	job_name        = "kidly-notification"
+	targets         = discovery.file.kidly_notification.targets
 	metrics_path    = "/actuator/prometheus"
 	scrape_interval = "15s"
 	forward_to      = [prometheus.remote_write.medium.receiver]

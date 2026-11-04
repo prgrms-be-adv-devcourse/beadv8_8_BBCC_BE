@@ -21,6 +21,7 @@ SERVICES = {
     'member-service': ('kidly-member', 'MEMBER_PORT', 'member'),
     'payment-service': ('kidly-payment', 'PAYMENT_PORT', 'payment'),
     'product-service': ('kidly-product', 'PRODUCT_PORT', 'product'),
+    'notification-service': ('kidly-notification', 'NOTIFICATION_PORT', 'notification'),
 }
 
 
