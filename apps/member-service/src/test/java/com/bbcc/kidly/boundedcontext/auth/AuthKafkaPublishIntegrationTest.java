@@ -10,7 +10,7 @@ import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;

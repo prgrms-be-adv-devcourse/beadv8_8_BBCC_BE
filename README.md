@@ -14,7 +14,7 @@
 2. `docker compose up -d` — PostgreSQL · Kafka · pgAdmin · Prometheus · Grafana
 3. `./gradlew :apps:kidly-app:bootRun` — 앱(8080). 기본 프로필 local. 루트에서 실행한다(IDE는 공유 실행 구성 `KidlyApplication`)
 4. `./gradlew :apps:gateway:bootRun` — Gateway(8083). 루트에서 실행한다(IDE는 `GatewayApplication`, 3 · 4를 한 번에 `Kidly 앱 + Gateway`)
-5. `./gradlew :apps:member-service:bootRun` — 회원 서비스(8081). 회원 · 인증 · 판매자 API(로그인 포함)는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8081로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `MemberServiceApplication`
+5. `cd apps/member-service && ./gradlew bootRun` — 회원 서비스(8081). 루트 빌드와 따로, 자체 wrapper로 빌드한다([구조와 실행](apps/member-service/README.md)). 회원 · 인증 · 판매자 API(로그인 포함)는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8081로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `MemberServiceApplication`
 6. `./gradlew :apps:childprofile-service:bootRun` — 자녀 프로필 서비스(8084). 자녀 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8084로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `ChildProfileServiceApplication`. 같은 이유로 `Kidly 앱 + Gateway`에는 넣지 않았다
 7. `./gradlew :apps:recommend-service:bootRun` — 추천 서비스(8086). 추천 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8086으로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `RecommendServiceApplication`
 8. `docker compose --profile search up -d` 뒤 `./gradlew :apps:search-service:bootRun` — 검색 서비스(8082). 상품 목록(`GET /api/v1/products`)은 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8082로 넘긴다). 색인은 처음 뜬 뒤 판매자 · 상품을 바꾸거나 관리자 다시 보내기로 채운다
@@ -55,6 +55,7 @@
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
+| `apps/member-service/{auth,member,seller,support}` | 회원 서비스 빌드의 Gradle 모듈. 회원 서비스는 자체 settings를 가진 별도 빌드다. [구조와 실행](apps/member-service/README.md) |
 | `architecture` | 도메인 모듈 안의 계층 규칙(ArchUnit `LayerRules`) |
 
 ## 인증

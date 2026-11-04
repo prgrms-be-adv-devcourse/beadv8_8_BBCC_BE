@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.seller.domain.Seller;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerResponse;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.function.Consumer;

@@ -9,7 +9,6 @@ import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerService;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerSuspendRequest;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
@@ -32,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -64,7 +64,7 @@ class SellerKafkaPublishIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private EventPublisher eventPublisher;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -127,7 +127,7 @@ class SellerKafkaPublishIntegrationTest {
         var rolledBack = new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new SellerChangedEvent.Data(sellerId, "롤백상호", SellerStatus.ACTIVE));
         transactionTemplate.executeWithoutResult(status -> {
-            eventPublisher.publish(rolledBack);
+            eventPublisher.publishEvent(rolledBack);
             status.setRollbackOnly();
         });
         sellerService.suspend(sellerId, SellerFixture.ADMIN_ID, new SellerSuspendRequest("허위 상품 등록 신고"));

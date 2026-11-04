@@ -8,12 +8,10 @@ import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.in.dto.MemberResponse;
-import com.bbcc.kidly.global.security.RefreshTokenCookies;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.FunctionalTest;
-import java.time.Duration;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -217,14 +215,13 @@ class MemberApiTest {
     }
 
     @Test
-    @DisplayName("탈퇴하면 204이고 Refresh Token 쿠키를 지우며 회원은 WITHDRAWN이 된다")
+    @DisplayName("탈퇴하면 204이고 회원은 WITHDRAWN이 된다. 인증이 소유한 Refresh Token 쿠키는 건드리지 않는다")
     void withdraw() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
 
         deleteMine(TestMembers.buyer(member.getId()))
             .expectStatus().isNoContent()
-            .expectCookie().maxAge(RefreshTokenCookies.NAME, Duration.ZERO)
-            .expectCookie().path(RefreshTokenCookies.NAME, "/api/v1/auth");
+            .expectHeader().doesNotExist(HttpHeaders.SET_COOKIE);
 
         assertThat(memberRepository.findById(member.getId()).orElseThrow().getStatus())
             .isEqualTo(MemberStatus.WITHDRAWN);

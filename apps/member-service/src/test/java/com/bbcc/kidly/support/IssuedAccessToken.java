@@ -1,6 +1,6 @@
 package com.bbcc.kidly.support;
 
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.shared.auth.AccessTokenClaims;
 import com.bbcc.kidly.shared.auth.PrincipalHeaders;
 import com.bbcc.kidly.shared.auth.PrincipalId;

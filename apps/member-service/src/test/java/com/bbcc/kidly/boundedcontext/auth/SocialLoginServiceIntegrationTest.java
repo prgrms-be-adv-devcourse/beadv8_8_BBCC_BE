@@ -11,7 +11,7 @@ import com.bbcc.kidly.boundedcontext.member.MemberFixture;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
-import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.member.dto.MemberLoginState;
 import com.bbcc.kidly.shared.member.dto.MemberRegistration;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
