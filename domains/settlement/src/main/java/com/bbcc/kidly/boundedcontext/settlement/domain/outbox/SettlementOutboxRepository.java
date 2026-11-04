@@ -28,6 +28,11 @@ public interface SettlementOutboxRepository {
     List<SettlementOutboxMessage> findUnsent(int limit);
 
     /**
+     * 아직 보내지 않은 메시지 수. 지표 수집마다 부른다.
+     */
+    long countUnsent();
+
+    /**
      * 보낸 시각이 cutoff보다 이른 메시지를 지운다. 안 보낸 메시지는 지우지 않는다.
      *
      * @return 지운 건수

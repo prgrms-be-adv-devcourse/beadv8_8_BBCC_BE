@@ -81,7 +81,7 @@ public class SettlementPayoutRetryScheduler {
 
     private boolean retry(Long settlementId) {
         try {
-            adminSettlementService.retryPayout(settlementId);
+            adminSettlementService.retryStuckPayout(settlementId);
             return true;
         } catch (RuntimeException e) {
             if (e instanceof BusinessException b
