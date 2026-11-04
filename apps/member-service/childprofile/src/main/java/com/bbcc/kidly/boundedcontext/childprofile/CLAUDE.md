@@ -1,5 +1,11 @@
 # 자녀 프로필 도메인
 
+## 자녀 계정 연결 (#837)
+- `kidly.auth.events`의 `child-account.changed`를 받아 계정 ID별 프로필 연결을 복사한다. 삭제 행을 남겨 중복 · 역순 수신에도 연결이 되살아나지 않는다
+- `ChildAccountLinkService`가 `ChildAccountLink`를 저장 · 삭제 표시하며 `ChildAccountLinkRepository`가 연결을 조회한다
+- 자녀 본인 조회는 연결의 프로필 ID와 토큰의 보호자 ID로 기존 부모 상세 조회를 사용한다. 배포 전 계정은 연결이 없으며 계정을 다시 만들면 연결된다
+- 리스너는 앱 기본 시작 위치 `latest`를 쓴다. 토픽별 DLT는 `kidly.auth.events.childprofile.dlt`와 `kidly.member.events.childprofile.dlt`다
+
 ## Kafka 발행 (아웃박스, #548 · #562)
 - 자녀 프로필이 발행한 이벤트(`child.changed`)를 토픽 `kidly.childprofile.events`로 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
 - 키 = `correlationId`(자녀 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
