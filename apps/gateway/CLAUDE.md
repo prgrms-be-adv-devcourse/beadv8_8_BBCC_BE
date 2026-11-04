@@ -43,7 +43,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 추천은 `KIDLY_RECOMMEND_URI`로 넘긴다. 기본값은 `http://recommend-service:8080`이고 kidly-app에는 추천 API가 없다(#704). profile `recommend`가 꺼진 환경에서는 추천 API가 실패한다
 - 정산은 `KIDLY_SETTLEMENT_URI`로 넘긴다. 기본값은 `http://settlement-service:8080`이다. kidly-app에는 정산 API가 없어 정산 API를 쓰는 환경(dev · prod)은 모두 profile `settlement`를 켠다(#729)
 - 결제는 `KIDLY_PAYMENT_URI`로 넘긴다. 기본값은 `http://payment-service:8080`이고 kidly-app에는 결제 API가 없다(#525). profile `payment`가 꺼진 환경에서는 결제 API가 실패한다. 토스 웹훅(`/api/v1/webhooks/toss`)은 토큰 없이 오는 공개 API라 그대로 넘긴다
-- 상품은 `KIDLY_PRODUCT_URI`로 넘긴다. 서비스를 켠 환경은 `.env`에 `http://product-service:8080`(profile `product`도 켜져 있어야 한다), 값이 없으면 기본값 `http://app:8080`이다(#791). 지금은 dev · prod 모두 켜지 않았다. kidly-app이 아직 상품 도메인을 가지고 있어 이 값만 지우면 앱으로 되돌아간다
+- 상품은 `KIDLY_PRODUCT_URI`로 넘긴다. 서비스를 켠 환경은 `.env`에 `http://product-service:8080`(profile `product`도 켜져 있어야 한다), 값이 없으면 기본값 `http://app:8080`이다(#791). 지금은 dev에서만 켰다. kidly-app이 아직 상품 도메인을 가지고 있어 이 값만 지우면 앱으로 되돌아간다
 - dev · prod 모두 서비스(kidly-app · search-service · childprofile-service · recommend-service · settlement-service · member-service · payment-service · product-service)는 JWT를 보지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다. 서비스는 Gateway 뒤에서만 열려야 한다
 - nginx dev · 운영 블록의 `location /`만 Gateway로 간다. `/actuator/health`는 앱(dev 8081 · prod 8080)을 그대로 본다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
