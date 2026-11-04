@@ -97,5 +97,5 @@
     - kidly-app 쪽 릴레이는 `ProductOutboxRelayKafkaIntegrationTest`가 스케줄러 빈을 확인한다
 - 수신: 같은 그룹이라 두 앱이 파티션을 나눠 받는다. 결과가 1회분이라 어느 쪽이 받아도 같다. 수신 스위치 `PRODUCT_KAFKA_CONSUMER_ENABLED`는 두 앱에서 함께 바꾼다(한쪽만 끄면 그쪽 파티션만 Spring 이벤트로 받는 것이 아니라 아예 받지 않는다)
 - 마이그레이션: 서비스는 자기 이력 표 `flyway_schema_history_product`를 쓰고 baseline-version `202610292246`(고정)에서 baseline을 잡는다. baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다. 함께 도는 동안 더하는 상품 마이그레이션은 두 앱이 각자 적용하므로 `IF NOT EXISTS` · `IF EXISTS`로 쓴다. 파일은 지금처럼 `domains/product`의 `db/migration/product`에 하나만 두면 두 앱 모두 읽는다(`ProductMigrationIntegrationTest`가 kidly-app이 모두 적용한 DB에서 스키마가 바뀌지 않는지 본다)
-- Gateway · 배포: Gateway는 상품 API(공개 · 판매자 · 관리자)를 `KIDLY_PRODUCT_URI`로 보낸다(기본값 kidly-app). 배포는 compose profile `product`(힙 192m · 상한 512m)이고 dev에서만 켰다(prod는 dev 메모리 지표를 본 뒤 켠다). 켤 때는 `.env`에 `COMPOSE_PROFILES`의 `product`, `KIDLY_PRODUCT_URI=http://product-service:8080`, `PRODUCT_PORT`를 둔다
+- Gateway · 배포: Gateway는 상품 API(공개 · 판매자 · 관리자)를 `KIDLY_PRODUCT_URI`로 보낸다(기본값 kidly-app). 배포는 compose profile `product`(힙 192m · 상한 512m)이고 dev · prod 모두 켰다(prod는 첫 main 배포 때 뜬다). 켤 때는 `.env`에 `COMPOSE_PROFILES`의 `product`, `KIDLY_PRODUCT_URI=http://product-service:8080`, `PRODUCT_PORT`를 둔다
 - 남은 일: Swagger '상품' 문서, dev · prod에서 켜기(메모리 결정 뒤), kidly-app에서 상품 빼기(그때 릴레이 겹침을 배포 순서나 advisory lock으로 막는다)

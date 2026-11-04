@@ -168,7 +168,7 @@ Gateway 가 켜진 환경(dev · prod)도 같은 식으로 `targets/gateway/<환
 회원 서비스가 켜진 환경(dev · prod)은 `targets/member/<환경>.yml` 에 `127.0.0.1:<MEMBER_PORT>` 를 쓰고 job 은 `kidly-member` 입니다. 회원 API 는 이 서비스에만 있어 앱 다운 · ERROR 로그 · 5xx 알림에 포함합니다.
 정산 서비스가 켜진 환경(dev · prod)은 `targets/settlement/<환경>.yml` 에 `127.0.0.1:<SETTLEMENT_PORT>` 를 써 두고, job 은 `kidly-settlement` 입니다. 정산 API 는 이 서비스에만 있어 추천 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 서비스와 합쳐 봅니다.
 결제 서비스가 켜진 환경(dev · prod)은 `targets/payment/<환경>.yml` 에 `127.0.0.1:<PAYMENT_PORT>` 를 써 두고, job 은 `kidly-payment` 입니다. 결제 API 는 이 서비스에만 있어 추천 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다.
-상품 서비스가 켜진 환경은 `targets/product/<환경>.yml` 에 `127.0.0.1:<PRODUCT_PORT>` 를 써 두고, job 은 `kidly-product` 입니다. Gateway 가 상품 API 를 이 서비스로 보내므로 결제 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 · 결제 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다. 지금은 dev 에서만 켰습니다.
+상품 서비스가 켜진 환경은 `targets/product/<환경>.yml` 에 `127.0.0.1:<PRODUCT_PORT>` 를 써 두고, job 은 `kidly-product` 입니다. Gateway 가 상품 API 를 이 서비스로 보내므로 결제 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 · 결제 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다. dev · prod 모두 켰습니다(prod 는 첫 main 배포 때 뜹니다).
 로그는 Alloy 가 앱 · 검색 서비스 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 정산 서비스 · 회원 서비스 · 결제 서비스 · 상품 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 medium 의 Pod 로그는 `namespace` · `pod` · `container` · `service_name`(컨테이너 이름) 라벨로 들어갑니다(`env` 없음).
 
