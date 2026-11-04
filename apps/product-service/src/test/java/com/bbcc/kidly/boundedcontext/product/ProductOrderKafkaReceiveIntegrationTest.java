@@ -11,8 +11,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxRelayService;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.in.inventory.ProductOrderKafkaListener;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
@@ -28,16 +26,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 상품이 주문 토픽의 주문 생성됨 · 주문 취소됨 · 판매자 부분 취소(주문상품 취소됨)를 받아 재고를 줄이고 되돌리는지 확인한다(#692, #693).
  * 메시지는 주문 도메인을 거치지 않고 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다.
- * 테스트 설정은 Spring 경로도 켜 두므로, 주문 서비스를 거치면 Spring 이벤트로도 재고가 바뀌어 Kafka 수신을 확인할 수 없다.
- * 주문이 실제로 보낸 메시지를 받는지는 주문의 아웃박스에 직접 저장하고 릴레이를 불러 확인한다. 이렇게 하면 Spring 이벤트가 나가지 않는다.
- * 테스트 설정은 릴레이 주기가 길어 저절로 돌지 않으므로 테스트가 릴레이를 직접 부른다.
  * DB의 ID는 테스트마다 1부터 다시 시작한다. 다른 테스트가 토픽에 남긴 주문 메시지가 이번 테스트의 옵션을 바꾸지 않도록,
  * 리스너를 켠 뒤 남은 메시지를 모두 처리하고 나서 옵션을 저장한다. 주문 ID는 테스트마다 새로 만든다.
  */
@@ -55,15 +49,6 @@ class ProductOrderKafkaReceiveIntegrationTest {
 
     @Autowired
     private InventoryDeductionDb inventoryDeductionDb;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
-
-    @Autowired
-    private OrderEventOutbox orderEventOutbox;
-
-    @Autowired
-    private OrderOutboxRelayService orderOutboxRelayService;
 
     @Autowired
     private JsonMapper jsonMapper;
@@ -100,22 +85,6 @@ class ProductOrderKafkaReceiveIntegrationTest {
         long orderId = newId();
 
         messages.send(ORDER_TOPIC, orderCreated(orderId, orderItem(11L, options.navy110(), 2)));
-
-        AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records(orderId).isEmpty());
-        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
-        assertThat(inventoryDeductionDb.records(orderId))
-            .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "DEDUCTED"));
-    }
-
-    @Test
-    @DisplayName("INV-04 주문이 아웃박스로 보낸 주문 생성됨을 Kafka로 받아 재고를 줄이고 차감 기록을 DEDUCTED로 남긴다")
-    void deductOnOrderCreatedFromOrderOutbox() {
-        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-        long orderId = newId();
-
-        transactionTemplate.executeWithoutResult(status -> orderEventOutbox.append(
-            orderCreated(orderId, orderItem(11L, options.navy110(), 2))));
-        orderOutboxRelayService.relay();
 
         AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records(orderId).isEmpty());
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);

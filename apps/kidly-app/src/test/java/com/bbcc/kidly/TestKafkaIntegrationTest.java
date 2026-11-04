@@ -3,6 +3,7 @@ package com.bbcc.kidly;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.product.in.outbox.ProductOutboxScheduler;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,13 @@ class TestKafkaIntegrationTest {
     @DisplayName("Kafka 통합 테스트에서는 주문 아웃박스 릴레이 스케줄러를 만든다")
     void kafkaRelayEnabled() {
         assertThat(context.containsBean("orderOutboxRelayScheduler")).isTrue();
+    }
+
+    // 상품 서비스(apps/product-service)는 릴레이 스위치로 상품 릴레이를 꺼 두므로 이 사실은 kidly-app에서만 확인한다. kidly-app에서 상품을 뺄 때 이 케이스를 지운다
+    @Test
+    @DisplayName("Kafka 통합 테스트에서는 상품 아웃박스 릴레이 스케줄러를 만든다(상품 서비스와 함께 도는 동안 릴레이는 kidly-app에서만 돈다)")
+    void productRelaySchedulerEnabled() {
+        assertThat(context.getBeansOfType(ProductOutboxScheduler.class)).hasSize(1);
     }
 
     @Test
