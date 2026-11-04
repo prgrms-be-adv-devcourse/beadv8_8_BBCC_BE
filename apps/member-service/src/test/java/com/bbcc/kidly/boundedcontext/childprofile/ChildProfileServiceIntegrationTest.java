@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.app.ChildAccountLinkService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
@@ -15,6 +16,7 @@ import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,9 @@ class ChildProfileServiceIntegrationTest {
 
     @Autowired
     private ChildProfileService childProfileService;
+
+    @Autowired
+    private ChildAccountLinkService linkService;
 
     @Autowired
     private ChildProfileRepository childProfileRepository;
@@ -187,5 +192,23 @@ class ChildProfileServiceIntegrationTest {
         assertThatThrownBy(call)
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+    }
+
+    @Test
+    void duplicateAndOutOfOrderEventsDoNotReviveLink() {
+        var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
+        var now = LocalDateTime.now();
+        linkService.applyAccountChange(1L, childId, false, now);
+        linkService.applyAccountChange(1L, childId, false, now);
+        assertThat(childProfileService.getOwnProfile(1L, MEMBER_ID).id()).isEqualTo(childId);
+        linkService.applyAccountChange(1L, childId, true, now);
+        linkService.applyAccountChange(1L, childId, false, now);
+        assertNotFound(() -> childProfileService.getOwnProfile(1L, MEMBER_ID));
+        linkService.applyAccountChange(2L, childId, true, now);
+        linkService.applyAccountChange(2L, childId, false, now);
+        assertNotFound(() -> childProfileService.getOwnProfile(2L, MEMBER_ID));
+        linkService.applyAccountChange(3L, childId, false, now);
+        assertThat(childProfileService.getOwnProfile(3L, MEMBER_ID).id()).isEqualTo(childId);
+        assertNotFound(() -> childProfileService.getOwnProfile(3L, OTHER_MEMBER_ID));
     }
 }

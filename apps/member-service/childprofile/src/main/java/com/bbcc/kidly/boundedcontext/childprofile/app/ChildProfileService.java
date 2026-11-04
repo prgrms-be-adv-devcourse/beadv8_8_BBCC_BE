@@ -4,7 +4,11 @@ import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileResult;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.GrowthRecordResult;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildAccountLink;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildAccountLinkRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
+import com.bbcc.kidly.member.support.error.BusinessException;
+import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChildProfileService {
 
     private final ChildProfileRepository childProfileRepository;
+    private final ChildAccountLinkRepository childAccountLinkRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -45,6 +50,15 @@ public class ChildProfileService {
     @Transactional(readOnly = true)
     public ChildProfileResult getChild(Long memberId, Long childId) {
         return ChildProfileResult.from(childProfileRepository.getByIdAndMemberId(childId, memberId));
+    }
+
+    @Transactional(readOnly = true)
+    public ChildProfileResult getOwnProfile(Long accountId, Long guardianId) {
+        var childId = childAccountLinkRepository.findById(accountId)
+            .filter(link -> !link.isDeleted())
+            .map(ChildAccountLink::getChildProfileId)
+            .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        return getChild(guardianId, childId);
     }
 
     // 이름만 바뀌어도 이벤트를 발행한다. 받는 쪽은 어떤 필드가 바뀌었는지 보지 않고 덮어쓴다
