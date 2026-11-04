@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -52,6 +53,9 @@ class CartItemRemovedOutboxIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private OrderEventDelivery eventDelivery;
@@ -135,7 +139,7 @@ class CartItemRemovedOutboxIntegrationTest {
 
         eventDelivery.deliver(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductedEvent.Data(order.orderId())));
-        eventDelivery.deliver(PaymentEvents.completed(orderService.getOrder(BUYER_ID, order.orderId()), BUYER_ID));
+        eventDelivery.deliver(PaymentEvents.completed(orderQueries.getOrder(BUYER_ID, order.orderId()), BUYER_ID));
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.cart_item", Long.class))
             .as("결제완료 정리로 줄은 지워진다").isZero();
