@@ -16,7 +16,6 @@ SERVICES = {
     'app': ('kidly', 'APP_PORT', ''),
     'search-service': ('kidly-search', 'SEARCH_PORT', 'search'),
     'gateway': ('kidly-gateway', 'GATEWAY_PORT', 'gateway'),
-    'childprofile-service': ('kidly-childprofile', 'CHILDPROFILE_PORT', 'childprofile'),
     'recommend-service': ('kidly-recommend', 'RECOMMEND_PORT', 'recommend'),
     'settlement-service': ('kidly-settlement', 'SETTLEMENT_PORT', 'settlement'),
     'member-service': ('kidly-member', 'MEMBER_PORT', 'member'),

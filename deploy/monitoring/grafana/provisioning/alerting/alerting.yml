@@ -32,7 +32,7 @@ groups:
     folder: Kidly
     interval: 1m
     rules:
-      # t3.large Alloy 가 앱 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 회원 서비스를 5분 넘게 못 읽으면(up=0). 검색·정산 서비스도 포함한다. Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
+      # t3.large Alloy 가 앱 · Gateway · 추천 서비스 · 회원 서비스를 5분 넘게 못 읽으면(up=0). 검색·정산 서비스도 포함한다. Prometheus 가 죽어 조회가 실패하면 execErrState(Error → DatasourceError 알림)로 알린다
       # 데이터가 없다는 건 등록된 수집 대상이 없다는 뜻(앱 배포가 targets 파일을 쓰기 전)이라 알리지 않는다. 메트릭이 아예 안 오는 것은 "수집 끊김"이 본다
       - uid: kidly-app-down
         title: 앱 다운
@@ -47,7 +47,7 @@ groups:
             model:
               refId: A
               expr: >-
-                (up{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement"}) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
+                (up{job=~"kidly|kidly-search|kidly-gateway|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement"}) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -78,7 +78,7 @@ groups:
             model:
               refId: A
               expr: >-
-                ((sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*"}[5m]))) and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
+                ((sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) / sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*"}[5m]))) and on (env, job) (sum by (env, job) (increase(http_server_requests_seconds_count{job=~"kidly|kidly-search|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", uri!~"/actuator.*", status=~"5.."}[5m])) >= 5)) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__
@@ -140,7 +140,7 @@ groups:
             model:
               refId: A
               expr: >-
-                (sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-search|kidly-gateway|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", level="error"}[5m]))) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
+                (sum by (env, job) (increase(logback_events_total{job=~"kidly|kidly-search|kidly-gateway|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement", level="error"}[5m]))) and on (env, job) (label_replace(max by (env, app_job) (kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"))
               instant: true
           - refId: B
             datasourceUid: __expr__
