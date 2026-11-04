@@ -87,7 +87,7 @@ kidly:
       s3:
         fake-credentials: true
 
-# kidly-app(8080) · member-service(8081) · search-service(8082) · gateway(8083) · childprofile-service(8084) · recommend-service(8086) ·
+# kidly-app(8080) · member-service(8081) · search-service(8082) · gateway(8083) · recommend-service(8086) ·
 # payment-service(8087) · settlement-service(8088)와 같이 띄울 수 있게 포트를 나눈다
 server:
   port: 8089

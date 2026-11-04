@@ -20,6 +20,7 @@ class SwaggerApiTest {
             .exchange()
             .expectStatus().isOk()
             .expectBody()
+            .jsonPath("$.paths['/api/v1/children'].get").exists()
             .jsonPath("$.paths['/api/v1/members/me'].get.parameters").doesNotExist()
             .jsonPath("$.paths['/api/v1/admin/members/{memberId}/suspend'].post.parameters[*].name")
             .isEqualTo(List.of("memberId"))

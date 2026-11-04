@@ -73,7 +73,7 @@ spring:
     username: kidly
     password: kidly
 
-# kidly-app(8080) · search(8082) · gateway(8083) · childprofile(8084) · recommend(8086)와 같이 띄울 수 있게 포트를 나눈다
+# kidly-app(8080) · search(8082) · gateway(8083) · recommend(8086)와 같이 띄울 수 있게 포트를 나눈다
 server:
   port: 8088
 

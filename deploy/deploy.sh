@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 아홉(IMAGE · SEARCH_IMAGE · GATEWAY_IMAGE · CHILDPROFILE_IMAGE · RECOMMEND_IMAGE · SETTLEMENT_IMAGE · MEMBER_IMAGE · PAYMENT_IMAGE · PRODUCT_IMAGE)을 넘긴다
-# 검색 서비스 이미지는 profile search, Gateway 이미지는 profile gateway, 자녀 프로필 이미지는 profile childprofile, 추천 이미지는 profile recommend, 정산 이미지는 profile settlement, 회원 이미지는 profile member, 결제 이미지는 profile payment, 상품 이미지는 profile product 가 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다. Elasticsearch 는 t3.medium k3s(deploy/search)에 있다
+# 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 여덟(IMAGE · SEARCH_IMAGE · GATEWAY_IMAGE · RECOMMEND_IMAGE · SETTLEMENT_IMAGE · MEMBER_IMAGE · PAYMENT_IMAGE · PRODUCT_IMAGE)을 넘긴다
+# 검색 서비스 이미지는 profile search, Gateway 이미지는 profile gateway, 추천 이미지는 profile recommend, 정산 이미지는 profile settlement, 회원 이미지는 profile member, 결제 이미지는 profile payment, 상품 이미지는 profile product 가 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다. Elasticsearch 는 t3.medium k3s(deploy/search)에 있다
 set -euo pipefail
 : "${APP_ENV:?APP_ENV 가 필요합니다}" "${IMAGE:?IMAGE 가 필요합니다}"
 : "${SEARCH_IMAGE:?SEARCH_IMAGE 가 필요합니다}" "${GATEWAY_IMAGE:?GATEWAY_IMAGE 가 필요합니다}"
-: "${CHILDPROFILE_IMAGE:?CHILDPROFILE_IMAGE 가 필요합니다}" "${RECOMMEND_IMAGE:?RECOMMEND_IMAGE 가 필요합니다}"
+: "${RECOMMEND_IMAGE:?RECOMMEND_IMAGE 가 필요합니다}"
 : "${SETTLEMENT_IMAGE:?SETTLEMENT_IMAGE 가 필요합니다}" "${MEMBER_IMAGE:?MEMBER_IMAGE 가 필요합니다}" "${PAYMENT_IMAGE:?PAYMENT_IMAGE 가 필요합니다}"
 : "${PRODUCT_IMAGE:?PRODUCT_IMAGE 가 필요합니다}"
 [[ "$APP_ENV" == dev || "$APP_ENV" == prod ]] || { echo "Invalid APP_ENV"; exit 1; }
@@ -22,8 +22,8 @@ if [[ "$mode" == stopped ]]; then
   exit 0
 fi
 mkdir -p logs
-printf 'IMAGE=%s\nSEARCH_IMAGE=%s\nGATEWAY_IMAGE=%s\nCHILDPROFILE_IMAGE=%s\nRECOMMEND_IMAGE=%s\nSETTLEMENT_IMAGE=%s\nMEMBER_IMAGE=%s\nPAYMENT_IMAGE=%s\nPRODUCT_IMAGE=%s\n' \
-  "$IMAGE" "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$CHILDPROFILE_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" > image.env
+printf 'IMAGE=%s\nSEARCH_IMAGE=%s\nGATEWAY_IMAGE=%s\nRECOMMEND_IMAGE=%s\nSETTLEMENT_IMAGE=%s\nMEMBER_IMAGE=%s\nPAYMENT_IMAGE=%s\nPRODUCT_IMAGE=%s\n' \
+  "$IMAGE" "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" > image.env
 compose() { docker compose -p "$APP_ENV" --env-file .env --env-file image.env "$@"; }
 # 검색이 켜진 환경인지. 꺼진 환경에서는 search-service 가 목록에 없다
 search_on=false
@@ -35,11 +35,6 @@ fi
 gateway_on=false
 if grep -qx gateway <<< "$services"; then
   gateway_on=true
-fi
-# 자녀 프로필 서비스가 켜진 환경인지. 꺼진 환경에서는 childprofile-service 가 목록에 없다
-childprofile_on=false
-if grep -qx childprofile-service <<< "$services"; then
-  childprofile_on=true
 fi
 # 추천 서비스가 켜진 환경인지. 꺼진 환경에서는 recommend-service 가 목록에 없다
 recommend_on=false
@@ -73,7 +68,7 @@ if ! compose up -d --wait --remove-orphans; then
   echo "::group::앱 로그 (마지막 1000줄)"
   compose logs app --no-log-prefix --no-color --tail 1000 || true
   echo "::endgroup::"
-  # startup-error.sh 는 위 앱 로그 구간만 읽는다. 검색 · Gateway · 자녀 프로필 · 추천 · 정산 · 회원 · 결제 · 상품 쪽 원인은 실행 화면에서 본다
+  # startup-error.sh 는 위 앱 로그 구간만 읽는다. 검색 · Gateway · 추천 · 정산 · 회원 · 결제 · 상품 쪽 원인은 실행 화면에서 본다
   if [[ "$search_on" == true ]]; then
     echo "::group::검색 서비스 로그 (마지막 300줄)"
     compose logs search-service --no-log-prefix --no-color --tail 300 || true
@@ -83,11 +78,6 @@ if ! compose up -d --wait --remove-orphans; then
   if [[ "$gateway_on" == true ]]; then
     echo "::group::Gateway 로그 (마지막 300줄)"
     compose logs gateway --no-log-prefix --no-color --tail 300 || true
-    echo "::endgroup::"
-  fi
-  if [[ "$childprofile_on" == true ]]; then
-    echo "::group::자녀 프로필 서비스 로그 (마지막 300줄)"
-    compose logs childprofile-service --no-log-prefix --no-color --tail 300 || true
     echo "::endgroup::"
   fi
   if [[ "$recommend_on" == true ]]; then
@@ -123,7 +113,7 @@ python3 environment-state.py targets "$APP_ENV"
 # 다른 환경 컨테이너가 쓰는 이미지는 docker 가 삭제를 거부해서 남는다 (-f 를 쓰지 않는다)
 # 지운 이미지로 롤백할 때는 GHCR 에서 다시 받는다
 removed=0
-for repo in "${IMAGE%:*}" "${SEARCH_IMAGE%:*}" "${GATEWAY_IMAGE%:*}" "${CHILDPROFILE_IMAGE%:*}" "${RECOMMEND_IMAGE%:*}" "${SETTLEMENT_IMAGE%:*}" "${MEMBER_IMAGE%:*}" "${PAYMENT_IMAGE%:*}" "${PRODUCT_IMAGE%:*}"; do
+for repo in "${IMAGE%:*}" "${SEARCH_IMAGE%:*}" "${GATEWAY_IMAGE%:*}" "${RECOMMEND_IMAGE%:*}" "${SETTLEMENT_IMAGE%:*}" "${MEMBER_IMAGE%:*}" "${PAYMENT_IMAGE%:*}" "${PRODUCT_IMAGE%:*}"; do
   for old in $(docker images -a "$repo" --format '{{if eq .Tag "<none>"}}{{.ID}}{{else}}{{.Repository}}:{{.Tag}}{{end}}' | tail -n +4); do
     if docker rmi "$old" > /dev/null 2>&1; then
       removed=$((removed + 1))
