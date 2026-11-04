@@ -32,6 +32,28 @@ class OperationTests(unittest.TestCase):
         self.assertFalse(writes[0]['enabled'])
         self.assertTrue(writes[-1]['enabled'])
 
+    def test_lost_app_connection_does_not_block_stop_monitoring_restore(self):
+        writes = []
+        snapshots = []
+        def remote(host, action, env, data=None):
+            if action == 'snapshot':
+                snapshots.append(action)
+                if len(snapshots) > 1:
+                    raise RuntimeError('app connection lost')
+                return self.running
+            if action == 'plan':
+                return self.running
+            if action == 'inventory':
+                writes.append(data)
+            if action == 'stop':
+                raise RuntimeError('app connection lost')
+        with patch.object(operation, 'install'), patch.object(operation, 'remote', side_effect=remote), \
+                patch.object(operation, 'wait_disabled'):
+            with self.assertRaises(RuntimeError):
+                operation.operate('stop', 'dev')
+        self.assertEqual(len(snapshots), 1)
+        self.assertTrue(writes[-1]['enabled'])
+
     def test_sync_without_deployment_does_not_clear_inventory(self):
         with patch.object(operation, 'install'), patch.object(operation, 'remote', return_value=None) as remote:
             operation.operate('sync', 'prod')

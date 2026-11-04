@@ -75,16 +75,24 @@ def operate(action, env):
     plan = remote(APP, 'plan', env)
     transition = dict(plan, enabled=action == 'resume', phase='starting' if action == 'resume' else 'stopping',
                       changed_at=time.time())
-    remote(MEDIUM, 'inventory', env, transition)
     try:
+        remote(MEDIUM, 'inventory', env, transition)
         if action == 'stop':
             wait_disabled(env, transition['changed_at'])
         result = remote(APP, action, env)
     except Exception:
-        observed = remote(APP, 'snapshot', env)
-        if action == 'stop' or not observed or not observed['enabled']:
-            # Failed/cancelled transitions remain visible; a normal failure restores monitoring.
-            remote(MEDIUM, 'inventory', env, old or (plan if action == 'stop' else dict(plan, enabled=False, phase='stopped')))
+        if action == 'stop':
+            # A broken app SSH connection must not prevent restoring medium monitoring.
+            remote(MEDIUM, 'inventory', env, old or plan)
+        else:
+            try:
+                observed = remote(APP, 'snapshot', env)
+            except Exception:
+                # Unknown startup result remains expected and transitioning, never silently muted.
+                pass
+            else:
+                if not observed or not observed['enabled']:
+                    remote(MEDIUM, 'inventory', env, old or dict(plan, enabled=False, phase='stopped'))
         raise
     remote(MEDIUM, 'inventory', env, result)
     print(env + ': ' + result['phase'])
