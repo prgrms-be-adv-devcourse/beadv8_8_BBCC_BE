@@ -12,6 +12,11 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.bbcc.kidly.boundedcontext.search.out.OpenAiTextEmbedder;
 import com.bbcc.kidly.boundedcontext.search.out.SearchEmbeddingProperties;
 import java.net.SocketTimeoutException;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +27,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.json.JsonCompareMode;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.web.client.RestClient;
 
 @ExtendWith(OutputCaptureExtension.class)
@@ -32,6 +39,7 @@ class OpenAiTextEmbedderTest {
 
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+    private final MutableClock clock = new MutableClock();
 
     @Test
     @DisplayName("모델 · 문장 · 차원 수를 키와 함께 보내고 첫 벡터를 돌려준다")
@@ -100,17 +108,157 @@ class OpenAiTextEmbedderTest {
     }
 
     @Test
+    @DisplayName("연속 5번 실패하면 30초 동안 부르지 않고 바로 비워서 돌려준다. 열 때만 한 번 알린다")
+    void opensAfterConsecutiveFailures(CapturedOutput output) {
+        OpenAiTextEmbedder embedder = embedder("sk-test", 3);
+        server.expect(ExpectedCount.times(5), requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withException(new SocketTimeoutException("timeout")));
+
+        for (int i = 0; i < 5; i++) {
+            assertThat(embedder.embed(TEXT)).isEmpty();
+        }
+        clock.advance(Duration.ofSeconds(29));
+        assertThat(embedder.embed(TEXT)).isEmpty();
+        assertThat(embedder.embedKeyword("원피스")).isEmpty();
+
+        server.verify();
+        assertThat(output).containsOnlyOnce("연속 5번 실패해 30초 동안 부르지 않습니다");
+    }
+
+    @Test
+    @DisplayName("중간에 성공하면 연속 실패 수를 처음부터 센다")
+    void successResetsFailures() {
+        OpenAiTextEmbedder embedder = embedder("sk-test", 3);
+        server.expect(ExpectedCount.times(4), requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        server.expect(requestTo("https://api.openai.test/v1/embeddings")).andRespond(vector());
+        server.expect(ExpectedCount.times(4), requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        server.expect(requestTo("https://api.openai.test/v1/embeddings")).andRespond(vector());
+
+        for (int i = 0; i < 10; i++) {
+            embedder.embed(TEXT);
+        }
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("30초가 지나면 하나만 시험으로 부르고, 성공하면 다시 부른다")
+    void probeSuccessCloses(CapturedOutput output) {
+        OpenAiTextEmbedder embedder = openedEmbedder();
+        server.expect(ExpectedCount.times(2), requestTo("https://api.openai.test/v1/embeddings")).andRespond(vector());
+
+        clock.advance(Duration.ofSeconds(30));
+        assertThat(embedder.embed(TEXT)).isPresent();
+        assertThat(embedder.embed(TEXT)).isPresent();
+
+        server.verify();
+        assertThat(output).contains("임베딩 API가 다시 응답해 의미 검색을 다시 씁니다");
+    }
+
+    @Test
+    @DisplayName("시험 호출이 실패하면 다시 30초 동안 부르지 않는다")
+    void probeFailureReopens() {
+        OpenAiTextEmbedder embedder = openedEmbedder();
+        server.expect(requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        server.expect(requestTo("https://api.openai.test/v1/embeddings")).andRespond(vector());
+
+        clock.advance(Duration.ofSeconds(30));
+        assertThat(embedder.embed(TEXT)).isEmpty();
+        clock.advance(Duration.ofSeconds(29));
+        assertThat(embedder.embed(TEXT)).isEmpty();
+        clock.advance(Duration.ofSeconds(1));
+        assertThat(embedder.embed(TEXT)).isPresent();
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("같은 검색어는 10분 동안 기억해 다시 부르지 않는다")
+    void cachesKeywordVector() {
+        OpenAiTextEmbedder embedder = embedder("sk-test", 3);
+        server.expect(ExpectedCount.times(2), requestTo("https://api.openai.test/v1/embeddings")).andRespond(vector());
+
+        assertThat(embedder.embedKeyword("원피스")).hasValueSatisfying(v -> assertThat(v).containsExactly(0.1f, 0.2f,
+            0.3f));
+        clock.advance(Duration.ofMinutes(10).minusSeconds(1));
+        assertThat(embedder.embedKeyword("원피스")).hasValueSatisfying(v -> assertThat(v).containsExactly(0.1f, 0.2f,
+            0.3f));
+        clock.advance(Duration.ofSeconds(1));
+        assertThat(embedder.embedKeyword("원피스")).isPresent();
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("벡터를 얻지 못한 검색어는 기억하지 않아 다음 요청에서 다시 부른다")
+    void doesNotCacheFailure() {
+        OpenAiTextEmbedder embedder = embedder("sk-test", 3);
+        server.expect(requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        server.expect(requestTo("https://api.openai.test/v1/embeddings")).andRespond(vector());
+
+        assertThat(embedder.embedKeyword("원피스")).isEmpty();
+        assertThat(embedder.embedKeyword("원피스")).isPresent();
+
+        server.verify();
+    }
+
+    // 연속 5번 실패해 열린 상태. 그 5번의 기대는 검증까지 끝내 둔다
+    private OpenAiTextEmbedder openedEmbedder() {
+        OpenAiTextEmbedder embedder = embedder("sk-test", 3);
+        server.expect(ExpectedCount.times(5), requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        for (int i = 0; i < 5; i++) {
+            embedder.embed(TEXT);
+        }
+        server.verify();
+        server.reset();
+        return embedder;
+    }
+
+    private static ResponseCreator vector() {
+        return withSuccess("{\"data\": [{\"embedding\": [0.1, 0.2, 0.3]}]}", MediaType.APPLICATION_JSON);
+    }
+
+    @Test
     @DisplayName("키를 설정 문자열에 드러내지 않는다")
     void hidesKey() {
         assertThat(properties("sk-secret", 3).toString()).doesNotContain("sk-secret").contains("apiKey=***");
     }
 
     private OpenAiTextEmbedder embedder(String apiKey, int dimensions) {
-        return new OpenAiTextEmbedder(properties(apiKey, dimensions), builder);
+        return new OpenAiTextEmbedder(properties(apiKey, dimensions), builder, clock);
     }
 
     private static SearchEmbeddingProperties properties(String apiKey, int dimensions) {
         return new SearchEmbeddingProperties(apiKey, "https://api.openai.test/v1", "text-embedding-3-small",
             dimensions, 0.3f);
+    }
+
+    private static final class MutableClock extends Clock {
+
+        private Instant now = Instant.parse("2026-11-04T00:00:00Z");
+
+        void advance(Duration duration) {
+            now = now.plus(duration);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 }

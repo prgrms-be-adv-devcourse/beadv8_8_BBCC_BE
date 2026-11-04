@@ -74,7 +74,7 @@ public class ProductListService {
         if (sort != ProductSearchSort.RELEVANCE || keyword == null || keyword.isEmpty()) {
             return null;
         }
-        return textEmbedder.embed(keyword).orElse(null);
+        return textEmbedder.embedKeyword(keyword).orElse(null);
     }
 
     // 추천이 쓰는 건 회원이 무엇을 찾았는지다. 검색어 없는 둘러보기와 같은 검색의 다음 페이지는 새 검색이 아니다

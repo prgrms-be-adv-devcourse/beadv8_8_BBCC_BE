@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.bbcc.kidly.boundedcontext.search.app.ProductListService;
 import com.bbcc.kidly.boundedcontext.search.app.dto.ProductListRequest;
@@ -88,7 +89,7 @@ class ProductListServiceTest {
     @DisplayName("관련도순으로 검색어를 찾으면 앞뒤 공백을 뺀 검색어를 벡터로 바꿔 함께 넘긴다")
     void relevanceEmbedsKeyword() {
         givenEmptyResult();
-        given(textEmbedder.embed("여름 물놀이 옷")).willReturn(Optional.of(List.of(0.1f, 0.2f)));
+        given(textEmbedder.embedKeyword("여름 물놀이 옷")).willReturn(Optional.of(List.of(0.1f, 0.2f)));
 
         productListService.list(new ProductListRequest(null, " 여름 물놀이 옷 ", null, "RELEVANCE", null, null), null);
 
@@ -101,7 +102,7 @@ class ProductListServiceTest {
     @DisplayName("검색어를 벡터로 바꾸지 못하면 벡터 없이(키워드로만) 찾는다")
     void relevanceWithoutVectorWhenEmbeddingUnavailable() {
         givenEmptyResult();
-        given(textEmbedder.embed(anyString())).willReturn(Optional.empty());
+        given(textEmbedder.embedKeyword(anyString())).willReturn(Optional.empty());
 
         productListService.list(new ProductListRequest(null, "원피스", null, "RELEVANCE", null, null), null);
 
@@ -116,7 +117,7 @@ class ProductListServiceTest {
         productListService.list(new ProductListRequest(null, "원피스", null, "NEWEST", null, null), null);
         productListService.list(new ProductListRequest(null, "  ", null, "RELEVANCE", null, null), null);
 
-        verify(textEmbedder, never()).embed(any());
+        verifyNoInteractions(textEmbedder);
     }
 
     @Test

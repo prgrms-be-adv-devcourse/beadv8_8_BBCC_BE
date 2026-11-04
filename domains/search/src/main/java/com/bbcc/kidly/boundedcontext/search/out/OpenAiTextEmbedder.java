@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.search.out;
 
 import com.bbcc.kidly.boundedcontext.search.app.port.TextEmbedder;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -21,9 +22,18 @@ public class OpenAiTextEmbedder implements TextEmbedder {
 
     private final SearchEmbeddingProperties properties;
     private final RestClient restClient;
+    private final EmbeddingCircuitBreaker circuitBreaker;
+    private final KeywordVectorCache keywordCache;
 
     public OpenAiTextEmbedder(SearchEmbeddingProperties properties, RestClient.Builder restClientBuilder) {
+        this(properties, restClientBuilder, Clock.systemUTC());
+    }
+
+    public OpenAiTextEmbedder(SearchEmbeddingProperties properties, RestClient.Builder restClientBuilder,
+        Clock clock) {
         this.properties = properties;
+        this.circuitBreaker = new EmbeddingCircuitBreaker(clock);
+        this.keywordCache = new KeywordVectorCache(clock);
         this.restClient = restClientBuilder
             .baseUrl(properties.baseUrl())
             .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.apiKey())
@@ -35,6 +45,11 @@ public class OpenAiTextEmbedder implements TextEmbedder {
         if (!properties.enabled() || text == null || text.isBlank()) {
             return Optional.empty();
         }
+        EmbeddingCircuitBreaker.Permit permit = circuitBreaker.tryAcquire();
+        if (permit == EmbeddingCircuitBreaker.Permit.REJECTED) {
+            return Optional.empty();
+        }
+        boolean responded = false;
         try {
             EmbeddingResponse response = restClient.post()
                 .uri("/embeddings")
@@ -42,14 +57,37 @@ public class OpenAiTextEmbedder implements TextEmbedder {
                 .body(new EmbeddingRequest(properties.model(), text, properties.dimensions()))
                 .retrieve()
                 .body(EmbeddingResponse.class);
+            responded = true;
             return vectorOf(response);
         } catch (RestClientResponseException e) {
             log.warn("임베딩 API가 실패해 벡터 없이 이어 갑니다. status={}", e.getStatusCode().value());
         } catch (RestClientException e) {
             log.warn("임베딩 API를 부르지 못해 벡터 없이 이어 갑니다. cause={}",
                 e.getCause() == null ? e.getClass().getSimpleName() : e.getCause().getClass().getSimpleName());
+        } finally {
+            // 예상하지 못한 예외로 끝나도 시험 호출 자리를 돌려주도록 여기서 기록한다
+            if (responded) {
+                circuitBreaker.onSuccess(permit);
+            } else {
+                circuitBreaker.onFailure(permit);
+            }
         }
         return Optional.empty();
+    }
+
+    // 벡터를 얻었을 때만 기억한다. 실패는 기억하지 않아 API가 돌아오면 바로 다시 만든다
+    @Override
+    public Optional<List<Float>> embedKeyword(String keyword) {
+        if (!properties.enabled() || keyword == null || keyword.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<List<Float>> cached = keywordCache.get(keyword);
+        if (cached.isPresent()) {
+            return cached;
+        }
+        Optional<List<Float>> vector = embed(keyword);
+        vector.ifPresent(found -> keywordCache.put(keyword, found));
+        return vector;
     }
 
     // 차원 수가 색인 설정과 다르면 Elasticsearch가 문서를 거절하므로 미리 거른다
