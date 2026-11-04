@@ -62,6 +62,8 @@ public class SettlementDeadLetterService {
         if (target.state() == State.REPROCESSED) {
             return get(id);
         }
+        // 두 관리자가 동시에 재처리하면 처리기가 두 번 돌 수 있다. 처리기는 멱등하다: 구매확정은 주문상품 ID 유일 키로 항목 1건,
+        // 지급 결과는 이미 PAID면 그대로 둔다(SettlementKafkaReceiveIntegrationTest). 기록은 markReprocessed의 조건부 UPDATE로 한 번만 남는다
         try {
             replayer.replay(target.message());
         } catch (RuntimeException e) {
