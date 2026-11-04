@@ -284,7 +284,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "최근 24시간 OOM 종료",
+      "title": "OOM 종료 · 24h",
       "description": "선택한 서버가 메모리 부족으로 프로세스를 종료한 횟수의 추정값입니다. 0이어도 수집 이전·수집 공백·재부팅 중 발생까지 부정하지 않습니다. 커널 기록과 컨테이너 OOMKilled를 확인하세요.",
       "datasource": {
         "type": "prometheus",
