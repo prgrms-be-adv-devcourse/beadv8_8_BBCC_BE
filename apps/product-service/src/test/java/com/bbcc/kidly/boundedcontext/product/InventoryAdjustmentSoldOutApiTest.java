@@ -4,7 +4,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.support.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.global.security.TestMembers;
@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.client.RestTestClient.ResponseSpec;
 
 /**
  * 판매자의 재고 조정으로 옵션의 품절 여부가 바뀔 때 상품 정보 변경됨을 보내는지 HTTP 요청부터 확인한다.
- * 나가는 이벤트는 커밋된 이벤트만 모으는 OrderFlowEventRecorder로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
+ * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
  */
 @FunctionalTest
 class InventoryAdjustmentSoldOutApiTest {
@@ -40,7 +40,7 @@ class InventoryAdjustmentSoldOutApiTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private OrderFlowEventRecorder eventRecorder;
+    private CommittedEventRecorder eventRecorder;
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"ON_SALE", "STOPPED"})

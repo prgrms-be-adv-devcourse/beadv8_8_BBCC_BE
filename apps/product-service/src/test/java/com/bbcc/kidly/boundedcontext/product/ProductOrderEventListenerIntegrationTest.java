@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.support.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.TwoOnSaleProducts;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
@@ -30,7 +30,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 주문 생성됨을 트랜잭션 안에서 발행해 커밋하면 상품 리스너가 재고를 차감하는지 실제 PostgreSQL로 확인한다.
  * 리스너와 그 뒤의 리스너는 발행한 트랜잭션이 커밋될 때 같은 스레드에서 돌므로, 발행이 끝나면 결과를 바로 읽을 수 있다.
- * 나가는 이벤트는 커밋된 이벤트만 모으는 OrderFlowEventRecorder로 확인한다.
+ * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다.
  * 테스트마다 끝난 뒤 재고 불변식을 확인한다. DB를 비우는 extension보다 @AfterEach가 먼저 실행된다.
  */
 @IntegrationTest
@@ -51,7 +51,7 @@ class ProductOrderEventListenerIntegrationTest {
     private InventoryDeductionDb inventoryDeductionDb;
 
     @Autowired
-    private OrderFlowEventRecorder eventRecorder;
+    private CommittedEventRecorder eventRecorder;
 
     @BeforeEach
     void clearEvents() {

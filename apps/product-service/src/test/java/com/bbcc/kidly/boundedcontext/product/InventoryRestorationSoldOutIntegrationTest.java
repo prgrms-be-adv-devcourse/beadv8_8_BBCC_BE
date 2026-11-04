@@ -8,7 +8,7 @@ import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderIte
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.support.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryRestorationService;
@@ -33,7 +33,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 주문 취소됨으로 재고를 되돌릴 때 품절이 풀린 옵션의 상품 정보 변경됨이 나가는지 실제 PostgreSQL로 확인한다.
  * 차감은 서비스를 직접 불러 준비하고, 차감이 보낸 이벤트는 지운 뒤 주문 취소됨을 트랜잭션 안에서 발행한다.
- * 나가는 이벤트는 커밋된 이벤트만 모으는 OrderFlowEventRecorder로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
+ * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest
 class InventoryRestorationSoldOutIntegrationTest {
@@ -60,7 +60,7 @@ class InventoryRestorationSoldOutIntegrationTest {
     private InventoryDeductionDb inventoryDeductionDb;
 
     @Autowired
-    private OrderFlowEventRecorder eventRecorder;
+    private CommittedEventRecorder eventRecorder;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
