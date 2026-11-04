@@ -4,7 +4,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixtur
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 
-import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;

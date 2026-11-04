@@ -8,7 +8,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryAdjustmentService;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
