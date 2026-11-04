@@ -16,8 +16,8 @@ class DatabaseCleanerExtension implements AfterEachCallback {
     private static final String FIND_TABLES = """
         SELECT quote_ident(schemaname) || '.' || quote_ident(tablename)
         FROM pg_tables
-        WHERE schemaname IN ('member', 'auth', 'seller')
-          AND tablename <> 'flyway_schema_history_member'
+        WHERE schemaname IN ('member', 'auth', 'seller', 'childprofile')
+          AND tablename NOT IN ('flyway_schema_history_member', 'flyway_schema_history_childprofile')
         """;
 
     @Override
