@@ -56,4 +56,4 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 회원 · 인증 · 판매자 API는 회원 서비스(`cd apps/member-service && ./gradlew bootRun`, 8081. 루트 빌드에 없다)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_MEMBER_URI`를 준다
 - 결제 API(`/api/v1/payments/**` · `/api/v1/wallets/**` 등)는 결제 서비스(`:apps:payment-service:bootRun`, 8087)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_PAYMENT_URI`를 준다
 - 상품 API(`/api/v1/products/**` · `/api/v1/seller/products/**` 등)는 상품 서비스(`:apps:product-service:bootRun`, 8089)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_PRODUCT_URI`를 준다
-- 주문 API는 기본으로 kidly-app이 받는다. 주문 서비스(`:apps:order-service:bootRun`, 8090)로 볼 때만 `KIDLY_ORDER_URI=http://localhost:8090`을 준다
+- 주문 API는 기본으로 kidly-app이 받는다. 주문 서비스(`:apps:order-service:bootRun`, 8091)로 볼 때만 `KIDLY_ORDER_URI=http://localhost:8091`을 준다

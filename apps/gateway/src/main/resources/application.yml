@@ -180,7 +180,7 @@ spring:
     activate:
       on-profile: local
 
-# kidly-app(8080) · member-service(8081) · search-service(8082) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) · product-service(8089) · (선택) order-service(8090)와 같이 띄운다
+# kidly-app(8080) · member-service(8081) · search-service(8082) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) · product-service(8089) · (선택) order-service(8091)와 같이 띄운다
 server:
   port: 8083
 
@@ -199,7 +199,7 @@ kidly:
     payment-uri: ${KIDLY_PAYMENT_URI:http://localhost:8087}
     # 상품은 kidly-app에 없다(#791). product-service(8089)를 띄워야 상품 API가 된다
     product-uri: ${KIDLY_PRODUCT_URI:http://localhost:8089}
-    # 주문은 기본으로 kidly-app이 받는다. order-service(8090)로 볼 때만 KIDLY_ORDER_URI=http://localhost:8090으로 띄운다
+    # 주문은 기본으로 kidly-app이 받는다. order-service(8091)로 볼 때만 KIDLY_ORDER_URI=http://localhost:8091로 띄운다
     order-uri: ${KIDLY_ORDER_URI:http://localhost:8080}
 
 cors:

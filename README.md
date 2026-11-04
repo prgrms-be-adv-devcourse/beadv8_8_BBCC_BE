@@ -20,7 +20,7 @@
 9. `./gradlew :apps:payment-service:bootRun` — 결제 서비스(8087). 결제 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8087로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `PaymentServiceApplication`
 10. `./gradlew :apps:settlement-service:bootRun` — 정산 서비스(8088). 정산 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8088로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `SettlementServiceApplication`
 11. `./gradlew :apps:product-service:bootRun` — 상품 서비스(8089). 상품 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8089로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `ProductServiceApplication`
-12. (선택) `./gradlew :apps:order-service:bootRun` — 주문 서비스(8090). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 주문 API를 받는다. Gateway로 볼 때는 `KIDLY_ORDER_URI=http://localhost:8090`을 준다
+12. (선택) `./gradlew :apps:order-service:bootRun` — 주문 서비스(8091). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 주문 API를 받는다. Gateway로 볼 때는 `KIDLY_ORDER_URI=http://localhost:8091`을 준다
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - 프론트와 Swagger(http://localhost:8083/swagger-ui.html)는 Gateway 주소(8083)로 붙는다. Swagger 위쪽에서 앱 문서(`kidly`)와 `회원` · `추천` · `결제` · `상품` 문서를 고른다. 자녀 API는 회원 문서에 포함된다. 앱(8080)에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 앱에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
