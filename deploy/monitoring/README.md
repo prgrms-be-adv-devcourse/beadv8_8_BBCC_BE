@@ -128,7 +128,7 @@ Slack 메시지 형식은 `grafana/provisioning/alerting/templates.yml` 에 있�
 
 ```
 🔴 앱 다운 · dev                        ← warning 은 🟠 주황, 그 밖은 빨강. 같은 그룹에 여러 건이면 끝에 (N건)
-kidly 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile, 추천 서비스면 kidly-recommend, 정산 서비스면 kidly-settlement
+kidly 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)     ← Gateway 면 kidly-gateway, 자녀 프로필 서비스면 kidly-childprofile, 추천 서비스면 kidly-recommend, 정산 서비스면 kidly-settlement, 상품 서비스면 kidly-product
 규칙 보기 · 일시정지
 
 🟠 ERROR 로그 · dev
@@ -168,17 +168,18 @@ Gateway 가 켜진 환경(dev · prod)도 같은 식으로 `targets/gateway/<환
 회원 서비스가 켜진 환경(dev · prod)은 `targets/member/<환경>.yml` 에 `127.0.0.1:<MEMBER_PORT>` 를 쓰고 job 은 `kidly-member` 입니다. 회원 API 는 이 서비스에만 있어 앱 다운 · ERROR 로그 · 5xx 알림에 포함합니다.
 정산 서비스가 켜진 환경(dev · prod)은 `targets/settlement/<환경>.yml` 에 `127.0.0.1:<SETTLEMENT_PORT>` 를 써 두고, job 은 `kidly-settlement` 입니다. 정산 API 는 이 서비스에만 있어 추천 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 서비스와 합쳐 봅니다.
 결제 서비스가 켜진 환경(dev · prod)은 `targets/payment/<환경>.yml` 에 `127.0.0.1:<PAYMENT_PORT>` 를 써 두고, job 은 `kidly-payment` 입니다. 결제 API 는 이 서비스에만 있어 추천 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다.
-로그는 Alloy 가 앱 · 검색 서비스 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 정산 서비스 · 회원 서비스 · 결제 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
+상품 서비스가 켜진 환경은 `targets/product/<환경>.yml` 에 `127.0.0.1:<PRODUCT_PORT>` 를 써 두고, job 은 `kidly-product` 입니다. Gateway 가 상품 API 를 이 서비스로 보내므로 결제 서비스와 같이 "앱 다운" · "ERROR 로그" 알림이 이 서비스도 보고, "5xx 증가" 는 앱 · 자녀 프로필 · 추천 · 결제 서비스와 합쳐 봅니다. "수집 끊김" 은 앱(job `kidly`)만 봅니다. 지금은 어느 환경에도 켜지 않았습니다.
+로그는 Alloy 가 앱 · 검색 서비스 · Gateway · 자녀 프로필 서비스 · 추천 서비스 · 정산 서비스 · 회원 서비스 · 결제 서비스 · 상품 서비스 컨테이너를 알아서 찾습니다. 호스트 · 컨테이너 메트릭도 Alloy 가 모아 Prometheus 에 넣으므로(job `integrations/unix` · `integrations/cadvisor`) 등록할 것이 없습니다.
 medium 의 Pod 로그는 `namespace` · `pod` · `container` · `service_name`(컨테이너 이름) 라벨로 들어갑니다(`env` 없음).
 
 t3.large 에서:
 
 ```bash
-cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml /opt/app/monitoring/targets/gateway/*.yml /opt/app/monitoring/targets/childprofile/*.yml /opt/app/monitoring/targets/recommend/*.yml /opt/app/monitoring/targets/settlement/*.yml /opt/app/monitoring/targets/member/*.yml /opt/app/monitoring/targets/payment/*.yml
+cat /opt/app/monitoring/targets/*.yml /opt/app/monitoring/targets/search/*.yml /opt/app/monitoring/targets/gateway/*.yml /opt/app/monitoring/targets/childprofile/*.yml /opt/app/monitoring/targets/recommend/*.yml /opt/app/monitoring/targets/settlement/*.yml /opt/app/monitoring/targets/member/*.yml /opt/app/monitoring/targets/payment/*.yml /opt/app/monitoring/targets/product/*.yml
 docker compose -p monitoring logs alloy --tail 50   # 보내기 실패(medium 에 닿지 못함)가 여기 남는다
 ```
 
-환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색 · Gateway · 자녀 프로필 · 추천 · 정산이 켜져 있었으면 `targets/search/<환경>.yml` · `targets/gateway/<환경>.yml` · `targets/childprofile/<환경>.yml` · `targets/recommend/<환경>.yml` · `targets/settlement/<환경>.yml` · `targets/member/<환경>.yml` · `targets/payment/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
+환경을 없앨 때는 그 환경의 파일(`targets/<환경>.yml`, 검색 · Gateway · 자녀 프로필 · 추천 · 정산이 켜져 있었으면 `targets/search/<환경>.yml` · `targets/gateway/<환경>.yml` · `targets/childprofile/<환경>.yml` · `targets/recommend/<환경>.yml` · `targets/settlement/<환경>.yml` · `targets/member/<환경>.yml` · `targets/payment/<환경>.yml` · `targets/product/<환경>.yml` 도)을 지웁니다. 남겨 두면 "앱 다운" 이 계속 울립니다.
 
 ## 로그 보기
 
@@ -208,7 +209,7 @@ Logs Drilldown 앱 버전은 `k8s/grafana.yaml` 의 `GF_PLUGINS_PREINSTALL` 로 
 
 **Grafana 를 올릴 때 확인**: 앱 버전(`GF_PLUGINS_PREINSTALL`), 기능 플래그 `kubernetesLogsDrilldown`(실험 기능), 기본 열 API 경로 `apis/logsdrilldown.grafana.app/v1beta1/.../logsdrilldowndefaultcolumns`(`deploy.sh`). 경로가 바뀌면 `deploy.sh` 가 실패해 `#4팀-알림` 에 모니터링 배포 실패가 옵니다 — 컨테이너는 이미 새로 떠 있어 수집 · 알림은 그대로입니다.
 
-서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`, Gateway `kidly-gateway`, 자녀 프로필 서비스 `kidly-childprofile`, 추천 서비스 `kidly-recommend`, 정산 서비스 `kidly-settlement`, 회원 서비스 `kidly-member`, 결제 서비스 `kidly-payment`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
+서버(dev · prod) 콘솔 로그는 ECS JSON 한 줄입니다. 라벨은 `env` · `level` · `service_name`(앱 `kidly`, 검색 서비스 `kidly-search`, Gateway `kidly-gateway`, 자녀 프로필 서비스 `kidly-childprofile`, 추천 서비스 `kidly-recommend`, 정산 서비스 `kidly-settlement`, 회원 서비스 `kidly-member`, 결제 서비스 `kidly-payment`, 상품 서비스 `kidly-product`)이고, `traceId` · `memberId` 는 구조화 메타데이터라 `| traceId="..."` · `| memberId="..."` 로 거릅니다.
 로그 줄을 펼치면 traceId 옆 "같은 요청 로그 보기" 링크로 그 요청의 로그를 모두 엽니다(Explore, 최근 24시간).
 나머지 필드는 `| json` 으로 펼쳐 거릅니다. 점은 `_` 로 바뀝니다.
 
@@ -271,7 +272,7 @@ JSON 이전 이미지의 텍스트 로그도 `level` 라벨로는 그대로 찾�
 Gateway는 입구에서 본 요청이라 하위 서비스와 합산하지 않습니다. Gateway에서만 오류가 증가하면 연결 실패를 확인하고,
 같은 시간 하위 서비스 오류도 증가하면 그 서비스 로그부터 확인합니다. 현재 HTTP 지표만으로 Gateway 자체 오류와 전달 오류를 정확히 분리할 수는 없습니다.
 
-- 앱 다운: 현재 수집 job 전체(검색·정산·회원·결제 포함), up=0이 5분 지속.
+- 앱 다운: 현재 수집 job 전체(검색·정산·회원·결제·상품 포함), up=0이 5분 지속.
 - 서비스별 5xx: 최근 5분 비율 5% 초과와 추정 오류 5건 이상이 2분 지속. Gateway는 별도 규칙.
 - ERROR: 서비스별 최근 5분 추정 건수 4.5 초과가 2분 지속. 단발 오류도 Loki에는 남습니다.
 - 위 오류 임계값은 **초기 기준**입니다. dev의 다운·Gateway 오류 발화/복구와 합성 지표의 서비스별 5xx·ERROR 동작을 검증했으며, 실제 운영 트래픽과 부하 결과에 따라 조정합니다.

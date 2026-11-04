@@ -63,7 +63,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
     void passesSeller() {
         get(SELLER_PATH, "BUYER", "SELLER").expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo(SELLER_PATH));
     }
 
@@ -82,7 +82,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
         client.get().uri("/api/v1/products/1").exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).isPresent();
+        assertThat(productBackend.lastRequest()).isPresent();
     }
 
     // 서비스(Spring Security requestMatchers("/api/v1/admin/**"))와 같다: /**는 0개 이상의 경로 조각이라 /api/v1/admin도 맞는다

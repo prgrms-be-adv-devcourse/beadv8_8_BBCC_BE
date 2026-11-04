@@ -22,7 +22,7 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(up{job=~\"kidly|kidly-gateway|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement\"}, env)",
+        "query": "label_values(up{job=~\"kidly|kidly-gateway|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement\"}, env)",
         "refresh": 1,
         "current": {
           "text": "prod",
@@ -37,10 +37,10 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(up{env=\"$env\", job=~\"kidly|kidly-gateway|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement\"}, job)",
+        "query": "label_values(up{env=\"$env\", job=~\"kidly|kidly-gateway|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement\"}, job)",
         "refresh": 1,
         "includeAll": true,
-        "allValue": "kidly|kidly-gateway|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-settlement",
+        "allValue": "kidly|kidly-gateway|kidly-search|kidly-childprofile|kidly-recommend|kidly-member|kidly-payment|kidly-product|kidly-settlement",
         "current": {
           "text": "All",
           "value": "$__all"

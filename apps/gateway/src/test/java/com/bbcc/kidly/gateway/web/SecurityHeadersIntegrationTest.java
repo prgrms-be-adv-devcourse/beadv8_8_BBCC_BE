@@ -45,8 +45,8 @@ class SecurityHeadersIntegrationTest extends GatewayTestSupport {
     @Test
     @DisplayName("백엔드가 같은 헤더를 붙여도 하나만 남는다")
     void doesNotDuplicateBackendHeaders() {
-        backend.addResponseHeader("X-Content-Type-Options", "nosniff");
-        backend.addResponseHeader("X-Frame-Options", "DENY");
+        productBackend.addResponseHeader("X-Content-Type-Options", "nosniff");
+        productBackend.addResponseHeader("X-Frame-Options", "DENY");
 
         expectSecurityHeaders(client.get().uri("/api/v1/products/1").exchange().expectStatus().isOk());
     }

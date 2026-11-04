@@ -54,7 +54,7 @@ class RequestIdIntegrationTest extends GatewayTestSupport {
         client.get().uri("/api/v1/products/1").header(HEADER, clientId).exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.header(HEADER)).singleElement()
                 .satisfies(value -> {
                     assertThat(value).matches(UUID_PATTERN);
@@ -65,11 +65,11 @@ class RequestIdIntegrationTest extends GatewayTestSupport {
     @Test
     @DisplayName("백엔드가 응답에 같은 헤더를 붙여도 클라이언트 응답에는 값이 하나이고 백엔드가 받은 값과 같다")
     void keepsSingleResponseHeaderValue() {
-        backend.addResponseHeader(HEADER, "backend-own-id");
+        productBackend.addResponseHeader(HEADER, "backend-own-id");
 
         var response = client.get().uri("/api/v1/products/1").exchange().expectStatus().isOk();
 
-        var sentId = backend.lastRequest().orElseThrow().header(HEADER).getFirst();
+        var sentId = productBackend.lastRequest().orElseThrow().header(HEADER).getFirst();
         assertThat(captureRequestId(response)).isEqualTo(sentId);
     }
 
