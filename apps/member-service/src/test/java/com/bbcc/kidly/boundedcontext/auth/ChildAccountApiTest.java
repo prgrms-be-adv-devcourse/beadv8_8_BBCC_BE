@@ -87,6 +87,29 @@ class ChildAccountApiTest {
             .body(new ChildLoginRequest("child5", "new-password")).exchange().expectStatus().isOk();
     }
 
+    @Test
+    void deletesAccountAndAllowsRecreation() {
+        replicas.insertIfAbsent(106L, 11L, LocalDateTime.now());
+        var account = create(11L, 106L, "child6", "password").expectStatus().isCreated()
+            .returnResult(ChildAccountResponse.class).getResponseBody();
+        var cookie = client.post().uri("/api/v1/auth/child/login").contentType(MediaType.APPLICATION_JSON)
+            .body(new ChildLoginRequest("child6", "password")).exchange().expectStatus().isOk()
+            .returnResult().getResponseCookies().getFirst("child_refresh_token");
+        delete(12L, account.id()).expectStatus().isNotFound();
+        delete(11L, account.id()).expectStatus().isNoContent();
+        delete(11L, account.id()).expectStatus().isNotFound();
+        client.post().uri("/api/v1/auth/child/login").contentType(MediaType.APPLICATION_JSON)
+            .body(new ChildLoginRequest("child6", "password")).exchange().expectStatus().isUnauthorized();
+        client.post().uri("/api/v1/auth/child/reissue").cookie(cookie.getName(), cookie.getValue())
+            .exchange().expectStatus().isUnauthorized();
+        create(11L, 106L, "child6", "password").expectStatus().isCreated();
+    }
+
+    private RestTestClient.ResponseSpec delete(Long guardian, Long id) {
+        return client.delete().uri("/api/v1/auth/child-accounts/{id}", id)
+            .headers(TestMembers.buyer(guardian)).exchange();
+    }
+
     private RestTestClient.ResponseSpec reset(Long guardian, Long id, String password) {
         return client.patch().uri("/api/v1/auth/child-accounts/{id}/password", id)
             .headers(TestMembers.buyer(guardian)).contentType(MediaType.APPLICATION_JSON)

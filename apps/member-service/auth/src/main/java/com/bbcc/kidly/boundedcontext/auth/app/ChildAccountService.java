@@ -43,8 +43,7 @@ public class ChildAccountService {
 
     @Transactional
     public void resetPassword(Long guardianId, Long accountId, String value) {
-        var account = accounts.findByIdForUpdate(accountId).filter(a -> a.getGuardianId().equals(guardianId))
-            .orElseThrow(() -> new BusinessException(AuthErrorCode.CHILD_ACCOUNT_NOT_FOUND));
+        var account = ownedAccount(guardianId, accountId);
         var password = validatePassword(value);
         account.changePassword(passwordEncoder.encode(password.value()));
         revokeTokens(account.getId());
@@ -58,7 +57,22 @@ public class ChildAccountService {
         }
     }
 
-    void revokeTokens(Long accountId) {
+    @Transactional
+    public void delete(Long guardianId, Long accountId) {
+        deleteAccount(ownedAccount(guardianId, accountId));
+    }
+
+    void deleteAccount(ChildAccount account) {
+        accounts.delete(account);
+        revokeTokens(account.getId());
+    }
+
+    private ChildAccount ownedAccount(Long guardianId, Long accountId) {
+        return accounts.findByIdForUpdate(accountId).filter(a -> a.getGuardianId().equals(guardianId))
+            .orElseThrow(() -> new BusinessException(AuthErrorCode.CHILD_ACCOUNT_NOT_FOUND));
+    }
+
+    private void revokeTokens(Long accountId) {
         var principal = PrincipalId.child(accountId);
         refreshTokens.deleteByPrincipal(principal);
         revocationService.revoke(principal, LocalDateTime.now());
