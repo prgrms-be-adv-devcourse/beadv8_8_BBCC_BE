@@ -9,7 +9,7 @@ import static com.bbcc.kidly.boundedcontext.product.OrderItemCancelledFixture.or
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.support.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
@@ -29,7 +29,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 판매자 부분 취소(주문상품 취소됨)를 받아 취소한 주문상품의 차감만 되돌리는 흐름을 실제 PostgreSQL로 확인한다(#693).
- * 차감은 서비스를 직접 불러 준비한다. 나가는 이벤트는 커밋된 이벤트만 모으는 OrderFlowEventRecorder로 확인한다.
+ * 차감은 서비스를 직접 불러 준비한다. 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다.
  * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않고 발행만 트랜잭션 안에서 한다.
  */
 @IntegrationTest
@@ -55,7 +55,7 @@ class InventoryRestorationPartialCancelIntegrationTest {
     private InventoryDeductionDb inventoryDeductionDb;
 
     @Autowired
-    private OrderFlowEventRecorder eventRecorder;
+    private CommittedEventRecorder eventRecorder;
 
     @BeforeEach
     void clearEvents() {

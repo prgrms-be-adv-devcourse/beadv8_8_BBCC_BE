@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.product;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.support.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.global.security.TestMembers;
@@ -42,7 +42,7 @@ class ProductSaleStopApiTest {
     private ClothingTopSaver clothingTopSaver;
 
     @Autowired
-    private OrderFlowEventRecorder eventRecorder;
+    private CommittedEventRecorder eventRecorder;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

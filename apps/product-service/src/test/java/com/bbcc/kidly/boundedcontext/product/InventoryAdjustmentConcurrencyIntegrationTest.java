@@ -8,7 +8,7 @@ import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.support.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryAdjustmentService;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
@@ -54,7 +54,7 @@ class InventoryAdjustmentConcurrencyIntegrationTest {
     private InventoryDeductionDb inventoryDeductionDb;
 
     @Autowired
-    private OrderFlowEventRecorder eventRecorder;
+    private CommittedEventRecorder eventRecorder;
 
     @AfterEach
     void checkInvariants() {

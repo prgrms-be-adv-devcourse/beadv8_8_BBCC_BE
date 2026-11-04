@@ -23,7 +23,7 @@ kidly:
       s3:
         key-prefix: test
         fake-credentials: true
-    # 이 서비스는 릴레이 스위치로 상품 아웃박스 릴레이를 꺼 두었다. 스위치를 켜도 테스트 중 저절로 돌지 않게 kidly-app 테스트와 같이 주기를 아주 길게 두고, 정리는 끈다
+    # 상품 아웃박스 릴레이가 테스트 중 저절로 돌지 않게 주기를 아주 길게 두고, 정리는 끈다. 릴레이 테스트는 ProductOutboxRelayService를 직접 부른다
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"

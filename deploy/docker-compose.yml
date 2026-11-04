@@ -6,7 +6,7 @@
 # 회원(member-service)은 profile member 라 COMPOSE_PROFILES 에 member 가 있는 환경(dev · prod)에서만 뜬다. app 에 회원 · 인증 · 판매자 API 가 없어 이 API 를 쓰는 환경은 모두 켜야 한다
 # 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경(dev · prod)에서만 뜬다. app 에는 정산 API 가 없어 정산 API 를 쓰는 환경은 모두 켜야 한다
 # 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다. app 에는 결제 API 가 없어 결제 API 를 쓰는 환경은 모두 켜야 한다
-# 상품(product-service)은 profile product 라 COMPOSE_PROFILES 에 product 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다). app 도 아직 상품 도메인을 가지고 있어 켜지 않은 환경은 app 이 상품 API 를 받는다
+# 상품(product-service)은 profile product 라 COMPOSE_PROFILES 에 product 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다). app 에는 상품 API 가 없어 상품 API 를 쓰는 환경은 모두 켜야 한다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -318,7 +318,7 @@ services:
     logging: *logging
 
   # 상품 서비스(apps/product-service, #791). 상품 API(공개 · 판매자 · 관리자), 판매자 · 주문 이벤트 수신(구독 그룹 kidly.product), 상품 이벤트 아웃박스 저장
-  # app 도 아직 상품 도메인을 가지고 같은 DB · 같은 구독 그룹으로 함께 돈다. 아웃박스 릴레이에는 잠금이 없어 app 만 Kafka 로 보내고 이 서비스는 저장만 한다(같은 표라 이 서비스가 저장한 행도 app 이 보낸다)
+  # 상품 아웃박스 릴레이는 이 서비스만 돈다. 릴레이에는 잠금이 없는데, 배포 때 app 을 먼저 새로 띄운 뒤 이 서비스를 띄우므로 옛 app 의 릴레이와 겹치지 않는다
   # 이미지 업로드 주소(S3 Presigned URL) 서명은 app 과 같이 EC2 IAM 역할의 자격 증명을 쓴다
   # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 상품 값(이미지 key 경로 · Kafka 수신 스위치)만 넘긴다
   # 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
@@ -335,9 +335,9 @@ services:
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-      # 상품 이미지 객체 key 의 환경 경로(dev · prod). 서비스 prod 설정이 기본값 없이 요구하므로 app 과 같은 값을 .env 에서 받는다
+      # 상품 이미지 객체 key 의 환경 경로(dev · prod). 서비스 prod 설정이 기본값 없이 요구하므로 .env 에서 받는다
       PRODUCT_IMAGE_KEY_PREFIX: ${PRODUCT_IMAGE_KEY_PREFIX}
-      # Kafka 수신 스위치. app 과 같은 값이어야 한다. 한쪽만 끄면 그쪽은 같은 구독 그룹에서 파티션을 받고도 처리하지 않아 그 파티션의 메시지는 아무도 받지 않는다. 기본값은 product.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다
+      # Kafka 수신 스위치. 기본값은 product.yml 과 같다. false 로 두면 판매자 · 주문 이벤트 수신이 멈춰 재고 차감 · 결제 요청도 멈춘다(메시지는 Kafka 에 남고 true 로 올리면 처리된다)
       PRODUCT_KAFKA_CONSUMER_ENABLED: ${PRODUCT_KAFKA_CONSUMER_ENABLED:-true}
       LOG_PATH: /app/logs
     ports:
@@ -387,8 +387,8 @@ services:
       KIDLY_MEMBER_URI: ${KIDLY_MEMBER_URI:-http://member-service:8080}
       # 결제(/api/v1/payments/** · /api/v1/wallets/** · /api/v1/webhooks/toss · 결제 관리자 API)를 받을 곳(#525). app 에는 결제 API 가 없어 profile payment 가 꺼진 환경에서는 결제 API 가 실패한다
       KIDLY_PAYMENT_URI: ${KIDLY_PAYMENT_URI:-http://payment-service:8080}
-      # 상품 API(공개 · 판매자 · 관리자)를 받을 곳(#791). 상품 서비스를 켠 환경은 .env 에 http://product-service:8080 을 두고(profile product 도 켠다), 없으면 지금처럼 app 이 받는다
-      KIDLY_PRODUCT_URI: ${KIDLY_PRODUCT_URI:-http://app:8080}
+      # 상품 API(공개 · 판매자 · 관리자)를 받을 곳(#791). app 에는 상품 API 가 없어 profile product 가 꺼진 환경에서는 상품 API 가 실패한다
+      KIDLY_PRODUCT_URI: ${KIDLY_PRODUCT_URI:-http://product-service:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs

@@ -9,7 +9,7 @@ import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderIte
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.support.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
@@ -47,7 +47,7 @@ class InventoryDeductionConcurrencyIntegrationTest {
     private InventoryDeductionDb inventoryDeductionDb;
 
     @Autowired
-    private OrderFlowEventRecorder eventRecorder;
+    private CommittedEventRecorder eventRecorder;
 
     @BeforeEach
     void clearEvents() {

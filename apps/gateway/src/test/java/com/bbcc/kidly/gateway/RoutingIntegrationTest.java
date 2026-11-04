@@ -378,6 +378,17 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
+    @DisplayName("상품 API 문서는 상품 서비스의 /v3/api-docs로 넘긴다")
+    void routesProductApiDocsToProductService() {
+        client.get().uri("/v3/api-docs/product").exchange()
+            .expectStatus().isOk();
+
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri()).isEqualTo(URI.create("/v3/api-docs")));
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
     @DisplayName("정산 API 문서는 정산 서비스의 /v3/api-docs로 넘긴다")
     void routesSettlementApiDocsToSettlementService() {
         client.get().uri("/v3/api-docs/settlement").exchange()

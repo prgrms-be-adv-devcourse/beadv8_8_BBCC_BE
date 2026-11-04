@@ -6,7 +6,7 @@ import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderIte
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.support.OrderFlowEventRecorder;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
@@ -25,7 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 주문 생성됨 두 건을 실제 스레드 두 개에서 리스너 경로로 동시에 처리해, 품절 전환 때 나가는 상품 정보 변경됨을 확인한다.
  * 스레드는 ConcurrentTasks로 함께 출발시키고, 테스트가 쥔 잠금으로 두 처리가 겹치게 한다.
- * 나가는 이벤트는 커밋된 이벤트만 모으는 OrderFlowEventRecorder로 확인한다. 테스트마다 끝난 뒤 재고 불변식을 확인한다.
+ * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다. 테스트마다 끝난 뒤 재고 불변식을 확인한다.
  */
 @IntegrationTest
 class ProductOrderEventConcurrencyIntegrationTest {
@@ -45,7 +45,7 @@ class ProductOrderEventConcurrencyIntegrationTest {
     private InventoryDeductionDb inventoryDeductionDb;
 
     @Autowired
-    private OrderFlowEventRecorder eventRecorder;
+    private CommittedEventRecorder eventRecorder;
 
     @BeforeEach
     void clearEvents() {
