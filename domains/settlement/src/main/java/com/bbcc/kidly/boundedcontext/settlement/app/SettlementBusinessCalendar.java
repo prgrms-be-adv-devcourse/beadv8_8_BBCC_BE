@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 /**
  * 정산 영업일 달력. 그해 공휴일을 한 번만 조회해 메모리에 두고 영업일 · 다음 영업일을 계산한다.
  * 조회에 실패하면 공휴일은 남기지 않고 실패 시각만 기억해 5분 동안은 API를 부르지 않는다(외부 장애 때 요청마다 시간 제한까지 기다리지 않게).
- * 임시공휴일 지정을 반영하려고 하루 1회 비운다(SettlementHolidayCacheScheduler).
+ * 임시공휴일 지정을 반영하려고 하루 1회 다시 받는다(SettlementHolidayCacheScheduler). 다시 받지 못하면 전 값을 유지한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -48,9 +48,23 @@ public class SettlementBusinessCalendar {
         return next;
     }
 
-    public void clearCache() {
-        holidaysByYear.clear();
+    /**
+     * 메모리에 둔 해마다 공휴일을 다시 받아 성공한 해만 바꾼다. 조회에 실패한 해는 전에 받은 공휴일을 그대로 둔다.
+     * 그래서 공휴일 API가 며칠 죽어 있어도 정산은 어제 공휴일로 계속 돈다(#808). 비어 있으면 아무것도 하지 않는다(첫 조회가 받는다).
+     *
+     * @return 다시 받지 못한 해의 수
+     */
+    public int refresh() {
         failedAt = null;
+        int failed = 0;
+        for (Year year : holidaysByYear.keySet()) {
+            try {
+                holidaysByYear.put(year, holidayCalendar.holidaysIn(year));
+            } catch (SettlementHolidayLookupException e) {
+                failed++;
+            }
+        }
+        return failed;
     }
 
     private Set<LocalDate> holidaysOf(Year year) {
