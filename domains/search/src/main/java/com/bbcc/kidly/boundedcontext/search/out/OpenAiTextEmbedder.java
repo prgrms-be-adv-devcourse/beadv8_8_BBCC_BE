@@ -49,7 +49,7 @@ public class OpenAiTextEmbedder implements TextEmbedder {
         if (permit == EmbeddingCircuitBreaker.Permit.REJECTED) {
             return Optional.empty();
         }
-        boolean responded = false;
+        Optional<List<Float>> vector = Optional.empty();
         try {
             EmbeddingResponse response = restClient.post()
                 .uri("/embeddings")
@@ -57,16 +57,17 @@ public class OpenAiTextEmbedder implements TextEmbedder {
                 .body(new EmbeddingRequest(properties.model(), text, properties.dimensions()))
                 .retrieve()
                 .body(EmbeddingResponse.class);
-            responded = true;
-            return vectorOf(response);
+            vector = vectorOf(response);
+            return vector;
         } catch (RestClientResponseException e) {
             log.warn("임베딩 API가 실패해 벡터 없이 이어 갑니다. status={}", e.getStatusCode().value());
         } catch (RestClientException e) {
             log.warn("임베딩 API를 부르지 못해 벡터 없이 이어 갑니다. cause={}",
                 e.getCause() == null ? e.getClass().getSimpleName() : e.getCause().getClass().getSimpleName());
         } finally {
-            // 예상하지 못한 예외로 끝나도 시험 호출 자리를 돌려주도록 여기서 기록한다
-            if (responded) {
+            // 예상하지 못한 예외로 끝나도 시험 호출 자리를 돌려주도록 여기서 기록한다.
+            // 응답은 왔어도 쓸 수 있는 벡터가 없으면(빈 응답 · 차원 불일치) 실패로 센다. 설정이 잘못되면 매번 같아서다
+            if (vector.isPresent()) {
                 circuitBreaker.onSuccess(permit);
             } else {
                 circuitBreaker.onFailure(permit);

@@ -126,6 +126,20 @@ class OpenAiTextEmbedderTest {
     }
 
     @Test
+    @DisplayName("응답은 왔어도 벡터를 쓸 수 없으면(차원 불일치) 실패로 세어 5번이면 부르지 않는다")
+    void unusableResponseCountsAsFailure() {
+        OpenAiTextEmbedder embedder = embedder("sk-test", 3);
+        server.expect(ExpectedCount.times(5), requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withSuccess("{\"data\": [{\"embedding\": [0.1, 0.2]}]}", MediaType.APPLICATION_JSON));
+
+        for (int i = 0; i < 6; i++) {
+            assertThat(embedder.embed(TEXT)).isEmpty();
+        }
+
+        server.verify();
+    }
+
+    @Test
     @DisplayName("중간에 성공하면 연속 실패 수를 처음부터 센다")
     void successResetsFailures() {
         OpenAiTextEmbedder embedder = embedder("sk-test", 3);
