@@ -1,0 +1,149 @@
+---
+apiVersion: 1
+groups:
+- orgId: 1
+  name: kidly-resources
+  folder: Kidly
+  interval: 1m
+  rules:
+  - uid: kidly-host-memory-low
+    title: 서버 메모리 여유 부족
+    condition: B
+    for: 5m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: (100 * node_memory_MemAvailable_bytes{job="integrations/unix"} / node_memory_MemTotal_bytes{job="integrations/unix"})
+          and on (instance) (time() - timestamp(node_memory_MemAvailable_bytes{job="integrations/unix"})
+          < 60)
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 10
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.instance }} 사용 가능 메모리 10% 미만이 5분 지속됐습니다"
+      description: 서버 대시보드에서 메모리와 컨테이너 사용량을 확인하세요. 배포·기동 중이면 추가 기동을 멈추고, 자원 부족이 지속되면
+        운영할 환경을 정해 environment-operation으로 중지하세요.
+  - uid: kidly-host-disk-high
+    title: 서버 디스크 여유 부족
+    condition: B
+    for: 10m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: (100 * (1 - node_filesystem_avail_bytes{job="integrations/unix",mountpoint="/",fstype!~"tmpfs|overlay"}
+          / node_filesystem_size_bytes{job="integrations/unix",mountpoint="/",fstype!~"tmpfs|overlay"}))
+          and on (instance) (time() - timestamp(node_memory_MemAvailable_bytes{job="integrations/unix"})
+          < 60)
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 80
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.instance }} 루트 디스크 사용률 80% 초과가 10분 지속됐습니다"
+      description: 서버 디스크 사용량과 로그·이미지·데이터 보관량을 확인하세요. DB·Kafka 볼륨은 삭제하지 말고 보관 정책 또는
+        용량 확장을 검토하세요.
+  - uid: kidly-host-inodes-high
+    title: 서버 파일 생성 여유 부족
+    condition: B
+    for: 10m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: (100 * (1 - node_filesystem_files_free{job="integrations/unix",mountpoint="/",fstype!~"tmpfs|overlay"}
+          / node_filesystem_files{job="integrations/unix",mountpoint="/",fstype!~"tmpfs|overlay"}))
+          and on (instance) (time() - timestamp(node_memory_MemAvailable_bytes{job="integrations/unix"})
+          < 60)
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 90
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.instance }} 루트 파일시스템 inode 사용률 90% 초과가 10분 지속됐습니다"
+      description: df -i /로 확인하고 작은 파일이 급증한 경로를 찾으세요. 저장 데이터와 볼륨을 임의로 삭제하지 마세요.
+  - uid: kidly-host-oom
+    title: 서버 메모리 부족으로 프로세스 종료
+    condition: B
+    for: 0s
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: (increase(node_vmstat_oom_kill{job="integrations/unix"}[5m])) and on
+          (instance) (time() - timestamp(node_memory_MemAvailable_bytes{job="integrations/unix"})
+          < 60)
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: critical
+    annotations:
+      summary: "{{ $labels.instance }} 최근 5분 OOM 종료가 감지됐습니다"
+      description: 서버 커널 기록과 해당 컨테이너의 OOMKilled·재시작 상태를 확인하세요. 자동 재시작으로 서비스가 복구돼도
+        메모리 원인을 확인하세요.

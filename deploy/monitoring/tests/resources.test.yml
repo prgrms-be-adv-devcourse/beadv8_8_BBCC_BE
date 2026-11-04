@@ -1,0 +1,108 @@
+---
+rule_files:
+- rules.yml
+evaluation_interval: 1m
+tests:
+- name: host isolation, sustained thresholds, recovery and OOM
+  interval: 1m
+  input_series:
+  - series: node_memory_MemTotal_bytes{job="integrations/unix",instance="app"}
+    values: 100+0x25
+  - series: node_memory_MemAvailable_bytes{job="integrations/unix",instance="app"}
+    values: 5+0x11 40+0x13
+  - series: node_filesystem_size_bytes{job="integrations/unix",instance="app",mountpoint="/",device="/dev/root",fstype="xfs"}
+    values: 100+0x25
+  - series: node_filesystem_avail_bytes{job="integrations/unix",instance="app",mountpoint="/",device="/dev/root",fstype="xfs"}
+    values: 10+0x11 40+0x13
+  - series: node_filesystem_files{job="integrations/unix",instance="app",mountpoint="/",device="/dev/root",fstype="xfs"}
+    values: 100+0x25
+  - series: node_filesystem_files_free{job="integrations/unix",instance="app",mountpoint="/",device="/dev/root",fstype="xfs"}
+    values: 5+0x11 40+0x13
+  - series: node_vmstat_oom_kill{job="integrations/unix",instance="app"}
+    values: 0+0x2 1+0x22
+  - series: node_memory_MemTotal_bytes{job="integrations/unix",instance="monitoring"}
+    values: 100+0x25
+  - series: node_memory_MemAvailable_bytes{job="integrations/unix",instance="monitoring"}
+    values: 40+0x25
+  - series: node_filesystem_size_bytes{job="integrations/unix",instance="monitoring",mountpoint="/",device="/dev/root",fstype="xfs"}
+    values: 100+0x25
+  - series: node_filesystem_avail_bytes{job="integrations/unix",instance="monitoring",mountpoint="/",device="/dev/root",fstype="xfs"}
+    values: 40+0x25
+  - series: node_filesystem_files{job="integrations/unix",instance="monitoring",mountpoint="/",device="/dev/root",fstype="xfs"}
+    values: 100+0x25
+  - series: node_filesystem_files_free{job="integrations/unix",instance="monitoring",mountpoint="/",device="/dev/root",fstype="xfs"}
+    values: 40+0x25
+  - series: node_vmstat_oom_kill{job="integrations/unix",instance="monitoring"}
+    values: 0+0x25
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: kidly-host-memory-low
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: kidly-host-memory-low
+    exp_alerts:
+    - exp_labels:
+        job: integrations/unix
+        instance: app
+  - eval_time: 15m
+    alertname: kidly-host-memory-low
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: kidly-host-disk-high
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: kidly-host-disk-high
+    exp_alerts:
+    - exp_labels:
+        job: integrations/unix
+        instance: app
+        mountpoint: "/"
+        device: "/dev/root"
+        fstype: xfs
+  - eval_time: 15m
+    alertname: kidly-host-disk-high
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: kidly-host-inodes-high
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: kidly-host-inodes-high
+    exp_alerts:
+    - exp_labels:
+        job: integrations/unix
+        instance: app
+        mountpoint: "/"
+        device: "/dev/root"
+        fstype: xfs
+  - eval_time: 15m
+    alertname: kidly-host-inodes-high
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: kidly-host-oom
+    exp_alerts:
+    - exp_labels:
+        job: integrations/unix
+        instance: app
+  - eval_time: 10m
+    alertname: kidly-host-oom
+    exp_alerts: []
+- name: shutdown and missing data are not resource exhaustion
+  interval: 1m
+  input_series:
+  - series: node_memory_MemAvailable_bytes{job="integrations/unix",instance="app"}
+    values: 5+0x4
+  - series: node_memory_MemTotal_bytes{job="integrations/unix",instance="app"}
+    values: 100+0x4
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: kidly-host-memory-low
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: kidly-host-disk-high
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: kidly-host-inodes-high
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: kidly-host-oom
+    exp_alerts: []
