@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.settlement.app;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayCalendar;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementBusinessDay;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Year;
 import java.util.Map;
@@ -13,14 +15,18 @@ import org.springframework.stereotype.Service;
 
 /**
  * 정산 영업일 달력. 그해 공휴일을 한 번만 조회해 메모리에 두고 영업일 · 다음 영업일을 계산한다.
- * 조회에 실패하면 아무것도 남기지 않아 다음 호출 때 다시 조회한다. 임시공휴일 지정을 반영하려고 하루 1회 비운다(SettlementHolidayCacheScheduler).
+ * 조회에 실패하면 공휴일은 남기지 않고 실패 시각만 기억해 5분 동안은 API를 부르지 않는다(외부 장애 때 요청마다 시간 제한까지 기다리지 않게).
+ * 임시공휴일 지정을 반영하려고 하루 1회 비운다(SettlementHolidayCacheScheduler).
  */
 @Service
 @RequiredArgsConstructor
 public class SettlementBusinessCalendar {
 
     private final SettlementHolidayCalendar holidayCalendar;
+    private static final Duration RETRY_AFTER = Duration.ofMinutes(5);
+
     private final Map<Year, Set<LocalDate>> holidaysByYear = new ConcurrentHashMap<>();
+    private volatile Instant failedAt;
 
     /**
      * @throws SettlementHolidayLookupException 공휴일을 조회하지 못한 경우. 영업일인지 알 수 없다
@@ -44,9 +50,23 @@ public class SettlementBusinessCalendar {
 
     public void clearCache() {
         holidaysByYear.clear();
+        failedAt = null;
     }
 
     private Set<LocalDate> holidaysOf(Year year) {
-        return holidaysByYear.computeIfAbsent(year, holidayCalendar::holidaysIn);
+        var cached = holidaysByYear.get(year);
+        if (cached != null) {
+            return cached;
+        }
+        var lastFailure = failedAt;
+        if (lastFailure != null && Instant.now().isBefore(lastFailure.plus(RETRY_AFTER))) {
+            throw new SettlementHolidayLookupException("공휴일 조회가 최근에 실패해 잠시 다시 시도하지 않습니다");
+        }
+        try {
+            return holidaysByYear.computeIfAbsent(year, holidayCalendar::holidaysIn);
+        } catch (SettlementHolidayLookupException e) {
+            failedAt = Instant.now();
+            throw e;
+        }
     }
 }
