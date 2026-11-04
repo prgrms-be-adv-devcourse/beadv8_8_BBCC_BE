@@ -14,7 +14,7 @@
 - `in`: `web`(컨트롤러 · `dto`. 주문의 관리자 API(`/api/v1/admin/**`) 컨트롤러 · 재처리 도우미 · dto는 `web.admin`, 구매자 API는 `web`. 장바구니 · 배송 · 조르기는 나누지 않는다) · `event`(이벤트 수신) · `scheduler` · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
 - `out`(#651): `persistence`(Spring Data JPA 저장소만) · `outbox`(아웃박스 메시지 · 저장 · 포트 구현) · `kafka`(발송 · 봉투 · 결제 이벤트 대기량 확인) · `deadletter`(DLT 보관 행 · 포트 구현) · `lock`(서버 한 대 실행 DB 잠금) · `config`(Kafka 토픽 · 설정값 → `OrderPolicy`, 배송은 택배 조회 빈 · 연결 설정) · `tracker`(배송: Delivery Tracker 연동, #650) · `{상대 컨텍스트}`(어댑터)
 - 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 `app.config` · `in.config` · `out.config`. `app.config`에는 설정 record만 둔다(#763)
-- 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙(다른 컨텍스트 참조는 내 out → 상대 `app.port.in`만)은 `OrderContextArchitectureTest`, 패키지 배치(위 in · out · 설정 자리)는 `OrderPackageLayoutArchitectureTest`, 기능 사이 의존 · 포트 규칙은 앱의 `OrderArchitectureTest`가 검사한다
+- 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙(다른 컨텍스트 참조는 내 out → 상대 `app.port.in`만)은 `OrderContextArchitectureTest`, 패키지 배치(위 in · out · 설정 자리)는 `OrderPackageLayoutArchitectureTest`, 기능 사이 의존 · 포트 규칙은 이 모듈의 `OrderArchitectureTest`가 검사한다(kidly-app에서 주문을 빼며 옮겼다, #826)
 
 ## 2. 이벤트 수신
 - 복사본 반영(#738)은 종류 · 대상 ID별 트랜잭션 advisory lock(`ReplicaUpdateLock`, `out.lock.ReplicaAdvisoryLock`)을 조회 전에 잡고 커밋 · 롤백까지 유지한다. 행이 없는 최초 생성도 직렬화하고, 상품은 상품 ID 하나로 전체 옵션 · 누락 옵션 처리를 묶는다. 자녀 변경 · 삭제는 같은 잠금을 쓴다. 이 잠금은 스케줄러의 한 서버 실행 잠금과 별개다.
