@@ -9,7 +9,7 @@
 # 상품(product-service)은 profile product 라 COMPOSE_PROFILES 에 product 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다). app 에는 상품 API 가 없어 상품 API 를 쓰는 환경은 모두 켜야 한다
 # 주문(order-service)은 profile order 라 COMPOSE_PROFILES 에 order 가 있는 환경에서만 뜬다. dev 에만 켰다. app 도 아직 주문 도메인을 가지고 있어 켜지 않은 환경은 app 이 주문 API 를 받는다
 # 커뮤니티(community-service)는 profile community 라 COMPOSE_PROFILES 에 community 가 있는 환경에서만 뜬다. dev 에만 켰다. app 도 아직 커뮤니티 도메인을 가지고 있어 켜지 않은 환경은 app 이 리뷰 · 찜 API 를 받는다
-# 알림(notification-service)은 profile notification 이라 COMPOSE_PROFILES 에 notification 이 있는 환경에서만 뜬다. 지금은 어느 환경에도 켜지 않았다(켜면 app 주석의 상한 합계에 더해진다). app 도 아직 알림 도메인을 가지고 있어 켜지 않은 환경은 app 이 환영 메일을 보낸다
+# 알림(notification-service)은 profile notification 이라 COMPOSE_PROFILES 에 notification 이 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다). app 에는 알림 도메인이 없어 환영 메일을 보내는 환경은 모두 켜야 한다
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -373,7 +373,6 @@ services:
     logging: *logging
 
   # 알림 서비스(apps/notification-service). 회원 가입 이벤트 수신(구독 그룹 kidly.notification) → 환영 메일 저장 · Gmail SMTP 발송 · 실패 재발송(1분마다). HTTP API 는 없다
-  # app 도 아직 알림 도메인을 가지고 같은 DB · 같은 구독 그룹으로 함께 돈다. 한 메시지는 그룹 안에서 한쪽만 받고, 재발송은 알림 행의 버전(낙관적 잠금)으로 한쪽만 맡는다
   # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 메일 값만 넘긴다. MAIL_PASSWORD 는 파일에 없고 배포 워크플로가 Secret 에서 서버 .env 에 붙인 값을 받는다(없으면 보내지 않고 로그만 남긴다)
   notification-service:
     image: ${NOTIFICATION_IMAGE}
