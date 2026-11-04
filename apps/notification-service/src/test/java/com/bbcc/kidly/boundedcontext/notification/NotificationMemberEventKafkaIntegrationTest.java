@@ -46,7 +46,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * member.registered가 커밋되면 kidly.member.events를 거쳐 환영 메일을 저장하고 별도 스레드에서 보낸다(#567).
- * 이 앱에는 회원 도메인이 없으므로(회원 서비스) 회원이 보내는 형식(키 correlationId, 헤더 eventType · eventId,
+ * 이 서비스에는 회원 도메인이 없으므로(회원 서비스) 회원이 보내는 형식(키 correlationId, 헤더 eventType · eventId,
  * 본문 공통 칸 7개 + data)으로 토픽에 직접 넣는다. 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
  * 회원 ID · 이메일을 테스트마다 새로 만들고, 결과는 이 테스트의 받는 사람 · 키로 걸러 본다.
  */
