@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.bbcc.kidly.boundedcontext.auth.app.ChildAccountService;
 import com.bbcc.kidly.boundedcontext.auth.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountCreateRequest;
+import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildProfileReplica;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildProfileReplicaRepository;
@@ -22,7 +23,8 @@ class ChildAccountServiceTest {
     private final ChildProfileReplicaRepository replicas = mock(ChildProfileReplicaRepository.class);
     private final ChildAccountRepository accounts = mock(ChildAccountRepository.class);
     private final ChildAccountService service = new ChildAccountService(replicas, accounts,
-        mock(PasswordEncoder.class), mock(RefreshTokenRepository.class), mock(AccessTokenRevocationService.class));
+        mock(PasswordEncoder.class), mock(RefreshTokenRepository.class), mock(AccessTokenRevocationService.class),
+        mock(AuthEventOutbox.class));
     private final ChildAccountCreateRequest request = new ChildAccountCreateRequest(1L, "child1", "password");
 
     @Test
