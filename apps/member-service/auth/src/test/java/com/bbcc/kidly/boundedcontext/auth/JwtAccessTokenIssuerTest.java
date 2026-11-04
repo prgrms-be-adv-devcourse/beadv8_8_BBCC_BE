@@ -34,6 +34,14 @@ class JwtAccessTokenIssuerTest {
         pem("PUBLIC KEY", KEY_PAIR.getPublic()), pem("PRIVATE KEY", KEY_PAIR.getPrivate()), VALIDITY));
 
     @Test
+    void childClaims() {
+        var jwt = decoderOf(KEY_PAIR).decode(ISSUER.issue(new TokenSubject.Child(7L, 42L)));
+        assertThat(jwt.getSubject()).isEqualTo("child:7");
+        assertThat(((Number) jwt.getClaim("guardianId")).longValue()).isEqualTo(42L);
+        assertThat(jwt.getClaims()).containsOnlyKeys("sub", "guardianId", "iat", "exp");
+    }
+
+    @Test
     @DisplayName("회원 ID를 sub에, 닉네임을 nickname에, 역할을 roles에 담는다")
     void claims() {
         String token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER, Role.SELLER)));

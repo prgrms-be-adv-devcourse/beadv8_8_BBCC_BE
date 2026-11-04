@@ -20,7 +20,12 @@ public enum AuthErrorCode implements ErrorCode {
     INVALID_ADMIN_PASSWORD(HttpStatus.BAD_REQUEST, "관리자 비밀번호가 올바르지 않습니다", "비밀번호를 다시 확인해 주세요."),
     ADMIN_NOT_DISABLABLE(HttpStatus.CONFLICT, "자기 자신은 비활성화할 수 없습니다", "다른 관리자에게 요청해 주세요."),
     ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "관리자를 찾을 수 없습니다", "관리자 ID를 다시 확인해 주세요."),
-    EMAIL_REQUIRED(HttpStatus.BAD_REQUEST, "이메일 제공이 필요합니다", "카카오 계정에 이메일을 등록 · 인증한 뒤 다시 로그인해 주세요.");
+    EMAIL_REQUIRED(HttpStatus.BAD_REQUEST, "이메일 제공이 필요합니다", "카카오 계정에 이메일을 등록 · 인증한 뒤 다시 로그인해 주세요."),
+    CHILD_PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "자녀 프로필을 찾을 수 없습니다", "자녀 프로필을 다시 확인해 주세요."),
+    CHILD_ACCOUNT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 자녀 계정이 있습니다", "자녀 프로필을 다시 확인해 주세요."),
+    CHILD_LOGIN_ID_TAKEN(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다", "다른 아이디를 입력해 주세요."),
+    INVALID_CHILD_PASSWORD(HttpStatus.BAD_REQUEST, "자녀 비밀번호가 올바르지 않습니다", "비밀번호를 다시 확인해 주세요."),
+    INVALID_CHILD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다", "다시 확인해 주세요.");
 
     private final HttpStatus status;
     private final String title;

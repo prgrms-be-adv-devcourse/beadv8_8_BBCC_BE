@@ -39,6 +39,11 @@ class AuthKafkaListenerConfig {
         return TopicBuilder.name(DLT).partitions(1).replicas(1).build();
     }
 
+    @Bean
+    NewTopic authChildProfileEventsDeadLetterTopic() {
+        return TopicBuilder.name("kidly.childprofile.events.auth.dlt").partitions(1).replicas(1).build();
+    }
+
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
     @Bean
     ConcurrentKafkaListenerContainerFactory<Object, Object> authKafkaListenerContainerFactory(
@@ -53,7 +58,7 @@ class AuthKafkaListenerConfig {
 
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
-            (record, e) -> new TopicPartition(DLT, 0));
+            (record, e) -> new TopicPartition(record.topic() + ".auth.dlt", 0));
         var errorHandler = new DefaultErrorHandler((record, e) -> {
             logDeadLetter(record, e);
             deadLetter.accept(record, e);
@@ -74,7 +79,7 @@ class AuthKafkaListenerConfig {
     // 본문과 예외 메시지(읽지 못한 값이 들어 있다)는 남기지 않는다
     private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
         var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
-        log.error("처리하지 못한 회원 이벤트를 DLT로 보냅니다. eventType={} eventId={} key={} exception={}",
+        log.error("처리하지 못한 이벤트를 DLT로 보냅니다. eventType={} eventId={} key={} exception={}",
             header(record, "eventType"), header(record, "eventId"), record.key(), exception);
     }
 

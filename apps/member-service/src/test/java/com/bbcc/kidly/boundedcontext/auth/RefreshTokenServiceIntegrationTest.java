@@ -7,6 +7,8 @@ import static org.assertj.core.api.Assertions.within;
 import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ReissuedToken;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
+import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccount;
+import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshToken;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.boundedcontext.auth.out.JpaRefreshTokenRepository;
@@ -61,6 +63,23 @@ class RefreshTokenServiceIntegrationTest {
 
     @Autowired
     private ApplicationEvents events;
+
+    @Autowired
+    private ChildAccountRepository childAccounts;
+
+    @Test
+    void childReissueRequiresExistingAccount() {
+        var account = childAccounts.saveAccount(ChildAccount.create("child1", "hash", 42L, 99L));
+        var principal = PrincipalId.child(account.getId());
+        var token = refreshTokenService.issue(principal);
+        assertInvalid(() -> refreshTokenService.reissue(PrincipalType.ADMIN, token));
+        var memberToken = refreshTokenService.issue(saveMember());
+        assertInvalid(() -> refreshTokenService.reissue(PrincipalType.CHILD, memberToken));
+        var rotated = refreshTokenService.reissue(PrincipalType.CHILD, token);
+        assertThat(rotated.subject().principal()).isEqualTo(principal);
+        childAccounts.delete(account);
+        assertInvalid(() -> refreshTokenService.reissue(PrincipalType.CHILD, rotated.refreshToken()));
+    }
 
     @Test
     @DisplayName("발급하면 원문은 돌려주고 DB에는 14일짜리 해시만 저장한다")

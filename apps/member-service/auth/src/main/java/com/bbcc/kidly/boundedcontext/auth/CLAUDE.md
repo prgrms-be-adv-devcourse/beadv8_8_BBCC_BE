@@ -3,9 +3,9 @@
 원래 회원 도메인 안에 있던 인증을 떼어 낸 도메인. 관리자 로그인이 여기 있고 자녀는 같은 틀로 붙는다.
 소유: 소셜 계정 연결, 관리자 계정, Refresh Token, Access Token 발급 · 무효화.
 
-로그인 주체는 `shared.auth.PrincipalId`(종류 + ID) 하나다. Access Token `sub`는 회원 `"42"`, 관리자 `"admin:7"`(`PrincipalId.toSubject`).
+로그인 주체는 `shared.auth.PrincipalId`(종류 + ID) 하나다. Access Token `sub`는 회원 `"42"`, 관리자 `"admin:7"`, 자녀 `"child:7"`(`PrincipalId.toSubject`).
 종류별 갈래는 `PrincipalType` · `TokenSubject`에 대한 완전한 switch다: `JwtAccessTokenIssuer` 클레임, `RefreshTokenService.currentSubject`,
-`in.RefreshTokenCookies`. 자녀를 더하면 이 셋이 컴파일 오류로 드러난다.
+`in.RefreshTokenCookies`.
 
 ## 가입 흐름 (`SocialLoginService`)
 - 소셜 로그인이 처음이면 세 트랜잭션으로 가입시킨다: 선점(소셜 계정 행 하나를 먼저 만든다) → `MemberAccounts.register`로 회원 가입(가입 키 `social-account:{소셜계정 id}`) → 연결(`SocialAccount.link`)
@@ -29,10 +29,15 @@
 - 쿠키는 주체마다 다르다: 회원 `refresh_token`(Path `/api/v1/auth`, 바이트 그대로), 관리자 `admin_refresh_token`(Path `/api/v1/auth/admin`). 같은 브라우저에 둘 다 로그인해도 서로 덮이지 않는다
 - 첫 관리자 부트스트랩(`in/AdminBootstrapRunner` → `AdminBootstrapService`): 기동 때 `kidly.auth.admin.bootstrap.email` · `.password`(`KIDLY_ADMIN_BOOTSTRAP_EMAIL` · `KIDLY_ADMIN_BOOTSTRAP_PASSWORD`, local 기본값 `admin@kidly.local` / `local-admin-password`)로 관리자가 한 명도 없을 때만 만든다. `INSERT … WHERE NOT EXISTS … ON CONFLICT DO NOTHING`과 `created_by IS NULL` 부분 유니크 인덱스라 두 번 돌아도, 두 인스턴스가 다른 이메일로 동시에 떠도 한 행이다. 관리자가 생긴 뒤에는 설정을 무시한다(설정이 영구 비밀번호 재설정 통로가 되지 않게). 이메일이 비면 아무것도 하지 않고, 이메일만 있고 비밀번호가 비면 기동에 실패한다. 비밀번호는 12자 이상 · UTF-8 72바이트 이하(`AdminPassword`). 이메일 · 비밀번호는 로그에 쓰지 않는다. test 프로필은 값이 비어 있어 돌지 않는다
 
+## 자녀 계정 · 로그인 (#781)
+- `child.changed`를 받아 프로필 ID와 보호자 ID만 복사한다. 삭제 시 복사본과 계정 · Refresh Token을 지우고 Access Token을 무효화한다
+- 부모는 복사본을 잠그고 소유권을 확인해 `POST /api/v1/auth/child-accounts`로 계정을 만든다. 아이디는 소문자 영문 · 숫자 4~20자, 비밀번호는 8자 이상 · UTF-8 72바이트 이하다
+- `/api/v1/auth/child/{login,reissue,logout}`은 자녀 계정으로 로그인한다. 토큰은 `child:{계정 ID}`와 `guardianId`를 담고 쿠키는 `child_refresh_token`(Path `/api/v1/auth/child`)이다
+
 ## Access Token 무효화 (`AccessTokenRevocationService`, `shared.auth.out.MemberTokenRevoker`)
 - 호출자 트랜잭션 안에서만 부른다(`@Transactional(propagation = MANDATORY)`). 호출자가 커밋해야 효력이 생기고 롤백되면 아무 일도 없다
 - 회원은 `MemberTokenRevoker.revoke(memberId, revokedAt)`로 부른다(탈퇴 · 관리자 정지 · 판매자 정지). 인증 안(Refresh Token 재사용 감지)은 `revoke(PrincipalId, revokedAt)`를 바로 부른다
-- `PrincipalType`은 `MEMBER` · `ADMIN`이다. 자녀 로그인이 생기면 값을 더한다(받는 쪽인 Gateway가 먼저)
+- `PrincipalType`은 `MEMBER` · `ADMIN` · `CHILD`다
 - `AuthTokensRevokedEvent`(`auth.tokens-revoked`)를 커밋 뒤 바로 Kafka로 보낸다(`AuthEventRelay` → `kidly.auth.events`). 아웃박스가 아니다: 잃으면 Gateway가 그 주체의 Access Token을 만료(최대 30분)까지 통과시키지만 그 뒤로는 피해가 없다
 - Relay는 `HIGHEST_PRECEDENCE`로 다른 커밋 뒤 리스너보다 먼저 전송 대기열(`auth-kafka-sender` 스레드 하나)에 넣는다. 설정은 `out/kafka/AuthKafkaConfig`(토픽 파티션 3 · 복제 1, 전용 템플릿 `max.block.ms` 3초)
 - Gateway가 받아 (주체 종류, 주체 ID)별 무효화 목록을 채운다. 자세한 수신 쪽 규칙은 `apps/gateway/CLAUDE.md`

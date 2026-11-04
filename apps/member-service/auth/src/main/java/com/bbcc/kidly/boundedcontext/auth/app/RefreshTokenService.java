@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.auth.app.port.TokenSubject;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccount;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
+import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshToken;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
@@ -30,6 +31,7 @@ public class RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final MemberAccounts memberAccounts;
     private final AdminAccountRepository adminAccountRepository;
+    private final ChildAccountRepository childAccountRepository;
     private final RefreshTokenProperties properties;
     private final AccessTokenRevocationService accessTokenRevocationService;
 
@@ -85,8 +87,8 @@ public class RefreshTokenService {
             case ADMIN -> adminAccountRepository.findByIdForUpdate(principal.id())
                 .filter(AdminAccount::isActive)
                 .map(admin -> new TokenSubject.Admin(admin.getId()));
-            // 자녀 계정이 생기면 현재 계정 상태를 조회한다.
-            case CHILD -> Optional.empty();
+            case CHILD -> childAccountRepository.findByIdForUpdate(principal.id())
+                .map(child -> new TokenSubject.Child(child.getId(), child.getGuardianId()));
         };
     }
 
