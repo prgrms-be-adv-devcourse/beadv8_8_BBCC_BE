@@ -61,11 +61,11 @@ public class SettlementPayoutRetryScheduler {
         if (requested > 0) {
             log.info("지급 결과를 받지 못한 정산서 {}건에 지급을 다시 요청했습니다", requested);
         }
-        warnExpiredOncePerDay(now);
+        alertExpiredOncePerDay(now);
         return requested;
     }
 
-    private void warnExpiredOncePerDay(LocalDateTime now) {
+    private void alertExpiredOncePerDay(LocalDateTime now) {
         var today = now.toLocalDate();
         if (today.equals(lastExpiredWarnedOn)) {
             return;
@@ -73,7 +73,8 @@ public class SettlementPayoutRetryScheduler {
         long expired = settlementRepository.countByStatusAndCompletedAtBefore(
             SettlementStatus.COMPLETED, now.minus(RETRY_WINDOW));
         if (expired > 0) {
-            log.warn("7일 넘게 지급 결과를 받지 못한 정산서 {}건. 관리자 재요청이 필요합니다", expired);
+            // ERROR는 Grafana 알림(ERROR 로그)으로 이어진다. 자동 재요청으로 풀리지 않은 지급이라 사람이 봐야 한다
+            log.error("7일 넘게 지급 결과를 받지 못한 정산서 {}건. 관리자 재요청이 필요합니다", expired);
             lastExpiredWarnedOn = today;
         }
     }
