@@ -361,7 +361,7 @@
           "tableColumn": "",
           "targets": [
             {
-              "expr": "sum(jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"nonheap\"})*100/sum(jvm_memory_max_bytes{job=\"$service\", env=\"$env\",instance=\"$instance\", area=\"nonheap\"})",
+              "expr": "sum(jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"nonheap\"} and on(job,env,instance,id,area) (jvm_memory_max_bytes{job=\"$service\", env=\"$env\",instance=\"$instance\", area=\"nonheap\"} > 0))*100/sum(jvm_memory_max_bytes{job=\"$service\", env=\"$env\",instance=\"$instance\", area=\"nonheap\"} > 0)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "",
@@ -370,7 +370,7 @@
             }
           ],
           "thresholds": "70,90",
-          "title": "힙 외 사용률",
+          "title": "힙 외 사용률 · 상한 있는 풀",
           "type": "singlestat",
           "valueFontSize": "80%",
           "valueMaps": [
@@ -385,7 +385,8 @@
               "value": ""
             }
           ],
-          "valueName": "current"
+          "valueName": "current",
+          "description": "최대 크기가 양수인 힙 외 메모리 풀만 분자·분모에 함께 포함합니다. 상한이 없는 Metaspace 등은 제외하므로 전체 힙 외 메모리 사용률이 아닙니다. 실제 사용량은 메모리 상세에서 확인하세요."
         }
       ],
       "repeat": null,
