@@ -5,7 +5,7 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
     <springProperty scope="context" name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
-    <property name="LOG_FILE_NAME" value="kidly-childprofile"/>
+    <property name="LOG_FILE_NAME" value="kidly-member"/>
 
     <!-- 요청 추적용 traceId(MDC)를 포함한 로그 패턴 (콘솔: 색상 포함 / 파일: 색상 미포함) -->
     <property name="CONSOLE_LOG_PATTERN"

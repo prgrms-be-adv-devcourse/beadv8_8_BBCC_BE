@@ -78,7 +78,7 @@ payment:
   key-encryption:
     key: ${PAYMENT_KEY_ENCRYPTION_KEY:KIeLA4Q8UtNSoUDGDN4LsHMvk1JvINovlqKzRlonMaI=}
 
-# kidly-app(8080) · search-service(8082) · gateway(8083) · childprofile-service(8084) · recommend-service(8086)와 같이 띄울 수 있게 포트를 나눈다
+# kidly-app(8080) · search-service(8082) · gateway(8083) · recommend-service(8086)와 같이 띄울 수 있게 포트를 나눈다
 server:
   port: 8087
 

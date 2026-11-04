@@ -26,8 +26,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 자녀 프로필은 자녀 프로필 서비스로(#682), 추천은 추천 서비스로(#704), 정산은 정산 서비스로(#729),
- * 회원 · 인증 · 판매자는 회원 서비스로, 결제는 결제 서비스로(#525), 상품은 상품 서비스로(#791), 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
+ * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 추천은 추천 서비스로(#704), 정산은 정산 서비스로(#729),
+ * 회원 · 인증 · 판매자 · 자녀 프로필은 회원 서비스로(#809), 결제는 결제 서비스로(#525), 상품은 상품 서비스로(#791),
+ * 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  */
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
@@ -46,10 +47,6 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     private RecordingBackend searchBackend;
 
     @Autowired
-    @Qualifier(RecordingBackendConfiguration.CHILDPROFILE)
-    private RecordingBackend childProfileBackend;
-
-    @Autowired
     @Qualifier(RecordingBackendConfiguration.RECOMMEND)
     private RecordingBackend recommendBackend;
 
@@ -65,7 +62,6 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     void resetServiceBackends() {
         memberBackend.reset();
         searchBackend.reset();
-        childProfileBackend.reset();
         recommendBackend.reset();
         settlementBackend.reset();
         paymentBackend.reset();
@@ -107,30 +103,19 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("자녀 프로필 목록 · 하위 경로는 같은 메서드 · 경로로 자녀 프로필 서비스에 넘긴다")
-    void routesChildrenToChildProfileService() {
+    @DisplayName("자녀 프로필 목록 · 하위 경로는 같은 메서드 · 경로로 회원 서비스에 넘긴다")
+    void routesChildrenToMemberService() {
         client.get().uri("/api/v1/children").exchange()
             .expectStatus().isOk();
-        assertThat(childProfileBackend.lastRequest()).hasValueSatisfying(request ->
+        assertThat(memberBackend.lastRequest()).hasValueSatisfying(request ->
             assertThat(request.uri()).isEqualTo(URI.create("/api/v1/children")));
 
         client.patch().uri("/api/v1/children/7/growth-records?x=1").exchange()
             .expectStatus().isOk();
-        assertThat(childProfileBackend.lastRequest()).hasValueSatisfying(request -> {
+        assertThat(memberBackend.lastRequest()).hasValueSatisfying(request -> {
             assertThat(request.method()).isEqualTo("PATCH");
             assertThat(request.uri()).isEqualTo(URI.create("/api/v1/children/7/growth-records?x=1"));
         });
-        assertThat(backend.lastRequest()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("자녀 프로필 API 문서는 자녀 프로필 서비스의 /v3/api-docs로 넘긴다")
-    void routesChildProfileApiDocsToChildProfileService() {
-        client.get().uri("/v3/api-docs/childprofile").exchange()
-            .expectStatus().isOk();
-
-        assertThat(childProfileBackend.lastRequest()).hasValueSatisfying(request ->
-            assertThat(request.uri()).isEqualTo(URI.create("/v3/api-docs")));
         assertThat(backend.lastRequest()).isEmpty();
     }
 
@@ -141,7 +126,7 @@ class RoutingIntegrationTest extends GatewayTestSupport {
             .expectStatus().isOk();
 
         assertThat(backend.lastRequest()).isPresent();
-        assertThat(childProfileBackend.lastRequest()).isEmpty();
+        assertThat(memberBackend.lastRequest()).isEmpty();
     }
 
     @Test

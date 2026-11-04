@@ -6,6 +6,7 @@ spring:
     import:
       - classpath:auth.yml
       - classpath:member.yml
+      - classpath:childprofile.yml
   profiles:
     default: local
   # 자기 스키마만 다룬다. 이력은 kidly-app(public.flyway_schema_history)과 따로 쓴다
@@ -36,7 +37,7 @@ spring:
           handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
         session_factory:
           statement_inspector: com.bbcc.kidly.member.config.ReadOnlyWriteGuard
-  # Kafka. 회원 · 인증 · 판매자 이벤트를 보내고, 회원 · 판매자 · 자녀 프로필 이벤트를 받는다(구독 그룹 kidly.member · kidly.auth · kidly.seller). 값은 kidly-app과 같다
+  # Kafka. 회원 · 인증 · 판매자 이벤트를 보내고, 회원 · 판매자 · 자녀 프로필 이벤트를 받는다(구독 그룹 kidly.member · kidly.auth · kidly.seller · kidly.childprofile). 값은 kidly-app과 같다
   # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
   kafka:
     bootstrap-servers: localhost:9092

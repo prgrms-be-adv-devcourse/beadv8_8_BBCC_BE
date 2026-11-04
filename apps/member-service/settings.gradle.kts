@@ -13,7 +13,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "member-service"
 
-include("support", "auth", "member", "seller")
+include("support", "auth", "member", "seller", "childprofile")
 
 // 서비스 사이 계약(com.bbcc:shared)은 저장소의 소스를 그대로 쓴다
 includeBuild("../../shared")

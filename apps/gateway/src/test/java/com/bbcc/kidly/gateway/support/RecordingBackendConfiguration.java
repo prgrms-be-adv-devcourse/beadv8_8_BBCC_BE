@@ -8,11 +8,11 @@ import org.springframework.test.context.DynamicPropertyRegistrar;
 
 /**
  * 모든 통합 테스트가 쓰는 가짜 백엔드. kidly-app 라우트(kidly.gateway.app-uri), 검색 라우트(kidly.gateway.search-uri),
- * 자녀 프로필 라우트(kidly.gateway.childprofile-uri), 추천 라우트(kidly.gateway.recommend-uri),
+ * 추천 라우트(kidly.gateway.recommend-uri),
  * 정산 라우트(kidly.gateway.settlement-uri), 회원 라우트(kidly.gateway.member-uri), 결제 라우트(kidly.gateway.payment-uri),
  * 상품 라우트(kidly.gateway.product-uri)가
  * 각각 다른 백엔드로 가게 한다.
- * 그냥 주입하면 kidly-app 백엔드이고, 검색 백엔드는 {@code @Qualifier(SEARCH)}, 자녀 프로필 백엔드는 {@code @Qualifier(CHILDPROFILE)},
+ * 그냥 주입하면 kidly-app 백엔드이고, 검색 백엔드는 {@code @Qualifier(SEARCH)},
  * 추천 백엔드는 {@code @Qualifier(RECOMMEND)}, 정산 백엔드는 {@code @Qualifier(SETTLEMENT)},
  * 회원 백엔드는 {@code @Qualifier(MEMBER)}, 결제 백엔드는 {@code @Qualifier(PAYMENT)},
  * 상품 백엔드는 {@code @Qualifier(PRODUCT)}로 받는다.
@@ -22,7 +22,6 @@ public class RecordingBackendConfiguration {
 
     public static final String MEMBER = "memberBackend";
     public static final String SEARCH = "searchBackend";
-    public static final String CHILDPROFILE = "childProfileBackend";
     public static final String RECOMMEND = "recommendBackend";
     public static final String SETTLEMENT = "settlementBackend";
     public static final String PAYMENT = "paymentBackend";
@@ -42,11 +41,6 @@ public class RecordingBackendConfiguration {
 
     @Bean(SEARCH)
     RecordingBackend searchBackend() {
-        return RecordingBackend.start();
-    }
-
-    @Bean(CHILDPROFILE)
-    RecordingBackend childProfileBackend() {
         return RecordingBackend.start();
     }
 
@@ -74,7 +68,6 @@ public class RecordingBackendConfiguration {
     DynamicPropertyRegistrar recordingBackendUris(RecordingBackend appBackend,
         @Qualifier(MEMBER) RecordingBackend memberBackend,
         @Qualifier(SEARCH) RecordingBackend searchBackend,
-        @Qualifier(CHILDPROFILE) RecordingBackend childProfileBackend,
         @Qualifier(RECOMMEND) RecordingBackend recommendBackend,
         @Qualifier(SETTLEMENT) RecordingBackend settlementBackend,
         @Qualifier(PAYMENT) RecordingBackend paymentBackend,
@@ -83,7 +76,6 @@ public class RecordingBackendConfiguration {
             registry.add("kidly.gateway.member-uri", () -> "http://127.0.0.1:" + memberBackend.port());
             registry.add("kidly.gateway.app-uri", () -> "http://127.0.0.1:" + appBackend.port());
             registry.add("kidly.gateway.search-uri", () -> "http://127.0.0.1:" + searchBackend.port());
-            registry.add("kidly.gateway.childprofile-uri", () -> "http://127.0.0.1:" + childProfileBackend.port());
             registry.add("kidly.gateway.recommend-uri", () -> "http://127.0.0.1:" + recommendBackend.port());
             registry.add("kidly.gateway.settlement-uri", () -> "http://127.0.0.1:" + settlementBackend.port());
             registry.add("kidly.gateway.payment-uri", () -> "http://127.0.0.1:" + paymentBackend.port());
