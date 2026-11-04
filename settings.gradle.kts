@@ -38,5 +38,6 @@ include("apps:payment-service")
 include("apps:product-service")
 include("apps:notification-service")
 include("apps:order-service")
+include("apps:community-service")
 include("apps:gateway")
 // 회원 서비스(apps/member-service)는 자체 settings로 따로 빌드한다
