@@ -147,3 +147,13 @@ jobs:
 
       - name: 배포
         run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" /opt/app/monitoring/deploy.sh
+
+      - name: 기존 운영 대상 등록
+        env:
+          APP_SSH_HOST: ${{ vars.SSH_HOST }}
+          MONITORING_SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
+          MONITORING_KNOWN_HOSTS: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+        run: |
+          printf '%s\n' "$MONITORING_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          python3 .github/scripts/environment-operation.py sync dev
+          python3 .github/scripts/environment-operation.py sync prod

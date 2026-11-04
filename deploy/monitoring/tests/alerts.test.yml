@@ -3,6 +3,16 @@ evaluation_interval: 1m
 tests:
   - interval: 1m
     input_series:
+      - series: 'kidly_app_expected{env="dev",app_job="kidly"}'
+        values: '1+0x21'
+      - series: 'kidly_app_expected{env="dev",app_job="kidly-search"}'
+        values: '1+0x21'
+      - series: 'kidly_app_expected{env="dev",app_job="kidly-settlement"}'
+        values: '1+0x21'
+      - series: 'kidly_app_expected{env="dev",app_job="kidly-gateway"}'
+        values: '1+0x21'
+      - series: 'kidly_app_expected{env="prod",app_job="kidly-search"}'
+        values: '1+0x21'
       - series: 'up{job="kidly",env="dev"}'
         values: '0+0x10 1+0x10'
       - series: 'up{job="kidly-search",env="dev"}'

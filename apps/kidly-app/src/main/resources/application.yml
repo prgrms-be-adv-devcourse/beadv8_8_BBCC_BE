@@ -57,17 +57,15 @@ springdoc:
   swagger-ui:
     operations-sorter: method
     tags-sorter: alpha
-    # 회원 · 인증 · 판매자 API는 회원 서비스에, 자녀 API는 자녀 프로필 서비스에(#682), 추천 API는 추천 서비스에(#704),
+    # 회원 · 인증 · 판매자 · 자녀 API는 회원 서비스에, 추천 API는 추천 서비스에(#704),
     # 결제 API는 결제 서비스에(#525), 정산 API는 정산 서비스에만 있다(#729).
-    # Gateway(/v3/api-docs/member · /v3/api-docs/childprofile · /v3/api-docs/recommend · /v3/api-docs/payment · /v3/api-docs/settlement)가
+    # Gateway(/v3/api-docs/member · /v3/api-docs/recommend · /v3/api-docs/payment · /v3/api-docs/settlement)가
     # 그 문서를 넘겨 주므로 Gateway로 연 Swagger에서만 보인다
     urls:
       - name: kidly
         url: /v3/api-docs
       - name: 회원
         url: /v3/api-docs/member
-      - name: 자녀 프로필
-        url: /v3/api-docs/childprofile
       - name: 추천
         url: /v3/api-docs/recommend
       - name: 결제

@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.spring.dependency.management) apply false
 }
 
-val domains = listOf("auth", "member", "seller")
+val domains = listOf("auth", "member", "seller", "childprofile")
 
 // 앱과 모듈이 함께 쓰는 설정: Java 25 · Checkstyle · Lombok · Boot BOM · JUnit
 allprojects {

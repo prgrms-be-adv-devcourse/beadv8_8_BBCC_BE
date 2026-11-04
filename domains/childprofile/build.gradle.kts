@@ -1,3 +1,0 @@
-plugins {
-    id("kidly.domain")
-}

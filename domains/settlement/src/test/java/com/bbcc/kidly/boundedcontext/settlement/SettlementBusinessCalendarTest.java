@@ -41,21 +41,36 @@ class SettlementBusinessCalendarTest {
     }
 
     @Test
-    @DisplayName("같은 해는 한 번만 조회하고, 비우면 다시 조회한다")
-    void cachesPerYear() {
-        given(holidayCalendar.holidaysIn(Y2026)).willReturn(Set.of());
+    @DisplayName("같은 해는 한 번만 조회하고, 다시 받으면 새 값으로 바꾼다")
+    void cachesPerYearAndRefreshes() {
+        given(holidayCalendar.holidaysIn(Y2026)).willReturn(Set.of(), Set.of(LocalDate.of(2026, 3, 3)));
 
-        calendar.isBusinessDay(LocalDate.of(2026, 3, 3));
+        assertThat(calendar.isBusinessDay(LocalDate.of(2026, 3, 3))).isTrue();
         calendar.isBusinessDay(LocalDate.of(2026, 10, 5));
         verify(holidayCalendar, times(1)).holidaysIn(Y2026);
 
-        calendar.clearCache();
-        calendar.isBusinessDay(LocalDate.of(2026, 3, 3));
+        assertThat(calendar.refresh()).isZero();
+        assertThat(calendar.isBusinessDay(LocalDate.of(2026, 3, 3))).isFalse();
         verify(holidayCalendar, times(2)).holidaysIn(Y2026);
     }
 
     @Test
-    @DisplayName("공휴일을 조회하지 못하면 예외를 올리고, 5분 동안은 API를 다시 부르지 않는다. 비우면 다시 조회한다")
+    @DisplayName("다시 받지 못하면 전에 받은 공휴일을 그대로 쓴다. 공휴일 API가 죽어 있어도 정산이 멈추지 않는다")
+    void keepsPreviousHolidaysWhenRefreshFails() {
+        given(holidayCalendar.holidaysIn(Y2026))
+            .willReturn(Set.of(LocalDate.of(2026, 3, 2)))
+            .willThrow(new SettlementHolidayLookupException("공휴일 조회에 실패했습니다"));
+        calendar.isBusinessDay(LocalDate.of(2026, 3, 3));
+
+        assertThat(calendar.refresh()).isEqualTo(1);
+
+        assertThat(calendar.isBusinessDay(LocalDate.of(2026, 3, 2))).isFalse();
+        assertThat(calendar.isBusinessDay(LocalDate.of(2026, 3, 3))).isTrue();
+        verify(holidayCalendar, times(2)).holidaysIn(Y2026);
+    }
+
+    @Test
+    @DisplayName("공휴일을 조회하지 못하면 예외를 올리고, 5분 동안은 API를 다시 부르지 않는다. 다시 받기를 돌리면 바로 조회한다")
     void propagatesLookupFailureAndBacksOff() {
         given(holidayCalendar.holidaysIn(Y2026))
             .willThrow(new SettlementHolidayLookupException("공휴일 API 인증키가 없습니다"))
@@ -67,7 +82,7 @@ class SettlementBusinessCalendarTest {
             .isInstanceOf(SettlementHolidayLookupException.class);
         verify(holidayCalendar, times(1)).holidaysIn(Y2026);
 
-        calendar.clearCache();
+        calendar.refresh();
         assertThat(calendar.isBusinessDay(LocalDate.of(2026, 3, 3))).isTrue();
         verify(holidayCalendar, times(2)).holidaysIn(Y2026);
     }

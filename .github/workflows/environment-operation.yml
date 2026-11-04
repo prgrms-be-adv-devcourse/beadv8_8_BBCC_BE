@@ -1,0 +1,72 @@
+name: environment-operation
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 운영 상태를 변경할 환경
+        type: choice
+        options: [dev, prod]
+        required: true
+      operation:
+        description: stop=운영 중지, resume=운영 재개 (기존 이미지 사용)
+        type: choice
+        options: [stop, resume]
+        required: true
+
+permissions:
+  contents: read
+
+# Serialize with application deployment. Never cancel an operation midway.
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  location:
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      host: ${{ steps.location.outputs.host }}
+      known_hosts: ${{ steps.location.outputs.known_hosts }}
+    steps:
+      - name: prod 실행 브랜치 확인
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+        run: |
+          if [[ "$TARGET_ENV" == prod && "$GITHUB_REF_NAME" != main ]]; then
+            echo "::error::prod 운영 변경은 main 브랜치에서 실행하세요"
+            exit 1
+          fi
+      - id: location
+        env:
+          MONITORING_SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
+          MONITORING_KNOWN_HOSTS: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$MONITORING_SSH_HOST" && test -n "$MONITORING_KNOWN_HOSTS"
+          echo "host=$MONITORING_SSH_HOST" >> "$GITHUB_OUTPUT"
+          echo "known_hosts=$(printf '%s' "$MONITORING_KNOWN_HOSTS" | base64 -w0)" >> "$GITHUB_OUTPUT"
+  operate:
+    needs: location
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    # Preserve the repository's prod Environment approval policy.
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ vars.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}
+      - name: 운영 중지 또는 재개
+        env:
+          APP_SSH_HOST: ${{ vars.SSH_HOST }}
+          MONITORING_SSH_HOST: ${{ needs.location.outputs.host }}
+          MONITORING_KNOWN_HOSTS_B64: ${{ needs.location.outputs.known_hosts }}
+          TARGET_ENV: ${{ inputs.environment }}
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          printf '%s' "$MONITORING_KNOWN_HOSTS_B64" | base64 --decode >> ~/.ssh/known_hosts
+          python3 .github/scripts/environment-operation.py "$OPERATION" "$TARGET_ENV"
