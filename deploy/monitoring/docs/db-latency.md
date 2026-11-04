@@ -42,3 +42,10 @@ DB 통계를 정기 수집하려면 기존 Alloy의 PostgreSQL 수집 기능과 
 - DB 전체 연결·락·장기 트랜잭션 지표의 최소 권한 수집 연결
 
 이 항목이 남아 있으므로 화면 추가만으로 #776 전체가 완료된 것은 아닙니다.
+
+## dev 읽기 실측 (2026-11-04)
+
+- Hikari 상한: kidly·추천·정산·회원·결제·상품 각 10개, 관측 합계 60개. 검색·Gateway에는 Hikari 지표가 없었습니다.
+- PostgreSQL max_connections=100, superuser_reserved_connections=3. 읽기 조회 세션을 포함한 client backend=61, 락 대기=0, idle in transaction=0.
+- 이 시점에 97개의 비관리자 연결 예산이 있다는 뜻이며, 앱 외 관리·마이그레이션·향후 서비스 증가의 여유를 남겨야 합니다. 최대 동시 부하의 안전성 검증은 아닙니다.
+- HTTP bucket 시계열은 조회되지 않았습니다. 평균 획득 시간·풀 지표의 실제 화면과 환경·서비스 필터를 확인했습니다. prod DB나 예상 부하는 시험하지 않았습니다.
