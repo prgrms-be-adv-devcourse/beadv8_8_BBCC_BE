@@ -86,7 +86,7 @@ spring:
             - id: settlement
               uri: ${kidly.gateway.settlement-uri}
               predicates:
-                - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**
+                - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**,/api/v1/admin/settlement-dead-letters/**
             # 회원 · 인증 · 판매자 API는 회원 서비스로 간다
             - id: member
               uri: ${kidly.gateway.member-uri}

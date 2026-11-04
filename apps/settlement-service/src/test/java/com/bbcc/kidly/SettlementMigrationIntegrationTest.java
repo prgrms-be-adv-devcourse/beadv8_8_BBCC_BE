@@ -38,7 +38,7 @@ class SettlementMigrationIntegrationTest {
 
             assertThat(tables(jdbc)).containsExactlyInAnyOrder(
                 "settlement.settlement", "settlement.settlement_item", "settlement.settlement_skip",
-                "settlement.settlement_outbox",
+                "settlement.settlement_outbox", "settlement.settlement_dead_letter",
                 "settlement.flyway_schema_history_settlement",
                 "settlement.batch_job_instance", "settlement.batch_job_execution",
                 "settlement.batch_job_execution_params", "settlement.batch_step_execution",
@@ -48,7 +48,8 @@ class SettlementMigrationIntegrationTest {
                 SELECT version FROM settlement.flyway_schema_history_settlement
                 WHERE success AND version IS NOT NULL ORDER BY installed_rank
                 """, String.class)).containsExactly("202610160256", "202610160855", "202610161145", "202610172016",
-                "202610201008", "202610301630", BASELINE_VERSION, "202611031547");
+                "202610201008", "202610301630", BASELINE_VERSION, "202611031547",
+                "202611041014");
         }
     }
 
@@ -67,11 +68,12 @@ class SettlementMigrationIntegrationTest {
             assertThat(jdbc.queryForList("""
                 SELECT version FROM settlement.flyway_schema_history_settlement
                 WHERE success AND version IS NOT NULL ORDER BY installed_rank
-                """, String.class)).containsExactly(BASELINE_VERSION, "202611031547");
+                """, String.class)).containsExactly(BASELINE_VERSION, "202611031547", "202611041014");
         }
     }
 
-    // kidly-app이 만든 정산 테이블은 이 서비스 · 도메인의 파일과 같다. 파일을 모두 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다
+    // kidly-app이 만든 정산 테이블은 이 서비스 · 도메인의 baseline까지의 파일과 같다(그 뒤 파일은 이 서비스만 적용한다).
+    // baseline까지 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다
     private static void createSettlementTablesLikeKidlyApp(DriverManagerDataSource dataSource, JdbcTemplate jdbc) {
         Flyway.configure()
             .dataSource(dataSource)
@@ -79,6 +81,7 @@ class SettlementMigrationIntegrationTest {
             .defaultSchema("settlement")
             .schemas("settlement")
             .table("kidly_app_history")
+            .target(BASELINE_VERSION)
             .load()
             .migrate();
         jdbc.execute("DROP TABLE settlement.kidly_app_history");

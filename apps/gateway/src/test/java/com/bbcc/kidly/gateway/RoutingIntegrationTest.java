@@ -180,7 +180,10 @@ class RoutingIntegrationTest extends GatewayTestSupport {
         "/api/v1/admin/settlements/5/retry",
         "/api/v1/admin/settlements/run",
         "/api/v1/admin/settlement-runs/9",
-        "/api/v1/admin/settlement-runs/9/recover"
+        "/api/v1/admin/settlement-runs/9/recover",
+        "/api/v1/admin/settlement-dead-letters",
+        "/api/v1/admin/settlement-dead-letters/3",
+        "/api/v1/admin/settlement-dead-letters/3/reprocess"
     })
     @DisplayName("정산 API는 같은 메서드 · 경로 · 쿼리로 정산 서비스에 넘긴다")
     void routesSettlementsToSettlementService(String path) {
