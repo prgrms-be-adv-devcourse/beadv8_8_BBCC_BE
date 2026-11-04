@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,11 @@ public class ChildAccountService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokens;
     private final AccessTokenRevocationService revocationService;
+
+    @Transactional(readOnly = true)
+    public List<ChildAccountResponse> list(Long guardianId) {
+        return accounts.findAllByGuardianIdOrderByIdAsc(guardianId).stream().map(ChildAccountResponse::from).toList();
+    }
 
     @Transactional
     public ChildAccountResponse create(Long guardianId, ChildAccountCreateRequest request) {

@@ -7,8 +7,10 @@ import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountPasswordRequest;
 import com.bbcc.kidly.member.support.security.AuthMember;
 import com.bbcc.kidly.member.support.security.LoginMember;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ChildAccountController {
     private final ChildAccountService service;
+
+    @GetMapping
+    public List<ChildAccountResponse> list(@LoginMember AuthMember member) {
+        return service.list(member.id());
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

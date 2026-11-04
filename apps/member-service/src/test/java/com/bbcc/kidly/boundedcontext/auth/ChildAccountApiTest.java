@@ -105,6 +105,31 @@ class ChildAccountApiTest {
         create(11L, 106L, "child6", "password").expectStatus().isCreated();
     }
 
+    @Test
+    void listsOnlyGuardianAccountsInIdOrderAndExcludesDeleted() {
+        replicas.insertIfAbsent(107L, 11L, LocalDateTime.now());
+        replicas.insertIfAbsent(108L, 11L, LocalDateTime.now());
+        var first = create(11L, 107L, "child7", "password").expectStatus().isCreated()
+            .returnResult(ChildAccountResponse.class).getResponseBody();
+        var second = create(11L, 108L, "child8", "password").expectStatus().isCreated()
+            .returnResult(ChildAccountResponse.class).getResponseBody();
+        client.get().uri("/api/v1/auth/child-accounts").headers(TestMembers.buyer(11L)).exchange()
+            .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(2)
+            .jsonPath("$[0].id").isEqualTo(first.id().intValue())
+            .jsonPath("$[0].childProfileId").isEqualTo(107)
+            .jsonPath("$[0].loginId").isEqualTo("child7")
+            .jsonPath("$[0].passwordHash").doesNotExist()
+            .jsonPath("$[1].id").isEqualTo(second.id().intValue())
+            .jsonPath("$[1].passwordHash").doesNotExist();
+        client.get().uri("/api/v1/auth/child-accounts").headers(TestMembers.buyer(12L)).exchange()
+            .expectStatus().isOk().expectBody().json("[]");
+        client.get().uri("/api/v1/auth/child-accounts").exchange().expectStatus().isUnauthorized();
+        delete(11L, first.id()).expectStatus().isNoContent();
+        client.get().uri("/api/v1/auth/child-accounts").headers(TestMembers.buyer(11L)).exchange()
+            .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].id").isEqualTo(second.id().intValue());
+    }
+
     private RestTestClient.ResponseSpec delete(Long guardian, Long id) {
         return client.delete().uri("/api/v1/auth/child-accounts/{id}", id)
             .headers(TestMembers.buyer(guardian)).exchange();
