@@ -50,7 +50,6 @@ public class SettlementRunService {
         return run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
     }
 
-    // 오늘 0시를 기준으로 전날까지 확정된 대기 항목을 정산한다. 영업일인지는 호출한 쪽(스케줄러)이 확인한다
     /**
      * 끝나지 않은 실행이 있으면 그중 가장 먼저 시작한 것의 ID와 시작 시각. 없으면 비어 있다.
      * 서버가 실행 도중 죽으면 기록이 STARTED로 남아 그 뒤 실행이 모두 "실행 중"으로 건너뛰어진다. 스케줄러가 이걸로 오래된 실행을 알린다.
@@ -65,6 +64,7 @@ public class SettlementRunService {
     public record RunningExecution(Long runId, LocalDateTime startedAt) {
     }
 
+    // 오늘 0시를 기준으로 전날까지 확정된 대기 항목을 정산한다. 영업일인지는 호출한 쪽(스케줄러)이 확인한다
     public SettlementRunResult runScheduled(LocalDate today) {
         return run(SettlementPeriod.daily(today).cutoffAt(), SettlementTriggerType.SCHEDULED, null);
     }

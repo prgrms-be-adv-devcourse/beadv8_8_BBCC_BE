@@ -50,11 +50,16 @@ public class SettlementScheduler {
         if (e.getErrorCode() != SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS) {
             return;
         }
-        settlementRunService.findRunningSince()
-            .filter(running -> running.startedAt().isBefore(LocalDateTime.now().minus(STUCK_AFTER)))
-            .ifPresent(running -> log.error(
-                "정산 실행 {}이 {}부터 끝나지 않아 자동 정산이 멈춰 있습니다. 관리자 복구(recover)가 필요합니다",
-                running.runId(), running.startedAt()));
+        try {
+            settlementRunService.findRunningSince()
+                .filter(running -> running.startedAt().isBefore(LocalDateTime.now().minus(STUCK_AFTER)))
+                .ifPresent(running -> log.error(
+                    "정산 실행 {}이 {}부터 끝나지 않아 자동 정산이 멈춰 있습니다. 관리자 복구(recover)가 필요합니다",
+                    running.runId(), running.startedAt()));
+        } catch (RuntimeException lookupFailure) {
+            // 알림 보조 조회가 실패해도 건너뛰기 자체는 끝난 뒤라 본 흐름에 영향이 없다
+            log.warn("멈춘 정산 실행을 확인하지 못했습니다. error={}", lookupFailure.getClass().getSimpleName());
+        }
     }
 
     // 조회 예외 메시지에는 인증키가 없다(SettlementHolidayLookupException)
