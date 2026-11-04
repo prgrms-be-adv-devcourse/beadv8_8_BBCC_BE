@@ -96,6 +96,18 @@ class EnvironmentStateTests(unittest.TestCase):
         self.assertTrue((self.root / 'monitoring/targets/search/dev.yml').exists())
         self.assertIn("'never'", repr(run.call_args_list))
 
+    def test_product_profile_survives_resume_and_stop(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=search,product\nAPP_PORT=8081\nSEARCH_PORT=8082\nPRODUCT_PORT=8099\n')
+        with patch.object(state, 'run', return_value=''):
+            running = state.control('dev', 'resume')
+            target = self.root / 'monitoring/targets/product/dev.yml'
+            self.assertIn('kidly-product', running['jobs'])
+            self.assertIn('127.0.0.1:8099', target.read_text())
+            stopped = state.control('dev', 'stop')
+        self.assertFalse(target.exists())
+        self.assertIn('kidly-product', stopped['jobs'])
+
     def test_invalid_state_does_not_replace_good_inventory(self):
         state.write(self.data, monitoring=True)
         for invalid in [dict(self.data, env='other'), dict(self.data, enabled='false'),
