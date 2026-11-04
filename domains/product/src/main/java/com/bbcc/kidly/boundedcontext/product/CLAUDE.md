@@ -37,7 +37,7 @@
 - 스케줄러 스레드는 다른 도메인과 함께 쓰는 하나뿐이라, 브로커 장애 중에는 다른 스케줄러가 늦어질 수 있다
 - 전송 실패 · 릴레이 · 정리 예외는 `ERROR`다. 한 건이 막히면 뒤 상품 이벤트가 모두 멈추고, Grafana "ERROR 로그" 알림은 ERROR 건수만 센다. 결제 아웃박스는 같은 경우를 `WARN`으로 남긴다(10-30 기준, 결제에 맞출지 물음)
     - 실패 로그는 실패 기록을 저장하기 전에 남긴다. DB도 함께 장애일 때 원인이 사라지지 않게 하기 위해서다
-- `kidly.kafka.producer.enabled=false`나 릴레이 스위치 `kidly.product.outbox.relay.enabled=false`면 스케줄러가 없고 저장만 한다(`ProductOutboxRelaySwitchTest`). 스위치는 두 프로세스가 함께 돌던 때 쓰던 것이고 지금은 어느 환경에서도 끄지 않는다. 테스트 설정은 릴레이 주기를 길게 두고 정리를 끄며, 테스트가 서비스를 직접 부른다
+- `kidly.kafka.producer.enabled=false`면 스케줄러가 없고 저장만 한다(`ProductOutboxRelaySwitchTest`). 두 프로세스가 함께 돌던 때 쓰던 릴레이 스위치(`kidly.product.outbox.relay.enabled`)는 지웠다. 테스트 설정은 릴레이 주기를 길게 두고 정리를 끄며, 테스트가 서비스를 직접 부른다
 - 운영
     - 로그 `{env="dev"} |= "상품 아웃박스"`(보낸 메시지가 있는 실행만 `sent=N`). 지표는 `client_id=~"kidly-product-outbox-.*"`(Spring Kafka가 `-번호`를 붙인다)
     - 브로커 장애 동안 ERROR는 시간당 약 200 ~ 600줄, Slack은 처음 한 번 뒤 4시간마다다. 알림 규칙이 환경마다 하나라 그동안 다른 ERROR는 새 알림을 만들지 못한다
@@ -96,4 +96,4 @@
 - 수신: 구독 그룹 `kidly.product`는 상품 서비스만 쓴다. 수신 스위치 `PRODUCT_KAFKA_CONSUMER_ENABLED`는 상품 서비스에서만 바꾼다
 - 마이그레이션: 서비스는 자기 이력 표 `flyway_schema_history_product`를 쓰고 baseline-version `202610292246`(고정)에서 baseline을 잡는다. baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없으므로 새 상품 마이그레이션은 baseline보다 뒤 버전으로 더한다. kidly-app은 옛 상품 모듈 마이그레이션의 이력 행을 검증 전에 지운다(`beforeValidate__drop_product_domain_history.sql`, `KidlyAppMigrationIntegrationTest`). 상품 표는 그대로 두고 서비스가 쓴다. 빈 DB에서는 kidly-app이 상품 표(init)를 먼저 만들고, 서비스가 그 위에서 baseline을 잡은 뒤 아웃박스 표를 보강한다(`ProductMigrationIntegrationTest`)
 - Gateway · 배포: Gateway는 상품 API(공개 · 판매자 · 관리자)를 `KIDLY_PRODUCT_URI`(기본값 `http://product-service:8080`)로 보낸다. 배포는 compose profile `product`(힙 192m · 상한 512m)이고 dev · prod 모두 켰다(prod는 첫 main 배포 때 뜬다). Swagger '상품' 문서는 Gateway의 `/v3/api-docs/product`가 서비스 문서를 넘긴다
-- 남은 일: 첫 prod 배포 전에 서버 메모리 대비(#793)가 들어가 있어야 한다. 릴레이 스위치(`kidly.product.outbox.relay.enabled`)를 지울지는 따로 정한다
+- 남은 일: 첫 prod 배포 전에 서버 메모리 대비(#793)가 들어가 있어야 한다
