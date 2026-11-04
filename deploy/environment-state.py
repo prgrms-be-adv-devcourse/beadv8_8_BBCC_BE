@@ -153,19 +153,12 @@ def lock(env):
         yield
 
 
-def check_capacity(env):
-    other = 'prod' if env == 'dev' else 'dev'
-    if run(['docker', 'ps', '-q', '--filter', 'label=com.docker.compose.project=' + other], capture=True):
-        raise RuntimeError('Other environment is running; stop it before resuming this environment')
-
-
 def control(env, action):
-    with lock('capacity'), lock(env):
+    with lock('environment-operation'), lock(env):
         targets = configuration(env)
         data = {'env': env, 'enabled': action == 'resume', 'phase': 'starting' if action == 'resume' else 'stopping',
                 'changed_at': time.time(), 'jobs': [job for _, job, _ in targets]}
         if action == 'resume':
-            check_capacity(env)
             # Monitor a failed startup; do not silently leave the environment disabled.
             write(data)
             run(compose(env, 'up', '-d', '--wait', '--wait-timeout', '180', '--pull', 'never'))
@@ -194,8 +187,6 @@ def main():
     if action == 'mode':
         data = load(env)
         print('stopped' if data and not data['enabled'] else 'running')
-    elif action == 'check-capacity':
-        check_capacity(env)
     elif action == 'snapshot':
         print(json.dumps(snapshot(env)))
     elif action == 'plan':

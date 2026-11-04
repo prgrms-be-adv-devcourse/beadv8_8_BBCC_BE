@@ -69,8 +69,6 @@ def operate(action, env):
             remote(MEDIUM, 'inventory', env, data)
         print(env + ': monitoring inventory synchronized' if data else env + ': no deployed inventory')
         return
-    if action == 'resume':
-        remote(APP, 'check-capacity', env)
     old = remote(APP, 'snapshot', env)
     plan = remote(APP, 'plan', env)
     transition = dict(plan, enabled=action == 'resume', phase='starting' if action == 'resume' else 'stopping',

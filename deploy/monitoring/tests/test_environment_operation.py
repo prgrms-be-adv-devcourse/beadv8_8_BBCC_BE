@@ -59,12 +59,18 @@ class OperationTests(unittest.TestCase):
             operation.operate('sync', 'prod')
         self.assertEqual([call.args[1] for call in remote.call_args_list], ['snapshot'])
 
-    def test_resume_capacity_refusal_does_not_change_monitoring(self):
-        with patch.object(operation, 'install'), \
-                patch.object(operation, 'remote', side_effect=RuntimeError('other environment running')) as remote:
-            with self.assertRaises(RuntimeError):
-                operation.operate('resume', 'dev')
-        self.assertEqual(remote.call_args.args[1], 'check-capacity')
+    def test_resume_controls_only_selected_environment(self):
+        calls = []
+        def remote(host, action, env, data=None):
+            calls.append((action, env))
+            if action == 'snapshot':
+                return dict(self.running, enabled=False, phase='stopped')
+            if action in ('plan', 'resume'):
+                return self.running
+        with patch.object(operation, 'install'), patch.object(operation, 'remote', side_effect=remote):
+            operation.operate('resume', 'dev')
+        self.assertTrue(all(env == 'dev' for _, env in calls))
+        self.assertNotIn('stop', [action for action, _ in calls])
 
     def test_stop_acknowledgement_precedes_container_stop(self):
         order = []

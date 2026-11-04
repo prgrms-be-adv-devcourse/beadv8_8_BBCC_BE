@@ -54,17 +54,35 @@ class EnvironmentStateTests(unittest.TestCase):
                 state.control('dev', 'stop')
         self.assertTrue(state.load('dev')['enabled'])
 
-    def test_resume_refuses_other_running_environment_before_mutating_state(self):
+    def test_resume_allows_other_environment_and_preserves_its_intent(self):
         stopped = dict(self.data, enabled=False, phase='stopped')
         state.write(stopped)
-        with patch.object(state, 'run', return_value='other-container'):
-            with self.assertRaises(RuntimeError):
-                state.control('dev', 'resume')
-        self.assertEqual(state.load('dev'), stopped)
+        prod = dict(self.data, env='prod')
+        state.write(prod)
+        with patch.object(state, 'run', return_value='') as run:
+            result = state.control('dev', 'resume')
+        self.assertEqual(result['phase'], 'running')
+        self.assertEqual(state.load('prod'), prod)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0][run.call_args.args[0].index('-p') + 1], 'dev')
+
+    def test_stop_dev_preserves_prod_targets_and_intent(self):
+        prod = dict(self.data, env='prod')
+        state.write(prod)
+        directory = self.root / 'prod'
+        directory.mkdir()
+        (directory / '.env').write_text('COMPOSE_PROFILES=search\nAPP_PORT=8080\nSEARCH_PORT=8094\n')
+        state.register_targets('dev')
+        state.register_targets('prod')
+        with patch.object(state, 'run'):
+            state.control('dev', 'stop')
+        self.assertTrue((self.root / 'monitoring/targets/prod.yml').exists())
+        self.assertTrue((self.root / 'monitoring/targets/search/prod.yml').exists())
+        self.assertEqual(state.load('prod'), prod)
 
     def test_failed_resume_remains_expected_and_transitioning(self):
         state.write(dict(self.data, enabled=False, phase='stopped'))
-        with patch.object(state, 'run', side_effect=['', RuntimeError('startup failed')]):
+        with patch.object(state, 'run', side_effect=RuntimeError('startup failed')):
             with self.assertRaises(RuntimeError):
                 state.control('dev', 'resume')
         self.assertTrue(state.load('dev')['enabled'])
