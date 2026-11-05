@@ -132,6 +132,49 @@ class EnvironmentStateTests(unittest.TestCase):
         self.assertFalse(target.exists())
         self.assertIn('kidly-community', stopped['jobs'])
 
+    def test_kafka_exporter_has_separate_intent_and_discovery(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=search,kafka-monitoring\nAPP_PORT=8081\nSEARCH_PORT=8082\n'
+            'KAFKA_EXPORTER_PORT=9308\n')
+        with patch.object(state, 'run', return_value=''):
+            running = state.control('dev', 'resume')
+            self.assertTrue(running['kafka_exporter_expected'])
+            self.assertNotIn('kidly-kafka', running['jobs'])
+            target = self.root / 'monitoring/targets/kafka/dev.yml'
+            self.assertIn('127.0.0.1:9308', target.read_text())
+            self.assertIn('kidly_kafka_exporter_expected{env="dev"} 1', state.metrics(running))
+            stopped = state.control('dev', 'stop')
+        self.assertFalse(target.exists())
+        self.assertIn('kidly_kafka_exporter_expected{env="dev"} 0', state.metrics(stopped))
+
+    def test_kafka_profile_whitespace_and_comments(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES="search, kafka-monitoring" # enabled\n'
+            'KAFKA_EXPORTER_PORT=9308 # loopback port\nAPP_PORT=8081\nSEARCH_PORT=8082\n')
+        self.assertEqual(9308, state.kafka_target('dev'))
+        self.assertEqual({'kidly', 'kidly-search'}, {target[1] for target in state.configuration('dev')})
+
+    def test_invalid_kafka_port_is_rejected_before_inventory_mutation(self):
+        state.write(self.data, monitoring=True)
+        original = (state.STATE / 'dev.json').read_text()
+        for port in ('', '0', '65536', 'invalid'):
+            with self.subTest(port=port):
+                (self.root / 'dev/.env').write_text(
+                    'COMPOSE_PROFILES=kafka-monitoring\nAPP_PORT=8081\n'
+                    'KAFKA_EXPORTER_PORT=' + port + '\n')
+                with self.assertRaisesRegex(ValueError, 'KAFKA_EXPORTER_PORT'):
+                    state.snapshot('dev')
+                self.assertEqual(original, (state.STATE / 'dev.json').read_text())
+
+    def test_disabled_kafka_profile_needs_no_port(self):
+        (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=search\n')
+        self.assertIsNone(state.kafka_target('dev'))
+
+    def test_old_inventory_does_not_expect_uninstalled_exporter(self):
+        self.assertIn('kidly_kafka_exporter_expected{env="dev"} 0', state.metrics(self.data))
+        with self.assertRaises(ValueError):
+            state.validate(dict(self.data, kafka_exporter_expected='true'))
+
     def test_invalid_state_does_not_replace_good_inventory(self):
         state.write(self.data, monitoring=True)
         for invalid in [dict(self.data, env='other'), dict(self.data, enabled='false'),

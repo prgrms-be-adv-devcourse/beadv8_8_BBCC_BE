@@ -32,12 +32,14 @@ configMapGenerator:
     files:
       - grafana/provisioning/alerting/alerting.yml
       - grafana/provisioning/alerting/pipeline.yml
+      - grafana/provisioning/alerting/kafka.yml
       - grafana/provisioning/alerting/templates.yml
       - grafana/provisioning/alerting/resources.yml
   - name: grafana-dashboards
     files:
       - grafana/dashboards/jvm-micrometer.json
       - grafana/dashboards/kidly-logs.json
+      - grafana/dashboards/kidly-kafka.json
       - grafana/dashboards/kidly-server.json
       - grafana/dashboards/spring-boot.json
       - grafana/dashboards/kidly-http.json

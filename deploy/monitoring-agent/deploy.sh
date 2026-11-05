@@ -5,6 +5,9 @@ cd "$(dirname "$0")"
 
 compose() { docker compose -p monitoring --env-file .env "$@"; }
 
+# Create the watch directory before Alloy starts, including first installation.
+mkdir -p targets/kafka
+
 compose pull -q
 # 옛 스택(prometheus · loki · grafana)과 같은 프로젝트 이름이라 --remove-orphans 가 그 컨테이너를 지운다
 compose up -d --force-recreate --remove-orphans

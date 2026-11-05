@@ -1,0 +1,112 @@
+---
+rule_files:
+- rules.yml
+evaluation_interval: 1m
+tests:
+- name: broker outage is per registered environment
+  interval: 1m
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 1+0x25
+  - series: up{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 0+0x25
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x25
+  - series: kidly_kafka_exporter_expected{env="prod"}
+    values: 0+0x25
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: kidly-kafka-unavailable
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: kidly-kafka-unavailable
+    exp_alerts:
+    - exp_labels:
+        env: dev
+- name: growth requires history and persistence
+  interval: 1m
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 1+0x25
+  - series: up{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x25
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x25
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events",partition="0"}
+    values: 1+1x25
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: kidly-kafka-lag-growing
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: kidly-kafka-lag-growing
+    exp_alerts:
+    - exp_labels:
+        env: dev
+        consumergroup: kidly.search
+        topic: kidly.product.events
+- name: unknown partition offset is not healthy zero or known backlog
+  interval: 1m
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 1+0x25
+  - series: up{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x25
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x25
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events",partition="0"}
+    values: 1+1x25
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events",partition="1"}
+    values: "-1+0x25"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: kidly-kafka-lag-growing
+    exp_alerts: []
+- name: intentional stop suppresses broker and lag calls
+  interval: 1m
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 0+0x25
+  - series: up{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 0+0x25
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x25
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events",partition="0"}
+    values: 1+1x25
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: kidly-kafka-unavailable
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: kidly-kafka-lag-growing
+    exp_alerts: []
+- name: reachable exporter with no broker still alerts
+  interval: 1m
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 1+0x10
+  - series: up{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x10
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 0+0x10
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: kidly-kafka-unavailable
+    exp_alerts:
+    - exp_labels:
+        env: dev
+- name: old successful scrape cannot hide lost observations
+  interval: 1m
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 1+0x10
+  - series: up{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: '1 _ _ _ _ _ _'
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x10
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: kidly-kafka-unavailable
+    exp_alerts:
+    - exp_labels:
+        env: dev

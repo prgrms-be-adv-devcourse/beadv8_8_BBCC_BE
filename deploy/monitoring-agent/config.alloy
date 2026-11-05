@@ -362,3 +362,24 @@ prometheus.relabel "alloy_health" {
         action = "keep"
     }
 }
+
+// Broker metrics use /metrics, not the application actuator path.
+discovery.file "kidly_kafka" {
+    refresh_interval = "30s"
+    files = ["/etc/alloy/targets/kafka/*.yml"]
+}
+prometheus.scrape "kidly_kafka" {
+    job_name = "kidly-kafka"
+    targets = discovery.file.kidly_kafka.targets
+    scrape_interval = "30s"
+    forward_to = [prometheus.relabel.kafka_metrics.receiver]
+}
+
+prometheus.relabel "kafka_metrics" {
+    forward_to = [prometheus.remote_write.medium.receiver]
+    rule {
+        source_labels = ["__name__"]
+        regex = "up|kafka_brokers|kafka_consumergroup_(lag|current_offset)|kafka_topic_partition_current_offset"
+        action = "keep"
+    }
+}
