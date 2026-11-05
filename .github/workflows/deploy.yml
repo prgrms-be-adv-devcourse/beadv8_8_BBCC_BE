@@ -249,6 +249,8 @@ jobs:
           APP_ENV: ${{ vars.APP_ENV }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          PORTONE_API_SECRET: ${{ secrets.PORTONE_API_SECRET }}
+          IDENTITY_KEY_SECRET: ${{ secrets.IDENTITY_KEY_SECRET }}
           TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
           PAYMENT_KEY_ENCRYPTION_KEY: ${{ secrets.PAYMENT_KEY_ENCRYPTION_KEY }}
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
@@ -265,7 +267,7 @@ jobs:
           cp -p deploy/docker-compose.yml deploy/deploy.sh deploy/environment-state.py "$out/"
 
           # 한 줄짜리 비밀. .env 뒤에 붙인다
-          keys=(DB_PASSWORD KAKAO_CLIENT_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
+          keys=(DB_PASSWORD KAKAO_CLIENT_SECRET PORTONE_API_SECRET IDENTITY_KEY_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
           # 없어도 되는 비밀. 있으면 붙이고 없으면 건너뛴다 (MAIL_PASSWORD 가 없으면 메일은 보내지 않고 로그만 남긴다)
           [[ -z "$MAIL_PASSWORD" ]] || keys+=(MAIL_PASSWORD)
           # HOLIDAY_API_SERVICE_KEY 가 없으면 영업일 판단(공휴일 조회)이 실패한다
