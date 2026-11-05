@@ -72,6 +72,32 @@ public class NotificationService {
         });
     }
 
+    // 정지 사유는 회원 서비스가 200자까지 받으므로 본문 한도(4000자)를 넘지 않는다
+    @Transactional
+    public void createSuspendedEmail(UUID eventId, Long memberId, String reason) {
+        if (exists(eventId)) {
+            return;
+        }
+        memberContactService.findEmail(memberId).ifPresent(email -> {
+            var content = SuspendedEmail.compose(reason);
+            createEmail(new EmailNotificationInfo(eventId, memberId, NotificationType.MEMBER_SUSPENDED, email,
+                content.title(), content.body()));
+        });
+    }
+
+    // 거절 사유는 회원 서비스가 200자까지 받으므로 본문 한도(4000자)를 넘지 않는다
+    @Transactional
+    public void createApplicationRejectedEmail(UUID eventId, Long memberId, String reason) {
+        if (exists(eventId)) {
+            return;
+        }
+        memberContactService.findEmail(memberId).ifPresent(email -> {
+            var content = ApplicationRejectedEmail.compose(reason);
+            createEmail(new EmailNotificationInfo(eventId, memberId, NotificationType.SELLER_APPLICATION_REJECTED,
+                email, content.title(), content.body()));
+        });
+    }
+
     private void createEmail(EmailNotificationInfo info) {
         if (exists(info.eventId())) {
             return;

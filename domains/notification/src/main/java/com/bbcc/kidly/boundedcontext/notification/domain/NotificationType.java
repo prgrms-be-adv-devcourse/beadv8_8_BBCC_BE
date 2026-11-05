@@ -6,5 +6,7 @@ package com.bbcc.kidly.boundedcontext.notification.domain;
 public enum NotificationType {
     WELCOME,
     PAYOUT_COMPLETED,
-    REFUND_COMPLETED
+    REFUND_COMPLETED,
+    MEMBER_SUSPENDED,
+    SELLER_APPLICATION_REJECTED
 }
