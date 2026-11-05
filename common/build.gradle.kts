@@ -22,3 +22,36 @@ dependencies {
     annotationProcessor(variantOf(libs.querydsl.apt) { classifier("jpa") })
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
 }
+
+// JPA 통합 테스트(ReadOnlyWriteGuard · BaseTimeEntity, 실제 PostgreSQL). 서비스마다 같은 설정을 쓰므로 공통 코드와 같이 여기서 확인한다
+dependencies {
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+    testRuntimeOnly("org.postgresql:postgresql")
+}
+
+// 앱 모듈(kidly.boot-app)과 같은 나눔: 단위는 test, 스프링 + Testcontainers는 integrationTest(Docker 필요)
+val integrationTag = "integration"
+
+tasks.test {
+    useJUnitPlatform {
+        excludeTags(integrationTag)
+    }
+}
+
+val integrationTest = tasks.register<Test>("integrationTest") {
+    description = "common 통합 테스트를 실행한다 (스프링 + Testcontainers)"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform {
+        includeTags(integrationTag)
+    }
+    shouldRunAfter(tasks.test)
+}
+
+tasks.check {
+    dependsOn(integrationTest)
+}
