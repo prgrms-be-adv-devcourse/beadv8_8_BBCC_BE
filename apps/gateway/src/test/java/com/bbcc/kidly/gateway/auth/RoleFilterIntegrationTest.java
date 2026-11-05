@@ -97,10 +97,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
     @ValueSource(strings = {"/api/v1/administrator", "/api/v1/sellers/1"})
     @DisplayName("이름이 admin · seller로 시작할 뿐인 다른 경로는 역할을 검사하지 않는다")
     void ignoresPathsSharingPrefix(String path) {
-        client.get().uri(path).exchange()
-            .expectStatus().isOk();
-
-        assertThat(backend.lastRequest()).isPresent();
+        expectNotFound(client.get().uri(path).exchange(), path);
     }
 
     @Test
@@ -148,14 +145,14 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
 
     @Test
     void childPathsRequireChildPrincipal() {
-        var path = "/api/v1/child/orders";
+        var path = "/api/v1/child/profile";
         expectUnauthorized(client.get().uri(path).exchange(), path);
         expectForbidden(get(path, "BUYER"), path);
         expectForbidden(getAdmin(path), path);
         var now = Instant.now();
         var token = TestTokens.issueChild(7001, 8, now, now.plusSeconds(1800));
         client.get().uri(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange().expectStatus().isOk();
-        backend.reset();
+        resetBackends();
         for (var forbidden : List.of(ADMIN_PATH, SELLER_PATH)) {
             expectForbidden(client.get().uri(forbidden).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .exchange(), forbidden);
