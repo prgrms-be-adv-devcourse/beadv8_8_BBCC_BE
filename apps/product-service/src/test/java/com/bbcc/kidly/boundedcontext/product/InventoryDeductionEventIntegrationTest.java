@@ -4,13 +4,13 @@ import static com.bbcc.kidly.boundedcontext.product.ConcurrentTasks.runRacing;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.TwoOnSaleProducts;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
@@ -21,28 +21,24 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.system.CapturedOutput;
-import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 주문 생성됨을 트랜잭션 안에서 발행해 커밋하면 상품 리스너가 재고를 차감하는지 실제 PostgreSQL로 확인한다.
- * 리스너와 그 뒤의 리스너는 발행한 트랜잭션이 커밋될 때 같은 스레드에서 돌므로, 발행이 끝나면 결과를 바로 읽을 수 있다.
+ * 주문 생성됨을 받아 재고를 차감하는 서비스가 보내는 이벤트(재고 차감됨, 상품 정보 변경됨)를 실제 PostgreSQL로 확인한다.
+ * 서비스는 트랜잭션을 직접 열고 커밋하므로, 서비스를 부르고 나면 차감 결과와 나간 이벤트를 바로 읽을 수 있다.
  * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다.
+ * 재고 차감 테스트를 나눈 기준: 재고 · 차감 기록 결과는 InventoryDeductionServiceIntegrationTest, 재고 부족함은
+ * ProductStockDeductionFailedIntegrationTest가 본다. 품절 전환이 두 주문에서 겹치는 경우는
+ * InventoryDeductionSoldOutConcurrencyIntegrationTest가 본다.
  * 테스트마다 끝난 뒤 재고 불변식을 확인한다. DB를 비우는 extension보다 @AfterEach가 먼저 실행된다.
  */
 @IntegrationTest
-class ProductOrderEventListenerIntegrationTest {
+class InventoryDeductionEventIntegrationTest {
 
     private static final long ORDER_ID = 100L;
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
+    private InventoryDeductionService inventoryDeductionService;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -64,11 +60,11 @@ class ProductOrderEventListenerIntegrationTest {
     }
 
     @Test
-    @DisplayName("커밋된 주문 생성됨을 받으면 재고를 줄이고, 차감이 커밋된 뒤 재고 차감됨을 한 번 보낸다")
+    @DisplayName("주문 생성됨을 받으면 재고를 줄이고, 차감이 커밋된 뒤 재고 차감됨을 한 번 보낸다")
     void deductAndPublishStockDeducted() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
 
-        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
         assertThat(eventRecorder.events(StockDeductedEvent.class))
@@ -77,28 +73,13 @@ class ProductOrderEventListenerIntegrationTest {
     }
 
     @Test
-    @DisplayName("주문 생성됨을 보낸 트랜잭션이 롤백되면 재고를 줄이지 않고 재고 차감됨도 보내지 않는다")
-    void ignoreOrderCreatedOfRolledBackTransaction() {
-        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-
-        transactionTemplate.executeWithoutResult(status -> {
-            eventPublisher.publish(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
-            status.setRollbackOnly();
-        });
-
-        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
-        assertThat(inventoryDeductionDb.records()).isEmpty();
-        assertThat(eventRecorder.events(StockDeductedEvent.class)).isEmpty();
-    }
-
-    @Test
     @DisplayName("INV-10 같은 주문 생성됨을 두 번 받아도 재고는 한 번만 줄고 재고 차감됨도 한 번만 보낸다")
     void deductOnceForRepeatedOrderCreated() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
 
-        publishInTransaction(event);
-        publishInTransaction(event);
+        inventoryDeductionService.deduct(event);
+        inventoryDeductionService.deduct(event);
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
         assertThat(eventRecorder.events(StockDeductedEvent.class))
@@ -111,7 +92,7 @@ class ProductOrderEventListenerIntegrationTest {
     void sendNoStockDeductedWhenStockIsShort() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 1);
 
-        publishInTransaction(orderCreated(ORDER_ID,
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
             orderItem(11L, options.navy110(), 2),
             orderItem(12L, options.navy120(), 2)));
 
@@ -125,22 +106,16 @@ class ProductOrderEventListenerIntegrationTest {
     }
 
     @Test
-    @DisplayName("리스너가 예외를 던져도 주문 생성됨을 보낸 트랜잭션은 커밋된 채 남고, 재고와 차감 기록은 바뀌지 않으며 재고 차감됨도 보내지 않는다")
-    @ExtendWith(OutputCaptureExtension.class)
-    void keepPublisherCommittedWhenListenerThrows(CapturedOutput output) {
+    @DisplayName("주문상품 목록이 없는 주문 생성됨은 예외를 던지고, 재고와 차감 기록은 바뀌지 않으며 재고 차감됨도 보내지 않는다")
+    void changeNothingWhenOrderCreatedHasNoItems() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-        // 주문상품 목록이 없는 주문 생성됨은 리스너가 목록을 읽다가 예외를 던진다
+        // 주문상품 목록이 없는 주문 생성됨은 서비스가 목록을 읽다가 예외를 던진다. 서비스가 예외를 삼키지 않아야
+        // Kafka 에러 처리기가 이 메시지를 재시도 없이 DLT로 보낸다(NullPointerException은 재시도하지 않는 예외다)
         OrderCreatedEvent broken = orderCreated(ORDER_ID, (List<OrderCreatedEvent.Item>) null);
 
-        // 발행한 쪽이 같은 트랜잭션에서 바꾼 값이 커밋되는지 보려고 입고 3개를 함께 넣는다
-        assertThatCode(() -> transactionTemplate.executeWithoutResult(status -> {
-            inventoryDeductionDb.restock(options.navy110(), 3);
-            eventPublisher.publish(broken);
-        })).doesNotThrowAnyException();
+        assertThatThrownBy(() -> inventoryDeductionService.deduct(broken)).isInstanceOf(NullPointerException.class);
 
-        // 리스너가 돌다가 예외를 던졌고, 그 예외가 로그로만 남았는지 확인한다
-        assertThat(output.getAll()).contains("NullPointerException", "InventoryDeductionService");
-        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(13);
+        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.records()).isEmpty();
         assertThat(eventRecorder.events(StockDeductedEvent.class)).isEmpty();
     }
@@ -152,8 +127,8 @@ class ProductOrderEventListenerIntegrationTest {
 
         // 재고 행을 잠근 채 두 주문을 출발시켜, 두 차감이 모두 그 행을 기다린 뒤 겹치게 한다
         runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(options.navy110()), List.of(
-            () -> publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 1))),
-            () -> publishInTransaction(orderCreated(ORDER_ID + 1, orderItem(21L, options.navy110(), 1)))));
+            () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 1))),
+            () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID + 1, orderItem(21L, options.navy110(), 1)))));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isZero();
         List<Tuple> records = inventoryDeductionDb.records();
@@ -173,7 +148,7 @@ class ProductOrderEventListenerIntegrationTest {
     void sendNoProductChangedWhenStockRemains() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
 
-        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
@@ -184,7 +159,7 @@ class ProductOrderEventListenerIntegrationTest {
     void sendProductChangedWhenOptionSellsOut() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(2, 5);
 
-        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
         assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
             .satisfies(changed -> assertThat(changed.data().options())
@@ -199,7 +174,7 @@ class ProductOrderEventListenerIntegrationTest {
     void sendProductChangedPerSoldOutProduct() {
         TwoOnSaleProducts products = productOptionSaver.saveTwoOnSaleProducts(1, 1);
 
-        publishInTransaction(orderCreated(ORDER_ID,
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
             orderItem(11L, products.firstNavy110(), 1),
             orderItem(12L, products.secondNavy110(), 1)));
 
@@ -213,7 +188,7 @@ class ProductOrderEventListenerIntegrationTest {
     void sendOneProductChangedWhenTwoOptionsOfSameProductSellOut() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 1);
 
-        publishInTransaction(orderCreated(ORDER_ID,
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
             orderItem(11L, options.navy110(), 1),
             orderItem(12L, options.navy120(), 1)));
 
@@ -223,10 +198,5 @@ class ProductOrderEventListenerIntegrationTest {
                 .containsExactlyInAnyOrder(
                     tuple(options.navy110().getId(), true),
                     tuple(options.navy120().getId(), true)));
-    }
-
-    // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다
-    private void publishInTransaction(OrderCreatedEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }

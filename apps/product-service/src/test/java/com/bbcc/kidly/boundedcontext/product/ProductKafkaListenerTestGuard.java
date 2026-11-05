@@ -17,7 +17,6 @@ import org.springframework.stereotype.Component;
  * 이유: 테스트 컨텍스트 캐시는 쓰지 않는 컨텍스트를 일시 정지했다가 다시 쓸 때 Lifecycle을 다시 시작하고, 그때
  * KafkaListenerEndpointRegistry.start()는 autoStartup과 상관없이 등록된 모든 리스너 컨테이너를 시작한다.
  * 그러면 상품 리스너가 다른 테스트가 남긴 판매자 · 주문 메시지를 처리해 판매자 복사본과 재고를 비동기로 바꾼다.
- * 테스트 설정은 Spring 경로도 켜 두므로 같은 이벤트를 양쪽에서 받게 된다.
  * 그래서 첫 기동 때(autoStartup=false라 아직 꺼진 상태) 상품 리스너 2개를 레지스트리에서 빼 두고 이 빈이 들고 있다.
  * 그러면 재시작 때 registry.start()가 순회하는 대상에서 빠져 시작되지 않는다.
  * 이 빈은 레지스트리를 주입받으므로 Lifecycle 시작은 레지스트리가 먼저다. 다른 도메인 리스너는 건드리지 않는다.

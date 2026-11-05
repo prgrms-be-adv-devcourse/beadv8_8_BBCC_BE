@@ -8,8 +8,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
+import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.Comparator;
@@ -20,23 +19,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 주문 생성됨 두 건을 실제 스레드 두 개에서 리스너 경로로 동시에 처리해, 품절 전환 때 나가는 상품 정보 변경됨을 확인한다.
+ * 주문 생성됨 두 건을 실제 스레드 두 개에서 서비스로 동시에 처리해, 품절 전환 때 나가는 상품 정보 변경됨을 확인한다.
  * 스레드는 ConcurrentTasks로 함께 출발시키고, 테스트가 쥔 잠금으로 두 처리가 겹치게 한다.
  * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다. 테스트마다 끝난 뒤 재고 불변식을 확인한다.
  */
 @IntegrationTest
-class ProductOrderEventConcurrencyIntegrationTest {
+class InventoryDeductionSoldOutConcurrencyIntegrationTest {
 
     private static final long ORDER_ID = 100L;
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
+    private InventoryDeductionService inventoryDeductionService;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -64,8 +59,8 @@ class ProductOrderEventConcurrencyIntegrationTest {
 
         // 재고 행을 잠근 채 두 주문을 출발시켜, 두 차감이 모두 그 행을 기다린 뒤 겹치게 한다
         runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(options.navy110()), List.of(
-            () -> publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 1))),
-            () -> publishInTransaction(orderCreated(ORDER_ID + 1, orderItem(21L, options.navy110(), 1)))));
+            () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 1))),
+            () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID + 1, orderItem(21L, options.navy110(), 1)))));
 
         assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
             .satisfies(changed -> assertThat(changed.data().options())
@@ -82,8 +77,8 @@ class ProductOrderEventConcurrencyIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 1);
 
         runRacing(inventoryDeductionDb, inventoryDeductionDb.lockDeductionTable(), List.of(
-            () -> publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 1))),
-            () -> publishInTransaction(orderCreated(ORDER_ID + 1, orderItem(21L, options.navy120(), 1)))));
+            () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 1))),
+            () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID + 1, orderItem(21L, options.navy120(), 1)))));
 
         ProductChangedEvent latest = eventRecorder.events(ProductChangedEvent.class).stream()
             .max(Comparator.comparing(ProductChangedEvent::occurredAt))
@@ -93,10 +88,5 @@ class ProductOrderEventConcurrencyIntegrationTest {
             .containsExactlyInAnyOrder(
                 tuple(options.navy110().getId(), true),
                 tuple(options.navy120().getId(), true));
-    }
-
-    // 주문 저장처럼 트랜잭션 안에서 주문 생성됨을 발행하고 커밋한다
-    private void publishInTransaction(OrderCreatedEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }
