@@ -15,6 +15,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.SEAR
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.SEARCH_EVENT_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.OTHER_MEMBER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_120_OPTION_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_CATEGORY_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
@@ -27,6 +28,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
 import com.bbcc.kidly.boundedcontext.recommend.out.activity.JpaActivityRecordRepository;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -152,5 +154,25 @@ class ActivityRecordIntegrationTest {
             () -> activityRecordRepository.saveAndFlush(ActivityRecord.searched(ActivityRecordFixture.search())))
             .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(activityRecordRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("회원 탈퇴 이벤트로 그 회원의 검색 · 담기 · 빼기 기록을 모두 지우고 다른 회원의 기록은 남긴다")
+    void deleteWithdrawnMemberActivities() {
+        activityRecordService.recordSearch(ActivityRecordFixture.searchPerformedEvent());
+        activityRecordService.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent());
+        activityRecordService.recordCartItemRemoved(ActivityRecordFixture.cartItemRemovedEvent());
+        ActivityRecord others = activityRecordRepository.saveAndFlush(otherMemberSearch());
+
+        activityRecordService.deleteWithdrawnMemberActivities(ActivityRecordFixture.memberWithdrawnEvent(MEMBER_1_ID));
+
+        assertThat(activityRecordRepository.findAll()).singleElement()
+            .extracting(ActivityRecord::getId, ActivityRecord::getMemberId)
+            .containsExactly(others.getId(), OTHER_MEMBER_ID);
+    }
+
+    private static ActivityRecord otherMemberSearch() {
+        return ActivityRecord.searched(new ActivityRecord.SearchInfo(UUID.randomUUID(), OTHER_MEMBER_ID, KEYWORD,
+            PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT));
     }
 }
