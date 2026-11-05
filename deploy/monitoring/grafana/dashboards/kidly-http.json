@@ -524,6 +524,13 @@
   ],
   "links": [
     {
+      "title": "AI 운영 분석",
+      "type": "link",
+      "url": "/d/kidly-ai-notes",
+      "includeVars": true,
+      "keepTime": true
+    },
+    {
       "title": "로그 확인",
       "type": "link",
       "url": "/d/kidly-logs",

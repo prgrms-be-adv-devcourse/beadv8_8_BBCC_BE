@@ -142,7 +142,11 @@ def validate_context(context: AnalysisContext, now: float):
             raise ValueError('evidence environment outside scope')
         if item.service is not None and (item.environment == 'global' or not isinstance(item.service, str) or not re.fullmatch(r'kidly-[a-z][a-z0-9-]{0,50}', item.service)):
             raise ValueError('invalid evidence service')
-        if item.evidence_id in ids or isinstance(item.value, bool) or not isinstance(item.value, (float, int)) or not math.isfinite(item.value):
+        try:
+            finite = not isinstance(item.value, bool) and isinstance(item.value, (float, int)) and math.isfinite(item.value)
+        except OverflowError:
+            finite = False
+        if item.evidence_id in ids or not finite:
             raise ValueError('duplicate evidence or nonfinite value')
         ids.add(item.evidence_id)
     for limitation in context.limitations:
