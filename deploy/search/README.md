@@ -61,9 +61,9 @@ ES 를 새로 만들면(처음 옮길 때, PVC 를 지웠을 때) 색인이 비�
 
 ```bash
 # 관리자 토큰으로. 판매중 · 판매중지 상품마다 상품 정보 변경됨을 한 번씩 다시 보내고 보낸 수를 돌려준다
-# 판매자를 먼저(상호명), 그다음 상품. prod 는 https://kidly.kro.kr
-curl -X POST -H "Authorization: Bearer <관리자 토큰>" https://dev.kidly.kro.kr/api/v1/admin/sellers/changed-events
-curl -X POST -H "Authorization: Bearer <관리자 토큰>" https://dev.kidly.kro.kr/api/v1/admin/products/changed-events
+# 판매자를 먼저(상호명), 그다음 상품. prod 는 https://api.kidly.kro.kr
+curl -X POST -H "Authorization: Bearer <관리자 토큰>" https://dev-api.kidly.kro.kr/api/v1/admin/sellers/changed-events
+curl -X POST -H "Authorization: Bearer <관리자 토큰>" https://dev-api.kidly.kro.kr/api/v1/admin/products/changed-events
 ```
 
 prod 는 검색 서비스가 처음 뜬 main 배포 뒤에 한 번 채웁니다.
