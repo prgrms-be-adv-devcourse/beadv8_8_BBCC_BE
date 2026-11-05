@@ -98,6 +98,30 @@ public class NotificationService {
         });
     }
 
+    @Transactional
+    public void createSellerApprovedEmail(UUID eventId, Long sellerId, String businessName) {
+        if (exists(eventId)) {
+            return;
+        }
+        memberContactService.findEmail(sellerId).ifPresent(email -> {
+            var content = SellerApprovedEmail.compose(notificationProperties.siteUrl(), businessName);
+            createEmail(new EmailNotificationInfo(eventId, sellerId, NotificationType.SELLER_APPROVED, email,
+                content.title(), content.body()));
+        });
+    }
+
+    @Transactional
+    public void createSellerSuspendedEmail(UUID eventId, Long sellerId, String businessName) {
+        if (exists(eventId)) {
+            return;
+        }
+        memberContactService.findEmail(sellerId).ifPresent(email -> {
+            var content = SellerSuspendedEmail.compose(businessName);
+            createEmail(new EmailNotificationInfo(eventId, sellerId, NotificationType.SELLER_SUSPENDED, email,
+                content.title(), content.body()));
+        });
+    }
+
     private void createEmail(EmailNotificationInfo info) {
         if (exists(info.eventId())) {
             return;

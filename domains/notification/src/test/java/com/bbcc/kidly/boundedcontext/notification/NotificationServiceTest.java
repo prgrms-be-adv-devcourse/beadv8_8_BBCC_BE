@@ -207,6 +207,45 @@ class NotificationServiceTest {
     }
 
     @Test
+    @DisplayName("판매자 승인 메일에 상호명과 판매자 센터 주소를 넣어 판매자 이메일로 만든다")
+    void createSellerApprovedEmail() {
+        given(memberContactService.findEmail(5L)).willReturn(Optional.of("seller@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createSellerApprovedEmail(EVENT_ID, 5L, "키들리 상점");
+
+        var saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertThat(saved.getValue().getType()).isEqualTo(NotificationType.SELLER_APPROVED);
+        assertThat(saved.getValue().getRecipient()).isEqualTo("seller@kidly.co.kr");
+        assertThat(saved.getValue().getBody()).contains("키들리 상점").contains("https://kidly.kro.kr/center");
+    }
+
+    @Test
+    @DisplayName("판매자 정지 메일에 상호명을 넣어 판매자 이메일로 만든다")
+    void createSellerSuspendedEmail() {
+        given(memberContactService.findEmail(5L)).willReturn(Optional.of("seller@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createSellerSuspendedEmail(EVENT_ID, 5L, "키들리 상점");
+
+        var saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertThat(saved.getValue().getType()).isEqualTo(NotificationType.SELLER_SUSPENDED);
+        assertThat(saved.getValue().getBody()).contains("키들리 상점");
+    }
+
+    @Test
+    @DisplayName("판매자의 이메일 복사본이 없으면 승인 메일을 만들지 않는다")
+    void skipSellerApprovedWithoutContact() {
+        given(memberContactService.findEmail(5L)).willReturn(Optional.empty());
+
+        notificationService.createSellerApprovedEmail(EVENT_ID, 5L, "키들리 상점");
+
+        verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("사유가 없으면 사유 줄 없이 만든다")
     void suspendedWithoutReason() {
         given(memberContactService.findEmail(1L)).willReturn(Optional.of("parent@kidly.co.kr"));
