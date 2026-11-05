@@ -42,4 +42,9 @@ public class KafkaTestcontainersConfiguration {
     NewTopic receivedSellerEventsTopic() {
         return TopicBuilder.name("kidly.seller.events").partitions(3).replicas(1).build();
     }
+
+    @Bean
+    NewTopic receivedOrderEventsTopic() {
+        return TopicBuilder.name("kidly.order.events").partitions(3).replicas(1).build();
+    }
 }
