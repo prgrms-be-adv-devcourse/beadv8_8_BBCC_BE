@@ -61,6 +61,7 @@ class GroqProviderTest(unittest.TestCase):
         self.assertEqual((report.provider, report.model, report.generated_at), ('Groq', MODEL, 2001))
         request = client.open.call_args.args[0]
         self.assertEqual(request.full_url, ENDPOINT)
+        self.assertEqual(request.get_header('User-agent'), 'kidly-monitoring/1.0')
         payload = json.loads(request.data)
         self.assertEqual(payload['response_format']['json_schema']['strict'], True)
         self.assertEqual(payload['max_completion_tokens'], 3000)
@@ -81,7 +82,7 @@ class GroqProviderTest(unittest.TestCase):
 
     def test_http_errors_do_not_retry_or_leak_body(self):
         for status, code in [(429, 'rate_limited'), (401, 'authentication_failed'),
-                             (500, 'provider_unavailable'), (302, 'provider_unavailable')]:
+                             (403, 'access_denied'), (500, 'provider_unavailable'), (302, 'provider_unavailable')]:
             client = transport()
             client.open.side_effect = urllib.error.HTTPError(ENDPOINT, status, 'secret-upstream', {}, io.BytesIO(b'secret-body'))
             with self.subTest(status=status), self.assertRaisesRegex(ProviderError, '^'+code+'$'):
