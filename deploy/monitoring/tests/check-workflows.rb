@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 require 'yaml'
-paths = %w[deploy monitoring-deploy environment-operation monitoring-check].map { |name| ".github/workflows/#{name}.yml" }
+paths = %w[deploy monitoring-deploy environment-operation monitoring-check ai-notes-groq-trial].map { |name| ".github/workflows/#{name}.yml" }
 paths.each do |path|
   data = YAML.load_file(path)
   data.fetch('jobs').each do |name, job|

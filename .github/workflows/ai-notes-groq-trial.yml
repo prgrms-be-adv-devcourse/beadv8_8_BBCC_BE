@@ -1,0 +1,51 @@
+name: ai-notes-groq-trial
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_free_plan:
+        description: Groq 계정이 Free 플랜이며 유료 업그레이드하지 않았음을 확인
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-notes-groq-trial
+  cancel-in-progress: false
+
+jobs:
+  dev-once:
+    if: inputs.confirm_free_plan == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: dev
+    env:
+      SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 무료 시험 키 확인
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          [[ -n "$GROQ_API_KEY" ]] || { echo '::error::dev Environment Secret GROQ_API_KEY를 등록하세요. 키를 로그·채팅에 넣지 마세요.'; exit 1; }
+      - name: 서버 접속 확인 · SSH 키 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+      - name: dev 지표 AI 분석·게시 1회
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          # Key travels on encrypted stdin only. No xtrace, environment dump or key file.
+          printf '%s\n' "$GROQ_API_KEY" | ssh -i ~/.ssh/deploy_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 \
+            "deploy@$SSH_HOST" \
+            '/usr/bin/python3 /opt/app/monitoring/ai-notes/groq_once.py --confirm-free-plan'
+      - name: SSH 임시 파일 정리
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
