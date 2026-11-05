@@ -18,6 +18,16 @@ from storage import LokiPublisher, Store
 PRINCIPAL = 'groq-dev-manual'
 
 
+def read_key(stream):
+    raw = stream.readline(258)
+    if len(raw) > 257 or not raw.endswith(b'\n'):
+        raise ProviderError('missing_or_invalid_key')
+    try:
+        return raw[:-1].decode('ascii')
+    except UnicodeError:
+        raise ProviderError('missing_or_invalid_key') from None
+
+
 def run_once(key, *, free_tier_confirmed, store, collector=collect, provider_factory=GroqProvider,
              publisher=None, clock=time.time):
     # Construct/validate credentials and confirmation before collecting or persisting a context.
@@ -49,10 +59,7 @@ def main():
     signal.signal(signal.SIGALRM, timeout)
     signal.alarm(100)
     try:
-        raw = sys.stdin.buffer.readline(258)
-        if len(raw) > 257 or not raw.endswith(b'\n'):
-            raise ProviderError('missing_or_invalid_key')
-        key = raw[:-1].decode('ascii')
+        key = read_key(sys.stdin.buffer)
         result = run_once(key, free_tier_confirmed=args.confirm_free_plan, store=Store(STATE, METRICS))
         print(json.dumps({'ok': True, 'result': result}))
         return 0

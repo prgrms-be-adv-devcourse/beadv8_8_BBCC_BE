@@ -12,8 +12,9 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).parents[1]/'ai-notes'))
 from contracts import AnalysisContext, Evidence
 from groq_provider import GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect
-from groq_once import run_once, PRINCIPAL
-from storage import Store
+from groq_once import run_once, read_key, PRINCIPAL
+from storage import Store, LokiPublisher, deliver_accepted
+from errors import NotesError
 
 
 def context(now=2000):
@@ -42,6 +43,14 @@ def transport(raw=None):
 
 
 class GroqProviderTest(unittest.TestCase):
+    def test_stdin_key_boundaries_do_not_echo_input(self):
+        for raw in (b'private-without-newline', b'x'*257+b'\n', b'\xff\n'):
+            output = io.StringIO()
+            with self.subTest(size=len(raw)), patch('sys.stdout', output), self.assertRaisesRegex(ProviderError, '^missing_or_invalid_key$'):
+                read_key(io.BytesIO(raw))
+            self.assertEqual(output.getvalue(), '')
+        self.assertEqual(read_key(io.BytesIO(b'test-not-a-real-api-key\n')), 'test-not-a-real-api-key')
+
     def provider(self, client):
         return GroqProvider('test-not-a-real-api-key', free_tier_confirmed=True,
                             clock=lambda: 2001, transport=client)
@@ -130,6 +139,24 @@ class GroqProviderTest(unittest.TestCase):
             publication = publisher.publish.call_args.args[0]
             self.assertEqual((publication.source, publication.principal), ('server-worker', PRINCIPAL))
             self.assertEqual(result['receipt'], 'receipt')
+
+    def test_delivery_failure_preserves_result_and_recovery_never_reinfers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store = Store(temp)
+            client = transport()
+            factory = lambda *args, **kwargs: GroqProvider(
+                args[0], free_tier_confirmed=True, clock=lambda: 2003, transport=client)
+            with patch('storage.opener', side_effect=TimeoutError), self.assertRaisesRegex(NotesError, 'delivery_unavailable'):
+                run_once('test-not-a-real-api-key', free_tier_confirmed=True, store=store,
+                         collector=lambda env, now: context(now), provider_factory=factory, clock=lambda: 2002)
+            self.assertFalse(store.receipt('trial-context', PRINCIPAL)['delivered'])
+            saved = store.accepted_payload('trial-context')[1]
+            loki = MagicMock(); loki.open.return_value.__enter__.return_value.status = 204
+            with patch('storage.opener', return_value=loki):
+                deliver_accepted(store, 'trial-context')
+            self.assertEqual(loki.open.call_args.args[0].data.decode(), saved)
+            self.assertTrue(store.receipt('trial-context', PRINCIPAL)['delivered'])
+            client.open.assert_called_once()
 
 
 if __name__ == '__main__':

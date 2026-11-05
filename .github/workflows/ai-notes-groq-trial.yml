@@ -44,6 +44,7 @@ jobs:
           # Key travels on encrypted stdin only. No xtrace, environment dump or key file.
           printf '%s\n' "$GROQ_API_KEY" | ssh -i ~/.ssh/deploy_key \
             -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 \
+            -o ServerAliveInterval=10 -o ServerAliveCountMax=3 \
             "deploy@$SSH_HOST" \
             '/usr/bin/python3 /opt/app/monitoring/ai-notes/groq_once.py --confirm-free-plan'
       - name: SSH 임시 파일 정리
