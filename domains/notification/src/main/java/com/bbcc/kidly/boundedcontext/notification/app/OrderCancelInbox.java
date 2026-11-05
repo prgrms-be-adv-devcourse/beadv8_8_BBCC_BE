@@ -4,14 +4,15 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 구매자가 직접 하지 않은 주문 취소의 알림함 문구. 결제한 돈이 있으면 환불 완료 메일이 따로 간다.
+ * 구매자가 직접 하지 않은 주문 취소의 알림함 문구. 재고 부족 · 결제 기한 취소는 결제 전(결제대기) 주문에서 나서 환불이 없고,
+ * 판매자 취소는 결제한 주문이라 환불 완료 메일이 따로 간다.
  * 구매자가 직접 취소했거나 결제가 실패한 주문은 그 화면에서 결과를 바로 보므로 알리지 않는다(비어 있음).
  */
 public record OrderCancelInbox(String title, String body) {
 
     private static final Map<String, OrderCancelInbox> ORDER_CANCELLED = Map.of(
         "OUT_OF_STOCK", new OrderCancelInbox("재고가 없어 주문이 취소됐어요",
-            "결제한 금액은 예치금으로 돌려드려요."),
+            "결제 전에 재고가 없어 주문을 취소했어요."),
         "PAYMENT_EXPIRED", new OrderCancelInbox("결제 기한이 지나 주문이 취소됐어요",
             "결제가 끝나지 않은 채 기한이 지나 주문을 취소했어요."));
 
