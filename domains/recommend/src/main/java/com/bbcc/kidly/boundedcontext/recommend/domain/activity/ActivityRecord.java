@@ -129,16 +129,18 @@ public class ActivityRecord extends BaseTimeEntity {
     }
 
     public static ActivityRecord cartItemRemoved(CartItemRemovedInfo info) {
+        requireNonNull(info, "info는 필수입니다");
         ActivityRecord record = new ActivityRecord();
         record.type = ActivityType.CART_ITEM_REMOVED;
-        record.eventId = info.eventId();
-        record.cartItemId = info.cartItemId();
-        record.memberId = info.memberId();
+        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        record.cartItemId = requireNonNull(info.cartItemId(), "cartItemId는 필수입니다");
+        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
         record.childProfileId = info.childProfileId();
+        // 주문이 상품 정보를 받아 두지 않았으면 상품 ID 없이 온다
         record.productId = info.productId();
-        record.productOptionId = info.productOptionId();
+        record.productOptionId = requireNonNull(info.productOptionId(), "productOptionId는 필수입니다");
         record.cartQty = info.cartQty();
-        record.occurredAt = info.occurredAt();
+        record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         return record;
     }
 }
