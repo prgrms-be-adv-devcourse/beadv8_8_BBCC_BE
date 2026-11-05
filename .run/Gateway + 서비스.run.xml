@@ -1,0 +1,12 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Gateway + 서비스" type="CompoundRunConfigurationType">
+    <toRun type="SpringBootApplicationConfigurationType" name="GatewayApplication" />
+    <toRun type="SpringBootApplicationConfigurationType" name="MemberServiceApplication" />
+    <toRun type="SpringBootApplicationConfigurationType" name="ProductServiceApplication" />
+    <toRun type="SpringBootApplicationConfigurationType" name="OrderServiceApplication" />
+    <toRun type="SpringBootApplicationConfigurationType" name="PaymentServiceApplication" />
+    <toRun type="SpringBootApplicationConfigurationType" name="CommunityServiceApplication" />
+    <toRun type="SpringBootApplicationConfigurationType" name="NotificationServiceApplication" />
+    <toRun type="SpringBootApplicationConfigurationType" name="RecommendServiceApplication" />
+  </configuration>
+</component>
