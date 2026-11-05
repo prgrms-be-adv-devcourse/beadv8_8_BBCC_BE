@@ -62,8 +62,12 @@ public class ActivityRecordService {
 
     /**
      * 장바구니 빼기 이벤트의 값을 빼기 활동 기록으로 저장한다. 뺄 때 그 줄의 수량은 장바구니 수량 칸에 둔다.
+     * 같은 이벤트의 기록이 이미 있으면 다시 받은 이벤트로 보고 조용히 건너뛴다. 한 줄만 남는 것은 UNIQUE 제약이 지킨다.
      */
     public void recordCartItemRemoved(CartItemRemovedEvent event) {
+        if (activityRecordRepository.existsByEventId(event.eventId())) {
+            return;
+        }
         CartItemRemovedEvent.Data data = event.data();
         ActivityRecord.CartItemRemovedInfo info = new ActivityRecord.CartItemRemovedInfo(
             event.eventId(),
