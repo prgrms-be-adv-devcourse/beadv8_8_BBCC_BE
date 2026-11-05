@@ -109,6 +109,27 @@ class ChildSelfProfileApiTest {
             .exchange().expectStatus().isUnauthorized();
     }
 
+    @Test
+    void confirmsNoticeOnce() {
+        link(ACCOUNT_ID, registerChild("첫째"));
+        client.get().uri("/api/v1/child/onboarding").headers(TestChildren.of(ACCOUNT_ID, GUARDIAN_ID))
+            .exchange().expectStatus().isOk().expectBody().jsonPath("$.noticeConfirmed").isEqualTo(false);
+        for (int i = 0; i < 2; i++) {
+            client.post().uri("/api/v1/child/onboarding/notice").headers(TestChildren.of(ACCOUNT_ID, GUARDIAN_ID))
+                .exchange().expectStatus().isNoContent().expectBody().isEmpty();
+        }
+        client.get().uri("/api/v1/child/onboarding").headers(TestChildren.of(ACCOUNT_ID, GUARDIAN_ID))
+            .exchange().expectStatus().isOk().expectBody().jsonPath("$.noticeConfirmed").isEqualTo(true);
+    }
+
+    @Test
+    void onboardingNotFoundWithoutLink() {
+        client.get().uri("/api/v1/child/onboarding").headers(TestChildren.of(ACCOUNT_ID, GUARDIAN_ID))
+            .exchange().expectStatus().isNotFound();
+        client.post().uri("/api/v1/child/onboarding/notice").headers(TestChildren.of(ACCOUNT_ID, GUARDIAN_ID))
+            .exchange().expectStatus().isNotFound();
+    }
+
     private Long registerChild(String name) {
         return service.register(GUARDIAN_ID, new ChildProfileRequest(name, LocalDate.of(2019, 1, 15),
             Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), null, null, true, true)).id();

@@ -56,6 +56,8 @@
 | DELETE | `/api/v1/children/{childId}` | 자녀 삭제(논리 삭제) | 🔒 |
 | GET | `/api/v1/children/{childId}/growth-records` | 성장 이력 조회 | 🔒 |
 | GET | `/api/v1/child/profile` | 자녀 계정이 자기 프로필 조회 | 🔒 |
+| GET | `/api/v1/child/onboarding` | 첫 로그인 안내 확인 여부 조회 (`noticeConfirmed`) | 🔒 |
+| POST | `/api/v1/child/onboarding/notice` | 첫 로그인 안내 확인 (204) | 🔒 |
 
 ## 판매자
 
