@@ -8,6 +8,6 @@ public interface ReplicaUpdateLock {
     void acquire(Kind kind, Long targetId);
 
     enum Kind {
-        PRODUCT, CHILD, SELLER
+        PRODUCT, CHILD, SELLER, CHILD_ACCOUNT
     }
 }

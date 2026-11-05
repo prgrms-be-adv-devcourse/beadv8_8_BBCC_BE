@@ -2,14 +2,12 @@ package com.bbcc.kidly.boundedcontext.wish.in.web;
 
 import com.bbcc.kidly.boundedcontext.wish.app.WishRequestService;
 import com.bbcc.kidly.boundedcontext.wish.app.dto.WishRequestView;
-import com.bbcc.kidly.boundedcontext.wish.app.port.WishActors;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishActor;
 import com.bbcc.kidly.boundedcontext.wish.in.web.dto.ApproveWishRequest;
 import com.bbcc.kidly.boundedcontext.wish.in.web.dto.RejectWishRequest;
 import com.bbcc.kidly.boundedcontext.wish.in.web.dto.SendWishRequest;
 import com.bbcc.kidly.boundedcontext.wish.in.web.dto.WishRequestResponse;
 import com.bbcc.kidly.boundedcontext.wish.in.web.dto.WishTimelineResponse;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -26,7 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 조르기 API(#701). 자원은 조르기이고 공용 장바구니 아래(/wish/requests, #718)에 둔다. 자녀 한 명의 목록은 childId로 거른다.
- * 승인 · 거절은 조르기의 하위 자원(approval · rejection)을 만드는 것으로 둔다. 지금은 로그인한 보호자가 부른다(자녀 계정은 회원 쪽 인증이 준비되면 연결).
+ * 승인 · 거절은 조르기의 하위 자원(approval · rejection)을 만드는 것으로 둔다. 보호자(회원 로그인)와 자녀(자녀 로그인, #906)가 부른다
+ * ({@link WishCaller}): 자녀는 자기 프로필의 조르기 보내기 · 조회 · 타임라인만, 승인 · 거절은 보호자만이다(자녀면 403).
  * 스위치 kidly.order.wish.enabled가 false면 이 API가 없다.
  */
 @RestController
@@ -38,53 +37,52 @@ public class WishRequestController {
     public static final String WISH_REQUESTS_PATH = WishController.WISH_PATH + "/requests";
 
     private final WishRequestService wishRequestService;
-    private final WishActors wishActors;
 
     @PostMapping
     public ResponseEntity<WishRequestResponse> send(
-        @LoginMember AuthMember member,
+        @WishCaller WishActor actor,
         @Valid @RequestBody SendWishRequest request) {
         WishRequestView view = wishRequestService.send(
-            wishActors.parent(member.id()), request.childId(), request.wishItemIds(), request.message());
+            actor, request.childId(), request.wishItemIds(), request.message());
         WishRequestResponse body = WishRequestResponse.from(view);
         return ResponseEntity.created(URI.create(WISH_REQUESTS_PATH + "/" + body.requestId())).body(body);
     }
 
     @GetMapping
-    public List<WishRequestResponse> getRequests(@LoginMember AuthMember member, @RequestParam Long childId) {
-        return wishRequestService.getRequests(wishActors.parent(member.id()), childId).stream()
+    public List<WishRequestResponse> getRequests(@WishCaller WishActor actor, @RequestParam Long childId) {
+        return wishRequestService.getRequests(actor, childId).stream()
             .map(WishRequestResponse::from)
             .toList();
     }
 
     @GetMapping("/{requestId}")
-    public WishRequestResponse getRequest(@LoginMember AuthMember member, @PathVariable Long requestId) {
-        return WishRequestResponse.from(wishRequestService.getRequest(wishActors.parent(member.id()), requestId));
+    public WishRequestResponse getRequest(@WishCaller WishActor actor, @PathVariable Long requestId) {
+        return WishRequestResponse.from(wishRequestService.getRequest(actor, requestId));
     }
 
     /**
      * 조르기 단계(보냄 → 승인 · 거절)에 바로 결제한 주문의 타임라인을 이어 붙인다(#702).
      */
     @GetMapping("/{requestId}/timeline")
-    public WishTimelineResponse getTimeline(@LoginMember AuthMember member, @PathVariable Long requestId) {
-        return WishTimelineResponse.from(wishRequestService.getTimeline(wishActors.parent(member.id()), requestId));
+    public WishTimelineResponse getTimeline(@WishCaller WishActor actor, @PathVariable Long requestId) {
+        return WishTimelineResponse.from(wishRequestService.getTimeline(actor, requestId));
     }
 
     @PostMapping("/{requestId}/approval")
     public WishRequestResponse approve(
-        @LoginMember AuthMember member,
+        @WishCaller WishActor actor,
         @PathVariable Long requestId,
         @Valid @RequestBody ApproveWishRequest request) {
         return WishRequestResponse.from(
-            wishRequestService.approve(wishActors.parent(member.id()), requestId, request.toCommand()));
+            wishRequestService.approve(actor, requestId, request.toCommand()));
     }
 
     @PostMapping("/{requestId}/rejection")
     public WishRequestResponse reject(
-        @LoginMember AuthMember member,
+        @WishCaller WishActor actor,
         @PathVariable Long requestId,
         @Valid @RequestBody RejectWishRequest request) {
         return WishRequestResponse.from(
-            wishRequestService.reject(wishActors.parent(member.id()), requestId, request.reason()));
+            wishRequestService.reject(actor, requestId, request.reason()));
     }
 }

@@ -22,18 +22,18 @@ import org.testcontainers.kafka.KafkaContainer;
 
 /**
  * 주문 Kafka 수신 설정(#541)이 실제 앱 컨텍스트에서: DLT 토픽 4개를 선언한다. 테스트 설정은 스위치를 끄므로(application-test.yml)
- * 주문은 Spring 이벤트로 받고(다른 도메인 테스트가 지금처럼 Spring 경로로 돈다), 주문 Kafka 리스너 5개(DLT 포함)는 자동 시작하지 않는다.
+ * 주문은 Spring 이벤트로 받고(다른 도메인 테스트가 지금처럼 Spring 경로로 돈다), 주문 Kafka 리스너 6개(DLT 포함, 자녀 계정 #906)는 자동 시작하지 않는다.
  */
 @KafkaIntegrationTest
 class OrderKafkaListenerIntegrationTest {
 
     private static final List<String> DEAD_LETTER_TOPICS = List.of(
         "kidly.product.events.order.dlt", "kidly.seller.events.order.dlt", "kidly.childprofile.events.order.dlt",
-        "kidly.payment.events.order.dlt");
+        "kidly.payment.events.order.dlt", "kidly.auth.events.order.dlt");
 
     private static final List<String> LISTENER_IDS = List.of(ProductEventKafkaListener.ID,
         SellerEventKafkaListener.ID, ChildProfileEventKafkaListener.ID, PaymentEventKafkaListener.ID,
-        OrderDeadLetterKafkaListener.ID);
+        AuthEventKafkaListener.ID, OrderDeadLetterKafkaListener.ID);
 
     @Autowired
     private KafkaContainer kafka;

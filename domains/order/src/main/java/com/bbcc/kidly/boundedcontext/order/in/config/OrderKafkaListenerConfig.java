@@ -60,12 +60,15 @@ public class OrderKafkaListenerConfig {
     public static final String SELLER_EVENTS = "kidly.seller.events";
     public static final String CHILDPROFILE_EVENTS = "kidly.childprofile.events";
     public static final String PAYMENT_EVENTS = "kidly.payment.events";
+    // 회원(인증) 토픽. 자녀 계정 연결(child-account.changed)만 받는다(#906)
+    public static final String AUTH_EVENTS = "kidly.auth.events";
 
     private static final String DEAD_LETTER_SUFFIX = ".order.dlt";
     public static final String PRODUCT_EVENTS_DLT = PRODUCT_EVENTS + DEAD_LETTER_SUFFIX;
     public static final String SELLER_EVENTS_DLT = SELLER_EVENTS + DEAD_LETTER_SUFFIX;
     public static final String CHILDPROFILE_EVENTS_DLT = CHILDPROFILE_EVENTS + DEAD_LETTER_SUFFIX;
     public static final String PAYMENT_EVENTS_DLT = PAYMENT_EVENTS + DEAD_LETTER_SUFFIX;
+    public static final String AUTH_EVENTS_DLT = AUTH_EVENTS + DEAD_LETTER_SUFFIX;
     private static final long RETRY_INTERVAL_MS = 1000L;
     private static final long RETRY_ATTEMPTS = 3L;
     private static final long DEAD_LETTER_MAX_INTERVAL_MS = 60_000L;
@@ -88,6 +91,11 @@ public class OrderKafkaListenerConfig {
     @Bean
     NewTopic orderPaymentEventsDeadLetterTopic() {
         return deadLetterTopic(PAYMENT_EVENTS);
+    }
+
+    @Bean
+    NewTopic orderAuthEventsDeadLetterTopic() {
+        return deadLetterTopic(AUTH_EVENTS);
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다.

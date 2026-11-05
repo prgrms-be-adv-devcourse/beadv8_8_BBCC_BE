@@ -256,6 +256,9 @@ public class WishRequestService {
     }
 
     private WishCatalog.Child requireUsableChild(WishActor actor, Long childId, WishErrorCode notFound) {
+        if (wishPolicy.forbidsOtherChild(actor, childId)) {
+            throw new BusinessException(WishErrorCode.OTHER_CHILD_FORBIDDEN);
+        }
         return wishCatalog.findChild(childId)
             .filter(actor::canUse)
             .orElseThrow(() -> new BusinessException(notFound));

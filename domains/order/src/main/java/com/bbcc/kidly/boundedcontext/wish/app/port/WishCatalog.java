@@ -27,6 +27,11 @@ public interface WishCatalog {
     Optional<Child> findChild(Long childId);
 
     /**
+     * 자녀 계정 → 자녀 프로필 · 보호자(#906). 받은 적 없는 계정은 빈 값.
+     */
+    Optional<ChildAccount> findChildAccount(Long accountId);
+
+    /**
      * @param purchasable 지금 살 수 있는지(판매 중 · 옵션 판매 중 · 품절 아님). 장바구니와 같은 판단
      * @param saleStatus 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED · SALE_PENDING 등, #701). 판매 중이 아니어도 빼지 않고 이 값으로 보인다
      */
@@ -46,5 +51,12 @@ public interface WishCatalog {
      * @param memberId 보호자 회원 ID
      */
     record Child(Long childId, Long memberId, boolean deleted) {
+    }
+
+    /**
+     * @param guardianId 보호자 회원 ID
+     * @param deleted 계정이 지워졌으면 true
+     */
+    record ChildAccount(Long accountId, Long childProfileId, Long guardianId, boolean deleted) {
     }
 }

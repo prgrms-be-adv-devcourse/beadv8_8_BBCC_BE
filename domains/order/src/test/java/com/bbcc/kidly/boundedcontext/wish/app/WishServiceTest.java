@@ -193,10 +193,10 @@ class WishServiceTest {
         }
 
         @Test
-        @DisplayName("자녀는 형제의 공용 장바구니에 담을 수 없다")
+        @DisplayName("자녀는 형제의 공용 장바구니에 담을 수 없다(403, 자녀 로그인 #906 — 부모의 남의 자녀 404와 다름)")
         void childCannotUseSibling() {
             assertCode(() -> wishService.add(new TestChildWishActor(CHILD_ID), SIBLING_ID, OPTION_ID, 1),
-                WishErrorCode.CHILD_NOT_FOUND);
+                WishErrorCode.OTHER_CHILD_FORBIDDEN);
         }
 
         @Test

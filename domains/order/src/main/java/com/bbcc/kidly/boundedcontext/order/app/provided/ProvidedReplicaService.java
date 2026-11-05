@@ -1,9 +1,11 @@
 package com.bbcc.kidly.boundedcontext.order.app.provided;
 
+import com.bbcc.kidly.boundedcontext.order.app.port.ChildAccountReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup.ChildAccountView;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup.ChildView;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.ReplicaLookup.ProductOptionView;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
@@ -28,6 +30,7 @@ public class ProvidedReplicaService implements ReplicaLookup {
     private final ProductReplicaRepository productReplicaRepository;
     private final SellerReplicaRepository sellerReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
+    private final ChildAccountReplicaRepository childAccountReplicaRepository;
 
     @Override
     public Optional<ProductOptionView> findProductOption(Long optionId) {
@@ -56,6 +59,13 @@ public class ProvidedReplicaService implements ReplicaLookup {
     public Optional<ChildView> findChild(Long childId) {
         return childReplicaRepository.findByChildId(childId)
             .map(child -> new ChildView(child.getChildId(), child.getMemberId(), child.isDeleted()));
+    }
+
+    @Override
+    public Optional<ChildAccountView> findChildAccount(Long accountId) {
+        return childAccountReplicaRepository.findByAccountId(accountId)
+            .map(account -> new ChildAccountView(account.getAccountId(), account.getChildProfileId(),
+                account.getGuardianId(), account.isDeleted()));
     }
 
     private static ProductOptionView toView(ReplicaProduct product) {

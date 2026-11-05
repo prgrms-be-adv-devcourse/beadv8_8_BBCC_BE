@@ -25,6 +25,7 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
     private final SellerEventKafkaListener sellerListener;
     private final ChildProfileEventKafkaListener childProfileListener;
     private final PaymentEventKafkaListener paymentListener;
+    private final AuthEventKafkaListener authListener;
 
     @Override
     public Outcome replay(Message message) {
@@ -42,6 +43,7 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
                 case OrderKafkaListenerConfig.SELLER_EVENTS -> sellerListener.on(record);
                 case OrderKafkaListenerConfig.CHILDPROFILE_EVENTS -> childProfileListener.on(record);
                 case OrderKafkaListenerConfig.PAYMENT_EVENTS -> paymentListener.on(record);
+                case OrderKafkaListenerConfig.AUTH_EVENTS -> authListener.on(record);
                 default -> throw new UnknownDeadLetterSourceException(message.sourceTopic());
             }
         });

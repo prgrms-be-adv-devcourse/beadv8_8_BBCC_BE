@@ -43,7 +43,8 @@ class OrderKafkaLogContextIntegrationTest {
     private static final String PAYMENT_TOPIC = "kidly.payment.events";
     private static final String PAYMENT_DLT = "kidly.payment.events.order.dlt";
     private static final List<String> DEAD_LETTER_TOPICS = List.of("kidly.product.events.order.dlt",
-        "kidly.seller.events.order.dlt", "kidly.childprofile.events.order.dlt", PAYMENT_DLT);
+        "kidly.seller.events.order.dlt", "kidly.childprofile.events.order.dlt", PAYMENT_DLT,
+        "kidly.auth.events.order.dlt");
     private static final String HIDDEN_TABLE = "order_dead_letter_hidden_603";
     private static final Long BUYER_ID = 6_600L;
 

@@ -27,6 +27,11 @@ public interface ReplicaLookup {
     Optional<ChildView> findChild(Long childId);
 
     /**
+     * 자녀 계정 → 자녀 프로필 · 보호자 복사본(#906, child-account.changed). 받은 적 없는 계정은 빈 값.
+     */
+    Optional<ChildAccountView> findChildAccount(Long accountId);
+
+    /**
      * 상품 옵션 복사본.
      *
      * @param purchasable 지금 살 수 있는지(판매 중 · 옵션 판매 중 · 품절 아님). 주문 복사본이 정한 값 그대로
@@ -50,5 +55,14 @@ public interface ReplicaLookup {
      * @param memberId 보호자 회원 ID
      */
     record ChildView(Long childId, Long memberId, boolean deleted) {
+    }
+
+    /**
+     * 자녀 계정 복사본.
+     *
+     * @param guardianId 보호자 회원 ID
+     * @param deleted 계정이 지워졌으면 true(한 번 지워지면 되돌지 않는다)
+     */
+    record ChildAccountView(Long accountId, Long childProfileId, Long guardianId, boolean deleted) {
     }
 }

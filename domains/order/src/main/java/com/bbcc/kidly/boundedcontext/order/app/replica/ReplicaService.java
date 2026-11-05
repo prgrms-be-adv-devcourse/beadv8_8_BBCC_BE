@@ -1,13 +1,16 @@
 package com.bbcc.kidly.boundedcontext.order.app.replica;
 
+import com.bbcc.kidly.boundedcontext.order.app.port.ChildAccountReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ReplicaUpdateLock;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildAccountChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ProductChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.SellerChangedCommand;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
+import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChildAccount;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import java.time.LocalDateTime;
@@ -32,6 +35,7 @@ public class ReplicaService {
     private final ProductReplicaRepository productReplicaRepository;
     private final ChildReplicaRepository childReplicaRepository;
     private final SellerReplicaRepository sellerReplicaRepository;
+    private final ChildAccountReplicaRepository childAccountReplicaRepository;
 
     /**
      * 옵션마다 없으면 만들고 있으면 늦은 변경일 때만 덮어쓴다. 변경에서 빠진 옵션은 행을 남기고 품절로 바꾼다.
@@ -110,6 +114,24 @@ public class ReplicaService {
                     }
                 },
                 () -> sellerReplicaRepository.save(ReplicaSeller.create(values)));
+    }
+
+    /**
+     * 자녀 계정 복사본(#906): 없으면 만들고(삭제 메시지가 먼저 와도 삭제된 행으로), 있으면 삭제는 한 번 · 생성은 늦을 때만 반영한다.
+     */
+    public void applyChildAccountChanged(ChildAccountChangedCommand command) {
+        replicaUpdateLock.acquire(ReplicaUpdateLock.Kind.CHILD_ACCOUNT, command.accountId());
+        ReplicaChildAccount.Values values = new ReplicaChildAccount.Values(command.accountId(),
+            command.childProfileId(), command.guardianId(), command.deleted(), command.occurredAt());
+        childAccountReplicaRepository.findByAccountId(command.accountId())
+            .ifPresentOrElse(
+                replica -> {
+                    if (!replica.applyIfNewer(values)) {
+                        log.debug("복사본 이벤트 무시: event=child-account.changed accountId={} reason={}",
+                            command.accountId(), replica.isDeleted() ? "already-deleted" : "not-newer");
+                    }
+                },
+                () -> childAccountReplicaRepository.save(ReplicaChildAccount.create(values)));
     }
 
     private ReplicaProduct.Values toValues(ProductChangedCommand command, ProductChangedCommand.Option option) {
