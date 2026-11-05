@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend.app.activity;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecordRepository;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -57,5 +58,22 @@ public class ActivityRecordService {
             data.cartQuantity(),
             event.occurredAt());
         activityRecordRepository.save(ActivityRecord.cartItemAdded(info));
+    }
+
+    /**
+     * 장바구니 빼기 이벤트의 값을 빼기 활동 기록으로 저장한다. 뺄 때 그 줄의 수량은 장바구니 수량 칸에 둔다.
+     */
+    public void recordCartItemRemoved(CartItemRemovedEvent event) {
+        CartItemRemovedEvent.Data data = event.data();
+        ActivityRecord.CartItemRemovedInfo info = new ActivityRecord.CartItemRemovedInfo(
+            event.eventId(),
+            data.cartItemId(),
+            data.memberId(),
+            data.childId(),
+            data.productId(),
+            data.optionId(),
+            data.quantity(),
+            event.occurredAt());
+        activityRecordRepository.save(ActivityRecord.cartItemRemoved(info));
     }
 }
