@@ -7,8 +7,11 @@ import tempfile
 import json
 from pathlib import Path
 import re
+import signal
 import subprocess
 import sys
+
+from errors import CODES, NotesError
 
 PROTOCOL = '2024-11-05'
 REPORT_SCHEMA = {
@@ -33,7 +36,7 @@ TOOLS = [
     {'name': 'get_analysis_context', 'description': 'Read an authoritative dev/prod technical metric context for AI inference. Issued evidence expires after 300 seconds. Does not analyze or operate services.',
      'inputSchema': {'type': 'object', 'additionalProperties': False, 'required': ['environment'], 'properties': {'environment': {'type': 'string', 'enum': ['dev', 'prod']}}},
      'annotations': {'readOnlyHint': True, 'destructiveHint': False}},
-    {'name': 'publish_analysis', 'description': 'Publish an AI-authored report for an issued context. Does not call an AI or operate services. Caller-bound evidence/format/deadline are checked; unknown causes must be hypotheses.',
+    {'name': 'publish_analysis', 'description': 'Publish an AI-authored report for an issued context. Does not call an AI or operate services. Do not include URLs, IPs, credentials or personal data. Caller-bound evidence/format/deadline are checked; unknown causes must be hypotheses.',
      'inputSchema': {'type': 'object', 'additionalProperties': False, 'required': ['context_id', 'report'], 'properties': {'context_id': {'type': 'string'}, 'report': REPORT_SCHEMA}},
      'annotations': {'readOnlyHint': False, 'destructiveHint': False, 'idempotentHint': True}},
     {'name': 'get_publication_status', 'description': 'Read the authenticated caller receipt/delivery status. Allowed after context expiry; never republishes or reruns AI inference.',
@@ -54,8 +57,8 @@ class SSHBridge:
         if not path.is_absolute() or not path.is_file():
             raise ValueError('absolute installed pinned-host file required')
         self.config = config
-        self.command = ['ssh', '-F', '/dev/null', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
-                        '-o', 'StrictHostKeyChecking=yes', '-o', 'IdentitiesOnly=yes', '-o', 'ForwardAgent=no',
+        self.command = ['/usr/bin/ssh', '-F', '/dev/null', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
+                        '-o', 'StrictHostKeyChecking=yes', '-o', 'IdentitiesOnly=yes', '-o', 'ForwardAgent=no', '-o', 'GlobalKnownHostsFile=/dev/null', '-o', 'IdentityAgent=none', '-o', 'UpdateHostKeys=no', '-o', 'ProxyCommand=none', '-o', 'ProxyJump=none',
                         '-o', 'ClearAllForwardings=yes', '-o', 'PermitLocalCommand=no',
                         '-o', 'UserKnownHostsFile='+str(path)]
 
@@ -72,7 +75,7 @@ class SSHBridge:
         private = base64.b64decode(credential.stdout.strip(), validate=True)
         if not private.startswith(b'-----BEGIN OPENSSH PRIVATE KEY-----') or len(private) > 16000:
             raise ValueError('invalid dedicated credential')
-        with tempfile.TemporaryDirectory(prefix='kidly-notes-') as directory:
+        with tempfile.TemporaryDirectory(prefix='kidly-notes-', dir='/tmp') as directory:
             identity = Path(directory)/'identity'
             fd = os.open(identity, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(fd, 'wb') as output:
@@ -83,7 +86,9 @@ class SSHBridge:
             raise ValueError('oversized response')
         reply = json.loads(result.stdout)
         if result.returncode or reply.get('ok') is not True:
-            raise ValueError('remote request unavailable/rejected')
+            error = reply.get('error', {})
+            code = error.get('code') if type(error) is dict else 'unavailable'
+            raise NotesError(code)
         return reply['result']
 
 
@@ -118,9 +123,13 @@ def serve(bridge, input_stream, output_stream):
                 result = {'tools': TOOLS}
             elif method == 'tools/call':
                 params = message.get('params', {})
+                if type(params) is not dict:
+                    raise ValueError('invalid params')
                 try:
                     data = tool_call(bridge, params.get('name'), params.get('arguments', {}))
                     result = {'content': [{'type': 'text', 'text': json.dumps(data, ensure_ascii=False)}], 'isError': False}
+                except NotesError as error:
+                    result = {'content': [{'type': 'text', 'text': 'Operation rejected: '+error.code+'. Check receipt before retrying; expired context requires a new context and analysis.'}], 'isError': True}
                 except Exception:
                     result = {'content': [{'type': 'text', 'text': 'Operation unavailable/rejected. Check installed restricted SSH access, issued context/deadline and monitoring health.'}], 'isError': True}
             else:
@@ -138,6 +147,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=Path, required=True)
     args = parser.parse_args()
+    def stop(*_):
+        raise SystemExit(1)
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGHUP, stop)
     serve(SSHBridge(json.loads(args.config.read_text())), sys.stdin, sys.stdout)
 
 

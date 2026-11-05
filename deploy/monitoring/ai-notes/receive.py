@@ -8,9 +8,11 @@ from pathlib import Path
 import re
 import resource
 import signal
+import sqlite3
 import sys
 import time
 
+from errors import NotesError
 from contracts import report_from_dict, submit_analysis, validate_context
 from snapshot import collect
 from storage import LokiPublisher, Store
@@ -30,12 +32,15 @@ def handle(request, principal, store, clock=time.time, collector=collect, publis
         now = int(clock())
         # Principal must be fixed by forced command; it is never part of the request.
         store.check_issue_allowed(principal, now)
-        context = collector(environment, now)
+        try:
+            context = collector(environment, now)
+        except Exception:
+            raise NotesError('collection_unavailable') from None
         validate_context(context, now)
         store.issue(context, principal, now)
         ticket = store.get(context.context_id)
         return {'context': asdict(context), 'deadline': ticket.deadline,
-                'instructions': 'Infer using only the issued evidence. Separate facts from hypotheses, give checks/advice, preserve limitations. Submit within deadline; provider/model are self-reported. No automatic remediation.'}
+                'instructions': 'Write a Korean operational note using actual AI inference and only the issued evidence. Do not include credentials, private identifiers, IP addresses, raw logs or URLs in the report. Separate facts from hypotheses, give checks/advice, preserve limitations. Submit within deadline; provider/model are self-reported. No automatic remediation.'}
     if action in ('publish', 'receipt'):
         expected = {'action', 'context_id', 'report'} if action == 'publish' else {'action', 'context_id'}
         if set(request) != expected or not isinstance(request['context_id'], str) or not re.fullmatch(r'[a-zA-Z0-9-]{1,100}', request['context_id']):
@@ -60,6 +65,9 @@ def main():
     os.umask(0o077)
     resource.setrlimit(resource.RLIMIT_AS, (96*1024*1024, 96*1024*1024))
     resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
+    def timeout(*_):
+        raise NotesError('request_timeout')
+    signal.signal(signal.SIGALRM, timeout)
     signal.alarm(30)
     try:
         raw = sys.stdin.buffer.readline(50001)
@@ -68,9 +76,22 @@ def main():
         result = handle(json.loads(raw), args.principal, Store(STATE, METRICS))
         print(json.dumps({'ok': True, 'result': result}, ensure_ascii=False))
         return 0
-    except Exception:
-        # No raw payloads, credentials, URLs, model output or upstream errors in journals.
-        print(json.dumps({'ok': False, 'error': 'Request rejected or local collection/storage unavailable. Check scope, issued context/deadline, receipt and monitoring health.'}))
+    except Exception as error:
+        if isinstance(error, NotesError):
+            code = error.code
+        elif isinstance(error, PermissionError):
+            code = 'forbidden'
+        elif isinstance(error, KeyError):
+            code = 'not_found'
+        elif isinstance(error, TimeoutError):
+            code = 'deadline_exceeded'
+        elif isinstance(error, sqlite3.Error):
+            code = 'storage_unavailable'
+        elif isinstance(error, (ValueError, TypeError)):
+            code = 'invalid_request'
+        else:
+            code = 'unavailable'
+        print(json.dumps({'ok': False, 'error': {'code': code}}))
         return 1
 
 

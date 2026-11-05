@@ -6,6 +6,9 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
+import signal
+import time
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -16,7 +19,8 @@ import contracts as c
 import mcp_server as mcp
 import receive
 import snapshot
-from storage import Store, LokiPublisher
+from storage import Store, LokiPublisher, deliver_accepted
+from errors import NotesError
 
 
 def context(now=2000):
@@ -64,7 +68,7 @@ class NotesPublishingTest(unittest.TestCase):
             store.issue(context(), 'actor', 2000)
             publisher = LokiPublisher(store)
             with patch('storage.opener', side_effect=TimeoutError):
-                with self.assertRaises(TimeoutError):
+                with self.assertRaisesRegex(NotesError, 'delivery_unavailable'):
                     c.submit_analysis('test-context', report(), store, publisher, principal='actor', clock=lambda: 2002)
             self.assertFalse(store.receipt('test-context', 'actor')['delivered'])
             saved = store.db.execute('SELECT payload FROM notes').fetchone()[0]
@@ -84,7 +88,7 @@ class NotesPublishingTest(unittest.TestCase):
             with patch('storage.opener', return_value=opener):
                 publisher = LokiPublisher(store)
                 c.submit_analysis('test-context', report(), store, publisher, principal='actor', clock=lambda: 2002)
-                with self.assertRaises(ValueError):
+                with self.assertRaisesRegex(NotesError, 'conflict'):
                     c.submit_analysis('test-context', replace(report(), model='another'), store, publisher, principal='actor', clock=lambda: 2003)
                 with self.assertRaises(PermissionError):
                     c.submit_analysis('test-context', report(), store, publisher, principal='intruder', clock=lambda: 2003)
@@ -97,7 +101,7 @@ class NotesPublishingTest(unittest.TestCase):
             store = Store(temp)
             store.issue(context(), 'actor', 2000)
             collector = MagicMock()
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(NotesError, 'rate_limited'):
                 receive.handle({'action':'get_context','environment':'dev'}, 'actor', store, lambda: 2001, collector)
             collector.assert_not_called()
             for payload in ({'action':'get_context','environment':'dev','principal':'intruder'},
@@ -179,6 +183,93 @@ class NotesPublishingTest(unittest.TestCase):
             with patch.dict(os.environ,{'EXTRA_SECRET':'private'}),patch('mcp_server.subprocess.run',side_effect=run):
                 self.assertEqual(bridge.call({'action':'receipt','context_id':'id'}),{'receipt':'id'})
             self.assertFalse(paths[0].exists())
+
+    def test_ssh_timeout_removes_ephemeral_private_key(self):
+        with tempfile.TemporaryDirectory() as temp:
+            hosts = Path(temp)/'known_hosts'; hosts.write_text('pinned-test-host')
+            bridge = mcp.SSHBridge({'host':'example.invalid','user':'deploy','keychain_service':'kr.kidly.ai-notes','keychain_account':'actor','known_hosts_file':str(hosts)})
+            paths=[]
+            def run(command, **kwargs):
+                if command[0]=='/usr/bin/security':
+                    return MagicMock(returncode=0,stdout=base64.b64encode(b'-----BEGIN OPENSSH PRIVATE KEY-----\nsynthetic\n'))
+                paths.append(Path(command[command.index('-i')+1]))
+                raise subprocess.TimeoutExpired('ssh',40)
+            with patch('mcp_server.subprocess.run',side_effect=run):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    bridge.call({'action':'receipt','context_id':'id'})
+            self.assertFalse(paths[0].exists())
+
+    def test_unused_expired_contexts_are_pruned_and_principal_quotas_isolate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store=Store(temp)
+            store.issue(context(), 'actor', 2000)
+            newer=replace(context(6000), context_id='new-context')
+            store.issue(newer, 'actor', 6000)
+            with self.assertRaises(KeyError):
+                store.get('test-context')
+            body=json.dumps(asdict(context(6000)))
+            with store.db:
+                store.db.executemany('INSERT INTO contexts VALUES(?,?,?,?,?)', [(str(i),body,6000,'abusive',6000) for i in range(1000)])
+            with self.assertRaisesRegex(NotesError,'capacity_reached'):
+                store.issue(replace(context(6040),context_id='overflow'),'abusive',6040)
+            store.issue(replace(context(6040),context_id='legitimate'),'other-actor',6040)
+            self.assertEqual(store.get('legitimate').principal,'other-actor')
+
+    def test_sensitive_generated_text_rejected_before_delivery(self):
+        for secret in ('Bearer synthetic-token', 'password=synthetic', 'https://private.invalid', '10.0.0.1', 'test@example.invalid', '-----BEGIN PRIVATE KEY-----'):
+            invalid=replace(report(),findings=(replace(report().findings[0],hypothesis=secret),))
+            with self.assertRaises(ValueError):
+                c.validate_report(context(),invalid,2002)
+
+    def test_operator_recovery_reuses_stored_payload_and_discard_does_not_claim_delivery(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store=Store(temp);store.issue(context(),'actor',2000)
+            with patch('storage.opener',side_effect=TimeoutError):
+                with self.assertRaises(NotesError):
+                    c.submit_analysis('test-context',report(),store,LokiPublisher(store),principal='actor',clock=lambda:2002)
+            self.assertEqual(len(store.pending()),1)
+            saved=store.accepted_payload('test-context')[1]
+            opener=MagicMock();opener.open.return_value=response()
+            with patch('storage.opener',return_value=opener):
+                deliver_accepted(store,'test-context')
+            self.assertEqual(opener.open.call_args.args[0].data.decode(),saved)
+            with self.assertRaises(ValueError):store.discard('test-context')
+            store.issue(replace(context(2040),context_id='pending-two'),'actor',2040)
+            later=replace(report(),context_id='pending-two',generated_at=2041)
+            with patch('storage.opener',side_effect=TimeoutError):
+                with self.assertRaises(NotesError):c.submit_analysis('pending-two',later,store,LokiPublisher(store),principal='actor',clock=lambda:2042)
+            store.discard('pending-two')
+            self.assertFalse(store.receipt('pending-two','actor')['delivered'])
+            self.assertTrue(store.receipt('pending-two','actor')['discarded'])
+            self.assertEqual(store.pending(),[])
+            with self.assertRaises(ValueError):receive.handle({'action':'retry-stored','context_id':'pending-two'},'actor',store)
+
+    def test_termination_signal_cleans_ephemeral_key(self):
+        for sig in (signal.SIGTERM,signal.SIGHUP):
+            with self.subTest(signal=sig),tempfile.TemporaryDirectory() as temp:
+                root=Path(temp);hosts=root/'hosts';hosts.write_text('pinned')
+                config=root/'config.json';config.write_text(json.dumps({'host':'example.invalid','user':'deploy','keychain_service':'kr.kidly.ai-notes','keychain_account':'actor','known_hosts_file':str(hosts)}))
+                marker=root/'marker'
+                code=("import sys,time,base64;from pathlib import Path;from types import SimpleNamespace;"
+                      +"sys.path.insert(0,"+repr(str(SOURCE))+");import mcp_server as m;"
+                      +"sys.argv=['mcp','--config',"+repr(str(config))+"]\n"
+                      +"def fake(command,**kwargs):\n"
+                      +" if command[0]=='/usr/bin/security':return SimpleNamespace(returncode=0,stdout=base64.b64encode(b'-----BEGIN OPENSSH PRIVATE KEY-----\\nsynthetic\\n'))\n"
+                      +" Path("+repr(str(marker))+").write_text(command[command.index('-i')+1]);time.sleep(30)\n"
+                      +"m.subprocess.run=fake;m.main()\n")
+                wrapper=root/'wrapper.py';wrapper.write_text(code)
+                process=subprocess.Popen([sys.executable,str(wrapper)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                try:
+                    process.stdin.write(json.dumps({'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'get_publication_status','arguments':{'context_id':'id'}}})+'\n');process.stdin.flush()
+                    deadline=time.monotonic()+5
+                    while not marker.exists() and process.poll() is None and time.monotonic()<deadline:time.sleep(.01)
+                    self.assertTrue(marker.exists())
+                    identity=Path(marker.read_text());self.assertTrue(identity.exists())
+                    process.send_signal(sig);process.wait(timeout=5)
+                    self.assertFalse(identity.exists())
+                finally:
+                    if process.poll() is None:process.kill();process.wait()
+                    process.stdin.close();process.stdout.close();process.stderr.close()
 
     def test_large_issued_value_rejected_consistently(self):
         invalid = replace(context(), evidence=(replace(context().evidence[0],value=10**400),))

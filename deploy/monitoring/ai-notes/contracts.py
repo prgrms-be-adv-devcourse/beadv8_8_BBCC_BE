@@ -103,6 +103,19 @@ def text(value, maximum=1000):
         raise ValueError('control characters forbidden')
 
 
+def report_text(value, maximum=1000):
+    text(value, maximum)
+    patterns = (
+        r'-----BEGIN|\bAKIA[A-Z0-9]{16}\b|\bsk-[A-Za-z0-9_-]{16,}',
+        r'(?i:Bearer\s+|password\s*=|token\s*=|secret\s*=|authorization\s*:|https?://|www\.)',
+        r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}',
+        r'\b(?:10|127)\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b192\.168\.\d{1,3}\.\d{1,3}\b|\b172\.(?:1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}\b',
+        r'\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+\.|[A-Za-z0-9+/=]{80,}',
+    )
+    if any(re.search(pattern, value) for pattern in patterns):
+        raise ValueError('sensitive or unsupported report text')
+
+
 def collection(value, maximum):
     if type(value) is not tuple or len(value) > maximum:
         raise ValueError('bounded tuple required')
@@ -161,8 +174,8 @@ def validate_report(context: AnalysisContext, report: AnalysisReport, now: float
         raise ValueError('context mismatch')
     if type(report.generated_at) is not int or not context.window_end <= report.generated_at <= now + 60:
         raise ValueError('invalid generation timestamp')
-    text(report.provider, 100)
-    text(report.model, 100)
+    report_text(report.provider, 100)
+    report_text(report.model, 100)
     collection(report.findings, 5)
     collection(report.limitations, 20)
     if not report.findings and not report.limitations:
@@ -172,19 +185,19 @@ def validate_report(context: AnalysisContext, report: AnalysisReport, now: float
         if not isinstance(finding, Finding):
             raise ValueError('finding required')
         for value in (finding.observation, finding.hypothesis, finding.recommendation):
-            text(value)
+            report_text(value)
         collection(finding.checks, 5)
         collection(finding.evidence_ids, 10)
         if not finding.checks or not finding.evidence_ids:
             raise ValueError('checks and evidence required')
         for check in finding.checks:
-            text(check)
+            report_text(check)
         for ref in finding.evidence_ids:
             text(ref, 100)
         if len(set(finding.evidence_ids)) != len(finding.evidence_ids) or any(ref not in ids for ref in finding.evidence_ids):
             raise ValueError('unknown or duplicate evidence reference')
     for limitation in report.limitations:
-        text(limitation)
+        report_text(limitation)
 
 
 def report_from_dict(data) -> AnalysisReport:

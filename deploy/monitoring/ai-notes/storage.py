@@ -10,6 +10,7 @@ import sqlite3
 import time
 import urllib.request
 
+from errors import NotesError
 from contracts import AnalysisContext, AnalysisTicket, Evidence
 from snapshot import opener
 
@@ -24,26 +25,30 @@ class Store:
         (directory/'notes.sqlite3').chmod(0o600)
         self.db.executescript('''
             CREATE TABLE IF NOT EXISTS contexts(id TEXT PRIMARY KEY, body TEXT NOT NULL, started INTEGER NOT NULL, principal TEXT NOT NULL, observed INTEGER NOT NULL);
-            CREATE TABLE IF NOT EXISTS notes(context_id TEXT PRIMARY KEY, digest TEXT NOT NULL, principal TEXT NOT NULL, receipt TEXT NOT NULL, payload TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, env TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS notes(context_id TEXT PRIMARY KEY, digest TEXT NOT NULL, principal TEXT NOT NULL, receipt TEXT NOT NULL, payload TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, env TEXT NOT NULL, observed INTEGER NOT NULL, discarded INTEGER NOT NULL DEFAULT 0);
         ''')
         self.db.commit()
 
     def check_issue_allowed(self, principal, now):
         last = self.db.execute('SELECT max(started) FROM contexts WHERE principal=?', (principal,)).fetchone()[0]
         if last is not None and now-last < 30:
-            raise ValueError('context issuance rate limited')
+            raise NotesError('rate_limited')
 
     def issue(self, context, principal, now):
         # Bound storage without deleting valid tickets or pending outbox entries.
         with self.db:
-            self.db.execute('DELETE FROM contexts WHERE started < ? AND id NOT IN (SELECT context_id FROM notes WHERE delivered=0)', (now-14*86400,))
-            self.db.execute('DELETE FROM notes WHERE created < ? AND delivered=1', (now-14*86400,))
+            self.db.execute('DELETE FROM contexts WHERE started < ? AND id NOT IN (SELECT context_id FROM notes)', (now-3600,))
+            self.db.execute('DELETE FROM contexts WHERE started < ? AND id NOT IN (SELECT context_id FROM notes WHERE delivered=0 AND discarded=0)', (now-14*86400,))
+            self.db.execute('DELETE FROM notes WHERE created < ? AND (delivered=1 OR discarded=1)', (now-14*86400,))
             if self.db.execute('SELECT count(*) FROM contexts').fetchone()[0] >= 2000:
-                raise ValueError('context capacity reached')
+                raise NotesError('capacity_reached')
+            if self.db.execute('SELECT count(*) FROM contexts WHERE principal=?', (principal,)).fetchone()[0] >= 1000:
+                raise NotesError('capacity_reached')
             last = self.db.execute('SELECT max(started) FROM contexts WHERE principal=?', (principal,)).fetchone()[0]
             if last is not None and now-last < 30:
-                raise ValueError('context issuance rate limited')
+                raise NotesError('rate_limited')
             self.db.execute('INSERT INTO contexts VALUES(?,?,?,?,?)', (context.context_id, json.dumps(asdict(context)), now, principal, context.window_end))
+        self.write_metrics()
 
     def get(self, context_id):
         row = self.db.execute('SELECT body,started,principal FROM contexts WHERE id=?', (context_id,)).fetchone()
@@ -54,19 +59,19 @@ class Store:
         return AnalysisTicket(context, row[1], row[2])
 
     def receipt(self, context_id, principal):
-        row = self.db.execute('SELECT receipt,principal,delivered FROM notes WHERE context_id=?', (context_id,)).fetchone()
+        row = self.db.execute('SELECT receipt,principal,delivered,discarded FROM notes WHERE context_id=?', (context_id,)).fetchone()
         if row is None or row[1] != principal:
             raise KeyError('no receipt for caller')
-        return {'receipt': row[0], 'delivered': bool(row[2])}
+        return {'receipt': row[0], 'delivered': bool(row[2]), 'discarded': bool(row[3])}
 
     def prepare(self, publication, payload):
         receipt = hashlib.sha256((publication.context.context_id+publication.content_digest).encode()).hexdigest()[:32]
         with self.db:
-            self.db.execute('INSERT OR IGNORE INTO notes VALUES(?,?,?,?,?,0,?,?)',
-                            (publication.context.context_id, publication.content_digest, publication.principal, receipt, payload, publication.published_at, publication.context.environments[0]))
-            row = self.db.execute('SELECT digest,principal,receipt,payload,delivered FROM notes WHERE context_id=?', (publication.context.context_id,)).fetchone()
-            if row[0] != publication.content_digest or row[1] != publication.principal:
-                raise ValueError('conflicting report for issued context')
+            self.db.execute('INSERT OR IGNORE INTO notes VALUES(?,?,?,?,?,0,?,?,?,0)',
+                            (publication.context.context_id, publication.content_digest, publication.principal, receipt, payload, publication.published_at, publication.context.environments[0], publication.context.window_end))
+            row = self.db.execute('SELECT digest,principal,receipt,payload,delivered,discarded FROM notes WHERE context_id=?', (publication.context.context_id,)).fetchone()
+            if row[0] != publication.content_digest or row[1] != publication.principal or row[5]:
+                raise NotesError('conflict')
         self.write_metrics()
         return row[2], row[3], bool(row[4])
 
@@ -75,15 +80,33 @@ class Store:
             self.db.execute('UPDATE notes SET delivered=1 WHERE context_id=?', (context_id,))
         self.write_metrics()
 
+    def pending(self):
+        rows = self.db.execute('SELECT context_id,env,principal,created FROM notes WHERE delivered=0 AND discarded=0 ORDER BY created LIMIT 2000').fetchall()
+        return [dict(zip(('context_id','environment','principal','created'), row)) for row in rows]
+
+    def accepted_payload(self, context_id):
+        row = self.db.execute('SELECT receipt,payload,delivered,discarded FROM notes WHERE context_id=?', (context_id,)).fetchone()
+        if row is None or row[3]:
+            raise KeyError('no accepted outbox')
+        return row[0], row[1], bool(row[2])
+
+    def discard(self, context_id):
+        with self.db:
+            result = self.db.execute('UPDATE notes SET discarded=1 WHERE context_id=? AND delivered=0 AND discarded=0', (context_id,))
+            if result.rowcount != 1:
+                raise ValueError('only pending notes may be discarded')
+        self.write_metrics()
+
     def write_metrics(self):
         if self.metrics_path is None:
             return
-        observed = dict(self.db.execute('SELECT n.env,MAX(c.observed) FROM notes n JOIN contexts c ON c.id=n.context_id WHERE n.delivered=1 GROUP BY n.env'))
-        pending = dict(self.db.execute('SELECT env,count(*) FROM notes WHERE delivered=0 GROUP BY env'))
+        observed = dict(self.db.execute('SELECT env,MAX(observed) FROM notes WHERE delivered=1 AND discarded=0 GROUP BY env'))
+        pending = dict(self.db.execute('SELECT env,count(*) FROM notes WHERE delivered=0 AND discarded=0 GROUP BY env'))
         lines = []
         for env in ('dev', 'prod'):
             lines.append(f'kidly_ai_notes_last_observed_seconds{{env="{env}"}} {observed.get(env, 0)}')
             lines.append(f'kidly_ai_notes_pending{{env="{env}"}} {pending.get(env, 0)}')
+        lines.append(f'kidly_ai_notes_contexts {self.db.execute("SELECT count(*) FROM contexts").fetchone()[0]}')
         fd, name = tempfile.mkstemp(dir=self.metrics_path.parent)
         try:
             with os.fdopen(fd, 'w') as output:
@@ -134,9 +157,20 @@ class LokiPublisher:
         receipt, saved, done = self.store.prepare(publication, payload)
         if done:
             return receipt
-        request = urllib.request.Request('http://127.0.0.1:31100/loki/api/v1/push', data=saved.encode(), headers={'Content-Type': 'application/json'}, method='POST')
+        return deliver_accepted(self.store, publication.context.context_id)
+
+
+def deliver_accepted(store, context_id):
+    """Operator recovery only after expiry. No caller-supplied text or AI reinference."""
+    receipt, saved, done = store.accepted_payload(context_id)
+    if done:
+        return receipt
+    request = urllib.request.Request('http://127.0.0.1:31100/loki/api/v1/push', data=saved.encode(), headers={'Content-Type': 'application/json'}, method='POST')
+    try:
         with opener().open(request, timeout=5) as response:
             if response.status != 204:
-                raise ValueError('note storage unavailable')
-        self.store.delivered(publication.context.context_id)
-        return receipt
+                raise NotesError('delivery_unavailable')
+    except Exception:
+        raise NotesError('delivery_unavailable') from None
+    store.delivered(context_id)
+    return receipt
