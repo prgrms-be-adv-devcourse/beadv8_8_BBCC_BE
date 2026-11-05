@@ -12,8 +12,9 @@ import sys
 import urllib.request
 
 MAX_HEADINGS = 3
-# Slack 한 칸은 3000자까지라 파일이 많으면 앞의 것만 적는다
+# Slack 한 칸은 3000자까지라 파일이 많으면 앞의 것만 적는다. 개수와 글자 수 둘 다 본다(링크 주소가 길다)
 MAX_FILES = 15
+MAX_TEXT = 2800
 HUNK = re.compile(r'^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@')
 HEADING = re.compile(r'^#{1,6}\s+(.+?)\s*#*\s*$')
 
@@ -118,13 +119,22 @@ def main():
         author = env['ACTOR']
 
     compare = gh_api(f"repos/{repo}/compare/{env['BEFORE']}...{sha}") or {}
+    # 그림과 문서 사이트 설정(docs/.vitepress · package.json 등)은 문서 변경으로 알리지 않는다
     files = [f for f in compare.get('files', [])
-             if f['filename'].startswith('docs/') and '/images/' not in f['filename']]
-    lines = [file_line(f, link_base) for f in files[:MAX_FILES]]
-    if len(files) > MAX_FILES:
-        lines.append(f'• 외 {len(files) - MAX_FILES}개 파일')
+             if f['filename'].startswith('docs/') and f['filename'].endswith('.md')
+             and '/images/' not in f['filename'] and '/.' not in f['filename']
+             and '/node_modules/' not in f['filename']]
+    lines, used = [], len(title) + len(url) + 10
+    for f in files[:MAX_FILES]:
+        line = file_line(f, link_base)
+        if used + len(line) + 1 > MAX_TEXT:
+            break
+        lines.append(line)
+        used += len(line) + 1
+    if len(files) > len(lines):
+        lines.append(f'• 외 {len(files) - len(lines)}개 파일')
     if not lines:
-        lines = ['• 그림만 바뀌었거나 목록을 가져오지 못했다']
+        lines = ['• 그림 · 사이트 설정만 바뀌었거나 목록을 가져오지 못했다']
 
     try:
         names = json.loads(env.get('NAME_MAP') or '{}')
