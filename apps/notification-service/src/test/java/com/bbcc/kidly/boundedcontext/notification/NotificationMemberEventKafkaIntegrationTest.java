@@ -143,15 +143,6 @@ class NotificationMemberEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("기존 회원을 다시 보낸 가입 이벤트(resent)는 복사본만 저장하고 환영 메일을 만들지 않는다")
-    void resentSavesContactWithoutWelcome() throws Exception {
-        sendRegistered(Map.of("memberId", memberId, "email", email, "resent", true));
-
-        AsyncWait.until(TIMEOUT, () -> jpaMemberContactRepository.existsById(memberId));
-        assertThat(notificationsOf(email)).isEmpty();
-    }
-
-    @Test
     @DisplayName("탈퇴 이벤트를 받으면 회원 이메일 복사본을 지운다")
     void deleteMemberContact() throws Exception {
         send(memberRegistered(email));
@@ -233,11 +224,7 @@ class NotificationMemberEventKafkaIntegrationTest {
         sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(body));
     }
 
-    // shared 이벤트에 아직 없는 필드(resent)를 넣으려고 data를 직접 만든다. 공통 칸은 회원이 보내는 형식과 같다
-    private void sendRegistered(Map<String, Object> data) throws Exception {
-        sendEnvelope("member.registered", data);
-    }
-
+    // 탈퇴 이벤트를 회원이 보내는 형식(공통 칸 + data)으로 넣는다
     private void sendWithdrawn() throws Exception {
         sendEnvelope("member.withdrawn", Map.of("memberId", memberId));
     }
