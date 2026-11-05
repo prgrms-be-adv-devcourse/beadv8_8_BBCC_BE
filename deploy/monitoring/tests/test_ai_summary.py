@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 SPEC = importlib.util.spec_from_file_location('ai_summary', Path(__file__).parents[1] / 'ai-summary/summary.py')
 m = importlib.util.module_from_spec(SPEC)
@@ -149,6 +149,19 @@ class SummaryTest(unittest.TestCase):
             with self.subTest(response=response), patch.object(m, 'request', return_value=response):
                 with self.assertRaises(ValueError):
                     m.analyze([], {}, 'test', 'synthetic-key')
+
+    def test_proxy_environment_is_ignored(self):
+        builder = m.urllib.request.build_opener
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = b'{}'
+        def inspect(*args):
+            opener = builder(*args)
+            self.assertFalse(any(isinstance(h, m.urllib.request.ProxyHandler) for h in opener.handlers))
+            fake = MagicMock()
+            fake.open.return_value = response
+            return fake
+        with patch.dict(os.environ, {'http_proxy': 'http://untrusted.invalid:9999', 'https_proxy': 'http://untrusted.invalid:9999'}), patch.object(m.urllib.request, 'build_opener', side_effect=inspect):
+            self.assertEqual(m.request('https://api.openai.com/v1/responses'), {})
 
     def test_remote_prometheus_and_redirects_refused(self):
         with self.assertRaises(ValueError):

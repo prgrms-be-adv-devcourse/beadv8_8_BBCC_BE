@@ -61,7 +61,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def request(url, body=None, headers=None):
     req = urllib.request.Request(url, data=body, headers=headers or {})
-    with urllib.request.build_opener(NoRedirect).open(req, timeout=20) as response:
+    with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(req, timeout=20) as response:
         raw = response.read(MAX_RESPONSE + 1)
     if len(raw) > MAX_RESPONSE:
         raise ValueError('response too large')
