@@ -19,8 +19,8 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * 서비스가 처음 뜰 때 커뮤니티 테이블이 이미 있는 DB에서 서비스 Flyway가 baseline을 잡고 나서의 스키마를 본다.
- * kidly-app이 커뮤니티를 가지고 있는 동안 쓰는 DB(dev · prod · 공유 로컬)에는 kidly-app이 커뮤니티 마이그레이션을 모두 적용해 둔다.
- * baseline-version은 서비스가 처음 뜰 때 한 번만 쓰이므로 고정해 두고, 그 뒤에 더한 커뮤니티 마이그레이션은 두 앱이 모두 적용한다.
+ * kidly-app이 커뮤니티를 가지고 있던 동안 쓰던 DB에는 커뮤니티 마이그레이션을 모두 적용해 두었다.
+ * baseline-version은 서비스가 처음 뜰 때 한 번만 쓰이므로 고정해 두고, 그 뒤에 더한 커뮤니티 마이그레이션은 서비스가 적용한다.
  * 그래서 이 DB에 서비스 Flyway를 돌려도 스키마가 바뀌지 않아야 한다.
  * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
  */

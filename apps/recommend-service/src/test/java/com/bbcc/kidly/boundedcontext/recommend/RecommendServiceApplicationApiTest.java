@@ -21,7 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 추천 서비스가 추천 도메인만으로 뜨고, 추천 API 두 개를 kidly-app과 같은 주소 · 같은 응답 형식으로 내는지 본다.
+ * 추천 서비스가 추천 도메인만으로 뜨고, 추천 API 두 개를 정해진 주소 · 응답 형식으로 내는지 본다.
  */
 @FunctionalTest
 class RecommendServiceApplicationApiTest {
@@ -52,7 +52,7 @@ class RecommendServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("다른 도메인 API는 없어 kidly-app과 같은 ProblemDetail 형식의 404를 받는다")
+    @DisplayName("다른 도메인 API는 없어 ProblemDetail 형식의 404를 받는다")
     void noOtherDomainApi() {
         client.get().uri("/api/v1/children")
             .headers(TestMembers.buyer(MEMBER_1_ID))
@@ -89,7 +89,7 @@ class RecommendServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("사이즈 추천 API를 kidly-app과 같은 주소로 부르면 같은 형식으로 답한다 (자녀 1, 상품 A → 120 · 여유 있음)")
+    @DisplayName("사이즈 추천 API를 부르면 정해진 형식으로 답한다 (자녀 1, 상품 A → 120 · 여유 있음)")
     void recommendSize() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
@@ -112,7 +112,7 @@ class RecommendServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("맞춤 상품 목록 API를 kidly-app과 같은 주소로 부르면 같은 목록 형식으로 답한다")
+    @DisplayName("맞춤 상품 목록 API를 부르면 정해진 목록 형식으로 답한다")
     void listRecommendedProducts() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());

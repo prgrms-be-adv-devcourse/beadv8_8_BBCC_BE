@@ -33,9 +33,9 @@
 | 자기 이벤트 | 자기 도메인 이벤트는 Kafka로 받지 않고 Spring 이벤트로 받습니다(member의 `member.withdrawn`, product의 `product.changed`) |
 | 로그 | 메시지 본문을 로그와 예외 메시지에 넣지 않습니다. 남기는 것은 `eventType`, `eventId`, 키뿐입니다(본문의 개인정보가 Kafka와 DLT에 7일 남습니다) |
 
-### 한 앱(`kidly-app`)인 동안의 공용 규칙
+### 서비스의 공용 규칙
 
-여러 도메인이 한 앱에 있어서, 아래를 어기면 다른 도메인이 깨집니다.
+여러 도메인을 함께 실행하는 서비스에서도 아래 규칙을 지킵니다.
 
 | 항목 | 규칙 |
 |---|---|
@@ -103,7 +103,7 @@
 | `common` | `EventPublisher`(Kafka를 모른 채 Spring 이벤트만 발행) | Kafka 코드와 설정 |
 | 보내는 `domains/*` | `out`에 토픽 선언(`NewTopic`)과 커밋 뒤 발행 빈 | 다른 도메인 토픽 |
 | 받는 `domains/*` | 자기 리스너 설정(컨테이너 팩토리, 에러 처리기, DLT `NewTopic`)과 `@KafkaListener` 리스너. 리스너 패키지는 지금 위치 그대로(대부분 `in`, payment는 `app`) | `spring.kafka.*` yml |
-| `apps/kidly-app` | 앱 공용 Kafka 설정, Kafka 테스트 지원(`@KafkaIntegrationTest`, `support.AsyncWait`) | 도메인별 Kafka 설정 |
+| `apps/*-service` | 서비스 공용 Kafka 설정, Kafka 테스트 지원(`@KafkaIntegrationTest`, `support.AsyncWait`) | 도메인별 Kafka 설정 |
 
 ### 예시 코드와 맞춰야 하는 것
 

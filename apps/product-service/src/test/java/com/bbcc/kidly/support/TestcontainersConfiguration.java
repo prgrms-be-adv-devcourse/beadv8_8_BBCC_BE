@@ -8,7 +8,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @TestConfiguration(proxyBeanMethods = false)
-// 서버는 compose의 TZ: Asia/Seoul로 돈다. 테스트 JVM도 같은 기본 시간대로 맞춰 시각 비교가 PC마다 달라지지 않게 한다(kidly-app과 같다)
+// 서버는 compose의 TZ: Asia/Seoul로 돈다. 테스트 JVM도 같은 기본 시간대로 맞춰 시각 비교가 PC마다 달라지지 않게 한다
 public class TestcontainersConfiguration {
 
     static {

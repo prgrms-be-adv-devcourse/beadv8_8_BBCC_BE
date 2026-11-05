@@ -25,7 +25,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Kafka 수신 테스트가 토픽에 메시지를 직접 넣고 처리 결과를 기다리는 도우미. kidly-app ProductKafkaMessages와 같은 모양이다.
+ * Kafka 수신 테스트가 토픽에 메시지를 직접 넣고 처리 결과를 기다리는 도우미.
  */
 public final class KafkaMessages {
 

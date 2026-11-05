@@ -9,7 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 결제는 결제 서비스로 빠져(#525) kidly-app 테스트에는 지급 요청을 받아 입금하는 쪽이 없다.
+ * 지급 요청을 받아 입금하는 쪽을 테스트에서 흉내 낸다.
  * 정산이 보낸 지급 요청(settlement.payout-requested, 정산 아웃박스)을 읽고, 결제 서비스 대신 지급 완료 결과를 발행한다.
  * 결제 쪽 입금 · 지급 기록은 결제 서비스의 SettlementPayoutIntegrationTest가 본다.
  */

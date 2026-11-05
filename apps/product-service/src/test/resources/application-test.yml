@@ -13,7 +13,7 @@ springdotenv:
   enabled: false
 
 kidly:
-  # 커밋 뒤 Kafka로 보내는 빈을 끄는 팀 공통 값이라 kidly-app과 같게 둔다. Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
+  # 커밋 뒤 Kafka로 보내는 빈을 끄는 팀 공통 값이다. Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
   kafka:
     producer:
       enabled: false

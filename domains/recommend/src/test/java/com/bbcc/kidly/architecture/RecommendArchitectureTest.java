@@ -12,8 +12,7 @@ import com.tngtech.archunit.lang.ArchRule;
 import org.springframework.http.HttpStatus;
 
 /**
- * 추천 모듈 안의 domain 규칙. 계층 의존 방향은 {@link LayerArchitectureTest}가, 모듈 사이 규칙은 kidly-app의 ArchitectureTest가 검사한다.
- * 추천이 kidly-app에서 빠져(#704) kidly-app에서는 추천 클래스를 읽지 못하므로 이 모듈에서 검사한다.
+ * 추천 모듈 안의 domain 규칙. 계층 의존 방향은 {@link LayerArchitectureTest}가 검사한다.
  */
 @AnalyzeClasses(packages = "com.bbcc.kidly",
     importOptions = {ImportOption.DoNotIncludeTests.class, DoNotIncludeTestFixtures.class})

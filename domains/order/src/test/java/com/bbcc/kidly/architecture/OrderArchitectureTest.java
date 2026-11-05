@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 주문 모듈 안의 계층 규칙(로우레벨 설계 3절). 주문 모듈의 컨텍스트(order · cart · delivery, #617 · wish, #640)에 같이 건다.
- * 컨텍스트 사이 규칙은 주문 모듈의 OrderContextArchitectureTest, 모듈 사이 규칙과 in → out 금지는 kidly-app의 ArchitectureTest가 검사한다.
+ * 컨텍스트 사이 규칙은 주문 모듈의 OrderContextArchitectureTest가 검사한다.
  *
  * <pre>
  * in ──▶ app ──▶ domain ◀── out

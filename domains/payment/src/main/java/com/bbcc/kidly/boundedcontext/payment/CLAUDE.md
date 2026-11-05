@@ -236,6 +236,5 @@
 - 결제 도메인은 이 서비스에만 있다. `kidly-app`에서 뺐다. 결제 API · 이벤트 수신(구독 그룹 `kidly.payment`) · 결제 이벤트 발행은 이 서비스만 한다
 - Gateway는 결제 API와 Swagger '결제' 문서(`/v3/api-docs/payment`)를 `KIDLY_PAYMENT_URI`로 보낸다(기본값 서비스). 배포는 compose profile `payment`(힙 192m · 상한 512m)이고 dev · prod 모두 켠다
 - 마이그레이션: 서비스 이력(`payment.flyway_schema_history_payment`)만 쓴다. 기존 DB는 `baseline-version` `202611021930`(kidly-app이 마지막으로 적용한 결제 버전)으로 baseline을 잡는다. 이 값은 고정이다. 새 결제 마이그레이션은 그보다 뒤 버전으로 더한다
-  - 빈 DB에서는 여전히 `kidly-app`이 먼저 마이그레이션해야 한다(`kidly-app` init에 결제 DDL이 남아 있다). 그때 빠지는 지갑 동결 · 잔액 환급은 `V202611031535`(`IF NOT EXISTS`)가 채운다
-  - `kidly-app` 이력에 남은 결제 도메인 파일 행(`202611021530` · `202611021930`)은 `kidly-app`의 `beforeValidate__drop_payment_domain_history.sql`이 지운다. `kidly-app` 모듈에 있는 결제 파일(`V202610161035` · `V202610200643` · `V202610300905`)은 그대로 둔다
-- 되돌리기는 이미지 재배포다. `kidly-app`에 결제 API가 없어 Gateway 값만으로는 되돌릴 수 없다
+  - 빈 DB에서는 서비스의 init부터 마이그레이션을 적용한다
+- 되돌리기는 이미지 재배포다

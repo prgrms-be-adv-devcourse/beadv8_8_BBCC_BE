@@ -108,7 +108,7 @@ class SettlementKafkaReceiveIntegrationTest {
         AsyncWait.until(TIMEOUT, () -> listeners.stream().noneMatch(l -> l.getAssignedPartitions().isEmpty()));
     }
 
-    // 결제 토픽은 결제 서비스가 선언한다(#525). kidly-app에는 결제가 없어 테스트가 같은 모양(파티션 3)으로 만든다
+    // 결제 토픽은 결제 서비스가 선언한다(#525). 테스트가 같은 모양(파티션 3)으로 만든다
     private void createPaymentTopic() {
         try (Admin admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
             kafka.getBootstrapServers()))) {
