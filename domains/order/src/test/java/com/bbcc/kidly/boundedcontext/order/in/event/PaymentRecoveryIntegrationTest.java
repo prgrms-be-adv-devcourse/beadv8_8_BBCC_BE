@@ -33,6 +33,7 @@ import com.bbcc.kidly.boundedcontext.order.in.web.admin.PaymentRecoveryRetry;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -147,6 +148,9 @@ class PaymentRecoveryIntegrationTest {
         assertThat(recovery.getAmount()).isEqualTo(order.totalAmount());
         assertThat(itemsOf(recovery)).containsExactlyElementsOf(order.items().stream()
             .map(item -> new PaymentRecoveryResult.Item(item.orderItemId(), item.amount())).toList());
+        // 결제완료가 되돌려졌으므로 order.paid도 남지 않는다(#899, 같은 트랜잭션의 아웃박스)
+        assertThat(recorder.events(OrderPaidEvent.class)).isEmpty();
+        assertThat(paidOutboxCount()).isZero();
 
         LocalDateTime now = LocalDateTime.now();
         jdbcTemplate.update("update orders.orders set payment_due_at = ? where id = ?", now.minusMinutes(1),
@@ -271,6 +275,15 @@ class PaymentRecoveryIntegrationTest {
         assertThat(stored.getPaymentId()).isEqualTo(PAYMENT_ID);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
         assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).isEmpty();
+        // 관리자 결제 복구로 결제완료가 되면 order.paid 한 건(실패한 시도 · 다시 누른 재처리는 내지 않는다, #899)
+        assertThat(recorder.events(OrderPaidEvent.class)).singleElement()
+            .satisfies(event -> assertThat(event.data().orderId()).isEqualTo(order.orderId()));
+        assertThat(paidOutboxCount()).isOne();
+    }
+
+    private long paidOutboxCount() {
+        return jdbcTemplate.queryForObject("select count(*) from orders.order_outbox where event_type = 'order.paid'",
+            Long.class);
     }
 
     @Test
