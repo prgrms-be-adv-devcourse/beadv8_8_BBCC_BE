@@ -47,13 +47,21 @@ class AnalysisContractTest(unittest.TestCase):
     def test_mcp_submission_uses_authoritative_stored_context(self):
         _, publisher = ports()
         store = create_autospec(m.ContextStore, instance=True)
-        store.get.return_value = m.AnalysisTicket(context(), 2020)
+        store.get.return_value = m.AnalysisTicket(context(), 2020, "mcp-account")
         m.submit_analysis('snapshot-1', report(), store, publisher, principal='mcp-account', clock=lambda: 2025)
         store.get.assert_called_once_with('snapshot-1')
         publication = publisher.publish.call_args.args[0]
         self.assertEqual(publication.context.evidence[0].value, 8)
         self.assertEqual(publication.source, 'mcp-client')
         self.assertEqual(publication.principal, 'mcp-account')
+
+    def test_other_authenticated_caller_cannot_claim_context(self):
+        _, publisher = ports()
+        store = create_autospec(m.ContextStore, instance=True)
+        store.get.return_value = m.AnalysisTicket(context(), 2020, 'owner')
+        with self.assertRaises(PermissionError):
+            m.submit_analysis('snapshot-1', report(), store, publisher, principal='another', clock=lambda: 2025)
+        publisher.publish.assert_not_called()
 
     def test_unknown_stored_context_cannot_publish(self):
         _, publisher = ports()
@@ -135,12 +143,22 @@ class AnalysisContractTest(unittest.TestCase):
     def test_digest_is_stable_across_retries_and_excludes_receipt_time(self):
         _, publisher = ports()
         store = create_autospec(m.ContextStore, instance=True)
-        store.get.return_value = m.AnalysisTicket(context(), 2020)
+        store.get.return_value = m.AnalysisTicket(context(), 2020, "account")
         for now in (2025, 2030):
             m.submit_analysis('snapshot-1', report(), store, publisher, principal='account', clock=lambda: now)
         a, b = [call.args[0] for call in publisher.publish.call_args_list]
         self.assertEqual(a.content_digest, b.content_digest)
         self.assertNotEqual(a.published_at, b.published_at)
+
+    def test_integer_and_float_evidence_have_identical_digest(self):
+        _, publisher = ports()
+        store = create_autospec(m.ContextStore, instance=True)
+        floating = replace(context(), evidence=(replace(context().evidence[0], value=8.0),))
+        store.get.side_effect = [m.AnalysisTicket(context(), 2020, 'account'), m.AnalysisTicket(floating, 2020, 'account')]
+        for _ in range(2):
+            m.submit_analysis('snapshot-1', report(), store, publisher, principal='account', clock=lambda: 2025)
+        first, second = [call.args[0] for call in publisher.publish.call_args_list]
+        self.assertEqual(first.content_digest, second.content_digest)
 
     def test_empty_output_requires_explanation_and_control_characters_rejected(self):
         with self.assertRaises(ValueError):

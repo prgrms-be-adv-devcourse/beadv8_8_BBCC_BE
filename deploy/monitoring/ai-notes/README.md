@@ -23,7 +23,7 @@ Grafana는 provider/model과 관측/작성 시각·제약을 표시하며 특정
 ## 실행 방식 두 가지
 
 - **MCP 클라이언트 AI:** AI 앱이 MCP로 지표/문맥을 받고 추론한 뒤 공통 AnalysisReport를 제출합니다. 서버가 MCP에 AI 추론을 요청한다고 가정하지 않습니다
-- **서버/로컬 모델 worker:** AnalysisProvider.analyze(context)를 구현한 어댑터가 실제 모델을 호출하고 같은 결과를 게시합니다
+- **서버/로컬 모델 worker:** AnalysisProvider.analyze(context, deadline)를 구현한 어댑터가 실제 모델을 호출하고 같은 결과를 게시합니다
 
 MCP 제출은 submit_analysis(context_id, report)에서 발급자가 보관한 문맥을 조회합니다. AI가 근거 값을 함께 제출하지 않습니다.
 worker와 MCP 제출은 같은 내부 게시 검증을 거칩니다. 예약 실행기는 별도 호출 주체이며 분석/게시 코드에 스케줄을 넣지 않습니다.
@@ -33,9 +33,11 @@ MCP는 도구 연결 규약이고 AI 모델 자체가 아닙니다. MCP 클라�
 
 - 발급자가 실제 관측으로 만든 문맥과 시작 시각을 ContextStore에 보관하는 것이 MCP 제출의 전제입니다. 저장/인증 구현은 후속 PR입니다
 - 버전·근거 ID·환경/서비스 차원·시각·튜플 타입·중복·크기·유한 숫자를 검증합니다. JSON 배열 변환은 엄격한 report_from_dict 한 곳에서만 합니다
-- 인증된 진입점이 source/principal과 게시 시각을 부여합니다. provider/model/생성 시각은 AI의 자기 신고이며 인증 정보가 아닙니다
+- 인증된 진입점이 source/principal과 게시 시각을 부여합니다. 문맥은 발급 대상 principal에 묶으며 다른 호출자의 제출은 거부합니다. provider/model/생성 시각은 AI의 자기 신고이며 인증 정보가 아닙니다
 - 신선도는 추론 시작 시 판정합니다. 공통 제한 300초를 어댑터에 deadline으로 전달합니다. 이 사이 관측이 1시간을 넘으면 stale_at_publish를 표시하고, deadline 초과 결과는 거부합니다
+- deadline은 절대 Unix 초입니다. MCP 클라이언트도 문맥 발급 후 300초 안에 제출해야 하며, 지났으면 새 문맥으로 다시 분석합니다. 실제 어댑터는 남은 시간 안에 호출을 취소/timeout해야 합니다
 - NotePublisher는 context ID당 동일 digest 재시도에 같은 영수증을 반환하고 다른 내용 충돌을 거부해야 합니다. 실제 영속화/멱등 구현은 후속 PR입니다
+- digest는 지표 숫자를 float로 정규화하며 principal/source를 포함합니다. 다른 호출자의 재시도는 허용하지 않습니다
 - 게시기는 모델 호출과 별개로 결과를 먼저 보존한 뒤 전송하며 게시 실패 때문에 AI를 다시 호출하지 않습니다. 문자열은 plain text/HTML escape로 표시합니다
 - 원본 문맥의 제약·관측/게시 시각·stale 표시를 AI 결과와 함께 보여야 합니다
 - 모르는 필드/제공자 응답 파싱은 어댑터 책임입니다. 공통 검증 뒤에만 게시합니다

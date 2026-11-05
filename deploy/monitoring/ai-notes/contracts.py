@@ -36,6 +36,7 @@ class AnalysisContext:
 class AnalysisTicket:
     context: AnalysisContext
     started_at: int  # Stamped by trusted coordinator, never the submitted report.
+    principal: str  # Authenticated caller bound when the context is issued.
 
     @property
     def deadline(self) -> int:
@@ -75,7 +76,7 @@ class Publication:
 
 class AnalysisProvider(Protocol):
     def analyze(self, context: AnalysisContext, deadline: int) -> AnalysisReport:
-        """Infer and normalize; adapter must honor deadline and cancel/timeout its call."""
+        """Infer and normalize; deadline is absolute Unix seconds, not a duration."""
         ...
 
 
@@ -202,6 +203,7 @@ def report_from_dict(data) -> AnalysisReport:
 def validate_ticket(ticket, now):
     if not isinstance(ticket, AnalysisTicket) or type(ticket.started_at) is not int or ticket.started_at < 0 or ticket.started_at > now + 60:
         raise ValueError('invalid issued ticket')
+    text(ticket.principal, 100)
     # Validate observation freshness at inference start, not after a bounded inference.
     validate_context(ticket.context, ticket.started_at)
     if now > ticket.deadline:
@@ -210,11 +212,16 @@ def validate_ticket(ticket, now):
 
 def _publish(ticket, report, publisher, source, principal, now):
     validate_ticket(ticket, now)
+    if principal != ticket.principal:
+        raise PermissionError('context belongs to another authenticated caller')
     validate_report(ticket.context, report, now)
     if source not in ('server-worker', 'mcp-client'):
         raise ValueError('invalid source')
     text(principal, 100)
-    canonical = json.dumps({'context': asdict(ticket.context), 'report': asdict(report), 'source': source, 'principal': principal}, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    context_data = asdict(ticket.context)
+    for evidence in context_data['evidence']:
+        evidence['value'] = float(evidence['value'])
+    canonical = json.dumps({'context': context_data, 'report': asdict(report), 'source': source, 'principal': principal}, sort_keys=True, separators=(',', ':'), allow_nan=False)
     publication = Publication(ticket.context, report, source, principal, int(now), now-ticket.context.window_end > 3600, hashlib.sha256(canonical.encode()).hexdigest())
     return publisher.publish(publication)
 
@@ -232,7 +239,7 @@ def submit_analysis(context_id: str, report: AnalysisReport, contexts: ContextSt
 def analyze_and_publish(context: AnalysisContext, provider: AnalysisProvider, publisher: NotePublisher,
                         *, principal: str, clock: Callable[[], float] = time.time) -> str:
     started = int(clock())
-    ticket = AnalysisTicket(context, started)
+    ticket = AnalysisTicket(context, started, principal)
     validate_ticket(ticket, started)
     report = provider.analyze(context, ticket.deadline)
     return _publish(ticket, report, publisher, 'server-worker', principal, clock())
