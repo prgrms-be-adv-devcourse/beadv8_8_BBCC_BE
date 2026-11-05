@@ -10,15 +10,18 @@
 한 번의 실행은 API를 최대 한 번 호출합니다. 실패 포함 1시간 안의 새 시험은 차단합니다.
 개발 환경의 Secret 접근 정책을 확인하고 검토된 develop workflow로 실행합니다. 임의 브랜치의 workflow에 키를 제공하지 않습니다.
 3,000토큰에는 모델의 추론 토큰도 포함됩니다. 출력이 잘리면 게시하지 않고 실패하며 상한을 자동으로 올리지 않습니다.
-핵심1~2개 항목만 짧게 요청합니다. 원본 문맥의 제약·근거는 기존 게시기가 별도로 표시합니다.
+핵심1개 항목만 짧게 요청하고 확인 항목1개와 실제 근거 ID1개를 필수 값으로 받습니다. 어댑터가 공통 배열 형식으로 변환합니다. 원본 문맥의 제약·근거는 기존 게시기가 별도로 표시합니다.
 
 | 오류 | 확인할 것 |
 | --- | --- |
 | authentication_failed | Groq 키와 계정 확인. 키를 로그에 출력하지 않음 |
 | access_denied | 요청 식별자·접근 정책·서버 egress 확인. 키 오류로 단정하지 않음 |
+| insufficient_evidence | 발급 지표가 없음. 모델을 호출하지 않음 |
+| response_incomplete / response_refused | 모델 미완료 또는 거부. 게시하지 않음 |
+| response_text_invalid / response_evidence_missing / response_timestamp_invalid | 비어 있거나 잘못된 필수 값·시각 확인 |
 | response_truncated | 추론 포함 출력 상한에 걸림. 잘린 결과는 게시하지 않음 |
 | response_evidence_invalid / response_text_unsafe | 근거 또는 본문 검증 거부. 검증을 끄지 않음 |
-| response_model_mismatch / response_shape_invalid / response_json_invalid / response_contract_invalid | 제공자 응답 계약 확인. 다른 모델로 자동 전환하지 않음 |
+| response_model_mismatch / response_shape_invalid / response_json_invalid / response_contract_invalid / response_fields_invalid / response_array_invalid | 제공자 응답 계약 확인. 다른 모델로 자동 전환하지 않음 |
 
 무료 한도·오류·잘못된 결과·timeout은 기존 메모를 유지하고 실패합니다. 유료/다른 모델 전환과 자동 재호출은 없습니다.
 Loki 전송 실패는 기존 outbox 운영 절차로 저장본만 복구하며 AI를 다시 부르지 않습니다.

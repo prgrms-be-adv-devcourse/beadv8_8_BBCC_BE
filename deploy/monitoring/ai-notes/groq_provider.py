@@ -27,17 +27,18 @@ def object_schema(properties):
             'required': list(properties), 'additionalProperties': False}
 
 
-def output_schema():
+def output_schema(evidence_ids):
     text = {'type': 'string'}
-    strings = {'type': 'array', 'items': text}
-    finding = object_schema({'observation': text, 'hypothesis': text, 'checks': strings,
-                             'recommendation': text, 'evidence_ids': strings})
-    return object_schema({'findings': {'type': 'array', 'items': finding}, 'limitations': strings})
+    finding = object_schema({'observation': text, 'hypothesis': text, 'check': text,
+                             'recommendation': text,
+                             'evidence_id': {'type': 'string', 'enum': list(evidence_ids)}})
+    return object_schema({'finding': finding, 'limitations': {'type': 'array', 'items': text}})
 
 
 SYSTEM = '''You are an operational analysis assistant. Write concise Korean plain text.
 Use only supplied technical evidence. Separate observations from unconfirmed hypotheses.
-Return only 1-2 highest-priority findings, with 1-2 checks and 1-4 existing evidence_ids each.
+Return exactly one highest-priority finding. Give one concrete check and one existing evidence_id.
+All finding strings must be nonempty. Pick the evidence_id most directly supporting the observation.
 Keep observations <=100 characters, hypotheses <=150, checks <=80, recommendations <=150.
 Return <=3 short limitations. Original context limitations are displayed separately: do not copy them.
 Keep the entire JSON response concise. Explain unavailable evidence; missing is not zero.
@@ -67,6 +68,8 @@ class GroqProvider:
         validate_context(context, now)
         if context.environments != ('dev',):
             raise ProviderError('dev_only')
+        if not context.evidence:
+            raise ProviderError('insufficient_evidence')
         remaining = deadline-now
         if remaining <= 0:
             raise ProviderError('deadline_exceeded')
@@ -77,7 +80,7 @@ class GroqProvider:
             {'role': 'user', 'content': json.dumps(snapshot, ensure_ascii=False, allow_nan=False)}],
             'max_completion_tokens': 3000, 'reasoning_effort': 'low',
             'response_format': {'type': 'json_schema', 'json_schema': {
-                'name': 'operational_note', 'strict': True, 'schema': output_schema()}}}
+                'name': 'operational_note', 'strict': True, 'schema': output_schema(item.evidence_id for item in context.evidence)}}}
         raw = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode()
         if len(raw) > 24000:
             raise ProviderError('input_too_large')
@@ -117,12 +120,15 @@ class GroqProvider:
             if choice['message'].get('refusal'):
                 raise ProviderError('response_refused')
             result = json.loads(choice['message']['content'])
-            if type(result) is not dict or set(result) != {'findings', 'limitations'}:
+            if type(result) is not dict or set(result) != {'finding', 'limitations'}:
                 raise ProviderError('response_shape_invalid')
-            if type(result['findings']) is not list or not 1 <= len(result['findings']) <= 3:
+            finding = result['finding']
+            if type(finding) is not dict or set(finding) != {'observation', 'hypothesis', 'check', 'recommendation', 'evidence_id'}:
                 raise ProviderError('response_shape_invalid')
+            normalized = {key: finding[key] for key in ('observation', 'hypothesis', 'recommendation')}
+            normalized.update(checks=[finding['check']], evidence_ids=[finding['evidence_id']])
             # These metadata are assigned by the adapter, never by the model.
-            report = report_from_dict(dict(result, version=1, context_id=context.context_id,
+            report = report_from_dict(dict(findings=[normalized], limitations=result['limitations'], version=1, context_id=context.context_id,
                                            provider='Groq', model=MODEL, generated_at=int(self.clock())))
             validate_report(context, report, self.clock())
             return report
@@ -135,7 +141,14 @@ class GroqProvider:
             codes = {'unknown or duplicate evidence reference': 'response_evidence_invalid',
                      'sensitive or unsupported report text': 'response_text_unsafe',
                      'control characters forbidden': 'response_text_unsafe',
-                     'invalid text': 'response_text_length_invalid'}
+                     'invalid text': 'response_text_invalid',
+                     'unexpected fields': 'response_fields_invalid',
+                     'JSON array required': 'response_array_invalid',
+                     'bounded tuple required': 'response_array_invalid',
+                     'checks and evidence required': 'response_evidence_missing',
+                     'invalid generation timestamp': 'response_timestamp_invalid'}
             raise ProviderError(codes.get(str(error), 'response_contract_invalid')) from None
+        except (KeyError, TypeError, AttributeError, IndexError):
+            raise ProviderError('response_shape_invalid') from None
         except Exception:
             raise ProviderError('invalid_provider_response') from None

@@ -24,10 +24,10 @@ def context(now=2000):
 
 
 def body(**changes):
-    result = {'findings': [{'observation': 'Memory available is 8 percent',
+    result = {'finding': {'observation': 'Memory available is 8 percent',
                            'hypothesis': 'Possible memory pressure, not confirmed',
-                           'checks': ['Check the affected host'],
-                           'recommendation': 'Measure peak before changing capacity', 'evidence_ids': ['f0']}],
+                           'check': 'Check the affected host',
+                           'recommendation': 'Measure peak before changing capacity', 'evidence_id': 'f0'},
               'limitations': ['No raw logs were read']}
     result.update(changes)
     return json.dumps({'model': MODEL, 'choices': [{'finish_reason': 'stop',
@@ -65,8 +65,28 @@ class GroqProviderTest(unittest.TestCase):
         payload = json.loads(request.data)
         self.assertEqual(payload['response_format']['json_schema']['strict'], True)
         self.assertEqual(payload['max_completion_tokens'], 3000)
+        fields = payload['response_format']['json_schema']['schema']['properties']['finding']['properties']
+        self.assertEqual(fields['evidence_id']['enum'], ['f0'])
+        self.assertEqual(fields['check']['type'], 'string')
         self.assertNotIn('test-not-a-real-api-key', request.data.decode())
         client.open.assert_called_once()
+
+    def test_no_evidence_does_not_call_model(self):
+        client = transport()
+        with self.assertRaisesRegex(ProviderError, '^insufficient_evidence$'):
+            self.provider(client).analyze(replace(context(), evidence=()), 2300)
+        client.open.assert_not_called()
+
+    def test_empty_check_missing_field_and_unknown_contract_error_are_rejected(self):
+        valid = json.loads(json.loads(body())['choices'][0]['message']['content'])
+        invalid = json.loads(json.dumps(valid)); invalid['finding']['check'] = ''
+        missing = json.loads(json.dumps(valid)); del missing['finding']['check']
+        for data, code in ((invalid, 'response_text_invalid'), (missing, 'response_shape_invalid')):
+            with self.subTest(code=code), self.assertRaisesRegex(ProviderError, '^'+code+'$'):
+                self.provider(transport(body(**data))).analyze(context(), 2300)
+        with patch('groq_provider.validate_report', side_effect=ValueError('unknown validator message')):
+            with self.assertRaisesRegex(ProviderError, '^response_contract_invalid$'):
+                self.provider(transport()).analyze(context(), 2300)
 
     def test_free_confirmation_and_key_required_before_network(self):
         for key, confirmed in [('test-not-a-real-api-key', False), ('', True), ('key\n'+('a'*30), True)]:
@@ -91,8 +111,8 @@ class GroqProviderTest(unittest.TestCase):
 
     def test_invalid_ref_sensitive_text_and_overlong_result_rejected(self):
         valid = json.loads(json.loads(body())['choices'][0]['message']['content'])
-        bad_ref = json.loads(json.dumps(valid)); bad_ref['findings'][0]['evidence_ids'] = ['invented']
-        sensitive = json.loads(json.dumps(valid)); sensitive['findings'][0]['recommendation'] = 'password=private'
+        bad_ref = json.loads(json.dumps(valid)); bad_ref['finding']['evidence_id'] = 'invented'
+        sensitive = json.loads(json.dumps(valid)); sensitive['finding']['recommendation'] = 'password=private'
         for raw, code in ((b'not JSON', 'response_json_invalid'), (b'x'*65537, 'invalid_provider_response'),
                           (body(**bad_ref), 'response_evidence_invalid'), (body(**sensitive), 'response_text_unsafe'),
                           (body(findings=[]), 'response_shape_invalid')):
