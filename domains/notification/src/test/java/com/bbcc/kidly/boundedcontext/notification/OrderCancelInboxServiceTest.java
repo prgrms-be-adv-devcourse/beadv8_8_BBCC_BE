@@ -35,7 +35,7 @@ class OrderCancelInboxServiceTest {
     }
 
     @Test
-    @DisplayName("재고 부족으로 주문이 취소되면 구매자 알림함에 환불 안내와 주문 상세 주소를 넣는다")
+    @DisplayName("재고 부족으로 주문이 취소되면 구매자 알림함에 결제 전 취소 안내와 주문 상세 주소를 넣는다")
     void outOfStock() {
         orderCancelInboxService.addOrderCancelled(new OrderCancelledCommand(3L, 1L, "OUT_OF_STOCK"));
 
@@ -43,6 +43,7 @@ class OrderCancelInboxServiceTest {
         assertThat(info.memberId()).isEqualTo(1L);
         assertThat(info.type()).isEqualTo(NotificationType.ORDER_CANCELLED);
         assertThat(info.title()).isEqualTo("재고가 없어 주문이 취소됐어요");
+        assertThat(info.body()).isEqualTo("결제 전에 재고가 없어 주문을 취소했어요.");
         assertThat(info.linkPath()).isEqualTo("/orders/3");
         assertThat(info.dedupKey()).isEqualTo("order.cancelled:3");
     }
