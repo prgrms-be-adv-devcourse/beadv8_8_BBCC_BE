@@ -29,7 +29,7 @@ MCP 설정은 host/deploy user/Keychain 참조/검증된 known_hosts 경로만 �
 - localhost Prometheus 고정 쿼리만 허용하며 env/서비스명과 집계 숫자만 발급합니다. 원본 라벨·업무 로그·식별값은 읽지 않습니다
 - 발급 문맥은 원본 관측과 principal에 묶습니다. deadline은 발급 시각+300초의 절대 Unix 초입니다
 - 보고서의 URL/이메일/사설 IP/일부 토큰·키 패턴과 제어 문자를 거부합니다. 모든 개인정보/비밀값을 탐지한다는 보장은 없습니다
-- 입력 50KB/메모 100KB, receiver 전체 30초·CPU 10초·메모리 96MiB. HTTP timeout/프록시·리다이렉트 거부
+- 입력 50KB/메모 100KB, receiver 전체 30초·CPU 10초·가상주소 공간 384MiB. 실서버 import 시 예약 주소공간 약 240MiB/RSS 약 20MiB를 확인해 주소공간 제한을 정했습니다. HTTP timeout/프록시·리다이렉트 거부
 - 발급 30초 간격, 미사용 문맥 1시간 보관, principal별 1,000개/전체 2,000개 상한. 사용 완료 기록 14일, 미전송 outbox는 자동 삭제하지 않음
 - 고정 오류 코드: rate_limited/capacity_reached/conflict/not_found/forbidden/deadline_exceeded/request_timeout/collection_unavailable/delivery_unavailable/storage_unavailable/invalid_request/unavailable. 원문 응답·입력을 오류에 넣지 않음
 

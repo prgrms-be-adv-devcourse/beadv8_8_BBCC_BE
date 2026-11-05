@@ -65,7 +65,8 @@ def main():
     if os.environ.get('SSH_ORIGINAL_COMMAND') != 'kidly-ai-notes':
         return 1
     os.umask(0o077)
-    resource.setrlimit(resource.RLIMIT_AS, (96*1024*1024, 96*1024*1024))
+    # Amazon Linux reserves about 240MiB virtual address space at import (~20MiB RSS).
+    resource.setrlimit(resource.RLIMIT_AS, (384*1024*1024, 384*1024*1024))
     resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
     def timeout(*_):
         raise NotesError('request_timeout')
