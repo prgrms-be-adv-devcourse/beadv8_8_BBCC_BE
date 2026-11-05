@@ -50,6 +50,7 @@ jobs:
             4. 테스트: 바뀐 동작에 맞는 단위 · 통합 · 기능 테스트가 있는지, 빠진 경우
             5. DB: 이미 적용된 Flyway 파일을 고쳤는지, 명명 규칙(CLAUDE.md DB 명명)
             6. API 응답 규칙(CLAUDE.md API 응답)
+            7. 문서: 컨트롤러 경로를 추가 · 변경 · 삭제했는데 docs/api/README.md 표를 고치지 않았는지, 이벤트를 바꿨는데 docs/kafka/events.md를 고치지 않았는지
 
             지켜 주세요.
             - 코드 스타일 · 포매팅은 Checkstyle이, 빌드 · 테스트 실행은 CI가 하니 지적하거나 실행하지 마세요
