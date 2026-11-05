@@ -29,6 +29,7 @@
 
 ## 3. 이벤트 발행과 주기 작업
 - 주문 이벤트는 루트 규칙대로 `EventPublisher`로 발행하고, 같은 트랜잭션에서 `order_outbox`에 저장된다(`OrderOutboxWriter`). 업무가 롤백되면 메시지도 남지 않는다
+- 결제완료로 실제로 바뀌면(이벤트 수신 · 관리자 결제 복구) `order.paid`(`OrderPaidEvent`, 키 = 주문 ID, 스냅샷 상품명 · 옵션명 · 판매자, 배송지 제외, #899)를 같은 트랜잭션에서 아웃박스로 낸다(`OrderService.markPaid`). 이미 결제완료 · 취소 뒤 결제 · 주문 없음은 내지 않고, 배송 생성 · 장바구니 정리가 실패해 되돌려지면 남지 않는다
 - 장바구니는 담기에 성공하면(새 줄 · 같은 줄 합치기) `cart.item-added`(`CartItemAddedEvent`, 키 = 회원 ID), 사용자가 줄을 빼면(`DELETE /api/v1/cart/items/{id}`) `cart.item-removed`(`CartItemRemovedEvent`, 키 = 회원 ID, quantity = 뺄 때 줄 수량, #709)를 같은 길로 낸다: `cart/app/port/CartEvents` → `cart/out/order` 어댑터 → 주문 `app/port/in/OrderEventIssuer`(구현 `ProvidedEventService`, #654). 결제완료 정리(`clearOrdered`, 산 것) · 수량 변경은 내지 않는다. 받는 도메인에 맞춘 필드는 넣지 않는다
 - 조르기는 담기 · 보내기 · 승인 · 거절에 성공하면 `wish.item-added` · `wish.sent` · `wish.approved` · `wish.rejected`(`shared.order.event.Wish…Event`, 키 = 자녀 프로필 ID, data = 대상 ID(조르기 · 담기는 줄) · 자녀 · 보호자 회원 ID · items[productId · optionId · quantity] · 거절 사유)를 같은 길로 낸다: `wish/app/port/WishEvents` → `wish/out/order` 어댑터 → `OrderEventIssuer`(#702). 실패 · 롤백 · 동시 처리에서 진 쪽은 이벤트가 남지 않는다. 사실만 담고 문구 · 개인정보는 넣지 않는다
 - 관리자 멈춘 주문(아웃박스 멈춤)은 eventType 접두(`order.` · `order-item.`)로 메시지 키가 주문 ID인지 판별한다 — 새 주문 이벤트 종류가 이 접두를 벗어나면 `StuckOrderService` 목록을 같이 고친다

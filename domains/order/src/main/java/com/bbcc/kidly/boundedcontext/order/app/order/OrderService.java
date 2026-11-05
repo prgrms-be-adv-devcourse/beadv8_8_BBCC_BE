@@ -33,6 +33,7 @@ import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -173,6 +174,7 @@ public class OrderService {
      * 취소된 주문에 온 결제 완료는 반영하지 않는다. 환불은 결제 쪽이 처리하므로 환불 여부 확인만 WARN으로 알린다
      * (#290, 올 때마다). 단 결제완료 뒤 구매자가 취소한 주문에 같은 결제 ID로 다시 온 결제 완료는 이미 반영한 중복이라
      * DEBUG로만 남긴다(#354-1, 그 결제의 환불은 취소 때 order.cancelled로 이미 요청됨).
+     * 실제로 결제완료로 바뀌면 order.paid를 같은 트랜잭션에서 낸다(#899).
      *
      * @return 이번에 결제완료로 바꿨으면 true. 주문이 없거나 결제대기가 아니면 false
      */
@@ -202,8 +204,30 @@ public class OrderService {
         }
         historyRepository.save(actor.history(order.getId(), OrderStatusHistory.TargetType.ORDER, order.getId(), from,
             order.getStatus(), null, now));
+        publishPaid(order, now);
         log.info("결제완료: orderId={} paymentId={}", order.getId(), command.paymentId());
         return true;
+    }
+
+    /**
+     * 결제완료로 실제로 바뀐 때 한 번(#899). 상품 정보는 주문할 때 저장한 스냅샷이고, 배송지 · 자녀 정보는 넣지 않는다.
+     * 같은 트랜잭션에서 배송 생성 · 장바구니 정리가 실패해 되돌려지면 아웃박스 행도 남지 않는다.
+     */
+    private void publishPaid(Order order, LocalDateTime now) {
+        List<OrderPaidEvent.Item> items = order.getItems().stream().map(OrderService::paidItem).toList();
+        publish(new OrderPaidEvent(UUID.randomUUID(), now, new OrderPaidEvent.Data(order.getId(), order.getMemberId(),
+            order.getPaidAt(), order.getTotalAmount(), items)));
+    }
+
+    // 상품 스냅샷이 없는 옛 주문상품은 상품 칸이 비어 있다(주문 타임라인과 같은 처리)
+    private static OrderPaidEvent.Item paidItem(OrderItem item) {
+        OrderItem.ProductSnapshot product = item.getProduct();
+        return new OrderPaidEvent.Item(item.getId(),
+            product == null ? null : product.sellerId(),
+            product == null ? null : product.productId(),
+            product == null ? null : product.productName(),
+            product == null ? null : product.optionName(),
+            item.getQuantity(), item.getAmount());
     }
 
     /**

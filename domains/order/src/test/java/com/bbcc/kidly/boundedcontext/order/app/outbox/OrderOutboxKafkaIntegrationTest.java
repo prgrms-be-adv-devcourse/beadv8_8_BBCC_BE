@@ -37,6 +37,7 @@ import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -139,8 +140,9 @@ class OrderOutboxKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("실제 주문 흐름의 4종이 kidly.order.events(파티션 3)에 도착한다: 키 = 주문 ID, 헤더 eventType · eventId, 본문 7칸 + data")
-    void deliversFourEventTypes() {
+    @DisplayName("실제 주문 흐름의 5종(결제완료 order.paid 포함, #899)이 kidly.order.events(파티션 3)에 도착한다: 키 = 주문 ID, "
+        + "헤더 eventType · eventId, 본문 7칸 + data")
+    void deliversOrderEventTypes() {
         // 첫 주문은 결제 → 배송 완료 → 구매확정, 둘째 주문은 잔액 부족으로 결제 실패 → 취소.
         // 주문 모듈 테스트에는 결제 도메인이 없으므로 결제 응답은 테스트가 직접 넣는다(#616)
         OrderDetail confirmed = place();
@@ -156,9 +158,9 @@ class OrderOutboxKafkaIntegrationTest {
         OutboxRelayResult result = relayService.relay();
 
         assertThat(published).extracting(DomainEvent::eventType).containsExactlyInAnyOrder("order.created",
-            "order.payment-requested", "order.cancelled", "order.created", "order.payment-requested",
+            "order.payment-requested", "order.paid", "order.cancelled", "order.created", "order.payment-requested",
             "order-item.purchase-confirmed");
-        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 6, 6));
+        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 7, 7));
         Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
             published.stream().map(event -> event.eventId().toString()).collect(Collectors.toSet()));
         assertThat(received).hasSize(published.size());
@@ -300,7 +302,8 @@ class OrderOutboxKafkaIntegrationTest {
     private List<DomainEvent> publishedOrderEvents() {
         return recorder.events(DomainEvent.class).stream()
             .filter(event -> event instanceof OrderCreatedEvent || event instanceof OrderPaymentRequestedEvent
-                || event instanceof OrderCancelledEvent || event instanceof OrderItemPurchaseConfirmedEvent)
+                || event instanceof OrderPaidEvent || event instanceof OrderCancelledEvent
+                || event instanceof OrderItemPurchaseConfirmedEvent)
             .toList();
     }
 
