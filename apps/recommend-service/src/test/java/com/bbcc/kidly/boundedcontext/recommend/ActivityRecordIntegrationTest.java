@@ -171,6 +171,24 @@ class ActivityRecordIntegrationTest {
             .containsExactly(others.getId(), OTHER_MEMBER_ID);
     }
 
+    @Test
+    @DisplayName("기록이 없는 회원의 탈퇴나 같은 탈퇴를 다시 받아도 예외 없이 끝나고 다른 회원의 기록은 남는다")
+    void deleteWithdrawnMemberActivitiesTwice() {
+        ActivityRecord others = activityRecordRepository.saveAndFlush(otherMemberSearch());
+        var withdrawn = ActivityRecordFixture.memberWithdrawnEvent(MEMBER_1_ID);
+
+        assertThatCode(() -> activityRecordService.deleteWithdrawnMemberActivities(withdrawn))
+            .doesNotThrowAnyException();
+        activityRecordService.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent());
+        activityRecordService.deleteWithdrawnMemberActivities(withdrawn);
+        assertThatCode(() -> activityRecordService.deleteWithdrawnMemberActivities(withdrawn))
+            .doesNotThrowAnyException();
+
+        assertThat(activityRecordRepository.findAll()).singleElement()
+            .extracting(ActivityRecord::getId)
+            .isEqualTo(others.getId());
+    }
+
     private static ActivityRecord otherMemberSearch() {
         return ActivityRecord.searched(new ActivityRecord.SearchInfo(UUID.randomUUID(), OTHER_MEMBER_ID, KEYWORD,
             PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT));
