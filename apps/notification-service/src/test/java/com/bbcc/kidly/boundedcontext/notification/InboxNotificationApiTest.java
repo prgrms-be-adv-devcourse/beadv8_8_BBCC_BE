@@ -7,7 +7,12 @@ import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,6 +93,32 @@ class InboxNotificationApiTest {
     void addOnceByDedupKey() {
         add(ME, "첫째", null, "same");
         add(ME, "다시", null, "same");
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM notification.inbox", Long.class))
+            .isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("같은 중복 키로 동시에 넣어도 예외 없이 한 건만 남는다")
+    void addConcurrentlyOnce() throws Exception {
+        int threads = 8;
+        var ready = new CountDownLatch(threads);
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(threads)) {
+            var futures = IntStream.range(0, threads)
+                .mapToObj(i -> executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    add(ME, "동시 " + i, null, "same");
+                    return null;
+                }))
+                .toList();
+            ready.await();
+            start.countDown();
+            for (Future<Object> future : futures) {
+                future.get(10, TimeUnit.SECONDS);
+            }
+        }
 
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM notification.inbox", Long.class))
             .isEqualTo(1L);

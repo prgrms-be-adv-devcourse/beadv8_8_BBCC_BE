@@ -22,14 +22,11 @@ public class InboxNotificationService {
     private final InboxNotificationRepository inboxNotificationRepository;
 
     /**
-     * 알림함에 넣는다. 같은 dedupKey가 이미 있으면 넣지 않는다(같은 이벤트를 다시 받아도 한 건).
+     * 알림함에 넣는다. 같은 dedupKey가 이미 있으면 넣지 않는다(같은 이벤트를 다시 받거나 동시에 받아도 한 건).
      */
     @Transactional
     public void add(InboxNotificationInfo info) {
-        if (inboxNotificationRepository.existsByDedupKey(info.dedupKey())) {
-            return;
-        }
-        inboxNotificationRepository.save(InboxNotification.create(info));
+        inboxNotificationRepository.saveIfAbsent(InboxNotification.create(info), LocalDateTime.now());
     }
 
     @Transactional(readOnly = true)
