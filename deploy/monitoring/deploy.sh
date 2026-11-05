@@ -12,6 +12,9 @@ mkdir -p operations
 if [[ ! -f operations/inventory.prom ]]; then
   printf 'kidly_monitoring_inventory_present 1\nkidly_monitoring_inventory_initialized 0\n' > operations/inventory.prom
 fi
+if ! python3 ai-notes/initialize.py; then
+  echo "::warning::AI 메모 상태 초기화 실패. 기존 모니터링 배포는 계속합니다"
+fi
 # 대시보드 ConfigMap 이 커서(약 190KB) client-side apply 의 last-applied 주석 한도(256KB)를 넘을 수 있어 server-side 로 넣는다
 # 손으로 바꾼 필드가 있어도 레포 내용으로 되돌린다(--force-conflicts)
 kubectl apply --server-side --force-conflicts -k .
