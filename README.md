@@ -61,6 +61,7 @@
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
 | `apps/member-service/{auth,member,seller,support}` | 회원 서비스 빌드의 Gradle 모듈. 회원 서비스는 자체 settings를 가진 별도 빌드다. [구조와 실행](apps/member-service/README.md) |
 | `architecture` | 도메인 모듈마다 돌리는 ArchUnit 규칙(계층 `LayerRules`, 트랜잭션 격리 `TransactionRules`) |
+| `docs` | 팀 공용 문서(기획서 · Kafka 규칙 · API 목록). develop에 머지되면 문서 사이트(GitHub Pages, VitePress)와 GitHub 위키에 자동으로 올라간다. Gradle 빌드와 따로, `docs/`에서 `npm ci` · `npm run dev`로 띄운다. [문서 고치는 법](docs/writing.md) |
 
 ## 인증
 

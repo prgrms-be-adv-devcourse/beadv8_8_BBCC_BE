@@ -1,0 +1,45 @@
+/* 목차 행(toc-rows.ts 가 README.md 의 목차 목록에 붙인 class) */
+.vp-doc ul.toc-list,
+.vp-doc ol.toc-list { list-style: none; padding-left: 0; margin: 8px 0 32px; }
+.vp-doc .toc-list li { margin: 0; }
+.vp-doc .toc-list li > p { margin: 0; }
+.vp-doc .toc-list a.ti { text-decoration: none; color: var(--vp-c-text-1); }
+.vp-doc .toc-list a.ti:hover .ti-t { color: var(--vp-c-brand-1); }
+.toc-list .ti-no:empty, .toc-list .ti-m:empty { display: none; }
+
+.vp-doc .toc-label { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--vp-c-brand-1); margin: 24px 0 6px; }
+
+/* 책 목차: 분야 첫 화면. 번호 · 제목 · 점선 · 읽는 시간 */
+.vp-doc .toc-book { max-width: 560px; }
+.vp-doc .toc-book a.ti { display: flex; align-items: baseline; gap: 12px; padding: 6px 0; }
+.toc-book .ti-no { width: 30px; flex: none; color: var(--vp-c-text-3); font-size: 14px; font-variant-numeric: tabular-nums; }
+.toc-book .ti-t { font-size: 16px; }
+.toc-book .ti-d { display: none; }
+.toc-book .ti-dots { flex: 1; min-width: 24px; border-bottom: 1px dotted var(--vp-c-text-3); transform: translateY(-4px); opacity: .6; }
+.toc-book .ti-m { font-size: 13px; color: var(--vp-c-text-3); font-variant-numeric: tabular-nums; }
+
+/* 처음이라면 이 순서로: 문서 안내의 번호 목록 */
+.vp-doc .toc-steps a.ti { display: grid; grid-template-columns: 28px 1fr auto; grid-template-areas: "no t m" "no d m";
+  column-gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--vp-c-divider); }
+.toc-steps .ti-no { grid-area: no; width: 24px; height: 24px; border-radius: 50%; background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.toc-steps .ti-t { grid-area: t; font-size: 16px; font-weight: 600; }
+.toc-steps .ti-d { grid-area: d; font-size: 13.5px; color: var(--vp-c-text-2); }
+.toc-steps .ti-dots { display: none; }
+.toc-steps .ti-m { grid-area: m; font-size: 13px; color: var(--vp-c-text-3); }
+
+/* 분야: 문서 안내의 글머리 목록 */
+.vp-doc .toc-fields a.ti { display: flex; flex-direction: column; padding: 10px 0; border-bottom: 1px solid var(--vp-c-divider); }
+.toc-fields .ti-no, .toc-fields .ti-dots, .toc-fields .ti-m { display: none; }
+.toc-fields .ti-t { font-size: 16px; font-weight: 600; }
+.toc-fields .ti-d { font-size: 13.5px; color: var(--vp-c-text-2); }
+
+/* 문서 안내 */
+.page-home .vp-doc h1 + p { font-size: 17px; color: var(--vp-c-text-2); }
+.page-home .vp-doc h1 + p::after { content: " 찾는 게 있으면 위쪽 검색(⌘K)을 쓰세요."; }
+.page-home .vp-doc .toc-label { margin-top: 32px; }
+.page-home .vp-doc .toc-list + p { font-size: 13px; color: var(--vp-c-text-3); }
+
+@media (max-width: 640px) {
+  .toc-book .ti-m, .toc-steps .ti-m { display: none; }
+}
