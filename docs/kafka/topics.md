@@ -14,8 +14,8 @@
 | | `stock.deducted` · `stock.deduction-failed` | 주문 ID | | order |
 | `kidly.order.events` | `order.created` | 주문 ID | order | product |
 | | `order.payment-requested` | 주문 ID | | payment |
-| | `order.cancelled` | 주문 ID | | payment, product |
-| | `order-item.cancelled` | 주문 ID | | payment, product |
+| | `order.cancelled` | 주문 ID | | notification, payment, product |
+| | `order-item.cancelled` | 주문 ID | | notification, payment, product |
 | | `order-item.purchase-confirmed` | 주문 ID | | community, recommend, settlement |
 | | `cart.item-added` | 회원 ID | | recommend |
 | | `wish.sent` | 자녀 ID | | notification |
