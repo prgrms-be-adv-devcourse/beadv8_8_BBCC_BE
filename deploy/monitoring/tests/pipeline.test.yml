@@ -125,7 +125,7 @@ tests:
         values: '1+0x15'
       - series: 'kidly_environment_changed_timestamp_seconds{env="dev"}'
         values: '0+0x15'
-      - series: 'kidly_app_expected{env="dev",app_job="kidly"}'
+      - series: 'kidly_app_expected{env="dev",app_job="kidly-search"}'
         values: '1+0x15'
       - series: 'up{job="kidly-alloy",collector="app"}'
         values: '1+0x15'
@@ -136,7 +136,7 @@ tests:
       - eval_time: 8m
         alertname: kidly-scrape-missing
         exp_alerts:
-          - exp_labels: {env: dev, job: kidly, app_job: kidly}
+          - exp_labels: {env: dev, job: kidly-search, app_job: kidly-search}
   - interval: 1m
     input_series:
       - series: 'prometheus_tsdb_wal_writes_failed_total{job="kidly-monitoring-store",store="prometheus"}'

@@ -24,9 +24,19 @@ class EnvironmentStateTests(unittest.TestCase):
         self.addCleanup(self.state_patch.stop)
         env = self.root / 'dev'
         env.mkdir()
-        (env / '.env').write_text('COMPOSE_PROFILES=search\nAPP_PORT=8081\nSEARCH_PORT=8082\nDB_PASSWORD=do-not-print\n')
+        (env / '.env').write_text('COMPOSE_PROFILES=search\nSEARCH_PORT=8082\nDB_PASSWORD=do-not-print\n')
         self.data = {'env': 'dev', 'enabled': True, 'phase': 'running', 'changed_at': 100,
-                     'jobs': ['kidly', 'kidly-search']}
+                     'jobs': ['kidly-search']}
+
+    def test_legacy_inventory_is_replaced_by_current_targets(self):
+        state.write(dict(self.data, jobs=['kidly', 'kidly-search']))
+        legacy = self.root / 'monitoring/targets/dev.yml'
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text('old target')
+        self.assertEqual(state.snapshot('dev')['jobs'], ['kidly-search'])
+        state.register_targets('dev')
+        self.assertFalse(legacy.exists())
+        self.assertIn('127.0.0.1:8082', (legacy.parent / 'search/dev.yml').read_text())
 
     def test_missing_targets_does_not_unregister_inventory(self):
         state.write(self.data)
@@ -71,12 +81,11 @@ class EnvironmentStateTests(unittest.TestCase):
         state.write(prod)
         directory = self.root / 'prod'
         directory.mkdir()
-        (directory / '.env').write_text('COMPOSE_PROFILES=search\nAPP_PORT=8080\nSEARCH_PORT=8094\n')
+        (directory / '.env').write_text('COMPOSE_PROFILES=search\nSEARCH_PORT=8094\n')
         state.register_targets('dev')
         state.register_targets('prod')
         with patch.object(state, 'run'):
             state.control('dev', 'stop')
-        self.assertTrue((self.root / 'monitoring/targets/prod.yml').exists())
         self.assertTrue((self.root / 'monitoring/targets/search/prod.yml').exists())
         self.assertEqual(state.load('prod'), prod)
 
@@ -98,7 +107,7 @@ class EnvironmentStateTests(unittest.TestCase):
 
     def test_product_profile_survives_resume_and_stop(self):
         (self.root / 'dev/.env').write_text(
-            'COMPOSE_PROFILES=search,product\nAPP_PORT=8081\nSEARCH_PORT=8082\nPRODUCT_PORT=8099\n')
+            'COMPOSE_PROFILES=search,product\nSEARCH_PORT=8082\nPRODUCT_PORT=8099\n')
         with patch.object(state, 'run', return_value=''):
             running = state.control('dev', 'resume')
             target = self.root / 'monitoring/targets/product/dev.yml'
@@ -110,7 +119,7 @@ class EnvironmentStateTests(unittest.TestCase):
 
     def test_order_profile_survives_resume_and_stop(self):
         (self.root / 'dev/.env').write_text(
-            'COMPOSE_PROFILES=search,order\nAPP_PORT=8081\nSEARCH_PORT=8082\nORDER_PORT=8100\n')
+            'COMPOSE_PROFILES=search,order\nSEARCH_PORT=8082\nORDER_PORT=8100\n')
         with patch.object(state, 'run', return_value=''):
             running = state.control('dev', 'resume')
             target = self.root / 'monitoring/targets/order/dev.yml'
@@ -122,7 +131,7 @@ class EnvironmentStateTests(unittest.TestCase):
 
     def test_community_profile_survives_resume_and_stop(self):
         (self.root / 'dev/.env').write_text(
-            'COMPOSE_PROFILES=search,community\nAPP_PORT=8081\nSEARCH_PORT=8082\nCOMMUNITY_PORT=8102\n')
+            'COMPOSE_PROFILES=search,community\nSEARCH_PORT=8082\nCOMMUNITY_PORT=8102\n')
         with patch.object(state, 'run', return_value=''):
             running = state.control('dev', 'resume')
             target = self.root / 'monitoring/targets/community/dev.yml'
@@ -134,7 +143,7 @@ class EnvironmentStateTests(unittest.TestCase):
 
     def test_kafka_exporter_has_separate_intent_and_discovery(self):
         (self.root / 'dev/.env').write_text(
-            'COMPOSE_PROFILES=search,kafka-monitoring\nAPP_PORT=8081\nSEARCH_PORT=8082\n'
+            'COMPOSE_PROFILES=search,kafka-monitoring\nSEARCH_PORT=8082\n'
             'KAFKA_EXPORTER_PORT=9308\n')
         with patch.object(state, 'run', return_value=''):
             running = state.control('dev', 'resume')
@@ -150,9 +159,9 @@ class EnvironmentStateTests(unittest.TestCase):
     def test_kafka_profile_whitespace_and_comments(self):
         (self.root / 'dev/.env').write_text(
             'COMPOSE_PROFILES="search, kafka-monitoring" # enabled\n'
-            'KAFKA_EXPORTER_PORT=9308 # loopback port\nAPP_PORT=8081\nSEARCH_PORT=8082\n')
+            'KAFKA_EXPORTER_PORT=9308 # loopback port\nSEARCH_PORT=8082\n')
         self.assertEqual(9308, state.kafka_target('dev'))
-        self.assertEqual({'kidly', 'kidly-search'}, {target[1] for target in state.configuration('dev')})
+        self.assertEqual({'kidly-search'}, {target[1] for target in state.configuration('dev')})
 
     def test_invalid_kafka_port_is_rejected_before_inventory_mutation(self):
         state.write(self.data, monitoring=True)
@@ -160,7 +169,7 @@ class EnvironmentStateTests(unittest.TestCase):
         for port in ('', '0', '65536', 'invalid'):
             with self.subTest(port=port):
                 (self.root / 'dev/.env').write_text(
-                    'COMPOSE_PROFILES=kafka-monitoring\nAPP_PORT=8081\n'
+                    'COMPOSE_PROFILES=kafka-monitoring\n'
                     'KAFKA_EXPORTER_PORT=' + port + '\n')
                 with self.assertRaisesRegex(ValueError, 'KAFKA_EXPORTER_PORT'):
                     state.snapshot('dev')

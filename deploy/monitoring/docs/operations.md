@@ -23,7 +23,7 @@
 medium Alloy가 의도를 읽으므로 앱 서버·앱 Alloy가 죽어도 대상이 자동 해제되지 않습니다.
 
 - `kidly_environment_enabled{env}`: 1=운영 대상, 0=의도적 중지.
-- `kidly_app_expected{env,app_job}`: 현재 운영 대상 서비스. `app_job`은 기존 app job 이름이며 새 공통 앱 라벨을 추가하지 않습니다.
+- `kidly_app_expected{env,app_job}`: 현재 운영 대상 서비스. `app_job`은 서비스 job 이름이며 새 공통 앱 라벨을 추가하지 않습니다.
 - `kidly_environment_registered`: 환경별 상태 파일 소실 감지용 별도 기준.
 - `kidly_environment_transition_active`와 변경 시각: 작업 중단·부분 완료 감지.
 - 기본 등록은 기존 배포 targets가 있는 환경만 채택합니다. 이후 앱 배포 성공 시 현재 profile 목록을 동기화합니다.

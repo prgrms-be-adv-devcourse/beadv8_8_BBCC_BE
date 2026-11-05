@@ -16,9 +16,9 @@
 
 데이터소스 · 대시보드 · 알림 규칙 · Slack 연결은 `grafana/` 아래 파일로 관리합니다. 배포 때 ConfigMap 이 됩니다(`kustomization.yaml`).
 JVM 대시보드(`grafana/dashboards/jvm-micrometer.json`)는 커뮤니티 대시보드 [4701](https://grafana.com/grafana/dashboards/4701) 리비전 10 을 받아
-데이터소스를 uid `prometheus` 로 고정하고, 이 앱에 없는 `application` 라벨 조건을 `job="kidly"` 로 바꾼 것입니다.
+데이터소스를 uid `prometheus` 로 고정하고, 이 앱에 없는 `application` 라벨 조건을 `job="kidly-search"` 로 바꾼 것입니다.
 Spring Boot 대시보드(`grafana/dashboards/spring-boot.json`, HikariCP · HTTP · GC · Logback)는 커뮤니티 대시보드 [19004](https://grafana.com/grafana/dashboards/19004) 리비전 1 을 받아
-데이터소스를 uid `prometheus` 로 고정하고, 이 앱에 없는 `application` · `namespace` 변수와 `instance` 변수를 빼고 `env` 변수 하나로 거르게(`job="kidly", env="$env"`) 바꾼 것입니다.
+데이터소스를 uid `prometheus` 로 고정하고, 이 앱에 없는 `application` · `namespace` 변수와 `instance` 변수를 빼고 `env` 변수 하나로 거르게(`job="kidly-search", env="$env"`) 바꾼 것입니다.
 INFO logs 패널에 섞여 있던 전체 레벨 누적값 쿼리도 뺐습니다.
 서버 대시보드(`grafana/dashboards/kidly-server.json`)는 호스트 CPU · 메모리 · 디스크 · 업타임과 디스크 I/O · 네트워크, 컨테이너별(앱 · Postgres · Kafka · Alloy) CPU · 메모리를 한 화면에 보여 줍니다.
 위의 **서버** 변수로 t3.large · t3.medium 을 고릅니다(값은 호스트 이름). 컨테이너 패널은 t3.large 에만 있습니다(medium 은 컨테이너 메트릭을 모으지 않습니다).

@@ -13,7 +13,7 @@ services:
   # 앱 컨테이너 로그를 docker 에서 읽어 Loki 로, 앱 · 호스트 · 컨테이너 메트릭을 Prometheus 로 보낸다. 앱의 로그 설정은 바꾸지 않는다
   alloy:
     image: grafana/alloy:v1.10.1
-    # 앱(127.0.0.1:8080 · 8081)을 그대로 부른다. Alloy UI 는 127.0.0.1 에만 열어 외부에는 열리지 않는다
+    # 서비스의 로컬 포트로 수집한다. Alloy UI 는 127.0.0.1 에만 열어 외부에는 열리지 않는다
     network_mode: host
     # 내장 cAdvisor 가 cgroup · 디스크 장치를 읽으려면 필요하다 (docker.sock 을 이미 가진 터라 권한이 더 넓어지는 건 아니다)
     privileged: true

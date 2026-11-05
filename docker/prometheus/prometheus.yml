@@ -1,4 +1,4 @@
-# 로컬 Prometheus. bootRun 으로 띄운 앱(호스트 8080)의 /actuator/prometheus 를 수집한다
+# 로컬 Prometheus. bootRun 으로 띄운 Gateway · 서비스(호스트 포트)의 /actuator/prometheus 를 수집한다. 띄우지 않은 대상은 down 으로 보인다
 # 대시보드가 env 라벨로 환경을 고르므로 local 을 붙인다
 global:
   scrape_interval: 15s
@@ -7,6 +7,16 @@ scrape_configs:
   - job_name: kidly
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: [host.docker.internal:8080]
+      - targets:
+          - host.docker.internal:8081
+          - host.docker.internal:8082
+          - host.docker.internal:8083
+          - host.docker.internal:8086
+          - host.docker.internal:8087
+          - host.docker.internal:8088
+          - host.docker.internal:8089
+          - host.docker.internal:8090
+          - host.docker.internal:8091
+          - host.docker.internal:8092
         labels:
           env: local

@@ -2,14 +2,14 @@
 # deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES 에 search 가 있는 환경(dev · prod)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
-# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다. app 에는 추천 API 가 없어 추천 API 를 쓰는 환경은 모두 켜야 한다
-# 회원(member-service)은 profile member 라 COMPOSE_PROFILES 에 member 가 있는 환경(dev · prod)에서만 뜬다. app 에 회원 · 인증 · 판매자 API 가 없어 이 API 를 쓰는 환경은 모두 켜야 한다
-# 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경(dev · prod)에서만 뜬다. app 에는 정산 API 가 없어 정산 API 를 쓰는 환경은 모두 켜야 한다
-# 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다. app 에는 결제 API 가 없어 결제 API 를 쓰는 환경은 모두 켜야 한다
-# 상품(product-service)은 profile product 라 COMPOSE_PROFILES 에 product 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다). app 에는 상품 API 가 없어 상품 API 를 쓰는 환경은 모두 켜야 한다
-# 주문(order-service)은 profile order 라 COMPOSE_PROFILES 에 order 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다). app 에는 주문 API 가 없어 주문 API 를 쓰는 환경은 모두 켜야 한다
-# 커뮤니티(community-service)는 profile community 라 COMPOSE_PROFILES 에 community 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다). app 에는 리뷰 · 찜 API 가 없어 이 API 를 쓰는 환경은 모두 켜야 한다
-# 알림(notification-service)은 profile notification 이라 COMPOSE_PROFILES 에 notification 이 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다). app 에는 알림 도메인이 없어 환영 메일을 보내는 환경은 모두 켜야 한다
+# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다
+# 회원(member-service)은 profile member 라 COMPOSE_PROFILES 에 member 가 있는 환경(dev · prod)에서만 뜬다
+# 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경(dev · prod)에서만 뜬다
+# 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다
+# 상품(product-service)은 profile product 라 COMPOSE_PROFILES 에 product 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다)
+# 주문(order-service)은 profile order 라 COMPOSE_PROFILES 에 order 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다)
+# 커뮤니티(community-service)는 profile community 라 COMPOSE_PROFILES 에 community 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다)
+# 알림(notification-service)은 profile notification 이라 COMPOSE_PROFILES 에 notification 이 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다)
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -19,41 +19,6 @@ x-logging: &logging
     max-file: "5"
 
 services:
-  app:
-    image: ${IMAGE}
-    env_file: .env
-    environment:
-      JAVA_TOOL_OPTIONS: -Xmx512m
-      # glibc malloc arena 를 2개로 묶어 힙 밖 메모리를 줄인다(#758 측정: app RSS 687MB → 499MB)
-      MALLOC_ARENA_MAX: "2"
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    ports:
-      - "127.0.0.1:${APP_PORT}:8080"     # 외부 비공개. nginx 가 80/443 으로 받아 넘긴다
-    volumes:
-      - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
-      # 결제 등이 커밋 뒤 Kafka로 보낸다. 브로커가 뜬 뒤에 앱을 띄운다
-      kafka:
-        condition: service_healthy
-    # deploy.sh 의 up -d --wait 가 이 healthcheck 를 기다린다. Spring 기동에 20~40초 걸린다
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
-    # 한 서버에 dev · prod 가 같이 떠도 한 컨테이너가 메모리를 다 써서 다른 환경까지 OOM 으로 죽이지 않게 서비스마다 상한을 둔다
-    # 상한 합계는 prod · dev 가 같은 구성이라 환경마다 6976MiB(app 1024 · postgres 512 · kafka 768 · 검색 1024 · gateway 512 · 자녀 512 · 추천 448 · 회원 512 · 결제 512 · 정산 640 · 상품 512), 둘을 합쳐 13952MiB 로 호스트(t3.large 8GiB)를 넘는다. 상한은 폭주를 막는 값이고 실사용 합은 켠 뒤 재서 정한다
-    # 실사용: 2026-11-03 dev 만 뜬 서버(회원 · 결제 서비스 전)의 2일 최대가 3564MiB(OS 포함)였다. 분리한 서비스는 하나에 280~365MiB 를 쓴다(Prometheus cAdvisor)
-    mem_limit: 1g
-    # 상한을 둬도 상한 합계가 호스트를 넘어 서버 메모리가 바닥날 수 있다. 그러면 커널(OOM killer)이 dev · prod 를 구분하지 않고 메모리를 많이 쓰는 프로세스를 죽이는데, 고를 때 이 값을 점수에 더한다
-    # .env.dev 에만 500 을 줘 dev 가 먼저 죽고 prod 는 남게 한다(prod 는 기본값 0). 모든 서비스에 같은 값을 둔다(#793)
-    oom_score_adj: ${OOM_SCORE_ADJ:-0}
-    restart: unless-stopped
-    logging: *logging
-
   postgres:
     image: postgres:18
     env_file: .env
@@ -70,7 +35,7 @@ services:
     ports:
       - "127.0.0.1:${DB_PORT}:5432"     # 외부 비공개. 팀원이 SSH 터널로 IntelliJ 에서 붙는다
 
-  # 도메인 간 이벤트를 전달한다. 환경(-p <env>)마다 따로 뜨고 같은 compose 네트워크의 app 만 kafka:9092 로 붙는다(포트 비공개)
+  # 도메인 간 이벤트를 전달한다. 환경(-p <env>)마다 따로 뜨고 같은 compose 네트워크의 서비스만 kafka:9092 로 붙는다(포트 비공개)
   # KRaft 단일 브로커라 복제 계수는 1. EC2 가 멈췄다 켜져도 쌓인 메시지가 남도록 데이터는 볼륨에 둔다
   kafka:
     image: apache/kafka:4.2.2
@@ -188,20 +153,17 @@ services:
       - "127.0.0.1:${RECOMMEND_PORT:-8087}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다. app 의 init 이 추천 테이블도 만들어, 서비스가 먼저 만들면 app 의 init 이 실패한다(#704)
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
-      app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      # app 이 healthy 가 된 뒤 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
     # 구성이 비슷한 자녀 프로필 서비스가 dev 에서 7일 최대 365MiB(힙 64MiB 안팎)를 썼다. 그보다 조금 넉넉하게 힙 128m · 상한 448m 으로 시작하고, 켠 뒤 재서 정한다
     mem_limit: 448m
@@ -224,7 +186,6 @@ services:
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-      # 정산 설정(SETTLEMENT_*)은 .env 에 두지 않는다. app 에만 가고 이 서비스에는 안 가서, app 과 함께 도는 동안 두 JVM 값이 달라진다
       # 정산 영업일 판단용 공휴일 조회 키. 없으면 공휴일 조회가 실패해 자동 정산을 건너뛴다
       HOLIDAY_API_SERVICE_KEY: ${HOLIDAY_API_SERVICE_KEY:-}
       LOG_PATH: /app/logs
@@ -232,20 +193,17 @@ services:
       - "127.0.0.1:${SETTLEMENT_PORT:-8089}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다. app 의 init 이 정산 테이블도 만들어, 서비스가 먼저 만들면 app 의 init 이 실패한다(#729)
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
-      app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      # app 이 healthy 가 된 뒤 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
     # Spring Batch 포함. 측정 전이라 자녀 프로필 서비스 실측(최대 353MiB)을 기준으로 힙 256m · 상한 640m 으로 시작하고, 켠 뒤 재서 정한다
     mem_limit: 640m
@@ -280,20 +238,17 @@ services:
     volumes:
       - ./jwt:/app/jwt:ro
       - ./logs:/app/logs
-    # 빈 DB 에서는 app 의 init 이 회원 · 판매자 테이블을 먼저 만들어야 한다. 서비스는 그 버전에서 baseline 을 잡는다(application.yml 의 baseline-version)
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
-      app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      # app 이 healthy 가 된 뒤 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
     # 힙 192m · 상한 512m 은 자녀 서비스 기준 추측값이다. 켠 뒤 재서 정한다
     mem_limit: 512m
@@ -302,8 +257,7 @@ services:
     logging: *logging
 
   # 결제 서비스(apps/payment-service, #525). 결제 · 지갑 · 충전 API, 토스 웹훅, 회원 · 주문 · 정산 이벤트 수신(구독 그룹 kidly.payment), 결제 이벤트 발행(아웃박스)
-  # 결제 도메인은 이 서비스에만 있다(app 에서 뺐다)
-  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 결제 값(토스 시크릿 키 · paymentKey 암호화 키 · Kafka 수신 스위치)만 넘긴다. 암호화 키는 app 이 결제를 가졌을 때와 같은 값이어야 그때 저장한 충전을 취소할 수 있다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 결제 값(토스 시크릿 키 · paymentKey 암호화 키 · Kafka 수신 스위치)만 넘긴다. 기존 충전을 취소하려면 암호화 키를 유지해야 한다
   # 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
   payment-service:
     image: ${PAYMENT_IMAGE}
@@ -328,20 +282,17 @@ services:
       - "127.0.0.1:${PAYMENT_PORT:-8092}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다(app init 에 결제 DDL 이 남아 있다). 서비스는 app 이 결제를 가졌을 때 마지막으로 적용한 버전으로 baseline 을 잡는다
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
-      app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      # app 이 healthy 가 된 뒤 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
     # 힙 192m · 상한 512m 은 구성이 비슷한 자녀 프로필 서비스와 같게 둔 추측값이다. 켜기 전에 서버 메모리 여유를 보고, 켠 뒤 재서 정한다
     mem_limit: 512m
@@ -350,8 +301,6 @@ services:
     logging: *logging
 
   # 상품 서비스(apps/product-service, #791). 상품 API(공개 · 판매자 · 관리자), 판매자 · 주문 이벤트 수신(구독 그룹 kidly.product), 상품 이벤트 아웃박스 저장
-  # 상품 아웃박스 릴레이는 이 서비스만 돈다. 릴레이에는 잠금이 없는데, 배포 때 app 을 먼저 새로 띄운 뒤 이 서비스를 띄우므로 옛 app 의 릴레이와 겹치지 않는다
-  # 이미지 업로드 주소(S3 Presigned URL) 서명은 app 과 같이 EC2 IAM 역할의 자격 증명을 쓴다
   # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 상품 값(이미지 key 경로 · Kafka 수신 스위치)만 넘긴다
   # 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
   product-service:
@@ -376,20 +325,17 @@ services:
       - "127.0.0.1:${PRODUCT_PORT:-8097}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다(상품 테이블은 app 이 만든다). 서비스는 app 이 마지막으로 적용한 상품 버전으로 baseline 을 잡는다
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
-      app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      # app 이 healthy 가 된 뒤 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
     # 힙 192m · 상한 512m 은 메모리 논의에서 정한 시작값이다. 켠 뒤 재서 정한다
     mem_limit: 512m
@@ -412,32 +358,29 @@ services:
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-      # 메일 계정 · 켜기 · 보내는 주소. 기본값은 notification.yml 과 같다. app 과 같은 값을 .env 에서 받는다
+      # 메일 계정 · 켜기 · 보내는 주소. 기본값은 notification.yml 과 같다. .env 에서 받는다
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_ENABLED: ${MAIL_ENABLED:-true}
       MAIL_FROM: ${MAIL_FROM:-}
-      # 메일 본문의 사이트 주소. 서비스 prod 설정이 기본값 없이 요구하므로 app 과 같은 값을 .env 에서 받는다
+      # 메일 본문의 사이트 주소. 서비스 prod 설정이 기본값 없이 요구하므로 .env 에서 받는다
       NOTIFICATION_SITE_URL: ${NOTIFICATION_SITE_URL}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${NOTIFICATION_PORT:-8099}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다(알림 테이블은 app 이 만든다). 서비스는 app 이 적용한 알림 버전으로 baseline 을 잡는다
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
-      app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      # app 이 healthy 가 된 뒤 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
     # 힙 192m · 상한 512m 은 상품 서비스와 같은 시작값이다. 켠 뒤 재서 정한다
     mem_limit: 512m
@@ -475,20 +418,17 @@ services:
       - "127.0.0.1:${ORDER_PORT:-8100}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다(app init 이 주문 테이블을 init 모양으로 만든다). 서비스는 baseline 을 잡고, 건너뛴 주문 모듈 표는 보강 마이그레이션(V202611041730)이 만든다
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
-      app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      # app 이 healthy 가 된 뒤 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
     # 주문은 스케줄러 · Kafka 리스너가 많아 정산 서비스와 같은 힙 256m · 상한 640m 으로 시작한다. 켠 뒤 재서 정한다
     mem_limit: 640m
@@ -520,20 +460,17 @@ services:
       - "127.0.0.1:${COMMUNITY_PORT:-8102}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # 커뮤니티 테이블은 이 서비스만 만든다(app init 에는 없다). 다른 서비스와 같이 app 뒤에 뜬다. 이미 테이블이 있는 DB 는 baseline 을 잡는다
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
-      app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      # app 이 healthy 가 된 뒤 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
     # 힙 192m · 상한 512m 은 상품 · 결제 서비스와 같은 시작값이다. 켠 뒤 재서 정한다
     mem_limit: 512m
@@ -552,25 +489,23 @@ services:
       JAVA_TOOL_OPTIONS: -Xmx256m
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      # 같은 compose 네트워크의 app 컨테이너 포트(8080)다. 서버 포트(APP_PORT)가 아니다
-      KIDLY_APP_URI: http://app:8080
-      # 상품 목록(GET /api/v1/products)을 받을 곳(#526). app 에는 상품 목록 API 가 없어(#791) profile search 가 꺼진 환경에서는 상품 목록이 실패한다
+      # 상품 목록(GET /api/v1/products)을 받을 곳(#526). profile search 가 꺼진 환경에서는 상품 목록이 실패한다
       KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://search-service:8080}
-      # 추천(/api/v1/recommendations/**)을 받을 곳(#704). app 에는 추천 API 가 없어 profile recommend 가 꺼진 환경에서는 추천 API 가 실패한다
+      # 추천(/api/v1/recommendations/**)을 받을 곳(#704). profile recommend 가 꺼진 환경에서는 추천 API 가 실패한다
       KIDLY_RECOMMEND_URI: ${KIDLY_RECOMMEND_URI:-http://recommend-service:8080}
-      # 정산(/api/v1/seller/settlement* · /api/v1/admin/settlement*)을 받을 곳(#729). app 에는 정산 API 가 없어 profile settlement 가 꺼진 환경에서는 정산 API 가 실패한다
+      # 정산(/api/v1/seller/settlement* · /api/v1/admin/settlement*)을 받을 곳(#729). profile settlement 가 꺼진 환경에서는 정산 API 가 실패한다
       KIDLY_SETTLEMENT_URI: ${KIDLY_SETTLEMENT_URI:-http://settlement-service:8080}
       # 회원 · 인증 · 판매자 API 는 회원 서비스가 받는다
       KIDLY_MEMBER_URI: ${KIDLY_MEMBER_URI:-http://member-service:8080}
-      # 결제(/api/v1/payments/** · /api/v1/wallets/** · /api/v1/webhooks/toss · 결제 관리자 API)를 받을 곳(#525). app 에는 결제 API 가 없어 profile payment 가 꺼진 환경에서는 결제 API 가 실패한다
+      # 결제(/api/v1/payments/** · /api/v1/wallets/** · /api/v1/webhooks/toss · 결제 관리자 API)를 받을 곳(#525). profile payment 가 꺼진 환경에서는 결제 API 가 실패한다
       KIDLY_PAYMENT_URI: ${KIDLY_PAYMENT_URI:-http://payment-service:8080}
-      # 상품 API(공개 · 판매자 · 관리자)를 받을 곳(#791). app 에는 상품 API 가 없어 profile product 가 꺼진 환경에서는 상품 API 가 실패한다
+      # 상품 API(공개 · 판매자 · 관리자)를 받을 곳(#791). profile product 가 꺼진 환경에서는 상품 API 가 실패한다
       KIDLY_PRODUCT_URI: ${KIDLY_PRODUCT_URI:-http://product-service:8080}
-      # 주문 · 장바구니 · 배송 · 조르기 · 주문 관리자 API 를 받을 곳(#826). app 에는 주문 API 가 없어 profile order 가 꺼진 환경에서는 주문 API 가 실패한다
+      # 주문 · 장바구니 · 배송 · 조르기 · 주문 관리자 API 를 받을 곳(#826). profile order 가 꺼진 환경에서는 주문 API 가 실패한다
       KIDLY_ORDER_URI: ${KIDLY_ORDER_URI:-http://order-service:8080}
-      # 리뷰 · 찜 · 커뮤니티 관리자 API 를 받을 곳(#827). app 에는 리뷰 · 찜 API 가 없어 profile community 가 꺼진 환경에서는 이 API 가 실패한다
+      # 리뷰 · 찜 · 커뮤니티 관리자 API 를 받을 곳(#827). profile community 가 꺼진 환경에서는 이 API 가 실패한다
       KIDLY_COMMUNITY_URI: ${KIDLY_COMMUNITY_URI:-http://community-service:8080}
-      # 알림함 API(/api/v1/notifications/**)를 받을 곳(#852). app 에는 알림함 API 가 없어 profile notification 이 꺼진 환경에서는 이 API 가 실패한다
+      # 알림함 API(/api/v1/notifications/**)를 받을 곳(#852). profile notification 이 꺼진 환경에서는 이 API 가 실패한다
       KIDLY_NOTIFICATION_URI: ${KIDLY_NOTIFICATION_URI:-http://notification-service:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}

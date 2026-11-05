@@ -14,7 +14,6 @@ import time
 ROOT = Path(os.environ.get('KIDLY_APP_ROOT', '/opt/app'))
 STATE = ROOT / 'monitoring' / 'operations'
 SERVICES = {
-    'app': ('kidly', 'APP_PORT', ''),
     'search-service': ('kidly-search', 'SEARCH_PORT', 'search'),
     'gateway': ('kidly-gateway', 'GATEWAY_PORT', 'gateway'),
     'recommend-service': ('kidly-recommend', 'RECOMMEND_PORT', 'recommend'),
@@ -38,7 +37,7 @@ def validate(data):
     if 'kafka_exporter_expected' in data and type(data['kafka_exporter_expected']) is not bool:
         raise ValueError('Invalid Kafka exporter intention')
     jobs = data.get('jobs')
-    allowed = {entry[0] for entry in SERVICES.values()}
+    allowed = {entry[0] for entry in SERVICES.values()} | {'kidly'}  # 기존 운영 상태 파일 호환
     if not isinstance(jobs, list) or not jobs or len(jobs) != len(set(jobs)) or not set(jobs) <= allowed:
         raise ValueError('Invalid expected services')
     if data['phase'] == 'running' and not data['enabled'] or data['phase'] == 'stopped' and data['enabled']:
@@ -144,9 +143,10 @@ def snapshot(env):
 
 def register_targets(env):
     root = ROOT / 'monitoring' / 'targets'
+    (root / (env + '.yml')).unlink(missing_ok=True)
     configured = configuration(env)
     for service, _, port in configured:
-        suffix = '' if service == 'app' else SERVICES[service][2]
+        suffix = SERVICES[service][2]
         atomic(root / suffix / (env + '.yml'), '- targets: ["127.0.0.1:%d"]\n  labels:\n    env: %s\n' % (port, env))
     kafka_port = kafka_target(env)
     if kafka_port is not None:

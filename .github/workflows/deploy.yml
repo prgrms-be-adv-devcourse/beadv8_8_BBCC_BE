@@ -4,26 +4,19 @@
 # 배포 전에 CI(ci.yml)를 이미지 빌드와 동시에 돌리고, 둘 다 성공해야 서버에 올린다.
 # 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 CI · 빌드 없이 그 이미지를 배포한다.
 # 롤백 때도 compose · .env 는 실행한 브랜치의 현재 것이 올라간다. 설정 키가 바뀐 커밋으로 되돌릴 땐 주의한다.
-# 이미지는 열둘이다: 앱(<저장소>:<SHA>), 검색 서비스(<저장소>-search-service:<SHA>), Gateway(<저장소>-gateway:<SHA>), 추천 서비스(<저장소>-recommend-service:<SHA>), 정산 서비스(<저장소>-settlement-service:<SHA>), 회원 서비스(<저장소>-member-service:<SHA>), 결제 서비스(<저장소>-payment-service:<SHA>), 상품 서비스(<저장소>-product-service:<SHA>), 알림 서비스(<저장소>-notification-service:<SHA>), 주문 서비스(<저장소>-order-service:<SHA>), 커뮤니티 서비스(<저장소>-community-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
+# 이미지는 열하나다: 검색 서비스(<저장소>-search-service:<SHA>), Gateway(<저장소>-gateway:<SHA>), 추천 서비스(<저장소>-recommend-service:<SHA>), 정산 서비스(<저장소>-settlement-service:<SHA>), 회원 서비스(<저장소>-member-service:<SHA>), 결제 서비스(<저장소>-payment-service:<SHA>), 상품 서비스(<저장소>-product-service:<SHA>), 알림 서비스(<저장소>-notification-service:<SHA>), 주문 서비스(<저장소>-order-service:<SHA>), 커뮤니티 서비스(<저장소>-community-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
+# 이 변경 이전 SHA 도 현재 compose 를 사용하므로 서비스 이미지만 배포한다.
 # Elasticsearch 는 앱 서버가 아니라 t3.medium k3s(deploy/search)에 뜬다. 검색이 켜진 환경이면 elasticsearch job 이 앱보다 먼저 올린다.
 # 검색 서비스 이미지가 없는 커밋(검색 배포 전)으로는 검색이 켜진 환경(dev)을 SHA 롤백할 수 없다.
 # 같은 이유로 Gateway 이미지가 없는 커밋(Gateway 배포 전)으로는 Gateway 가 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
-# 같은 이유로 자녀 프로필 서비스 이미지가 없는 커밋(#682 배포 전)으로는 자녀 프로필이 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
 # 같은 이유로 추천 서비스 이미지가 없는 커밋(#704 배포 전)으로는 추천이 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
 # 같은 이유로 정산 서비스 이미지가 없는 커밋(#729 배포 전)으로는 정산이 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
-# 같은 이유로 앱에서 정산 도메인을 뺀 커밋(#729) 이전 SHA 로는 롤백할 수 없다. 이전 앱이 이력에서 지운 정산 아웃박스 · 유일 키 마이그레이션(202610301630 · 202611021248)을 다시 적용하다 테이블 · 제약이 이미 있어 실패한다.
 # 회원 서비스 이미지가 없는 커밋으로는 회원 서비스가 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
 # 같은 이유로 결제 서비스 이미지가 없는 커밋(#525 배포 전)으로는 결제 서비스가 켜진 환경을 SHA 롤백할 수 없다.
 # 같은 이유로 상품 서비스 이미지가 없는 커밋(#791 배포 전)으로는 상품 서비스가 켜진 환경을 SHA 롤백할 수 없다.
 # 같은 이유로 주문 서비스 이미지가 없는 커밋(주문 서비스 배포 전)으로는 주문 서비스가 켜진 환경을 SHA 롤백할 수 없다.
 # 같은 이유로 커뮤니티 서비스 이미지가 없는 커밋(커뮤니티 서비스 배포 전)으로는 커뮤니티 서비스가 켜진 환경을 SHA 롤백할 수 없다.
-# 같은 이유로 앱에서 상품 도메인을 뺀 커밋(#791) 이전 SHA 로는 롤백할 수 없다. 이전 앱이 이력에서 지운 상품 도메인 마이그레이션(202610292246 · 202611040911 · 202611041223)을 다시 적용하다 아웃박스 표가 이미 있어 실패한다(202610292246). 되돌리려면 지운 이력 행(script product/V202610292246__product_outbox.sql · product/V202611040911__drop_product_search_document.sql · product/V202611041223__product_outbox_if_missing.sql)을 public.flyway_schema_history 에 다시 넣는다.
-# 같은 이유로 앱에서 주문 · 커뮤니티 도메인을 뺀 커밋(#826 · #827) 이전 SHA 로는 롤백할 수 없다. 이전 앱이 이력에서 지운 주문 · 커뮤니티 모듈 마이그레이션(orders/ · community/ 14개)을 다시 적용하다 표가 이미 있어 실패한다. 되돌리려면 지운 이력 행(apps/kidly-app 의 beforeValidate__drop_order_community_domain_history.sql 목록)을 public.flyway_schema_history 에 다시 넣는다.
 # 같은 이유로 알림 서비스 이미지가 없는 커밋(알림 서비스 배포 전)으로는 알림 서비스가 켜진 환경을 SHA 롤백할 수 없다.
-# #638(회원 토큰 무효화 테이블 삭제) 이전 SHA 로는 롤백할 수 없다. 이전 앱이 그 테이블을 검증(ddl-auto: validate)해서 뜨지 않는다. 되돌리려면 테이블을 다시 만든다.
-# #682(앱에서 자녀 도메인을 뺀 PR) 이전 SHA 로는 롤백할 수 없다. 새 앱이 이력에서 지운 자녀 아웃박스 마이그레이션(202610300953)을 이전 앱이 다시 적용하다 테이블이 이미 있어 실패해 앱이 뜨지 않는다.
-# 같은 이유로 앱에서 추천 도메인을 뺀 커밋(#704) 이전 SHA 로는 롤백할 수 없다. 이전 앱이 이력에서 지운 추천 상품 복사본 상세 마이그레이션(202611021557)을 다시 적용하다 칸이 이미 있어 실패한다. 되돌리려면 지운 이력 행(script recommend/V202611021557__recommend_replica_product_details.sql)을 public.flyway_schema_history 에 다시 넣는다.
-# 같은 이유로 앱에서 결제 도메인을 뺀 커밋(#525) 이전 SHA 로는 롤백할 수 없다. 이전 앱이 이력에서 지운 결제 도메인 마이그레이션(202611021530 · 202611021930)을 다시 적용하다 칸 · 표가 이미 있어 실패한다. 되돌리려면 지운 이력 행(script payment/V202611021530__wallet_frozen_at.sql · payment/V202611021930__balance_return.sql)을 public.flyway_schema_history 에 다시 넣는다.
 # #809(자녀 프로필을 회원 서비스로 합친 PR) 이전 SHA 로는 롤백할 수 없다. 이전 Gateway 가 기본값 없는 KIDLY_CHILDPROFILE_URI 를 요구해 뜨지 않고, compose 에 자녀 프로필 서비스가 없어 이전 회원 서비스로는 자녀 API 를 받을 곳이 없다.
 # Elasticsearch 이미지는 docker/elasticsearch 가 바뀐 뒤 첫 배포 때만 빌드한다. docker/** 만 바뀐 push 는 배포를 띄우지 않으니 다음 배포에 반영된다.
 # workflow_dispatch 를 develop · main 이 아닌 브랜치에서 실행하면 그 브랜치가 dev 환경에 배포된다 (기능 브랜치 확인용).
@@ -92,7 +85,7 @@ jobs:
     # 앱 모듈(apps/ 아래 폴더)마다 따로 빌드한다. 하나라도 실패하면 배포하지 않는다
     strategy:
       matrix:
-        app: [kidly-app, search-service, gateway, recommend-service, settlement-service, member-service, payment-service, product-service, notification-service, order-service, community-service]
+        app: [search-service, gateway, recommend-service, settlement-service, member-service, payment-service, product-service, notification-service, order-service, community-service]
     steps:
       - uses: actions/checkout@v7
 
@@ -110,7 +103,7 @@ jobs:
           APP: ${{ matrix.app }}
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
-          [[ "$APP" == kidly-app ]] || IMAGE="$IMAGE-$APP"
+          IMAGE="$IMAGE-$APP"
           docker build --build-arg APP="$APP" \
             --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
             -t "$IMAGE:$GITHUB_SHA" .
@@ -334,7 +327,7 @@ jobs:
             export DOCKER_CONFIG=\$(mktemp -d)
             trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
             docker login ghcr.io -u $GHCR_USER --password-stdin > /dev/null || exit 1
-            APP_ENV=$APP_ENV IMAGE=$IMAGE:$SHA SEARCH_IMAGE=$IMAGE-search-service:$SHA \
+            APP_ENV=$APP_ENV SEARCH_IMAGE=$IMAGE-search-service:$SHA \
               GATEWAY_IMAGE=$IMAGE-gateway:$SHA \
               RECOMMEND_IMAGE=$IMAGE-recommend-service:$SHA SETTLEMENT_IMAGE=$IMAGE-settlement-service:$SHA \
               MEMBER_IMAGE=$IMAGE-member-service:$SHA PAYMENT_IMAGE=$IMAGE-payment-service:$SHA \
