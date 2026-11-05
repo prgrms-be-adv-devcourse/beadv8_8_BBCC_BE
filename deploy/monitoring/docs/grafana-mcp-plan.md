@@ -1,7 +1,7 @@
-# Grafana MCP 읽기 전용 연결안 — 도입 승인 대기
+# Grafana MCP 읽기 전용 연결안
 
 MCP는 AI가 기존 화면·지표를 조회하도록 돕습니다. 상시 감시·Slack 알림·장애 대응 절차는 별도로 유지합니다.
-새 도구 설치, 서비스 계정 발급, 토큰 발급·AI 연결은 아직 하지 않았습니다.
+현재 #862에서 승인받은 메트릭 전용 연결을 구현합니다. 실제 경계·설치·해제 절차는 [연결 운영 안내](../mcp/README.md)를 봅니다. 기존 조직의 대시보드·알림과 Loki는 연결하지 않습니다.
 
 | 항목 | 제안 |
 | --- | --- |
@@ -10,7 +10,7 @@ MCP는 AI가 기존 화면·지표를 조회하도록 돕습니다. 상시 감�
 | 대상 | 기존 `https://grafana.kidly.kro.kr` 한 곳 |
 | 권한 | 전용 서비스 계정의 Viewer부터 검증. 관리자 비밀번호·Editor·Admin 사용 금지 |
 | 쓰기 차단 | `--disable-write` + Grafana 조회 권한, 두 겹으로 제한 |
-| 기본 데이터 | 대시보드 요약·Prometheus·알림 조회. Loki·Assistant·관리 도구는 기본 제외 |
+| 기본 데이터 | 현재 연결은 Prometheus·datasource 메타데이터만. Loki·대시보드·알림·관리 도구 제외 |
 | 비용 | OSS 자체 Apache-2.0. AI 사용·PC 실행·기존 서버 자원 비용까지 무료라는 뜻은 아님 |
 
 ## 승인 후 연결
@@ -35,7 +35,7 @@ Loki를 켤 때는 제공자·처리 지역·보관 정책과 반출 범위를 �
 따라서 **Viewer + Loki 도구 제외만으로 메트릭 전용 접근을 보장하지 않습니다.** 도구 허용 목록은 추가 제한이며 datasource 권한 경계가 아닙니다. 다른 조회 도구의 우회 가능성을 검증하지 않은 상태에서 토큰을 발급·연결하지 않습니다.
 
 향후 연결 승인 시에는 Prometheus만 있는 별도 조직 등 실제 datasource 격리 방식을 먼저 정합니다. 별도 조직을 쓰면 기존 조직의 대시보드·알림이 그대로 조회되지 않는 한계도 함께 검토합니다. 이를 해결한다고 Editor/Admin으로 올리거나 Loki 접근을 묵인하지 않습니다.
-별도 계정·조직·프록시를 지금 생성하지 않았으며, 사용자의 현재 결정대로 연결안만 검토합니다.
+사용자 승인 후 #862에서 Prometheus만 있는 별도 조직과 Viewer 계정을 구성합니다. 기존 Traefik의 서버 경계가 조회 API만 전달하며, 다른 조직의 datasource·Loki·기존 대시보드·알림은 이 연결에 포함하지 않습니다.
 
 토큰은 최초 시험 **7일**, 이후 운영도 **30일 이하** 만료를 제안합니다. 종료·분실·담당자 변경 시 즉시 폐기하고 새 토큰을 발급하며 값을 로그·PR에 남기지 않습니다.
 근거: [공식 datasource 관리·Viewer 조회 범위](https://grafana.com/docs/grafana/latest/administration/data-source-management/), [공식 역할·권한](https://grafana.com/docs/grafana/latest/administration/roles-and-permissions/).
