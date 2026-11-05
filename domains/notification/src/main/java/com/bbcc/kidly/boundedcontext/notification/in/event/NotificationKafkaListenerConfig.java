@@ -49,6 +49,11 @@ class NotificationKafkaListenerConfig {
         return deadLetterTopic("kidly.payment.events");
     }
 
+    @Bean
+    NewTopic notificationSellerEventsDeadLetterTopic() {
+        return deadLetterTopic("kidly.seller.events");
+    }
+
     private static NewTopic deadLetterTopic(String topic) {
         return TopicBuilder.name(topic + DLT_SUFFIX).partitions(1).replicas(1).build();
     }

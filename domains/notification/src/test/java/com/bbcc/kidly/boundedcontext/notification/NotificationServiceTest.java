@@ -177,6 +177,48 @@ class NotificationServiceTest {
         verify(notificationRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("계정 정지 메일에 정지 사유를 넣어 정지된 회원 이메일로 만든다")
+    void createSuspendedEmail() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.of("parent@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createSuspendedEmail(EVENT_ID, 1L, "운영 정책 위반");
+
+        var saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertThat(saved.getValue().getType()).isEqualTo(NotificationType.MEMBER_SUSPENDED);
+        assertThat(saved.getValue().getRecipient()).isEqualTo("parent@kidly.co.kr");
+        assertThat(saved.getValue().getBody()).contains("정지 사유: 운영 정책 위반");
+    }
+
+    @Test
+    @DisplayName("판매자 신청 거절 메일에 거절 사유를 넣어 신청자 이메일로 만든다")
+    void createApplicationRejectedEmail() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.of("parent@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createApplicationRejectedEmail(EVENT_ID, 1L, "사업자 정보 불일치");
+
+        var saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertThat(saved.getValue().getType()).isEqualTo(NotificationType.SELLER_APPLICATION_REJECTED);
+        assertThat(saved.getValue().getBody()).contains("거절 사유: 사업자 정보 불일치");
+    }
+
+    @Test
+    @DisplayName("사유가 없으면 사유 줄 없이 만든다")
+    void suspendedWithoutReason() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.of("parent@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createSuspendedEmail(EVENT_ID, 1L, null);
+
+        var saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertThat(saved.getValue().getBody()).doesNotContain("사유");
+    }
+
     private void givenSaved() {
         given(notificationRepository.save(any())).willAnswer(invocation -> {
             Notification notification = invocation.getArgument(0);
