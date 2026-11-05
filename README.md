@@ -4,6 +4,8 @@
 
 개발 규칙은 [`CLAUDE.md`](CLAUDE.md)를 따른다.
 
+팀 문서(기획서 · Kafka 규칙 · API 목록): [문서 사이트](https://prgrms-be-adv-devcourse.github.io/beadv8_8_BBCC_BE/) · [위키](https://github.com/prgrms-be-adv-devcourse/beadv8_8_BBCC_BE/wiki). 원본은 [`docs/`](docs/README.md)이고 develop에 머지되면 둘 다 자동으로 바뀐다.
+
 ## 준비
 
 - JDK 25, Docker Compose를 쓸 수 있는 Docker 환경 (Gradle은 Wrapper를 쓴다)
@@ -61,6 +63,7 @@
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
 | `apps/member-service/{auth,member,seller,support}` | 회원 서비스 빌드의 Gradle 모듈. 회원 서비스는 자체 settings를 가진 별도 빌드다. [구조와 실행](apps/member-service/README.md) |
 | `architecture` | 도메인 모듈마다 돌리는 ArchUnit 규칙(계층 `LayerRules`, 트랜잭션 격리 `TransactionRules`) |
+| `docs` | 팀 공용 문서(기획서 · Kafka 규칙 · API 목록). develop에 머지되면 문서 사이트(GitHub Pages, VitePress)와 GitHub 위키에 자동으로 올라간다. Gradle 빌드와 따로, `docs/`에서 `npm ci` · `npm run dev`로 띄운다. [문서 고치는 법](docs/writing.md) |
 
 ## 인증
 

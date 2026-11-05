@@ -9,7 +9,7 @@
 ## 문서
 
 - [ ] API를 추가 · 변경 · 삭제했으면 `docs/api/README.md`를 고쳤다
-- [ ] 이벤트를 추가 · 변경했으면 `docs/kafka/events.md`를 고쳤다
+- [ ] 이벤트를 추가 · 변경했으면 `docs/kafka/topics.md`(토픽 목록)를 고쳤다
 
 ## 참고 사항
 
