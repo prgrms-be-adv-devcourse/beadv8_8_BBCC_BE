@@ -6,7 +6,7 @@
 | | `member.suspended` | 회원 ID | | childprofile, notification |
 | | `member.changed` | 회원 ID | | seller |
 | | `member.withdrawn` | 회원 ID | | auth, childprofile, member(배송지), payment |
-| `kidly.seller.events` | `seller.changed` | 판매자 ID | seller | member, order, product, recommend, search |
+| `kidly.seller.events` | `seller.changed` | 판매자 ID | seller | member, notification, order, product, recommend, search |
 | | `seller.application-rejected` | 신청 ID | | notification |
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |

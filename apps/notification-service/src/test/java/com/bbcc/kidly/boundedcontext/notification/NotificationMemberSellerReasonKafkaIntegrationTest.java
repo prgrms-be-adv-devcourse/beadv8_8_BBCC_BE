@@ -11,7 +11,9 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerApplicationRejectedEvent;
+import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
@@ -44,6 +46,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 /**
  * 회원이 보낸 계정 정지(kidly.member.events) · 판매자 신청 거절(kidly.seller.events)을 받아 사유 메일을 보낸다(#880).
+ * 판매자 변경(kidly.seller.events)으로 승인된 판매자에게 승인 메일을 보낸다.
  * 회원이 보내는 형식(키 correlationId, 헤더 eventType · eventId, 본문 공통 칸 + data)으로 토픽에 직접 넣는다.
  * 받는 사람을 테스트마다 새로 만들고, 결과는 이 테스트의 받는 사람으로 걸러 본다.
  */
@@ -121,6 +124,19 @@ class NotificationMemberSellerReasonKafkaIntegrationTest {
             .satisfies(n -> assertThat(n.getType()).isEqualTo(NotificationType.SELLER_APPLICATION_REJECTED));
         assertThat(sent()).singleElement()
             .satisfies(mail -> assertThat(mail.text()).contains("거절 사유: 사업자 정보 불일치"));
+    }
+
+    @Test
+    @DisplayName("처음 받은 판매자의 ACTIVE 변경은 승인이므로 판매자에게 승인 메일을 보낸다")
+    void sendSellerApprovedEmail() throws Exception {
+        send("kidly.seller.events", new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new SellerChangedEvent.Data(memberId, "키들리 상점", SellerStatus.ACTIVE)));
+
+        AsyncWait.until(TIMEOUT, () -> statuses().equals(List.of(NotificationStatus.SENT)));
+        assertThat(notifications()).singleElement()
+            .satisfies(n -> assertThat(n.getType()).isEqualTo(NotificationType.SELLER_APPROVED));
+        assertThat(sent()).singleElement()
+            .satisfies(mail -> assertThat(mail.text()).contains("상호명: 키들리 상점"));
     }
 
     private List<Notification> notifications() {
