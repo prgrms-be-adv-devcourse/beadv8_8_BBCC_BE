@@ -7,10 +7,12 @@ import com.bbcc.kidly.boundedcontext.member.MemberFixture;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerService;
+import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRejectRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerSuspendRequest;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import com.bbcc.kidly.shared.seller.event.SellerApplicationRejectedEvent;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -149,6 +151,35 @@ class SellerKafkaPublishIntegrationTest {
         var application = sellerApplicationService.submit(member.getId(), member.getNickname(), request);
         sellerApplicationService.approve(application.id(), SellerFixture.ADMIN_ID);
         return member.getId();
+    }
+
+    @Test
+    @DisplayName("신청 거절은 커밋 뒤 신청 ID 키로 사유를 전송하고 롤백 시 전송하지 않는다")
+    void rejectedAfterCommitOnly() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+        var application = sellerApplicationService.submit(member.getId(), member.getNickname(),
+            new SellerApplicationRequest(SellerFixture.BUSINESS_NAME, SellerFixture.REPRESENTATIVE_NAME,
+                SellerFixture.BUSINESS_REGISTRATION_NUMBER));
+        transactionTemplate.executeWithoutResult(status -> {
+            sellerApplicationService.reject(application.id(), SellerFixture.ADMIN_ID,
+                new SellerApplicationRejectRequest("롤백 사유"));
+            status.setRollbackOnly();
+        });
+        var rolledBack = events.stream(SellerApplicationRejectedEvent.class).findFirst().orElseThrow();
+
+        sellerApplicationService.reject(application.id(), SellerFixture.ADMIN_ID,
+            new SellerApplicationRejectRequest("서류 미비"));
+        var committed = events.stream(SellerApplicationRejectedEvent.class)
+            .filter(event -> !event.eventId().equals(rolledBack.eventId())).findFirst().orElseThrow();
+        assertSent(committed, "seller.application-rejected", application.id());
+        var body = JSON_MAPPER.readTree(awaitRecord(committed).value());
+        assertThat(body.get("producer").asString()).isEqualTo("seller");
+        assertThat(body.get("aggregateId").asString()).isEqualTo(application.id().toString());
+        assertThat(body.get("data").get("applicationId").asLong()).isEqualTo(application.id());
+        assertThat(body.get("data").get("memberId").asLong()).isEqualTo(member.getId());
+        assertThat(body.get("data").get("reason").asString()).isEqualTo("서류 미비");
+        assertThat(body.get("data").get("rejectedAt")).isEqualTo(body.get("occurredAt"));
+        assertThat(findRecord(rolledBack)).isEmpty();
     }
 
     private void assertSent(DomainEvent event, String eventType, Long key) {

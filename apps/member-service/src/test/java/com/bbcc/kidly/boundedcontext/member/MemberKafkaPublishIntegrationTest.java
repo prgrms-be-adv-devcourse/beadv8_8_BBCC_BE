@@ -3,7 +3,9 @@ package com.bbcc.kidly.boundedcontext.member;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
+import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
@@ -15,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -65,6 +68,9 @@ class MemberKafkaPublishIntegrationTest {
 
     @Autowired
     private MemberService memberService;
+
+    @Autowired
+    private AdminMemberService adminMemberService;
 
     @Autowired
     private MemberRepository memberRepository;
@@ -194,6 +200,29 @@ class MemberKafkaPublishIntegrationTest {
             .filter(event -> !event.eventId().equals(rolledBack.eventId()))
             .findFirst().orElseThrow();
         awaitRecord(committed);
+        assertThat(findRecord(rolledBack)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("회원 정지는 커밋 뒤 사유를 전송하고 롤백된 정지는 전송하지 않는다")
+    void suspendedAfterCommitOnly() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+        transactionTemplate.executeWithoutResult(status -> {
+            adminMemberService.suspend(member.getId(), 100L, new MemberSuspendRequest("롤백 사유"));
+            status.setRollbackOnly();
+        });
+        var rolledBack = events.stream(MemberSuspendedEvent.class).findFirst().orElseThrow();
+
+        adminMemberService.suspend(member.getId(), 100L, new MemberSuspendRequest("정지 사유"));
+        var committed = events.stream(MemberSuspendedEvent.class)
+            .filter(event -> !event.eventId().equals(rolledBack.eventId())).findFirst().orElseThrow();
+        assertSent(committed, "member.suspended", member.getId());
+        var body = JSON_MAPPER.readTree(awaitRecord(committed).value());
+        assertThat(body.get("producer").asString()).isEqualTo("member");
+        assertThat(body.get("aggregateId").asString()).isEqualTo(member.getId().toString());
+        assertThat(body.get("data").get("memberId").asLong()).isEqualTo(member.getId());
+        assertThat(body.get("data").get("reason").asString()).isEqualTo("정지 사유");
+        assertThat(body.get("data").get("suspendedAt")).isEqualTo(body.get("occurredAt"));
         assertThat(findRecord(rolledBack)).isEmpty();
     }
 
