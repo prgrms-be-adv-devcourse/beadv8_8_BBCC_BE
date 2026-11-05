@@ -23,7 +23,7 @@ import tools.jackson.core.JacksonException;
 
 /**
  * 추천이 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT를 만든다.
- * 복사본 리스너(in.replica)와 구매 기록 리스너(in.purchase), 활동 기록 리스너(in.activity)가 함께 쓴다.
+ * 복사본 리스너(in.replica)와 구매 기록 리스너(in.purchase), 활동 기록 리스너(in.activity, 검색 · 회원 탈퇴)가 함께 쓴다.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고,
  * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다.
  * 읽지 못한 메시지와 다시 해도 같은 결과인 예외는 재시도 없이 보낸다.
@@ -59,6 +59,11 @@ public class RecommendKafkaListenerConfig {
     @Bean
     NewTopic recommendSearchEventsDeadLetterTopic() {
         return deadLetterTopic("kidly.search.events");
+    }
+
+    @Bean
+    NewTopic recommendMemberEventsDeadLetterTopic() {
+        return deadLetterTopic("kidly.member.events");
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
