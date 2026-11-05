@@ -22,7 +22,7 @@
 11. `./gradlew :apps:product-service:bootRun` — 상품 서비스(8089). 상품 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8089로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `ProductServiceApplication`
 12. `./gradlew :apps:order-service:bootRun` — 주문 서비스(8091). 주문 · 장바구니 · 배송 · 조르기 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8091로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `OrderServiceApplication`
 13. `./gradlew :apps:community-service:bootRun` — 커뮤니티 서비스(8092). 리뷰 · 찜 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8092로 넘긴다). IDE는 `CommunityServiceApplication`
-14. `./gradlew :apps:notification-service:bootRun` — 알림 서비스(8090). 가입 환영 메일은 앱에 없어 메일을 보려면 이 서비스를 띄워야 한다(HTTP API는 없다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `NotificationServiceApplication`
+14. `./gradlew :apps:notification-service:bootRun` — 알림 서비스(8090). 가입 환영 메일과 알림함 API(`/api/v1/notifications/**`)는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8090으로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `NotificationServiceApplication`
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - 프론트와 Swagger(http://localhost:8083/swagger-ui.html)는 Gateway 주소(8083)로 붙는다. Swagger 위쪽에서 앱 문서(`kidly`)와 `회원` · `추천` · `결제` · `상품` 문서를 고른다. 자녀 API는 회원 문서에 포함된다. 앱(8080)에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 앱에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
@@ -56,7 +56,7 @@
 | `apps/product-service` | 상품 서비스(#791). 상품 도메인은 이 서비스에만 있다. 상품 마이그레이션(`domains/product`의 `db/migration/product`)은 이 서비스만 적용한다(앱은 옛 상품 이력 행을 검증 전에 지운다). 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다 |
 | `apps/order-service` | 주문 서비스(주문 · 장바구니 · 배송 · 조르기, #826). 주문 도메인은 이 서비스에만 있다. 주문 마이그레이션은 이 서비스만 적용한다(앱은 옛 주문 모듈 이력 행을 검증 전에 지운다). 빈 DB에서 앱이 init으로 만든 주문 표 위에 서비스가 baseline(`202611031100`, 고정)을 잡고, 건너뛴 주문 모듈 표는 보강 마이그레이션이 만든다 |
 | `apps/community-service` | 커뮤니티 서비스(리뷰 · 찜, #827). 커뮤니티 도메인은 이 서비스에만 있다. 마이그레이션은 도메인 모듈에만 있고 이 서비스만 적용한다. 이미 테이블이 있는 DB는 baseline(`202611031200`, 고정)으로 건너뛴다 |
-| `apps/notification-service` | 알림 서비스(#833). 알림 도메인은 이 서비스에만 있다. 회원 가입 이벤트를 받아(구독 그룹 `kidly.notification`) 환영 메일을 보낸다. HTTP API가 없어 Gateway 라우트가 없다. 알림 테이블은 빈 DB에서 앱이 먼저 만들고, 서비스는 `202610190901`(고정)에서 baseline을 잡는다. 새 알림 마이그레이션은 `domains/notification`의 `db/migration/notification`에 둔다 |
+| `apps/notification-service` | 알림 서비스(#833). 알림 도메인은 이 서비스에만 있다. 회원 가입 이벤트를 받아(구독 그룹 `kidly.notification`) 환영 메일을 보낸다. 알림함 API(#852)는 Gateway가 넘긴다. 알림 테이블은 빈 DB에서 앱이 먼저 만들고, 서비스는 `202610190901`(고정)에서 baseline을 잡는다. 새 알림 마이그레이션은 `domains/notification`의 `db/migration/notification`에 둔다 |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
