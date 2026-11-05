@@ -79,6 +79,18 @@ class RoutingIntegrationTest extends GatewayTestSupport {
             assertThat(request.uri().getPath()).isEqualTo("/api/v1/child/profile"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/child/onboarding", "/api/v1/child/onboarding/notice"})
+    @DisplayName("자녀 첫 로그인 안내 경로는 회원 서비스에 넘긴다")
+    void routesChildOnboardingToMemberService(String path) {
+        var now = Instant.now();
+        var token = TestTokens.issueChild(7001, 8, now, now.plusSeconds(1800));
+        client.method(path.endsWith("/notice") ? HttpMethod.POST : HttpMethod.GET).uri(path)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange().expectStatus().isOk();
+        assertThat(memberBackend.lastRequest()).hasValueSatisfying(request ->
+            assertThat(request.uri().getPath()).isEqualTo(path));
+    }
+
     @Test
     @DisplayName("다른 자녀 경로는 404 ProblemDetail이고 넘기지 않는다")
     void rejectsOtherChildPaths() {

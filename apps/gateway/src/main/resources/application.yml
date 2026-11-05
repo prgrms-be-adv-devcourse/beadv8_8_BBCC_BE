@@ -60,11 +60,11 @@ spring:
               uri: ${kidly.gateway.member-uri}
               predicates:
                 - Path=/api/v1/children/**,/api/v1/guardian-verification
-            # 자녀가 자기 프로필을 보는 API만 회원 서비스로 간다(#837).
+            # 자녀가 자기 프로필 · 첫 로그인 안내를 다루는 API만 회원 서비스로 간다(#837, #889).
             - id: child-self-profile
               uri: ${kidly.gateway.member-uri}
               predicates:
-                - Path=/api/v1/child/profile
+                - Path=/api/v1/child/profile,/api/v1/child/onboarding,/api/v1/child/onboarding/notice
             # 추천 API는 추천 서비스로 간다(#704)
             - id: recommend
               uri: ${kidly.gateway.recommend-uri}
