@@ -139,7 +139,7 @@ def render(publication):
     lines.append('\n제약:')
     lines.extend(dict.fromkeys(context.limitations+report.limitations))
     return {'headline': f'AI 분석 · 관측 {stamp(context.window_end)} · {len(report.findings)}개 항목 · {report.provider}/{report.model}',
-            'report': '\n'.join(lines), 'context_id': context.context_id, 'stale_at_publish': publication.stale_at_publish}
+            'level': 'info', 'report': '\n'.join(lines), 'context_id': context.context_id, 'stale_at_publish': publication.stale_at_publish}
 
 
 class LokiPublisher:

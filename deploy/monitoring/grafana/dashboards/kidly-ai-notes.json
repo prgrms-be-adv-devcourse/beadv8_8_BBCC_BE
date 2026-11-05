@@ -196,7 +196,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | line_format \"{{.headline}}\"",
+          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{.headline}}\"",
           "queryType": "range",
           "maxLines": 1
         }
