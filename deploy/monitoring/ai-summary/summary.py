@@ -233,7 +233,7 @@ def post_report(state):
             lines.extend(str(i+1) + '. ' + check for i, check in enumerate(finding['checks']))
             lines.append('대응 제안: ' + finding['recommendation'])
             lines.append('관련 화면: https://grafana.kidly.kro.kr' + finding['url'])
-        headline = f"{state['attempt_status']} · 점검 {len(findings)}개 · " + (findings[0]['title'] if findings else '규칙에 해당하는 추가 항목 없음; 정상 보장은 아님')
+        headline = stamp(success['time']) + f" 관측 · {state['attempt_status']} (서비스 정상 보장 아님) · 점검 {len(findings)}개 · " + (findings[0]['title'] if findings else '규칙에 해당하는 추가 항목 없음; 정상 보장은 아님')
     else:
         headline = '실패 · 성공한 점검 없음'
     record = {'headline': headline, 'report': '\n'.join(lines)}

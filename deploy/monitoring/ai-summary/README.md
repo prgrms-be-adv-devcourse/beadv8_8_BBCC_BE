@@ -49,3 +49,7 @@ Loki의 기존 14일 보관 정책을 따르며 공개 포트·새 저장소를 
 로컬 미리보기: `summary.py --state-dir /tmp/kidly-preview/state --fixture <합성 지표 JSON>`
 
 OOM 증가는 첫 수집 이전 사건을 잡지 못할 수 있습니다. 0이나 누락만으로 과거 OOM이 없었다고 판단하지 않습니다.
+
+Loki 게시까지 성공해야 새 점검을 성공으로 반영합니다. Loki 장애 시 새 분석도 반영하지 않고 이전 성공/실패 카드를 유지합니다.
+점검 메모는 Logs Drilldown에서 `kidly-operations-summary`라는 별도 서비스로 보일 수 있습니다.
+상태 파일 손상 시 배포를 실패시켜 원인을 드러냅니다. 상태를 임의로 지워 우회하지 말고 복구하세요.
