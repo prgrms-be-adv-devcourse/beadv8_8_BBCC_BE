@@ -41,14 +41,25 @@ public class Delivery extends DeliveryTimeEntity {
 
     /**
      * 택배사. DUMMY는 테스트용. Delivery Tracker 택배사 ID 연결은 out/tracker 어댑터가 한다(#650).
+     * 화면용 이름은 배송 이벤트(#900)에 코드와 함께 담는다.
      */
     public enum Carrier {
-        CJ,
-        EPOST,
-        HANJIN,
-        LOTTE,
-        LOGEN,
-        DUMMY
+        CJ("CJ대한통운"),
+        EPOST("우체국택배"),
+        HANJIN("한진택배"),
+        LOTTE("롯데택배"),
+        LOGEN("로젠택배"),
+        DUMMY("테스트택배");
+
+        private final String displayName;
+
+        Carrier(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
     }
 
     @Id

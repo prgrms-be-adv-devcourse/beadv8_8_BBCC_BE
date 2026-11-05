@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.delivery.app.config.PartialCancelProperties
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.TrackingTarget;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryEvents;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryOrders;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryOrders.Order;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
@@ -12,10 +13,14 @@ import com.bbcc.kidly.boundedcontext.delivery.app.port.in.ShippingDelays;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.delivery.domain.DeliveryRuleViolationException;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
+import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -47,12 +52,16 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     private static final String SELLER = "SELLER";
     // 택배 조회 스케줄러가 바꾼 상태 이력의 주체(#650, 주문 OrderActor의 scheduler:{작업} 이름 규칙과 같음)
     private static final String SYSTEM = "SYSTEM";
+    // 배송 이벤트 종류(#900). 주문이 없어 건너뛸 때 로그에 남긴다
+    private static final String SHIPPED = "delivery.shipped";
+    private static final String DELIVERED = "delivery.delivered";
     static final String DELIVERY_TRACKING = "scheduler:delivery-tracking";
 
 
     private final DeliveryRepository deliveryRepository;
     private final DeliveryOrders deliveryOrders;
     private final PartialCancelProperties partialCancelProperties;
+    private final DeliveryEvents deliveryEvents;
 
     /**
      * 주문상품을 판매자로 묶어 판매자마다 배송 준비 1건을 만든다. 주문이 없으면 만들지 않는다.
@@ -122,6 +131,7 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
         }
         deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SELLER, memberId,
             SELLER_SHIP), from.name(), delivery.getStatus().name(), null, now);
+        publishShipped(delivery, now);
         log.info("발송: orderId={} deliveryId={} sellerId={} carrier={}",
             delivery.getOrderId(), delivery.getId(), delivery.getSellerId(), parsed);
         return DeliveryResult.from(delivery);
@@ -149,6 +159,7 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
         } else {
             deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SELLER,
                 memberId, SELLER_DELIVER), from.name(), delivery.getStatus().name(), null, now);
+            publishDelivered(delivery, now);
             log.info("배송 완료: orderId={} deliveryId={} sellerId={}",
                 delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
         }
@@ -219,11 +230,46 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
             return false;
         }
         deliveryOrders.recordDelivered(delivery.getOrderId(), delivery.getSellerId(), delivery.getDeliveredAt());
+        LocalDateTime now = LocalDateTime.now();
         deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SYSTEM, null,
-            DELIVERY_TRACKING), from.name(), delivery.getStatus().name(), null, LocalDateTime.now());
+            DELIVERY_TRACKING), from.name(), delivery.getStatus().name(), null, now);
+        publishDelivered(delivery, now);
         log.info("배송 완료: orderId={} deliveryId={} sellerId={} by=tracking",
             delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
         return true;
+    }
+
+    /**
+     * 발송 이벤트(delivery.shipped, #900). 같은 트랜잭션에서 주문 아웃박스로 나간다.
+     */
+    private void publishShipped(Delivery delivery, LocalDateTime now) {
+        publishForBuyer(delivery, SHIPPED, memberId -> new DeliveryShippedEvent(UUID.randomUUID(),
+            now, new DeliveryShippedEvent.Data(delivery.getId(), delivery.getOrderId(), memberId,
+                delivery.getSellerId(), delivery.getCarrier().name(), delivery.getCarrier().getDisplayName(),
+                delivery.getTrackingNumber(), delivery.getShippedAt())));
+    }
+
+    /**
+     * 배송 완료 이벤트(delivery.delivered, #900). 처음 완료될 때만 부른다(이미 완료면 부르지 않는다).
+     */
+    private void publishDelivered(Delivery delivery, LocalDateTime now) {
+        publishForBuyer(delivery, DELIVERED, memberId -> new DeliveryDeliveredEvent(
+            UUID.randomUUID(), now, new DeliveryDeliveredEvent.Data(delivery.getId(), delivery.getOrderId(), memberId,
+                delivery.getSellerId(), delivery.getCarrier().name(), delivery.getCarrier().getDisplayName(),
+                delivery.getTrackingNumber(), delivery.getDeliveredAt())));
+    }
+
+    /**
+     * 구매자 ID는 배송에 없어 주문에서 읽는다. 주문이 없으면(계약 밖) 상태 변경은 그대로 두고 이벤트만 내지 않는다.
+     */
+    private void publishForBuyer(Delivery delivery, String eventType, Function<Long, DomainEvent> event) {
+        Long memberId = deliveryOrders.findOrder(delivery.getOrderId()).map(Order::memberId).orElse(null);
+        if (memberId == null) {
+            log.warn("배송 이벤트 건너뜀: orderId={} deliveryId={} eventType={} reason=order-not-found",
+                delivery.getOrderId(), delivery.getId(), eventType);
+            return;
+        }
+        deliveryEvents.publish(event.apply(memberId));
     }
 
     /**

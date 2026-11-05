@@ -58,7 +58,7 @@ public class DeliveryOrdersAdapter implements DeliveryOrders {
 
     private static Order toOrder(OrderView order) {
         OrderView.ShippingAddress address = order.shippingAddress();
-        return new Order(order.orderId(), order.orderedAt(),
+        return new Order(order.orderId(), order.memberId(), order.orderedAt(),
             address == null ? null : new Order.ShippingAddress(address.recipientName(), address.phone(),
                 address.zipCode(), address.address()),
             order.items().stream().map(DeliveryOrdersAdapter::toItem).toList());

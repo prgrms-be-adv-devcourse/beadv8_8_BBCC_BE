@@ -53,11 +53,13 @@ public interface DeliveryOrders {
     /**
      * 배송할 주문 한 건. 상태 · 구매확정 종류는 enum 이름 문자열.
      *
+     * @param memberId 주문한 회원(구매자) ID(#900)
      * @param orderedAt 주문 시각(주문 생성 시각)
      * @param shippingAddress 배송지. 없으면 null
      */
     record Order(
         Long orderId,
+        Long memberId,
         LocalDateTime orderedAt,
         ShippingAddress shippingAddress,
         List<Item> items) {

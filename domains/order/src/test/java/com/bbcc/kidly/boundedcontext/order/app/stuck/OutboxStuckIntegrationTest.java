@@ -162,6 +162,14 @@ class OutboxStuckIntegrationTest {
     }
 
     @Test
+    @DisplayName("배송 이벤트(delivery.*, #900)도 키가 주문 ID다")
+    void deliveryEventKeyIsOrderId() {
+        attempts(unsent("delivery.shipped", "2048", now), thresholds.outboxAttempts(), "Timeout");
+
+        assertThat(list()).singleElement().satisfies(result -> assertThat(result.orderId()).isEqualTo(2048L));
+    }
+
+    @Test
     @DisplayName("주문상품 이벤트(order-item.*)도 키가 주문 ID다")
     void orderItemEventKeyIsOrderId() {
         attempts(unsent("order-item.purchase-confirmed", "1024", now), thresholds.outboxAttempts(), "Timeout");

@@ -69,7 +69,8 @@ class OrderQueryServiceTest {
     void setUp() {
         ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository);
         DeliveryService delivery = new DeliveryService(deliveryRepository,
-            new DeliveryOrdersAdapter(provided, provided, null), new PartialCancelProperties(false));
+            new DeliveryOrdersAdapter(provided, provided, null), new PartialCancelProperties(false), event -> {
+            });
         orderQueries = new OrderQueryService(orderRepository, new OrderDeliveriesAdapter(delivery, delivery),
             sellerReplicaRepository, historyRepository);
     }

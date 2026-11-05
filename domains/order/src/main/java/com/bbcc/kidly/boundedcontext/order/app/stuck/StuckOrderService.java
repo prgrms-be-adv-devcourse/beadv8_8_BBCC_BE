@@ -34,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class StuckOrderService {
 
     // 키가 주문 ID인 이벤트 종류의 접두어(주문 · 주문상품)
-    private static final List<String> ORDER_KEYED_EVENT_TYPES = List.of("order.", "order-item.");
+    private static final List<String> ORDER_KEYED_EVENT_TYPES = List.of("order.", "order-item.", "delivery.");
 
     private final StuckOrderRepository stuckOrderRepository;
     private final OrderDeliveries orderDeliveries;
@@ -162,9 +162,9 @@ public class StuckOrderService {
         return head.getCreatedAt().plus(thresholds.outboxWait());
     }
 
-    // 주문 · 주문상품 이벤트(order. · order-item.)만 키가 주문 ID(correlationId)다. 장바구니 담기(cart.item-added, #654,
-    // 키 = 회원 ID) · 조르기(wish.*, #702, 키 = 자녀 프로필 ID)처럼 다른 종류의 키는 주문 ID로 보이지 않는다.
-    // 숫자가 아니면(계약 밖) 주문을 모른다
+    // 주문 · 주문상품 · 배송 이벤트(order. · order-item. · delivery., #900)만 키가 주문 ID(correlationId)다.
+    // 장바구니 담기(cart.item-added, #654, 키 = 회원 ID) · 조르기(wish.*, #702, 키 = 자녀 프로필 ID)처럼 다른 종류의 키는
+    // 주문 ID로 보이지 않는다. 숫자가 아니면(계약 밖) 주문을 모른다
     private static Long orderIdOf(String eventType, String messageKey) {
         if (eventType == null || ORDER_KEYED_EVENT_TYPES.stream().noneMatch(eventType::startsWith)) {
             return null;
