@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
+import com.bbcc.kidly.boundedcontext.notification.out.JpaMemberContactRepository;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.support.AsyncWait;
@@ -72,6 +73,9 @@ class NotificationMemberEventKafkaIntegrationTest {
     private FakeNotificationEmailSender fakeNotificationEmailSender;
 
     @Autowired
+    private JpaMemberContactRepository jpaMemberContactRepository;
+
+    @Autowired
     private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
 
     @Autowired
@@ -126,6 +130,36 @@ class NotificationMemberEventKafkaIntegrationTest {
 
         AsyncWait.until(TIMEOUT, () -> statusesOf(email).equals(List.of(NotificationStatus.SENT)));
         assertThat(sentTo(email)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("가입 이벤트를 받으면 회원 이메일 복사본을 저장한다")
+    void saveMemberContact() throws Exception {
+        send(memberRegistered(email));
+
+        AsyncWait.until(TIMEOUT, () -> jpaMemberContactRepository.existsById(memberId));
+        assertThat(jpaMemberContactRepository.findById(memberId)).get()
+            .satisfies(contact -> assertThat(contact.getEmail()).isEqualTo(email));
+    }
+
+    @Test
+    @DisplayName("기존 회원을 다시 보낸 가입 이벤트(resent)는 복사본만 저장하고 환영 메일을 만들지 않는다")
+    void resentSavesContactWithoutWelcome() throws Exception {
+        sendRegistered(Map.of("memberId", memberId, "email", email, "resent", true));
+
+        AsyncWait.until(TIMEOUT, () -> jpaMemberContactRepository.existsById(memberId));
+        assertThat(notificationsOf(email)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("탈퇴 이벤트를 받으면 회원 이메일 복사본을 지운다")
+    void deleteMemberContact() throws Exception {
+        send(memberRegistered(email));
+        AsyncWait.until(TIMEOUT, () -> jpaMemberContactRepository.existsById(memberId));
+
+        sendWithdrawn();
+
+        AsyncWait.until(TIMEOUT, () -> !jpaMemberContactRepository.existsById(memberId));
     }
 
     @Test
@@ -197,6 +231,29 @@ class NotificationMemberEventKafkaIntegrationTest {
         body.put("correlationId", event.correlationId());
         body.put("data", event.data());
         sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(body));
+    }
+
+    // shared 이벤트에 아직 없는 필드(resent)를 넣으려고 data를 직접 만든다. 공통 칸은 회원이 보내는 형식과 같다
+    private void sendRegistered(Map<String, Object> data) throws Exception {
+        sendEnvelope("member.registered", data);
+    }
+
+    private void sendWithdrawn() throws Exception {
+        sendEnvelope("member.withdrawn", Map.of("memberId", memberId));
+    }
+
+    private void sendEnvelope(String eventType, Map<String, Object> data) throws Exception {
+        var eventId = UUID.randomUUID();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("eventId", eventId);
+        body.put("eventType", eventType);
+        body.put("schemaVersion", 1);
+        body.put("occurredAt", LocalDateTime.now());
+        body.put("producer", "member");
+        body.put("aggregateId", String.valueOf(memberId));
+        body.put("correlationId", String.valueOf(memberId));
+        body.put("data", data);
+        sendRaw(eventType, eventId, jsonMapper.writeValueAsString(body));
     }
 
     private MemberRegisteredEvent memberRegistered(String recipient) {
