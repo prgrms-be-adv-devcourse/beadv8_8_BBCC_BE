@@ -30,6 +30,9 @@ wait_rollout deploy/loki 180s
 wait_rollout deploy/grafana 180s
 wait_rollout ds/alloy 120s
 
+# Grafana 재생성 시 새 Pod 한 개만 MCP 조회 경로에 허용한다. 실패하면 기본 거부를 유지한다.
+python3 mcp/update_boundary.py
+
 # GF_SECURITY_ADMIN_PASSWORD 는 Grafana DB 를 처음 만들 때만 쓰인다. Secret 을 바꿔도 반영되도록 배포마다 맞춘다
 # 값은 출력하지 않고 stdin 으로만 넘긴다. 워크플로가 printf '%s' 로 만들어 파일 끝에 줄바꿈이 없다
 k exec -i deploy/grafana -- grafana cli admin reset-admin-password --password-from-stdin < secrets/GRAFANA_ADMIN_PASSWORD > /dev/null
