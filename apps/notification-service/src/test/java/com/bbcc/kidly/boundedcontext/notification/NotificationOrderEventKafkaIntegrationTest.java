@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaInboxNotificationRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -99,6 +100,24 @@ class NotificationOrderEventKafkaIntegrationTest {
             assertThat(notification.getType()).isEqualTo(NotificationType.WISH_SENT);
             assertThat(notification.getTitle()).isEqualTo("아이가 구매 요청을 보냈어요");
             assertThat(notification.getLinkPath()).isEqualTo("/my/children/3/wishes/" + wishRequestId);
+        });
+    }
+
+    @Test
+    @DisplayName("재고 부족으로 주문이 취소되면 구매자 알림함에 넣고, 구매자가 직접 취소한 주문은 넣지 않는다")
+    void addOrderCancelled() throws Exception {
+        var orderId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+        send(new OrderCancelledEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new OrderCancelledEvent.Data(orderId, memberId, "BUYER_CANCELLED", List.of())));
+        send(new OrderCancelledEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new OrderCancelledEvent.Data(orderId, memberId, "OUT_OF_STOCK", List.of())));
+
+        // 키(주문 ID)가 같아 같은 파티션이다. 뒤 메시지가 들어왔으면 앞 메시지는 이미 처리됐다
+        AsyncWait.until(TIMEOUT, () -> !inbox().isEmpty());
+        assertThat(inbox()).singleElement().satisfies(notification -> {
+            assertThat(notification.getType()).isEqualTo(NotificationType.ORDER_CANCELLED);
+            assertThat(notification.getTitle()).isEqualTo("재고가 없어 주문이 취소됐어요");
+            assertThat(notification.getLinkPath()).isEqualTo("/orders/" + orderId);
         });
     }
 
