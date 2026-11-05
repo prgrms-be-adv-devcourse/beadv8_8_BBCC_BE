@@ -6,14 +6,18 @@ import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.NOW
 import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.WEIGHT;
 import static com.bbcc.kidly.boundedcontext.childprofile.ChildProfileFixture.updateInfo;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileErrorCode;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRegisterInfo;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.Consenter;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.GrowthRecord;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -101,8 +105,61 @@ class ChildProfileTest {
         assertThat(child.getName()).isEqualTo("첫째");
     }
 
+    @Test
+    @DisplayName("등록하면 보호자 동의 1건이 선택 동의 여부와 함께 남는다")
+    void registerRecordsGuardianConsent() {
+        var child = ChildProfileFixture.child(MEMBER_ID);
+
+        assertThat(child.getConsents()).singleElement().satisfies(consent -> {
+            assertThat(consent.getConsenter()).isEqualTo(Consenter.GUARDIAN);
+            assertThat(consent.isOptionalConsent()).isTrue();
+            assertThat(consent.getConsentedAt()).isEqualTo(NOW);
+        });
+        assertThat(child.hasOptionalConsent()).isTrue();
+    }
+
+    @Test
+    @DisplayName("선택 동의 없이 체형이나 선호 핏을 넣으면 등록할 수 없다")
+    void registerWithoutOptionalConsent() {
+        assertThatThrownBy(() -> ChildProfile.register(withoutOptionalConsent(BodyType.NORMAL, null), NOW))
+            .extracting("errorCode").isEqualTo(ChildProfileErrorCode.OPTIONAL_CONSENT_REQUIRED);
+        assertThatThrownBy(() -> ChildProfile.register(withoutOptionalConsent(null, PreferredFit.LOOSE), NOW))
+            .extracting("errorCode").isEqualTo(ChildProfileErrorCode.OPTIONAL_CONSENT_REQUIRED);
+    }
+
+    @Test
+    @DisplayName("선택 동의 없이 등록한 자녀는 수정에서도 체형 · 선호 핏을 넣을 수 없다")
+    void updateWithoutOptionalConsent() {
+        var child = ChildProfile.register(withoutOptionalConsent(null, null), NOW);
+
+        assertThat(child.hasOptionalConsent()).isFalse();
+        assertThatThrownBy(() -> child.update(updateInfo("첫째", HEIGHT, WEIGHT, BodyType.NORMAL, null), NOW))
+            .extracting("errorCode").isEqualTo(ChildProfileErrorCode.OPTIONAL_CONSENT_REQUIRED);
+        assertThatThrownBy(() -> child.update(updateInfo("첫째", HEIGHT, WEIGHT, null, PreferredFit.LOOSE), NOW))
+            .extracting("errorCode").isEqualTo(ChildProfileErrorCode.OPTIONAL_CONSENT_REQUIRED);
+    }
+
+    @Test
+    @DisplayName("만 14세 생일 전날까지만 등록할 수 있다")
+    void registerUnder14Only() {
+        var today = NOW.toLocalDate();
+
+        assertThat(ChildProfile.register(bornOn(today.minusYears(14).plusDays(1)), NOW)).isNotNull();
+        assertThatThrownBy(() -> ChildProfile.register(bornOn(today.minusYears(14)), NOW))
+            .extracting("errorCode").isEqualTo(ChildProfileErrorCode.CHILD_TOO_OLD);
+    }
+
+    private static ChildProfileRegisterInfo withoutOptionalConsent(BodyType bodyType, PreferredFit preferredFit) {
+        return new ChildProfileRegisterInfo(
+            MEMBER_ID, "첫째", BIRTH_DATE, Gender.MALE, HEIGHT, WEIGHT, bodyType, preferredFit, false);
+    }
+
+    private static ChildProfileRegisterInfo bornOn(LocalDate birthDate) {
+        return new ChildProfileRegisterInfo(MEMBER_ID, "첫째", birthDate, Gender.MALE, HEIGHT, WEIGHT, null, null, true);
+    }
+
     private static ChildProfileRegisterInfo register(BigDecimal heightCm, BigDecimal weightKg, BodyType bodyType) {
         return new ChildProfileRegisterInfo(
-            MEMBER_ID, "첫째", BIRTH_DATE, Gender.MALE, heightCm, weightKg, bodyType, null);
+            MEMBER_ID, "첫째", BIRTH_DATE, Gender.MALE, heightCm, weightKg, bodyType, null, true);
     }
 }

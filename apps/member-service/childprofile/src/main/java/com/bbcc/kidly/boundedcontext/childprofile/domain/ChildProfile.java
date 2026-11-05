@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.childprofile.domain;
 
+import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -18,6 +19,7 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -77,12 +79,22 @@ public class ChildProfile extends BaseSoftDeleteEntity {
     @OrderBy("recordedAt ASC, id ASC")
     private List<GrowthRecord> growthRecords = new ArrayList<>();
 
+    @OneToMany(mappedBy = "childProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("consentedAt ASC, id ASC")
+    private List<ChildConsent> consents = new ArrayList<>();
+
     private ChildProfile(Long memberId) {
         this.memberId = memberId;
     }
 
     public static ChildProfile register(ChildProfileRegisterInfo info, LocalDateTime now) {
+        var age = Period.between(info.birthDate(), now.toLocalDate()).getYears();
+        if (age >= ChildProfilePolicy.AGE_LIMIT) {
+            throw new BusinessException(ChildProfileErrorCode.CHILD_TOO_OLD);
+        }
+        validateOptionalConsent(info.optionalConsent(), info.bodyType(), info.preferredFit());
         var child = new ChildProfile(info.memberId());
+        child.consents.add(new ChildConsent(child, info.optionalConsent(), now));
         child.change(info.name(), info.birthDate(), info.gender(), info.heightCm(), info.weightKg(),
             info.bodyType(), info.preferredFit());
         child.growthRecords.add(new GrowthRecord(child, info.heightCm(), info.bodyType(), now));
@@ -91,12 +103,27 @@ public class ChildProfile extends BaseSoftDeleteEntity {
 
     // 모든 필드를 받는 전체 교체다. 키(값 비교) 또는 체형(null ↔ 값 포함)이 바뀌면 성장 이력을 1건 추가한다
     public void update(ChildProfileUpdateInfo info, LocalDateTime now) {
+        validateOptionalConsent(hasOptionalConsent(), info.bodyType(), info.preferredFit());
         boolean grown = this.heightCm.compareTo(info.heightCm()) != 0
             || !Objects.equals(this.bodyType, info.bodyType());
         change(info.name(), info.birthDate(), info.gender(), info.heightCm(), info.weightKg(),
             info.bodyType(), info.preferredFit());
         if (grown) {
             growthRecords.add(new GrowthRecord(this, info.heightCm(), info.bodyType(), now));
+        }
+    }
+
+    public boolean hasOptionalConsent() {
+        return !consents.isEmpty() && consents.getLast().isOptionalConsent();
+    }
+
+    public List<ChildConsent> getConsents() {
+        return Collections.unmodifiableList(consents);
+    }
+
+    private static void validateOptionalConsent(boolean consent, BodyType bodyType, PreferredFit preferredFit) {
+        if (!consent && (bodyType != null || preferredFit != null)) {
+            throw new BusinessException(ChildProfileErrorCode.OPTIONAL_CONSENT_REQUIRED);
         }
     }
 

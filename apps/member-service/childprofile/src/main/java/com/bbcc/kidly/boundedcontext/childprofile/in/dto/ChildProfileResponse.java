@@ -23,12 +23,14 @@ public record ChildProfileResponse(
     BigDecimal weightKg,
     BodyType bodyType,
     PreferredFit preferredFit,
+    boolean hasOptionalConsent,
     int growthRecordCount,
     LocalDateTime lastRecordedAt) {
 
     public static ChildProfileResponse from(ChildProfileResult result) {
         return new ChildProfileResponse(
             result.id(), result.name(), result.birthDate(), result.gender(), result.heightCm(), result.weightKg(),
-            result.bodyType(), result.preferredFit(), result.growthRecordCount(), result.lastRecordedAt());
+            result.bodyType(), result.preferredFit(), result.hasOptionalConsent(),
+            result.growthRecordCount(), result.lastRecordedAt());
     }
 }

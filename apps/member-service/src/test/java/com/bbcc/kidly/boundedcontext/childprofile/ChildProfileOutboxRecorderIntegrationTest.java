@@ -40,7 +40,7 @@ class ChildProfileOutboxRecorderIntegrationTest {
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 10, 30, 12, 0);
     private static final ChildProfileRequest REQUEST = new ChildProfileRequest(
         "첫째", LocalDate.of(2019, 1, 15), Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"),
-        BodyType.NORMAL, PreferredFit.LOOSE);
+        BodyType.NORMAL, PreferredFit.LOOSE, true, true);
 
     @Autowired
     private ChildProfileService childProfileService;

@@ -69,7 +69,7 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final ChildProfileRequest REQUEST = new ChildProfileRequest(
         "첫째", LocalDate.of(2019, 1, 15), Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"),
-        BodyType.NORMAL, PreferredFit.LOOSE);
+        BodyType.NORMAL, PreferredFit.LOOSE, true, true);
 
     // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;

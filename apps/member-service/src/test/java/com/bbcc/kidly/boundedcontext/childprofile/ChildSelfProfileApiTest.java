@@ -103,7 +103,7 @@ class ChildSelfProfileApiTest {
 
     private Long registerChild(String name) {
         return service.register(GUARDIAN_ID, new ChildProfileRequest(name, LocalDate.of(2019, 1, 15),
-            Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), null, null)).id();
+            Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), null, null, true, true)).id();
     }
 
     private void link(Long accountId, Long childId) {
