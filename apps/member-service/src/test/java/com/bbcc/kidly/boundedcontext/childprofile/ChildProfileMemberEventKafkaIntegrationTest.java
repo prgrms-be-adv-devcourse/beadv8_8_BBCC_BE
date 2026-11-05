@@ -11,6 +11,8 @@ import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -52,7 +54,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * member.withdrawn이 커밋되면 kidly.member.events를 거쳐 그 회원의 자녀를 모두 삭제한다(#569).
+ * member.withdrawn 또는 member.suspended를 받으면 그 회원의 자녀를 모두 삭제한다(#569, #886).
  * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
  * 회원 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 회원 ID · 키로 걸러 본다.
  * 자녀마다 삭제 이벤트를 발행하는 것은 서비스 동작이라 ChildProfileServiceIntegrationTest가 본다.
@@ -128,6 +130,22 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("정지 이벤트를 받으면 그 회원의 자녀만 모두 삭제하고 본인인증 기록은 유지한다")
+    void deleteChildrenOnSuspension() throws Exception {
+        childProfileService.register(memberId, REQUEST);
+        childProfileService.register(memberId, REQUEST);
+        var other = childProfileService.register(otherMemberId, REQUEST).id();
+        var now = LocalDateTime.now();
+
+        send(new MemberSuspendedEvent(UUID.randomUUID(), now, new MemberSuspendedEvent.Data(memberId, "사유", now)));
+
+        AsyncWait.until(TIMEOUT, () -> childrenOf(memberId).isEmpty());
+        assertThat(childrenOf(otherMemberId)).extracting(ChildProfile::getId).containsExactly(other);
+        assertThat(verifications.existsByMemberId(memberId)).isTrue();
+        assertThat(verifications.existsByMemberId(otherMemberId)).isTrue();
+    }
+
+    @Test
     @DisplayName("같은 탈퇴 이벤트를 두 번 받아도 결과는 한 번 받은 것과 같고 DLT로 보내지 않는다")
     void duplicateEvent() throws Exception {
         childProfileService.register(memberId, REQUEST);
@@ -185,7 +203,7 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     }
 
     // 회원이 보내는 형식 그대로 넣는다. 키는 correlationId(회원 ID)다
-    private void send(MemberWithdrawnEvent event) throws Exception {
+    private void send(DomainEvent event) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("eventId", event.eventId());
         body.put("eventType", event.eventType());

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.childprofile.in;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.GuardianVerificationService;
+import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -11,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * kidly.member.events에서 member.withdrawn을 받아 그 회원의 자녀 프로필을 모두 삭제한다.
+ * kidly.member.events에서 member.withdrawn 또는 member.suspended를 받아 그 회원의 자녀 프로필을 모두 삭제한다.
  * 같은 메시지를 다시 받아도 이미 삭제된 자녀는 조회되지 않아 아무 일도 하지 않는다.
  */
 @Component
@@ -28,6 +29,7 @@ public class ChildProfileMemberEventListener {
     public void on(ConsumerRecord<String, String> record) {
         switch (ChildProfileKafkaListenerConfig.header(record, "eventType")) {
             case "member.withdrawn" -> onWithdrawn(jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
+            case "member.suspended" -> onSuspended(jsonMapper.readValue(record.value(), MemberSuspendedEvent.class));
             default -> { }  // 자녀 프로필이 받지 않는 종류
         }
     }
@@ -35,5 +37,9 @@ public class ChildProfileMemberEventListener {
     private void onWithdrawn(MemberWithdrawnEvent event) {
         childProfileService.deleteAll(event.data().memberId());
         guardianVerificationService.deleteByMemberId(event.data().memberId());
+    }
+
+    private void onSuspended(MemberSuspendedEvent event) {
+        childProfileService.deleteAll(event.data().memberId());
     }
 }
