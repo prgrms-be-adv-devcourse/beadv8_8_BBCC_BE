@@ -47,7 +47,7 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| POST | `/api/v1/children` | 자녀 등록 | 🔒 |
+| POST | `/api/v1/children` | 자녀 등록(만 14세 미만, 필수 동의 `requiredConsent` · 선택 동의 `optionalConsent`) | 🔒 |
 | GET | `/api/v1/children` | 내 자녀 목록 | 🔒 |
 | GET | `/api/v1/children/{childId}` | 자녀 상세 | 🔒 |
 | PATCH | `/api/v1/children/{childId}` | 자녀 수정(전체 값) | 🔒 |
