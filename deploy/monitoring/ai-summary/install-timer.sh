@@ -4,7 +4,7 @@ set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo '서버 관리자의 sudo로 실행하세요' >&2; exit 1; }
 cd /opt/app/monitoring/ai-summary
 # 초기 상태/볼륨은 deploy.sh가 먼저 만들었어야 한다.
-[[ -d ../ai-summary-state/dashboards && -d ../operations ]]
+[[ -d ../ai-summary-state/dashboards && -d ../operations ]] || { echo "먼저 monitoring-deploy를 실행하세요" >&2; exit 1; }
 install -m 644 kidly-ai-summary.service /etc/systemd/system/
 install -m 644 kidly-ai-summary.timer /etc/systemd/system/
 systemctl daemon-reload

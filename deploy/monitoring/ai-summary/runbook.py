@@ -47,7 +47,9 @@ def explain(facts, statuses):
             add(metric, 'warning', title, f"수집된 서버 중 최악 관측값: {fact['value']:g}% (현재 관측; 지속 시간 미판정)",
                 cause, checks, advice, [fact], 'kidly-server')
     oom = get('oom_30m')
-    if oom and oom['value'] > 0:
+    if oom is None:
+        missing.append('oom_30m')
+    elif oom['value'] > 0:
         add('oom', 'critical', '최근 메모리 부족 종료 기록', f"최근 30분 OOM 종료 증가 추정 {oom['value']:g}건 (수집된 서버 합계)",
             '호스트 메모리 압박이 있었습니다. 현재 여유가 회복돼도 어떤 프로세스가 종료됐는지 확인해야 합니다.',
             ['서버별 OOM 기록과 컨테이너 OOMKilled/재시작 여부를 확인하세요', '같은 시각의 배포·기동 수와 메모리 사용량을 비교하세요'],
@@ -68,11 +70,13 @@ def explain(facts, statuses):
                 '재개가 필요하면 팀과 합의해 resume을 실행하세요. 자동 재시작하지 않습니다.', [enabled], 'kidly-http', env)
             continue
         if status == '중지·재개 작업 중':
-            add('transition-' + env, 'info', env + ' 환경 전환 중', '중지·재개 작업 표시가 있습니다.',
+            age = get('transition_age', env)
+            severity = 'warning' if age and age['value'] > 600 else ('info' if age else 'unknown')
+            add('transition-' + env, severity, env + ' 환경 전환 중', '중지·재개 작업 표시가 있습니다.' + (f" 경과 {age['value']/60:.0f}분" if age else ' 경과 시간 판단 불가'),
                 '배포/환경 전환 중 일시적으로 수집이 비어 있을 수 있습니다. 오래 남으면 실패한 작업일 수 있습니다.',
                 ['environment-operation 실행 상태와 종료 결과를 확인하세요'],
                 '작업 종료 후에도 전환 표시가 남으면 실패 단계를 확인하세요. 상태 파일을 지워 우회하지 마세요.',
-                [get('transition', env)], 'kidly-http', env)
+                [get('transition', env), age], 'kidly-http', env)
             continue
         if status.startswith('확인 불가'):
             add('inventory-' + env, 'unknown', env + ' 운영 대상 판단 불가', status,
@@ -107,13 +111,13 @@ def explain(facts, statuses):
                 observation = []
                 if slow:
                     observation.append(f"30분 평균 응답 {duration['value']/count:.2f}초 / 요청 약 {count:.0f}건 (p95 아님)")
-                if pending:
+                if pending is not None:
                     observation.append(f"현재 DB 연결 대기 {pending['value']:g}")
-                if util:
+                if util is not None:
                     observation.append(f"현재 연결 풀 사용률 {util['value']*100:.1f}%")
                 add('latency-db-' + env + job, 'warning', env + ' ' + job + (' 응답 지연과 DB 대기 동반' if correlated else ' 응답/DB 연결 점검'),
                     ' · '.join(observation),
-                    '긴 트랜잭션·느린 쿼리·DB 응답 지연이 후보입니다. 두 지표만으로 원인을 확정할 수 없습니다.' if blocked else '앱 처리·외부 의존성·부하 증가가 후보입니다. DB 대기 지표와 최근 배포를 함께 확인해야 합니다.',
+                    '긴 트랜잭션·느린 쿼리·DB 응답 지연이 후보입니다. 두 지표만으로 원인을 확정할 수 없습니다.' if blocked else ('동시 요청 증가나 연결 풀 여유 부족이 후보입니다. 대기와 응답 지연이 있는지 먼저 확인하세요.' if util and util['value'] >= .9 else '앱 처리·외부 의존성·부하 증가가 후보입니다. DB 대기 지표와 최근 배포를 함께 확인해야 합니다.'),
                     ['응답·DB 연결 화면에서 해당 서비스의 연결 대기와 사용률을 확인하세요', '지연 시작 시각과 최근 배포·트래픽을 비교하세요', '해당 시간의 느린 쿼리/트랜잭션과 서비스 로그를 확인하세요'],
                     '연결 수부터 늘리지 말고 오래 점유하는 요청과 DB 지연부터 확인하세요. 변경은 담당자와 검토하세요.',
                     [requests, duration, pending, util], 'kidly-db-latency', env, job)
@@ -124,14 +128,14 @@ def explain(facts, statuses):
                     ['오류 화면에서 같은 시간의 서비스별 오류를 비교하세요', '최근 배포 이후 시작됐는지 확인하세요', '선택한 환경·서비스 로그에서 해당 시간의 예외 유형을 확인하세요'],
                     '서비스 간 같은 요청을 합산하지 마세요. 배포와 인과가 확인되면 담당자와 롤백을 검토하세요.',
                     [requests, errors], 'kidly-http', env, job)
-            if requests is None or count < 20 or errors is None or duration is None:
+            if requests is None or count < 20 or duration is None:
                 gaps.append(job)
         if not expected:
             gaps.append('운영 대상 없음')
         if gaps:
             add('http-coverage-' + env, 'unknown', env + ' HTTP 판단 범위 제한',
                 '시계열 누락 또는 최근 30분 요청 20건 미만: ' + ', '.join(gaps),
-                '트래픽 부족과 HTTP 계측/수집 누락은 지표만으로 구분할 수 없습니다.',
+                '트래픽 부족과 요청/응답시간 계측·수집 누락은 지표만으로 구분할 수 없습니다.',
                 ['서비스별 요청량과 actuator 계측 여부를 확인하세요'],
                 '오류율/평균 응답으로 정상 여부를 단정하지 마세요. 저트래픽 서비스는 실제 요청 확인을 병행하세요.',
                 [], 'kidly-http', env)

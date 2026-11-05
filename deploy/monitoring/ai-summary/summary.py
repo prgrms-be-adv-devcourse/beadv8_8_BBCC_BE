@@ -24,6 +24,7 @@ SELECT = 'job=~"' + MATCH + '",uri!~"/actuator.*"'
 QUERIES = {
     'inventory': 'max by (env,app_job) (kidly_app_expected and (time()-timestamp(kidly_app_expected)<60))',
     'environment': 'max by (env) (kidly_environment_enabled and (time()-timestamp(kidly_environment_enabled)<60))',
+    'transition_age': 'max by (env) ((time()-kidly_environment_changed_timestamp_seconds) and (time()-timestamp(kidly_environment_changed_timestamp_seconds)<60))',
     'transition': 'max by (env) (kidly_environment_transition_active and (time()-timestamp(kidly_environment_transition_active)<60))',
     'up': 'min by (env,job) (up{job=~"' + MATCH + '"} and (time()-timestamp(up{job=~"' + MATCH + '"})<60))',
     'requests_30m': 'sum by (env,job) (increase(http_server_requests_seconds_count{' + SELECT + '}[30m]))',
@@ -101,7 +102,7 @@ def project(raw):
             job = labels.get('app_job') if name == 'inventory' else labels.get('job')
             if name in ('memory_available_pct', 'disk_used_pct', 'cpu_used_pct', 'oom_30m'):
                 env, job = None, None
-            elif env not in ('dev', 'prod') or (name not in ('environment', 'transition', 'lag') and job not in JOBS):
+            elif env not in ('dev', 'prod') or (name not in ('environment', 'transition', 'transition_age', 'lag') and job not in JOBS):
                 continue
             value = float(row['value'][1])
             if not math.isfinite(value) or value < 0 or (name in ('inventory', 'environment', 'transition', 'up') and value not in (0, 1)):
@@ -123,12 +124,14 @@ def assessment(facts):
             return [f for f in facts if f['env'] == env and f['metric'] == metric]
         enabled = values('environment')
         inventory = values('inventory')
-        if not enabled or not inventory:
+        if not enabled:
             statuses[env] = '확인 불가: 운영 대상 정보 없음'
         elif enabled[0]['value'] == 0:
             statuses[env] = '의도적 중지'
         elif any(f['value'] == 1 for f in values('transition')):
             statuses[env] = '중지·재개 작업 중'
+        elif not inventory:
+            statuses[env] = '확인 불가: 운영 대상 정보 없음'
         else:
             expected = {f['service'] for f in inventory if f['value'] == 1}
             actual = {f['service']: f['value'] for f in values('up')}
@@ -188,8 +191,16 @@ def dashboard(state, now):
     content += '<p>최근 시도: ' + html.escape(state.get('attempt_status', '아직 실행하지 않음')) + '</p>'
     if state.get('attempt_time'):
         content += '<p>최근 시도 시각: ' + stamp(state['attempt_time']) + '</p>'
-    panels = [{'id': 1, 'type': 'text', 'title': '최근 분석', 'gridPos': {'x': 0, 'y': 5, 'w': 24, 'h': 17},
-               'options': {'mode': 'html', 'content': content}}]
+    panels = [{'id': 4, 'type': 'logs', 'title': '최신 자동 점검 · 행을 펼치면 원인 후보·확인 순서·대응',
+               'gridPos': {'x': 0, 'y': 5, 'w': 24, 'h': 9}, 'timeFrom': '24h',
+               'datasource': {'type': 'loki', 'uid': 'loki'},
+               'targets': [{'refId': 'A', 'expr': '{job="kidly-operations-summary"} | json | line_format "{{.headline}}"', 'queryType': 'range', 'maxLines': 1}],
+               'options': {'showTime': True, 'showLabels': False, 'showCommonLabels': False, 'wrapLogMessage': True, 'enableLogDetails': True, 'sortOrder': 'Descending', 'dedupStrategy': 'none'}},
+              {'id': 5, 'type': 'row', 'title': '형식화 상세 · 새 점검은 페이지를 새로 열어 확인',
+               'collapsed': True, 'gridPos': {'x': 0, 'y': 14, 'w': 24, 'h': 1},
+               'panels': [{'id': 1, 'type': 'text', 'title': '페이지 로드 시점의 상세 스냅샷 · 최신 결과는 위 행에서 확인',
+                           'gridPos': {'x': 0, 'y': 15, 'w': 24, 'h': 17},
+                           'options': {'mode': 'html', 'content': content}}]}]
     for pid, title, expr, unit in [
         (2, '마지막 성공 후 경과 · 1시간 이상이면 오래된 결과', 'time() - (max(kidly_ai_summary_success_timestamp_seconds and (time()-timestamp(kidly_ai_summary_success_timestamp_seconds)<60)) > 0)', 's'),
         (3, '최근 시도 성공 여부 · 0이면 실패/실행 전', 'max(kidly_ai_summary_attempt_success and (time()-timestamp(kidly_ai_summary_attempt_success)<60))', 'none')]:
@@ -199,12 +210,42 @@ def dashboard(state, now):
                        'targets': [{'refId': 'A', 'expr': expr, 'instant': True}],
                        'fieldConfig': {'defaults': {'unit': unit, 'noValue': '분석 전 / 수집 확인 필요',
                            'mappings': [{'type': 'special', 'options': {'match': 'null', 'result': {'text': '분석 전 / 수집 확인 필요', 'color': 'gray'}}}] + ([] if pid == 2 else [{'type': 'value', 'options': {'0': {'text': '실패 / 실행 전', 'color': 'yellow'}, '1': {'text': '최근 시도 성공', 'color': 'green'}}}]),
-                           'thresholds': {'mode': 'absolute', 'steps': ([{'color': 'green', 'value': None}, {'color': 'yellow', 'value': 1800}, {'color': 'red', 'value': 3600}] if pid == 2 else [{'color': 'red', 'value': None}, {'color': 'green', 'value': 1}])}}, 'overrides': []},
+                           'thresholds': {'mode': 'absolute', 'steps': ([{'color': 'green', 'value': None}, {'color': 'yellow', 'value': 2400}, {'color': 'red', 'value': 3600}] if pid == 2 else [{'color': 'red', 'value': None}, {'color': 'green', 'value': 1}])}}, 'overrides': []},
                        'options': {'reduceOptions': {'calcs': ['lastNotNull'], 'values': False}, 'colorMode': 'background'}})
     return {'uid': 'kidly-ai-summary', 'title': 'Kidly 자동 운영 점검', 'schemaVersion': 39,
             'editable': False, 'refresh': '30s', 'time': {'from': 'now-1h', 'to': 'now'},
             'tags': ['kidly', 'ai-summary'], 'panels': panels,
             'links': [{'title': '서비스 상태 확인', 'type': 'link', 'url': '/d/kidly-http', 'keepTime': True}]}
+
+
+def post_report(state):
+    """One low-cardinality local Loki stream; no app logs or metric text labels."""
+    success = state.get('success')
+    lines = ['최근 시도: ' + state.get('attempt_status', '없음')]
+    if success:
+        lines.append('관측 시각: ' + stamp(success['time']) + ' · 1시간 이후 재확인 필요')
+        for env, status in success['statuses'].items():
+            lines.append(env + ': ' + status)
+        findings = success['summary']['findings']
+        for finding in findings:
+            lines.extend(['', LABEL[finding['severity']] + ' · ' + finding['title'],
+                          '관측: ' + finding['observation'], '원인 후보: ' + finding['hypothesis']])
+            lines.extend(str(i+1) + '. ' + check for i, check in enumerate(finding['checks']))
+            lines.append('대응 제안: ' + finding['recommendation'])
+            lines.append('관련 화면: https://grafana.kidly.kro.kr' + finding['url'])
+        headline = f"{state['attempt_status']} · 점검 {len(findings)}개 · " + (findings[0]['title'] if findings else '규칙에 해당하는 추가 항목 없음; 정상 보장은 아님')
+    else:
+        headline = '실패 · 성공한 점검 없음'
+    record = {'headline': headline, 'report': '\n'.join(lines)}
+    payload = json.dumps({'streams': [{'stream': {'job': 'kidly-operations-summary'},
+                         'values': [[str(time.time_ns()), json.dumps(record, ensure_ascii=False)]]}]}, ensure_ascii=False).encode()
+    if len(payload) > 160000:
+        raise ValueError('report too large')
+    req = urllib.request.Request('http://127.0.0.1:31100/loki/api/v1/push', data=payload,
+                                 headers={'Content-Type': 'application/json'}, method='POST')
+    with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(req, timeout=10) as response:
+        if response.status != 204:
+            raise ValueError('local summary storage unavailable')
 
 
 def publish(root, state, now):
@@ -255,17 +296,27 @@ def run(root, live=False, fixture=None):
         state.update(attempt_time=now, attempt_status='분석/갱신 중')
         # Persist attempt before networking: crashes cannot immediately trigger another request.
         publish(root, state, now)
+        previous_success = state.get('success')
         try:
             facts = project(collect(os.environ.get('PROMETHEUS_URL', 'http://127.0.0.1:30090'), now))
             statuses = assessment(facts)
             output = explain(facts, statuses)
             state['success'] = {'time': now, 'statuses': statuses, 'facts': facts, 'summary': output}
             state['attempt_status'] = '성공'
+            post_report(state)
             publish(root, state, now)
             return 0
         except Exception:
             # Never print raw upstream responses to journals.
+            if previous_success is None:
+                state.pop('success', None)
+            else:
+                state['success'] = previous_success
             state['attempt_status'] = '실패 · 이전 성공 결과는 현재 상태가 아님'
+            try:
+                post_report(state)
+            except Exception:
+                pass  # Loki outage: live age/result cards expose failure; do not retry indefinitely.
             publish(root, state, now)
             return 1
 

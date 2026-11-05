@@ -26,7 +26,7 @@ def fixture():
             'requests_30m': [row(100, env='dev', job='kidly-search')],
             'errors_30m': [row(0, env='dev', job='kidly-search')],
             'duration_sum_30m': [row(20, env='dev', job='kidly-search')],
-            'memory_available_pct': [row(50)], 'cpu_used_pct': [row(20)], 'disk_used_pct': [row(30)],
+            'oom_30m': [row(0)], 'memory_available_pct': [row(50)], 'cpu_used_pct': [row(20)], 'disk_used_pct': [row(30)],
             'hikari_pending': [row(0, env='dev', job='kidly-search')],
             'hikari_utilization': [row(.1, env='dev', job='kidly-search')], 'lag': [row(0, env='dev')]}
 
@@ -71,6 +71,7 @@ class SummaryTest(unittest.TestCase):
     def test_transition_suppresses_target_fault(self):
         source = fixture()
         source['transition'] = [row(1, env='dev')]
+        source['transition_age'] = [row(30, env='dev')]
         source['up'] = []
         self.assertFalse(any(f['code'].startswith('target-') for f in explain(source)))
         self.assertTrue(any(f['code'] == 'transition-dev' for f in explain(source)))
@@ -126,8 +127,27 @@ class SummaryTest(unittest.TestCase):
 
     def test_missing_http_is_not_healthy_zero(self):
         source = fixture()
-        source['errors_30m'] = []
+        source['requests_30m'] = []
         self.assertTrue(any(f['code'] == 'http-coverage-dev' for f in explain(source)))
+
+    def test_absent_5xx_series_with_request_and_duration_is_not_a_gap(self):
+        source = fixture()
+        source['errors_30m'] = []
+        self.assertFalse(any(f['code'].startswith(('http-coverage-', 'errors-')) for f in explain(source)))
+
+    def test_oom_absence_is_unknown_and_stopped_env_needs_no_inventory(self):
+        source = fixture()
+        source['oom_30m'] = []
+        self.assertTrue(any(f['code'] == 'resource-missing' for f in explain(source)))
+        source['inventory'] = []
+        self.assertEqual(m.assessment(m.project(source))['prod'], '의도적 중지')
+
+    def test_stale_environment_transition_is_warning(self):
+        source = fixture()
+        source['transition'] = [row(1, env='dev')]
+        source['transition_age'] = [row(900, env='dev')]
+        finding = next(f for f in explain(source) if f['code'] == 'transition-dev')
+        self.assertEqual(finding['severity'], 'warning')
 
     def test_error_count_and_rate_both_required(self):
         source = fixture()
@@ -174,7 +194,7 @@ class SummaryTest(unittest.TestCase):
         summary = m.explain(facts, m.assessment(facts))
         summary['findings'][0]['title'] = '<script>bad</script>'
         state = {'attempt_status': '성공', 'success': {'time': 1000, 'statuses': m.assessment(facts), 'facts': facts, 'summary': summary}}
-        content = m.dashboard(state, 1000)['panels'][0]['options']['content']
+        content = m.dashboard(state, 1000)['panels'][1]['panels'][0]['options']['content']
         self.assertNotIn('<script>', content)
         self.assertIn('&lt;script&gt;', content)
         self.assertIn('<details><summary>확인 순서', content)
@@ -193,7 +213,7 @@ class SummaryTest(unittest.TestCase):
             self.assertEqual((root/'state.json').stat().st_mode & 0o777, 0o600)
 
     def test_live_is_local_and_failure_preserves_previous_result(self):
-        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {}, clear=True):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {}, clear=True), patch.object(m, 'post_report'):
             root = Path(temp)/'state'
             with patch.object(m, 'collect', return_value=fixture()) as collector:
                 self.assertEqual(m.run(root, live=True), 0)
@@ -207,11 +227,11 @@ class SummaryTest(unittest.TestCase):
             after = json.loads((root/'state.json').read_text())
             self.assertEqual(after['success'], previous['success'])
             self.assertIn('실패', after['attempt_status'])
-            content = m.dashboard(after, 2000)['panels'][0]['options']['content']
+            content = m.dashboard(after, 2000)['panels'][1]['panels'][0]['options']['content']
             self.assertLess(content.index('주의:'), content.index('운영 대상 수집 중'))
 
     def test_no_inventory_still_publishes_unknown(self):
-        with tempfile.TemporaryDirectory() as temp, patch.object(m, 'collect', return_value={}):
+        with tempfile.TemporaryDirectory() as temp, patch.object(m, 'collect', return_value={}), patch.object(m, 'post_report'):
             root = Path(temp)/'state'
             self.assertEqual(m.run(root, live=True), 0)
             content = (root/'dashboards/kidly-ai-summary.json').read_text()
@@ -234,6 +254,31 @@ class SummaryTest(unittest.TestCase):
             self.assertEqual(m.request('http://127.0.0.1:30090/api/v1/query?query=up'), {})
         with self.assertRaises(ValueError):
             m.NoRedirect().redirect_request(None)
+
+    def test_report_uses_fixed_local_loki_and_only_fixed_stream_label(self):
+        facts = m.project(fixture())
+        state = {'attempt_status': '성공', 'success': {'time': 1000, 'statuses': m.assessment(facts), 'facts': facts, 'summary': m.explain(facts, m.assessment(facts))}}
+        response = MagicMock()
+        response.__enter__.return_value.status = 204
+        opener = MagicMock()
+        opener.open.return_value = response
+        with patch.object(m.urllib.request, 'build_opener', return_value=opener):
+            m.post_report(state)
+        request = opener.open.call_args.args[0]
+        self.assertEqual(request.full_url, 'http://127.0.0.1:31100/loki/api/v1/push')
+        stream = json.loads(request.data)['streams'][0]
+        self.assertEqual(stream['stream'], {'job': 'kidly-operations-summary'})
+        record = json.loads(stream['values'][0][1])
+        self.assertIn('대응 제안', record['report'])
+        self.assertIn('headline', record)
+
+    def test_loki_failure_does_not_mark_new_result_successful(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(m, 'collect', return_value=fixture()), patch.object(m, 'post_report', side_effect=TimeoutError):
+            root = Path(temp)/'state'
+            self.assertEqual(m.run(root, live=True), 1)
+            state = json.loads((root/'state.json').read_text())
+            self.assertNotIn('success', state)
+            self.assertIn('실패', state['attempt_status'])
 
     def test_no_secret_configuration_or_external_client_remains(self):
         text = (SOURCE/'summary.py').read_text() + (SOURCE/'kidly-ai-summary.service').read_text()
