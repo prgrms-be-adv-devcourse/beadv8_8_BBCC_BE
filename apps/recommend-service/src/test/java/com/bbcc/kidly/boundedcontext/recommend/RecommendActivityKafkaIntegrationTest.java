@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
 import com.bbcc.kidly.boundedcontext.recommend.out.activity.JpaActivityRecordRepository;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -30,7 +31,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 추천이 검색 토픽의 검색 · 주문 토픽의 장바구니 담기를 받아 활동 기록에 저장하는지 확인한다(#752).
+ * 추천이 검색 토픽의 검색 · 주문 토픽의 장바구니 담기 · 빼기를 받아 활동 기록에 저장하는지 확인한다(#752).
  * 메시지는 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다. 검색 · 주문은 다른 앱이라 이 테스트에서 띄우지 않는다.
  * 같은 토픽에는 다른 테스트의 메시지도 쌓여 이어서 받을 수 있으므로, 회원 ID(두 이벤트의 키)를 테스트마다 새로 만든다.
  */
@@ -44,6 +45,7 @@ class RecommendActivityKafkaIntegrationTest {
     private static final String ORDER_DLT = "kidly.order.events.recommend.dlt";
     private static final LocalDateTime SEARCHED_AT = LocalDateTime.of(2026, 11, 3, 10, 0);
     private static final LocalDateTime ADDED_AT = LocalDateTime.of(2026, 11, 3, 10, 5);
+    private static final LocalDateTime REMOVED_AT = LocalDateTime.of(2026, 11, 3, 10, 20);
 
     // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
@@ -120,6 +122,30 @@ class RecommendActivityKafkaIntegrationTest {
                 ActivityRecord::getCartQty,
                 ActivityRecord::getOccurredAt)
             .containsExactly(ActivityType.CART_ITEM_ADDED, event.eventId(), 201L, 11L, 31L, 32L, 2, 3, ADDED_AT);
+    }
+
+    @Test
+    @DisplayName("장바구니 빼기를 주문 토픽에서 받아 활동 기록에 저장한다")
+    void saveCartItemRemoved() throws Exception {
+        Long memberId = newId();
+        var event = cartItemRemoved(memberId);
+
+        messages.send(ORDER_TOPIC, event);
+
+        AsyncWait.until(TIMEOUT, () -> !recordsOf(memberId).isEmpty());
+        assertThat(recordsOf(memberId)).singleElement()
+            .extracting(
+                ActivityRecord::getType,
+                ActivityRecord::getEventId,
+                ActivityRecord::getCartItemId,
+                ActivityRecord::getChildProfileId,
+                ActivityRecord::getProductId,
+                ActivityRecord::getProductOptionId,
+                ActivityRecord::getAddedQty,
+                ActivityRecord::getCartQty,
+                ActivityRecord::getOccurredAt)
+            .containsExactly(ActivityType.CART_ITEM_REMOVED, event.eventId(), 201L, 11L, 31L, 32L, null, 3,
+                REMOVED_AT);
     }
 
     @Test
@@ -231,5 +257,11 @@ class RecommendActivityKafkaIntegrationTest {
     private static CartItemAddedEvent cartItemAdded(Long memberId) {
         return new CartItemAddedEvent(UUID.randomUUID(), ADDED_AT,
             new CartItemAddedEvent.Data(201L, memberId, 11L, 31L, 32L, 2, 3));
+    }
+
+    // 회원 ID만 바꾼 장바구니 빼기다. 자녀 11을 고른 장바구니 줄 201(상품 31의 옵션 32)을 3개인 채로 뺐다
+    private static CartItemRemovedEvent cartItemRemoved(Long memberId) {
+        return new CartItemRemovedEvent(UUID.randomUUID(), REMOVED_AT,
+            new CartItemRemovedEvent.Data(201L, memberId, 11L, 31L, 32L, 3));
     }
 }
