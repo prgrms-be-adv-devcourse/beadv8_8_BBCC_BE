@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.childprofile.app;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileUpdateRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileResult;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.GrowthRecordResult;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
@@ -63,7 +64,7 @@ public class ChildProfileService {
 
     // 이름만 바뀌어도 이벤트를 발행한다. 받는 쪽은 어떤 필드가 바뀌었는지 보지 않고 덮어쓴다
     @Transactional
-    public ChildProfileResult update(Long memberId, Long childId, ChildProfileRequest request) {
+    public ChildProfileResult update(Long memberId, Long childId, ChildProfileUpdateRequest request) {
         var now = LocalDateTime.now();
         var child = childProfileRepository.getByIdAndMemberId(childId, memberId);
         child.update(request.toUpdateInfo(), now);

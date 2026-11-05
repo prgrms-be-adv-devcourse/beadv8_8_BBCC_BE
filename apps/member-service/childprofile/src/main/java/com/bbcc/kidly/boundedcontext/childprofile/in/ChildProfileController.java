@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.childprofile.in;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileUpdateRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildProfileResponse;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.GrowthRecordResponse;
 import com.bbcc.kidly.member.support.security.AuthMember;
@@ -54,7 +55,8 @@ public class ChildProfileController {
     // 모든 필드를 담아 보내는 전체 교체다
     @PatchMapping("/{childId}")
     public ChildProfileResponse update(
-        @LoginMember AuthMember member, @PathVariable Long childId, @Valid @RequestBody ChildProfileRequest request) {
+        @LoginMember AuthMember member, @PathVariable Long childId,
+        @Valid @RequestBody ChildProfileUpdateRequest request) {
         return ChildProfileResponse.from(childProfileService.update(member.id(), childId, request));
     }
 

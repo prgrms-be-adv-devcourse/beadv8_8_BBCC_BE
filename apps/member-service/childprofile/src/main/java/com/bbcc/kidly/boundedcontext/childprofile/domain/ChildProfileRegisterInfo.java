@@ -21,5 +21,6 @@ public record ChildProfileRegisterInfo(
     BigDecimal heightCm,
     BigDecimal weightKg,
     BodyType bodyType,
-    PreferredFit preferredFit) {
+    PreferredFit preferredFit,
+    boolean optionalConsent) {
 }

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildAccountLinkService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileUpdateRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
@@ -32,7 +33,7 @@ class ChildProfileServiceIntegrationTest {
     private static final Long OTHER_MEMBER_ID = 2L;
     private static final ChildProfileRequest REQUEST = new ChildProfileRequest(
         "첫째", LocalDate.of(2019, 1, 15), Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"),
-        BodyType.NORMAL, PreferredFit.LOOSE);
+        BodyType.NORMAL, PreferredFit.LOOSE, true, true);
 
     @Autowired
     private ChildProfileService childProfileService;
@@ -84,7 +85,7 @@ class ChildProfileServiceIntegrationTest {
     @DisplayName("수정하면 바뀐 값이 저장되고 바뀐 뒤 전체 값으로 이벤트가 발행된다")
     void update() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
-        var changed = new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
+        var changed = new ChildProfileUpdateRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
             new BigDecimal("118.0"), new BigDecimal("21.0"), null, PreferredFit.SLIM);
 
         var child = childProfileService.update(MEMBER_ID, childId, changed);
@@ -105,7 +106,7 @@ class ChildProfileServiceIntegrationTest {
     @DisplayName("이름만 바꿔도 이벤트는 발행되고 성장 이력은 쌓이지 않는다")
     void updateNameOnlyPublishes() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
-        var renamed = new ChildProfileRequest("둘째", LocalDate.of(2019, 1, 15), Gender.MALE,
+        var renamed = new ChildProfileUpdateRequest("둘째", LocalDate.of(2019, 1, 15), Gender.MALE,
             new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE);
 
         var child = childProfileService.update(MEMBER_ID, childId, renamed);
@@ -165,7 +166,7 @@ class ChildProfileServiceIntegrationTest {
     @DisplayName("성장 이력을 오래된 순으로 준다")
     void getGrowthRecords() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
-        childProfileService.update(MEMBER_ID, childId, new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15),
+        childProfileService.update(MEMBER_ID, childId, new ChildProfileUpdateRequest("첫째", LocalDate.of(2019, 1, 15),
             Gender.MALE, new BigDecimal("118.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE));
 
         var records = childProfileService.getGrowthRecords(MEMBER_ID, childId);
@@ -181,7 +182,9 @@ class ChildProfileServiceIntegrationTest {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
 
         assertNotFound(() -> childProfileService.getChild(OTHER_MEMBER_ID, childId));
-        assertNotFound(() -> childProfileService.update(OTHER_MEMBER_ID, childId, REQUEST));
+        assertNotFound(() -> childProfileService.update(OTHER_MEMBER_ID, childId, new ChildProfileUpdateRequest(
+            "첫째", LocalDate.of(2019, 1, 15), Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"),
+            null, null)));
         assertNotFound(() -> childProfileService.delete(OTHER_MEMBER_ID, childId));
         assertNotFound(() -> childProfileService.getGrowthRecords(OTHER_MEMBER_ID, childId));
         assertThat(events.stream(ChildChangedEvent.class)).hasSize(1);

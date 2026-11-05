@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.childprofile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileUpdateRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildProfileResponse;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.GrowthRecordResponse;
 import com.bbcc.kidly.member.support.security.TestMembers;
@@ -32,7 +33,7 @@ class ChildProfileApiTest {
     private static final Long OTHER_MEMBER_ID = 2L;
     private static final ChildProfileRequest REQUEST = new ChildProfileRequest(
         "첫째", LocalDate.of(2019, 1, 15), Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"),
-        BodyType.NORMAL, PreferredFit.LOOSE);
+        BodyType.NORMAL, PreferredFit.LOOSE, true, true);
 
     @Autowired
     private RestTestClient client;
@@ -90,14 +91,15 @@ class ChildProfileApiTest {
             .jsonPath("$.name").isEqualTo("첫째")
             .jsonPath("$.gender").isEqualTo("MALE")
             .jsonPath("$.birthDate").isEqualTo("2019-01-15")
-            .jsonPath("$.preferredFit").isEqualTo("LOOSE");
+            .jsonPath("$.preferredFit").isEqualTo("LOOSE")
+            .jsonPath("$.hasOptionalConsent").isEqualTo(true);
     }
 
     @Test
     @DisplayName("수정하면 바뀐 값을 주고, 키가 바뀌었으면 성장 이력이 늘어난다")
     void update() {
         var childId = register(MEMBER_ID);
-        var changed = new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
+        var changed = new ChildProfileUpdateRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
             new BigDecimal("118.0"), new BigDecimal("21.0"), null, null);
 
         var child = client.patch().uri(CHILD_PATH, childId)
@@ -137,7 +139,7 @@ class ChildProfileApiTest {
         client.patch().uri(CHILD_PATH, childId)
             .headers(TestMembers.buyer(MEMBER_ID))
             .contentType(MediaType.APPLICATION_JSON)
-            .body(new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
+            .body(new ChildProfileUpdateRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
                 new BigDecimal("118.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE))
             .exchange()
             .expectStatus().isOk();
@@ -188,22 +190,22 @@ class ChildProfileApiTest {
     @DisplayName("키가 범위를 벗어나거나 소수 둘째 자리가 있으면 400")
     void invalidHeight() {
         expectInvalid(new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
-            new BigDecimal("210.0"), new BigDecimal("20.0"), null, null), "heightCm");
+            new BigDecimal("210.0"), new BigDecimal("20.0"), null, null, true, true), "heightCm");
         expectInvalid(new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
-            new BigDecimal("115.25"), new BigDecimal("20.0"), null, null), "heightCm");
+            new BigDecimal("115.25"), new BigDecimal("20.0"), null, null, true, true), "heightCm");
         expectInvalid(new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
-            new BigDecimal("115.00"), new BigDecimal("20.0"), null, null), "heightCm");
+            new BigDecimal("115.00"), new BigDecimal("20.0"), null, null, true, true), "heightCm");
     }
 
     @Test
     @DisplayName("생년월일이 미래이거나 이름이 비어 있거나 50자를 넘으면 400")
     void invalidBirthDateOrName() {
         expectInvalid(new ChildProfileRequest("첫째", LocalDate.now().plusDays(1), Gender.MALE,
-            new BigDecimal("115.0"), new BigDecimal("20.0"), null, null), "birthDate");
+            new BigDecimal("115.0"), new BigDecimal("20.0"), null, null, true, true), "birthDate");
         expectInvalid(new ChildProfileRequest(" ", LocalDate.of(2019, 1, 15), Gender.MALE,
-            new BigDecimal("115.0"), new BigDecimal("20.0"), null, null), "name");
+            new BigDecimal("115.0"), new BigDecimal("20.0"), null, null, true, true), "name");
         expectInvalid(new ChildProfileRequest("가".repeat(51), LocalDate.of(2019, 1, 15), Gender.MALE,
-            new BigDecimal("115.0"), new BigDecimal("20.0"), null, null), "name");
+            new BigDecimal("115.0"), new BigDecimal("20.0"), null, null, true, true), "name");
     }
 
     @Test
@@ -224,6 +226,22 @@ class ChildProfileApiTest {
         client.get().uri(CHILDREN_PATH)
             .exchange()
             .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @DisplayName("필수 동의를 하지 않으면 400")
+    void withoutRequiredConsent() {
+        expectInvalid(new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
+            new BigDecimal("115.0"), new BigDecimal("20.0"), null, null, false, false), "requiredConsent");
+    }
+
+    @Test
+    @DisplayName("선택 동의 없이 체형을 넣거나 만 14세 이상이면 400")
+    void optionalConsentAndAge() {
+        expectBadRequest(new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
+            new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL, null, true, false), "선택 동의가 필요합니다");
+        expectBadRequest(new ChildProfileRequest("첫째", LocalDate.now().minusYears(14), Gender.MALE,
+            new BigDecimal("150.0"), new BigDecimal("40.0"), null, null, true, false), "등록할 수 없는 나이입니다");
     }
 
     private Long register(Long memberId) {
@@ -253,5 +271,16 @@ class ChildProfileApiTest {
             .getResponseBody();
 
         assertThat(new String(body, StandardCharsets.UTF_8)).contains(field);
+    }
+
+    private void expectBadRequest(ChildProfileRequest request, String title) {
+        client.post().uri(CHILDREN_PATH)
+            .headers(TestMembers.buyer(MEMBER_ID))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(request)
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectBody()
+            .jsonPath("$.title").isEqualTo(title);
     }
 }

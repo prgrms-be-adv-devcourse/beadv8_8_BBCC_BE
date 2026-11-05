@@ -164,7 +164,8 @@ class AuthChildProfileEventKafkaIntegrationTest {
             AsyncWait.until(TIMEOUT, () -> !memberListener.getAssignedPartitions().isEmpty());
             var memberId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
             var profile = childProfiles.register(memberId, new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15),
-                Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE));
+                Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL,
+                    PreferredFit.LOOSE, true, true));
             relay.relay();
             AsyncWait.until(TIMEOUT, () -> repository.findById(profile.id()).isPresent());
             var account = accounts.saveAccount(ChildAccount.create(UUID.randomUUID().toString().substring(0, 16),

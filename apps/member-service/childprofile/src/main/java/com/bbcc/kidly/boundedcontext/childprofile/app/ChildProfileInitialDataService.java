@@ -31,7 +31,8 @@ public class ChildProfileInitialDataService {
             return;
         }
         childProfileService.register(PARENT_ID, new ChildProfileRequest("테스트", LocalDate.of(2019, 1, 1),
-            Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE));
+            Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL,
+            PreferredFit.LOOSE, true, true));
         log.info("자녀 초기 데이터를 넣었다");
     }
 }
