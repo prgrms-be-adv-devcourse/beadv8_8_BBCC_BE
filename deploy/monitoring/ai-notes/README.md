@@ -28,6 +28,7 @@ Grafana → Kidly → **Kidly AI 운영 분석**. 최근 메모 행을 펼쳐 �
 MCP 클라이언트 추론과 서버/로컬 모델 worker는 같은 결과 계약을 사용합니다. 후자의 실제 모델 호출 어댑터는 아직 없습니다.
 모델을 바꿔도 Grafana 표시/게시 코드는 유지합니다. 다른 외부 AI에 지표를 보낼 때는 반출 승인을 확인합니다.
 
-새 이미지·패키지·AI API·상시 서버·예약 실행·앱/DB/Kafka 변경은 없습니다. 기존 Grafana Viewer 권한은 유지합니다.
+기존 MCP 경로는 별도 AI API를 호출하지 않습니다. 새 이미지·패키지·상시 서버·앱/DB/Kafka 변경은 없으며 기존 Grafana Viewer 권한은 유지합니다.
+별도 제공자를 시험하려면 [Groq 무료 1회 분석](../docs/groq-trial.md)을 봅니다. 키 등록·Free 플랜 확인 후 dev에서 수동 실행하며 예약 실행은 없습니다.
 설치·권한·실패 복구는 [운영 안내](../docs/ai-notes-operations.md)를 봅니다.
 검증: `python3 -m unittest discover -s deploy/monitoring/tests -p 'test_*.py'`
