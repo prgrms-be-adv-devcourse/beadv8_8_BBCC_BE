@@ -171,7 +171,7 @@ class FavoriteServiceTest {
         }
 
         @Override
-        public int decrease(Long productId, LocalDateTime now) {
+        public int decreaseBy(Long productId, int count, LocalDateTime now) {
             changes.add("-" + productId);
             return decreasedRows;
         }

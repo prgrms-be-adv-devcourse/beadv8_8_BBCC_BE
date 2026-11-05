@@ -21,7 +21,8 @@ public class CommunityDeadLetterKafkaListener {
 
     @KafkaListener(id = ID, groupId = CommunityKafkaListenerConfig.GROUP,
         containerFactory = CommunityKafkaListenerConfig.FACTORY,
-        topics = {CommunityKafkaListenerConfig.ORDER_EVENTS_DLT, CommunityKafkaListenerConfig.PRODUCT_EVENTS_DLT})
+        topics = {CommunityKafkaListenerConfig.ORDER_EVENTS_DLT, CommunityKafkaListenerConfig.PRODUCT_EVENTS_DLT,
+            CommunityKafkaListenerConfig.MEMBER_EVENTS_DLT})
     public void on(ConsumerRecord<String, String> record) {
         String position = record.topic() + "-" + record.partition() + "@" + record.offset();
         try {

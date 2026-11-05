@@ -19,6 +19,7 @@
 - Kafka 리스너는 전용 팩토리 `communityKafkaListenerContainerFactory`(`in.config`)만 쓴다: 구독 그룹 `kidly.community`, 한 건씩 완료, 실패하면 1초 간격 3번 재시도 뒤 `{토픽}.community.dlt`, 다시 해도 같은 예외 · 읽기 실패는 바로 DLT. 팩토리 외의 Kafka 객체(템플릿 · 에러 처리기)는 이 구성 코드 안에서 만들고 빈으로 등록하지 않는다
 - DLT 토픽은 파티션 1개이고, 보낼 때는 원래 파티션과 상관없이 0번으로 보낸다. 도메인 이벤트 토픽의 파티션 3 규칙과 별개다
 - 상품 복사본 반영(#738)은 상품 ID별 트랜잭션 advisory lock(`ReplicaProducts.lockProduct`, 저장소 조각 `out.store.ReplicaProductLock`)을 최초 조회 전에 잡고 바깥 트랜잭션의 커밋 · 롤백까지 유지한다. 기존 행의 동시 갱신과 최초 생성을 함께 직렬화한다. 최초 INSERT는 기존 `ReviewSeparateTransaction` 경로를 유지한다(이 안에서는 같은 advisory lock을 다시 잡지 않는다).
+- 토픽 하나는 리스너 하나가 받는다(같은 토픽 · 같은 그룹에 리스너가 둘이면 메시지를 나눠 가진다). 회원 탈퇴(`member.withdrawn`)는 review가 받아, 찜 정리는 `review.out.favorite` → favorite `app.port.in.MemberFavoritesRemover`로 같은 트랜잭션에서 맡긴다. 리뷰는 남기고 닉네임을 지우며 `author_withdrawn_at`을 처음 한 번만 기록한다(응답은 nickname "탈퇴한 회원" · authorWithdrawn true)
 - 같은 이벤트가 다시 와도 결과는 1회분이다: 복사본(상품 등)은 저장된 `occurredAt`보다 늦은 이벤트만 반영한다
 - 필수 값이 없으면 `CommunityEventGuard`로 WARN 한 줄을 남기고 무시한다
 - 로그 추적(MDC): Kafka 수신은 메시지 하나를 처리하는 동안 eventId · eventType · `correlationId`(= 키)를 MDC에 넣고, 끝나면(예외 포함) 이전 값으로 되돌린다
@@ -32,7 +33,7 @@
 - 저장했다가 다시 비교 · 정렬 · 커서에 쓰는 시각(`occurredAt` · `confirmedAt` · 생성 · 수정 시각)은 도메인에서 마이크로초로 잘라 저장 · 비교한다(`ReviewTimes`). 실행 환경에 따라 나노초가 나오는데 DB는 마이크로초로 저장해, 자르지 않으면 같은 이벤트가 "더 늦은" 값으로 보인다. 테스트의 기준 시각은 나노초가 있는 고정값으로 쓴다
 - 목록은 커서 페이지네이션 + 인덱스, 쿼리 수 테스트로 N+1을 막는다
 - 수정 API(PATCH)는 보낸 필드만 바꾼다: 키가 없으면 그대로, 키를 null(또는 틀린 타입)로 보내면 그 필드의 400, 바꿀 필드가 하나도 없으면 400. 요청 DTO는 필드를 JSON 원래 타입(JsonNode)으로 받아 "키 없음"과 "null"을 구분한다
-- 마이그레이션은 `src/main/resources/db/migration/community/V{yyyyMMddHHmm}__community_{설명}.sql`, 추가만(이미 적용된 파일은 고치지 않는다)
+- 마이그레이션은 `src/main/resources/db/migration/community/V{yyyyMMddHHmm}__community_{설명}.sql`, 추가만(이미 적용된 파일은 고치지 않는다). 커뮤니티 서비스(`apps/community-service`)가 적용하고, 커뮤니티 표가 이미 있는 DB는 baseline(`202611031200`, 고정)까지 건너뛰므로 새 파일은 그보다 뒤 버전(만든 시각)이어야 한다. 이미 칸 · 표가 있을 수 있는 DB를 생각해 `IF NOT EXISTS`로 쓴다
 
 ## 4. 상품 복사본 · 기존 상품 채우기
 - 상품 복사본(`review.domain.ReplicaProduct`, 표 `community.replica_product`)은 상품당 1행이고 `product.changed`의 지금 값을 덮어쓴다. 리뷰 · 찜 화면의 상품 이름 · 썸네일 · 표시 상태를 여기서 읽는다
@@ -46,8 +47,8 @@
 
 ## 5. 지금 넣지 않는 것
 - 상태 전이 결과 타입 · `@Version` 낙관적 잠금: 리뷰 · 찜 · 복사본은 상태가 단순하고, 같은 행을 동시에 바꾸는 경쟁은 유일 제약 · 원자적 UPDATE · 상품별 잠금 안의 `occurredAt` 비교로 막는다
-- DLT 복구(#741): 커뮤니티 소유 DLT 두 개를 전용 컨테이너 처리기로 읽어 `community.dead_letter`에 보관한다. DLT 토픽 · 파티션 · 오프셋당 1건이며 DB 저장 전에는 처리 완료로 넘기지 않는다. 저장 실패는 최대 60초 간격으로 끝없이 재시도하고 DLT의 DLT는 만들지 않는다. 원본 본문은 DB에만 보관하고 로그 · 관리자 응답에 넣지 않는다.
-- 관리자는 `/api/v1/admin/community/dead-letters` 목록 · 상세 · `/{id}/reprocess`로 복구한다. 정상 Kafka 처리기와 같은 decode/검증/저장 경로를 직접 호출하고 원래 토픽에 보내지 않는다. 미지원/깨진 메시지는 OPEN과 실패 종류를 유지하며 성공하면 REPROCESSED다. 이미 성공한 기록은 재실행하지 않는다. 동시 재처리도 자격은 주문상품당 1건이고, 늦게 끝난 실패가 성공 기록을 되돌리지 않는다.
+- DLT 복구(#741): 커뮤니티 소유 DLT(주문 · 상품 · 회원 이벤트, `CommunityDeadLetterKafkaListener` 한 리스너)를 전용 컨테이너 처리기로 읽어 `community.dead_letter`에 보관한다. DLT 토픽 · 파티션 · 오프셋당 1건이며 DB 저장 전에는 처리 완료로 넘기지 않는다. 저장 실패는 최대 60초 간격으로 끝없이 재시도하고 DLT의 DLT는 만들지 않는다. 원본 본문은 DB에만 보관하고 로그 · 관리자 응답에 넣지 않는다.
+- 관리자는 `/api/v1/admin/community/dead-letters` 목록 · 상세 · `/{id}/reprocess`로 복구한다. 정상 Kafka 처리기와 같은 decode/검증/저장 경로(각 Kafka 리스너의 `handle`, 처리했으면 true)를 `CommunityDeadLetterReplayer`가 원래 토픽별로 직접 호출하고 원래 토픽에 보내지 않는다. 새 수신 토픽을 더하면 DLT 리스너 토픽 목록 · 재처리 분기 · 테스트 가드에 함께 넣는다. 미지원/깨진 메시지는 OPEN과 실패 종류를 유지하며 성공하면 REPROCESSED다. 이미 성공한 기록은 재실행하지 않는다. 동시 재처리도 자격은 주문상품당 1건이고, 늦게 끝난 실패가 성공 기록을 되돌리지 않는다.
 - 재처리 중 DLT 행 잠금이나 바깥 트랜잭션을 유지하지 않는다. 실제 반영은 원래 처리기의 트랜잭션으로, 처리 결과는 별도 짧은 조건부 UPDATE로 기록한다. 반영 후 결과 기록이 실패하면 OPEN이 남고 다시 시도해도 1회분으로 수렴한다. DLT DB 행은 자동 삭제하지 않는다.
 - Kafka DLT는 별도 보존 기간을 지정하지 않아 브로커 정책을 따른다(환경의 `retention.ms` 확인). 보관 소비자가 중단돼 Kafka 보존 기간을 넘긴 누락은 주문 소유 관리자 API `/api/v1/admin/orders/purchase-confirmed-events`로 구매확정 사실을 재발행해 복구한다. 기존 `order-item.purchase-confirmed` 계약 · 주문 키 · 실제 confirmedAt을 유지하고, 커뮤니티는 정상 수신 경로로 자격을 채운다. 주문 외 스키마 직접 조회나 수신 그룹 오프셋 변경은 하지 않는다.
 - 아웃박스 · 릴레이 스케줄러: 커뮤니티가 이벤트를 발행하지 않는 동안은 필요 없다

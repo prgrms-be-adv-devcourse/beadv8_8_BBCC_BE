@@ -49,10 +49,12 @@ public class CommunityKafkaListenerConfig {
     public static final String FACTORY = "communityKafkaListenerContainerFactory";
     public static final String PRODUCT_EVENTS = "kidly.product.events";
     public static final String ORDER_EVENTS = "kidly.order.events";
+    public static final String MEMBER_EVENTS = "kidly.member.events";
 
     private static final String DEAD_LETTER_SUFFIX = ".community.dlt";
     public static final String ORDER_EVENTS_DLT = ORDER_EVENTS + DEAD_LETTER_SUFFIX;
     public static final String PRODUCT_EVENTS_DLT = PRODUCT_EVENTS + DEAD_LETTER_SUFFIX;
+    public static final String MEMBER_EVENTS_DLT = MEMBER_EVENTS + DEAD_LETTER_SUFFIX;
     private static final long RETRY_INTERVAL_MS = 1000L;
     private static final long RETRY_ATTEMPTS = 3L;
 
@@ -64,6 +66,11 @@ public class CommunityKafkaListenerConfig {
     @Bean
     NewTopic communityOrderEventsDeadLetterTopic() {
         return deadLetterTopic(ORDER_EVENTS);
+    }
+
+    @Bean
+    NewTopic communityMemberEventsDeadLetterTopic() {
+        return deadLetterTopic(MEMBER_EVENTS);
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다

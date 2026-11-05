@@ -20,7 +20,8 @@ public record ReviewListResponse(List<Item> items, String nextCursor) {
      * @param productName 상품 정보를 아직 받지 못했으면 null
      * @param thumbnailUrl 상품 정보를 아직 받지 못했거나 썸네일이 없으면 null
      * @param displayStatus ON_SALE · SOLD_OUT · SALE_ENDED. 상품 정보를 아직 받지 못했으면 null
-     * @param nickname 작성 시점 닉네임. 몰랐으면 null
+     * @param nickname 작성 시점 닉네임. 작성자가 탈퇴했으면 "탈퇴한 회원", 몰랐으면 null
+     * @param authorWithdrawn 작성자가 탈퇴했는지
      */
     public record Item(
         String reviewId,
@@ -32,6 +33,7 @@ public record ReviewListResponse(List<Item> items, String nextCursor) {
         int rating,
         String content,
         String nickname,
+        boolean authorWithdrawn,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
@@ -39,7 +41,7 @@ public record ReviewListResponse(List<Item> items, String nextCursor) {
             return new Item(String.valueOf(item.reviewId()), String.valueOf(item.orderItemId()),
                 String.valueOf(item.productId()), item.productName(), item.thumbnailUrl(),
                 item.displayStatus(), item.rating(), item.content(),
-                item.nickname(), item.createdAt(), item.updatedAt());
+                item.nickname(), item.authorWithdrawn(), item.createdAt(), item.updatedAt());
         }
     }
 }

@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -56,6 +57,9 @@ public class Review extends ReviewTimeEntity {
 
     @Column(nullable = false, length = MAX_CONTENT_LENGTH)
     private String content;
+
+    // 작성자가 탈퇴한 시각. 탈퇴하지 않았으면 null. 탈퇴하면 닉네임을 지운다
+    private LocalDateTime authorWithdrawnAt;
 
     public static Review create(Values values) {
         int rating = validRating(values.rating());
@@ -119,6 +123,10 @@ public class Review extends ReviewTimeEntity {
 
     public int getRating() {
         return rating;
+    }
+
+    public boolean isAuthorWithdrawn() {
+        return authorWithdrawnAt != null;
     }
 
     public void checkAuthor(Long memberId) {

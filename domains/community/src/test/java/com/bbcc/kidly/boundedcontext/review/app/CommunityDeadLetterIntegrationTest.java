@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.Received;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.State;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -155,6 +156,48 @@ class CommunityDeadLetterIntegrationTest {
 
     private long countEligibility() {
         return jdbc.queryForObject("select count(*) from community.review_eligibility", Long.class);
+    }
+
+    @Test
+    @DisplayName("회원 탈퇴 DLT도 보관 뒤 재처리하면 찜을 지우고 리뷰 작성자를 탈퇴로 표시한다(한 번만)")
+    void replaysMemberWithdrawn() {
+        long member = 31L;
+        jdbc.update("insert into community.favorite (member_id, product_id, created_at, updated_at) "
+            + "values (?, 14, now(), now())", member);
+        jdbc.update("insert into community.favorite_stats (product_id, favorite_count, created_at, updated_at) "
+            + "values (14, 1, now(), now())");
+        jdbc.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, content, "
+            + "created_at, updated_at) values (501, 14, ?, '닉', 4, '본문', now(), now())", member);
+        var event = new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123),
+            new MemberWithdrawnEvent.Data(member));
+        service.receive(memberMessage(event, 11L));
+        Long id = id();
+
+        assertThat(service.reprocess(id, 99L).getState()).isEqualTo(State.REPROCESSED);
+        assertThat(service.reprocess(id, 99L).getReplayCount()).isOne();
+
+        assertThat(jdbc.queryForObject("select count(*) from community.favorite where member_id = ?", Integer.class,
+            member)).isZero();
+        assertThat(jdbc.queryForObject("select favorite_count from community.favorite_stats where product_id = 14",
+            Long.class)).isZero();
+        assertThat(jdbc.queryForMap("select nickname, author_withdrawn_at from community.review "
+            + "where order_item_id = 501").get("author_withdrawn_at")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("회원 ID가 없는 회원 탈퇴 DLT는 재처리 성공이 아니다")
+    void memberWithdrawnWithoutMemberIdRemainsOpen() {
+        var event = new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123),
+            new MemberWithdrawnEvent.Data(null));
+        service.receive(memberMessage(event, 12L));
+
+        assertThat(service.reprocess(id(), 99L).getState()).isEqualTo(State.OPEN);
+    }
+
+    private Received memberMessage(MemberWithdrawnEvent event, long offset) {
+        return new Received("kidly.member.events.community.dlt", 0, offset, "kidly.member.events", 0, offset,
+            String.valueOf(event.data().memberId()), event.eventType(), event.eventId().toString(),
+            mapper.writeValueAsString(event), "DatabaseException");
     }
 
     private Received message(OrderItemPurchaseConfirmedEvent event, long offset) {

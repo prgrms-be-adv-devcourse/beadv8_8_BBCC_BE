@@ -61,6 +61,7 @@ class CommunityDeadLetterKafkaIntegrationTest {
         orderListener = client.start(guard, CommunityOrderEventKafkaListener.ID, TOPIC);
         dltListener = client.start(guard, CommunityDeadLetterKafkaListener.ID, DLT);
         client.awaitCaughtUp("kidly.product.events.community.dlt");
+        client.awaitCaughtUp("kidly.member.events.community.dlt");
     }
 
     @AfterEach

@@ -17,6 +17,7 @@ public class CommunityDeadLetterReplayer implements CommunityDeadLetterReplay {
 
     private final CommunityOrderEventKafkaListener orderListener;
     private final CommunityProductEventKafkaListener productListener;
+    private final CommunityMemberEventKafkaListener memberListener;
 
     @Override
     public void replay(Message message) {
@@ -31,6 +32,7 @@ public class CommunityDeadLetterReplayer implements CommunityDeadLetterReplay {
         boolean handled = switch (message.sourceTopic()) {
             case CommunityKafkaListenerConfig.ORDER_EVENTS -> orderListener.handle(record);
             case CommunityKafkaListenerConfig.PRODUCT_EVENTS -> productListener.handle(record);
+            case CommunityKafkaListenerConfig.MEMBER_EVENTS -> memberListener.handle(record);
             default -> false;
         };
         if (!handled) {

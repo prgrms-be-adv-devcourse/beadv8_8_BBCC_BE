@@ -47,6 +47,48 @@ class CommunityMigrationIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("baseline 버전까지만 적용된 DB에서는 baseline을 잡은 뒤 그보다 뒤 버전(리뷰 작성자 탈퇴 시각 칸)을 적용한다")
+    void appliesMigrationsAfterBaseline() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createCommunityTablesUpTo(dataSource, jdbc, BASELINE_VERSION);
+            assertThat(reviewColumns(jdbc)).doesNotContain("author_withdrawn_at");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(reviewColumns(jdbc)).contains("author_withdrawn_at");
+            assertThat(historyTypes(jdbc)).first().isEqualTo("BASELINE " + BASELINE_VERSION);
+            assertThat(historyTypes(jdbc)).anySatisfy(type -> assertThat(type)
+                .startsWith("SQL ").satisfies(sql -> assertThat(sql.substring(4)).isGreaterThan(BASELINE_VERSION)));
+        }
+    }
+
+    // baseline 버전까지만 적용하고 이력은 지워 서비스가 처음 뜨기 전의 운영 DB 상태로 둔다
+    private static void createCommunityTablesUpTo(DriverManagerDataSource dataSource, JdbcTemplate jdbc,
+        String version) {
+        Flyway.configure()
+            .dataSource(dataSource)
+            .locations("classpath:db/migration")
+            .defaultSchema("community")
+            .schemas("community")
+            .table("kidly_app_init_history")
+            .target(version)
+            .load()
+            .migrate();
+        jdbc.execute("DROP TABLE community.kidly_app_init_history");
+    }
+
+    private static List<String> reviewColumns(JdbcTemplate jdbc) {
+        return jdbc.queryForList("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema = 'community' AND table_name = 'review'
+            """, String.class);
+    }
+
     // kidly-app이 적용한 커뮤니티 마이그레이션(도메인 모듈 파일)은 이 서비스의 것과 같다.
     // 모두 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다
     private static void createCommunityTablesLikeKidlyApp(DriverManagerDataSource dataSource, JdbcTemplate jdbc) {

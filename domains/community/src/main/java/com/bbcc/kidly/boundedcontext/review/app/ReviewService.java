@@ -168,12 +168,15 @@ public class ReviewService {
         int rating,
         String content,
         String nickname,
+        boolean authorWithdrawn,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
         static ReviewView from(Review review) {
+            boolean withdrawn = review.isAuthorWithdrawn();
             return new ReviewView(review.getId(), review.getOrderItemId(), review.getProductId(), review.getRating(),
-                review.getContent(), review.getNickname(), review.getCreatedAt(), review.getUpdatedAt());
+                review.getContent(), AuthorDisplay.nickname(review.getNickname(), withdrawn), withdrawn,
+                review.getCreatedAt(), review.getUpdatedAt());
         }
     }
 }

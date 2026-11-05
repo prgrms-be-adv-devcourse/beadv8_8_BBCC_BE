@@ -61,10 +61,29 @@ class ReviewListApiTest {
             .jsonPath("$.items[0].rating").isEqualTo(4)
             .jsonPath("$.items[0].content").isEqualTo("좋아요")
             .jsonPath("$.items[0].nickname").isEqualTo("닉")
+            .jsonPath("$.items[0].authorWithdrawn").isEqualTo(false)
             .jsonPath("$.items[0].createdAt").isEqualTo("2026-11-01T10:00:00.123456")
             .jsonPath("$.items[0].updatedAt").isEqualTo("2026-11-01T10:00:00.123456")
             .jsonPath("$.items[0].memberId").doesNotExist()
             .jsonPath("$").value(Map.class, body -> assertThat(body).containsEntry("nextCursor", null));
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원의 리뷰는 남고 nickname \"탈퇴한 회원\" · authorWithdrawn true로 보인다")
+    void withdrawnAuthorReview() {
+        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
+            + "content, created_at, updated_at, author_withdrawn_at) values (12, 14, 99, null, 5, '탈퇴 전 리뷰', ?, ?, ?)",
+            CREATED_AT.plusMinutes(1), CREATED_AT.plusMinutes(1), CREATED_AT.plusMinutes(2));
+
+        client.get().uri(PATH + "?productId=14")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(2)
+            .jsonPath("$.items[0].orderItemId").isEqualTo("12")
+            .jsonPath("$.items[0].nickname").isEqualTo("탈퇴한 회원")
+            .jsonPath("$.items[0].authorWithdrawn").isEqualTo(true)
+            .jsonPath("$.items[1].authorWithdrawn").isEqualTo(false);
     }
 
     @Test

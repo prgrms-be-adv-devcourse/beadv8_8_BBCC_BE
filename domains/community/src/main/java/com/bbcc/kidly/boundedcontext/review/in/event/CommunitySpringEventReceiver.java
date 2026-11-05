@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.review.in.event;
 
 import com.bbcc.kidly.global.eventpublisher.DomainEventListener;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class CommunitySpringEventReceiver {
 
     private final CommunityProductEventListener productEventListener;
     private final CommunityOrderEventListener orderEventListener;
+    private final CommunityMemberEventListener memberEventListener;
 
     @DomainEventListener
     public void onProductChanged(ProductChangedEvent event) {
@@ -28,5 +30,10 @@ public class CommunitySpringEventReceiver {
     @DomainEventListener
     public void onPurchaseConfirmed(OrderItemPurchaseConfirmedEvent event) {
         orderEventListener.onPurchaseConfirmed(event);
+    }
+
+    @DomainEventListener
+    public void onMemberWithdrawn(MemberWithdrawnEvent event) {
+        memberEventListener.onMemberWithdrawn(event);
     }
 }
