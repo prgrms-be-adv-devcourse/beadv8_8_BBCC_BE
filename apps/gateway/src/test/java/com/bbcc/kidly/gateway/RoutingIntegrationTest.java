@@ -28,7 +28,7 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 /**
  * 내부 API를 막고, 상품 목록은 검색 서비스로(#526), 추천은 추천 서비스로(#704), 정산은 정산 서비스로(#729),
  * 회원 · 인증 · 판매자 · 자녀 프로필은 회원 서비스로(#809), 결제는 결제 서비스로(#525), 상품은 상품 서비스로(#791),
- * 주문 · 장바구니 · 배송 · 조르기는 주문 서비스로, 리뷰 · 찜은 커뮤니티 서비스로, 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
+ * 주문 · 장바구니 · 배송 · 조르기는 주문 서비스로, 리뷰 · 찜은 커뮤니티 서비스로, 알림함은 알림 서비스로, 나머지는 kidly-app으로 보내는지, CORS를 Gateway가 처리하는지 본다(#608).
  */
 @IntegrationTest
 class RoutingIntegrationTest extends GatewayTestSupport {
@@ -458,6 +458,32 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
         assertThat(backend.lastRequest()).isPresent();
         assertThat(communityBackend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/notifications?page=0&size=20", "/api/v1/notifications/unread-count", "/api/v1/notifications/3/read"
+    })
+    @DisplayName("알림함 API는 같은 메서드 · 경로 · 쿼리로 알림 서비스에 넘긴다")
+    void routesNotificationApisToNotificationService(String path) {
+        client.patch().uri(path).exchange()
+            .expectStatus().isOk();
+
+        assertThat(notificationBackend.lastRequest()).hasValueSatisfying(recorded -> {
+            assertThat(recorded.method()).isEqualTo("PATCH");
+            assertThat(recorded.uri()).isEqualTo(URI.create(path));
+        });
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("알림함 경로와 이름만 비슷한 다른 경로는 kidly-app에 넘긴다")
+    void routesNotificationLookalikesToKidlyApp() {
+        client.get().uri("/api/v1/notificationsx").exchange()
+            .expectStatus().isOk();
+
+        assertThat(backend.lastRequest()).isPresent();
+        assertThat(notificationBackend.lastRequest()).isEmpty();
     }
 
     @Test
