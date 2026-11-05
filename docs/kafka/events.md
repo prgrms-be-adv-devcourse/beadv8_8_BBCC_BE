@@ -56,9 +56,11 @@
 | 토픽 | `eventType` | 키 | 보내는 도메인 | 받는 도메인 |
 |---|---|---|---|---|
 | `kidly.member.events` | `member.registered` | 회원 ID | member | notification, payment |
+| | `member.suspended` | 회원 ID | | notification |
 | | `member.changed` | 회원 ID | | seller |
 | | `member.withdrawn` | 회원 ID | | auth, childprofile, member(배송지), payment |
 | `kidly.seller.events` | `seller.changed` | 판매자 ID | seller | member, order, product, recommend, search |
+| | `seller.application-rejected` | 신청 ID | | notification |
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |
 | `kidly.product.events` | `product.changed` | 상품 ID | product | community, order, recommend, search |
@@ -82,11 +84,22 @@
 
 ---
 
+### 알림용 이벤트 데이터 계약
+
+- `member.suspended` (`MemberSuspendedEvent`): `memberId`, `reason`, `suspendedAt`. 키는 회원 ID. 관리자 정지 시 저장한 정지 시각과 `occurredAt`, `suspendedAt`이 같다. 기존 `auth.tokens-revoked`도 유지한다.
+- `seller.application-rejected` (`SellerApplicationRejectedEvent`): `applicationId`, `memberId`(신청자), `reason`, `rejectedAt`. 키는 신청 ID. 저장한 결정 시각과 `occurredAt`, `rejectedAt`이 같다.
+- 두 이벤트는 상태 변경 트랜잭션에서 발행하고 기존 릴레이로 DB 커밋 후 Kafka에 전송한다. 롤백 시 전송하지 않는다. 기존 비동기 직접 전송 방식이므로 장애 시 유실될 수 있다.
+- `reason`은 대상 회원에게 안내할 사유다. 이벤트 본문과 사유를 로그에 남기지 않는다.
+- 수신 도메인 `notification`은 위 이벤트의 예정 수신자다. 메일·알림함 처리는 알림 도메인에서 구현한다.
+- 기존 회원 이메일은 Kafka에 보관된 `member.registered`를 알림 도메인이 재소비해 채운다. `member.registered` 데이터(`memberId`, `email`)는 유지하며 `resent` 추가나 회원 도메인의 재발행은 하지 않는다.
+
+---
+
 ## 3. 코드 배치
 
 | 위치 | 담는 것 | 담지 않는 것 |
 |---|---|---|
-| `shared` | 이벤트 record 18종(바뀌지 않음, 필드는 추가만) | Kafka 코드 |
+| `shared` | 이벤트 record(바뀌지 않음, 필드는 추가만) | Kafka 코드 |
 | `common` | `EventPublisher`(Kafka를 모른 채 Spring 이벤트만 발행) | Kafka 코드와 설정 |
 | 보내는 `domains/*` | `out`에 토픽 선언(`NewTopic`)과 커밋 뒤 발행 빈 | 다른 도메인 토픽 |
 | 받는 `domains/*` | 자기 리스너 설정(컨테이너 팩토리, 에러 처리기, DLT `NewTopic`)과 `@KafkaListener` 리스너. 리스너 패키지는 지금 위치 그대로(대부분 `in`, payment는 `app`) | `spring.kafka.*` yml |

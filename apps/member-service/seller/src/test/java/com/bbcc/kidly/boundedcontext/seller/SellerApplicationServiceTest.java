@@ -21,6 +21,7 @@ import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import com.bbcc.kidly.shared.seller.event.SellerApplicationRejectedEvent;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.util.List;
 import java.util.Optional;
@@ -189,7 +190,7 @@ class SellerApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("거절하면 신청을 REJECTED로 바꾸고 판매자를 만들지 않으며 이벤트도 발행하지 않는다")
+    @DisplayName("거절하면 신청을 REJECTED로 바꾸고 신청자와 거절 사유를 이벤트로 발행한다")
     void reject() {
         var application = SellerFixture.application(MEMBER_ID);
         given(sellerApplicationRepository.getById(1L)).willReturn(application);
@@ -200,7 +201,14 @@ class SellerApplicationServiceTest {
         assertThat(result.status()).isEqualTo(SellerApplicationStatus.REJECTED);
         assertThat(application.getRejectReason()).isEqualTo(SellerFixture.REJECT_REASON);
         then(sellerRepository).should(never()).save(any());
-        then(eventPublisher).shouldHaveNoInteractions();
+        var captor = ArgumentCaptor.forClass(SellerApplicationRejectedEvent.class);
+        then(eventPublisher).should().publishEvent(captor.capture());
+        var event = captor.getValue();
+        assertThat(event.data().applicationId()).isEqualTo(1L);
+        assertThat(event.data().memberId()).isEqualTo(MEMBER_ID);
+        assertThat(event.data().reason()).isEqualTo(SellerFixture.REJECT_REASON);
+        assertThat(event.data().rejectedAt()).isEqualTo(application.getDecidedAt());
+        assertThat(event.occurredAt()).isEqualTo(application.getDecidedAt());
     }
 
     @Test
@@ -212,6 +220,7 @@ class SellerApplicationServiceTest {
             1L, SellerFixture.ADMIN_ID, new SellerApplicationRejectRequest(SellerFixture.REJECT_REASON)))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(SellerErrorCode.APPLICATION_NOT_PENDING);
+        then(eventPublisher).should(never()).publishEvent(any(Object.class));
     }
 
     @Test

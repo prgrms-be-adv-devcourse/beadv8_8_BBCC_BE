@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
+import com.bbcc.kidly.shared.seller.event.SellerApplicationRejectedEvent;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -27,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 판매자 신청 · 조회 · 승인 · 거절.
  * 승인은 한 트랜잭션에서 신청을 APPROVED로 바꾸고, 판매자를 만들고, SellerChangedEvent를 발행한다.
- * 거절은 신청만 REJECTED로 바꾼다. 판매자를 만들지 않으므로 이벤트를 발행하지 않는다.
+ * 거절은 신청을 REJECTED로 바꾸고, SellerApplicationRejectedEvent를 발행한다.
  * 회원이 닉네임을 바꾸면 그 회원의 신청에 반영한다.
  */
 @Slf4j
@@ -90,7 +91,11 @@ public class SellerApplicationService {
     @Transactional
     public SellerApplicationSummary reject(Long applicationId, Long adminId, SellerApplicationRejectRequest request) {
         var application = sellerApplicationRepository.getById(applicationId);
-        application.reject(adminId, request.reason(), LocalDateTime.now());
+        var now = LocalDateTime.now();
+        application.reject(adminId, request.reason(), now);
+        eventPublisher.publishEvent(new SellerApplicationRejectedEvent(UUID.randomUUID(), now,
+            new SellerApplicationRejectedEvent.Data(applicationId, application.getApplicantId(),
+                application.getRejectReason(), application.getDecidedAt())));
         log.info("판매자 신청 거절: applicationId={} adminId={}", applicationId, adminId);
         return SellerApplicationSummary.from(application);
     }
