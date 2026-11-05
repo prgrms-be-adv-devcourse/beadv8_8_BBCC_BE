@@ -19,8 +19,8 @@
 | | `order-item.purchase-confirmed` | 주문 ID | | community, recommend, settlement |
 | | `cart.item-added` | 회원 ID | | recommend |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |
-| | `payment.refunded` | 주문 ID | | (없음, notification 예정) |
-| | `payment.payout-completed` · `payment.payout-failed` | 정산서 ID | | settlement |
+| | `payment.refunded` | 주문 ID | | notification |
+| | `payment.payout-completed` · `payment.payout-failed` | 정산서 ID | | settlement, notification(payout-completed) |
 | `kidly.settlement.events` | `settlement.payout-requested` | 정산서 ID | settlement | payment |
 | `kidly.search.events` | `search.performed` | 회원 ID | search | recommend |
 
