@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CommunityServiceApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="kidly.apps.community-service.main" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.bbcc.kidly.CommunityServiceApplication" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

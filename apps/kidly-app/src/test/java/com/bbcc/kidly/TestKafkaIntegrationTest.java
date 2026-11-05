@@ -43,12 +43,6 @@ class TestKafkaIntegrationTest {
     private ApplicationContext context;
 
     @Test
-    @DisplayName("Kafka 통합 테스트에서는 주문 아웃박스 릴레이 스케줄러를 만든다")
-    void kafkaRelayEnabled() {
-        assertThat(context.containsBean("orderOutboxRelayScheduler")).isTrue();
-    }
-
-    @Test
     @DisplayName("선언하지 않은 토픽으로 보내면 토픽이 자동으로 생기지 않아 메타데이터 대기 시간 초과로 실패한다")
     void undeclaredTopicIsNotCreated() {
         String topic = "undeclared-" + UUID.randomUUID();

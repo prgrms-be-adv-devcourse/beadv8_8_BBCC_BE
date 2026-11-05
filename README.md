@@ -20,8 +20,8 @@
 9. `./gradlew :apps:payment-service:bootRun` — 결제 서비스(8087). 결제 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8087로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `PaymentServiceApplication`
 10. `./gradlew :apps:settlement-service:bootRun` — 정산 서비스(8088). 정산 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8088로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `SettlementServiceApplication`
 11. `./gradlew :apps:product-service:bootRun` — 상품 서비스(8089). 상품 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8089로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `ProductServiceApplication`
-12. (선택) `./gradlew :apps:order-service:bootRun` — 주문 서비스(8091). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 주문 API를 받는다. Gateway로 볼 때는 `KIDLY_ORDER_URI=http://localhost:8091`을 준다
-13. (선택) `./gradlew :apps:community-service:bootRun` — 커뮤니티 서비스(8092). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). 앱도 아직 리뷰 · 찜 API를 받는다. Gateway로 볼 때는 `KIDLY_COMMUNITY_URI=http://localhost:8092`을 준다
+12. `./gradlew :apps:order-service:bootRun` — 주문 서비스(8091). 주문 · 장바구니 · 배송 · 조르기 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8091로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `OrderServiceApplication`
+13. `./gradlew :apps:community-service:bootRun` — 커뮤니티 서비스(8092). 리뷰 · 찜 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8092로 넘긴다). IDE는 `CommunityServiceApplication`
 14. `./gradlew :apps:notification-service:bootRun` — 알림 서비스(8090). 가입 환영 메일은 앱에 없어 메일을 보려면 이 서비스를 띄워야 한다(HTTP API는 없다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `NotificationServiceApplication`
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
@@ -54,8 +54,8 @@
 | `apps/payment-service` | 결제 서비스(#525). 결제 도메인은 이 서비스에만 있다. 결제 마이그레이션은 서비스 `baseline-version`(`202611021930`, 고정)보다 뒤 버전으로 더한다 |
 | `apps/settlement-service` | 정산 서비스(#729). 정산 도메인은 이 서비스에만 있다. 구매확정 · 지급 결과는 Kafka로만 받으므로 수신 스위치(`SETTLEMENT_KAFKA_CONSUMER_ENABLED`)를 끄면 이벤트를 받지 못한다 |
 | `apps/product-service` | 상품 서비스(#791). 상품 도메인은 이 서비스에만 있다. 상품 마이그레이션(`domains/product`의 `db/migration/product`)은 이 서비스만 적용한다(앱은 옛 상품 이력 행을 검증 전에 지운다). 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다 |
-| `apps/order-service` | 주문 서비스(주문 · 장바구니 · 배송 · 조르기). 앱도 아직 주문 도메인을 가지고 같은 구독 그룹(`kidly.order`)으로 함께 돈다. 스케줄러 · 아웃박스 릴레이는 DB 잠금으로 한 곳에서만 돈다. 주문 Kafka 수신 스위치(`ORDER_KAFKA_CONSUMER_ENABLED`) · 부분 취소 · 조르기 스위치는 두 앱에서 같은 값으로 둔다. 서비스 baseline-version은 `202611031100`(고정)이고, 그동안 더하는 주문 마이그레이션은 두 앱이 각자 적용하므로 두 번 적용돼도 안전하게(`IF NOT EXISTS`) 쓴다 |
-| `apps/community-service` | 커뮤니티 서비스(리뷰 · 찜). 앱도 아직 커뮤니티 도메인을 가지고 같은 구독 그룹(`kidly.community`)으로 함께 돈다. 커뮤니티 Kafka 수신 스위치(`COMMUNITY_KAFKA_CONSUMER_ENABLED`)는 두 앱에서 같은 값으로 둔다. 마이그레이션은 처음부터 도메인 모듈에만 있어 서비스에는 파일이 없다. 서비스 baseline-version은 `202611031200`(고정)이고, 그동안 더하는 커뮤니티 마이그레이션은 두 번 적용돼도 안전하게(`IF NOT EXISTS`) 쓴다 |
+| `apps/order-service` | 주문 서비스(주문 · 장바구니 · 배송 · 조르기, #826). 주문 도메인은 이 서비스에만 있다. 주문 마이그레이션은 이 서비스만 적용한다(앱은 옛 주문 모듈 이력 행을 검증 전에 지운다). 빈 DB에서 앱이 init으로 만든 주문 표 위에 서비스가 baseline(`202611031100`, 고정)을 잡고, 건너뛴 주문 모듈 표는 보강 마이그레이션이 만든다 |
+| `apps/community-service` | 커뮤니티 서비스(리뷰 · 찜, #827). 커뮤니티 도메인은 이 서비스에만 있다. 마이그레이션은 도메인 모듈에만 있고 이 서비스만 적용한다. 이미 테이블이 있는 DB는 baseline(`202611031200`, 고정)으로 건너뛴다 |
 | `apps/notification-service` | 알림 서비스(#833). 알림 도메인은 이 서비스에만 있다. 회원 가입 이벤트를 받아(구독 그룹 `kidly.notification`) 환영 메일을 보낸다. HTTP API가 없어 Gateway 라우트가 없다. 알림 테이블은 빈 DB에서 앱이 먼저 만들고, 서비스는 `202610190901`(고정)에서 baseline을 잡는다. 새 알림 마이그레이션은 `domains/notification`의 `db/migration/notification`에 둔다 |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |

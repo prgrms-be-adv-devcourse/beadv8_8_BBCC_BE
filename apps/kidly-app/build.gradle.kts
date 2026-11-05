@@ -8,13 +8,7 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":shared"))
 
-    // 도메인 모듈과 그 Fixture(src/testFixtures). 통합 · 기능 테스트가 도메인 Fixture를 쓴다
-    listOf(
-        "order", "community",
-    ).forEach { domain ->
-        implementation(project(":domains:$domain"))
-        testImplementation(testFixtures(project(":domains:$domain")))
-    }
+    // 도메인 모듈은 모두 각 서비스(apps/*-service)로 옮겼다(마지막으로 알림 #833 · 주문 #826 · 커뮤니티 #827). 이 앱에는 도메인이 없다
 
     // --- 앱(서비스)에 남는 것 ---
 

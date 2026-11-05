@@ -24,10 +24,4 @@ class KafkaDisabledIntegrationTest {
     void noKafkaContainer() {
         assertThat(context.getBeanNamesForType(KafkaContainer.class)).isEmpty();
     }
-
-    @Test
-    @DisplayName("일반 통합 테스트에서는 주문 아웃박스 릴레이 스케줄러를 만들지 않는다")
-    void noKafkaRelay() {
-        assertThat(context.containsBean("orderOutboxRelayScheduler")).isFalse();
-    }
 }

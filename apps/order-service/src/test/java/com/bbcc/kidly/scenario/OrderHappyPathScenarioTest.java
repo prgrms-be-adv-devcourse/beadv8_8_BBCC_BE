@@ -32,11 +32,11 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 전 도메인 정상 흐름 ①~⑦(#359). 사람 행동은 각 도메인의 실제 API, 도메인 사이는 실제 이벤트 · 리스너로만 지난다
- * (예외: 회원 · 판매자는 회원 서비스로, 자녀 API는 자녀 서비스로(#682), 결제는 결제 서비스로(#525), 상품은 상품 서비스로(#791)
- * 빠져 판매자 승인 · 자녀 등록 · 상품 판매 시작 · 재고 차감 · 결제 때 나가는 seller.changed · child.changed ·
- * product.changed · stock.deducted · payment.completed를 테스트가 직접 넣는다. 판매자 · 자녀 이벤트는 Kafka 리스너가 부르는
- * 처리 메서드로, kidly-app 안의 주문이 Spring으로도 받는 상품 · 재고 · 결제 결과는 발행으로 넣는다). 확인은 단계별 결과(상태 · 결제 요청)만 본다.
+ * 주문 정상 흐름 ①~⑥(#359). kidly-app에서 주문을 빼며(#826) 주문 서비스로 옮겼다. 사람 행동은 주문 서비스의 실제 API로 하고,
+ * 다른 서비스(회원 · 판매자 · 자녀는 회원 서비스, 상품 · 재고는 상품 서비스, 결제는 결제 서비스)가 보내는 seller.changed ·
+ * child.changed · product.changed · stock.deducted · payment.completed는 테스트가 직접 넣는다. 판매자 · 자녀 이벤트는 Kafka 리스너가
+ * 부르는 처리 메서드로, 주문이 Spring으로도 받는 상품 · 재고 · 결제 결과는 발행으로 넣는다(테스트는 Kafka 수신을 끈다).
+ * 확인은 단계별 결과(상태 · 결제 요청)만 본다. 정산 · 리뷰 쪽 반응은 각 서비스 테스트가 본다.
  */
 @FunctionalTest
 class OrderHappyPathScenarioTest {
@@ -166,8 +166,7 @@ class OrderHappyPathScenarioTest {
     }
 
     /**
-     * 0단계 가입: 가입은 회원 서비스가 하고 지갑은 결제 서비스가 만든다. kidly-app 안에서 member.registered를 받는 곳이
-     * 없어 회원 ID만 정한다.
+     * 0단계 가입: 가입은 회원 서비스가 하고 지갑은 결제 서비스가 만든다. 주문은 member.registered를 받지 않아 회원 ID만 정한다.
      */
     private Long signUp(Long memberId) {
         return memberId;

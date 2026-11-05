@@ -22,12 +22,17 @@ import org.testcontainers.utility.DockerImageName;
  * kidly-app이 주문을 가지고 있는 동안 쓰는 DB(dev · prod · 공유 로컬)에는 kidly-app이 주문 마이그레이션을 모두 적용해 둔다.
  * baseline-version은 서비스가 처음 뜰 때 한 번만 쓰이므로 고정해 두고, 그 뒤에 더한 주문 마이그레이션은 두 앱이 모두 적용한다.
  * 그래서 이 DB에 서비스 Flyway를 돌려도 스키마가 바뀌지 않아야 한다.
+ * kidly-app에서 주문을 뺀 뒤(#826) 빈 DB에서 kidly-app은 자기 폴더의 주문 파일(init의 orders 구문 · 옛 주문 파일 5개)까지만 적용한다.
+ * 서비스는 그 뒤 baseline을 잡아 주문 모듈 마이그레이션을 건너뛰므로, 그런 DB에서도 모든 주문 마이그레이션을 적용한 DB와 스키마가 같아야 한다
+ * (보강 마이그레이션 V202611041730).
  * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
  */
 @Tag("integration")
 class OrderMigrationIntegrationTest {
 
     private static final String BASELINE_VERSION = "202611031100";
+    // kidly-app 폴더에 남는 마지막 주문 마이그레이션(이벤트 처리 실패 보관)
+    private static final String LAST_KIDLY_APP_MODULE_VERSION = "202610191003";
 
     @Test
     @DisplayName("kidly-app이 주문 마이그레이션을 모두 적용한 DB에서는 baseline을 잡고 스키마를 바꾸지 않는다")
@@ -37,7 +42,7 @@ class OrderMigrationIntegrationTest {
             var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
                 postgres.getPassword());
             var jdbc = new JdbcTemplate(dataSource);
-            createOrderTablesLikeKidlyApp(dataSource, jdbc);
+            createOrderTablesLikeKidlyApp(dataSource, jdbc, null);
             var before = schema(jdbc);
 
             serviceFlyway(dataSource).load().migrate();
@@ -47,17 +52,42 @@ class OrderMigrationIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("kidly-app 폴더의 주문 파일까지만 있는 DB에서 baseline을 잡아도 모든 주문 마이그레이션을 적용한 DB와 스키마가 같다")
+    void matchesFullSchemaWhenOnlyKidlyAppModuleMigrationsExist() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            jdbc.execute("CREATE DATABASE full_migration");
+            var fullDataSource = new DriverManagerDataSource(
+                postgres.getJdbcUrl().replace("/" + postgres.getDatabaseName(), "/full_migration"),
+                postgres.getUsername(), postgres.getPassword());
+            createOrderTablesLikeKidlyApp(fullDataSource, new JdbcTemplate(fullDataSource), null);
+            createOrderTablesLikeKidlyApp(dataSource, jdbc, LAST_KIDLY_APP_MODULE_VERSION);
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(schema(jdbc)).isEqualTo(schema(new JdbcTemplate(fullDataSource)));
+            assertThat(historyTypes(jdbc)).first().isEqualTo("BASELINE " + BASELINE_VERSION);
+        }
+    }
+
     // kidly-app이 적용한 주문 마이그레이션(init의 orders 구문 · 옛 주문 파일 · 도메인 모듈 파일)은 이 서비스의 것과 같다.
-    // 모두 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다
-    private static void createOrderTablesLikeKidlyApp(DriverManagerDataSource dataSource, JdbcTemplate jdbc) {
-        Flyway.configure()
+    // target 버전까지(null이면 모두) 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다
+    private static void createOrderTablesLikeKidlyApp(DriverManagerDataSource dataSource, JdbcTemplate jdbc,
+        String target) {
+        var flyway = Flyway.configure()
             .dataSource(dataSource)
             .locations("classpath:db/migration")
             .defaultSchema("orders")
             .schemas("orders")
-            .table("kidly_app_init_history")
-            .load()
-            .migrate();
+            .table("kidly_app_init_history");
+        if (target != null) {
+            flyway.target(target);
+        }
+        flyway.load().migrate();
         jdbc.execute("DROP TABLE orders.kidly_app_init_history");
     }
 
