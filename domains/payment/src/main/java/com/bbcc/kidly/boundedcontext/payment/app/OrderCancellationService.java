@@ -14,9 +14,13 @@ import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedger;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.payment.event.PaymentRefundedEvent;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 주문 전체가 취소되면(order.cancelled) 결제된 주문은 예치금을 환불하고, 결제 전이면 취소된 주문으로 기록해
- * 그 뒤에 온 결제 요청을 차감하지 않게 한다(기획서 2.1 ④). 환불 이벤트는 기획서에 없어 발행하지 않는다.
+ * 그 뒤에 온 결제 요청을 차감하지 않게 한다(기획서 2.1 ④). 환불하면 환불 이벤트(payment.refunded)를 발행한다.
  * 결제 요청과 같은 회원 지갑 락을 먼저 잡아, 결제 · 취소가 동시에 와도 늦은 쪽이 앞의 결과를 보고 처리한다.
  * 같은 취소가 다시 오면 결제가 이미 환불(REFUNDED)됐거나 취소 기록이 있어 건너뛴다.
  * 부르는 쪽 트랜잭션과 따로 커밋 · 롤백한다. 실패하면 부르는 쪽이 다시 처리할 취소로 남긴다.
@@ -40,6 +44,7 @@ public class OrderCancellationService {
     private final RefundRepository refundRepository;
     private final WalletLedgerRepository walletLedgerRepository;
     private final CancelledOrderRepository cancelledOrderRepository;
+    private final EventPublisher eventPublisher;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handle(OrderCancelCommand command) {
@@ -62,11 +67,13 @@ public class OrderCancellationService {
                 command.orderId(), command.memberId(), payment.getId());
             return;
         }
+        List<PaymentRefundedEvent.Item> refundedItems = new ArrayList<>();
         List<RefundItem> items = payment.getItems().stream()
             .filter(item -> item.getAmount() > item.getRefundedAmount())
             .map(item -> {
                 long left = item.getAmount() - item.getRefundedAmount();
                 payment.refund(item.getOrderItemId(), left);
+                refundedItems.add(new PaymentRefundedEvent.Item(item.getOrderItemId(), left));
                 return RefundItem.of(item.getId(), left);
             })
             .toList();
@@ -80,6 +87,9 @@ public class OrderCancellationService {
             "memberId={} walletId={} orderId={} paymentId={} refundId={} amount={} balance={} reason={}",
             command.memberId(), found.getId(), command.orderId(), payment.getId(), refund.getId(), refund.getAmount(),
             found.getBalance(), command.reason());
+        eventPublisher.publish(new PaymentRefundedEvent(UUID.randomUUID(), now, new PaymentRefundedEvent.Data(
+            refund.getId(), payment.getId(), payment.getOrderId(), null, refundedItems, refund.getAmount(),
+            refund.getRefundedAt(), command.memberId())));
     }
 
     private void rememberCancelled(OrderCancelCommand command, LocalDateTime now) {
