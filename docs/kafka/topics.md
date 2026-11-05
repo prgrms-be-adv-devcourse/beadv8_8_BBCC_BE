@@ -18,6 +18,8 @@
 | | `order.cancelled` | 주문 ID | | notification, payment, product |
 | | `order-item.cancelled` | 주문 ID | | notification, payment, product |
 | | `order-item.purchase-confirmed` | 주문 ID | | community, recommend, settlement |
+| | `delivery.shipped` | 주문 ID | | notification |
+| | `delivery.delivered` | 주문 ID | | notification |
 | | `cart.item-added` | 회원 ID | | recommend |
 | | `wish.sent` | 자녀 ID | | notification |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |

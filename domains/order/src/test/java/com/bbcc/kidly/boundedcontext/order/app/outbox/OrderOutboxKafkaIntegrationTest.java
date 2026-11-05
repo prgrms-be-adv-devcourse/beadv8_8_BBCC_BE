@@ -6,6 +6,8 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
+import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.wish.app.TestChildWishActor;
 import com.bbcc.kidly.boundedcontext.wish.app.WishRequestService;
 import com.bbcc.kidly.boundedcontext.wish.app.WishService;
@@ -34,6 +36,8 @@ import com.bbcc.kidly.shared.order.event.WishItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
+import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
+import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
@@ -93,6 +97,12 @@ class OrderOutboxKafkaIntegrationTest {
 
     @Autowired
     private CartService cartService;
+
+    @Autowired
+    private DeliveryService deliveryService;
+
+    @Autowired
+    private DeliveryRepository deliveryRepository;
 
     @Autowired
     private WishService wishService;
@@ -180,6 +190,42 @@ class OrderOutboxKafkaIntegrationTest {
             assertThat(body.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(event.data()));
         }
         assertThat(partitionCount(TOPIC)).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("배송 출발 · 완료(#900)도 같은 토픽에 도착한다: 키 = 주문 ID, 헤더 eventType · eventId, 본문 7칸 + data, 같은 주문은 같은 파티션에 순서대로")
+    void deliversDeliveryEvents() {
+        OrderDetail order = place();
+        eventDelivery.deliver(stockDeducted(order.orderId()));
+        eventDelivery.deliver(paymentCompleted(order));
+        Long deliveryId = deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId()).getFirst().getId();
+        deliveryService.ship(SELLER_ID, deliveryId, "CJ", "1234567890");
+        deliveryService.complete(SELLER_ID, deliveryId);
+        List<DomainEvent> published = List.of(recorder.events(DeliveryShippedEvent.class).getFirst(),
+            recorder.events(DeliveryDeliveredEvent.class).getFirst());
+
+        relayService.relay();
+
+        Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
+            published.stream().map(event -> event.eventId().toString()).collect(Collectors.toSet()));
+        List<ConsumerRecord<String, String>> inOrder = published.stream()
+            .map(event -> received.get(event.eventId().toString()))
+            .toList();
+        assertThat(inOrder).extracting(record -> header(record, "eventType"))
+            .containsExactly("delivery.shipped", "delivery.delivered");
+        for (DomainEvent event : published) {
+            ConsumerRecord<String, String> record = received.get(event.eventId().toString());
+            assertThat(record.key()).isEqualTo(String.valueOf(order.orderId()));
+            assertThat(header(record, "eventId")).isEqualTo(event.eventId().toString());
+            assertThat(record.headers().lastHeader("__TypeId__")).isNull();
+            JsonNode body = jsonMapper.readTree(record.value());
+            assertThat(body.propertyNames()).containsExactly("eventId", "eventType", "schemaVersion",
+                "occurredAt", "producer", "aggregateId", "correlationId", "data");
+            assertThat(body.get("aggregateId").asString()).isEqualTo(String.valueOf(deliveryId));
+            assertThat(body.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(event.data()));
+        }
+        assertThat(inOrder.get(1).partition()).isEqualTo(inOrder.get(0).partition());
+        assertThat(inOrder.get(1).offset()).isGreaterThan(inOrder.get(0).offset());
     }
 
     @Test

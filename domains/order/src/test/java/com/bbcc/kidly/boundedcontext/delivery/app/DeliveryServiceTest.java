@@ -73,8 +73,10 @@ class DeliveryServiceTest {
         ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository);
         // 판매자 취소 반영(주문 SellerCancelService)은 여기 경우(꺼짐 · 사유 · 404)에서 불리지 않으므로 없이(null) 둔다.
         // 불리면 NullPointerException으로 테스트가 실패한다. 반영은 통합 · 기능 테스트가 본다
+        // 배송 이벤트(#900)는 주문이 있을 때만 나가고 여기 주문 저장소 mock은 주문이 없다고 답한다. 발행은 통합 테스트가 본다
         return new DeliveryService(deliveryRepository, new DeliveryOrdersAdapter(provided, provided, null),
-            new PartialCancelProperties(partialCancelEnabled));
+            new PartialCancelProperties(partialCancelEnabled), event -> {
+            });
     }
 
     @Nested
