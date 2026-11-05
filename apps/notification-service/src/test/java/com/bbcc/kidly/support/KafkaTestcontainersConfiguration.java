@@ -37,4 +37,9 @@ public class KafkaTestcontainersConfiguration {
     NewTopic receivedPaymentEventsTopic() {
         return TopicBuilder.name("kidly.payment.events").partitions(3).replicas(1).build();
     }
+
+    @Bean
+    NewTopic receivedSellerEventsTopic() {
+        return TopicBuilder.name("kidly.seller.events").partitions(3).replicas(1).build();
+    }
 }
