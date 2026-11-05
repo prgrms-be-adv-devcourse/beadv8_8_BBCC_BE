@@ -9,7 +9,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Kafka가 필요한 테스트(@KafkaIntegrationTest)만 쓰는 Kafka 컨테이너. kidly-app과 같은 이미지 · 설정(토픽 자동 생성 끔)이다.
+ * Kafka가 필요한 테스트(@KafkaIntegrationTest)만 쓰는 Kafka 컨테이너. 토픽 자동 생성은 끈다.
  * 상품이 받는 판매자 · 주문 토픽은 보내는 도메인이 선언하므로 상품은 선언하지 않는다.
  * 그런데 리스너가 파티션을 배정받아야 테스트가 시작하므로, 이 테스트 설정이 두 토픽을 만든다.
  * 상품 이벤트 토픽(kidly.product.events)은 상품 도메인이 스스로 선언한다.

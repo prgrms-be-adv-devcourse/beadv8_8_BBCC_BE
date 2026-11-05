@@ -22,7 +22,7 @@ import org.testcontainers.utility.DockerImageName;
  * kidly-app이 상품을 가지고 있던 동안 쓰던 DB(dev · 공유 로컬)에는 kidly-app이 상품 마이그레이션을 모두 적용해 두었다.
  * baseline-version은 서비스가 처음 뜰 때 한 번만 쓰이므로 고정해 두었고, 그 사이에 더한 상품 마이그레이션은 두 앱이 모두 적용했다.
  * 그래서 이 DB에 서비스 Flyway를 돌려도 스키마가 바뀌지 않아야 한다.
- * kidly-app에서 상품을 뺀 뒤(#836) 빈 DB에서 kidly-app은 자기 폴더의 init · 기준 데이터 soft delete까지만 적용한다.
+ * 상품 분리 당시(#836) kidly-app은 자기 폴더의 init · 기준 데이터 soft delete까지만 적용했다.
  * 서비스는 그 뒤 아웃박스 버전으로 baseline을 잡아 아웃박스 마이그레이션을 건너뛰므로, 그런 DB에서도 모든 상품 마이그레이션을 적용한 DB와 스키마가 같아야 한다.
  * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
  */
@@ -30,7 +30,7 @@ import org.testcontainers.utility.DockerImageName;
 class ProductMigrationIntegrationTest {
 
     private static final String BASELINE_VERSION = "202610292246";
-    // kidly-app 폴더에 남는 마지막 상품 마이그레이션(기준 데이터 soft delete)
+    // kidly-app 폴더에 있던 마지막 상품 마이그레이션(기준 데이터 soft delete)
     private static final String LAST_KIDLY_APP_MODULE_VERSION = "202610181146";
 
     @Test

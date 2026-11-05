@@ -15,7 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 커뮤니티 서비스가 커뮤니티 도메인(리뷰 · 찜)만으로 뜨고, 커뮤니티 API를 kidly-app과 같은 주소 · 같은 응답 형식으로 내는지 본다.
+ * 커뮤니티 서비스가 커뮤니티 도메인(리뷰 · 찜)만으로 뜨고, 커뮤니티 API를 정해진 주소 · 응답 형식으로 내는지 본다.
  * 커뮤니티 API의 업무 동작은 커뮤니티 모듈(domains/community)의 통합 · 기능 테스트가 본다.
  */
 @FunctionalTest
@@ -46,7 +46,7 @@ class CommunityServiceApplicationApiTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/products/1", "/api/v1/orders", "/api/v1/cart", "/api/v1/payments/1"})
-    @DisplayName("다른 도메인 API는 없어 kidly-app과 같은 ProblemDetail 형식의 404를 받는다")
+    @DisplayName("다른 도메인 API는 없어 ProblemDetail 형식의 404를 받는다")
     void noOtherDomainApi(String path) {
         client.get().uri(path)
             .headers(TestMembers.buyer(MEMBER_ID))
@@ -78,7 +78,7 @@ class CommunityServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("리뷰 · 찜 요약 API를 kidly-app과 같은 주소로 부르면 같은 형식으로 답한다(로그인 없이, ID는 문자열)")
+    @DisplayName("리뷰 · 찜 요약 API를 부르면 정해진 형식으로 답한다(로그인 없이, ID는 문자열)")
     void summaries() {
         client.get().uri("/api/v1/reviews/summary?productId=1")
             .exchange()
@@ -96,7 +96,7 @@ class CommunityServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("로그인 헤더가 없으면 내 찜 API는 kidly-app과 같은 ProblemDetail 형식의 401이다")
+    @DisplayName("로그인 헤더가 없으면 내 찜 API는 ProblemDetail 형식의 401이다")
     void unauthorizedWithoutLogin() {
         client.get().uri("/api/v1/favorites")
             .exchange()

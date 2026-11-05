@@ -8,7 +8,7 @@
 
 ### 최종 프로젝트에서 바뀐 것
 
-- **구성**: 모듈러 모놀리스(kidly-app)에서 서비스를 하나씩 떼어 내고 있습니다. 검색(search-service)과 자녀 프로필(childprofile-service)은 분리됐고, 결제(payment-service) · 추천(recommend-service)은 분리 중입니다. 모든 요청은 **API Gateway**를 거칩니다 (3.1).
+- **구성**: Gateway와 도메인별 서비스로 구성합니다. 모든 요청은 **API Gateway**를 거칩니다 (3.1).
 - **통신**: 도메인 사이 이벤트를 **Kafka**로 옮겼습니다. 보내는 도메인마다 토픽 하나, 보내는 쪽은 아웃박스로 유실을 막고, 받는 쪽은 실패하면 DLT로 보냅니다. 도메인마다 수신 스위치로 Spring 이벤트로 되돌릴 수 있습니다 (6.2).
 - **인증**: 토큰 검증 · 무효화 확인 · 역할 검사 · CORS는 Gateway만 합니다. 서비스는 Gateway가 붙인 헤더로 로그인 회원을 압니다 (2.1 · 6.1).
 - **추천**: 자녀 프로필 · 장바구니 · 활동 내역으로 AI가 사이즈와 상품을 추천하고 근거를 붙입니다. AI가 멈춰도 구매는 됩니다 (1.5 · 3.6).
@@ -134,7 +134,7 @@
 
 | 목표 | 무엇을 | 확인 방법 |
 |---|---|---|
-| **서비스 분리** | 한 앱(kidly-app)의 도메인을 Kafka로 잇고 서비스로 하나씩 뗀다. 검색 · 자녀 프로필은 분리 완료, 결제 · 추천은 분리 중. Gateway가 경로를 그대로 넘겨 화면은 바뀌지 않는다 | 서비스 하나를 멈췄다 다시 띄워도 그동안 쌓인 이벤트가 처리된다 |
+| **서비스 분리** | 도메인별 서비스를 Kafka로 잇는다. Gateway가 경로를 그대로 넘겨 화면은 바뀌지 않는다 | 서비스 하나를 멈췄다 다시 띄워도 그동안 쌓인 이벤트가 처리된다 |
 | **AI 추천** | 장바구니에 담은 사용자에게 자녀 정보와 활동 내역으로 사이즈 · 상품을 추천하고 근거를 보여 준다 | 추천 응답에 근거(reasons · reason)와 출처(source)가 나온다 |
 | **장애 격리** | 추천이 멈춰도 상품 상세 · 장바구니 · 주문 · 결제가 된다. 주문 · 결제 경로는 추천을 부르지 않는다 | 추천 서비스를 내린 채 주문 · 결제가 끝까지 된다 |
 | **이벤트 유실 · 중복 없음** | 보내는 쪽은 아웃박스, 받는 쪽은 멱등 처리와 DLT로 같은 이벤트가 두 번 와도 한 번만 반영한다 | 같은 메시지를 두 번 보내도 결과가 한 번분이다 (도메인별 통합 테스트) |
@@ -239,7 +239,7 @@
 | 검색 | 표시 가격 · 품절 | 표시 가격 = 판매할 수 있는 옵션 중 최저가, 없으면 전체 옵션 중 최저가. 품절 = 모든 옵션이 품절일 때만. 상호명은 판매자 색인에서 붙임(없으면 null) |
 | 검색 | 페이지 한계 | 1만 건째 결과까지 보여 줌(Elasticsearch 한계). 전체 개수는 정확히 셈 |
 | 검색 | 색인 반영 | `product.changed` · `seller.changed`를 Kafka로 받아 색인(그룹 `kidly.search`). 같은 상품의 늦게 온 옛 이벤트는 발생 시각(occurredAt)을 버전으로 써서 Elasticsearch가 거절. 실패는 1초 간격 3번 더 시도 뒤 `{토픽}.search.dlt`. 처음 채우기는 상품 · 판매자의 전체 다시 보내기 API로 |
-| 검색 | 검색 장애 | Elasticsearch에 닿지 못하면 503 「검색을 쓸 수 없습니다」. 상품 DB로 대신 찾지 않음. 되돌릴 때는 Gateway의 검색 주소(`KIDLY_SEARCH_URI`)를 kidly-app으로 바꿔 상품의 기존 목록 API로 돌아감. 상품 상세 · 장바구니 · 주문은 영향 없음 |
+| 검색 | 검색 장애 | Elasticsearch에 닿지 못하면 503 「검색을 쓸 수 없습니다」. 상품 DB로 대신 찾지 않음. 상품 목록 API는 검색 서비스가 제공하므로 서비스 복구가 필요함. 상품 상세 · 장바구니 · 주문은 영향 없음 |
 | 검색 | 검색어 이벤트 | 로그인 회원이 검색어로 찾은 첫 페이지만 `search.performed`로 보냄(비로그인 · 둘러보기 · 다음 페이지 · 503은 보내지 않음). DB가 없어 아웃박스 없이 별도 스레드로 보내고, 실패하면 로그만 남기고 버림. 키는 회원 ID |
 | 커뮤니티 | 리뷰 | 구매확정(`order-item.purchase-confirmed`)을 받은 주문상품만 작성(남의 것 403), 주문상품마다 1개(409). 별점 1~5 정수, 본문 공백 제외 1~1,000자. 수정 · 삭제는 작성자만, 수정은 보낸 필드만. 닉네임은 작성 때 값을 저장(공개 목록에 회원 ID는 없음). 상품별 리뷰 수 · 별점 합은 같은 트랜잭션에서 원자적으로 증감, 평균은 소수 첫째 자리 반올림(없으면 null). 판매 종료 상품의 리뷰도 남김 |
 | 커뮤니티 | 찜 | 회원 × 상품마다 1개(다시 찜해도 1개, 없는 찜 취소도 성공). 판매 중 · 품절 상품은 찜 가능, 판매 종료 · 복사본에 없는 상품(판매 시작 전)은 거절. 찜한 상품이 판매 종료되면 목록에 남기고 표시만 바꿈. 상품별 찜 수는 원자적으로 증감 |
@@ -295,10 +295,10 @@
 ![그림](images/23.svg)
 
 - 요청은 화면 → **API Gateway**(dev 8083 · prod 8084) → 서비스로 갑니다. Gateway가 토큰 검증 · 무효화 확인 · 역할 검사 · CORS를 하고 검증된 회원 정보를 헤더로 넘깁니다. 서비스는 Gateway 뒤에서만 열린다는 전제입니다.
-- Gateway는 경로별로 보냅니다: `GET /api/v1/products` → search-service, 자녀 경로 → childprofile-service(dev), 나머지 → kidly-app. 결제 · 추천도 분리를 마치면 경로를 그대로 둔 채 넘깁니다.
+- Gateway는 경로별로 도메인 서비스에 보냅니다. `GET /api/v1/products`는 search-service가 처리합니다.
 - 도메인 사이는 Kafka 이벤트로만 주고받습니다(토픽은 3.3). 다른 도메인 정보는 이벤트로 받아 둔 복사본을 씁니다 (6.3).
-- 서버는 EC2 2대입니다: t3.large(Docker Compose: Gateway · kidly-app · 검색 서비스 · PostgreSQL · Kafka)와 t3.medium(k3s: Elasticsearch · 모니터링). 상품 이미지는 S3, 배포는 GitHub Actions가 맡습니다.
-- 검색 서비스(search-service)는 kidly-app과 따로 뜨는 Spring Boot 앱입니다. 앱 서버 t3.large의 docker compose에서 돌고(프로필 `search`, heap 512m), 서버 안 `127.0.0.1:8082`에만 열립니다.
+- 서버는 EC2 2대입니다: t3.large(Docker Compose: Gateway · 도메인 서비스 · PostgreSQL · Kafka)와 t3.medium(k3s: Elasticsearch · 모니터링). 상품 이미지는 S3, 배포는 GitHub Actions가 맡습니다.
+- 검색 서비스(search-service)는 독립된 Spring Boot 앱입니다. 앱 서버 t3.large의 docker compose에서 돌고(프로필 `search`, heap 512m), 서버 안 `127.0.0.1:8082`에만 열립니다.
 - Elasticsearch(공식 이미지 + nori)는 모니터링과 같은 t3.medium의 k3s에서 돕니다(namespace `search`, heap 1g, 데이터 10Gi). 검색 서비스는 VPC 안에서 NodePort 30920으로 붙고, 보안 그룹은 t3.large에서 오는 것만 받습니다.
 - 지금은 dev만 켜져 있습니다. 배포는 앱 배포 워크플로가 Elasticsearch를 먼저 올린 뒤 검색 서비스를 올립니다. Elasticsearch 설정이나 이미지가 바뀌면 다시 뜨는 동안 2분쯤 검색이 끊깁니다.
 
@@ -399,7 +399,7 @@
 
 ![그림](images/27.svg)
 
-검색은 상품 DB를 읽지 않고 상품 · 판매자 이벤트로 색인합니다. 검색 서비스가 멈추면 상품 목록만 503이고, 상품 상세 · 장바구니 · 주문은 kidly-app이 받아 그대로 동작합니다.
+검색은 상품 DB를 읽지 않고 상품 · 판매자 이벤트로 색인합니다. 검색 서비스가 멈추면 상품 목록만 503이고, 상품 상세 · 장바구니 · 주문은 각 서비스가 처리합니다.
 
 # 4. 주요 정책
 
@@ -1276,7 +1276,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | 검색 서비스 메트릭 · 로그 | Grafana에서 job `kidly-search`, 로그 `service_name=kidly-search`. 앱 대시보드 · 알림(job `kidly`)과 섞이지 않음 |
 | Elasticsearch 상태 | t3.medium에서 `kubectl -n search get pods`, `/_cluster/health`(yellow · green), `/_cat/indices`(`dev-products` · `dev-sellers`) |
 | 색인이 비었을 때 | Elasticsearch를 새로 만들었거나 데이터를 지운 경우. 상품 · 판매자 전체 다시 보내기 API로 채움(#577) |
-| 검색이 503일 때 | Elasticsearch 연결 · 과부하 · 색인 없음. 급하면 Gateway의 `KIDLY_SEARCH_URI`를 kidly-app으로 바꿔 상품의 기존 목록 API로 되돌림 |
+| 검색이 503일 때 | Elasticsearch 연결 · 과부하 · 색인 없음. 검색 서비스를 복구 |
 | 이벤트가 처리되지 않을 때 | Slack ERROR 알림 · 로그에서 `eventType` · `eventId` · 키로 찾기 → `{토픽}.{받는도메인}.dlt` 확인. 주문은 관리자 화면에서 DLT 재처리, 나머지는 K23 |
 
 ## 10.4 운영 규칙 · 아직 볼 수 없는 것

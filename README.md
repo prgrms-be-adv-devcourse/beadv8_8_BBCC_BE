@@ -1,6 +1,6 @@
 # Kidly BE
 
-자녀 맞춤 키즈 패션 이커머스 백엔드. Spring Boot 4.1 · Java 25 · PostgreSQL 18 · Kafka 모듈러 모놀리스.
+자녀 맞춤 키즈 패션 이커머스 백엔드. Spring Boot 4.1 · Java 25 · PostgreSQL 18 · Kafka. API Gateway 뒤에 도메인별 서비스가 따로 뜨는 모노레포다.
 
 개발 규칙은 [`CLAUDE.md`](CLAUDE.md)를 따른다.
 
@@ -10,28 +10,28 @@
 
 ## 로컬 실행
 
-1. `.env.example`을 루트에 `.env`로 복사한다. 로컬은 기본값이 있어 비워 둬도 된다(앱이 실행될 때 루트의 `.env`를 자동으로 읽는다)
+1. `.env.example`을 루트에 `.env`로 복사한다. 로컬은 기본값이 있어 비워 둬도 된다(서비스가 실행될 때 루트의 `.env`를 자동으로 읽는다)
 2. `docker compose up -d` — PostgreSQL · Kafka · pgAdmin · Prometheus · Grafana
-3. `./gradlew :apps:kidly-app:bootRun` — 앱(8080). 기본 프로필 local. 루트에서 실행한다(IDE는 공유 실행 구성 `KidlyApplication`)
-4. `./gradlew :apps:gateway:bootRun` — Gateway(8083). 루트에서 실행한다(IDE는 `GatewayApplication`, 3 · 4를 한 번에 `Kidly 앱 + Gateway`)
-5. `cd apps/member-service && ./gradlew bootRun` — 회원 서비스(8081). 루트 빌드와 따로, 자체 wrapper로 빌드한다([구조와 실행](apps/member-service/README.md)). 회원 · 인증 · 판매자 API(로그인 포함)는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8081로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `MemberServiceApplication`
-7. `./gradlew :apps:recommend-service:bootRun` — 추천 서비스(8086). 추천 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8086으로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `RecommendServiceApplication`
-8. `docker compose --profile search up -d` 뒤 `./gradlew :apps:search-service:bootRun` — 검색 서비스(8082). 상품 목록(`GET /api/v1/products`)은 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8082로 넘긴다). 색인은 처음 뜬 뒤 판매자 · 상품을 바꾸거나 관리자 다시 보내기로 채운다
-9. `./gradlew :apps:payment-service:bootRun` — 결제 서비스(8087). 결제 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8087로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `PaymentServiceApplication`
-10. `./gradlew :apps:settlement-service:bootRun` — 정산 서비스(8088). 정산 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8088로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `SettlementServiceApplication`
-11. `./gradlew :apps:product-service:bootRun` — 상품 서비스(8089). 상품 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8089로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `ProductServiceApplication`
-12. `./gradlew :apps:order-service:bootRun` — 주문 서비스(8091). 주문 · 장바구니 · 배송 · 조르기 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8091로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `OrderServiceApplication`
-13. `./gradlew :apps:community-service:bootRun` — 커뮤니티 서비스(8092). 리뷰 · 찜 API는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8092로 넘긴다). IDE는 `CommunityServiceApplication`
-14. `./gradlew :apps:notification-service:bootRun` — 알림 서비스(8090). 가입 환영 메일과 알림함 API(`/api/v1/notifications/**`)는 앱에 없어 이 서비스를 띄워야 한다(Gateway가 8090으로 넘긴다). 앱(3)이 한 번 뜬 뒤에 띄운다(빈 DB에서 먼저 뜨면 앱의 마이그레이션이 실패한다). IDE는 `NotificationServiceApplication`
+3. `./gradlew :apps:gateway:bootRun` — Gateway(8083). 루트에서 실행한다. 모든 API 요청은 Gateway로 보낸다. 라우트에 없는 경로는 404다
+4. 필요한 서비스를 띄운다. Gateway가 경로별로 넘기므로 쓰려는 API의 서비스만 띄우면 된다. 서비스마다 자기 스키마를 직접 만들므로 빈 DB에서도 띄우는 순서는 상관없다. 루트에서 실행하고, IDE는 서비스마다 `XxxServiceApplication`, Gateway와 서비스를 한 번에 띄우려면 `Gateway + 서비스`를 쓴다
+
+| 서비스 | 명령 | 포트 | API |
+|---|---|---|---|
+| 회원 | `cd apps/member-service && ./gradlew bootRun` | 8081 | 회원 · 인증(로그인) · 판매자 · 자녀. 루트 빌드와 따로 자체 wrapper로 빌드한다([구조와 실행](apps/member-service/README.md)) |
+| 검색 | `docker compose --profile search up -d` 뒤 `./gradlew :apps:search-service:bootRun` | 8082 | 상품 목록(`GET /api/v1/products`). 색인은 처음 뜬 뒤 판매자 · 상품을 바꾸거나 관리자 다시 보내기로 채운다 |
+| 추천 | `./gradlew :apps:recommend-service:bootRun` | 8086 | 추천 |
+| 결제 | `./gradlew :apps:payment-service:bootRun` | 8087 | 결제 · 지갑 |
+| 정산 | `./gradlew :apps:settlement-service:bootRun` | 8088 | 정산 |
+| 상품 | `./gradlew :apps:product-service:bootRun` | 8089 | 상품(목록 제외) · 카테고리 |
+| 알림 | `./gradlew :apps:notification-service:bootRun` | 8090 | 가입 환영 메일, 알림함 |
+| 주문 | `./gradlew :apps:order-service:bootRun` | 8091 | 주문 · 장바구니 · 배송 · 조르기 |
+| 커뮤니티 | `./gradlew :apps:community-service:bootRun` | 8092 | 리뷰 · 찜 |
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
-- 프론트와 Swagger(http://localhost:8083/swagger-ui.html)는 Gateway 주소(8083)로 붙는다. Swagger 위쪽에서 앱 문서(`kidly`)와 `회원` · `추천` · `결제` · `상품` 문서를 고른다. 자녀 API는 회원 문서에 포함된다. 앱(8080)에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 앱에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
+- 프론트는 Gateway 주소(8083)로 붙는다. Swagger는 서비스마다 따로 연다(`http://localhost:<서비스 포트>/swagger-ui.html`, 알림 서비스는 없다). 서비스에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 서비스에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
 - Gateway는 Kafka(`kidly.auth.events`)로 토큰 무효화를 받는다. 회원 서비스보다 먼저 떠도 기동은 되지만, 회원 서비스가 한 번 떠서 토픽이 만들어진 뒤에 무효화 목록이 채워진다
-- 회원 · 판매자 토픽(`kidly.member.events` · `kidly.seller.events`)은 회원 서비스가 처음 뜰 때 만든다. 새 Kafka에서는 자녀 토픽과 같은 이유로 그 전에 떠 있던 앱의 리스너(주문)와 결제 · 상품 · 알림 서비스의 리스너가 그 사이에 나간 메시지(회원 서비스가 뜨며 넣는 초기 회원 · 판매자 데이터 등)를 건너뛴다. 처음 한 번은 회원 서비스를 띄운 뒤 앱과 결제 · 상품 · 알림 서비스를 다시 시작한다
-- 자녀 토픽(`kidly.childprofile.events`)은 회원 서비스가 처음 뜰 때 만든다. 새 Kafka(빈 `kafka-data` 볼륨)에서는 그 전에 떠 있던 앱의 주문 리스너와 추천 서비스의 리스너가 몇 초 뒤 메타데이터를 갱신하고서야 토픽을 받고, 책갈피가 없어 그때의 끝(`auto-offset-reset: latest`)부터 읽는다. 그 사이에 나간 자녀 메시지(서비스가 뜨며 넣는 초기 자녀 데이터 등)는 건너뛰고 다시 오지 않는다. 처음 한 번은 회원 서비스를 띄운 뒤 앱과 추천 서비스를 다시 시작한다
-- 검색 토픽(`kidly.search.events`)은 검색 서비스가 처음 뜰 때 만든다. 검색 서비스(8)를 띄우기 전에는 토픽이 없으므로, 추천 서비스는 기동은 되지만 검색 리스너가 토픽을 찾는 `UNKNOWN_TOPIC_OR_PARTITION` WARN을 1초에 한두 줄씩 남긴다. 검색 서비스를 한 번 띄워 토픽이 생기면 사라진다
-- 상품 토픽(`kidly.product.events`)은 상품 서비스가 처음 뜰 때 만든다. 새 Kafka에서는 그 전에 떠 있던 앱의 리스너(주문 · 커뮤니티)가 그 사이에 나간 상품 메시지(상품 서비스가 뜨며 넣는 초기 상품 데이터 등)를 건너뛴다. 처음 한 번은 상품 서비스를 띄운 뒤 앱을 다시 시작하거나, 관리자 `POST /api/v1/admin/products/changed-events`로 판매 중인 상품의 `product.changed`를 다시 보낸다
-- 추천 서비스는 앱이 한 번 뜬 뒤에 띄우므로, 새 Kafka에서는 회원 · 상품 서비스가 처음 뜨며 넣은 초기 판매자 · 상품 데이터의 메시지가 추천 서비스의 구독 그룹(`kidly.recommend`) 책갈피가 생기기 전에 나가 추천 복사본에 들어오지 않는다. 그 뒤 판매자 · 상품을 바꾸거나 새로 만들면 그때부터 들어온다(읽기 시작 위치는 팀 규칙대로 `latest`다)
+- 토픽은 보내는 서비스가 처음 뜰 때 만든다(회원 · 판매자 · 자녀 · 인증은 회원 서비스, 상품은 상품 서비스, 검색은 검색 서비스). 받는 서비스는 책갈피가 없으면 그때의 끝(`auto-offset-reset: latest`)부터 읽으므로, 새 Kafka(빈 `kafka-data` 볼륨)에서 받는 서비스의 구독 그룹이 생기기 전에 나간 메시지(보내는 서비스가 뜨며 넣는 초기 회원 · 판매자 · 자녀 · 상품 데이터 등)는 건너뛰고 다시 오지 않는다. 처음 한 번은 보내는 서비스(회원 · 상품)를 띄운 뒤 받는 서비스(주문 · 결제 · 추천 · 커뮤니티 · 알림)를 다시 시작한다. 상품은 관리자 `POST /api/v1/admin/products/changed-events`로 판매 중인 상품의 `product.changed`를 다시 보낼 수도 있다
+- 검색 서비스를 띄우기 전에는 검색 토픽(`kidly.search.events`)이 없으므로, 추천 서비스는 기동은 되지만 검색 리스너가 토픽을 찾는 `UNKNOWN_TOPIC_OR_PARTITION` WARN을 1초에 한두 줄씩 남긴다. 검색 서비스를 한 번 띄워 토픽이 생기면 사라진다
 
 ## 빌드 · 테스트
 
@@ -47,21 +47,20 @@
 
 | 모듈 | 내용 |
 |---|---|
-| `apps/kidly-app` | 실행 앱. 앱 설정, 공통 테스트 기반(`support`, `TestcontainersConfiguration`) |
 | `apps/gateway` | API Gateway(WebFlux). 토큰 검증 · 무효화 확인 · 역할 검사 · CORS · 라우팅 |
-| `apps/member-service` | 회원 서비스. 회원 · 인증 · 판매자 도메인은 이 서비스에만 있다. 빈 DB에서는 앱이 먼저 회원 테이블을 만들고, 서비스는 그 버전에서 baseline을 잡는다 |
+| `apps/member-service` | 회원 서비스. 회원 · 인증 · 판매자 도메인은 이 서비스에만 있다. |
 | `apps/recommend-service` | 추천 서비스(#704). 추천 도메인은 이 서비스에만 있다 |
 | `apps/payment-service` | 결제 서비스(#525). 결제 도메인은 이 서비스에만 있다. 결제 마이그레이션은 서비스 `baseline-version`(`202611021930`, 고정)보다 뒤 버전으로 더한다 |
 | `apps/settlement-service` | 정산 서비스(#729). 정산 도메인은 이 서비스에만 있다. 구매확정 · 지급 결과는 Kafka로만 받으므로 수신 스위치(`SETTLEMENT_KAFKA_CONSUMER_ENABLED`)를 끄면 이벤트를 받지 못한다 |
-| `apps/product-service` | 상품 서비스(#791). 상품 도메인은 이 서비스에만 있다. 상품 마이그레이션(`domains/product`의 `db/migration/product`)은 이 서비스만 적용한다(앱은 옛 상품 이력 행을 검증 전에 지운다). 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다 |
-| `apps/order-service` | 주문 서비스(주문 · 장바구니 · 배송 · 조르기, #826). 주문 도메인은 이 서비스에만 있다. 주문 마이그레이션은 이 서비스만 적용한다(앱은 옛 주문 모듈 이력 행을 검증 전에 지운다). 빈 DB에서 앱이 init으로 만든 주문 표 위에 서비스가 baseline(`202611031100`, 고정)을 잡고, 건너뛴 주문 모듈 표는 보강 마이그레이션이 만든다 |
+| `apps/product-service` | 상품 서비스(#791). 상품 도메인은 이 서비스에만 있다. 상품 마이그레이션(`domains/product`의 `db/migration/product`)은 이 서비스만 적용한다. 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다 |
+| `apps/order-service` | 주문 서비스(주문 · 장바구니 · 배송 · 조르기, #826). 주문 도메인은 이 서비스에만 있다. 주문 마이그레이션은 이 서비스만 적용한다. 주문 표가 이미 있는 DB는 baseline(`202611031100`, 고정)으로 건너뛰고, 빠진 표는 보강 마이그레이션이 만든다 |
 | `apps/community-service` | 커뮤니티 서비스(리뷰 · 찜, #827). 커뮤니티 도메인은 이 서비스에만 있다. 마이그레이션은 도메인 모듈에만 있고 이 서비스만 적용한다. 이미 테이블이 있는 DB는 baseline(`202611031200`, 고정)으로 건너뛴다 |
-| `apps/notification-service` | 알림 서비스(#833). 알림 도메인은 이 서비스에만 있다. 회원 가입 이벤트를 받아(구독 그룹 `kidly.notification`) 환영 메일을 보낸다. 알림함 API(#852)는 Gateway가 넘긴다. 알림 테이블은 빈 DB에서 앱이 먼저 만들고, 서비스는 `202610190901`(고정)에서 baseline을 잡는다. 새 알림 마이그레이션은 `domains/notification`의 `db/migration/notification`에 둔다 |
-| `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식 |
+| `apps/notification-service` | 알림 서비스(#833). 알림 도메인은 이 서비스에만 있다. 회원 가입 이벤트를 받아(구독 그룹 `kidly.notification`) 환영 메일을 보낸다. 알림함 API(#852)는 Gateway가 넘긴다. 알림 테이블이 이미 있는 DB는 `202610190901`(고정)에서 baseline을 잡는다. 새 알림 마이그레이션은 `domains/notification`의 `db/migration/notification`에 둔다 |
+| `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식. JPA 공통 동작은 `integrationTest`로 실제 PostgreSQL에서 확인한다 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
 | `apps/member-service/{auth,member,seller,support}` | 회원 서비스 빌드의 Gradle 모듈. 회원 서비스는 자체 settings를 가진 별도 빌드다. [구조와 실행](apps/member-service/README.md) |
-| `architecture` | 도메인 모듈 안의 계층 규칙(ArchUnit `LayerRules`) |
+| `architecture` | 도메인 모듈마다 돌리는 ArchUnit 규칙(계층 `LayerRules`, 트랜잭션 격리 `TransactionRules`) |
 
 ## 인증
 

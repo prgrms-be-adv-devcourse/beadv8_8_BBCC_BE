@@ -15,7 +15,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 /**
  * Flyway 마이그레이션 파일 이름 규칙. 버전은 파일을 만든 시각(yyyyMMddHHmm, KST)이라 PR끼리 번호가 겹치지 않는다.
- * 콜백(beforeValidate 등)은 버전이 없는 SQL이라 따로 허용한다. kidly-app MigrationNamingTest와 같은 규칙이다(kidly-app에는 상품 서비스의 init이 없다).
+ * 콜백(beforeValidate 등)은 버전이 없는 SQL이라 따로 허용한다.
  */
 class MigrationNamingTest {
 

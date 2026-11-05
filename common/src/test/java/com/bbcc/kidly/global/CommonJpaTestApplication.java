@@ -1,15 +1,18 @@
-package com.bbcc.kidly;
+package com.bbcc.kidly.global;
 
 import java.util.TimeZone;
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-// Kafka 컨테이너는 Kafka가 필요한 테스트만 띄운다(KafkaTestcontainersConfiguration, @KafkaIntegrationTest)
-@TestConfiguration(proxyBeanMethods = false)
-public class TestcontainersConfiguration {
+/**
+ * common의 JPA 통합 테스트(@DataJpaTest)가 찾는 설정. 테스트 엔티티와 실제 PostgreSQL로 공통 JPA 동작을 확인한다.
+ * 서비스와 같은 Hibernate 설정은 src/test/resources/application.yml에 둔다.
+ */
+@SpringBootApplication
+class CommonJpaTestApplication {
 
     static {
         TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"));

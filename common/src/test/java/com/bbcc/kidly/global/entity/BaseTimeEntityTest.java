@@ -2,9 +2,7 @@ package com.bbcc.kidly.global.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.TestcontainersConfiguration;
 import com.bbcc.kidly.global.config.JpaAuditingConfig;
-import com.bbcc.kidly.global.config.QuerydslConfig;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -14,15 +12,12 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 
-// JPA Auditing만 확인하므로 @IntegrationTest 대신 JPA 슬라이스로 띄운다.
-// 슬라이스는 모든 리포지토리를 띄우고, 리포지토리의 QueryDSL 조각이 JPAQueryFactory를 받으므로 QuerydslConfig도 올린다
+// JPA Auditing만 확인하므로 JPA 슬라이스로 띄운다(설정은 CommonJpaTestApplication)
 @Tag("integration")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({TestcontainersConfiguration.class, JpaAuditingConfig.class, QuerydslConfig.class})
-@ActiveProfiles("test")
+@Import(JpaAuditingConfig.class)
 class BaseTimeEntityTest {
 
     @Autowired

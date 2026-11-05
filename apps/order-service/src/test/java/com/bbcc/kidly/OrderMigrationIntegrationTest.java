@@ -19,10 +19,10 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * 서비스가 처음 뜰 때 주문 테이블이 이미 있는 DB에서 서비스 Flyway가 baseline을 잡고 나서의 스키마를 본다.
- * kidly-app이 주문을 가지고 있는 동안 쓰는 DB(dev · prod · 공유 로컬)에는 kidly-app이 주문 마이그레이션을 모두 적용해 둔다.
- * baseline-version은 서비스가 처음 뜰 때 한 번만 쓰이므로 고정해 두고, 그 뒤에 더한 주문 마이그레이션은 두 앱이 모두 적용한다.
+ * kidly-app이 주문을 가지고 있던 동안 쓰던 DB에는 주문 마이그레이션을 모두 적용해 두었다.
+ * baseline-version은 서비스가 처음 뜰 때 한 번만 쓰이므로 고정해 두고, 그 뒤에 더한 주문 마이그레이션은 서비스가 적용한다.
  * 그래서 이 DB에 서비스 Flyway를 돌려도 스키마가 바뀌지 않아야 한다.
- * kidly-app에서 주문을 뺀 뒤(#826) 빈 DB에서 kidly-app은 자기 폴더의 주문 파일(init의 orders 구문 · 옛 주문 파일 5개)까지만 적용한다.
+ * 주문 분리 당시(#826) kidly-app은 자기 폴더의 주문 파일(init의 orders 구문 · 옛 주문 파일 5개)까지만 적용했다.
  * 서비스는 그 뒤 baseline을 잡아 주문 모듈 마이그레이션을 건너뛰므로, 그런 DB에서도 모든 주문 마이그레이션을 적용한 DB와 스키마가 같아야 한다
  * (보강 마이그레이션 V202611041730).
  * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
@@ -31,7 +31,7 @@ import org.testcontainers.utility.DockerImageName;
 class OrderMigrationIntegrationTest {
 
     private static final String BASELINE_VERSION = "202611031100";
-    // kidly-app 폴더에 남는 마지막 주문 마이그레이션(이벤트 처리 실패 보관)
+    // kidly-app 폴더에 있던 마지막 주문 마이그레이션(이벤트 처리 실패 보관)
     private static final String LAST_KIDLY_APP_MODULE_VERSION = "202610191003";
 
     @Test

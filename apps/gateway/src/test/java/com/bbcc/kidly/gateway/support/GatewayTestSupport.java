@@ -14,7 +14,7 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
  * 통합 테스트(@IntegrationTest)가 상속한다: 실제 포트로 뜬 Gateway에 보내는 client와
- * 가짜 백엔드(kidly-app · 상품 · 주문 · 커뮤니티 · 알림 서비스)를 테스트마다 새로 준비한다.
+ * 서비스별 가짜 백엔드를 테스트마다 새로 준비한다.
  * Gateway가 막은 응답은 expectBadRequest · expectUnauthorized · expectForbidden으로 본다.
  */
 public abstract class GatewayTestSupport {
@@ -23,7 +23,7 @@ public abstract class GatewayTestSupport {
     private int port;
 
     @Autowired
-    protected RecordingBackend backend;
+    private java.util.List<RecordingBackend> backends;
 
     // 상품 API(/api/v1/products/{id} · 카테고리 · 판매자 · 관리자 상품 경로)는 상품 서비스 라우트(#791)로 간다
     @Autowired
@@ -49,7 +49,7 @@ public abstract class GatewayTestSupport {
 
     @BeforeEach
     void setUpGatewayClient() {
-        backend.reset();
+        backends.forEach(RecordingBackend::reset);
         productBackend.reset();
         orderBackend.reset();
         communityBackend.reset();
@@ -82,11 +82,19 @@ public abstract class GatewayTestSupport {
     private void expectRejected(ResponseSpec response, HttpStatus status, String title, String detail,
         String instance) {
         expectProblem(response, status, title, detail, instance);
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
         assertThat(productBackend.lastRequest()).isEmpty();
         assertThat(orderBackend.lastRequest()).isEmpty();
         assertThat(communityBackend.lastRequest()).isEmpty();
         assertThat(notificationBackend.lastRequest()).isEmpty();
+    }
+
+    protected void resetBackends() {
+        backends.forEach(RecordingBackend::reset);
+    }
+
+    protected void assertNoBackendRequests() {
+        assertThat(backends).allSatisfy(backend -> assertThat(backend.lastRequest()).isEmpty());
     }
 
     // 5필드 ProblemDetail 본문을 본다. 백엔드까지 갔다가 실패한 응답(503 · 504)에도 쓰므로 백엔드 호출 여부는 보지 않는다.

@@ -18,7 +18,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * 빈 DB에서 kidly-app이 먼저 뜨면 자녀 테이블만 있고 아웃박스는 없다(#682). 그 DB에서 서비스 Flyway가 아웃박스를 만드는지 본다.
+ * 예전에 kidly-app이 만든 DB에서는 자녀 테이블만 있고 아웃박스는 없다(#682). 그 DB에서 서비스 Flyway가 아웃박스를 만드는지 본다.
  * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
  */
 @Tag("integration")

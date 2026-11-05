@@ -6,6 +6,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.junit.ArchTests;
 import com.tngtech.archunit.lang.ArchRule;
 
 /**
@@ -17,7 +18,7 @@ import com.tngtech.archunit.lang.ArchRule;
  * </pre>
  *
  * 도메인 모듈마다 자기 클래스를 검사한다: {@code @ArchTest static final ArchTests LAYER_RULES = ArchTests.in(LayerRules.class);}
- * 도메인 사이 참조는 Gradle 의존으로 막는다(kidly.domain).
+ * 도메인 사이 참조는 Gradle 의존으로 막는다(kidly.domain). 모든 도메인 모듈이 이 규칙을 돌리므로 트랜잭션 규칙({@link TransactionRules})도 여기서 함께 돌린다.
  */
 public final class LayerRules {
 
@@ -70,6 +71,15 @@ public final class LayerRules {
         .should().dependOnClassesThat(resideInAPackage(CONTEXTS + ".*.app..")
             .and(resideOutsideOfPackage(CONTEXTS + ".*.app.port..")))
         .allowEmptyShould(true);
+
+    // 다른 서비스가 받는 이벤트는 shared에 둔다. 도메인 모듈에 두면 받는 서비스가 의존할 수 없다
+    @ArchTest
+    static final ArchRule DOMAIN_EVENTS_RESIDE_IN_SHARED_EVENT = noClasses()
+        .should().implement("com.bbcc.kidly.shared.event.DomainEvent")
+        .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchTests TRANSACTION_RULES = ArchTests.in(TransactionRules.class);
 
     private LayerRules() {
     }

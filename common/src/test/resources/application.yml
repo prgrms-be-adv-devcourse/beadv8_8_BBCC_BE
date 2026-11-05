@@ -1,0 +1,12 @@
+# common JPA 통합 테스트용. 테스트 엔티티 표는 Hibernate가 만든다(common에는 마이그레이션이 없다)
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    # 서비스 application.yml과 같은 연결 반환 · 읽기 전용 쓰기 차단 설정
+    properties:
+      hibernate:
+        connection:
+          handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
+        session_factory:
+          statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard

@@ -31,14 +31,14 @@ dependencies {
     testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     // 정산 작업 테스트가 실행 기록(JobRepository · JobParameters)을 직접 만든다. 도메인 모듈은 batch를 implementation으로 받아
-    // 앱의 테스트 컴파일 경로에는 없다 (kidly-app과 같은 의존)
+    // 앱의 테스트 컴파일 경로에는 없다
     testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
-    // Kafka 테스트용 컨테이너와 메시지를 넣고 읽는 Producer · Consumer, 리스너를 켜고 끄는 레지스트리 (버전은 Boot BOM, kidly-app과 같다)
+    // Kafka 테스트용 컨테이너와 메시지를 넣고 읽는 Producer · Consumer, 리스너를 켜고 끄는 레지스트리 (버전은 Boot BOM)
     // 도메인 모듈은 spring-kafka를 implementation으로 받아 앱의 테스트 컴파일 경로에는 없다.
-    // 실행 경로에는 도메인 모듈이 넣으므로 main에는 넣지 않는다(kidly-app의 앱 공용 Kafka 설정 같은 코드가 없다)
+    // 실행 경로에는 도메인 모듈이 넣으므로 main에는 넣지 않는다
     testImplementation("org.springframework.boot:spring-boot-starter-kafka")
     testImplementation("org.testcontainers:testcontainers-kafka")
     testImplementation("org.apache.kafka:kafka-clients")

@@ -3,22 +3,31 @@ package com.bbcc.kidly.global.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 트랜잭션이 끝나면 DB 연결을 돌려주는 설정에서는 readOnly가 DB까지 전달되지 않는다.
  * 그래서 읽기 전용 트랜잭션에서 Hibernate가 보내는 쓰기 SQL을 애플리케이션이 막는지 실제 PostgreSQL로 확인한다.
  * 쓰기 대상은 테스트 전용 엔티티이고, 결과는 트랜잭션 밖에서 DB를 직접 읽어 확인한다.
+ * 트랜잭션은 테스트가 직접 열고 커밋하므로 슬라이스의 테스트 트랜잭션은 끈다.
  */
-@IntegrationTest
+@Tag("integration")
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ReadOnlyWriteGuardIntegrationTest {
 
     private static final String RENAME = "update ReadOnlyGuardTestEntity e set e.name = 'after' where e.id = :id";
@@ -31,6 +40,11 @@ class ReadOnlyWriteGuardIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @AfterEach
+    void deleteEntities() {
+        jdbcTemplate.update("delete from read_only_guard_test_entity");
+    }
 
     @Test
     @DisplayName("읽기 전용 트랜잭션에서 UPDATE 쿼리를 보내면 예외가 나고 값은 그대로다")

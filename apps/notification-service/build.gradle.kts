@@ -29,7 +29,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
-    // Kafka 테스트용 컨테이너와 메시지를 넣고 읽는 Producer · Consumer, 리스너를 켜고 끄는 레지스트리 (버전은 Boot BOM, kidly-app과 같다)
+    // Kafka 테스트용 컨테이너와 메시지를 넣고 읽는 Producer · Consumer, 리스너를 켜고 끄는 레지스트리 (버전은 Boot BOM)
     // 도메인 모듈은 spring-kafka를 implementation으로 받아 앱의 테스트 컴파일 경로에는 없다.
     // 실행 경로에는 도메인 모듈이 넣으므로 main에는 넣지 않는다(정산 서비스와 같다)
     testImplementation("org.springframework.boot:spring-boot-starter-kafka")

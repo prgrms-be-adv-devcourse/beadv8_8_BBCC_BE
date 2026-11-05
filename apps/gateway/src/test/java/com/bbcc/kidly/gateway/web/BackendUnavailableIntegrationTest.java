@@ -19,7 +19,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 /**
  * 백엔드 연결이 실패하면(닫힌 포트) 503 ProblemDetail을 내는지 본다(#668). 다른 통합 테스트와 같은 컨텍스트(@IntegrationTest)를
- * 쓰면 RecordingBackendConfiguration이 app-uri를 가짜 백엔드 포트로 덮어써서 닫힌 포트를 만들 수 없다. Gateway 컨텍스트는 DB가
+ * 쓰면 RecordingBackendConfiguration이 서비스 URI를 가짜 백엔드 포트로 덮어써서 닫힌 포트를 만들 수 없다. Gateway 컨텍스트는 DB가
  * 없어 가벼우므로 이 테스트만 따로 띄운다.
  */
 @Tag("integration")
@@ -36,7 +36,6 @@ class BackendUnavailableIntegrationTest {
     static void backendUris(DynamicPropertyRegistry registry) {
         var closedPort = closedPort();
         registry.add("kidly.gateway.member-uri", () -> "http://127.0.0.1:" + closedPort);
-        registry.add("kidly.gateway.app-uri", () -> "http://127.0.0.1:" + closedPort);
         registry.add("kidly.gateway.search-uri", () -> "http://127.0.0.1:" + closedPort);
         registry.add("kidly.gateway.recommend-uri", () -> "http://127.0.0.1:" + closedPort);
         registry.add("kidly.gateway.settlement-uri", () -> "http://127.0.0.1:" + closedPort);

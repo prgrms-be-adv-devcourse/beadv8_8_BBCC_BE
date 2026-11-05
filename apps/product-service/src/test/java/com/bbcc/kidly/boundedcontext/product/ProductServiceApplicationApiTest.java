@@ -14,7 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 상품 서비스가 상품 도메인만으로 뜨고, 상품 API를 kidly-app과 같은 주소 · 같은 응답 형식으로 내는지 본다(#791).
+ * 상품 서비스가 상품 도메인만으로 뜨고, 상품 API를 정해진 주소 · 응답 형식으로 내는지 본다(#791).
  */
 @FunctionalTest
 class ProductServiceApplicationApiTest {
@@ -46,7 +46,7 @@ class ProductServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("다른 도메인 API는 없어 kidly-app과 같은 ProblemDetail 형식의 404를 받는다")
+    @DisplayName("다른 도메인 API는 없어 ProblemDetail 형식의 404를 받는다")
     void noOtherDomainApi() {
         client.get().uri("/api/v1/orders")
             .headers(TestMembers.buyer(MEMBER_ID))
@@ -78,7 +78,7 @@ class ProductServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("카테고리 목록 API를 kidly-app과 같은 주소로 부르면 같은 형식으로 답한다(로그인 없이, ID는 문자열)")
+    @DisplayName("카테고리 목록 API를 부르면 정해진 형식으로 답한다(로그인 없이, ID는 문자열)")
     void categories() {
         categoryRepository.save(CategoryFixture.clothing());
 

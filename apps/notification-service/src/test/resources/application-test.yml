@@ -16,7 +16,7 @@ kidly:
   # 테스트에서는 실제 메일을 보내지 않는다 (로그 발송기)
   mail:
     enabled: false
-  # 커밋 뒤 Kafka로 보내는 빈을 끄는 팀 공통 값이라 kidly-app과 같게 둔다. Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
+  # 커밋 뒤 Kafka로 보내는 빈을 끄는 팀 공통 값이다. Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
   kafka:
     producer:
       enabled: false

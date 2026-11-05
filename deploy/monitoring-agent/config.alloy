@@ -1,8 +1,8 @@
 // t3.large(앱 서버)의 수집기. 앱 로그 · 앱 메트릭 · 호스트 · 컨테이너 메트릭을 t3.medium k3s(deploy/monitoring)로 보낸다
 // 받는 곳은 medium 의 NodePort(Loki 31100, Prometheus 30090)다. 주소는 .env 의 MONITORING_HOST(medium 사설 IP)
 
-// dev · prod 앱 컨테이너(compose 서비스 app · search-service · gateway · recommend-service · settlement-service · member-service · payment-service · product-service · notification-service · order-service · community-service) 로그를 Loki 로 보낸다
-// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(app → kidly, search-service → kidly-search, gateway → kidly-gateway, recommend-service → kidly-recommend, settlement-service → kidly-settlement, member-service → kidly-member, payment-service → kidly-payment, product-service → kidly-product, notification-service → kidly-notification, order-service → kidly-order, community-service → kidly-community), level 라벨은 로그 줄에서 뽑는다
+// dev · prod 앱 컨테이너(compose 서비스 search-service · gateway · recommend-service · settlement-service · member-service · payment-service · product-service · notification-service · order-service · community-service) 로그를 Loki 로 보낸다
+// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(search-service → kidly-search, gateway → kidly-gateway, recommend-service → kidly-recommend, settlement-service → kidly-settlement, member-service → kidly-member, payment-service → kidly-payment, product-service → kidly-product, notification-service → kidly-notification, order-service → kidly-order, community-service → kidly-community), level 라벨은 로그 줄에서 뽑는다
 // 서버 콘솔은 ECS JSON 한 줄이다. 텍스트 줄은 JSON 이전 이미지가 남긴 것이라 전환 기간에만 쓰인다
 
 discovery.docker "containers" {
@@ -14,7 +14,7 @@ discovery.relabel "kidly_app" {
 
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "app|search-service|gateway|recommend-service|settlement-service|member-service|payment-service|product-service|notification-service|order-service|community-service"
+		regex         = "search-service|gateway|recommend-service|settlement-service|member-service|payment-service|product-service|notification-service|order-service|community-service"
 		action        = "keep"
 	}
 
@@ -30,12 +30,6 @@ discovery.relabel "kidly_app" {
 	}
 
 	// Drilldown → Logs 가 서비스 이름으로 묶는다. 없으면 Loki 가 unknown_service 를 붙인다
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "app"
-		target_label  = "service_name"
-		replacement   = "kidly"
-	}
 
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
@@ -159,22 +153,7 @@ loki.write "medium" {
 	}
 }
 
-// 앱의 /actuator/prometheus. 옛 Prometheus 의 job kidly(file_sd)와 같은 라벨이 붙는다: job="kidly", instance="127.0.0.1:<포트>", env(파일의 labels)
-// 수집 대상은 앱 배포(deploy/deploy.sh)가 기동에 성공할 때마다 targets/<환경>.yml 로 써 둔다. 파일이 바뀌면 다시 읽는다
-// 배포된 적 없는 환경은 파일이 없어 수집하지 않는다 (없는 대상을 넣으면 "앱 다운"이 계속 울린다)
-discovery.file "kidly" {
-	files = ["/etc/alloy/targets/*.yml"]
-}
-
-prometheus.scrape "kidly" {
-	job_name        = "kidly"
-	targets         = discovery.file.kidly.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 검색 서비스(apps/search-service). 앱 대시보드 · 알림(job kidly)과 섞이지 않게 job 을 나눈다
+// 검색 서비스(apps/search-service). 서비스별 job 을 쓴다
 // 검색이 켜진 환경만 앱 배포가 targets/search/<환경>.yml 로 써 둔다
 discovery.file "kidly_search" {
 	files = ["/etc/alloy/targets/search/*.yml"]
@@ -327,7 +306,7 @@ prometheus.exporter.cadvisor "containers" {
 	store_container_labels = false
 }
 
-// 앱 메트릭(위 prometheus.scrape "kidly")과 같은 15초 간격
+// 서비스 메트릭과 같은 15초 간격
 prometheus.scrape "host" {
 	targets         = prometheus.exporter.unix.host.targets
 	forward_to      = [prometheus.remote_write.medium.receiver]

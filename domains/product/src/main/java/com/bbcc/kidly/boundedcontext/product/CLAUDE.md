@@ -91,9 +91,9 @@
 - 표는 엔티티를 지운 뒤 Flyway로 지운다. `ddl-auto: validate`라 엔티티가 남은 채 표를 먼저 지우면 앱이 뜨지 않는다
 
 ## 상품 서비스 (apps/product-service, #791)
-상품 도메인은 이 서비스에만 있다. kidly-app에는 상품 모듈이 없다.
+상품 도메인은 이 서비스에만 있다.
 - 릴레이: 상품 서비스가 상품 아웃박스 릴레이를 돈다(`ProductServiceKafkaIntegrationTest`가 스케줄러 빈을 확인한다). 릴레이에는 잠금이 없다. 배포 때 compose가 app을 먼저 새로 띄운 뒤 상품 서비스를 띄우므로, 옛 app의 릴레이와 새 서비스의 릴레이가 겹치지 않는다
 - 수신: 구독 그룹 `kidly.product`는 상품 서비스만 쓴다. 수신 스위치 `PRODUCT_KAFKA_CONSUMER_ENABLED`는 상품 서비스에서만 바꾼다
-- 마이그레이션: 서비스는 자기 이력 표 `flyway_schema_history_product`를 쓰고 baseline-version `202610292246`(고정)에서 baseline을 잡는다. baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없으므로 새 상품 마이그레이션은 baseline보다 뒤 버전으로 더한다. kidly-app은 옛 상품 모듈 마이그레이션의 이력 행을 검증 전에 지운다(`beforeValidate__drop_product_domain_history.sql`, `KidlyAppMigrationIntegrationTest`). 상품 표는 그대로 두고 서비스가 쓴다. 빈 DB에서는 kidly-app이 상품 표(init)를 먼저 만들고, 서비스가 그 위에서 baseline을 잡은 뒤 아웃박스 표를 보강한다(`ProductMigrationIntegrationTest`)
+- 마이그레이션: 서비스는 자기 이력 표 `flyway_schema_history_product`를 쓰고 baseline-version `202610292246`(고정)에서 baseline을 잡는다. baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없으므로 새 상품 마이그레이션은 baseline보다 뒤 버전으로 더한다. 빈 DB에서는 서비스의 init부터 마이그레이션을 적용한다(`ProductMigrationIntegrationTest`)
 - Gateway · 배포: Gateway는 상품 API(공개 · 판매자 · 관리자)를 `KIDLY_PRODUCT_URI`(기본값 `http://product-service:8080`)로 보낸다. 배포는 compose profile `product`(힙 192m · 상한 512m)이고 dev · prod 모두 켰다(prod는 첫 main 배포 때 뜬다). Swagger '상품' 문서는 Gateway의 `/v3/api-docs/product`가 서비스 문서를 넘긴다
 - 남은 일: 첫 prod 배포 전에 서버 메모리 대비(#793)가 들어가 있어야 한다

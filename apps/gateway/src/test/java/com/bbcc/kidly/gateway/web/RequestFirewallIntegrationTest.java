@@ -98,7 +98,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.method(HttpMethod.TRACE).uri("/api/v1/products").exchange()
             .expectStatus().isBadRequest();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
     }
 
     // 헤더는 뒤 필터가 읽을 때 검사된다. AccessTokenFilter가 Authorization을 읽다가 거절된다
@@ -110,7 +110,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isBadRequest();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
         assertThat(productBackend.lastRequest()).isEmpty();
     }
 
@@ -121,7 +121,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.get().uri(raw("/api/v1/%61dmin/members")).exchange()
             .expectStatus().isUnauthorized();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
     }
 
     @Test
@@ -130,7 +130,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.get().uri(raw("/%69nternal/members/1")).exchange()
             .expectStatus().isNotFound();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
     }
 
     @Test

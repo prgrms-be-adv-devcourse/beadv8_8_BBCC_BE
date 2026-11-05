@@ -3,8 +3,6 @@ evaluation_interval: 1m
 tests:
   - interval: 1m
     input_series:
-      - series: 'kidly_app_expected{env="dev",app_job="kidly"}'
-        values: '1+0x21'
       - series: 'kidly_app_expected{env="dev",app_job="kidly-search"}'
         values: '1+0x21'
       - series: 'kidly_app_expected{env="dev",app_job="kidly-settlement"}'
@@ -13,8 +11,6 @@ tests:
         values: '1+0x21'
       - series: 'kidly_app_expected{env="prod",app_job="kidly-search"}'
         values: '1+0x21'
-      - series: 'up{job="kidly",env="dev"}'
-        values: '0+0x10 1+0x10'
       - series: 'up{job="kidly-search",env="dev"}'
         values: '0+0x10 1+0x10'
       - series: 'up{job="kidly-settlement",env="dev"}'
@@ -43,7 +39,6 @@ tests:
       - eval_time: 10m
         alertname: kidly-app-down
         exp_alerts:
-          - exp_labels: {job: kidly, env: dev}
           - exp_labels: {job: kidly-search, env: dev}
           - exp_labels: {job: kidly-settlement, env: dev}
       - eval_time: 10m

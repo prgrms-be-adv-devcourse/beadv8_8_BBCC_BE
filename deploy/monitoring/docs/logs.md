@@ -17,11 +17,11 @@ Grafana → **Kidly 로그**에서 환경·서비스·시간을 먼저 좁힙니
 본문을 조사해야 할 때는 [요청 로그 정책](request-log-policy.md)을 따릅니다. 이 필터가 모든 도메인의 별도 로그까지 정제하지는 않습니다.
 
 ```logql
-{env="dev", service_name="kidly", level="ERROR"}
-{env="dev", service_name="kidly"} | traceId="00000000-0000-4000-8000-000000000001"
-{env="dev", service_name="kidly"} |= "RequestLoggingFilter" | json | __error__="" | http_response_status_code >= 500
-{env="dev", service_name="kidly"} |= "RequestLoggingFilter" | json | __error__="" | duration_ms > 1000
-{env="dev", service_name="kidly"} |= "RequestLoggingFilter" | json | __error__="" | http_route = "/api/v1/orders/{id}"
+{env="dev", service_name="kidly-search", level="ERROR"}
+{env="dev", service_name="kidly-search"} | traceId="00000000-0000-4000-8000-000000000001"
+{env="dev", service_name="kidly-search"} |= "RequestLoggingFilter" | json | __error__="" | http_response_status_code >= 500
+{env="dev", service_name="kidly-search"} |= "RequestLoggingFilter" | json | __error__="" | duration_ms > 1000
+{env="dev", service_name="kidly-search"} |= "RequestLoggingFilter" | json | __error__="" | http_route = "/api/v1/orders/{id}"
 ```
 
 `| json` 뒤 `__error__=""`로 JSON이 아닌 기동 로그를 제외합니다. 통계 쿼리는 필요한 필드만 추출해 불필요한 라벨 증가를 피합니다.

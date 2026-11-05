@@ -1,4 +1,4 @@
-// 검색 서비스(#526). 검색 도메인만 띄운다. 상품 목록 API와 경로가 같아 kidly-app과 따로 띄운다
+// 검색 서비스(#526). 검색 도메인만 띄운다. 상품 목록 API를 제공한다
 // DB를 쓰지 않아 PostgreSQL 드라이버 · Flyway는 넣지 않는다(build-logic/README.md "서비스 모듈 만드는 법")
 plugins {
     id("kidly.boot-app")
@@ -26,7 +26,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
-    // 수신 테스트용 Kafka 컨테이너와 메시지를 넣는 Producer · Admin, 리스너를 켜고 끄는 레지스트리 (버전은 Boot BOM, kidly-app과 같다)
+    // 수신 테스트용 Kafka 컨테이너와 메시지를 넣는 Producer · Admin, 리스너를 켜고 끄는 레지스트리 (버전은 Boot BOM)
     // 도메인 모듈은 spring-kafka를 implementation으로 받아 앱의 테스트 컴파일 경로에는 없다
     testImplementation("org.springframework.boot:spring-boot-starter-kafka")
     testImplementation("org.testcontainers:testcontainers-kafka")

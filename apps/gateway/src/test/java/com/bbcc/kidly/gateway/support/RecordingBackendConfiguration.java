@@ -3,22 +3,9 @@ package com.bbcc.kidly.gateway.support;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.DynamicPropertyRegistrar;
 
-/**
- * 모든 통합 테스트가 쓰는 가짜 백엔드. kidly-app 라우트(kidly.gateway.app-uri), 검색 라우트(kidly.gateway.search-uri),
- * 추천 라우트(kidly.gateway.recommend-uri),
- * 정산 라우트(kidly.gateway.settlement-uri), 회원 라우트(kidly.gateway.member-uri), 결제 라우트(kidly.gateway.payment-uri),
- * 상품 라우트(kidly.gateway.product-uri), 주문 라우트(kidly.gateway.order-uri), 커뮤니티 라우트(kidly.gateway.community-uri),
- * 알림 라우트(kidly.gateway.notification-uri)가
- * 각각 다른 백엔드로 가게 한다.
- * 그냥 주입하면 kidly-app 백엔드이고, 검색 백엔드는 {@code @Qualifier(SEARCH)},
- * 추천 백엔드는 {@code @Qualifier(RECOMMEND)}, 정산 백엔드는 {@code @Qualifier(SETTLEMENT)},
- * 회원 백엔드는 {@code @Qualifier(MEMBER)}, 결제 백엔드는 {@code @Qualifier(PAYMENT)},
- * 상품 백엔드는 {@code @Qualifier(PRODUCT)}, 주문 백엔드는 {@code @Qualifier(ORDER)},
- * 커뮤니티 백엔드는 {@code @Qualifier(COMMUNITY)}, 알림 백엔드는 {@code @Qualifier(NOTIFICATION)}로 받는다.
- */
+/** 서비스별 가짜 백엔드와 라우트 URI를 준비한다. */
 @TestConfiguration(proxyBeanMethods = false)
 public class RecordingBackendConfiguration {
 
@@ -33,12 +20,6 @@ public class RecordingBackendConfiguration {
     public static final String NOTIFICATION = "notificationBackend";
 
     // 컨텍스트가 닫힐 때 close()로 멈춘다
-    @Bean
-    @Primary
-    RecordingBackend recordingBackend() {
-        return RecordingBackend.start();
-    }
-
     @Bean(MEMBER)
     RecordingBackend memberBackend() {
         return RecordingBackend.start();
@@ -85,8 +66,7 @@ public class RecordingBackendConfiguration {
     }
 
     @Bean
-    DynamicPropertyRegistrar recordingBackendUris(RecordingBackend appBackend,
-        @Qualifier(MEMBER) RecordingBackend memberBackend,
+    DynamicPropertyRegistrar recordingBackendUris(@Qualifier(MEMBER) RecordingBackend memberBackend,
         @Qualifier(SEARCH) RecordingBackend searchBackend,
         @Qualifier(RECOMMEND) RecordingBackend recommendBackend,
         @Qualifier(SETTLEMENT) RecordingBackend settlementBackend,
@@ -97,7 +77,6 @@ public class RecordingBackendConfiguration {
         @Qualifier(NOTIFICATION) RecordingBackend notificationBackend) {
         return registry -> {
             registry.add("kidly.gateway.member-uri", () -> "http://127.0.0.1:" + memberBackend.port());
-            registry.add("kidly.gateway.app-uri", () -> "http://127.0.0.1:" + appBackend.port());
             registry.add("kidly.gateway.search-uri", () -> "http://127.0.0.1:" + searchBackend.port());
             registry.add("kidly.gateway.recommend-uri", () -> "http://127.0.0.1:" + recommendBackend.port());
             registry.add("kidly.gateway.settlement-uri", () -> "http://127.0.0.1:" + settlementBackend.port());
