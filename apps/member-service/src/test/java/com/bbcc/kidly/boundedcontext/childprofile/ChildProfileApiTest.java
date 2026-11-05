@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.childprofile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileUpdateRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildProfileResponse;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.GrowthRecordResponse;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
@@ -25,6 +27,13 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 @FunctionalTest
 class ChildProfileApiTest {
+    @Autowired private GuardianVerificationRepository verifications;
+
+    @BeforeEach
+    void verifyGuardians() {
+        verifications.save(GuardianVerificationFixture.verification(1L));
+        verifications.save(GuardianVerificationFixture.verification(2L));
+    }
 
     private static final String CHILDREN_PATH = "/api/v1/children";
     private static final String CHILD_PATH = "/api/v1/children/{childId}";

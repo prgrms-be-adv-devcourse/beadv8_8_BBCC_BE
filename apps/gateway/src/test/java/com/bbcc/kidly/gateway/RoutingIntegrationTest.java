@@ -144,6 +144,16 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
+    void routesGuardianVerificationToMemberService() {
+        client.post().uri("/api/v1/guardian-verification").exchange().expectStatus().isOk();
+        assertThat(memberBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.method()).isEqualTo("POST");
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/guardian-verification"));
+        });
+        assertThat(backend.lastRequest()).isEmpty();
+    }
+
+    @Test
     @DisplayName("children으로 시작하기만 하는 다른 경로는 kidly-app에 넘긴다")
     void routesChildrenPrefixLookalikeToKidlyApp() {
         client.get().uri("/api/v1/childrenx").exchange()

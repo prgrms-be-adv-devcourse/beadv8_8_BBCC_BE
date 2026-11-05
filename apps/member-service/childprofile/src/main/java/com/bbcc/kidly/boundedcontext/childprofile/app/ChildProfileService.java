@@ -8,6 +8,8 @@ import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildAccountLink;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildAccountLinkRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileErrorCode;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
@@ -32,10 +34,14 @@ public class ChildProfileService {
 
     private final ChildProfileRepository childProfileRepository;
     private final ChildAccountLinkRepository childAccountLinkRepository;
+    private final GuardianVerificationRepository guardianVerificationRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public ChildProfileResult register(Long memberId, ChildProfileRequest request) {
+        if (!guardianVerificationRepository.existsByMemberId(memberId)) {
+            throw new BusinessException(ChildProfileErrorCode.VERIFICATION_REQUIRED);
+        }
         var now = LocalDateTime.now();
         var child = childProfileRepository.save(ChildProfile.register(request.toRegisterInfo(memberId), now));
         publish(child, false, now);

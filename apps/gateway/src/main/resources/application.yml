@@ -55,11 +55,11 @@ spring:
               predicates:
                 - Method=GET
                 - Path=/api/v1/products
-            # 자녀 프로필 API는 회원 서비스로 간다(#809)
+            # 자녀 프로필과 보호자 본인인증 API는 회원 서비스로 간다
             - id: childprofile
               uri: ${kidly.gateway.member-uri}
               predicates:
-                - Path=/api/v1/children/**
+                - Path=/api/v1/children/**,/api/v1/guardian-verification
             # 자녀가 자기 프로필을 보는 API만 회원 서비스로 간다(#837). 다른 자녀 API(/api/v1/child/**)는 kidly-app으로 간다
             - id: child-self-profile
               uri: ${kidly.gateway.member-uri}

@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.childprofile.in;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.app.GuardianVerificationService;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -18,6 +19,7 @@ import tools.jackson.databind.json.JsonMapper;
 public class ChildProfileMemberEventListener {
 
     private final ChildProfileService childProfileService;
+    private final GuardianVerificationService guardianVerificationService;
     private final JsonMapper jsonMapper;
 
     @KafkaListener(id = "childProfileMemberEventListener", topics = "kidly.member.events",
@@ -32,5 +34,6 @@ public class ChildProfileMemberEventListener {
 
     private void onWithdrawn(MemberWithdrawnEvent event) {
         childProfileService.deleteAll(event.data().memberId());
+        guardianVerificationService.deleteByMemberId(event.data().memberId());
     }
 }

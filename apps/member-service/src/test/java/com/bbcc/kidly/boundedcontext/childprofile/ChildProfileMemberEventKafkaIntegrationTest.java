@@ -4,6 +4,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
@@ -61,6 +62,7 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class ChildProfileMemberEventKafkaIntegrationTest {
+    @Autowired private GuardianVerificationRepository verifications;
 
     private static final String TOPIC = "kidly.member.events";
     private static final String DLT = "kidly.member.events.childprofile.dlt";
@@ -97,6 +99,8 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     // 읽기 시작 위치가 latest라 파티션을 배정받기 전에 보낸 메시지는 받지 못한다
     @BeforeEach
     void startListener() {
+        verifications.save(GuardianVerificationFixture.verification(memberId));
+        verifications.save(GuardianVerificationFixture.verification(otherMemberId));
         listener = kafkaListenerEndpointRegistry.getListenerContainer(LISTENER_ID);
         listener.start();
         AsyncWait.until(TIMEOUT, () -> !listener.getAssignedPartitions().isEmpty());
@@ -109,7 +113,7 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("탈퇴 이벤트가 커밋되면 Kafka로 받아 그 회원의 자녀를 모두 삭제한다")
+    @DisplayName("탈퇴 이벤트가 커밋되면 Kafka로 받아 그 회원의 자녀와 본인인증 기록을 모두 삭제한다")
     void deleteChildrenOnWithdraw() throws Exception {
         childProfileService.register(memberId, REQUEST);
         childProfileService.register(memberId, REQUEST);
@@ -119,6 +123,8 @@ class ChildProfileMemberEventKafkaIntegrationTest {
 
         AsyncWait.until(TIMEOUT, () -> childrenOf(memberId).isEmpty());
         assertThat(childrenOf(otherMemberId)).extracting(ChildProfile::getId).containsExactly(other);
+        assertThat(verifications.existsByMemberId(memberId)).isFalse();
+        assertThat(verifications.existsByMemberId(otherMemberId)).isTrue();
     }
 
     @Test

@@ -47,7 +47,9 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| POST | `/api/v1/children` | 자녀 등록(만 14세 미만, 필수 동의 `requiredConsent` · 선택 동의 `optionalConsent`) | 🔒 |
+| POST | `/api/v1/guardian-verification` | 본인인증 거래번호 `identityVerificationId`로 인증, 201과 Location | 🔒 |
+| GET | `/api/v1/guardian-verification` | 인증 여부 `verified`와 인증 시각 `verifiedAt` 조회(미인증이면 `false`, `null`) | 🔒 |
+| POST | `/api/v1/children` | 자녀 등록(만 14세 미만, 필수 동의 `requiredConsent` · 선택 동의 `optionalConsent`, 본인인증 전 403) | 🔒 |
 | GET | `/api/v1/children` | 내 자녀 목록 | 🔒 |
 | GET | `/api/v1/children/{childId}` | 자녀 상세 | 🔒 |
 | PATCH | `/api/v1/children/{childId}` | 자녀 수정(전체 값) | 🔒 |

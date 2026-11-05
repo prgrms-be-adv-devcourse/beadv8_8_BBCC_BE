@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.childprofile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
+import org.junit.jupiter.api.BeforeEach;
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildAccountLinkService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.member.support.security.TestChildren;
@@ -18,6 +20,12 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 @FunctionalTest
 class ChildSelfProfileApiTest {
+    @Autowired private GuardianVerificationRepository verifications;
+
+    @BeforeEach
+    void verifyGuardian() {
+        verifications.save(GuardianVerificationFixture.verification(GUARDIAN_ID));
+    }
 
     private static final long GUARDIAN_ID = 11L;
     private static final long ACCOUNT_ID = 21L;

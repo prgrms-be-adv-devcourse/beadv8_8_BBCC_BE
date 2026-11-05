@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
+import org.junit.jupiter.api.BeforeEach;
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildAccountLinkService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileUpdateRequest;
@@ -28,6 +30,13 @@ import org.springframework.test.context.event.RecordApplicationEvents;
 @IntegrationTest
 @RecordApplicationEvents
 class ChildProfileServiceIntegrationTest {
+    @Autowired private GuardianVerificationRepository verifications;
+
+    @BeforeEach
+    void verifyGuardians() {
+        verifications.save(GuardianVerificationFixture.verification(1L));
+        verifications.save(GuardianVerificationFixture.verification(2L));
+    }
 
     private static final Long MEMBER_ID = 1L;
     private static final Long OTHER_MEMBER_ID = 2L;
