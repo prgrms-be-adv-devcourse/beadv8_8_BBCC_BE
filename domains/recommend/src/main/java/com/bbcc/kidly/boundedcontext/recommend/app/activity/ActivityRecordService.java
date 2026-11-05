@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend.app.activity;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecordRepository;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
@@ -79,5 +80,12 @@ public class ActivityRecordService {
             data.quantity(),
             event.occurredAt());
         activityRecordRepository.save(ActivityRecord.cartItemRemoved(info));
+    }
+
+    /**
+     * 탈퇴한 회원의 활동 기록을 모두 지운다. 지울 기록이 없거나 같은 탈퇴를 다시 받아도 결과는 같다.
+     */
+    public void deleteWithdrawnMemberActivities(MemberWithdrawnEvent event) {
+        activityRecordRepository.deleteByMemberId(event.data().memberId());
     }
 }

@@ -7,4 +7,7 @@ public interface ActivityRecordRepository {
     ActivityRecord save(ActivityRecord activityRecord);
 
     boolean existsByEventId(UUID eventId);
+
+    // 지운 줄 수를 돌려준다
+    int deleteByMemberId(Long memberId);
 }
