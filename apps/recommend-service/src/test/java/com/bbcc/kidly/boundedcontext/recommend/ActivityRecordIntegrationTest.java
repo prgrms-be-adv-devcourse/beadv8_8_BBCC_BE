@@ -189,6 +189,20 @@ class ActivityRecordIntegrationTest {
             .isEqualTo(others.getId());
     }
 
+    @Test
+    @DisplayName("회원 ID가 없는 탈퇴 이벤트는 예외로 실패하고 어떤 기록도 지우지 않는다")
+    void rejectWithdrawnWithoutMember() {
+        activityRecordService.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent());
+        activityRecordRepository.saveAndFlush(otherMemberSearch());
+
+        assertThatThrownBy(() -> activityRecordService.deleteWithdrawnMemberActivities(
+            ActivityRecordFixture.memberWithdrawnEvent(null)))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+
+        assertThat(activityRecordRepository.findAll()).hasSize(2);
+    }
+
     private static ActivityRecord otherMemberSearch() {
         return ActivityRecord.searched(new ActivityRecord.SearchInfo(UUID.randomUUID(), OTHER_MEMBER_ID, KEYWORD,
             PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT));
