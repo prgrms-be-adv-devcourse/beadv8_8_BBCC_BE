@@ -9,3 +9,13 @@ providers:
     allowUiUpdates: false
     options:
       path: /etc/grafana/dashboards
+
+  # Generated summaries only. Existing versioned dashboards are never overwritten.
+  - name: kidly-ai-summary
+    folder: Kidly
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/ai-summary
