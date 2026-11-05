@@ -39,6 +39,12 @@ public final class ActivityRecordFixture {
 
     public static final LocalDateTime ADDED_AT = LocalDateTime.of(2026, 11, 3, 10, 5);
 
+    public static final UUID REMOVED_EVENT_ID = UUID.fromString("ca7a0000-0000-0000-0000-000000000002");
+
+    public static final int REMOVED_QTY = 3;
+
+    public static final LocalDateTime REMOVED_AT = LocalDateTime.of(2026, 11, 3, 10, 20);
+
     private ActivityRecordFixture() {
     }
 
@@ -55,6 +61,16 @@ public final class ActivityRecordFixture {
     public static ActivityRecord.CartItemAddedInfo cartItemAddedFor(Long childProfileId) {
         return new ActivityRecord.CartItemAddedInfo(CART_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, childProfileId,
             PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY, CART_QTY, ADDED_AT);
+    }
+
+    // 회원 1이 장바구니 줄 201(자녀 11, 상품 31의 옵션 32)을 3개인 채로 뺐다
+    public static ActivityRecord.CartItemRemovedInfo cartItemRemoved() {
+        return cartItemRemovedFor(CHILD_1_ID, PRODUCT_A_ID);
+    }
+
+    public static ActivityRecord.CartItemRemovedInfo cartItemRemovedFor(Long childProfileId, Long productId) {
+        return new ActivityRecord.CartItemRemovedInfo(REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, childProfileId,
+            productId, PRODUCT_A_120_OPTION_ID, REMOVED_QTY, REMOVED_AT);
     }
 
     public static SearchPerformedEvent searchPerformedEvent() {
