@@ -250,6 +250,10 @@ def publish(root, state, now):
 
 def run(root, live=False, fixture=None):
     root.mkdir(parents=True, exist_ok=True)
+    # Grafana UID 472 needs traversal even when the operator has umask 077.
+    root.chmod(0o755)
+    (root / 'dashboards').mkdir(exist_ok=True)
+    (root / 'dashboards').chmod(0o755)
     with (root / 'run.lock').open('w') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
