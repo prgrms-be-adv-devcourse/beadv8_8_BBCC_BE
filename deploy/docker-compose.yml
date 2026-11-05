@@ -114,6 +114,8 @@ services:
       # 기본값은 profile search 가 꺼진 환경에서 빈 값 경고를 내지 않으려는 것이다
       ELASTICSEARCH_URIS: ${ELASTICSEARCH_URIS:-}
       SEARCH_INDEX_PREFIX: ${SEARCH_INDEX_PREFIX:-}
+      # 의미 검색 임베딩(#797). 없으면 의미 검색을 끄고 키워드로만 찾는다. deploy 워크플로가 Environment Secret 에서 붙인다
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${SEARCH_PORT:-8082}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에 열 때는 nginx 가 아니라 Gateway 라우트로(nginx 가 바로 넘기면 X-Member-* 위조 가능)

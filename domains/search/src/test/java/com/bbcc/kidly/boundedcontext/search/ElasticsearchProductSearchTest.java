@@ -31,6 +31,7 @@ import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchSort;
 import com.bbcc.kidly.boundedcontext.search.app.port.SearchUnavailableException;
 import com.bbcc.kidly.boundedcontext.search.out.ElasticsearchProductSearch;
 import com.bbcc.kidly.boundedcontext.search.out.ProductDocument;
+import com.bbcc.kidly.boundedcontext.search.out.SearchEmbeddingProperties;
 import com.bbcc.kidly.boundedcontext.search.out.SearchIndexProperties;
 import com.bbcc.kidly.boundedcontext.search.out.SellerDocument;
 import java.io.IOException;
@@ -71,7 +72,77 @@ class ElasticsearchProductSearchTest {
 
     @BeforeEach
     void setUp() {
-        productSearch = new ElasticsearchProductSearch(client, new SearchIndexProperties("local"));
+        productSearch = new ElasticsearchProductSearch(client, new SearchIndexProperties("local"),
+            new SearchEmbeddingProperties("", "https://api.openai.test/v1", "text-embedding-3-small", 3, 0.3f));
+    }
+
+    @Test
+    @DisplayName("관련도순 검색어는 고정 점수 조건으로 걸고, 검색어 벡터로 같은 조건 안에서 뜻이 가까운 상품을 더해 점수순으로 찾는다")
+    void relevanceWithVector() throws IOException {
+        givenProducts(0);
+
+        productSearch.search(new ProductSearchCondition(3L, "원피스", Map.of("COLOR", List.of(5L)),
+            ProductSearchSort.RELEVANCE, List.of(0.1f, 0.2f, 0.3f)), PageRequest.of(0, 20));
+
+        SearchRequest request = capturedSearch();
+        List<Query> filters = request.query().bool().filter();
+        assertThat(filters).hasSize(3).noneMatch(Query::isBool);
+        assertThat(request.query().bool().must()).singleElement().satisfies(must -> {
+            assertThat(must.constantScore().boost()).isEqualTo(2.0f);
+            assertThat(must.constantScore().filter().isBool()).isTrue();
+        });
+        assertThat(request.knn()).singleElement().satisfies(knn -> {
+            assertThat(knn.field()).isEqualTo("embedding");
+            assertThat(knn.queryVector()).containsExactly(0.1f, 0.2f, 0.3f);
+            assertThat(knn.k()).isEqualTo(100);
+            assertThat(knn.numCandidates()).isEqualTo(200);
+            assertThat(knn.similarity()).isEqualTo(0.3f);
+            assertThat(knn.filter()).isEqualTo(filters);
+        });
+        assertThat(request.sort()).hasSize(2);
+        assertThat(request.sort().getFirst().isScore()).isTrue();
+        assertThat(request.sort().getFirst().score().order()).isEqualTo(SortOrder.Desc);
+        assertThat(sortKeys(request.sort().subList(1, 2))).containsExactly("productId desc");
+    }
+
+    @Test
+    @DisplayName("관련도순인데 검색어 벡터가 없으면(임베딩 API를 쓸 수 없음) 키워드 점수로만 찾는다")
+    void relevanceWithoutVector() throws IOException {
+        givenProducts(0);
+
+        productSearch.search(condition(null, "원피스", Map.of(), ProductSearchSort.RELEVANCE), PageRequest.of(0, 20));
+
+        SearchRequest request = capturedSearch();
+        assertThat(request.knn()).isEmpty();
+        assertThat(request.query().bool().must()).hasSize(1);
+        assertThat(request.sort().getFirst().isScore()).isTrue();
+    }
+
+    @Test
+    @DisplayName("검색어 없는 관련도순은 최신순과 같다. 벡터가 있어도 의미 검색을 하지 않는다")
+    void relevanceWithoutKeyword() throws IOException {
+        givenProducts(0);
+
+        productSearch.search(new ProductSearchCondition(null, " ", Map.of(), ProductSearchSort.RELEVANCE,
+            List.of(0.1f, 0.2f, 0.3f)), PageRequest.of(0, 20));
+
+        SearchRequest request = capturedSearch();
+        assertThat(request.knn()).isEmpty();
+        assertThat(filters(request)).hasSize(1);
+        assertThat(sortKeys(request.sort())).containsExactly("productCreatedAt desc", "productId desc");
+    }
+
+    @Test
+    @DisplayName("관련도순이 아니면 검색어 벡터가 있어도 의미 검색을 하지 않는다")
+    void otherSortIgnoresVector() throws IOException {
+        givenProducts(0);
+
+        productSearch.search(new ProductSearchCondition(null, "원피스", Map.of(), ProductSearchSort.PRICE_ASC,
+            List.of(0.1f, 0.2f, 0.3f)), PageRequest.of(0, 20));
+
+        SearchRequest request = capturedSearch();
+        assertThat(request.knn()).isEmpty();
+        assertThat(filters(request)).hasSize(2);
     }
 
     @Test
@@ -152,7 +223,7 @@ class ElasticsearchProductSearchTest {
     }
 
     @Test
-    @DisplayName("정렬 값이 같으면 상품 ID가 큰 상품이 먼저 온다")
+    @DisplayName("정렬 값이 같으면 상품 ID가 큰 상품이 먼저 온다. 검색어 없는 관련도순은 최신순과 같다")
     void sorts() throws IOException {
         givenProducts(0);
 
@@ -160,11 +231,12 @@ class ElasticsearchProductSearchTest {
             productSearch.search(condition(null, null, Map.of(), sort), PageRequest.of(0, 20));
         }
 
-        verify(client, times(3)).search(searchCaptor.capture(), eq(ProductDocument.class));
+        verify(client, times(4)).search(searchCaptor.capture(), eq(ProductDocument.class));
         assertThat(searchCaptor.getAllValues()).extracting(request -> sortKeys(request.sort())).containsExactly(
             List.of("productCreatedAt desc", "productId desc"),
             List.of("minPrice asc", "productId desc"),
-            List.of("minPrice desc", "productId desc"));
+            List.of("minPrice desc", "productId desc"),
+            List.of("productCreatedAt desc", "productId desc"));
     }
 
     @Test

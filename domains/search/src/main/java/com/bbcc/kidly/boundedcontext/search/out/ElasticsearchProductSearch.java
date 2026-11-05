@@ -35,6 +35,10 @@ import org.springframework.stereotype.Component;
 /**
  * Elasticsearch 상품 색인에서 상품 목록을 찾고, 판매자 색인에서 상호명을 붙인다.
  * 조건은 모두 filter로 건다. 정렬이 점수가 아니라 정해진 필드라 점수를 계산할 필요가 없다.
+ * 관련도순(RELEVANCE)으로 검색어를 찾을 때만 점수를 쓴다(#797). 검색어가 상품명 · 브랜드에 있는 상품은 고정 점수
+ * KEYWORD_SCORE를 받고, 검색어 벡터가 있으면 kNN으로 뜻이 가까운 상품을 더한다(kNN 점수는 코사인 유사도로 0.5~1).
+ * 두 점수를 더해 높은 순으로 보여 주므로 검색어가 있는 상품이 늘 먼저 오고, 그 안에서는 뜻이 가까운 순이다.
+ * BM25 점수를 쓰지 않는 건 상한이 없어 상품 수에 따라 kNN 점수와 앞뒤가 바뀌기 때문이다.
  */
 @Component
 @RequiredArgsConstructor
@@ -49,8 +53,16 @@ public class ElasticsearchProductSearch implements ProductSearch {
     private static final int NOT_FOUND = 404;
     private static final String INDEX_NOT_FOUND = "index_not_found_exception";
 
+    // 의미 검색으로 더하는 상품 수와, 그 상품을 고르려고 살펴볼 후보 수다. 그보다 뒤 페이지는 키워드로 찾은 상품만 나온다
+    static final int KNN_K = 100;
+    static final int KNN_NUM_CANDIDATES = 200;
+    static final String EMBEDDING = "embedding";
+    // kNN 점수(최대 1)보다 커야 검색어가 있는 상품이 뜻만 가까운 상품보다 먼저 온다
+    static final float KEYWORD_SCORE = 2.0f;
+
     private final ElasticsearchClient client;
     private final SearchIndexProperties properties;
+    private final SearchEmbeddingProperties embeddingProperties;
 
     @Override
     public Page<ProductSearchItem> search(ProductSearchCondition condition, Pageable pageable) {
@@ -77,13 +89,35 @@ public class ElasticsearchProductSearch implements ProductSearch {
         long offset = pageable.getOffset();
         int size = (int) Math.max(0, Math.min(pageable.getPageSize(), MAX_RESULT_WINDOW - offset));
         int from = size == 0 ? 0 : (int) offset;
-        SearchRequest request = SearchRequest.of(builder -> builder
-            .index(properties.productIndex())
-            .query(query -> query.bool(bool -> bool.filter(filters(condition))))
-            .sort(sorts(condition.sort()))
-            .from(from)
-            .size(size)
-            .trackTotalHits(track -> track.enabled(true)));
+        boolean byRelevance = condition.sort() == ProductSearchSort.RELEVANCE && condition.hasKeyword();
+        SearchRequest request = SearchRequest.of(builder -> {
+            builder.index(properties.productIndex())
+                .from(from)
+                .size(size)
+                .trackTotalHits(track -> track.enabled(true));
+            if (!byRelevance) {
+                return builder
+                    .query(query -> query.bool(bool -> bool.filter(filters(condition, true))))
+                    .sort(sorts(condition.sort()));
+            }
+            List<Query> filters = filters(condition, false);
+            builder.query(query -> query.bool(bool -> bool
+                    .filter(filters)
+                    .must(must -> must.constantScore(constant -> constant
+                        .filter(keywordFilter(condition.keyword().strip()))
+                        .boost(KEYWORD_SCORE)))))
+                .sort(scoreSort(), fieldSort("productId", SortOrder.Desc));
+            if (condition.keywordVector() != null) {
+                builder.knn(knn -> knn
+                    .field(EMBEDDING)
+                    .queryVector(condition.keywordVector())
+                    .k(KNN_K)
+                    .numCandidates(KNN_NUM_CANDIDATES)
+                    .similarity(embeddingProperties.minSimilarity())
+                    .filter(filters));
+            }
+            return builder;
+        });
         try {
             return client.search(request, ProductDocument.class);
         } catch (IOException e) {
@@ -93,14 +127,15 @@ public class ElasticsearchProductSearch implements ProductSearch {
         }
     }
 
-    // 값은 모두 Elasticsearch 요청 객체에 값으로 넣으므로 사용자가 보낸 글자가 쿼리 문법이 되지 않는다
-    private List<Query> filters(ProductSearchCondition condition) {
+    // 값은 모두 Elasticsearch 요청 객체에 값으로 넣으므로 사용자가 보낸 글자가 쿼리 문법이 되지 않는다.
+    // 관련도순은 검색어를 점수 조건으로 따로 걸므로 withKeyword=false로 검색어를 빼고 만든다(kNN에도 같은 조건을 건다)
+    private List<Query> filters(ProductSearchCondition condition, boolean withKeyword) {
         List<Query> filters = new ArrayList<>();
         filters.add(Query.of(query -> query.term(term -> term.field("status").value(ON_SALE))));
         if (condition.categoryId() != null) {
             filters.add(Query.of(query -> query.term(term -> term.field("categoryId").value(condition.categoryId()))));
         }
-        if (condition.keyword() != null && !condition.keyword().isBlank()) {
+        if (withKeyword && condition.hasKeyword()) {
             filters.add(keywordFilter(condition.keyword().strip()));
         }
         for (Map.Entry<String, List<Long>> entry : condition.attributeValueIds().entrySet()) {
@@ -124,7 +159,7 @@ public class ElasticsearchProductSearch implements ProductSearch {
     // 2) 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(단어 그대로) 중 한 곳에 있어야 맞는다(키들리 원피스).
     //    브랜드는 고유명사라 nori가 앞뒤 글자에 따라 다르게 나누므로(키들리 → 키 · 들리, 키들리 원피스 → 키 · 리 · 원피스)
     //    형태소로 나누지 않고 단어로 맞춘다. 그래서 브랜드는 단어를 다 써야 찾는다(꼬마 → 꼬마숲은 못 찾음)
-    // filter라 점수를 계산하지 않으므로 필드 가중치는 두지 않는다
+    // 관련도순이 아니면 filter라 점수를 계산하지 않으므로 필드 가중치는 두지 않는다
     private static Query keywordFilter(String keyword) {
         List<Query> words = new ArrayList<>();
         for (String word : keyword.split("\\s+")) {
@@ -141,14 +176,19 @@ public class ElasticsearchProductSearch implements ProductSearch {
         return Query.of(query -> query.match(match -> match.field(field).query(text).operator(Operator.And)));
     }
 
-    // 정렬 값이 같으면 상품 ID가 큰 상품이 먼저 온다(같은 조건이면 페이지를 넘겨도 순서가 같다)
+    // 정렬 값이 같으면 상품 ID가 큰 상품이 먼저 온다(같은 조건이면 페이지를 넘겨도 순서가 같다).
+    // 검색어 없는 관련도순은 점수가 모두 같아 최신순으로 보여 준다
     private List<SortOptions> sorts(ProductSearchSort sort) {
         SortOptions first = switch (sort) {
-            case NEWEST -> fieldSort("productCreatedAt", SortOrder.Desc);
+            case NEWEST, RELEVANCE -> fieldSort("productCreatedAt", SortOrder.Desc);
             case PRICE_ASC -> fieldSort("minPrice", SortOrder.Asc);
             case PRICE_DESC -> fieldSort("minPrice", SortOrder.Desc);
         };
         return List.of(first, fieldSort("productId", SortOrder.Desc));
+    }
+
+    private static SortOptions scoreSort() {
+        return SortOptions.of(sort -> sort.score(score -> score.order(SortOrder.Desc)));
     }
 
     private static SortOptions fieldSort(String field, SortOrder order) {

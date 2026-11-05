@@ -14,7 +14,9 @@
       "minPrice": { "type": "long" },
       "soldOut": { "type": "boolean" },
       "attributeValues": { "type": "keyword" },
-      "occurredAt": { "type": "date" }
+      "occurredAt": { "type": "date" },
+      "embedding": { "type": "dense_vector", "dims": 512, "similarity": "cosine", "index": true, "index_options": { "type": "int8_hnsw" } },
+      "embeddingTextHash": { "type": "keyword", "index": false }
     }
   }
 }

@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.search.domain;
 
+import java.util.Optional;
+
 /**
  * 검색 문서 저장소다. 구현은 out에 둔다(Elasticsearch).
  */
@@ -10,4 +12,9 @@ public interface SearchProductRepository {
      * 같은 상품의 이벤트가 동시에 와도 늦은 것이 남도록 비교와 저장을 한 번에 한다.
      */
     void saveIfNewer(SearchProduct product);
+
+    /**
+     * 저장된 상품 문서의 의미 검색 벡터를 찾는다. 문서가 없거나 벡터 없이 저장된 문서면 비어 있다.
+     */
+    Optional<ProductEmbedding> findEmbedding(Long productId);
 }
