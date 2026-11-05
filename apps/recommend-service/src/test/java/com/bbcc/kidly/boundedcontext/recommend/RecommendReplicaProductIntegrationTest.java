@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSi
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
@@ -204,6 +205,18 @@ class RecommendReplicaProductIntegrationTest {
             .containsExactly(null, null);
         assertThat(count("select count(*) from recommend.replica_product_size_spec where product_id = ?"))
             .isZero();
+    }
+
+    @Test
+    @DisplayName("등록 취소 상태의 상품 정보 변경됨을 받으면 상품 복사본이 등록 취소 상태로 저장된다")
+    void storeDelistedStatus() {
+        ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
+        replicaProductService.applyProductChanged(new ProductChangedEvent(UUID.randomUUID(), PRODUCT_CHANGED_AT,
+            new ProductChangedEvent.Data(data.productId(), data.sellerId(), data.name(), data.categoryId(),
+                ProductStatus.DELISTED, data.thumbnailUrl(), data.createdAt(), data.sizeFree(), data.options())));
+
+        assertThat(replicaProductRepository.findById(PRODUCT_A_ID)).get()
+            .extracting(RecommendReplicaProduct::getStatus).isEqualTo(ProductStatus.DELISTED);
     }
 
     // 상품 A의 상품 정보 변경됨에 브랜드 · 설명 · 사이즈별 실측을 담는다. 옵션은 110 · 120이다
