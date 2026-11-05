@@ -149,6 +149,17 @@ class ChildProfileTest {
             .extracting("errorCode").isEqualTo(ChildProfileErrorCode.CHILD_TOO_OLD);
     }
 
+    @Test
+    @DisplayName("첫 로그인 안내를 다시 확인해도 처음 확인 시각을 유지한다")
+    void confirmNoticeKeepsFirstTime() {
+        var child = ChildProfileFixture.child(MEMBER_ID);
+        assertThat(child.isNoticeConfirmed()).isFalse();
+        child.confirmNotice(NOW);
+        child.confirmNotice(NOW.plusDays(1));
+        assertThat(child.isNoticeConfirmed()).isTrue();
+        assertThat(child.getNoticeConfirmedAt()).isEqualTo(NOW);
+    }
+
     private static ChildProfileRegisterInfo withoutOptionalConsent(BodyType bodyType, PreferredFit preferredFit) {
         return new ChildProfileRegisterInfo(
             MEMBER_ID, "첫째", BIRTH_DATE, Gender.MALE, HEIGHT, WEIGHT, bodyType, preferredFit, false);

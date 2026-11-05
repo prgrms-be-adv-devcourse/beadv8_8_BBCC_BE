@@ -61,11 +61,25 @@ public class ChildProfileService {
 
     @Transactional(readOnly = true)
     public ChildProfileResult getOwnProfile(Long accountId, Long guardianId) {
+        return ChildProfileResult.from(getOwnChild(accountId, guardianId));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isNoticeConfirmed(Long accountId, Long guardianId) {
+        return getOwnChild(accountId, guardianId).isNoticeConfirmed();
+    }
+
+    @Transactional
+    public void confirmNotice(Long accountId, Long guardianId) {
+        getOwnChild(accountId, guardianId).confirmNotice(LocalDateTime.now());
+    }
+
+    private ChildProfile getOwnChild(Long accountId, Long guardianId) {
         var childId = childAccountLinkRepository.findById(accountId)
             .filter(link -> !link.isDeleted())
             .map(ChildAccountLink::getChildProfileId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        return getChild(guardianId, childId);
+        return childProfileRepository.getByIdAndMemberId(childId, guardianId);
     }
 
     // 이름만 바뀌어도 이벤트를 발행한다. 받는 쪽은 어떤 필드가 바뀌었는지 보지 않고 덮어쓴다

@@ -74,6 +74,9 @@ public class ChildProfile extends BaseSoftDeleteEntity {
     @Column(name = "preferred_fit")
     private PreferredFit preferredFit;
 
+    @Column(name = "notice_confirmed_at")
+    private LocalDateTime noticeConfirmedAt;
+
     // 단방향(@JoinColumn)이면 이력 1건을 추가할 때 기존 이력을 전부 불러오므로 mappedBy로 둔다
     @OneToMany(mappedBy = "childProfile", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("recordedAt ASC, id ASC")
@@ -125,6 +128,16 @@ public class ChildProfile extends BaseSoftDeleteEntity {
         if (!consent && (bodyType != null || preferredFit != null)) {
             throw new BusinessException(ChildProfileErrorCode.OPTIONAL_CONSENT_REQUIRED);
         }
+    }
+
+    public void confirmNotice(LocalDateTime now) {
+        if (noticeConfirmedAt == null) {
+            noticeConfirmedAt = now;
+        }
+    }
+
+    public boolean isNoticeConfirmed() {
+        return noticeConfirmedAt != null;
     }
 
     public int growthRecordCount() {
