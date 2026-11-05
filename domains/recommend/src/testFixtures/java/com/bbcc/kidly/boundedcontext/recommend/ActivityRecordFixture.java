@@ -8,6 +8,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -81,5 +82,14 @@ public final class ActivityRecordFixture {
     public static CartItemAddedEvent cartItemAddedEvent() {
         return new CartItemAddedEvent(CART_EVENT_ID, ADDED_AT, new CartItemAddedEvent.Data(CART_ITEM_ID,
             MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY, CART_QTY));
+    }
+
+    public static CartItemRemovedEvent cartItemRemovedEvent() {
+        return cartItemRemovedEventFor(CHILD_1_ID, PRODUCT_A_ID);
+    }
+
+    public static CartItemRemovedEvent cartItemRemovedEventFor(Long childId, Long productId) {
+        return new CartItemRemovedEvent(REMOVED_EVENT_ID, REMOVED_AT, new CartItemRemovedEvent.Data(CART_ITEM_ID,
+            MEMBER_1_ID, childId, productId, PRODUCT_A_120_OPTION_ID, REMOVED_QTY));
     }
 }

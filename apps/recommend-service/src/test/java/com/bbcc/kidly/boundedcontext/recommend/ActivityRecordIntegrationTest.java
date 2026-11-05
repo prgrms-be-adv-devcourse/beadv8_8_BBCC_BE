@@ -7,6 +7,9 @@ import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.CART
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.CART_QTY;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.KEYWORD;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.ADDED_QTY;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.REMOVED_AT;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.REMOVED_EVENT_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.REMOVED_QTY;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.RESULT_COUNT;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.SEARCHED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.SEARCH_EVENT_ID;
@@ -30,12 +33,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 
 /**
- * 활동 기록 서비스가 실제 DB에 검색 · 장바구니 담기를 저장하는 규칙을 확인한다.
+ * 활동 기록 서비스가 실제 DB에 검색 · 장바구니 담기 · 빼기를 저장하는 규칙을 확인한다.
  * Kafka로 받는 연결은 RecommendActivityKafkaIntegrationTest가 확인한다.
  */
 @IntegrationTest
@@ -86,6 +90,37 @@ class ActivityRecordIntegrationTest {
                 ActivityRecord::getOccurredAt)
             .containsExactly(ActivityType.CART_ITEM_ADDED, CART_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, CHILD_1_ID,
                 PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY, CART_QTY, ADDED_AT);
+    }
+
+    // 자녀를 고르지 않았거나 주문이 상품 정보를 받아 두지 않은 줄을 빼도 활동 기록을 남긴다
+    @ParameterizedTest(name = "자녀 ID {0}, 상품 ID {1}")
+    @MethodSource("childAndProductIds")
+    @DisplayName("장바구니 빼기 이벤트를 활동 기록으로 저장하고 뺄 때의 수량을 장바구니 수량 칸에 둔다")
+    void saveCartItemRemoved(Long childId, Long productId) {
+        activityRecordService.recordCartItemRemoved(ActivityRecordFixture.cartItemRemovedEventFor(childId, productId));
+
+        assertThat(activityRecordRepository.findAll()).singleElement()
+            .extracting(
+                ActivityRecord::getType,
+                ActivityRecord::getEventId,
+                ActivityRecord::getCartItemId,
+                ActivityRecord::getMemberId,
+                ActivityRecord::getChildProfileId,
+                ActivityRecord::getProductId,
+                ActivityRecord::getProductOptionId,
+                ActivityRecord::getAddedQty,
+                ActivityRecord::getCartQty,
+                ActivityRecord::getOccurredAt)
+            .containsExactly(ActivityType.CART_ITEM_REMOVED, REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, childId,
+                productId, PRODUCT_A_120_OPTION_ID, null, REMOVED_QTY, REMOVED_AT);
+    }
+
+    static Stream<Arguments> childAndProductIds() {
+        return Stream.of(
+            Arguments.of(CHILD_1_ID, PRODUCT_A_ID),
+            Arguments.of(null, PRODUCT_A_ID),
+            Arguments.of(CHILD_1_ID, null),
+            Arguments.of(null, null));
     }
 
     @ParameterizedTest(name = "{0}")
