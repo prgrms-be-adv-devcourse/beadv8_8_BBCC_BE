@@ -29,6 +29,12 @@
 - 공식 MCP initialize/tools/list 후 instant·range·metadata 조회, 2시간 저장 시계열 쿼리 거부 확인
 - 로컬 회귀 검사: `python3 -m unittest discover -s deploy/monitoring/tests -p 'test_mcp_boundary.py'`
 
+## Grafana Pod 교체 후 정상 조회가 403일 때
+
+배포 밖에서 Pod가 교체되어 IP가 바뀌면 MCP는 새 Pod에서 접근할 수 없어 조회가 막힙니다. IP 허용은 갱신 시점의 주소 제한이며 지속적인 Pod 신원 인증은 아닙니다. 옛 IP가 다른 내부 Pod에 재할당될 수 있으므로, 교체 후에는 사용 전에 재동기화합니다. 이 경우에도 조회 외 경로 거부는 유지되어 쓰기·관리·Loki 접근은 열리지 않습니다.
+
+GitHub Actions → **monitoring-deploy → Run workflow**로 재동기화할 수 있습니다. 앱·DB는 재기동하지 않지만 수집기는 잠시 재시작합니다. 관리자는 `update_boundary.py`만 실행할 수도 있습니다. 이후 `check_boundary.py --via-grafana-pod`를 다시 확인합니다. 조회를 복구한다고 CIDR 전체를 허용하거나 Viewer 권한을 올리지 않습니다.
+
 ## 중단·만료
 
 Codex의 `kidly_grafana`를 끄고 `bootstrap.py revoke-token --token-id <ID>`로 폐기한 뒤 해당 Keychain 항목을 지웁니다. 만료 뒤 자동 재발급하지 않습니다. 다시 승인된 절차로 검증·발급합니다. 조직은 기존 운영 조직과 분리되어 있고 운영 알림은 기존 공간에서 계속 동작합니다.

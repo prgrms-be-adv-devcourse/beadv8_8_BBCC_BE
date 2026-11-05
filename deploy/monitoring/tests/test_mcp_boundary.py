@@ -1,5 +1,8 @@
 """Security regression checks. No credentials or real mutation requests."""
 import copy
+import io
+import tempfile
+import time
 import importlib.util
 import json
 import os
@@ -21,6 +24,7 @@ def module(name):
 boundary = module('update_boundary')
 launcher = module('launch')
 bootstrap = module('bootstrap')
+store = module('store_token')
 
 
 class McpBoundaryTests(unittest.TestCase):
@@ -81,6 +85,22 @@ class McpBoundaryTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 bootstrap.issue(api, {'token_ttl_seconds': 604800}, {'org_id': 2, 'account_id': 2})
         api.call.assert_called_with('/api/serviceaccounts/2/tokens/7', 'DELETE', org=2)
+
+    def test_keychain_command_failure_is_distinguished_without_writing_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'policy.json').write_text(json.dumps({'keychain_service': 'test-service'}))
+            original = {'org_id': 2, 'account_id': 2, 'keychain_account': 'test-account', 'verified': False}
+            path = root / 'connection.json'
+            path.write_text(json.dumps(original))
+            issued = dict(original, key='SYNTHETIC', role='Viewer', expires_at=time.time() + 3600)
+            with patch('sys.argv', ['store_token', '--directory', directory]), \
+                    patch('sys.stdin', io.StringIO(json.dumps(issued))), \
+                    patch.object(store.subprocess, 'run', side_effect=[Mock(returncode=1), Mock(returncode=1)]) as run:
+                with self.assertRaisesRegex(RuntimeError, 'Keychain command failed'):
+                    store.main()
+            self.assertEqual(2, run.call_count)
+            self.assertEqual(original, json.loads(path.read_text()))
 
     def test_routing_fallback_cannot_contact_prometheus(self):
         path = ROOT / 'k8s/mcp-prometheus.yaml'

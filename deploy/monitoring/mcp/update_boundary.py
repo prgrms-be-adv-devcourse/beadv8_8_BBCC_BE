@@ -14,7 +14,7 @@ def kube(*args):
 
 def patch_source(ranges):
     patch = {'spec': {'ipAllowList': {'sourceRange': ranges}}}
-    kube('patch', 'middleware', 'mcp-prometheus-internal', '--type=merge', '-p', json.dumps(patch))
+    kube('patch', 'middlewares.traefik.io', 'mcp-prometheus-internal', '--type=merge', '-p', json.dumps(patch))
 
 
 def ready_pod(pods):
@@ -39,7 +39,7 @@ def grafana_source(pods, node):
 
 
 def main():
-    if not kube('get', 'middleware', 'mcp-prometheus-internal', '--ignore-not-found', '-o', 'json').strip():
+    if not kube('get', 'middlewares.traefik.io', 'mcp-prometheus-internal', '--ignore-not-found', '-o', 'json').strip():
         print('MCP boundary not installed')
         return
     patch_source(DENY)

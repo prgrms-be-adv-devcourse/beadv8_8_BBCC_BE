@@ -34,8 +34,10 @@ def main():
     if subprocess.run(find, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
         raise ValueError('Existing credential preserved; revoke and renew explicitly')
     command = 'add-generic-password -s ' + service + ' -a ' + account + ' -l "Kidly Grafana MCP Viewer (7 days)" -w ' + token + '\n'
-    subprocess.run(['/usr/bin/security', '-i'], input=command, text=True, stdout=subprocess.DEVNULL,
-                   stderr=subprocess.DEVNULL, timeout=20)
+    added = subprocess.run(['/usr/bin/security', '-i'], input=command, text=True, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=20)
+    if added.returncode:
+        raise RuntimeError('Keychain command failed; revoke the just-issued token')
     stored = subprocess.run(find + ['-w'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=15)
     if stored.returncode or not hmac.compare_digest(stored.stdout.decode().rstrip('\n'), token):
         raise RuntimeError('Keychain verification failed; revoke the just-issued token')

@@ -43,7 +43,7 @@ def check_node_origin():
     service = json.loads(subprocess.check_output(
         ['kubectl', '-n', 'kube-system', 'get', 'svc', 'traefik', '-o', 'json'], text=True))
     policy = json.loads(subprocess.check_output(
-        ['kubectl', '-n', 'monitoring', 'get', 'middleware', 'mcp-prometheus-internal', '-o', 'json'], text=True))
+        ['kubectl', '-n', 'monitoring', 'get', 'middlewares.traefik.io', 'mcp-prometheus-internal', '-o', 'json'], text=True))
     ranges = policy['spec']['ipAllowList']['sourceRange']
     assert len(ranges) == 1 and ranges[0].endswith('/32'), 'Only one Grafana Pod may be allowed'
     url = 'http://' + service['spec']['clusterIP'] + '/mcp-prometheus/api/v1/query?query=vector(1)'
