@@ -4,6 +4,8 @@
 
 개발 규칙은 [`CLAUDE.md`](CLAUDE.md)를 따른다.
 
+팀 문서(기획서 · Kafka 규칙 · API 목록): [문서 사이트](https://prgrms-be-adv-devcourse.github.io/beadv8_8_BBCC_BE/) · [위키](https://github.com/prgrms-be-adv-devcourse/beadv8_8_BBCC_BE/wiki). 원본은 [`docs/`](docs/README.md)이고 develop에 머지되면 둘 다 자동으로 바뀐다.
+
 ## 준비
 
 - JDK 25, Docker Compose를 쓸 수 있는 Docker 환경 (Gradle은 Wrapper를 쓴다)
