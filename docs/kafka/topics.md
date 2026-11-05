@@ -3,7 +3,7 @@
 | 토픽 | `eventType` | 키 | 보내는 도메인 | 받는 도메인 |
 |---|---|---|---|---|
 | `kidly.member.events` | `member.registered` | 회원 ID | member | notification, payment |
-| | `member.suspended` | 회원 ID | | notification |
+| | `member.suspended` | 회원 ID | | childprofile, notification |
 | | `member.changed` | 회원 ID | | seller |
 | | `member.withdrawn` | 회원 ID | | auth, childprofile, member(배송지), payment |
 | `kidly.seller.events` | `seller.changed` | 판매자 ID | seller | member, order, product, recommend, search |
