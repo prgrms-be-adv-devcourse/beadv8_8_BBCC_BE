@@ -70,6 +70,23 @@ class ProductSearchIntegrationTest {
     }
 
     @Test
+    @DisplayName("검색어는 브랜드에서도 찾는다. 단어마다 상품명이나 브랜드에 있으면 맞고, 브랜드는 단어를 다 써야 맞는다")
+    void brand() {
+        indexService.applyProductChanged(product(5L, "봄 원피스", "키들리", SHOP, DRESS, ProductStatus.ON_SALE,
+            18_000, PINK, 5, SearchEvents.OCCURRED_AT));
+        indexService.applyProductChanged(product(6L, "남아 셔츠", "꼬마숲", SHOP, SHIRT, ProductStatus.ON_SALE,
+            12_000, BLUE, 6, SearchEvents.OCCURRED_AT));
+        indexes.refresh();
+
+        assertThat(ids(keyword("키들리"))).containsExactly(5L);
+        assertThat(ids(keyword("키들리 원피스"))).containsExactly(5L);
+        assertThat(ids(keyword("키들리 셔츠"))).isEmpty();
+        assertThat(ids(keyword("꼬마숲 셔츠"))).containsExactly(6L);
+        assertThat(ids(keyword("꼬마"))).isEmpty();
+        assertThat(ids(keyword("원피스"))).containsExactly(5L, 4L, 1L);
+    }
+
+    @Test
     @DisplayName("판매중 상품만 최신순으로 돌려준다")
     void onSaleOnly() {
         assertThat(ids(keyword("원피스"))).containsExactly(4L, 1L);

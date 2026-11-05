@@ -18,11 +18,15 @@ public class CommunityMemberEventListener {
 
     /**
      * 처리할 수 없는 값(데이터 · 회원 ID · 발생 시각)이 없으면 WARN 한 줄을 남기고 건너뛴다. 탈퇴 시각은 이벤트 발생 시각이다.
+     *
+     * @return 처리했으면 true, 필수값이 없어 건너뛰었으면 false(DLT 재처리에서는 성공으로 보지 않는다)
      */
-    public void onMemberWithdrawn(MemberWithdrawnEvent event) {
+    public boolean onMemberWithdrawn(MemberWithdrawnEvent event) {
         if (CommunityEventGuard.accept("회원", event, "memberId", memberIdOf(event), missingRequiredValue(event))) {
             memberWithdrawalRecorder.record(event.data().memberId(), event.occurredAt());
+            return true;
         }
+        return false;
     }
 
     private static String missingRequiredValue(MemberWithdrawnEvent event) {

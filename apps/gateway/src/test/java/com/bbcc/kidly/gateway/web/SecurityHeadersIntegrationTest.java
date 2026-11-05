@@ -32,9 +32,9 @@ class SecurityHeadersIntegrationTest extends GatewayTestSupport {
     @Test
     @DisplayName("백엔드가 Cache-Control을 정하면 그대로 두고 Pragma · Expires도 붙이지 않는다")
     void keepsBackendCacheControl() {
-        backend.addResponseHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        orderBackend.addResponseHeader(HttpHeaders.CACHE_CONTROL, "no-store");
 
-        client.post().uri("/api/v1/auth/login").exchange()
+        client.post().uri("/api/v1/orders").exchange()
             .expectStatus().isOk()
             .expectHeader().values(HttpHeaders.CACHE_CONTROL, values -> assertThat(values).containsExactly("no-store"))
             .expectHeader().doesNotExist(HttpHeaders.PRAGMA)
@@ -45,8 +45,8 @@ class SecurityHeadersIntegrationTest extends GatewayTestSupport {
     @Test
     @DisplayName("백엔드가 같은 헤더를 붙여도 하나만 남는다")
     void doesNotDuplicateBackendHeaders() {
-        backend.addResponseHeader("X-Content-Type-Options", "nosniff");
-        backend.addResponseHeader("X-Frame-Options", "DENY");
+        productBackend.addResponseHeader("X-Content-Type-Options", "nosniff");
+        productBackend.addResponseHeader("X-Frame-Options", "DENY");
 
         expectSecurityHeaders(client.get().uri("/api/v1/products/1").exchange().expectStatus().isOk());
     }

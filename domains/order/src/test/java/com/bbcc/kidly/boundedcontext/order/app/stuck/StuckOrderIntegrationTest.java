@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.config.StuckOrderThresholds;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.dto.StuckOrderResult;

@@ -21,7 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 추천 서비스가 추천 도메인만으로 뜨고, 추천 API 두 개를 kidly-app과 같은 주소 · 같은 응답 형식으로 내는지 본다.
+ * 추천 서비스가 추천 도메인만으로 뜨고, 추천 API 두 개를 정해진 주소 · 응답 형식으로 내는지 본다.
  */
 @FunctionalTest
 class RecommendServiceApplicationApiTest {
@@ -52,7 +52,7 @@ class RecommendServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("다른 도메인 API는 없어 kidly-app과 같은 ProblemDetail 형식의 404를 받는다")
+    @DisplayName("다른 도메인 API는 없어 ProblemDetail 형식의 404를 받는다")
     void noOtherDomainApi() {
         client.get().uri("/api/v1/children")
             .headers(TestMembers.buyer(MEMBER_1_ID))
@@ -65,12 +65,13 @@ class RecommendServiceApplicationApiTest {
             .jsonPath("$.instance").isEqualTo("/api/v1/children");
     }
 
-    // 추천 마이그레이션을 더하고 baseline-version을 올리지 않으면, kidly-app이 이미 적용한 DB에서 다시 적용하려다 기동에 실패한다
+    // baseline-version은 kidly-app이 마지막으로 적용한 추천 마이그레이션 버전이다. 실제 파일 버전이 아니면
+    // kidly-app이 이미 적용한 DB에서 그 파일까지 건너뛰는 경계가 어긋난다
     @Value("${spring.flyway.baseline-version}")
     private String baselineVersion;
 
     @Test
-    @DisplayName("빈 DB에는 init부터 적용하고, 마지막 버전은 baseline-version이며, 테이블은 추천 스키마에만 만든다")
+    @DisplayName("빈 DB에는 init부터 적용하고, baseline-version은 적용한 마이그레이션 버전 중 하나이며, 테이블은 추천 스키마에만 만든다")
     void migratesOnlyRecommendSchema() {
         var schemas = jdbcTemplate.queryForList("""
             SELECT DISTINCT schemaname FROM pg_tables
@@ -84,11 +85,11 @@ class RecommendServiceApplicationApiTest {
 
         assertThat(schemas).containsExactly("recommend");
         assertThat(versions.getFirst()).isEqualTo("202610160256");
-        assertThat(versions.getLast()).isEqualTo(baselineVersion);
+        assertThat(versions).contains(baselineVersion);
     }
 
     @Test
-    @DisplayName("사이즈 추천 API를 kidly-app과 같은 주소로 부르면 같은 형식으로 답한다 (자녀 1, 상품 A → 120 · 여유 있음)")
+    @DisplayName("사이즈 추천 API를 부르면 정해진 형식으로 답한다 (자녀 1, 상품 A → 120 · 여유 있음)")
     void recommendSize() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
@@ -111,7 +112,7 @@ class RecommendServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("맞춤 상품 목록 API를 kidly-app과 같은 주소로 부르면 같은 목록 형식으로 답한다")
+    @DisplayName("맞춤 상품 목록 API를 부르면 정해진 목록 형식으로 답한다")
     void listRecommendedProducts() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());

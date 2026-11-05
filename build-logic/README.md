@@ -11,7 +11,7 @@
 | `kidly.java-conventions` | 모든 모듈 (아래 플러그인이 포함) | Java 25 toolchain, Checkstyle(루트 `config/checkstyle`), Lombok, Boot BOM, 단위 테스트 의존, `-parameters` 컴파일, JUnit Platform |
 | `kidly.library` | `shared`, `common` | `java-library`. 공개 시그니처에 나오는 의존을 `api`로 넘길 수 있게 한다 |
 | `kidly.domain` | `domains/*` | `kidly.library` + `kidly.arch-test` + `common` · `shared` + 도메인 공통 스택(webmvc · validation · data-jpa · QueryDSL) + `java-test-fixtures`. 다른 도메인 모듈에 의존하면 빌드가 실패한다 |
-| `kidly.arch-test` | `domains/*`, `apps/kidly-app` | `archTest` 태스크(ArchUnit 테스트 `com.bbcc.kidly.architecture.*`만 실행, `test`에서는 뺌)와 `:architecture` 공통 규칙 의존 |
+| `kidly.arch-test` | `domains/*` | `archTest` 태스크(ArchUnit 테스트 `com.bbcc.kidly.architecture.*`만 실행, `test`에서는 뺌)와 `:architecture` 공통 규칙 의존 |
 | `kidly.boot-app` | `apps/*` | Spring Boot 플러그인(`bootJar` · `bootRun`), 테스트 태스크 분리(`test` · `integrationTest` · `functionalTest`), 실행 · 테스트 작업 디렉터리를 루트로 |
 
 - 버전은 루트의 `gradle/libs.versions.toml`(version catalog) 한 곳에 있다. 이 빌드도 `settings.gradle.kts`에서 같은 파일을 읽는다
@@ -55,37 +55,23 @@
 |---|---|---|
 | `test` | 모든 모듈 | 단위 테스트. 도메인 모듈의 `test`는 태그를 빼지 않는다: 태그 붙은 테스트가 도메인 모듈에 잘못 들어오면 돌릴 태스크가 없어 조용히 빠지기보다 `test`에서 드러나는 편이 낫다 |
 | `integrationTest` · `functionalTest` (태그) | `kidly.boot-app` | 전체 컨텍스트 · 마이그레이션 · test 리소스가 있는 앱(서비스)에서만 돈다. 앱의 `test`는 이 태그를 뺀다 |
-| `archTest` | `kidly.arch-test` (`domains/*`, `apps/kidly-app`) | 도메인 모듈은 자기 안의 계층 규칙(`LayerRules`)을, `kidly-app`은 모듈 사이 경계 규칙(`ArchitectureTest`)을 검사한다. 도메인 모듈은 규칙 테스트가 없거나 `LayerRules`를 돌리지 않으면 `checkLayerArchitectureTest`가 먼저 실패한다(테스트가 하나도 없어도). 규칙 테스트가 없는 모듈은 `No tests found`로 실패하므로 `kidly.boot-app`에는 넣지 않는다(규칙 테스트가 없는 서비스 모듈이 실패한다) |
+| `archTest` | `kidly.arch-test` (`domains/*`) | 도메인 모듈은 자기 안의 계층 규칙(`LayerRules`)을 검사한다. 도메인 모듈은 규칙 테스트가 없거나 `LayerRules`를 돌리지 않으면 `checkLayerArchitectureTest`가 먼저 실패한다(테스트가 하나도 없어도). 규칙 테스트가 없는 모듈은 `No tests found`로 실패하므로 `kidly.boot-app`에는 넣지 않는다(규칙 테스트가 없는 서비스 모듈이 실패한다) |
 
 CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `functionalTest`를 부른다. 이름으로 부르면 그 태스크가 있는 모듈에서만 돈다.
 
 ### 5. 도메인 공통 스택은 모든 도메인이 쓰는 것만
 
-`kidly.domain`에는 모든 도메인 코드가 쓰는 것(webmvc · validation · data-jpa · QueryDSL)만 넣는다. 한 도메인만 쓰는 것은 그 도메인 빌드 파일에 둔다: auth=JWT 발급(spring-security-oauth2-jose), notification=mail, product=AWS S3, settlement=batch. Swagger UI(springdoc)는 실행되는 앱(서비스)이 화면을 여는 것이라 앱 모듈에 둔다.
+`kidly.domain`에는 모든 도메인 코드가 쓰는 것(webmvc · validation · data-jpa · QueryDSL)만 넣는다. 한 도메인만 쓰는 것은 그 도메인 빌드 파일에 둔다: notification=mail, product=AWS S3, settlement=batch. Swagger UI(springdoc)는 실행되는 앱(서비스)이 화면을 여는 것이라 앱 모듈에 둔다.
 
-## 도메인 옮기는 법
+## 새 도메인 모듈
 
-빌드 파일은 고치지 않는다. `git mv`만 한다(이력이 따라온다). `{d}`는 도메인 이름, 경로의 `java/com/bbcc/kidly/boundedcontext/{d}`는 그대로 둔다.
-
-| 무엇 | 어디서 | 어디로 |
-|---|---|---|
-| main 코드 | `apps/kidly-app/src/main/java/.../boundedcontext/{d}` | `domains/{d}/src/main/java/...` |
-| 단위 테스트 (태그 없는 것) | `apps/kidly-app/src/test/java/.../boundedcontext/{d}` | `domains/{d}/src/test/java/...` |
-| Fixture · 테스트 헬퍼 중 **단위 테스트가 쓰는 것** (와 그것이 쓰는 헬퍼) | 같은 곳 | `domains/{d}/src/testFixtures/java/...` |
-| 도메인 전용 리소스 (`{d}.yml`, `data/{d}/**`) | `apps/kidly-app/src/main/resources` | `domains/{d}/src/main/resources` |
-| 통합 · 기능 테스트(`@IntegrationTest` · `@FunctionalTest`)와 그것만 쓰는 헬퍼 | | 앱에 남긴다 |
-| 계층 규칙 테스트 | `domains/member/src/test/java/com/bbcc/kidly/architecture/LayerArchitectureTest.java` | `domains/{d}/src/test/java/com/bbcc/kidly/architecture/`에 **복사**한다. 빠뜨리면 `archTest`가 실패한다(`checkLayerArchitectureTest`: 그 도메인에 테스트가 하나도 없어도 실패) |
-
-- 앱에 남는 것: `KidlyApplication`, `application*.yml`, `logback-spring.xml`, `db/migration`(기존 파일), `support` · `scenario` · `architecture` 테스트, test 리소스
-- 테스트 Fixture는 `src/testFixtures`에 두면 그 도메인 단위 테스트와 앱(나중엔 서비스)의 통합 테스트가 같이 쓴다. 앱은 모든 도메인의 `testFixtures(...)`를 이미 의존한다
-- 단위 테스트는 자기 도메인 코드 · `common` · `shared` · 자기 Fixture만 쓸 수 있다. 다른 도메인의 클래스나 Fixture를 쓰는 테스트는 도메인 사이 테스트 의존이 생기므로 앱에 남긴다
-- 앱 `application.yml`의 `spring.config.import: classpath:{d}.yml`은 jar 안도 찾으므로 고치지 않는다
-- 옮긴 뒤 확인: `./gradlew build` (테스트 수가 옮기기 전과 같은지)
-- 다 옮긴 도메인이 생기면 앱 빌드 파일에서 "xxx가 옮겨지면 지운다" 주석이 붙은 의존을 지운다(프로젝트 관리자)
+- `domains/{d}`에 `kidly.domain` 플러그인을 적용한다. 코드와 도메인 전용 리소스는 해당 모듈에 둔다
+- 단위 테스트가 쓰는 Fixture는 `src/testFixtures`에 둔다
+- `LayerArchitectureTest`를 추가해 `LayerRules`를 실행한다. 빠뜨리면 `checkLayerArchitectureTest`가 실패한다
 
 ## 마이그레이션 위치
 
-- 이미 있는 파일은 `apps/kidly-app/src/main/resources/db/migration`에 그대로 둔다. 적용된 파일은 옮기거나 고치지 않는다
+- 이미 적용된 파일은 고치지 않는다
 - **새 마이그레이션은 도메인 모듈** `domains/{d}/src/main/resources/db/migration/{스키마}/V{yyyyMMddHHmm}__설명.sql`에 둔다 (예: `domains/order/.../db/migration/orders/`)
 - Flyway는 `spring.flyway.locations: classpath:db/migration`으로 모든 jar(`bootJar`의 `BOOT-INF/lib/*.jar` 포함)의 `db/migration`과 그 하위 폴더를 읽는다. 버전은 폴더와 상관없이 전체에서 하나로 정렬된다
 - `MigrationNamingTest`는 `classpath*:db/migration/**/*.sql`로 같은 범위의 이름 · 버전 중복을 검사한다
@@ -105,7 +91,7 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
        implementation(project(":domains:{d}"))
        testImplementation(testFixtures(project(":domains:{d}")))
 
-       // 서비스가 뜨는 데 필요한 런타임 (kidly-app의 "남는 것"과 같다)
+       // 서비스가 뜨는 데 필요한 런타임
        runtimeOnly("org.postgresql:postgresql")
        implementation("org.springframework.boot:spring-boot-starter-flyway")
        runtimeOnly("org.flywaydb:flyway-database-postgresql")
@@ -117,23 +103,19 @@ CI는 루트에서 `./gradlew archTest` · `test` · `integrationTest` · `funct
 
    루트 `settings.gradle.kts`에 `include("apps:{d}-service")`. 서비스가 둘 이상이 되면 위 런타임 묶음을 `kidly.boot-app`으로 올린다
 2. **메인 클래스**: `apps/{d}-service/src/main/java/com/bbcc/kidly/{D}Application.java`. 패키지는 `com.bbcc.kidly`여야 한다. 컴포넌트 · 엔티티 · `@ConfigurationProperties` 스캔이 이 패키지 아래의 클래스패스(의존한 도메인 jar)만 훑어, 의존하지 않은 도메인은 뜨지 않는다
-3. **설정**: `apps/{d}-service/src/main/resources/application.yml`. `kidly-app`의 것에서 그 서비스에 필요한 것만 가져온다(`spring.application.name`, Flyway `schemas`는 자기 스키마만, JWT 설정은 auth-service만 둔다(토큰 검증은 Gateway가 하므로 다른 서비스는 키가 필요 없다), `config.import`는 자기 도메인 yml만)
+3. **설정**: `apps/{d}-service/src/main/resources/application.yml`. 서비스에 필요한 설정을 둔다(`spring.application.name`, Flyway `schemas`는 자기 스키마만, JWT 설정은 auth-service만 둔다(토큰 검증은 Gateway가 하므로 다른 서비스는 키가 필요 없다), `config.import`는 자기 도메인 yml만)
 4. **마이그레이션 분리** (아래 "서비스를 뗄 때 마이그레이션")
-5. **kidly-app에서 빼기**: `apps/kidly-app/build.gradle.kts`의 `domains` 목록에서 `{d}`를 지우고, `application.yml`의 `config.import`에서 `{d}.yml`을 지운다. kidly-app의 Flyway는 빠진 마이그레이션을 무시하게 `spring.flyway.ignore-migration-patterns: "*:missing"`을 둔다
 6. **이미지 · 배포**: `docker build --build-arg APP={d}-service .`. compose · nginx 라우팅 · Prometheus 수집 대상 추가는 `wiki/멀티모듈 분리와 MSA 전환 가이드.md` 4단계
 7. **확인**: `./gradlew :apps:{d}-service:build`, 기동 후 `/actuator/health`, 그 서비스에 없는 도메인 API가 404인지, DB에 자기 스키마만 생기는지
 
-## 서비스를 뗄 때 마이그레이션
+## 서비스 마이그레이션
 
-Flyway 파일이 전부 `kidly-app`에 있어 서비스는 자기 테이블을 만들 줄 모른다. 리허설에서 처음 기동은 `Schema validation: missing table [member.access_token_revocation]`로 실패했다(이 테이블은 #638에서 삭제). 서비스 하나를 뗄 때마다 한 번씩 한다.
-
-- **새 DB(로컬 · 테스트)**: `apps/kidly-app/.../db/migration`에서 그 스키마를 다루는 파일 · 구문만 `apps/{d}-service/src/main/resources/db/migration/`으로 가져온다. `init.sql`은 10개 스키마가 한 파일이라 **그 스키마 구문만 뽑아** 같은 버전 이름으로 만든다(member는 229개 구문 중 21개). 스키마 사이 FK가 없어 구문 단위로 나뉜다. 가져온 파일은 `kidly-app`에 그대로 둔다(이미 적용된 파일은 고치지 않는다)
-- **운영 DB(이미 적용됨)**: 서비스의 Flyway는 자기 이력 테이블을 따로 쓴다(`spring.flyway.table: flyway_schema_history_{d}`). 첫 기동 때 `baseline-on-migrate: true` + `baseline-version`을 지금 적용된 최신 버전으로 두면 기존 파일은 건너뛰고 그 뒤 버전만 적용한다. 운영 DB 덤프로 로컬에서 먼저 리허설한다
-- **그 뒤부터**: 그 도메인 새 마이그레이션은 "마이그레이션 위치"대로 `domains/{d}/.../db/migration/{스키마}/`에 두면 서비스 jar에 들어간다
+- 새 DB에는 서비스의 init부터 마이그레이션을 적용한다
+- 기존 DB에는 서비스별 이력 테이블과 baseline을 사용한다. 적용된 버전을 확인하고 운영 DB 덤프로 먼저 리허설한다
+- 새 마이그레이션은 도메인 모듈의 `db/migration/{스키마}/`에 둔다
 
 ## IntelliJ
 
-- 앱 실행은 공유 실행 구성 `KidlyApplication`(`.run/KidlyApplication.run.xml`)을 쓴다. 작업 디렉터리가 프로젝트 루트라 `config/jwt` · `.env`를 찾는다. 새로 만든 구성은 작업 디렉터리가 모듈 폴더(`apps/kidly-app`)가 되어 실패한다
 - 테스트 러너는 Gradle로 둔다(Settings > Build Tools > Gradle > Run tests using: Gradle). 작업 디렉터리 · 태그 · test fixtures 설정이 Gradle 태스크에만 있다
 
 ## 알아 둘 것
@@ -150,7 +132,6 @@ Flyway 파일이 전부 `kidly-app`에 있어 서비스는 자기 테이블을 �
 - `common`이 `api`로 내보내는 의존(webmvc · data-jpa)은 도메인 모듈 컴파일 클래스패스에도 들어간다
 - 경계 검사는 둘로 나뉜다. **도메인 사이 참조는 Gradle 의존으로 막고**(`kidly.domain`이 다른 `:domains:*` 의존을 거부한다), **모듈 안의 계층 규칙은 도메인 모듈마다 ArchUnit으로** 검사한다(`:architecture`의 `LayerRules`). 서비스를 떼어 앱에서 도메인을 빼도 검사가 도메인 모듈과 함께 남는다
 - `LayerRules`의 계층 규칙은 계층이 없는 도메인을 위해 빈 대상을 허용한다. 대신 `DOMAIN_CLASSES_EXIST`가 도메인 클래스가 하나도 없으면 실패시켜 검사가 조용히 빠지지 않게 한다
-- ArchUnit은 테스트 클래스패스의 모듈 jar까지 검사하므로 도메인 모듈 코드도 앱의 `archTest`에서 검사된다. `*-test-fixtures.jar`는 `DoNotIncludeTestFixtures`로 뺀다(테스트 코드라서)
 - Boot 플러그인이 없는 모듈은 `-parameters` 없이 컴파일되어 `@PathVariable` · `@Query`의 이름 생략 바인딩이 실패하므로 `kidly.java-conventions`가 넣는다
 - 설정의 상대 경로(`file:config/jwt/...`, `.env`)가 루트 기준이라 `bootRun`과 테스트는 루트에서 실행된다(`kidly.boot-app`)
 
@@ -165,3 +146,7 @@ Flyway 파일이 전부 `kidly-app`에 있어 서비스는 자기 테이블을 �
 | 서비스(실행 모듈) 추가 | "서비스 모듈 만드는 법" |
 
 빌드 설정 파일은 git 규칙에 따라 프로젝트 관리자가 고친다. 바꿔야 하면 먼저 알린다.
+
+## 회원 서비스
+
+`apps/member-service`는 build-logic을 쓰지 않는 별도 Gradle 빌드다. 공통 설정은 그 폴더의 `build.gradle.kts`에 있다. 이 저장소에서는 `shared`만 `includeBuild`로 가져가며, 그때 `shared/settings.gradle.kts`가 build-logic을 읽는다. [구조와 실행](../apps/member-service/README.md)

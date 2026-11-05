@@ -7,6 +7,14 @@ export KUBECONFIG="$HOME/.kube/config"
 
 k() { kubectl -n monitoring "$@"; }
 
+# Persistent runtime intention is not replaced by monitoring deployment.
+mkdir -p operations
+if [[ ! -f operations/inventory.prom ]]; then
+  printf 'kidly_monitoring_inventory_present 1\nkidly_monitoring_inventory_initialized 0\n' > operations/inventory.prom
+fi
+if ! python3 ai-notes/initialize.py; then
+  echo "::warning::AI 메모 상태 초기화 실패. 기존 모니터링 배포는 계속합니다"
+fi
 # 대시보드 ConfigMap 이 커서(약 190KB) client-side apply 의 last-applied 주석 한도(256KB)를 넘을 수 있어 server-side 로 넣는다
 # 손으로 바꾼 필드가 있어도 레포 내용으로 되돌린다(--force-conflicts)
 kubectl apply --server-side --force-conflicts -k .
@@ -24,6 +32,9 @@ wait_rollout deploy/prometheus 180s
 wait_rollout deploy/loki 180s
 wait_rollout deploy/grafana 180s
 wait_rollout ds/alloy 120s
+
+# Grafana 재생성 시 새 Pod 한 개만 MCP 조회 경로에 허용한다. 실패하면 기본 거부를 유지한다.
+python3 mcp/update_boundary.py
 
 # GF_SECURITY_ADMIN_PASSWORD 는 Grafana DB 를 처음 만들 때만 쓰인다. Secret 을 바꿔도 반영되도록 배포마다 맞춘다
 # 값은 출력하지 않고 stdin 으로만 넘긴다. 워크플로가 printf '%s' 로 만들어 파일 끝에 줄바꿈이 없다

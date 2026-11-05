@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderKafkaConsumerProperties;
 import java.io.IOException;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;

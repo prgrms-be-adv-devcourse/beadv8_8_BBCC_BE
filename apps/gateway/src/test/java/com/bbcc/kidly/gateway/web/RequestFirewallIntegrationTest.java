@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend;
+import com.bbcc.kidly.gateway.support.RecordingBackendConfiguration;
 import com.bbcc.kidly.gateway.support.TestTokens;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
 import java.io.BufferedReader;
@@ -18,11 +19,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -33,6 +37,16 @@ import org.springframework.http.MediaType;
  */
 @IntegrationTest
 class RequestFirewallIntegrationTest extends GatewayTestSupport {
+
+    // 토스 웹훅은 결제 라우트(#525)로 간다
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.PAYMENT)
+    private RecordingBackend paymentBackend;
+
+    @BeforeEach
+    void resetPaymentBackend() {
+        paymentBackend.reset();
+    }
 
     // 백엔드가 정규화 · 디코딩 · 매트릭스 제거를 하면 /api/v1/admin/** · /internal/**로 읽힐 수 있는 경로
     private static final List<String> BYPASS_PATHS = List.of(
@@ -84,7 +98,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.method(HttpMethod.TRACE).uri("/api/v1/products").exchange()
             .expectStatus().isBadRequest();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
     }
 
     // 헤더는 뒤 필터가 읽을 때 검사된다. AccessTokenFilter가 Authorization을 읽다가 거절된다
@@ -96,7 +110,8 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isBadRequest();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
+        assertThat(productBackend.lastRequest()).isEmpty();
     }
 
     // 경로 매칭(PathPattern)은 퍼센트 인코딩을 풀어서 보므로 방화벽이 막지 않는 인코딩(%61 = a, %69 = i)도 검사를 비껴가지 못한다
@@ -106,7 +121,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.get().uri(raw("/api/v1/%61dmin/members")).exchange()
             .expectStatus().isUnauthorized();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
     }
 
     @Test
@@ -115,7 +130,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.get().uri(raw("/%69nternal/members/1")).exchange()
             .expectStatus().isNotFound();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
     }
 
     @Test
@@ -129,7 +144,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(request -> {
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(request -> {
             assertThat(request.uri().getPath()).isEqualTo("/api/v1/products/1");
             assertThat(request.uri().getQuery())
                 .isEqualTo("keyword=유아 원피스&next=/api/v1/admin/../x;y&rate=10%");
@@ -142,7 +157,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.get().uri("/api/v1/categories/{name}", "유아 신발").exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo("/api/v1/categories/유아 신발"));
     }
 
@@ -150,13 +165,13 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
     @DisplayName("퍼센트 인코딩한 헤더 값과 Gateway가 붙인 닉네임 헤더는 그대로 넘긴다")
     void passesPercentEncodedHeaders() {
         var nickname = "키들리 엄마+아빠 100%";
-        client.get().uri("/api/v1/members/me")
+        client.get().uri("/api/v1/orders")
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestTokens.issueWithNickname(7L, nickname))
             .header("X-Client-Note", "%ED%82%A4%EB%93%A4%EB%A6%AC%20100%25")
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(request -> {
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(request -> {
             assertThat(request.header(MemberHeaders.MEMBER_NICKNAME)).singleElement()
                 .satisfies(value -> assertThat(URLDecoder.decode(value, StandardCharsets.UTF_8)).isEqualTo(nickname));
             assertThat(request.header("X-Client-Note")).containsExactly("%ED%82%A4%EB%93%A4%EB%A6%AC%20100%25");
@@ -181,7 +196,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.method(HttpMethod.valueOf(method)).uri("/api/v1/orders/1").exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.method()).isEqualTo(method));
     }
 
@@ -194,7 +209,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo("/api/v1/webhooks/toss"));
     }
 

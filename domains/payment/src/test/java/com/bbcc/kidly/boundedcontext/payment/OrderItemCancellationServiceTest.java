@@ -28,6 +28,8 @@ import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedger;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.payment.event.PaymentRefundedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -57,6 +59,9 @@ class OrderItemCancellationServiceTest {
 
     @Mock
     private WalletLedgerRepository walletLedgerRepository;
+
+    @Mock
+    private EventPublisher eventPublisher;
 
     @InjectMocks
     private OrderItemCancellationService service;
@@ -88,6 +93,15 @@ class OrderItemCancellationServiceTest {
         assertThat(ledger.getValue().getAmount()).isEqualTo(5_000L);
         assertThat(ledger.getValue().getBalanceAfter()).isEqualTo(5_000L);
         assertThat(ledger.getValue().getRefId()).isEqualTo(REFUND_ID);
+        PaymentRefundedEvent.Data event = publishedRefund().data();
+        assertThat(event.refundId()).isEqualTo(REFUND_ID);
+        assertThat(event.paymentId()).isEqualTo(500L);
+        assertThat(event.orderId()).isEqualTo(ORDER_ID);
+        assertThat(event.cancellationId()).isEqualTo(CANCELLATION_ID);
+        assertThat(event.memberId()).isEqualTo(MEMBER_ID);
+        assertThat(event.items()).containsExactly(new PaymentRefundedEvent.Item(1001L, 5_000L));
+        assertThat(event.amount()).isEqualTo(5_000L);
+        assertThat(event.refundedAt()).isNotNull();
     }
 
     @Test
@@ -193,6 +207,7 @@ class OrderItemCancellationServiceTest {
 
         assertThat(wallet.getBalance()).isZero();
         then(refundRepository).should(never()).save(any());
+        then(eventPublisher).should(never()).publish(any());
     }
 
     @Test
@@ -216,6 +231,7 @@ class OrderItemCancellationServiceTest {
         assertThat(wallet.getBalance()).isZero();
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
         assertThat(payment.getRefundedAmount()).isZero();
+        then(eventPublisher).should(never()).publish(any());
         assertThat(payment.getItems()).allSatisfy(item -> assertThat(item.getRefundedAmount()).isZero());
         then(walletLedgerRepository).should(never()).save(any());
     }
@@ -231,6 +247,12 @@ class OrderItemCancellationServiceTest {
             ReflectionTestUtils.setField(refund, "id", REFUND_ID);
             return refund;
         });
+    }
+
+    private PaymentRefundedEvent publishedRefund() {
+        ArgumentCaptor<PaymentRefundedEvent> event = ArgumentCaptor.forClass(PaymentRefundedEvent.class);
+        then(eventPublisher).should().publish(event.capture());
+        return event.getValue();
     }
 
     private Refund savedRefund() {

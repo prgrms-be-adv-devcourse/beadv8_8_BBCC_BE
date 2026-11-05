@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.search.app;
 
+import com.bbcc.kidly.boundedcontext.search.app.port.TextEmbedder;
+import com.bbcc.kidly.boundedcontext.search.domain.ProductEmbedding;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProductRepository;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchSeller;
@@ -14,6 +16,8 @@ import org.springframework.stereotype.Service;
 /**
  * 상품 · 판매자 변경됨을 받아 검색 색인을 갱신한다.
  * 이벤트는 바뀐 뒤의 전체 값을 담으므로 덮어쓰기만 하고, 늦게 일어난 이벤트만 남기는 비교는 저장소가 한다.
+ * 상품 문서에는 의미 검색 벡터를 함께 저장한다. 문장(상품명 · 브랜드 · 설명)이 그대로면 저장된 벡터를 다시 쓰고,
+ * 임베딩 API를 쓸 수 없으면 벡터 없이 저장한다(그 상품은 키워드로만 찾고, 다음 변경 때 다시 만든다).
  * DB를 쓰지 않으므로 트랜잭션을 열지 않는다.
  */
 @Service
@@ -22,9 +26,22 @@ public class SearchIndexService {
 
     private final SearchProductRepository productRepository;
     private final SearchSellerRepository sellerRepository;
+    private final TextEmbedder textEmbedder;
 
     public void applyProductChanged(ProductChangedEvent event) {
-        productRepository.saveIfNewer(SearchProduct.create(toChangeInfo(event)));
+        SearchProduct product = SearchProduct.create(toChangeInfo(event));
+        product.attachEmbedding(embeddingOf(product));
+        productRepository.saveIfNewer(product);
+    }
+
+    // 재고 · 가격만 바뀐 이벤트가 많아, 문장이 같으면 저장된 벡터를 쓰고 API를 부르지 않는다
+    private ProductEmbedding embeddingOf(SearchProduct product) {
+        String textHash = product.getEmbeddingTextHash();
+        return productRepository.findEmbedding(product.getProductId())
+            .filter(stored -> stored.textHash().equals(textHash))
+            .or(() -> textEmbedder.embed(product.getEmbeddingText())
+                .map(vector -> new ProductEmbedding(textHash, vector)))
+            .orElse(null);
     }
 
     public void applySellerChanged(SellerChangedEvent event) {
@@ -43,11 +60,13 @@ public class SearchIndexService {
             data.categoryId(),
             data.status(),
             data.thumbnailUrl(),
+            data.brand(),
             data.createdAt(),
             data.sizeFree(),
             toOptionInfos(data.options()),
             toAttributeEntryInfos(data.infoValues()),
-            event.occurredAt());
+            event.occurredAt(),
+            data.description());
     }
 
     // 목록이 null이면 그대로 넘겨, 값 검사를 도메인이 맡도록 한다

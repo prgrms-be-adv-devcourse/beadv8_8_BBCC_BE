@@ -7,6 +7,7 @@ import com.bbcc.kidly.gateway.support.IntegrationTest;
 import com.bbcc.kidly.gateway.support.RecordingBackend;
 import com.bbcc.kidly.gateway.support.TestTokens;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
+import com.bbcc.kidly.shared.auth.PrincipalHeaders;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -18,13 +19,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * /api/v1/admin/**는 ADMIN, /api/v1/seller/**는 SELLER만 넘기는지 본다(#638).
+ * /api/v1/admin/**는 관리자, /api/v1/seller/**는 SELLER 회원만 넘기는지 본다(#638).
  * 토큰이 없으면 401, 역할이 없으면 403이고 둘 다 백엔드로 넘기지 않는다.
  */
 @IntegrationTest
 class RoleFilterIntegrationTest extends GatewayTestSupport {
 
-    private static final String ADMIN_PATH = "/api/v1/admin/members";
+    private static final String ADMIN_PATH = "/api/v1/admin/orders";
     private static final String SELLER_PATH = "/api/v1/seller/products";
     private static final String ORIGIN = RecordingBackend.ALLOWED_ORIGIN;
 
@@ -62,16 +63,16 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
     void passesSeller() {
         get(SELLER_PATH, "BUYER", "SELLER").expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo(SELLER_PATH));
     }
 
     @Test
-    @DisplayName("ADMIN 토큰이면 관리자 API를 넘긴다")
+    @DisplayName("관리자 토큰이면 관리자 API를 넘긴다")
     void passesAdmin() {
-        get(ADMIN_PATH, "ADMIN").expectStatus().isOk();
+        getAdmin(ADMIN_PATH).expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo(ADMIN_PATH));
     }
 
@@ -81,7 +82,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
         client.get().uri("/api/v1/products/1").exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).isPresent();
+        assertThat(productBackend.lastRequest()).isPresent();
     }
 
     // 서비스(Spring Security requestMatchers("/api/v1/admin/**"))와 같다: /**는 0개 이상의 경로 조각이라 /api/v1/admin도 맞는다
@@ -96,10 +97,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
     @ValueSource(strings = {"/api/v1/administrator", "/api/v1/sellers/1"})
     @DisplayName("이름이 admin · seller로 시작할 뿐인 다른 경로는 역할을 검사하지 않는다")
     void ignoresPathsSharingPrefix(String path) {
-        client.get().uri(path).exchange()
-            .expectStatus().isOk();
-
-        assertThat(backend.lastRequest()).isPresent();
+        expectNotFound(client.get().uri(path).exchange(), path);
     }
 
     @Test
@@ -123,6 +121,58 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
             .expectStatus().isForbidden()
             .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN)
             .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+    }
+
+    @Test
+    @DisplayName("ADMIN 역할이 있어도 회원 토큰으로 관리자 API를 부르면 403이다")
+    void rejectsMemberAdminRole() {
+        expectForbidden(get(ADMIN_PATH, "BUYER", "ADMIN"), ADMIN_PATH);
+    }
+
+    @Test
+    @DisplayName("관리자 토큰으로 판매자 API를 부르면 403이다")
+    void rejectsAdminOnSellerPath() {
+        expectForbidden(getAdmin(SELLER_PATH), SELLER_PATH);
+    }
+
+    @Test
+    @DisplayName("밖에서 위조한 X-Admin-Id 헤더만으로는 관리자 API를 부를 수 없다(401)")
+    void rejectsForgedAdminHeader() {
+        expectUnauthorized(client.get().uri(ADMIN_PATH)
+            .header(PrincipalHeaders.ADMIN_ID, "7")
+            .exchange(), ADMIN_PATH);
+    }
+
+    @Test
+    void childPathsRequireChildPrincipal() {
+        var path = "/api/v1/child/profile";
+        expectUnauthorized(client.get().uri(path).exchange(), path);
+        expectForbidden(get(path, "BUYER"), path);
+        expectForbidden(getAdmin(path), path);
+        var now = Instant.now();
+        var token = TestTokens.issueChild(7001, 8, now, now.plusSeconds(1800));
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange().expectStatus().isOk();
+        resetBackends();
+        for (var forbidden : List.of(ADMIN_PATH, SELLER_PATH)) {
+            expectForbidden(client.get().uri(forbidden).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .exchange(), forbidden);
+        }
+        client.get().uri("/api/v1/children").exchange().expectStatus().isOk();
+    }
+
+    @Test
+    void childProfileRequiresChildPrincipal() {
+        var path = "/api/v1/child/profile";
+        expectUnauthorized(client.get().uri(path).exchange(), path);
+        expectForbidden(get(path, "BUYER"), path);
+        expectForbidden(getAdmin(path), path);
+    }
+
+    private ResponseSpec getAdmin(String path) {
+        var now = Instant.now();
+        return client.get().uri(path)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestTokens.issueAdmin(7, now, now.plusSeconds(1800)))
+            .exchange();
     }
 
     private ResponseSpec get(String path, String... roles) {

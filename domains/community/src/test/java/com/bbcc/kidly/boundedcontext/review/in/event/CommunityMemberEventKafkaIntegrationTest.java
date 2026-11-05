@@ -50,16 +50,21 @@ class CommunityMemberEventKafkaIntegrationTest {
 
     private CommunityKafkaTestClient kafkaClient;
     private MessageListenerContainer listener;
+    private MessageListenerContainer deadLetterListener;
 
     @BeforeEach
     void startListener() {
         kafkaClient = new CommunityKafkaTestClient(kafka, jsonMapper);
         listener = kafkaClient.start(guard, CommunityMemberEventKafkaListener.ID, TOPIC);
+        deadLetterListener = kafkaClient.start(guard, CommunityDeadLetterKafkaListener.ID, TOPIC + ".community.dlt");
+        kafkaClient.awaitCaughtUp("kidly.order.events.community.dlt");
+        kafkaClient.awaitCaughtUp("kidly.product.events.community.dlt");
     }
 
     @AfterEach
     void stopListener() {
         listener.stop();
+        deadLetterListener.stop();
         jdbcTemplate.execute("alter table community.review drop constraint if exists " + BREAK_REVIEW);
     }
 
@@ -101,7 +106,7 @@ class CommunityMemberEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("처리가 실패하면 1초 간격 3번 재시도한 뒤 kidly.member.events.community.dlt(파티션 0)에 1건 보내고 찜은 그대로다")
+    @DisplayName("처리가 실패하면 3번 재시도한 뒤 kidly.member.events.community.dlt(파티션 0)에 1건 보내고, 찜은 그대로이며 DLT는 DB에 보관된다")
     void processingFailureToDeadLetter() {
         long member = newId();
         favorite(member, 15);
@@ -121,6 +126,11 @@ class CommunityMemberEventKafkaIntegrationTest {
         });
         assertThat(jdbcTemplate.queryForObject("select count(*) from community.favorite where member_id = ?",
             Integer.class, member)).isEqualTo(1);
+        // 회원 DLT도 다른 커뮤니티 DLT와 같은 리스너가 DB에 보관한다(관리자 재처리 대상)
+        AsyncWait.until(CommunityKafkaTestClient.TIMEOUT, () -> jdbcTemplate.queryForObject(
+            "select count(*) from community.dead_letter where event_id = ?", Integer.class, eventId) == 1);
+        assertThat(jdbcTemplate.queryForObject("select source_topic from community.dead_letter where event_id = ?",
+            String.class, eventId)).isEqualTo(TOPIC);
     }
 
     private void favorite(long memberId, long productId) {

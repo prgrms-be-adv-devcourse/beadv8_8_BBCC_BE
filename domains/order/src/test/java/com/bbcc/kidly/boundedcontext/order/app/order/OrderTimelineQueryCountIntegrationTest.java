@@ -31,7 +31,7 @@ class OrderTimelineQueryCountIntegrationTest {
     private static final int MANY = 5;
 
     @Autowired
-    private OrderService orderService;
+    private OrderQueryService orderQueries;
 
     @Autowired
     private OrderRepository orderRepository;
@@ -56,7 +56,7 @@ class OrderTimelineQueryCountIntegrationTest {
 
         assertThat(manyCount).isEqualTo(singleCount);
         assertThat(singleCount).as("주문(주문상품 포함) 1번 + 배송 건 1번 + 판매자 상호명 1번").isEqualTo(3);
-        OrderTimeline timeline = orderService.getTimeline(BUYER_ID, many);
+        OrderTimeline timeline = orderQueries.getTimeline(BUYER_ID, many);
         OrderTimeline.Step shipped = timeline.steps().stream()
             .filter(step -> step.step() == OrderTimeline.StepName.SHIPPED).findFirst().orElseThrow();
         assertThat(shipped.deliveries()).hasSize(MANY)
@@ -68,7 +68,7 @@ class OrderTimelineQueryCountIntegrationTest {
     }
 
     private long countStatements(Long orderId) {
-        return queryCounter.count(() -> orderService.getTimeline(BUYER_ID, orderId));
+        return queryCounter.count(() -> orderQueries.getTimeline(BUYER_ID, orderId));
     }
 
     /**

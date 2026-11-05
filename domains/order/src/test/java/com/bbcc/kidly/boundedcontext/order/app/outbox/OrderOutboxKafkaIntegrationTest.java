@@ -33,9 +33,11 @@ import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.WishItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
+import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -138,8 +140,9 @@ class OrderOutboxKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("실제 주문 흐름의 4종이 kidly.order.events(파티션 3)에 도착한다: 키 = 주문 ID, 헤더 eventType · eventId, 본문 7칸 + data")
-    void deliversFourEventTypes() {
+    @DisplayName("실제 주문 흐름의 5종(결제완료 order.paid 포함, #899)이 kidly.order.events(파티션 3)에 도착한다: 키 = 주문 ID, "
+        + "헤더 eventType · eventId, 본문 7칸 + data")
+    void deliversOrderEventTypes() {
         // 첫 주문은 결제 → 배송 완료 → 구매확정, 둘째 주문은 잔액 부족으로 결제 실패 → 취소.
         // 주문 모듈 테스트에는 결제 도메인이 없으므로 결제 응답은 테스트가 직접 넣는다(#616)
         OrderDetail confirmed = place();
@@ -155,9 +158,9 @@ class OrderOutboxKafkaIntegrationTest {
         OutboxRelayResult result = relayService.relay();
 
         assertThat(published).extracting(DomainEvent::eventType).containsExactlyInAnyOrder("order.created",
-            "order.payment-requested", "order.cancelled", "order.created", "order.payment-requested",
+            "order.payment-requested", "order.paid", "order.cancelled", "order.created", "order.payment-requested",
             "order-item.purchase-confirmed");
-        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 6, 6));
+        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 7, 7));
         Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
             published.stream().map(event -> event.eventId().toString()).collect(Collectors.toSet()));
         assertThat(received).hasSize(published.size());
@@ -250,6 +253,36 @@ class OrderOutboxKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("장바구니 빼기(#709)도 같은 토픽에 도착한다: 키 = 회원 ID, 헤더 eventType · eventId, 본문 7칸 + data, "
+        + "담기와 같은 파티션에 일어난 순서대로")
+    void deliversCartItemRemoved() {
+        Long cartItemId = cartService.addItem(BUYER_ID, 1L, null, 2).line().cartItemId();
+        cartService.removeItem(BUYER_ID, cartItemId);
+        CartItemAddedEvent added = recorder.events(CartItemAddedEvent.class).getFirst();
+        CartItemRemovedEvent removed = recorder.events(CartItemRemovedEvent.class).getFirst();
+
+        OutboxRelayResult result = relayService.relay();
+
+        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 2, 2));
+        Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
+            Set.of(added.eventId().toString(), removed.eventId().toString()));
+        ConsumerRecord<String, String> addedRecord = received.get(added.eventId().toString());
+        ConsumerRecord<String, String> removedRecord = received.get(removed.eventId().toString());
+        assertThat(removedRecord.key()).isEqualTo(String.valueOf(BUYER_ID));
+        assertThat(header(removedRecord, "eventType")).isEqualTo("cart.item-removed");
+        assertThat(header(removedRecord, "eventId")).isEqualTo(removed.eventId().toString());
+        assertThat(removedRecord.headers().lastHeader("__TypeId__")).isNull();
+        JsonNode body = jsonMapper.readTree(removedRecord.value());
+        assertThat(body.propertyNames()).containsExactly("eventId", "eventType", "schemaVersion",
+            "occurredAt", "producer", "aggregateId", "correlationId", "data");
+        assertThat(body.get("aggregateId").asString()).isEqualTo(String.valueOf(cartItemId));
+        assertThat(body.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(removed.data()));
+        // 같은 회원의 담기 · 빼기는 같은 파티션에 일어난 순서대로 쌓인다
+        assertThat(removedRecord.partition()).isEqualTo(addedRecord.partition());
+        assertThat(removedRecord.offset()).isGreaterThan(addedRecord.offset());
+    }
+
+    @Test
     @DisplayName("보내지 못한 메시지에서 멈췄다가, 받을 수 있게 되면 다음 relay()가 그 메시지부터 같은 순서로 보낸다")
     void resendsFromFailedMessageInOrder() throws Exception {
         String lateTopic = "late-" + UUID.randomUUID();
@@ -269,7 +302,8 @@ class OrderOutboxKafkaIntegrationTest {
     private List<DomainEvent> publishedOrderEvents() {
         return recorder.events(DomainEvent.class).stream()
             .filter(event -> event instanceof OrderCreatedEvent || event instanceof OrderPaymentRequestedEvent
-                || event instanceof OrderCancelledEvent || event instanceof OrderItemPurchaseConfirmedEvent)
+                || event instanceof OrderPaidEvent || event instanceof OrderCancelledEvent
+                || event instanceof OrderItemPurchaseConfirmedEvent)
             .toList();
     }
 

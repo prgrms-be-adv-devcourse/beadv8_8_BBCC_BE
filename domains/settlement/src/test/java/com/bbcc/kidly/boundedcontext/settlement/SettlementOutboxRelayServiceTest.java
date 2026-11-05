@@ -7,7 +7,9 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
+import com.bbcc.kidly.boundedcontext.settlement.app.SettlementMetrics;
 import com.bbcc.kidly.boundedcontext.settlement.app.outbox.SettlementOutboxProperties;
 import com.bbcc.kidly.boundedcontext.settlement.app.outbox.SettlementOutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.settlement.app.outbox.SettlementOutboxRelayService;
@@ -39,12 +41,15 @@ class SettlementOutboxRelayServiceTest {
     @Mock
     private SettlementEventSender sender;
 
+    @Mock
+    private SettlementMetrics metrics;
+
     private SettlementOutboxRelayService relayService;
 
     @BeforeEach
     void setUp() {
         relayService = new SettlementOutboxRelayService(outboxRepository, sender,
-            new SettlementOutboxProperties(Duration.ofSeconds(1), BATCH_SIZE, Duration.ofDays(7)));
+            new SettlementOutboxProperties(Duration.ofSeconds(1), BATCH_SIZE, Duration.ofDays(7)), metrics);
     }
 
     @Test
@@ -62,6 +67,7 @@ class SettlementOutboxRelayServiceTest {
         inOrder.verify(sender).send(second);
         assertThat(first.getSentAt()).isNotNull();
         assertThat(second.getSentAt()).isNotNull();
+        then(metrics).should(times(2)).recordSent(any(Duration.class));
         assertThat(result).isEqualTo(
             new SettlementOutboxRelayResult(SettlementOutboxRelayResult.Outcome.COMPLETED, 2, 2));
     }

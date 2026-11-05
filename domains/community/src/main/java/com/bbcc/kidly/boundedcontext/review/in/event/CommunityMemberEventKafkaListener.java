@@ -11,6 +11,7 @@ import tools.jackson.databind.json.JsonMapper;
  * kidly.member.events에서 member.withdrawn을 받아 Spring 수신과 같은 처리를 부른다. 다른 회원 이벤트는 건너뛴다.
  * 커뮤니티에서 이 토픽을 받는 리스너는 이것 하나다(찜 정리도 여기서 부르는 처리 안에서 한다).
  * 처리가 실패하면 예외를 그대로 던진다(재시도 → DLT). 본문을 읽지 못하면 재시도 없이 DLT로 간다.
+ * DLT에 보관된 메시지는 관리자 재처리가 {@link #handle}을 다시 부른다(원래 토픽에 다시 넣지 않음).
  */
 @Component
 public class CommunityMemberEventKafkaListener {
@@ -29,8 +30,19 @@ public class CommunityMemberEventKafkaListener {
     @KafkaListener(id = ID, topics = CommunityKafkaListenerConfig.MEMBER_EVENTS,
         groupId = CommunityKafkaListenerConfig.GROUP, containerFactory = CommunityKafkaListenerConfig.FACTORY)
     public void on(ConsumerRecord<String, String> record) {
+        handle(record);
+    }
+
+    /**
+     * Kafka 수신과 DLT 재처리가 같이 쓴다.
+     *
+     * @return 처리했으면 true. 받지 않는 종류이거나 필수값이 없어 건너뛰었으면 false
+     */
+    public boolean handle(ConsumerRecord<String, String> record) {
         if (MEMBER_WITHDRAWN.equals(CommunityKafkaMessages.eventType(record))) {
-            memberEventListener.onMemberWithdrawn(jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
+            return memberEventListener.onMemberWithdrawn(
+                jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
         }
+        return false;
     }
 }

@@ -36,6 +36,13 @@ public interface JpaSettlementOutboxRepository
 
     List<SettlementOutboxMessage> findBySentAtIsNullOrderByIdAsc(Limit limit);
 
+    long countBySentAtIsNull();
+
+    @Override
+    default long countUnsent() {
+        return countBySentAtIsNull();
+    }
+
     @Override
     default List<SettlementOutboxMessage> findUnsent(int limit) {
         return findBySentAtIsNullOrderByIdAsc(Limit.of(limit));

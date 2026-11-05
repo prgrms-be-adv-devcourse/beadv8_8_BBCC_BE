@@ -34,7 +34,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 상품 · 자녀 이벤트 → 리스너 → 복사본 저장 → 장바구니 담기까지 한 번에 확인한다.
- * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않고 발행만 트랜잭션 안에서 한다.
+ * 상품은 커밋 뒤 Spring 리스너가 받고 자녀 · 판매자는 처리 빈을 직접 호출한다.
  */
 @IntegrationTest
 class ReplicaEventIntegrationTest {

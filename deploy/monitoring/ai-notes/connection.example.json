@@ -1,0 +1,7 @@
+{
+  "host": "monitoring.example.invalid",
+  "user": "deploy",
+  "keychain_service": "kr.kidly.ai-notes",
+  "keychain_account": "codex-notes",
+  "known_hosts_file": "/absolute/path/to/pinned-known-hosts"
+}

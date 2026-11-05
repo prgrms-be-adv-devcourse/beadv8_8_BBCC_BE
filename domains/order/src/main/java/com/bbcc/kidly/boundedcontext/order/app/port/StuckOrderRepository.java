@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.port;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -73,6 +73,10 @@ public interface StuckOrderRepository {
 
         String getMessageKey();
 
+        String getTopic();
+
+        LocalDateTime getQuarantinedAt();
+
         int getAttemptCount();
 
         String getLastError();
@@ -86,9 +90,11 @@ public interface StuckOrderRepository {
     }
 
     /**
-     * 보내지 못한 메시지 중 맨 앞(id가 가장 작은 것). 릴레이는 id 순으로 보내다 처음 실패한 메시지에서 멈추므로 막힌 메시지다.
+     * 전송 가능한 미전송의 맨 앞과 가장 오래된 격리를 최대 2건 읽는다. 표시 우선순위는 app이 판단한다.
      */
-    Optional<OutboxHeadRow> findOldestUnsentOutbox();
+    List<OutboxHeadRow> findOutboxAttentionHeads();
 
     long countUnsentOutbox();
+
+    long countUnsentOutboxStreamAfter(Long id, String topic, String key);
 }

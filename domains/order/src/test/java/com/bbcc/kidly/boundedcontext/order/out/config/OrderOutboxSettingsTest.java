@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.out.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxProperties;
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;

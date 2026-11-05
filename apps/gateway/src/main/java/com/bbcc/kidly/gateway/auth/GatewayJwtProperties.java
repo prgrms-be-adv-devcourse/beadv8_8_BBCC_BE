@@ -10,7 +10,7 @@ import org.springframework.security.converter.RsaKeyConverters;
 
 /**
  * JWT 공개키(PEM, X.509 PUBLIC KEY)와 Access Token 유효 기간. 개인키는 회원만 가진다.
- * 값은 kidly-app(auth.yml)과 같아야 한다.
+ * 값은 회원 서비스(auth/src/main/resources/auth.yml)와 같아야 한다.
  */
 @ConfigurationProperties("jwt")
 public record GatewayJwtProperties(Resource publicKey, Duration accessTokenValidity) {

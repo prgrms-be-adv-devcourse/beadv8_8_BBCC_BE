@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+import com.bbcc.kidly.boundedcontext.search.domain.ProductEmbedding;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
@@ -95,30 +96,33 @@ class SearchProductTest {
     }
 
     @Test
-    @DisplayName("이름 · 썸네일 · 판매자 · 카테고리 · 판매 상태 · 사이즈 무관 · 상품 등록 시각 · 이벤트 발생 시각은 받은 값 그대로 옮긴다")
+    @DisplayName("이름 · 썸네일 · 브랜드 · 판매자 · 카테고리 · 판매 상태 · 사이즈 무관 · 등록 · 발생 시각은 받은 값 그대로 옮긴다")
     void copiesOtherValues() {
         LocalDateTime productCreatedAt = LocalDateTime.of(2026, 10, 2, 11, 0);
         LocalDateTime occurredAt = LocalDateTime.of(2026, 10, 15, 12, 30);
         SearchProduct product = SearchProduct.create(new SearchProduct.ChangeInfo(
-            5L, 9L, "아기 모자", 4L, ProductStatus.STOPPED, "https://cdn.kidly.test/hat.jpg", productCreatedAt, true,
+            5L, 9L, "아기 모자", 4L, ProductStatus.STOPPED, "https://cdn.kidly.test/hat.jpg", "키들리", productCreatedAt,
+            true,
             List.of(option(18_000L, false, OptionSaleStatus.ON_SALE)), List.of(), occurredAt));
 
         assertThat(product)
             .extracting(SearchProduct::getProductId, SearchProduct::getName, SearchProduct::getThumbnailUrl,
-                SearchProduct::getSellerId, SearchProduct::getCategoryId, SearchProduct::getStatus,
+                SearchProduct::getBrand, SearchProduct::getSellerId, SearchProduct::getCategoryId,
+                SearchProduct::getStatus,
                 SearchProduct::isSizeFree, SearchProduct::getProductCreatedAt, SearchProduct::getOccurredAt)
-            .containsExactly(5L, "아기 모자", "https://cdn.kidly.test/hat.jpg", 9L, 4L, ProductStatus.STOPPED, true,
+            .containsExactly(5L, "아기 모자", "https://cdn.kidly.test/hat.jpg", "키들리", 9L, 4L, ProductStatus.STOPPED, true,
                 productCreatedAt, occurredAt);
     }
 
     @Test
-    @DisplayName("썸네일은 선택 입력이라 없어도 만든다")
-    void createsWithoutThumbnail() {
+    @DisplayName("썸네일 · 브랜드는 선택 입력이라 없어도 만든다")
+    void createsWithoutThumbnailAndBrand() {
         SearchProduct product = SearchProduct.create(new SearchProduct.ChangeInfo(
-            PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, ProductStatus.ON_SALE, null, PRODUCT_CREATED_AT, false,
+            PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, ProductStatus.ON_SALE, null, null, PRODUCT_CREATED_AT, false,
             List.of(option(25_000L, false, OptionSaleStatus.ON_SALE)), List.of(), OCCURRED_AT));
 
         assertThat(product.getThumbnailUrl()).isNull();
+        assertThat(product.getBrand()).isNull();
     }
 
     @Test
@@ -137,29 +141,74 @@ class SearchProductTest {
             .withMessageStartingWith(field);
     }
 
+    @Test
+    @DisplayName("의미 검색 문장은 상품명 · 브랜드 · 설명을 줄로 잇고, 비어 있는 값은 건너뛴다")
+    void embeddingText() {
+        assertThat(SearchProduct.create(withText("여아 원피스", " 키들리 ", "봄에 입기 좋은 원피스")).getEmbeddingText())
+            .isEqualTo("여아 원피스\n키들리\n봄에 입기 좋은 원피스");
+        assertThat(SearchProduct.create(withText("여아 원피스", null, "  ")).getEmbeddingText()).isEqualTo("여아 원피스");
+    }
+
+    @Test
+    @DisplayName("설명이 길면 앞 2,000자까지만 의미 검색 문장에 쓴다")
+    void embeddingTextIsCapped() {
+        String text = SearchProduct.create(withText("원피스", null, "가".repeat(3_000))).getEmbeddingText();
+
+        assertThat(text).hasSize(2_000).startsWith("원피스\n가");
+    }
+
+    @Test
+    @DisplayName("문장이 같으면 해시가 같고, 한 글자라도 다르면 해시가 다르다")
+    void embeddingTextHash() {
+        String hash = SearchProduct.create(withText("여아 원피스", "키들리", "봄")).getEmbeddingTextHash();
+
+        assertThat(SearchProduct.create(withText("여아 원피스", "키들리", "봄")).getEmbeddingTextHash()).isEqualTo(hash);
+        assertThat(SearchProduct.create(withText("여아 원피스", "키들리", "여름")).getEmbeddingTextHash()).isNotEqualTo(hash);
+        assertThat(hash).hasSize(64);
+    }
+
+    @Test
+    @DisplayName("지금 문장으로 만든 벡터만 붙인다. 다른 문장의 벡터를 붙이려 하면 막는다")
+    void attachEmbedding() {
+        SearchProduct product = SearchProduct.create(withText("여아 원피스", null, null));
+        ProductEmbedding embedding = new ProductEmbedding(product.getEmbeddingTextHash(), List.of(0.1f));
+
+        product.attachEmbedding(embedding);
+
+        assertThat(product.getEmbedding()).isEqualTo(embedding);
+        assertThatIllegalArgumentException()
+            .isThrownBy(() -> product.attachEmbedding(new ProductEmbedding("other", List.of(0.1f))));
+    }
+
+    private static SearchProduct.ChangeInfo withText(String name, String brand, String description) {
+        return new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, name, CATEGORY_ID, ProductStatus.ON_SALE,
+            THUMBNAIL_URL, brand, PRODUCT_CREATED_AT, false,
+            List.of(option(25_000L, false, OptionSaleStatus.ON_SALE)), List.of(), OCCURRED_AT, description);
+    }
+
     static Stream<Arguments> changeInfosMissingRequiredValue() {
         List<SearchProduct.OptionInfo> options = List.of(option(25_000L, false, OptionSaleStatus.ON_SALE));
         ProductStatus onSale = ProductStatus.ON_SALE;
         return Stream.of(
             arguments("info", null),
             arguments("productId", new SearchProduct.ChangeInfo(null, SELLER_ID, NAME, CATEGORY_ID, onSale,
-                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
             arguments("sellerId", new SearchProduct.ChangeInfo(PRODUCT_ID, null, NAME, CATEGORY_ID, onSale,
-                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
             arguments("name", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, null, CATEGORY_ID, onSale,
-                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
             arguments("categoryId", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, null, onSale,
-                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
             arguments("status", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, null,
-                THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
+                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
             arguments("productCreatedAt", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME,
-                CATEGORY_ID, onSale, THUMBNAIL_URL, null, false, options, List.of(), OCCURRED_AT)),
+                CATEGORY_ID, onSale, THUMBNAIL_URL, null, null, false, options, List.of(), OCCURRED_AT)),
             arguments("occurredAt", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
-                onSale, THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, List.of(), null)),
+                onSale, THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), null)),
             arguments("options", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
-                onSale, THUMBNAIL_URL, PRODUCT_CREATED_AT, false, null, List.of(), OCCURRED_AT)),
+                onSale, THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, null, List.of(), OCCURRED_AT)),
             arguments("infoValues", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
-                onSale, THUMBNAIL_URL, PRODUCT_CREATED_AT, false, options, null, OCCURRED_AT)),
+                onSale, THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, null, OCCURRED_AT)),
             arguments("saleStatus", changeInfo(List.of(
                 new SearchProduct.OptionInfo(25_000L, false, null, List.of())))),
             arguments("values", changeInfo(List.of(

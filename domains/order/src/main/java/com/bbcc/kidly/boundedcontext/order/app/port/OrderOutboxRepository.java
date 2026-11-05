@@ -2,8 +2,11 @@ package com.bbcc.kidly.boundedcontext.order.app.port;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Kafka로 보낼 주문 이벤트 메시지 저장소(#540). 구현은 out/outbox(OrderOutboxStore). 메시지(아웃박스 엔티티)는 전달 장치라 out에 있고,
@@ -12,7 +15,7 @@ import org.springframework.data.domain.Limit;
 public interface OrderOutboxRepository {
 
     /**
-     * 아직 보내지 않은 메시지를 id 순서로 limit건.
+     * 격리되지 않았고, 같은 토픽 · 키의 앞선 격리 메시지가 없는 미전송 메시지를 id 순서로 limit건.
      */
     List<OutboxMessage> findUnsent(Limit limit);
 
@@ -27,6 +30,52 @@ public interface OrderOutboxRepository {
      * @return 기록한 뒤 메시지(시도 · 마지막 오류)
      */
     OutboxMessage recordFailure(Long id, String error);
+
+    OutboxMessage quarantine(Long id, String error, LocalDateTime now);
+
+    Page<OutboxStatus> findQuarantined(Pageable pageable);
+
+    long countQuarantined();
+
+    Optional<OutboxStatus> findStatus(Long id);
+
+    /**
+     * 관리자 재시도 간 경쟁을 막는 행 잠금. 호출한 트랜잭션이 끝날 때까지 유지한다.
+     */
+    boolean lockById(Long id);
+
+    void retryQuarantined(Long id, Long adminId, LocalDateTime now);
+
+    /**
+     * 본문을 읽지 않는 관리자용 메타데이터. 목록에서도 큰 본문을 메모리에 올리지 않는다.
+     */
+    interface OutboxStatus {
+        Long getId();
+
+        UUID getEventId();
+
+        String getEventType();
+
+        String getTopic();
+
+        String getMessageKey();
+
+        int getAttemptCount();
+
+        String getLastError();
+
+        LocalDateTime getCreatedAt();
+
+        LocalDateTime getQuarantinedAt();
+
+        LocalDateTime getSentAt();
+
+        LocalDateTime getLastRetriedAt();
+
+        Long getLastRetriedBy();
+
+        int getRetryCount();
+    }
 
     /**
      * 보낸 시각이 cutoff보다 이른 메시지를 지운다. 안 보낸 메시지는 지우지 않는다.

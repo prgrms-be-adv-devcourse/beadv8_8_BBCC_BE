@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
  * 주문 생성됨을 받아 주문상품마다 재고를 차감하는 흐름이다. 규칙 판단은 InventoryDeductionRequest가 하고,
  * 서비스는 읽기와 호출 순서만 맡는다. 차감을 거절하면 재고 부족함을 보낸다.
  * 트랜잭션은 InventoryDeductor와 InventoryDeductionRecorder가 각자 새로 열어서 이 클래스에는 붙이지 않는다.
- * 바깥(리스너) 트랜잭션에서는 쓰기나 잠금을 하지 않아야 한다.
+ * 바깥 트랜잭션 없이 불러야 한다(Kafka 리스너도 트랜잭션을 열지 않는다). 바깥 트랜잭션에서 쓰기나 잠금을 하면 안 된다.
  * 바깥 트랜잭션이 잡은 잠금을 같은 스레드의 안쪽 새 트랜잭션이 기다리면 PostgreSQL이 교착으로 감지하지 못하고 멈추기 때문이다.
  */
 @Slf4j

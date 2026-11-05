@@ -22,7 +22,8 @@ import org.springframework.stereotype.Service;
 /**
  * 주문 취소됨과 판매자 부분 취소(주문상품 취소됨)를 받아 차감한 재고를 되돌리는 흐름이다. 규칙 판단은 InventoryRestoration이 하고,
  * 서비스는 읽기와 호출 순서만 맡는다. 트랜잭션은 InventoryRestorer와 InventoryDeductionRecorder가 각자 새로 열어서
- * 이 클래스에는 붙이지 않는다. 바깥(리스너) 트랜잭션에서는 쓰기나 잠금을 하지 않아야 한다.
+ * 이 클래스에는 붙이지 않는다. 바깥 트랜잭션 없이 불러야 한다(Kafka 리스너도 트랜잭션을 열지 않는다).
+ * 바깥 트랜잭션에서 쓰기나 잠금을 하면 안 된다.
  * 바깥 트랜잭션이 잡은 잠금을 같은 스레드의 안쪽 새 트랜잭션이 기다리면 PostgreSQL이 교착으로 감지하지 못하고 멈추기 때문이다.
  */
 @Slf4j
@@ -59,7 +60,8 @@ public class InventoryRestorationService {
     // 판매자가 취소한 주문상품의 차감 기록 중 DEDUCTED인 것만 되돌린다. 취소한 몫이 아닌 주문상품은 건드리지 않는다
     public void restore(OrderItemCancelledEvent event) {
         OrderItemCancelledEvent.Data data = event.data();
-        InventoryRestoration restoration = readRestoration(data.orderId(), orderItemIds(data), ORDER_ITEM_CANCELLED);
+        List<Long> orderItemIds = orderItemIds(data);
+        InventoryRestoration restoration = readRestoration(data.orderId(), orderItemIds, ORDER_ITEM_CANCELLED);
         if (restoration == null) {
             return;
         }
@@ -69,6 +71,12 @@ public class InventoryRestorationService {
             log.error("차감 기록이 없는 주문상품 취소됨이라 처리하지 않습니다. orderId={}, cancellationId={}",
                 data.orderId(), data.cancellationId());
             return;
+        }
+        List<Long> missing = restoration.orderItemIdsWithoutRecord(orderItemIds);
+        if (!missing.isEmpty()) {
+            // 같은 이유로 일부 주문상품만 기록이 없어도 도메인 사이 버그다. 기록이 있는 주문상품은 실제로 줄인 재고라 그대로 되돌린다
+            log.error("차감 기록이 없는 주문상품이 든 주문상품 취소됨이라 그 주문상품은 되돌리지 않습니다. "
+                + "orderId={}, cancellationId={}, orderItemIds={}", data.orderId(), data.cancellationId(), missing);
         }
         if (restoration.isRejected()) {
             // 거절한 주문은 결제 요청까지 가지 못하므로 판매자가 취소할 수 없다. 도메인 사이 버그라 ERROR로 알린다

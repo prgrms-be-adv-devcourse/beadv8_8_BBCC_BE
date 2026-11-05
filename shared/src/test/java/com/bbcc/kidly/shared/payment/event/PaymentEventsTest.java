@@ -49,7 +49,7 @@ class PaymentEventsTest {
     @DisplayName("환불 완료 이벤트는 payment.refunded이고 대상은 환불, 흐름은 주문이다")
     void paymentRefunded() {
         PaymentRefundedEvent event = new PaymentRefundedEvent(EVENT_ID, NOW, new PaymentRefundedEvent.Data(
-            81L, 620L, 900L, 7001L, List.of(new PaymentRefundedEvent.Item(5001L, 58_000L)), 58_000L, NOW));
+            81L, 620L, 900L, 7001L, List.of(new PaymentRefundedEvent.Item(5001L, 58_000L)), 58_000L, NOW, 3L));
 
         assertContract(event, "payment.refunded", "81", "900");
     }

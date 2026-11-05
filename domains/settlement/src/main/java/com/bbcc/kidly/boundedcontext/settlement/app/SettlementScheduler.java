@@ -3,7 +3,9 @@ package com.bbcc.kidly.boundedcontext.settlement.app;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,6 +22,7 @@ public class SettlementScheduler {
 
     private final SettlementRunService settlementRunService;
     private final SettlementBusinessCalendar settlementBusinessCalendar;
+    private static final Duration STUCK_AFTER = Duration.ofHours(2);
 
     // 공휴일 · 조회 실패 · 이미 정산한 기준일 · 실행 중이면 로그만 남기고 넘어간다. 조회 실패는 다음 시간에 다시 시도한다
     @Scheduled(cron = "${kidly.settlement.run-cron}", zone = "Asia/Seoul")
@@ -34,9 +37,29 @@ public class SettlementScheduler {
         } catch (BusinessException e) {
             if (isExpected(e)) {
                 log.info("정산 자동 실행을 건너뜁니다: {}", e.getDetail());
+                alertIfStuck(e);
             } else {
                 log.warn("정산 자동 실행을 건너뜁니다: {}", e.getDetail());
             }
+        }
+    }
+
+    // 서버가 실행 도중 죽으면 기록이 STARTED로 남아 매시간 "실행 중"으로 건너뛴다. 정산은 몇 초면 끝나므로
+    // 2시간 넘게 "실행 중"이면 멈춘 것이다. ERROR는 Grafana 알림으로 이어지고, 관리자 복구(settlement-runs/{id}/recover)가 필요하다
+    // 진행 없는 기록은 다음 실행이 stale-run-after(기본 30분) 뒤 스스로 닫으므로, 이 알림은 그것도 못 닫은 경우다
+    private void alertIfStuck(BusinessException e) {
+        if (e.getErrorCode() != SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS) {
+            return;
+        }
+        try {
+            settlementRunService.findRunningSince()
+                .filter(running -> running.startedAt().isBefore(LocalDateTime.now().minus(STUCK_AFTER)))
+                .ifPresent(running -> log.error(
+                    "정산 실행 {}이 {}부터 끝나지 않아 자동 정산이 멈춰 있습니다. 관리자 복구(recover)가 필요합니다",
+                    running.runId(), running.startedAt()));
+        } catch (RuntimeException lookupFailure) {
+            // 알림 보조 조회가 실패해도 건너뛰기 자체는 끝난 뒤라 본 흐름에 영향이 없다
+            log.warn("멈춘 정산 실행을 확인하지 못했습니다. error={}", lookupFailure.getClass().getSimpleName());
         }
     }
 

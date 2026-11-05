@@ -4,8 +4,13 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,11 +28,17 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SearchProduct {
 
+    // 임베딩 API에 보내는 문장의 최대 길이다. 설명이 길어도 앞부분이 상품을 가장 잘 나타내고, 호출 비용을 묶어 둔다
+    static final int MAX_EMBEDDING_TEXT_LENGTH = 2_000;
+
     private Long productId;
 
     private String name;
 
     private String thumbnailUrl;
+
+    // 상품명과 함께 검색어로 찾는 브랜드다. 등록하지 않은 상품이면 null이다
+    private String brand;
 
     private Long sellerId;
 
@@ -52,9 +63,25 @@ public class SearchProduct {
     // 키는 항목 code이고 값은 그 항목에서 고른 값 ID 목록(오름차순, 중복 없음)이다
     private Map<String, List<Long>> attributes;
 
+    // 의미 검색에 쓰는 문장이다. 상품명 · 브랜드 · 설명을 줄로 잇는다. 색인에는 저장하지 않고 벡터와 해시만 저장한다
+    private String embeddingText;
+
+    // 의미 검색 벡터다. 임베딩 API를 쓸 수 없었으면 null이고, 그 상품은 키워드로만 찾는다
+    private ProductEmbedding embedding;
+
+    /**
+     * @param description 상품 설명. 의미 검색 문장에만 쓴다. 없으면 null이다
+     */
     public record ChangeInfo(Long productId, Long sellerId, String name, Long categoryId, ProductStatus status,
-        String thumbnailUrl, LocalDateTime productCreatedAt, boolean sizeFree, List<OptionInfo> options,
-        List<AttributeEntryInfo> infoValues, LocalDateTime occurredAt) {
+        String thumbnailUrl, String brand, LocalDateTime productCreatedAt, boolean sizeFree, List<OptionInfo> options,
+        List<AttributeEntryInfo> infoValues, LocalDateTime occurredAt, String description) {
+
+        public ChangeInfo(Long productId, Long sellerId, String name, Long categoryId, ProductStatus status,
+            String thumbnailUrl, String brand, LocalDateTime productCreatedAt, boolean sizeFree,
+            List<OptionInfo> options, List<AttributeEntryInfo> infoValues, LocalDateTime occurredAt) {
+            this(productId, sellerId, name, categoryId, status, thumbnailUrl, brand, productCreatedAt, sizeFree,
+                options, infoValues, occurredAt, null);
+        }
     }
 
     public record OptionInfo(long price, boolean soldOut, OptionSaleStatus saleStatus,
@@ -79,6 +106,7 @@ public class SearchProduct {
         product.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         product.name = requireNonNull(info.name(), "name은 필수입니다");
         product.thumbnailUrl = info.thumbnailUrl();
+        product.brand = info.brand();
         product.sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
         product.categoryId = requireNonNull(info.categoryId(), "categoryId는 필수입니다");
         product.status = requireNonNull(info.status(), "status는 필수입니다");
@@ -88,7 +116,48 @@ public class SearchProduct {
         product.minPrice = lowestPrice(options);
         product.soldOut = allSoldOut(options);
         product.attributes = collectAttributes(options, infoValues);
+        product.embeddingText = joinEmbeddingText(product.name, product.brand, info.description());
         return product;
+    }
+
+    /**
+     * 의미 검색 문장의 SHA-256(16진수)이다. 저장된 벡터를 만든 문장과 같은지 비교하는 데 쓴다.
+     */
+    public String getEmbeddingTextHash() {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(embeddingText.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("JDK에 SHA-256이 없습니다", e);
+        }
+    }
+
+    /**
+     * 의미 검색 벡터를 붙인다. 지금 문장으로 만든 벡터만 받는다. null이면 벡터 없이 저장한다.
+     */
+    public void attachEmbedding(ProductEmbedding embedding) {
+        if (embedding != null && !embedding.textHash().equals(getEmbeddingTextHash())) {
+            throw new IllegalArgumentException("지금 상품 문장으로 만든 벡터가 아닙니다");
+        }
+        this.embedding = embedding;
+    }
+
+    // 비어 있는 값은 건너뛴다. 너무 길면 앞부분만 쓴다
+    private static String joinEmbeddingText(String name, String brand, String description) {
+        List<String> parts = new ArrayList<>();
+        for (String part : new String[] {name, brand, description}) {
+            if (part != null && !part.isBlank()) {
+                parts.add(part.strip());
+            }
+        }
+        String text = String.join("\n", parts);
+        if (text.length() > MAX_EMBEDDING_TEXT_LENGTH) {
+            // 이모지처럼 두 칸짜리 글자의 가운데에서 자르지 않는다
+            int end = Character.isHighSurrogate(text.charAt(MAX_EMBEDDING_TEXT_LENGTH - 1))
+                ? MAX_EMBEDDING_TEXT_LENGTH - 1 : MAX_EMBEDDING_TEXT_LENGTH;
+            return text.substring(0, end);
+        }
+        return text;
     }
 
     // 판매할 수 있는 옵션은 옵션 판매 상태가 ON_SALE이고 품절이 아닌 옵션이다.

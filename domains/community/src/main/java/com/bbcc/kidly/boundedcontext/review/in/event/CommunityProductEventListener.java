@@ -27,10 +27,12 @@ public class CommunityProductEventListener {
      * 복사본 행을 만들 수 없는 값(데이터 · 상품 ID · 상품 이름 · 발생 시각)이 없으면 WARN 한 줄을 남기고 건너뛴다.
      */
     @Transactional
-    public void onProductChanged(ProductChangedEvent event) {
+    public boolean onProductChanged(ProductChangedEvent event) {
         if (CommunityEventGuard.accept("상품", event, "productId", productIdOf(event), missingRequiredValue(event))) {
             productReplicaRecorder.record(toChanged(event));
+            return true;
         }
+        return false;
     }
 
     private static String missingRequiredValue(ProductChangedEvent event) {

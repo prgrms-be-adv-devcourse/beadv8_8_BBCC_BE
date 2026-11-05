@@ -4,5 +4,14 @@ package com.bbcc.kidly.boundedcontext.notification.domain;
  * 알림 종류. 무엇 때문에 보낸 알림인지 나타낸다.
  */
 public enum NotificationType {
-    WELCOME
+    WELCOME,
+    PAYOUT_COMPLETED,
+    REFUND_COMPLETED,
+    MEMBER_SUSPENDED,
+    SELLER_APPLICATION_REJECTED,
+    SELLER_APPROVED,
+    SELLER_SUSPENDED,
+    WISH_SENT,
+    ORDER_CANCELLED,
+    ORDER_ITEM_CANCELLED
 }

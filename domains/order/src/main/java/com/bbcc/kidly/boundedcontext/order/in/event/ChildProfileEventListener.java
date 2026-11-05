@@ -22,7 +22,7 @@ public class ChildProfileEventListener {
     /**
      * 자녀 ID · 회원 ID · 발생 시각이 없으면 무시한다. 키 · 몸무게 · 성별 · 생년월일이 없으면 무시하되(#251 확정 기준,
      * 기존 복사본을 지우거나 덮지 않음), 삭제 이벤트는 삭제가 빠지면 지워진 자녀로 계속 주문할 수 있으므로
-     * 기존 복사본에 삭제 표시만 맡긴다. 체형 · 선호 핏은 계약상 비어도 되므로 그대로 반영한다.
+     * 복사본이 없어도 삭제 사실을 보존한다. 체형 · 선호 핏은 계약상 비어도 되므로 그대로 반영한다.
      */
     @Transactional
     public void onChildChanged(ChildChangedEvent event) {
@@ -33,7 +33,7 @@ public class ChildProfileEventListener {
         ChildChangedEvent.Data data = event.data();
         String missingBody = missingProfile(data);
         if (missingBody != null && data.deleted()) {
-            replicaService.applyChildDeleted(data.childId(), event.occurredAt());
+            replicaService.applyChildDeleted(data.childId(), data.memberId(), event.occurredAt());
             return;
         }
         if (EventGuard.accept("자녀", event, "childId", childId, missingBody)) {

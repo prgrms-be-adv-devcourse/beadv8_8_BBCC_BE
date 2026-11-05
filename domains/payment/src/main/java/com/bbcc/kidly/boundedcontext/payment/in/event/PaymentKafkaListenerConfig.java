@@ -43,8 +43,8 @@ class PaymentKafkaListenerConfig {
     static final String SETTLEMENT_EVENTS = "kidly.settlement.events";
     static final String GROUP = "kidly.payment";
     static final String AUTO_STARTUP = "${kidly.payment.kafka.consumer.enabled:true}";
-    // 정산은 아직 Kafka로 보내지 않아 기본으로 꺼 둔다(#607). 정산의 Kafka 발행이 배포된 뒤에 켠다
-    static final String SETTLEMENT_AUTO_STARTUP = "${kidly.payment.kafka.settlement-consumer.enabled:false}";
+    // 정산 지급 요청도 Kafka로만 온다(#525, 결제 서비스는 정산과 다른 JVM). 끄는 것은 같은 JVM 테스트용이다
+    static final String SETTLEMENT_AUTO_STARTUP = "${kidly.payment.kafka.settlement-consumer.enabled:true}";
     private static final String DLT_SUFFIX = ".payment.dlt";
 
     @Bean

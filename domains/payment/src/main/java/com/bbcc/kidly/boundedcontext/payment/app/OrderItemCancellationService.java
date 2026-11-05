@@ -13,11 +13,14 @@ import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedger;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.payment.event.PaymentRefundedEvent;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 판매자가 발송 전에 취소한 주문상품(order-item.cancelled)의 금액을 구매자 예치금으로 환불한다(#711).
  * 결제 요청 · 주문 취소와 같은 회원 지갑 락을 먼저 잡고, 취소(cancellationId)마다 환불 기록을 하나만 남긴다(refund.cancellation_id UK).
  * 같은 취소가 다시 오면 기록이 있어 건너뛴다. 환불할 수 없으면 입금 없이 실패한 환불로 남긴다.
- * 환불 이벤트(payment.refunded)는 받을 도메인이 없어 아직 발행하지 않는다.
+ * 환불하면 환불 이벤트(payment.refunded)를 발행한다. 실패한 환불은 발행하지 않는다.
  */
 @Slf4j
 @Service
@@ -39,6 +42,7 @@ public class OrderItemCancellationService {
     private final PaymentRepository paymentRepository;
     private final RefundRepository refundRepository;
     private final WalletLedgerRepository walletLedgerRepository;
+    private final EventPublisher eventPublisher;
 
     @Transactional
     public void handle(OrderItemCancelCommand command) {
@@ -88,6 +92,12 @@ public class OrderItemCancellationService {
                 + "reason={}",
             command.memberId(), wallet.getId(), command.orderId(), command.cancellationId(), payment.getId(),
             refund.getId(), refund.getAmount(), wallet.getBalance(), command.reason());
+        List<PaymentRefundedEvent.Item> refundedItems = amounts.entrySet().stream()
+            .map(amount -> new PaymentRefundedEvent.Item(amount.getKey(), amount.getValue()))
+            .toList();
+        eventPublisher.publish(new PaymentRefundedEvent(UUID.randomUUID(), now, new PaymentRefundedEvent.Data(
+            refund.getId(), payment.getId(), payment.getOrderId(), command.cancellationId(), refundedItems,
+            refund.getAmount(), refund.getRefundedAt(), command.memberId())));
     }
 
     private void fail(OrderItemCancelCommand command, Payment payment, Map<Long, Long> amounts,

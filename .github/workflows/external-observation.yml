@@ -1,0 +1,27 @@
+name: external-observation
+
+# Manual diagnostic only. No schedule or Slack notification until operating hours are agreed.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 읽기 점검할 환경 (앱 상태 변경 없음)
+        type: choice
+        options: [dev, prod]
+        default: dev
+        required: true
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v7
+      - name: 검사 로직 확인
+        run: python3 -m unittest discover -s deploy/monitoring/tests -p test_external_probe.py -v
+      - name: 외부 HTTPS 경로 관측
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+        run: |
+          python3 deploy/monitoring/external_probe.py --environment "$TARGET_ENV"

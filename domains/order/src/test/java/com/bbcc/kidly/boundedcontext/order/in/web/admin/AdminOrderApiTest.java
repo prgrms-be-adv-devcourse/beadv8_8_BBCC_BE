@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
+import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
 import java.net.URI;
 import java.util.List;
@@ -54,7 +55,7 @@ class AdminOrderApiTest {
         orderService.cancelForPaymentFailure(Long.valueOf(second));
 
         client.get().uri(ADMIN_ORDERS_PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -85,7 +86,7 @@ class AdminOrderApiTest {
     @DisplayName("주문이 없으면 200 · content []")
     void emptyWhenNoOrders() {
         client.get().uri(ADMIN_ORDERS_PATH)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()
@@ -98,7 +99,7 @@ class AdminOrderApiTest {
     @DisplayName("size가 1~100 밖(0 · 101)이면 400")
     void sizeOutOfRangeIsBadRequest(int size) {
         client.get().uri(ADMIN_ORDERS_PATH + "?size=" + size)
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -107,7 +108,7 @@ class AdminOrderApiTest {
     @DisplayName("page가 음수(-1)면 400")
     void negativePageIsBadRequest() {
         client.get().uri(ADMIN_ORDERS_PATH + "?page=-1")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isBadRequest();
     }
@@ -118,7 +119,7 @@ class AdminOrderApiTest {
         placeOrder(BUYER_ID, 1);
 
         client.get().uri(ADMIN_ORDERS_PATH + "?page=1073741824&size=2")
-            .headers(TestMembers.admin(ADMIN_ID))
+            .headers(TestAdmins.of(ADMIN_ID))
             .exchange()
             .expectStatus().isOk()
             .expectBody()

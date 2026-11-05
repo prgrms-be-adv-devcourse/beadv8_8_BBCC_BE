@@ -1,0 +1,62 @@
+# develop 에 docs/ 변경이 들어오면 문서 사이트(VitePress)를 빌드해 GitHub Pages 에 올린다
+# 원본은 docs/ 의 마크다운이고, 같은 파일이 위키에도 올라간다(docs-wiki-sync.yml)
+# 레포 Settings → Pages 의 Source 를 "GitHub Actions" 로 한 번 켜 둬야 배포된다
+name: Docs Pages
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - docs/**
+      - .github/workflows/docs-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 배포는 하나씩. 새 머지가 오면 진행 중인 빌드는 그대로 끝낸다
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - id: pages
+        uses: actions/configure-pages@v6
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          # 저장소 이름 경로(/beadv8_8_BBCC_BE/)에서 열리도록
+          DOCS_BASE: ${{ steps.pages.outputs.base_path }}/
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

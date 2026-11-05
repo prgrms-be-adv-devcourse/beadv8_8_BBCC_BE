@@ -28,9 +28,14 @@ public class CommunityOrderEventKafkaListener {
     @KafkaListener(id = ID, topics = CommunityKafkaListenerConfig.ORDER_EVENTS,
         groupId = CommunityKafkaListenerConfig.GROUP, containerFactory = CommunityKafkaListenerConfig.FACTORY)
     public void on(ConsumerRecord<String, String> record) {
+        handle(record);
+    }
+
+    public boolean handle(ConsumerRecord<String, String> record) {
         if (PURCHASE_CONFIRMED.equals(CommunityKafkaMessages.eventType(record))) {
-            orderEventListener.onPurchaseConfirmed(
+            return orderEventListener.onPurchaseConfirmed(
                 jsonMapper.readValue(record.value(), OrderItemPurchaseConfirmedEvent.class));
         }
+        return false;
     }
 }

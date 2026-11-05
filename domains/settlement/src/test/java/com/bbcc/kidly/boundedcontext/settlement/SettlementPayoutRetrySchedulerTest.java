@@ -50,8 +50,8 @@ class SettlementPayoutRetrySchedulerTest {
         assertThat(count).isEqualTo(2);
         then(settlementRepository).should().findByStatusAndCompletedAtBetweenAndIdGreaterThanOrderByIdAsc(
             SettlementStatus.COMPLETED, NOW.minusDays(7), NOW.minusMinutes(30), 0L, Limit.of(100));
-        then(adminSettlementService).should().retryPayout(1L);
-        then(adminSettlementService).should().retryPayout(2L);
+        then(adminSettlementService).should().retryStuckPayout(1L);
+        then(adminSettlementService).should().retryStuckPayout(2L);
     }
 
     @Test
@@ -59,25 +59,25 @@ class SettlementPayoutRetrySchedulerTest {
     void skipsAlreadyResolved() {
         givenStuck(settlement(1L), settlement(2L));
         willThrow(new BusinessException(SettlementErrorCode.SETTLEMENT_NOT_RETRYABLE))
-            .given(adminSettlementService).retryPayout(1L);
+            .given(adminSettlementService).retryStuckPayout(1L);
 
         int count = scheduler.retryStuckPayouts(NOW);
 
         assertThat(count).isEqualTo(1);
-        then(adminSettlementService).should().retryPayout(2L);
+        then(adminSettlementService).should().retryStuckPayout(2L);
     }
 
     @Test
     @DisplayName("한 건이 예상 못 한 오류로 실패해도 다음 건을 요청한다")
     void continuesAfterUnexpectedError() {
         givenStuck(settlement(1L), settlement(2L));
-        willThrow(new RuntimeException("boom")).given(adminSettlementService).retryPayout(1L);
+        willThrow(new RuntimeException("boom")).given(adminSettlementService).retryStuckPayout(1L);
 
         int count = scheduler.retryStuckPayouts(NOW);
 
         assertThat(count).isEqualTo(1);
-        then(adminSettlementService).should().retryPayout(2L);
-        then(adminSettlementService).should(times(2)).retryPayout(anyLong());
+        then(adminSettlementService).should().retryStuckPayout(2L);
+        then(adminSettlementService).should(times(2)).retryStuckPayout(anyLong());
     }
 
     @Test
@@ -89,7 +89,7 @@ class SettlementPayoutRetrySchedulerTest {
         scheduler.retryStuckPayouts(NOW);
         scheduler.retryStuckPayouts(NOW);
 
-        then(adminSettlementService).should().retryPayout(101L);
+        then(adminSettlementService).should().retryStuckPayout(101L);
     }
 
     @Test
@@ -100,7 +100,7 @@ class SettlementPayoutRetrySchedulerTest {
         scheduler.retryStuckPayouts(NOW);
         scheduler.retryStuckPayouts(NOW);
 
-        then(adminSettlementService).should(times(2)).retryPayout(1L);
+        then(adminSettlementService).should(times(2)).retryStuckPayout(1L);
     }
 
     @Test

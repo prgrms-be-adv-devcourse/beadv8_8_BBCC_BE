@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.payment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.bbcc.kidly.boundedcontext.payment.app.MemberRegisteredListener;
 import com.bbcc.kidly.boundedcontext.payment.app.OrderCancelledListener;
 import com.bbcc.kidly.boundedcontext.payment.app.OrderPaymentRequestedListener;
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventHandler;
@@ -20,7 +19,7 @@ class PaymentEventSwitchTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withBean(PaymentEventHandler.class, () -> mock(PaymentEventHandler.class))
-        .withUserConfiguration(MemberRegisteredListener.class, OrderPaymentRequestedListener.class,
+        .withUserConfiguration(OrderPaymentRequestedListener.class,
             OrderCancelledListener.class);
 
     @Test
@@ -28,7 +27,6 @@ class PaymentEventSwitchTest {
     void kafkaOn() {
         runner.withPropertyValues("kidly.payment.kafka.consumer.enabled=true")
             .run(context -> assertThat(context)
-                .doesNotHaveBean(MemberRegisteredListener.class)
                 .doesNotHaveBean(OrderPaymentRequestedListener.class)
                 .doesNotHaveBean(OrderCancelledListener.class));
     }
@@ -38,7 +36,6 @@ class PaymentEventSwitchTest {
     void kafkaOff() {
         runner.withPropertyValues("kidly.payment.kafka.consumer.enabled=false")
             .run(context -> assertThat(context)
-                .hasSingleBean(MemberRegisteredListener.class)
                 .hasSingleBean(OrderPaymentRequestedListener.class)
                 .hasSingleBean(OrderCancelledListener.class));
     }
@@ -46,17 +43,17 @@ class PaymentEventSwitchTest {
     @Test
     @DisplayName("스위치 값이 없으면 Kafka로 받는 것으로 본다(기본 true)")
     void defaultIsKafka() {
-        runner.run(context -> assertThat(context).doesNotHaveBean(MemberRegisteredListener.class));
+        runner.run(context -> assertThat(context).doesNotHaveBean(OrderPaymentRequestedListener.class));
     }
 
     @Test
-    @DisplayName("정산 지급 요청은 별도 스위치를 따른다: 기본(값 없음) · false면 Spring 리스너로 받고, true면 뜨지 않는다")
+    @DisplayName("정산 지급 요청은 별도 스위치를 따른다: false면 Spring 리스너로 받고, 기본(값 없음) · true면 뜨지 않는다")
     void settlementSwitch() {
         ApplicationContextRunner settlement = new ApplicationContextRunner()
             .withBean(PaymentEventHandler.class, () -> mock(PaymentEventHandler.class))
             .withUserConfiguration(SettlementPayoutRequestedListener.class);
 
-        settlement.run(context -> assertThat(context).hasSingleBean(SettlementPayoutRequestedListener.class));
+        settlement.run(context -> assertThat(context).doesNotHaveBean(SettlementPayoutRequestedListener.class));
         settlement.withPropertyValues("kidly.payment.kafka.settlement-consumer.enabled=false")
             .run(context -> assertThat(context).hasSingleBean(SettlementPayoutRequestedListener.class));
         settlement.withPropertyValues("kidly.payment.kafka.settlement-consumer.enabled=true")
@@ -69,7 +66,8 @@ class PaymentEventSwitchTest {
         new ApplicationContextRunner()
             .withBean(PaymentEventHandler.class, () -> mock(PaymentEventHandler.class))
             .withUserConfiguration(SettlementPayoutRequestedListener.class)
-            .withPropertyValues("kidly.payment.kafka.consumer.enabled=true")
+            .withPropertyValues("kidly.payment.kafka.consumer.enabled=true",
+                "kidly.payment.kafka.settlement-consumer.enabled=false")
             .run(context -> assertThat(context).hasSingleBean(SettlementPayoutRequestedListener.class));
     }
 }

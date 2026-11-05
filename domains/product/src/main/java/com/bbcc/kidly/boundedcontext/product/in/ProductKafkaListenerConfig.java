@@ -29,7 +29,7 @@ import tools.jackson.core.JacksonException;
  * 에러 처리기는 빈으로 등록하지 않으므로 Boot 기본 팩토리와 다른 도메인에 영향이 없다.
  * DLT로 보낼 때는 Boot 기본 KafkaTemplate을 쓴다. 전송 실패는 앱 설정이 본문 없이 토픽 · 키 · eventType · eventId로 남긴다.
  * 리스너가 시작할지는 앱 설정 auto-startup이 아니라 리스너 애노테이션의 스위치(kidly.product.kafka.consumer.enabled)가 정한다.
- * 스위치를 false로 두면 Kafka 리스너는 시작하지 않고 Spring 리스너가 받는다.
+ * 스위치를 false로 두면 Kafka 리스너를 시작하지 않는다.
  */
 @Slf4j
 @Configuration

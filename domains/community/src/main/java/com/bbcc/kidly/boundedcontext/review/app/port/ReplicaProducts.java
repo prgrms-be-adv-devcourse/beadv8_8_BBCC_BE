@@ -10,6 +10,11 @@ import java.util.Optional;
  */
 public interface ReplicaProducts {
 
+    /**
+     * 같은 상품을 읽기 전에 잡고, 트랜잭션 종료까지 반영을 직렬화한다.
+     */
+    void lockProduct(Long productId);
+
     Optional<ReplicaProduct> findById(Long productId);
 
     /**

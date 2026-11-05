@@ -1,0 +1,110 @@
+spring:
+  application:
+    name: kidly-member
+  # 인증(JWT 개인키 · 카카오 · 관리자 초기 계정) · 회원(아웃박스 릴레이 주기) 설정. 판매자는 도메인 설정이 없다
+  config:
+    import:
+      - classpath:auth.yml
+      - classpath:member.yml
+      - classpath:childprofile.yml
+  profiles:
+    default: local
+  # 자기 스키마만 다룬다. 이력은 kidly-app(public.flyway_schema_history)과 따로 쓴다
+  flyway:
+    locations: classpath:db/migration
+    # 이력 테이블은 member 스키마에 둔다. 나중에 DB를 나눌 때 스키마와 같이 옮겨지고, 다른 스키마를 건드리지 않는다
+    default-schema: member
+    # auth는 넣지 않는다. 넣으면 kidly-app이 먼저 만든 DB에서 auth 스키마를 만든 기록이 이력에 먼저 남아 baseline 없이 init부터 돈다.
+    # auth 스키마는 인증 마이그레이션이 만든다
+    schemas: member,seller
+    table: flyway_schema_history_member
+    # baseline-version은 kidly-app 파일 중 회원 스키마를 바꾸는 마지막 버전이다. 이 값은 바꾸지 않는다.
+    # 빈 DB(테스트)는 baseline 없이 init부터 적용한다(MemberMigrationIntegrationTest)
+    baseline-on-migrate: true
+    baseline-version: 202610201313
+    # 버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있으므로 옛 버전도 적용한다
+    out-of-order: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        # 트랜잭션이 끝나면 DB 연결을 바로 돌려주고(커밋 뒤 리스너가 연결을 더 쥐지 않게),
+        # 그래서 DB가 막지 못하는 읽기 전용 트랜잭션의 쓰기를 SQL을 보내기 전에 막는다
+        connection:
+          handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
+        session_factory:
+          statement_inspector: com.bbcc.kidly.member.config.ReadOnlyWriteGuard
+  # Kafka. 회원 · 인증 · 판매자 이벤트를 보내고, 회원 · 판매자 · 자녀 프로필 이벤트를 받는다(구독 그룹 kidly.member · kidly.auth · kidly.seller · kidly.childprofile)
+  # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app에서 쓰던 구독 그룹을 이어받아 책갈피를 이어 쓴다
+      auto-offset-reset: latest
+
+springdoc:
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha
+
+# 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kidly
+    username: kidly
+    password: kidly
+
+# gateway(8083) 등과 같이 띄울 수 있게 포트를 나눈다
+server:
+  port: 8081
+
+# 로컬은 http라서 Secure 쿠키를 브라우저가 보내지 않는다. 운영은 기본값(true)을 쓴다
+kidly:
+  security:
+    secure-cookie: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+server:
+  forward-headers-strategy: native
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}
+  # 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘지 않게 예외마다 프레임 수만 줄인다
+  structured:
+    json:
+      stacktrace:
+        max-throwable-depth: 30

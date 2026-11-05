@@ -1,0 +1,76 @@
+# MCP 조직의 datasource에만 아래 routing header를 설정한다. 인증 비밀이 아니다.
+# 접근 제어는 접속 원본 IP와 HTTP 라우팅 경계에서 수행한다. 기존 Alloy write 경로는 건드리지 않는다.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: mcp-prometheus-internal
+spec:
+  ipAllowList:
+    # 기본 거부. 배포 후 update_boundary.py가 준비된 Grafana Pod 한 개의 /32만 허용한다.
+    # Pod 대역 전체는 노드 NAT 주소까지 허용할 수 있어 사용하지 않는다.
+    # X-Forwarded-For가 아닌 실제 RemoteAddr를 사용한다.
+    sourceRange:
+      - 127.0.0.1/32
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: mcp-prometheus-strip
+spec:
+  stripPrefix:
+    prefixes:
+      - /mcp-prometheus
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: mcp-prometheus-denied
+spec:
+  headers:
+    customResponseHeaders:
+      X-Kidly-MCP-Boundary: denied-before-upstream
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: mcp-prometheus-query
+spec:
+  headers:
+    customResponseHeaders:
+      X-Kidly-MCP-Boundary: query-only
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: mcp-prometheus
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      priority: 11000
+      match: >-
+        Header(`X-Kidly-MCP-Route`, `prometheus-readonly-v1`) &&
+        (Method(`GET`) || Method(`POST`)) &&
+        (Path(`/mcp-prometheus/api/v1/query`) || Path(`/mcp-prometheus/api/v1/query_range`) ||
+        Path(`/mcp-prometheus/api/v1/labels`) || Path(`/mcp-prometheus/api/v1/series`) ||
+        Path(`/mcp-prometheus/api/v1/metadata`) || Path(`/mcp-prometheus/api/v1/status/buildinfo`) ||
+        PathRegexp(`^/mcp-prometheus/api/v1/label/[a-zA-Z_][a-zA-Z0-9_]*/values$`))
+      middlewares:
+        - name: mcp-prometheus-internal
+        - name: mcp-prometheus-strip
+        - name: mcp-prometheus-query
+      services:
+        - name: prometheus
+          port: 9090
+    # Fallback는 경로 prefix와 무관하다. 정규화/잘못된 경로도 실제 Prometheus로 가지 않는다.
+    - kind: Rule
+      priority: 10000
+      match: Header(`X-Kidly-MCP-Route`, `prometheus-readonly-v1`)
+      middlewares:
+        - name: mcp-prometheus-internal
+        - name: mcp-prometheus-denied
+      services:
+        # Traefik 내장 거부 처리기: HTTP 418, upstream 연결 없음.
+        - name: noop@internal
+          kind: TraefikService

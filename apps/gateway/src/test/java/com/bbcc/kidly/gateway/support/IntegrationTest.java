@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * 통합 테스트: 실제 포트로 뜬 Gateway 컨텍스트. DB가 없다. kidly-app 대신 가짜 백엔드(RecordingBackend)로 보낸다.
+ * 통합 테스트: 실제 포트로 뜬 Gateway 컨텍스트. DB가 없다. 서비스 대신 가짜 백엔드(RecordingBackend)로 보낸다.
  * 모든 통합 테스트가 같은 설정을 써야 컨텍스트가 재사용되므로 설정을 추가하지 않는다.
  */
 @Target(ElementType.TYPE)

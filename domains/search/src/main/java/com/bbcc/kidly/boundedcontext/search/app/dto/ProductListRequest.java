@@ -11,7 +11,7 @@ import java.util.List;
  * 상품 목록 API와 같은 검증이다. 목록 API를 검색으로 옮겨도 받는 요청이 바뀌지 않게 한다.
  *
  * @param attributes 고른 항목 값이다. "항목code:값ID" 형식의 문자열 목록이다 (예: COLOR:3)
- * @param sort 정렬 이름이다. 보내지 않으면 NEWEST다
+ * @param sort 정렬 이름이다. 보내지 않으면 NEWEST다. RELEVANCE(관련도순)는 검색어가 없으면 NEWEST와 같다
  */
 public record ProductListRequest(
     Long categoryId,
@@ -22,7 +22,8 @@ public record ProductListRequest(
     @Size(max = 20, message = "항목 값은 20개까지 고를 수 있습니다.")
     List<@Pattern(regexp = "[A-Z_]+:[1-9][0-9]{0,17}", message = "항목 값은 항목코드:값ID 형식이어야 합니다.") String>
         attributes,
-    @Pattern(regexp = "NEWEST|PRICE_ASC|PRICE_DESC", message = "정렬은 NEWEST, PRICE_ASC, PRICE_DESC 중 하나여야 합니다.")
+    @Pattern(regexp = "NEWEST|PRICE_ASC|PRICE_DESC|RELEVANCE",
+        message = "정렬은 NEWEST, PRICE_ASC, PRICE_DESC, RELEVANCE 중 하나여야 합니다.")
     String sort,
     @Min(value = 0, message = "페이지는 0 이상이어야 합니다.")
     Integer page,

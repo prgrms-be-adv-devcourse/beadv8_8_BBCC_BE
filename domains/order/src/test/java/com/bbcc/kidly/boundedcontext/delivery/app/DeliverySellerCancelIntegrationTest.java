@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -56,6 +57,9 @@ class DeliverySellerCancelIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderQueryService orderQueries;
 
     @Autowired
     private StuckOrderService stuckOrderService;
@@ -282,7 +286,7 @@ class DeliverySellerCancelIntegrationTest {
         Long orderId = orderService.place(buyerId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L), new PlaceOrderCommand.Item(2L, null, 1, 30_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"))).orderId();
-        orderService.markPaid(MarkPaidCommands.matching(orderService.getOrder(buyerId, orderId), buyerId, 500L));
+        orderService.markPaid(MarkPaidCommands.matching(orderQueries.getOrder(buyerId, orderId), buyerId, 500L));
         deliveryService.createFor(orderId);
         return orderId;
     }

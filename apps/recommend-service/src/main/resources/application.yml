@@ -12,12 +12,11 @@ spring:
     table: flyway_schema_history_recommend
     # 이미 추천 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 baseline-version으로 baseline을 잡고 그 버전까지 건너뛴다.
     # 빈 DB(테스트)는 baseline 없이 init부터 적용한다
-    # kidly-app도 아직 추천 마이그레이션을 자기 이력(public.flyway_schema_history)으로 적용한다. 그래서 추천 마이그레이션을 더하면
-    # 두 앱이 같은 파일을 각자 적용하려다 늦게 뜬 쪽이 기동에 실패한다. kidly-app에서 추천을 뺄 때까지 추천 마이그레이션을 더하지 않는다.
-    # 그 전에 더한 파일이 있으면 kidly-app이 이미 적용했으므로 baseline-version을 그 파일 버전으로 올린다
+    # baseline-version은 kidly-app이 추천을 가지고 있던 동안 마지막으로 적용한 추천 마이그레이션 버전이다. 이제 추천 마이그레이션은
+    # 이 서비스만 적용하므로 이 값은 바꾸지 않는다. 새 추천 마이그레이션은 이 버전보다 뒤라 baseline을 잡은 DB에도 적용된다
     baseline-on-migrate: true
     baseline-version: 202611021557
-    # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다
+    # 버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있으므로 옛 버전도 적용한다
     out-of-order: true
   jpa:
     open-in-view: false
@@ -25,13 +24,13 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        # kidly-app과 같다. 트랜잭션이 끝나면 DB 연결을 바로 돌려주고(커밋 뒤 리스너가 연결을 더 쥐지 않게),
+        # 트랜잭션이 끝나면 DB 연결을 바로 돌려주고(커밋 뒤 리스너가 연결을 더 쥐지 않게),
         # 그래서 DB가 막지 못하는 읽기 전용 트랜잭션의 쓰기를 SQL을 보내기 전에 막는다
         connection:
           handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
         session_factory:
           statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
-  # Kafka. 추천이 받는 판매자 · 자녀 · 상품 · 주문 이벤트를 받는다(구독 그룹 kidly.recommend). producer는 DLT로 보낼 때만 쓴다. 값은 kidly-app과 같다
+  # Kafka. 추천이 받는 판매자 · 자녀 · 상품 · 주문 · 검색 이벤트를 받는다(구독 그룹 kidly.recommend). producer는 DLT로 보낼 때만 쓴다
   # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
   kafka:
     bootstrap-servers: localhost:9092
@@ -44,7 +43,7 @@ spring:
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app과 같은 구독 그룹이라 책갈피를 이어 쓴다
+      # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app에서 쓰던 구독 그룹을 이어받아 책갈피를 이어 쓴다
       auto-offset-reset: latest
 
 springdoc:
@@ -69,7 +68,7 @@ spring:
     username: kidly
     password: kidly
 
-# kidly-app(8080) · search-service(8082) · gateway(8083) · childprofile-service(8084)와 같이 띄울 수 있게 포트를 나눈다
+# search-service(8082) · gateway(8083)와 같이 띄울 수 있게 포트를 나눈다
 server:
   port: 8086
 
@@ -93,7 +92,7 @@ springdoc:
 logging:
   file:
     path: ${LOG_PATH:./logs}
-  # kidly-app application-prod.yml과 같다. 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘지 않게 예외마다 프레임 수만 줄인다
+  # 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘지 않게 예외마다 프레임 수만 줄인다
   structured:
     json:
       stacktrace:

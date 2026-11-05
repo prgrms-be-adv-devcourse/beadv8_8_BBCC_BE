@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
@@ -58,7 +58,7 @@ class SellerOrderCancelApiTest {
     private RestTestClient client;
 
     @Autowired
-    private OrderService orderService;
+    private OrderQueryService orderQueries;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -383,7 +383,7 @@ class SellerOrderCancelApiTest {
         eventDelivery.deliver(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new StockDeductedEvent.Data(id)));
         // 주문 모듈 테스트에는 결제 도메인이 없으므로 결제 완료됨을 직접 넣는다(#616)
-        eventDelivery.deliver(PaymentEvents.completed(orderService.getOrder(BUYER_ID, id), BUYER_ID));
+        eventDelivery.deliver(PaymentEvents.completed(orderQueries.getOrder(BUYER_ID, id), BUYER_ID));
         // 주문 · 결제 흐름의 아웃박스 행은 지워 이 테스트가 낸 행만 본다
         jdbcTemplate.update("delete from orders.order_outbox");
         return id;

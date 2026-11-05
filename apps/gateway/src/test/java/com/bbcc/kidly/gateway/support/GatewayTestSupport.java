@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.net.URI;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -12,7 +13,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * 통합 테스트(@IntegrationTest)가 상속한다: 실제 포트로 뜬 Gateway에 보내는 client와 가짜 백엔드(kidly-app)를 테스트마다 새로 준비한다.
+ * 통합 테스트(@IntegrationTest)가 상속한다: 실제 포트로 뜬 Gateway에 보내는 client와
+ * 서비스별 가짜 백엔드를 테스트마다 새로 준비한다.
  * Gateway가 막은 응답은 expectBadRequest · expectUnauthorized · expectForbidden으로 본다.
  */
 public abstract class GatewayTestSupport {
@@ -21,13 +23,37 @@ public abstract class GatewayTestSupport {
     private int port;
 
     @Autowired
-    protected RecordingBackend backend;
+    private java.util.List<RecordingBackend> backends;
+
+    // 상품 API(/api/v1/products/{id} · 카테고리 · 판매자 · 관리자 상품 경로)는 상품 서비스 라우트(#791)로 간다
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.PRODUCT)
+    protected RecordingBackend productBackend;
+
+    // 주문 · 장바구니 · 배송(판매자 주문) · 조르기 · 주문 관리자 API는 주문 서비스 라우트로 간다
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.ORDER)
+    protected RecordingBackend orderBackend;
+
+    // 리뷰 · 찜 · 커뮤니티 관리자 API는 커뮤니티 서비스 라우트로 간다
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.COMMUNITY)
+    protected RecordingBackend communityBackend;
+
+    // 알림함 API는 알림 서비스 라우트로 간다
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.NOTIFICATION)
+    protected RecordingBackend notificationBackend;
 
     protected WebTestClient client;
 
     @BeforeEach
     void setUpGatewayClient() {
-        backend.reset();
+        backends.forEach(RecordingBackend::reset);
+        productBackend.reset();
+        orderBackend.reset();
+        communityBackend.reset();
+        notificationBackend.reset();
         client = WebTestClient.bindToServer().baseUrl(baseUrl()).build();
     }
 
@@ -56,7 +82,19 @@ public abstract class GatewayTestSupport {
     private void expectRejected(ResponseSpec response, HttpStatus status, String title, String detail,
         String instance) {
         expectProblem(response, status, title, detail, instance);
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
+        assertThat(productBackend.lastRequest()).isEmpty();
+        assertThat(orderBackend.lastRequest()).isEmpty();
+        assertThat(communityBackend.lastRequest()).isEmpty();
+        assertThat(notificationBackend.lastRequest()).isEmpty();
+    }
+
+    protected void resetBackends() {
+        backends.forEach(RecordingBackend::reset);
+    }
+
+    protected void assertNoBackendRequests() {
+        assertThat(backends).allSatisfy(backend -> assertThat(backend.lastRequest()).isEmpty());
     }
 
     // 5필드 ProblemDetail 본문을 본다. 백엔드까지 갔다가 실패한 응답(503 · 504)에도 쓰므로 백엔드 호출 여부는 보지 않는다.

@@ -32,12 +32,12 @@ class BackendTimeoutIntegrationTest extends GatewayTestSupport {
     @Test
     @DisplayName("백엔드 응답이 늦으면 504 ProblemDetail이다")
     void respondsGatewayTimeout() {
-        backend.delayResponse(Duration.ofSeconds(2));
+        orderBackend.delayResponse(Duration.ofSeconds(2));
 
-        var response = client.get().uri("/api/v1/members/me").exchange();
+        var response = client.get().uri("/api/v1/orders").exchange();
 
         expectProblem(response, HttpStatus.GATEWAY_TIMEOUT, "응답이 지연되고 있습니다", "잠시 후 다시 시도해 주세요.",
-            "/api/v1/members/me");
+            "/api/v1/orders");
         response.expectHeader().exists("X-Request-Id");
     }
 

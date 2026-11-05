@@ -4,14 +4,20 @@
 # 배포 전에 CI(ci.yml)를 이미지 빌드와 동시에 돌리고, 둘 다 성공해야 서버에 올린다.
 # 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 CI · 빌드 없이 그 이미지를 배포한다.
 # 롤백 때도 compose · .env 는 실행한 브랜치의 현재 것이 올라간다. 설정 키가 바뀐 커밋으로 되돌릴 땐 주의한다.
-# 이미지는 여섯이다: 앱(<저장소>:<SHA>), 검색 서비스(<저장소>-search-service:<SHA>), Gateway(<저장소>-gateway:<SHA>), 자녀 프로필 서비스(<저장소>-childprofile-service:<SHA>), 추천 서비스(<저장소>-recommend-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
+# 이미지는 열하나다: 검색 서비스(<저장소>-search-service:<SHA>), Gateway(<저장소>-gateway:<SHA>), 추천 서비스(<저장소>-recommend-service:<SHA>), 정산 서비스(<저장소>-settlement-service:<SHA>), 회원 서비스(<저장소>-member-service:<SHA>), 결제 서비스(<저장소>-payment-service:<SHA>), 상품 서비스(<저장소>-product-service:<SHA>), 알림 서비스(<저장소>-notification-service:<SHA>), 주문 서비스(<저장소>-order-service:<SHA>), 커뮤니티 서비스(<저장소>-community-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
+# 이 변경 이전 SHA 도 현재 compose 를 사용하므로 서비스 이미지만 배포한다.
 # Elasticsearch 는 앱 서버가 아니라 t3.medium k3s(deploy/search)에 뜬다. 검색이 켜진 환경이면 elasticsearch job 이 앱보다 먼저 올린다.
 # 검색 서비스 이미지가 없는 커밋(검색 배포 전)으로는 검색이 켜진 환경(dev)을 SHA 롤백할 수 없다.
 # 같은 이유로 Gateway 이미지가 없는 커밋(Gateway 배포 전)으로는 Gateway 가 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
-# 같은 이유로 자녀 프로필 서비스 이미지가 없는 커밋(#682 배포 전)으로는 자녀 프로필이 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
-# 같은 이유로 추천 서비스 이미지가 없는 커밋(#704 배포 전)으로는 추천이 켜진 환경을 SHA 롤백할 수 없다.
-# #638(회원 토큰 무효화 테이블 삭제) 이전 SHA 로는 롤백할 수 없다. 이전 앱이 그 테이블을 검증(ddl-auto: validate)해서 뜨지 않는다. 되돌리려면 테이블을 다시 만든다.
-# #682(앱에서 자녀 도메인을 뺀 PR) 이전 SHA 로는 롤백할 수 없다. 새 앱이 이력에서 지운 자녀 아웃박스 마이그레이션(202610300953)을 이전 앱이 다시 적용하다 테이블이 이미 있어 실패해 앱이 뜨지 않는다.
+# 같은 이유로 추천 서비스 이미지가 없는 커밋(#704 배포 전)으로는 추천이 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
+# 같은 이유로 정산 서비스 이미지가 없는 커밋(#729 배포 전)으로는 정산이 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
+# 회원 서비스 이미지가 없는 커밋으로는 회원 서비스가 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
+# 같은 이유로 결제 서비스 이미지가 없는 커밋(#525 배포 전)으로는 결제 서비스가 켜진 환경을 SHA 롤백할 수 없다.
+# 같은 이유로 상품 서비스 이미지가 없는 커밋(#791 배포 전)으로는 상품 서비스가 켜진 환경을 SHA 롤백할 수 없다.
+# 같은 이유로 주문 서비스 이미지가 없는 커밋(주문 서비스 배포 전)으로는 주문 서비스가 켜진 환경을 SHA 롤백할 수 없다.
+# 같은 이유로 커뮤니티 서비스 이미지가 없는 커밋(커뮤니티 서비스 배포 전)으로는 커뮤니티 서비스가 켜진 환경을 SHA 롤백할 수 없다.
+# 같은 이유로 알림 서비스 이미지가 없는 커밋(알림 서비스 배포 전)으로는 알림 서비스가 켜진 환경을 SHA 롤백할 수 없다.
+# #809(자녀 프로필을 회원 서비스로 합친 PR) 이전 SHA 로는 롤백할 수 없다. 이전 Gateway 가 기본값 없는 KIDLY_CHILDPROFILE_URI 를 요구해 뜨지 않고, compose 에 자녀 프로필 서비스가 없어 이전 회원 서비스로는 자녀 API 를 받을 곳이 없다.
 # Elasticsearch 이미지는 docker/elasticsearch 가 바뀐 뒤 첫 배포 때만 빌드한다. docker/** 만 바뀐 push 는 배포를 띄우지 않으니 다음 배포에 반영된다.
 # workflow_dispatch 를 develop · main 이 아닌 브랜치에서 실행하면 그 브랜치가 dev 환경에 배포된다 (기능 브랜치 확인용).
 # 기능 브랜치는 develop 을 반영한 뒤 올린다. dev DB 에는 develop 의 마이그레이션이 이미 적용돼 있어(예: #638 무효화 테이블 삭제) 그것이 빠진 브랜치는 뜨지 않을 수 있다.
@@ -40,12 +46,28 @@ on:
 permissions:
   contents: read
 
-# 같은 환경(dev · prod)으로 가는 배포는 한 번에 하나만 돈다. 진행 중인 배포는 취소하지 않고, 대기 중인 run 은 최신 것으로 대체된다
+# 같은 환경(dev · prod)으로 가는 배포는 한 번에 하나만 돈다. 진행 중인 배포는 취소하지 않고, 최대 100개까지 대기시킨다
 concurrency:
   group: deploy-${{ github.ref_name == 'main' && 'prod' || 'dev' }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
+  monitoring-location:
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      host: ${{ steps.location.outputs.host }}
+      known_hosts: ${{ steps.location.outputs.known_hosts }}
+    steps:
+      - id: location
+        env:
+          MONITORING_SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
+          MONITORING_KNOWN_HOSTS: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$MONITORING_SSH_HOST" && test -n "$MONITORING_KNOWN_HOSTS"
+          echo "host=$MONITORING_SSH_HOST" >> "$GITHUB_OUTPUT"
+          echo "known_hosts=$(printf '%s' "$MONITORING_KNOWN_HOSTS" | base64 -w0)" >> "$GITHUB_OUTPUT"
   # PR 때 돈 CI 는 그때의 develop 기준이라, 머지된 커밋을 다시 검사한다. 롤백이면 이미 배포됐던 커밋이라 생략한다
   ci:
     if: inputs.sha == ''
@@ -63,7 +85,7 @@ jobs:
     # 앱 모듈(apps/ 아래 폴더)마다 따로 빌드한다. 하나라도 실패하면 배포하지 않는다
     strategy:
       matrix:
-        app: [kidly-app, search-service, gateway, childprofile-service, recommend-service]
+        app: [search-service, gateway, recommend-service, settlement-service, member-service, payment-service, product-service, notification-service, order-service, community-service]
     steps:
       - uses: actions/checkout@v7
 
@@ -81,7 +103,7 @@ jobs:
           APP: ${{ matrix.app }}
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
-          [[ "$APP" == kidly-app ]] || IMAGE="$IMAGE-$APP"
+          IMAGE="$IMAGE-$APP"
           docker build --build-arg APP="$APP" \
             --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
             -t "$IMAGE:$GITHUB_SHA" .
@@ -193,9 +215,9 @@ jobs:
             "GHCR_USER=$GHCR_USER ES_IMAGE=$ES_IMAGE /opt/app/search/deploy.sh"
 
   deploy:
-    needs: [ci, build, elasticsearch]
+    needs: [ci, build, elasticsearch, monitoring-location]
     # CI 와 빌드가 모두 성공했거나 롤백(둘 다 생략)인 경우만 배포한다. Elasticsearch 배포가 실패하면 앱도 올리지 않는다
-    if: ${{ !cancelled() && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) && needs.elasticsearch.result != 'failure' }}
+    if: ${{ !cancelled() && needs.monitoring-location.result == 'success' && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) && needs.elasticsearch.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -227,26 +249,34 @@ jobs:
           APP_ENV: ${{ vars.APP_ENV }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          PORTONE_API_SECRET: ${{ secrets.PORTONE_API_SECRET }}
+          IDENTITY_KEY_SECRET: ${{ secrets.IDENTITY_KEY_SECRET }}
           TOSS_SECRET_KEY: ${{ secrets.TOSS_SECRET_KEY }}
           PAYMENT_KEY_ENCRYPTION_KEY: ${{ secrets.PAYMENT_KEY_ENCRYPTION_KEY }}
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
           JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           HOLIDAY_API_SERVICE_KEY: ${{ secrets.HOLIDAY_API_SERVICE_KEY }}
+          KIDLY_ADMIN_BOOTSTRAP_PASSWORD: ${{ secrets.KIDLY_ADMIN_BOOTSTRAP_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SEARCH_ON: ${{ needs.elasticsearch.outputs.search }}
           MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
         run: |
           umask 077
           out="$RUNNER_TEMP/deploy-files"
           mkdir -p "$out/jwt"
-          cp -p deploy/docker-compose.yml deploy/deploy.sh "$out/"
+          cp -p deploy/docker-compose.yml deploy/deploy.sh deploy/environment-state.py "$out/"
 
           # 한 줄짜리 비밀. .env 뒤에 붙인다
-          keys=(DB_PASSWORD KAKAO_CLIENT_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
+          keys=(DB_PASSWORD KAKAO_CLIENT_SECRET PORTONE_API_SECRET IDENTITY_KEY_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
           # 없어도 되는 비밀. 있으면 붙이고 없으면 건너뛴다 (MAIL_PASSWORD 가 없으면 메일은 보내지 않고 로그만 남긴다)
           [[ -z "$MAIL_PASSWORD" ]] || keys+=(MAIL_PASSWORD)
           # HOLIDAY_API_SERVICE_KEY 가 없으면 영업일 판단(공휴일 조회)이 실패한다
           [[ -z "$HOLIDAY_API_SERVICE_KEY" ]] || keys+=(HOLIDAY_API_SERVICE_KEY)
+          # KIDLY_ADMIN_BOOTSTRAP_PASSWORD 가 없으면 첫 관리자를 만들지 않는다. 단 .env 에 이메일이 있는데 비어 있으면 앱이 기동에 실패한다
+          [[ -z "$KIDLY_ADMIN_BOOTSTRAP_PASSWORD" ]] || keys+=(KIDLY_ADMIN_BOOTSTRAP_PASSWORD)
+          # OPENAI_API_KEY 가 없으면 검색 서비스가 의미 검색을 끄고 키워드로만 찾는다(#797)
+          [[ -z "$OPENAI_API_KEY" ]] || keys+=(OPENAI_API_KEY)
           # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다
           secret_lines=$(.github/scripts/env-lines.sh "$APP_ENV" "${keys[@]}")
 
@@ -281,7 +311,7 @@ jobs:
           APP_ENV: ${{ vars.APP_ENV }}
         run: |
           dir="/opt/app/$APP_ENV"
-          tar -C "$RUNNER_TEMP/deploy-files" -czf - docker-compose.yml deploy.sh .env jwt \
+          tar -C "$RUNNER_TEMP/deploy-files" -czf - docker-compose.yml deploy.sh environment-state.py .env jwt \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
               "mkdir -p $dir && tar -xzf - --no-same-owner -C $dir && chmod 700 $dir/jwt && chmod 600 $dir/.env $dir/jwt/private.pem"
 
@@ -302,11 +332,25 @@ jobs:
             export DOCKER_CONFIG=\$(mktemp -d)
             trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
             docker login ghcr.io -u $GHCR_USER --password-stdin > /dev/null || exit 1
-            APP_ENV=$APP_ENV IMAGE=$IMAGE:$SHA SEARCH_IMAGE=$IMAGE-search-service:$SHA \
-              GATEWAY_IMAGE=$IMAGE-gateway:$SHA CHILDPROFILE_IMAGE=$IMAGE-childprofile-service:$SHA \
-              RECOMMEND_IMAGE=$IMAGE-recommend-service:$SHA \
+            APP_ENV=$APP_ENV SEARCH_IMAGE=$IMAGE-search-service:$SHA \
+              GATEWAY_IMAGE=$IMAGE-gateway:$SHA \
+              RECOMMEND_IMAGE=$IMAGE-recommend-service:$SHA SETTLEMENT_IMAGE=$IMAGE-settlement-service:$SHA \
+              MEMBER_IMAGE=$IMAGE-member-service:$SHA PAYMENT_IMAGE=$IMAGE-payment-service:$SHA \
+              PRODUCT_IMAGE=$IMAGE-product-service:$SHA NOTIFICATION_IMAGE=$IMAGE-notification-service:$SHA \
+              ORDER_IMAGE=$IMAGE-order-service:$SHA COMMUNITY_IMAGE=$IMAGE-community-service:$SHA \
               /opt/app/$APP_ENV/deploy.sh
           " 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+
+      - name: 운영 대상 목록 동기화
+        if: success()
+        env:
+          APP_SSH_HOST: ${{ vars.SSH_HOST }}
+          MONITORING_SSH_HOST: ${{ needs.monitoring-location.outputs.host }}
+          MONITORING_KNOWN_HOSTS_B64: ${{ needs.monitoring-location.outputs.known_hosts }}
+          APP_ENV: ${{ vars.APP_ENV }}
+        run: |
+          printf '%s' "$MONITORING_KNOWN_HOSTS_B64" | base64 --decode >> ~/.ssh/known_hosts
+          python3 .github/scripts/environment-operation.py sync "$APP_ENV"
 
       # deploy-notify.yml 이 이 주석(title 앱 기동 실패)을 읽어 장애 채널로 원인을 보낸다. 실행 화면 맨 위에도 보인다
       - name: 기동 실패 원인 남기기

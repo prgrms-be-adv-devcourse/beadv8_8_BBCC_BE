@@ -7,6 +7,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
+import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository.OutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxMessage;
@@ -109,7 +110,7 @@ class OrderOutboxRelayLogContextTest {
     }
 
     private void givenUnsent(OrderOutboxMessage... messages) {
-        when(jpaRepository.findBySentAtIsNullOrderByIdAsc(any())).thenReturn(List.of(messages));
+        when(jpaRepository.findRelayCandidates(any())).thenReturn(List.of(messages));
         for (OrderOutboxMessage message : messages) {
             lenient().when(jpaRepository.findById(message.getId())).thenReturn(Optional.of(message));
         }

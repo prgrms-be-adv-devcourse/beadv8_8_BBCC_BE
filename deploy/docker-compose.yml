@@ -1,9 +1,15 @@
 # 서버용. 배포 때 워크플로가 /opt/app/<env>/ 로 올린다 (env 마다 다른 것은 .env 뿐)
 # deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
-# 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES=search 인 환경(지금은 dev)에서만 뜬다
+# 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES 에 search 가 있는 환경(dev · prod)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
-# 자녀 프로필(childprofile-service)은 profile childprofile 이라 COMPOSE_PROFILES 에 childprofile 이 있는 환경(dev · prod)에서만 뜬다. app 에는 자녀 API 가 없어 자녀 API 를 쓰는 환경은 모두 켜야 한다
-# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경에서만 뜬다. 지금은 어느 환경에도 켜지 않았다(켜면 app 주석의 상한 합계에 더해진다)
+# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다
+# 회원(member-service)은 profile member 라 COMPOSE_PROFILES 에 member 가 있는 환경(dev · prod)에서만 뜬다
+# 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경(dev · prod)에서만 뜬다
+# 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다
+# 상품(product-service)은 profile product 라 COMPOSE_PROFILES 에 product 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다)
+# 주문(order-service)은 profile order 라 COMPOSE_PROFILES 에 order 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다)
+# 커뮤니티(community-service)는 profile community 라 COMPOSE_PROFILES 에 community 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다)
+# 알림(notification-service)은 profile notification 이라 COMPOSE_PROFILES 에 notification 이 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다)
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -13,36 +19,6 @@ x-logging: &logging
     max-file: "5"
 
 services:
-  app:
-    image: ${IMAGE}
-    env_file: .env
-    environment:
-      JAVA_TOOL_OPTIONS: -Xmx512m
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    ports:
-      - "127.0.0.1:${APP_PORT}:8080"     # 외부 비공개. nginx 가 80/443 으로 받아 넘긴다
-    volumes:
-      - ./jwt:/app/jwt:ro
-      - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
-      # 결제 등이 커밋 뒤 Kafka로 보낸다. 브로커가 뜬 뒤에 앱을 띄운다
-      kafka:
-        condition: service_healthy
-    # deploy.sh 의 up -d --wait 가 이 healthcheck 를 기다린다. Spring 기동에 20~40초 걸린다
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
-    # 한 서버에 dev · prod 가 같이 떠도 한 컨테이너가 메모리를 다 써서 다른 환경까지 OOM 으로 죽이지 않게 서비스마다 상한을 둔다
-    # 합계는 prod 3328MiB(app 1024 · postgres 512 · kafka 768 · gateway 512 · 자녀 512) + dev 4352MiB(여기에 검색 1024) = 7680MiB 로 호스트(t3.large 8GiB) 안이다. 남는 512MiB 를 OS · nginx · Alloy 가 쓴다
-    mem_limit: 1g
-    restart: unless-stopped
-    logging: *logging
-
   postgres:
     image: postgres:18
     env_file: .env
@@ -53,12 +29,13 @@ services:
       interval: 5s
       retries: 10
     mem_limit: 512m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
     ports:
       - "127.0.0.1:${DB_PORT}:5432"     # 외부 비공개. 팀원이 SSH 터널로 IntelliJ 에서 붙는다
 
-  # 도메인 간 이벤트를 전달한다. 환경(-p <env>)마다 따로 뜨고 같은 compose 네트워크의 app 만 kafka:9092 로 붙는다(포트 비공개)
+  # 도메인 간 이벤트를 전달한다. 환경(-p <env>)마다 따로 뜨고 같은 compose 네트워크의 서비스만 kafka:9092 로 붙는다(포트 비공개)
   # KRaft 단일 브로커라 복제 계수는 1. EC2 가 멈췄다 켜져도 쌓인 메시지가 남도록 데이터는 볼륨에 둔다
   kafka:
     image: apache/kafka:4.2.2
@@ -92,6 +69,32 @@ services:
       retries: 12
       start_period: 30s
     mem_limit: 768m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 승인된 Kafka 관측 전용. 앱·DB 비밀값이나 Docker 소켓을 넘기지 않는다.
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.11.0@sha256:54d4296c5b8ce01232f6762e06cbc3eec25887c0b5c5940ccb9e891ac7fc51d8
+    profiles: [kafka-monitoring]
+    command:
+      - --kafka.server=kafka:9092
+      - --kafka.version=4.0.0
+      - --topic.workers=2
+      - '--topic.filter=^kidly\.'
+      - '--group.filter=^kidly\.'
+    ports:
+      - "127.0.0.1:${KAFKA_EXPORTER_PORT}:9308"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    cpus: 0.2
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
 
@@ -106,10 +109,13 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx512m
+      MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      # 기본값은 profile 이 꺼진 환경(prod)에서 빈 값 경고를 내지 않으려는 것이다
+      # 기본값은 profile search 가 꺼진 환경에서 빈 값 경고를 내지 않으려는 것이다
       ELASTICSEARCH_URIS: ${ELASTICSEARCH_URIS:-}
       SEARCH_INDEX_PREFIX: ${SEARCH_INDEX_PREFIX:-}
+      # 의미 검색 임베딩(#797). 없으면 의미 검색을 끄고 키워드로만 찾는다. deploy 워크플로가 Environment Secret 에서 붙인다
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${SEARCH_PORT:-8082}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에 열 때는 nginx 가 아니라 Gateway 라우트로(nginx 가 바로 넘기면 X-Member-* 위조 가능)
@@ -125,51 +131,11 @@ services:
       retries: 12
       start_period: 60s
     mem_limit: 1g
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
 
-  # 자녀 프로필 서비스(apps/childprofile-service, #682). 자녀 프로필 API 와 회원 이벤트 수신(구독 그룹 kidly.childprofile), 자녀 이벤트 발행
-  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
-  childprofile-service:
-    image: ${CHILDPROFILE_IMAGE}
-    profiles: [childprofile]
-    environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      TZ: Asia/Seoul
-      # 힙은 64MiB 안팎만 쓴다(#682 측정)
-      JAVA_TOOL_OPTIONS: -Xmx192m
-      # 힙 밖 네이티브 메모리(glibc malloc arena)가 동시 요청에 따라 커지는 것을 줄인다. 2 CPU 동시 부하에서 472MiB → 353MiB(#682 측정)
-      MALLOC_ARENA_MAX: "2"
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      DB_URL: ${DB_URL}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      LOG_PATH: /app/logs
-    ports:
-      - "127.0.0.1:${CHILDPROFILE_PORT:-8085}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
-    volumes:
-      - ./logs:/app/logs
-    # 빈 DB 에서는 app 이 먼저 마이그레이션해야 한다. app 의 init 이 자녀 테이블도 만들어, 서비스가 먼저 만들면 app 의 init 이 실패한다(#682)
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      app:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
-    # 2 CPU 동시 부하 뒤 353MiB(힙 64MiB 안팎, 나머지는 Metaspace · 스레드 등 힙 밖). 힙이 192m 까지 차도 추정 약 455MiB(#682 측정)
-    mem_limit: 512m
-    restart: unless-stopped
-    logging: *logging
-
-  # 추천 서비스(apps/recommend-service, #704). 추천 API 와 판매자 · 자녀 · 상품 · 주문 이벤트 수신(구독 그룹 kidly.recommend). 보내는 이벤트는 없다
-  # app 도 아직 추천 도메인을 가지고 같은 DB · 구독 그룹으로 함께 돈다. 같은 메시지를 두 번 받아도 한 번만 반영한다
+  # 추천 서비스(apps/recommend-service, #704). 추천 API 와 판매자 · 자녀 · 상품 · 주문 · 검색 이벤트 수신(구독 그룹 kidly.recommend). 보내는 이벤트는 없다
   # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   recommend-service:
     image: ${RECOMMEND_IMAGE}
@@ -177,7 +143,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Seoul
-      JAVA_TOOL_OPTIONS: -Xmx192m
+      JAVA_TOOL_OPTIONS: -Xmx128m
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -189,22 +155,330 @@ services:
       - "127.0.0.1:${RECOMMEND_PORT:-8087}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    # app 이 추천 도메인을 가진 동안(#704)은 app 이 먼저 마이그레이션해야 한다. 서비스는 app 이 이미 적용한 마지막 추천 마이그레이션 버전으로 baseline 을 잡는다
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_healthy
-      app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 60s
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      start_period: 180s
+    # 구성이 비슷한 자녀 프로필 서비스가 dev 에서 7일 최대 365MiB(힙 64MiB 안팎)를 썼다. 그보다 조금 넉넉하게 힙 128m · 상한 448m 으로 시작하고, 켠 뒤 재서 정한다
+    mem_limit: 448m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 정산 서비스(apps/settlement-service, #729). 정산 API · 자동 정산(Spring Batch) · 결제 · 주문 이벤트 수신(구독 그룹 kidly.settlement), 정산 이벤트 발행(아웃박스)
+  # 비밀이 든 .env 를 통째로 넘기지 않고 필요한 값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
+  settlement-service:
+    image: ${SETTLEMENT_IMAGE}
+    profiles: [settlement]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx256m
+      # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # 정산 영업일 판단용 공휴일 조회 키. 없으면 공휴일 조회가 실패해 자동 정산을 건너뛴다
+      HOLIDAY_API_SERVICE_KEY: ${HOLIDAY_API_SERVICE_KEY:-}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${SETTLEMENT_PORT:-8089}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      start_period: 180s
+    # Spring Batch 포함. 측정 전이라 자녀 프로필 서비스 실측(최대 353MiB)을 기준으로 힙 256m · 상한 640m 으로 시작하고, 켠 뒤 재서 정한다
+    mem_limit: 640m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 회원 서비스(apps/member-service). 비밀이 든 .env 대신 필요한 값만 넘긴다
+  member-service:
+    image: ${MEMBER_IMAGE}
+    profiles: [member]
+    environment:
+      # dev 는 prod,dev 라 개발용 토큰 API 와 초기 회원 · 판매자 데이터가 뜬다
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx192m
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_PUBLIC_KEY_LOCATION: ${JWT_PUBLIC_KEY_LOCATION}
+      JWT_PRIVATE_KEY_LOCATION: ${JWT_PRIVATE_KEY_LOCATION}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET}
+      KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI}
+      PORTONE_API_SECRET: ${PORTONE_API_SECRET}
+      IDENTITY_KEY_SECRET: ${IDENTITY_KEY_SECRET}
+      KIDLY_ADMIN_BOOTSTRAP_EMAIL: ${KIDLY_ADMIN_BOOTSTRAP_EMAIL:-}
+      KIDLY_ADMIN_BOOTSTRAP_PASSWORD: ${KIDLY_ADMIN_BOOTSTRAP_PASSWORD:-}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${MEMBER_PORT:-8090}:8080"     # 외부 비공개. 서버 안 수집용
+    volumes:
+      - ./jwt:/app/jwt:ro
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      start_period: 180s
+    # 힙 192m · 상한 512m 은 자녀 서비스 기준 추측값이다. 켠 뒤 재서 정한다
+    mem_limit: 512m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 결제 서비스(apps/payment-service, #525). 결제 · 지갑 · 충전 API, 토스 웹훅, 회원 · 주문 · 정산 이벤트 수신(구독 그룹 kidly.payment), 결제 이벤트 발행(아웃박스)
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 결제 값(토스 시크릿 키 · paymentKey 암호화 키 · Kafka 수신 스위치)만 넘긴다. 기존 충전을 취소하려면 암호화 키를 유지해야 한다
+  # 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
+  payment-service:
+    image: ${PAYMENT_IMAGE}
+    profiles: [payment]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx192m
+      # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      PAYMENT_KEY_ENCRYPTION_KEY: ${PAYMENT_KEY_ENCRYPTION_KEY:-}
+      # Kafka 수신 스위치. 결제가 받는 이벤트(회원 · 주문 · 정산)는 다른 JVM 에서 오므로 둘 다 켜져 있어야 한다. 기본값은 payment.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다
+      PAYMENT_KAFKA_CONSUMER_ENABLED: ${PAYMENT_KAFKA_CONSUMER_ENABLED:-true}
+      PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED: ${PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED:-true}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${PAYMENT_PORT:-8092}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      start_period: 180s
     # 힙 192m · 상한 512m 은 구성이 비슷한 자녀 프로필 서비스와 같게 둔 추측값이다. 켜기 전에 서버 메모리 여유를 보고, 켠 뒤 재서 정한다
     mem_limit: 512m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 상품 서비스(apps/product-service, #791). 상품 API(공개 · 판매자 · 관리자), 판매자 · 주문 이벤트 수신(구독 그룹 kidly.product), 상품 이벤트 아웃박스 저장
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 상품 값(이미지 key 경로 · Kafka 수신 스위치)만 넘긴다
+  # 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
+  product-service:
+    image: ${PRODUCT_IMAGE}
+    profiles: [product]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx192m
+      # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # 상품 이미지 객체 key 의 환경 경로(dev · prod). 서비스 prod 설정이 기본값 없이 요구하므로 .env 에서 받는다
+      PRODUCT_IMAGE_KEY_PREFIX: ${PRODUCT_IMAGE_KEY_PREFIX}
+      # Kafka 수신 스위치. 기본값은 product.yml 과 같다. false 로 두면 판매자 · 주문 이벤트 수신이 멈춰 재고 차감 · 결제 요청도 멈춘다(메시지는 Kafka 에 남고 true 로 올리면 처리된다)
+      PRODUCT_KAFKA_CONSUMER_ENABLED: ${PRODUCT_KAFKA_CONSUMER_ENABLED:-true}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${PRODUCT_PORT:-8097}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      start_period: 180s
+    # 힙 192m · 상한 512m 은 메모리 논의에서 정한 시작값이다. 켠 뒤 재서 정한다
+    mem_limit: 512m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 알림 서비스(apps/notification-service). 회원 가입 이벤트 수신(구독 그룹 kidly.notification) → 환영 메일 저장 · Gmail SMTP 발송 · 실패 재발송(1분마다). 알림함 API(/api/v1/notifications/**, #852)는 Gateway 라우트로만 받는다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 메일 값만 넘긴다. MAIL_PASSWORD 는 파일에 없고 배포 워크플로가 Secret 에서 서버 .env 에 붙인 값을 받는다(없으면 보내지 않고 로그만 남긴다)
+  notification-service:
+    image: ${NOTIFICATION_IMAGE}
+    profiles: [notification]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx192m
+      # 힙 밖 네이티브 메모리가 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # 메일 계정 · 켜기 · 보내는 주소. 기본값은 notification.yml 과 같다. .env 에서 받는다
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_ENABLED: ${MAIL_ENABLED:-true}
+      MAIL_FROM: ${MAIL_FROM:-}
+      # 메일 본문의 사이트 주소. 서비스 prod 설정이 기본값 없이 요구하므로 .env 에서 받는다
+      NOTIFICATION_SITE_URL: ${NOTIFICATION_SITE_URL}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${NOTIFICATION_PORT:-8099}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      start_period: 180s
+    # 힙 192m · 상한 512m 은 상품 서비스와 같은 시작값이다. 켠 뒤 재서 정한다
+    mem_limit: 512m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 주문 서비스(apps/order-service). 주문 · 장바구니 · 배송 · 조르기 API, 상품 · 판매자 · 자녀 · 결제 이벤트 수신(구독 그룹 kidly.order), 주문 이벤트 아웃박스 릴레이
+  # 주문 도메인은 이 서비스에만 있다(#826). 스케줄러 · 아웃박스 릴레이는 DB 잠금(advisory lock)으로 한 번에 한 곳에서만 돌아, 배포 중 옛 컨테이너와 겹쳐도 한 번만 돈다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 주문 값(스위치 · 택배 조회 인증값)만 넘긴다
+  # 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
+  order-service:
+    image: ${ORDER_IMAGE}
+    profiles: [order]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx256m
+      # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # Kafka 수신 스위치. 기본값은 order.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다. 끄면 수신이 멈추고 메시지는 Kafka 에 남아 true 로 올리면 처리된다
+      ORDER_KAFKA_CONSUMER_ENABLED: ${ORDER_KAFKA_CONSUMER_ENABLED:-true}
+      # 판매자 발송 전 부분 취소 · 조르기 스위치. 기본값은 order.yml 과 같다
+      ORDER_PARTIAL_CANCEL_ENABLED: ${ORDER_PARTIAL_CANCEL_ENABLED:-false}
+      ORDER_WISH_ENABLED: ${ORDER_WISH_ENABLED:-true}
+      # 택배 조회(Delivery Tracker) 인증값. 비어 있으면 택배 조회만 꺼진다(판매자 수동 배송 완료는 그대로)
+      DELIVERY_TRACKER_CLIENT_ID: ${DELIVERY_TRACKER_CLIENT_ID:-}
+      DELIVERY_TRACKER_CLIENT_SECRET: ${DELIVERY_TRACKER_CLIENT_SECRET:-}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${ORDER_PORT:-8100}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      start_period: 180s
+    # 주문은 스케줄러 · Kafka 리스너가 많아 정산 서비스와 같은 힙 256m · 상한 640m 으로 시작한다. 켠 뒤 재서 정한다
+    mem_limit: 640m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 커뮤니티 서비스(apps/community-service). 리뷰 · 찜 API, 상품 · 주문 이벤트 수신(구독 그룹 kidly.community), 커뮤니티 DLT 보관
+  # 커뮤니티 도메인은 이 서비스에만 있다(#827). 같은 이벤트를 다시 받아도 결과는 1회분이다(복사본 occurredAt 비교 · 유일 제약)
+  # 커뮤니티는 이벤트를 보내지 않고 스케줄러가 없다. 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 수신 스위치만 넘긴다
+  # 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
+  community-service:
+    image: ${COMMUNITY_IMAGE}
+    profiles: [community]
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx192m
+      # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # Kafka 수신 스위치. 기본값은 community.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다. 끄면 수신이 멈추고 메시지는 Kafka 에 남아 true 로 올리면 처리된다
+      COMMUNITY_KAFKA_CONSUMER_ENABLED: ${COMMUNITY_KAFKA_CONSUMER_ENABLED:-true}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${COMMUNITY_PORT:-8102}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      start_period: 180s
+    # 힙 192m · 상한 512m 은 상품 · 결제 서비스와 같은 시작값이다. 켠 뒤 재서 정한다
+    mem_limit: 512m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
 
@@ -217,15 +491,26 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx256m
+      MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      # 같은 compose 네트워크의 app 컨테이너 포트(8080)다. 서버 포트(APP_PORT)가 아니다
-      KIDLY_APP_URI: http://app:8080
-      # 상품 목록(GET /api/v1/products)을 받을 곳(#526). 검색이 켜진 환경(dev)은 .env 에 search-service 를 두고, 없으면(prod) 지금처럼 app 이 받는다
-      KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://app:8080}
-      # 자녀 프로필(/api/v1/children/**)을 받을 곳(#682). app 에는 자녀 API 가 없어 profile childprofile 이 꺼진 환경에서는 자녀 API 가 실패한다
-      KIDLY_CHILDPROFILE_URI: ${KIDLY_CHILDPROFILE_URI:-http://childprofile-service:8080}
-      # 추천(/api/v1/recommendations/**)을 받을 곳(#704). 추천 서비스를 켠 환경은 .env 에 recommend-service 를 두고, 없으면 지금처럼 app 이 받는다
-      KIDLY_RECOMMEND_URI: ${KIDLY_RECOMMEND_URI:-http://app:8080}
+      # 상품 목록(GET /api/v1/products)을 받을 곳(#526). profile search 가 꺼진 환경에서는 상품 목록이 실패한다
+      KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://search-service:8080}
+      # 추천(/api/v1/recommendations/**)을 받을 곳(#704). profile recommend 가 꺼진 환경에서는 추천 API 가 실패한다
+      KIDLY_RECOMMEND_URI: ${KIDLY_RECOMMEND_URI:-http://recommend-service:8080}
+      # 정산(/api/v1/seller/settlement* · /api/v1/admin/settlement*)을 받을 곳(#729). profile settlement 가 꺼진 환경에서는 정산 API 가 실패한다
+      KIDLY_SETTLEMENT_URI: ${KIDLY_SETTLEMENT_URI:-http://settlement-service:8080}
+      # 회원 · 인증 · 판매자 API 는 회원 서비스가 받는다
+      KIDLY_MEMBER_URI: ${KIDLY_MEMBER_URI:-http://member-service:8080}
+      # 결제(/api/v1/payments/** · /api/v1/wallets/** · /api/v1/webhooks/toss · 결제 관리자 API)를 받을 곳(#525). profile payment 가 꺼진 환경에서는 결제 API 가 실패한다
+      KIDLY_PAYMENT_URI: ${KIDLY_PAYMENT_URI:-http://payment-service:8080}
+      # 상품 API(공개 · 판매자 · 관리자)를 받을 곳(#791). profile product 가 꺼진 환경에서는 상품 API 가 실패한다
+      KIDLY_PRODUCT_URI: ${KIDLY_PRODUCT_URI:-http://product-service:8080}
+      # 주문 · 장바구니 · 배송 · 조르기 · 주문 관리자 API 를 받을 곳(#826). profile order 가 꺼진 환경에서는 주문 API 가 실패한다
+      KIDLY_ORDER_URI: ${KIDLY_ORDER_URI:-http://order-service:8080}
+      # 리뷰 · 찜 · 커뮤니티 관리자 API 를 받을 곳(#827). profile community 가 꺼진 환경에서는 이 API 가 실패한다
+      KIDLY_COMMUNITY_URI: ${KIDLY_COMMUNITY_URI:-http://community-service:8080}
+      # 알림함 API(/api/v1/notifications/**)를 받을 곳(#852). profile notification 이 꺼진 환경에서는 이 API 가 실패한다
+      KIDLY_NOTIFICATION_URI: ${KIDLY_NOTIFICATION_URI:-http://notification-service:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs
@@ -244,6 +529,7 @@ services:
       retries: 12
       start_period: 60s
     mem_limit: 512m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
 

@@ -3,6 +3,12 @@
 // 호스트 경로는 k8s/alloy.yaml 이 /host 아래에 읽기 전용으로 마운트한다
 
 prometheus.exporter.unix "node" {
+    enable_collectors = ["textfile"]
+    // The expected inventory lives on medium, independently of the app collector.
+    textfile {
+        directory = "/host/root/opt/app/monitoring/operations"
+    }
+
 	procfs_path = "/host/proc"
 	sysfs_path  = "/host/sys"
 	rootfs_path = "/host/root"
@@ -70,4 +76,39 @@ loki.write "loki" {
 	endpoint {
 		url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
 	}
+}
+
+// Collector health and delivery metrics; no application logs or IDs become labels.
+prometheus.scrape "alloy_self" {
+    targets = [{"__address__" = "127.0.0.1:12345", "collector" = "monitoring"}]
+    job_name = "kidly-alloy"
+    scrape_interval = "15s"
+    forward_to = [prometheus.relabel.alloy_health.receiver]
+}
+
+prometheus.relabel "alloy_health" {
+    forward_to = [prometheus.remote_write.prometheus.receiver]
+    rule {
+        source_labels = ["__name__"]
+        regex = "up|prometheus_remote_storage_(samples_pending|queue_highest_sent_timestamp_seconds|samples_failed_total|samples_dropped_total)|loki_write_(batch_retries_total|dropped_entries_total)"
+        action = "keep"
+    }
+}
+
+prometheus.scrape "storage_health" {
+    targets = [
+        {"__address__" = "prometheus.monitoring.svc:9090", "store" = "prometheus"},
+        {"__address__" = "loki.monitoring.svc:3100", "store" = "loki"},
+    ]
+    job_name = "kidly-monitoring-store"
+    scrape_interval = "30s"
+    forward_to = [prometheus.relabel.storage_health.receiver]
+}
+prometheus.relabel "storage_health" {
+    forward_to = [prometheus.remote_write.prometheus.receiver]
+    rule {
+        source_labels = ["__name__"]
+        regex = "up|prometheus_tsdb_(wal_writes_failed_total|wal_truncations_failed_total|compactions_failed_total|head_truncations_failed_total)|loki_ingester_chunks_flush_failures_total"
+        action = "keep"
+    }
 }

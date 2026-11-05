@@ -30,6 +30,7 @@ import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -313,15 +314,15 @@ class CartServiceTest {
     }
 
     @Test
-    @DisplayName("담기 이벤트: 수량 변경 · 빼기는 내지 않는다(범위 밖)")
-    void changeAndRemovePublishNothing() {
+    @DisplayName("담기 이벤트: 수량 변경 · 빼기는 담기 이벤트를 내지 않는다(빼기는 cart.item-removed 하나, #709)")
+    void changeAndRemovePublishNoItemAdded() {
         CartItem item = CartItem.create(BUYER_ID, OPTION_ID, null, 1);
         when(cartItemRepository.findByIdAndMemberId(CART_ITEM_ID, BUYER_ID)).thenReturn(Optional.of(item));
 
         cartService.changeQuantity(BUYER_ID, CART_ITEM_ID, 4);
         cartService.removeItem(BUYER_ID, CART_ITEM_ID);
 
-        verifyNoEvent();
+        assertThat(publishedDomainEvent()).isInstanceOf(CartItemRemovedEvent.class);
     }
 
     // ── 조회 ──
@@ -374,7 +375,7 @@ class CartServiceTest {
     // ── 수량 변경 ──
 
     @Test
-    @DisplayName("수량 변경: 수량을 덮어쓰고 지금 가격의 줄을 돌려준다")
+    @DisplayName("수량 변경: 수량을 덮어쓰고 지금 가격의 줄을 돌려준다(이벤트 없음)")
     void changeQuantity() {
         CartItem item = CartItem.create(BUYER_ID, OPTION_ID, null, 1);
         when(cartItemRepository.findByIdAndMemberId(CART_ITEM_ID, BUYER_ID)).thenReturn(Optional.of(item));
@@ -385,6 +386,8 @@ class CartServiceTest {
         assertThat(item.getQuantity()).isEqualTo(4);
         assertThat(line.quantity()).isEqualTo(4);
         assertThat(line.lineAmount()).isEqualTo(100_000L);
+        // 수량 변경은 담기 · 빼기 이벤트를 내지 않는다(#709)
+        verifyNoEvent();
     }
 
     @Test
@@ -411,14 +414,30 @@ class CartServiceTest {
     // ── 삭제 ──
 
     @Test
-    @DisplayName("삭제: 본인 줄이면 지운다")
+    @DisplayName("삭제: 본인 줄이면 지우고 cart.item-removed를 낸다(뺄 때 줄 수량 · 자녀 · 상품, 키 = 회원 ID, #709)")
     void removeItem() {
-        CartItem item = CartItem.create(BUYER_ID, OPTION_ID, null, 1);
+        givenProduct(product(OPTION_ID, 25_000L, "ON_SALE", false));
+        CartItem item = CartItem.create(BUYER_ID, OPTION_ID, CHILD_ID, 3);
         when(cartItemRepository.findByIdAndMemberId(CART_ITEM_ID, BUYER_ID)).thenReturn(Optional.of(item));
 
         cartService.removeItem(BUYER_ID, CART_ITEM_ID);
 
         verify(cartItemRepository).delete(item);
+        CartItemRemovedEvent event = (CartItemRemovedEvent) publishedDomainEvent();
+        assertThat(event.data()).isEqualTo(
+            new CartItemRemovedEvent.Data(item.getId(), BUYER_ID, CHILD_ID, 1L, OPTION_ID, 3));
+        assertThat(event.correlationId()).isEqualTo(String.valueOf(BUYER_ID));
+    }
+
+    @Test
+    @DisplayName("삭제: 상품 정보가 없어도 빼고, 이벤트의 상품 ID만 null이다")
+    void removeItemWithoutProduct() {
+        CartItem item = CartItem.create(BUYER_ID, OPTION_ID, null, 1);
+        when(cartItemRepository.findByIdAndMemberId(CART_ITEM_ID, BUYER_ID)).thenReturn(Optional.of(item));
+
+        cartService.removeItem(BUYER_ID, CART_ITEM_ID);
+
+        assertThat(((CartItemRemovedEvent) publishedDomainEvent()).data().productId()).isNull();
     }
 
     @Test
@@ -428,6 +447,7 @@ class CartServiceTest {
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_NOT_FOUND);
         verify(cartItemRepository, never()).delete(any());
+        verifyNoEvent();
     }
 
     @Nested
@@ -455,6 +475,8 @@ class CartServiceTest {
             verify(cartItemRepository).delete(withChild);
             verify(cartItemRepository).delete(withoutChild);
             verify(cartItemRepository, org.mockito.Mockito.times(2)).delete(any());
+            // 산 것이지 뺀 것이 아니므로 cart.item-removed를 내지 않는다(#709)
+            verifyNoEvent();
         }
 
         @Test
@@ -493,12 +515,16 @@ class CartServiceTest {
      * 같은 이벤트가 Spring 이벤트와 아웃박스 양쪽에 한 번씩 나갔는지 보고 그 이벤트를 돌려준다.
      */
     private CartItemAddedEvent publishedEvent() {
+        return (CartItemAddedEvent) publishedDomainEvent();
+    }
+
+    private DomainEvent publishedDomainEvent() {
         ArgumentCaptor<DomainEvent> published = ArgumentCaptor.forClass(DomainEvent.class);
         ArgumentCaptor<DomainEvent> appended = ArgumentCaptor.forClass(DomainEvent.class);
         verify(eventPublisher).publish(published.capture());
         verify(outbox).append(appended.capture());
         assertThat(appended.getValue()).isSameAs(published.getValue());
-        return (CartItemAddedEvent) published.getValue();
+        return published.getValue();
     }
 
     private void givenProduct(ReplicaProduct product) {

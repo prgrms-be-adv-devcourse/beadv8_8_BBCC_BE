@@ -1,0 +1,13 @@
+{
+  "organization": "Kidly MCP Metrics",
+  "service_account": "kidly-codex-mcp",
+  "datasource_uid": "kidly-mcp-prometheus",
+  "datasource_name": "Prometheus (MCP query only)",
+  "datasource_url": "http://traefik.kube-system.svc.cluster.local/mcp-prometheus",
+  "routing_header": "prometheus-readonly-v1",
+  "grafana_url": "https://grafana.kidly.kro.kr",
+  "token_ttl_seconds": 604800,
+  "keychain_service": "kr.kidly.grafana-mcp",
+  "release": "v2.2.0",
+  "archive_sha256": "3710a7453b86fb535b41b6dab6bb0b1a7db86743e2ade8e06a187ca68f1e3df0"
+}
