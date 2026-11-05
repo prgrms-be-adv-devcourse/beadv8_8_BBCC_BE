@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 알림 서비스가 알림 도메인만으로 뜨는지 본다. 알림에는 HTTP API가 없어 다른 도메인 API도 없어야 한다.
+ * 알림 서비스가 알림 도메인만으로 뜨는지 본다. 알림함 API(/api/v1/notifications) 말고 다른 도메인 API는 없어야 한다.
  * 알림 도메인 자체의 동작은 도메인 테스트와 이 서비스의 통합 테스트가 본다.
  */
 @FunctionalTest
