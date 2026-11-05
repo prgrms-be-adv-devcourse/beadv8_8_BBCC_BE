@@ -96,9 +96,6 @@ spec:
             - name: dashboards
               mountPath: /etc/grafana/dashboards
               readOnly: true
-            - name: ai-summary
-              mountPath: /etc/grafana/ai-summary
-              readOnly: true
             - name: data
               mountPath: /var/lib/grafana
       volumes:
@@ -114,10 +111,6 @@ spec:
         - name: dashboards
           configMap:
             name: grafana-dashboards
-        - name: ai-summary
-          hostPath:
-            path: /opt/app/monitoring/ai-summary-state/dashboards
-            type: Directory
         - name: data
           persistentVolumeClaim:
             claimName: grafana-data

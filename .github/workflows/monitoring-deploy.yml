@@ -68,7 +68,7 @@ jobs:
         run: |
           out="$RUNNER_TEMP/monitoring"
           mkdir -p "$out"
-          cp -r deploy/monitoring/{kustomization.yaml,deploy.sh,k8s,prometheus,loki,alloy,grafana,mcp,ai-summary} "$out/"
+          cp -r deploy/monitoring/{kustomization.yaml,deploy.sh,k8s,prometheus,loki,alloy,grafana,mcp} "$out/"
 
           # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다. 출력(KEY='값' 줄)은 쓰지 않는다
           .github/scripts/env-lines.sh dev SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD > /dev/null
@@ -85,12 +85,12 @@ jobs:
       - name: 서버에 설정 파일 올리기
         run: |
           dir=/opt/app/monitoring
-          tar -C "$RUNNER_TEMP/monitoring" -czf - kustomization.yaml deploy.sh k8s prometheus loki alloy grafana mcp ai-summary secrets \
+          tar -C "$RUNNER_TEMP/monitoring" -czf - kustomization.yaml deploy.sh k8s prometheus loki alloy grafana mcp secrets \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
               set -e
               mkdir -p $dir
               cd $dir
-              rm -rf k8s prometheus loki alloy grafana mcp ai-summary secrets
+              rm -rf k8s prometheus loki alloy grafana mcp secrets
               tar -xzf - --no-same-owner
               chmod 700 secrets
               chmod 600 secrets/*

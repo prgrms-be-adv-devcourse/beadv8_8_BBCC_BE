@@ -524,13 +524,6 @@
   ],
   "links": [
     {
-      "title": "자동 운영 점검 · 원인 후보와 대응",
-      "type": "link",
-      "url": "/d/kidly-ai-summary",
-      "keepTime": true,
-      "targetBlank": false
-    },
-    {
       "title": "로그 확인",
       "type": "link",
       "url": "/d/kidly-logs",
