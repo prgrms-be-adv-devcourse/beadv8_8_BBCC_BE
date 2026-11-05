@@ -51,7 +51,7 @@
   - 충전 상태를 바꾸는 곳(승인 시작 · 승인 반영 · 실패 · 만료 · 취소)은 충전을 비관적 락으로 읽는다. 사용자 승인과 스케줄러가 겹쳐도 늦은 쪽이 바뀐 상태를 보고 멈춰 한 번만 입금한다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
 
 ### 주문 취소 환불 (`app/OrderCancellationService`, #269)
-- `order.cancelled`를 받는다(기획서 2.1 ④: 결제 완료와 결제 제한 시간 만료가 겹쳐 만료가 이긴 경우). 환불 이벤트는 기획서에 없어 발행하지 않는다
+- `order.cancelled`를 받는다(기획서 2.1 ④: 결제 완료와 결제 제한 시간 만료가 겹쳐 만료가 이긴 경우). 환불하면 `payment.refunded`(`cancellationId` null)를 발행한다
 - 결제 요청과 같은 회원 지갑 락을 먼저 잡고 그 주문의 결제를 본다. 결제 · 취소가 동시에 와도 늦은 쪽이 앞의 결과를 본다
 
 | 그 주문의 결제 | 처리 |
@@ -68,7 +68,7 @@
 
 ### 판매자 부분 취소 환불 (`app/OrderItemCancellationService`, #711)
 - `order-item.cancelled`(#655)를 Kafka로만 받는다(Spring 리스너 없음). 판매자가 발송 전에 자기 몫을 취소한 것이고, 마지막 몫이 취소돼 주문이 취소돼도 `order.cancelled`는 오지 않는다
-- 이벤트의 주문상품별 `amount`만큼 결제 항목을 환불한다. 환불 이벤트(`payment.refunded`, 계약만 있음)는 받을 도메인이 생기면 발행한다
+- 이벤트의 주문상품별 `amount`만큼 결제 항목을 환불한다. 환불하면 `payment.refunded`를 발행한다(실패한 환불은 보내지 않는다)
 - 결제 요청 · 주문 취소와 같은 회원 지갑 락을 먼저 잡고, 취소(`cancellationId`)마다 환불 기록을 하나만 남긴다. 기록이 있으면 건너뛴다(`refund.cancellation_id` UK가 마지막으로 막는다)
 
 | 경우 | 처리 |
@@ -213,7 +213,7 @@
 - 로컬에서 결제가 받으려면 Kafka가 떠 있어야 한다(`docker compose up -d`에 포함)
 
 ## Kafka 발행 (아웃박스, #534 · #550)
-- 결제가 발행한 이벤트(`payment.completed` · `payment.failed` · `payment.payout-completed` · `payment.payout-failed`)를 토픽 `kidly.payment.events`로도 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
+- 결제가 발행한 이벤트(`payment.completed` · `payment.failed` · `payment.refunded` · `payment.payout-completed` · `payment.payout-failed`)를 토픽 `kidly.payment.events`로도 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
 - 키 = `correlationId`(결제는 주문 ID, 정산 지급은 정산서 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
 - 받는 쪽(주문 · 정산)은 아직 Spring 이벤트(`@DomainEventListener`)로 받는다. Kafka로 옮기는 건 받는 도메인이 하고, 그때 이미 쌓인 메시지는 처리된 것이므로 첫 배포에서 오프셋을 끝으로 옮긴다
 - **저장** (`app/PaymentOutboxRecorder`): 커밋 직전(`BEFORE_COMMIT`)에 결제가 발행한 이벤트(`producer() = payment`)만 같은 트랜잭션에서 `payment.payment_outbox`에 저장한다. 결제 서비스의 발행 코드는 그대로다
