@@ -74,4 +74,4 @@
 
 서비스는 Gateway 뒤에서만 열린다는 전제다(dev 8083 · prod 8084 · 로컬 8083). Gateway를 거치지 않고 서비스에 닿을 수 있으면 `X-Member-*` 헤더를 위조할 수 있다. 자세한 Gateway 동작은 [`apps/gateway/CLAUDE.md`](apps/gateway/CLAUDE.md)
 
-요청 로그(`RequestLoggingFilter`)의 요청 헤더에 `x-member-nickname`(퍼센트 인코딩된 닉네임)이 남는다. 로그는 이름 · ID를 남기는 정책이라(`LogMasker`) 가리지 않는다.
+기본 요청 로그는 정규화 경로·상태·소요시간·traceId만 남기며, 요청·응답 본문과 헤더·IP·회원 식별값은 남기지 않는다. [요청 로그 정책](deploy/monitoring/docs/request-log-policy.md)을 따른다.

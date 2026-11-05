@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.servlet.HandlerMapping;
 
 /**
  * logback-spring.xml이 프로필마다 어디로 로그를 남기는지 확인한다.
@@ -72,8 +74,9 @@ class LoggingProfileTest {
         startLogging("prod");
         var response = new MockHttpServletResponse();
 
-        new RequestLoggingFilter().doFilter(
-            new MockHttpServletRequest("GET", "/api/products"), response, new MockFilterChain());
+        var request = new MockHttpServletRequest("GET", "/api/products");
+        request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/products");
+        new RequestLoggingFilter().doFilter(request, response, new MockFilterChain());
 
         assertThat(consoleEncoder()).isInstanceOf(StructuredLogEncoder.class);
         var json = lineContaining(output, "GET /api/products");
@@ -88,7 +91,7 @@ class LoggingProfileTest {
     }
 
     @Test
-    @DisplayName("운영 프로필 콘솔은 요청 상세(헤더 · 본문 · IP · 회원 ID)를 가린 채 JSON 객체로 남긴다")
+    @DisplayName("운영 JSON 로그에서 본문·헤더·식별값을 제외하고 정규화 경로를 남긴다")
     void prodConsoleWritesRequestDetails(CapturedOutput output) throws Exception {
         startLogging("prod");
         var request = new MockHttpServletRequest("POST", "/api/v1/orders");
@@ -100,6 +103,7 @@ class LoggingProfileTest {
 
         new RequestLoggingFilter().doFilter(request, new MockHttpServletResponse(), (req, res) -> {
             req.getInputStream().readAllBytes();
+            req.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/orders");
             MDC.put(RequestLoggingFilter.MEMBER_ID_MDC_KEY, "7");
             res.setContentType("application/json");
             res.getWriter().write("{\"orderId\":\"o-1\"}");
@@ -107,15 +111,15 @@ class LoggingProfileTest {
 
         var json = lineContaining(output, "POST /api/v1/orders");
         assertThat(json).doesNotContain("secret-token", "010-1234-5678", "token=abc");
-        assertThat(JsonPath.<String>read(json, "$.memberId")).isEqualTo("7");
-        assertThat(JsonPath.<String>read(json, "$.client.ip")).isEqualTo("127.0.0.1");
-        assertThat(JsonPath.<String>read(json, "$.url.query")).isEqualTo("page=1&token=***");
-        assertThat(JsonPath.<String>read(json, "$.user_agent.original")).isEqualTo("Mozilla/5.0");
+        assertThat(JsonPath.<Map<String, Object>>read(json, "$"))
+            .doesNotContainKeys("memberId", "adminId", "childAccountId", "client", "user_agent");
+        assertThat(JsonPath.<Map<String, Object>>read(json, "$.http.request"))
+            .doesNotContainKeys("headers", "body");
+        assertThat(JsonPath.<Map<String, Object>>read(json, "$.http.response"))
+            .doesNotContainKeys("headers", "body");
+        assertThat(JsonPath.<Map<String, Object>>read(json, "$.url")).containsOnlyKeys("path");
+        assertThat(JsonPath.<String>read(json, "$.http.route")).isEqualTo("/api/v1/orders");
         assertThat(JsonPath.<String>read(json, "$.http.request.method")).isEqualTo("POST");
-        assertThat(JsonPath.<String>read(json, "$.http.request.headers.authorization")).isEqualTo("***");
-        assertThat(JsonPath.<String>read(json, "$.http.request.body.content"))
-            .isEqualTo("{\"recipientPhone\":\"***\",\"amount\":1000}");
-        assertThat(JsonPath.<String>read(json, "$.http.response.body.content")).isEqualTo("{\"orderId\":\"o-1\"}");
     }
 
     @Test
