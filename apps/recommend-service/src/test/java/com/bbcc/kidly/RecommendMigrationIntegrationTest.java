@@ -19,7 +19,7 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * 서비스가 처음 뜰 때 추천 테이블이 이미 있는 DB에서 서비스 Flyway가 baseline을 잡고 나서의 스키마를 본다(#704).
- * 빈 DB에서 kidly-app이 먼저 뜨면 추천 테이블은 init 모양으로만 있다. 추천 마이그레이션은 이제 이 서비스에만 있어 kidly-app이 적용하지 않는다.
+ * 예전에 kidly-app이 만든 DB에서는 추천 테이블은 init 모양으로만 있다. 추천 마이그레이션은 이제 이 서비스에만 있어 kidly-app이 적용하지 않는다.
  * kidly-app이 추천을 가지고 있던 동안 쓰던 DB에는 마지막 추천 마이그레이션(202611021557)까지 적용돼 있다.
  * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
  */

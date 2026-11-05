@@ -1,0 +1,2 @@
+# 로컬·테스트 전용 JWT 키는 팀이 같은 토큰을 쓰도록 커밋한다(루트 .gitignore의 *.pem 예외). 저장소 루트 config/jwt의 키와 같아야 Gateway가 검증한다
+!config/jwt/local-*.pem

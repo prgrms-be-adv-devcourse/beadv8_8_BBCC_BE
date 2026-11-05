@@ -8,7 +8,6 @@ import com.bbcc.kidly.boundedcontext.auth.app.port.TokenSubject;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.SellerState;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
@@ -49,6 +48,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
@@ -78,7 +78,7 @@ class MemberSellerEventKafkaIntegrationTest {
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
-    private EventPublisher eventPublisher;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -282,7 +282,7 @@ class MemberSellerEventKafkaIntegrationTest {
         var marker = new AuthTokensRevokedEvent(UUID.randomUUID(), now,
             new AuthTokensRevokedEvent.Data(PrincipalType.MEMBER, memberId, now));
         markerIds.add(marker.eventId().toString());
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(marker));
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(marker));
         AsyncWait.until(TIMEOUT, () -> {
             authEventConsumer.poll(Duration.ofMillis(200)).forEach(authEvents::add);
             return authEvents.stream()
@@ -303,7 +303,7 @@ class MemberSellerEventKafkaIntegrationTest {
     }
 
     private void publishInTransaction(SellerChangedEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(event));
     }
 
     private SellerChangedEvent sellerChanged(SellerStatus status, LocalDateTime occurredAt) {

@@ -22,7 +22,8 @@ import org.springframework.stereotype.Service;
 /**
  * 주문 취소됨과 판매자 부분 취소(주문상품 취소됨)를 받아 차감한 재고를 되돌리는 흐름이다. 규칙 판단은 InventoryRestoration이 하고,
  * 서비스는 읽기와 호출 순서만 맡는다. 트랜잭션은 InventoryRestorer와 InventoryDeductionRecorder가 각자 새로 열어서
- * 이 클래스에는 붙이지 않는다. 바깥(리스너) 트랜잭션에서는 쓰기나 잠금을 하지 않아야 한다.
+ * 이 클래스에는 붙이지 않는다. 바깥 트랜잭션 없이 불러야 한다(Kafka 리스너도 트랜잭션을 열지 않는다).
+ * 바깥 트랜잭션에서 쓰기나 잠금을 하면 안 된다.
  * 바깥 트랜잭션이 잡은 잠금을 같은 스레드의 안쪽 새 트랜잭션이 기다리면 PostgreSQL이 교착으로 감지하지 못하고 멈추기 때문이다.
  */
 @Slf4j

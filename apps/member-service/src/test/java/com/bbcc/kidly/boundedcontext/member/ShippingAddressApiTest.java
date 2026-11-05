@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.ShippingAddressRequest;
 import com.bbcc.kidly.boundedcontext.member.in.dto.ShippingAddressResponse;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.nio.charset.StandardCharsets;
 import java.util.List;

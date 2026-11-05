@@ -1,14 +1,14 @@
 # nginx + HTTPS 설정
 
-앱 서버(t3.large)에서 nginx 가 443 을 받아 운영 Gateway(`127.0.0.1:8084`, 운영 앱 `127.0.0.1:8080` 앞), 개발 Gateway(`127.0.0.1:8083`, 개발 앱 `127.0.0.1:8081` 앞), Grafana(모니터링 서버 t3.medium 의 Traefik `<사설 IP>:80`)로 넘깁니다.
+앱 서버(t3.large)에서 nginx 가 443 을 받아 운영 Gateway(`127.0.0.1:8084`), 개발 Gateway(`127.0.0.1:8083`), Grafana(모니터링 서버 t3.medium 의 Traefik `<사설 IP>:80`)로 넘깁니다.
 `/actuator` 와 그 아래 경로는 `/actuator/health` 만 밖으로 열고 나머지는 404 입니다.
 인증서는 ZeroSSL 에서 무료로 받고(ACME), certbot 도커 이미지로 발급·갱신합니다.
 `kro.kr` 은 공용 접미사 목록(PSL)에 없어 Let's Encrypt 의 "등록 도메인당 주 50장" 한도를 모든 `kro.kr` 사용자와 나눠 쓰기 때문에 자주 막힙니다.
 
 | 주소 | 연결되는 곳 |
 | --- | --- |
-| `https://api.<도메인>` | Gateway (8084) → 운영 앱 (8080). `/actuator/health` 는 운영 앱이 바로 받음 |
-| `https://dev-api.<도메인>` | Gateway (8083) → 개발 앱 (8081). `/actuator/health` 는 개발 앱이 바로 받음 |
+| `https://api.<도메인>` | Gateway (8084). `/actuator/health` 도 Gateway가 받음 |
+| `https://dev-api.<도메인>` | Gateway (8083). `/actuator/health` 도 Gateway가 받음 |
 | `https://grafana.<도메인>` | Grafana (t3.medium k3s, `deploy/monitoring`) |
 | IP 로 직접 접속, 모르는 호스트 | 응답 없이 끊음 |
 
@@ -45,10 +45,7 @@ sudo MONITORING_HOST=<모니터링 서버 사설 IP> ./install.sh <도메인> <�
 이미 설치한 서버에서 이름을 추가할 때도 install.sh 를 다시 실행하면 됩니다.
 nginx 설정은 앱 배포로 바뀌지 않습니다. 템플릿을 고친 뒤에는 새 `deploy/nginx` 를 서버에 다시 올리고 install.sh 를 다시 실행해야 반영됩니다.
 
-Gateway(dev #608, prod #638)를 켤 때는 순서를 지킵니다. 환경별로 따로 합니다(dev: `.env.dev` · `dev-gateway`, prod: `.env.prod` · `prod-gateway`).
-
-- 처음 켤 때: nginx 를 먼저 Gateway 로 돌리고(install.sh) 그다음 `.env.<환경>` 의 `COMPOSE_PROFILES` 에 `gateway` 가 든 배포를 합니다. #638 뒤로 서비스는 `X-Member-*` 헤더를 그대로 믿으므로, 배포가 먼저면 nginx 가 앱으로 바로 넘기는 사이 누구나 헤더를 위조할 수 있습니다. 대신 배포가 끝나 gateway 컨테이너가 healthy 가 될 때까지(`docker ps --filter name=<환경>-gateway`) 그 환경은 502 입니다. prod 는 아직 운영 전이라 502 가 나도 피해가 없습니다
-- 끄지 않습니다: Gateway 를 끄는 것은 롤백 수단이 아닙니다(#638 뒤로 서비스는 `X-Member-*` 헤더를 그대로 믿습니다). 템플릿의 `location /` 를 앱 포트(dev 8081, prod 8080)로 되돌리면 Gateway 를 거치지 않으므로 누구나 헤더를 위조해 다른 회원 · 관리자로 요청할 수 있습니다
+Gateway는 항상 켜 둡니다. 서비스는 Gateway가 검증한 회원 · 관리자 헤더를 신뢰합니다.
 
 새 서버처럼 ZeroSSL 계정이 없으면 EAB 키가 필요합니다. ZeroSSL 대시보드 > Developer 에서 만들어 환경 변수로 넘깁니다(처음 한 번).
 

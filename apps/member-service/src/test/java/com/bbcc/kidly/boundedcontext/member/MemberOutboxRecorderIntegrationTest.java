@@ -7,7 +7,6 @@ import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
@@ -17,6 +16,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -40,7 +40,7 @@ class MemberOutboxRecorderIntegrationTest {
     private MemberOutboxRepository outboxRepository;
 
     @Autowired
-    private EventPublisher eventPublisher;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -65,7 +65,7 @@ class MemberOutboxRecorderIntegrationTest {
     @DisplayName("탈퇴 이벤트를 발행한 트랜잭션이 롤백되면 아웃박스 행이 남지 않는다")
     void recordNothingOnRollback() {
         transactionTemplate.executeWithoutResult(status -> {
-            eventPublisher.publish(withdrawn(UUID.randomUUID()));
+            eventPublisher.publishEvent(withdrawn(UUID.randomUUID()));
             status.setRollbackOnly();
         });
 
@@ -81,7 +81,7 @@ class MemberOutboxRecorderIntegrationTest {
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             memberRepository.save(MemberFixture.kakaoMember());
-            eventPublisher.publish(withdrawn(eventId));
+            eventPublisher.publishEvent(withdrawn(eventId));
         })).isInstanceOf(DataIntegrityViolationException.class);
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from member.member", Long.class)).isZero();

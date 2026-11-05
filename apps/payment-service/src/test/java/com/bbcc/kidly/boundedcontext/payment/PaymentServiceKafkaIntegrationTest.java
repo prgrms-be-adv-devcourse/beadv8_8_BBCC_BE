@@ -37,9 +37,9 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 결제 서비스가 kidly-app과 같은 구독 그룹(kidly.payment)으로 Kafka에 붙어 받은 결제 요청을 처리하고,
+ * 결제 서비스가 kidly-app에서 이어받은 구독 그룹(kidly.payment)으로 Kafka에 붙어 받은 결제 요청을 처리하고,
  * 그 결과를 아웃박스 릴레이로 kidly.payment.events에 보내는지 본다.
- * 받는 종류마다의 처리와 보내는 형식은 kidly-app의 결제 Kafka 테스트가 확인하고, 여기서는 결제 요청 하나로 받기부터 보내기까지만 본다.
+ * 여기서는 결제 요청 하나로 받기부터 보내기까지만 본다.
  */
 @KafkaIntegrationTest
 class PaymentServiceKafkaIntegrationTest {

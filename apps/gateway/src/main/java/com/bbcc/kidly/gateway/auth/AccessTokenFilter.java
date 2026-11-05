@@ -26,7 +26,7 @@ import reactor.core.publisher.Mono;
  * 주체에 맞는 회원 · 관리자 · 자녀 헤더를 붙여 넘긴다. 토큰이 없거나 Bearer가 아니면 그대로 넘긴다(로그인이 필요한지는 서비스가 정한다).
  * 검증에 실패하면 401. Authorization은 지우지 않고 그대로 넘기지만 서비스는 보지 않는다.
  * 헤더 이름 · 역할 목록 · 닉네임 인코딩은 shared MemberHeaders를, 클레임 이름은 AccessTokenClaims를 따른다.
- * 닉네임 클레임이 없으면 닉네임 헤더를 붙이지 않는다.
+ * 닉네임 클레임이 없으면 닉네임 헤더를 붙이지 않는다. 로그아웃은 토큰을 검증하지 않고 주체 헤더 없이 넘긴다.
  */
 @Component
 @RequiredArgsConstructor
@@ -36,6 +36,8 @@ class AccessTokenFilter implements GlobalFilter, Ordered {
     static final int ORDER = Ordered.HIGHEST_PRECEDENCE;
 
     private static final String BEARER = "Bearer ";
+    // Refresh Token 쿠키로만 인증하는 경로. 탈퇴로 무효화된 Access Token이 함께 와도 막지 않아야 쿠키를 지울 수 있다
+    private static final String LOGOUT_PATH = "/api/v1/auth/logout";
 
     private final ReactiveJwtDecoder jwtDecoder;
     private final ProblemResponse problem;
@@ -50,7 +52,8 @@ class AccessTokenFilter implements GlobalFilter, Ordered {
             .build();
         var authorization = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         // Spring Security의 Bearer 토큰 규칙(DefaultBearerTokenResolver)처럼 대소문자를 가리지 않는다. 가리면 "bearer <무효화된 토큰>"이 검증 없이 지나간다
-        if (authorization == null || !authorization.regionMatches(true, 0, BEARER, 0, BEARER.length())) {
+        if (authorization == null || !authorization.regionMatches(true, 0, BEARER, 0, BEARER.length())
+            || LOGOUT_PATH.equals(request.getPath().value())) {
             return chain.filter(exchange.mutate().request(request).build());
         }
         return jwtDecoder.decode(authorization.substring(BEARER.length()))

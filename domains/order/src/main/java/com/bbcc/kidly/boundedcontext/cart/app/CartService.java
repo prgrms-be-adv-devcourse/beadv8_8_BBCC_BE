@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.cart.domain.CartRuleViolationException;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartRules;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -31,7 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 장바구니 담기 · 조회 · 수량 변경 · 삭제. 다른 회원의 줄은 없는 줄로 본다.
  * 상품 · 판매자 · 자녀는 {@link CartCatalog}, 주문한 상품은 {@link CartOrders}로 읽는다(주문 컨텍스트, #641).
  * 결제완료 뒤 장바구니 정리는 {@link CartCleanup}, 다른 컨텍스트의 담기(조르기 승인, #701)는 {@link CartIntake}로 내준다.
- * 담기에 성공하면 {@link CartItemAddedEvent}를 낸다(#654, {@link CartEvents}).
+ * 담기에 성공하면 {@link CartItemAddedEvent}(#654), 사용자가 줄을 빼면 {@link CartItemRemovedEvent}(#709)를 같은 트랜잭션에서 낸다
+ * ({@link CartEvents}). 결제완료 정리 · 수량 변경은 빼기 이벤트를 내지 않는다(산 것 · 바꾼 것).
  */
 @Service
 @Transactional
@@ -146,8 +148,16 @@ public class CartService implements CartCleanup, CartIntake {
                 .ifPresent(cartItemRepository::delete));
     }
 
+    /**
+     * 뺀 줄의 그때 수량으로 cart.item-removed를 낸다. 상품 ID는 주문이 받아 둔 상품 정보에서 읽는다(없으면 null).
+     */
     public void removeItem(Long memberId, Long cartItemId) {
-        cartItemRepository.delete(findOwnedItem(memberId, cartItemId));
+        CartItem item = findOwnedItem(memberId, cartItemId);
+        cartItemRepository.delete(item);
+        Long productId = cartCatalog.findProductOption(item.getOptionId()).map(ProductOption::productId).orElse(null);
+        cartEvents.publish(new CartItemRemovedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new CartItemRemovedEvent.Data(item.getId(), item.getMemberId(), item.getChildId(), productId,
+                item.getOptionId(), item.getQuantity())));
     }
 
     private void requireOrderableChild(Long memberId, Long childId) {

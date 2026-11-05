@@ -5,7 +5,7 @@ import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookup
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.LocalDate;
-import java.time.YearMonth;
+import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
@@ -25,14 +25,14 @@ import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
 /**
- * 한국천문연구원 특일정보 API(getRestDeInfo)로 한 달의 공휴일을 조회한다. 응답은 XML이다.
+ * 한국천문연구원 특일정보 API(getRestDeInfo)로 한 해의 공휴일을 조회한다(solMonth를 빼면 그해 전체가 온다). 응답은 XML이다.
  * 요청 URL에 인증키가 들어 있어, 스프링 예외(메시지에 URL이 들어 있다)는 종류만 남기고 원인으로 붙이지 않는다.
  */
 @Slf4j
 public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar {
 
     private static final String PATH =
-        "/getRestDeInfo?serviceKey={serviceKey}&solYear={year}&solMonth={month}&numOfRows=50&pageNo=1";
+        "/getRestDeInfo?serviceKey={serviceKey}&solYear={year}&numOfRows=100&pageNo=1";
     private static final String NORMAL = "00";
     private static final String HOLIDAY = "Y";
     // 외부 엔티티 · DTD를 읽지 않게 DOCTYPE 선언 자체를 막는다(XXE 방지)
@@ -50,17 +50,17 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
     }
 
     @Override
-    public Set<LocalDate> holidaysIn(YearMonth month) {
+    public Set<LocalDate> holidaysIn(Year year) {
         if (!StringUtils.hasText(serviceKey)) {
             throw new SettlementHolidayLookupException("공휴일 API 인증키가 없습니다");
         }
-        return parse(fetch(month));
+        return parse(fetch(year));
     }
 
-    private byte[] fetch(YearMonth month) {
+    private byte[] fetch(Year year) {
         try {
             byte[] body = restClient.get()
-                .uri(PATH, serviceKey, month.getYear(), "%02d".formatted(month.getMonthValue()))
+                .uri(PATH, serviceKey, year.getValue())
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (request, response) -> {
                     throw new SettlementHolidayLookupException(

@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
-import com.bbcc.kidly.global.security.TestAdmins;
+import com.bbcc.kidly.member.support.security.TestAdmins;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.CommittedEventRecorder;

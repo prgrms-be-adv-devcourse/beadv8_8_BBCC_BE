@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.gateway.revocation.AccessTokenRevocations;
 import com.bbcc.kidly.gateway.support.GatewayTestSupport;
 import com.bbcc.kidly.gateway.support.IntegrationTest;
+import com.bbcc.kidly.gateway.support.RecordingBackend;
 import com.bbcc.kidly.gateway.support.RecordingBackend.RecordedRequest;
+import com.bbcc.kidly.gateway.support.RecordingBackendConfiguration;
 import com.bbcc.kidly.gateway.support.TestTokens;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
 import com.bbcc.kidly.shared.auth.PrincipalHeaders;
@@ -19,6 +21,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
@@ -28,12 +31,16 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 @IntegrationTest
 class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
 
-    // kidly-app으로 가는 공개 API. 목록(/api/v1/products)은 검색 서비스로 간다
+    // 상품 서비스로 가는 공개 API. 목록(/api/v1/products)은 검색 서비스로 간다
     private static final String PATH = "/api/v1/products/1";
     private static final Duration VALIDITY = Duration.ofMinutes(30);
 
     @Autowired
     private AccessTokenRevocations revocations;
+
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.MEMBER)
+    private RecordingBackend memberBackend;
 
     @Test
     @DisplayName("밖에서 보낸 X-Member-* 헤더는 지우고 넘긴다")
@@ -221,6 +228,27 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
+    @DisplayName("로그아웃은 Refresh Token 쿠키로 인증하므로 탈퇴로 무효화된 토큰이 실려도 검증하지 않고 주체 헤더 없이 넘긴다")
+    void passesLogoutWithRevokedToken() {
+        var now = Instant.now();
+        revocations.revoke(member(11L), now, now);
+        var token = TestTokens.issue(11L, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY));
+        memberBackend.reset();
+
+        client.post().uri("/api/v1/auth/logout")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+            .header(MemberHeaders.MEMBER_ID, "1")
+            .cookie("refresh_token", "refresh")
+            .exchange()
+            .expectStatus().isOk();
+
+        assertThat(memberBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.uri().getPath()).isEqualTo("/api/v1/auth/logout");
+            assertThat(request.header(MemberHeaders.MEMBER_ID)).isEmpty();
+        });
+    }
+
+    @Test
     @DisplayName("무효화 뒤에 발급된 토큰은 넘긴다")
     void passesTokenIssuedAfterRevocation() {
         var now = Instant.now();
@@ -275,7 +303,7 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
         expectUnauthorized(bearer(TestTokens.issueAdmin(91, now.minusSeconds(5), now.plus(VALIDITY))), PATH);
         bearer(TestTokens.issue(91, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY)))
             .expectStatus().isOk();
-        backend.reset();
+        productBackend.reset();
         revocations.revoke(PrincipalId.member(92), now, now);
         var memberToken = TestTokens.issue(92, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY));
         expectUnauthorized(bearer(memberToken), PATH);
@@ -293,7 +321,7 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
         assertThat(received().header(PrincipalHeaders.CHILD_GUARDIAN_ID)).containsExactly("8");
         assertThat(received().header(MemberHeaders.MEMBER_ID)).isEmpty();
         assertThat(received().header(PrincipalHeaders.ADMIN_ID)).isEmpty();
-        backend.reset();
+        productBackend.reset();
         expectUnauthorized(bearer(TestTokens.issueWithSubject("child:7", now, now.plus(VALIDITY))), PATH);
         expectUnauthorized(bearer(TestTokens.issueChild(7, 0, now, now.plus(VALIDITY))), PATH);
         expectUnauthorized(bearer(TestTokens.issueChildWithGuardian(7, "abc", now, now.plus(VALIDITY))), PATH);
@@ -312,6 +340,6 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
     }
 
     private RecordedRequest received() {
-        return backend.lastRequest().orElseThrow(() -> new AssertionError("백엔드가 요청을 받지 않았습니다"));
+        return productBackend.lastRequest().orElseThrow(() -> new AssertionError("백엔드가 요청을 받지 않았습니다"));
     }
 }

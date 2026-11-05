@@ -25,6 +25,8 @@ import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedger;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletLedgerType;
 import com.bbcc.kidly.boundedcontext.payment.domain.WalletRepository;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
+import com.bbcc.kidly.shared.payment.event.PaymentRefundedEvent;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -58,6 +60,9 @@ class OrderCancellationServiceTest {
 
     @Mock
     private CancelledOrderRepository cancelledOrderRepository;
+
+    @Mock
+    private EventPublisher eventPublisher;
 
     @InjectMocks
     private OrderCancellationService orderCancellationService;
@@ -94,6 +99,16 @@ class OrderCancellationServiceTest {
         assertThat(ledger.getValue().getBalanceAfter()).isEqualTo(15_000L);
         assertThat(ledger.getValue().getRefId()).isEqualTo(REFUND_ID);
         then(cancelledOrderRepository).should(never()).save(any());
+        ArgumentCaptor<PaymentRefundedEvent> event = ArgumentCaptor.forClass(PaymentRefundedEvent.class);
+        then(eventPublisher).should().publish(event.capture());
+        PaymentRefundedEvent.Data data = event.getValue().data();
+        assertThat(data.refundId()).isEqualTo(REFUND_ID);
+        assertThat(data.orderId()).isEqualTo(ORDER_ID);
+        assertThat(data.cancellationId()).isNull();
+        assertThat(data.memberId()).isEqualTo(MEMBER_ID);
+        assertThat(data.items()).containsExactly(
+            new PaymentRefundedEvent.Item(1000L, 10_000L), new PaymentRefundedEvent.Item(1001L, 5_000L));
+        assertThat(data.amount()).isEqualTo(15_000L);
     }
 
     @Test
@@ -172,6 +187,7 @@ class OrderCancellationServiceTest {
         assertThat(wallet.getBalance()).isEqualTo(15_000L);
         then(refundRepository).should(never()).save(any());
         then(walletLedgerRepository).should(never()).save(any());
+        then(eventPublisher).should(never()).publish(any());
     }
 
     @Test

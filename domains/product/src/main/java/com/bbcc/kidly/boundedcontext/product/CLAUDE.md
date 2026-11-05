@@ -10,12 +10,12 @@
 - Kafka 리스너는 토픽마다 클래스 하나다. 같은 토픽 · 같은 그룹에 둘이면 메시지를 나눠 받는다
 - 자기 이벤트 `product.changed`는 Kafka로 받지 않는다
 - 로그 · 예외 메시지에는 `eventType` · `eventId` · 키 · 예외 종류만 남기고 본문은 남기지 않는다(DB 오류 메시지에도 행 값이 들어갈 수 있다)
-- 상품의 `search` 폴더(`app/port/search`, `app/search`, `domain/search`, `in/search`, `out/search`)에는 새 기능을 더하지 않는다. 검색 서비스로 옮기는 중이다
+- 상품 아웃박스 릴레이는 한 프로세스에서만 돈다(잠금이 없다). 상품 서비스만 돌린다(아래 「상품 서비스」)
 
 ## 이벤트
 | 보내는 이벤트 | 보내는 곳 | 보내는 때 | 받는 도메인 |
 |---|---|---|---|
-| `product.changed` | `app/product/support/ProductChangedPublisher` | 판매 시작 · 중지, 판매 중 상품 수정, 품절 여부 변경(`SoldOutPublisher`), 관리자 다시 보내기 | 주문, 추천, 검색, 상품 자신(검색용 표) |
+| `product.changed` | `app/product/support/ProductChangedPublisher` | 판매 시작 · 중지, 판매 중 상품 수정, 품절 여부 변경(`SoldOutPublisher`), 관리자 다시 보내기 | 주문, 추천, 검색 |
 | `stock.deducted` | `app/inventory/support/InventoryDeductor` | 주문 생성으로 재고를 모두 차감했을 때 | 주문 |
 | `stock.deduction-failed` | `app/inventory/support/InventoryDeductionRecorder` | 재고가 모자라거나 판매 중이 아니어서 거절했을 때 | 주문 |
 
@@ -25,20 +25,19 @@
 | `order.cancelled` | 같은 리스너 | 차감한 재고 복구 |
 | `order-item.cancelled` | 같은 리스너 | 판매자가 발송 전에 취소한 주문상품의 재고 복구(#693) |
 | `seller.changed` | `kidly.seller.events` · `in/replica/ProductSellerKafkaListener` | 판매자 복사본(`replica_seller`) 갱신. 상세 · 목록의 상호명 |
-| `product.changed`(자신) | Spring 이벤트 · `in/search/ProductSearchDocumentEventListener` | 검색용 표(`product_search_document`) 갱신 |
 
-- Kafka 스위치가 꺼지면 주문 이벤트를 Spring 리스너(`Product*EventListener`, `@ConditionalOnProperty`)가 받는다. 판매자 이벤트는 Kafka로만 받는다
+- 주문 · 판매자 이벤트는 Kafka로만 받는다. 상품 서비스에는 주문 이벤트를 Spring 이벤트로 내는 곳이 없어 Spring 리스너를 두지 않는다
 
 ## Kafka 발행 (아웃박스, #551 · #565)
 - 커밋 직전(`BEFORE_COMMIT`)에 상품이 발행한 이벤트(`producer() = product`)만 `product_outbox`에 저장한다. 업무와 같은 트랜잭션이라 업무가 롤백되면 메시지도 없고, 저장이 실패하면 업무도 롤백된다
 - 릴레이(`ProductOutboxScheduler` → `ProductOutboxRelayService`)는 1초마다 id 순서로 100건을 보낸다. 실패하면 멈췄다가 다음 실행에 같은 메시지부터 보낸다. 매일 04:00(한국 시간)에 7일보다 먼저 보낸 메시지를 지운다
 - 릴레이는 트랜잭션 없이 돈다. 브로커가 멈추면 메시지 하나에 최대 약 17초(`max.block.ms` 5초 + 응답 12초)를 기다리는데, 그동안 DB 연결을 쥐지 않기 위해서다
     - 결과 저장은 Spring Data `save`의 기본 트랜잭션에 기댄다. 직접 선언한 쿼리(`@Modifying` 조건부 UPDATE 등)로 바꾸면 트랜잭션 조각 빈(`app/outbox/support`)을 둔다
-- 릴레이 잠금(advisory lock)은 없다. 앱 하나 · 스케줄러 스레드 하나라 겹치지 않는다. 인스턴스를 늘리면 더한다
-- 스케줄러 스레드는 다른 도메인과 함께 쓰는 하나뿐이라, 브로커 장애 중에는 다른 스케줄러가 늦어질 수 있다
+- 릴레이 잠금(advisory lock)은 없다. 한 프로세스 · 스케줄러 스레드 하나라 겹치지 않는다. 인스턴스를 늘리거나 두 프로세스에서 함께 돌려야 하면 더한다
+- 스케줄러 스레드는 하나뿐이다. 상품 서비스에서는 릴레이와 정리만 쓰므로, 브로커 장애 중에는 정리 작업이 늦어질 수 있다
 - 전송 실패 · 릴레이 · 정리 예외는 `ERROR`다. 한 건이 막히면 뒤 상품 이벤트가 모두 멈추고, Grafana "ERROR 로그" 알림은 ERROR 건수만 센다. 결제 아웃박스는 같은 경우를 `WARN`으로 남긴다(10-30 기준, 결제에 맞출지 물음)
     - 실패 로그는 실패 기록을 저장하기 전에 남긴다. DB도 함께 장애일 때 원인이 사라지지 않게 하기 위해서다
-- `kidly.kafka.producer.enabled=false`면 스케줄러가 없고 저장만 한다. 테스트 설정은 릴레이 주기를 길게 두고 정리를 끄며, 테스트가 서비스를 직접 부른다
+- `kidly.kafka.producer.enabled=false`면 스케줄러가 없고 저장만 한다(`ProductOutboxRelaySwitchTest`). 두 프로세스가 함께 돌던 때 쓰던 릴레이 스위치(`kidly.product.outbox.relay.enabled`)는 지웠다. 테스트 설정은 릴레이 주기를 길게 두고 정리를 끄며, 테스트가 서비스를 직접 부른다
 - 운영
     - 로그 `{env="dev"} |= "상품 아웃박스"`(보낸 메시지가 있는 실행만 `sent=N`). 지표는 `client_id=~"kidly-product-outbox-.*"`(Spring Kafka가 `-번호`를 붙인다)
     - 브로커 장애 동안 ERROR는 시간당 약 200 ~ 600줄, Slack은 처음 한 번 뒤 4시간마다다. 알림 규칙이 환경마다 하나라 그동안 다른 ERROR는 새 알림을 만들지 못한다
@@ -46,8 +45,8 @@
 ## Kafka 수신 (#692 · #693)
 - 구독 그룹 `kidly.product`, 팩토리 `in/ProductKafkaListenerConfig`. 헤더 `eventType`으로 고르고, 받지 않는 종류는 건너뛰며, 헤더가 없으면 DLT로 보낸다
 - 실패하면 1초 간격으로 3번 더 시도한 뒤 `{토픽}.product.dlt`(파티션 `-1`)로 보낸다. 읽지 못한 본문과 다시 해도 같은 예외(NPE · `IllegalArgumentException` · `IllegalStateException` · `BusinessException`)는 바로 보낸다
-- 스위치 `kidly.product.kafka.consumer.enabled`(환경 변수 `PRODUCT_KAFKA_CONSUMER_ENABLED`, 기본 true, 테스트 false). true면 Kafka 리스너가 받고, false면 주문 이벤트만 Spring 리스너가 받는다. 시작 여부는 `spring.kafka.listener.auto-startup`이 아니라 리스너 애노테이션의 `autoStartup`이 정한다
-    - false 동안 Kafka에 쌓인 메시지는 true로 올릴 때 처리된다. 주문 이벤트는 Spring 리스너가 이미 처리했어도 결과가 1회분이다
+- 스위치 `kidly.product.kafka.consumer.enabled`(환경 변수 `PRODUCT_KAFKA_CONSUMER_ENABLED`, 기본 true, 테스트 false). true면 Kafka 리스너가 시작하고, false면 시작하지 않는다(테스트가 필요한 리스너를 직접 켠다). 서버에서 false로 두면 수신이 멈춰 재고 차감 · 결제 요청도 멈추므로 장애를 되돌리는 용도로 쓰지 않는다. 시작 여부는 `spring.kafka.listener.auto-startup`이 아니라 리스너 애노테이션의 `autoStartup`이 정한다
+    - false 동안 Kafka에 쌓인 메시지는 true로 올릴 때 처리된다
 - 두 번 받아도 1회분이다. 판매자 복사본은 저장된 시각보다 늦은 변경만 반영하고, 주문 생성됨은 주문상품마다 차감 기록이 한 줄(UNIQUE)이다
 - 키가 주문 ID라 한 주문의 이벤트는 순서대로 처리한다. 취소가 생성보다 먼저 오면 FAILED를 남기고 뒤에 온 생성은 차감하지 않는다(INV-09)
 - 읽기 시작 위치는 팀 규칙대로 `latest`다. 첫 배포 때 파티션 배정 전에 나간 메시지는 받지 못한다
@@ -88,5 +87,13 @@
     - 상품 하나의 데이터가 깨지면 매번 전체가 500이다. 그 상품을 고친 뒤 다시 부른다
 
 ## 검색 분리 (10-29)
-- 순서: 상품 이벤트 Kafka 발행 → 검색 서비스가 `product.changed`로 색인 · 다시 보내기(#577) → 목록 경로를 검색 서비스로 전환 → 상품의 `search` 코드 삭제 → `product_search_document` 삭제 마이그레이션
+- 순서: 상품 이벤트 Kafka 발행 → 검색 서비스가 `product.changed`로 색인 · 다시 보내기(#577) → 목록 경로를 검색 서비스로 전환 → 상품의 `search` 코드 삭제(#796) → `product_search_document` 삭제 마이그레이션(#791)
 - 표는 엔티티를 지운 뒤 Flyway로 지운다. `ddl-auto: validate`라 엔티티가 남은 채 표를 먼저 지우면 앱이 뜨지 않는다
+
+## 상품 서비스 (apps/product-service, #791)
+상품 도메인은 이 서비스에만 있다.
+- 릴레이: 상품 서비스가 상품 아웃박스 릴레이를 돈다(`ProductServiceKafkaIntegrationTest`가 스케줄러 빈을 확인한다). 릴레이에는 잠금이 없다. 배포 때 compose가 app을 먼저 새로 띄운 뒤 상품 서비스를 띄우므로, 옛 app의 릴레이와 새 서비스의 릴레이가 겹치지 않는다
+- 수신: 구독 그룹 `kidly.product`는 상품 서비스만 쓴다. 수신 스위치 `PRODUCT_KAFKA_CONSUMER_ENABLED`는 상품 서비스에서만 바꾼다
+- 마이그레이션: 서비스는 자기 이력 표 `flyway_schema_history_product`를 쓰고 baseline-version `202610292246`(고정)에서 baseline을 잡는다. baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없으므로 새 상품 마이그레이션은 baseline보다 뒤 버전으로 더한다. 빈 DB에서는 서비스의 init부터 마이그레이션을 적용한다(`ProductMigrationIntegrationTest`)
+- Gateway · 배포: Gateway는 상품 API(공개 · 판매자 · 관리자)를 `KIDLY_PRODUCT_URI`(기본값 `http://product-service:8080`)로 보낸다. 배포는 compose profile `product`(힙 192m · 상한 512m)이고 dev · prod 모두 켰다(prod는 첫 main 배포 때 뜬다). Swagger '상품' 문서는 Gateway의 `/v3/api-docs/product`가 서비스 문서를 넘긴다
+- 남은 일: 첫 prod 배포 전에 서버 메모리 대비(#793)가 들어가 있어야 한다

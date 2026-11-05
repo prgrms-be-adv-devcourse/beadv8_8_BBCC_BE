@@ -19,7 +19,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * 빈 DB에서 kidly-app이 먼저 회원 테이블을 만든 뒤에도 서비스 Flyway가 지금 스키마까지 맞추는지 본다.
+ * 예전에 kidly-app이 회원 테이블을 만든 DB에서도 서비스 Flyway가 지금 스키마까지 맞추는지 본다.
  * kidly-app이 만든 DB는 이 서비스의 마이그레이션을 kidly-app 이력 자리(public.flyway_schema_history)에 적용해 흉내 낸다.
  * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
  */

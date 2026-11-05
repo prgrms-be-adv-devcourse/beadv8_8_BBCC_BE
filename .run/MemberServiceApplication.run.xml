@@ -1,8 +1,8 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="MemberServiceApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
-    <module name="kidly.apps.member-service.main" />
+    <module name="member-service.main" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="com.bbcc.kidly.MemberServiceApplication" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/apps/member-service" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>

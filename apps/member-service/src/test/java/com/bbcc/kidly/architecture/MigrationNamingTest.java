@@ -15,7 +15,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 /**
  * Flyway 마이그레이션 파일 이름 규칙. 버전은 파일을 만든 시각(yyyyMMddHHmm, KST)이라 PR끼리 번호가 겹치지 않는다.
- * kidly-app MigrationNamingTest와 같은 규칙이다(kidly-app에는 회원 · 인증 · 판매자 jar가 없다).
+ *
  */
 class MigrationNamingTest {
 
@@ -24,7 +24,7 @@ class MigrationNamingTest {
     @Test
     @DisplayName("마이그레이션은 V{yyyyMMddHHmm}__설명.sql이다")
     void namesFollowTimestampRule() throws IOException {
-        List<String> invalid = migrationFileNames().stream()
+        List<String> invalid = migrationFileNames("migration").stream()
             .filter(name -> !VERSIONED.matcher(name).matches())
             .toList();
 
@@ -34,7 +34,7 @@ class MigrationNamingTest {
     @Test
     @DisplayName("같은 버전이 두 번 없다")
     void versionsAreUnique() throws IOException {
-        List<String> versions = migrationFileNames().stream()
+        List<String> versions = migrationFileNames("migration").stream()
             .map(VERSIONED::matcher)
             .filter(Matcher::matches)
             .map(matcher -> matcher.group(1))
@@ -43,10 +43,18 @@ class MigrationNamingTest {
         assertThat(versions).doesNotHaveDuplicates().isNotEmpty();
     }
 
-    // 이 서비스의 db/migration과 도메인 jar의 db/migration/{auth,member}/를 본다 (classpath*: 모든 jar, **: 하위 폴더)
-    private static List<String> migrationFileNames() throws IOException {
+    @Test
+    @DisplayName("자녀 마이그레이션 이름과 버전은 자녀 이력 안에서 유일하다")
+    void childProfileVersionsAreUnique() throws IOException {
+        var names = migrationFileNames("childprofile-migration");
+        assertThat(names).isNotEmpty().allMatch(name -> VERSIONED.matcher(name).matches());
+        assertThat(names.stream().map(VERSIONED::matcher).filter(Matcher::matches)
+            .map(matcher -> matcher.group(1)).toList()).doesNotHaveDuplicates();
+    }
+
+    private static List<String> migrationFileNames(String location) throws IOException {
         Resource[] resources = new PathMatchingResourcePatternResolver()
-            .getResources("classpath*:db/migration/**/*.sql");
+            .getResources("classpath*:db/" + location + "/**/*.sql");
         return Arrays.stream(resources).map(Resource::getFilename).filter(Objects::nonNull).toList();
     }
 }

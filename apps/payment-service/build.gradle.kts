@@ -13,7 +13,6 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
 
     // 스키마 마이그레이션이다. kidly-app이 적용하던 결제 파일은 이 서비스의 db/migration에 있고, 그 뒤 파일은 도메인 모듈의 db/migration/payment/에 둔다.
-    // kidly-app에서 결제를 빼기 전에는 결제 마이그레이션을 더하면 baseline-version을 올린다(application.yml의 baseline 주석)
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
 
@@ -34,7 +33,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
-    // 수신 테스트용 Kafka 컨테이너와 메시지를 넣는 Producer (버전은 Boot BOM, kidly-app과 같다)
+    // 수신 테스트용 Kafka 컨테이너와 메시지를 넣는 Producer (버전은 Boot BOM)
     // 결제 리스너를 켜고 끄는 레지스트리(spring-kafka)는 도메인 모듈이 implementation으로만 받아 테스트 컴파일 경로에 따로 넣는다
     testImplementation("org.springframework.boot:spring-boot-starter-kafka")
     testImplementation("org.testcontainers:testcontainers-kafka")

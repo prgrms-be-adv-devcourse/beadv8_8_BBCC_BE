@@ -18,7 +18,6 @@ proxy_set_header X-Forwarded-Host  $host;
 proxy_set_header X-Forwarded-Port  $server_port;
 # 밖에서 온 회원 · 관리자 · 자녀 헤더를 지운다. 값이 빈 문자열이면 nginx 는 그 헤더를 넘기지 않는다.
 # 서비스는 이 헤더를 그대로 믿는다(#638). Gateway 는 받은 것을 어차피 지우고 검증한 값으로 다시 붙이므로 받을 필요가 없다.
-# /actuator/health 처럼 Gateway 를 거치지 않고 앱으로 가는 경로에서도 지워진다
 proxy_set_header X-Member-Id       "";
 proxy_set_header X-Member-Roles    "";
 proxy_set_header X-Member-Nickname "";
@@ -61,10 +60,9 @@ server {
     }
 
     location = /actuator/health {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8084;
     }
 
-    # Gateway(#638)가 토큰 검증 · CORS 를 하고 운영 앱으로 넘긴다. /actuator/health 는 위에서 앱을 그대로 본다
     location / {
         proxy_pass http://127.0.0.1:8084;
     }
@@ -82,10 +80,9 @@ server {
     }
 
     location = /actuator/health {
-        proxy_pass http://127.0.0.1:8081;
+        proxy_pass http://127.0.0.1:8083;
     }
 
-    # Gateway(#608)가 토큰 검증 · CORS 를 하고 개발 앱으로 넘긴다. /actuator/health 는 위에서 앱을 그대로 본다
     location / {
         proxy_pass http://127.0.0.1:8083;
     }

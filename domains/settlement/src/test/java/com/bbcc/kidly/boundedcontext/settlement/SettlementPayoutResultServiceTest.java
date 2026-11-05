@@ -3,14 +3,19 @@ package com.bbcc.kidly.boundedcontext.settlement;
 import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.times;
 
+import com.bbcc.kidly.boundedcontext.settlement.app.SettlementMetrics;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementPayoutResultService;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.shared.payment.domain.PayoutFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutFailedEvent;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +35,9 @@ class SettlementPayoutResultServiceTest {
     @Mock
     private SettlementRepository settlementRepository;
 
+    @Mock
+    private SettlementMetrics metrics;
+
     @InjectMocks
     private SettlementPayoutResultService service;
 
@@ -43,6 +51,19 @@ class SettlementPayoutResultServiceTest {
 
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.PAID);
         assertThat(settlement.getPaidAt()).isEqualTo(PAID_AT);
+        then(metrics).should().recordPayout(Duration.between(settlement.getCompletedAt(), PAID_AT));
+    }
+
+    @Test
+    @DisplayName("같은 지급 완료 결과를 다시 받으면 지급 소요 시간을 다시 남기지 않는다")
+    void markPaidTwice() {
+        var settlement = SettlementFixture.settlement(10_000L);
+        given(settlementRepository.findById(1L)).willReturn(Optional.of(settlement));
+
+        service.markPaid(completed(1L, SELLER_ID, AMOUNT));
+        service.markPaid(completed(1L, SELLER_ID, AMOUNT));
+
+        then(metrics).should(times(1)).recordPayout(any(Duration.class));
     }
 
     @Test

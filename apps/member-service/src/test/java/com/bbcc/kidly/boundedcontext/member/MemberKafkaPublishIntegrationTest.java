@@ -3,7 +3,9 @@ package com.bbcc.kidly.boundedcontext.member;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
+import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
 import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
@@ -12,10 +14,10 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -67,10 +70,13 @@ class MemberKafkaPublishIntegrationTest {
     private MemberService memberService;
 
     @Autowired
+    private AdminMemberService adminMemberService;
+
+    @Autowired
     private MemberRepository memberRepository;
 
     @Autowired
-    private EventPublisher eventPublisher;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -143,7 +149,7 @@ class MemberKafkaPublishIntegrationTest {
         // 탈퇴는 커밋 뒤 전송으로 나가지 않은 것이다
         var changed = new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new MemberChangedEvent.Data(member.getId(), "확인용닉네임"));
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(changed));
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(changed));
         awaitRecord(changed);
         assertThat(findRecord(withdrawn)).isEmpty();
 
@@ -184,7 +190,7 @@ class MemberKafkaPublishIntegrationTest {
         var rolledBack = new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new MemberChangedEvent.Data(member.getId(), "롤백닉네임"));
         transactionTemplate.executeWithoutResult(status -> {
-            eventPublisher.publish(rolledBack);
+            eventPublisher.publishEvent(rolledBack);
             status.setRollbackOnly();
         });
         memberService.update(member.getId(), new MemberUpdateRequest("새닉네임"));
@@ -194,6 +200,29 @@ class MemberKafkaPublishIntegrationTest {
             .filter(event -> !event.eventId().equals(rolledBack.eventId()))
             .findFirst().orElseThrow();
         awaitRecord(committed);
+        assertThat(findRecord(rolledBack)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("회원 정지는 커밋 뒤 사유를 전송하고 롤백된 정지는 전송하지 않는다")
+    void suspendedAfterCommitOnly() {
+        var member = memberRepository.save(MemberFixture.kakaoMember());
+        transactionTemplate.executeWithoutResult(status -> {
+            adminMemberService.suspend(member.getId(), 100L, new MemberSuspendRequest("롤백 사유"));
+            status.setRollbackOnly();
+        });
+        var rolledBack = events.stream(MemberSuspendedEvent.class).findFirst().orElseThrow();
+
+        adminMemberService.suspend(member.getId(), 100L, new MemberSuspendRequest("정지 사유"));
+        var committed = events.stream(MemberSuspendedEvent.class)
+            .filter(event -> !event.eventId().equals(rolledBack.eventId())).findFirst().orElseThrow();
+        assertSent(committed, "member.suspended", member.getId());
+        var body = JSON_MAPPER.readTree(awaitRecord(committed).value());
+        assertThat(body.get("producer").asString()).isEqualTo("member");
+        assertThat(body.get("aggregateId").asString()).isEqualTo(member.getId().toString());
+        assertThat(body.get("data").get("memberId").asLong()).isEqualTo(member.getId());
+        assertThat(body.get("data").get("reason").asString()).isEqualTo("정지 사유");
+        assertThat(body.get("data").get("suspendedAt")).isEqualTo(body.get("occurredAt"));
         assertThat(findRecord(rolledBack)).isEmpty();
     }
 

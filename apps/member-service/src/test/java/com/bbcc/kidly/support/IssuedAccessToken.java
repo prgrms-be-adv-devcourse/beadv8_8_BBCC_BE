@@ -1,6 +1,6 @@
 package com.bbcc.kidly.support;
 
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.shared.auth.AccessTokenClaims;
 import com.bbcc.kidly.shared.auth.PrincipalHeaders;
 import com.bbcc.kidly.shared.auth.PrincipalId;
@@ -23,7 +23,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
  * 인증이 발급한 Access Token(로그인 · 재발급 · dev 토큰 응답)을 테스트 공개키로 검증(서명 · 만료)해 읽은 클레임.
  * 테스트는 루트에서 돈다(kidly.boot-app).
  */
-public record IssuedAccessToken(PrincipalId principal, String nickname, List<Role> roles, Instant expiresAt) {
+public record IssuedAccessToken(PrincipalId principal, String nickname, List<Role> roles, Instant expiresAt,
+    Long guardianId) {
 
     // application-test.yml의 jwt.public-key와 같은 파일
     private static final JwtDecoder DECODER =
@@ -34,14 +35,19 @@ public record IssuedAccessToken(PrincipalId principal, String nickname, List<Rol
         var roles = Optional.ofNullable(jwt.getClaimAsStringList(AccessTokenClaims.ROLES)).orElse(List.of())
             .stream().map(Role::valueOf).toList();
         return new IssuedAccessToken(PrincipalId.parseSubject(jwt.getSubject()),
-            jwt.getClaimAsString(AccessTokenClaims.NICKNAME), roles, jwt.getExpiresAt());
+            jwt.getClaimAsString(AccessTokenClaims.NICKNAME), roles, jwt.getExpiresAt(),
+            Optional.ofNullable((Number) jwt.getClaim(AccessTokenClaims.GUARDIAN_ID))
+                .map(Number::longValue).orElse(null));
     }
 
     public Consumer<HttpHeaders> headers() {
         return switch (principal.type()) {
             case MEMBER -> TestMembers.of(principal.id(), nickname, roles.toArray(Role[]::new));
             case ADMIN -> headers -> headers.set(PrincipalHeaders.ADMIN_ID, String.valueOf(principal.id()));
-            case CHILD -> throw new IllegalStateException("자녀 토큰은 아직 발급하지 않습니다");
+            case CHILD -> headers -> {
+                headers.set(PrincipalHeaders.CHILD_ACCOUNT_ID, String.valueOf(principal.id()));
+                headers.set(PrincipalHeaders.CHILD_GUARDIAN_ID, String.valueOf(guardianId));
+            };
         };
     }
 

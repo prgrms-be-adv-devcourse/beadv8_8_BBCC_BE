@@ -7,7 +7,7 @@ spring:
       - classpath:search.yml
   profiles:
     default: local
-  # Kafka. 상품 · 판매자 이벤트를 받는다(구독 그룹 kidly.search). 값은 kidly-app과 같다
+  # Kafka. 상품 · 판매자 이벤트를 받는다(구독 그룹 kidly.search)
   # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
   kafka:
     bootstrap-servers: localhost:9092
@@ -42,7 +42,7 @@ spring:
     activate:
       on-profile: local
 
-# kidly-app(8080)과 같이 띄울 수 있게 포트를 나눈다
+# 다른 서비스와 같이 띄울 수 있게 포트를 나눈다
 server:
   port: 8082
 

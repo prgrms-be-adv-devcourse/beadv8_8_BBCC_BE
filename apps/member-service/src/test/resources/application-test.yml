@@ -28,8 +28,20 @@ kidly:
   kafka:
     producer:
       enabled: false
+  auth:
+    outbox:
+      relay-interval: P3650D
   # 아웃박스 릴레이가 테스트 중 다른 스레드에서 저절로 돌지 않게 주기를 아주 길게 두고, 정리는 끈다.
   # 릴레이 테스트는 MemberOutboxRelayService를 직접 부른다
+  childprofile:
+    verification:
+      identity-key-secret: test-identity-key-secret
+    # 테스트는 포트원을 호출하지 않는다 (support.FakeIdentityVerificationClient). 빈 생성에만 쓰인다
+    portone:
+      api-secret: test-portone-secret
+    outbox:
+      relay-interval: P3650D
+      cleanup-cron: "-"
   member:
     outbox:
       relay-interval: P3650D

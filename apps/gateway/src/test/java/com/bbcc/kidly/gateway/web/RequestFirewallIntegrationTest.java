@@ -98,7 +98,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.method(HttpMethod.TRACE).uri("/api/v1/products").exchange()
             .expectStatus().isBadRequest();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
     }
 
     // 헤더는 뒤 필터가 읽을 때 검사된다. AccessTokenFilter가 Authorization을 읽다가 거절된다
@@ -110,7 +110,8 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isBadRequest();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
+        assertThat(productBackend.lastRequest()).isEmpty();
     }
 
     // 경로 매칭(PathPattern)은 퍼센트 인코딩을 풀어서 보므로 방화벽이 막지 않는 인코딩(%61 = a, %69 = i)도 검사를 비껴가지 못한다
@@ -120,7 +121,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.get().uri(raw("/api/v1/%61dmin/members")).exchange()
             .expectStatus().isUnauthorized();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
     }
 
     @Test
@@ -129,7 +130,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.get().uri(raw("/%69nternal/members/1")).exchange()
             .expectStatus().isNotFound();
 
-        assertThat(backend.lastRequest()).isEmpty();
+        assertNoBackendRequests();
     }
 
     @Test
@@ -143,7 +144,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(request -> {
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(request -> {
             assertThat(request.uri().getPath()).isEqualTo("/api/v1/products/1");
             assertThat(request.uri().getQuery())
                 .isEqualTo("keyword=유아 원피스&next=/api/v1/admin/../x;y&rate=10%");
@@ -156,7 +157,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.get().uri("/api/v1/categories/{name}", "유아 신발").exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo("/api/v1/categories/유아 신발"));
     }
 
@@ -170,7 +171,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
             .exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(request -> {
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(request -> {
             assertThat(request.header(MemberHeaders.MEMBER_NICKNAME)).singleElement()
                 .satisfies(value -> assertThat(URLDecoder.decode(value, StandardCharsets.UTF_8)).isEqualTo(nickname));
             assertThat(request.header("X-Client-Note")).containsExactly("%ED%82%A4%EB%93%A4%EB%A6%AC%20100%25");
@@ -195,7 +196,7 @@ class RequestFirewallIntegrationTest extends GatewayTestSupport {
         client.method(HttpMethod.valueOf(method)).uri("/api/v1/orders/1").exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.method()).isEqualTo(method));
     }
 

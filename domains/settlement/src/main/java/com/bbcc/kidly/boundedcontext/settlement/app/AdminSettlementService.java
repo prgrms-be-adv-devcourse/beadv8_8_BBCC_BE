@@ -21,6 +21,7 @@ public class AdminSettlementService {
     private final SettlementSummaryQuery settlementSummaryQuery;
     private final SettlementRepository settlementRepository;
     private final SettlementPayoutRequester settlementPayoutRequester;
+    private final SettlementMetrics settlementMetrics;
 
     @Transactional(readOnly = true)
     public Page<SettlementSummaryRow> getSettlements(AdminSettlementSearchRequest request, Pageable pageable) {
@@ -32,6 +33,18 @@ public class AdminSettlementService {
     // 같은 정산서 ID로 다시 요청한다. 동시에 와도 결제가 한 번만 입금하고 정산서는 @Version으로 한 번만 바뀐다
     @Transactional
     public void retryPayout(Long settlementId) {
+        requestPayout(settlementId);
+        settlementMetrics.countRetry(SettlementMetrics.TRIGGER_ADMIN);
+    }
+
+    // 자동 재요청(스케줄러)용. 요청은 같고 지표의 trigger만 다르다
+    @Transactional
+    public void retryStuckPayout(Long settlementId) {
+        requestPayout(settlementId);
+        settlementMetrics.countRetry(SettlementMetrics.TRIGGER_AUTO);
+    }
+
+    private void requestPayout(Long settlementId) {
         var settlement = settlementRepository.getById(settlementId);
         settlement.validatePayoutRetryable();
         settlementPayoutRequester.request(settlement, LocalDateTime.now());

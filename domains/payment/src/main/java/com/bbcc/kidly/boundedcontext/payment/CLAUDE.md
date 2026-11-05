@@ -51,7 +51,7 @@
   - 충전 상태를 바꾸는 곳(승인 시작 · 승인 반영 · 실패 · 만료 · 취소)은 충전을 비관적 락으로 읽는다. 사용자 승인과 스케줄러가 겹쳐도 늦은 쪽이 바뀐 상태를 보고 멈춰 한 번만 입금한다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
 
 ### 주문 취소 환불 (`app/OrderCancellationService`, #269)
-- `order.cancelled`를 받는다(기획서 2.1 ④: 결제 완료와 결제 제한 시간 만료가 겹쳐 만료가 이긴 경우). 환불 이벤트는 기획서에 없어 발행하지 않는다
+- `order.cancelled`를 받는다(기획서 2.1 ④: 결제 완료와 결제 제한 시간 만료가 겹쳐 만료가 이긴 경우). 환불하면 `payment.refunded`(`cancellationId` null)를 발행한다
 - 결제 요청과 같은 회원 지갑 락을 먼저 잡고 그 주문의 결제를 본다. 결제 · 취소가 동시에 와도 늦은 쪽이 앞의 결과를 본다
 
 | 그 주문의 결제 | 처리 |
@@ -68,7 +68,7 @@
 
 ### 판매자 부분 취소 환불 (`app/OrderItemCancellationService`, #711)
 - `order-item.cancelled`(#655)를 Kafka로만 받는다(Spring 리스너 없음). 판매자가 발송 전에 자기 몫을 취소한 것이고, 마지막 몫이 취소돼 주문이 취소돼도 `order.cancelled`는 오지 않는다
-- 이벤트의 주문상품별 `amount`만큼 결제 항목을 환불한다. 환불 이벤트(`payment.refunded`, 계약만 있음)는 받을 도메인이 생기면 발행한다
+- 이벤트의 주문상품별 `amount`만큼 결제 항목을 환불한다. 환불하면 `payment.refunded`를 발행한다(실패한 환불은 보내지 않는다)
 - 결제 요청 · 주문 취소와 같은 회원 지갑 락을 먼저 잡고, 취소(`cancellationId`)마다 환불 기록을 하나만 남긴다. 기록이 있으면 건너뛴다(`refund.cancellation_id` UK가 마지막으로 막는다)
 
 | 경우 | 처리 |
@@ -213,7 +213,7 @@
 - 로컬에서 결제가 받으려면 Kafka가 떠 있어야 한다(`docker compose up -d`에 포함)
 
 ## Kafka 발행 (아웃박스, #534 · #550)
-- 결제가 발행한 이벤트(`payment.completed` · `payment.failed` · `payment.payout-completed` · `payment.payout-failed`)를 토픽 `kidly.payment.events`로도 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
+- 결제가 발행한 이벤트(`payment.completed` · `payment.failed` · `payment.refunded` · `payment.payout-completed` · `payment.payout-failed`)를 토픽 `kidly.payment.events`로도 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
 - 키 = `correlationId`(결제는 주문 ID, 정산 지급은 정산서 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
 - 받는 쪽(주문 · 정산)은 아직 Spring 이벤트(`@DomainEventListener`)로 받는다. Kafka로 옮기는 건 받는 도메인이 하고, 그때 이미 쌓인 메시지는 처리된 것이므로 첫 배포에서 오프셋을 끝으로 옮긴다
 - **저장** (`app/PaymentOutboxRecorder`): 커밋 직전(`BEFORE_COMMIT`)에 결제가 발행한 이벤트(`producer() = payment`)만 같은 트랜잭션에서 `payment.payment_outbox`에 저장한다. 결제 서비스의 발행 코드는 그대로다
@@ -236,6 +236,5 @@
 - 결제 도메인은 이 서비스에만 있다. `kidly-app`에서 뺐다. 결제 API · 이벤트 수신(구독 그룹 `kidly.payment`) · 결제 이벤트 발행은 이 서비스만 한다
 - Gateway는 결제 API와 Swagger '결제' 문서(`/v3/api-docs/payment`)를 `KIDLY_PAYMENT_URI`로 보낸다(기본값 서비스). 배포는 compose profile `payment`(힙 192m · 상한 512m)이고 dev · prod 모두 켠다
 - 마이그레이션: 서비스 이력(`payment.flyway_schema_history_payment`)만 쓴다. 기존 DB는 `baseline-version` `202611021930`(kidly-app이 마지막으로 적용한 결제 버전)으로 baseline을 잡는다. 이 값은 고정이다. 새 결제 마이그레이션은 그보다 뒤 버전으로 더한다
-  - 빈 DB에서는 여전히 `kidly-app`이 먼저 마이그레이션해야 한다(`kidly-app` init에 결제 DDL이 남아 있다). 그때 빠지는 지갑 동결 · 잔액 환급은 `V202611031535`(`IF NOT EXISTS`)가 채운다
-  - `kidly-app` 이력에 남은 결제 도메인 파일 행(`202611021530` · `202611021930`)은 `kidly-app`의 `beforeValidate__drop_payment_domain_history.sql`이 지운다. `kidly-app` 모듈에 있는 결제 파일(`V202610161035` · `V202610200643` · `V202610300905`)은 그대로 둔다
-- 되돌리기는 이미지 재배포다. `kidly-app`에 결제 API가 없어 Gateway 값만으로는 되돌릴 수 없다
+  - 빈 DB에서는 서비스의 init부터 마이그레이션을 적용한다
+- 되돌리기는 이미지 재배포다

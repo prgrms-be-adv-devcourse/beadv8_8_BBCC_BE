@@ -34,7 +34,7 @@ jobs:
       - name: 코드 스타일 검사 (Checkstyle)
         run: ./gradlew checkstyleMain checkstyleTest checkstyleTestFixtures --parallel
 
-      - name: 모듈 경계 검사 (ArchUnit)
+      - name: 모듈 경계 · 의존성 검사
         run: ./gradlew archTest --parallel
 
       - name: 단위 테스트
@@ -42,6 +42,14 @@ jobs:
 
       - name: 패키징
         run: ./gradlew assemble
+
+      # 회원 서비스는 루트 빌드에 없고 자체 settings · wrapper로 따로 빌드한다
+      - name: 회원 서비스 정적 검사 · 단위 테스트 · 패키징
+        working-directory: apps/member-service
+        run: >-
+          ./gradlew
+          checkstyleMain checkstyleTest checkstyleTestFixtures archTest test assemble
+          --parallel
 
       - name: 실패 리포트 업로드
         if: failure()
@@ -60,24 +68,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: kidly-app
-            tasks: :apps:kidly-app:integrationTest
           - name: order
-            tasks: :domains:order:integrationTest
+            tasks: :domains:order:integrationTest :apps:order-service:integrationTest
+          - name: community
+            tasks: :domains:community:integrationTest :apps:community-service:integrationTest
           - name: search-service
             tasks: :apps:search-service:integrationTest
-          - name: childprofile-service
-            tasks: :apps:childprofile-service:integrationTest
           - name: recommend-service
             tasks: :apps:recommend-service:integrationTest
           - name: settlement-service
             tasks: :apps:settlement-service:integrationTest
           - name: member-service
-            tasks: :apps:member-service:integrationTest
+            dir: apps/member-service
+            tasks: integrationTest
           - name: payment-service
             tasks: :apps:payment-service:integrationTest
+          - name: product-service
+            tasks: :apps:product-service:integrationTest
           - name: 나머지
-            tasks: integrationTest -x :apps:kidly-app:integrationTest -x :domains:order:integrationTest -x :apps:search-service:integrationTest -x :apps:childprofile-service:integrationTest -x :apps:recommend-service:integrationTest -x :apps:settlement-service:integrationTest -x :apps:member-service:integrationTest -x :apps:payment-service:integrationTest
+            tasks: integrationTest -x :domains:order:integrationTest -x :apps:order-service:integrationTest -x :domains:community:integrationTest -x :apps:community-service:integrationTest -x :apps:search-service:integrationTest -x :apps:recommend-service:integrationTest -x :apps:settlement-service:integrationTest -x :apps:payment-service:integrationTest -x :apps:product-service:integrationTest
     steps:
       - uses: actions/checkout@v7
 
@@ -88,7 +97,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      # dir이 있는 항목(회원 서비스)은 그 폴더의 자체 wrapper로 빌드한다
       - name: 통합 테스트 (Testcontainers)
+        working-directory: ${{ matrix.dir || '.' }}
         run: ./gradlew ${{ matrix.tasks }}
 
       - name: 실패 리포트 업로드
@@ -107,22 +118,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: kidly-app
-            tasks: :apps:kidly-app:functionalTest
+          - name: order
+            tasks: :domains:order:functionalTest :apps:order-service:functionalTest
+          - name: community
+            tasks: :domains:community:functionalTest :apps:community-service:functionalTest
           - name: search-service
             tasks: :apps:search-service:functionalTest
-          - name: childprofile-service
-            tasks: :apps:childprofile-service:functionalTest
           - name: recommend-service
             tasks: :apps:recommend-service:functionalTest
           - name: settlement-service
             tasks: :apps:settlement-service:functionalTest
           - name: member-service
-            tasks: :apps:member-service:functionalTest
+            dir: apps/member-service
+            tasks: functionalTest
           - name: payment-service
             tasks: :apps:payment-service:functionalTest
+          - name: product-service
+            tasks: :apps:product-service:functionalTest
           - name: 나머지
-            tasks: functionalTest -x :apps:kidly-app:functionalTest -x :apps:search-service:functionalTest -x :apps:childprofile-service:functionalTest -x :apps:recommend-service:functionalTest -x :apps:settlement-service:functionalTest -x :apps:member-service:functionalTest -x :apps:payment-service:functionalTest
+            tasks: functionalTest -x :domains:order:functionalTest -x :apps:order-service:functionalTest -x :domains:community:functionalTest -x :apps:community-service:functionalTest -x :apps:search-service:functionalTest -x :apps:recommend-service:functionalTest -x :apps:settlement-service:functionalTest -x :apps:payment-service:functionalTest -x :apps:product-service:functionalTest
     steps:
       - uses: actions/checkout@v7
 
@@ -133,7 +147,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      # dir이 있는 항목(회원 서비스)은 그 폴더의 자체 wrapper로 빌드한다
       - name: 기능 테스트 (Testcontainers)
+        working-directory: ${{ matrix.dir || '.' }}
         run: ./gradlew ${{ matrix.tasks }}
 
       - name: 실패 리포트 업로드

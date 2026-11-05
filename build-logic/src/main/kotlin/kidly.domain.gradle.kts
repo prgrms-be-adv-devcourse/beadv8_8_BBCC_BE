@@ -66,7 +66,7 @@ val checkLayerArchitectureTest = tasks.register("checkLayerArchitectureTest") {
         if (!mainJava.asFileTree.isEmpty && !runsLayerRules) {
             throw GradleException(
                 "$modulePath 에 계층 규칙 테스트가 없다(LayerArchitectureTest가 ArchTests.in(LayerRules.class)를 돌려야 한다). " +
-                    "domains/member의 LayerArchitectureTest.java를 같은 경로로 복사한다")
+                    "domains/setting의 LayerArchitectureTest.java를 같은 경로로 복사한다")
         }
     }
 }

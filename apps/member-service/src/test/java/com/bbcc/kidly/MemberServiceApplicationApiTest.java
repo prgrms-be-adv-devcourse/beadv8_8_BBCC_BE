@@ -2,7 +2,7 @@ package com.bbcc.kidly;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.support.FunctionalTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,7 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 회원 서비스가 회원 · 인증 · 판매자 도메인만으로 뜨고, 빈 DB에 세 스키마만 만드는지 본다.
+ * 회원 서비스가 회원 · 인증 · 판매자 · 자녀 도메인으로 뜨고, 빈 DB에 네 스키마만 만드는지 본다.
  */
 @FunctionalTest
 class MemberServiceApplicationApiTest {
@@ -44,7 +44,7 @@ class MemberServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("빈 DB에는 init부터 적용하고, 테이블은 회원 · 인증 · 판매자 스키마에만 만든다")
+    @DisplayName("빈 DB에는 init부터 적용하고, 테이블은 회원 · 인증 · 판매자 · 자녀 스키마에만 만든다")
     void migratesOnlyOwnSchemas() {
         var schemas = jdbcTemplate.queryForList("""
             SELECT DISTINCT schemaname FROM pg_tables
@@ -53,7 +53,7 @@ class MemberServiceApplicationApiTest {
         var baseline = jdbcTemplate.queryForList(
             "SELECT version FROM member.flyway_schema_history_member WHERE type = 'BASELINE'", String.class);
 
-        assertThat(schemas).containsExactlyInAnyOrder("member", "auth", "seller");
+        assertThat(schemas).containsExactlyInAnyOrder("member", "auth", "seller", "childprofile");
         assertThat(baseline).isEmpty();
     }
 }

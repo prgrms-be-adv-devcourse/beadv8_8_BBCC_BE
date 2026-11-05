@@ -63,7 +63,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
     void passesSeller() {
         get(SELLER_PATH, "BUYER", "SELLER").expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(productBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo(SELLER_PATH));
     }
 
@@ -72,7 +72,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
     void passesAdmin() {
         getAdmin(ADMIN_PATH).expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).hasValueSatisfying(
+        assertThat(orderBackend.lastRequest()).hasValueSatisfying(
             request -> assertThat(request.uri().getPath()).isEqualTo(ADMIN_PATH));
     }
 
@@ -82,7 +82,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
         client.get().uri("/api/v1/products/1").exchange()
             .expectStatus().isOk();
 
-        assertThat(backend.lastRequest()).isPresent();
+        assertThat(productBackend.lastRequest()).isPresent();
     }
 
     // 서비스(Spring Security requestMatchers("/api/v1/admin/**"))와 같다: /**는 0개 이상의 경로 조각이라 /api/v1/admin도 맞는다
@@ -97,10 +97,7 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
     @ValueSource(strings = {"/api/v1/administrator", "/api/v1/sellers/1"})
     @DisplayName("이름이 admin · seller로 시작할 뿐인 다른 경로는 역할을 검사하지 않는다")
     void ignoresPathsSharingPrefix(String path) {
-        client.get().uri(path).exchange()
-            .expectStatus().isOk();
-
-        assertThat(backend.lastRequest()).isPresent();
+        expectNotFound(client.get().uri(path).exchange(), path);
     }
 
     @Test
@@ -148,19 +145,27 @@ class RoleFilterIntegrationTest extends GatewayTestSupport {
 
     @Test
     void childPathsRequireChildPrincipal() {
-        var path = "/api/v1/child/orders";
+        var path = "/api/v1/child/profile";
         expectUnauthorized(client.get().uri(path).exchange(), path);
         expectForbidden(get(path, "BUYER"), path);
         expectForbidden(getAdmin(path), path);
         var now = Instant.now();
         var token = TestTokens.issueChild(7001, 8, now, now.plusSeconds(1800));
         client.get().uri(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange().expectStatus().isOk();
-        backend.reset();
+        resetBackends();
         for (var forbidden : List.of(ADMIN_PATH, SELLER_PATH)) {
             expectForbidden(client.get().uri(forbidden).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .exchange(), forbidden);
         }
         client.get().uri("/api/v1/children").exchange().expectStatus().isOk();
+    }
+
+    @Test
+    void childProfileRequiresChildPrincipal() {
+        var path = "/api/v1/child/profile";
+        expectUnauthorized(client.get().uri(path).exchange(), path);
+        expectForbidden(get(path, "BUYER"), path);
+        expectForbidden(getAdmin(path), path);
     }
 
     private ResponseSpec getAdmin(String path) {

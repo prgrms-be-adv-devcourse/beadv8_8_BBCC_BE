@@ -1,0 +1,30 @@
+name: resource-monitoring-check
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - deploy/monitoring/grafana/provisioning/alerting/resources.yml
+      - deploy/monitoring/grafana/dashboards/kidly-server.json
+      - deploy/monitoring/tests/check-resources.rb
+      - deploy/monitoring/tests/resources.test.yml
+      - .github/workflows/resource-monitoring-check.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: 자원 알림 규칙 검사
+        run: |
+          tool="$RUNNER_TEMP/resource-promtool"
+          cat > "$tool" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          docker run --rm --network none --user "$(id -u):$(id -g)" -v "$PWD:/checks:ro" -w /checks --entrypoint /bin/promtool prom/prometheus:v3.5.0 "$@"
+          SCRIPT
+          chmod +x "$tool"
+          ruby deploy/monitoring/tests/check-resources.rb "$tool"

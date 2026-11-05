@@ -12,17 +12,17 @@ spring:
 springdotenv:
   enabled: false
 
-# kidly-app 테스트와 같은 개발용 paymentKey 암호화 키. 운영 키와 다르다
+# 개발용 paymentKey 암호화 키. 운영 키와 다르다
 payment:
   key-encryption:
     key: KIeLA4Q8UtNSoUDGDN4LsHMvk1JvINovlqKzRlonMaI=
 
 kidly:
-  # 커밋 뒤 Kafka로 보내지 않는다(kidly-app과 같다). Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
+  # 커밋 뒤 Kafka로 보내지 않는다. Kafka 컨테이너가 있는 @KafkaIntegrationTest만 켠다
   kafka:
     producer:
       enabled: false
-  # 결제 스케줄러가 테스트 중 다른 스레드에서 저절로 돌지 않게 kidly-app 테스트와 같이 주기를 아주 길게 두고, 정리는 끈다
+  # 결제 스케줄러가 테스트 중 다른 스레드에서 저절로 돌지 않게 주기를 아주 길게 두고, 정리는 끈다
   payment:
     charge:
       reconcile-interval: P3650D
@@ -31,7 +31,7 @@ kidly:
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"
-    # 결제 Kafka 리스너는 저절로 시작하지 않는다(이 스위치가 리스너의 autoStartup이다). kidly-app 테스트와 같다.
+    # 결제 Kafka 리스너는 저절로 시작하지 않는다(이 스위치가 리스너의 autoStartup이다). .
     # Kafka 수신은 PaymentServiceKafkaIntegrationTest가 그 안에서 결제 리스너를 켜서 본다
     kafka:
       consumer:

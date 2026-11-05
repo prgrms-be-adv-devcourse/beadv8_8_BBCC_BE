@@ -35,6 +35,13 @@ class MemberEventsTest {
             "member.changed", "1");
     }
 
+    @Test
+    @DisplayName("회원 정지 이벤트는 member.suspended이고 대상은 회원이다")
+    void memberSuspended() {
+        assertContract(new MemberSuspendedEvent(EVENT_ID, NOW,
+            new MemberSuspendedEvent.Data(1L, "정지 사유", NOW)), "member.suspended", "1");
+    }
+
     private static void assertContract(DomainEvent event, String eventType, String aggregateId) {
         assertThat(event.eventType()).isEqualTo(eventType);
         assertThat(event.producer()).isEqualTo("member");

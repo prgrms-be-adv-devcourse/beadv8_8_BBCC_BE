@@ -8,7 +8,7 @@ import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerErrorCode;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationResponse;
-import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.nio.charset.StandardCharsets;

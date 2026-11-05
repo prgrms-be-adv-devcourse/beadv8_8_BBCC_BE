@@ -49,24 +49,22 @@ spring:
                 - Path=/internal/**
               filters:
                 - NotFound
-            # 상품 목록 조회만 검색 서비스로 간다(#526). 상세(/api/v1/products/{id}) · 다른 메서드는 kidly-app(상품)에 남는다. kidly-app에는 상품 목록 API가 없다(#791)
+            # 상품 목록 조회만 검색 서비스로 간다(#526). 상세(/api/v1/products/{id}) · 다른 메서드는 상품 서비스로 간다
             - id: search-product-list
               uri: ${kidly.gateway.search-uri}
               predicates:
                 - Method=GET
                 - Path=/api/v1/products
-            # 자녀 프로필 API는 자녀 프로필 서비스로 간다(#682)
+            # 자녀 프로필과 보호자 본인인증 API는 회원 서비스로 간다
             - id: childprofile
-              uri: ${kidly.gateway.childprofile-uri}
+              uri: ${kidly.gateway.member-uri}
               predicates:
-                - Path=/api/v1/children/**
-            # 자녀 프로필 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
-            - id: childprofile-api-docs
-              uri: ${kidly.gateway.childprofile-uri}
+                - Path=/api/v1/children/**,/api/v1/guardian-verification
+            # 자녀가 자기 프로필을 보는 API만 회원 서비스로 간다(#837).
+            - id: child-self-profile
+              uri: ${kidly.gateway.member-uri}
               predicates:
-                - Path=/v3/api-docs/childprofile
-              filters:
-                - SetPath=/v3/api-docs
+                - Path=/api/v1/child/profile
             # 추천 API는 추천 서비스로 간다(#704)
             - id: recommend
               uri: ${kidly.gateway.recommend-uri}
@@ -75,57 +73,52 @@ spring:
               # 추천이 느려도 화면이 추천 영역만 비우고 넘어가도록, 전체 응답 제한(55초) 대신 3초에 끊고 504를 낸다(밀리초)
               metadata:
                 response-timeout: 3000
-            # 추천 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
-            - id: recommend-api-docs
-              uri: ${kidly.gateway.recommend-uri}
-              predicates:
-                - Path=/v3/api-docs/recommend
-              filters:
-                - SetPath=/v3/api-docs
             # 정산 API(판매자 · 관리자)는 정산 서비스로 간다(#729). 경로는 정산 컨트롤러 기준이고 역할 검사(RoleFilter)는 원래 경로로 한다
             - id: settlement
               uri: ${kidly.gateway.settlement-uri}
               predicates:
-                - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**
+                - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**,/api/v1/admin/settlement-dead-letters/**
             # 회원 · 인증 · 판매자 API는 회원 서비스로 간다
             - id: member
               uri: ${kidly.gateway.member-uri}
               predicates:
                 - Path=/api/v1/auth/**,/api/v1/members/**,/api/v1/seller/me/**,/api/v1/admin/admins/**,/api/v1/admin/members/**,/api/v1/admin/sellers/**,/api/v1/admin/seller-applications/**,/api/v1/dev/**
-            # 회원 API 문서는 회원 서비스의 문서를 읽는다
-            - id: member-api-docs
-              uri: ${kidly.gateway.member-uri}
-              predicates:
-                - Path=/v3/api-docs/member
-              filters:
-                - SetPath=/v3/api-docs
-            # 정산 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
-            - id: settlement-api-docs
-              uri: ${kidly.gateway.settlement-uri}
-              predicates:
-                - Path=/v3/api-docs/settlement
-              filters:
-                - SetPath=/v3/api-docs
             # 결제 · 지갑 · 충전 · 토스 웹훅 · 결제 관리자 API는 결제 서비스로 간다(#525)
-            # kidly-app도 아직 결제 도메인을 가지고 있어, 서비스를 켜지 않은 환경은 기본값(kidly-app)으로 지금처럼 간다
             # 응답 제한은 전체 값(55초)을 쓴다. 충전 승인이 토스를 동기로 부른다(위 httpclient 주석)
             - id: payment
               uri: ${kidly.gateway.payment-uri}
               predicates:
                 - Path=/api/v1/payments/**,/api/v1/wallets/**,/api/v1/webhooks/toss,/api/v1/admin/payments/**,/api/v1/admin/wallets/**
-            # 결제 API 문서. kidly-app Swagger(springdoc.swagger-ui.urls)가 이 경로로 서비스의 /v3/api-docs를 읽는다
-            - id: payment-api-docs
-              uri: ${kidly.gateway.payment-uri}
+            # 상품 API(공개 · 판매자 · 관리자)는 상품 서비스로 간다(#791)
+            # GET /api/v1/products(목록)는 위의 search-product-list가 먼저 잡는다. 이 라우트를 그 위로 옮기면 목록도 상품 서비스로 간다
+            - id: product
+              uri: ${kidly.gateway.product-uri}
               predicates:
-                - Path=/v3/api-docs/payment
-              filters:
-                - SetPath=/v3/api-docs
-            # 나머지는 모두 kidly-app으로 간다. 다른 서비스의 경로는 이 위에 더한다
-            - id: kidly-app
-              uri: ${kidly.gateway.app-uri}
+                - Path=/api/v1/products/**,/api/v1/categories/**,/api/v1/seller/products/**,/api/v1/seller/product-images/**,/api/v1/seller/options/**,/api/v1/admin/products/**,/api/v1/admin/categories/**,/api/v1/admin/product-types/**,/api/v1/admin/attributes/**,/api/v1/admin/measurement-items/**
+            # 주문 · 장바구니 · 배송(판매자 주문) · 조르기 API와 주문 관리자 API(DLT · 아웃박스 · 멈춘 주문 · 결제 복구 · 이벤트 처리 실패 · 구매확정 재발행)는 주문 서비스로 간다
+            - id: order
+              uri: ${kidly.gateway.order-uri}
+              predicates:
+                - Path=/api/v1/orders/**,/api/v1/cart/**,/api/v1/wish/**,/api/v1/seller/orders/**,/api/v1/admin/orders/**
+            # 리뷰 · 찜 API와 커뮤니티 관리자 API(DLT)는 커뮤니티 서비스로 간다
+            - id: community
+              uri: ${kidly.gateway.community-uri}
+              predicates:
+                - Path=/api/v1/reviews/**,/api/v1/favorites/**,/api/v1/admin/community/**
+            # 알림함 API는 알림 서비스로 간다(#852)
+            - id: notification
+              uri: ${kidly.gateway.notification-uri}
+              predicates:
+                - Path=/api/v1/notifications/**
+            # 나머지는 어느 서비스에도 넘기지 않고 404 ProblemDetail로 답한다. 인증 · 역할 검사(GlobalFilter)는 라우트가 있어야 돌므로 모든 경로를 받아 둔다.
+            # 새 서비스 경로는 이 위에 더한다
+            - id: not-found
+              uri: no://op
               predicates:
                 - Path=/**
-  # Kafka. auth.tokens-revoked를 받는다(구독 그룹 kidly.gateway). 값은 kidly-app과 같다
+              filters:
+                - NotFound
+  # Kafka. auth.tokens-revoked를 받는다(구독 그룹 kidly.gateway).
   # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
   kafka:
     bootstrap-servers: localhost:9092
@@ -152,7 +145,7 @@ management:
         include: health,prometheus
 
 jwt:
-  # Access Token 유효 기간. kidly-app auth.yml과 같은 값이어야 한다. 무효화 기록 보존 기간(+ 시계 오차 60초)도 여기서 나온다
+  # Access Token 유효 기간. 회원 서비스 auth.yml과 같은 값이어야 한다. 무효화 기록 보존 기간(+ 시계 오차 60초)도 여기서 나온다
   access-token-validity: 30m
 
 ---
@@ -161,30 +154,35 @@ spring:
     activate:
       on-profile: local
 
-# kidly-app(8080) · member-service(8081) · search-service(8082) · childprofile-service(8084) · recommend-service(8086) · payment-service(8087) · settlement-service(8088)와 같이 띄운다
+# member-service(8081) · search-service(8082) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) · product-service(8089) · order-service(8091) · community-service(8092) · notification-service(8090)와 같이 띄운다
 server:
   port: 8083
 
 kidly:
   gateway:
-    app-uri: http://localhost:8080
-    # 회원 · 인증 · 판매자는 kidly-app에 없다. member-service(8081)를 띄워야 회원 API가 된다
+    # member-service(8081)를 띄워야 회원 API가 된다
     member-uri: ${KIDLY_MEMBER_URI:http://localhost:8081}
-    # 상품 목록은 kidly-app에 없다(#791). search-service(8082)를 띄워야 상품 목록 API가 된다
+    # search-service(8082)를 띄워야 상품 목록 API가 된다
     search-uri: ${KIDLY_SEARCH_URI:http://localhost:8082}
-    # 자녀 프로필은 kidly-app에 없다. childprofile-service(8084)를 띄워야 자녀 API가 된다
-    childprofile-uri: ${KIDLY_CHILDPROFILE_URI:http://localhost:8084}
-    # 추천은 kidly-app에 없다. recommend-service(8086)를 띄워야 추천 API가 된다
+    # recommend-service(8086)를 띄워야 추천 API가 된다
     recommend-uri: ${KIDLY_RECOMMEND_URI:http://localhost:8086}
-    # 정산은 kidly-app에 없다. settlement-service(8088)를 띄워야 정산 API가 된다
+    # settlement-service(8088)를 띄워야 정산 API가 된다
     settlement-uri: ${KIDLY_SETTLEMENT_URI:http://localhost:8088}
-    # 결제는 kidly-app에 없다(#525). payment-service(8087)를 띄워야 결제 API가 된다
+    # payment-service(8087)를 띄워야 결제 API가 된다
     payment-uri: ${KIDLY_PAYMENT_URI:http://localhost:8087}
+    # product-service(8089)를 띄워야 상품 API가 된다
+    product-uri: ${KIDLY_PRODUCT_URI:http://localhost:8089}
+    # order-service(8091)를 띄워야 주문 · 장바구니 · 조르기 API가 된다
+    order-uri: ${KIDLY_ORDER_URI:http://localhost:8091}
+    # community-service(8092)를 띄워야 리뷰 · 찜 API가 된다
+    community-uri: ${KIDLY_COMMUNITY_URI:http://localhost:8092}
+    # notification-service(8090)를 띄워야 알림함 API가 된다
+    notification-uri: ${KIDLY_NOTIFICATION_URI:http://localhost:8090}
 
 cors:
   allowed-origins: http://localhost:5173
 
-# 로컬 전용 키(kidly-app과 같은 키). 상대 경로라서 프로젝트 루트에서 실행해야 한다 (bootRun은 기본으로 루트)
+# 로컬 전용 키(회원 서비스와 같은 키). 상대 경로라서 프로젝트 루트에서 실행해야 한다 (bootRun은 기본으로 루트)
 jwt:
   public-key: file:config/jwt/local-public.pem
 
@@ -198,7 +196,7 @@ logging:
   file:
     path: ${LOG_PATH:./logs}
   # 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘으면 나뉘어 Loki 에서 JSON 으로 못 읽는다. 예외마다 프레임 수만 줄인다
-  # max-length 는 쓰지 않는다: 앞에서부터 잘라 마지막 Caused by(기동 실패 원인)가 사라진다. kidly-app application-prod.yml 과 같다
+  # max-length 는 쓰지 않는다: 앞에서부터 잘라 마지막 Caused by(기동 실패 원인)가 사라진다.
   structured:
     json:
       stacktrace:
@@ -206,13 +204,15 @@ logging:
 
 kidly:
   gateway:
-    app-uri: ${KIDLY_APP_URI}
     member-uri: ${KIDLY_MEMBER_URI}
     search-uri: ${KIDLY_SEARCH_URI}
-    childprofile-uri: ${KIDLY_CHILDPROFILE_URI}
     recommend-uri: ${KIDLY_RECOMMEND_URI}
     settlement-uri: ${KIDLY_SETTLEMENT_URI}
     payment-uri: ${KIDLY_PAYMENT_URI}
+    product-uri: ${KIDLY_PRODUCT_URI}
+    order-uri: ${KIDLY_ORDER_URI}
+    community-uri: ${KIDLY_COMMUNITY_URI}
+    notification-uri: ${KIDLY_NOTIFICATION_URI}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}

@@ -14,8 +14,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 결제 서비스가 결제 도메인만으로 뜨고, 결제 API를 kidly-app과 같은 주소 · 같은 응답 형식으로 내는지 본다.
- * API마다의 동작은 kidly-app의 결제 기능 테스트가 확인하고, 여기서는 지갑 조회 하나로 본다.
+ * 결제 서비스가 결제 도메인만으로 뜨고, 결제 API를 정해진 주소 · 응답 형식으로 내는지 본다.
+ * 여기서는 지갑 조회 하나로 본다.
  */
 @FunctionalTest
 class PaymentServiceApplicationApiTest {
@@ -40,7 +40,7 @@ class PaymentServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("다른 도메인 API는 없어 kidly-app과 같은 ProblemDetail 형식의 404를 받는다")
+    @DisplayName("다른 도메인 API는 없어 ProblemDetail 형식의 404를 받는다")
     void noOtherDomainApi() {
         client.get().uri("/api/v1/orders")
             .headers(TestMembers.buyer(PaymentFixture.MEMBER_ID))
@@ -76,7 +76,7 @@ class PaymentServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("내 지갑 API를 kidly-app과 같은 주소로 부르면 같은 형식으로 잔액을 답한다")
+    @DisplayName("내 지갑 API를 부르면 정해진 형식으로 잔액을 답한다")
     void myWallet() {
         walletRepository.save(PaymentFixture.wallet(15_000L));
 

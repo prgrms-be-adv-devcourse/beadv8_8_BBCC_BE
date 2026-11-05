@@ -24,4 +24,15 @@ class SellerEventsTest {
         assertThat(event.aggregateId()).isEqualTo("2");
         assertThat(event.correlationId()).isEqualTo("2");
     }
+    @Test
+    @DisplayName("신청 거절 이벤트는 seller.application-rejected이고 키는 신청 ID다")
+    void applicationRejected() {
+        var event = new SellerApplicationRejectedEvent(EVENT_ID, NOW,
+            new SellerApplicationRejectedEvent.Data(3L, 2L, "거절 사유", NOW));
+
+        assertThat(event.eventType()).isEqualTo("seller.application-rejected");
+        assertThat(event.producer()).isEqualTo("seller");
+        assertThat(event.aggregateId()).isEqualTo("3");
+        assertThat(event.correlationId()).isEqualTo("3");
+    }
 }

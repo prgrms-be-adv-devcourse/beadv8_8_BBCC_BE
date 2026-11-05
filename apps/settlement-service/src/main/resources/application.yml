@@ -16,11 +16,9 @@ spring:
     table: flyway_schema_history_settlement
     # 이미 정산 테이블이 있는 DB(dev · prod · 공유 로컬)는 첫 기동 때 kidly-app이 정산을 가지고 있던 동안 마지막으로 적용한 파일(판매자 · 기간 종료일 유일 제약)
     # 버전으로 baseline을 잡고 그때까지의 파일을 건너뛴다. 이제 정산 마이그레이션은 이 서비스만 적용하므로 이 값은 바꾸지 않는다. 빈 DB(테스트)는 baseline 없이 init부터 적용한다
-    # 빈 DB에서 kidly-app이 먼저 뜨면 kidly-app init이 정산 테이블을 init 모양으로만 만든다. 그 DB에서 baseline으로 건너뛴 아웃박스 · 유일 키는
-    # 보강 마이그레이션(V202611031547)이 없을 때만 만든다(SettlementMigrationIntegrationTest)
     baseline-on-migrate: true
     baseline-version: 202611021248
-    # kidly-app과 같은 이유(버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있다)로 옛 버전도 적용한다
+    # 버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있으므로 옛 버전도 적용한다
     out-of-order: true
   jpa:
     open-in-view: false
@@ -28,13 +26,13 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        # kidly-app과 같다. 트랜잭션이 끝나면 DB 연결을 바로 돌려주고(커밋 뒤 리스너가 연결을 더 쥐지 않게),
+        # 트랜잭션이 끝나면 DB 연결을 바로 돌려주고(커밋 뒤 리스너가 연결을 더 쥐지 않게),
         # 그래서 DB가 막지 못하는 읽기 전용 트랜잭션의 쓰기를 SQL을 보내기 전에 막는다
         connection:
           handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
         session_factory:
           statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
-  # Kafka. 정산 이벤트(지급 요청)를 보내고 구매확정 · 지급 결과를 받는다(구독 그룹 kidly.settlement). 값은 kidly-app과 같다
+  # Kafka. 정산 이벤트(지급 요청)를 보내고 구매확정 · 지급 결과를 받는다(구독 그룹 kidly.settlement)
   # 서버는 SPRING_KAFKA_BOOTSTRAP_SERVERS로, 테스트는 Testcontainers가 덮어쓴다
   kafka:
     bootstrap-servers: localhost:9092
@@ -47,9 +45,15 @@ spring:
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app과 같은 구독 그룹이라 책갈피를 이어 쓴다
+      # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app에서 쓰던 구독 그룹을 이어받아 책갈피를 이어 쓴다
       # 다만 정산 리스너 팩토리(SettlementKafkaListenerConfig)가 earliest로 덮어쓴다. 이 값은 그 밖의 컨슈머에만 적용된다
       auto-offset-reset: latest
+  task:
+    scheduling:
+      shutdown:
+        # 정산 Batch는 스케줄러 스레드에서 동기로 돈다. SIGTERM 때 돌던 정산을 최대 30초 기다린 뒤 끈다(기본은 기다리지 않아 기록이 STARTED로 남는다)
+        await-termination: true
+        await-termination-period: 30s
 
 springdoc:
   swagger-ui:
@@ -73,7 +77,7 @@ spring:
     username: kidly
     password: kidly
 
-# kidly-app(8080) · search(8082) · gateway(8083) · childprofile(8084) · recommend(8086)와 같이 띄울 수 있게 포트를 나눈다
+# search(8082) · gateway(8083) · recommend(8086)와 같이 띄울 수 있게 포트를 나눈다
 server:
   port: 8088
 
@@ -97,7 +101,7 @@ springdoc:
 logging:
   file:
     path: ${LOG_PATH:./logs}
-  # kidly-app application-prod.yml과 같다. 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘지 않게 예외마다 프레임 수만 줄인다
+  # 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘지 않게 예외마다 프레임 수만 줄인다
   structured:
     json:
       stacktrace:
