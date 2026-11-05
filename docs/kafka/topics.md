@@ -42,4 +42,7 @@
 - 두 이벤트는 상태 변경 트랜잭션에서 발행하고 기존 릴레이로 DB 커밋 후 Kafka에 전송한다. 롤백 시 전송하지 않는다. 기존 비동기 직접 전송 방식이므로 장애 시 유실될 수 있다.
 - `reason`은 대상 회원에게 안내할 사유다. 이벤트 본문과 사유를 로그에 남기지 않는다.
 - 수신 도메인 `notification`은 위 이벤트로 정지 사유 · 거절 사유 메일을 보낸다.
+- `payment.refunded` (`PaymentRefundedEvent`): `memberId`(환불받은 회원), `orderId`, `cancellationId`, `items`(`orderItemId` · `amount`), `amount`(총 환불 금액, 원). 키는 주문 ID. 판매자가 주문상품 일부를 취소해 환불하면(`order-item.cancelled`) `cancellationId`가 있고, 주문 전체가 취소돼 환불하면(`order.cancelled`) `null`이다. `items[].amount`의 합은 `amount`와 같다. `memberId`를 더하기 전의 메시지에는 없어 `null`로 읽힌다. 환불에 실패했거나 환불하지 않은 경우(회원 불일치, 이미 환불됨)에는 보내지 않는다.
+- `payment.payout-completed` (`PaymentPayoutCompletedEvent`): `settlementId`, `sellerId`, `amount`(실제로 입금한 금액, 원). 키는 정산서 ID. 0원 정산도 `amount=0`으로 보낸다. 같은 정산서의 지급 요청이 다시 오면 입금하지 않고 처음 결과로 다시 보내며, 이때 `eventId`가 달라진다.
+- 수신 도메인 `notification`은 환불 완료 메일을 `memberId`에게 보내고, `memberId`가 `null`인 예전 메시지는 받는 사람을 알 수 없어 보내지 않는다. 정산금 지급 메일은 판매자에게 보내되 0원 정산은 입금이 없어 보내지 않고, `eventId` 대신 `settlementId`로 한 통만 만든다.
 - 기존 회원 이메일은 Kafka에 보관된 `member.registered`를 알림 도메인이 재소비해 채운다. `member.registered` 데이터(`memberId`, `email`)는 유지하며 `resent` 추가나 회원 도메인의 재발행은 하지 않는다.
