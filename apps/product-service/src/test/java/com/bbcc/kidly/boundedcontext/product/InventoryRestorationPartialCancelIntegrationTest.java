@@ -12,8 +12,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryRestorationService;
 import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -25,12 +24,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 판매자 부분 취소(주문상품 취소됨)를 받아 취소한 주문상품의 차감만 되돌리는 흐름을 실제 PostgreSQL로 확인한다(#693).
  * 차감은 서비스를 직접 불러 준비한다. 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다.
- * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않고 발행만 트랜잭션 안에서 한다.
+ * 서비스가 트랜잭션을 직접 열고 커밋하므로 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
@@ -40,13 +38,10 @@ class InventoryRestorationPartialCancelIntegrationTest {
     private static final long CANCELLATION_ID = 7L;
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
-
-    @Autowired
     private InventoryDeductionService inventoryDeductionService;
+
+    @Autowired
+    private InventoryRestorationService inventoryRestorationService;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -76,7 +71,7 @@ class InventoryRestorationPartialCancelIntegrationTest {
             orderItem(12L, options.navy120(), 1),
             orderItem(13L, options.navy110(), 1)));
 
-        publishInTransaction(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
+        inventoryRestorationService.restore(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
             cancelledOrderItem(11L, options.navy110(), 2),
             cancelledOrderItem(13L, options.navy110(), 1)));
 
@@ -98,8 +93,8 @@ class InventoryRestorationPartialCancelIntegrationTest {
         OrderItemCancelledEvent event = orderItemCancelled(ORDER_ID, CANCELLATION_ID,
             cancelledOrderItem(11L, options.navy110(), 2));
 
-        publishInTransaction(event);
-        publishInTransaction(event);
+        inventoryRestorationService.restore(event);
+        inventoryRestorationService.restore(event);
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.records()).containsExactlyInAnyOrder(
@@ -114,10 +109,10 @@ class InventoryRestorationPartialCancelIntegrationTest {
         inventoryDeductionService.deduct(orderCreated(ORDER_ID,
             orderItem(11L, options.navy110(), 2),
             orderItem(12L, options.navy120(), 1)));
-        publishInTransaction(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
+        inventoryRestorationService.restore(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
             cancelledOrderItem(11L, options.navy110(), 2)));
 
-        publishInTransaction(orderCancelled(ORDER_ID,
+        inventoryRestorationService.restore(orderCancelled(ORDER_ID,
             cancelledItem(11L, options.navy110(), 2),
             cancelledItem(12L, options.navy120(), 1)));
 
@@ -137,7 +132,7 @@ class InventoryRestorationPartialCancelIntegrationTest {
             orderItem(12L, options.navy120(), 1)));
         eventRecorder.clear();
 
-        publishInTransaction(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
+        inventoryRestorationService.restore(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
             cancelledOrderItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(2);
@@ -154,7 +149,7 @@ class InventoryRestorationPartialCancelIntegrationTest {
     void changeNothingWhenPartialCancelHasNoDeduction(CapturedOutput output) {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
 
-        publishInTransaction(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
+        inventoryRestorationService.restore(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
             cancelledOrderItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
@@ -168,7 +163,7 @@ class InventoryRestorationPartialCancelIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
-        publishInTransaction(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
+        inventoryRestorationService.restore(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
             cancelledOrderItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(1);
@@ -183,7 +178,7 @@ class InventoryRestorationPartialCancelIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
-        publishInTransaction(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
+        inventoryRestorationService.restore(orderItemCancelled(ORDER_ID, CANCELLATION_ID,
             cancelledOrderItem(11L, options.navy110(), 2),
             cancelledOrderItem(14L, options.navy120(), 1)));
 
@@ -193,9 +188,5 @@ class InventoryRestorationPartialCancelIntegrationTest {
             .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "RESTORED"));
         assertThat(output.getOut())
             .containsPattern("ERROR .*차감 기록이 없는 주문상품이 든 주문상품 취소됨.*orderItemIds=\\[14\\]");
-    }
-
-    private void publishInTransaction(DomainEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }

@@ -26,7 +26,7 @@
 | `order-item.cancelled` | 같은 리스너 | 판매자가 발송 전에 취소한 주문상품의 재고 복구(#693) |
 | `seller.changed` | `kidly.seller.events` · `in/replica/ProductSellerKafkaListener` | 판매자 복사본(`replica_seller`) 갱신. 상세 · 목록의 상호명 |
 
-- Kafka 스위치가 꺼지면 주문 이벤트를 Spring 리스너(`Product*EventListener`, `@ConditionalOnProperty`)가 받는다. 판매자 이벤트는 Kafka로만 받는다. 상품 서비스에는 주문 이벤트를 Spring으로 내는 곳이 없어, 이 길은 테스트만 쓴다
+- 주문 · 판매자 이벤트는 Kafka로만 받는다. 상품 서비스에는 주문 이벤트를 Spring 이벤트로 내는 곳이 없어 Spring 리스너를 두지 않는다
 
 ## Kafka 발행 (아웃박스, #551 · #565)
 - 커밋 직전(`BEFORE_COMMIT`)에 상품이 발행한 이벤트(`producer() = product`)만 `product_outbox`에 저장한다. 업무와 같은 트랜잭션이라 업무가 롤백되면 메시지도 없고, 저장이 실패하면 업무도 롤백된다
@@ -45,7 +45,7 @@
 ## Kafka 수신 (#692 · #693)
 - 구독 그룹 `kidly.product`, 팩토리 `in/ProductKafkaListenerConfig`. 헤더 `eventType`으로 고르고, 받지 않는 종류는 건너뛰며, 헤더가 없으면 DLT로 보낸다
 - 실패하면 1초 간격으로 3번 더 시도한 뒤 `{토픽}.product.dlt`(파티션 `-1`)로 보낸다. 읽지 못한 본문과 다시 해도 같은 예외(NPE · `IllegalArgumentException` · `IllegalStateException` · `BusinessException`)는 바로 보낸다
-- 스위치 `kidly.product.kafka.consumer.enabled`(환경 변수 `PRODUCT_KAFKA_CONSUMER_ENABLED`, 기본 true, 테스트 false). true면 Kafka 리스너가 받고, false면 주문 이벤트만 Spring 리스너가 받는다. 서버에서 false로 두면 수신이 멈춰 재고 차감 · 결제 요청도 멈추므로 장애를 되돌리는 용도로 쓰지 않는다. 시작 여부는 `spring.kafka.listener.auto-startup`이 아니라 리스너 애노테이션의 `autoStartup`이 정한다
+- 스위치 `kidly.product.kafka.consumer.enabled`(환경 변수 `PRODUCT_KAFKA_CONSUMER_ENABLED`, 기본 true, 테스트 false). true면 Kafka 리스너가 시작하고, false면 시작하지 않는다(테스트가 필요한 리스너를 직접 켠다). 서버에서 false로 두면 수신이 멈춰 재고 차감 · 결제 요청도 멈추므로 장애를 되돌리는 용도로 쓰지 않는다. 시작 여부는 `spring.kafka.listener.auto-startup`이 아니라 리스너 애노테이션의 `autoStartup`이 정한다
     - false 동안 Kafka에 쌓인 메시지는 true로 올릴 때 처리된다
 - 두 번 받아도 1회분이다. 판매자 복사본은 저장된 시각보다 늦은 변경만 반영하고, 주문 생성됨은 주문상품마다 차감 기록이 한 줄(UNIQUE)이다
 - 키가 주문 ID라 한 주문의 이벤트는 순서대로 처리한다. 취소가 생성보다 먼저 오면 FAILED를 남기고 뒤에 온 생성은 차감하지 않는다(INV-09)

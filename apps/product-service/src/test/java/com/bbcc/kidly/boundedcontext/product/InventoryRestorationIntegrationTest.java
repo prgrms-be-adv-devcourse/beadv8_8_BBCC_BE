@@ -5,25 +5,25 @@ import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.orderC
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
+import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryRestorationService;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 주문 취소됨을 받아 그 주문에서 차감한 재고를 되돌리는 흐름을 실제 PostgreSQL로 확인한다.
- * 주문 생성됨 리스너가 아직 없어서 차감은 서비스를 직접 불러 준비한다.
- * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않고 발행만 트랜잭션 안에서 한다.
+ * 차감과 복구 모두 서비스를 직접 부른다. 서비스가 트랜잭션을 직접 열고 커밋하므로 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest
 class InventoryRestorationIntegrationTest {
@@ -31,13 +31,10 @@ class InventoryRestorationIntegrationTest {
     private static final long ORDER_ID = 100L;
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
-
-    @Autowired
     private InventoryDeductionService inventoryDeductionService;
+
+    @Autowired
+    private InventoryRestorationService inventoryRestorationService;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -54,15 +51,15 @@ class InventoryRestorationIntegrationTest {
     }
 
     @Test
-    @DisplayName("INV-07 주문 취소됨을 발행한 트랜잭션이 커밋되면 리스너가 그 주문의 DEDUCTED 기록을 모두 RESTORED로 바꾸고 두 옵션의 수량을 되돌린다")
-    void restoreAfterCommit() {
+    @DisplayName("INV-07 주문 취소됨을 받으면 그 주문의 DEDUCTED 기록을 모두 RESTORED로 바꾸고 두 옵션의 수량을 되돌린다")
+    void restoreAllDeductedOrderItems() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         inventoryDeductionService.deduct(orderCreated(ORDER_ID,
             orderItem(11L, options.navy110(), 2),
             orderItem(12L, options.navy110(), 3),
             orderItem(13L, options.navy120(), 1)));
 
-        publishInTransaction(orderCancelled(ORDER_ID,
+        inventoryRestorationService.restore(orderCancelled(ORDER_ID,
             cancelledItem(11L, options.navy110(), 2),
             cancelledItem(12L, options.navy110(), 3),
             cancelledItem(13L, options.navy120(), 1)));
@@ -76,30 +73,14 @@ class InventoryRestorationIntegrationTest {
     }
 
     @Test
-    @DisplayName("주문 취소됨을 발행한 트랜잭션이 롤백되면 재고와 차감 기록이 그대로다")
-    void keepStockAfterRollback() {
-        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
-
-        transactionTemplate.executeWithoutResult(status -> {
-            eventPublisher.publish(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
-            status.setRollbackOnly();
-        });
-
-        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
-        assertThat(inventoryDeductionDb.records())
-            .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
-    }
-
-    @Test
     @DisplayName("INV-08 같은 주문 취소됨을 두 번 받아도 재고를 한 번만 되돌린다")
     void restoreOnceWhenSameEventArrivesTwice() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
         OrderCancelledEvent event = orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2));
 
-        publishInTransaction(event);
-        publishInTransaction(event);
+        inventoryRestorationService.restore(event);
+        inventoryRestorationService.restore(event);
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.records())
@@ -113,7 +94,7 @@ class InventoryRestorationIntegrationTest {
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
         inventoryDeductionDb.stopSale(options.navy110());
 
-        publishInTransaction(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
+        inventoryRestorationService.restore(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.records())
@@ -125,7 +106,7 @@ class InventoryRestorationIntegrationTest {
     void recordFailedWhenCancelledBeforeCreated() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
 
-        publishInTransaction(orderCancelled(ORDER_ID,
+        inventoryRestorationService.restore(orderCancelled(ORDER_ID,
             cancelledItem(11L, options.navy110(), 2),
             cancelledItem(12L, options.navy120(), 1)));
         inventoryDeductionService.deduct(orderCreated(ORDER_ID,
@@ -145,7 +126,7 @@ class InventoryRestorationIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
-        publishInTransaction(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
+        inventoryRestorationService.restore(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(1);
         assertThat(inventoryDeductionDb.records())
@@ -166,9 +147,9 @@ class InventoryRestorationIntegrationTest {
         // 나중에 되돌리는 옵션의 수량을 int 최댓값으로 두어, 더하는 UPDATE가 DB의 정수 범위를 넘어 실패하게 한다
         setAvailableQty(second, Integer.MAX_VALUE);
         try {
-            publishInTransaction(orderCancelled(ORDER_ID,
+            assertThatThrownBy(() -> inventoryRestorationService.restore(orderCancelled(ORDER_ID,
                 cancelledItem(11L, options.navy110(), 2),
-                cancelledItem(12L, options.navy120(), 1)));
+                cancelledItem(12L, options.navy120(), 1)))).isInstanceOf(DataAccessException.class);
 
             assertThat(inventoryDeductionDb.availableQty(first)).isEqualTo(firstQty);
             assertThat(inventoryDeductionDb.availableQty(second)).isEqualTo(Integer.MAX_VALUE);
@@ -189,9 +170,5 @@ class InventoryRestorationIntegrationTest {
     private void setAvailableQty(ProductOption option, int qty) {
         jdbcTemplate.update("update product.inventory set available_qty = ? where product_option_id = ?",
             qty, option.getId());
-    }
-
-    private void publishInTransaction(OrderCancelledEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }

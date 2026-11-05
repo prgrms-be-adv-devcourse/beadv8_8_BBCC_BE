@@ -10,8 +10,8 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
+import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryRestorationService;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
@@ -23,11 +23,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 상품 리스너가 주문 생성됨의 재고 차감을 거절하면 재고 부족함을 보내는지 실제 PostgreSQL로 확인한다.
- * 리스너는 발행한 트랜잭션이 커밋될 때 같은 스레드에서 돌므로, 발행이 끝나면 결과를 바로 읽을 수 있다.
+ * 재고 차감 서비스가 주문 생성됨의 차감을 거절하면 재고 부족함을 보내는지 실제 PostgreSQL로 확인한다.
+ * 서비스는 트랜잭션을 직접 열고 커밋하므로, 서비스를 부르고 나면 결과를 바로 읽을 수 있다.
  * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다.
  */
 @IntegrationTest
@@ -36,10 +35,10 @@ class ProductStockDeductionFailedIntegrationTest {
     private static final long ORDER_ID = 100L;
 
     @Autowired
-    private EventPublisher eventPublisher;
+    private InventoryDeductionService inventoryDeductionService;
 
     @Autowired
-    private TransactionTemplate transactionTemplate;
+    private InventoryRestorationService inventoryRestorationService;
 
     @Autowired
     private ProductOptionSaver productOptionSaver;
@@ -65,7 +64,7 @@ class ProductStockDeductionFailedIntegrationTest {
     void publishStockDeductionFailedWhenStockIsShort() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 1);
 
-        publishInTransaction(orderCreated(ORDER_ID,
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
             orderItem(11L, options.navy110(), 2),
             orderItem(12L, options.navy120(), 2)));
 
@@ -88,7 +87,7 @@ class ProductStockDeductionFailedIntegrationTest {
     void includeEveryShortOptionInStockDeductionFailed() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 1);
 
-        publishInTransaction(orderCreated(ORDER_ID,
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
             orderItem(11L, options.navy110(), 2),
             orderItem(12L, options.navy120(), 2)));
 
@@ -106,7 +105,7 @@ class ProductStockDeductionFailedIntegrationTest {
         // 옵션 ID는 navy110이 더 작아서 navy110(모자람) 다음에 navy120(충분)을 줄여 본다
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 10);
 
-        publishInTransaction(orderCreated(ORDER_ID,
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID,
             orderItem(11L, options.navy110(), 2),
             orderItem(12L, options.navy120(), 2)));
 
@@ -124,7 +123,7 @@ class ProductStockDeductionFailedIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         inventoryDeductionDb.stopSale(options.navy110());
 
-        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.countByStatus("FAILED")).isEqualTo(1);
@@ -144,8 +143,8 @@ class ProductStockDeductionFailedIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
         OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
 
-        publishInTransaction(event);
-        publishInTransaction(event);
+        inventoryDeductionService.deduct(event);
+        inventoryDeductionService.deduct(event);
 
         assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).hasSize(1);
     }
@@ -155,8 +154,8 @@ class ProductStockDeductionFailedIntegrationTest {
     void sendNoStockDeductionFailedWhenCancelledBeforeCreated() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
 
-        publishInTransaction(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
-        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+        inventoryRestorationService.restore(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(inventoryDeductionDb.countByStatus("FAILED")).isEqualTo(1);
@@ -168,7 +167,7 @@ class ProductStockDeductionFailedIntegrationTest {
     void sendNoStockDeductionFailedWhenDeducted() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
 
-        publishInTransaction(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
+        inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2)));
 
         assertThat(eventRecorder.events(StockDeductedEvent.class)).hasSize(1);
         assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).isEmpty();
@@ -183,15 +182,10 @@ class ProductStockDeductionFailedIntegrationTest {
         // 차감 기록 표를 잠근 채 두 처리를 출발시켜, 둘 다 거절한 뒤 FAILED 기록을 넣으려다 함께 기다리게 한다.
         // 모자란 수량은 UPDATE 조건에 맞지 않아 재고 행 잠금을 기다리지 않으므로 재고 행 대신 이 표를 잠근다
         runRacing(inventoryDeductionDb, inventoryDeductionDb.lockDeductionTable(), List.of(
-            () -> publishInTransaction(event),
-            () -> publishInTransaction(event)));
+            () -> inventoryDeductionService.deduct(event),
+            () -> inventoryDeductionService.deduct(event)));
 
         assertThat(inventoryDeductionDb.countByStatus("FAILED")).isEqualTo(1);
         assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).hasSize(1);
-    }
-
-    // 주문 저장처럼 트랜잭션 안에서 주문 이벤트를 발행하고 커밋한다
-    private void publishInTransaction(DomainEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }

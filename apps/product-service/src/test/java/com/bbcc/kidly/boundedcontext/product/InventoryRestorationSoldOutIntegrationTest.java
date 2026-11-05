@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.product.OrderCancelledFixture.orderC
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderCreated;
 import static com.bbcc.kidly.boundedcontext.product.OrderCreatedFixture.orderItem;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.support.CommittedEventRecorder;
@@ -13,7 +14,6 @@ import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryDeductionService;
 import com.bbcc.kidly.boundedcontext.product.app.inventory.InventoryRestorationService;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -27,12 +27,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 주문 취소됨으로 재고를 되돌릴 때 품절이 풀린 옵션의 상품 정보 변경됨이 나가는지 실제 PostgreSQL로 확인한다.
- * 차감은 서비스를 직접 불러 준비하고, 차감이 보낸 이벤트는 지운 뒤 주문 취소됨을 트랜잭션 안에서 발행한다.
+ * 차감은 서비스를 직접 불러 준비하고, 차감이 보낸 이벤트는 지운 뒤 복구 서비스를 직접 부른다.
  * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest
@@ -40,12 +40,6 @@ class InventoryRestorationSoldOutIntegrationTest {
 
     private static final long ORDER_ID = 100L;
     private static final long OTHER_ORDER_ID = 200L;
-
-    @Autowired
-    private EventPublisher eventPublisher;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private InventoryDeductionService inventoryDeductionService;
@@ -86,7 +80,7 @@ class InventoryRestorationSoldOutIntegrationTest {
             inventoryDeductionDb.stopSale(options.navy110());
         }
 
-        publishInTransaction(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
+        inventoryRestorationService.restore(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(2);
         assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
@@ -103,7 +97,7 @@ class InventoryRestorationSoldOutIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
         deductAndClearEvents(orderItem(11L, options.navy110(), 2));
 
-        publishInTransaction(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
+        inventoryRestorationService.restore(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
@@ -115,7 +109,7 @@ class InventoryRestorationSoldOutIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 1);
         deductAndClearEvents(orderItem(11L, options.navy110(), 1), orderItem(12L, options.navy120(), 1));
 
-        publishInTransaction(orderCancelled(ORDER_ID,
+        inventoryRestorationService.restore(orderCancelled(ORDER_ID,
             cancelledItem(11L, options.navy110(), 1),
             cancelledItem(12L, options.navy120(), 1)));
 
@@ -156,9 +150,9 @@ class InventoryRestorationSoldOutIntegrationTest {
         // 나중에 되돌리는 옵션의 수량을 int 최댓값으로 두어, 더하는 UPDATE가 DB의 정수 범위를 넘어 실패하게 한다
         setAvailableQty(second, Integer.MAX_VALUE);
         try {
-            publishInTransaction(orderCancelled(ORDER_ID,
+            assertThatThrownBy(() -> inventoryRestorationService.restore(orderCancelled(ORDER_ID,
                 cancelledItem(11L, options.navy110(), 1),
-                cancelledItem(12L, options.navy120(), 1)));
+                cancelledItem(12L, options.navy120(), 1)))).isInstanceOf(DataAccessException.class);
 
             assertThat(inventoryDeductionDb.availableQty(first)).isZero();
             assertThat(inventoryDeductionDb.countByStatus("DEDUCTED")).isEqualTo(2);
@@ -167,21 +161,6 @@ class InventoryRestorationSoldOutIntegrationTest {
             // 단언이 실패해도 끝난 뒤 재고 불변식을 확인할 수 있게 바꾼 수량을 되돌린다
             setAvailableQty(second, 0);
         }
-    }
-
-    @Test
-    @DisplayName("품절된 옵션을 되돌리는 주문 취소됨을 발행한 트랜잭션이 롤백되면 재고를 되돌리지 않고 상품 정보 변경됨도 보내지 않는다")
-    void sendNothingWhenPublisherRollsBack() {
-        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(2, 5);
-        deductAndClearEvents(orderItem(11L, options.navy110(), 2));
-
-        transactionTemplate.executeWithoutResult(status -> {
-            eventPublisher.publish(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
-            status.setRollbackOnly();
-        });
-
-        assertThat(inventoryDeductionDb.availableQty(options.navy110())).isZero();
-        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
     @Test
@@ -225,10 +204,5 @@ class InventoryRestorationSoldOutIntegrationTest {
     private void setAvailableQty(ProductOption option, int qty) {
         jdbcTemplate.update("update product.inventory set available_qty = ? where product_option_id = ?",
             qty, option.getId());
-    }
-
-    // 주문 취소처럼 트랜잭션 안에서 주문 취소됨을 발행하고 커밋한다
-    private void publishInTransaction(OrderCancelledEvent event) {
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 }
