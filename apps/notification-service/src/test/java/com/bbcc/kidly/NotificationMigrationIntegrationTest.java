@@ -19,8 +19,9 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * 서비스 Flyway가 DB 상태에 따라 알림 테이블을 만들거나 건너뛰는지 본다.
- * kidly-app이 알림을 가지고 있는 동안 쓰던 DB(dev · prod · 공유 로컬)에는 kidly-app이 알림 테이블을 이미 만들어 두었다.
- * 그런 DB에서는 baseline을 잡고 스키마를 바꾸지 않아야 하고, 빈 DB에서는 이 서비스가 알림 테이블을 만든다.
+ * kidly-app이 알림을 가지고 있는 동안 쓰던 DB(dev · prod · 공유 로컬)에는 kidly-app이 baseline 버전까지의 알림 테이블을 이미 만들어 두었다.
+ * 그런 DB에서는 baseline을 잡고 그 뒤에 더한 알림 마이그레이션(도메인 모듈의 db/migration/notification)만 적용해,
+ * 빈 DB에서 처음부터 적용한 것과 스키마가 같아야 한다.
  * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
  */
 @Tag("integration")
@@ -29,19 +30,21 @@ class NotificationMigrationIntegrationTest {
     private static final String BASELINE_VERSION = "202610190901";
 
     @Test
-    @DisplayName("kidly-app이 알림 테이블을 만든 DB에서는 baseline을 잡고 스키마를 바꾸지 않는다")
-    void keepsSchemaWhenKidlyAppCreatedTables() {
+    @DisplayName("kidly-app이 알림 테이블을 만든 DB에서는 baseline을 잡고, 그 뒤 마이그레이션만 적용해 빈 DB와 스키마가 같다")
+    void baselinesWhenKidlyAppCreatedTables() {
         try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
             postgres.start();
             var dataSource = dataSource(postgres);
             var jdbc = new JdbcTemplate(dataSource);
+            var emptyDataSource = otherDatabase(postgres, jdbc, "empty_db");
+            serviceFlyway(emptyDataSource).load().migrate();
             createNotificationTablesLikeKidlyApp(dataSource, jdbc);
-            var before = schema(jdbc);
 
             serviceFlyway(dataSource).load().migrate();
 
-            assertThat(schema(jdbc)).isEqualTo(before);
-            assertThat(historyTypes(jdbc)).containsExactly("BASELINE " + BASELINE_VERSION);
+            assertThat(schema(jdbc)).isEqualTo(schema(new JdbcTemplate(emptyDataSource)));
+            assertThat(historyTypes(jdbc)).first().isEqualTo("BASELINE " + BASELINE_VERSION);
+            assertThat(historyTypes(jdbc)).doesNotContain("SQL " + BASELINE_VERSION);
         }
     }
 
@@ -52,16 +55,14 @@ class NotificationMigrationIntegrationTest {
             postgres.start();
             var dataSource = dataSource(postgres);
             var jdbc = new JdbcTemplate(dataSource);
-            jdbc.execute("CREATE DATABASE kidly_app");
-            var kidlyAppDataSource = new DriverManagerDataSource(
-                postgres.getJdbcUrl().replace("/" + postgres.getDatabaseName(), "/kidly_app"),
-                postgres.getUsername(), postgres.getPassword());
+            var kidlyAppDataSource = otherDatabase(postgres, jdbc, "kidly_app");
             createNotificationTablesLikeKidlyApp(kidlyAppDataSource, new JdbcTemplate(kidlyAppDataSource));
 
             serviceFlyway(dataSource).load().migrate();
 
-            assertThat(schema(jdbc)).isNotEmpty().isEqualTo(schema(new JdbcTemplate(kidlyAppDataSource)));
-            assertThat(historyTypes(jdbc)).containsExactly("SQL " + BASELINE_VERSION);
+            // kidly-app이 만든 알림 테이블은 빈 DB에도 같은 모양으로 생긴다
+            assertThat(schema(jdbc)).containsAll(schema(new JdbcTemplate(kidlyAppDataSource)));
+            assertThat(historyTypes(jdbc)).first().isEqualTo("SQL " + BASELINE_VERSION);
         }
     }
 
@@ -69,7 +70,14 @@ class NotificationMigrationIntegrationTest {
         return new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
     }
 
-    // kidly-app이 적용한 알림 마이그레이션은 이 서비스의 것과 같은 버전 · 구문이다. 적용한 뒤 그 이력은 지워 kidly-app이 만든 상태로 둔다
+    private static DriverManagerDataSource otherDatabase(PostgreSQLContainer postgres, JdbcTemplate jdbc, String name) {
+        jdbc.execute("CREATE DATABASE " + name);
+        return new DriverManagerDataSource(postgres.getJdbcUrl().replace("/" + postgres.getDatabaseName(), "/" + name),
+            postgres.getUsername(), postgres.getPassword());
+    }
+
+    // kidly-app이 적용한 알림 마이그레이션은 이 서비스의 baseline 버전 파일과 같은 버전 · 구문이다.
+    // baseline 버전까지만 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다
     private static void createNotificationTablesLikeKidlyApp(DriverManagerDataSource dataSource, JdbcTemplate jdbc) {
         Flyway.configure()
             .dataSource(dataSource)
@@ -77,6 +85,7 @@ class NotificationMigrationIntegrationTest {
             .defaultSchema("notification")
             .schemas("notification")
             .table("kidly_app_history")
+            .target(BASELINE_VERSION)
             .load()
             .migrate();
         jdbc.execute("DROP TABLE notification.kidly_app_history");
