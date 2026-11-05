@@ -15,9 +15,9 @@
       {
         "datasource": "prometheus",
         "enable": true,
-        "expr": "resets(process_uptime_seconds{job=\"kidly\", instance=\"$instance\"}[1m]) > 0",
+        "expr": "resets(process_uptime_seconds{job=\"$service\", env=\"$env\", instance=\"$instance\"}[1m]) > 0",
         "iconColor": "rgba(255, 96, 96, 1)",
-        "name": "Restart Detection",
+        "name": "재시작 표시",
         "showIn": 0,
         "step": "1m",
         "tagKeys": "restart-tag",
@@ -26,12 +26,23 @@
       }
     ]
   },
-  "description": "Dashboard for Micrometer instrumented applications (Java, Spring Boot, Micronaut)",
+  "description": "환경과 서비스를 먼저 고르세요. 데이터 없음은 정상 판정이 아닙니다. 미배포·운영 중지·해당 서비스의 미제공 지표인지 서비스 오류 화면에서 확인하세요.",
   "editable": true,
   "gnetId": 4701,
   "graphTooltip": 1,
   "hideControls": false,
-  "links": [],
+  "links": [
+    {
+      "title": "서비스 상태",
+      "type": "link",
+      "url": "/d/kidly-http?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
+    },
+    {
+      "title": "서비스 로그",
+      "type": "link",
+      "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
+    }
+  ],
   "refresh": "30s",
   "rows": [
     {
@@ -41,7 +52,7 @@
         {
           "cacheTimeout": null,
           "colorBackground": false,
-          "colorValue": true,
+          "colorValue": false,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
             "rgba(237, 129, 40, 0.89)",
@@ -98,7 +109,7 @@
           "tableColumn": "",
           "targets": [
             {
-              "expr": "process_uptime_seconds{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "process_uptime_seconds{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "",
@@ -108,7 +119,7 @@
             }
           ],
           "thresholds": "",
-          "title": "Uptime",
+          "title": "실행 시간",
           "transparent": false,
           "type": "singlestat",
           "valueFontSize": "80%",
@@ -119,12 +130,13 @@
               "value": "null"
             }
           ],
-          "valueName": "current"
+          "valueName": "current",
+          "description": "정보 표시입니다. 이 값의 크기만으로 장애를 판단하지 않습니다."
         },
         {
           "cacheTimeout": null,
           "colorBackground": false,
-          "colorValue": true,
+          "colorValue": false,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
             "rgba(237, 129, 40, 0.89)",
@@ -181,7 +193,7 @@
           "tableColumn": "",
           "targets": [
             {
-              "expr": "process_start_time_seconds{job=\"kidly\", instance=\"$instance\"}*1000",
+              "expr": "process_start_time_seconds{job=\"$service\", env=\"$env\", instance=\"$instance\"}*1000",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "",
@@ -191,7 +203,7 @@
             }
           ],
           "thresholds": "",
-          "title": "Start time",
+          "title": "기동 시각",
           "transparent": false,
           "type": "singlestat",
           "valueFontSize": "70%",
@@ -202,7 +214,8 @@
               "value": "null"
             }
           ],
-          "valueName": "current"
+          "valueName": "current",
+          "description": "정보 표시입니다. 이 값의 크기만으로 장애를 판단하지 않습니다."
         },
         {
           "cacheTimeout": null,
@@ -263,7 +276,7 @@
           "tableColumn": "",
           "targets": [
             {
-              "expr": "sum(jvm_memory_used_bytes{job=\"kidly\", instance=\"$instance\", area=\"heap\"})*100/sum(jvm_memory_max_bytes{job=\"kidly\",instance=\"$instance\", area=\"heap\"})",
+              "expr": "sum(jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"heap\"})*100/sum(jvm_memory_max_bytes{job=\"$service\", env=\"$env\",instance=\"$instance\", area=\"heap\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "",
@@ -272,7 +285,7 @@
             }
           ],
           "thresholds": "70,90",
-          "title": "Heap used",
+          "title": "힙 사용률",
           "type": "singlestat",
           "valueFontSize": "80%",
           "valueMaps": [
@@ -348,7 +361,7 @@
           "tableColumn": "",
           "targets": [
             {
-              "expr": "sum(jvm_memory_used_bytes{job=\"kidly\", instance=\"$instance\", area=\"nonheap\"})*100/sum(jvm_memory_max_bytes{job=\"kidly\",instance=\"$instance\", area=\"nonheap\"})",
+              "expr": "sum(jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"nonheap\"} and on(job,env,instance,id,area) (jvm_memory_max_bytes{job=\"$service\", env=\"$env\",instance=\"$instance\", area=\"nonheap\"} > 0))*100/sum(jvm_memory_max_bytes{job=\"$service\", env=\"$env\",instance=\"$instance\", area=\"nonheap\"} > 0)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "",
@@ -357,7 +370,7 @@
             }
           ],
           "thresholds": "70,90",
-          "title": "Non-Heap used",
+          "title": "힙 외 사용률 · 상한 있는 풀",
           "type": "singlestat",
           "valueFontSize": "80%",
           "valueMaps": [
@@ -372,18 +385,19 @@
               "value": ""
             }
           ],
-          "valueName": "current"
+          "valueName": "current",
+          "description": "최대 크기가 양수인 힙 외 메모리 풀만 분자·분모에 함께 포함합니다. 상한이 없는 Metaspace 등은 제외하므로 전체 힙 외 메모리 사용률이 아닙니다. 실제 사용량은 메모리 상세에서 확인하세요."
         }
       ],
       "repeat": null,
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "Quick Facts",
+      "title": "먼저 확인: JVM 상태",
       "titleSize": "h6"
     },
     {
-      "collapse": false,
+      "collapse": true,
       "height": 250,
       "panels": [
         {
@@ -418,7 +432,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(http_server_requests_seconds_count{job=\"kidly\", instance=\"$instance\"}[1m]))",
+              "expr": "sum(rate(http_server_requests_seconds_count{job=\"$service\", env=\"$env\", instance=\"$instance\"}[1m]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "HTTP",
@@ -428,7 +442,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Rate",
+          "title": "초당 요청",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -497,7 +511,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(http_server_requests_seconds_count{job=\"kidly\", instance=\"$instance\", status=~\"5..\"}[1m]))",
+              "expr": "sum(rate(http_server_requests_seconds_count{job=\"$service\", env=\"$env\", instance=\"$instance\", status=~\"5..\"}[1m]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "HTTP - 5xx",
@@ -507,7 +521,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Errors",
+          "title": "요청 오류 비율",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -573,7 +587,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(http_server_requests_seconds_sum{job=\"kidly\", instance=\"$instance\", status!~\"5..\"}[1m]))/sum(rate(http_server_requests_seconds_count{job=\"kidly\", instance=\"$instance\", status!~\"5..\"}[1m]))",
+              "expr": "sum(rate(http_server_requests_seconds_sum{job=\"$service\", env=\"$env\", instance=\"$instance\", status!~\"5..\"}[1m]))/sum(rate(http_server_requests_seconds_count{job=\"$service\", env=\"$env\", instance=\"$instance\", status!~\"5..\"}[1m]))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -581,7 +595,7 @@
               "refId": "A"
             },
             {
-              "expr": "max(http_server_requests_seconds_max{job=\"kidly\", instance=\"$instance\", status!~\"5..\"})",
+              "expr": "max(http_server_requests_seconds_max{job=\"$service\", env=\"$env\", instance=\"$instance\", status!~\"5..\"})",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -592,7 +606,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Duration",
+          "title": "응답시간 · 평균/최대",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -623,7 +637,8 @@
               "min": null,
               "show": true
             }
-          ]
+          ],
+          "description": "5xx를 제외한 요청의 평균·관측 최대입니다. p95/p99는 아닙니다. 같은 환경·서비스·시간의 로그도 확인하세요."
         },
         {
           "aliasColors": {},
@@ -659,7 +674,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "tomcat_threads_busy_threads{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "tomcat_threads_busy_threads{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -667,7 +682,7 @@
               "refId": "A"
             },
             {
-              "expr": "tomcat_threads_current_threads{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "tomcat_threads_current_threads{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -675,7 +690,7 @@
               "refId": "B"
             },
             {
-              "expr": "tomcat_threads_config_max_threads{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "tomcat_threads_config_max_threads{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -683,7 +698,7 @@
               "refId": "C"
             },
             {
-              "expr": "jetty_threads_busy{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "jetty_threads_busy{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -691,7 +706,7 @@
               "refId": "D"
             },
             {
-              "expr": "jetty_threads_current{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "jetty_threads_current{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -699,7 +714,7 @@
               "refId": "E"
             },
             {
-              "expr": "jetty_threads_config_max{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "jetty_threads_config_max{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -710,7 +725,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Utilisation",
+          "title": "요청 처리 점유",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -748,11 +763,11 @@
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "I/O Overview",
+      "title": "요청·CPU 상세",
       "titleSize": "h6"
     },
     {
-      "collapse": false,
+      "collapse": true,
       "height": "250px",
       "panels": [
         {
@@ -792,12 +807,12 @@
           "renderer": "flot",
           "seriesOverrides": [],
           "spaceLength": 10,
-          "span": 3,
+          "span": 4,
           "stack": false,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(jvm_memory_used_bytes{job=\"kidly\", instance=\"$instance\", area=\"heap\"})",
+              "expr": "sum(jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"heap\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "used",
@@ -806,7 +821,7 @@
               "step": 2400
             },
             {
-              "expr": "sum(jvm_memory_committed_bytes{job=\"kidly\", instance=\"$instance\", area=\"heap\"})",
+              "expr": "sum(jvm_memory_committed_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"heap\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "committed",
@@ -814,7 +829,7 @@
               "step": 2400
             },
             {
-              "expr": "sum(jvm_memory_max_bytes{job=\"kidly\", instance=\"$instance\", area=\"heap\"})",
+              "expr": "sum(jvm_memory_max_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"heap\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "max",
@@ -825,7 +840,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "JVM Heap",
+          "title": "힙 메모리",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -902,12 +917,12 @@
           "renderer": "flot",
           "seriesOverrides": [],
           "spaceLength": 10,
-          "span": 3,
+          "span": 4,
           "stack": false,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(jvm_memory_used_bytes{job=\"kidly\", instance=\"$instance\", area=\"nonheap\"})",
+              "expr": "sum(jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"nonheap\"})",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 2,
@@ -917,7 +932,7 @@
               "step": 2400
             },
             {
-              "expr": "sum(jvm_memory_committed_bytes{job=\"kidly\", instance=\"$instance\", area=\"nonheap\"})",
+              "expr": "sum(jvm_memory_committed_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"nonheap\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "committed",
@@ -925,7 +940,7 @@
               "step": 2400
             },
             {
-              "expr": "sum(jvm_memory_max_bytes{job=\"kidly\", instance=\"$instance\", area=\"nonheap\"})",
+              "expr": "sum(jvm_memory_max_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"nonheap\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "max",
@@ -936,7 +951,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "JVM Non-Heap",
+          "title": "힙 외 메모리",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1014,12 +1029,12 @@
           "renderer": "flot",
           "seriesOverrides": [],
           "spaceLength": 10,
-          "span": 3,
+          "span": 4,
           "stack": false,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(jvm_memory_used_bytes{job=\"kidly\", instance=\"$instance\"})",
+              "expr": "sum(jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "used",
@@ -1028,7 +1043,7 @@
               "step": 2400
             },
             {
-              "expr": "sum(jvm_memory_committed_bytes{job=\"kidly\", instance=\"$instance\"})",
+              "expr": "sum(jvm_memory_committed_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "committed",
@@ -1036,7 +1051,7 @@
               "step": 2400
             },
             {
-              "expr": "sum(jvm_memory_max_bytes{job=\"kidly\", instance=\"$instance\"})",
+              "expr": "sum(jvm_memory_max_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "max",
@@ -1047,7 +1062,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "JVM Total",
+          "title": "JVM 전체 메모리",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1086,133 +1101,17 @@
               "show": true
             }
           ]
-        },
-        {
-          "aliasColors": {},
-          "bars": false,
-          "dashLength": 10,
-          "dashes": false,
-          "datasource": "prometheus",
-          "editable": true,
-          "error": false,
-          "fill": 1,
-          "grid": {
-            "leftLogBase": 1,
-            "leftMax": null,
-            "leftMin": null,
-            "rightLogBase": 1,
-            "rightMax": null,
-            "rightMin": null
-          },
-          "id": 86,
-          "legend": {
-            "avg": false,
-            "current": true,
-            "max": true,
-            "min": false,
-            "show": true,
-            "total": false,
-            "values": true
-          },
-          "lines": true,
-          "linewidth": 1,
-          "links": [],
-          "nullPointMode": "null",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "renderer": "flot",
-          "seriesOverrides": [],
-          "spaceLength": 10,
-          "span": 3,
-          "stack": false,
-          "steppedLine": false,
-          "targets": [
-            {
-              "expr": "process_memory_vss_bytes{job=\"kidly\", instance=\"$instance\"}",
-              "format": "time_series",
-              "hide": true,
-              "intervalFactor": 2,
-              "legendFormat": "vss",
-              "metric": "",
-              "refId": "A",
-              "step": 2400
-            },
-            {
-              "expr": "process_memory_rss_bytes{job=\"kidly\", instance=\"$instance\"}",
-              "format": "time_series",
-              "intervalFactor": 2,
-              "legendFormat": "rss",
-              "refId": "B"
-            },
-            {
-              "expr": "process_memory_swap_bytes{job=\"kidly\", instance=\"$instance\"}",
-              "format": "time_series",
-              "intervalFactor": 2,
-              "legendFormat": "swap",
-              "refId": "C"
-            },
-            {
-              "expr": "process_memory_rss_bytes{job=\"kidly\", instance=\"$instance\"} + process_memory_swap_bytes{job=\"kidly\", instance=\"$instance\"}",
-              "format": "time_series",
-              "intervalFactor": 2,
-              "legendFormat": "total",
-              "refId": "D"
-            }
-          ],
-          "thresholds": [],
-          "timeFrom": null,
-          "timeShift": null,
-          "title": "JVM Process Memory",
-          "tooltip": {
-            "msResolution": false,
-            "shared": true,
-            "sort": 0,
-            "value_type": "cumulative"
-          },
-          "type": "graph",
-          "x-axis": true,
-          "xaxis": {
-            "buckets": null,
-            "mode": "time",
-            "name": null,
-            "show": true,
-            "values": []
-          },
-          "y-axis": true,
-          "y_formats": [
-            "mbytes",
-            "short"
-          ],
-          "yaxes": [
-            {
-              "format": "bytes",
-              "label": "",
-              "logBase": 1,
-              "max": null,
-              "min": "0",
-              "show": true
-            },
-            {
-              "format": "short",
-              "label": null,
-              "logBase": 1,
-              "max": null,
-              "min": null,
-              "show": true
-            }
-          ]
         }
       ],
       "repeat": null,
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "JVM Memory",
+      "title": "메모리 상세",
       "titleSize": "h6"
     },
     {
-      "collapse": false,
+      "collapse": true,
       "height": 250,
       "panels": [
         {
@@ -1257,7 +1156,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "system_cpu_usage{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "system_cpu_usage{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -1267,7 +1166,7 @@
               "step": 2400
             },
             {
-              "expr": "process_cpu_usage{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "process_cpu_usage{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -1275,7 +1174,7 @@
               "refId": "B"
             },
             {
-              "expr": "avg_over_time(process_cpu_usage{job=\"kidly\", instance=\"$instance\"}[15m])",
+              "expr": "avg_over_time(process_cpu_usage{job=\"$service\", env=\"$env\", instance=\"$instance\"}[15m])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -1286,7 +1185,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "CPU Usage",
+          "title": "CPU 사용률",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1369,7 +1268,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "system_load_average_1m{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "system_load_average_1m{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "system-1m",
@@ -1378,7 +1277,7 @@
               "step": 2400
             },
             {
-              "expr": "system_cpu_count{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "system_cpu_count{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "cpus",
@@ -1388,7 +1287,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Load",
+          "title": "실행 대기 부하",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1471,7 +1370,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "jvm_threads_live_threads{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "jvm_threads_live_threads{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "live",
@@ -1480,7 +1379,7 @@
               "step": 2400
             },
             {
-              "expr": "jvm_threads_daemon_threads{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "jvm_threads_daemon_threads{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "daemon",
@@ -1489,7 +1388,7 @@
               "step": 2400
             },
             {
-              "expr": "jvm_threads_peak_threads{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "jvm_threads_peak_threads{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "peak",
@@ -1497,7 +1396,7 @@
               "step": 2400
             },
             {
-              "expr": "process_threads{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "process_threads{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 2,
@@ -1509,7 +1408,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Threads",
+          "title": "스레드 수",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1591,7 +1490,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "jvm_threads_states_threads{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "jvm_threads_states_threads{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{state}}",
@@ -1601,7 +1500,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Thread States",
+          "title": "스레드 상태",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -1667,7 +1566,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(jvm_gc_pause_seconds_sum{job=\"kidly\", instance=\"$instance\"}[1m])) by (application, instance) / on(application, instance) system_cpu_count",
+              "expr": "sum(rate(jvm_gc_pause_seconds_sum{job=\"$service\", env=\"$env\", instance=\"$instance\"}[1m])) by (application, instance) / on(application, instance) system_cpu_count",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "CPU time spent on GC",
@@ -1677,7 +1576,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "GC Pressure",
+          "title": "GC 부하",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -1773,7 +1672,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "increase(logback_events_total{job=\"kidly\", instance=\"$instance\"}[1m])",
+              "expr": "increase(logback_events_total{job=\"$service\", env=\"$env\", instance=\"$instance\"}[1m])",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 2,
@@ -1786,7 +1685,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Log Events",
+          "title": "초당 로그 발생",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1826,7 +1725,8 @@
               "min": null,
               "show": true
             }
-          ]
+          ],
+          "description": "로그 발생률이며 누적 건수·업무 실패 건수가 아닙니다. 반복 오류는 서비스 오류 화면과 로그로 확인하세요."
         },
         {
           "aliasColors": {},
@@ -1870,7 +1770,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "process_files_open_files{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "process_files_open_files{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -1880,7 +1780,7 @@
               "step": 2400
             },
             {
-              "expr": "process_files_max_files{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "process_files_max_files{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -1893,7 +1793,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "File Descriptors",
+          "title": "열린 파일 수",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1939,11 +1839,11 @@
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "JVM Misc",
+      "title": "스레드·프로세스 상세",
       "titleSize": "h6"
     },
     {
-      "collapse": false,
+      "collapse": true,
       "height": "250px",
       "panels": [
         {
@@ -1992,7 +1892,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "jvm_memory_used_bytes{job=\"kidly\", instance=\"$instance\", id=~\"$jvm_memory_pool_heap\"}",
+              "expr": "jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", id=~\"$jvm_memory_pool_heap\"}",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -2003,7 +1903,7 @@
               "step": 1800
             },
             {
-              "expr": "jvm_memory_committed_bytes{job=\"kidly\", instance=\"$instance\", id=~\"$jvm_memory_pool_heap\"}",
+              "expr": "jvm_memory_committed_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", id=~\"$jvm_memory_pool_heap\"}",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -2014,7 +1914,7 @@
               "step": 1800
             },
             {
-              "expr": "jvm_memory_max_bytes{job=\"kidly\", instance=\"$instance\", id=~\"$jvm_memory_pool_heap\"}",
+              "expr": "jvm_memory_max_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", id=~\"$jvm_memory_pool_heap\"}",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -2073,11 +1973,11 @@
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "JVM Memory Pools (Heap)",
+      "title": "힙 메모리 풀 상세",
       "titleSize": "h6"
     },
     {
-      "collapse": false,
+      "collapse": true,
       "height": 250,
       "panels": [
         {
@@ -2126,7 +2026,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "jvm_memory_used_bytes{job=\"kidly\", instance=\"$instance\", id=~\"$jvm_memory_pool_nonheap\"}",
+              "expr": "jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", id=~\"$jvm_memory_pool_nonheap\"}",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -2137,7 +2037,7 @@
               "step": 1800
             },
             {
-              "expr": "jvm_memory_committed_bytes{job=\"kidly\", instance=\"$instance\", id=~\"$jvm_memory_pool_nonheap\"}",
+              "expr": "jvm_memory_committed_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", id=~\"$jvm_memory_pool_nonheap\"}",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -2148,7 +2048,7 @@
               "step": 1800
             },
             {
-              "expr": "jvm_memory_max_bytes{job=\"kidly\", instance=\"$instance\", id=~\"$jvm_memory_pool_nonheap\"}",
+              "expr": "jvm_memory_max_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", id=~\"$jvm_memory_pool_nonheap\"}",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -2207,11 +2107,11 @@
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "JVM Memory Pools (Non-Heap)",
+      "title": "힙 외 메모리 풀 상세",
       "titleSize": "h6"
     },
     {
-      "collapse": false,
+      "collapse": true,
       "height": 250,
       "panels": [
         {
@@ -2246,7 +2146,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(jvm_gc_pause_seconds_count{job=\"kidly\", instance=\"$instance\"}[1m])",
+              "expr": "rate(jvm_gc_pause_seconds_count{job=\"$service\", env=\"$env\", instance=\"$instance\"}[1m])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -2257,7 +2157,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Collections",
+          "title": "GC 발생",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -2322,7 +2222,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(jvm_gc_pause_seconds_sum{job=\"kidly\", instance=\"$instance\"}[1m])/rate(jvm_gc_pause_seconds_count{job=\"kidly\", instance=\"$instance\"}[1m])",
+              "expr": "rate(jvm_gc_pause_seconds_sum{job=\"$service\", env=\"$env\", instance=\"$instance\"}[1m])/rate(jvm_gc_pause_seconds_count{job=\"$service\", env=\"$env\", instance=\"$instance\"}[1m])",
               "format": "time_series",
               "hide": false,
               "instant": false,
@@ -2331,7 +2231,7 @@
               "refId": "A"
             },
             {
-              "expr": "jvm_gc_pause_seconds_max{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "jvm_gc_pause_seconds_max{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "hide": false,
               "instant": false,
@@ -2343,7 +2243,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Pause Durations",
+          "title": "GC 멈춤 시간",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -2408,7 +2308,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(jvm_gc_memory_allocated_bytes_total{job=\"kidly\", instance=\"$instance\"}[1m])",
+              "expr": "rate(jvm_gc_memory_allocated_bytes_total{job=\"$service\", env=\"$env\", instance=\"$instance\"}[1m])",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 1,
@@ -2416,7 +2316,7 @@
               "refId": "A"
             },
             {
-              "expr": "rate(jvm_gc_memory_promoted_bytes_total{job=\"kidly\", instance=\"$instance\"}[1m])",
+              "expr": "rate(jvm_gc_memory_promoted_bytes_total{job=\"$service\", env=\"$env\", instance=\"$instance\"}[1m])",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 1,
@@ -2427,7 +2327,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Allocated/Promoted",
+          "title": "메모리 할당·이동",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -2465,11 +2365,11 @@
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "Garbage Collection",
+      "title": "메모리 정리(GC) 상세",
       "titleSize": "h6"
     },
     {
-      "collapse": false,
+      "collapse": true,
       "height": "250px",
       "panels": [
         {
@@ -2514,7 +2414,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "jvm_classes_loaded_classes{job=\"kidly\", instance=\"$instance\"}",
+              "expr": "jvm_classes_loaded_classes{job=\"$service\", env=\"$env\", instance=\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "loaded",
@@ -2526,7 +2426,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Classes loaded",
+          "title": "적재 클래스 수",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -2608,7 +2508,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "delta(jvm_classes_loaded_classes{job=\"kidly\",instance=\"$instance\"}[1m])",
+              "expr": "delta(jvm_classes_loaded_classes{job=\"$service\", env=\"$env\",instance=\"$instance\"}[1m])",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -2622,7 +2522,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Class delta",
+          "title": "클래스 증감",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -2668,11 +2568,11 @@
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "Classloading",
+      "title": "클래스 로딩 상세",
       "titleSize": "h6"
     },
     {
-      "collapse": false,
+      "collapse": true,
       "height": "250px",
       "panels": [
         {
@@ -2718,21 +2618,21 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "jvm_buffer_memory_used_bytes{job=\"kidly\", instance=\"$instance\", id=~\"$jvm_buffer_pool\"}",
+              "expr": "jvm_buffer_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", id=~\"$jvm_buffer_pool\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "used",
               "refId": "A"
             },
             {
-              "expr": "jvm_buffer_total_capacity_bytes{job=\"kidly\", instance=\"$instance\", id=~\"$jvm_buffer_pool\"}",
+              "expr": "jvm_buffer_total_capacity_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", id=~\"$jvm_buffer_pool\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "capacity",
               "refId": "B"
             },
             {
-              "expr": "jvm_buffer_count_buffers{job=\"kidly\", instance=\"$instance\", id=~\"$jvm_buffer_pool\"}",
+              "expr": "jvm_buffer_count_buffers{job=\"$service\", env=\"$env\", instance=\"$instance\", id=~\"$jvm_buffer_pool\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -2782,7 +2682,7 @@
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "Buffer Pools",
+      "title": "버퍼 메모리 상세",
       "titleSize": "h6"
     }
   ],
@@ -2792,18 +2692,50 @@
   "templating": {
     "list": [
       {
+        "name": "env",
+        "label": "환경",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(kidly_environment_enabled, env)",
+        "refresh": 1,
+        "current": {
+          "text": "prod",
+          "value": "prod"
+        }
+      },
+      {
+        "name": "service",
+        "label": "서비스",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(kidly_app_expected{env=\"$env\"}, app_job)",
+        "refresh": 1,
+        "current": {
+          "text": "kidly",
+          "value": "kidly"
+        },
+        "multi": false,
+        "includeAll": false
+      },
+      {
         "allFormat": "glob",
         "allValue": null,
         "current": {},
         "datasource": "prometheus",
         "hide": 0,
         "includeAll": false,
-        "label": "Instance",
+        "label": "인스턴스",
         "multi": false,
         "multiFormat": "glob",
         "name": "instance",
         "options": [],
-        "query": "label_values(jvm_memory_used_bytes{job=\"kidly\"}, instance)",
+        "query": "label_values(jvm_memory_used_bytes{job=\"$service\", env=\"$env\"}, instance)",
         "refresh": 2,
         "regex": "",
         "sort": 0,
@@ -2825,7 +2757,7 @@
         "multiFormat": "glob",
         "name": "jvm_memory_pool_heap",
         "options": [],
-        "query": "label_values(jvm_memory_used_bytes{job=\"kidly\", instance=\"$instance\", area=\"heap\"},id)",
+        "query": "label_values(jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"heap\"},id)",
         "refresh": 1,
         "regex": "",
         "sort": 1,
@@ -2847,7 +2779,7 @@
         "multiFormat": "glob",
         "name": "jvm_memory_pool_nonheap",
         "options": [],
-        "query": "label_values(jvm_memory_used_bytes{job=\"kidly\", instance=\"$instance\", area=\"nonheap\"},id)",
+        "query": "label_values(jvm_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\", area=\"nonheap\"},id)",
         "refresh": 1,
         "regex": "",
         "sort": 2,
@@ -2869,7 +2801,7 @@
         "multiFormat": "glob",
         "name": "jvm_buffer_pool",
         "options": [],
-        "query": "label_values(jvm_buffer_memory_used_bytes{job=\"kidly\", instance=\"$instance\"},id)",
+        "query": "label_values(jvm_buffer_memory_used_bytes{job=\"$service\", env=\"$env\", instance=\"$instance\"},id)",
         "refresh": 1,
         "regex": "",
         "sort": 1,
@@ -2913,6 +2845,6 @@
   },
   "timezone": "browser",
   "title": "JVM (Micrometer)",
-  "version": 33,
+  "version": 34,
   "uid": "kidly-jvm"
 }
