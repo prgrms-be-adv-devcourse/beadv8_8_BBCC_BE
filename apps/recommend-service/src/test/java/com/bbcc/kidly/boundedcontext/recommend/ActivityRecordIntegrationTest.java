@@ -138,7 +138,9 @@ class ActivityRecordIntegrationTest {
         return Stream.of(
             Named.of("검색", service -> service.recordSearch(ActivityRecordFixture.searchPerformedEvent())),
             Named.of("장바구니 담기",
-                service -> service.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent())));
+                service -> service.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent())),
+            Named.of("장바구니 빼기",
+                service -> service.recordCartItemRemoved(ActivityRecordFixture.cartItemRemovedEvent())));
     }
 
     @Test
