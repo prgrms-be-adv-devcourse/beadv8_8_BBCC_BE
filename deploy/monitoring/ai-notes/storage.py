@@ -170,6 +170,8 @@ def deliver_accepted(store, context_id):
         with opener().open(request, timeout=5) as response:
             if response.status != 204:
                 raise NotesError('delivery_unavailable')
+    except NotesError:
+        raise
     except Exception:
         raise NotesError('delivery_unavailable') from None
     store.delivered(context_id)

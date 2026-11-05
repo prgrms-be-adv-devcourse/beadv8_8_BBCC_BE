@@ -34,6 +34,8 @@ def handle(request, principal, store, clock=time.time, collector=collect, publis
         store.check_issue_allowed(principal, now)
         try:
             context = collector(environment, now)
+        except NotesError:
+            raise
         except Exception:
             raise NotesError('collection_unavailable') from None
         validate_context(context, now)

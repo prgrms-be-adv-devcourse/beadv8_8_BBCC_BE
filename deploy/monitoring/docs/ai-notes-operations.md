@@ -7,6 +7,8 @@
 일반 모니터링 배포는 코드·화면과 로컬 SQLite/상태 지표만 초기화합니다. 실패해도 기존 모니터링 배포는 계속하고 경고합니다.
 키 등록·PC MCP 활성화·모델 호출·예약 실행은 하지 않습니다.
 
+CPU 강제 제한으로 프로세스가 종료되면 JSON 없이 일반 unavailable 오류가 날 수 있습니다. 영수증을 먼저 확인합니다.
+
 서버 관리자는 승인된 공개키에만 아래 형태의 한정 접근을 추가합니다. principal은 키마다 고유하게 지정합니다.
 
 ```text
@@ -47,5 +49,5 @@ sudo -u deploy python3 /opt/app/monitoring/ai-notes/maintenance.py retry-stored 
 sudo -u deploy python3 /opt/app/monitoring/ai-notes/maintenance.py discard-pending --context-id <ID>
 ```
 
-retry-stored는 저장된 결과를 고정 Loki로 전송하고 AI를 부르지 않습니다. 너무 오래된 timestamp는 Loki가 거부할 수 있습니다.
+retry-stored는 저장된 결과를 고정 Loki로 전송하고 AI를 부르지 않습니다. 기본 설정상 7일 이상 지난 timestamp는 Loki가 거부할 수 있으므로 반복 전송 대신 discard-pending으로 닫습니다.
 discard-pending은 미전송 표시를 닫되 본문을 즉시 삭제하지 않고 14일 보관합니다. 전송 완료로 속이지 않습니다. receiver/MCP에는 이 운영 명령이 노출되지 않습니다.

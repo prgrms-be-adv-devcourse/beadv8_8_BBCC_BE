@@ -54,7 +54,7 @@ class SSHBridge:
         if config['keychain_service'] != 'kr.kidly.ai-notes' or not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}', config['keychain_account']):
             raise ValueError('invalid dedicated credential reference')
         path = Path(config['known_hosts_file'])
-        if not path.is_absolute() or not path.is_file():
+        if not path.is_absolute() or not path.is_file() or path.is_symlink() or path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o022:
             raise ValueError('absolute installed pinned-host file required')
         self.config = config
         self.command = ['/usr/bin/ssh', '-F', '/dev/null', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
