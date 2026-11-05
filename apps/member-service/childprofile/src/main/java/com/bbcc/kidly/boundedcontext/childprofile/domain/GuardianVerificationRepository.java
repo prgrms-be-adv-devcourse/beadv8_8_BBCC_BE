@@ -10,4 +10,6 @@ public interface GuardianVerificationRepository {
     boolean existsByMemberId(Long memberId);
 
     boolean existsByIdentityKey(String identityKey);
+
+    void deleteByMemberId(Long memberId);
 }

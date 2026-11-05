@@ -113,7 +113,7 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("탈퇴 이벤트가 커밋되면 Kafka로 받아 그 회원의 자녀를 모두 삭제한다")
+    @DisplayName("탈퇴 이벤트가 커밋되면 Kafka로 받아 그 회원의 자녀와 본인인증 기록을 모두 삭제한다")
     void deleteChildrenOnWithdraw() throws Exception {
         childProfileService.register(memberId, REQUEST);
         childProfileService.register(memberId, REQUEST);
@@ -123,6 +123,8 @@ class ChildProfileMemberEventKafkaIntegrationTest {
 
         AsyncWait.until(TIMEOUT, () -> childrenOf(memberId).isEmpty());
         assertThat(childrenOf(otherMemberId)).extracting(ChildProfile::getId).containsExactly(other);
+        assertThat(verifications.existsByMemberId(memberId)).isFalse();
+        assertThat(verifications.existsByMemberId(otherMemberId)).isTrue();
     }
 
     @Test

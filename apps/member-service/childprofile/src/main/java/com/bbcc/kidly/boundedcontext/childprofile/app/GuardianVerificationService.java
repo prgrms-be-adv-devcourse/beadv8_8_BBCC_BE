@@ -35,6 +35,12 @@ public class GuardianVerificationService {
         return GuardianVerificationResult.from(repository.save(verification));
     }
 
+    // 탈퇴한 회원의 개인정보를 남기지 않고, 같은 사람이 다시 가입해 인증할 수 있게 지운다
+    @Transactional
+    public void deleteByMemberId(Long memberId) {
+        repository.deleteByMemberId(memberId);
+    }
+
     @Transactional(readOnly = true)
     public GuardianVerificationResult find(Long memberId) {
         return repository.findByMemberId(memberId).map(GuardianVerificationResult::from)
