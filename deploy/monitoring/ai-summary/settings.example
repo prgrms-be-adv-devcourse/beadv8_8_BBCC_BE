@@ -1,6 +1,0 @@
-# No paid calls until model, daily cap and cost are approved. Never put a key here.
-OPENAI_LIVE_ENABLED=0
-OPENAI_MODEL=
-OPENAI_MAX_CALLS_PER_DAY=0
-OPENAI_API_KEY_FILE=/etc/kidly-ai-summary/openai-key
-PROMETHEUS_URL=http://127.0.0.1:30090

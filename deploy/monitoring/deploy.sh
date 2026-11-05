@@ -12,7 +12,7 @@ mkdir -p operations
 if [[ ! -f operations/inventory.prom ]]; then
   printf 'kidly_monitoring_inventory_present 1\nkidly_monitoring_inventory_initialized 0\n' > operations/inventory.prom
 fi
-# AI 호출 없이 초기 안내 화면만 생성한다. 성공 결과·실행 상태는 배포 후에도 보존한다.
+# 초기 안내/이전 점검을 보존한다. 점검은 localhost Prometheus만 읽는다.
 python3 ai-summary/summary.py --state-dir /opt/app/monitoring/ai-summary-state
 # 대시보드 ConfigMap 이 커서(약 190KB) client-side apply 의 last-applied 주석 한도(256KB)를 넘을 수 있어 server-side 로 넣는다
 # 손으로 바꾼 필드가 있어도 레포 내용으로 되돌린다(--force-conflicts)
@@ -74,3 +74,9 @@ if [[ "$installed" == "$expected" ]]; then
 else
     echo "::warning::Logs Drilldown 앱이 ${installed:-알 수 없음} 입니다(기대 $expected). 플러그인 저장소에 닿지 못했을 수 있습니다. 기본 열이 보이지 않으면 monitoring-deploy 를 다시 돌리세요"
 fi
+
+# 외부 API/추가 이미지 없는 로컬 점검. 서비스 자원 제한은 unit 파일에서 관리한다.
+sudo install -m 644 ai-summary/kidly-ai-summary.service /etc/systemd/system/
+sudo install -m 644 ai-summary/kidly-ai-summary.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now kidly-ai-summary.timer

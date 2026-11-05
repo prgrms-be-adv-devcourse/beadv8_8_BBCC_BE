@@ -524,7 +524,7 @@
   ],
   "links": [
     {
-      "title": "AI 운영 요약 · 분석 시각 확인",
+      "title": "자동 운영 점검 · 원인 후보와 대응",
       "type": "link",
       "url": "/d/kidly-ai-summary",
       "keepTime": true,

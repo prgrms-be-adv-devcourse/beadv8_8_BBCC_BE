@@ -1,5 +1,5 @@
 [Unit]
-Description=Kidly AI summary every 30 minutes while host is running
+Description=Kidly local monitoring summary every 30 minutes while host is running
 
 [Timer]
 OnBootSec=10min

@@ -1,5 +1,5 @@
 [Unit]
-Description=Kidly opt-in AI monitoring summary
+Description=Kidly local monitoring runbook summary
 After=network-online.target
 Wants=network-online.target
 
@@ -7,7 +7,6 @@ Wants=network-online.target
 Type=oneshot
 User=deploy
 Group=deploy
-EnvironmentFile=/etc/kidly-ai-summary/settings
 ExecStart=/usr/bin/python3 /opt/app/monitoring/ai-summary/summary.py --state-dir /opt/app/monitoring/ai-summary-state --live
 TimeoutStartSec=300
 MemoryMax=96M

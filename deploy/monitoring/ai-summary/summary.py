@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Opt-in monitoring summary. No SDK, raw logs, Grafana write token or auto-remediation."""
+"""Local monitoring runbooks. No external API, credentials or auto-remediation."""
 import argparse
 import datetime as dt
 import fcntl
@@ -8,12 +8,13 @@ import json
 import math
 import os
 from pathlib import Path
-import re
 import sys
 import tempfile
 import time
 import urllib.parse
 import urllib.request
+
+from runbook import explain, LABEL
 
 SERVICES = ('gateway', 'search', 'recommend', 'member', 'payment', 'product',
             'order', 'community', 'settlement', 'notification')
@@ -30,6 +31,7 @@ QUERIES = {
     'duration_sum_30m': 'sum by (env,job) (increase(http_server_requests_seconds_sum{' + SELECT + '}[30m]))',
     'hikari_utilization': 'max by (env,job) (hikaricp_connections_active / hikaricp_connections_max and (time()-timestamp(hikaricp_connections_active)<60))',
     'cpu_used_pct': 'max(100 * (1-avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) and on (instance) (max by (instance) (time()-timestamp(node_cpu_seconds_total{mode="idle"}))<60))',
+    'oom_30m': 'sum(increase(node_vmstat_oom_kill[30m]) and (time()-timestamp(node_vmstat_oom_kill)<60))',
     'hikari_pending': 'sum by (env,job) (hikaricp_connections_pending and (time()-timestamp(hikaricp_connections_pending)<60))',
     'lag': 'sum by (env) (kafka_consumergroup_lag and (time()-timestamp(kafka_consumergroup_lag)<60))',
     'memory_available_pct': 'min(100 * node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes and (time()-timestamp(node_memory_MemAvailable_bytes)<60))',
@@ -59,8 +61,11 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise ValueError('redirect refused')
 
 
-def request(url, body=None, headers=None):
-    req = urllib.request.Request(url, data=body, headers=headers or {})
+def request(url):
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != 'http' or parsed.hostname not in ('127.0.0.1', 'localhost') or parsed.port != 30090 or parsed.username or parsed.path != '/api/v1/query':
+        raise ValueError('only local Prometheus queries are allowed')
+    req = urllib.request.Request(url)
     with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(req, timeout=20) as response:
         raw = response.read(MAX_RESPONSE + 1)
     if len(raw) > MAX_RESPONSE:
@@ -70,7 +75,7 @@ def request(url, body=None, headers=None):
 
 def collect(base, now):
     parsed = urllib.parse.urlsplit(base)
-    if parsed.scheme != 'http' or parsed.hostname not in ('127.0.0.1', 'localhost') or parsed.username or parsed.query or parsed.path not in ('', '/'):
+    if parsed.scheme != 'http' or parsed.hostname not in ('127.0.0.1', 'localhost') or parsed.port != 30090 or parsed.username or parsed.query or parsed.path not in ('', '/'):
         raise ValueError('Prometheus must use localhost NodePort')
     result = {}
     for name, expr in QUERIES.items():
@@ -83,7 +88,7 @@ def collect(base, now):
 
 
 def project(raw):
-    """Only fixed env/job names and finite numbers cross the external API boundary."""
+    """Only fixed env/job names and finite numbers enter the local summary."""
     facts = []
     for name in QUERIES:
         seen = set()
@@ -94,12 +99,12 @@ def project(raw):
             labels = row['metric']
             env = labels.get('env')
             job = labels.get('app_job') if name == 'inventory' else labels.get('job')
-            if name in ('memory_available_pct', 'disk_used_pct', 'cpu_used_pct'):
+            if name in ('memory_available_pct', 'disk_used_pct', 'cpu_used_pct', 'oom_30m'):
                 env, job = None, None
             elif env not in ('dev', 'prod') or (name not in ('environment', 'transition', 'lag') and job not in JOBS):
                 continue
             value = float(row['value'][1])
-            if not math.isfinite(value) or value < 0:
+            if not math.isfinite(value) or value < 0 or (name in ('inventory', 'environment', 'transition', 'up') and value not in (0, 1)):
                 continue
             key = (env, job)
             if key in seen:
@@ -111,7 +116,7 @@ def project(raw):
 
 
 def assessment(facts):
-    """Deterministic safety gates; AI cannot turn unknown/stopped into healthy."""
+    """Missing and stopped targets never imply healthy services."""
     statuses = {}
     for env in ('dev', 'prod'):
         def values(metric):
@@ -136,59 +141,6 @@ def assessment(facts):
     return statuses
 
 
-SCHEMA = {'type': 'object', 'additionalProperties': False, 'required': ['findings'],
-          'properties': {'findings': {'type': 'array', 'items': {
-              'type': 'object', 'additionalProperties': False,
-              'required': ['observation', 'hypothesis', 'next_check', 'evidence'],
-              'properties': {**{key: {'type': 'string'} for key in
-                                ('observation', 'hypothesis', 'next_check')},
-                             'evidence': {'type': 'array',
-                                          'items': {'type': 'string'}}}}}}}
-
-
-def validate(output, facts):
-    if set(output) != {'findings'} or not isinstance(output['findings'], list) or len(output['findings']) > 3:
-        raise ValueError('invalid summary')
-    ids = {f['id'] for f in facts}
-    for finding in output['findings']:
-        if set(finding) != {'observation', 'hypothesis', 'next_check', 'evidence'}:
-            raise ValueError('invalid finding')
-        for key in ('observation', 'hypothesis', 'next_check'):
-            if not isinstance(finding[key], str) or len(finding[key]) > 240:
-                raise ValueError('invalid text')
-        refs = finding['evidence']
-        if not isinstance(refs, list) or not 1 <= len(refs) <= 5 or any(not isinstance(ref, str) or ref not in ids for ref in refs):
-            raise ValueError('unknown evidence')
-    return output
-
-
-def analyze(facts, statuses, model, key):
-    content = json.dumps({'window_minutes': 30, 'status': statuses, 'facts': facts}, ensure_ascii=False)
-    if len(content) > 16000:
-        raise ValueError('input too large')
-    body = {'model': model, 'store': False, 'max_output_tokens': 1200,
-            'instructions': ('한국어 운영 점검 메모. 제공한 사실만 근거로 최대 3개 항목. '
-                             '원인은 단정하지 말고 hypothesis에 추정임을 명시. 자동 조치 금지. '
-                             '중지는 장애 아님. 누락/저트래픽/관측값 0은 정상 증거 아님. '
-                             'Gateway와 서비스 요청 합산 금지. HTTP 지표는 30분 추정 건수이며 '
-                             '요청 20건 미만 비율은 판단 보류. duration_sum/requests는 평균이지 p95가 아님. '
-                             'lag 합계만으로 증가 추세/장애 단정 금지. 없는 지표·수치·링크 생성 금지. '
-                             '각 항목 evidence에 제공된 fact id를 넣고, 문제 근거가 없으면 빈 findings.'),
-            'input': content,
-            'text': {'format': {'type': 'json_schema', 'name': 'monitoring_summary', 'strict': True, 'schema': SCHEMA}}}
-    encoded = json.dumps(body, ensure_ascii=False).encode()
-    if len(encoded) > 24000:
-        raise ValueError('request byte budget exceeded')
-    response = request('https://api.openai.com/v1/responses', encoded,
-                       {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
-    if response.get('status') != 'completed':
-        raise ValueError('incomplete AI response')
-    texts = [part['text'] for item in response.get('output', []) if item.get('type') == 'message'
-             for part in item.get('content', []) if part.get('type') == 'output_text']
-    if len(texts) != 1:
-        raise ValueError('missing AI output')
-    return validate(json.loads(texts[0]), facts)
-
 
 def stamp(epoch):
     return dt.datetime.fromtimestamp(epoch, dt.timezone(dt.timedelta(hours=9))).strftime('%m/%d %H:%M KST')
@@ -196,7 +148,7 @@ def stamp(epoch):
 
 def dashboard(state, now):
     success = state.get('success')
-    content = '<h3>AI 운영 요약 · 참고용</h3>'
+    content = '<h3>자동 운영 점검 · 참고용</h3>'
     content += '<p>현재 상태는 기존 서비스·서버 화면에서 확인하세요. 이 요약은 자동 복구나 장애 판정이 아닙니다.</p>'
     attempt = state.get('attempt_status', '아직 실행하지 않음')
     if success and attempt != '성공':
@@ -211,18 +163,28 @@ def dashboard(state, now):
         for env, status in success['statuses'].items():
             content += '<p><b>' + env + '</b>: ' + html.escape(status) + '</p>'
         facts = {f['id']: f for f in success['facts']}
-        for finding in success['summary']['findings']:
-            content += '<h4>' + html.escape(finding['observation']) + '</h4><p>'
-            content += html.escape(finding['hypothesis']) + '<br>다음 확인: ' + html.escape(finding['next_check']) + '</p>'
-            content += '<details><summary>근거 수치</summary><pre>'
+        findings = success['summary']['findings']
+        content += '<p>점검 항목 ' + str(len(findings)) + '개 · 우선순위 순. 원인 후보는 확정 진단이 아닙니다.</p>'
+        for number, finding in enumerate(findings):
+            if number == 5:
+                content += '<details><summary>나머지 점검 항목 ' + str(len(findings)-5) + '개 보기</summary>'
+            content += '<h4>' + html.escape(LABEL[finding['severity']] + ' · ' + finding['title']) + '</h4><p>' + html.escape(finding['observation']) + '</p><p>'
+            content += html.escape(finding['hypothesis']) + '</p><p><b>대응 제안:</b> ' + html.escape(finding['recommendation']) + '</p>'
+            content += '<details><summary>확인 순서 · 근거</summary><ol>'
+            for check in finding['checks']:
+                content += '<li>' + html.escape(check) + '</li>'
+            content += '</ol><p><a href="' + html.escape(finding['url'], quote=True) + '">관련 화면 열기</a></p><pre>'
             for ref in finding['evidence']:
                 fact = facts[ref]
                 content += html.escape(f"{fact['env'] or '전체 서버'} {fact['service'] or ''} {fact['metric']}: {fact['value']}\n")
             content += '</pre></details>'
-        if not success['summary']['findings']:
-            content += '<p>AI가 추가 점검 항목을 작성하지 않았습니다. 정상 판정을 의미하지 않습니다.</p>'
+        if len(findings) > 5:
+            content += '</details>'
+        if not findings:
+            content += '<p>현재 규칙에 해당하는 추가 점검 항목이 없습니다. 정상 판정을 의미하지 않습니다.</p>'
         if attempt != '성공':
             content += '</details>'
+    content += '<p>외부 AI/API를 호출하지 않는 규칙 기반 점검입니다. 자원 값은 현재, HTTP 값은 최근 30분 기준입니다.</p>'
     content += '<p>최근 시도: ' + html.escape(state.get('attempt_status', '아직 실행하지 않음')) + '</p>'
     if state.get('attempt_time'):
         content += '<p>최근 시도 시각: ' + stamp(state['attempt_time']) + '</p>'
@@ -239,7 +201,7 @@ def dashboard(state, now):
                            'mappings': [{'type': 'special', 'options': {'match': 'null', 'result': {'text': '분석 전 / 수집 확인 필요', 'color': 'gray'}}}] + ([] if pid == 2 else [{'type': 'value', 'options': {'0': {'text': '실패 / 실행 전', 'color': 'yellow'}, '1': {'text': '최근 시도 성공', 'color': 'green'}}}]),
                            'thresholds': {'mode': 'absolute', 'steps': ([{'color': 'green', 'value': None}, {'color': 'yellow', 'value': 1800}, {'color': 'red', 'value': 3600}] if pid == 2 else [{'color': 'red', 'value': None}, {'color': 'green', 'value': 1}])}}, 'overrides': []},
                        'options': {'reduceOptions': {'calcs': ['lastNotNull'], 'values': False}, 'colorMode': 'background'}})
-    return {'uid': 'kidly-ai-summary', 'title': 'Kidly AI 운영 요약', 'schemaVersion': 39,
+    return {'uid': 'kidly-ai-summary', 'title': 'Kidly 자동 운영 점검', 'schemaVersion': 39,
             'editable': False, 'refresh': '30s', 'time': {'from': 'now-1h', 'to': 'now'},
             'tags': ['kidly', 'ai-summary'], 'panels': panels,
             'links': [{'title': '서비스 상태 확인', 'type': 'link', 'url': '/d/kidly-http', 'keepTime': True}]}
@@ -269,6 +231,10 @@ def run(root, live=False, fixture=None):
             return 0
         path = root / 'state.json'
         state = json.loads(path.read_text()) if path.exists() else {}
+        if state.get('success'):
+            previous = state['success']
+            previous['statuses'] = assessment(previous['facts'])
+            previous['summary'] = explain(previous['facts'], previous['statuses'])
         now = int(time.time())
         if state.get('attempt_status') == '분석/갱신 중':
             state['attempt_status'] = '비정상 종료 · 이전 결과 재확인 필요'
@@ -281,21 +247,10 @@ def run(root, live=False, fixture=None):
             facts = project(fixture)
             state.update(attempt_time=now, attempt_status='합성 데이터 미리보기')
             state['success'] = {'time': now, 'statuses': assessment(facts), 'facts': facts,
-                                'summary': {'findings': []}}
+                                'summary': explain(facts, assessment(facts))}
             publish(root, state, now)
             return 0
-        # Fail closed: no paid request without operator activation and an explicit daily cap/model/key.
-        if os.environ.get('OPENAI_LIVE_ENABLED') != '1':
-            raise ValueError('live execution disabled')
-        cap = int(os.environ.get('OPENAI_MAX_CALLS_PER_DAY', '0'))
-        model = os.environ.get('OPENAI_MODEL', '')
-        keyfile = os.environ.get('OPENAI_API_KEY_FILE', '')
-        if not 1 <= cap <= 48 or not re.fullmatch(r'[a-zA-Z0-9_.-]{1,80}', model) or not keyfile:
-            raise ValueError('approved model, cap and key file required')
-        day = dt.datetime.fromtimestamp(now, dt.timezone.utc).date().isoformat()
-        if state.get('day') != day:
-            state.update(day=day, calls=0)
-        if now - state.get('attempt_time', 0) < 1800 or state.get('calls', 0) >= cap:
+        if now - state.get('attempt_time', 0) < 1800:
             return 0
         state.update(attempt_time=now, attempt_status='분석/갱신 중')
         # Persist attempt before networking: crashes cannot immediately trigger another request.
@@ -303,20 +258,13 @@ def run(root, live=False, fixture=None):
         try:
             facts = project(collect(os.environ.get('PROMETHEUS_URL', 'http://127.0.0.1:30090'), now))
             statuses = assessment(facts)
-            if all(status.startswith('확인 불가') for status in statuses.values()):
-                raise ValueError('no fresh inventory')
-            state['calls'] += 1
-            publish(root, state, now)  # Reserve one call before sending; failures also count.
-            key = Path(keyfile).read_text().strip()
-            if not key or '\n' in key:
-                raise ValueError('invalid credential')
-            output = analyze(facts, statuses, model, key)
+            output = explain(facts, statuses)
             state['success'] = {'time': now, 'statuses': statuses, 'facts': facts, 'summary': output}
             state['attempt_status'] = '성공'
             publish(root, state, now)
             return 0
         except Exception:
-            # Never print upstream response bodies, credentials or model input/output to journals.
+            # Never print raw upstream responses to journals.
             state['attempt_status'] = '실패 · 이전 성공 결과는 현재 상태가 아님'
             publish(root, state, now)
             return 1
@@ -325,7 +273,7 @@ def run(root, live=False, fixture=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--state-dir', type=Path, required=True)
-    parser.add_argument('--live', action='store_true')
+    parser.add_argument('--live', action='store_true', help='collect localhost metrics and explain locally; no external calls')
     parser.add_argument('--fixture', type=Path)
     args = parser.parse_args()
     if args.fixture and (args.live or '/opt/app/monitoring' in str(args.state_dir.resolve())):
@@ -333,7 +281,7 @@ def main():
     try:
         return run(args.state_dir, args.live, json.loads(args.fixture.read_text()) if args.fixture else None)
     except Exception:
-        print('AI summary unavailable; check configuration and state permissions', file=sys.stderr)
+        print('Monitoring summary unavailable; check configuration and state permissions', file=sys.stderr)
         return 1
 
 
