@@ -9,6 +9,8 @@ import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshToken;
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.GuardianVerificationFixture;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
@@ -46,6 +48,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 @KafkaIntegrationTest
 class AuthChildProfileEventKafkaIntegrationTest {
+    @Autowired private GuardianVerificationRepository verifications;
 
     private static final String TOPIC = "kidly.childprofile.events";
     private static final String DLT = TOPIC + ".auth.dlt";
@@ -163,6 +166,7 @@ class AuthChildProfileEventKafkaIntegrationTest {
         try {
             AsyncWait.until(TIMEOUT, () -> !memberListener.getAssignedPartitions().isEmpty());
             var memberId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+            verifications.save(GuardianVerificationFixture.verification(memberId));
             var profile = childProfiles.register(memberId, new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15),
                 Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL,
                     PreferredFit.LOOSE, true, true));

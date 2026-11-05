@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
+import org.junit.jupiter.api.BeforeEach;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import org.springframework.context.ApplicationEventPublisher;
@@ -34,6 +36,12 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @IntegrationTest
 class ChildProfileOutboxRecorderIntegrationTest {
+    @Autowired private GuardianVerificationRepository verifications;
+
+    @BeforeEach
+    void verifyGuardian() {
+        verifications.save(GuardianVerificationFixture.verification(1L));
+    }
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
     private static final Long MEMBER_ID = 1L;

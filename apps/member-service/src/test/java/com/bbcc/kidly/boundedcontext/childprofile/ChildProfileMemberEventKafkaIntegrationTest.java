@@ -4,6 +4,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
@@ -61,6 +62,7 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class ChildProfileMemberEventKafkaIntegrationTest {
+    @Autowired private GuardianVerificationRepository verifications;
 
     private static final String TOPIC = "kidly.member.events";
     private static final String DLT = "kidly.member.events.childprofile.dlt";
@@ -97,6 +99,8 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     // 읽기 시작 위치가 latest라 파티션을 배정받기 전에 보낸 메시지는 받지 못한다
     @BeforeEach
     void startListener() {
+        verifications.save(GuardianVerificationFixture.verification(memberId));
+        verifications.save(GuardianVerificationFixture.verification(otherMemberId));
         listener = kafkaListenerEndpointRegistry.getListenerContainer(LISTENER_ID);
         listener.start();
         AsyncWait.until(TIMEOUT, () -> !listener.getAssignedPartitions().isEmpty());

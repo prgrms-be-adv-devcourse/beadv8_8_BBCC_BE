@@ -1,8 +1,12 @@
 package com.bbcc.kidly.boundedcontext.childprofile;
 
 import com.bbcc.kidly.member.support.security.TestMembers;
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.support.FakeIdentityVerificationClient;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -46,6 +50,17 @@ class GuardianVerificationApiTest {
         post(1L, "first").expectStatus().isCreated();
         post(1L, "second").expectStatus().isEqualTo(409)
             .expectBody().jsonPath("$.title").isEqualTo("이미 본인인증했습니다");
+    }
+
+    @Test
+    void requiresVerificationBeforeChildRegistration() {
+        var child = new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 1), Gender.MALE,
+            new BigDecimal("115.0"), new BigDecimal("20.0"), null, null, true, false);
+        client.post().uri("/api/v1/children").headers(TestMembers.buyer(1L)).body(child).exchange()
+            .expectStatus().isForbidden();
+        post(1L, "first").expectStatus().isCreated();
+        client.post().uri("/api/v1/children").headers(TestMembers.buyer(1L)).body(child).exchange()
+            .expectStatus().isCreated();
     }
 
     private RestTestClient.ResponseSpec post(Long memberId, String id) {

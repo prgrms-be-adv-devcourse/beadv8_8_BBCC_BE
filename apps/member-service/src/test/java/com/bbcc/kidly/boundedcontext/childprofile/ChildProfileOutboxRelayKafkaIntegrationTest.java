@@ -4,6 +4,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
@@ -46,6 +47,7 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 @RecordApplicationEvents
 class ChildProfileOutboxRelayKafkaIntegrationTest {
+    @Autowired private GuardianVerificationRepository verifications;
 
     private static final String TOPIC = "kidly.childprofile.events";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -78,6 +80,7 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
 
     @BeforeEach
     void subscribe() {
+        verifications.save(GuardianVerificationFixture.verification(1L));
         consumer = new KafkaConsumer<>(Map.of(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
             ConsumerConfig.GROUP_ID_CONFIG, "childprofile-outbox-relay-test-" + UUID.randomUUID(),
