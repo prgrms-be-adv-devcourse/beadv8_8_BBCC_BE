@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -60,9 +61,27 @@ class PurchaseConfirmationRepublishIntegrationTest {
         assertThat(event.data().amount()).isEqualTo(2000L);
         assertThat(event.data().childId()).isNull();
         assertThat(event.data().confirmedAt()).isEqualTo(CONFIRMED_AT);
+        assertThat(event.data().confirmType()).as("저장된 확정 방식(#901)").isEqualTo("DIRECT");
         assertThat(event.occurredAt()).isEqualTo(CONFIRMED_AT);
         assertThat(jdbc.queryForObject("select message_key from orders.order_outbox", String.class))
             .isEqualTo(event.data().orderId().toString());
+    }
+
+    @Test
+    @DisplayName("확정 방식은 저장값 그대로다(#901): AUTO는 AUTO, 저장값이 없는 옛 행은 null")
+    void republishesStoredConfirmType() {
+        Long auto = save("CONFIRMED");
+        Long legacy = save("CONFIRMED");
+        jdbc.update("update orders.order_item set confirm_type = 'AUTO' where id = ?", auto);
+        jdbc.update("update orders.order_item set confirm_type = null where id = ?", legacy);
+
+        assertThat(service.republish(0, null, 100, 99L).published()).isEqualTo(2);
+
+        assertThat(jdbc.queryForList("select payload from orders.order_outbox order by id", String.class))
+            .extracting(payload -> mapper.readValue(payload, OrderItemPurchaseConfirmedEvent.class).data())
+            .extracting(OrderItemPurchaseConfirmedEvent.Data::orderItemId,
+                OrderItemPurchaseConfirmedEvent.Data::confirmType)
+            .containsExactly(tuple(auto, "AUTO"), tuple(legacy, null));
     }
 
     @Test

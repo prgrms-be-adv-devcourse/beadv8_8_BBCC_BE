@@ -14,6 +14,7 @@ public record OrderItemPurchaseConfirmedEvent(UUID eventId, LocalDateTime occurr
     /**
      * @param childId 자녀를 고르지 않았으면 null
      * @param amount 주문상품 금액(원)
+     * @param confirmType 직접 · 자동 구매확정 방식(DIRECT · AUTO, #901). 이 칸이 생기기 전 메시지 · 복구에서 저장값이 없으면 null
      */
     public record Data(
         Long orderItemId,
@@ -26,7 +27,17 @@ public record OrderItemPurchaseConfirmedEvent(UUID eventId, LocalDateTime occurr
         String size,
         int quantity,
         long amount,
-        LocalDateTime confirmedAt) {
+        LocalDateTime confirmedAt,
+        String confirmType) {
+
+        /**
+         * 필드 추가 전 호출 호환용(#901): confirmType 없이(null) 만든다.
+         */
+        public Data(Long orderItemId, Long orderId, Long memberId, Long sellerId, Long childId, Long productId,
+            Long optionId, String size, int quantity, long amount, LocalDateTime confirmedAt) {
+            this(orderItemId, orderId, memberId, sellerId, childId, productId, optionId, size, quantity, amount,
+                confirmedAt, null);
+        }
     }
 
     /**

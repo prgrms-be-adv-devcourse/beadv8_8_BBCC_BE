@@ -38,7 +38,8 @@ public class PurchaseConfirmationRepublishService {
             var event = new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), row.getConfirmedAt(),
                 new OrderItemPurchaseConfirmedEvent.Data(row.getOrderItemId(), row.getOrderId(), row.getMemberId(),
                     row.getSellerId(), row.getChildId(), row.getProductId(), row.getOptionId(), row.getSize(),
-                    row.getQuantity(), row.getAmount(), row.getConfirmedAt()));
+                    row.getQuantity(), row.getAmount(), row.getConfirmedAt(),
+                    row.getConfirmType() == null ? null : row.getConfirmType().name()));
             events.publish(event);
             outbox.append(event);
         }

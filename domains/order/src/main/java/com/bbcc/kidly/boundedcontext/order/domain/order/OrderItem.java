@@ -56,7 +56,7 @@ public class OrderItem extends OrderTimeEntity {
     }
 
     /**
-     * 구매확정 방식. 주문상품에만 저장하고 이벤트에는 싣지 않는다.
+     * 구매확정 방식. 주문상품에 저장하고 order-item.purchase-confirmed data의 confirmType으로도 싣는다(#901).
      */
     public enum ConfirmType {
         DIRECT,

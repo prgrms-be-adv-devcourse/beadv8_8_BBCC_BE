@@ -2,7 +2,9 @@ package com.bbcc.kidly.shared.order.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.reflect.RecordComponent;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,18 @@ class OrderItemPurchaseConfirmedEventTest {
         assertThat(data.quantity()).isEqualTo(2);
         assertThat(data.amount()).isEqualTo(50_000L);
         assertThat(data.confirmedAt()).isEqualTo(CONFIRMED_AT);
+    }
+
+    @Test
+    @DisplayName("확정 방식 칸(#901)은 맨 끝 confirmType이고, 필드 추가 전 11칸 생성자로 만들면 null이다")
+    void confirmType() {
+        assertThat(Arrays.stream(OrderItemPurchaseConfirmedEvent.Data.class.getRecordComponents())
+            .map(RecordComponent::getName).toList())
+            .containsExactly("orderItemId", "orderId", "memberId", "sellerId", "childId", "productId", "optionId",
+                "size", "quantity", "amount", "confirmedAt", "confirmType");
+        assertThat(event(null).data().confirmType()).isNull();
+        assertThat(new OrderItemPurchaseConfirmedEvent.Data(70L, 7L, 1L, 2L, null, 10L, 3L, "110", 2, 50_000L,
+            CONFIRMED_AT, "AUTO").confirmType()).isEqualTo("AUTO");
     }
 
     private static OrderItemPurchaseConfirmedEvent event(Long childId) {
