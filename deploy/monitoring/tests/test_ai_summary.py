@@ -87,6 +87,25 @@ class SummaryTest(unittest.TestCase):
             self.assertEqual((root/'state.json').stat().st_mode & 0o777, 0o600)
             self.assertEqual((root/'dashboards/kidly-ai-summary.json').stat().st_mode & 0o777, 0o644)
 
+    def test_interrupted_attempt_recovers_without_paid_call(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(m, 'request') as network:
+            root = Path(temp)
+            m.atomic(root/'state.json', json.dumps({'attempt_status': '분석/갱신 중', 'attempt_time': 1, 'calls': 1}))
+            m.run(root)
+            state = json.loads((root/'state.json').read_text())
+            self.assertIn('비정상 종료', state['attempt_status'])
+            self.assertEqual(state['calls'], 1)
+            network.assert_not_called()
+
+    def test_unknown_card_gray_and_failed_summary_collapsed(self):
+        source = m.dashboard({}, 1000)
+        self.assertEqual(source['panels'][1]['fieldConfig']['defaults']['mappings'][0]['options']['result']['color'], 'gray')
+        facts = m.project(fixture())
+        state = {'attempt_status': '실패', 'success': {'time': 1000, 'statuses': m.assessment(facts), 'facts': facts, 'summary': {'findings': []}}}
+        content = m.dashboard(state, 1000)['panels'][0]['options']['content']
+        self.assertLess(content.index('주의:'), content.index('운영 대상 수집 중'))
+        self.assertIn('<details>', content)
+
     def test_live_disabled_before_network(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {}, clear=True), patch.object(m, 'request') as network:
             with self.assertRaises(ValueError):

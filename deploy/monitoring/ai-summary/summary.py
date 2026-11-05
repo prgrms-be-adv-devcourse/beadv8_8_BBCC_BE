@@ -137,12 +137,12 @@ def assessment(facts):
 
 
 SCHEMA = {'type': 'object', 'additionalProperties': False, 'required': ['findings'],
-          'properties': {'findings': {'type': 'array', 'maxItems': 3, 'items': {
+          'properties': {'findings': {'type': 'array', 'items': {
               'type': 'object', 'additionalProperties': False,
               'required': ['observation', 'hypothesis', 'next_check', 'evidence'],
-              'properties': {**{key: {'type': 'string', 'maxLength': 240} for key in
+              'properties': {**{key: {'type': 'string'} for key in
                                 ('observation', 'hypothesis', 'next_check')},
-                             'evidence': {'type': 'array', 'minItems': 1, 'maxItems': 5,
+                             'evidence': {'type': 'array',
                                           'items': {'type': 'string'}}}}}}}
 
 
@@ -198,11 +198,16 @@ def dashboard(state, now):
     success = state.get('success')
     content = '<h3>AI 운영 요약 · 참고용</h3>'
     content += '<p>현재 상태는 기존 서비스·서버 화면에서 확인하세요. 이 요약은 자동 복구나 장애 판정이 아닙니다.</p>'
+    attempt = state.get('attempt_status', '아직 실행하지 않음')
+    if success and attempt != '성공':
+        content += '<p><b>주의: ' + html.escape(attempt) + ' · 아래는 이전 분석이며 현재 상태가 아닙니다.</b></p>'
     if not success:
         content += '<p><b>실행 보류 · 성공한 분석 없음</b></p>'
     else:
         content += '<p>분석 구간: ' + stamp(success['time'] - 1800) + ' ~ ' + stamp(success['time'])
         content += '<br>참고 기한: ' + stamp(success['time'] + 3600) + ' 이후 재확인 필요</p>'
+        if attempt != '성공':
+            content += '<details><summary>이전 분석 보기 · 현재 상태 아님</summary>'
         for env, status in success['statuses'].items():
             content += '<p><b>' + env + '</b>: ' + html.escape(status) + '</p>'
         facts = {f['id']: f for f in success['facts']}
@@ -216,19 +221,22 @@ def dashboard(state, now):
             content += '</pre></details>'
         if not success['summary']['findings']:
             content += '<p>AI가 추가 점검 항목을 작성하지 않았습니다. 정상 판정을 의미하지 않습니다.</p>'
+        if attempt != '성공':
+            content += '</details>'
     content += '<p>최근 시도: ' + html.escape(state.get('attempt_status', '아직 실행하지 않음')) + '</p>'
     if state.get('attempt_time'):
         content += '<p>최근 시도 시각: ' + stamp(state['attempt_time']) + '</p>'
     panels = [{'id': 1, 'type': 'text', 'title': '최근 분석', 'gridPos': {'x': 0, 'y': 5, 'w': 24, 'h': 17},
                'options': {'mode': 'html', 'content': content}}]
     for pid, title, expr, unit in [
-        (2, '마지막 성공 후 경과 · 1시간 이상이면 오래된 결과', 'time() - (max(kidly_ai_summary_success_timestamp_seconds) > 0)', 's'),
-        (3, '최근 시도 성공 여부 · 0이면 실패/실행 전', 'max(kidly_ai_summary_attempt_success)', 'none')]:
+        (2, '마지막 성공 후 경과 · 1시간 이상이면 오래된 결과', 'time() - (max(kidly_ai_summary_success_timestamp_seconds and (time()-timestamp(kidly_ai_summary_success_timestamp_seconds)<60)) > 0)', 's'),
+        (3, '최근 시도 성공 여부 · 0이면 실패/실행 전', 'max(kidly_ai_summary_attempt_success and (time()-timestamp(kidly_ai_summary_attempt_success)<60))', 'none')]:
         panels.append({'id': pid, 'type': 'stat', 'title': title,
                        'gridPos': {'x': (pid-2)*12, 'y': 0, 'w': 12, 'h': 5},
                        'datasource': {'type': 'prometheus', 'uid': 'prometheus'},
                        'targets': [{'refId': 'A', 'expr': expr, 'instant': True}],
-                       'fieldConfig': {'defaults': {'unit': unit, 'noValue': '미수집 · 갱신 상태 확인 불가',
+                       'fieldConfig': {'defaults': {'unit': unit, 'noValue': '분석 전 / 수집 확인 필요',
+                           'mappings': [{'type': 'special', 'options': {'match': 'null', 'result': {'text': '분석 전 / 수집 확인 필요', 'color': 'gray'}}}] + ([] if pid == 2 else [{'type': 'value', 'options': {'0': {'text': '실패 / 실행 전', 'color': 'yellow'}, '1': {'text': '최근 시도 성공', 'color': 'green'}}}]),
                            'thresholds': {'mode': 'absolute', 'steps': ([{'color': 'green', 'value': None}, {'color': 'yellow', 'value': 1800}, {'color': 'red', 'value': 3600}] if pid == 2 else [{'color': 'red', 'value': None}, {'color': 'green', 'value': 1}])}}, 'overrides': []},
                        'options': {'reduceOptions': {'calcs': ['lastNotNull'], 'values': False}, 'colorMode': 'background'}})
     return {'uid': 'kidly-ai-summary', 'title': 'Kidly AI 운영 요약', 'schemaVersion': 39,
@@ -262,6 +270,9 @@ def run(root, live=False, fixture=None):
         path = root / 'state.json'
         state = json.loads(path.read_text()) if path.exists() else {}
         now = int(time.time())
+        if state.get('attempt_status') == '분석/갱신 중':
+            state['attempt_status'] = '비정상 종료 · 이전 결과 재확인 필요'
+            publish(root, state, now)
         if not live and fixture is None:
             publish(root, state, now)
             return 0
@@ -317,7 +328,7 @@ def main():
     parser.add_argument('--live', action='store_true')
     parser.add_argument('--fixture', type=Path)
     args = parser.parse_args()
-    if args.fixture and (args.live or args.state_dir.resolve() == Path('/opt/app/monitoring/ai-summary-state')):
+    if args.fixture and (args.live or '/opt/app/monitoring' in str(args.state_dir.resolve())):
         parser.error('fixture must use a separate local preview directory')
     try:
         return run(args.state_dir, args.live, json.loads(args.fixture.read_text()) if args.fixture else None)

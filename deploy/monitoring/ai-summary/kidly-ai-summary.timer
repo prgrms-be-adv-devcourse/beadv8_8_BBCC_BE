@@ -3,7 +3,7 @@ Description=Kidly AI summary every 30 minutes while host is running
 
 [Timer]
 OnBootSec=10min
-OnUnitActiveSec=30min
+OnUnitInactiveSec=30min
 AccuracySec=1min
 Persistent=false
 Unit=kidly-ai-summary.service
