@@ -18,6 +18,7 @@
 | | `order-item.cancelled` | 주문 ID | | payment, product |
 | | `order-item.purchase-confirmed` | 주문 ID | | community, recommend, settlement |
 | | `cart.item-added` | 회원 ID | | recommend |
+| | `wish.sent` | 자녀 ID | | notification |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |
 | | `payment.refunded` | 주문 ID | | notification |
 | | `payment.payout-completed` · `payment.payout-failed` | 정산서 ID | | settlement, notification(payout-completed) |
