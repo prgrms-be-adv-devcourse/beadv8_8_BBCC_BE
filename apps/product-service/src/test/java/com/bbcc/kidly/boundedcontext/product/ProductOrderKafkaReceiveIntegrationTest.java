@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionSaver.OnSaleOptions;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.in.inventory.ProductOrderKafkaListener;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.support.AsyncWait;
@@ -24,6 +25,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.testcontainers.kafka.KafkaContainer;
@@ -58,6 +61,9 @@ class ProductOrderKafkaReceiveIntegrationTest {
 
     @Autowired
     private KafkaContainer kafka;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private ProductKafkaMessages messages;
 
@@ -104,6 +110,35 @@ class ProductOrderKafkaReceiveIntegrationTest {
         var restored = tuple(orderId, 11L, options.navy110().getId(), 2, "RESTORED");
         AsyncWait.until(TIMEOUT, () -> List.of(restored).equals(inventoryDeductionDb.records(orderId)));
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("INV-07 주문 취소됨을 받아 재고를 되돌리다 DB 오류가 나면 1초 간격으로 3번 재시도한 뒤 DLT로 보내고, 재고와 차감 기록은 그대로다")
+    void deadLetterAfterRetriesWhenRestoreFails() throws Exception {
+        OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
+        long orderId = newId();
+        String key = String.valueOf(orderId);
+        messages.send(ORDER_TOPIC, orderCreated(orderId, orderItem(11L, options.navy110(), 2)));
+        AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records(orderId).isEmpty());
+        // 되돌릴 옵션의 수량을 int 최댓값으로 두어, 더하는 UPDATE가 DB의 정수 범위를 넘어 실패하게 한다.
+        // 이 실패는 다시 해도 같지만 재시도하지 않는 예외 목록에 없어서, 재시도를 모두 쓴 뒤 DLT로 간다
+        setAvailableQty(options.navy110(), Integer.MAX_VALUE);
+        try {
+            var sent = messages.send(ORDER_TOPIC, orderCancelled(orderId, cancelledItem(11L, options.navy110(), 2)));
+
+            AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(ORDER_DLT, key).isEmpty());
+            assertThat(messages.deadLetters(ORDER_DLT, key)).singleElement().satisfies(deadLetter -> {
+                assertThat(deadLetter.timestamp() - sent.timestamp()).isGreaterThanOrEqualTo(RETRY_BACKOFF_TOTAL_MS);
+                var cause = deadLetter.headers().lastHeader(KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN);
+                assertThat(Class.forName(new String(cause.value(), UTF_8))).isAssignableTo(DataAccessException.class);
+            });
+            assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(Integer.MAX_VALUE);
+            assertThat(inventoryDeductionDb.records(orderId))
+                .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "DEDUCTED"));
+        } finally {
+            // 단언이 실패해도 끝난 뒤 재고 불변식을 확인할 수 있게 바꾼 수량을 차감 뒤 값으로 되돌린다
+            setAvailableQty(options.navy110(), 8);
+        }
     }
 
     @Test
@@ -206,6 +241,11 @@ class ProductOrderKafkaReceiveIntegrationTest {
         });
         assertThat(inventoryDeductionDb.records(orderId)).isEmpty();
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(10);
+    }
+
+    private void setAvailableQty(ProductOption option, int qty) {
+        jdbcTemplate.update("update product.inventory set available_qty = ? where product_option_id = ?",
+            qty, option.getId());
     }
 
     private static long newId() {
