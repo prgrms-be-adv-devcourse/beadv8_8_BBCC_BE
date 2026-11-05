@@ -80,7 +80,8 @@ class GroqProvider:
         if len(raw) > 24000:
             raise ProviderError('input_too_large')
         request = urllib.request.Request(ENDPOINT, data=raw, headers={
-            'Authorization': 'Bearer '+self._api_key, 'Content-Type': 'application/json'}, method='POST')
+            'Authorization': 'Bearer '+self._api_key, 'Content-Type': 'application/json',
+            'User-Agent': 'kidly-monitoring/1.0'}, method='POST')
         try:
             with self.transport.open(request, timeout=min(60, remaining)) as response:
                 if response.status != 200:
@@ -88,7 +89,7 @@ class GroqProvider:
                 body = response.read(MAX_RESPONSE+1)
         except urllib.error.HTTPError as error:
             error.close()
-            code = 'rate_limited' if error.code == 429 else 'authentication_failed' if error.code in (401, 403) else 'provider_unavailable'
+            code = 'rate_limited' if error.code == 429 else 'authentication_failed' if error.code == 401 else 'access_denied' if error.code == 403 else 'provider_unavailable'
             raise ProviderError(code) from None
         except ProviderError:
             raise
