@@ -16,8 +16,9 @@ Grafana → Kidly → **Kidly 자동 운영 점검**. 서비스 오류 화면 �
 
 ## 실행·중지
 
-모니터링 배포가 host systemd timer를 설치합니다. **작업 종료 후 30분마다** 실행하며 서버가 꺼져 있으면 실행하지 않습니다.
-`deploy` 사용자의 기존 passwordless sudo가 필요합니다. 새 계정을 만들지 않습니다.
+서버 관리자가 머지·배포 후 `sudo bash /opt/app/monitoring/ai-summary/install-timer.sh`를 한 번 실행합니다.
+**작업 종료 후 30분마다** 실행하며 서버가 꺼져 있으면 실행하지 않습니다.
+배포 계정의 sudo 권한을 넓히지 않습니다. 일반 배포는 설치 여부만 안내하고 점검 코드를 갱신합니다.
 
 - 실행: `sudo systemctl start kidly-ai-summary.service` (최근 실행 후 30분 이내면 중복 점검 생략)
 - 상태: `systemctl status kidly-ai-summary.timer kidly-ai-summary.service`

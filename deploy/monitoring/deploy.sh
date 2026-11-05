@@ -75,8 +75,7 @@ else
     echo "::warning::Logs Drilldown 앱이 ${installed:-알 수 없음} 입니다(기대 $expected). 플러그인 저장소에 닿지 못했을 수 있습니다. 기본 열이 보이지 않으면 monitoring-deploy 를 다시 돌리세요"
 fi
 
-# 외부 API/추가 이미지 없는 로컬 점검. 서비스 자원 제한은 unit 파일에서 관리한다.
-sudo install -m 644 ai-summary/kidly-ai-summary.service /etc/systemd/system/
-sudo install -m 644 ai-summary/kidly-ai-summary.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now kidly-ai-summary.timer
+# timer 설치는 서버 관리자의 1회 작업이다. 배포 계정의 sudo 권한을 넓히지 않는다.
+if ! systemctl is-enabled --quiet kidly-ai-summary.timer; then
+    echo "::warning::자동 운영 점검 timer가 비활성입니다. ai-summary/README.md의 1회 설치 절차를 확인하세요"
+fi
