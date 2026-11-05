@@ -93,17 +93,21 @@ class GroqProviderTest(unittest.TestCase):
         valid = json.loads(json.loads(body())['choices'][0]['message']['content'])
         bad_ref = json.loads(json.dumps(valid)); bad_ref['findings'][0]['evidence_ids'] = ['invented']
         sensitive = json.loads(json.dumps(valid)); sensitive['findings'][0]['recommendation'] = 'password=private'
-        for raw in (b'not JSON', b'x'*65537, body(**bad_ref), body(**sensitive), body(findings=[])):
-            with self.subTest(size=len(raw)), self.assertRaisesRegex(ProviderError, '^invalid_provider_response$'):
+        for raw, code in ((b'not JSON', 'response_json_invalid'), (b'x'*65537, 'invalid_provider_response'),
+                          (body(**bad_ref), 'response_evidence_invalid'), (body(**sensitive), 'response_text_unsafe'),
+                          (body(findings=[]), 'response_shape_invalid')):
+            with self.subTest(size=len(raw)), self.assertRaisesRegex(ProviderError, '^'+code+'$'):
                 self.provider(transport(raw)).analyze(context(), 2300)
 
     def test_truncation_refusal_and_wrong_model_rejected(self):
-        for field, value in [('model', 'other-model'), ('finish_reason', 'length'), ('refusal', 'no')]:
+        for field, value, code in [('model', 'other-model', 'response_model_mismatch'),
+                                   ('finish_reason', 'length', 'response_truncated'),
+                                   ('refusal', 'no', 'response_refused')]:
             envelope = json.loads(body())
             if field == 'model':envelope[field] = value
             elif field == 'finish_reason':envelope['choices'][0][field] = value
             else:envelope['choices'][0]['message'][field] = value
-            with self.subTest(field=field), self.assertRaises(ProviderError):
+            with self.subTest(field=field), self.assertRaisesRegex(ProviderError, '^'+code+'$'):
                 self.provider(transport(json.dumps(envelope).encode())).analyze(context(), 2300)
 
     def test_redirect_never_forwards_authorization(self):

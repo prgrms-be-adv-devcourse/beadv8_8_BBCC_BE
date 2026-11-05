@@ -37,8 +37,10 @@ def output_schema():
 
 SYSTEM = '''You are an operational analysis assistant. Write concise Korean plain text.
 Use only supplied technical evidence. Separate observations from unconfirmed hypotheses.
-Return 1-3 findings, each with 1-3 checks and 1-6 existing evidence_ids. Strings <=700 characters.
-Return <=8 limitations. Explain unavailable evidence and uncertainty; missing is not zero.
+Return only 1-2 highest-priority findings, with 1-2 checks and 1-4 existing evidence_ids each.
+Keep observations <=100 characters, hypotheses <=150, checks <=80, recommendations <=150.
+Return <=3 short limitations. Original context limitations are displayed separately: do not copy them.
+Keep the entire JSON response concise. Explain unavailable evidence; missing is not zero.
 No raw logs, credentials, personal data, URLs, IP addresses, commands or HTML.
 No automatic remediation. Do not recommend topic/offset/data changes for diagnosis.
 Respect intended stopped environments, transition states, low traffic, host aggregate scope,
@@ -103,20 +105,37 @@ class GroqProvider:
             raise ProviderError('invalid_provider_response')
         try:
             envelope = json.loads(body)
-            if envelope['model'] != MODEL or len(envelope['choices']) != 1:
-                raise ValueError()
+            if envelope['model'] != MODEL:
+                raise ProviderError('response_model_mismatch')
+            if len(envelope['choices']) != 1:
+                raise ProviderError('response_shape_invalid')
             choice = envelope['choices'][0]
-            if choice['finish_reason'] != 'stop' or choice['message'].get('refusal'):
-                raise ValueError()
+            if choice['finish_reason'] == 'length':
+                raise ProviderError('response_truncated')
+            if choice['finish_reason'] != 'stop':
+                raise ProviderError('response_incomplete')
+            if choice['message'].get('refusal'):
+                raise ProviderError('response_refused')
             result = json.loads(choice['message']['content'])
             if type(result) is not dict or set(result) != {'findings', 'limitations'}:
-                raise ValueError()
+                raise ProviderError('response_shape_invalid')
             if type(result['findings']) is not list or not 1 <= len(result['findings']) <= 3:
-                raise ValueError()
+                raise ProviderError('response_shape_invalid')
             # These metadata are assigned by the adapter, never by the model.
             report = report_from_dict(dict(result, version=1, context_id=context.context_id,
                                            provider='Groq', model=MODEL, generated_at=int(self.clock())))
             validate_report(context, report, self.clock())
             return report
+        except ProviderError:
+            raise
+        except json.JSONDecodeError:
+            raise ProviderError('response_json_invalid') from None
+        except ValueError as error:
+            # Only classify known validator messages; never expose model text or exception bodies.
+            codes = {'unknown or duplicate evidence reference': 'response_evidence_invalid',
+                     'sensitive or unsupported report text': 'response_text_unsafe',
+                     'control characters forbidden': 'response_text_unsafe',
+                     'invalid text': 'response_text_length_invalid'}
+            raise ProviderError(codes.get(str(error), 'response_contract_invalid')) from None
         except Exception:
             raise ProviderError('invalid_provider_response') from None
