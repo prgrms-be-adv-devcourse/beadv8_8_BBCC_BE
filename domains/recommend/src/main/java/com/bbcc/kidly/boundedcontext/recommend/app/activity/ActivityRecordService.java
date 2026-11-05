@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.activity;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecordRepository;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
@@ -84,8 +86,10 @@ public class ActivityRecordService {
 
     /**
      * 탈퇴한 회원의 활동 기록을 모두 지운다. 지울 기록이 없거나 같은 탈퇴를 다시 받아도 결과는 같다.
+     * 회원 ID가 없으면 예외로 실패한다. null로 조건을 걸면 어떤 기록도 지우지 못하면서 처리한 것처럼 끝나기 때문이다.
      */
     public void deleteWithdrawnMemberActivities(MemberWithdrawnEvent event) {
-        activityRecordRepository.deleteByMemberId(event.data().memberId());
+        Long memberId = requireNonNull(event.data().memberId(), "memberId는 필수입니다");
+        activityRecordRepository.deleteByMemberId(memberId);
     }
 }
