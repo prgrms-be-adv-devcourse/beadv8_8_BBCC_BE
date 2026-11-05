@@ -182,4 +182,33 @@ class ActivityRecordTest {
             Arguments.of(CHILD_1_ID, null),
             Arguments.of(null, null));
     }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cartItemsRemovedWithNull")
+    @DisplayName("장바구니 빼기 값에 필수 값이 없으면 활동 기록을 만들지 않는다")
+    void rejectCartItemRemovedWithNull(ThrowingCallable creation) {
+        assertThatThrownBy(creation)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> cartItemsRemovedWithNull() {
+        return Stream.of(
+            Named.of("빼기 값", () -> ActivityRecord.cartItemRemoved(null)),
+            Named.of("이벤트 ID", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                null, CART_ITEM_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, REMOVED_QTY,
+                REMOVED_AT))),
+            Named.of("장바구니 줄 ID", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                REMOVED_EVENT_ID, null, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, REMOVED_QTY,
+                REMOVED_AT))),
+            Named.of("회원 ID", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                REMOVED_EVENT_ID, CART_ITEM_ID, null, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, REMOVED_QTY,
+                REMOVED_AT))),
+            Named.of("옵션 ID", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, null, REMOVED_QTY,
+                REMOVED_AT))),
+            Named.of("뺀 시각", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID,
+                REMOVED_QTY, null))));
+    }
 }
