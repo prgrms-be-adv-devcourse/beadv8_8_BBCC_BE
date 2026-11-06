@@ -11,6 +11,12 @@ import com.bbcc.kidly.boundedcontext.notification.app.NotificationSendService;
 import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
 import com.bbcc.kidly.boundedcontext.notification.app.port.EmailSendException;
 import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationEmailSender;
+import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationPushSender;
+import com.bbcc.kidly.boundedcontext.notification.app.port.PushFailure;
+import com.bbcc.kidly.boundedcontext.notification.app.port.PushMessage;
+import com.bbcc.kidly.boundedcontext.notification.app.port.PushSendException;
+import com.bbcc.kidly.boundedcontext.notification.app.port.PushSendResult;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,12 +31,17 @@ class NotificationDispatcherTest {
 
     private static final Long ID = 10L;
     private static final Email EMAIL = new Email("parent@kidly.co.kr", "제목", "본문");
+    private static final PushMessage PUSH =
+        new PushMessage(List.of("fid-1", "fid-2"), "제목", "본문", "https://kidly.kro.kr/orders/3");
 
     @Mock
     private NotificationSendService notificationSendService;
 
     @Mock
     private NotificationEmailSender notificationEmailSender;
+
+    @Mock
+    private NotificationPushSender notificationPushSender;
 
     @InjectMocks
     private NotificationDispatcher notificationDispatcher;
@@ -77,5 +88,31 @@ class NotificationDispatcherTest {
         notificationDispatcher.dispatch(ID);
 
         verify(notificationEmailSender, never()).send(any());
+    }
+
+    @Test
+    @DisplayName("푸시는 푸시 발송기로 보내고 FID별 결과를 기록한다")
+    void sendPush() {
+        var result = new PushSendResult(1, List.of(new PushSendResult.Failure("fid-2", PushFailure.UNREGISTERED)));
+        given(notificationSendService.start(ID)).willReturn(Optional.of(PUSH));
+        given(notificationPushSender.send(PUSH)).willReturn(result);
+
+        notificationDispatcher.dispatch(ID);
+
+        verify(notificationSendService).recordPushResult(ID, result);
+        verify(notificationEmailSender, never()).send(any());
+    }
+
+    @Test
+    @DisplayName("푸시 요청 전체가 실패하면 재시도 여부와 함께 실패를 기록한다")
+    void pushRequestFailed() {
+        given(notificationSendService.start(ID)).willReturn(Optional.of(PUSH));
+        willThrow(new PushSendException("FCM 요청 실패: RETRYABLE", true, null))
+            .given(notificationPushSender).send(PUSH);
+
+        notificationDispatcher.dispatch(ID);
+
+        verify(notificationSendService).recordFailed(ID, "FCM 요청 실패: RETRYABLE", true);
+        verify(notificationSendService, never()).recordPushResult(any(), any());
     }
 }

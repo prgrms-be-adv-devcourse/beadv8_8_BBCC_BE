@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.notification.app.DeliveryInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
+import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.DeliveryCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
@@ -24,6 +25,9 @@ class DeliveryInboxServiceTest {
 
     @Mock
     private InboxNotificationService inboxNotificationService;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private DeliveryInboxService deliveryInboxService;
@@ -66,6 +70,8 @@ class DeliveryInboxServiceTest {
     private InboxNotificationInfo captured() {
         var captor = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService).add(captor.capture());
+        // 알림함과 같은 내용을 푸시로도 보낸다
+        verify(notificationService).createPush(captor.getValue());
         return captor.getValue();
     }
 }

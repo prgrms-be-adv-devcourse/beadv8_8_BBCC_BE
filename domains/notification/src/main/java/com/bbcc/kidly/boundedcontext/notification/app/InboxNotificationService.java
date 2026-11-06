@@ -63,7 +63,7 @@ public class InboxNotificationService {
     }
 
     /**
-     * 이 받는 사람의 알림을 모두 지운다(자녀 계정이 지워졌을 때). 없어도 된다.
+     * 이 받는 사람의 알림을 모두 지운다(자녀 계정 삭제 · 회원 탈퇴). 없어도 된다.
      */
     @Transactional
     public void deleteAllOf(InboxRecipient recipient) {

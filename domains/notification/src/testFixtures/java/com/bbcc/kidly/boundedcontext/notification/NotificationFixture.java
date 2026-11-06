@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.EmailNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
+import com.bbcc.kidly.boundedcontext.notification.domain.PushNotificationInfo;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -19,6 +20,11 @@ public final class NotificationFixture {
     public static Notification welcomeEmail(String recipient) {
         return Notification.email(new EmailNotificationInfo(
             UUID.randomUUID(), MEMBER_ID, NotificationType.WELCOME, recipient, TITLE, BODY));
+    }
+
+    public static Notification deliveryPush(Long memberId, String linkPath) {
+        return Notification.push(new PushNotificationInfo(UUID.randomUUID(), memberId,
+            NotificationType.DELIVERY_SHIPPED, "주문하신 상품이 출발했어요", "CJ대한통운 운송장 123456789012로 출발했어요.", linkPath));
     }
 
     // 발송을 맡은 상태

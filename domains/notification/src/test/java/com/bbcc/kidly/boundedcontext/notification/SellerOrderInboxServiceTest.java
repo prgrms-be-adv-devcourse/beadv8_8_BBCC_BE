@@ -2,10 +2,13 @@ package com.bbcc.kidly.boundedcontext.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
+import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.ProductNameService;
 import com.bbcc.kidly.boundedcontext.notification.app.SellerOrderInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
@@ -31,6 +34,9 @@ class SellerOrderInboxServiceTest {
     private InboxNotificationService inboxNotificationService;
 
     @Mock
+    private NotificationService notificationService;
+
+    @Mock
     private ProductNameService productNameService;
 
     @InjectMocks
@@ -46,6 +52,8 @@ class SellerOrderInboxServiceTest {
 
         var captor = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService, times(2)).add(captor.capture());
+        // 판매자마다 같은 내용을 푸시로도 보낸다
+        captor.getAllValues().forEach(info -> verify(notificationService).createPush(info));
         assertThat(captor.getAllValues()).satisfiesExactly(
             info -> {
                 assertThat(info.recipient()).isEqualTo(InboxRecipient.member(5L));
@@ -87,6 +95,8 @@ class SellerOrderInboxServiceTest {
     private InboxNotificationInfo captured() {
         var captor = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService).add(captor.capture());
+        // 구매확정은 알림함에만 넣는다
+        verify(notificationService, never()).createPush(any());
         return captor.getValue();
     }
 }
