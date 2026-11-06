@@ -111,11 +111,21 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         joinColumns = @JoinColumn(name = "product_id"))
     private List<RecommendReplicaSizeSpec> sizeSpecs = new ArrayList<>();
 
-    // 브랜드 · 설명은 새 칸이 없는 예전 메시지에서 null로 오므로 필수 값으로 검사하지 않는다.
+    @Column(name = "embedding_text", columnDefinition = "TEXT")
+    private String embeddingText;
+
+    // 브랜드 · 설명 · 상품 정보 값은 새 칸이 없는 예전 메시지에서 null로 오므로 필수 값으로 검사하지 않는다.
     // 사이즈별 실측은 이벤트가 칸이 없으면 빈 목록으로 바꿔 주므로 null이 오지 않는다
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
-        String brand, String description, List<SizeSpecInfo> sizeSpecs, LocalDateTime occurredAt) {
+        String brand, String description, List<SizeSpecInfo> sizeSpecs, List<InfoValueInfo> infoValues,
+        LocalDateTime occurredAt) {
+    }
+
+    /**
+     * 상품 정보 값 하나의 입력 값이다. 임베딩 글을 만드는 데만 쓰고 복사본에는 저장하지 않는다.
+     */
+    public record InfoValueInfo(String code, String value) {
     }
 
     /**

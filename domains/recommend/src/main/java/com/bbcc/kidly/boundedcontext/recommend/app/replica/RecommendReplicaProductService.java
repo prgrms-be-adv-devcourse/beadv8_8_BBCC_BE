@@ -49,6 +49,7 @@ public class RecommendReplicaProductService {
             data.brand(),
             data.description(),
             toSizeSpecInfos(data.sizeSpecs()),
+            List.of(),
             event.occurredAt());
     }
 

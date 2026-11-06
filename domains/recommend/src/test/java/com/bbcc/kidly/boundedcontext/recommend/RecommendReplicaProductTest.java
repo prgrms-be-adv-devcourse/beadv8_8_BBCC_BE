@@ -241,7 +241,7 @@ class RecommendReplicaProductTest {
 
         replica.applyIfNewer(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, 61L, 62L, PRODUCT_A_NAME,
             ProductStatus.STOPPED, "https://cdn.kidly.test/products/31-new.jpg", LocalDateTime.of(2026, 10, 2, 9, 0),
-            true, List.of(productOptionInfo("130", 125, 135)), null, null, List.of(), LATER));
+            true, List.of(productOptionInfo("130", 125, 135)), null, null, List.of(), List.of(), LATER));
 
         assertThat(replica)
             .extracting(
@@ -451,7 +451,7 @@ class RecommendReplicaProductTest {
     private static RecommendReplicaProduct.ChangeInfo changeWithoutName() {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, null,
             ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS, null, null,
-            List.of(), LATER);
+            List.of(), List.of(), LATER);
     }
 
     // 상품 A의 다른 값은 그대로 두고 브랜드 · 설명 · 사이즈별 실측과 발생 시각만 정해 만든다
@@ -459,12 +459,13 @@ class RecommendReplicaProductTest {
         List<RecommendReplicaProduct.SizeSpecInfo> sizeSpecs, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
-            brand, description, sizeSpecs, occurredAt);
+            brand, description, sizeSpecs, List.of(), occurredAt);
     }
 
     private static RecommendReplicaProduct.ChangeInfo change(Long productId, Long sellerId, ProductStatus status,
         LocalDateTime registeredAt, List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(productId, sellerId, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME,
-            status, PRODUCT_A_THUMBNAIL_URL, registeredAt, false, options, null, null, List.of(), occurredAt);
+            status, PRODUCT_A_THUMBNAIL_URL, registeredAt, false, options, null, null, List.of(), List.of(),
+            occurredAt);
     }
 }
