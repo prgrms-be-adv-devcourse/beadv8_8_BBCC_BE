@@ -71,7 +71,29 @@ class ChildPreferenceRepositoryIntegrationTest {
             .containsExactly(PRODUCT_A_BRAND, 2);
     }
 
+    @Test
+    @DisplayName("PREF-07 두 번 더한 활동을 한 번 빼면 횟수가 1이 되어 카테고리 3점 · 브랜드 2점은 그대로 남는다")
+    void keepPointsWhenOneOfTwoActivitiesSubtracted() {
+        PreferenceActivity activity = new PreferenceActivity(PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, false);
+        add(CHILD_1_ID, activity);
+        add(CHILD_1_ID, activity);
+
+        subtract(CHILD_1_ID, activity);
+
+        assertThat(categoryPreferences.findAllByChildProfileId(CHILD_1_ID)).singleElement()
+            .extracting(ChildCategoryPreference::getActivityCount)
+            .isEqualTo(1);
+        ChildPreference preference = childPreferenceRepository.findByChildProfileId(CHILD_1_ID);
+        assertThat(preference.categoryPoints(PRODUCT_A_CATEGORY_ID)).isEqualTo(3);
+        assertThat(preference.brandPoints(PRODUCT_A_BRAND)).isEqualTo(2);
+    }
+
     private void add(Long childProfileId, PreferenceActivity activity) {
         transactionTemplate.executeWithoutResult(status -> childPreferenceRepository.add(childProfileId, activity));
+    }
+
+    private void subtract(Long childProfileId, PreferenceActivity activity) {
+        transactionTemplate.executeWithoutResult(
+            status -> childPreferenceRepository.subtract(childProfileId, activity));
     }
 }
