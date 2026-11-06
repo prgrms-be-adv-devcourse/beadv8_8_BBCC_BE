@@ -27,7 +27,7 @@ class ProductDelistedGuardTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("guardedCalls")
-    @DisplayName("SALE-15 등록 취소한 상품은 판매 상태 변경을 409로 거절하고 아무것도 바꾸지 않는다")
+    @DisplayName("SALE-15 등록 취소한 상품은 판매 상태 변경 · 상품 수정을 409로 거절하고 아무것도 바꾸지 않는다")
     void rejectChangeOfDelisted(Function<ProductA, ThrowingCallable> call) {
         product.delist(SELLER_ID);
 
@@ -62,6 +62,10 @@ class ProductDelistedGuardTest {
             Named.of("판매자의 판매 시작", a -> () -> a.product().startSale(SELLER_ID, a.top(), a.clothing().type())),
             Named.of("판매자의 판매 중지", a -> () -> a.product().stopSale(SELLER_ID)),
             Named.of("관리자의 판매 시작", a -> () -> a.product().startSaleByAdmin(a.top(), a.clothing().type())),
-            Named.of("관리자의 판매중지", a -> () -> a.product().stopSaleByAdmin()));
+            Named.of("관리자의 판매중지", a -> () -> a.product().stopSaleByAdmin()),
+            Named.of("상품 정보 수정", a -> () -> a.product().update(
+                a.updateWith(ProductUpdateFixture.VERSION, a.top(), "새 상품명"))),
+            Named.of("옵션 · 가격 · 실측을 함께 보낸 수정", a -> () -> a.product().update(
+                a.sameUpdate(), a.currentSaleInputs())));
     }
 }
