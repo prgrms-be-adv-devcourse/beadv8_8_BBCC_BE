@@ -26,7 +26,7 @@ import org.springframework.stereotype.Service;
 /**
  * 구매자 상품 목록 조회 유스케이스다. 요청을 검색 조건으로 바꿔 검색 색인에서 찾는다.
  * 로그인 회원이 검색어로 찾은 첫 페이지면 검색 이벤트(search.performed)를 보낸다(#611).
- * 관련도순(RELEVANCE)으로 검색어를 찾으면 검색어를 의미 검색 벡터로 바꿔 함께 넘긴다(#797). 바꾸지 못하면 키워드로만 찾는다.
+ * 검색어로 찾으면 정렬과 관계없이 검색어를 의미 검색 벡터로 바꿔 함께 넘긴다(#797). 바꾸지 못하면 키워드로만 찾는다.
  * DB를 쓰지 않으므로 트랜잭션을 열지 않는다.
  */
 @Slf4j
@@ -49,7 +49,7 @@ public class ProductListService {
             keyword,
             groupByCode(request.attributesOrEmpty()),
             sort,
-            keywordVector(keyword, sort));
+            keywordVector(keyword));
         Page<ProductSearchItem> result = search(condition, request);
         if (isNewSearchByMember(memberId, condition, request)) {
             searchEventSender.send(searchPerformed(memberId, condition, result.getTotalElements()));
@@ -69,9 +69,9 @@ public class ProductListService {
         }
     }
 
-    // 의미 검색은 관련도순일 때만 쓴다. 다른 정렬은 키워드 결과만 보여 주므로 API를 부르지 않는다
-    private List<Float> keywordVector(String keyword, ProductSearchSort sort) {
-        if (sort != ProductSearchSort.RELEVANCE || keyword == null || keyword.isEmpty()) {
+    // 검색어가 없으면 의미 검색을 하지 않으므로 API를 부르지 않는다
+    private List<Float> keywordVector(String keyword) {
+        if (keyword == null || keyword.isEmpty()) {
             return null;
         }
         return textEmbedder.embedKeyword(keyword).orElse(null);

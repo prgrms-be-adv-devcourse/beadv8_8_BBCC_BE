@@ -26,7 +26,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
 /**
- * 의미 검색 벡터를 실제 Elasticsearch에 저장하고, 관련도순 검색이 kNN으로 뜻이 가까운 상품을 더하는지 확인한다(#797).
+ * 의미 검색 벡터를 실제 Elasticsearch에 저장하고, 검색이 kNN으로 뜻이 가까운 상품을 더하는지 확인한다(#797).
+ * 관련도순은 점수순으로, 다른 정렬은 정한 필드 순으로 보인다.
  * 임베딩 API는 부르지 않는다. 벡터를 직접 만들어 저장소에 넣고, 검색어 벡터도 조건으로 직접 넘긴다.
  * 벡터는 축 하나만 1인 단위 벡터(와 그 조합)라 코사인 유사도를 손으로 셀 수 있다. 기준 유사도는 0.3(search.yml)이다.
  */
@@ -95,9 +96,29 @@ class SemanticSearchIntegrationTest {
         assertThat(ids(search("물놀이 옷", null))).isEmpty();
     }
 
+    @Test
+    @DisplayName("최신순 · 가격순도 상품명에 없는 검색어로 뜻이 가까운 판매중 상품을 찾고, 정한 순서로 보인다")
+    void findsBySimilarityInOtherSorts() {
+        // 상품 ID가 클수록 먼저 등록돼(OCCURRED_AT - ID일) 최신순은 1 → 3, 가격은 모두 같아 상품 ID 큰 순
+        assertThat(ids(search("물놀이 옷", axis(0), ProductSearchSort.NEWEST))).containsExactly(1L, 3L);
+        assertThat(ids(search("물놀이 옷", axis(0), ProductSearchSort.PRICE_ASC))).containsExactly(3L, 1L);
+        assertThat(search("물놀이 옷", axis(0), ProductSearchSort.NEWEST).getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("최신순은 검색어가 있는 상품과 뜻이 가까운 상품을 함께 최신순으로 보인다")
+    void keywordAndSimilarityInNewest() {
+        assertThat(ids(search("원피스", axis(0), ProductSearchSort.NEWEST))).containsExactly(1L, 2L, 3L, 5L);
+        assertThat(ids(search("원피스", null, ProductSearchSort.NEWEST))).containsExactly(2L, 5L);
+    }
+
     private Page<ProductSearchItem> search(String keyword, List<Float> vector) {
-        return productSearch.search(new ProductSearchCondition(null, keyword, Map.of(), ProductSearchSort.RELEVANCE,
-            vector), PageRequest.of(0, 20));
+        return search(keyword, vector, ProductSearchSort.RELEVANCE);
+    }
+
+    private Page<ProductSearchItem> search(String keyword, List<Float> vector, ProductSearchSort sort) {
+        return productSearch.search(new ProductSearchCondition(null, keyword, Map.of(), sort, vector),
+            PageRequest.of(0, 20));
     }
 
     private void save(long productId, String name, ProductStatus status, List<Float> vector) {

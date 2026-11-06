@@ -110,11 +110,24 @@ class ProductListServiceTest {
     }
 
     @Test
-    @DisplayName("관련도순이 아니거나 검색어가 없으면 임베딩 API를 부르지 않는다")
-    void otherSortsDoNotEmbed() {
+    @DisplayName("관련도순이 아니어도 검색어가 있으면 벡터로 바꿔 함께 넘긴다")
+    void otherSortsEmbedKeyword() {
+        givenEmptyResult();
+        given(textEmbedder.embedKeyword("물놀이 옷")).willReturn(Optional.of(List.of(0.1f, 0.2f)));
+
+        productListService.list(new ProductListRequest(null, "물놀이 옷", null, null, null, null), null);
+
+        ProductSearchCondition condition = capturedCondition();
+        assertThat(condition.sort()).isEqualTo(ProductSearchSort.NEWEST);
+        assertThat(condition.keywordVector()).containsExactly(0.1f, 0.2f);
+    }
+
+    @Test
+    @DisplayName("검색어가 없으면 임베딩 API를 부르지 않는다")
+    void noKeywordDoesNotEmbed() {
         givenEmptyResult();
 
-        productListService.list(new ProductListRequest(null, "원피스", null, "NEWEST", null, null), null);
+        productListService.list(new ProductListRequest(null, null, null, "NEWEST", null, null), null);
         productListService.list(new ProductListRequest(null, "  ", null, "RELEVANCE", null, null), null);
 
         verifyNoInteractions(textEmbedder);

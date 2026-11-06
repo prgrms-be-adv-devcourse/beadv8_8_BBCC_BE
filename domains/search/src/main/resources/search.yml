@@ -10,7 +10,7 @@ kidly:
     index:
       # 색인 이름 맨 앞의 환경 이름(소문자만). dev와 prod가 Elasticsearch 하나를 색인 이름으로만 나눠 쓸 수 있다
       prefix: ${SEARCH_INDEX_PREFIX:local}
-    # 의미 검색(#797). 상품 문장과 관련도순 검색어를 OpenAI 임베딩으로 벡터로 바꾼다
+    # 의미 검색(#797). 상품 문장과 검색어를 OpenAI 임베딩으로 벡터로 바꾼다
     embedding:
       # 비어 있으면 의미 검색을 끈다(로컬 · 테스트 · CI). 서버는 GitHub Secret OPENAI_API_KEY가 서버 .env로 들어간다
       api-key: ${OPENAI_API_KEY:}

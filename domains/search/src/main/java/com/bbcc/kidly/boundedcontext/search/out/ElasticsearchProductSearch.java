@@ -39,6 +39,8 @@ import org.springframework.stereotype.Component;
  * KEYWORD_SCORE를 받고, 검색어 벡터가 있으면 kNN으로 뜻이 가까운 상품을 더한다(kNN 점수는 코사인 유사도로 0.5~1).
  * 두 점수를 더해 높은 순으로 보여 주므로 검색어가 있는 상품이 늘 먼저 오고, 그 안에서는 뜻이 가까운 순이다.
  * BM25 점수를 쓰지 않는 건 상한이 없어 상품 수에 따라 kNN 점수와 앞뒤가 바뀌기 때문이다.
+ * 다른 정렬(최신순 · 가격순)도 검색어 벡터가 있으면 검색어가 있는 상품에 뜻이 가까운 상품을 더하고, 정한 필드로 정렬한다.
+ * 점수를 쓰지 않으므로 kNN을 검색어 조건과 나란히 둔 should(하나만 맞으면 통과)로 건다.
  */
 @Component
 @RequiredArgsConstructor
@@ -97,7 +99,7 @@ public class ElasticsearchProductSearch implements ProductSearch {
                 .trackTotalHits(track -> track.enabled(true));
             if (!byRelevance) {
                 return builder
-                    .query(query -> query.bool(bool -> bool.filter(filters(condition, true))))
+                    .query(sortedQuery(condition))
                     .sort(sorts(condition.sort()));
             }
             List<Query> filters = filters(condition, false);
@@ -125,6 +127,25 @@ public class ElasticsearchProductSearch implements ProductSearch {
         } catch (ElasticsearchException e) {
             throw unavailableOrRethrow("상품", properties.productIndex(), e);
         }
+    }
+
+    // 검색어와 벡터가 모두 있으면 검색어가 상품명 · 브랜드에 있거나 뜻이 가까운 상품을 찾는다. 그 밖은 조건을 모두 filter로 건다
+    private Query sortedQuery(ProductSearchCondition condition) {
+        if (!condition.hasKeyword() || condition.keywordVector() == null) {
+            return Query.of(query -> query.bool(bool -> bool.filter(filters(condition, true))));
+        }
+        List<Query> filters = filters(condition, false);
+        Query semantic = Query.of(query -> query.knn(knn -> knn
+            .field(EMBEDDING)
+            .queryVector(condition.keywordVector())
+            .k(KNN_K)
+            .numCandidates(KNN_NUM_CANDIDATES)
+            .similarity(embeddingProperties.minSimilarity())
+            .filter(filters)));
+        return Query.of(query -> query.bool(bool -> bool
+            .filter(filters)
+            .should(keywordFilter(condition.keyword().strip()), semantic)
+            .minimumShouldMatch("1")));
     }
 
     // 값은 모두 Elasticsearch 요청 객체에 값으로 넣으므로 사용자가 보낸 글자가 쿼리 문법이 되지 않는다.

@@ -13,7 +13,7 @@ import java.util.Map;
  * @param attributeValueIds 항목 code별로 고른 값 ID 목록. 같은 항목 안의 값은 하나만 맞으면 되고, 항목이 다르면 모두 맞아야 한다.
  *     null이면 빈 Map으로 받고, 값 목록이 빈 항목은 거르는 데 쓰지 않는다
  * @param sort 정렬. 반드시 있어야 한다
- * @param keywordVector 검색어의 의미 검색 벡터. 정렬이 RELEVANCE일 때만 쓴다. null이면 키워드로만 찾는다
+ * @param keywordVector 검색어의 의미 검색 벡터. 검색어가 있으면 정렬과 관계없이 쓴다. null이면 키워드로만 찾는다
  */
 public record ProductSearchCondition(
     Long categoryId, String keyword, Map<String, List<Long>> attributeValueIds, ProductSearchSort sort,
