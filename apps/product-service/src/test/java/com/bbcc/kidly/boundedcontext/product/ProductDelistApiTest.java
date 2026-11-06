@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.Map;
@@ -80,6 +82,22 @@ class ProductDelistApiTest {
         assertThat(storedStatus()).isEqualTo("DELISTED");
     }
 
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"판매대기", "판매중", "판매자가 판매중지한 상품"})
+    @DisplayName("SALE-08 · SALE-17 등록 취소하면 커밋 뒤 상품 정보 변경됨이 한 번 나가고 status가 DELISTED다(판매대기에서도)")
+    void delistPublishesProductChanged(String given) {
+        prepare(given);
+
+        delist(TestMembers.seller(SELLER_ID)).expectStatus().isOk();
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class))
+            .singleElement()
+            .satisfies(event -> {
+                assertThat(event.data().productId()).isEqualTo(Long.valueOf(productId));
+                assertThat(event.data().status()).isEqualTo(ProductStatus.DELISTED);
+            });
+    }
+
     @Test
     @DisplayName("SALE-13 이미 등록 취소한 상품을 다시 등록 취소하면 200이고, 상태와 version이 그대로다")
     void delistAgainChangesNothing() {
@@ -93,6 +111,17 @@ class ProductDelistApiTest {
             .jsonPath("$.version").isEqualTo(versionAfterFirst);
 
         assertThat(storedVersion()).isEqualTo(versionAfterFirst);
+    }
+
+    @Test
+    @DisplayName("SALE-13 · SALE-17 이미 등록 취소한 상품을 다시 등록 취소하면 상품 정보 변경됨이 다시 나가지 않는다")
+    void delistAgainPublishesNothing() {
+        delist(TestMembers.seller(SELLER_ID)).expectStatus().isOk();
+        eventRecorder.clear();
+
+        delist(TestMembers.seller(SELLER_ID)).expectStatus().isOk();
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
     @Test
