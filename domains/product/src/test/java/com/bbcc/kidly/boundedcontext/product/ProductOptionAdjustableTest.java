@@ -16,9 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * 판매자가 옵션의 재고를 조정할 수 있는지 확인한다.
- */
 class ProductOptionAdjustableTest {
 
     private final Product product = ProductUpdateFixture.onSaleProductA().product();

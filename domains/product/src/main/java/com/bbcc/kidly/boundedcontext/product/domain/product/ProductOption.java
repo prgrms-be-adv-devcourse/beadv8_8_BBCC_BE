@@ -114,8 +114,6 @@ public class ProductOption extends BaseTimeEntity {
         product.validateOwner(sellerId);
     }
 
-    // 재고를 조정하려는 판매자가 옵션이 속한 상품을 등록한 판매자이고, 그 상품이 등록 취소되지 않았는지 검사한다.
-    // 다른 판매자의 옵션이면 등록 취소 여부보다 먼저 거절한다
     public void validateAdjustableBy(Long sellerId) {
         product.validateOwner(sellerId);
         product.validateNotDelisted();

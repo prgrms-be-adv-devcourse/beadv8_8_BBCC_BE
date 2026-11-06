@@ -26,9 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * 등록 취소한 상품은 판매자도 관리자도 바꿀 수 없는지 확인한다. 관리자의 되돌리기만 등록 취소를 푼다.
- */
 class ProductDelistedGuardTest {
 
     private final ProductA productA = ProductUpdateFixture.onSaleProductA();
@@ -94,7 +91,6 @@ class ProductDelistedGuardTest {
                 List.of(spec(a.clothing().size110(), 105, 115, top110Measurements()))), a.top(), a.clothing().type())));
     }
 
-    // 받은 수정 값에서 요청한 판매자만 다른 판매자로 바꾼다
     private static Product.UpdateInfo updateFromOtherSeller(Product.UpdateInfo update) {
         return new Product.UpdateInfo(OTHER_SELLER_ID, update.version(), update.category(), update.name(),
             update.brand(), update.description(), update.thumbnailUrl(), update.imageUrls(), update.infoValues());

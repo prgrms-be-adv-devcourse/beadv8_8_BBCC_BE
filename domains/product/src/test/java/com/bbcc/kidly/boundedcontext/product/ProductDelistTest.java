@@ -29,9 +29,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * 판매자가 상품을 등록 취소하고, 관리자가 등록 취소한 상품을 되돌리는 업무 메서드를 확인한다.
- */
 class ProductDelistTest {
 
     private final ClothingOptions clothing = clothingOptions();
@@ -183,13 +180,11 @@ class ProductDelistTest {
             }));
     }
 
-    // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣고 판매를 시작한다
     private void withSaleStarted() {
         withSaleStartInputs();
         product.startSale(SELLER_ID, top, clothing.type());
     }
 
-    // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣는다. 판매 시작 조건을 채운 판매대기 상품이 된다
     private void withSaleStartInputs() {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.size110()),

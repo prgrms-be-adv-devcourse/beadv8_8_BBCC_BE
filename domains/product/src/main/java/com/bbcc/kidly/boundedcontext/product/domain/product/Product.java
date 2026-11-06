@@ -247,7 +247,6 @@ public class Product extends BaseTimeEntity {
         ProductInfoValues.requireNonNullValues(info.infoValues());
         // 등록한 판매자만 상품을 고칠 수 있다. 같은 값을 보내도 다른 판매자이면 거절한다 (OPT-08)
         validateOwner(info.sellerId());
-        // 같은 값을 보내도 등록 취소한 상품이면 거절하므로 바뀌었는지 보기 전에 검사한다
         validateNotDelisted();
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
@@ -397,7 +396,6 @@ public class Product extends BaseTimeEntity {
      * 바로 취소했어도 다른 도메인이 팔 수 없는 상품으로 알아야 하므로 포함한다. 판매대기 상품만 알리지 않는다.
      */
     public boolean hasStartedSale() {
-        // 새 상태가 생기면 알릴지 정하기 전까지 컴파일되지 않도록 default를 두지 않는다
         return switch (status) {
             case SALE_PENDING -> false;
             case ON_SALE, STOPPED, DELISTED -> true;
@@ -420,8 +418,6 @@ public class Product extends BaseTimeEntity {
         return markStopped();
     }
 
-    // 등록 취소한 상품은 판매자도 관리자도 판매 상태 · 상품 정보 · 재고를 바꿀 수 없고, 관리자의 되돌리기만 등록 취소를 푼다
-    // (SALE-15). 상품을 바꾸는 공개 메서드는 소유자 검사 바로 뒤에 이것을 부른다. 재고를 조정하는 옵션도 부르므로 package-private이다
     void validateNotDelisted() {
         if (status == ProductStatus.DELISTED) {
             throw new BusinessException(ProductErrorCode.PRODUCT_DELISTED);
@@ -457,7 +453,6 @@ public class Product extends BaseTimeEntity {
     public boolean delist(Long sellerId) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
         validateOwner(sellerId);
-        // 이미 등록 취소한 상품이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
         if (status == ProductStatus.DELISTED) {
             return false;
         }
