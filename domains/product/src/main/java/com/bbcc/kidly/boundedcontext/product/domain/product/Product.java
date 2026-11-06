@@ -427,8 +427,13 @@ public class Product extends BaseTimeEntity {
         return changed;
     }
 
+    /**
+     * 판매자가 상품을 더 팔지 않겠다고 등록 취소하고, 상태가 바뀌었는지 돌려준다. 판매대기 · 판매중 · 판매중지 어느 상태에서나
+     * 등록 취소할 수 있고, 관리자 판매중지 표시는 그대로 둔다. 등록 취소한 상품은 판매자가 되돌릴 수 없다.
+     */
     public boolean delist(Long sellerId) {
-        return false;
+        status = ProductStatus.DELISTED;
+        return true;
     }
 
     // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
