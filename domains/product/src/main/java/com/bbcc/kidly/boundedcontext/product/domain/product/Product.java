@@ -463,6 +463,9 @@ public class Product extends BaseTimeEntity {
      * 그대로 두므로, 관리자가 판매중지했던 상품은 되돌린 뒤에도 판매자가 다시 열 수 없다.
      */
     public void revertDelistByAdmin() {
+        if (status != ProductStatus.DELISTED) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_DELISTED);
+        }
         status = ProductStatus.STOPPED;
     }
 
