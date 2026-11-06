@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.notification.app.MemberContactService;
+import com.bbcc.kidly.boundedcontext.notification.app.MemberWithdrawalService;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.in.event.NotificationMemberEventListener;
@@ -33,12 +34,15 @@ class NotificationMemberEventListenerTest {
     @Mock
     private MemberContactService memberContactService;
 
+    @Mock
+    private MemberWithdrawalService memberWithdrawalService;
+
     private NotificationMemberEventListener listener;
 
     @BeforeEach
     void setUp() {
         listener = new NotificationMemberEventListener(notificationService, memberContactService,
-            JsonMapper.builder().build());
+            memberWithdrawalService, JsonMapper.builder().build());
     }
 
     @Test
@@ -62,10 +66,22 @@ class NotificationMemberEventListenerTest {
         then(notificationService).should(never()).createWelcomeEmail(any());
     }
 
+    @Test
+    @DisplayName("탈퇴 이벤트를 받으면 그 회원의 알림 개인정보를 파기한다")
+    void withdrawn() {
+        listener.on(record("member.withdrawn", "\"memberId\":7"));
+
+        then(memberWithdrawalService).should().purge(MEMBER_ID);
+    }
+
     private static ConsumerRecord<String, String> registered(String data) {
+        return record("member.registered", data);
+    }
+
+    private static ConsumerRecord<String, String> record(String eventType, String data) {
         var body = "{\"eventId\":\"" + EVENT_ID + "\",\"occurredAt\":\"2026-11-06T09:00:00\",\"data\":{" + data + "}}";
         var record = new ConsumerRecord<>("kidly.member.events", 0, 0L, String.valueOf(MEMBER_ID), body);
-        record.headers().add("eventType", "member.registered".getBytes(UTF_8));
+        record.headers().add("eventType", eventType.getBytes(UTF_8));
         return record;
     }
 }
