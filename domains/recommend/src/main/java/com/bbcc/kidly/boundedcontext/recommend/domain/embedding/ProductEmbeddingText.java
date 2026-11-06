@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.embedding;
 
+import static java.util.Objects.requireNonNull;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -21,10 +23,11 @@ public record ProductEmbeddingText(String value) {
 
     public static ProductEmbeddingText compose(String name, String brand, List<InfoValue> infoValues,
         String description) {
+        requireNonNull(name, "name은 필수입니다");
         List<String> lines = new ArrayList<>();
         lines.add("상품명: " + name);
         addIfPresent(lines, "브랜드", brand);
-        lines.addAll(infoValueLines(infoValues));
+        lines.addAll(infoValueLines(infoValues == null ? List.of() : infoValues));
         addIfPresent(lines, "설명", description);
         return new ProductEmbeddingText(truncate(String.join("\n", lines)));
     }
