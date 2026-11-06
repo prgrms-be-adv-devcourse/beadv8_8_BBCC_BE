@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.review.app.port.ReviewStatsReader;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
 import com.bbcc.kidly.boundedcontext.review.domain.DisplayStatus;
 import com.bbcc.kidly.boundedcontext.review.domain.Fit;
+import com.bbcc.kidly.boundedcontext.review.domain.ModerationStatus;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewImage;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewStats;
@@ -87,6 +88,18 @@ class ReviewQueryServiceTest {
         // 빈 쪽은 사진을 묻지 않는다
         assertThat(service.findByProduct("1", page.nextCursor(), "2").items()).isEmpty();
         assertThat(images.calls).isEmpty();
+    }
+
+    @Test
+    @DisplayName("visibility: 숨김 두 상태는 UNDER_REVIEW, 나머지는 PUBLIC(이유 분류는 담지 않는다)")
+    void visibility() {
+        reviews.add(3);
+
+        assertThat(service.findMine(1L, null, "3").items())
+            .extracting(ReviewQueryService.ReviewItem::reviewId, ReviewQueryService.ReviewItem::visibility)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple(100L, "PUBLIC"),
+                org.assertj.core.groups.Tuple.tuple(99L, "UNDER_REVIEW"),
+                org.assertj.core.groups.Tuple.tuple(98L, "PUBLIC"));
     }
 
     @Test
@@ -238,6 +251,11 @@ class ReviewQueryServiceTest {
         @Override
         public String getThumbnailUrl() {
             return null;
+        }
+
+        @Override
+        public ModerationStatus getModerationStatus() {
+            return id == 99L ? ModerationStatus.HIDDEN : ModerationStatus.PASSED;
         }
 
         @Override

@@ -115,6 +115,32 @@ class CommunityMigrationIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("baseline 버전까지만 적용된 DB에 리뷰 검사 칸을 더하고, 이미 있던 리뷰는 검사 통과(PASSED) · 시도 0 · 버전 0이다")
+    void addsModerationColumnsAfterBaseline() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createCommunityTablesUpTo(dataSource, jdbc, BASELINE_VERSION);
+            jdbc.update("insert into community.review (id, order_item_id, product_id, member_id, nickname, rating, "
+                + "content, created_at, updated_at) values (1, 11, 14, 13, '닉', 4, '본문', now(), now())");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(jdbc.queryForMap("select moderation_status, moderation_reason, moderation_attempts, "
+                + "content_version, moderated_at, moderated_by_admin_id from community.review where id = 1"))
+                .containsEntry("moderation_status", "PASSED").containsEntry("moderation_attempts", 0)
+                .containsEntry("content_version", 0L).containsEntry("moderation_reason", null)
+                .containsEntry("moderated_at", null).containsEntry("moderated_by_admin_id", null);
+            assertThatThrownBy(() -> jdbc.update("update community.review set moderation_status = 'UNKNOWN'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+            assertThat(jdbc.queryForList("select indexname from pg_indexes where schemaname = 'community' "
+                + "and tablename = 'review'", String.class)).contains("idx_review_moderation_status");
+        }
+    }
+
     // baseline 버전까지만 적용하고 이력은 지워 서비스가 처음 뜨기 전의 운영 DB 상태로 둔다
     private static void createCommunityTablesUpTo(DriverManagerDataSource dataSource, JdbcTemplate jdbc,
         String version) {
