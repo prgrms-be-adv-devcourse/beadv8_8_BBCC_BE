@@ -23,7 +23,9 @@ public final class ChildPreference {
 
     public ChildPreference plus(PreferenceActivity activity) {
         Map<Long, Integer> categoryCounts = new HashMap<>(categoryActivityCounts);
-        categoryCounts.put(activity.categoryId(), categoryCounts.getOrDefault(activity.categoryId(), 0) + 1);
+        if (activity.categoryId() != null) {
+            categoryCounts.put(activity.categoryId(), categoryCounts.getOrDefault(activity.categoryId(), 0) + 1);
+        }
         return new ChildPreference(categoryCounts);
     }
 
