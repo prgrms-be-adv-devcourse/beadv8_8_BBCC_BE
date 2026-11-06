@@ -160,6 +160,25 @@ class ReviewTest {
         review.update(AUTHOR, Review.Change.fitOnly(null), false);
     }
 
+    @Test
+    @DisplayName("사진만 바꾸는 수정도 바꿀 값이 있는 것으로 보고 다른 값은 그대로 둔다. 남이 고치면 AUTHOR")
+    void imagesOnlyUpdate() {
+        Review review = withFit(Fit.SMALL, true);
+
+        review.update(AUTHOR, Review.Change.imagesOnly(), true);
+
+        assertThat(review.getRating()).isEqualTo(5);
+        assertThat(review.getContent()).isEqualTo("좋아요");
+        assertThat(review.getFit()).isEqualTo(Fit.SMALL);
+        assertThatThrownBy(() -> review.update(AUTHOR + 1, Review.Change.imagesOnly(), true))
+            .isInstanceOfSatisfying(ReviewRuleException.class,
+                e -> assertThat(e.rule()).isEqualTo(ReviewRule.AUTHOR));
+        assertThatThrownBy(() -> review.update(AUTHOR, new Review.Change(false, null, false, null, false, null, false),
+            true))
+            .isInstanceOfSatisfying(ReviewRuleException.class,
+                e -> assertThat(e.rule()).isEqualTo(ReviewRule.NO_CHANGES));
+    }
+
     private static Review withFit(Fit fit, boolean sizeApplicable) {
         return Review.create(new Review.Values(11L, 14L, AUTHOR, "닉네임", 5, "좋아요", fit, sizeApplicable));
     }

@@ -9,7 +9,7 @@
 - `app`: 유스케이스 서비스. 오류 코드는 컨텍스트마다 `ErrorCode`를 구현한 enum(`ReviewErrorCode` · `FavoriteErrorCode`)과 `BusinessException`
 - `app.port`: 나가는 것(저장소 · 다른 컨텍스트)의 인터페이스, `app.port.in`: 다른 컨텍스트가 들어오는 인터페이스. 둘 다 최상위는 인터페이스만 두고, 주고받는 값은 그 인터페이스 안에 둔다(값은 record, 종류는 enum). 나가는 포트 구현은 `out`(저장소는 Spring Data `Jpa…Repository`가 포트를 상속), 들어오는 포트 구현은 app
 - `in`: `web`(컨트롤러 · `dto`, 관리자 API가 생기면 `web.admin`) · `event`(이벤트 수신 · 매퍼) · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
-- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 · 기술 보관 행/저장소 어댑터. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 넷만 둔다(`CommunityPackageLayoutArchitectureTest`)
+- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 · 기술 보관 행/저장소 어댑터. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`) · `storage`(DB 밖 파일 저장소 어댑터. 예: 리뷰 사진 업로드 주소를 서명하는 `S3ReviewImageStorage`) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 다섯만 둔다(`CommunityPackageLayoutArchitectureTest`)
 - 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`
 - 한 앱 안에서 빈 · 엔티티 이름이 다른 도메인과 겹치면 기동이 실패한다: 다른 도메인에 같은 이름이 있을 수 있는 클래스(`…EventListener` · `SpringEventReceiver` · `EventGuard` 등)는 `Community` 접두어를 붙이고, 엔티티는 `@Entity(name = "Community…")`로 이름을 정한다
 - 검사: 계층 규칙은 `LayerArchitectureTest`(`LayerRules`), 컨텍스트 사이 규칙(내 out → 상대 `app.port.in`만)은 `CommunityContextArchitectureTest`, 패키지 배치는 `CommunityPackageLayoutArchitectureTest`. 컨텍스트 루트의 `package-info`는 `@NullMarked`로 클래스를 남겨 뼈대만 있을 때도 검사 대상이 비지 않게 한다
@@ -29,11 +29,16 @@
 - 카운터(리뷰 수 · 평점 합 · 찜 수 등)는 집계 행을 원자적 UPDATE(`set count = count + 1`)로 바꾸고, 동시성 테스트로 1회분씩 쌓이는지 확인한다. 읽고 더해 저장하지 않는다. 첫 행은 `INSERT … ON CONFLICT DO UPDATE`(증가만)로 만들고, 감소는 있는 행의 UPDATE로 한다(감소를 upsert로 하면 넣으려던 음수 행이 CHECK(0 이상)에 먼저 걸린다). 같은 행(리뷰 등)의 수정 · 삭제가 겹치면 그 행을 select for update로 잡아 증감이 한 번씩만 일어나게 한다
 - 중복은 DB 유일 제약으로 막는다: (회원, 상품) 찜, (주문상품) 리뷰
 - 리뷰 사이즈 핏(`Fit`: SMALL · TRUE_TO_SIZE · LARGE, 선택)은 구매 사이즈가 있는 주문상품만 받는다. 핏별 수는 `review_stats`의 `fit_*`를 다른 집계와 같은 문장에서 증감한다(작성 +1, 수정 이전 −1 · 새 +1, 삭제 −1). 구매 사이즈(`purchasedSize`)는 리뷰에 따로 저장하지 않고 작성 자격(`review_eligibility.size`)을 조인해 읽는다
+- 리뷰 사진: 브라우저가 업로드 주소 발급(`POST /api/v1/reviews/images/upload-urls`)으로 받은 서명 주소로 S3에 직접 올리고, 받은 공개 주소(`imageUrls`)를 리뷰 작성 · 수정에 보낸다. 서명 · 공개 주소는 `app.port.ReviewImageStorage`(구현 `out.storage`)만 알고, domain · app은 S3를 모른다
+  - 주소 검사는 보안 경계다: 본인 경로(`{key-prefix}/reviews/{회원 ID}/`) 공개 주소 접두어 + 서버가 만든 이름(소문자 UUID.jpg|png|webp)만 받고, 같은 주소는 한 번만(`ReviewImageUrls`). 업로드됐는지(저장소에 실제로 있는지)는 보지 않는다
+  - 설정은 `community.yml`의 `kidly.community.review.image.*`(장수 · 크기는 app `ReviewImageProperties`, 버킷 · 경로 · 서명은 `out.config`). 최대 장수(`max-count`)는 값만 바꿔 조절한다. 로컬 · 테스트 프로필은 가짜 자격 증명이다
+  - 사진 행(`review_image`)은 리뷰를 지우면 DB가 함께 지운다(ON DELETE CASCADE). 수정에서 보내면 그 리뷰의 행을 모두 지우고 보낸 순서로 새로 넣는다. 목록은 한 쪽의 리뷰 ID로 사진을 한 번에 읽는다(쪽마다 쿼리 1번 더, 사진 수와 상관없음)
+  - S3 객체는 지우지 않는다(리뷰 삭제 · 사진 교체 · 쓰이지 않은 업로드 모두). 정리는 따로 정한다
 - 수신으로 처음 보는 행을 만들 때는 먼저 조회하고, 저장은 따로 연 트랜잭션(`ReviewSeparateTransaction`)에서 바로 반영한다. ID를 직접 넣는 엔티티(상품 복사본)는 Spring Data `save`가 merge가 되어 이미 커밋된 행을 덮어쓰므로, 새 행은 persist만 하는 저장소 조각(`out.store.ReplicaProductInsert`)으로 넣는다. 동시 수신으로 그 행의 유일 제약(SQLState 23505 + 제약 이름)에 막히고 다시 조회해 행이 있으면 "이미 있음"으로 수렴한다(복사본은 이어서 늦을 때만 덮어쓰기). 그 밖의 위반은 던진다(재시도 → DLT). 로그에 값을 남기지 않는다
 - 따로 연 트랜잭션은 바깥 트랜잭션이 있는 채로 열리므로 수신 한 건이 DB 커넥션을 최대 2개 쓴다. Kafka 리스너는 동시성 1이라 커넥션 2개로 끝나고, Spring 이벤트 경로는 발행 쪽 스레드 수만큼 동시에 2개씩 들 수 있다(커넥션 풀 크기를 정할 때 본다)
 - 저장했다가 다시 비교 · 정렬 · 커서에 쓰는 시각(`occurredAt` · `confirmedAt` · 생성 · 수정 시각)은 도메인에서 마이크로초로 잘라 저장 · 비교한다(`ReviewTimes`). 실행 환경에 따라 나노초가 나오는데 DB는 마이크로초로 저장해, 자르지 않으면 같은 이벤트가 "더 늦은" 값으로 보인다. 테스트의 기준 시각은 나노초가 있는 고정값으로 쓴다
 - 목록은 커서 페이지네이션 + 인덱스, 쿼리 수 테스트로 N+1을 막는다
-- 수정 API(PATCH)는 보낸 필드만 바꾼다: 키가 없으면 그대로, 키를 null(또는 틀린 타입)로 보내면 그 필드의 400, 바꿀 필드가 하나도 없으면 400. 요청 DTO는 필드를 JSON 원래 타입(JsonNode)으로 받아 "키 없음"과 "null"을 구분한다
+- 수정 API(PATCH)는 보낸 필드만 바꾼다: 키가 없으면 그대로, 키를 null(또는 틀린 타입)로 보내면 그 필드의 400(핏은 null이 지우기, 사진은 빈 목록이 모두 지우기), 바꿀 필드가 하나도 없으면 400. 요청 DTO는 필드를 JSON 원래 타입(JsonNode)으로 받아 "키 없음"과 "null"을 구분한다
 - 마이그레이션은 `src/main/resources/db/migration/community/V{yyyyMMddHHmm}__community_{설명}.sql`, 추가만(이미 적용된 파일은 고치지 않는다). 커뮤니티 서비스(`apps/community-service`)가 적용하고, 커뮤니티 표가 이미 있는 DB는 baseline(`202611031200`, 고정)까지 건너뛰므로 새 파일은 그보다 뒤 버전(만든 시각)이어야 한다. 이미 칸 · 표가 있을 수 있는 DB를 생각해 `IF NOT EXISTS`로 쓴다
 
 ## 4. 상품 복사본 · 기존 상품 채우기

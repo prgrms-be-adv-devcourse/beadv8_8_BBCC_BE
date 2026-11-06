@@ -3,16 +3,23 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ReviewView;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewEligibilities;
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImages;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewStatsCounter;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewEligibility;
+import com.bbcc.kidly.boundedcontext.review.domain.ReviewImage;
+import com.bbcc.kidly.boundedcontext.review.domain.ReviewImageUpload;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +32,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.unit.DataSize;
 
 class ReviewServiceTest {
 
@@ -32,13 +40,14 @@ class ReviewServiceTest {
     private static final long ORDER_ITEM = 11L;
     private static final long PRODUCT = 14L;
     // 나노초가 있는 고정 기준 시각
+    private static final String OWN_PREFIX = "https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com/test/reviews/13/";
     private static final LocalDateTime FIXED_TIME = LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123);
 
     private final FakeReviews reviews = new FakeReviews();
     private final FakeStats stats = new FakeStats();
     private final FakeEligibility eligibility = new FakeEligibility();
-    private final ReviewService service =
-        new ReviewService(reviews, stats, eligibility, new ReviewSeparateTransaction());
+    private final FakeReviewImages images = new FakeReviewImages();
+    private final ReviewService service = service(5);
 
     @Test
     @DisplayName("내 자격이 있는 주문상품에 쓰면 작성 시점 닉네임으로 저장하고 집계를 +1 · +별점 한다")
@@ -238,6 +247,129 @@ class ReviewServiceTest {
             ReviewErrorCode.NO_FIELDS_TO_UPDATE);
     }
 
+    @Test
+    @DisplayName("사진: 작성하면 본인 주소를 보낸 순서대로 저장하고 응답에 같은 순서로 담는다(없으면 빈 목록)")
+    void writeWithImages() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        eligibility.mine(ORDER_ITEM + 1, ME, PRODUCT);
+        List<String> urls = List.of(own(2, "png"), own(0, "jpg"), own(1, "webp"));
+
+        ReviewView view = writeWith(ORDER_ITEM, ImageUrlsInput.of(urls));
+        ReviewView without = service.write(ME, "닉", String.valueOf(ORDER_ITEM + 1), 4, "좋아요");
+
+        assertThat(view.imageUrls()).containsExactlyElementsOf(urls);
+        assertThat(images.urlsOf(view.reviewId())).containsExactlyElementsOf(urls);
+        assertThat(without.imageUrls()).isEmpty();
+        assertThat(images.urlsOf(without.reviewId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("사진 작성 오류: 남의 · 외부 주소 · 틀린 타입은 INVALID_IMAGE_URL, 장수 초과는 TOO_MANY_IMAGES(자격 확인보다 먼저, 아무것도 저장 안 함)")
+    void writeImageErrors() {
+        assertError(() -> writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg").replace("/13/", "/14/")))),
+            ReviewErrorCode.INVALID_IMAGE_URL);
+        assertError(() -> writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of("https://evil.example.com/a.jpg"))),
+            ReviewErrorCode.INVALID_IMAGE_URL);
+        assertError(() -> writeWith(ORDER_ITEM, ImageUrlsInput.invalid()), ReviewErrorCode.INVALID_IMAGE_URL);
+        assertThatThrownBy(() -> writeWith(ORDER_ITEM, ImageUrlsInput.of(ownUrls(6))))
+            .isInstanceOfSatisfying(BusinessException.class, e -> {
+                assertThat(e.getErrorCode()).isEqualTo(ReviewErrorCode.TOO_MANY_IMAGES);
+                assertThat(e.getDetail()).contains("5장");
+            });
+        assertThat(reviews.saves).isZero();
+        assertThat(images.rows).isEmpty();
+        assertThat(stats.deltas).isEmpty();
+    }
+
+    @Test
+    @DisplayName("사진 수정: 보내면 전체 교체(새 순서), 키가 없으면 그대로, 빈 목록이면 모두 삭제. 사진만 바꾸면 집계는 그대로")
+    void updateImages() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        long id = writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg"), own(1, "jpg")))).reviewId();
+        List<Delta> afterWrite = List.copyOf(stats.deltas);
+
+        ReviewView replaced = service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of(own(2, "png"),
+            own(0, "jpg")))));
+        assertThat(replaced.imageUrls()).containsExactly(own(2, "png"), own(0, "jpg"));
+        assertThat(images.urlsOf(id)).containsExactly(own(2, "png"), own(0, "jpg"));
+
+        ReviewView kept = service.update(ME, id, new ReviewService.ReviewChange(false, null, true, "본문만"));
+        assertThat(kept.imageUrls()).containsExactly(own(2, "png"), own(0, "jpg"));
+        assertThat(images.urlsOf(id)).containsExactly(own(2, "png"), own(0, "jpg"));
+
+        ReviewView cleared = service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of())));
+        assertThat(cleared.imageUrls()).isEmpty();
+        assertThat(images.urlsOf(id)).isEmpty();
+        assertThat(stats.deltas).isEqualTo(afterWrite);
+    }
+
+    @Test
+    @DisplayName("사진 수정 위반(주소 · 장수 · 핏)은 아무것도 바꾸지 않고, 남의 리뷰는 주소가 틀려도 작성자 확인이 먼저(403)")
+    void updateImageViolationChangesNothing() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        long id = writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg")))).reviewId();
+        List<Delta> afterWrite = List.copyOf(stats.deltas);
+
+        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(true, 1, true, "바꿈",
+            ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of("https://evil.example.com/a.jpg")))),
+            ReviewErrorCode.INVALID_IMAGE_URL);
+        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(true, 1, false, null,
+            ReviewService.FitInput.absent(), ImageUrlsInput.of(ownUrls(6)))), ReviewErrorCode.TOO_MANY_IMAGES);
+        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(false, null, false, null,
+            ReviewService.FitInput.text("SMALL"), ImageUrlsInput.of(List.of(own(1, "png"))))),
+            ReviewErrorCode.FIT_NOT_APPLICABLE);
+        assertError(() -> service.update(ME + 1, id, imagesChange(ImageUrlsInput.invalid())),
+            ReviewErrorCode.REVIEW_FORBIDDEN);
+
+        Review review = reviews.findForUpdate(id).orElseThrow();
+        assertThat(review.getRating()).isEqualTo(4);
+        assertThat(review.getContent()).isEqualTo("좋아요");
+        assertThat(images.urlsOf(id)).containsExactly(own(0, "jpg"));
+        assertThat(stats.deltas).isEqualTo(afterWrite);
+    }
+
+    @Test
+    @DisplayName("최대 장수 설정을 바꾸면 그 값으로 검사한다(작성 · 수정)")
+    void followsConfiguredMaxCount() {
+        ReviewService two = service(2);
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+
+        assertThatThrownBy(() -> two.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
+            ReviewService.FitInput.absent(), ImageUrlsInput.of(ownUrls(3))))
+            .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getDetail()).contains("2장"));
+        long id = two.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요", ReviewService.FitInput.absent(),
+            ImageUrlsInput.of(ownUrls(2))).reviewId();
+        assertError(() -> two.update(ME, id, imagesChange(ImageUrlsInput.of(ownUrls(3)))),
+            ReviewErrorCode.TOO_MANY_IMAGES);
+        assertThat(images.urlsOf(id)).hasSize(2);
+    }
+
+    private ReviewService service(int maxImages) {
+        return new ReviewService(reviews, stats, eligibility, new ReviewSeparateTransaction(), images,
+            new OwnPrefixStorage(), new ReviewImageProperties(maxImages, DataSize.ofMegabytes(10)));
+    }
+
+    private ReviewView writeWith(long orderItemId, ImageUrlsInput imageUrls) {
+        return service.write(ME, "닉", String.valueOf(orderItemId), 4, "좋아요", ReviewService.FitInput.absent(),
+            imageUrls);
+    }
+
+    private static ReviewService.ReviewChange imagesChange(ImageUrlsInput imageUrls) {
+        return new ReviewService.ReviewChange(false, null, false, null, ReviewService.FitInput.absent(), imageUrls);
+    }
+
+    private static String own(int index, String extension) {
+        return OWN_PREFIX + String.format("0b6f3c1e-8a2d-4c5b-9e7f-%012d", index) + "." + extension;
+    }
+
+    private static List<String> ownUrls(int count) {
+        List<String> urls = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            urls.add(own(i, "png"));
+        }
+        return urls;
+    }
+
     private static ReviewService.ReviewChange change(ReviewService.FitInput fit) {
         return new ReviewService.ReviewChange(false, null, false, null, fit);
     }
@@ -254,6 +386,54 @@ class ReviewServiceTest {
     }
 
     private record Delta(Long productId, int count, int rating) {
+    }
+
+    private static final class OwnPrefixStorage implements ReviewImageStorage {
+
+        @Override
+        public UploadUrl issueUploadUrl(ReviewImageUpload upload, long memberId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String ownImageUrlPrefix(long memberId) {
+            return "https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com/test/reviews/" + memberId + "/";
+        }
+    }
+
+    private static final class FakeReviewImages implements ReviewImages {
+
+        private final List<ReviewImage> rows = new ArrayList<>();
+
+        List<String> urlsOf(Long reviewId) {
+            return findByReviewIdOrderByPositionAsc(reviewId).stream().map(ReviewImage::getImageUrl).toList();
+        }
+
+        @Override
+        public <S extends ReviewImage> List<S> saveAll(Iterable<S> images) {
+            List<S> saved = new ArrayList<>();
+            images.forEach(saved::add);
+            rows.addAll(saved);
+            return saved;
+        }
+
+        @Override
+        public List<ReviewImage> findByReviewIdOrderByPositionAsc(Long reviewId) {
+            return rows.stream().filter(image -> image.getReviewId().equals(reviewId))
+                .sorted(Comparator.comparingInt(ReviewImage::getPosition)).toList();
+        }
+
+        @Override
+        public List<ReviewImage> findByReviewIdInOrderByReviewIdAscPositionAsc(Collection<Long> reviewIds) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int deleteAllOfReview(Long reviewId) {
+            int before = rows.size();
+            rows.removeIf(image -> image.getReviewId().equals(reviewId));
+            return before - rows.size();
+        }
     }
 
     private static final class FakeStats implements ReviewStatsCounter {
