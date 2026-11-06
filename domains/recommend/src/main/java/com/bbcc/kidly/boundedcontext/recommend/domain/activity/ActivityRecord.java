@@ -46,11 +46,11 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    // 검색은 늘 null이고, 장바구니 담기 · 빼기는 자녀를 고른 경우만 값이 있다
+    // 검색 · 상세 진입은 늘 null이고, 장바구니 담기 · 빼기는 자녀를 고른 경우만 값이 있다
     @Column(name = "child_profile_id")
     private Long childProfileId;
 
-    // 활동이 일어난 시각이다(이벤트의 발생 시각)
+    // 활동이 일어난 시각이다. 이벤트로 받은 활동은 이벤트의 발생 시각, 상세 진입은 요청을 받은 시각이다
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
