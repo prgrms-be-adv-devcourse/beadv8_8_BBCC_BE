@@ -73,9 +73,18 @@ class GroqProviderTest(unittest.TestCase):
 
     def test_rejects_actual_trial_health_claim(self):
         sample = json.loads(json.loads(body())['choices'][0]['message']['content'])
-        sample['finding']['observation'] = '모든 서비스가 정상 실행 중'
-        sample['finding']['hypothesis'] = '전반적인 시스템 안정성 확보'
         data = replace(context(), evidence=(Evidence('f0', 'up', 1, 'boolean', 'dev', 'kidly-gateway'),))
+        for field in ('observation', 'hypothesis', 'check', 'recommendation', 'limitations'):
+            with self.subTest(field=field):
+                candidate = json.loads(json.dumps(sample))
+                claim = '모든 서비스가 정상 실행 중입니다. 추가 조치 불필요'
+                if field == 'limitations':
+                    candidate[field] = [claim]
+                else:
+                    candidate['finding'][field] = claim
+                with self.assertRaisesRegex(ProviderError, '^response_unsupported_health_claim$'):
+                    self.provider(transport(body(**candidate))).analyze(data, 2300)
+        sample['finding']['hypothesis'] = '전반적인 시스템 안정성 확보'
         with self.assertRaisesRegex(ProviderError, '^response_unsupported_health_claim$'):
             self.provider(transport(body(**sample))).analyze(data, 2300)
 
