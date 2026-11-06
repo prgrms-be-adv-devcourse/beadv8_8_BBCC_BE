@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.preference;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,6 +35,19 @@ public final class ChildPreference {
     public static ChildPreference empty() {
         // Map.of()는 null 키를 찾으면 예외를 던지므로, 카테고리 · 브랜드가 없는 상품도 찾을 수 있게 HashMap으로 둔다
         return new ChildPreference(new HashMap<>(), new HashMap<>(), new HashMap<>());
+    }
+
+    /**
+     * 저장된 카테고리 · 브랜드 줄로 집계를 만든다. 줄에서 값만 꺼내 담으므로 집계는 넘긴 목록과 이어지지 않는다.
+     */
+    public static ChildPreference of(List<ChildCategoryPreference> categories, List<ChildBrandPreference> brands) {
+        Map<Long, Integer> activityCounts = new HashMap<>();
+        Map<Long, Integer> cartAddCounts = new HashMap<>();
+        for (ChildCategoryPreference category : categories) {
+            activityCounts.put(category.getCategoryId(), category.getActivityCount());
+            cartAddCounts.put(category.getCategoryId(), category.getCartAddCount());
+        }
+        return new ChildPreference(activityCounts, cartAddCounts, new HashMap<>());
     }
 
     public ChildPreference plus(PreferenceActivity activity) {
