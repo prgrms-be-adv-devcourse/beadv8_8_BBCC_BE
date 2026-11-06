@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_BRAND;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_CATEGORY_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_NAME;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_REGISTERED_AT;
@@ -57,7 +59,10 @@ class RecommendedProductSelectorTest {
             PRODUCT_A_NAME,
             PRODUCT_A_THUMBNAIL_URL,
             25_000L,
-            expectedSize));
+            expectedSize,
+            PRODUCT_A_CATEGORY_ID,
+            PRODUCT_A_BRAND,
+            PRODUCT_A_REGISTERED_AT));
     }
 
     @Test
@@ -136,7 +141,10 @@ class RecommendedProductSelectorTest {
             PRODUCT_A_NAME,
             PRODUCT_A_THUMBNAIL_URL,
             25_000L,
-            null));
+            null,
+            PRODUCT_A_CATEGORY_ID,
+            PRODUCT_A_BRAND,
+            PRODUCT_A_REGISTERED_AT));
     }
 
     @ParameterizedTest(name = "품절 {0}, 옵션 판매 상태 {1}")
