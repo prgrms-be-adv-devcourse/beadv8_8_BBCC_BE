@@ -2,8 +2,6 @@ package com.bbcc.kidly.boundedcontext.payment.app;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 결제 행동 로그. 예치금 · 충전 · 결제 상태가 바뀐 일을 action.payment 로거에 INFO 한 줄로 남긴다.
@@ -33,15 +31,6 @@ public final class PaymentActionLog {
         formatArgs[0] = action.description();
         formatArgs[1] = action;
         System.arraycopy(args, 0, formatArgs, 2, args.length);
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    LOG.info(format, formatArgs);
-                }
-            });
-            return;
-        }
-        LOG.info(format, formatArgs);
+        AfterCommit.run(() -> LOG.info(format, formatArgs));
     }
 }
