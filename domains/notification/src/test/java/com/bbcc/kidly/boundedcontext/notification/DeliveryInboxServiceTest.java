@@ -42,6 +42,14 @@ class DeliveryInboxServiceTest {
     }
 
     @Test
+    @DisplayName("택배사나 운송장이 없으면 null을 넣지 않고 운송장 없는 출발 문구를 넣는다")
+    void shippedWithoutTracking() {
+        deliveryInboxService.addShipped(new DeliveryCommand(7L, 3L, 1L, null, null));
+
+        assertThat(captured().body()).isEqualTo("주문하신 상품이 출발했어요. 주문 상세에서 배송 상태를 확인해 주세요.");
+    }
+
+    @Test
     @DisplayName("배송이 완료되면 구매자 알림함에 넣고, 출발과 다른 중복 키를 쓴다")
     void delivered() {
         deliveryInboxService.addDelivered(COMMAND);
@@ -49,6 +57,7 @@ class DeliveryInboxServiceTest {
         var info = captured();
         assertThat(info.type()).isEqualTo(NotificationType.DELIVERY_DELIVERED);
         assertThat(info.title()).isEqualTo("배송이 완료됐어요");
+        assertThat(info.body()).isEqualTo("주문하신 상품이 도착했어요. 받은 상품을 확인해 주세요.");
         assertThat(info.linkPath()).isEqualTo("/orders/3");
         assertThat(info.dedupKey()).isEqualTo("delivery.delivered:7");
     }

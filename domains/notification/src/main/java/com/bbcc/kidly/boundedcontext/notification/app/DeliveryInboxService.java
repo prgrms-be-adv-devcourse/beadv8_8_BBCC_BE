@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryInboxService {
 
     private static final String SHIPPED_BODY = "%s 운송장 %s로 출발했어요.";
+    private static final String SHIPPED_BODY_WITHOUT_TRACKING = "주문하신 상품이 출발했어요. 주문 상세에서 배송 상태를 확인해 주세요.";
     private static final String DELIVERED_BODY = "주문하신 상품이 도착했어요. 받은 상품을 확인해 주세요.";
 
     private final InboxNotificationService inboxNotificationService;
@@ -24,7 +25,15 @@ public class DeliveryInboxService {
     @Transactional
     public void addShipped(DeliveryCommand command) {
         add(command, NotificationType.DELIVERY_SHIPPED, "주문하신 상품이 출발했어요",
-            SHIPPED_BODY.formatted(command.carrierName(), command.trackingNumber()), "delivery.shipped:");
+            shippedBody(command), "delivery.shipped:");
+    }
+
+    // 택배사 · 운송장 중 하나라도 없으면 "null 운송장 null"이 되지 않게 운송장 없는 문구를 쓴다
+    private static String shippedBody(DeliveryCommand command) {
+        if (command.carrierName() == null || command.trackingNumber() == null) {
+            return SHIPPED_BODY_WITHOUT_TRACKING;
+        }
+        return SHIPPED_BODY.formatted(command.carrierName(), command.trackingNumber());
     }
 
     @Transactional
