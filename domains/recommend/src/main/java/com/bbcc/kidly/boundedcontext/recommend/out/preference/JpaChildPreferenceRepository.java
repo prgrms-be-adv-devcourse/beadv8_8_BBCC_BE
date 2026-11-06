@@ -28,13 +28,22 @@ class JpaChildPreferenceRepository implements ChildPreferenceRepository {
 
     @Override
     public void add(Long childProfileId, PreferenceActivity activity) {
+        change(childProfileId, activity, 1);
+    }
+
+    @Override
+    public void subtract(Long childProfileId, PreferenceActivity activity) {
+        change(childProfileId, activity, -1);
+    }
+
+    private void change(Long childProfileId, PreferenceActivity activity, int delta) {
         LocalDateTime now = LocalDateTime.now();
         if (activity.hasCategory()) {
-            int cartAddDelta = activity.cartAdd() ? 1 : 0;
-            categoryPreferences.addCounts(childProfileId, activity.categoryId(), 1, cartAddDelta, now);
+            int cartAddDelta = activity.cartAdd() ? delta : 0;
+            categoryPreferences.addCounts(childProfileId, activity.categoryId(), delta, cartAddDelta, now);
         }
         if (activity.hasBrand()) {
-            brandPreferences.addCount(childProfileId, activity.brand(), 1, now);
+            brandPreferences.addCount(childProfileId, activity.brand(), delta, now);
         }
     }
 }

@@ -15,4 +15,9 @@ public interface ChildPreferenceRepository {
      * 활동의 몫을 집계에 더한다. 활동에 카테고리나 브랜드가 없으면 그 줄은 만들지 않는다.
      */
     void add(Long childProfileId, PreferenceActivity activity);
+
+    /**
+     * 더했던 활동의 몫을 집계에서 뺀다. 줄이 없어도 빼며, 횟수는 0에서 자르지 않는다.
+     */
+    void subtract(Long childProfileId, PreferenceActivity activity);
 }
