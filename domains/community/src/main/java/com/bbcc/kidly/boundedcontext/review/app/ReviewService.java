@@ -27,7 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <ul>
  *   <li>작성: 입력 확인 → 내 자격 확인(없으면 403) → 이미 쓴 리뷰 확인(있으면 409) → 저장과 집계 +1 · +별점을 한 트랜잭션에서.
  *       확인 뒤 같은 주문상품이 먼저 저장되면(동시 작성) 주문상품 유일 제약에 막히고, 그 위반은 409로 바꾼다(집계도 되돌려진다)</li>
- *   <li>수정 · 삭제: 리뷰를 행 잠금으로 읽고 작성자를 확인한 뒤, 수정은 별점 차이만큼 · 삭제는 −1 · −별점으로 집계를 바꾼다</li>
+ *   <li>수정 · 삭제: 리뷰를 행 잠금으로 읽고 작성자를 확인한 뒤, 수정은 별점 차이만큼 · 삭제는 −1 · −별점으로 집계를 바꾼다.
+ *       숨김 리뷰는 이미 집계에서 빠져 있어 바꾸지 않는다</li>
+ *   <li>검사: 새 리뷰는 검사 대기(공개). 글 · 사진이 실제로 바뀐 수정은 다시 검사 대기(숨김 상태는 그대로)</li>
  *   <li>사진: 업로드 주소 발급으로 받은 본인 주소만 받는다(최대 장수는 설정 값). 작성은 리뷰와 같은 트랜잭션에서 저장하고,
  *       수정은 보내면 목록 전체를 바꾼다(지우고 새로 넣기). 리뷰를 지우면 DB가 사진 행도 지운다</li>
  * </ul>
@@ -130,24 +132,28 @@ public class ReviewService {
         String purchasedSize = purchasedSizeOf(review);
         int ratingBefore = review.getRating();
         Fit fitBefore = review.getFit();
+        String contentBefore = review.getContent();
+        List<String> imagesBefore = imageUrlsOf(review.getId());
         translateRule(() -> {
             review.update(memberId, change.toDomain(fitValue), purchasedSize != null);
             return null;
         });
+        // 글 · 사진이 실제로 바뀌면 다시 검사 대기(공개 그대로). 별점 · 핏만 바뀌면 그대로
+        if (!review.getContent().equals(contentBefore) || (images != null && !images.urls().equals(imagesBefore))) {
+            review.markContentChanged();
+        }
         Review saved = reviews.saveAndFlush(review);
         int ratingDelta = saved.getRating() - ratingBefore;
         FitDelta fitDelta = FitDelta.of(fitBefore, saved.getFit());
-        if (ratingDelta != 0 || !fitDelta.isZero()) {
+        // 숨김 리뷰는 이미 집계에서 빠져 있다. 공개로 돌아올 때 그때 값으로 더한다
+        if (saved.isPublic() && (ratingDelta != 0 || !fitDelta.isZero())) {
             adjustStats(saved.getProductId(), 0, ratingDelta, fitDelta);
         }
-        List<String> imageUrls;
+        List<String> imageUrls = imagesBefore;
         if (images != null) {
             reviewImages.deleteAllOfReview(saved.getId());
             reviewImages.saveAll(images.toImages(saved.getId()));
             imageUrls = images.urls();
-        } else {
-            imageUrls = reviewImages.findByReviewIdOrderByPositionAsc(saved.getId()).stream()
-                .map(ReviewImage::getImageUrl).toList();
         }
         return ReviewView.from(saved, purchasedSize, imageUrls);
     }
@@ -161,7 +167,10 @@ public class ReviewService {
             return null;
         });
         reviews.delete(review);
-        adjustStats(review.getProductId(), -1, -review.getRating(), FitDelta.of(review.getFit(), null));
+        // 숨김 리뷰는 이미 집계에서 빠져 있다
+        if (review.isPublic()) {
+            adjustStats(review.getProductId(), -1, -review.getRating(), FitDelta.of(review.getFit(), null));
+        }
     }
 
     /**
@@ -181,6 +190,10 @@ public class ReviewService {
             }
             throw new BusinessException(errorOf(e.rule()));
         }
+    }
+
+    private List<String> imageUrlsOf(Long reviewId) {
+        return reviewImages.findByReviewIdOrderByPositionAsc(reviewId).stream().map(ReviewImage::getImageUrl).toList();
     }
 
     // 구매 사이즈는 작성 자격에 저장된 값을 쓴다(리뷰에 따로 저장하지 않는다)

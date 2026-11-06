@@ -76,6 +76,30 @@ public class Review extends ReviewTimeEntity {
     @Column(length = 20)
     private Fit fit;
 
+    // 검사 상태. 새 리뷰는 검사 대기(공개)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ModerationStatus moderationStatus = ModerationStatus.PENDING;
+
+    // 검사에서 걸린 이유. 걸리지 않았으면 null
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private ModerationReason moderationReason;
+
+    // 판단 못 한 검사 횟수(재시도 상한과 비교). 글 · 사진이 바뀌면 0
+    @Column(nullable = false)
+    private int moderationAttempts;
+
+    // 마지막으로 검사 결과 · 관리자 조치가 반영된 시각
+    private LocalDateTime moderatedAt;
+
+    // 글 · 사진이 바뀔 때마다 +1. 검사 결과는 읽을 때의 버전이 그대로일 때만 반영한다
+    @Column(nullable = false)
+    private long contentVersion;
+
+    // 숨김 확정 · 다시 공개를 한 관리자
+    private Long moderatedByAdminId;
+
     public static Review create(Values values) {
         int rating = validRating(values.rating());
         String content = validContent(values.content());
@@ -185,6 +209,83 @@ public class Review extends ReviewTimeEntity {
 
     public int getRating() {
         return rating;
+    }
+
+    /**
+     * 공개 목록 · 상품 요약에 들어가는지(검사 대기 · 통과 · 다시 공개).
+     */
+    public boolean isPublic() {
+        return moderationStatus.isPublic();
+    }
+
+    /**
+     * 글 · 사진이 바뀌었다. 버전을 올리고, 공개 상태면 다시 검사 대기로 둔다(공개는 그대로).
+     * 숨김 상태(검사 숨김 · 숨김 확정)는 관리자 판단이 남아 있어 그대로 둔다.
+     */
+    public void markContentChanged() {
+        contentVersion++;
+        if (moderationStatus.isPublic()) {
+            moderationStatus = ModerationStatus.PENDING;
+            moderationReason = null;
+            moderationAttempts = 0;
+        }
+    }
+
+    /**
+     * 검사 결과를 받을 수 있는지: 아직 대기이고, 검사기에 넘길 때 읽은 버전 · 시도 횟수가 그대로다.
+     * 그 사이 글이 바뀌었거나 관리자 조치 · 다른 처리기의 반영이 있었으면 그 결과는 버린다.
+     */
+    public boolean isAwaitingModeration(long expectedVersion, int expectedAttempts) {
+        return moderationStatus == ModerationStatus.PENDING && contentVersion == expectedVersion
+            && moderationAttempts == expectedAttempts;
+    }
+
+    public void pass(LocalDateTime now) {
+        moderationStatus = ModerationStatus.PASSED;
+        moderationReason = null;
+        moderatedAt = ReviewTimes.toStoredPrecision(now);
+    }
+
+    /**
+     * 검사에서 걸려 숨긴다(공개 → 숨김, 집계에서 뺀다).
+     */
+    public void hideByModeration(ModerationReason reason, LocalDateTime now) {
+        moderationStatus = ModerationStatus.HIDDEN;
+        moderationReason = reason;
+        moderatedAt = ReviewTimes.toStoredPrecision(now);
+    }
+
+    /**
+     * 검사기가 판단하지 못했다(장애 · 시간 초과 · 한도 초과). 대기 그대로 다음 주기에 다시 검사한다.
+     */
+    public void recordUndecided() {
+        moderationAttempts++;
+    }
+
+    /**
+     * 관리자 숨김 확정.
+     *
+     * @return 공개였다가 숨겨졌는지(그 리뷰 몫을 집계에서 뺀다). 이미 숨김이면 false
+     */
+    public boolean hideByAdmin(Long adminId, LocalDateTime now) {
+        boolean wasPublic = isPublic();
+        moderationStatus = ModerationStatus.CONFIRMED_HIDDEN;
+        moderatedByAdminId = adminId;
+        moderatedAt = ReviewTimes.toStoredPrecision(now);
+        return wasPublic;
+    }
+
+    /**
+     * 관리자 다시 공개.
+     *
+     * @return 숨김이었다가 공개됐는지(그때 값으로 집계에 더한다). 이미 공개면 false
+     */
+    public boolean restoreByAdmin(Long adminId, LocalDateTime now) {
+        boolean wasHidden = !isPublic();
+        moderationStatus = ModerationStatus.RESTORED;
+        moderatedByAdminId = adminId;
+        moderatedAt = ReviewTimes.toStoredPrecision(now);
+        return wasHidden;
     }
 
     public boolean isAuthorWithdrawn() {
