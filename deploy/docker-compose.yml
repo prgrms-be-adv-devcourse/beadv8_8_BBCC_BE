@@ -37,39 +37,32 @@ services:
       - "127.0.0.1:${DB_PORT}:5432"     # 외부 비공개. 팀원이 SSH 터널로 IntelliJ 에서 붙는다
 
   # 도메인 간 이벤트를 전달한다. 환경(-p <env>)마다 따로 뜨고 같은 compose 네트워크의 서비스만 kafka:9092 로 붙는다(포트 비공개)
-  # KRaft 단일 브로커라 복제 계수는 1. EC2 가 멈췄다 켜져도 쌓인 메시지가 남도록 데이터는 볼륨에 둔다
+  # Kafka API 호환 Redpanda 단일 브로커라 복제 계수는 1. JVM 이 없어 apache/kafka(힙 256m 에서 Full GC 가 잦았고 실측 408MiB)보다 메모리를 적게 쓴다
+  # dev-container 모드는 fsync 를 건너뛰고 쓰기 캐시를 켠다. 실제 운영 전 학습용 환경이라 prod 도 이 모드로 띄운다
+  # 보존 7일(log_retention_ms) · 리밸런스 지연 0 은 이 모드의 기본값과 같다. EC2 가 멈췄다 켜져도 쌓인 메시지가 남도록 데이터는 볼륨에 둔다
   kafka:
-    image: apache/kafka:4.2.2
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      # 토픽 자동 생성을 끈다. 켜져 있으면 없는 토픽에 보내거나 구독할 때 파티션 1개짜리 토픽이 조용히 생겨 이름 오타가 묻힌다.
+    image: redpandadata/redpanda:v26.2.6
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=256M
+      # 토픽 자동 생성을 끈다. 켜져 있으면 없는 토픽에 보내거나 구독할 때 토픽이 조용히 생겨 이름 오타가 묻힌다.
       # 토픽은 보내는 쪽이 코드(NewTopic)로 선언한다
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-      # 메시지 보존 7일(기본값을 명시). 주말에 EC2가 멈춰도 남고, 이벤트의 개인정보(가입 이메일 등)도 7일 뒤 지워진다
-      KAFKA_LOG_RETENTION_HOURS: 168
-      # 메시지 · 책갈피를 볼륨(kafka-data)에 쓴다. 이미지 기본값은 컨테이너 안 /tmp라서, 없으면 컨테이너를 다시 만들 때 모두 사라진다
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-      KAFKA_HEAP_OPTS: -Xms256m -Xmx256m
+      - --set
+      - redpanda.auto_create_topics_enabled=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://kafka:9092
     volumes:
-      - kafka-data:/var/lib/kafka/data
-    # 포트만 본다. kafka-broker-api-versions.sh 는 부를 때마다 JVM 을 띄워 1회 CPU 약 4초를 쓴다(10초 주기면 0.33코어). 9092 리스너는 브로커 준비 직전에 열려서 포트 검사로 충분하다
+      - redpanda-data:/var/lib/redpanda/data
     healthcheck:
-      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/9092"]
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-healthy"]
       interval: 10s
       timeout: 10s
       retries: 12
       start_period: 30s
-    mem_limit: 768m
+    mem_limit: 384m
     oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
@@ -537,4 +530,4 @@ services:
 
 volumes:
   postgres-data:
-  kafka-data:
+  redpanda-data:
