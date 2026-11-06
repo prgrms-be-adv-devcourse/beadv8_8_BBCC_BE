@@ -34,7 +34,7 @@ public final class ProductChangedData {
             product.getId(), product.getSellerId(), product.getName(), product.getCategoryId(),
             product.getStatus(), product.getThumbnailUrl(), product.getCreatedAt(), product.isSizeFree(), options,
             toInfoValueEntries(product), product.getBrand(), product.getDescription(), toSizeSpecs(product),
-            toCategoryPath(category));
+            toCategoryPath(category), product.isStoppedByAdmin());
     }
 
     private static List<ProductChangedEvent.CategoryPathEntry> toCategoryPath(Category category) {

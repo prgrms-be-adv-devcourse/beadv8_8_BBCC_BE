@@ -4,6 +4,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PayoutEmailCommand;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.ProductChangedCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.RefundEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.EmailNotificationInfo;
@@ -164,6 +165,24 @@ public class NotificationService {
             var content = SellerSuspendedEmail.compose(businessName);
             createEmail(new EmailNotificationInfo(eventId, sellerId, NotificationType.SELLER_SUSPENDED, email,
                 content.title(), content.body()));
+        });
+    }
+
+    @Transactional
+    public void createProductStoppedByAdminEmail(ProductChangedCommand command) {
+        var link = "/center/products/" + command.productId();
+        inboxNotificationService.add(new InboxNotificationInfo(command.sellerId(),
+            NotificationType.PRODUCT_STOPPED_BY_ADMIN, "상품 판매가 중지됐어요",
+            "관리자가 운영 정책에 따라 %s 상품의 판매를 중지했어요.".formatted(command.name()), link,
+            "product.changed:" + command.eventId() + ":stopped-by-admin"));
+        if (exists(command.eventId())) {
+            return;
+        }
+        memberContactService.findEmail(command.sellerId()).ifPresent(email -> {
+            var content = ProductStoppedByAdminEmail.compose(notificationProperties.siteUrl(), command.productId(),
+                command.name());
+            createEmail(new EmailNotificationInfo(command.eventId(), command.sellerId(),
+                NotificationType.PRODUCT_STOPPED_BY_ADMIN, email, content.title(), content.body()));
         });
     }
 

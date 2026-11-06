@@ -44,11 +44,12 @@ class ProductEventsTest {
     }
 
     @Test
-    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 순서로 담고, 실측은 사이즈 · 권장 키 · 실측 맵이다")
+    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 · 관리자 판매 중지 순서로 담고, 실측은 사이즈 · 권장 키 · 실측 맵이다")
     void dataCarriesBrandDescriptionAndSizeSpecs() {
         assertThat(ProductChangedEvent.Data.class.getRecordComponents()).extracting(RecordComponent::getName)
             .containsExactly("productId", "sellerId", "name", "categoryId", "status", "thumbnailUrl", "createdAt",
-                "sizeFree", "options", "infoValues", "brand", "description", "sizeSpecs", "categoryPath");
+                "sizeFree", "options", "infoValues", "brand", "description", "sizeSpecs", "categoryPath",
+                "stoppedByAdmin");
         assertThat(ProductChangedEvent.SizeSpec.class.getRecordComponents()).extracting(RecordComponent::getName)
             .containsExactly("size", "minHeightCm", "maxHeightCm", "measurements");
     }
@@ -113,6 +114,16 @@ class ProductEventsTest {
 
         assertThat(List.of(withoutInfoValues, withInfoValues, withSizeSpecs, withNull))
             .allSatisfy(data -> assertThat(data.categoryPath()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("관리자 판매 중지 칸이 없는 예전 메시지처럼 null을 받으면 false다")
+    void nullStoppedByAdminBecomesFalse() {
+        ProductChangedEvent.Data data = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of(),
+            null, null, List.of(), List.of(), null);
+
+        assertThat(data.stoppedByAdmin()).isFalse();
     }
 
     @Test

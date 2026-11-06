@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.NotificationProperties;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PayoutEmailCommand;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.ProductChangedCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.RefundEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
@@ -26,6 +27,8 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -418,6 +421,27 @@ class NotificationServiceTest {
             "payment.refunded:" + EVENT_ID, "payment.refunded:" + EVENT_ID,
             "payment.payout-completed:7", "payment.payout-completed:7");
         verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("관리자 판매 중지는 판매자 이메일로 상품 이름 · 판매자 센터 상품 주소를 담은 메일을 만들고, 알림함에도 남긴다")
+    void createProductStoppedByAdminEmail() {
+        given(memberContactService.findEmail(5L)).willReturn(Optional.of("seller@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createProductStoppedByAdminEmail(new ProductChangedCommand(EVENT_ID, 9L, 5L, "곰돌이 티셔츠",
+            ProductStatus.STOPPED, true, List.of(),
+            LocalDateTime.of(2026, 11, 6, 9, 0)));
+
+        var saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertThat(saved.getValue().getType()).isEqualTo(NotificationType.PRODUCT_STOPPED_BY_ADMIN);
+        assertThat(saved.getValue().getRecipient()).isEqualTo("seller@kidly.co.kr");
+        assertThat(saved.getValue().getBody())
+            .contains("곰돌이 티셔츠", "https://kidly.kro.kr/center/products/9");
+        verify(inboxNotificationService).add(new InboxNotificationInfo(5L, NotificationType.PRODUCT_STOPPED_BY_ADMIN,
+            "상품 판매가 중지됐어요", "관리자가 운영 정책에 따라 곰돌이 티셔츠 상품의 판매를 중지했어요.", "/center/products/9",
+            "product.changed:" + EVENT_ID + ":stopped-by-admin"));
     }
 
     private void givenSaved() {
