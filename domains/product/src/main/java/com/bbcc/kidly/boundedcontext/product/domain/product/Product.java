@@ -247,6 +247,7 @@ public class Product extends BaseTimeEntity {
         ProductInfoValues.requireNonNullValues(info.infoValues());
         // 등록한 판매자만 상품을 고칠 수 있다. 같은 값을 보내도 다른 판매자이면 거절한다 (OPT-08)
         validateOwner(info.sellerId());
+        validateNotDelisted();
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
@@ -334,6 +335,7 @@ public class Product extends BaseTimeEntity {
             throw new IllegalArgumentException("옵션 목록은 비어 있을 수 없습니다");
         }
         validateOwner(info.sellerId());
+        validateNotDelisted();
         ProductOptions.validateNewOptions(info, options, productType);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
@@ -365,6 +367,7 @@ public class Product extends BaseTimeEntity {
             throw new IllegalArgumentException("실측 목록은 비어 있을 수 없습니다");
         }
         validateOwner(info.sellerId());
+        validateNotDelisted();
         ProductSizeSpecs.validateNewSpecs(info.specs(), sizeSpecs, options, category, productType);
         for (SizeSpecInfo spec : info.specs()) {
             sizeSpecs.add(SizeSpec.create(this, spec));
@@ -380,6 +383,7 @@ public class Product extends BaseTimeEntity {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
         validateOwner(sellerId);
+        validateNotDelisted();
         // 관리자가 운영 정책을 어긴 상품을 판매중지하면 판매자는 다시 열 수 없다 (SALE-11)
         if (stoppedByAdmin) {
             throw new BusinessException(ProductErrorCode.SALE_STOPPED_BY_ADMIN);
@@ -387,9 +391,15 @@ public class Product extends BaseTimeEntity {
         return openSale(category, productType);
     }
 
-    /** 판매를 시작한 상품인지 알려 준다. 판매중이거나 판매중지면 판매를 시작한 상품이고, 판매대기면 아니다. */
+    /**
+     * 다른 도메인에 알리는 상품인지 알려 준다. 판매중 · 판매중지면 판매를 시작한 상품이다. 등록 취소한 상품은 판매대기에서
+     * 바로 취소했어도 다른 도메인이 팔 수 없는 상품으로 알아야 하므로 포함한다. 판매대기 상품만 알리지 않는다.
+     */
     public boolean hasStartedSale() {
-        return status == ProductStatus.ON_SALE || status == ProductStatus.STOPPED;
+        return switch (status) {
+            case SALE_PENDING -> false;
+            case ON_SALE, STOPPED, DELISTED -> true;
+        };
     }
 
     /** 상품을 바꾸려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 바꿀 수 없다. */
@@ -404,13 +414,21 @@ public class Product extends BaseTimeEntity {
     public boolean stopSale(Long sellerId) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
         validateOwner(sellerId);
+        validateNotDelisted();
         return markStopped();
+    }
+
+    void validateNotDelisted() {
+        if (status == ProductStatus.DELISTED) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_DELISTED);
+        }
     }
 
     /** 관리자가 상품의 판매를 시작하거나 다시 열고, 판매 상태가 바뀌었는지 돌려준다. 관리자 판매중지 표시도 끈다. */
     public boolean startSaleByAdmin(Category category, ProductType productType) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
+        validateNotDelisted();
         boolean changed = openSale(category, productType);
         stoppedByAdmin = false;
         return changed;
@@ -421,10 +439,36 @@ public class Product extends BaseTimeEntity {
      * 판매 상태는 그대로라 false지만, 관리자 판매중지 표시는 켜지므로 상품은 바뀐다.
      */
     public boolean stopSaleByAdmin() {
+        validateNotDelisted();
         boolean changed = markStopped();
         // 이미 판매중지여도 판매자가 다시 열지 못하게 관리자가 판매중지한 상품으로 표시한다
         stoppedByAdmin = true;
         return changed;
+    }
+
+    /**
+     * 판매자가 상품을 더 팔지 않겠다고 등록 취소하고, 상태가 바뀌었는지 돌려준다. 판매대기 · 판매중 · 판매중지 어느 상태에서나
+     * 등록 취소할 수 있고, 관리자 판매중지 표시는 그대로 둔다. 등록 취소한 상품은 판매자가 되돌릴 수 없다.
+     */
+    public boolean delist(Long sellerId) {
+        requireNonNull(sellerId, "sellerId는 필수입니다");
+        validateOwner(sellerId);
+        if (status == ProductStatus.DELISTED) {
+            return false;
+        }
+        status = ProductStatus.DELISTED;
+        return true;
+    }
+
+    /**
+     * 관리자가 등록 취소한 상품을 판매중지로 되돌린다. 다시 팔지는 판매자가 판매 시작으로 정한다. 관리자 판매중지 표시는
+     * 그대로 두므로, 관리자가 판매중지했던 상품은 되돌린 뒤에도 판매자가 다시 열 수 없다.
+     */
+    public void revertDelistByAdmin() {
+        if (status != ProductStatus.DELISTED) {
+            throw new BusinessException(ProductErrorCode.PRODUCT_NOT_DELISTED);
+        }
+        status = ProductStatus.STOPPED;
     }
 
     // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
