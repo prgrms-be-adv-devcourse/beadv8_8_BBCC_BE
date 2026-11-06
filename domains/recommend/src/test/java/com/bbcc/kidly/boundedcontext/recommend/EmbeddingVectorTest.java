@@ -19,6 +19,17 @@ class EmbeddingVectorTest {
             .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(floats = {Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY})
+    @DisplayName("값 중 한 칸이라도 NaN이나 무한대면 벡터를 만들지 않는다")
+    void rejectNonFiniteValue(float nonFinite) {
+        float[] values = new float[EmbeddingVector.DIMENSIONS];
+        values[EmbeddingVector.DIMENSIONS - 1] = nonFinite;
+
+        assertThatThrownBy(() -> new EmbeddingVector(values))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     @DisplayName("만든 뒤에 넘긴 배열이나 돌려받은 배열을 바꿔도 벡터는 바뀌지 않는다")
     void keepValuesWhenArraysAreChanged() {
