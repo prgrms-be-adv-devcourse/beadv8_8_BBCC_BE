@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.recommend.out.embedding;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingTarget;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -36,6 +38,19 @@ public class PostgresProductEmbeddingStore implements ProductEmbeddingStore {
             .query((rs, rowNum) -> new ProductEmbeddingTarget(
                 rs.getLong("product_id"), rs.getString("embedding_text"), rs.getBoolean("retried")))
             .list();
+    }
+
+    // DB 세션의 시간대가 아니라 다른 칸처럼 애플리케이션의 한국 시간으로 남겨 칸끼리 시각을 비교할 수 있게 한다
+    @Override
+    public void markAttempted(Collection<Long> productIds) {
+        if (productIds.isEmpty()) {
+            return;
+        }
+        jdbcClient.sql("UPDATE recommend.replica_product SET embedding_attempted_at = :now"
+                + " WHERE product_id IN (:productIds)")
+            .param("now", LocalDateTime.now())
+            .param("productIds", productIds)
+            .update();
     }
 
     @Override
