@@ -5,6 +5,8 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
+import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
@@ -138,7 +140,8 @@ class PaymentRecoveryIntegrationTest {
         assertThat(stored.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
         assertThat(stored.getPaidAt()).isNull();
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
-        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).hasSize(2);
+        assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+            BUYER_ID)).hasSize(2);
         PaymentRecovery recovery = recoveryOf(order);
         assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.PENDING);
         assertThat(recovery.getAttemptCount()).isEqualTo(1);
@@ -172,7 +175,8 @@ class PaymentRecoveryIntegrationTest {
         assertThat(stored.getStatus()).isEqualTo(Order.Status.PENDING_PAYMENT);
         assertThat(stored.getPaidAt()).isNull();
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
-        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).hasSize(2);
+        assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+            BUYER_ID)).hasSize(2);
         assertThat(historyCount(order.orderId(), "ORDER", "PAID")).isZero();
         PaymentRecovery recovery = recoveryOf(order);
         assertThat(recovery.getStatus()).isEqualTo(PaymentRecovery.Status.PENDING);
@@ -190,7 +194,8 @@ class PaymentRecoveryIntegrationTest {
         assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus()).isEqualTo(Order.Status.PAID);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).extracting(Delivery::getSellerId)
             .containsExactlyInAnyOrder(SELLER_ID, OTHER_SELLER_ID);
-        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).isEmpty();
+        assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+            BUYER_ID)).isEmpty();
         assertThat(historyCount(order.orderId(), "ORDER", "PAID")).isEqualTo(1);
         assertThat(recoveryRepository.findByOrderId(order.orderId())).isEmpty();
     }
@@ -208,7 +213,8 @@ class PaymentRecoveryIntegrationTest {
 
         assertThat(orderRepository.findById(order.orderId()).orElseThrow().getStatus()).isEqualTo(Order.Status.PAID);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
-        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).isEmpty();
+        assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+            BUYER_ID)).isEmpty();
     }
 
     @Test
@@ -274,7 +280,8 @@ class PaymentRecoveryIntegrationTest {
         assertThat(stored.getStatus()).isEqualTo(Order.Status.PAID);
         assertThat(stored.getPaymentId()).isEqualTo(PAYMENT_ID);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).hasSize(2);
-        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).isEmpty();
+        assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+            BUYER_ID)).isEmpty();
         // 관리자 결제 복구로 결제완료가 되면 order.paid 한 건(실패한 시도 · 다시 누른 재처리는 내지 않는다, #899)
         assertThat(recorder.events(OrderPaidEvent.class)).singleElement()
             .satisfies(event -> assertThat(event.data().orderId()).isEqualTo(order.orderId()));
@@ -399,7 +406,8 @@ class PaymentRecoveryIntegrationTest {
                 .isEqualTo(1);
             assertThat(historyCount(order.orderId(), "ORDER", "PAID")).as("%d회차 결제완료 이력", round).isEqualTo(1);
             assertThat(historyCount(order.orderId(), "DELIVERY", "READY")).as("%d회차 배송 생성 이력", round).isEqualTo(2);
-            assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(buyerId)).isEmpty();
+            assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+                buyerId)).isEmpty();
         }
     }
 
@@ -623,8 +631,8 @@ class PaymentRecoveryIntegrationTest {
     }
 
     private OrderDetail placeWithCart(Long buyerId) {
-        cartService.addItem(buyerId, 1L, null, 1);
-        cartService.addItem(buyerId, 2L, null, 1);
+        cartService.addItem(CartOwners.member(buyerId), 1L, null, 1);
+        cartService.addItem(CartOwners.member(buyerId), 2L, null, 1);
         return orderService.place(buyerId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L), new PlaceOrderCommand.Item(2L, null, 1, 30_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));

@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
@@ -76,7 +77,7 @@ class CartItemAddedOutboxIntegrationTest {
     @Test
     @DisplayName("새 줄을 담으면 cart.item-added 한 행: 이벤트 ID · 종류 · 토픽 · 키(회원 ID) · 본문 7칸 + data, 보내지 않은 상태")
     void savesNewLineInSameTransaction() {
-        AddCartItemResult added = cartService.addItem(BUYER_ID, OPTION_ID, CHILD_ID, 2);
+        AddCartItemResult added = cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, CHILD_ID, 2);
 
         CartItemAddedEvent event = recorder.events(CartItemAddedEvent.class).getFirst();
         Map<String, Object> row = jdbcTemplate.queryForMap("select * from orders.order_outbox");
@@ -97,19 +98,20 @@ class CartItemAddedOutboxIntegrationTest {
         assertThat(payload.get("aggregateId").asString()).isEqualTo(String.valueOf(added.line().cartItemId()));
         assertThat(payload.get("correlationId").asString()).isEqualTo(String.valueOf(BUYER_ID));
         assertThat(payload.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(
-            new CartItemAddedEvent.Data(added.line().cartItemId(), BUYER_ID, CHILD_ID, PRODUCT_ID, OPTION_ID, 2, 2)));
+            new CartItemAddedEvent.Data(added.line().cartItemId(), BUYER_ID, CHILD_ID, PRODUCT_ID, OPTION_ID, 2, 2,
+                "MEMBER", BUYER_ID)));
     }
 
     @Test
     @DisplayName("같은 줄에 다시 담으면 행이 하나 더: quantity = 이번에 담은 수량, cartQuantity = 담은 뒤 줄 수량, 대상은 같은 줄")
     void savesMergedLine() {
-        Long cartItemId = cartService.addItem(BUYER_ID, OPTION_ID, null, 2).line().cartItemId();
-        cartService.addItem(BUYER_ID, OPTION_ID, null, 3);
+        Long cartItemId = cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, null, 2).line().cartItemId();
+        cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, null, 3);
 
         List<CartItemAddedEvent> events = recorder.events(CartItemAddedEvent.class);
         assertThat(events).extracting(CartItemAddedEvent::data).containsExactly(
-            new CartItemAddedEvent.Data(cartItemId, BUYER_ID, null, PRODUCT_ID, OPTION_ID, 2, 2),
-            new CartItemAddedEvent.Data(cartItemId, BUYER_ID, null, PRODUCT_ID, OPTION_ID, 3, 5));
+            new CartItemAddedEvent.Data(cartItemId, BUYER_ID, null, PRODUCT_ID, OPTION_ID, 2, 2, "MEMBER", BUYER_ID),
+            new CartItemAddedEvent.Data(cartItemId, BUYER_ID, null, PRODUCT_ID, OPTION_ID, 3, 5, "MEMBER", BUYER_ID));
         assertThat(jdbcTemplate.queryForList("select event_id from orders.order_outbox order by id",
             UUID.class)).containsExactly(events.get(0).eventId(), events.get(1).eventId());
         assertThat(jdbcTemplate.queryForList("select payload from orders.order_outbox order by id", String.class))
@@ -120,15 +122,15 @@ class CartItemAddedOutboxIntegrationTest {
     @Test
     @DisplayName("담기에 실패하면(자기 상품 · 판매 중 아님 · 수량 초과) 행도 Spring 이벤트도 없다")
     void savesNothingWhenAddFails() {
-        cartService.addItem(BUYER_ID, OPTION_ID, null, 99);
+        cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, null, 99);
         recorder.clear();
         jdbcTemplate.update("delete from orders.order_outbox");
 
-        assertThatThrownBy(() -> cartService.addItem(SELLER_ID, OPTION_ID, null, 1))
+        assertThatThrownBy(() -> cartService.addItem(CartOwners.member(SELLER_ID), OPTION_ID, null, 1))
             .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> cartService.addItem(BUYER_ID, STOPPED_OPTION_ID, null, 1))
+        assertThatThrownBy(() -> cartService.addItem(CartOwners.member(BUYER_ID), STOPPED_OPTION_ID, null, 1))
             .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> cartService.addItem(BUYER_ID, OPTION_ID, null, 1))
+        assertThatThrownBy(() -> cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, null, 1))
             .isInstanceOf(BusinessException.class);
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.order_outbox", Long.class)).isZero();
@@ -139,7 +141,7 @@ class CartItemAddedOutboxIntegrationTest {
     @DisplayName("담기를 감싼 트랜잭션이 롤백되면 장바구니 줄도 아웃박스 행도 Spring 이벤트도 남지 않는다")
     void rollsBackWithBusiness() {
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
-            cartService.addItem(BUYER_ID, OPTION_ID, CHILD_ID, 2);
+            cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, CHILD_ID, 2);
             throw new IllegalStateException("업무 실패");
         })).isInstanceOf(IllegalStateException.class);
 

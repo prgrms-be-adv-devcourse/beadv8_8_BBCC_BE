@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
@@ -19,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.order.event.CartItemPurchasedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import java.time.LocalDateTime;
@@ -36,7 +38,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 장바구니 빼기 이벤트(cart.item-removed, #709)가 사용자가 줄을 뺄 때만 빼기와 같은 트랜잭션에서 주문 아웃박스(kidly.order.events,
- * 키 = 회원 ID)에 한 행 저장되는지. 결제완료 정리(산 것) · 수량 변경 · 실패 · 롤백은 행이 없다.
+ * 키 = 회원 ID)에 한 행 저장되는지. 수량 변경 · 실패 · 롤백은 행이 없다. 결제완료 정리(산 것)는 cart.item-purchased 한 행이다(#998).
  * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest
@@ -88,14 +90,15 @@ class CartItemRemovedOutboxIntegrationTest {
     @Test
     @DisplayName("줄을 빼면 cart.item-removed 한 행: 키 = 회원 ID, 본문 7칸 + data(뺄 때 줄 수량 · 자녀 · 상품), 보내지 않은 상태")
     void savesOneRow() {
-        Long cartItemId = cartService.addItem(BUYER_ID, OPTION_ID, CHILD_ID, 2).line().cartItemId();
-        cartService.addItem(BUYER_ID, OPTION_ID, CHILD_ID, 3);
+        Long cartItemId = cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, CHILD_ID, 2).line().cartItemId();
+        cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, CHILD_ID, 3);
 
-        cartService.removeItem(BUYER_ID, cartItemId);
+        cartService.removeItem(CartOwners.member(BUYER_ID), cartItemId);
 
         CartItemRemovedEvent event = recorder.events(CartItemRemovedEvent.class).getFirst();
         assertThat(event.data()).isEqualTo(
-            new CartItemRemovedEvent.Data(cartItemId, BUYER_ID, CHILD_ID, PRODUCT_ID, OPTION_ID, 5));
+            new CartItemRemovedEvent.Data(cartItemId, BUYER_ID, CHILD_ID, PRODUCT_ID, OPTION_ID, 5, "MEMBER",
+                BUYER_ID));
         List<Map<String, Object>> rows = rows();
         assertThat(rows).singleElement().satisfies(row -> {
             assertThat(row).containsEntry("event_id", event.eventId())
@@ -110,6 +113,9 @@ class CartItemRemovedOutboxIntegrationTest {
             assertThat(payload.get("aggregateId").asString()).isEqualTo(String.valueOf(cartItemId));
             assertThat(payload.get("correlationId").asString()).isEqualTo(String.valueOf(BUYER_ID));
             assertThat(payload.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(event.data()));
+            // 원인 · 주문 · 예약 칸은 없다(결제 정리는 cart.item-purchased, #998)
+            assertThat(payload.get("data").propertyNames()).containsExactly("cartItemId", "memberId", "childId",
+                "productId", "optionId", "quantity", "ownerType", "ownerId");
         });
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.cart_item", Long.class)).isZero();
     }
@@ -117,22 +123,22 @@ class CartItemRemovedOutboxIntegrationTest {
     @Test
     @DisplayName("없는 줄 · 남의 줄을 빼면 실패하고 행이 없다. 수량 변경도 행이 없다")
     void nothingWhenFailsOrQuantityChanged() {
-        Long cartItemId = cartService.addItem(BUYER_ID, OPTION_ID, null, 1).line().cartItemId();
+        Long cartItemId = cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, null, 1).line().cartItemId();
 
-        assertThatThrownBy(() -> cartService.removeItem(BUYER_ID, cartItemId + 100))
+        assertThatThrownBy(() -> cartService.removeItem(CartOwners.member(BUYER_ID), cartItemId + 100))
             .isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> cartService.removeItem(OTHER_MEMBER_ID, cartItemId))
+        assertThatThrownBy(() -> cartService.removeItem(CartOwners.member(OTHER_MEMBER_ID), cartItemId))
             .isInstanceOf(BusinessException.class);
-        cartService.changeQuantity(BUYER_ID, cartItemId, 4);
+        cartService.changeQuantity(CartOwners.member(BUYER_ID), cartItemId, 4);
 
         assertThat(rows()).isEmpty();
         assertThat(recorder.events(CartItemRemovedEvent.class)).isEmpty();
     }
 
     @Test
-    @DisplayName("결제가 끝나 장바구니가 정리되면(산 것) 줄은 지워져도 cart.item-removed는 없다")
-    void nothingWhenClearedByPayment() {
-        cartService.addItem(BUYER_ID, OPTION_ID, CHILD_ID, 2);
+    @DisplayName("결제가 끝나 장바구니가 정리되면(산 것) 줄이 지워지고 cart.item-purchased 한 행(키 = 회원 ID), cart.item-removed는 없다(#998)")
+    void purchasedWhenClearedByPayment() {
+        Long cartItemId = cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, CHILD_ID, 2).line().cartItemId();
         OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(OPTION_ID, CHILD_ID, 2, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시")));
@@ -143,17 +149,34 @@ class CartItemRemovedOutboxIntegrationTest {
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.cart_item", Long.class))
             .as("결제완료 정리로 줄은 지워진다").isZero();
-        assertThat(rows()).isEmpty();
+        Long orderItemId = order.items().getFirst().orderItemId();
+        CartItemPurchasedEvent event = recorder.events(CartItemPurchasedEvent.class).getFirst();
+        assertThat(recorder.events(CartItemPurchasedEvent.class)).hasSize(1);
+        assertThat(event.data()).isEqualTo(new CartItemPurchasedEvent.Data(cartItemId, "MEMBER", BUYER_ID, BUYER_ID,
+            OPTION_ID, CHILD_ID, 2, order.orderId(), orderItemId, null));
         assertThat(recorder.events(CartItemRemovedEvent.class)).isEmpty();
+        assertThat(rows()).isEmpty();
+        List<Map<String, Object>> purchased = jdbcTemplate.queryForList(
+            "select * from orders.order_outbox where event_type = 'cart.item-purchased' order by id");
+        assertThat(purchased).singleElement().satisfies(row -> {
+            assertThat(row).containsEntry("event_id", event.eventId())
+                .containsEntry("topic", "kidly.order.events")
+                .containsEntry("message_key", String.valueOf(BUYER_ID));
+            JsonNode payload = jsonMapper.readTree((String) row.get("payload"));
+            assertThat(payload.propertyNames()).containsExactly("eventId", "eventType", "schemaVersion",
+                "occurredAt", "producer", "aggregateId", "correlationId", "data");
+            assertThat(payload.get("aggregateId").asString()).isEqualTo(String.valueOf(cartItemId));
+            assertThat(payload.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(event.data()));
+        });
     }
 
     @Test
     @DisplayName("빼기를 감싼 트랜잭션이 롤백되면 줄은 남고 아웃박스 행도 Spring 이벤트도 없다")
     void rollsBackWithBusiness() {
-        Long cartItemId = cartService.addItem(BUYER_ID, OPTION_ID, null, 1).line().cartItemId();
+        Long cartItemId = cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, null, 1).line().cartItemId();
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
-            cartService.removeItem(BUYER_ID, cartItemId);
+            cartService.removeItem(CartOwners.member(BUYER_ID), cartItemId);
             throw new IllegalStateException("업무 실패");
         })).isInstanceOf(IllegalStateException.class);
 

@@ -255,7 +255,7 @@ class WishChildApiTest {
     }
 
     @Test
-    @DisplayName("자녀 헤더만으로는 주문 · 장바구니 · 취소 API를 부를 수 없다(401, 회원 로그인만 받음)")
+    @DisplayName("자녀 헤더만으로는 주문 · 취소 API를 부를 수 없다(401, 회원 로그인만 받음). 장바구니는 자기 장바구니(200, #998)")
     void otherApisRejectChild() {
         Consumer<HttpHeaders> child = child(ACCOUNT_ID, BUYER_ID);
 
@@ -266,10 +266,8 @@ class WishChildApiTest {
             .exchange().expectStatus().isUnauthorized();
         client.post().uri(OrderController.ORDERS_PATH + "/1/cancel").headers(child)
             .exchange().expectStatus().isUnauthorized();
-        client.get().uri(CartController.CART_PATH).headers(child).exchange().expectStatus().isUnauthorized();
-        client.post().uri(CartController.CART_ITEMS_PATH).headers(child)
-            .body(Map.of("optionId", "1", "quantity", 1))
-            .exchange().expectStatus().isUnauthorized();
+        // 장바구니는 #998부터 자녀 로그인도 받는다(자녀 자기 장바구니, CartOwnerApiTest)
+        client.get().uri(CartController.CART_PATH).headers(child).exchange().expectStatus().isOk();
     }
 
     private String childAdds(Consumer<HttpHeaders> headers) {

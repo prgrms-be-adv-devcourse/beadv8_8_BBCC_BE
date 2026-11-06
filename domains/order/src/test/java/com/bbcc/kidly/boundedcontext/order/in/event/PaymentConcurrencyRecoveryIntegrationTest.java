@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
+import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
@@ -114,7 +116,8 @@ class PaymentConcurrencyRecoveryIntegrationTest {
             assertThat(outcome.unexpected()).as("정상으로 본 예외 말고 다른 예외(%d회차)", round).isEmpty();
             Order stored = orderRepository.findById(order.orderId()).orElseThrow();
             List<Delivery> deliveries = deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId());
-            int cartLines = cartItemRepository.findAllByMemberIdOrderByIdDesc(buyerId).size();
+            int cartLines = cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+                buyerId).size();
             long cancelledEvents = cancelledEventsOf(order.orderId());
             LOG.info("[#137] 결제 완료 ×2 + 만료 {}회차: 결과 {}, 진 쪽(낙관적 락 · 배송 유니크) {}회",
                 round, stored.getStatus(), outcome.conflicts());
@@ -163,7 +166,8 @@ class PaymentConcurrencyRecoveryIntegrationTest {
             assertThat(outcome.unexpected()).as("낙관적 락 말고 다른 예외(%d회차)", round).isEmpty();
             Order stored = orderRepository.findById(order.orderId()).orElseThrow();
             List<Delivery> deliveries = deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId());
-            int cartLines = cartItemRepository.findAllByMemberIdOrderByIdDesc(buyerId).size();
+            int cartLines = cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+                buyerId).size();
             long cancelledEvents = cancelledEventsOf(order.orderId());
             LOG.info("[#446] 재고 차감 실패 × 결제 완료 {}회차: 결과 {}, 진 쪽(낙관적 락) {}회",
                 round, stored.getStatus(), outcome.conflicts());
@@ -212,7 +216,8 @@ class PaymentConcurrencyRecoveryIntegrationTest {
             .isEqualTo(Order.Status.PENDING_PAYMENT);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId()))
             .extracting(Delivery::getId).containsExactly(existing.getId());
-        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(buyerId)).hasSize(2);
+        assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+            buyerId)).hasSize(2);
         assertThat(recoveryCountOf(order.orderId())).as("배송 유니크 위반은 진 쪽이라 보관하지 않음").isZero();
 
         jdbcTemplate.update("delete from orders.delivery where id = ?", existing.getId());
@@ -222,15 +227,16 @@ class PaymentConcurrencyRecoveryIntegrationTest {
             .isEqualTo(Order.Status.PAID);
         assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId()))
             .extracting(Delivery::getSellerId).containsExactlyInAnyOrder(SELLER_ID, OTHER_SELLER_ID);
-        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(buyerId)).isEmpty();
+        assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+            buyerId)).isEmpty();
     }
 
     /**
      * 판매자 A 상품 · 판매자 B 상품을 장바구니에 담고 그대로 주문한다(자녀 없음). 결제대기로 남는다.
      */
     private OrderDetail placeWithCart(Long buyerId) {
-        cartService.addItem(buyerId, 1L, null, 1);
-        cartService.addItem(buyerId, 2L, null, 1);
+        cartService.addItem(CartOwners.member(buyerId), 1L, null, 1);
+        cartService.addItem(CartOwners.member(buyerId), 2L, null, 1);
         return orderService.place(buyerId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L), new PlaceOrderCommand.Item(2L, null, 1, 30_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));

@@ -19,12 +19,15 @@ public record PlaceOrderRequest(
 
     /**
      * @param childId 자녀를 고르지 않으면 null
+     * @param cartItemId 이 줄을 산 장바구니 칸 ID(#998, 선택). 내 칸이나 결제를 허락받은 예약 칸이어야 하고(아니면 403),
+     *     결제가 끝나면 그 칸이 장바구니에서 빠진다
      */
     public record Item(
         @NotNull Long optionId,
         Long childId,
         @NotNull @Min(1) @Max(99) Integer quantity,
-        @NotNull @PositiveOrZero Long unitPrice) {
+        @NotNull @PositiveOrZero Long unitPrice,
+        Long cartItemId) {
     }
 
     public record ShippingAddress(

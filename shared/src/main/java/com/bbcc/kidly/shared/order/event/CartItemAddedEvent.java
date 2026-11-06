@@ -15,6 +15,9 @@ public record CartItemAddedEvent(UUID eventId, LocalDateTime occurredAt, Data da
      * @param childId 자녀를 고르지 않았으면 null
      * @param quantity 이번에 담은 수량
      * @param cartQuantity 담은 뒤 그 장바구니 줄의 수량. 새 줄이면 quantity와 같다
+     * @param memberId 결제할 보호자 회원 ID(자녀 장바구니면 그 자녀의 보호자, #998)
+     * @param ownerType 장바구니 주인 종류 MEMBER · CHILD(#998, 추가 칸). 예전 메시지에는 없다(= MEMBER, 주인 = memberId)
+     * @param ownerId 장바구니 주인 ID: 회원 ID 또는 자녀 프로필 ID(#998, 추가 칸)
      */
     public record Data(
         Long cartItemId,
@@ -23,7 +26,17 @@ public record CartItemAddedEvent(UUID eventId, LocalDateTime occurredAt, Data da
         Long productId,
         Long optionId,
         int quantity,
-        int cartQuantity) {
+        int cartQuantity,
+        String ownerType,
+        Long ownerId) {
+
+        /**
+         * 주인 칸이 없던 예전 모양(#654).
+         */
+        public Data(Long cartItemId, Long memberId, Long childId, Long productId, Long optionId, int quantity,
+            int cartQuantity) {
+            this(cartItemId, memberId, childId, productId, optionId, quantity, cartQuantity, null, null);
+        }
     }
 
     @Override

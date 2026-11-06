@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.OCCURRED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
-import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -51,10 +51,10 @@ class OrderEntityTimeIntegrationTest {
     @Test
     @DisplayName("장바구니 줄을 저장하면 생성 · 수정 시각이 같은 값으로 채워지고, 수량을 바꾸면 수정 시각만 늦어진다")
     void cartItemTimes() {
-        Long id = cartItemRepository.save(CartItem.create(BUYER_ID, 1L, null, 1)).getId();
+        Long id = cartItemRepository.save(CartOwners.memberLine(BUYER_ID, 1L, null, 1)).getId();
         Times saved = timesOf("orders.cart_item", id);
 
-        transactionTemplate.executeWithoutResult(status -> cartItemRepository.findByIdAndMemberId(id, BUYER_ID)
+        transactionTemplate.executeWithoutResult(status -> cartItemRepository.findById(id)
             .orElseThrow().changeQuantity(2));
 
         assertThat(saved.createdAt()).isNotNull();

@@ -28,17 +28,18 @@ class OrderTestContextIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("orders 스키마의 표 20개가 기준 SQL과 주문 마이그레이션(order_outbox · order_dead_letter · wish_item · "
+    @DisplayName("orders 스키마의 표 21개가 기준 SQL과 주문 마이그레이션(order_outbox · order_dead_letter · wish_item · "
         + "order_item_cancellation · wish_request · wish_request_line · replica_child_account · "
-        + "order_stuck_diagnosis)으로 만들어진다")
+        + "order_stuck_diagnosis · cart_reservation)으로 만들어진다")
     void ordersSchemaMigrated() {
         List<String> tables = jdbcTemplate.queryForList(
             "select tablename from pg_tables where schemaname = 'orders' order by tablename", String.class);
 
-        assertThat(tables).containsExactly("cart_item", "delivery", "order_dead_letter", "order_event_failure",
-            "order_event_failure_item", "order_item", "order_item_cancellation", "order_outbox", "order_status_history",
-            "order_stuck_diagnosis", "orders", "payment_recovery", "payment_recovery_item", "replica_child",
-            "replica_child_account", "replica_product", "replica_seller",
+        assertThat(tables).containsExactly("cart_item", "cart_reservation", "delivery", "order_dead_letter",
+            "order_event_failure", "order_event_failure_item", "order_item", "order_item_cancellation",
+            "order_outbox", "order_status_history", "order_stuck_diagnosis",
+            "orders", "payment_recovery", "payment_recovery_item", "replica_child", "replica_child_account",
+            "replica_product", "replica_seller",
             "wish_item", "wish_request", "wish_request_line");
     }
 

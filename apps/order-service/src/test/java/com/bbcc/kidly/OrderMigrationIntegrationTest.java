@@ -33,6 +33,10 @@ class OrderMigrationIntegrationTest {
     private static final String BASELINE_VERSION = "202611031100";
     // kidly-app 폴더에 있던 마지막 주문 마이그레이션(이벤트 처리 실패 보관)
     private static final String LAST_KIDLY_APP_MODULE_VERSION = "202610191003";
+    // 장바구니 주인 마이그레이션(#998) 바로 앞 버전과 그 파일
+    private static final String CART_OWNER_VERSION_BEFORE = "202611061700";
+    private static final String CART_OWNER_MIGRATION =
+        "db/migration/orders/V202611062000__cart_owner_reservation.sql";
 
     @Test
     @DisplayName("kidly-app이 주문 마이그레이션을 모두 적용한 DB에서는 baseline을 잡고 스키마를 바꾸지 않는다")
@@ -71,6 +75,33 @@ class OrderMigrationIntegrationTest {
 
             assertThat(schema(jdbc)).isEqualTo(schema(new JdbcTemplate(fullDataSource)));
             assertThat(historyTypes(jdbc)).first().isEqualTo("BASELINE " + BASELINE_VERSION);
+        }
+    }
+
+    @Test
+    @DisplayName("장바구니 주인 마이그레이션(#998): 기존 칸은 MEMBER + member_id로 옮기고, 같은 파일을 다시 적용해도 오류 · 변화가 없다")
+    void cartOwnerMigrationMovesRowsAndIsRepeatable() throws Exception {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createOrderTablesLikeKidlyApp(dataSource, jdbc, CART_OWNER_VERSION_BEFORE);
+            jdbc.update("INSERT INTO orders.cart_item (member_id, option_id, child_id, quantity, version, created_at,"
+                + " updated_at) VALUES (7, 1, null, 2, 0, now(), now()), (7, 1, 3, 1, 0, now(), now())");
+
+            serviceFlyway(dataSource).load().migrate();
+            var migrated = jdbc.queryForList("SELECT owner_type || ':' || owner_id || ':' || member_id"
+                + " FROM orders.cart_item ORDER BY id", String.class);
+            String sql = new String(new ClassPathResource(CART_OWNER_MIGRATION).getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+            var before = schema(jdbc);
+            jdbc.execute(sql);
+
+            assertThat(migrated).containsExactly("MEMBER:7:7", "MEMBER:7:7");
+            assertThat(schema(jdbc)).isEqualTo(before);
+            assertThat(jdbc.queryForList("SELECT owner_type || ':' || owner_id FROM orders.cart_item ORDER BY id",
+                String.class)).containsExactly("MEMBER:7", "MEMBER:7");
         }
     }
 

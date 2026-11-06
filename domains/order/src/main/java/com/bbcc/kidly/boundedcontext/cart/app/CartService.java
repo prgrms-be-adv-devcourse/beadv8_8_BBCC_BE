@@ -2,23 +2,31 @@ package com.bbcc.kidly.boundedcontext.cart.app;
 
 import com.bbcc.kidly.boundedcontext.cart.app.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
+import com.bbcc.kidly.boundedcontext.cart.app.port.CartActors.Actor;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartCatalog;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartCatalog.ProductOption;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartEvents;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
-import com.bbcc.kidly.boundedcontext.cart.app.port.CartOrders;
+import com.bbcc.kidly.boundedcontext.cart.app.port.CartReservationRepository;
+import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCheckout;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCleanup;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartIntake;
+import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartReservations;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
+import com.bbcc.kidly.boundedcontext.cart.domain.CartItem.OwnerType;
+import com.bbcc.kidly.boundedcontext.cart.domain.CartReservation;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartRuleViolationException;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartRules;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.CartItemPurchasedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -29,43 +37,57 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 장바구니 담기 · 조회 · 수량 변경 · 삭제. 다른 회원의 줄은 없는 줄로 본다.
- * 상품 · 판매자 · 자녀는 {@link CartCatalog}, 주문한 상품은 {@link CartOrders}로 읽는다(주문 컨텍스트, #641).
- * 결제완료 뒤 장바구니 정리는 {@link CartCleanup}, 다른 컨텍스트의 담기(조르기 승인, #701)는 {@link CartIntake}로 내준다.
- * 담기에 성공하면 {@link CartItemAddedEvent}(#654), 사용자가 줄을 빼면 {@link CartItemRemovedEvent}(#709)를 같은 트랜잭션에서 낸다
- * ({@link CartEvents}). 결제완료 정리 · 수량 변경은 빼기 이벤트를 내지 않는다(산 것 · 바꾼 것).
+ * 장바구니 담기 · 조회 · 수량 변경 · 삭제. 장바구니는 주인(#998: 회원 또는 로그인한 자녀) 한 명의 것이고, 남의 줄은 다루지 않는다:
+ * 같은 가족(같은 보호자)의 줄이면 403(부모가 아이 장바구니를 다루는 것 포함), 그 밖이면 없는 줄(404)로 본다.
+ * 아이 장바구니는 입을 아이가 그 아이로 고정이고, 그 아이 프로필 복사본이 없으면 담을 수 없다(CART-C-01).
+ * 상품 · 판매자 · 자녀는 {@link CartCatalog}(주문 컨텍스트의 복사본)로 읽고, 주문은 읽지 않는다(#998).
+ * 다른 컨텍스트에는 결제완료 정리({@link CartCleanup}) · 담기({@link CartIntake}) · 칸 예약({@link CartReservations}) ·
+ * 주문 가능 확인({@link CartCheckout})을 내준다.
+ * 담기에 성공하면 {@link CartItemAddedEvent}(#654), 사용자가 빼면 {@link CartItemRemovedEvent}(#709), 결제완료로 정리하면
+ * {@link CartItemPurchasedEvent}(이번에 산 수량 · 주문 ID · 주문상품 ID, 예약 칸이면 예약 ID, #998)를 같은 트랜잭션에서 낸다({@link CartEvents}).
+ * 수량 변경은 이벤트를 내지 않는다.
  */
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class CartService implements CartCleanup, CartIntake {
+public class CartService implements CartCleanup, CartIntake, CartReservations, CartCheckout {
 
     private final CartItemRepository cartItemRepository;
+    private final CartReservationRepository reservationRepository;
     private final CartCatalog cartCatalog;
-    private final CartOrders cartOrders;
     private final CartEvents cartEvents;
 
     /**
-     * 확인 순서: 옵션 없음 → 자기 상품 → 판매 중 아님 → 자녀 없음 · 남의 자녀 · 삭제된 자녀 → 수량.
-     * 같은 줄(회원, 옵션, 자녀)이 있으면 수량을 더한다. 성공하면(새 줄 · 합치기 모두) 같은 트랜잭션에서 담기 이벤트를 낸다.
+     * 확인 순서: (자녀 주인이면 입을 아이 고정) → 옵션 없음 → 자기 상품 → 판매 중 아님 → 자녀 없음 · 남의 자녀 · 삭제된 자녀 → 수량.
+     * 같은 줄(주인, 옵션, 입을 자녀)이 있으면 수량을 더한다(예약된 줄이면 409).
+     * 성공하면(새 줄 · 합치기 모두) 같은 트랜잭션에서 담기 이벤트를 낸다.
+     *
+     * @param childId 입을 자녀. 회원은 고르지 않을 수 있고(null), 자녀 주인은 비우거나 자기 프로필이어야 한다(다르면 400)
      */
-    public AddCartItemResult addItem(Long memberId, Long optionId, Long childId, int quantity) {
+    public AddCartItemResult addItem(Actor owner, Long optionId, Long childId, int quantity) {
+        Long wearer = childId;
+        if (owner.type() == OwnerType.CHILD) {
+            if (childId != null && !childId.equals(owner.id())) {
+                throw new BusinessException(CartErrorCode.CHILD_CART_CHILD_FIXED);
+            }
+            wearer = owner.id();
+        }
         ProductOption product = cartCatalog.findProductOption(optionId)
             .orElseThrow(() -> new BusinessException(CartErrorCode.PRODUCT_OPTION_NOT_FOUND));
         try {
-            CartRules.requireNotOwnProduct(memberId, product.sellerId());
+            CartRules.requireNotOwnProduct(owner.memberId(), product.sellerId());
         } catch (CartRuleViolationException e) {
             throw CartErrors.toBusiness(e);
         }
         if (!product.purchasable()) {
             throw new BusinessException(CartErrorCode.PRODUCT_NOT_PURCHASABLE);
         }
-        if (childId != null) {
-            requireOrderableChild(memberId, childId);
+        if (wearer != null) {
+            requireOrderableChild(owner.memberId(), wearer);
         }
 
-        Optional<CartItem> sameLine = cartItemRepository.findByMemberIdAndOptionIdAndChildId(
-            memberId, optionId, childId);
+        Optional<CartItem> sameLine = cartItemRepository.findByOwnerTypeAndOwnerIdAndOptionIdAndChildId(
+            owner.type(), owner.id(), optionId, wearer);
         if (sameLine.isPresent()) {
             try {
                 sameLine.get().addQuantity(quantity);
@@ -77,7 +99,8 @@ public class CartService implements CartCleanup, CartIntake {
         }
         CartItem created;
         try {
-            created = cartItemRepository.save(CartItem.create(memberId, optionId, childId, quantity));
+            created = cartItemRepository.save(CartItem.create(owner.type(), owner.id(), owner.memberId(), optionId,
+                wearer, quantity));
         } catch (CartRuleViolationException e) {
             throw CartErrors.toBusiness(e);
         }
@@ -86,11 +109,11 @@ public class CartService implements CartCleanup, CartIntake {
     }
 
     /**
-     * 담기와 같다({@link #addItem}).
+     * 회원 장바구니 담기와 같다({@link #addItem}).
      */
     @Override
     public void add(Long memberId, Long optionId, Long childId, int quantity) {
-        addItem(memberId, optionId, childId, quantity);
+        addItem(new Actor(OwnerType.MEMBER, memberId, memberId), optionId, childId, quantity);
     }
 
     /**
@@ -99,15 +122,15 @@ public class CartService implements CartCleanup, CartIntake {
     private void publishItemAdded(CartItem item, ProductOption product, int quantity) {
         cartEvents.publish(new CartItemAddedEvent(UUID.randomUUID(), LocalDateTime.now(), new CartItemAddedEvent.Data(
             item.getId(), item.getMemberId(), item.getChildId(), product.productId(), item.getOptionId(), quantity,
-            item.getQuantity())));
+            item.getQuantity(), item.getOwnerType().name(), item.getOwnerId())));
     }
 
     /**
-     * 최근에 담은 줄부터. 합계는 구매 가능한 줄만 더한다. 상품 · 판매자 복사본은 한 번씩 읽어 합친다(줄마다 조회하지 않음).
+     * 그 주인의 줄을 최근에 담은 것부터. 합계는 구매 가능한 줄만 더한다. 상품 · 판매자 복사본은 한 번씩 읽어 합친다.
      */
     @Transactional(readOnly = true)
-    public CartView getCart(Long memberId) {
-        List<CartItem> items = cartItemRepository.findAllByMemberIdOrderByIdDesc(memberId);
+    public CartView getCart(Actor owner) {
+        List<CartItem> items = cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(owner.type(), owner.id());
         Map<Long, ProductOption> products = cartCatalog.findProductOptions(
                 items.stream().map(CartItem::getOptionId).toList())
             .stream()
@@ -127,8 +150,11 @@ public class CartService implements CartCleanup, CartIntake {
         return new CartView(lines, totalAmount);
     }
 
-    public CartView.Line changeQuantity(Long memberId, Long cartItemId, int quantity) {
-        CartItem item = findOwnedItem(memberId, cartItemId);
+    /**
+     * 예약된 줄이면 409.
+     */
+    public CartView.Line changeQuantity(Actor owner, Long cartItemId, int quantity) {
+        CartItem item = findOwnedItem(owner, cartItemId);
         try {
             item.changeQuantity(quantity);
         } catch (CartRuleViolationException e) {
@@ -139,25 +165,128 @@ public class CartService implements CartCleanup, CartIntake {
     }
 
     /**
-     * 결제완료된 주문의 (회원, 옵션, 자녀)와 같은 장바구니 줄을 수량과 상관없이 통째로 지운다.
+     * 뺀 줄의 그때 수량으로 cart.item-removed를 낸다. 예약된 줄이면 409.
      */
-    @Override
-    public void clearOrdered(Long orderId) {
-        cartOrders.findOrderedLines(orderId).forEach(line ->
-            cartItemRepository.findByMemberIdAndOptionIdAndChildId(line.memberId(), line.optionId(), line.childId())
-                .ifPresent(cartItemRepository::delete));
+    public void removeItem(Actor owner, Long cartItemId) {
+        CartItem item = findOwnedItem(owner, cartItemId);
+        try {
+            item.requireRemovable();
+        } catch (CartRuleViolationException e) {
+            throw CartErrors.toBusiness(e);
+        }
+        cartItemRepository.delete(item);
+        publishItemRemoved(item);
     }
 
-    /**
-     * 뺀 줄의 그때 수량으로 cart.item-removed를 낸다. 상품 ID는 주문이 받아 둔 상품 정보에서 읽는다(없으면 null).
-     */
-    public void removeItem(Long memberId, Long cartItemId) {
-        CartItem item = findOwnedItem(memberId, cartItemId);
-        cartItemRepository.delete(item);
+    @Override
+    public void clearOrdered(Long orderId, List<OrderedLine> lines) {
+        Set<Long> deleted = new HashSet<>();
+        for (OrderedLine line : lines) {
+            // 주문에 기록된 칸(주문 때 requireOrderable로 확인됨)은 칸 ID로만 찾아 결제자 · 예약 상태와 상관없이 정리한다:
+            // 결제자가 칸의 결제 회원과 달라도(보호자 2명 · 예약 허용 주체), 예약이 결제 전에 풀려도(철회 · 거절) 산 칸이 남지 않는다.
+            // 칸 ID가 없으면(예전 방식) 구매자 회원 칸만
+            Optional<CartItem> target = line.cartItemId() != null
+                ? cartItemRepository.findById(line.cartItemId())
+                : cartItemRepository.findByOwnerTypeAndOwnerIdAndOptionIdAndChildId(OwnerType.MEMBER, line.memberId(),
+                    line.optionId(), line.childId());
+            target.filter(item -> !deleted.contains(item.getId())).ifPresent(item -> {
+                // 산 수량만큼 뺀다. 수량을 모르는 예전 줄은 칸 전체를 산 것으로 본다
+                int purchased = line.quantity() == null ? item.getQuantity() : line.quantity();
+                if (item.deductPurchased(purchased) <= 0) {
+                    deleted.add(item.getId());
+                    cartItemRepository.delete(item);
+                }
+                publishItemPurchased(item, purchased, orderId, line.orderItemId());
+            });
+        }
+    }
+
+    @Override
+    public void reserve(List<Long> cartItemIds, List<Payer> payers, String reservationId) {
+        if (cartItemIds == null || cartItemIds.isEmpty() || cartItemIds.stream().anyMatch(Objects::isNull)
+            || payers == null || payers.isEmpty() || reservationId == null || reservationId.isBlank()
+            || reservationId.length() > CartReservation.RESERVATION_ID_MAX) {
+            throw new BusinessException(CartErrorCode.INVALID_RESERVATION);
+        }
+        List<Owner> parsedPayers = payers.stream().map(CartService::parse).distinct().toList();
+        Set<Long> ids = new HashSet<>(cartItemIds);
+        List<CartItem> items = cartItemRepository.findAllByIdIn(ids);
+        if (items.size() != ids.size()) {
+            throw new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND);
+        }
+        try {
+            items.forEach(item -> item.reserve(reservationId));
+        } catch (CartRuleViolationException e) {
+            throw CartErrors.toBusiness(e);
+        }
+        List<CartReservation> existing = reservationRepository.findAllByReservationId(reservationId);
+        parsedPayers.stream()
+            .filter(payer -> existing.stream().noneMatch(saved -> saved.allows(payer.type(), payer.id())))
+            .forEach(payer -> reservationRepository.save(
+                CartReservation.allow(reservationId, payer.type(), payer.id())));
+    }
+
+    @Override
+    public void release(String reservationId) {
+        if (reservationId == null) {
+            return;
+        }
+        cartItemRepository.findAllByReservationId(reservationId).forEach(CartItem::release);
+        reservationRepository.findAllByReservationId(reservationId).forEach(reservationRepository::delete);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void requireOrderable(Payer buyer, List<Line> lines) {
+        Owner parsed = parse(buyer);
+        for (Line line : lines) {
+            CartItem item = cartItemRepository.findById(line.cartItemId())
+                .orElseThrow(() -> new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND));
+            boolean orderable = isOrderableBy(item, parsed.type(), parsed.id());
+            // 다른 가족의 칸이고 허용 주체도 아니면 없는 칸과 같게(존재를 숨김). 같은 가족인데 허용되지 않았으면 403
+            if (!orderable && !item.getMemberId().equals(memberIdOf(parsed))) {
+                throw new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND);
+            }
+            if (!orderable || !item.getOptionId().equals(line.optionId())
+                || !Objects.equals(item.getChildId(), line.childId())) {
+                throw new BusinessException(CartErrorCode.CART_ITEM_NOT_ORDERABLE);
+            }
+            // 예약 칸(자기 칸이 아니라 허용받아 주문)은 담긴 수량까지만. 자기 칸은 지금처럼 수량을 보지 않는다
+            if (!item.isOwnedBy(parsed.type(), parsed.id()) && line.quantity() > item.getQuantity()) {
+                throw new BusinessException(CartErrorCode.RESERVED_QUANTITY_EXCEEDED);
+            }
+        }
+    }
+
+    // 주체의 결제 회원: 회원이면 그 회원. 자녀 주체는 보호자를 모르므로 가족 판단을 하지 않는다(null)
+    private static Long memberIdOf(Owner owner) {
+        return owner.type() == OwnerType.MEMBER ? owner.id() : null;
+    }
+
+    // 자기 칸이거나, 예약 칸이고 그 예약의 허용 주체다
+    private boolean isOrderableBy(CartItem item, OwnerType type, Long id) {
+        if (item.isOwnedBy(type, id)) {
+            return true;
+        }
+        return item.isReserved() && reservationRepository.findAllByReservationId(item.getReservationId()).stream()
+            .anyMatch(payer -> payer.allows(type, id));
+    }
+
+    private void publishItemRemoved(CartItem item) {
         Long productId = cartCatalog.findProductOption(item.getOptionId()).map(ProductOption::productId).orElse(null);
         cartEvents.publish(new CartItemRemovedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new CartItemRemovedEvent.Data(item.getId(), item.getMemberId(), item.getChildId(), productId,
-                item.getOptionId(), item.getQuantity())));
+                item.getOptionId(), item.getQuantity(), item.getOwnerType().name(), item.getOwnerId())));
+    }
+
+    /**
+     * @param purchased 이번에 산 수량(칸에 남은 수량이 아님)
+     */
+    private void publishItemPurchased(CartItem item, int purchased, Long orderId, Long orderItemId) {
+        cartEvents.publish(new CartItemPurchasedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new CartItemPurchasedEvent.Data(item.getId(), item.getOwnerType().name(), item.getOwnerId(),
+                item.getMemberId(), item.getOptionId(), item.getChildId(), purchased, orderId, orderItemId,
+                item.getReservationId())));
     }
 
     private void requireOrderableChild(Long memberId, Long childId) {
@@ -166,9 +295,31 @@ public class CartService implements CartCleanup, CartIntake {
             .orElseThrow(() -> new BusinessException(CartErrorCode.CHILD_NOT_FOUND));
     }
 
-    private CartItem findOwnedItem(Long memberId, Long cartItemId) {
-        return cartItemRepository.findByIdAndMemberId(cartItemId, memberId)
+    // 남의 줄: 같은 보호자(가족)면 403, 그 밖이면 없는 줄(404, 남의 장바구니가 있는지 알리지 않음)
+    private CartItem findOwnedItem(Actor owner, Long cartItemId) {
+        CartItem item = cartItemRepository.findById(cartItemId)
             .orElseThrow(() -> new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND));
+        if (item.isOwnedBy(owner.type(), owner.id())) {
+            return item;
+        }
+        if (item.getMemberId().equals(owner.memberId())) {
+            throw new BusinessException(CartErrorCode.CART_FORBIDDEN);
+        }
+        throw new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND);
+    }
+
+    private static Owner parse(Payer payer) {
+        if (payer == null || payer.id() == null || payer.type() == null) {
+            throw new BusinessException(CartErrorCode.INVALID_RESERVATION);
+        }
+        try {
+            return new Owner(OwnerType.valueOf(payer.type()), payer.id());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(CartErrorCode.INVALID_RESERVATION);
+        }
+    }
+
+    private record Owner(OwnerType type, Long id) {
     }
 
     private String sellerNameOf(ProductOption product) {
@@ -192,11 +343,11 @@ public class CartService implements CartCleanup, CartIntake {
     private CartView.Line toLine(CartItem item, ProductOption product, String sellerName) {
         if (product == null) {
             return new CartView.Line(item.getId(), item.getOptionId(), null, null, null, null, null, item.getChildId(),
-                item.getQuantity(), null, false, 0L, null);
+                item.getQuantity(), null, false, 0L, null, item.isReserved());
         }
         return new CartView.Line(item.getId(), item.getOptionId(), product.productId(), product.sellerId(),
             product.productName(), product.optionName(), product.size(), item.getChildId(), item.getQuantity(),
             product.unitPrice(), product.purchasable(), Math.multiplyExact(product.unitPrice(), item.getQuantity()),
-            sellerName);
+            sellerName, item.isReserved());
     }
 }

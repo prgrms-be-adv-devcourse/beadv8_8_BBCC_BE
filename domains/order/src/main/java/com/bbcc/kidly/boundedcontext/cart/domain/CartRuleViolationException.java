@@ -11,7 +11,9 @@ public class CartRuleViolationException extends RuntimeException {
      */
     public enum Rule {
         INVALID_QUANTITY,
-        OWN_PRODUCT
+        OWN_PRODUCT,
+        /** 예약된 칸(#998)은 주인이 빼거나 수량을 바꿀 수 없고, 다른 예약에 넣을 수 없다 */
+        CART_ITEM_RESERVED
     }
 
     private final Rule rule;
