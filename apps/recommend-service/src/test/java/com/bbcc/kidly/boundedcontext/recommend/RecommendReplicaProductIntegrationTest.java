@@ -268,6 +268,18 @@ class RecommendReplicaProductIntegrationTest {
     }
 
     @Test
+    @DisplayName("카테고리 경로 칸이 없는 예전 상품 정보 변경됨을 받아도 복사본을 저장하고 경로는 비워 둔다")
+    void storeReplicaFromEventWithoutCategoryPath() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+
+        List<RecommendReplicaCategory> path = transactionTemplate.execute(status -> List.copyOf(
+            replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow().getCategoryPath()));
+        assertThat(path).isEmpty();
+        assertThat(count("select count(*) from recommend.replica_product_category_path where product_id = ?"))
+            .isZero();
+    }
+
+    @Test
     @DisplayName("등록 취소 상태의 상품 정보 변경됨을 받으면 상품 복사본이 등록 취소 상태로 저장된다")
     void storeDelistedStatus() {
         ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
