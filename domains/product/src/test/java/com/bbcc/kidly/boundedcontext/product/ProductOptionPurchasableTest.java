@@ -15,7 +15,9 @@ import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOption
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -44,6 +46,19 @@ class ProductOptionPurchasableTest {
         assertThat(product.getOptions())
             .extracting(ProductOption::isPurchasable)
             .containsExactly(false, false);
+    }
+
+    @Test
+    @DisplayName("SALE-16 등록 취소한 상품의 옵션은 살 수 없다")
+    void optionOfDelistedProductIsNotPurchasable() {
+        withOptionsAndSizeSpecs110And120();
+        product.startSale(SELLER_ID, top, clothing.type());
+        product.delist(SELLER_ID);
+
+        assertThat(product.getOptions())
+            .extracting(ProductOption::notPurchasableReason)
+            .containsExactly(Optional.of(StockDeductionFailureCode.PRODUCT_NOT_ON_SALE),
+                Optional.of(StockDeductionFailureCode.PRODUCT_NOT_ON_SALE));
     }
 
     // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다
