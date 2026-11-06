@@ -52,7 +52,7 @@ spec:
             - name: xpack.security.enabled
               value: "false"
             - name: ES_JAVA_OPTS
-              value: -Xms1g -Xmx1g
+              value: -Xms512m -Xmx512m
           ports:
             - name: http
               containerPort: 9200
@@ -64,12 +64,14 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 10
             failureThreshold: 6
-          # 실측 최대 1.42GB (heap 1GB + 그 밖)
+          # heap 1g 때 실측 RSS 1.47GB(heap 1g + 그 밖 약 450MiB) 중 heap 사용 약 250MiB, GC 뒤 남는 old 120MiB.
+          # 256m 는 parent breaker(heap 의 95%)가 사용량보다 작아진다. heap 은 메모리의 50% 이하(Elastic 권장)
+          # heap 512m 로 로컬 실측 anon 872MiB 라 limit 1Gi 는 빠듯해서 여유를 둔다
           resources:
             requests:
-              memory: 1536Mi
+              memory: 1Gi
             limits:
-              memory: 2Gi
+              memory: 1280Mi
           volumeMounts:
             - name: data
               mountPath: /usr/share/elasticsearch/data
