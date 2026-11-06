@@ -1,0 +1,94 @@
+# 도메인 간 이벤트를 전달하는 Kafka API 호환 브로커(Redpanda). t3.large 의 서비스가 medium 사설 IP 의 NodePort 로 붙는다
+# 토픽 이름에 환경 구분이 없어 dev · prod 가 각자 브로커를 둔다. __APP_ENV__ · __NODE_PORT__ · __ADVERTISED_HOST__ 는 deploy.sh 가 바꾼다
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka-__APP_ENV__
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redpanda-data
+  namespace: kafka-__APP_ENV__
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  namespace: kafka-__APP_ENV__
+spec:
+  replicas: 1
+  # 데이터 폴더는 한 프로세스만 쓸 수 있어 옛 Pod 를 먼저 내린다
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      nodeSelector:
+        kidly/role: infra
+      containers:
+        - name: redpanda
+          image: redpandadata/redpanda:v26.2.6
+          # 단일 브로커라 복제 계수는 1. dev-container 모드는 fsync 를 건너뛰고 쓰기 캐시를 켠다. 실제 운영 전 학습용 환경이라 prod 도 이 모드로 띄운다
+          # 보존 7일(log_retention_ms) · 리밸런스 지연 0 은 이 모드의 기본값과 같다
+          # 클라이언트는 처음 붙은 뒤 advertise 주소로 다시 붙으므로 t3.large 에서 닿는 medium 사설 IP:NodePort 를 알린다
+          args:
+            - redpanda
+            - start
+            - --mode=dev-container
+            - --smp=1
+            - --memory=256M
+            # 토픽 자동 생성을 끈다. 켜져 있으면 없는 토픽에 보내거나 구독할 때 토픽이 조용히 생겨 이름 오타가 묻힌다.
+            # 토픽은 보내는 쪽이 코드(NewTopic)로 선언한다
+            - --set
+            - redpanda.auto_create_topics_enabled=false
+            - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+            - --advertise-kafka-addr=PLAINTEXT://__ADVERTISED_HOST__:__NODE_PORT__
+          ports:
+            - name: kafka
+              containerPort: 9092
+          readinessProbe:
+            exec:
+              command: ["rpk", "cluster", "health", "--exit-when-healthy"]
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 12
+          # 로컬 실측(토픽 47개 · 메시지 6만 건) 약 100MiB. Redpanda 는 --memory 256M 안에서 쓰고 그 밖은 작다
+          resources:
+            requests:
+              memory: 256Mi
+            limits:
+              memory: 384Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/redpanda/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: redpanda-data
+---
+# NodePort 는 노드의 모든 주소에 열린다. 보안 그룹(소스 team04-sg)으로만 막는다
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: kafka-__APP_ENV__
+spec:
+  type: NodePort
+  selector:
+    app: redpanda
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: kafka
+      nodePort: __NODE_PORT__
