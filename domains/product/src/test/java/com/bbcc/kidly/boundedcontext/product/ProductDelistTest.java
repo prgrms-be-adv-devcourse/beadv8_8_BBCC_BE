@@ -1,7 +1,9 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.productA;
@@ -13,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
+import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.List;
@@ -59,6 +62,27 @@ class ProductDelistTest {
         assertThat(delisted).isFalse();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
         assertThat(product.isStoppedByAdmin()).isEqualTo(stoppedByAdminBefore);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("productsOfOtherSeller")
+    @DisplayName("OPT-08 상품을 등록한 판매자가 아니면 등록 취소할 수 없다 (이미 등록 취소한 상품이어도 403이 먼저다)")
+    void rejectDelistFromOtherSeller(Consumer<ProductDelistTest> given) {
+        given.accept(this);
+        ProductStatus statusBefore = product.getStatus();
+
+        assertRejected(() -> product.delist(OTHER_SELLER_ID), ProductErrorCode.NOT_PRODUCT_OWNER);
+        assertThat(product.getStatus()).isEqualTo(statusBefore);
+    }
+
+    static Stream<Named<Consumer<ProductDelistTest>>> productsOfOtherSeller() {
+        return Stream.of(
+            Named.of("판매대기", ProductDelistTest::withSaleStartInputs),
+            Named.of("판매중", ProductDelistTest::withSaleStarted),
+            Named.of("등록 취소", test -> {
+                test.withSaleStarted();
+                test.product.delist(SELLER_ID);
+            }));
     }
 
     static Stream<Named<Consumer<ProductDelistTest>>> productsBeforeDelist() {
