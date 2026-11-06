@@ -21,10 +21,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 자녀의 키 · 체형 변화 기록. 등록할 때와 키 · 체형이 바뀔 때 {@link ChildProfile}이 1건씩 쌓는다. 수정 · 삭제하지 않는다.
- * 몸무게는 기록하지 않는다. 쌓이는 기준이 키 · 체형이기 때문이다.
- */
 @Entity
 @Table(
     name = "growth_record",

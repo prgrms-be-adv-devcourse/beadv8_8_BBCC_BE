@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.auth.app;
 
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountCreateRequest;
-import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountResponse;
+import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountResult;
 import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccount;
@@ -31,12 +31,12 @@ public class ChildAccountService {
     private final AuthEventOutbox outbox;
 
     @Transactional(readOnly = true)
-    public List<ChildAccountResponse> list(Long guardianId) {
-        return accounts.findAllByGuardianIdOrderByIdAsc(guardianId).stream().map(ChildAccountResponse::from).toList();
+    public List<ChildAccountResult> list(Long guardianId) {
+        return accounts.findAllByGuardianIdOrderByIdAsc(guardianId).stream().map(ChildAccountResult::from).toList();
     }
 
     @Transactional
-    public ChildAccountResponse create(Long guardianId, ChildAccountCreateRequest request) {
+    public ChildAccountResult create(Long guardianId, ChildAccountCreateRequest request) {
         replicas.findByIdForUpdate(request.childProfileId()).filter(r -> r.getGuardianId().equals(guardianId))
             .orElseThrow(() -> new BusinessException(AuthErrorCode.CHILD_PROFILE_NOT_FOUND));
         if (accounts.existsByChildProfileId(request.childProfileId())) {
@@ -45,28 +45,20 @@ public class ChildAccountService {
         if (accounts.existsByLoginId(request.loginId())) {
             throw new BusinessException(AuthErrorCode.CHILD_LOGIN_ID_TAKEN);
         }
-        var password = validatePassword(request.password());
+        var password = new ChildPassword(request.password());
         var account = ChildAccount.create(request.loginId(), passwordEncoder.encode(password.value()), guardianId,
             request.childProfileId());
         var saved = accounts.saveAccount(account);
         appendChange(saved, false);
-        return ChildAccountResponse.from(saved);
+        return ChildAccountResult.from(saved);
     }
 
     @Transactional
     public void resetPassword(Long guardianId, Long accountId, String value) {
         var account = ownedAccount(guardianId, accountId);
-        var password = validatePassword(value);
+        var password = new ChildPassword(value);
         account.changePassword(passwordEncoder.encode(password.value()));
         revokeTokens(account.getId());
-    }
-
-    private ChildPassword validatePassword(String value) {
-        try {
-            return new ChildPassword(value);
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(AuthErrorCode.INVALID_CHILD_PASSWORD, e.getMessage());
-        }
     }
 
     @Transactional
@@ -74,7 +66,12 @@ public class ChildAccountService {
         deleteAccount(ownedAccount(guardianId, accountId));
     }
 
-    void deleteAccount(ChildAccount account) {
+    @Transactional
+    public void deleteByChildProfileId(Long childProfileId) {
+        accounts.findByChildProfileIdForUpdate(childProfileId).ifPresent(this::deleteAccount);
+    }
+
+    private void deleteAccount(ChildAccount account) {
         accounts.delete(account);
         revokeTokens(account.getId());
         appendChange(account, true);

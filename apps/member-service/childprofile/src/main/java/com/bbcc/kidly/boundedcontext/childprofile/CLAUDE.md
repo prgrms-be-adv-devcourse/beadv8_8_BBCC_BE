@@ -6,10 +6,16 @@
 - 자녀 본인 조회는 연결의 프로필 ID와 토큰의 보호자 ID로 기존 부모 상세 조회를 사용한다. 배포 전 계정은 연결이 없으며 계정을 다시 만들면 연결된다
 - 리스너는 앱 기본 시작 위치 `latest`를 쓴다. 토픽별 DLT는 `kidly.auth.events.childprofile.dlt`와 `kidly.member.events.childprofile.dlt`다
 
+## 자녀 등록과 안내
+- 등록 시 보호자 동의를 기록한다. 체형과 선호 핏에는 선택 동의가 필요하다 (#849)
+- 자녀 등록 전 보호자 본인인증이 필요하다. 탈퇴하면 인증 기록을 삭제한다 (#866)
+- 회원 정지 시 자녀 프로필을 모두 삭제한다 (#886)
+- 자녀는 첫 로그인 안내 확인 여부를 조회하고 확인 시각을 기록한다 (#889)
+
 ## Kafka 발행 (아웃박스, #548 · #562)
 - 자녀 프로필이 발행한 이벤트(`child.changed`)를 토픽 `kidly.childprofile.events`로 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
 - 키 = `correlationId`(자녀 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
-- 받는 쪽(주문 · 추천)은 모두 Kafka로 받는다
+- 받는 쪽(인증 · 주문 · 추천)은 모두 Kafka로 받는다
 - 저장(`app/outbox/ChildProfileOutboxRecorder`): 커밋 직전(`BEFORE_COMMIT`)에 자녀 프로필이 발행한 이벤트만 `childprofile.child_profile_outbox`에 저장한다
   - 업무가 롤백되면 메시지도 없고, 저장이 실패하면 업무도 커밋되지 않는다. 같은 `eventId`는 한 번만 저장한다(받는 쪽 테스트가 중복 수신을 보려고 같은 이벤트를 두 번 발행한다)
   - Kafka로 회원 탈퇴(`member.withdrawn`)를 받아 자녀를 지우는 리스너(#569)가 자기 트랜잭션에서 발행한 `child.changed`도 그 트랜잭션 안에서 저장한다

@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountCreateRequest;
-import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountResponse;
+import com.bbcc.kidly.boundedcontext.auth.in.dto.ChildAccountResponse;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildLoginRequest;
 import com.bbcc.kidly.boundedcontext.auth.in.dto.LoginResponse;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountPasswordRequest;

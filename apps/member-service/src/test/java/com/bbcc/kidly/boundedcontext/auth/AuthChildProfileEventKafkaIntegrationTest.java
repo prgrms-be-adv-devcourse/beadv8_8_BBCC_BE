@@ -141,7 +141,7 @@ class AuthChildProfileEventKafkaIntegrationTest {
                 body.replace("false", "true"));
             messages.awaitProcessed("kidly.auth", TOPIC, deleted);
             assertThat(repository.findById(childId)).isEmpty();
-            assertThat(accounts.findByChildProfileId(childId)).isEmpty();
+            assertThat(accounts.existsByChildProfileId(childId)).isFalse();
             assertThat(tokens.findByTokenHash(RefreshToken.hashOf(token))).isEmpty();
             var found = new java.util.ArrayList<String>();
             AsyncWait.until(TIMEOUT, () -> {
@@ -190,7 +190,7 @@ class AuthChildProfileEventKafkaIntegrationTest {
                 jsonMapper.writeValueAsString(body));
             AsyncWait.until(TIMEOUT, () -> profiles.findAllByMemberId(memberId).isEmpty());
             relay.relay();
-            AsyncWait.until(TIMEOUT, () -> accounts.findByChildProfileId(profile.id()).isEmpty()
+            AsyncWait.until(TIMEOUT, () -> !accounts.existsByChildProfileId(profile.id())
                 && tokens.findByTokenHash(RefreshToken.hashOf(token)).isEmpty());
         } finally {
             memberListener.stop();

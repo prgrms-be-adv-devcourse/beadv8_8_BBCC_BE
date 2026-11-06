@@ -29,10 +29,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
 
-/**
- * 자녀 프로필. 보호자(memberId)는 바뀌지 않는다. 등록할 때와 키 · 체형이 바뀔 때 성장 이력이 1건 쌓인다.
- * 삭제는 논리 삭제이고, 삭제된 자녀는 모든 조회에서 빠진다.
- */
 @Entity
 @Table(
     name = "child_profile",
@@ -104,7 +100,6 @@ public class ChildProfile extends BaseSoftDeleteEntity {
         return child;
     }
 
-    // 모든 필드를 받는 전체 교체다. 키(값 비교) 또는 체형(null ↔ 값 포함)이 바뀌면 성장 이력을 1건 추가한다
     public void update(ChildProfileUpdateInfo info, LocalDateTime now) {
         validateOptionalConsent(hasOptionalConsent(), info.bodyType(), info.preferredFit());
         boolean grown = this.heightCm.compareTo(info.heightCm()) != 0

@@ -22,11 +22,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 보호자의 자녀 프로필을 등록 · 조회 · 수정 · 삭제한다. 본인 자녀만 다루고, 아니면 404다.
- * 등록 · 수정 때는 바뀐 뒤 전체 값으로, 삭제 때는 삭제 직전 값에 {@code deleted = true}를 붙여 {@link ChildChangedEvent}를 발행한다.
- * 추천 · 주문이 복사본을 갱신한다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -82,7 +77,6 @@ public class ChildProfileService {
         return childProfileRepository.getByIdAndMemberId(childId, guardianId);
     }
 
-    // 이름만 바뀌어도 이벤트를 발행한다. 받는 쪽은 어떤 필드가 바뀌었는지 보지 않고 덮어쓴다
     @Transactional
     public ChildProfileResult update(Long memberId, Long childId, ChildProfileUpdateRequest request) {
         var now = LocalDateTime.now();
@@ -102,7 +96,6 @@ public class ChildProfileService {
         log.info("자녀 삭제: memberId={} childId={}", memberId, childId);
     }
 
-    // 회원이 탈퇴하면 자녀를 모두 삭제한다. 자녀마다 삭제 이벤트를 발행한다
     @Transactional
     public void deleteAll(Long memberId) {
         var now = LocalDateTime.now();
@@ -111,7 +104,13 @@ public class ChildProfileService {
             child.delete(now);
             publish(child, true, now);
         }
-        log.info("탈퇴 회원 자녀 삭제: memberId={} count={}", memberId, children.size());
+        log.info("회원 자녀 전체 삭제: memberId={} count={}", memberId, children.size());
+    }
+
+    @Transactional
+    public void deleteWithdrawnMember(Long memberId) {
+        deleteAll(memberId);
+        guardianVerificationRepository.deleteByMemberId(memberId);
     }
 
     @Transactional(readOnly = true)
