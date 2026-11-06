@@ -139,7 +139,7 @@ class OrderMcpApiTest {
             List.of(), "WALLET_NOT_FOUND", LocalDateTime.now()));
         recoveryRepository.save(PaymentRecovery.open(paid.orderId(), 500L, BUYER_ID, paid.totalAmount(),
             List.of(new PaymentRecovery.PaidItem(paid.items().getFirst().orderItemId(), paid.totalAmount())),
-            "delivery-failed", true, LocalDateTime.now()));
+            "member-mismatch", true, LocalDateTime.now()));
         Long outboxId = jdbcTemplate.queryForObject("select min(id) from orders.order_outbox where message_key = ?",
             Long.class, String.valueOf(stale.orderId()));
         transactions.executeWithoutResult(status -> outboxRepository.quarantine(outboxId, "RecordTooLargeException",
@@ -168,7 +168,7 @@ class OrderMcpApiTest {
         JsonNode failures = callOk("event_failures", Map.of("status", "PENDING"), texts);
         assertThat(failures.get("items").get(0).get("eventType").asString()).isEqualTo("PAYMENT_FAILED");
         JsonNode recoveries = callOk("payment_recoveries", Map.of(), texts);
-        assertThat(recoveries.get("items").get(0).get("failureCode").asString()).isEqualTo("delivery-failed");
+        assertThat(recoveries.get("items").get(0).get("failureCode").asString()).isEqualTo("member-mismatch");
         JsonNode quarantined = callOk("outbox_quarantined", Map.of(), texts);
         assertThat(quarantined.get("items").get(0).get("outboxId").asString()).isEqualTo(String.valueOf(outboxId));
         assertThat(quarantined.get("items").get(0).get("status").asString()).isEqualTo("QUARANTINED");
@@ -201,10 +201,24 @@ class OrderMcpApiTest {
         recoveryRepository.save(PaymentRecovery.open(paid.orderId(), 500L, BUYER_ID, paid.totalAmount(),
             List.of(new PaymentRecovery.PaidItem(paid.items().getFirst().orderItemId(), paid.totalAmount())),
             ADDRESS, true, LocalDateTime.now()));
-        deadLetterService.receive(new ReceiveDeadLetterCommand("kidly.payment.events", 1, 7L, PHONE,
-            "결제 " + RECIPIENT, RECIPIENT, "{}", "IllegalStateException: " + ADDRESS, "실패", "trace"));
+        // 키는 전화번호 형태, aggregateId는 주민번호 형태, correlationId는 관련 주문 ID(이것만 나간다)
+        String received = """
+            {"producer":"payment","occurredAt":"2026-10-31T09:30:00","aggregateId":"9001011234567",
+             "correlationId":"%s","data":{"orderId":%s}}""".formatted(paid.orderId(), paid.orderId());
+        deadLetterService.receive(new ReceiveDeadLetterCommand("kidly.payment.events", 1, 7L, "01098765432",
+            "payment.completed", RECIPIENT, received, "IllegalStateException: " + ADDRESS, "실패", "trace"));
         Long deadLetterId = jdbcTemplate.queryForObject(
             "select id from orders.order_dead_letter where source_offset = 7", Long.class);
+        // 토픽이 kidly.{x}.events 형식이 아니면 producer · eventType 모두 null. 재처리 결과는 '넘김'이면 HANDED_OFF
+        deadLetterService.receive(new ReceiveDeadLetterCommand("payment-legacy", 1, 8L, null, "payment.completed",
+            "3f2504e0-4f89-11d3-9a0c-0305e82c3301", "{\"producer\":\"payment\",\"aggregateId\":\"john.smith\"}",
+            "java.lang.IllegalStateException", "실패", "trace"));
+        Long otherTopicId = jdbcTemplate.queryForObject(
+            "select id from orders.order_dead_letter where source_offset = 8", Long.class);
+        jdbcTemplate.update("update orders.order_dead_letter set last_reprocess_result = ? where id = ?",
+            "자체 보관으로 넘김(재처리 대기 목록에서 처리)", deadLetterId);
+        jdbcTemplate.update("update orders.order_dead_letter set last_reprocess_result = ? where id = ?",
+            "IllegalStateException", otherTopicId);
 
         List<String> texts = new ArrayList<>();
         JsonNode quarantined = callOk("outbox_quarantined", Map.of(), texts);
@@ -221,15 +235,31 @@ class OrderMcpApiTest {
         assertThat(failures.get("items").get(0).get("stockFailures").get(0).get("reason").isNull()).isTrue();
         JsonNode recoveries = callOk("payment_recoveries", Map.of(), texts);
         assertThat(recoveries.get("items").get(0).get("failureCode").isNull()).isTrue();
-        callOk("dead_letters", Map.of(), texts);
+        JsonNode deadLetters = callOk("dead_letters", Map.of(), texts);
+        Map<String, String> eventTypes = new java.util.HashMap<>();
+        deadLetters.get("items").forEach(row -> eventTypes.put(row.get("deadLetterId").asString(),
+            row.get("eventType").isNull() ? null : row.get("eventType").asString()));
+        assertThat(eventTypes).containsEntry(String.valueOf(deadLetterId), "payment.completed")
+            .containsEntry(String.valueOf(otherTopicId), null);
         JsonNode detail = callOk("dead_letter_detail", Map.of("deadLetterId", deadLetterId), texts);
         assertThat(detail.get("exceptionClass").asString()).isEqualTo("IllegalStateException");
         assertThat(detail.get("messageKey").isNull()).isTrue();
-        assertThat(detail.get("eventType").isNull()).isTrue();
+        assertThat(detail.get("aggregateId").isNull()).isTrue();
+        assertThat(detail.get("correlationId").asString()).isEqualTo(String.valueOf(paid.orderId()));
+        assertThat(detail.get("producer").asString()).isEqualTo("payment");
+        assertThat(detail.get("eventType").asString()).isEqualTo("payment.completed");
         assertThat(detail.get("eventId").isNull()).isTrue();
+        assertThat(detail.get("lastReprocessResult").asString()).isEqualTo("HANDED_OFF");
+        JsonNode other = callOk("dead_letter_detail", Map.of("deadLetterId", otherTopicId), texts);
+        assertThat(other.get("producer").isNull()).isTrue();
+        assertThat(other.get("eventType").isNull()).isTrue();
+        assertThat(other.get("aggregateId").isNull()).isTrue();
+        assertThat(other.get("eventId").asString()).isEqualTo("3f2504e0-4f89-11d3-9a0c-0305e82c3301");
+        assertThat(other.get("exceptionClass").asString()).isEqualTo("java.lang.IllegalStateException");
+        assertThat(other.get("lastReprocessResult").asString()).isEqualTo("IllegalStateException");
 
         assertThat(texts).allSatisfy(text -> assertThat(text).doesNotContain(RECIPIENT, PHONE, ADDRESS, "전화",
-            "연락", "요청으로"));
+            "연락", "요청으로", "01098765432", "9001011234567", "john.smith", "자체 보관"));
     }
 
     @Test

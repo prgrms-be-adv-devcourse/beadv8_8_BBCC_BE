@@ -1,12 +1,13 @@
 package com.bbcc.kidly.boundedcontext.order.in.mcp;
 
 import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.codeOrNull;
-import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.eventTypeOrNull;
 import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.exceptionClassOnly;
 import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.failureCodeOrNull;
 import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.idOrNull;
+import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.receivedEventTypeOrNull;
 import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.sourceOrNull;
 
+import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.OrderDeadLetterSummary;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderDeadLetterSummaryResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderEventFailureResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderStatusHistoryResponse;
@@ -38,9 +39,12 @@ final class OrderMcpViews {
             row.occurredAt());
     }
 
-    static OrderDeadLetterSummaryResponse deadLetter(OrderDeadLetterSummaryResponse row) {
+    // 받은 eventType은 앞 마디가 원래 토픽(kidly.{x}.events)의 x일 때만
+    static OrderDeadLetterSummaryResponse deadLetter(OrderDeadLetterSummary summary) {
+        OrderDeadLetterSummaryResponse row = OrderDeadLetterSummaryResponse.from(summary);
         return new OrderDeadLetterSummaryResponse(row.deadLetterId(), row.lastReceivedAt(), row.failureType(),
-            eventTypeOrNull(row.eventType()), row.orderId(), row.receivedCount(), row.status(), row.paymentEvent());
+            receivedEventTypeOrNull(row.eventType(), summary.sourceTopic()), row.orderId(), row.receivedCount(),
+            row.status(), row.paymentEvent());
     }
 
     static OrderEventFailureResponse eventFailure(OrderEventFailureResponse row) {

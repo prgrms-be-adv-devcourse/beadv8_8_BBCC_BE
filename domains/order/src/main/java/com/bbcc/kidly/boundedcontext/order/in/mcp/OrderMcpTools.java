@@ -8,7 +8,6 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderStatusHistoryResul
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxAdminService;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.StuckOrderKind;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.StuckOrderService;
-import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderDeadLetterSummaryResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderEventFailureResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OrderStatusHistoryResponse;
 import com.bbcc.kidly.boundedcontext.order.in.web.admin.dto.OutboxQuarantineResponse;
@@ -92,7 +91,7 @@ public class OrderMcpTools {
                     "page", PAGE, "size", size()),
                 List.of(), args -> page(deadLetterService.getDeadLetters(args.text("status"),
                     args.text("failureType"), args.text("eventType"), args.page(), args.size())
-                    .map(OrderDeadLetterSummaryResponse::from).map(OrderMcpViews::deadLetter))),
+                    .map(OrderMcpViews::deadLetter))),
             tool("dead_letter_detail", "DLT 메시지 하나의 메타데이터 · 실패 정보 · 관련 주문의 지금 상태 · 권장 조치. 원본 본문은 주지 않는다.",
                 Map.of("deadLetterId", ID), List.of("deadLetterId"),
                 args -> OrderMcpDeadLetter.from(deadLetterService.getDeadLetter(args.id("deadLetterId")))),
