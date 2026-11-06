@@ -117,6 +117,7 @@
 |---|---|---|---|
 | GET | `/api/v1/recommendations/size` | 사이즈 추천(`productId` · `childId`. 추천 사이즈 · 적합도 · 안내 · 후보 사이즈 · 근거) | 🔒 |
 | GET | `/api/v1/recommendations/products` | 자녀 맞춤 상품(`childId` · `categoryId` · `page` · `size` · `asOf`) | 🔒 |
+| POST | `/api/v1/recommendations/product-views` | 상품 상세 진입 기록(`productId`. 활동 기록에 한 줄, 응답 204) | 🔒 |
 
 ## 주문
 
