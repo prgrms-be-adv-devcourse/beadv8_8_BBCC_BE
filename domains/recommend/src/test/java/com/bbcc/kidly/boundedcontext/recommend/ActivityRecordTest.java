@@ -13,6 +13,8 @@ import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.REMO
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.RESULT_COUNT;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.SEARCHED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.SEARCH_EVENT_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.VIEWED_AT;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.VIEW_EVENT_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_120_OPTION_ID;
@@ -209,5 +211,27 @@ class ActivityRecordTest {
             Named.of("뺀 시각", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
                 REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID,
                 REMOVED_QTY, null))));
+    }
+
+    @Test
+    @DisplayName("상세 진입 값으로 상세 진입 종류의 활동 기록을 만들고 자녀 · 장바구니 · 수량 · 검색 칸은 비운다")
+    void createProductViewed() {
+        ActivityRecord record = ActivityRecord.productViewed(ActivityRecordFixture.productViewed());
+
+        assertThat(record)
+            .extracting(
+                ActivityRecord::getType,
+                ActivityRecord::getEventId,
+                ActivityRecord::getMemberId,
+                ActivityRecord::getProductId,
+                ActivityRecord::getOccurredAt,
+                ActivityRecord::getChildProfileId,
+                ActivityRecord::getCartItemId,
+                ActivityRecord::getProductOptionId,
+                ActivityRecord::getAddedQty,
+                ActivityRecord::getCartQty,
+                ActivityRecord::getKeyword)
+            .containsExactly(ActivityType.PRODUCT_VIEWED, VIEW_EVENT_ID, MEMBER_1_ID, PRODUCT_A_ID, VIEWED_AT,
+                null, null, null, null, null, null);
     }
 }
