@@ -262,19 +262,53 @@
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
 | GET | `/api/v1/reviews/eligible` | 리뷰를 쓸 수 있는 주문상품(커서 목록) | 🔒 |
-| POST | `/api/v1/reviews` | 리뷰 작성 | 🔒 |
-| PATCH | `/api/v1/reviews/{reviewId}` | 리뷰 수정(보낸 필드만, 작성자만) | 🔒 |
-| DELETE | `/api/v1/reviews/{reviewId}` | 리뷰 삭제(작성자만) | 🔒 |
-| GET | `/api/v1/reviews` | 상품별 리뷰 목록(`productId`, 최신순) | 🌐 |
-| GET | `/api/v1/reviews/me` | 내 리뷰 | 🔒 |
-| GET | `/api/v1/reviews/summary` | 리뷰 요약(리뷰 수 · 평균 별점) | 🌐 |
+| POST | `/api/v1/reviews/images/upload-urls` | 리뷰 사진 업로드 주소(Presigned PUT) 발급. 본문 `files`(`contentType` `image/jpeg` · `image/png` · `image/webp`, `contentLength` 1장 10MB 이하) 1~5장. 응답은 `files` 배열(요청 순서대로 `uploadUrl` · `imageUrl` · `expiresAt`(5분 뒤 만료)) | 🔒 |
+| POST | `/api/v1/reviews` | 리뷰 작성(201 + `Location`). `imageUrls`는 업로드 주소 발급으로 받은 내 `imageUrl` 목록(최대 5장, 빼거나 `null`이면 사진 없음) | 🔒 |
+| PATCH | `/api/v1/reviews/{reviewId}` | 리뷰 수정(보낸 필드만, 작성자만). `imageUrls`를 보내면 목록 전체 교체, 빈 목록은 사진 모두 삭제, 안 보내면 그대로(`null`은 400) | 🔒 |
+| DELETE | `/api/v1/reviews/{reviewId}` | 리뷰 삭제(작성자만). 리뷰에 붙은 사진 목록도 함께 지워진다 | 🔒 |
+| GET | `/api/v1/reviews` | 상품별 리뷰 목록(`productId`, 최신순). 공개 리뷰만 | 🌐 |
+| GET | `/api/v1/reviews/me` | 내 리뷰(숨겨진 리뷰 포함) | 🔒 |
+| GET | `/api/v1/reviews/summary` | 리뷰 요약(리뷰 수 · 평균 별점 · 사이즈 핏 분포 `fitSummary`). 공개 리뷰만 센다 | 🌐 |
 | PUT | `/api/v1/favorites/{productId}` | 찜(다시 해도 1건) | 🔒 |
 | DELETE | `/api/v1/favorites/{productId}` | 찜 취소(없어도 204) | 🔒 |
 | GET | `/api/v1/favorites` | 내 찜 목록. `productIds`를 주면 그중 찜한 것만 | 🔒 |
 | GET | `/api/v1/favorites/summary` | 찜 요약(찜 수) | 🌐 |
-| GET | `/api/v1/admin/community/dead-letters` | DLT에 남은 메시지 목록 | 🛠 |
+| GET | `/api/v1/admin/community/reviews` | 검사 상태별 리뷰 목록(`status` 필수: `PENDING` · `PASSED` · `HIDDEN` · `CONFIRMED_HIDDEN` · `RESTORED`, `cursor` · `size`, 최신순) | 🛠 |
+| PATCH | `/api/v1/admin/community/reviews/{reviewId}/visibility` | 숨김 확정 · 다시 공개(본문 `visibility` `HIDDEN` → `CONFIRMED_HIDDEN`, `VISIBLE` → `RESTORED`). 같은 값을 다시 보내도 200 | 🛠 |
+| GET | `/api/v1/admin/community/dead-letters` | DLT에 남은 메시지 목록(`status` 기본 OPEN, `page` · `size` 기본 0 · 20, 1~100) | 🛠 |
 | GET | `/api/v1/admin/community/dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/community/dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
+| POST | `/api/v1/admin/community/mcp` | 커뮤니티 운영 조회 MCP 창구(읽기 전용, 스위치 기본 꺼짐) | 🛠 |
+
+리뷰 목록(상품별 · 내 리뷰) 항목에는 사진 공개 주소 `imageUrls`(순서대로, 없으면 빈 목록)와 `visibility`가 있다. `visibility`는 `PUBLIC`(공개) 또는 `UNDER_REVIEW`(숨겨짐: 검사 숨김 · 숨김 확정)이고, `UNDER_REVIEW`는 내 리뷰에서만 보인다. 상품별 목록은 늘 `PUBLIC`이다. 커서 목록의 `size`는 1~50(기본 20)이다.
+
+**리뷰 사진**: 업로드 주소 발급으로 받은 `uploadUrl`에 요청한 `Content-Type` · 크기 그대로 PUT 해 S3에 직접 올리고, 받은 `imageUrl`을 작성 · 수정의 `imageUrls`에 넣는다. 본인에게 발급된 주소만 받는다. 리뷰에 새로 붙는 사진은 실제로 올라갔는지 확인한다(이미 붙어 있던 사진은 다시 확인하지 않는다). 올라가지 않았으면 400 `IMAGE_NOT_UPLOADED`, 저장소가 답하지 못하면(장애 · 시간 초과 · 권한) 503 `IMAGE_STORAGE_UNAVAILABLE`이고 요청은 반영되지 않는다. 최대 장수 · 크기 · 만료는 `kidly.community.review.image.*`(`max-count` · `max-file-size` · `upload-url-expiry`), 확인 방식은 `upload-check`(`s3` 기본, 로컬 실행은 `none`)다.
+
+**리뷰 검사(#1002)**: 리뷰는 저장하면 바로 공개되고 검사 대기(`PENDING`)가 된다. 스케줄러가 1분 간격으로 대기 리뷰를 10건씩 금칙어 → AI(키가 있을 때만) 순으로 검사해, 통과하면 `PASSED`, 걸리면 `HIDDEN`(숨김, 관리자 판단 대기)으로 바꾼다. 숨겨진 리뷰는 상품별 목록 · 리뷰 요약에서 빠지고 작성자의 내 리뷰에는 `UNDER_REVIEW`로 보인다. 관리자는 `CONFIRMED_HIDDEN`(숨김 확정) 또는 `RESTORED`(다시 공개)로 정한다. 공개 상태(`PENDING` · `PASSED` · `RESTORED`)에서 글 · 사진을 고치면 다시 검사 대기가 되고, 숨김 상태(`HIDDEN` · `CONFIRMED_HIDDEN`)는 작성자가 고쳐도 숨김 그대로다. 판단하지 못한 검사(장애 · 시간 초과)는 다시 하고, 판단하지 못한 횟수가 10번(`max-attempts`)에 닿으면 공개 그대로 관리자 목록에서 본다(`attemptsExhausted`). AI 한도 초과(429)는 횟수에 넣지 않고 그 주기의 남은 검사만 멈춘다.
+
+**커뮤니티 운영 조회 MCP 창구(#1005)**: AI가 커뮤니티 운영 상태(리뷰 요약 · DLT · 검사 현황 · 상품 복사본)를 조회해 원인을 진단하는 읽기 전용 [MCP](https://modelcontextprotocol.io) 서버다. 재처리 · 숨김 같은 조작 도구는 없고, 조작은 위 관리자 API로 사람이 한다.
+
+- 켜기: 커뮤니티 서비스 환경변수 `COMMUNITY_MCP_ENABLED=true`(설정 `kidly.community.mcp.enabled`, 기본 false). 꺼져 있으면 경로가 없다. 목록 한 번의 줄 수 상한은 `kidly.community.mcp.max-results`(기본 50, 1~100)
+- 연결: 상태 없는 Streamable HTTP(세션 없음). `POST /api/v1/admin/community/mcp`에 JSON-RPC 본문, `Content-Type: application/json`, `Accept: application/json, text/event-stream`. 관리자 토큰으로 Gateway를 거친다. `X-Admin-Id`가 없거나 양의 정수가 아니면 401, 본문이 64KB를 넘으면 413 ProblemDetail
+- 결과: 도구마다 구조화 결과(`structuredContent`)와 같은 내용의 JSON 텍스트 하나. 목록 `size`가 상한보다 크면 상한으로 줄인다. 시각은 `yyyy-MM-ddTHH:mm:ss`(한국 시간). 없는 대상 · 잘못된 인자 · 모르는 도구는 `isError: true`와 정해진 문구(받은 값 · 예외 메시지는 넣지 않는다)
+- 응답에 넣지 않는 것: 리뷰 본문 · 닉네임 · 회원 ID · 사진 주소 · DLT 원본 본문 · 예외 메시지 · 스택 · 처리한 관리자. 자유 문구가 될 수 있는 칸은 정해진 형식일 때만 내보내고 아니면 `null`이다:
+  - 토픽 · `eventType`: 소문자 토픽 이름 · 점으로 나뉜 소문자 이벤트 타입만
+  - 실패 종류(`failureType` · `lastReplayFailureType`): 예외 클래스의 단순 이름만
+  - 메시지 키 · `eventId`: 숫자 ID 또는 UUID만
+
+| 도구 | 인자 | 결과 |
+|---|---|---|
+| `review_summary` | `productId`(필수) | 상품 하나의 `reviewCount` · `averageRating` · `fitSummary`(공개 리뷰 기준, 리뷰 요약 API와 같다) |
+| `dead_letters` | `state`(`OPEN` · `REPROCESSED`, 기본 OPEN) · `page` · `size`(기본 20) | DLT 목록 `{state, page, size, totalElements, items}`. 항목은 ID · 원래 토픽 · `eventType` · 상태 · 재처리 횟수 · 실패 종류 · 시각 |
+| `dead_letter_detail` | `id`(필수) | DLT 한 건의 DLT · 원래 토픽 위치(파티션 · 오프셋) · 메시지 키 · `eventType` · `eventId` · 실패 종류 · 상태 · 재처리 결과 |
+| `moderation_queue` | 없음 | 상태별 리뷰 수(`PENDING` · 재시도 상한에 닿은 `PENDING_EXHAUSTED` · `PASSED` · `HIDDEN` · `CONFIRMED_HIDDEN` · `RESTORED`), 가장 오래된 대기 리뷰의 작성 시각, 최근 숨긴 리뷰의 ID · 이유 분류 · 시각(최대 상한 건수) |
+| `replica_health` | 없음 | 상품 복사본 수 · 표시 상태별 수 · 마지막 반영 시각 · 가장 늦은 원본 이벤트 시각 |
+
+오류 코드(상태 · `title` · `detail`은 `ReviewErrorCode`에 있다):
+
+- 사진: `INVALID_IMAGE_FILE` · `TOO_MANY_IMAGES` · `INVALID_IMAGE_URL` · `IMAGE_NOT_UPLOADED`(400), `IMAGE_STORAGE_UNAVAILABLE`(503)
+- 검사: `INVALID_MODERATION_STATUS` · `INVALID_VISIBILITY`(400)
+- MCP: `MCP_REQUEST_TOO_LARGE`(413)
 
 ## 알림
 
