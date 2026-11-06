@@ -368,6 +368,7 @@ public class Product extends BaseTimeEntity {
             throw new IllegalArgumentException("실측 목록은 비어 있을 수 없습니다");
         }
         validateOwner(info.sellerId());
+        requireNotDelisted();
         ProductSizeSpecs.validateNewSpecs(info.specs(), sizeSpecs, options, category, productType);
         for (SizeSpecInfo spec : info.specs()) {
             sizeSpecs.add(SizeSpec.create(this, spec));
