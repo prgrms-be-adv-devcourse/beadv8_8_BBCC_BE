@@ -142,4 +142,18 @@ public class ActivityRecord extends BaseTimeEntity {
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         return record;
     }
+
+    public record ProductViewedInfo(UUID eventId, Long memberId, Long productId, LocalDateTime occurredAt) {
+    }
+
+    public static ActivityRecord productViewed(ProductViewedInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        ActivityRecord record = new ActivityRecord();
+        record.type = ActivityType.PRODUCT_VIEWED;
+        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
+        record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
+        return record;
+    }
 }

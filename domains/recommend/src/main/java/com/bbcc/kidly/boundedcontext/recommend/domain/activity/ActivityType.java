@@ -6,5 +6,6 @@ package com.bbcc.kidly.boundedcontext.recommend.domain.activity;
 public enum ActivityType {
     SEARCH,
     CART_ITEM_ADDED,
-    CART_ITEM_REMOVED
+    CART_ITEM_REMOVED,
+    PRODUCT_VIEWED
 }
