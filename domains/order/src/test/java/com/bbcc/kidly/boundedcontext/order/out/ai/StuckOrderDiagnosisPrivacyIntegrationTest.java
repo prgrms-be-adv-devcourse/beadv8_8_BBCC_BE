@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventFailureRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.PaymentRecoveryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -79,6 +81,12 @@ class StuckOrderDiagnosisPrivacyIntegrationTest {
     @Autowired
     private JsonMapper jsonMapper;
 
+    @Autowired
+    private OrderOutboxRepository outboxRepository;
+
+    @Autowired
+    private TransactionTemplate transactions;
+
     @BeforeEach
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
@@ -97,7 +105,7 @@ class StuckOrderDiagnosisPrivacyIntegrationTest {
             List.of(), "WALLET_NOT_FOUND", LocalDateTime.now()));
         recoveryRepository.save(PaymentRecovery.open(order.orderId(), 500L, BUYER_ID, order.totalAmount(),
             List.of(new PaymentRecovery.PaidItem(order.items().getFirst().orderItemId(), order.totalAmount())),
-            "delivery-failed", true, LocalDateTime.now()));
+            "member-mismatch", true, LocalDateTime.now()));
         List<StuckOrderDiagnoser.Request> requests = new ArrayList<>();
         StuckOrderDiagnoser capturing = new StuckOrderDiagnoser() {
             @Override
@@ -117,10 +125,77 @@ class StuckOrderDiagnosisPrivacyIntegrationTest {
 
         assertThat(requests).singleElement().satisfies(request -> {
             String prompt = jsonMapper.writeValueAsString(new AiDiagnosisPrompt(jsonMapper).messages(request));
-            assertThat(prompt).contains("STOCK_CHECK_STALE", "PENDING_PAYMENT", "WALLET_NOT_FOUND", "delivery-failed");
+            assertThat(prompt).contains("STOCK_CHECK_STALE", "PENDING_PAYMENT", "WALLET_NOT_FOUND", "member-mismatch");
             assertThat(prompt).doesNotContain(RECIPIENT, PHONE, ZIP, ADDRESS, "115.0", "20.0");
             assertThat(prompt).doesNotContain("recipient", "phone", "zipCode", "address", "nickname", "child",
                 "memberId", "actorId", "height", "weight");
         });
+    }
+
+    @Test
+    @DisplayName("자유 문구 칸(아웃박스 lastError · 이력 reason/source · 실패 코드)에 개인정보를 넣어도 AI 요청 글에는 없고, "
+        + "실제 코드(member-mismatch · 예외 이름 · enum 사유 · 경로 틀 · 이벤트 타입)는 그대로 나간다")
+    void freeTextIsFilteredFromPrompt() {
+        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+            List.of(new PlaceOrderCommand.Item(1L, 1L, 1, 25_000L)),
+            new PlaceOrderCommand.ShippingAddress(RECIPIENT, PHONE, ZIP, ADDRESS)));
+        Long orderId = order.orderId();
+        jdbcTemplate.update("update orders.orders set created_at = ?, payment_due_at = ? where id = ?",
+            LocalDateTime.now().minusHours(1), LocalDateTime.now().plusDays(1), orderId);
+        Long outboxId = jdbcTemplate.queryForObject("select min(id) from orders.order_outbox where message_key = ?",
+            Long.class, String.valueOf(orderId));
+        transactions.executeWithoutResult(status -> outboxRepository.quarantine(outboxId,
+            "RecordTooLargeException: " + RECIPIENT + " 01098765432", LocalDateTime.now()));
+        history(orderId, "hong-gildong", "JohnSmith");
+        history(orderId, RECIPIENT + " 요청", "전화 " + PHONE);
+        history(orderId, "BUYER_CANCELLED", "POST /api/v1/orders/{orderId}/cancel");
+        failureRepository.save(OrderEventFailure.open(OrderEventFailure.EventType.PAYMENT_FAILED, orderId,
+            List.of(), "연락 010-9876-5432", LocalDateTime.now()));
+        failureRepository.save(OrderEventFailure.open(OrderEventFailure.EventType.STOCK_DEDUCTED, orderId,
+            List.of(), "DataIntegrityViolationException", LocalDateTime.now()));
+        recoveryRepository.save(PaymentRecovery.open(orderId, 500L, BUYER_ID, order.totalAmount(),
+            List.of(new PaymentRecovery.PaidItem(order.items().getFirst().orderItemId(), order.totalAmount())),
+            "member-mismatch", true, LocalDateTime.now()));
+
+        List<String> prompts = promptsOf(diagnoseCapturing());
+
+        assertThat(prompts).isNotEmpty().allSatisfy(prompt -> assertThat(prompt).doesNotContain(RECIPIENT, PHONE,
+            "01098765432", "010-9876-5432", "hong-gildong", "JohnSmith", "요청", "전화", "연락", ADDRESS));
+        String all = String.join("\n", prompts);
+        assertThat(all).contains("member-mismatch", "DataIntegrityViolationException", "BUYER_CANCELLED",
+            "POST /api/v1/orders/{orderId}/cancel", "RecordTooLargeException", "OUTBOX_STUCK", "STOCK_CHECK_STALE");
+        assertThat(all).doesNotContain("null");
+    }
+
+    private void history(Long orderId, String reason, String source) {
+        jdbcTemplate.update("insert into orders.order_status_history (order_id, target_type, target_id, from_status,"
+                + " to_status, reason, actor_type, actor_id, source, occurred_at, created_at, updated_at)"
+                + " values (?, 'ORDER', ?, 'PENDING_PAYMENT', 'PENDING_PAYMENT', ?, 'ADMIN', 99, ?,"
+                + " now(), now(), now())",
+            orderId, orderId, reason, source);
+    }
+
+    private List<StuckOrderDiagnoser.Request> diagnoseCapturing() {
+        List<StuckOrderDiagnoser.Request> requests = new ArrayList<>();
+        StuckOrderDiagnoser capturing = new StuckOrderDiagnoser() {
+            @Override
+            public boolean isAvailable() {
+                return true;
+            }
+
+            @Override
+            public Diagnosis diagnose(Request request) {
+                requests.add(request);
+                return Diagnosis.diagnosed("요약", "조치", Confidence.LOW, "test", "test");
+            }
+        };
+        new StuckOrderDiagnosisService(stuckOrderService, capturing, diagnosisRepository, historyRepository,
+            failureRepository, recoveryRepository, properties).diagnoseNew(LocalDateTime.now());
+        return requests;
+    }
+
+    private List<String> promptsOf(List<StuckOrderDiagnoser.Request> requests) {
+        AiDiagnosisPrompt prompt = new AiDiagnosisPrompt(jsonMapper);
+        return requests.stream().map(request -> prompt.user(request)).toList();
     }
 }

@@ -29,7 +29,8 @@ class OrderTestContextIntegrationTest {
 
     @Test
     @DisplayName("orders 스키마의 표 20개가 기준 SQL과 주문 마이그레이션(order_outbox · order_dead_letter · wish_item · "
-        + "order_item_cancellation · wish_request · wish_request_line · replica_child_account · order_stuck_diagnosis)으로 만들어진다")
+        + "order_item_cancellation · wish_request · wish_request_line · replica_child_account · "
+        + "order_stuck_diagnosis)으로 만들어진다")
     void ordersSchemaMigrated() {
         List<String> tables = jdbcTemplate.queryForList(
             "select tablename from pg_tables where schemaname = 'orders' order by tablename", String.class);

@@ -1,5 +1,10 @@
 package com.bbcc.kidly.boundedcontext.order.app.stuck;
 
+import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.codeOrNull;
+import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.exceptionClassOnly;
+import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.failureCodeOrNull;
+import static com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard.sourceOrNull;
+
 import com.bbcc.kidly.boundedcontext.order.app.config.StuckOrderDiagnosisProperties;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventFailureRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
@@ -35,6 +40,9 @@ import org.springframework.stereotype.Service;
  *   <li>새 건만: (주문, 종류, 마지막 상태 이력 ID)로 이미 요청했으면(성공 · 실패 모두) 건너뛴다 → 상태가 바뀌기 전까지 한 번</li>
  *   <li>하루 상한(DB의 오늘 요청 수) · 한 실행 상한 안에서만 부른다</li>
  *   <li>실패 · 시간 초과 · 형식 오류는 FAILED 메모 한 줄로 남기고 넘어간다. 부르지 못했으면(꺼짐 · 서킷 열림) 기록 없이 이번 실행을 끝낸다</li>
+ *   <li>AI 요청에 넣는 글 칸은 {@link com.bbcc.kidly.boundedcontext.order.app.OrderTextGuard}로 거른다(#925 MCP와 같은 규칙):
+ *       상태 · 재고 사유는 대문자 코드, 이력 사유 · 실패 코드는 실패 코드 형식, 이력 출처 · 아웃박스 eventType은 경로 틀 ·
+ *       scheduler · 이벤트 타입, 아웃박스 마지막 전송 실패는 예외 클래스 이름만. 형식이 아니면 null(프롬프트에서 빠진다)</li>
  *   <li>AI 호출은 트랜잭션 밖이다. 메모 저장만 자기 트랜잭션. 이 작업이 실패해도 멈춘 주문 처리 · 관리자 API는 그대로다</li>
  * </ul>
  */
@@ -190,13 +198,14 @@ public class StuckOrderDiagnosisService {
     private StuckOrderDiagnoser.Request requestOf(StuckOrderResult stuck, List<OrderStatusHistory> history) {
         List<StuckOrderDiagnoser.HistoryLine> lines = history.subList(Math.max(0, history.size() - HISTORY_LINES),
                 history.size()).stream()
-            .map(row -> new StuckOrderDiagnoser.HistoryLine(row.getTargetType().name(), row.getFromStatus(),
-                row.getToStatus(), row.getReason(), row.getActorType().name(), row.getSource(), row.getOccurredAt()))
+            .map(row -> new StuckOrderDiagnoser.HistoryLine(row.getTargetType().name(),
+                codeOrNull(row.getFromStatus()), codeOrNull(row.getToStatus()), failureCodeOrNull(row.getReason()),
+                row.getActorType().name(), sourceOrNull(row.getSource()), row.getOccurredAt()))
             .toList();
         String orderStatus = history.stream()
             .filter(row -> row.getTargetType() == OrderStatusHistory.TargetType.ORDER)
             .reduce((first, second) -> second)
-            .map(OrderStatusHistory::getToStatus)
+            .map(row -> codeOrNull(row.getToStatus()))
             .orElse(null);
         return new StuckOrderDiagnoser.Request(stuck.kind(), stuck.targetType(), stuck.status(), stuck.since(),
             orderStatus, lines, recordsOf(stuck));
@@ -207,15 +216,16 @@ public class StuckOrderDiagnosisService {
         Arrays.stream(OrderEventFailure.EventType.values())
             .flatMap(type -> failureRepository.findByOrderIdAndEventType(stuck.orderId(), type).stream())
             .forEach(failure -> records.add(new StuckOrderDiagnoser.RecordLine("EVENT_FAILURE",
-                failure.getEventType().name(), failure.getStatus().name(), failure.getFailureCode(),
+                failure.getEventType().name(), failure.getStatus().name(), failureCodeOrNull(failure.getFailureCode()),
                 failure.getAttemptCount())));
         recoveryRepository.findByOrderId(stuck.orderId()).ifPresent(recovery -> records.add(
             new StuckOrderDiagnoser.RecordLine("PAYMENT_RECOVERY", "payment.completed", recovery.getStatus().name(),
-                recovery.getFailureCode(), recovery.getAttemptCount())));
+                failureCodeOrNull(recovery.getFailureCode()), recovery.getAttemptCount())));
         if (stuck.outbox() != null) {
-            records.add(new StuckOrderDiagnoser.RecordLine("OUTBOX", stuck.outbox().eventType(),
-                stuck.outbox().quarantinedAt() != null ? "QUARANTINED" : "UNSENT", null,
-                stuck.outbox().attemptCount()));
+            // 마지막 전송 실패는 예외 클래스 이름만(메시지는 내보내지 않는다)
+            records.add(new StuckOrderDiagnoser.RecordLine("OUTBOX", sourceOrNull(stuck.outbox().eventType()),
+                stuck.outbox().quarantinedAt() != null ? "QUARANTINED" : "UNSENT",
+                exceptionClassOnly(stuck.outbox().lastError()), stuck.outbox().attemptCount()));
         }
         return records;
     }

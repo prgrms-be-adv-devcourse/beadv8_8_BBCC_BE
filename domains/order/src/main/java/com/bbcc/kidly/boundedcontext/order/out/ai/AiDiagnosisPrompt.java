@@ -8,20 +8,22 @@ import java.util.Map;
 import java.util.Set;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 멈춘 주문 진단의 프롬프트 만들기와 응답 해석(#926). 어느 제공자 어댑터든 이것을 같이 쓴다(제공자 무관).
  * 응답은 정해진 JSON 하나여야 한다: {"summary": 문자열, "recommendedAction": 문자열, "confidence": "LOW|MEDIUM|HIGH"}.
  * 칸이 빠졌거나 · 비었거나 · 다른 칸이 있거나 · 길이를 넘거나 · 확신도가 목록 밖이면 실패({@link AiDiagnosisException} BAD_RESPONSE).
- * 요청 값은 포트가 정한 주문 쪽 값뿐이라 개인정보가 없다. 프롬프트 · 응답 본문은 로그에 남기지 않는다.
+ * 요청 값은 포트가 정한 주문 쪽 값뿐이고 글 칸은 서비스가 OrderTextGuard로 거른 값이다. null 칸은 빼고 보낸다. 프롬프트 · 응답 본문은 로그에 남기지 않는다.
  */
 public final class AiDiagnosisPrompt {
 
     static final String SYSTEM = """
         너는 Kidly 이커머스 주문 운영을 돕는 진단 도우미다. 멈춘 주문 하나의 정보(JSON)를 받아 원인을 짧게 추정하고
         관리자가 할 조치를 제안한다. 조치는 관리자가 기존 관리자 API로 직접 한다(재처리 · 종료 · 취소 · 다시 보내기 등).
-        정보에 없는 사실을 지어내지 말고, 모르면 확신도를 LOW로 둔다.
+        정보에 없는 사실을 지어내지 말고, 모르면 확신도를 LOW로 둔다. 값이 없는 칸은 빠져 있다(알 수 없음).
         반드시 아래 키만 가진 JSON 객체 하나로 한국어로 답한다(다른 글 없이):
         {"summary": "원인 요약(300자 이내)", "recommendedAction": "권장 조치(300자 이내)", "confidence": "LOW|MEDIUM|HIGH"}
         """;
@@ -50,7 +52,19 @@ public final class AiDiagnosisPrompt {
         body.put("orderStatus", request.orderStatus());
         body.put("history", request.history());
         body.put("records", request.records());
-        return "멈춘 주문 정보(JSON):\n" + jsonMapper.writeValueAsString(body);
+        // 값이 없거나 걸러진(형식 밖 자유 문구) 칸은 빼고 보낸다
+        return "멈춘 주문 정보(JSON):\n" + jsonMapper.writeValueAsString(withoutNulls(jsonMapper.valueToTree(body)));
+    }
+
+    private static JsonNode withoutNulls(JsonNode node) {
+        if (node instanceof ObjectNode object) {
+            List<String> nulls = object.propertyNames().stream().filter(name -> object.get(name).isNull()).toList();
+            nulls.forEach(object::remove);
+            object.forEach(AiDiagnosisPrompt::withoutNulls);
+        } else if (node instanceof ArrayNode array) {
+            array.forEach(AiDiagnosisPrompt::withoutNulls);
+        }
+        return node;
     }
 
     /**

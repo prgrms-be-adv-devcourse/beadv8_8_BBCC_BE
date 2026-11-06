@@ -38,7 +38,7 @@ public interface StuckOrderDiagnoser {
     /**
      * @param kind EVENT_FAILURE · PAYMENT_RECOVERY · OUTBOX
      * @param type 이벤트 종류 등
-     * @param code 실패 코드(없으면 null)
+     * @param code 실패 코드 · 아웃박스면 마지막 전송 실패의 예외 클래스 이름(없거나 형식 밖이면 null)
      */
     record RecordLine(String kind, String type, String status, String code, int attemptCount) {
     }
