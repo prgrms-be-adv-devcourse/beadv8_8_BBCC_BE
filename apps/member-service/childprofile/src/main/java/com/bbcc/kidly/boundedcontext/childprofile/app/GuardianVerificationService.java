@@ -9,6 +9,7 @@ import com.bbcc.kidly.member.support.error.BusinessException;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -18,6 +19,7 @@ public class GuardianVerificationService {
     private final IdentityVerificationClient client;
     private final IdentityKeyGenerator keyGenerator;
 
+    @Transactional(propagation = Propagation.NEVER)
     public GuardianVerificationResult verify(Long memberId, String id) {
         if (repository.existsByMemberId(memberId)) {
             throw new BusinessException(ChildProfileErrorCode.ALREADY_VERIFIED);
