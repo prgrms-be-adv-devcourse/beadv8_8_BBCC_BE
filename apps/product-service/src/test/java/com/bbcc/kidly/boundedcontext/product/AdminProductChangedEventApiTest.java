@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.List;
@@ -80,6 +81,28 @@ class AdminProductChangedEventApiTest {
     }
 
     @Test
+    @DisplayName("SALE-08 · SALE-17 등록 취소 상품은 판매대기에서 바로 등록 취소했어도 다시 보내고, status가 DELISTED다")
+    void republishDelistedProducts() {
+        Long delistedAfterSaleId = register(ON_SALE_SELLER_ID);
+        changeSaleStatus(ON_SALE_SELLER_ID, delistedAfterSaleId, "ON_SALE");
+        delist(ON_SALE_SELLER_ID, delistedAfterSaleId);
+        Long delistedFromPendingId = register(PENDING_SELLER_ID);
+        delist(PENDING_SELLER_ID, delistedFromPendingId);
+        eventRecorder.clear();
+
+        republish(TestAdmins.of(ADMIN_ID))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.publishedCount").isEqualTo(2);
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class))
+            .extracting(event -> event.data().productId(), event -> event.data().status())
+            .containsExactlyInAnyOrder(
+                tuple(delistedAfterSaleId, ProductStatus.DELISTED),
+                tuple(delistedFromPendingId, ProductStatus.DELISTED));
+    }
+
+    @Test
     @DisplayName("다시 보낸 상품 정보 변경됨은 처음 보낸 이벤트와 eventId가 다르고 occurredAt이 더 늦다")
     void republishedEventHasNewEventIdAndLaterOccurredAt() {
         Long productId = register(ON_SALE_SELLER_ID);
@@ -139,6 +162,13 @@ class AdminProductChangedEventApiTest {
             .getResponseBody()
             .productId();
         return Long.valueOf(productId);
+    }
+
+    private void delist(long sellerId, Long productId) {
+        client.put().uri(SELLER_PRODUCTS_PATH + "/{productId}/delisting", productId)
+            .headers(TestMembers.seller(sellerId))
+            .exchange()
+            .expectStatus().isOk();
     }
 
     private void changeSaleStatus(long sellerId, Long productId, String status) {
