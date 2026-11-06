@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.auth.app;
 
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountCreateRequest;
-import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountResponse;
+import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountResult;
 import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccount;
@@ -31,12 +31,12 @@ public class ChildAccountService {
     private final AuthEventOutbox outbox;
 
     @Transactional(readOnly = true)
-    public List<ChildAccountResponse> list(Long guardianId) {
-        return accounts.findAllByGuardianIdOrderByIdAsc(guardianId).stream().map(ChildAccountResponse::from).toList();
+    public List<ChildAccountResult> list(Long guardianId) {
+        return accounts.findAllByGuardianIdOrderByIdAsc(guardianId).stream().map(ChildAccountResult::from).toList();
     }
 
     @Transactional
-    public ChildAccountResponse create(Long guardianId, ChildAccountCreateRequest request) {
+    public ChildAccountResult create(Long guardianId, ChildAccountCreateRequest request) {
         replicas.findByIdForUpdate(request.childProfileId()).filter(r -> r.getGuardianId().equals(guardianId))
             .orElseThrow(() -> new BusinessException(AuthErrorCode.CHILD_PROFILE_NOT_FOUND));
         if (accounts.existsByChildProfileId(request.childProfileId())) {
@@ -50,7 +50,7 @@ public class ChildAccountService {
             request.childProfileId());
         var saved = accounts.saveAccount(account);
         appendChange(saved, false);
-        return ChildAccountResponse.from(saved);
+        return ChildAccountResult.from(saved);
     }
 
     @Transactional

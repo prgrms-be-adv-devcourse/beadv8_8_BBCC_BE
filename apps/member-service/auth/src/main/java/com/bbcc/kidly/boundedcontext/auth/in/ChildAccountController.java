@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.auth.in;
 
 import com.bbcc.kidly.boundedcontext.auth.app.ChildAccountService;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountCreateRequest;
-import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountResponse;
+import com.bbcc.kidly.boundedcontext.auth.in.dto.ChildAccountResponse;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountPasswordRequest;
 import com.bbcc.kidly.member.support.security.AuthMember;
 import com.bbcc.kidly.member.support.security.LoginMember;
@@ -28,14 +28,14 @@ public class ChildAccountController {
 
     @GetMapping
     public List<ChildAccountResponse> list(@LoginMember AuthMember member) {
-        return service.list(member.id());
+        return service.list(member.id()).stream().map(ChildAccountResponse::from).toList();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ChildAccountResponse create(@LoginMember AuthMember member,
         @Valid @RequestBody ChildAccountCreateRequest request) {
-        return service.create(member.id(), request);
+        return ChildAccountResponse.from(service.create(member.id(), request));
     }
 
     @PatchMapping("/{id}/password")
