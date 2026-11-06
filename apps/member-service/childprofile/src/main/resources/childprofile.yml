@@ -1,12 +1,7 @@
-# 자녀 프로필 도메인 설정. application.yml이 가져온다
-
 kidly:
   childprofile:
-    # Kafka로 보낼 자녀 프로필 이벤트를 아웃박스에서 꺼내 보내는 릴레이
     outbox:
-      # 릴레이를 부르는 주기. 이전 실행이 끝난 뒤부터 재며, 짧게 둬서 다른 도메인이 이벤트를 받을 때까지의 지연을 줄인다
       relay-interval: PT1S
-      # 보낸 메시지를 지우는 시각. 매일 04:00. 보관 기간(7일)은 ChildProfileOutboxCleanupService에 있다
       cleanup-cron: "0 0 4 * * *"
 
 ---
@@ -15,7 +10,6 @@ spring:
     activate:
       on-profile: local
 
-# 보호자 본인인증. 비밀키는 로컬 전용 값이다. 포트원 키가 없어도 앱은 뜨고 본인인증만 실패한다
 kidly:
   childprofile:
     verification:
@@ -29,7 +23,6 @@ spring:
     activate:
       on-profile: prod
 
-# 식별값 비밀키는 한번 정하면 바꾸지 않는다. 바꾸면 이미 인증한 사람과 비교할 수 없다
 kidly:
   childprofile:
     verification:

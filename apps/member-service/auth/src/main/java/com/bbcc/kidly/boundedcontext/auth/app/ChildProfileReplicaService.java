@@ -16,11 +16,15 @@ public class ChildProfileReplicaService {
     @Transactional
     public void apply(Long childId, Long guardianId, boolean deleted) {
         if (deleted) {
-            repository.findByIdForUpdate(childId);
+            lockAgainstAccountCreation(childId);
             repository.deleteById(childId);
             childAccounts.deleteByChildProfileId(childId);
         } else {
             repository.insertIfAbsent(childId, guardianId, LocalDateTime.now());
         }
+    }
+
+    private void lockAgainstAccountCreation(Long childId) {
+        repository.findByIdForUpdate(childId);
     }
 }

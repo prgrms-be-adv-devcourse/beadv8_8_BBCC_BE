@@ -11,8 +11,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Slf4j
 @Service
@@ -31,11 +31,10 @@ public class AccessTokenRevocationService implements MemberTokenRevoker {
     public void revoke(PrincipalId principal, LocalDateTime revokedAt) {
         eventPublisher.publishEvent(new AuthTokensRevokedEvent(UUID.randomUUID(), revokedAt,
             new AuthTokensRevokedEvent.Data(principal.type(), principal.id(), revokedAt)));
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                log.info("Access Token 무효화: type={} principalId={}", principal.type(), principal.id());
-            }
-        });
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void logRevoked(AuthTokensRevokedEvent event) {
+        log.info("Access Token 무효화: type={} principalId={}", event.data().principalType(), event.data().principalId());
     }
 }

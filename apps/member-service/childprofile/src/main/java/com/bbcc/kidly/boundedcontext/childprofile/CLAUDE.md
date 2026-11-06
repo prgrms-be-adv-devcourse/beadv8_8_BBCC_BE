@@ -17,7 +17,7 @@
 - 키 = `correlationId`(자녀 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
 - 받는 쪽(인증 · 주문 · 추천)은 모두 Kafka로 받는다
 - 저장(`app/outbox/ChildProfileOutboxRecorder`): 커밋 직전(`BEFORE_COMMIT`)에 자녀 프로필이 발행한 이벤트만 `childprofile.child_profile_outbox`에 저장한다
-  - 업무가 롤백되면 메시지도 없고, 저장이 실패하면 업무도 커밋되지 않는다. 같은 `eventId`는 한 번만 저장한다(받는 쪽 테스트가 중복 수신을 보려고 같은 이벤트를 두 번 발행한다)
+  - 업무가 롤백되면 메시지도 없고, 저장이 실패하면 업무도 커밋되지 않는다. 같은 `eventId`는 한 번만 저장한다
   - Kafka로 회원 탈퇴(`member.withdrawn`)를 받아 자녀를 지우는 리스너(#569)가 자기 트랜잭션에서 발행한 `child.changed`도 그 트랜잭션 안에서 저장한다
   - 트랜잭션 밖에서 발행하거나, 다른 커밋 직전 리스너 · 커밋 때의 flush 중에 발행한 이벤트는 저장되지 않는다
   - Kafka 보내기를 꺼도(`kidly.kafka.producer.enabled=false`) 저장은 한다
