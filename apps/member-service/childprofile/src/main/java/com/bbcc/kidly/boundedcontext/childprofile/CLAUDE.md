@@ -6,6 +6,11 @@
 - 자녀 본인 조회는 연결의 프로필 ID와 토큰의 보호자 ID로 기존 부모 상세 조회를 사용한다. 배포 전 계정은 연결이 없으며 계정을 다시 만들면 연결된다
 - 리스너는 앱 기본 시작 위치 `latest`를 쓴다. 토픽별 DLT는 `kidly.auth.events.childprofile.dlt`와 `kidly.member.events.childprofile.dlt`다
 
+## DLT 보관 · 재처리 (`app/ChildProfileDeadLetterService`, #962)
+- `in/ChildProfileDeadLetterKafkaListener`가 `kidly.member.events.childprofile.dlt` · `kidly.auth.events.childprofile.dlt`를 그룹 `kidly.childprofile.dlt`(earliest)로 읽어 `childprofile.dead_letter`(`domain/ChildProfileDeadLetter`)에 DLT 위치당 1행으로 보관한다. 같은 위치가 이미 있으면 건너뛴다(DLT는 파티션 1개를 컨테이너 하나가 차례로 읽고, 유니크 제약이 뒷받침한다). 저장 실패는 최대 60초 간격으로 끝없이 재시도하고, DLT의 DLT는 없다
+- `/api/v1/admin/child-profile-dead-letters`(관리자): 목록(status 기본 OPEN) · 상세 · `POST /{id}/reprocess`. 응답과 로그에 본문 · 예외 메시지를 넣지 않는다
+- 재처리는 원래 토픽에 다시 보내지 않고 원래 토픽에 맞는 `ChildProfileMemberEventListener.on` · `ChildProfileAuthEventListener.on`을 직접 부른다(원래 토픽은 다른 도메인도 받는다). 행을 비관적 쓰기 잠금으로 잡은 한 트랜잭션에서 처리기를 돌리고 REPROCESSED로 바꾸므로 동시에 눌러도 처리기는 한 번만 돈다. 처리기가 실패하면 그 트랜잭션은 롤백되고, 별도 트랜잭션에서 횟수 · 예외 종류만 남겨 200/OPEN을 돌려준다
+
 ## 자녀 등록과 안내
 - 등록 시 보호자 동의를 기록한다. 체형과 선호 핏에는 선택 동의가 필요하다 (#849)
 - 자녀 등록 전 보호자 본인인증이 필요하다. 탈퇴하면 인증 기록을 삭제한다 (#866)
