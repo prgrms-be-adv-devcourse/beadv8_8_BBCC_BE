@@ -49,12 +49,45 @@
   },
   "panels": [
     {
+      "id": 3,
+      "type": "logs",
+      "title": "최신 AI 분석 메모",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 17
+      },
+      "timeFrom": "14d",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{.report}}\"",
+          "queryType": "range",
+          "maxLines": 1
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": false,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
       "id": 1,
       "type": "stat",
       "title": "게시된 메모의 관측 경과 · 서비스 정상 여부 아님",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 17,
         "w": 12,
         "h": 5
       },
@@ -121,7 +154,7 @@
       "title": "미전송 메모 · 실패 시 AI 재호출하지 않음",
       "gridPos": {
         "x": 12,
-        "y": 0,
+        "y": 17,
         "w": 12,
         "h": 5
       },
@@ -179,51 +212,18 @@
       }
     },
     {
-      "id": 3,
-      "type": "logs",
-      "title": "최근 AI 분석 · 행을 펼쳐 관측·원인 후보·확인 순서·대응 보기",
-      "gridPos": {
-        "x": 0,
-        "y": 5,
-        "w": 24,
-        "h": 10
-      },
-      "timeFrom": "14d",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{.headline}}\"",
-          "queryType": "range",
-          "maxLines": 1
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "showLabels": false,
-        "showCommonLabels": false,
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none"
-      }
-    },
-    {
       "id": 4,
       "type": "text",
       "title": "읽는 방법",
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 22,
         "w": 24,
         "h": 4
       },
       "options": {
         "mode": "markdown",
-        "content": "AI가 작성한 가설과 대응 제안입니다. 확정 진단이나 자동 복구가 아닙니다. 관측 시각·근거·누락된 정보와 게시 주체를 함께 확인하세요. 새 분석은 요청 시에만 게시하며, 예약 실행은 없습니다. 메모가 없거나 오래됐다는 이유로 정상으로 판단하지 마세요."
+        "content": "최신 메모에는 관측, 원인 후보, 확인 순서, 대응 제안과 근거가 표시됩니다. 원인 후보와 제안은 확인이 필요한 AI 분석입니다. 관측 시각과 제약을 함께 읽어 주세요."
       }
     }
   ]
