@@ -60,8 +60,10 @@ class ChildPreferenceTest {
         "키들리, 키들리, 2",
         "키들리, 다른브랜드, 0",
         ", , 0",
+        "'', '', 0",
+        "'  ', '  ', 0",
     })
-    @DisplayName("PREF-04 활동에 나온 브랜드는 2점, 나오지 않은 브랜드와 브랜드가 없는 상품은 0점이다")
+    @DisplayName("PREF-04 활동에 나온 브랜드는 2점, 나오지 않은 브랜드와 브랜드가 없거나 빈 상품은 0점이다")
     void brandPoints(String activityBrand, String productBrand, int expected) {
         ChildPreference preference = ChildPreference.empty()
             .plus(new PreferenceActivity(CATEGORY_ID, activityBrand, false));
