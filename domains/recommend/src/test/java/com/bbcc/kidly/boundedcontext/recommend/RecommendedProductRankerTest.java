@@ -72,4 +72,19 @@ class RecommendedProductRankerTest {
 
         assertThat(ranked).containsExactly(sevenPoints, threePoints, onePoint);
     }
+
+    @Test
+    @DisplayName("PREF-06 점수가 같으면 등록 시각이 늦은 상품, 그것도 같으면 상품 ID가 큰 상품이 먼저 나온다")
+    void sameScoreOrderedByRegisteredAtThenProductId() {
+        ChildPreference preference = ChildPreference.empty().plus(new PreferenceActivity(CATEGORY_ID, BRAND, false));
+        // 세 상품 모두 카테고리 3점 + 브랜드 2점이다
+        RecommendedProduct earlier = recommendedProduct(3L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT);
+        RecommendedProduct laterSmallerId = recommendedProduct(1L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT.plusDays(1));
+        RecommendedProduct laterLargerId = recommendedProduct(2L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT.plusDays(1));
+
+        List<RecommendedProduct> ranked =
+            ranker.rank(List.of(earlier, laterSmallerId, laterLargerId), preference, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(laterLargerId, laterSmallerId, earlier);
+    }
 }
