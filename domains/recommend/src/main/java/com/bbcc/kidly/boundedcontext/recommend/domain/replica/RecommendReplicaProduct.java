@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend.domain.replica;
 
 import static java.util.Objects.requireNonNull;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
@@ -32,6 +33,7 @@ import org.hibernate.annotations.BatchSize;
 /**
  * 추천이 사이즈를 계산하려고 상품 정보 변경됨 이벤트에서 옮겨 둔 상품 정보다.
  * 브랜드 · 설명 · 사이즈별 실측은 아직 계산에 쓰지 않고, 브랜드별 사이즈 보정과 실측 비교에 쓰려고 함께 옮겨 둔다.
+ * 상품 정보 값은 저장하지 않고, 이름 · 브랜드 · 설명과 함께 임베딩할 글({@code embeddingText})로 만들어 둔다.
  * 주문 도메인에도 상품 복사본 엔티티 {@code ReplicaProduct}가 있어서, JPA 엔티티 이름이 겹치지 않게 클래스 이름 앞에 도메인 이름을 붙인다.
  */
 @Entity
@@ -186,6 +188,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             newSizeSpecs.add(new RecommendReplicaSizeSpec(
                 spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
         }
+        this.embeddingText = ProductEmbeddingText.compose(
+            info.name(), info.brand(), toInfoValues(info.infoValues()), info.description()).value();
         this.sellerId = info.sellerId();
         this.categoryId = info.categoryId();
         this.name = info.name();
@@ -219,6 +223,18 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             }
             this.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
+    }
+
+    // 새 칸이 없는 예전 메시지는 정보 값이 null로 오므로 빈 목록으로 본다
+    private static List<ProductEmbeddingText.InfoValue> toInfoValues(List<InfoValueInfo> infoValues) {
+        List<ProductEmbeddingText.InfoValue> result = new ArrayList<>();
+        if (infoValues == null) {
+            return result;
+        }
+        for (InfoValueInfo infoValue : infoValues) {
+            result.add(new ProductEmbeddingText.InfoValue(infoValue.code(), infoValue.value()));
+        }
+        return result;
     }
 
     /**
