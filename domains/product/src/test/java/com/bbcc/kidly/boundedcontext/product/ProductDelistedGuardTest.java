@@ -1,13 +1,16 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.ProductUpdateFixture.ProductA;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -27,7 +30,7 @@ class ProductDelistedGuardTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("guardedCalls")
-    @DisplayName("SALE-15 등록 취소한 상품은 판매 상태 변경 · 상품 수정을 409로 거절하고 아무것도 바꾸지 않는다")
+    @DisplayName("SALE-15 등록 취소한 상품은 판매 상태 변경 · 상품 수정 · 옵션 추가를 409로 거절하고 아무것도 바꾸지 않는다")
     void rejectChangeOfDelisted(Function<ProductA, ThrowingCallable> call) {
         product.delist(SELLER_ID);
 
@@ -66,6 +69,8 @@ class ProductDelistedGuardTest {
             Named.of("상품 정보 수정", a -> () -> a.product().update(
                 a.updateWith(ProductUpdateFixture.VERSION, a.top(), "새 상품명"))),
             Named.of("옵션 · 가격 · 실측을 함께 보낸 수정", a -> () -> a.product().update(
-                a.sameUpdate(), a.currentSaleInputs())));
+                a.sameUpdate(), a.currentSaleInputs())),
+            Named.of("옵션 추가", a -> () -> a.product().addOptions(addOptions(List.of(
+                option(a.clothing().oatmeal(), a.clothing().size110()))), a.clothing().type())));
     }
 }
