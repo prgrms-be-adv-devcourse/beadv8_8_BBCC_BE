@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.wish.app.port;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
 
 /**
- * 조르기를 부르는 사람(#640). 바깥(로그인 · 앞으로 자녀 계정 인증)에서 오는 연결이라 포트로 둔다. 구현은 out이고, 지금은
- * 부모({@link WishActors#parent})만 운영에서 쓴다. 자녀 계정은 회원 쪽 인증이 준비되면 구현만 연결한다.
+ * 조르기를 부르는 사람(#640). 바깥(로그인)에서 오는 연결이라 포트로 둔다. 구현은 out이고, 회원 로그인은 부모({@link WishActors#parent}),
+ * 자녀 로그인은 그 자녀 프로필({@link WishActors#child}, #906)이다.
  */
 public interface WishActor {
 

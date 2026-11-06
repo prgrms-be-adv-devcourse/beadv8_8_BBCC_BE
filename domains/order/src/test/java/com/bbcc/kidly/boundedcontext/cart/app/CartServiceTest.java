@@ -89,7 +89,9 @@ class CartServiceTest {
     void setUp() {
         cartService = new CartService(cartItemRepository,
             new CartCatalogAdapter(
-                new ProvidedReplicaService(productReplicaRepository, sellerReplicaRepository, childReplicaRepository)),
+                // 자녀 계정 복사본(#906)은 장바구니가 쓰지 않으므로 없이(null) 둔다
+                new ProvidedReplicaService(productReplicaRepository, sellerReplicaRepository, childReplicaRepository,
+                    null)),
             new CartOrdersAdapter(new ProvidedOrderService(orderRepository, null)),
             new CartEventsAdapter(new ProvidedEventService(eventPublisher, outbox)));
     }

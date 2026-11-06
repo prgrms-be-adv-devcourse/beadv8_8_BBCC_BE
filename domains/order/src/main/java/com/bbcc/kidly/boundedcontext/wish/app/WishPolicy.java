@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
  *   <li>최대 줄 수: 자녀 한 명당 50줄</li>
  *   <li>조르기 메시지: 100자까지(선택)(#701)</li>
  *   <li>승인 · 거절: 보호자만(#701)</li>
+ *   <li>자녀(자녀 로그인, #906)는 자기 프로필의 공용 장바구니 · 조르기만: 다른 자녀 것이면 403</li>
  *   <li>거절 사유: 너무 비싸요(TOO_EXPENSIVE) · 이미 있어요(ALREADY_HAVE) · 다음에 사자(NEXT_TIME) · 기타(OTHER)(#701)</li>
  * </ul>
  */
@@ -61,6 +62,13 @@ public class WishPolicy {
      */
     public boolean canDecide(WishActor actor) {
         return actor.type() == AddedBy.PARENT;
+    }
+
+    /**
+     * 자녀가 자기 프로필이 아닌 자녀의 공용 장바구니 · 조르기를 다루려는지(#906, 403). 부모는 여기서 막지 않는다(남의 자녀는 404).
+     */
+    public boolean forbidsOtherChild(WishActor actor, Long childId) {
+        return actor.type() == AddedBy.CHILD && !actor.id().equals(childId);
     }
 
     /**

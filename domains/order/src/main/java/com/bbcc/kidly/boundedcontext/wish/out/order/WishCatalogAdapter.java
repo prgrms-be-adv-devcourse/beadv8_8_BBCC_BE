@@ -47,6 +47,13 @@ public class WishCatalogAdapter implements WishCatalog {
             .map(child -> new Child(child.childId(), child.memberId(), child.deleted()));
     }
 
+    @Override
+    public Optional<ChildAccount> findChildAccount(Long accountId) {
+        return replicaLookup.findChildAccount(accountId)
+            .map(account -> new ChildAccount(account.accountId(), account.childProfileId(), account.guardianId(),
+                account.deleted()));
+    }
+
     private static ProductOption toOption(ProductOptionView view) {
         return new ProductOption(view.optionId(), view.productId(), view.sellerId(), view.productName(),
             view.optionName(), view.size(), view.unitPrice(), view.purchasable(), view.saleStatus());

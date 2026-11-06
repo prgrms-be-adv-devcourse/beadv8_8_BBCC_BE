@@ -45,6 +45,12 @@ public class OrderKafkaTestcontainers {
         return topic("kidly.payment.events");
     }
 
+    // 회원(인증) 토픽은 회원 서비스가 만든다. 주문은 자녀 계정 연결(child-account.changed)만 구독한다(#906)
+    @Bean
+    NewTopic authEventsTopic() {
+        return topic("kidly.auth.events");
+    }
+
     private static NewTopic topic(String name) {
         return TopicBuilder.name(name).partitions(PARTITIONS).replicas(1).build();
     }

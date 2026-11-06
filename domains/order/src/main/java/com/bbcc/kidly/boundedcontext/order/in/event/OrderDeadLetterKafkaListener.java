@@ -39,7 +39,8 @@ public class OrderDeadLetterKafkaListener {
             OrderKafkaListenerConfig.PRODUCT_EVENTS_DLT,
             OrderKafkaListenerConfig.SELLER_EVENTS_DLT,
             OrderKafkaListenerConfig.CHILDPROFILE_EVENTS_DLT,
-            OrderKafkaListenerConfig.PAYMENT_EVENTS_DLT})
+            OrderKafkaListenerConfig.PAYMENT_EVENTS_DLT,
+            OrderKafkaListenerConfig.AUTH_EVENTS_DLT})
     public void on(ConsumerRecord<String, String> record) {
         ReceiveDeadLetterCommand command = OrderDeadLetterRecords.command(record);
         String position = record.topic() + "-" + record.partition() + "@" + record.offset();
