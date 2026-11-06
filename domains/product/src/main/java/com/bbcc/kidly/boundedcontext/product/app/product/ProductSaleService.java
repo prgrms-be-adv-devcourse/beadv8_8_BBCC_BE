@@ -76,6 +76,16 @@ public class ProductSaleService {
         return toResult(product);
     }
 
+    // 관리자가 등록 취소한 상품을 판매중지로 되돌린다. 되돌리면 늘 상태가 바뀌므로 늘 상품 정보 변경됨을 보낸다
+    @Transactional
+    public ProductSaleStatusResult revertDelistByAdmin(Long productId) {
+        Product product = findProduct(productId);
+        product.revertDelistByAdmin();
+        productRepository.saveAndFlush(product);
+        publishChanged(product);
+        return toResult(product);
+    }
+
     private void publishChanged(Product product) {
         Category category = findCategory(product);
         productChangedPublisher.publish(product, category.getProductType());

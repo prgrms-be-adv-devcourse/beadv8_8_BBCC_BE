@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductSaleStatusRes
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -32,6 +33,12 @@ public class AdminProductController {
         @Valid @RequestBody ProductSaleStatusRequest request) {
         return ProductSaleStatusResponse.from(
             productSaleService.changeSaleStatusByAdmin(productId, ProductStatus.valueOf(request.status())));
+    }
+
+    // 등록 취소한 상품을 판매중지로 되돌린다. 다시 팔지는 판매자가 판매 시작으로 정한다
+    @DeleteMapping("/{productId}/delisting")
+    public ProductSaleStatusResponse revertDelisting(@PathVariable Long productId) {
+        return ProductSaleStatusResponse.from(productSaleService.revertDelistByAdmin(productId));
     }
 
     // 판매를 시작한 상품마다 상품 정보 변경됨을 다시 보내고, 보낸 상품 수를 돌려준다
