@@ -26,6 +26,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
@@ -137,6 +138,25 @@ class ProductDelistTest {
         product.delist(SELLER_ID);
 
         assertThat(product.hasStartedSale()).isTrue();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("startedSaleExpectations")
+    @DisplayName("SALE-08 판매대기 상품은 다른 도메인에 알리지 않고, 판매를 시작한 상품(판매중 · 판매중지)은 알린다")
+    void startedSaleIsKnownToOtherDomains(Consumer<ProductDelistTest> given, boolean expected) {
+        given.accept(this);
+
+        assertThat(product.hasStartedSale()).isEqualTo(expected);
+    }
+
+    static Stream<Arguments> startedSaleExpectations() {
+        return Stream.of(
+            Arguments.of(Named.of("판매대기", (Consumer<ProductDelistTest>) ProductDelistTest::withSaleStartInputs), false),
+            Arguments.of(Named.of("판매중", (Consumer<ProductDelistTest>) ProductDelistTest::withSaleStarted), true),
+            Arguments.of(Named.of("판매중지", (Consumer<ProductDelistTest>) test -> {
+                test.withSaleStarted();
+                test.product.stopSale(SELLER_ID);
+            }), true));
     }
 
     static Stream<Named<Consumer<ProductDelistTest>>> productsOfOtherSeller() {
