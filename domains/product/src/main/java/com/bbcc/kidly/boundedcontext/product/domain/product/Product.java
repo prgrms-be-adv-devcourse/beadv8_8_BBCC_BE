@@ -392,9 +392,16 @@ public class Product extends BaseTimeEntity {
         return openSale(category, productType);
     }
 
-    /** 판매를 시작한 상품인지 알려 준다. 판매중이거나 판매중지면 판매를 시작한 상품이고, 판매대기면 아니다. */
+    /**
+     * 다른 도메인에 알리는 상품인지 알려 준다. 판매중 · 판매중지면 판매를 시작한 상품이다. 등록 취소한 상품은 판매대기에서
+     * 바로 취소했어도 다른 도메인이 팔 수 없는 상품으로 알아야 하므로 포함한다. 판매대기 상품만 알리지 않는다.
+     */
     public boolean hasStartedSale() {
-        return status == ProductStatus.ON_SALE || status == ProductStatus.STOPPED;
+        // 새 상태가 생기면 알릴지 정하기 전까지 컴파일되지 않도록 default를 두지 않는다
+        return switch (status) {
+            case SALE_PENDING -> false;
+            case ON_SALE, STOPPED, DELISTED -> true;
+        };
     }
 
     /** 상품을 바꾸려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 바꿀 수 없다. */
