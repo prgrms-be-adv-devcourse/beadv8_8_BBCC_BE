@@ -120,5 +120,39 @@ kidly:
       enabled: ${ORDER_MCP_ENABLED:false}
       # 도구 한 번이 돌려주는 목록 줄 수 상한(1~100). 더 큰 size는 이 값으로 줄인다
       max-results: 50
+    # 멈춘 주문 AI 진단 메모(#926). AI는 원인 요약 · 권장 조치를 메모로 남기기만 하고 조치는 관리자가 한다.
+    # 기본 꺼짐. 켜도 openai-compatible에 키(ORDER_AI_API_KEY)가 없으면 꺼진다. provider · base-url · model만 바꿔 OpenAI 호환 제공자를 바꾼다
+    ai:
+      enabled: ${ORDER_AI_ENABLED:false}
+      # openai-compatible(Groq · OpenAI 등) · fake(외부 호출 없음)
+      provider: ${ORDER_AI_PROVIDER:openai-compatible}
+      # 기본 Groq(OpenAI 호환 주소 · 프로덕션 모델, 11/06 문서 기준)
+      base-url: ${ORDER_AI_BASE_URL:https://api.groq.com/openai/v1}
+      model: ${ORDER_AI_MODEL:openai/gpt-oss-20b}
+      api-key: ${ORDER_AI_API_KEY:}
+      connect-timeout: PT3S
+      # 읽기 제한 시간(소켓 읽기 한 번마다, 응답 전체 시간이 아님). 넘으면 실패(TIMEOUT)로 남기고 다음 건으로.
+      # 느리게 조금씩 오는 응답은 서킷브레이커의 느린 호출 기준(slow-call-duration-threshold)이 잡는다. 응답 본문은 64KB까지만 읽는다
+      timeout: PT15S
+      # 모델 출력 상한(요청의 max_completion_tokens)
+      max-output-tokens: 800
+      # 진단 주기. 실행은 전용 스레드 하나라 다른 주기 작업을 막지 않는다
+      interval: PT5M
+      # 하루 요청 상한(성공 · 실패 모두, DB 기준이라 서버가 여러 대여도 합). Groq 무료 한도(모델별 하루 1K 요청)보다 작게
+      daily-limit: ${ORDER_AI_DAILY_LIMIT:200}
+      # 한 실행 요청 상한. 실행 동안 잠금 연결을 대략 max-per-run × timeout(10 × 15초) 잡는다
+      max-per-run: 10
+      # 종류마다 오래된 것부터 scan-size씩, 요청 상한이 남으면 다음 페이지를 max-scan-pages까지 읽는다
+      scan-size: 50
+      max-scan-pages: 20
+      # 서킷브레이커(#708 방식). 실패가 많으면 열림 동안 부르지 않고 다음 실행에서 다시 본다
+      circuit-breaker:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: PT10S
+        slow-call-rate-threshold: 50
+        wait-duration-in-open-state: PT10M
+        permitted-number-of-calls-in-half-open-state: 2
 
     # 장바구니(boundedcontext.cart) 컨텍스트는 아직 설정이 없다

@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
  * @param orderId 관련 주문 ID. 아웃박스 멈춤에서 메시지 키가 주문 ID가 아니면 null
  * @param since 멈춘 것으로 보기 시작한 시각(저장된 시각 + 기준 시간)
  * @param outbox 아웃박스 멈춤(OUTBOX_STUCK, #602)일 때만 있는 메시지 정보. 다른 종류는 null
+ * @param aiMemo 이 주문 · 종류의 가장 최근 AI 진단 메모(#926). AI의 제안일 뿐이고 조치는 관리자가 한다. 없으면 null
  */
 public record StuckOrderResponse(
     String kind,
@@ -17,11 +18,13 @@ public record StuckOrderResponse(
     String targetId,
     String status,
     LocalDateTime since,
-    Outbox outbox) {
+    Outbox outbox,
+    AiMemo aiMemo) {
 
     public static StuckOrderResponse from(StuckOrderResult result) {
         return new StuckOrderResponse(result.kind(), idOf(result.orderId()), result.targetType(),
-            idOf(result.targetId()), result.status(), result.since(), Outbox.from(result.outbox()));
+            idOf(result.targetId()), result.status(), result.since(), Outbox.from(result.outbox()),
+            AiMemo.from(result.aiMemo()));
     }
 
     /**
@@ -40,6 +43,24 @@ public record StuckOrderResponse(
             return new Outbox(String.valueOf(outbox.outboxId()), outbox.eventType(), outbox.eventId().toString(),
                 outbox.attemptCount(), outbox.createdAt(), outbox.lastError(), outbox.backlogCount(),
                 outbox.quarantinedAt());
+        }
+    }
+
+    /**
+     * AI 진단 메모(#926).
+     *
+     * @param confidence LOW · MEDIUM · HIGH
+     * @param provider 답한 곳(예: api.groq.com)
+     */
+    public record AiMemo(String summary, String recommendedAction, String confidence, String provider, String model,
+        LocalDateTime createdAt) {
+
+        static AiMemo from(StuckOrderResult.AiMemo memo) {
+            if (memo == null) {
+                return null;
+            }
+            return new AiMemo(memo.summary(), memo.recommendedAction(), memo.confidence(), memo.provider(),
+                memo.model(), memo.createdAt());
         }
     }
 
