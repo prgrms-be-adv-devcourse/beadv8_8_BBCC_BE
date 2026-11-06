@@ -13,10 +13,11 @@ public class RecommendedProductRanker {
     private static final int RECENT_POINTS = 1;
 
     public int scoreOf(RecommendedProduct product, ChildPreference preference, LocalDateTime baseTime) {
+        int score = preference.categoryPoints(product.categoryId()) + preference.brandPoints(product.brand());
         if (isRecent(product, baseTime)) {
-            return RECENT_POINTS;
+            score += RECENT_POINTS;
         }
-        return 0;
+        return score;
     }
 
     private boolean isRecent(RecommendedProduct product, LocalDateTime baseTime) {
