@@ -94,10 +94,6 @@ spring:
 server:
   forward-headers-strategy: native
 
-springdoc:
-  swagger-ui:
-    enabled: true
-
 logging:
   file:
     path: ${LOG_PATH:./logs}
@@ -106,3 +102,16 @@ logging:
     json:
       stacktrace:
         max-throwable-depth: 30
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+# 운영에는 API 명세를 열지 않는다
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
