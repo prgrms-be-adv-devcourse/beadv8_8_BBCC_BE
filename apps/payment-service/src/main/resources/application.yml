@@ -89,6 +89,9 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    # dev · prod 가 DB 인스턴스 하나(max_connections 120)를 나눠 쓴다. 기본 10 이면 서비스 8개 × 두 환경이 160 연결이다
+    hikari:
+      maximum-pool-size: 5
 
 server:
   forward-headers-strategy: native
