@@ -221,6 +221,11 @@ class ReviewQueryServiceTest {
         }
 
         @Override
+        public Optional<Review> findById(Long reviewId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void delete(Review review) {
             throw new UnsupportedOperationException();
         }
