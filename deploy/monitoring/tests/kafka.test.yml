@@ -110,3 +110,36 @@ tests:
     exp_alerts:
     - exp_labels:
         env: dev
+- name: member service DLT arrival alerts per topic and clears after quiet window
+  interval: 1m
+  input_series:
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.member.events.member.dlt",partition="0"}
+    values: 0+0x5 2+0x20
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.auth.events.childprofile.dlt",partition="0"}
+    values: 0+0x25
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: kidly-member-dlt-arrived
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: kidly-member-dlt-arrived
+    exp_alerts:
+    - exp_labels:
+        env: dev
+        topic: kidly.member.events.member.dlt
+  - eval_time: 18m
+    alertname: kidly-member-dlt-arrived
+    exp_alerts: []
+- name: other domains and gateway DLT arrivals do not alert member service
+  interval: 1m
+  input_series:
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.order.events.payment.dlt",partition="0"}
+    values: 0+1x25
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.member.events.gateway.dlt",partition="0"}
+    values: 0+1x25
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.member.events",partition="0"}
+    values: 0+1x25
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: kidly-member-dlt-arrived
+    exp_alerts: []
