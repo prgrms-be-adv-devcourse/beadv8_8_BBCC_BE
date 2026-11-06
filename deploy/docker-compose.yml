@@ -106,7 +106,7 @@ services:
     image: ${SEARCH_IMAGE}
     profiles: [search]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx512m
       MALLOC_ARENA_MAX: "2"
@@ -141,7 +141,7 @@ services:
     image: ${RECOMMEND_IMAGE}
     profiles: [recommend]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx128m
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
@@ -179,7 +179,7 @@ services:
     image: ${SETTLEMENT_IMAGE}
     profiles: [settlement]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx256m
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
@@ -218,8 +218,7 @@ services:
     image: ${MEMBER_IMAGE}
     profiles: [member]
     environment:
-      # dev 는 prod,dev 라 개발용 토큰 API 와 초기 회원 · 판매자 데이터가 뜬다
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx192m
       MALLOC_ARENA_MAX: "2"
@@ -267,7 +266,7 @@ services:
     image: ${PAYMENT_IMAGE}
     profiles: [payment]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx192m
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
@@ -311,7 +310,7 @@ services:
     image: ${PRODUCT_IMAGE}
     profiles: [product]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx192m
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
@@ -353,7 +352,7 @@ services:
     image: ${NOTIFICATION_IMAGE}
     profiles: [notification]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx192m
       # 힙 밖 네이티브 메모리가 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
@@ -400,7 +399,7 @@ services:
     image: ${ORDER_IMAGE}
     profiles: [order]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx256m
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
@@ -448,7 +447,7 @@ services:
     image: ${COMMUNITY_IMAGE}
     profiles: [community]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx192m
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
@@ -488,7 +487,7 @@ services:
     image: ${GATEWAY_IMAGE}
     profiles: [gateway]
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: -Xmx256m
       MALLOC_ARENA_MAX: "2"

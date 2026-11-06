@@ -17,7 +17,7 @@ class InitialDataTest {
         .withUserConfiguration(InitialDataBean.class);
 
     @ParameterizedTest
-    @ValueSource(strings = {"local", "prod,dev"})
+    @ValueSource(strings = {"local", "dev"})
     @DisplayName("local과 dev 서버에서는 초기 데이터 빈이 등록된다")
     void registered(String profiles) {
         runner.withPropertyValues("spring.profiles.active=" + profiles)
