@@ -15,9 +15,6 @@ public record ProductEmbeddingText(String value) {
 
     public static final int MAX_LENGTH = 4_000;
 
-    /**
-     * 상품 정보 값 하나다. 이벤트의 정보 값에서 code와 value만 옮긴다.
-     */
     public record InfoValue(String code, String value) {
     }
 
@@ -32,7 +29,6 @@ public record ProductEmbeddingText(String value) {
         return new ProductEmbeddingText(truncate(String.join("\n", lines)));
     }
 
-    // 글자 수가 아니라 code point로 세어서, 이모지 같은 서로게이트 쌍이 경계에 있어도 쌍을 가르지 않는다
     private static String truncate(String text) {
         if (text.codePointCount(0, text.length()) <= MAX_LENGTH) {
             return text;
