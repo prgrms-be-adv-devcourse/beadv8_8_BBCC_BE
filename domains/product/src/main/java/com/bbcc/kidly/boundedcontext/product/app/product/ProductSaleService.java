@@ -88,7 +88,7 @@ public class ProductSaleService {
 
     private void publishChanged(Product product) {
         Category category = findCategory(product);
-        productChangedPublisher.publish(product, category.getProductType());
+        productChangedPublisher.publish(product, category);
     }
 
     private Product findProduct(Long productId) {
