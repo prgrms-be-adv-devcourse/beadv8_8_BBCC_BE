@@ -44,7 +44,7 @@ class ProductEventsTest {
     }
 
     @Test
-    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 브랜드 · 설명 · 사이즈별 실측을 담고, 실측은 사이즈 · 권장 키 · 실측 맵이다")
+    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 순서로 담고, 실측은 사이즈 · 권장 키 · 실측 맵이다")
     void dataCarriesBrandDescriptionAndSizeSpecs() {
         assertThat(ProductChangedEvent.Data.class.getRecordComponents()).extracting(RecordComponent::getName)
             .containsExactly("productId", "sellerId", "name", "categoryId", "status", "thumbnailUrl", "createdAt",
@@ -91,18 +91,15 @@ class ProductEventsTest {
     }
 
     @Test
-    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 카테고리 경로를 담고, 카테고리 경로의 원소는 id와 이름이다")
+    @DisplayName("카테고리 경로의 원소는 id와 이름이다")
     void dataCarriesCategoryPath() {
-        assertThat(ProductChangedEvent.Data.class.getRecordComponents()).extracting(RecordComponent::getName)
-            .containsExactly("productId", "sellerId", "name", "categoryId", "status", "thumbnailUrl", "createdAt",
-                "sizeFree", "options", "infoValues", "brand", "description", "sizeSpecs", "categoryPath");
         assertThat(ProductChangedEvent.CategoryPathEntry.class.getRecordComponents())
             .extracting(RecordComponent::getName).containsExactly("id", "name");
     }
 
     @Test
-    @DisplayName("카테고리 경로 칸이 생기기 전의 생성자로 만들면 카테고리 경로는 빈 목록이다")
-    void constructorsWithoutCategoryPathFillEmptyList() {
+    @DisplayName("카테고리 경로 칸이 생기기 전의 생성자로 만들거나 예전 메시지처럼 null을 받으면 카테고리 경로는 빈 목록이다")
+    void categoryPathIsEmptyWhenAbsent() {
         ProductChangedEvent.Data withoutInfoValues = new ProductChangedEvent.Data(
             1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of());
         ProductChangedEvent.Data withInfoValues = new ProductChangedEvent.Data(
@@ -110,19 +107,12 @@ class ProductEventsTest {
         ProductChangedEvent.Data withSizeSpecs = new ProductChangedEvent.Data(
             1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of(),
             "브랜드", "설명", List.of());
-
-        assertThat(List.of(withoutInfoValues, withInfoValues, withSizeSpecs))
-            .allSatisfy(data -> assertThat(data.categoryPath()).isEmpty());
-    }
-
-    @Test
-    @DisplayName("카테고리 경로 칸이 없는 예전 메시지처럼 null을 받으면 카테고리 경로는 빈 목록이다")
-    void nullCategoryPathBecomesEmptyList() {
-        ProductChangedEvent.Data data = new ProductChangedEvent.Data(
+        ProductChangedEvent.Data withNull = new ProductChangedEvent.Data(
             1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of(),
             null, null, List.of(), null);
 
-        assertThat(data.categoryPath()).isEmpty();
+        assertThat(List.of(withoutInfoValues, withInfoValues, withSizeSpecs, withNull))
+            .allSatisfy(data -> assertThat(data.categoryPath()).isEmpty());
     }
 
     @Test
