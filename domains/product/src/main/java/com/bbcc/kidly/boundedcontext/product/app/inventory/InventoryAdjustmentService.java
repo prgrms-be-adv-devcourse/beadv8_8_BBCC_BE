@@ -38,7 +38,7 @@ public class InventoryAdjustmentService {
             throw new BusinessException(ProductErrorCode.OPTION_NOT_FOUND);
         }
         ProductOption option = options.get(0);
-        option.validateOwner(sellerId);
+        option.validateAdjustableBy(sellerId);
         InventoryAdjustmentReason reason = InventoryAdjustmentReason.valueOf(request.reason());
         int deltaQuantity = request.deltaQuantity();
         InventoryAdjustmentRecord record =

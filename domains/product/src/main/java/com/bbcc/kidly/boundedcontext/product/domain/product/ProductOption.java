@@ -109,11 +109,6 @@ public class ProductOption extends BaseTimeEntity {
         return Optional.empty();
     }
 
-    // 옵션을 바꾸려는 판매자가 옵션이 속한 상품을 등록한 판매자인지 검사한다. 다른 판매자의 옵션은 바꿀 수 없다
-    public void validateOwner(Long sellerId) {
-        product.validateOwner(sellerId);
-    }
-
     public void validateAdjustableBy(Long sellerId) {
         product.validateOwner(sellerId);
         product.validateNotDelisted();

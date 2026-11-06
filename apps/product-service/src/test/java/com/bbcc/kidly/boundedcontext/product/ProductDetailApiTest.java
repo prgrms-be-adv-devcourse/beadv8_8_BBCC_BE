@@ -229,6 +229,20 @@ class ProductDetailApiTest {
     }
 
     @Test
+    @DisplayName("SALE-15 등록 취소 상품도 상세는 200으로 받지만 상태가 DELISTED이고 옵션은 모두 살 수 없다")
+    void delistedProductShowsDetailButNothingPurchasable() {
+        Product product = savedProductOnSale(10, 10, 10);
+        jdbcTemplate.update("update product.product set status = 'DELISTED' where id = ?", product.getId());
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("DELISTED")
+            .jsonPath("$.options[*].purchasable").isEqualTo(List.of(false, false, false));
+    }
+
+    @Test
     @DisplayName("SALE-06 보관 옵션은 옵션 목록에도, 옵션 항목의 값에도 없다")
     void archivedOptionIsHidden() {
         Product product = savedProductOnSale(10, 10, 10);
