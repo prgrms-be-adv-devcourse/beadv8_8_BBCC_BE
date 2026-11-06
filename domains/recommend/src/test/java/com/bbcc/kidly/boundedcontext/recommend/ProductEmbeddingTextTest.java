@@ -26,6 +26,21 @@ class ProductEmbeddingTextTest {
             설명: 부드러운 면 티셔츠""");
     }
 
+    @Test
+    @DisplayName("같은 code의 정보 값은 한 줄에 값 오름차순으로, code는 오름차순으로 쓴다")
+    void groupInfoValuesByCodeInOrder() {
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", null, List.of(
+            new InfoValue("season", "winter"),
+            new InfoValue("material", "wool"),
+            new InfoValue("season", "fall"),
+            new InfoValue("material", "cotton")), null);
+
+        assertThat(text.value()).isEqualTo("""
+            상품명: 면 티셔츠
+            material: cotton, wool
+            season: fall, winter""");
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"  "})
