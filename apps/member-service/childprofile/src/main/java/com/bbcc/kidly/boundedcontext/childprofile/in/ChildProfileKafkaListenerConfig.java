@@ -32,16 +32,14 @@ import tools.jackson.core.JacksonException;
 @Configuration
 class ChildProfileKafkaListenerConfig {
 
-    static final String DLT = "kidly.member.events.childprofile.dlt";
-
     @Bean
     NewTopic childprofileMemberEventsDeadLetterTopic() {
-        return TopicBuilder.name(DLT).partitions(1).replicas(1).build();
+        return TopicBuilder.name(dlt("kidly.member.events")).partitions(1).replicas(1).build();
     }
 
     @Bean
     NewTopic childprofileAuthEventsDeadLetterTopic() {
-        return TopicBuilder.name("kidly.auth.events.childprofile.dlt").partitions(1).replicas(1).build();
+        return TopicBuilder.name(dlt("kidly.auth.events")).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
@@ -56,9 +54,13 @@ class ChildProfileKafkaListenerConfig {
         return factory;
     }
 
+    private static String dlt(String topic) {
+        return topic + ".childprofile.dlt";
+    }
+
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
-            (record, e) -> new TopicPartition(record.topic() + ".childprofile.dlt", 0));
+            (record, e) -> new TopicPartition(dlt(record.topic()), 0));
         var errorHandler = new DefaultErrorHandler((record, e) -> {
             logDeadLetter(record, e);
             deadLetter.accept(record, e);

@@ -6,6 +6,4 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaChildAccountLinkRepository
     extends JpaRepository<ChildAccountLink, Long>, ChildAccountLinkRepository {
-    @Override
-    ChildAccountLink save(ChildAccountLink link);
 }
