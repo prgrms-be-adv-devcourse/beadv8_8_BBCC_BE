@@ -87,6 +87,19 @@ class RecommendReplicaProductTest {
     }
 
     @Test
+    @DisplayName("복사본을 만들 때 이벤트 값으로 임베딩 글을 채운다")
+    void createWithEmbeddingText() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        assertThat(replica.getEmbeddingText()).isEqualTo("""
+            상품명: 데일리 맨투맨
+            브랜드: 키들리
+            material: cotton
+            season: fall, spring
+            설명: 상품 설명""");
+    }
+
+    @Test
     @DisplayName("상품 정보 변경 이벤트의 상품명을 복사본에 옮긴다")
     void copyProductName() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
