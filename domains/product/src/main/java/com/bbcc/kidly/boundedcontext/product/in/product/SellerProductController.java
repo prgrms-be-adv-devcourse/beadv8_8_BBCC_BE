@@ -84,4 +84,10 @@ public class SellerProductController {
         return ProductSaleStatusResponse.from(productSaleService.changeSaleStatus(
             member.id(), productId, ProductStatus.valueOf(request.status())));
     }
+
+    // 판매자가 상품을 더 팔지 않겠다고 등록 취소한다. 판매자는 되돌릴 수 없다
+    @PutMapping("/{productId}/delisting")
+    public ProductSaleStatusResponse delist(@LoginMember AuthMember member, @PathVariable Long productId) {
+        return ProductSaleStatusResponse.from(productSaleService.delist(member.id(), productId));
+    }
 }

@@ -64,6 +64,16 @@ public class ProductSaleService {
         return toResult(product);
     }
 
+    // 판매자가 상품을 등록 취소한다. 이미 등록 취소한 상품이면 같은 요청을 다시 받은 것이라 바꾸지 않고 성공한다
+    @Transactional
+    public ProductSaleStatusResult delist(Long sellerId, Long productId) {
+        Product product = findProduct(productId);
+        if (product.delist(sellerId)) {
+            productRepository.saveAndFlush(product);
+        }
+        return toResult(product);
+    }
+
     private Product findProduct(Long productId) {
         return productRepository.getById(productId);
     }
