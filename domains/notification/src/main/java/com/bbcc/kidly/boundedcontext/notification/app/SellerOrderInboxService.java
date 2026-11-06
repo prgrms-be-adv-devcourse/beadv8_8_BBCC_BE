@@ -13,8 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 판매자 알림함에 새 주문 · 구매확정을 넣는다. 다음에 들어왔을 때 알면 되는 일이라 메일은 보내지 않는다.
- * 판매자 센터의 주문 화면 주소가 정해지지 않아 링크는 두지 않는다.
+ * 판매자 알림함에 새 주문 · 구매확정을 넣는다. 기록으로 남길 일은 아니라 메일은 보내지 않는다.
+ * 새 주문은 판매자가 사이트를 떠나 있어도 발송을 준비하도록 같은 내용을 웹 푸시로도 보낸다.
+ * 판매자 센터의 주문 화면 주소가 정해지지 않아 링크는 두지 않는다(푸시는 사이트 첫 화면을 연다).
  */
 @Service
 @RequiredArgsConstructor
@@ -22,6 +23,7 @@ public class SellerOrderInboxService {
 
     private final InboxNotificationService inboxNotificationService;
     private final ProductNameService productNameService;
+    private final NotificationService notificationService;
 
     /**
      * 한 주문에 판매자가 여럿이면 판매자마다 자기 상품만으로 한 건씩 넣는다(중복 키 = 주문 ID + 판매자 ID).
@@ -30,10 +32,14 @@ public class SellerOrderInboxService {
     public void addOrderPaid(OrderPaidCommand command) {
         var itemsBySeller = command.items().stream()
             .collect(Collectors.groupingBy(OrderPaidCommand.Item::sellerId, LinkedHashMap::new, Collectors.toList()));
-        itemsBySeller.forEach((sellerId, items) -> inboxNotificationService.add(new InboxNotificationInfo(
-            InboxRecipient.member(sellerId), NotificationType.SELLER_ORDER_PAID, "새 주문이 들어왔어요",
-            orderPaidBody(items), null,
-            "order.paid:%d:%d".formatted(command.orderId(), sellerId))));
+        itemsBySeller.forEach((sellerId, items) -> {
+            var inbox = new InboxNotificationInfo(
+                InboxRecipient.member(sellerId), NotificationType.SELLER_ORDER_PAID, "새 주문이 들어왔어요",
+                orderPaidBody(items), null,
+                "order.paid:%d:%d".formatted(command.orderId(), sellerId));
+            inboxNotificationService.add(inbox);
+            notificationService.createPush(inbox);
+        });
     }
 
     // 상품 이름 복사본이 없으면(아직 상품 이벤트를 받지 못했다) 이름 없이 쓴다

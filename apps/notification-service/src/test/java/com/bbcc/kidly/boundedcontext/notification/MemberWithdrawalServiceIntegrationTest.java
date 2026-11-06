@@ -54,13 +54,15 @@ class MemberWithdrawalServiceIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("탈퇴하면 그 회원의 알림함 · 이메일 복사본을 지우고, 같은 숫자 ID의 자녀 알림과 다른 회원 것은 남긴다")
+    @DisplayName("탈퇴하면 그 회원의 알림함 · 이메일 복사본 · 푸시 FID를 지우고, 같은 숫자 ID의 자녀 알림과 다른 회원 것은 남긴다")
     void deleteInboxAndContact() {
         addInbox(InboxRecipient.member(MEMBER_ID), "member");
         addInbox(InboxRecipient.child(MEMBER_ID), "child");
         addInbox(InboxRecipient.member(OTHER_MEMBER_ID), "other");
         memberContactService.save(MEMBER_ID, EMAIL);
         memberContactService.save(OTHER_MEMBER_ID, OTHER_EMAIL);
+        addPushFid(MEMBER_ID, "fid-member");
+        addPushFid(OTHER_MEMBER_ID, "fid-other");
 
         memberWithdrawalService.purge(MEMBER_ID);
 
@@ -68,6 +70,15 @@ class MemberWithdrawalServiceIntegrationTest {
             .containsExactly("child", "other");
         assertThat(jpaMemberContactRepository.existsById(MEMBER_ID)).isFalse();
         assertThat(jpaMemberContactRepository.existsById(OTHER_MEMBER_ID)).isTrue();
+        assertThat(jdbcTemplate.queryForList("SELECT fid FROM notification.push_token", String.class))
+            .containsExactly("fid-other");
+    }
+
+    private void addPushFid(Long memberId, String fid) {
+        jdbcTemplate.update("""
+            INSERT INTO notification.push_token (member_id, fid, last_registered_at, created_at, updated_at)
+            VALUES (?, ?, now(), now(), now())
+            """, memberId, fid);
     }
 
     @Test
