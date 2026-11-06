@@ -58,7 +58,7 @@ public final class ChildPreference {
     }
 
     public int brandPoints(String brand) {
-        if (hasNoBrand(brand)) {
+        if (!PreferenceActivity.isBrandPresent(brand)) {
             return 0;
         }
         if (appeared(brandActivityCounts, brand)) {
@@ -72,21 +72,16 @@ public final class ChildPreference {
         Map<Long, Integer> activityCounts = new HashMap<>(categoryActivityCounts);
         Map<Long, Integer> cartAddCounts = new HashMap<>(categoryCartAddCounts);
         Map<String, Integer> brandCounts = new HashMap<>(brandActivityCounts);
-        if (activity.categoryId() != null) {
+        if (activity.hasCategory()) {
             activityCounts.merge(activity.categoryId(), delta, Integer::sum);
             if (activity.cartAdd()) {
                 cartAddCounts.merge(activity.categoryId(), delta, Integer::sum);
             }
         }
-        if (!hasNoBrand(activity.brand())) {
+        if (activity.hasBrand()) {
             brandCounts.merge(activity.brand(), delta, Integer::sum);
         }
         return new ChildPreference(activityCounts, cartAddCounts, brandCounts);
-    }
-
-    // 빈 문자열 브랜드끼리 일치해 점수를 받지 않도록 브랜드가 없는 것과 같게 본다
-    private static boolean hasNoBrand(String brand) {
-        return brand == null || brand.isBlank();
     }
 
     private static <K> boolean appeared(Map<K, Integer> counts, K key) {
