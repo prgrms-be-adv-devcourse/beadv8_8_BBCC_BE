@@ -13,9 +13,11 @@ import java.util.Optional;
 public class GrowthChart {
 
     private final Map<ChartKey, WeightPercentiles> rows;
+    private final Map<AgeKey, BmiForAgeRow> bmiForAge;
 
-    private GrowthChart(Map<ChartKey, WeightPercentiles> rows) {
+    private GrowthChart(Map<ChartKey, WeightPercentiles> rows, Map<AgeKey, BmiForAgeRow> bmiForAge) {
         this.rows = rows;
+        this.bmiForAge = bmiForAge;
     }
 
     public static GrowthChart of(List<GrowthChartRow> rows) {
@@ -23,7 +25,7 @@ public class GrowthChart {
         for (GrowthChartRow row : rows) {
             byKey.put(ChartKey.of(row.ageGroup(), row.gender(), row.heightCm()), row.percentiles());
         }
-        return new GrowthChart(Map.copyOf(byKey));
+        return new GrowthChart(Map.copyOf(byKey), Map.of());
     }
 
     public static GrowthChart of(
@@ -31,7 +33,11 @@ public class GrowthChart {
             List<InfantWeightForAgeRow> infantWeightForAge,
             List<InfantWeightForLengthRow> infantWeightForLength
     ) {
-        return new GrowthChart(Map.of());
+        Map<AgeKey, BmiForAgeRow> bmiByAge = new HashMap<>();
+        for (BmiForAgeRow row : bmiForAge) {
+            bmiByAge.put(new AgeKey(row.gender(), row.months()), row);
+        }
+        return new GrowthChart(Map.of(), Map.copyOf(bmiByAge));
     }
 
     public Optional<WeightPercentiles> find(AgeGroup ageGroup, Gender gender, double heightCm) {
@@ -39,7 +45,22 @@ public class GrowthChart {
     }
 
     public Optional<BodyType> judge(Gender gender, long months, double heightCm, double weightKg) {
-        return Optional.empty();
+        BmiForAgeRow row = bmiForAge.get(new AgeKey(gender, months));
+        if (row == null) {
+            return Optional.empty();
+        }
+        double heightM = heightCm / 100;
+        double bmi = weightKg / (heightM * heightM);
+        if (bmi < row.percentile5Bmi()) {
+            return Optional.of(BodyType.SLIM);
+        }
+        if (bmi >= row.percentile85Bmi()) {
+            return Optional.of(BodyType.CHUNKY);
+        }
+        return Optional.of(BodyType.NORMAL);
+    }
+
+    private record AgeKey(Gender gender, long months) {
     }
 
     private record ChartKey(AgeGroup ageGroup, Gender gender, long heightMm) {
