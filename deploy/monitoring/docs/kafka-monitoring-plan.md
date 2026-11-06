@@ -8,7 +8,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 이미지 | `danielqsj/kafka-exporter:v1.11.0`, OCI digest 고정 |
-| 접속 | 환경별 compose 네트워크의 `kafka:9092` |
+| 접속 | 환경별 브로커(t3.medium k3s, `deploy/kafka`)의 `KAFKA_BOOTSTRAP_SERVERS`(medium 사설 IP:NodePort) |
 | 자원 | 환경당 메모리 128MiB·CPU 0.2 상한 |
 | 포트 | dev `127.0.0.1:9308`, prod `127.0.0.1:9309` |
 | 권한 | 비루트·읽기 전용·capability 제거. Docker 소켓·앱 비밀값 전달 없음 |
