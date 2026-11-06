@@ -46,6 +46,7 @@
 | PATCH | `/api/v1/members/me/addresses/{addressId}/default` | 기본 배송지 변경 | 🔒 |
 | GET | `/api/v1/admin/members` | 회원 목록(필터 ALL · BUYER · SELLER · SUSPENDED · ADMIN) | 🛠 |
 | POST | `/api/v1/admin/members/{memberId}/suspend` | 회원 이용 정지 | 🛠 |
+| POST | `/api/v1/admin/members/registered-events` | 이메일이 있는 회원마다 `member.registered`를 `resent=true`로 다시 보냄(알림 이메일 복사본 채우기). 응답 `publishedCount` | 🛠 |
 | GET | `/api/v1/admin/member-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
 | GET | `/api/v1/admin/member-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/member-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |

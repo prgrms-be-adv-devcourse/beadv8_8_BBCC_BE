@@ -1,9 +1,11 @@
 package com.bbcc.kidly.boundedcontext.member.in;
 
 import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
+import com.bbcc.kidly.boundedcontext.member.app.MemberRegisteredRepublishService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.AdminMemberFilter;
 import com.bbcc.kidly.boundedcontext.member.in.dto.AdminMemberSummaryResponse;
+import com.bbcc.kidly.boundedcontext.member.in.dto.MemberRegisteredRepublishResponse;
 import com.bbcc.kidly.member.support.response.PageResponse;
 import com.bbcc.kidly.member.support.security.AuthAdmin;
 import com.bbcc.kidly.member.support.security.LoginAdmin;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminMemberController {
 
     private final AdminMemberService adminMemberService;
+    private final MemberRegisteredRepublishService memberRegisteredRepublishService;
 
     // keyword는 회원 번호 · 닉네임 · 이메일 검색. 탈퇴 회원은 빠진다
     @GetMapping
@@ -46,6 +49,12 @@ public class AdminMemberController {
     public void suspend(@LoginAdmin AuthAdmin admin, @PathVariable Long memberId,
         @Valid @RequestBody MemberSuspendRequest request) {
         adminMemberService.suspend(memberId, admin.id(), request);
+    }
+
+    // 이메일이 있는 회원마다 회원 가입됨을 다시 보냄 표시로 다시 보내고, 보낸 회원 수를 돌려준다
+    @PostMapping("/registered-events")
+    public MemberRegisteredRepublishResponse republishRegisteredEvents() {
+        return new MemberRegisteredRepublishResponse(memberRegisteredRepublishService.republishAll());
     }
 
 }

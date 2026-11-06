@@ -143,6 +143,17 @@ class NotificationMemberEventKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("관리자가 다시 보낸 가입 이벤트(resent)는 복사본만 저장하고 환영 메일은 만들지 않는다")
+    void resentSavesContactOnly() throws Exception {
+        send(new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new MemberRegisteredEvent.Data(memberId, email, true)));
+
+        // 복사본과 환영 메일은 한 트랜잭션에서 저장되므로, 복사본이 보이면 메일 저장 여부도 정해졌다
+        AsyncWait.until(TIMEOUT, () -> jpaMemberContactRepository.existsById(memberId));
+        assertThat(notificationsOf(email)).isEmpty();
+    }
+
+    @Test
     @DisplayName("탈퇴 이벤트를 받으면 회원 이메일 복사본을 지운다")
     void deleteMemberContact() throws Exception {
         send(memberRegistered(email));
