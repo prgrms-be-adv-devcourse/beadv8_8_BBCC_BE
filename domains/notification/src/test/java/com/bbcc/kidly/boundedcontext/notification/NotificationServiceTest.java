@@ -1,12 +1,14 @@
 package com.bbcc.kidly.boundedcontext.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.MemberContactService;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationDispatcher;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationProperties;
@@ -15,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PayoutEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.RefundEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
@@ -52,12 +55,15 @@ class NotificationServiceTest {
     @Mock
     private MemberContactService memberContactService;
 
+    @Mock
+    private InboxNotificationService inboxNotificationService;
+
     private NotificationService notificationService;
 
     @BeforeEach
     void setUp() {
         notificationService = new NotificationService(notificationRepository, notificationDispatcher,
-            new NotificationProperties("https://kidly.kro.kr"), memberContactService);
+            new NotificationProperties("https://kidly.kro.kr"), memberContactService, inboxNotificationService);
         // 서비스는 @Transactional 안에서 불리므로, 커밋 뒤 콜백을 등록할 수 있게 동기화를 켠다
         TransactionSynchronizationManager.initSynchronization();
     }
@@ -289,7 +295,8 @@ class NotificationServiceTest {
     void skipOrderPaidWithoutContact() {
         given(memberContactService.findEmail(1L)).willReturn(Optional.empty());
 
-        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of()));
+        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of(
+            new OrderPaidCommand.Item(5L, "곰돌이 티셔츠", null, 1, 10_000L))));
 
         verify(notificationRepository, never()).save(any());
     }
@@ -299,7 +306,8 @@ class NotificationServiceTest {
     void skipDuplicateOrderPaid() {
         given(notificationRepository.existsByEventIdAndChannel(EVENT_ID, NotificationChannel.EMAIL)).willReturn(true);
 
-        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of()));
+        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of(
+            new OrderPaidCommand.Item(5L, "곰돌이 티셔츠", null, 1, 10_000L))));
 
         verify(notificationRepository, never()).save(any());
     }
@@ -315,6 +323,87 @@ class NotificationServiceTest {
         var saved = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository).save(saved.capture());
         assertThat(saved.getValue().getBody()).doesNotContain("사유");
+    }
+
+    @Test
+    @DisplayName("계정 정지를 뺀 메일은 받는 사람 알림함에도 종류별로 한 건씩 남긴다")
+    void addInboxWithEmail() {
+        given(memberContactService.findEmail(any())).willReturn(Optional.of("member@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createWelcomeEmail(COMMAND);
+        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 25_000L, List.of(
+            new OrderPaidCommand.Item(5L, "곰돌이 티셔츠", "네이비 / 110", 1, 10_000L),
+            new OrderPaidCommand.Item(5L, "공룡 운동화", null, 1, 15_000L))));
+        notificationService.createRefundEmail(new RefundEmailCommand(EVENT_ID, 1L, 3L, 34_500L));
+        notificationService.createPayoutEmail(new PayoutEmailCommand(7L, 5L, 12_000L));
+        notificationService.createSellerApprovedEmail(EVENT_ID, 5L, "키들리 상점");
+        notificationService.createApplicationRejectedEmail(EVENT_ID, 1L, "사업자 정보 불일치");
+        notificationService.createSellerSuspendedEmail(EVENT_ID, 5L, "키들리 상점");
+
+        var added = ArgumentCaptor.forClass(InboxNotificationInfo.class);
+        verify(inboxNotificationService, times(7)).add(added.capture());
+        assertThat(added.getAllValues())
+            .extracting(InboxNotificationInfo::memberId, InboxNotificationInfo::type, InboxNotificationInfo::linkPath,
+                InboxNotificationInfo::dedupKey)
+            .containsExactly(
+                tuple(1L, NotificationType.WELCOME, null, "member.registered:" + EVENT_ID),
+                tuple(1L, NotificationType.ORDER_PAID, "/orders/3", "order.paid:3"),
+                tuple(1L, NotificationType.REFUND_COMPLETED, "/orders/3", "payment.refunded:" + EVENT_ID),
+                tuple(5L, NotificationType.PAYOUT_COMPLETED, "/center/settlements/7", "payment.payout-completed:7"),
+                tuple(5L, NotificationType.SELLER_APPROVED, "/center", "seller.changed:" + EVENT_ID),
+                tuple(1L, NotificationType.SELLER_APPLICATION_REJECTED, null,
+                    "seller.application-rejected:" + EVENT_ID),
+                tuple(5L, NotificationType.SELLER_SUSPENDED, null, "seller.changed:" + EVENT_ID));
+        assertThat(added.getAllValues()).extracting(InboxNotificationInfo::body).containsExactly(
+            "자녀의 키와 체형을 등록하면 지금 잘 맞는 사이즈의 옷을 골라 드려요.",
+            "곰돌이 티셔츠 외 1건 주문의 결제가 끝났어요. 총 결제 금액은 25,000원이에요.",
+            "취소한 주문의 34,500원을 예치금으로 돌려드렸어요.",
+            "정산금 12,000원이 예치금으로 입금됐어요.",
+            "키들리 상점 상호의 판매자 신청이 승인됐어요. 판매자 센터에서 상품을 등록해 보세요.",
+            "보내 주신 판매자 신청이 거절됐어요. 거절 사유: 사업자 정보 불일치",
+            "관리자가 키들리 상점 상호의 판매자 자격을 정지했어요.");
+    }
+
+    @Test
+    @DisplayName("계정 정지는 로그인이 막혀 알림함을 볼 수 없으므로 메일만 만들고 알림함에는 남기지 않는다")
+    void skipInboxForSuspended() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.of("parent@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createSuspendedEmail(EVENT_ID, 1L, "운영 정책 위반");
+
+        verify(notificationRepository).save(any());
+        verify(inboxNotificationService, never()).add(any());
+    }
+
+    @Test
+    @DisplayName("이메일 복사본이 없어 메일을 못 만들어도 알림함에는 남긴다")
+    void addInboxWithoutContact() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.empty());
+
+        notificationService.createRefundEmail(new RefundEmailCommand(EVENT_ID, 1L, 3L, 34_500L));
+
+        verify(notificationRepository, never()).save(any());
+        verify(inboxNotificationService).add(any());
+    }
+
+    @Test
+    @DisplayName("같은 일을 다시 받으면 같은 중복 키로 넣어 알림함은 한 건이다(지급 완료는 새 이벤트 ID여도 정산서 기준)")
+    void sameInboxKeyOnRedelivery() {
+        given(notificationRepository.existsByEventIdAndChannel(any(), any())).willReturn(true);
+
+        notificationService.createRefundEmail(new RefundEmailCommand(EVENT_ID, 1L, 3L, 34_500L));
+        notificationService.createRefundEmail(new RefundEmailCommand(EVENT_ID, 1L, 3L, 34_500L));
+        notificationService.createPayoutEmail(new PayoutEmailCommand(7L, 5L, 12_000L));
+        notificationService.createPayoutEmail(new PayoutEmailCommand(7L, 5L, 12_000L));
+
+        var added = ArgumentCaptor.forClass(InboxNotificationInfo.class);
+        verify(inboxNotificationService, times(4)).add(added.capture());
+        assertThat(added.getAllValues()).extracting(InboxNotificationInfo::dedupKey).containsExactly(
+            "payment.refunded:" + EVENT_ID, "payment.refunded:" + EVENT_ID,
+            "payment.payout-completed:7", "payment.payout-completed:7");
+        verify(notificationRepository, never()).save(any());
     }
 
     private void givenSaved() {

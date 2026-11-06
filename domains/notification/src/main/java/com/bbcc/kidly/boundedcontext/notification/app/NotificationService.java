@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.PayoutEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.RefundEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.EmailNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
@@ -21,18 +22,26 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 /**
  * 도메인 이벤트로 알림을 만든다. 같은 이벤트 · 같은 채널은 한 건만 만들고, 커밋된 뒤에 비동기 발송을 넘긴다.
  * 커밋 전에 넘기면 다른 스레드가 아직 저장되지 않은 알림을 찾지 못한다.
+ * 계정 정지를 뺀 메일은 같은 일을 받는 사람 알림함에도 한 건 남긴다(같은 트랜잭션). 알림함은 이메일이 필요 없어
+ * 이메일 복사본이 없어 메일을 못 만들어도 남긴다. 계정 정지는 로그인이 막혀 알림함을 볼 수 없어 메일만 만든다.
  */
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
 
+    private static final String REJECTED_INBOX_BODY = "보내 주신 판매자 신청이 거절됐어요.";
+
     private final NotificationRepository notificationRepository;
     private final NotificationDispatcher notificationDispatcher;
     private final NotificationProperties notificationProperties;
     private final MemberContactService memberContactService;
+    private final InboxNotificationService inboxNotificationService;
 
     @Transactional
     public void createWelcomeEmail(WelcomeEmailCommand command) {
+        inboxNotificationService.add(new InboxNotificationInfo(command.memberId(), NotificationType.WELCOME,
+            "Kidly에 오신 것을 환영해요", "자녀의 키와 체형을 등록하면 지금 잘 맞는 사이즈의 옷을 골라 드려요.", null,
+            "member.registered:" + command.eventId()));
         var content = WelcomeEmail.compose(notificationProperties.siteUrl());
         createEmail(new EmailNotificationInfo(command.eventId(), command.memberId(), NotificationType.WELCOME,
             command.email(), content.title(), content.body()));
@@ -47,6 +56,9 @@ public class NotificationService {
         if (command.amount() <= 0) {
             return;
         }
+        inboxNotificationService.add(new InboxNotificationInfo(command.sellerId(), NotificationType.PAYOUT_COMPLETED,
+            "정산금이 입금됐어요", "정산금 %,d원이 예치금으로 입금됐어요.".formatted(command.amount()),
+            "/center/settlements/" + command.settlementId(), "payment.payout-completed:" + command.settlementId()));
         var key = payoutKey(command.settlementId());
         if (exists(key)) {
             return;
@@ -62,6 +74,9 @@ public class NotificationService {
     // 주문 결제완료는 주문마다 한 번만 나가므로 이벤트 ID로 한 통만 만든다
     @Transactional
     public void createOrderPaidEmail(OrderPaidCommand command) {
+        inboxNotificationService.add(new InboxNotificationInfo(command.memberId(), NotificationType.ORDER_PAID,
+            "주문이 결제됐어요", orderPaidInboxBody(command), "/orders/" + command.orderId(),
+            "order.paid:" + command.orderId()));
         if (exists(command.eventId())) {
             return;
         }
@@ -75,7 +90,13 @@ public class NotificationService {
     // 회원 ID가 없는 예전 환불 이벤트는 받는 사람을 알 수 없어 만들지 않는다
     @Transactional
     public void createRefundEmail(RefundEmailCommand command) {
-        if (command.memberId() == null || exists(command.eventId())) {
+        if (command.memberId() == null) {
+            return;
+        }
+        inboxNotificationService.add(new InboxNotificationInfo(command.memberId(), NotificationType.REFUND_COMPLETED,
+            "환불이 완료됐어요", "취소한 주문의 %,d원을 예치금으로 돌려드렸어요.".formatted(command.amount()),
+            "/orders/" + command.orderId(), "payment.refunded:" + command.eventId()));
+        if (exists(command.eventId())) {
             return;
         }
         memberContactService.findEmail(command.memberId()).ifPresent(email -> {
@@ -102,6 +123,10 @@ public class NotificationService {
     // 거절 사유는 회원 서비스가 200자까지 받으므로 본문 한도(4000자)를 넘지 않는다
     @Transactional
     public void createApplicationRejectedEmail(UUID eventId, Long memberId, String reason) {
+        var hasReason = reason != null && !reason.isBlank();
+        inboxNotificationService.add(new InboxNotificationInfo(memberId, NotificationType.SELLER_APPLICATION_REJECTED,
+            "판매자 신청이 거절됐어요", hasReason ? REJECTED_INBOX_BODY + " 거절 사유: " + reason.strip() : REJECTED_INBOX_BODY,
+            null, "seller.application-rejected:" + eventId));
         if (exists(eventId)) {
             return;
         }
@@ -114,6 +139,9 @@ public class NotificationService {
 
     @Transactional
     public void createSellerApprovedEmail(UUID eventId, Long sellerId, String businessName) {
+        inboxNotificationService.add(new InboxNotificationInfo(sellerId, NotificationType.SELLER_APPROVED,
+            "판매자 신청이 승인됐어요", "%s 상호의 판매자 신청이 승인됐어요. 판매자 센터에서 상품을 등록해 보세요.".formatted(businessName),
+            "/center", "seller.changed:" + eventId));
         if (exists(eventId)) {
             return;
         }
@@ -126,6 +154,9 @@ public class NotificationService {
 
     @Transactional
     public void createSellerSuspendedEmail(UUID eventId, Long sellerId, String businessName) {
+        inboxNotificationService.add(new InboxNotificationInfo(sellerId, NotificationType.SELLER_SUSPENDED,
+            "판매자 자격이 정지됐어요", "관리자가 %s 상호의 판매자 자격을 정지했어요.".formatted(businessName), null,
+            "seller.changed:" + eventId));
         if (exists(eventId)) {
             return;
         }
@@ -142,6 +173,14 @@ public class NotificationService {
         }
         var notification = notificationRepository.save(Notification.email(info));
         dispatchAfterCommit(notification.getId());
+    }
+
+    // 알림함 본문은 1000자까지라 첫 상품 이름(255자까지)만 적고 나머지는 "외 N건"으로 줄인다
+    private static String orderPaidInboxBody(OrderPaidCommand command) {
+        var items = command.items();
+        var first = items.getFirst().productName();
+        var name = items.size() == 1 ? first : "%s 외 %d건".formatted(first, items.size() - 1);
+        return "%s 주문의 결제가 끝났어요. 총 결제 금액은 %,d원이에요.".formatted(name, command.totalAmount());
     }
 
     private boolean exists(UUID eventId) {
