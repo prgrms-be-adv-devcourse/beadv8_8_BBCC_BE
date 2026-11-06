@@ -88,6 +88,25 @@ class ChildPreferenceRepositoryIntegrationTest {
         assertThat(preference.brandPoints(PRODUCT_A_BRAND)).isEqualTo(2);
     }
 
+    @Test
+    @DisplayName("PREF-07 담기를 빼면 카테고리 · 담기 · 브랜드 몫이 모두 빠져 횟수가 0이 되고 점수는 나오지 않는다")
+    void subtractCartAddRemovesAllOfItsShares() {
+        PreferenceActivity cartAdd = new PreferenceActivity(PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, true);
+        add(CHILD_1_ID, cartAdd);
+
+        subtract(CHILD_1_ID, cartAdd);
+
+        assertThat(categoryPreferences.findAllByChildProfileId(CHILD_1_ID)).singleElement()
+            .extracting(ChildCategoryPreference::getActivityCount, ChildCategoryPreference::getCartAddCount)
+            .containsExactly(0, 0);
+        assertThat(brandPreferences.findAllByChildProfileId(CHILD_1_ID)).singleElement()
+            .extracting(ChildBrandPreference::getActivityCount)
+            .isEqualTo(0);
+        ChildPreference preference = childPreferenceRepository.findByChildProfileId(CHILD_1_ID);
+        assertThat(preference.categoryPoints(PRODUCT_A_CATEGORY_ID)).isZero();
+        assertThat(preference.brandPoints(PRODUCT_A_BRAND)).isZero();
+    }
+
     private void add(Long childProfileId, PreferenceActivity activity) {
         transactionTemplate.executeWithoutResult(status -> childPreferenceRepository.add(childProfileId, activity));
     }
