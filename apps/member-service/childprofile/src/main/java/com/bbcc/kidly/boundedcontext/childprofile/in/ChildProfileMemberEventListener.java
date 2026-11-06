@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * kidly.member.events에서 member.withdrawn 또는 member.suspended를 받아 그 회원의 자녀 프로필을 모두 삭제한다.
+ * 회원 탈퇴 시 자녀 프로필과 본인인증 기록을 삭제한다. 회원 정지 시 자녀 프로필을 삭제한다.
  * 같은 메시지를 다시 받아도 이미 삭제된 자녀는 조회되지 않아 아무 일도 하지 않는다.
  */
 @Component
