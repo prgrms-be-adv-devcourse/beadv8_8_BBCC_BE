@@ -362,6 +362,20 @@ class RecommendReplicaProductTest {
             .containsExactly(tuple(1L, "상의"), tuple(11L, "티셔츠"));
     }
 
+    @Test
+    @DisplayName("INV-R01 더 늦게 일어난 상품 변경으로 카테고리 경로를 새 값으로 바꾸고, 줄어든 칸은 남지 않는다")
+    void applyLaterCategoryPath() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithCategoryPath(TOPS_PATH, PRODUCT_CHANGED_AT));
+
+        replica.applyIfNewer(changeWithCategoryPath(
+            List.of(new RecommendReplicaProduct.CategoryPathInfo(2L, "하의")), LATER));
+
+        assertThat(replica.getCategoryPath())
+            .extracting(RecommendReplicaCategory::getCategoryId, RecommendReplicaCategory::getCategoryName)
+            .containsExactly(tuple(2L, "하의"));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("changesNotLater")
     @DisplayName("INV-R01 저장된 시각과 같거나 이르게 일어난 상품 변경은 필수 값이 없어도 무시한다")
