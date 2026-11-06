@@ -172,7 +172,7 @@
 - 켜기: 주문 서비스 환경변수 `ORDER_MCP_ENABLED=true`(설정 `kidly.order.mcp.enabled`, 기본 false). 꺼져 있으면 경로가 없다. 목록 한 번의 줄 수 상한은 `kidly.order.mcp.max-results`(기본 50, 1~100)
 - 연결: 상태 없는 Streamable HTTP(세션 없음). `POST /api/v1/admin/orders/mcp`에 JSON-RPC 본문, `Content-Type: application/json`, `Accept: application/json, text/event-stream`. 관리자 토큰으로 Gateway를 거친다. Gateway가 붙인 `X-Admin-Id`가 없거나 잘못되면 401 ProblemDetail
 - 결과: 도구마다 JSON 텍스트 하나. 목록은 `{items, page, size, totalElements, totalPages, hasNext}`이고 size(기본 20)가 상한보다 크면 상한으로 줄인다. 칸은 같은 일을 하는 관리자 API 응답과 같다(ID는 문자열, 시각은 `yyyy-MM-ddTHH:mm:ss`). 없는 주문 · 잘못된 인자는 `isError: true`와 `{error, message}`
-- 개인정보: 배송지 · 연락처 · 수령인 · 닉네임 · 자녀 정보는 응답에 없다. 회원 ID(`memberId` · 이력 `actorId`)는 내부 ID라 포함한다. DLT 상세는 원본 본문(`payload`) · 관리자 메모 · 예외 메시지 · 스택을 뺀 메타데이터만 주고, 실패는 예외 종류(`exceptionClass`)만 준다
+- 개인정보: 배송지 · 연락처 · 수령인 · 닉네임 · 자녀 정보는 응답에 없다. 회원 ID(`memberId` · 이력 `actorId`)는 내부 ID라 포함한다. DLT 상세는 원본 본문(`payload`) · 관리자 메모 · 예외 메시지 · 스택을 뺀 메타데이터만 주고, 실패는 예외 종류(`exceptionClass`)만 준다. 자유 문구가 될 수 있는 칸은 코드 · 예외 클래스 이름만 내보낸다: 아웃박스 `lastError`는 예외 클래스 이름만, 이력 `reason` · 실패 `failureCode` · 재고 실패 `reason`은 코드 형식(대문자 코드 · 소문자 줄표 코드 · 예외 단순 이름)일 때만, 이력 `source`는 경로 틀 · `scheduler:작업` · 이벤트 타입일 때만, DLT의 받은 값(키 · `eventType` · `eventId` · `producer` · `aggregateId` · `correlationId` · 재처리 결과)은 ID · 이벤트 타입 · 도메인 이름 · 예외 클래스 이름일 때만 내보내고, 형식이 아니면 `null`이다(관리자 API는 그대로)
 
 | 도구 | 인자 | 같은 관리자 API(`/api/v1/admin/orders` 아래) |
 |---|---|---|

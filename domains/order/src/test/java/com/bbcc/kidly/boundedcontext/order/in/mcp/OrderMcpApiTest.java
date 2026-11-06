@@ -180,6 +180,59 @@ class OrderMcpApiTest {
     }
 
     @Test
+    @DisplayName("자유 문구 칸(아웃박스 lastError · 이력 reason/source · 실패 코드 · 재고 사유 · DLT 키/ID/예외 종류)에 개인정보를 넣어도 "
+        + "MCP 응답에는 코드 · 예외 클래스 이름 · 경로 틀 · 이벤트 타입 · ID 형식만 나가고 그 문구는 없다")
+    void freeTextFieldsAreFiltered() {
+        OrderDetail paid = paidOrder();
+        OrderDetail stale = place();
+        jdbcTemplate.update("update orders.orders set created_at = ?, payment_due_at = ? where id = ?",
+            LocalDateTime.now().minusHours(1), LocalDateTime.now().plusDays(1), stale.orderId());
+        Long outboxId = jdbcTemplate.queryForObject("select min(id) from orders.order_outbox where message_key = ?",
+            Long.class, String.valueOf(stale.orderId()));
+        transactions.executeWithoutResult(status -> outboxRepository.quarantine(outboxId,
+            "RecordTooLargeException: " + RECIPIENT + " " + PHONE + " " + ADDRESS, LocalDateTime.now()));
+        jdbcTemplate.update("insert into orders.order_status_history (order_id, target_type, target_id, from_status,"
+                + " to_status, reason, actor_type, actor_id, source, occurred_at, created_at, updated_at)"
+                + " values (?, 'ORDER', ?, 'PAID', 'PAID', ?, 'ADMIN', 99, ?, now(), now(), now())",
+            paid.orderId(), paid.orderId(), RECIPIENT + " 요청으로 확인", "전화 " + PHONE);
+        failureRepository.save(OrderEventFailure.open(OrderEventFailure.EventType.STOCK_DEDUCTION_FAILED,
+            stale.orderId(), List.of(new OrderEventFailure.StockFailure(stale.items().getFirst().orderItemId(),
+                RECIPIENT)), "연락 " + PHONE, LocalDateTime.now()));
+        recoveryRepository.save(PaymentRecovery.open(paid.orderId(), 500L, BUYER_ID, paid.totalAmount(),
+            List.of(new PaymentRecovery.PaidItem(paid.items().getFirst().orderItemId(), paid.totalAmount())),
+            ADDRESS, true, LocalDateTime.now()));
+        deadLetterService.receive(new ReceiveDeadLetterCommand("kidly.payment.events", 1, 7L, PHONE,
+            "결제 " + RECIPIENT, RECIPIENT, "{}", "IllegalStateException: " + ADDRESS, "실패", "trace"));
+        Long deadLetterId = jdbcTemplate.queryForObject(
+            "select id from orders.order_dead_letter where source_offset = 7", Long.class);
+
+        List<String> texts = new ArrayList<>();
+        JsonNode quarantined = callOk("outbox_quarantined", Map.of(), texts);
+        assertThat(quarantined.get("items").get(0).get("lastError").asString()).isEqualTo("RecordTooLargeException");
+        JsonNode stuck = callOk("stuck_orders", Map.of("kind", "OUTBOX_STUCK"), texts);
+        assertThat(stuck.get("items").get(0).get("outbox").get("lastError").asString())
+            .isEqualTo("RecordTooLargeException");
+        JsonNode timeline = callOk("order_timeline", Map.of("orderId", paid.orderId()), texts);
+        JsonNode last = timeline.get("history").get(timeline.get("history").size() - 1);
+        assertThat(last.get("reason").isNull()).isTrue();
+        assertThat(last.get("source").isNull()).isTrue();
+        JsonNode failures = callOk("event_failures", Map.of(), texts);
+        assertThat(failures.get("items").get(0).get("failureCode").isNull()).isTrue();
+        assertThat(failures.get("items").get(0).get("stockFailures").get(0).get("reason").isNull()).isTrue();
+        JsonNode recoveries = callOk("payment_recoveries", Map.of(), texts);
+        assertThat(recoveries.get("items").get(0).get("failureCode").isNull()).isTrue();
+        callOk("dead_letters", Map.of(), texts);
+        JsonNode detail = callOk("dead_letter_detail", Map.of("deadLetterId", deadLetterId), texts);
+        assertThat(detail.get("exceptionClass").asString()).isEqualTo("IllegalStateException");
+        assertThat(detail.get("messageKey").isNull()).isTrue();
+        assertThat(detail.get("eventType").isNull()).isTrue();
+        assertThat(detail.get("eventId").isNull()).isTrue();
+
+        assertThat(texts).allSatisfy(text -> assertThat(text).doesNotContain(RECIPIENT, PHONE, ADDRESS, "전화",
+            "연락", "요청으로"));
+    }
+
+    @Test
     @DisplayName("목록은 size를 max-results로 줄이고(요청 10 → 3, 전체 수 · 다음 페이지 있음), 이력이 길면 최근 max-results줄만(truncated)")
     void limitsResults() {
         for (int i = 0; i < MAX_RESULTS + 1; i++) {

@@ -66,7 +66,7 @@
 - DLT 메시지 목록은 상태를 주지 않으면 `OPEN`만 보인다(처리 · 종료된 건은 상태로 걸러 본다). 결제 토픽에서 온 메시지가 먼저 온다(`paymentEvent`). 이벤트 처리 실패 · 결제 반영 실패 목록은 상태를 주지 않으면 모든 상태가 보인다
 - 이미 해결됐거나 저절로 맞춰지는 건은 그 자리에서 닫거나(예: 주문 취소 시 대기 기록) 로그 수준을 내린다(예: 같은 메시지의 반복 저장 실패는 첫 번만 ERROR, 이후 DEBUG)
 - 로그는 결과 하나에 한 줄이고, 본문 · 예외 메시지 · 개인정보를 넣지 않는다(eventType · eventId · 키 · ID · 예외 종류만)
-- 주문 운영 조회 MCP 창구(#925, `POST /api/v1/admin/orders/mcp`, 도구 목록은 docs/api): AI가 위 관리자 확인 대상을 읽기만 한다. 도구는 관리자 조회 API(`web.admin`)가 쓰는 app 조회 서비스만 부르고 응답 칸도 관리자 API와 같게 둔다(새 조회가 필요하면 app에 먼저 더한다). 조작(재처리 · 종료 · 취소 · 다시 보내기) 도구는 두지 않는다. 응답에 개인정보(배송지 · 연락처 · 수령인 · 닉네임 · 자녀 정보)와 DLT 원본 본문 · 관리자 메모 · 예외 메시지 · 스택을 넣지 않는다(DLT 실패는 예외 종류만)
+- 주문 운영 조회 MCP 창구(#925, `POST /api/v1/admin/orders/mcp`, 도구 목록은 docs/api): AI가 위 관리자 확인 대상을 읽기만 한다. 도구는 관리자 조회 API(`web.admin`)가 쓰는 app 조회 서비스만 부르고 응답 칸도 관리자 API와 같게 둔다(새 조회가 필요하면 app에 먼저 더한다). 조작(재처리 · 종료 · 취소 · 다시 보내기) 도구는 두지 않는다. 응답에 개인정보(배송지 · 연락처 · 수령인 · 닉네임 · 자녀 정보)와 DLT 원본 본문 · 관리자 메모 · 예외 메시지 · 스택을 넣지 않는다(DLT 실패는 예외 종류만). 자유 문구는 코드 · 예외 클래스 이름만: 자유 문구가 될 수 있는 칸(아웃박스 lastError · 이력 reason/source · 실패 코드 · DLT의 받은 키/ID/eventType 등)은 MCP 전용 변환(`in.mcp.OrderMcpViews` · `OrderMcpDeadLetter`)이 `app.OrderTextGuard`로 걸러 정해진 형식일 때만 내보내고 아니면 null이다(관리자 API는 그대로). 밖으로 내보내는 다른 창구(AI 진단 #926 등)도 같은 `OrderTextGuard`를 쓴다
   - 스위치 `kidly.order.mcp.enabled`(기본 false, 꺼지면 빈 · 경로 없음), 목록 줄 수 상한 `kidly.order.mcp.max-results`(기본 50, 큰 size는 줄인다)
   - 구성: MCP 공식 Java SDK(주문 build에만), 상태 없는 서블릿 전송 + 동기 서버를 `in.config.OrderMcpConfig`가 서블릿으로 등록한다. MVC 밖이라 `in.mcp.OrderMcpServlet`이 `X-Admin-Id`를 공용 LoginAdmin 해석기와 같은 규칙으로 직접 확인한다(없거나 잘못되면 401 ProblemDetail). JSON은 Boot의 JsonMapper를 감싸 쓴다. 도구 실패 로그는 도구 이름 · 예외 종류만
 
