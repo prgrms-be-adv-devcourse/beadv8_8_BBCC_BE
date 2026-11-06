@@ -20,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -266,6 +267,41 @@ class NotificationServiceTest {
             .contains("- 공룡 운동화 × 1: 15,000원")
             .contains("총 결제 금액: 25,000원")
             .contains("https://kidly.kro.kr/orders/3");
+    }
+
+    @Test
+    @DisplayName("주문상품이 많고 이름이 길어도 상품은 5개까지만 적고 나머지는 외 N건으로 줄여 본문 한도 안에서 만든다")
+    void orderPaidEmailWithManyItems() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.of("parent@kidly.co.kr"));
+        givenSaved();
+        var item = new OrderPaidCommand.Item(5L, "가".repeat(255), "나".repeat(255), 999, 9_999_999_999L);
+
+        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 9_999_999_999L,
+            Collections.nCopies(30, item)));
+
+        var saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertThat(saved.getValue().getBody()).hasSizeLessThanOrEqualTo(4000).contains("- 외 25건");
+    }
+
+    @Test
+    @DisplayName("구매자의 이메일 복사본이 없으면 주문 확인 메일을 만들지 않는다")
+    void skipOrderPaidWithoutContact() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.empty());
+
+        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of()));
+
+        verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("같은 주문 결제완료 이벤트를 다시 받으면 주문 확인 메일을 다시 만들지 않는다")
+    void skipDuplicateOrderPaid() {
+        given(notificationRepository.existsByEventIdAndChannel(EVENT_ID, NotificationChannel.EMAIL)).willReturn(true);
+
+        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of()));
+
+        verify(notificationRepository, never()).save(any());
     }
 
     @Test
