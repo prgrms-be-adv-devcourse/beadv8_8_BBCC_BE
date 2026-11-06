@@ -258,12 +258,13 @@ class RecommendReplicaProductIntegrationTest {
     void replaceCategoryPathRowsWithLaterEvent(int beforeSize, int afterSize) {
         replicaProductService.applyProductChanged(eventWithCategoryPath(
             pathOfSize(beforeSize, 1L), PRODUCT_CHANGED_AT));
+        List<ProductChangedEvent.CategoryPathEntry> laterPath = pathOfSize(afterSize, 2L);
 
-        replicaProductService.applyProductChanged(eventWithCategoryPath(pathOfSize(afterSize, 2L), LATER));
+        replicaProductService.applyProductChanged(eventWithCategoryPath(laterPath, LATER));
 
         List<Long> expectedIds = new ArrayList<>();
-        for (int i = 0; i < afterSize; i++) {
-            expectedIds.add((i + 2L) * 10 + i);
+        for (ProductChangedEvent.CategoryPathEntry entry : laterPath) {
+            expectedIds.add(entry.id());
         }
         assertThat(jdbcTemplate.queryForList(
             "select category_id from recommend.replica_product_category_path where product_id = ? order by position",
@@ -303,7 +304,7 @@ class RecommendReplicaProductIntegrationTest {
             data.createdAt(), data.sizeFree(), data.options(), data.infoValues(), "키들리", "상품 설명", sizeSpecs));
     }
 
-    // size칸 경로이고 칸 ID는 (base + 위치) * 10 + 위치다. base가 다르면 ID가 모두 달라 이전 행이 남았는지 구분된다
+    // base가 다르면 ID가 모두 달라 이전 행이 남았는지 구분된다
     private static List<ProductChangedEvent.CategoryPathEntry> pathOfSize(int size, long base) {
         List<ProductChangedEvent.CategoryPathEntry> path = new ArrayList<>();
         for (int i = 0; i < size; i++) {
