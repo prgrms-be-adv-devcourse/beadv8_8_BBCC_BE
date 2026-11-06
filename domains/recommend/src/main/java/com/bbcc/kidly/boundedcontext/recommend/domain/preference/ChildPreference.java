@@ -47,7 +47,11 @@ public final class ChildPreference {
             activityCounts.put(category.getCategoryId(), category.getActivityCount());
             cartAddCounts.put(category.getCategoryId(), category.getCartAddCount());
         }
-        return new ChildPreference(activityCounts, cartAddCounts, new HashMap<>());
+        Map<String, Integer> brandCounts = new HashMap<>();
+        for (ChildBrandPreference brand : brands) {
+            brandCounts.put(brand.getBrand(), brand.getActivityCount());
+        }
+        return new ChildPreference(activityCounts, cartAddCounts, brandCounts);
     }
 
     public ChildPreference plus(PreferenceActivity activity) {
