@@ -402,6 +402,14 @@ public class Product extends BaseTimeEntity {
         };
     }
 
+    /** 판매를 시작하기 전 상품은 구매자에게 보이지 않는다(등록 취소 상품은 「판매 종료」로 보인다). */
+    public boolean isVisibleToBuyer() {
+        return switch (status) {
+            case SALE_PENDING -> false;
+            case ON_SALE, STOPPED, DELISTED -> true;
+        };
+    }
+
     /** 상품을 바꾸려는 판매자가 이 상품을 등록한 판매자인지 검사한다. 다른 판매자의 상품은 바꿀 수 없다. */
     public void validateOwner(Long sellerId) {
         requireNonNull(sellerId, "sellerId는 필수입니다");

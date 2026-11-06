@@ -22,7 +22,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
-import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,8 +44,7 @@ public class ProductDetailService {
     @Transactional(readOnly = true)
     public ProductDetailResult findDetail(Long productId) {
         Product product = productRepository.getById(productId);
-        // 판매를 시작하기 전 상품은 구매자에게 보이지 않으므로 없는 상품과 같이 응답한다
-        if (product.getStatus() == ProductStatus.SALE_PENDING) {
+        if (!product.isVisibleToBuyer()) {
             throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
         }
         Category category = categoryRepository.getById(product.getCategoryId());
