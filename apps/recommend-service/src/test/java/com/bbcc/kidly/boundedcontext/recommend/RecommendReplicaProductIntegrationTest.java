@@ -251,6 +251,23 @@ class RecommendReplicaProductIntegrationTest {
     }
 
     @Test
+    @DisplayName("INV-R01 더 늦게 일어난 이벤트의 경로가 더 짧으면 카테고리 경로 행이 그 길이로 줄고 남은 행이 없다")
+    void shrinkCategoryPathRowsWithLaterEvent() {
+        replicaProductService.applyProductChanged(eventWithCategoryPath(List.of(
+            new ProductChangedEvent.CategoryPathEntry(1L, "상의"),
+            new ProductChangedEvent.CategoryPathEntry(11L, "티셔츠"),
+            new ProductChangedEvent.CategoryPathEntry(111L, "반팔")), PRODUCT_CHANGED_AT));
+
+        replicaProductService.applyProductChanged(eventWithCategoryPath(List.of(
+            new ProductChangedEvent.CategoryPathEntry(2L, "하의"),
+            new ProductChangedEvent.CategoryPathEntry(21L, "바지")), LATER));
+
+        assertThat(jdbcTemplate.queryForList(
+            "select category_id from recommend.replica_product_category_path where product_id = ? order by position",
+            Long.class, PRODUCT_A_ID)).containsExactly(2L, 21L);
+    }
+
+    @Test
     @DisplayName("등록 취소 상태의 상품 정보 변경됨을 받으면 상품 복사본이 등록 취소 상태로 저장된다")
     void storeDelistedStatus() {
         ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
