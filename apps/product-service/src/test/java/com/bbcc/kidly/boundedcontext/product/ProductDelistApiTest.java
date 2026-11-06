@@ -125,23 +125,26 @@ class ProductDelistApiTest {
     }
 
     @Test
-    @DisplayName("SALE-13 · OPT-08 다른 판매자의 상품을 등록 취소하면 403이고, 상태가 그대로다")
+    @DisplayName("SALE-13 · OPT-08 다른 판매자의 상품을 등록 취소하면 403이고, 상태가 그대로며 이벤트도 나가지 않는다")
     void rejectDelistOfOtherSellersProduct() {
         changeSaleStatus(ON_SALE);
+        eventRecorder.clear();
 
         expectProblem(delist(TestMembers.seller(OTHER_SELLER_ID)), HttpStatus.FORBIDDEN,
             "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
 
         assertThat(storedStatus()).isEqualTo("ON_SALE");
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
     @Test
-    @DisplayName("SALE-13 없는 상품을 등록 취소하면 404다")
+    @DisplayName("SALE-13 없는 상품을 등록 취소하면 404고, 이벤트도 나가지 않는다")
     void rejectDelistOfMissingProduct() {
         productId = "999999";
 
         expectProblem(delist(TestMembers.seller(SELLER_ID)), HttpStatus.NOT_FOUND,
             "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
     @Test
