@@ -16,8 +16,12 @@ public class RecommendedProductRanker {
 
     private static final int RECENT_POINTS = 1;
 
-    private static final Comparator<ScoredProduct> HIGHER_SCORE_FIRST =
-            Comparator.comparingInt(ScoredProduct::score).reversed();
+    // 점수가 같아도 요청마다 순서가 같아야 쪽을 넘길 때 상품이 겹치거나 빠지지 않는다
+    private static final Comparator<ScoredProduct> RANK_ORDER =
+            Comparator.comparingInt(ScoredProduct::score)
+                    .thenComparing(scored -> scored.product().productRegisteredAt())
+                    .thenComparing(scored -> scored.product().productId())
+                    .reversed();
 
     public List<RecommendedProduct> rank(
             List<RecommendedProduct> products,
@@ -29,7 +33,7 @@ public class RecommendedProductRanker {
         for (RecommendedProduct product : products) {
             scored.add(new ScoredProduct(product, scoreOf(product, preference, baseTime)));
         }
-        scored.sort(HIGHER_SCORE_FIRST);
+        scored.sort(RANK_ORDER);
         List<RecommendedProduct> ranked = new ArrayList<>();
         for (ScoredProduct scoredProduct : scored) {
             ranked.add(scoredProduct.product());
