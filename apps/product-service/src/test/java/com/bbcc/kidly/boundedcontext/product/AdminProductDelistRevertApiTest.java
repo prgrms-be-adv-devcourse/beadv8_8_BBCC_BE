@@ -27,7 +27,6 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * 관리자가 등록 취소한 상품을 판매중지로 되돌리는 API를 HTTP 요청부터 응답까지 확인한다.
- * 상품은 판매자 등록 API로 만들고 판매자 등록 취소 API로 등록 취소 상태로 만든다. 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다.
  */
 @FunctionalTest
 class AdminProductDelistRevertApiTest {
@@ -118,7 +117,6 @@ class AdminProductDelistRevertApiTest {
             "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
     }
 
-    // 판매자 판매 상태 변경 API로 상품을 원하는 상태로 만들고, 그때의 판매 상태 이름을 돌려준다
     private String prepare(String given) {
         if (given.equals("판매대기")) {
             return "SALE_PENDING";
@@ -140,7 +138,6 @@ class AdminProductDelistRevertApiTest {
             .expectStatus().isOk();
     }
 
-    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
         response
             .expectStatus().isEqualTo(status)
@@ -153,7 +150,6 @@ class AdminProductDelistRevertApiTest {
             .jsonPath("$.instance").isEqualTo(ADMIN_PRODUCTS_PATH + "/" + productId + "/delisting");
     }
 
-    // 판매자 등록 취소 API로 상품을 등록 취소 상태로 만들고, 그때 나간 이벤트는 지운다
     private void delistBySeller() {
         client.put().uri(SELLER_PRODUCTS_PATH + "/{productId}/delisting", productId)
             .headers(TestMembers.seller(SELLER_ID))

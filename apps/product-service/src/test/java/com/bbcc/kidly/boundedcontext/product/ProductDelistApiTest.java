@@ -26,7 +26,6 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * 판매자가 상품을 더 팔지 않겠다고 등록 취소하는 API를 HTTP 요청부터 응답까지 확인한다.
- * 상품은 등록 API로 만들고 판매 상태 변경 요청으로 원하는 상태로 만든다. 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다.
  */
 @FunctionalTest
 class ProductDelistApiTest {
@@ -178,7 +177,7 @@ class ProductDelistApiTest {
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
     }
 
-    // 판매 상태 변경 API로 상품을 원하는 상태까지 옮긴다. 관리자 판매중지 API는 따로 확인하므로 그 상태는 표로 만든다
+    // 관리자 판매중지 API는 따로 확인하므로 그 상태는 표로 만든다
     private void prepare(String given) {
         if (given.equals("판매대기")) {
             return;
@@ -204,7 +203,6 @@ class ProductDelistApiTest {
             .expectStatus().isOk();
     }
 
-    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
         response
             .expectStatus().isEqualTo(status)

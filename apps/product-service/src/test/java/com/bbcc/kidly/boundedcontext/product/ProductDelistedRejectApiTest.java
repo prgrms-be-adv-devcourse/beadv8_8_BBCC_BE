@@ -26,7 +26,6 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * 등록 취소한 상품을 판매 상태 변경 · 상품 수정 · 재고 조정으로 바꾸려 하면 409로 거절하는지 HTTP 요청부터 응답까지 확인한다.
- * 상품은 등록 API로 만들고 판매를 시작한 뒤 등록 취소 API로 등록 취소 상태로 만든다. 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다.
  */
 @FunctionalTest
 class ProductDelistedRejectApiTest {
