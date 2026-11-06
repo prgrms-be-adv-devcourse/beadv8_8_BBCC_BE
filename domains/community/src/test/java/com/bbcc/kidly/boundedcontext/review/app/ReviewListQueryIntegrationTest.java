@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -93,13 +95,14 @@ class ReviewListQueryIntegrationTest {
             .containsExactly(tuple("상품 B", "SOLD_OUT"), tuple("상품 A", "ON_SALE"));
     }
 
-    @Test
-    @DisplayName("한 쪽을 읽는 쿼리는 상품 정보를 포함해 1번이다(상품 목록 · 내 리뷰, 첫 쪽 · 다음 쪽)")
-    void singleQueryPerPage() {
+    @ParameterizedTest(name = "리뷰마다 사진 {0}장")
+    @ValueSource(ints = {0, 1, 5})
+    @DisplayName("한 쪽을 읽는 쿼리는 리뷰(상품 정보 포함) 1번 + 사진 1번이고 사진 수와 상관없다(상품 목록 · 내 리뷰, 첫 쪽 · 다음 쪽)")
+    void fixedQueriesPerPage(int imagesPerReview) {
         for (int i = 0; i < 6; i++) {
             replica(100 + i, "상품 " + i, DisplayStatus.ON_SALE);
-            review(30 + i, 100 + i, ME, BASE.minusMinutes(i));
-            review(40 + i, PRODUCT, OTHER, BASE.minusMinutes(i));
+            images(review(30 + i, 100 + i, ME, BASE.minusMinutes(i)), imagesPerReview);
+            images(review(40 + i, PRODUCT, OTHER, BASE.minusMinutes(i)), imagesPerReview);
         }
         replica(PRODUCT, "상품 A", DisplayStatus.ON_SALE);
         AtomicReference<ReviewPage> mine = new AtomicReference<>();
@@ -112,8 +115,11 @@ class ReviewListQueryIntegrationTest {
         long productNext = queryCounter.count(
             () -> queryService.findByProduct(String.valueOf(PRODUCT), product.get().nextCursor(), "3"));
 
-        assertThat(mine.get().items()).hasSize(3).allSatisfy(item -> assertThat(item.productName()).isNotNull());
-        assertThat(List.of(mineFirst, mineNext, productFirst, productNext)).containsOnly(1L);
+        assertThat(mine.get().items()).hasSize(3).allSatisfy(item -> {
+            assertThat(item.productName()).isNotNull();
+            assertThat(item.imageUrls()).hasSize(imagesPerReview);
+        });
+        assertThat(List.of(mineFirst, mineNext, productFirst, productNext)).containsOnly(2L);
     }
 
     private List<Long> readAll(Function<String, ReviewPage> page) {
@@ -127,10 +133,19 @@ class ReviewListQueryIntegrationTest {
         return read;
     }
 
-    private void review(long orderItemId, long productId, long memberId, LocalDateTime createdAt) {
+    private long review(long orderItemId, long productId, long memberId, LocalDateTime createdAt) {
         jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
             + "content, created_at, updated_at) values (?, ?, ?, '닉', 4, '본문', ?, ?)",
             orderItemId, productId, memberId, createdAt, createdAt);
+        return jdbcTemplate.queryForObject("select id from community.review where order_item_id = ?", Long.class,
+            orderItemId);
+    }
+
+    private void images(long reviewId, int count) {
+        for (int i = 0; i < count; i++) {
+            jdbcTemplate.update("insert into community.review_image (review_id, position, image_url, created_at) "
+                + "values (?, ?, ?, ?)", reviewId, i, "https://img/" + reviewId + "/" + i + ".jpg", BASE);
+        }
     }
 
     private void replica(long productId, String name, DisplayStatus status) {

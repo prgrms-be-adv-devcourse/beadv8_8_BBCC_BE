@@ -1,6 +1,7 @@
 package com.bbcc.kidly;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -86,6 +88,30 @@ class CommunityMigrationIntegrationTest {
             assertThat(jdbc.queryForMap("select fit_small, fit_true_to_size, fit_large from community.review_stats "
                 + "where product_id = 14")).containsExactlyInAnyOrderEntriesOf(
                     Map.of("fit_small", 0L, "fit_true_to_size", 0L, "fit_large", 0L));
+        }
+    }
+
+    @Test
+    @DisplayName("baseline 버전까지만 적용된 DB에 리뷰 사진 표를 만들고, 리뷰를 지우면 그 사진 행도 지워지며 같은 리뷰의 같은 순서는 하나다")
+    void addsReviewImageTableAfterBaseline() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createCommunityTablesUpTo(dataSource, jdbc, BASELINE_VERSION);
+            jdbc.update("insert into community.review (id, order_item_id, product_id, member_id, nickname, rating, "
+                + "content, created_at, updated_at) values (1, 11, 14, 13, '닉', 4, '본문', now(), now())");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            jdbc.update("insert into community.review_image (review_id, position, image_url, created_at) "
+                + "values (1, 0, 'https://img/a.jpg', now())");
+            assertThatThrownBy(() -> jdbc.update("insert into community.review_image (review_id, position, "
+                + "image_url, created_at) values (1, 0, 'https://img/b.jpg', now())"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+            jdbc.update("delete from community.review where id = 1");
+            assertThat(jdbc.queryForObject("select count(*) from community.review_image", Long.class)).isZero();
         }
     }
 

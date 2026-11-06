@@ -4,16 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.review.app.ReviewQueryService.ReviewPage;
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImages;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewStatsReader;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
 import com.bbcc.kidly.boundedcontext.review.domain.DisplayStatus;
 import com.bbcc.kidly.boundedcontext.review.domain.Fit;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
+import com.bbcc.kidly.boundedcontext.review.domain.ReviewImage;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewStats;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +34,8 @@ class ReviewQueryServiceTest {
 
     private final FakeReviews reviews = new FakeReviews();
     private final FakeStats stats = new FakeStats();
-    private final ReviewQueryService service = new ReviewQueryService(reviews, stats);
+    private final FakeImages images = new FakeImages();
+    private final ReviewQueryService service = new ReviewQueryService(reviews, stats, images);
 
     @ParameterizedTest
     @ValueSource(strings = {"abc", "", "0", "-1", "1.5"})
@@ -65,6 +70,26 @@ class ReviewQueryServiceTest {
     }
 
     @Test
+    @DisplayName("사진: 한 쪽 리뷰 ID로 한 번에 읽어 항목마다 순서대로 붙이고(없으면 빈 목록), 다음 쪽 확인용 리뷰는 묻지 않는다")
+    void imagesPerPage() {
+        reviews.add(3);
+        images.add(99L, 1, "b.png");
+        images.add(100L, 0, "x.jpg");
+        images.add(99L, 0, "a.png");
+
+        ReviewPage page = service.findByProduct("1", null, "2");
+
+        assertThat(images.calls).containsExactly(List.of(100L, 99L));
+        assertThat(page.items()).extracting(ReviewQueryService.ReviewItem::imageUrls)
+            .containsExactly(List.of("x.jpg"), List.of("a.png", "b.png"));
+        assertThat(service.findMine(1L, null, "1").items().getFirst().imageUrls()).containsExactly("x.jpg");
+        images.calls.clear();
+        // 빈 쪽은 사진을 묻지 않는다
+        assertThat(service.findByProduct("1", page.nextCursor(), "2").items()).isEmpty();
+        assertThat(images.calls).isEmpty();
+    }
+
+    @Test
     @DisplayName("요약: 집계 행이 있으면 수 · 평균, 없으면 0 · null")
     void summary() {
         stats.row = stats(3, 13);
@@ -96,6 +121,39 @@ class ReviewQueryServiceTest {
         @Override
         public Optional<ReviewStats> findById(Long productId) {
             return Optional.ofNullable(row);
+        }
+    }
+
+    private static final class FakeImages implements ReviewImages {
+
+        private final List<ReviewImage> rows = new ArrayList<>();
+        private final List<List<Long>> calls = new ArrayList<>();
+
+        void add(long reviewId, int position, String url) {
+            rows.add(ReviewImage.of(reviewId, position, url));
+        }
+
+        @Override
+        public List<ReviewImage> findByReviewIdInOrderByReviewIdAscPositionAsc(Collection<Long> reviewIds) {
+            calls.add(List.copyOf(reviewIds));
+            return rows.stream().filter(image -> reviewIds.contains(image.getReviewId()))
+                .sorted(Comparator.comparing(ReviewImage::getReviewId).thenComparing(ReviewImage::getPosition))
+                .toList();
+        }
+
+        @Override
+        public <S extends ReviewImage> List<S> saveAll(Iterable<S> images) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<ReviewImage> findByReviewIdOrderByPositionAsc(Long reviewId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int deleteAllOfReview(Long reviewId) {
+            throw new UnsupportedOperationException();
         }
     }
 
