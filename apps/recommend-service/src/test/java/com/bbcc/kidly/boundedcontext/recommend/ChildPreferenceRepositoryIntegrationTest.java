@@ -107,6 +107,27 @@ class ChildPreferenceRepositoryIntegrationTest {
         assertThat(preference.brandPoints(PRODUCT_A_BRAND)).isZero();
     }
 
+    @Test
+    @DisplayName("PREF-07 줄이 없는데 빼면 횟수가 음수인 줄이 생기고, 한 번 더해도 0에서 자르지 않아 나오지 않은 것으로 본다")
+    void subtractBeforeAddLeavesNegativeCountsWithoutClamping() {
+        PreferenceActivity cartAdd = new PreferenceActivity(PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, true);
+
+        subtract(CHILD_1_ID, cartAdd);
+
+        assertThat(categoryPreferences.findAllByChildProfileId(CHILD_1_ID)).singleElement()
+            .extracting(ChildCategoryPreference::getActivityCount, ChildCategoryPreference::getCartAddCount)
+            .containsExactly(-1, -1);
+        assertThat(brandPreferences.findAllByChildProfileId(CHILD_1_ID)).singleElement()
+            .extracting(ChildBrandPreference::getActivityCount)
+            .isEqualTo(-1);
+
+        add(CHILD_1_ID, new PreferenceActivity(PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, false));
+
+        ChildPreference preference = childPreferenceRepository.findByChildProfileId(CHILD_1_ID);
+        assertThat(preference.categoryPoints(PRODUCT_A_CATEGORY_ID)).isZero();
+        assertThat(preference.brandPoints(PRODUCT_A_BRAND)).isZero();
+    }
+
     private void add(Long childProfileId, PreferenceActivity activity) {
         transactionTemplate.executeWithoutResult(status -> childPreferenceRepository.add(childProfileId, activity));
     }
