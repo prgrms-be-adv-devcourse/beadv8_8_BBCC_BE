@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 /**
  * @param bodyType 입력하지 않았으면 null
  * @param preferredFit 입력하지 않았으면 null
- * @param growthRecordCount 성장 이력 건수. 화면이 자녀마다 이력 API를 따로 부르지 않게 목록에도 담는다
+ * @param growthRecordCount 성장 이력 건수
  * @param lastRecordedAt 마지막 성장 이력 시각
  */
 public record ChildProfileResponse(

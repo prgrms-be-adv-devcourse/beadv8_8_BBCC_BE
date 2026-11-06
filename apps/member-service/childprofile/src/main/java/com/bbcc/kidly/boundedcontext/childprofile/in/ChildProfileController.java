@@ -52,7 +52,6 @@ public class ChildProfileController {
         return ChildProfileResponse.from(childProfileService.getChild(member.id(), childId));
     }
 
-    // 모든 필드를 담아 보내는 전체 교체다
     @PatchMapping("/{childId}")
     public ChildProfileResponse update(
         @LoginMember AuthMember member, @PathVariable Long childId,

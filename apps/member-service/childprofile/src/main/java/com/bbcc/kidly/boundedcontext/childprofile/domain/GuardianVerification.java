@@ -15,9 +15,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 보호자 본인인증 기록. 이름 · 휴대폰 번호는 식별값을 만들 때만 쓰고 저장하지 않는다. 읽는 곳이 없고, 유출되면 식별값의 입력이 드러난다
- */
 @Entity
 @Table(name = "guardian_verification", schema = "childprofile")
 @Getter

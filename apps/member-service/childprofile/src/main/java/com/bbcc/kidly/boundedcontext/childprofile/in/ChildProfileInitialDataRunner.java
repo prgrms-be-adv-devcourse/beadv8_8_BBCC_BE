@@ -8,7 +8,6 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-// 회원 초기 데이터(1)가 만든 보호자에게 붙인다
 @Profile({"local", "dev"})
 @Component
 @Order(2)

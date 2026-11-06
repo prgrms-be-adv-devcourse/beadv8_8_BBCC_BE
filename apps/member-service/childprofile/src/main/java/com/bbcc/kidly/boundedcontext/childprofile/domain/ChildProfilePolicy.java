@@ -1,9 +1,5 @@
 package com.bbcc.kidly.boundedcontext.childprofile.domain;
 
-/**
- * 자녀 프로필 도메인의 Kidly 정책 값. 요청 DTO의 Bean Validation과 컬럼 길이가 함께 쓴다.
- * 키 · 몸무게는 소수 첫째 자리까지만 받는다.
- */
 public final class ChildProfilePolicy {
 
     public static final int AGE_LIMIT = 14;

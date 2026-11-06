@@ -15,10 +15,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-/**
- * 기획서 7.1 공통 초기 데이터 중 자녀를 회원 초기 데이터의 보호자(회원 1)에게 넣는다. 자녀가 한 명도 없을 때만 넣는다.
- * 키 115cm는 상품 A의 110 · 120 사이즈에 모두 걸쳐서 선호 핏으로 고르는 경우까지 시연할 수 있다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor

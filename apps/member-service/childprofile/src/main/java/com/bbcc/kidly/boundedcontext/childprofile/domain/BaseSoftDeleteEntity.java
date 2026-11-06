@@ -16,9 +16,6 @@ public abstract class BaseSoftDeleteEntity extends BaseTimeEntity {
 
     private LocalDateTime deletedAt;
 
-    /**
-     * 삭제 표시를 한다. 이미 삭제됐으면 처음 삭제 시각을 유지한다.
-     */
     public void delete(LocalDateTime now) {
         if (isDeleted()) {
             return;

@@ -9,10 +9,6 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 회원 탈퇴 시 자녀 프로필과 본인인증 기록을 삭제한다. 회원 정지 시 자녀 프로필을 삭제한다.
- * 같은 메시지를 다시 받아도 이미 삭제된 자녀는 조회되지 않아 아무 일도 하지 않는다.
- */
 @Component
 @RequiredArgsConstructor
 public class ChildProfileMemberEventListener {
@@ -26,7 +22,7 @@ public class ChildProfileMemberEventListener {
         switch (ChildProfileKafkaListenerConfig.header(record, "eventType")) {
             case "member.withdrawn" -> onWithdrawn(jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
             case "member.suspended" -> onSuspended(jsonMapper.readValue(record.value(), MemberSuspendedEvent.class));
-            default -> { }  // 자녀 프로필이 받지 않는 종류
+            default -> { }
         }
     }
 
