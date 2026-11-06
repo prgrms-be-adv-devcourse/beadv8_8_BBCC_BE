@@ -41,6 +41,19 @@ class ProductEmbeddingTextTest {
             season: fall, winter""");
     }
 
+    @Test
+    @DisplayName("정보 값의 순서만 다른 두 입력은 같은 글이 된다")
+    void sameTextRegardlessOfInfoValueOrder() {
+        List<InfoValue> infoValues = List.of(
+            new InfoValue("material", "wool"),
+            new InfoValue("season", "fall"),
+            new InfoValue("material", "cotton"));
+        List<InfoValue> reordered = List.of(infoValues.get(2), infoValues.get(1), infoValues.get(0));
+
+        assertThat(ProductEmbeddingText.compose("면 티셔츠", "키들리", reordered, "설명"))
+            .isEqualTo(ProductEmbeddingText.compose("면 티셔츠", "키들리", infoValues, "설명"));
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"  "})
