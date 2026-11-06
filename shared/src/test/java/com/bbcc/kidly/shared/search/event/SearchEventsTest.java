@@ -25,4 +25,16 @@ class SearchEventsTest {
         assertThat(event.aggregateId()).isEqualTo("7");
         assertThat(event.correlationId()).isEqualTo("7");
     }
+
+    @Test
+    @DisplayName("클릭 이벤트는 search.result-clicked이고 대상 · 순서 키는 검색 이벤트와 같은 회원이다")
+    void searchResultClicked() {
+        var event = new SearchResultClickedEvent(EVENT_ID, NOW,
+            new SearchResultClickedEvent.Data(7L, "원피스", 31L, 3, "RELEVANCE"));
+
+        assertThat(event.eventType()).isEqualTo("search.result-clicked");
+        assertThat(event.producer()).isEqualTo("search");
+        assertThat(event.aggregateId()).isEqualTo("7");
+        assertThat(event.correlationId()).isEqualTo("7");
+    }
 }
