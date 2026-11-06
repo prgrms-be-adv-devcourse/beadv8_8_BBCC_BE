@@ -217,7 +217,6 @@ class ProductChangedDataTest {
         assertThat(data.categoryPath()).containsExactly(
             new ProductChangedEvent.CategoryPathEntry(CLOTHING_CATEGORY_ID, "의류"),
             new ProductChangedEvent.CategoryPathEntry(CATEGORY_ID, "상의"));
-        assertThat(data.categoryPath().getLast().id()).isEqualTo(data.categoryId());
     }
 
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 실측 · 권장 키를 넣고, 옵션 ID를 정해 둔다

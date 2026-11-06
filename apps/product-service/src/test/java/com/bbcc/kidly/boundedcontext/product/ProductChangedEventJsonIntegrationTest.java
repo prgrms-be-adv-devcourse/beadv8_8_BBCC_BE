@@ -33,7 +33,7 @@ class ProductChangedEventJsonIntegrationTest {
     private JsonMapper jsonMapper;
 
     @Test
-    @DisplayName("브랜드 · 설명 · 사이즈별 실측 칸이 없는 예전 본문을 읽으면 브랜드와 설명은 null, 사이즈별 실측은 빈 목록이다")
+    @DisplayName("브랜드 · 설명 · 사이즈별 실측 칸이 없는 예전 본문을 읽으면 브랜드와 설명은 null, 사이즈별 실측과 카테고리 경로는 빈 목록이다")
     void readDataWithoutNewFields() {
         ProductChangedEvent.Data data = jsonMapper.readValue(DATA_WITHOUT_NEW_FIELDS, ProductChangedEvent.Data.class);
 
@@ -41,13 +41,6 @@ class ProductChangedEventJsonIntegrationTest {
         assertThat(data.brand()).isNull();
         assertThat(data.description()).isNull();
         assertThat(data.sizeSpecs()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("카테고리 경로 칸이 없는 예전 본문을 읽으면 카테고리 경로는 빈 목록이다")
-    void readDataWithoutCategoryPath() {
-        ProductChangedEvent.Data data = jsonMapper.readValue(DATA_WITHOUT_NEW_FIELDS, ProductChangedEvent.Data.class);
-
         assertThat(data.categoryPath()).isEmpty();
     }
 
