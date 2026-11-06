@@ -127,6 +127,17 @@ class ProductDelistTest {
         assertThat(product.getStatus()).isEqualTo(ProductStatus.STOPPED);
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("productsBeforeDelist")
+    @DisplayName("SALE-17 등록 취소한 상품은 판매대기에서 취소했어도 다른 도메인에 알리는 상품이다")
+    void delistedProductIsKnownToOtherDomains(Consumer<ProductDelistTest> given) {
+        given.accept(this);
+
+        product.delist(SELLER_ID);
+
+        assertThat(product.hasStartedSale()).isTrue();
+    }
+
     static Stream<Named<Consumer<ProductDelistTest>>> productsOfOtherSeller() {
         return Stream.of(
             Named.of("판매대기", ProductDelistTest::withSaleStartInputs),
