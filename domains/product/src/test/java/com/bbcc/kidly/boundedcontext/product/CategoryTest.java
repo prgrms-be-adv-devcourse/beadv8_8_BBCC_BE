@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
 
@@ -94,6 +96,38 @@ class CategoryTest {
         return Stream.of(
             Named.of("최상위 의류", clothing),
             Named.of("의류 아래 잡화", Category.createMiddle("잡화", clothing)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("categoriesWithPath")
+    @DisplayName("카테고리 경로는 최상위 카테고리부터 자기까지 순서대로 담는다")
+    void pathFromTopmostToSelf(Category category, List<String> expectedNames) {
+
+        assertThat(category.path()).extracting(Category::getName).containsExactlyElementsOf(expectedNames);
+    }
+
+    static Stream<Arguments> categoriesWithPath() {
+        ProductType type = ProductType.define("의류", ProductTypeFixture.clothingLinks());
+        Category clothing = CategoryFixture.clothing();
+        Category accessories = Category.createMiddle("잡화", clothing);
+        return Stream.of(
+            Arguments.of(Named.of("최상위 말단 카테고리", Category.createLeaf(
+                new Category.LeafInfo("기타", null, type, List.of(totalLength())))), List.of("기타")),
+            Arguments.of(Named.of("대분류 아래 말단 카테고리", CategoryFixture.top(clothing, type)),
+                List.of("의류", "상의")),
+            Arguments.of(Named.of("중간 카테고리 아래 말단 카테고리", Category.createLeaf(
+                new Category.LeafInfo("모자", accessories, type, List.of(totalLength())))),
+                List.of("의류", "잡화", "모자")));
+    }
+
+    @Test
+    @DisplayName("TYPE-09 카테고리 경로는 지운 상위 카테고리도 담는다")
+    void pathIncludesDeletedAncestor() {
+        ProductType type = ProductType.define("의류", ProductTypeFixture.clothingLinks());
+        Category top = CategoryFixture.top(clothing, type);
+        clothing.delete(LocalDateTime.of(2026, 11, 6, 9, 0));
+
+        assertThat(top.path()).extracting(Category::getName).containsExactly("의류", "상의");
     }
 
     @ParameterizedTest(name = "{0}")
