@@ -22,7 +22,7 @@ class WishEventsTest {
 
     @Test
     @DisplayName("이벤트 타입은 wish.item-added · wish.sent · wish.approved · wish.rejected · wish.cancelled · "
-        + "wish.paid(#999), 발행은 주문 도메인, "
+        + "wish.paid(#999) · wish.expired(#1008), 발행은 주문 도메인, "
         + "키는 자녀 프로필 ID")
     void metadata() {
         List<DomainEvent> events = List.of(
@@ -37,13 +37,16 @@ class WishEventsTest {
             new WishCancelledEvent(UUID.randomUUID(), AT, new WishCancelledEvent.Data(50L, CHILD_ID, MEMBER_ID,
                 List.of(new WishCancelledEvent.Item(10L, 3L, 2)))),
             new WishPaidEvent(UUID.randomUUID(), AT, new WishPaidEvent.Data(50L, CHILD_ID, MEMBER_ID,
-                List.of(new WishPaidEvent.Item(10L, 3L, 2)), "MEMBER", MEMBER_ID, 90L)));
+                List.of(new WishPaidEvent.Item(10L, 3L, 2)), "MEMBER", MEMBER_ID, 90L)),
+            new WishExpiredEvent(UUID.randomUUID(), AT, new WishExpiredEvent.Data(50L, CHILD_ID, MEMBER_ID,
+                List.of(new WishExpiredEvent.Item(10L, 3L, 2)))));
 
         assertThat(events).extracting(DomainEvent::eventType)
             .containsExactly("wish.item-added", "wish.sent", "wish.approved", "wish.rejected", "wish.cancelled",
-                "wish.paid");
+                "wish.paid", "wish.expired");
         assertThat(events).extracting(DomainEvent::producer).containsOnly("order");
-        assertThat(events).extracting(DomainEvent::aggregateId).containsExactly("40", "50", "50", "50", "50", "50");
+        assertThat(events).extracting(DomainEvent::aggregateId)
+            .containsExactly("40", "50", "50", "50", "50", "50", "50");
         assertThat(events).extracting(DomainEvent::correlationId).containsOnly(String.valueOf(CHILD_ID));
         assertThat(events).extracting(DomainEvent::schemaVersion).containsOnly(1);
     }
@@ -59,10 +62,13 @@ class WishEventsTest {
             .containsExactly("wishRequestId", "childId", "memberId", "items", "reason");
         assertThat(names(WishCancelledEvent.Data.class))
             .containsExactly("wishRequestId", "childId", "memberId", "items", "cancelReason");
+        assertThat(names(WishExpiredEvent.Data.class))
+            .containsExactly("wishRequestId", "childId", "memberId", "items");
         assertThat(names(WishPaidEvent.Data.class))
             .containsExactly("wishRequestId", "childId", "memberId", "items", "payerType", "payerId", "orderId");
         assertThat(List.of(WishItemAddedEvent.Item.class, WishSentEvent.Item.class, WishApprovedEvent.Item.class,
-            WishRejectedEvent.Item.class, WishCancelledEvent.Item.class, WishPaidEvent.Item.class))
+            WishRejectedEvent.Item.class, WishCancelledEvent.Item.class, WishPaidEvent.Item.class,
+            WishExpiredEvent.Item.class))
             .allSatisfy(item -> assertThat(names(item)).containsExactly("productId", "optionId", "quantity"));
     }
 

@@ -27,6 +27,7 @@
 | | `wish.sent` | 자녀 ID | | notification |
 | | `wish.paid`(조르기 예약 칸이 결제됨, 조르기마다 1번. data `payerType` · `payerId` · `orderId`, #999) | 자녀 ID | | notification |
 | | `wish.rejected` | 자녀 ID | | notification |
+| | `wish.expired`(기한 안에 결제 · 거절이 없어 시스템이 만료, #1008. data는 wish.sent와 같은 모양) | 자녀 ID | | notification |
 | | `wish.cancelled`(처리 전에 철회, #968. #999 추가 칸 `cancelReason` DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM, 없는 예전 메시지는 DIRECT) | 자녀 ID | | (아직 없음) |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |
 | | `payment.refunded` | 주문 ID | | notification |

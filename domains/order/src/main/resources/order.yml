@@ -82,6 +82,21 @@ kidly:
     wish:
       # false면 조르기 API · 빈이 뜨지 않는다(표는 그대로 남는다). 기본 true
       enabled: ${ORDER_WISH_ENABLED:true}
+      # 조르기 기한 만료(#1008, BEG-05). 만료 기한은 저장하지 않고 보낸 시각 + 지금 ttl로 계산한다: ttl을 바꾸면 대기 중인 조르기에도
+      # 바로 적용되고, 끄면 만료되지 않는다(응답 expiresAt도 null)
+      expiry:
+        # false면 만료 주기 작업이 뜨지 않고 기한 지난 조르기도 그대로 둔다. 기본 true
+        enabled: ${ORDER_WISH_EXPIRY_ENABLED:true}
+        # 보낸 뒤 이 기간 동안 응답(결제 · 거절)이 없으면 만료(1초 이상). 기본 7일. 시연 때는 PT2M 정도로 줄인다
+        ttl: ${ORDER_WISH_EXPIRY_TTL:P7D}
+        # 만료 검사 주기(1초 이상, 이전 실행이 끝난 뒤부터 잰다). 처음 실행도 기동 한 주기 뒤다. 기본 1시간.
+        # 검사 전이라도 기한 지난 조르기의 거절 · 철회는 409다(예약 해제는 검사 때)
+        interval: ${ORDER_WISH_EXPIRY_INTERVAL:PT1H}
+        # 기한이 지난 뒤 만료 작업이 만료하기까지 더 기다리는 시간(0 이상). 기한 전에 만든 주문의 결제 완료가 늦게 와도 PAID로 반영되게
+        # 결제 마감(kidly.order.payment-timeout, 기본 10분)보다 길게 둔다(짧으면 기동 때 WARN). 기본 15분.
+        # 유예는 결제 마감 + 결제 완료 전달(Kafka) 지연 여유보다 길게 둔다
+        # 기한 판정(응답 expiresAt · 거절/철회 409 · 예약 결제 가능 기한 = 새 주문 409)은 바꾸지 않는다
+        grace: ${ORDER_WISH_EXPIRY_GRACE:PT15M}
 
     # ===== 배송 컨텍스트(boundedcontext.delivery) =====
     # 택배 조회 스케줄러(배송 컨텍스트, #650). 발송 중인 배송을 Delivery Tracker에 조회해 완료된 건을 배송 완료한다

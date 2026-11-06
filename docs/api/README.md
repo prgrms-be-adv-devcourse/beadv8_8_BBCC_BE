@@ -145,7 +145,7 @@
 | POST | `/api/v1/cart/items` | 장바구니 담기(같은 줄이면 수량 합산, 1 ~ 99). 자녀는 입을 아이가 자기로 고정 | 🔒 |
 | PATCH | `/api/v1/cart/items/{cartItemId}` | 장바구니 수량 변경(예약된 칸 409) | 🔒 |
 | DELETE | `/api/v1/cart/items/{cartItemId}` | 장바구니에서 빼기(예약된 칸 409) | 🔒 |
-| POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) | 🔒 |
+| POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸이라도 그 예약의 결제 가능 기한이 지났으면 409 `RESERVATION_EXPIRED`(`결제 기한이 지난 예약입니다`, #1008). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음. 기한도 지났으면 `RESERVATION_EXPIRED`가 먼저). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) | 🔒 |
 | GET | `/api/v1/orders` | 내 주문 목록 | 🔒 |
 | GET | `/api/v1/orders/{orderId}` | 주문 상세 | 🔒 |
 | POST | `/api/v1/orders/{orderId}/cancel` | 구매자 주문 취소(발송 전, 주문 전체) | 🔒 |
@@ -157,7 +157,7 @@
 | GET | `/api/v1/wish/requests/{requestId}` | 조르기 상세(칸 · 산 것 `purchases` · 결제된 주문상품 ID `paidOrderItemIds`) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/rejection` | 조르기 거절(승인자만, 사유. 예약이 풀린다) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/cancellation` | 조르기 철회(보낸 사람만, 처리 전에만. 상태 `CANCELLED` · `cancelReason` DIRECT, 예약이 풀리고 칸은 장바구니에 남음, #968) | 🔒 |
-| GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 결제 완료 · 거절 · 철회, 산 주문 ID `orderIds`, 직접 철회면 `cancelledBy`) | 🔒 |
+| GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 결제 완료 · 거절 · 철회 · 만료(시스템), 산 주문 ID `orderIds`, 직접 철회면 `cancelledBy`) | 🔒 |
 | GET | `/api/v1/seller/orders` | 판매 주문 목록. 주문상품에 자녀 정보(`child`)는 없다(#997, 제3자 제공 동의 없이 판매자에게 넘기지 않음) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/ship` | 발송(택배사 · 송장번호) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리 | 🏪 |
@@ -217,7 +217,8 @@
 - 결제된 주문상품 ID `paidOrderItemIds[]`(#1000, 목록 · 상세 모두, 문자열, 먼저 산 것부터): 이 조르기로 결제된 주문상품이다. 아래 나를 위해 산 상품 내역의 `orderItemId`와 맞춰 화면이 출처를 표시한다. 결제 완료 반영과 같이 비동기라 결제 직후에는 잠시 비어 있을 수 있다
 - 사람 종류 값이 바뀌었다(계약 변경, #999): 보낸 사람 `requestedByType`(예전 `requestedBy`) · 타임라인 `cancelledBy`는 `MEMBER` · `CHILD`다(예전 `PARENT`는 `MEMBER`로 바뀌고 옛 데이터도 옮겼다)
 - 자녀 · 자녀 계정 삭제(#1001): 그 자녀 장바구니 칸이 지워지고(예약 칸 포함) 그 자녀가 보낸 진행 중 조르기는 `CANCELLED`(원인 `CHILD_DELETED` · `ACCOUNT_DELETED`)가 된다. 회원 탈퇴는 결제대기 주문을 취소하고 회원 장바구니를 비운다(결제 · 배송 중 주문은 그대로). 정리로 빠진 칸은 `cart.item-removed`를 내지 않는다
-- 상태는 `REQUESTED` · `PAID` · `REJECTED` · `CANCELLED`(원인 `cancelReason` DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM)다. #999 전 조르기는 옮기면서 진행 중이던 것을 `CANCELLED`(SYSTEM)로 바꿨다. 공용 장바구니(`/api/v1/wish` · `/api/v1/wish/items`)와 승인(`/approval`)은 없앴다
+- 기한 만료(#1008, BEG-05): 보낸 뒤 기한(기본 7일, `kidly.order.wish.expiry.ttl`) 안에 결제 · 거절이 없으면 시스템이 `EXPIRED`(`expiredAt`)로 만료하고 예약을 푼다(칸은 장바구니에 남는다, `wish.expired`). 기한은 저장하지 않고 보낸 시각 + 지금 설정 기한으로 계산한다: 응답 `expiresAt`은 대기 중이고 만료가 켜져 있을 때만 있고 그 밖은 null이다. 기한을 바꾸면 대기 중인 조르기에도 바로 적용되고, 끄면 만료되지 않는다. 기한이 지난 조르기의 거절 · 철회는 만료 처리 전이라도 409(`기한이 지난 조르기입니다`)다. 보호자의 결제(그 예약 칸으로 주문하기)도 만료 처리 전이라도 409(`결제 기한이 지난 예약입니다`)다: 보낼 때 장바구니 예약에 결제 가능 기한(= 만료 기한, 꺼져 있으면 없음)을 두고, 기한 설정을 바꾸거나 끄면 서버가 뜰 때 진행 중 조르기의 예약 기한을 다시 맞춘다(설정은 기동 때만 바뀐다). 기한이 지났지만 만료 처리(기한 + 유예가 지난 뒤의 주기 작업, 기본 1시간마다, 기동 뒤 첫 실행도 한 주기 뒤) 전이면 칸 예약이 유지되므로, 같은 칸으로 다시 조르면 409(`조르는 중인 상품입니다`)다. 기한이 지난 뒤 유예 + 다음 주기 전까지는 `REQUESTED`로 남고, 이때 `expiresAt`은 지난 시각이며 거절 · 철회 · 새 주문 · 같은 칸 다시 조르기는 모두 409다. 결제가 반영 중인 조르기(결제로 빠진 칸이 있거나, 칸이 남는 일부 수량 결제라도 구매 표시가 있는데 아직 반영 전)는 만료하지 않는다. 만료 처리는 기한이 지나고도 유예(기본 15분, `kidly.order.wish.expiry.grace`, 결제 마감보다 길게)가 더 지나야 한다: 기한이 지나면 새 주문은 막히지만(409), 기한 전에 만든 주문이 결제 마감 안에 결제되면 유예 동안 반영돼 `PAID`가 되고, 아니면 유예 뒤 만료된다(응답 `expiresAt` · 거절/철회 409는 유예 없이 기한 기준). 만료와 결제가 겹치면 먼저 저장한 쪽이 이기고, 만료가 이기면 그 결제는 조르기와 이어지지 않는다(산 것 `purchases`에 남지 않고 상태 · 이벤트 그대로)
+- 상태는 `REQUESTED` · `PAID` · `REJECTED` · `CANCELLED`(원인 `cancelReason` DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM) · `EXPIRED`(#1008)다. #999 전 조르기는 옮기면서 진행 중이던 것을 `CANCELLED`(SYSTEM)로 바꿨다. 공용 장바구니(`/api/v1/wish` · `/api/v1/wish/items`)와 승인(`/approval`)은 없앴다
 - 자녀 계정 연결을 확인할 수 없으면(연결 없음 · 삭제 · 보호자 다름) 403이다. 주문 · 취소 등 다른 주문 API는 회원 로그인만 받는다(나를 위해 산 상품 내역만 자녀 로그인)
 
 나를 위해 산 상품 내역(`GET /api/v1/orders/items/mine?page=&size=`, #1000, BEG-07)은 자녀 로그인만 받는다(회원 로그인이면 403 `자녀만 볼 수 있습니다`, 보호자는 주문 목록으로 본다. 헤더 없음 401, 자녀 계정 연결을 확인할 수 없으면 403). 자기 프로필이 입을 아이로 지정된 주문상품을 주문 일시 최신순으로 팀 목록 형식(`content` · `page` · `size` · `totalElements` · `totalPages` · `hasNext`)으로 준다. `size`는 1~100(기본 20).

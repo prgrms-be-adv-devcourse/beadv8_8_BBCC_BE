@@ -407,7 +407,7 @@ class CartOwnerApiTest {
 
     private void reserve(String cartItemId, Long payerMemberId, String reservationId) {
         transactions.executeWithoutResult(status -> cartReservations.reserve(List.of(Long.valueOf(cartItemId)),
-            List.of(new CartReservations.Payer("MEMBER", payerMemberId)), reservationId));
+            List.of(new CartReservations.Payer("MEMBER", payerMemberId)), reservationId, null));
     }
 
     private RestTestClient.ResponseSpec order(Consumer<HttpHeaders> headers, Map<String, Object> line) {

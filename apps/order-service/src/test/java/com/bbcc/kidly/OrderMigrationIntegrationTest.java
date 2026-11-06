@@ -45,6 +45,13 @@ class OrderMigrationIntegrationTest {
     private static final String RESERVATION_PURCHASED_VERSION_BEFORE = "202611062100";
     private static final String RESERVATION_PURCHASED_MIGRATION =
         "db/migration/orders/V202611062150__cart_reservation_purchased_at.sql";
+    // 조르기 만료 마이그레이션(#1008) 바로 앞 버전과 그 파일
+    private static final String WISH_EXPIRY_VERSION_BEFORE = "202611062150";
+    private static final String WISH_EXPIRY_MIGRATION = "db/migration/orders/V202611062200__wish_request_expiry.sql";
+    // 장바구니 예약 결제 가능 기한 마이그레이션(#1008) 바로 앞 버전과 그 파일
+    private static final String RESERVATION_VALID_UNTIL_VERSION_BEFORE = "202611062200";
+    private static final String RESERVATION_VALID_UNTIL_MIGRATION =
+        "db/migration/orders/V202611062400__cart_reservation_valid_until.sql";
 
     @Test
     @DisplayName("kidly-app이 주문 마이그레이션을 모두 적용한 DB에서는 baseline을 잡고 스키마를 바꾸지 않는다")
@@ -223,6 +230,61 @@ class OrderMigrationIntegrationTest {
                 || ' payer=' || coalesce(payer_type, 'null') || ':' || coalesce(payer_id::text, 'null')
                 || ' rejecter=' || coalesce(rejected_by_type, 'null') || ':' || coalesce(rejected_by_id::text, 'null')
             FROM orders.wish_request ORDER BY id""", String.class);
+    }
+
+    @Test
+    @DisplayName("조르기 만료 마이그레이션(#1008): 상태에 EXPIRED · expired_at이 생기고, 같은 파일을 다시 적용해도 오류 · 변화가 없다")
+    void wishExpiryMigrationIsRepeatable() throws Exception {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createOrderTablesLikeKidlyApp(dataSource, jdbc, WISH_EXPIRY_VERSION_BEFORE);
+            jdbc.update("""
+                INSERT INTO orders.wish_request (id, type, child_id, requested_by_type, requested_by_id, status,
+                    version, created_at, updated_at)
+                VALUES (1, 'WISH', 3, 'CHILD', 3, 'REQUESTED', 0, now(), now())""");
+
+            serviceFlyway(dataSource).load().migrate();
+            jdbc.update("UPDATE orders.wish_request SET status = 'EXPIRED', expired_at = now() WHERE id = 1");
+            String sql = new String(new ClassPathResource(WISH_EXPIRY_MIGRATION).getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+            var before = schema(jdbc);
+            jdbc.execute(sql);
+
+            assertThat(schema(jdbc)).isEqualTo(before);
+            assertThat(jdbc.queryForObject("SELECT status FROM orders.wish_request WHERE id = 1", String.class))
+                .isEqualTo("EXPIRED");
+        }
+    }
+
+    @Test
+    @DisplayName("장바구니 예약 결제 가능 기한 마이그레이션(#1008): 기존 예약 행은 기한 null이고, 같은 파일을 다시 적용해도 오류 · 변화가 없다")
+    void reservationValidUntilMigrationIsRepeatable() throws Exception {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createOrderTablesLikeKidlyApp(dataSource, jdbc, RESERVATION_VALID_UNTIL_VERSION_BEFORE);
+            jdbc.update("INSERT INTO orders.cart_reservation (reservation_id, payer_type, payer_id, created_at,"
+                + " updated_at) VALUES ('wish-1', 'MEMBER', 7, now(), now())");
+
+            serviceFlyway(dataSource).load().migrate();
+            jdbc.update("INSERT INTO orders.cart_reservation (reservation_id, payer_type, payer_id, valid_until,"
+                + " created_at, updated_at) VALUES ('wish-2', 'MEMBER', 7, '2026-11-13 22:00:00', now(), now())");
+            var before = schema(jdbc);
+            String sql = new String(new ClassPathResource(RESERVATION_VALID_UNTIL_MIGRATION).getInputStream()
+                .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            jdbc.execute(sql);
+
+            assertThat(schema(jdbc)).isEqualTo(before)
+                .contains("cart_reservation.valid_until timestamp without time zone YES");
+            assertThat(jdbc.queryForList("SELECT reservation_id || ':' || coalesce(valid_until::text, 'null')"
+                + " FROM orders.cart_reservation ORDER BY id", String.class))
+                .containsExactly("wish-1:null", "wish-2:2026-11-13 22:00:00");
+        }
     }
 
     // kidly-app이 적용한 주문 마이그레이션(init의 orders 구문 · 옛 주문 파일 · 도메인 모듈 파일)은 이 서비스의 것과 같다.

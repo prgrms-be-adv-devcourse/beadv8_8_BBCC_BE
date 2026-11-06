@@ -33,6 +33,8 @@ public enum CartErrorCode implements ErrorCode {
         "자녀 장바구니에는 그 자녀가 입을 상품만 담을 수 있습니다."),
     CART_ITEM_RESERVED(HttpStatus.CONFLICT, "예약된 장바구니 상품입니다",
         "다른 곳에서 결제를 기다리는 상품이라 빼거나 수량을 바꿀 수 없습니다."),
+    RESERVATION_EXPIRED(HttpStatus.CONFLICT, "결제 기한이 지난 예약입니다",
+        "결제할 수 있는 기한이 지난 상품입니다. 장바구니를 새로고침해 주세요."),
     INVALID_RESERVATION(HttpStatus.BAD_REQUEST, "잘못된 예약입니다", "예약할 장바구니 상품과 결제할 사람이 있어야 합니다."),
     CART_ITEM_NOT_ORDERABLE(HttpStatus.FORBIDDEN, "주문할 수 없는 장바구니 상품입니다",
         "자기 장바구니 상품이나 결제를 허락받은 상품만 주문할 수 있습니다."),

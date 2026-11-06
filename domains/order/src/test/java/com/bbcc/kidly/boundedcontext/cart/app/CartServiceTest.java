@@ -558,10 +558,10 @@ class CartServiceTest {
             whole.reserve("wish-5");
             CartItem plain = line(BUYER_ID, 4L, null, 1);
             ReflectionTestUtils.setField(plain, "id", 29L);
-            CartReservation first = CartReservation.allow("wish-4", OwnerType.MEMBER, BUYER_ID);
-            CartReservation second = CartReservation.allow("wish-4", OwnerType.MEMBER, OTHER_ID);
+            CartReservation first = CartReservation.allow("wish-4", OwnerType.MEMBER, BUYER_ID, null);
+            CartReservation second = CartReservation.allow("wish-4", OwnerType.MEMBER, OTHER_ID, null);
             LocalDateTime earlier = LocalDateTime.of(2026, 1, 1, 0, 0);
-            CartReservation alreadyMarked = CartReservation.allow("wish-5", OwnerType.MEMBER, BUYER_ID);
+            CartReservation alreadyMarked = CartReservation.allow("wish-5", OwnerType.MEMBER, BUYER_ID, null);
             alreadyMarked.markPurchased(earlier);
             when(cartItemRepository.findById(27L)).thenReturn(Optional.of(partial));
             when(cartItemRepository.findById(28L)).thenReturn(Optional.of(whole));
@@ -585,12 +585,12 @@ class CartServiceTest {
         @Test
         @DisplayName("hasPurchase: 결제 정리 표시가 있는 예약이면 true, 표시 없는 예약 · 없는 예약 · null이면 false")
         void hasPurchase() {
-            CartReservation marked = CartReservation.allow("wish-6", OwnerType.MEMBER, BUYER_ID);
+            CartReservation marked = CartReservation.allow("wish-6", OwnerType.MEMBER, BUYER_ID, null);
             marked.markPurchased(LocalDateTime.now());
             when(reservationRepository.findAllByReservationId("wish-6"))
-                .thenReturn(List.of(CartReservation.allow("wish-6", OwnerType.MEMBER, OTHER_ID), marked));
+                .thenReturn(List.of(CartReservation.allow("wish-6", OwnerType.MEMBER, OTHER_ID, null), marked));
             when(reservationRepository.findAllByReservationId("wish-7"))
-                .thenReturn(List.of(CartReservation.allow("wish-7", OwnerType.MEMBER, BUYER_ID)));
+                .thenReturn(List.of(CartReservation.allow("wish-7", OwnerType.MEMBER, BUYER_ID, null)));
 
             assertThat(cartService.hasPurchase("wish-6")).isTrue();
             assertThat(cartService.hasPurchase("wish-7")).isFalse();
@@ -725,7 +725,8 @@ class CartServiceTest {
             when(cartItemRepository.findAllByIdIn(any())).thenReturn(List.of(item));
             when(cartItemRepository.findById(CART_ITEM_ID)).thenReturn(Optional.of(item));
 
-            cartService.reserve(List.of(CART_ITEM_ID), List.of(new CartReservations.Payer("MEMBER", OTHER_ID)), "r-1");
+            cartService.reserve(List.of(CART_ITEM_ID), List.of(new CartReservations.Payer("MEMBER", OTHER_ID)), "r-1",
+                null);
 
             assertThat(item.getReservationId()).isEqualTo("r-1");
             ArgumentCaptor<CartReservation> payer = ArgumentCaptor.forClass(CartReservation.class);
@@ -746,16 +747,16 @@ class CartServiceTest {
             when(cartItemRepository.findAllByIdIn(any())).thenReturn(List.of(item)).thenReturn(List.of());
             List<CartReservations.Payer> payers = List.of(new CartReservations.Payer("MEMBER", OTHER_ID));
 
-            assertThatThrownBy(() -> cartService.reserve(List.of(CART_ITEM_ID), payers, "r-1"))
+            assertThatThrownBy(() -> cartService.reserve(List.of(CART_ITEM_ID), payers, "r-1", null))
                 .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_RESERVED);
-            assertThatThrownBy(() -> cartService.reserve(List.of(CART_ITEM_ID), payers, "r-1"))
+            assertThatThrownBy(() -> cartService.reserve(List.of(CART_ITEM_ID), payers, "r-1", null))
                 .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_NOT_FOUND);
-            assertThatThrownBy(() -> cartService.reserve(List.of(), payers, "r-1"))
+            assertThatThrownBy(() -> cartService.reserve(List.of(), payers, "r-1", null))
                 .extracting("errorCode").isEqualTo(CartErrorCode.INVALID_RESERVATION);
-            assertThatThrownBy(() -> cartService.reserve(List.of(CART_ITEM_ID), payers, " "))
+            assertThatThrownBy(() -> cartService.reserve(List.of(CART_ITEM_ID), payers, " ", null))
                 .extracting("errorCode").isEqualTo(CartErrorCode.INVALID_RESERVATION);
             assertThatThrownBy(() -> cartService.reserve(List.of(CART_ITEM_ID),
-                List.of(new CartReservations.Payer("ADMIN", 1L)), "r-1"))
+                List.of(new CartReservations.Payer("ADMIN", 1L)), "r-1", null))
                 .extracting("errorCode").isEqualTo(CartErrorCode.INVALID_RESERVATION);
         }
 
@@ -791,13 +792,13 @@ class CartServiceTest {
             List<CartReservations.Payer> payers = List.of(new CartReservations.Payer("MEMBER", BUYER_ID));
 
             List<CartReservations.ReservedLine> reserved = cartService.reserveOwned(owner, List.of(12L, 11L), payers,
-                "wish-1");
+                "wish-1", null);
 
             assertThat(reserved).containsExactly(new CartReservations.ReservedLine(12L, 3L, CHILD_ID, 1),
                 new CartReservations.ReservedLine(11L, OPTION_ID, CHILD_ID, 2));
             assertThat(first.getReservationId()).isEqualTo("wish-1");
             assertThat(second.getReservationId()).isEqualTo("wish-1");
-            assertThatThrownBy(() -> cartService.reserveOwned(owner, List.of(11L, 13L), payers, "wish-2"))
+            assertThatThrownBy(() -> cartService.reserveOwned(owner, List.of(11L, 13L), payers, "wish-2", null))
                 .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_NOT_FOUND);
             assertThat(parents.isReserved()).isFalse();
         }
@@ -807,7 +808,7 @@ class CartServiceTest {
         void release() {
             CartItem item = line(BUYER_ID, OPTION_ID, null, 1);
             item.reserve("r-1");
-            CartReservation payer = CartReservation.allow("r-1", OwnerType.MEMBER, OTHER_ID);
+            CartReservation payer = CartReservation.allow("r-1", OwnerType.MEMBER, OTHER_ID, null);
             when(cartItemRepository.findAllByReservationId("r-1")).thenReturn(List.of(item));
             when(reservationRepository.findAllByReservationId("r-1")).thenReturn(List.of(payer));
 
@@ -831,7 +832,7 @@ class CartServiceTest {
             when(cartItemRepository.findById(2L)).thenReturn(Optional.of(reservedForMe));
             when(cartItemRepository.findById(3L)).thenReturn(Optional.of(others));
             when(reservationRepository.findAllByReservationId("r-1"))
-                .thenReturn(List.of(CartReservation.allow("r-1", OwnerType.MEMBER, BUYER_ID)));
+                .thenReturn(List.of(CartReservation.allow("r-1", OwnerType.MEMBER, BUYER_ID, null)));
             CartReservations.Payer buyer = new CartReservations.Payer("MEMBER", BUYER_ID);
 
             cartService.requireOrderable(buyer, List.of(new CartCheckout.Line(1L, OPTION_ID, null, 1),
@@ -853,6 +854,125 @@ class CartServiceTest {
                 List.of(new CartCheckout.Line(5L, 1L, null, 1))))
                 .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_NOT_FOUND);
         }
+
+        @Test
+        @DisplayName("결제 가능 기한(#1008): 허용된 예약 칸이라도 기한과 같거나 지났으면 409(수량 초과보다 먼저), 기한 안 · 기한 없음은 통과. "
+            + "자기 칸은 기한과 상관없다")
+        void reservationValidUntil() {
+            CartItem reservedForMe = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, 3L, CHILD_ID, 1);
+            reservedForMe.reserve("r-1");
+            when(cartItemRepository.findById(2L)).thenReturn(Optional.of(reservedForMe));
+            CartReservation allowed = CartReservation.allow("r-1", OwnerType.MEMBER, BUYER_ID,
+                LocalDateTime.now().minusSeconds(1));
+            CartReservation childSelf = CartReservation.allow("r-1", OwnerType.CHILD, CHILD_ID,
+                LocalDateTime.now().minusSeconds(1));
+            when(reservationRepository.findAllByReservationId("r-1")).thenReturn(List.of(allowed, childSelf));
+            CartReservations.Payer buyer = new CartReservations.Payer("MEMBER", BUYER_ID);
+            List<CartCheckout.Line> line = List.of(new CartCheckout.Line(2L, 3L, CHILD_ID, 1));
+
+            assertThatThrownBy(() -> cartService.requireOrderable(buyer, line))
+                .extracting("errorCode").isEqualTo(CartErrorCode.RESERVATION_EXPIRED);
+            // 기한이 지났고 칸 수량(1)도 넘으면 기한 409가 먼저다
+            assertThatThrownBy(() -> cartService.requireOrderable(buyer,
+                List.of(new CartCheckout.Line(2L, 3L, CHILD_ID, 5))))
+                .extracting("errorCode").isEqualTo(CartErrorCode.RESERVATION_EXPIRED);
+            // 칸 주인(자녀)은 자기 칸이라 기한과 상관없다
+            cartService.requireOrderable(new CartReservations.Payer("CHILD", CHILD_ID), line);
+
+            allowed.changeValidUntil(LocalDateTime.now().plusHours(1));
+            cartService.requireOrderable(buyer, line);
+            allowed.changeValidUntil(null);
+            cartService.requireOrderable(buyer, line);
+        }
+
+        @Test
+        @DisplayName("기한이 지난 예약이어도 404 · 403 판정이 409보다 먼저다: 다른 가족 404, 같은 가족인데 허용 안 됨 · 옵션 다름 · 자녀 다름 403")
+        void notFoundAndForbiddenBeforeExpired() {
+            LocalDateTime past = LocalDateTime.now().minusSeconds(1);
+            CartItem allowedLine = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, 3L, CHILD_ID, 1);
+            allowedLine.reserve("r-1");
+            CartItem notAllowedLine = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, 6L, CHILD_ID, 1);
+            notAllowedLine.reserve("r-2");
+            when(cartItemRepository.findById(2L)).thenReturn(Optional.of(allowedLine));
+            when(cartItemRepository.findById(4L)).thenReturn(Optional.of(notAllowedLine));
+            when(reservationRepository.findAllByReservationId("r-1"))
+                .thenReturn(List.of(CartReservation.allow("r-1", OwnerType.MEMBER, BUYER_ID, past)));
+            when(reservationRepository.findAllByReservationId("r-2"))
+                .thenReturn(List.of(CartReservation.allow("r-2", OwnerType.MEMBER, OTHER_ID, past)));
+            CartReservations.Payer buyer = new CartReservations.Payer("MEMBER", BUYER_ID);
+
+            // 다른 가족(허용 주체 아님): 존재를 숨겨 404
+            assertThatThrownBy(() -> cartService.requireOrderable(new CartReservations.Payer("MEMBER", 99L),
+                List.of(new CartCheckout.Line(2L, 3L, CHILD_ID, 1))))
+                .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_NOT_FOUND);
+            // 같은 가족인데 이 예약의 허용 주체가 아니다: 403
+            assertThatThrownBy(() -> cartService.requireOrderable(buyer,
+                List.of(new CartCheckout.Line(4L, 6L, CHILD_ID, 1))))
+                .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_NOT_ORDERABLE);
+            // 허용 주체지만 옵션 · 입을 자녀가 칸과 다르다: 403
+            assertThatThrownBy(() -> cartService.requireOrderable(buyer,
+                List.of(new CartCheckout.Line(2L, 9L, CHILD_ID, 1))))
+                .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_NOT_ORDERABLE);
+            assertThatThrownBy(() -> cartService.requireOrderable(buyer,
+                List.of(new CartCheckout.Line(2L, 3L, null, 1))))
+                .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_NOT_ORDERABLE);
+            // 모두 맞으면 그때 기한을 본다: 409
+            assertThatThrownBy(() -> cartService.requireOrderable(buyer,
+                List.of(new CartCheckout.Line(2L, 3L, CHILD_ID, 1))))
+                .extracting("errorCode").isEqualTo(CartErrorCode.RESERVATION_EXPIRED);
+        }
+
+        @Test
+        @DisplayName("기한 경계: 기한 시각과 같으면 지난 것이고, 1나노초 전은 아니다. 기한이 없으면 늘 아니다")
+        void expiredAtBoundary() {
+            LocalDateTime until = LocalDateTime.of(2026, 11, 13, 10, 0);
+            CartReservation reservation = CartReservation.allow("r-1", OwnerType.MEMBER, BUYER_ID, until);
+
+            assertThat(reservation.isExpiredAt(until)).isTrue();
+            assertThat(reservation.isExpiredAt(until.minusNanos(1))).isFalse();
+            assertThat(CartReservation.allow("r-1", OwnerType.MEMBER, BUYER_ID, null).isExpiredAt(until)).isFalse();
+        }
+
+        @Test
+        @DisplayName("예약할 때 기한을 모든 허용 주체 행에 둔다. 같은 예약을 다시 부르면 이미 있는 행도 이번 기한으로 맞춘다")
+        void reserveSetsValidUntil() {
+            CartItem item = line(BUYER_ID, OPTION_ID, null, 1);
+            when(cartItemRepository.findAllByIdIn(any())).thenReturn(List.of(item));
+            LocalDateTime until = LocalDateTime.of(2026, 11, 13, 10, 0);
+            CartReservation existing = CartReservation.allow("r-1", OwnerType.MEMBER, OTHER_ID, null);
+            when(reservationRepository.findAllByReservationId("r-1")).thenReturn(List.of(existing));
+
+            cartService.reserve(List.of(CART_ITEM_ID), List.of(new CartReservations.Payer("MEMBER", OTHER_ID),
+                new CartReservations.Payer("MEMBER", BUYER_ID)), "r-1", until);
+
+            assertThat(existing.getValidUntil()).isEqualTo(until);
+            ArgumentCaptor<CartReservation> saved = ArgumentCaptor.forClass(CartReservation.class);
+            verify(reservationRepository).save(saved.capture());
+            assertThat(saved.getValue().allows(OwnerType.MEMBER, BUYER_ID)).isTrue();
+            assertThat(saved.getValue().getValidUntil()).isEqualTo(until);
+        }
+
+        @Test
+        @DisplayName("기한 바꾸기는 여러 예약을 한 번에 받고, 값이 실제로 바뀐 예약 수를 돌려준다(없는 예약 · 같은 값은 건너뜀, null = 기한 없음)")
+        void updateValidUntil() {
+            LocalDateTime until = LocalDateTime.of(2026, 11, 13, 10, 0);
+            CartReservation first = CartReservation.allow("r-1", OwnerType.MEMBER, BUYER_ID, null);
+            CartReservation firstOther = CartReservation.allow("r-1", OwnerType.MEMBER, OTHER_ID, null);
+            CartReservation same = CartReservation.allow("r-2", OwnerType.MEMBER, BUYER_ID, until);
+            CartReservation cleared = CartReservation.allow("r-3", OwnerType.MEMBER, BUYER_ID, until);
+            when(reservationRepository.findAllByReservationIdIn(any()))
+                .thenReturn(List.of(first, firstOther, same, cleared));
+
+            int changed = cartService.updateValidUntil(List.of(new CartReservations.ValidUntil("r-1", until),
+                new CartReservations.ValidUntil("r-2", until), new CartReservations.ValidUntil("r-3", null),
+                new CartReservations.ValidUntil("gone", until)));
+
+            assertThat(changed).isEqualTo(2);
+            assertThat(first.getValidUntil()).isEqualTo(until);
+            assertThat(firstOther.getValidUntil()).isEqualTo(until);
+            assertThat(cleared.getValidUntil()).isNull();
+            assertThat(cartService.updateValidUntil(List.of())).isZero();
+        }
     }
 
     @Nested
@@ -869,7 +989,7 @@ class CartServiceTest {
             when(cartItemRepository.findById(1L)).thenReturn(Optional.of(mine));
             when(cartItemRepository.findById(2L)).thenReturn(Optional.of(reservedForMe));
             when(reservationRepository.findAllByReservationId("r-1"))
-                .thenReturn(List.of(CartReservation.allow("r-1", OwnerType.MEMBER, BUYER_ID)));
+                .thenReturn(List.of(CartReservation.allow("r-1", OwnerType.MEMBER, BUYER_ID, null)));
             CartReservations.Payer buyer = new CartReservations.Payer("MEMBER", BUYER_ID);
 
             cartService.requireOrderable(buyer, List.of(new CartCheckout.Line(2L, 3L, CHILD_ID, 2),

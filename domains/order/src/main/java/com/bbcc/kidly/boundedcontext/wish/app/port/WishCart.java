@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.wish.app.port;
 
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishApprovers.Principal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -14,9 +15,17 @@ public interface WishCart {
      *
      * @param payers 결제 허용 주체(승인자들)
      * @param reservationId 조르기 예약 ID
+     * @param validUntil 장바구니 예약의 결제 가능 기한(#1008, 조르기 만료 시각의 사본). null이면 기한 없음
      */
     List<ReservedLine> reserveOwned(Principal owner, List<Long> cartItemIds, List<Principal> payers,
-        String reservationId);
+        String reservationId, LocalDateTime validUntil);
+
+    /**
+     * 예약들의 결제 가능 기한을 바꾼다(#1008, 기한 설정이 바뀌면 다시 계산한 값). 없는 예약은 건너뛴다.
+     *
+     * @return 실제로 값이 바뀐 예약 수
+     */
+    int updateValidUntil(List<ValidUntil> changes);
 
     /**
      * 이 예약에 아직 남은 칸 ID. 예약 칸은 주인이 뺄 수 없으므로 줄보다 적으면 결제 정리로 빠진 칸이 있다.
@@ -32,6 +41,12 @@ public interface WishCart {
      * 예약을 푼다(칸은 장바구니에 남는다). 없는 예약이면 아무것도 하지 않는다.
      */
     void release(String reservationId);
+
+    /**
+     * @param validUntil null이면 기한 없음
+     */
+    record ValidUntil(String reservationId, LocalDateTime validUntil) {
+    }
 
     /**
      * @param childId 입을 자녀. 없으면 null

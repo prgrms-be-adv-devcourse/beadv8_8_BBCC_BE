@@ -22,6 +22,7 @@ import com.bbcc.kidly.shared.order.event.CartItemPurchasedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -210,7 +211,8 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
     }
 
     @Override
-    public void reserve(List<Long> cartItemIds, List<Payer> payers, String reservationId) {
+    public void reserve(List<Long> cartItemIds, List<Payer> payers, String reservationId,
+        LocalDateTime validUntil) {
         if (cartItemIds == null || cartItemIds.isEmpty() || cartItemIds.stream().anyMatch(Objects::isNull)
             || payers == null || payers.isEmpty() || reservationId == null || reservationId.isBlank()
             || reservationId.length() > CartReservation.RESERVATION_ID_MAX) {
@@ -228,15 +230,17 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
             throw CartErrors.toBusiness(e);
         }
         List<CartReservation> existing = reservationRepository.findAllByReservationId(reservationId);
+        // 같은 예약의 행은 기한이 같아야 한다: 이미 있는 허용 주체도 이번 기한으로 맞춘다
+        existing.forEach(saved -> saved.changeValidUntil(validUntil));
         parsedPayers.stream()
             .filter(payer -> existing.stream().noneMatch(saved -> saved.allows(payer.type(), payer.id())))
             .forEach(payer -> reservationRepository.save(
-                CartReservation.allow(reservationId, payer.type(), payer.id())));
+                CartReservation.allow(reservationId, payer.type(), payer.id(), validUntil)));
     }
 
     @Override
     public List<ReservedLine> reserveOwned(Payer owner, List<Long> cartItemIds, List<Payer> payers,
-        String reservationId) {
+        String reservationId, LocalDateTime validUntil) {
         Owner parsedOwner = parse(owner);
         if (cartItemIds == null || cartItemIds.isEmpty() || cartItemIds.stream().anyMatch(Objects::isNull)) {
             throw new BusinessException(CartErrorCode.INVALID_RESERVATION);
@@ -247,7 +251,7 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
         if (!owned.keySet().containsAll(cartItemIds)) {
             throw new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND);
         }
-        reserve(cartItemIds, payers, reservationId);
+        reserve(cartItemIds, payers, reservationId, validUntil);
         return cartItemIds.stream()
             .map(owned::get)
             .map(item -> new ReservedLine(item.getId(), item.getOptionId(), item.getChildId(), item.getQuantity()))
@@ -274,6 +278,28 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
     }
 
     @Override
+    public int updateValidUntil(List<ValidUntil> changes) {
+        if (changes == null || changes.isEmpty()) {
+            return 0;
+        }
+        Map<String, LocalDateTime> wanted = new HashMap<>();
+        changes.stream().filter(change -> change.reservationId() != null)
+            .forEach(change -> wanted.put(change.reservationId(), change.validUntil()));
+        if (wanted.isEmpty()) {
+            return 0;
+        }
+        Set<String> changed = new HashSet<>();
+        for (CartReservation saved : reservationRepository.findAllByReservationIdIn(wanted.keySet())) {
+            LocalDateTime validUntil = wanted.get(saved.getReservationId());
+            if (!Objects.equals(saved.getValidUntil(), validUntil)) {
+                saved.changeValidUntil(validUntil);
+                changed.add(saved.getReservationId());
+            }
+        }
+        return changed.size();
+    }
+
+    @Override
     public void release(String reservationId) {
         if (reservationId == null) {
             return;
@@ -286,10 +312,12 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
     @Transactional(readOnly = true)
     public void requireOrderable(Payer buyer, List<Line> lines) {
         Owner parsed = parse(buyer);
+        LocalDateTime now = LocalDateTime.now();
         for (Line line : lines) {
             CartItem item = cartItemRepository.findById(line.cartItemId())
                 .orElseThrow(() -> new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND));
-            boolean orderable = isOrderableBy(item, parsed.type(), parsed.id());
+            Optional<CartReservation> allowed = allowedReservation(item, parsed.type(), parsed.id());
+            boolean orderable = item.isOwnedBy(parsed.type(), parsed.id()) || allowed.isPresent();
             // 다른 가족의 칸이고 허용 주체도 아니면 없는 칸과 같게(존재를 숨김). 같은 가족인데 허용되지 않았으면 403
             if (!orderable && !item.getMemberId().equals(memberIdOf(parsed))) {
                 throw new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND);
@@ -297,6 +325,10 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
             if (!orderable || !item.getOptionId().equals(line.optionId())
                 || !Objects.equals(item.getChildId(), line.childId())) {
                 throw new BusinessException(CartErrorCode.CART_ITEM_NOT_ORDERABLE);
+            }
+            // 남의 예약 칸을 허락받아 주문하는데 결제 가능 기한이 지났다(#1008). 자기 칸은 기한과 상관없다
+            if (!item.isOwnedBy(parsed.type(), parsed.id()) && allowed.get().isExpiredAt(now)) {
+                throw new BusinessException(CartErrorCode.RESERVATION_EXPIRED);
             }
             // 예약 칸(자기 칸이 아니라 허용받아 주문)은 담긴 수량까지만. 자기 칸은 지금처럼 수량을 보지 않는다
             if (!item.isOwnedBy(parsed.type(), parsed.id()) && line.quantity() > item.getQuantity()) {
@@ -310,13 +342,14 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
         return owner.type() == OwnerType.MEMBER ? owner.id() : null;
     }
 
-    // 자기 칸이거나, 예약 칸이고 그 예약의 허용 주체다
-    private boolean isOrderableBy(CartItem item, OwnerType type, Long id) {
-        if (item.isOwnedBy(type, id)) {
-            return true;
+    // 예약 칸이고 이 주체가 그 예약의 허용 주체면 그 허용 행
+    private Optional<CartReservation> allowedReservation(CartItem item, OwnerType type, Long id) {
+        if (!item.isReserved()) {
+            return Optional.empty();
         }
-        return item.isReserved() && reservationRepository.findAllByReservationId(item.getReservationId()).stream()
-            .anyMatch(payer -> payer.allows(type, id));
+        return reservationRepository.findAllByReservationId(item.getReservationId()).stream()
+            .filter(payer -> payer.allows(type, id))
+            .findFirst();
     }
 
     private void publishItemRemoved(CartItem item) {
