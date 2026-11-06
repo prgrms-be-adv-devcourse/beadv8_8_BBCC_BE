@@ -16,13 +16,12 @@ import tools.jackson.databind.json.JsonMapper;
 @IntegrationTest
 class ProductChangedEventJsonIntegrationTest {
 
-    // 브랜드 · 설명 · 사이즈별 실측 칸이 생기기 전에 나간 본문의 data다
+    // 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 칸이 생기기 전에 나간 본문의 data다
     private static final String DATA_WITHOUT_NEW_FIELDS = """
         {"productId":1,"sellerId":2,"name":"데일리 맨투맨","categoryId":5,"status":"ON_SALE",
          "thumbnailUrl":null,"createdAt":"2026-10-01T09:00:00","sizeFree":false,"options":[],"infoValues":[]}
         """;
 
-    // 카테고리 경로를 담은 본문의 data다
     private static final String DATA_WITH_CATEGORY_PATH = """
         {"productId":1,"sellerId":2,"name":"데일리 맨투맨","categoryId":5,"status":"ON_SALE",
          "thumbnailUrl":null,"createdAt":"2026-10-01T09:00:00","sizeFree":false,"options":[],"infoValues":[],

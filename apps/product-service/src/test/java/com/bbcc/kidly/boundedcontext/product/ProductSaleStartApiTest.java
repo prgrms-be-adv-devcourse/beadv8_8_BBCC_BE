@@ -168,7 +168,6 @@ class ProductSaleStartApiTest {
     void startSaleOutboxPayloadCarriesCategoryPath() {
         startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
 
-        // 상품의 카테고리는 판매 시작 트랜잭션에서 다시 읽으므로 대분류는 지연 로딩으로 읽힌 값이다
         JsonNode categoryPath = jsonMapper.readTree(
             jdbcTemplate.queryForObject("select payload from product.product_outbox", String.class))
             .get("data").get("categoryPath");

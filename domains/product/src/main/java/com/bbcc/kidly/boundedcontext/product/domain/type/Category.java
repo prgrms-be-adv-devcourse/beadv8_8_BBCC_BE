@@ -203,7 +203,6 @@ public class Category extends BaseSoftDeleteEntity {
         return productType;
     }
 
-    // 최상위 카테고리부터 자기까지의 경로다. 지운 상위 카테고리도 담는다. 상품이 이미 쓰는 카테고리는 지워도 읽히기 때문이다.
     // 부모는 지연 로딩 프록시일 수 있으므로 필드가 아니라 getter로 따라간다
     public List<Category> path() {
         List<Category> path = new ArrayList<>();
