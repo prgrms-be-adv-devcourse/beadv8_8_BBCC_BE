@@ -582,14 +582,14 @@ class RecommendReplicaProductTest {
         RecommendReplicaProduct.ChangeInfo base = RecommendFixture.productAChange();
         return new RecommendReplicaProduct.ChangeInfo(base.productId(), base.sellerId(), base.categoryId(), base.name(),
             base.status(), base.thumbnailUrl(), base.registeredAt(), base.sizeFree(), base.options(), base.brand(),
-            base.description(), base.sizeSpecs(), base.occurredAt(), TOPS_PATH);
+            base.description(), base.sizeSpecs(), base.infoValues(), base.occurredAt(), TOPS_PATH);
     }
 
     private static RecommendReplicaProduct.ChangeInfo changeWithCategoryPath(
         List<RecommendReplicaProduct.CategoryPathEntryInfo> categoryPath, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
-            null, null, List.of(), occurredAt, categoryPath);
+            null, null, List.of(), List.of(), occurredAt, categoryPath);
     }
 
     private static RecommendReplicaProduct.ChangeInfo change(Long productId, Long sellerId, ProductStatus status,
