@@ -74,7 +74,12 @@ public class ChildAccountService {
         deleteAccount(ownedAccount(guardianId, accountId));
     }
 
-    void deleteAccount(ChildAccount account) {
+    @Transactional
+    public void deleteByChildProfileId(Long childProfileId) {
+        accounts.findByChildProfileIdForUpdate(childProfileId).ifPresent(this::deleteAccount);
+    }
+
+    private void deleteAccount(ChildAccount account) {
         accounts.delete(account);
         revokeTokens(account.getId());
         appendChange(account, true);

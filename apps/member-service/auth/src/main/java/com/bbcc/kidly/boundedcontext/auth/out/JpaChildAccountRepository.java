@@ -17,6 +17,11 @@ public interface JpaChildAccountRepository extends JpaRepository<ChildAccount, L
 
     @Override
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from ChildAccount a where a.childProfileId = :childProfileId")
+    Optional<ChildAccount> findByChildProfileIdForUpdate(@Param("childProfileId") Long childProfileId);
+
+    @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from ChildAccount a where a.id = :id")
     Optional<ChildAccount> findByIdForUpdate(@Param("id") Long id);
     @Override
