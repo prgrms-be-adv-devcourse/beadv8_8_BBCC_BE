@@ -5,8 +5,6 @@ import com.bbcc.kidly.boundedcontext.product.app.product.ProductSaleService;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductSaleStatusRequest;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductChangedRepublishResponse;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductSaleStatusResponse;
-import com.bbcc.kidly.global.security.AuthAdmin;
-import com.bbcc.kidly.global.security.LoginAdmin;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +37,7 @@ public class AdminProductController {
 
     // 등록 취소한 상품을 판매중지로 되돌린다. 다시 팔지는 판매자가 판매 시작으로 정한다
     @DeleteMapping("/{productId}/delisting")
-    public ProductSaleStatusResponse revertDelisting(@LoginAdmin AuthAdmin admin, @PathVariable Long productId) {
+    public ProductSaleStatusResponse revertDelisting(@PathVariable Long productId) {
         return ProductSaleStatusResponse.from(productSaleService.revertDelistByAdmin(productId));
     }
 

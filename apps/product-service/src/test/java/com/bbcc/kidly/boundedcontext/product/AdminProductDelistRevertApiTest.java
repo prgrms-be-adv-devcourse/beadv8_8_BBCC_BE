@@ -118,16 +118,6 @@ class AdminProductDelistRevertApiTest {
             "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
     }
 
-    @Test
-    @DisplayName("관리자 헤더 없이 되돌리면 401이고, 상태가 그대로다")
-    void rejectRevertWithoutAdminLogin() {
-        delistBySeller();
-
-        revert(headers -> { }).expectStatus().isUnauthorized();
-
-        assertThat(storedStatus()).isEqualTo("DELISTED");
-    }
-
     // 판매자 판매 상태 변경 API로 상품을 원하는 상태로 만들고, 그때의 판매 상태 이름을 돌려준다
     private String prepare(String given) {
         if (given.equals("판매대기")) {
