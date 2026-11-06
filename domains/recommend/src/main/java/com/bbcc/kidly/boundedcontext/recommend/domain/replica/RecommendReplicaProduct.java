@@ -120,14 +120,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     // 사이즈별 실측은 이벤트가 칸이 없으면 빈 목록으로 바꿔 주므로 null이 오지 않는다
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
-        String brand, String description, List<SizeSpecInfo> sizeSpecs, List<InfoValueInfo> infoValues,
+        String brand, String description, List<SizeSpecInfo> sizeSpecs, List<ProductEmbeddingText.InfoValue> infoValues,
         LocalDateTime occurredAt) {
-    }
-
-    /**
-     * 상품 정보 값 하나의 입력 값이다. 임베딩 글을 만드는 데만 쓰고 복사본에는 저장하지 않는다.
-     */
-    public record InfoValueInfo(String code, String value) {
     }
 
     /**
@@ -189,7 +183,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
                 spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
         }
         this.embeddingText = ProductEmbeddingText.compose(
-            info.name(), info.brand(), toInfoValues(info.infoValues()), info.description()).value();
+            info.name(), info.brand(), info.infoValues(), info.description()).value();
         this.sellerId = info.sellerId();
         this.categoryId = info.categoryId();
         this.name = info.name();
@@ -223,18 +217,6 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             }
             this.sizes.add(SizeRange.of(option.size(), option.minHeightCm(), option.maxHeightCm()));
         }
-    }
-
-    // 새 칸이 없는 예전 메시지는 정보 값이 null로 오므로 빈 목록으로 본다
-    private static List<ProductEmbeddingText.InfoValue> toInfoValues(List<InfoValueInfo> infoValues) {
-        List<ProductEmbeddingText.InfoValue> result = new ArrayList<>();
-        if (infoValues == null) {
-            return result;
-        }
-        for (InfoValueInfo infoValue : infoValues) {
-            result.add(new ProductEmbeddingText.InfoValue(infoValue.code(), infoValue.value()));
-        }
-        return result;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.replica;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -49,21 +50,20 @@ public class RecommendReplicaProductService {
             data.brand(),
             data.description(),
             toSizeSpecInfos(data.sizeSpecs()),
-            toInfoValueInfos(data.infoValues()),
+            toInfoValues(data.infoValues()),
             event.occurredAt());
     }
 
     // 이벤트의 상품 정보 값은 칸이 없는 예전 메시지에서 null로 오므로 빈 목록으로 본다
-    private List<RecommendReplicaProduct.InfoValueInfo> toInfoValueInfos(
-        List<ProductChangedEvent.AttributeEntry> infoValues) {
-        List<RecommendReplicaProduct.InfoValueInfo> infos = new ArrayList<>();
+    private List<ProductEmbeddingText.InfoValue> toInfoValues(List<ProductChangedEvent.AttributeEntry> infoValues) {
+        List<ProductEmbeddingText.InfoValue> result = new ArrayList<>();
         if (infoValues == null) {
-            return infos;
+            return result;
         }
         for (ProductChangedEvent.AttributeEntry entry : infoValues) {
-            infos.add(new RecommendReplicaProduct.InfoValueInfo(entry.code(), entry.value()));
+            result.add(new ProductEmbeddingText.InfoValue(entry.code(), entry.value()));
         }
-        return infos;
+        return result;
     }
 
     // 이벤트의 사이즈별 실측은 칸이 없는 예전 메시지도 빈 목록으로 오므로 null을 검사하지 않는다

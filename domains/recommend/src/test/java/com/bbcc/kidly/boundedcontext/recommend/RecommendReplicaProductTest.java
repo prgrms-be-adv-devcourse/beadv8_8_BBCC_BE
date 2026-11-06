@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
@@ -513,7 +514,7 @@ class RecommendReplicaProductTest {
 
     // 상품 A의 다른 값은 그대로 두고 설명 · 정보 값 · 발생 시각만 정해 만든다
     private static RecommendReplicaProduct.ChangeInfo changeWithInfoValues(String description,
-        List<RecommendReplicaProduct.InfoValueInfo> infoValues, LocalDateTime occurredAt) {
+        List<ProductEmbeddingText.InfoValue> infoValues, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
             "키들리", description, List.of(), infoValues, occurredAt);
