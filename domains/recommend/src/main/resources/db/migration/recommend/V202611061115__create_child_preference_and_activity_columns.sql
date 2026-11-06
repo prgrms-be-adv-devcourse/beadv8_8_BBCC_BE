@@ -1,4 +1,4 @@
--- #939 자녀별 선호 집계 표를 만들고, 활동 기록에 받은 때의 브랜드 칸과 색인을 더한다.
+-- #939 자녀별 선호 집계 표를 만들고, 활동 기록에 받은 때의 브랜드 칸 · 집계에서 몫을 뺀 시각 칸과 색인을 더한다.
 -- 집계 표는 자녀 ID를 FK 없이 값으로만 참조한다. 같은 (자녀, 카테고리) · (자녀, 브랜드)는 한 줄만 있고
 -- 활동을 받을 때 INSERT ... ON CONFLICT로 횟수를 올리고 내리므로 UNIQUE를 건다.
 -- 횟수는 0에서 자르지 않으므로 0 이상 CHECK를 걸지 않는다.
@@ -55,8 +55,19 @@ ALTER TABLE ONLY recommend.child_brand_preference
 -- 카테고리는 기존 category_id 칸을 같이 쓴다.
 ALTER TABLE recommend.activity_record ADD COLUMN brand text;
 
+-- 이 활동의 몫을 집계에서 뺀 시각이다. null이면 아직 집계에 세고 있다.
+-- 만료 · 장바구니 빼기 · 기준 시각 보정이 같은 몫을 두 번 빼지 않으려고, 아직 세고 있는 활동만 골라 빼는 데 쓴다.
+ALTER TABLE recommend.activity_record ADD COLUMN uncounted_at timestamp(6) without time zone;
+
 -- 자녀별 기간 조회와 회원 탈퇴 삭제에 쓴다.
 CREATE INDEX idx_activity_record_child_profile_id_occurred_at
     ON recommend.activity_record USING btree (child_profile_id, occurred_at);
 
 CREATE INDEX idx_activity_record_member_id ON recommend.activity_record USING btree (member_id);
+
+-- 만료 작업이 자녀와 상관없이 아직 세고 있는 활동 중 오래된 것을 훑는 데 쓴다.
+CREATE INDEX idx_activity_record_occurred_at_counted
+    ON recommend.activity_record USING btree (occurred_at) WHERE uncounted_at IS NULL;
+
+-- 장바구니 빼기가 같은 줄의 담기 기록을 찾는 데 쓴다.
+CREATE INDEX idx_activity_record_cart_item_id ON recommend.activity_record USING btree (cart_item_id);

@@ -64,6 +64,10 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(columnDefinition = "TEXT")
     private String brand;
 
+    // 이 활동의 몫을 선호 집계에서 뺀 시각이다. null이면 아직 집계에 세고 있다
+    @Column(name = "uncounted_at")
+    private LocalDateTime uncountedAt;
+
     // 키는 항목 code, 값은 항목 값 ID 목록이다
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attribute_value_ids")
