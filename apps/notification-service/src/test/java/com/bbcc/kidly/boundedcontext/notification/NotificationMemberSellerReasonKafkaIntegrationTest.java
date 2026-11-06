@@ -33,7 +33,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
@@ -51,6 +54,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 받는 사람을 테스트마다 새로 만들고, 결과는 이 테스트의 받는 사람으로 걸러 본다.
  */
 @KafkaIntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class NotificationMemberSellerReasonKafkaIntegrationTest {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -139,9 +143,31 @@ class NotificationMemberSellerReasonKafkaIntegrationTest {
             .satisfies(mail -> assertThat(mail.text()).contains("상호명: 키들리 상점"));
     }
 
+    @Test
+    @DisplayName("승인을 받았을 때 회원 이메일 복사본이 아직 없어도, 다시 시도하는 사이 이메일이 오면 승인 메일을 보낸다")
+    void sendSellerApprovedEmailAfterContactArrives(CapturedOutput output) throws Exception {
+        var sellerId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+        var sellerEmail = "seller-" + UUID.randomUUID() + "@kidly.co.kr";
+
+        send("kidly.seller.events", new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new SellerChangedEvent.Data(sellerId, "키들리 상점", SellerStatus.ACTIVE)));
+        // 첫 시도가 이메일 복사본이 없어 실패한 뒤에 회원 이메일이 들어온다
+        AsyncWait.until(TIMEOUT, () -> output.getOut().contains("memberId=" + sellerId));
+        memberContactService.save(sellerId, sellerEmail);
+
+        AsyncWait.until(TIMEOUT, () -> notifications(sellerEmail).stream().map(Notification::getStatus).toList()
+            .equals(List.of(NotificationStatus.SENT)));
+        assertThat(notifications(sellerEmail)).singleElement()
+            .satisfies(n -> assertThat(n.getType()).isEqualTo(NotificationType.SELLER_APPROVED));
+    }
+
     private List<Notification> notifications() {
+        return notifications(email);
+    }
+
+    private List<Notification> notifications(String recipient) {
         return jpaNotificationRepository.findAll().stream()
-            .filter(notification -> email.equals(notification.getRecipient()))
+            .filter(notification -> recipient.equals(notification.getRecipient()))
             .toList();
     }
 
