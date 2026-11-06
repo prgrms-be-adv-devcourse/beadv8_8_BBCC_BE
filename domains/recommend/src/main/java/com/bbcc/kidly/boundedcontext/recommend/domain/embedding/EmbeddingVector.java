@@ -17,6 +17,11 @@ public record EmbeddingVector(float[] values) {
         if (values.length != DIMENSIONS) {
             throw new IllegalArgumentException("벡터의 차원은 " + DIMENSIONS + "이어야 합니다: " + values.length);
         }
+        for (float value : values) {
+            if (!Float.isFinite(value)) {
+                throw new IllegalArgumentException("벡터의 값은 NaN이나 무한대일 수 없습니다");
+            }
+        }
         values = values.clone();
     }
 
