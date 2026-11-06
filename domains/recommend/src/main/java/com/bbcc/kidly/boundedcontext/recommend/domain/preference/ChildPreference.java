@@ -58,6 +58,9 @@ public final class ChildPreference {
     }
 
     public int brandPoints(String brand) {
+        if (hasNoBrand(brand)) {
+            return 0;
+        }
         if (appeared(brandActivityCounts, brand)) {
             return BRAND_POINTS;
         }
@@ -75,7 +78,7 @@ public final class ChildPreference {
                 addCount(cartAddCounts, activity.categoryId(), delta);
             }
         }
-        if (activity.brand() != null) {
+        if (!hasNoBrand(activity.brand())) {
             addCount(brandCounts, activity.brand(), delta);
         }
         return new ChildPreference(activityCounts, cartAddCounts, brandCounts);
@@ -83,6 +86,11 @@ public final class ChildPreference {
 
     private static <K> void addCount(Map<K, Integer> counts, K key, int delta) {
         counts.put(key, counts.getOrDefault(key, 0) + delta);
+    }
+
+    // 빈 문자열 브랜드끼리 일치해 점수를 받지 않도록 브랜드가 없는 것과 같게 본다
+    private static boolean hasNoBrand(String brand) {
+        return brand == null || brand.isBlank();
     }
 
     private static <K> boolean appeared(Map<K, Integer> counts, K key) {
