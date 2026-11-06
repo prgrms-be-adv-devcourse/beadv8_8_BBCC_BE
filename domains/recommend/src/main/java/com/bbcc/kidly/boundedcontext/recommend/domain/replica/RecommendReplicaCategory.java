@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.replica;
 
+import static java.util.Objects.requireNonNull;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import lombok.AccessLevel;
@@ -22,7 +24,7 @@ public class RecommendReplicaCategory {
     private String categoryName;
 
     public RecommendReplicaCategory(Long categoryId, String categoryName) {
-        this.categoryId = categoryId;
-        this.categoryName = categoryName;
+        this.categoryId = requireNonNull(categoryId, "categoryId는 필수입니다");
+        this.categoryName = requireNonNull(categoryName, "categoryName은 필수입니다");
     }
 }

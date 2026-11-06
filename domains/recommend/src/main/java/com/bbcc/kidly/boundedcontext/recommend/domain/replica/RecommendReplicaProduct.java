@@ -203,7 +203,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     }
 
     private void apply(ChangeInfo info) {
-        // 실측 줄에 사이즈나 실측 값이 없으면 값을 하나도 바꾸기 전에 실패하도록 새 실측 줄을 먼저 만든다
+        // 실측 줄이나 카테고리 경로 칸에 필수 값이 없으면 값을 하나도 바꾸기 전에 실패하도록 새 줄을 먼저 만든다
         List<RecommendReplicaSizeSpec> newSizeSpecs = new ArrayList<>();
         for (SizeSpecInfo spec : info.sizeSpecs()) {
             newSizeSpecs.add(new RecommendReplicaSizeSpec(
