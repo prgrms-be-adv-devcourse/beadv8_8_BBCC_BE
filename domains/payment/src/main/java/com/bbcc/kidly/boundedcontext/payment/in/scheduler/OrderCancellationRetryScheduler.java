@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.payment.in.scheduler;
 
 import com.bbcc.kidly.boundedcontext.payment.app.OrderCancellationRetryService;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics.SchedulerTask;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.OrderCancellationRetryTarget;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Component;
 /**
  * 처리하다 실패한 주문 취소를 다시 처리한다. 주기는 설정(kidly.payment.order-cancellation.retry-interval)으로 정한다.
  * 한 건 = 트랜잭션 하나. 한 건이 또 실패하면 시도 횟수를 남기고 다음 건을 처리한다.
+ * 대상을 끝까지 돌면 성공으로 기록한다. 남은 건수는 재처리 대기 지표로 본다.
  */
 @Slf4j
 @Component
@@ -17,6 +20,7 @@ import org.springframework.stereotype.Component;
 public class OrderCancellationRetryScheduler {
 
     private final OrderCancellationRetryService orderCancellationRetryService;
+    private final PaymentMetrics metrics;
 
     @Scheduled(fixedDelayString = "${kidly.payment.order-cancellation.retry-interval:PT1M}")
     public void retryFailed() {
@@ -29,5 +33,6 @@ public class OrderCancellationRetryScheduler {
                 orderCancellationRetryService.recordFailure(target.retryId(), e);
             }
         }
+        metrics.markSchedulerSuccess(SchedulerTask.ORDER_CANCELLATION_RETRY);
     }
 }

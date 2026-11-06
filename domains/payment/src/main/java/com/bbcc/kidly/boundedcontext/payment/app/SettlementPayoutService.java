@@ -33,6 +33,7 @@ public class SettlementPayoutService {
     private final WalletLedgerRepository walletLedgerRepository;
     private final PayoutRepository payoutRepository;
     private final EventPublisher eventPublisher;
+    private final PaymentMetrics metrics;
 
     @Transactional
     public void payout(PayoutCommand command) {
@@ -49,6 +50,7 @@ public class SettlementPayoutService {
             "memberId={} walletId={} settlementId={} amount={} ledgerId={} balance={}",
             command.sellerId(), wallet.getId(), command.settlementId(), command.amount(), ledgerId,
             wallet.getBalance());
+        metrics.countPayoutCompleted();
         publishResult(payoutRepository.save(Payout.complete(command.settlementId(), command.sellerId(),
             command.amount(), ledgerId, now)));
     }

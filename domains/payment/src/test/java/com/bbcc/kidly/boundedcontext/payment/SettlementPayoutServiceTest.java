@@ -11,6 +11,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics;
 import com.bbcc.kidly.boundedcontext.payment.app.SettlementPayoutService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PayoutCommand;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payout;
@@ -55,6 +56,9 @@ class SettlementPayoutServiceTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    @Mock
+    private PaymentMetrics metrics;
+
     @InjectMocks
     private SettlementPayoutService settlementPayoutService;
 
@@ -88,6 +92,7 @@ class SettlementPayoutServiceTest {
         assertThat(event.data().amount()).isEqualTo(270_000L);
         assertThat(event.data().ledgerId()).isEqualTo(LEDGER_ID);
         assertThat(event.data().paidAt()).isEqualTo(payout.getValue().getPaidAt());
+        then(metrics).should().countPayoutCompleted();
     }
 
     @Test
@@ -126,6 +131,7 @@ class SettlementPayoutServiceTest {
         assertThat(event.data().amount()).isEqualTo(270_000L);
         assertThat(event.data().ledgerId()).isEqualTo(LEDGER_ID);
         assertThat(event.data().paidAt()).isEqualTo(NOW);
+        then(metrics).should(never()).countPayoutCompleted();
     }
 
     @Test

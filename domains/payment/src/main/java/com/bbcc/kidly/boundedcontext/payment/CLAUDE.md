@@ -232,6 +232,29 @@
   - 릴레이는 스케줄러 스레드(앱 전체 1개) · DB 트랜잭션을 쥔 채 기다리므로, 브로커가 죽어 있으면 한 주기가 최대 약 13초 걸려 그만큼 다른 스케줄러가 늦어질 수 있다
 - 로컬 `bootRun`은 `docker compose up -d`로 Kafka를 함께 띄운다. 없으면 메시지가 아웃박스에 쌓이고 릴레이가 주기마다 WARN을 남긴다. Kafka를 띄우면 쌓인 것부터 순서대로 보낸다
 
+## 지표 (`app/PaymentMetrics`, #786)
+- 결제 서비스 `/actuator/prometheus`에 나온다. 지표 이름 · 태그 값은 `PaymentMetrics`에만 둔다. 태그에 회원 · 주문 ID 같은 값을 넣지 않는다
+- 알림 규칙 · 대시보드는 모니터링 이슈(#774 · #777)에서 붙인다. 토스 호출 지표 · 잔액과 원장 대조 · DLT 재처리 도구는 범위 밖이다
+
+| 지표 | 종류 | 태그 | 뜻 · 늘리는 곳 |
+|---|---|---|---|
+| `kidly_payment_outbox_unsent_messages` | gauge | - | `sent_at IS NULL`인 아웃박스 메시지 수 |
+| `kidly_payment_outbox_oldest_unsent_age_seconds` | gauge | - | 가장 오래된 미전송 메시지의 나이(`created_at` 기준). 없으면 0 |
+| `kidly_payment_outbox_send_failures_total` | counter | `event_type`(결제가 보내는 eventType 5종) | 릴레이가 Kafka로 보내지 못한 횟수(`PaymentOutboxRelayService`). 같은 메시지가 주기마다 다시 실패하면 그때마다 센다 |
+| `kidly_payment_dlt_messages_total` | counter | `topic`(받는 토픽 3종) | DLT로 보낸 수신 메시지 수(`PaymentKafkaListenerConfig`의 recoverer) |
+| `kidly_payment_order_payments_total` | counter | `result`(`success` · `failure`), `reason`(`none` · `INSUFFICIENT_BALANCE` · `AMOUNT_MISMATCH` · `WALLET_NOT_FOUND`) | 주문 결제 결과(`OrderPaymentService`). 이미 결제한 주문 · 결제 전 취소된 주문은 세지 않는다 |
+| `kidly_payment_charges_total` | counter | `result`(`done` · `rejected` · `unknown`) | 사용자 충전 승인 요청에 대한 토스 응답(`ChargeConfirmService`). 스케줄러가 나중에 확정한 결과는 세지 않는다(멈춘 충전 게이지로 본다) |
+| `kidly_payment_charges_stuck` | gauge | `status`(`confirming` · `cancelling`) | 30분 넘게 상태가 바뀌지 않은 승인 중 · 취소 중 충전 수 |
+| `kidly_payment_refund_retry_pending` | gauge | - | 다시 처리를 기다리는 주문 취소 환불(`order_cancellation_retry`) 수 |
+| `kidly_payment_refund_retry_oldest_age_seconds` | gauge | - | 그중 가장 오래된 기록의 나이(`created_at` = 처음 실패). 없으면 0 |
+| `kidly_payment_payouts_total` | counter | `result`(`completed`) | 처음 처리한 정산서의 지급 입금(`SettlementPayoutService`, 0원 포함). 같은 정산서의 다시 받은 요청은 세지 않는다. 정산서 기준 관측은 정산 지표(#730) 몫이다 |
+| `kidly_payment_scheduler_last_success_seconds` | gauge | `task`(`charge_reconcile_confirming` · `charge_reconcile_cancelling` · `charge_expire` · `outbox_relay` · `order_cancellation_retry`) | 스케줄러가 마지막으로 성공한 시각(epoch 초). 기동 뒤 처음 성공하기 전에는 NaN |
+
+- 업무 결과 counter(주문 결제 · 충전 · 지급)는 트랜잭션 안에서 부르면 커밋된 뒤에 센다. 롤백된 일은 세지 않는다(행동 로그와 같은 `AfterCommit`). 전송 실패 · DLT는 일어난 즉시 센다
+- 스케줄러 성공: 대상을 끝까지 돌면 성공이다. 한 건이 실패해도 다음 건으로 넘어가므로 성공으로 남는다(남은 건은 멈춘 충전 · 환불 재처리 게이지로 본다). 대상을 찾다가 예외가 나면 남지 않는다. 릴레이는 다 보냈을 때(`COMPLETED`)만 성공이고, 전송 실패로 멈추면(`STOPPED`) 남지 않는다. 잠금을 못 얻은 실행(`LOCKED`)은 잠금을 쥔 서버가 남긴다
+- 게이지는 수집할 때마다 DB를 읽는다. 아웃박스는 부분 인덱스(`idx_payment_outbox_unsent`), 충전은 부분 인덱스(`idx_charge_in_progress`, 승인 중 · 취소 중만), 환불 재처리는 작은 표다. 서버가 여러 대면 같은 값이 서버마다 나오므로 `max()`로 합친다
+- 결과 counter는 처음 일어나기 전에는 그 태그 조합이 나오지 않는다. 알림에서 없음과 0을 같게 보려면 `or vector(0)`을 쓴다
+
 ## 결제 서비스 (`apps/payment-service`, #525)
 - 결제 도메인은 이 서비스에만 있다. `kidly-app`에서 뺐다. 결제 API · 이벤트 수신(구독 그룹 `kidly.payment`) · 결제 이벤트 발행은 이 서비스만 한다
 - Gateway는 결제 API와 Swagger '결제' 문서(`/v3/api-docs/payment`)를 `KIDLY_PAYMENT_URI`로 보낸다(기본값 서비스). 배포는 compose profile `payment`(힙 192m · 상한 512m)이고 dev · prod 모두 켠다

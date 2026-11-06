@@ -24,6 +24,8 @@ public interface ChargeRepository {
 
     List<Charge> findAllByStatusAndUpdatedAtBefore(ChargeStatus status, LocalDateTime before);
 
+    long countByStatusAndUpdatedAtBefore(ChargeStatus status, LocalDateTime before);
+
     List<Charge> findAllByStatusAndExpiresAtBefore(ChargeStatus status, LocalDateTime before);
 
     Page<Charge> findAllByWalletIdOrderByIdDesc(Long walletId, Pageable pageable);

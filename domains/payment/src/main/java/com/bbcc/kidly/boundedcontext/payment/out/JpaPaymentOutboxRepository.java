@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.payment.domain.PaymentOutboxMessage;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentOutboxRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.Modifying;
@@ -40,6 +41,15 @@ public interface JpaPaymentOutboxRepository
     default List<PaymentOutboxMessage> findUnsent(int limit) {
         return findBySentAtIsNullOrderByIdAsc(Limit.of(limit));
     }
+
+    // 안 보낸 행만 담은 부분 인덱스(idx_payment_outbox_unsent)를 읽는다
+    @Override
+    @Query("select count(m) from PaymentOutboxMessage m where m.sentAt is null")
+    long countUnsent();
+
+    @Override
+    @Query("select min(m.createdAt) from PaymentOutboxMessage m where m.sentAt is null")
+    Optional<LocalDateTime> findOldestUnsentCreatedAt();
 
     // sent_at이 null인 행은 비교 결과가 참이 아니므로 지우지 않는다
     @Override

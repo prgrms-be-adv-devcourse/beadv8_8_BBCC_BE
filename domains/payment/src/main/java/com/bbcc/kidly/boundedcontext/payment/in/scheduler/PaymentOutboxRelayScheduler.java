@@ -1,8 +1,11 @@
 package com.bbcc.kidly.boundedcontext.payment.in.scheduler;
 
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentOutboxProperties;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics.SchedulerTask;
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentOutboxRelayResult;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentOutboxRelayResult.Outcome;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -23,6 +26,7 @@ public class PaymentOutboxRelayScheduler {
     private final PaymentOutboxRelayService relayService;
     // 주기의 바인딩 검증(1초 이상)이 @Scheduled 등록보다 먼저 돌아 키 이름이 나오는 오류로 실패하게 하려고 주입한다
     private final PaymentOutboxProperties properties;
+    private final PaymentMetrics metrics;
 
     // fixedDelay는 이전 실행이 끝난 뒤부터 주기를 재므로 한 서버 안에서 릴레이가 겹치지 않는다(서버끼리는 잠금이 막는다).
     // 첫 실행도 한 주기 뒤로 미뤄, 기동 직후 바로 돌지 않게 한다(테스트는 주기를 길게 둬서 돌지 않는다).
@@ -36,6 +40,11 @@ public class PaymentOutboxRelayScheduler {
         } catch (RuntimeException e) {
             log.warn("결제 아웃박스 릴레이가 예외로 끝났습니다. error={}", e.getClass().getSimpleName());
             return;
+        }
+        // 다 보냈을 때만 성공이다. 전송 실패로 멈추면(STOPPED) 성공 시각이 멈춰 지표로 드러난다.
+        // 잠금을 못 얻은 실행(LOCKED)은 다른 서버의 릴레이가 성공 시각을 남긴다
+        if (result.outcome() == Outcome.COMPLETED) {
+            metrics.markSchedulerSuccess(SchedulerTask.OUTBOX_RELAY);
         }
         if (result.targets() == 0) {
             log.debug("결제 아웃박스 릴레이: outcome={} targets=0 interval={}", result.outcome(),
