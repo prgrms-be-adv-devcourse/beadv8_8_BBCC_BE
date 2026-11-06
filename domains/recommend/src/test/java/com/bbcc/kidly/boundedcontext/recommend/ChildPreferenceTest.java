@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ChildPreference
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceActivity;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ChildPreferenceTest {
@@ -24,5 +25,18 @@ class ChildPreferenceTest {
         }
 
         assertThat(preference.categoryPoints(CATEGORY_ID)).isEqualTo(3);
+    }
+
+    @ParameterizedTest(name = "활동 카테고리 {0}, 상품 카테고리 {1}")
+    @CsvSource({
+        "52, 99",
+        ",",
+    })
+    @DisplayName("PREF-02 활동에 나오지 않은 카테고리와 카테고리가 없는 활동은 0점이다")
+    void categoryNotInActivityGetsZeroPoints(Long activityCategoryId, Long productCategoryId) {
+        ChildPreference preference = ChildPreference.empty()
+            .plus(new PreferenceActivity(activityCategoryId, BRAND, false));
+
+        assertThat(preference.categoryPoints(productCategoryId)).isZero();
     }
 }
