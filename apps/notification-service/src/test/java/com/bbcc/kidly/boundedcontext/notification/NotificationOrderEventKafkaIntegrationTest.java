@@ -3,12 +3,15 @@ package com.bbcc.kidly.boundedcontext.notification;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.notification.app.MemberContactService;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaInboxNotificationRepository;
+import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -56,6 +59,12 @@ class NotificationOrderEventKafkaIntegrationTest {
 
     @Autowired
     private JpaInboxNotificationRepository jpaInboxNotificationRepository;
+
+    @Autowired
+    private JpaNotificationRepository jpaNotificationRepository;
+
+    @Autowired
+    private MemberContactService memberContactService;
 
     @Autowired
     private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
@@ -138,6 +147,27 @@ class NotificationOrderEventKafkaIntegrationTest {
             assertThat(notification.getType()).isEqualTo(NotificationType.DELIVERY_SHIPPED);
             assertThat(notification.getLinkPath()).isEqualTo("/orders/" + orderId);
         });
+    }
+
+    @Test
+    @DisplayName("주문이 결제완료되면 구매자에게 주문 확인 메일을 만들고 판매자 알림함에 새 주문을 넣는다")
+    void orderPaid() throws Exception {
+        var buyerId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+        var email = "buyer-" + UUID.randomUUID() + "@kidly.co.kr";
+        memberContactService.save(buyerId, email);
+        var orderId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+
+        send(new OrderPaidEvent(UUID.randomUUID(), LocalDateTime.now(), new OrderPaidEvent.Data(orderId, buyerId,
+            LocalDateTime.now(), 10_000L, List.of(
+                new OrderPaidEvent.Item(1L, memberId, 9L, "곰돌이 티셔츠", "네이비 / 110", 1, 10_000L)))));
+
+        AsyncWait.until(TIMEOUT, () -> !inbox().isEmpty());
+        assertThat(inbox()).singleElement().satisfies(notification -> {
+            assertThat(notification.getType()).isEqualTo(NotificationType.SELLER_ORDER_PAID);
+            assertThat(notification.getBody()).startsWith("곰돌이 티셔츠 주문이 결제됐어요.");
+        });
+        assertThat(jpaNotificationRepository.findAll()).filteredOn(n -> email.equals(n.getRecipient()))
+            .singleElement().satisfies(n -> assertThat(n.getType()).isEqualTo(NotificationType.ORDER_PAID));
     }
 
     private List<InboxNotification> inbox() {

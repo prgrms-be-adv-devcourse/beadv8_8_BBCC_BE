@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PayoutEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.RefundEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
@@ -54,6 +55,19 @@ public class NotificationService {
             var content = PayoutEmail.compose(notificationProperties.siteUrl(), command.settlementId(),
                 command.amount());
             createEmail(new EmailNotificationInfo(key, command.sellerId(), NotificationType.PAYOUT_COMPLETED,
+                email, content.title(), content.body()));
+        });
+    }
+
+    // 주문 결제완료는 주문마다 한 번만 나가므로 이벤트 ID로 한 통만 만든다
+    @Transactional
+    public void createOrderPaidEmail(OrderPaidCommand command) {
+        if (exists(command.eventId())) {
+            return;
+        }
+        memberContactService.findEmail(command.memberId()).ifPresent(email -> {
+            var content = OrderPaidEmail.compose(notificationProperties.siteUrl(), command);
+            createEmail(new EmailNotificationInfo(command.eventId(), command.memberId(), NotificationType.ORDER_PAID,
                 email, content.title(), content.body()));
         });
     }

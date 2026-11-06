@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.MemberContactService;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationDispatcher;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationProperties;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PayoutEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.RefundEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
@@ -19,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -243,6 +245,27 @@ class NotificationServiceTest {
         notificationService.createSellerApprovedEmail(EVENT_ID, 5L, "키들리 상점");
 
         verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("주문 확인 메일에 상품 · 옵션 · 수량 · 금액과 총액, 주문 상세 주소를 넣어 구매자 이메일로 만든다")
+    void createOrderPaidEmail() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.of("parent@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 25_000L, List.of(
+            new OrderPaidCommand.Item(5L, "곰돌이 티셔츠", "네이비 / 110", 1, 10_000L),
+            new OrderPaidCommand.Item(5L, "공룡 운동화", null, 1, 15_000L))));
+
+        var saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertThat(saved.getValue().getType()).isEqualTo(NotificationType.ORDER_PAID);
+        assertThat(saved.getValue().getRecipient()).isEqualTo("parent@kidly.co.kr");
+        assertThat(saved.getValue().getBody())
+            .contains("- 곰돌이 티셔츠 (네이비 / 110) × 1: 10,000원")
+            .contains("- 공룡 운동화 × 1: 15,000원")
+            .contains("총 결제 금액: 25,000원")
+            .contains("https://kidly.kro.kr/orders/3");
     }
 
     @Test

@@ -1,16 +1,22 @@
 package com.bbcc.kidly.boundedcontext.notification.in.event;
 
 import com.bbcc.kidly.boundedcontext.notification.app.DeliveryInboxService;
+import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.OrderCancelInboxService;
+import com.bbcc.kidly.boundedcontext.notification.app.SellerOrderInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.WishInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.DeliveryCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderCancelledCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderItemCancelledCommand;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.PurchaseConfirmedCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WishSentCommand;
 import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
 import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -21,6 +27,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * kidly.order.events에서 조르기 요청은 보호자 알림함에, 구매자가 하지 않은 주문 취소
  * (재고 부족 · 결제 기한 지남 · 판매자 취소)와 배송 출발 · 완료는 구매자 알림함에 넣는다.
+ * 결제완료된 주문은 구매자에게 주문 확인 메일을 보내고, 결제완료 · 구매확정은 판매자 알림함에 넣는다.
  * 이 구독 그룹은 이 토픽을 처음 읽으므로 책갈피가 없다. 앱 기본값(latest)이면 구독 전에 보낸 이벤트를
  * 건너뛰므로 이 리스너만 처음부터 읽는다. 같은 메시지를 다시 받아도 중복 키(조르기 ID · 주문 ID · 취소 ID · 배송 ID)로 한 건만 넣는다.
  */
@@ -31,6 +38,8 @@ public class NotificationOrderEventListener {
     private final WishInboxService wishInboxService;
     private final OrderCancelInboxService orderCancelInboxService;
     private final DeliveryInboxService deliveryInboxService;
+    private final NotificationService notificationService;
+    private final SellerOrderInboxService sellerOrderInboxService;
     private final JsonMapper jsonMapper;
 
     @KafkaListener(id = "notificationOrderEventListener", topics = "kidly.order.events",
@@ -43,6 +52,9 @@ public class NotificationOrderEventListener {
                 onOrderCancelled(jsonMapper.readValue(record.value(), OrderCancelledEvent.class));
             case "order-item.cancelled" ->
                 onOrderItemCancelled(jsonMapper.readValue(record.value(), OrderItemCancelledEvent.class));
+            case "order.paid" -> onOrderPaid(jsonMapper.readValue(record.value(), OrderPaidEvent.class));
+            case "order-item.purchase-confirmed" -> onPurchaseConfirmed(
+                jsonMapper.readValue(record.value(), OrderItemPurchaseConfirmedEvent.class));
             case "delivery.shipped" ->
                 onDeliveryShipped(jsonMapper.readValue(record.value(), DeliveryShippedEvent.class));
             case "delivery.delivered" ->
@@ -79,5 +91,21 @@ public class NotificationOrderEventListener {
         var data = event.data();
         deliveryInboxService.addDelivered(new DeliveryCommand(data.deliveryId(), data.orderId(), data.memberId(),
             data.carrierName(), data.trackingNumber()));
+    }
+
+    // 메일과 알림함은 따로 커밋된다. 하나가 실패해 다시 받으면 이미 만든 쪽은 중복 키로 건너뛴다
+    private void onOrderPaid(OrderPaidEvent event) {
+        var data = event.data();
+        var command = new OrderPaidCommand(event.eventId(), data.orderId(), data.memberId(), data.totalAmount(),
+            data.items().stream().map(item -> new OrderPaidCommand.Item(item.sellerId(), item.productName(),
+                item.optionName(), item.quantity(), item.amount())).toList());
+        notificationService.createOrderPaidEmail(command);
+        sellerOrderInboxService.addOrderPaid(command);
+    }
+
+    private void onPurchaseConfirmed(OrderItemPurchaseConfirmedEvent event) {
+        var data = event.data();
+        sellerOrderInboxService.addPurchaseConfirmed(new PurchaseConfirmedCommand(data.orderItemId(),
+            data.sellerId(), data.productId(), data.quantity()));
     }
 }
