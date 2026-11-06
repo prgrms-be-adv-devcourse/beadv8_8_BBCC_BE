@@ -1,8 +1,11 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.CLOTHING_PRICE;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingPrice;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.addSizeSpecs;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.spec;
@@ -42,6 +45,16 @@ class ProductDelistedGuardTest {
         assertThat(product.isStoppedByAdmin()).isFalse();
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("callsFromOtherSeller")
+    @DisplayName("OPT-08 · SALE-15 다른 판매자가 등록 취소한 상품을 바꾸려 하면 409보다 403이 먼저다")
+    void rejectChangeOfDelistedFromOtherSellerWithForbidden(Function<ProductA, ThrowingCallable> call) {
+        product.delist(SELLER_ID);
+
+        assertRejected(call.apply(productA), ProductErrorCode.NOT_PRODUCT_OWNER);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
+    }
+
     @Test
     @DisplayName("SALE-15 등록 취소한 상품에 지금과 같은 값을 보낸 수정도 409로 거절한다")
     void rejectSameValueUpdateOfDelisted() {
@@ -61,6 +74,24 @@ class ProductDelistedGuardTest {
             ProductErrorCode.PRODUCT_DELISTED);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
         assertThat(product.isStoppedByAdmin()).isTrue();
+    }
+
+    static Stream<Named<Function<ProductA, ThrowingCallable>>> callsFromOtherSeller() {
+        return Stream.of(
+            Named.of("판매 시작", a -> () -> a.product().startSale(OTHER_SELLER_ID, a.top(), a.clothing().type())),
+            Named.of("판매 중지", a -> () -> a.product().stopSale(OTHER_SELLER_ID)),
+            Named.of("상품 수정", a -> () -> a.product().update(updateFromOtherSeller(a.sameUpdate()))),
+            Named.of("옵션 추가", a -> () -> a.product().addOptions(new Product.AddOptionsInfo(OTHER_SELLER_ID,
+                List.of(option(a.clothing().oatmeal(), a.clothing().size110())), clothingPrice(CLOTHING_PRICE)),
+                a.clothing().type())),
+            Named.of("실측 추가", a -> () -> a.product().addSizeSpecs(new Product.AddSizeSpecsInfo(OTHER_SELLER_ID,
+                List.of(spec(a.clothing().size110(), 105, 115, top110Measurements()))), a.top(), a.clothing().type())));
+    }
+
+    // 받은 수정 값에서 요청한 판매자만 다른 판매자로 바꾼다
+    private static Product.UpdateInfo updateFromOtherSeller(Product.UpdateInfo update) {
+        return new Product.UpdateInfo(OTHER_SELLER_ID, update.version(), update.category(), update.name(),
+            update.brand(), update.description(), update.thumbnailUrl(), update.imageUrls(), update.infoValues());
     }
 
     static Stream<Named<Function<ProductA, ThrowingCallable>>> guardedCalls() {
