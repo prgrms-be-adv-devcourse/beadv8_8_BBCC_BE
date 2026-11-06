@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaInboxNotificationRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.support.AsyncWait;
@@ -117,6 +118,24 @@ class NotificationOrderEventKafkaIntegrationTest {
         assertThat(inbox()).singleElement().satisfies(notification -> {
             assertThat(notification.getType()).isEqualTo(NotificationType.ORDER_CANCELLED);
             assertThat(notification.getTitle()).isEqualTo("재고가 없어 주문이 취소됐어요");
+            assertThat(notification.getLinkPath()).isEqualTo("/orders/" + orderId);
+        });
+    }
+
+    @Test
+    @DisplayName("배송이 출발하면 구매자 알림함에 넣고, 같은 메시지를 두 번 받아도 한 건이다")
+    void addDeliveryShipped() throws Exception {
+        var orderId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+        var event = new DeliveryShippedEvent(UUID.randomUUID(), LocalDateTime.now(), new DeliveryShippedEvent.Data(
+            ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE), orderId, memberId, 9L, "CJ", "CJ대한통운",
+            "123456789012", LocalDateTime.now()));
+
+        send(event);
+        send(event);
+
+        AsyncWait.until(TIMEOUT, () -> !inbox().isEmpty());
+        assertThat(inbox()).singleElement().satisfies(notification -> {
+            assertThat(notification.getType()).isEqualTo(NotificationType.DELIVERY_SHIPPED);
             assertThat(notification.getLinkPath()).isEqualTo("/orders/" + orderId);
         });
     }
