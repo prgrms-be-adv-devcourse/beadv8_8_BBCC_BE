@@ -2,6 +2,7 @@
 # deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
 # Kafka 브로커(Redpanda)는 t3.medium k3s(deploy/kafka)에 환경마다 하나씩 뜬다. 서비스 · kafka-exporter 는 KAFKA_BOOTSTRAP_SERVERS(medium 사설 IP:NodePort)로 붙고,
 # 이 값은 레포가 공개라 deploy 워크플로가 서버 .env 에 붙인다
+# PostgreSQL 도 t3.medium k3s(deploy/postgres)에 인스턴스 하나로 뜨고 dev · prod 가 database · 계정(kidly_<env>)으로 나눠 쓴다. DB_URL 도 deploy 워크플로가 붙인다
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES 에 search 가 있는 환경(dev · prod)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
 # 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다
@@ -21,23 +22,6 @@ x-logging: &logging
     max-file: "5"
 
 services:
-  postgres:
-    # 추천이 벡터를 저장하려고 pgvector 확장이 든 이미지를 쓴다. 공식 postgres:18과 같은 Debian 13(trixie) 기반이라 기존 볼륨을 그대로 쓴다.
-    image: pgvector/pgvector:pg18-trixie
-    env_file: .env
-    volumes:
-      - postgres-data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      retries: 10
-    mem_limit: 512m
-    oom_score_adj: ${OOM_SCORE_ADJ:-0}
-    restart: unless-stopped
-    logging: *logging
-    ports:
-      - "127.0.0.1:${DB_PORT}:5432"     # 외부 비공개. 팀원이 SSH 터널로 IntelliJ 에서 붙는다
-
   # 승인된 Kafka 관측 전용. 앱·DB 비밀값이나 Docker 소켓을 넘기지 않는다.
   kafka-exporter:
     image: danielqsj/kafka-exporter:v1.11.0@sha256:54d4296c5b8ce01232f6762e06cbc3eec25887c0b5c5940ccb9e891ac7fc51d8
@@ -106,7 +90,7 @@ services:
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
-      DB_URL: ${DB_URL}
+      DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       # 비어 있으면 OpenAI 모델 빈 없이 뜬다
@@ -116,9 +100,6 @@ services:
       - "127.0.0.1:${RECOMMEND_PORT:-8087}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -144,7 +125,7 @@ services:
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
-      DB_URL: ${DB_URL}
+      DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       # 정산 영업일 판단용 공휴일 조회 키. 없으면 공휴일 조회가 실패해 자동 정산을 건너뛴다
@@ -154,9 +135,6 @@ services:
       - "127.0.0.1:${SETTLEMENT_PORT:-8089}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -180,7 +158,7 @@ services:
       JAVA_TOOL_OPTIONS: -Xmx192m
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
-      DB_URL: ${DB_URL}
+      DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_PUBLIC_KEY_LOCATION: ${JWT_PUBLIC_KEY_LOCATION}
@@ -198,9 +176,6 @@ services:
     volumes:
       - ./jwt:/app/jwt:ro
       - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -227,7 +202,7 @@ services:
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
-      DB_URL: ${DB_URL}
+      DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
@@ -240,9 +215,6 @@ services:
       - "127.0.0.1:${PAYMENT_PORT:-8092}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -269,7 +241,7 @@ services:
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
-      DB_URL: ${DB_URL}
+      DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       # 상품 이미지 객체 key 의 환경 경로(dev · prod). 서비스 prod 설정이 기본값 없이 요구하므로 .env 에서 받는다
@@ -281,9 +253,6 @@ services:
       - "127.0.0.1:${PRODUCT_PORT:-8097}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -309,7 +278,7 @@ services:
       # 힙 밖 네이티브 메모리가 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
-      DB_URL: ${DB_URL}
+      DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       # 메일 계정 · 켜기 · 보내는 주소. 기본값은 notification.yml 과 같다. .env 에서 받는다
@@ -324,9 +293,6 @@ services:
       - "127.0.0.1:${NOTIFICATION_PORT:-8099}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -354,7 +320,7 @@ services:
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
-      DB_URL: ${DB_URL}
+      DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       # Kafka 수신 스위치. 기본값은 order.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다. 끄면 수신이 멈추고 메시지는 Kafka 에 남아 true 로 올리면 처리된다
@@ -370,9 +336,6 @@ services:
       - "127.0.0.1:${ORDER_PORT:-8100}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -400,7 +363,7 @@ services:
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
-      DB_URL: ${DB_URL}
+      DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       # Kafka 수신 스위치. 기본값은 community.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다. 끄면 수신이 멈추고 메시지는 Kafka 에 남아 true 로 올리면 처리된다
@@ -410,9 +373,6 @@ services:
       - "127.0.0.1:${COMMUNITY_PORT:-8102}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -474,5 +434,3 @@ services:
     restart: unless-stopped
     logging: *logging
 
-volumes:
-  postgres-data:
