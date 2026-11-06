@@ -458,6 +458,9 @@ public class Product extends BaseTimeEntity {
         return true;
     }
 
+    public void revertDelistByAdmin() {
+    }
+
     // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
     private boolean openSale(Category category, ProductType productType) {
         if (status == ProductStatus.ON_SALE) {

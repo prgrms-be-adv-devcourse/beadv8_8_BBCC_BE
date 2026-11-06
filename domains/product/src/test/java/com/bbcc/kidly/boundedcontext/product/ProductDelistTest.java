@@ -88,6 +88,20 @@ class ProductDelistTest {
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("productsBeforeDelist")
+    @DisplayName("SALE-14 관리자가 등록 취소한 상품을 되돌리면 판매중지가 되고, 관리자 판매중지 표시는 그대로 둔다")
+    void revertDelistByAdminToStopped(Consumer<ProductDelistTest> given) {
+        given.accept(this);
+        boolean stoppedByAdminBefore = product.isStoppedByAdmin();
+        product.delist(SELLER_ID);
+
+        product.revertDelistByAdmin();
+
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.STOPPED);
+        assertThat(product.isStoppedByAdmin()).isEqualTo(stoppedByAdminBefore);
+    }
+
     static Stream<Named<Consumer<ProductDelistTest>>> productsOfOtherSeller() {
         return Stream.of(
             Named.of("판매대기", ProductDelistTest::withSaleStartInputs),
