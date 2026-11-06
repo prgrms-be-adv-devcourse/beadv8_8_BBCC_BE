@@ -7,15 +7,25 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddi
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingTarget;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 상품 임베딩 저장소가 실제 PostgreSQL(pgvector)에서 낡은 상품을 읽고 벡터를 저장하는 동작을 확인한다.
@@ -31,6 +41,12 @@ class ProductEmbeddingStoreIntegrationTest {
 
     @Autowired
     private RecommendReplicaProductService replicaProductService;
+
+    @Autowired
+    private RecommendReplicaProductRepository replicaProductRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -123,6 +139,35 @@ class ProductEmbeddingStoreIntegrationTest {
             .containsExactly(new ProductEmbeddingTarget(PRODUCT_1_ID, "상품명: 새 맨투맨", false));
     }
 
+    @Test
+    @DisplayName("복사본을 읽은 트랜잭션이 끝나기 전에 벡터가 저장돼도 그 트랜잭션이 끝난 뒤 벡터와 만든 글 표시가 남고 그 상품은 다시 낡은 대상이 된다")
+    void keepVectorSavedWhileReplicaTransactionIsOpen() {
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
+        EmbeddingVector vector = vectorOf(0.5f);
+        ExecutorService otherThread = Executors.newSingleThreadExecutor();
+
+        try {
+            new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                RecommendReplicaProduct product = replicaProductRepository.findById(PRODUCT_1_ID).orElseThrow();
+                product.applyIfNewer(renamedChange("새 맨투맨"));
+
+                Future<Boolean> saving = otherThread.submit(
+                    () -> store.saveIfTextUnchanged(PRODUCT_1_ID, "상품명: 데일리 맨투맨", vector));
+
+                assertThat(waitFor(saving)).isTrue();
+            });
+        } finally {
+            otherThread.shutdownNow();
+        }
+
+        assertThat(storedVector(PRODUCT_1_ID)).isEqualTo(vector);
+        assertThat(jdbcTemplate.queryForObject(
+            "select embedded_text_md5 = md5('상품명: 데일리 맨투맨') from recommend.replica_product where product_id = ?",
+            Boolean.class, PRODUCT_1_ID)).isTrue();
+        assertThat(store.findStale(10))
+            .containsExactly(new ProductEmbeddingTarget(PRODUCT_1_ID, "상품명: 새 맨투맨", false));
+    }
+
     // 다음 PR의 후보 조회가 쓸 문법이다. 서비스 연결의 search_path에 recommend가 없어서 연산자에도 스키마를 붙인다
     @Test
     @DisplayName("저장한 벡터끼리 recommend 스키마의 코사인 거리 연산자로 거리를 잰다")
@@ -169,6 +214,24 @@ class ProductEmbeddingStoreIntegrationTest {
             from recommend.replica_product a, recommend.replica_product b
             where a.product_id = ? and b.product_id = ?
             """, Double.class, productId, otherProductId);
+    }
+
+    private static <T> T waitFor(Future<T> future) {
+        try {
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        } catch (ExecutionException | TimeoutException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static RecommendReplicaProduct.ChangeInfo renamedChange(String name) {
+        RecommendReplicaProduct.ChangeInfo base = RecommendFixture.productAChange();
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_1_ID, base.sellerId(), base.categoryId(), name,
+            base.status(), base.thumbnailUrl(), base.registeredAt(), base.sizeFree(), base.options(), null, null,
+            List.of(), List.of(), RecommendFixture.PRODUCT_CHANGED_AT.plusMinutes(1));
     }
 
     // 값이 서로 다른 벡터를 만든다. seed가 같으면 같은 벡터다
