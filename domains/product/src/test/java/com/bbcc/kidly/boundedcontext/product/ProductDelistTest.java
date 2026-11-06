@@ -115,6 +115,18 @@ class ProductDelistTest {
         assertThat(product.isStoppedByAdmin()).isEqualTo(stoppedByAdminBefore);
     }
 
+    @Test
+    @DisplayName("SALE-11 · SALE-14 관리자가 판매중지했던 상품은 되돌린 뒤에도 판매자가 다시 판매를 시작할 수 없다")
+    void sellerCannotRestartAfterAdminRevertOfAdminStopped() {
+        withSaleStarted();
+        product.stopSaleByAdmin();
+        product.delist(SELLER_ID);
+        product.revertDelistByAdmin();
+
+        assertRejected(() -> product.startSale(SELLER_ID, top, clothing.type()), ProductErrorCode.SALE_STOPPED_BY_ADMIN);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.STOPPED);
+    }
+
     static Stream<Named<Consumer<ProductDelistTest>>> productsOfOtherSeller() {
         return Stream.of(
             Named.of("판매대기", ProductDelistTest::withSaleStartInputs),
