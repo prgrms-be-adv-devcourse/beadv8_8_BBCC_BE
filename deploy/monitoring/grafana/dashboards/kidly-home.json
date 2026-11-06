@@ -13,13 +13,92 @@
   "refresh": "1m",
   "panels": [
     {
+      "id": 6,
+      "type": "alertlist",
+      "title": "지금 확인할 알림",
+      "description": "발화 중인 알림과 평가 오류·데이터 누락을 최대 6개 표시합니다.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 7
+      },
+      "links": [
+        {
+          "title": "활성 알림 전체 보기",
+          "url": "/alerting/groups"
+        }
+      ],
+      "options": {
+        "viewMode": "list",
+        "groupMode": "default",
+        "maxItems": 6,
+        "sortOrder": 3,
+        "dashboardAlerts": false,
+        "showInstances": true,
+        "showInactiveAlerts": false,
+        "stateFilter": {
+          "firing": true,
+          "pending": false,
+          "recovering": false,
+          "noData": true,
+          "normal": false,
+          "error": true
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "최근 AI 제안 · 24시간",
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 7
+      },
+      "timeFrom": "24h",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"kidly-ai-notes\",env=~\"dev|prod\"} | json | __error__=\"\" | line_format \"{{.report}}\" | regexp `(?m)^AI analysis .* observed (?P<observed_at>[^\\r\\n]+)` | regexp `(?m)^1\\. (?P<next_check>[^\\r\\n]+)` | regexp `(?m)^대응 제안: (?P<advice>[^\\r\\n]+)` | advice!=\"\" | label_format detected_level=\"info\",level=\"info\" | line_format `{{.env}} · 관측 {{.observed_at}}{{if .next_check}}{{\"\\n\"}}먼저 확인: {{.next_check}}{{end}}{{\"\\n\"}}대응 제안: {{.advice}}`",
+          "queryType": "range",
+          "maxLines": 1
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": false,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "description": "최근 24시간에 게시된 dev·prod 메모 중 최신 한 건입니다. 관측 시각과 환경을 확인하세요.",
+      "links": [
+        {
+          "title": "dev 분석 전문",
+          "url": "/d/kidly-ai-notes?var-env=dev"
+        },
+        {
+          "title": "prod 분석 전문",
+          "url": "/d/kidly-ai-notes?var-env=prod"
+        }
+      ]
+    },
+    {
       "id": 1,
       "type": "stat",
       "title": "prod 운영 대상",
       "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 14,
         "w": 12,
         "h": 4
       },
@@ -93,7 +172,7 @@
       "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
       "gridPos": {
         "x": 12,
-        "y": 0,
+        "y": 14,
         "w": 12,
         "h": 4
       },
@@ -166,13 +245,13 @@
       "title": "1. 장애 확인",
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 18,
         "w": 24,
         "h": 5
       },
       "options": {
         "mode": "markdown",
-        "content": "알림을 받았다면 **[활성 알림](/alerting/groups)**에서 발화한 항목을 보고, **[prod 서비스 상태](/d/kidly-http?var-env=prod)** 또는 **[dev 서비스 상태](/d/kidly-http?var-env=dev)**에서 해당 서비스의 수집·오류를 확인하세요."
+        "content": "[활성 알림 전체 보기](/alerting/groups) · [prod 서비스 상태](/d/kidly-http?var-env=prod) · [dev 서비스 상태](/d/kidly-http?var-env=dev)"
       }
     },
     {
@@ -181,7 +260,7 @@
       "title": "2. 원인 조사",
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 23,
         "w": 24,
         "h": 5
       },
@@ -196,7 +275,7 @@
       "title": "3. 상세 진단",
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 28,
         "w": 24,
         "h": 5
       },
