@@ -37,6 +37,7 @@ class ProductChangedDataTest {
 
     private static final long PRODUCT_ID = 1L;
     private static final long CATEGORY_ID = 5L;
+    private static final long CLOTHING_CATEGORY_ID = 4L;
     private static final long OPTION_110_ID = 11L;
     private static final long OPTION_120_ID = 12L;
     private static final long NAVY_ID = 21L;
@@ -64,7 +65,7 @@ class ProductChangedDataTest {
         withOptionsAndSizeSpecs110And120();
         product.startSale(SELLER_ID, top, clothing.type());
 
-        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(),
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top,
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 0));
 
         // 옵션 값 · 상품 정보 값 · 브랜드 · 설명 · 사이즈별 실측은 다른 테스트가 확인하므로 여기서는 비교하지 않는다
@@ -87,7 +88,7 @@ class ProductChangedDataTest {
         ReflectionTestUtils.setField(clothing.size110(), "id", SIZE_110_ID);
         ReflectionTestUtils.setField(clothing.size120(), "id", SIZE_120_ID);
 
-        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(),
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top,
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 10));
 
         assertThat(data.options()).extracting(ProductChangedEvent.Option::values).containsExactly(
@@ -109,7 +110,9 @@ class ProductChangedDataTest {
             new Product.InfoValueInfo(info.fabricComposition(), List.of(), "면 95%, 폴리우레탄 5%"),
             new Product.InfoValueInfo(info.feature(), List.of(info.brushed(), info.stretch()), null))));
 
-        ProductChangedEvent.Data data = ProductChangedData.of(withInfoValues, info.type(), Map.of());
+        Category infoTop = CategoryFixture.top(CategoryFixture.clothing(), info.type());
+
+        ProductChangedEvent.Data data = ProductChangedData.of(withInfoValues, infoTop, Map.of());
 
         assertThat(data.infoValues()).containsExactlyInAnyOrder(
             new ProductChangedEvent.AttributeEntry("MAIN_MATERIAL", COTTON_ID, "면"),
@@ -121,7 +124,7 @@ class ProductChangedDataTest {
     @Test
     @DisplayName("SALE-08 상품의 브랜드와 설명을 담는다")
     void carryBrandAndDescription() {
-        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top, Map.of());
 
         assertThat(data.brand()).isEqualTo("키들리");
         assertThat(data.description()).isEqualTo("상품 설명");
@@ -132,7 +135,7 @@ class ProductChangedDataTest {
     void carrySizeSpecsInStoredOrder() {
         withOptionsAndSizeSpecs110And120();
 
-        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top, Map.of());
 
         assertThat(data.sizeSpecs()).containsExactly(
             new ProductChangedEvent.SizeSpec("110", 105, 115, top110Measurements()),
@@ -147,7 +150,7 @@ class ProductChangedDataTest {
             spec(clothing.sizeFree(), null, null, top110Measurements()))), top, clothing.type());
         ReflectionTestUtils.setField(product.getOptions().get(0), "id", OPTION_110_ID);
 
-        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top, Map.of());
 
         assertThat(data.sizeSpecs()).containsExactly(
             new ProductChangedEvent.SizeSpec("FREE", null, null, top110Measurements()));
@@ -160,7 +163,7 @@ class ProductChangedDataTest {
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
         ReflectionTestUtils.setField(product.getOptions().get(0), "id", OPTION_110_ID);
 
-        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top, Map.of());
 
         assertThat(data.sizeSpecs()).isEmpty();
     }
@@ -174,7 +177,7 @@ class ProductChangedDataTest {
         ReflectionTestUtils.setField(product.getOptions().get(0), "saleStatus", ProductOptionStatus.ARCHIVED);
         ReflectionTestUtils.setField(product.getOptions().get(1), "saleStatus", ProductOptionStatus.STOPPED);
 
-        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(),
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top,
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 10));
 
         assertThat(data.options())
@@ -193,7 +196,7 @@ class ProductChangedDataTest {
         ReflectionTestUtils.setField(product.getOptions().get(0), "id", OPTION_110_ID);
         ReflectionTestUtils.setField(product.getOptions().get(1), "id", OPTION_120_ID);
 
-        ProductChangedEvent.Data data = ProductChangedData.of(product, clothing.type(), Map.of());
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top, Map.of());
 
         assertThat(data.sizeFree()).isTrue();
         // 판매 가능 수량을 하나도 넘기지 않았으므로, 재고 행이 없는 옵션은 살 수 없어 둘 다 품절이다
@@ -201,6 +204,20 @@ class ProductChangedDataTest {
             .extracting(ProductChangedEvent.Option::size, ProductChangedEvent.Option::minHeightCm,
                 ProductChangedEvent.Option::maxHeightCm, ProductChangedEvent.Option::soldOut)
             .containsExactly(tuple("FREE", null, null, true), tuple("FREE", null, null, true));
+    }
+
+    @Test
+    @DisplayName("SALE-08 카테고리 경로를 대분류부터 종류까지 ID · 이름으로 담고, 마지막 ID는 상품의 카테고리 ID와 같다")
+    void carryCategoryPathFromTopmostToProductCategory() {
+        ReflectionTestUtils.setField(top.getParent(), "id", CLOTHING_CATEGORY_ID);
+        ReflectionTestUtils.setField(top, "id", CATEGORY_ID);
+
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top, Map.of());
+
+        assertThat(data.categoryPath()).containsExactly(
+            new ProductChangedEvent.CategoryPathEntry(CLOTHING_CATEGORY_ID, "의류"),
+            new ProductChangedEvent.CategoryPathEntry(CATEGORY_ID, "상의"));
+        assertThat(data.categoryPath().getLast().id()).isEqualTo(data.categoryId());
     }
 
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 실측 · 권장 키를 넣고, 옵션 ID를 정해 둔다
