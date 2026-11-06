@@ -26,7 +26,15 @@ public record ProductEmbeddingText(String value) {
         addIfPresent(lines, "브랜드", brand);
         lines.addAll(infoValueLines(infoValues));
         addIfPresent(lines, "설명", description);
-        return new ProductEmbeddingText(String.join("\n", lines));
+        return new ProductEmbeddingText(truncate(String.join("\n", lines)));
+    }
+
+    // 글자 수가 아니라 code point로 세어서, 이모지 같은 서로게이트 쌍이 경계에 있어도 쌍을 가르지 않는다
+    private static String truncate(String text) {
+        if (text.codePointCount(0, text.length()) <= MAX_LENGTH) {
+            return text;
+        }
+        return text.substring(0, text.offsetByCodePoints(0, MAX_LENGTH));
     }
 
     // 이벤트 안의 순서가 달라도 같은 글이 나오도록 code와 값을 모두 오름차순으로 쓴다
