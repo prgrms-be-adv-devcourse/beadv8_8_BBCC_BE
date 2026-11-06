@@ -136,7 +136,7 @@ services:
     logging: *logging
 
   # 추천 서비스(apps/recommend-service, #704). 추천 API 와 판매자 · 자녀 · 상품 · 주문 · 검색 이벤트 수신(구독 그룹 kidly.recommend). 보내는 이벤트는 없다
-  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값과 OpenAI 키만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   recommend-service:
     image: ${RECOMMEND_IMAGE}
     profiles: [recommend]
@@ -150,6 +150,8 @@ services:
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
+      # 비어 있으면 OpenAI 모델 빈 없이 뜬다
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${RECOMMEND_PORT:-8087}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
