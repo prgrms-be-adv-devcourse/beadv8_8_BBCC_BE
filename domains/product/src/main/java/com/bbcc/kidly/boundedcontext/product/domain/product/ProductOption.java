@@ -114,6 +114,9 @@ public class ProductOption extends BaseTimeEntity {
         product.validateOwner(sellerId);
     }
 
+    public void validateAdjustableBy(Long sellerId) {
+    }
+
     // 보관 옵션은 구매자 상세와 판매자 화면 어디에도 보이지 않는다 (SALE-06)
     public boolean isArchived() {
         return saleStatus == ProductOptionStatus.ARCHIVED;
