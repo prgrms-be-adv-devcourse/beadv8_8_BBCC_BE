@@ -31,6 +31,9 @@ public class RecommendedProductRanker {
     ) {
         List<ScoredProduct> scored = new ArrayList<>();
         for (RecommendedProduct product : products) {
+            if (excludedProductIds.contains(product.productId())) {
+                continue;
+            }
             scored.add(new ScoredProduct(product, scoreOf(product, preference, baseTime)));
         }
         scored.sort(RANK_ORDER);
