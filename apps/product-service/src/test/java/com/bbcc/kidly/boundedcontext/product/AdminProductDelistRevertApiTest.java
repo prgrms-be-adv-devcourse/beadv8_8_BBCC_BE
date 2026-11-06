@@ -7,6 +7,8 @@ import com.bbcc.kidly.boundedcontext.product.ClothingTopSaver.SavedClothingTop;
 import com.bbcc.kidly.boundedcontext.product.in.product.dto.ProductRegisterResponse;
 import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.function.Consumer;
@@ -73,6 +75,21 @@ class AdminProductDelistRevertApiTest {
             .jsonPath("$.version").isEqualTo(storedVersion());
 
         assertThat(storedStatus()).isEqualTo("STOPPED");
+    }
+
+    @Test
+    @DisplayName("SALE-08 · SALE-17 되돌리면 커밋 뒤 상품 정보 변경됨이 한 번 나가고 status가 STOPPED다")
+    void revertPublishesProductChanged() {
+        delistBySeller();
+
+        revert(TestAdmins.of(ADMIN_ID)).expectStatus().isOk();
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class))
+            .singleElement()
+            .satisfies(event -> {
+                assertThat(event.data().productId()).isEqualTo(Long.valueOf(productId));
+                assertThat(event.data().status()).isEqualTo(ProductStatus.STOPPED);
+            });
     }
 
     // 판매자 등록 취소 API로 상품을 등록 취소 상태로 만들고, 그때 나간 이벤트는 지운다
