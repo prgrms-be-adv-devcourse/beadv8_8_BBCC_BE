@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 조르기 API(#701). 자원은 조르기이고 공용 장바구니 아래(/wish/requests, #718)에 둔다. 자녀 한 명의 목록은 childId로 거른다.
- * 승인 · 거절은 조르기의 하위 자원(approval · rejection)을 만드는 것으로 둔다. 보호자(회원 로그인)와 자녀(자녀 로그인, #906)가 부른다
+ * 승인 · 거절 · 철회는 조르기의 하위 자원(approval · rejection · cancellation)을 만드는 것으로 둔다. 보호자(회원 로그인)와 자녀(자녀 로그인, #906)가 부른다
  * ({@link WishCaller}): 자녀는 자기 프로필의 조르기 보내기 · 조회 · 타임라인만, 승인 · 거절은 보호자만이다(자녀면 403).
  * 스위치 kidly.order.wish.enabled가 false면 이 API가 없다.
  */
@@ -75,6 +75,15 @@ public class WishRequestController {
         @Valid @RequestBody ApproveWishRequest request) {
         return WishRequestResponse.from(
             wishRequestService.approve(actor, requestId, request.toCommand()));
+    }
+
+    /**
+     * 보낸 사람이 처리 전에 철회한다(#968). 철회는 조르기의 하위 자원(cancellation)을 만드는 것으로 둔다(승인 · 거절과 같은 모양).
+     * 보낸 사람이 아니면 403, 처리된 조르기면 409.
+     */
+    @PostMapping("/{requestId}/cancellation")
+    public WishRequestResponse cancel(@WishCaller WishActor actor, @PathVariable Long requestId) {
+        return WishRequestResponse.from(wishRequestService.cancel(actor, requestId));
     }
 
     @PostMapping("/{requestId}/rejection")

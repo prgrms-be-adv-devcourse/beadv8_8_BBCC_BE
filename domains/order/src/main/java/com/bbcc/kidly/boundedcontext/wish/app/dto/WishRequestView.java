@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * 조르기 한 건(#701). 상품 표시 · 가격 · 판매 상태는 지금 값이다(공용 장바구니와 같은 기준).
  *
- * @param status REQUESTED · APPROVED · REJECTED
+ * @param status REQUESTED · APPROVED · REJECTED · CANCELLED(#968)
  * @param requestedBy 보낸 사람 종류(PARENT · CHILD)
  * @param message 메시지. 없으면 null
  * @param checkout 승인 뒤 구매 방법(ORDER = 바로 결제 · CART = 보호자 장바구니로 옮기기). 승인 전 · 거절이면 null
@@ -14,6 +14,7 @@ import java.util.List;
  * @param orderResult 바로 결제한 주문의 결과(PAID · CANCELLED). 정해지기 전이면 null
  * @param rejectReason 거절 사유(TOO_EXPENSIVE · ALREADY_HAVE · NEXT_TIME · OTHER). 거절이 아니면 null
  * @param decidedAt 승인 · 거절 시각. 처리 전이면 null
+ * @param cancelledAt 철회 시각(#968). 철회가 아니면 null
  */
 public record WishRequestView(
     Long requestId,
@@ -27,7 +28,8 @@ public record WishRequestView(
     String orderResult,
     String rejectReason,
     LocalDateTime decidedAt,
-    List<Line> items) {
+    List<Line> items,
+    LocalDateTime cancelledAt) {
 
     /**
      * 조르기에 든 줄 하나. 상품 복사본이 없으면 상품 필드 null, purchasable false.

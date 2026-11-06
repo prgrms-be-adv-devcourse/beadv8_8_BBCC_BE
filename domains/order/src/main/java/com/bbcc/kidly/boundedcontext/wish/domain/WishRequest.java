@@ -35,7 +35,9 @@ import lombok.NoArgsConstructor;
  *       승인한 줄은 잠긴 채로 둔다(결제되면 PAID · 공용 장바구니에서 빠짐, 결제 전에 취소되면 CANCELLED · 잠금만 풀림).
  *       보호자 장바구니로 옮기기(CART)는 승인과 함께 끝난다</li>
  *   <li>REJECTED: 사유 하나를 고른다. 잠금이 모두 풀린다</li>
+ *   <li>CANCELLED: 보낸 사람이 처리 전에 철회했다(#968). 잠금이 모두 풀리고 줄은 공용 장바구니에 남는다(다시 조를 수 있다)</li>
  * </ul>
+ * 승인 · 거절 · 철회는 REQUESTED에서만 되고, 동시에 오면 @Version으로 먼저 저장한 쪽만 남는다.
  * 줄 잠금 · 해제 · 구매 반영은 줄({@link WishItem})의 메서드로 하고, 어느 줄을 그렇게 할지는 이 조르기가 정한다.
  */
 @Entity
@@ -47,7 +49,8 @@ public class WishRequest extends WishTimeEntity {
     public enum Status {
         REQUESTED,
         APPROVED,
-        REJECTED
+        REJECTED,
+        CANCELLED
     }
 
     /**
@@ -127,6 +130,11 @@ public class WishRequest extends WishTimeEntity {
     private Long decidedById;
 
     private LocalDateTime decidedAt;
+
+    /**
+     * 철회 시각(#968). 철회한 사람은 보낸 사람(requestedByType · requestedById)이다.
+     */
+    private LocalDateTime cancelledAt;
 
     @Version
     private Long version;
@@ -223,6 +231,26 @@ public class WishRequest extends WishTimeEntity {
         this.rejectReason = reason;
         decide(deciderId, now);
         items.forEach(item -> item.unlockFrom(id));
+    }
+
+    /**
+     * 보낸 사람이 처리 전에 철회한다(#968). 누가 철회할 수 있는지는 app의 정책이 먼저 확인한다.
+     * 처리된 조르기(승인 · 거절 · 철회)면 WISH_REQUEST_ALREADY_DECIDED.
+     *
+     * @param items 이 조르기의 줄(잠금을 풀 대상, 줄은 남는다)
+     */
+    public void cancel(List<WishItem> items, LocalDateTime now) {
+        requireUndecided();
+        this.status = Status.CANCELLED;
+        this.cancelledAt = now;
+        items.forEach(item -> item.unlockFrom(id));
+    }
+
+    /**
+     * 이 사람이 보낸 조르기인지(종류 · ID가 같다).
+     */
+    public boolean isRequestedBy(AddedBy type, Long actorId) {
+        return requestedByType == type && requestedById.equals(actorId);
     }
 
     /**

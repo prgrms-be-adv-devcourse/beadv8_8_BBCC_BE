@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.wish.app;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishActor;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
+import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.RejectReason;
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
  *   <li>최대 줄 수: 자녀 한 명당 50줄</li>
  *   <li>조르기 메시지: 100자까지(선택)(#701)</li>
  *   <li>승인 · 거절: 보호자만(#701)</li>
+ *   <li>철회: 보낸 사람만(자녀가 보냈으면 그 자녀, 보호자가 대신 보냈으면 그 보호자)(#968)</li>
  *   <li>자녀(자녀 로그인, #906)는 자기 프로필의 공용 장바구니 · 조르기만: 다른 자녀 것이면 403</li>
  *   <li>거절 사유: 너무 비싸요(TOO_EXPENSIVE) · 이미 있어요(ALREADY_HAVE) · 다음에 사자(NEXT_TIME) · 기타(OTHER)(#701)</li>
  * </ul>
@@ -62,6 +64,13 @@ public class WishPolicy {
      */
     public boolean canDecide(WishActor actor) {
         return actor.type() == AddedBy.PARENT;
+    }
+
+    /**
+     * 이 사람이 조르기를 철회할 수 있는지(#968): 보낸 사람(종류 · ID)만. 조르기의 자녀를 쓸 수 있는지는 이미 확인한 뒤에 묻는다.
+     */
+    public boolean canCancel(WishActor actor, WishRequest request) {
+        return request.isRequestedBy(actor.type(), actor.id());
     }
 
     /**

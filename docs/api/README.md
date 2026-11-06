@@ -142,7 +142,8 @@
 | GET | `/api/v1/wish/requests/{requestId}` | 조르기 상세 | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/approval` | 조르기 승인(일부 · 수량 조정) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/rejection` | 조르기 거절(사유) | 🔒 |
-| GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 승인 · 거절 → 결제한 주문) | 🔒 |
+| POST | `/api/v1/wish/requests/{requestId}/cancellation` | 조르기 철회(보낸 사람만, 처리 전에만. 상태 `CANCELLED` · `cancelledAt`, 줄은 공용 장바구니에 남음, #968) | 🔒 |
+| GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 승인 · 거절 · 철회 → 결제한 주문, 철회면 `cancelledBy`) | 🔒 |
 | GET | `/api/v1/seller/orders` | 판매 주문 목록 | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/ship` | 발송(택배사 · 송장번호) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리 | 🏪 |
@@ -189,7 +190,7 @@
 | `payment_recoveries` | `status` · `page` · `size` | `GET /recoveries` |
 | `outbox_quarantined` | `page` · `size` | `GET /outbox/quarantined` |
 
-조르기(`/api/v1/wish/**`)는 회원 로그인과 자녀 로그인(자녀 토큰, #906)을 함께 받는다. 자녀는 자기 프로필의 공용 장바구니 담기 · 빼기 · 조회와 조르기 보내기 · 목록 · 상세 · 타임라인만 한다(다른 자녀 것이면 403). 승인 · 거절은 보호자(회원)만 한다(자녀면 403). 자녀 계정 연결을 확인할 수 없으면(연결 없음 · 삭제 · 보호자 다름) 403이다. 주문 · 장바구니 · 취소 등 다른 주문 API는 회원 로그인만 받는다.
+조르기(`/api/v1/wish/**`)는 회원 로그인과 자녀 로그인(자녀 토큰, #906)을 함께 받는다. 자녀는 자기 프로필의 공용 장바구니 담기 · 빼기 · 조회와 조르기 보내기 · 목록 · 상세 · 타임라인만 한다(다른 자녀 것이면 403). 승인 · 거절은 보호자(회원)만 한다(자녀면 403). 철회(#968)는 보낸 사람만 한다: 자녀가 보냈으면 그 자녀, 보호자가 대신 보냈으면 그 보호자(아니면 403 · 처리된 조르기면 409). 조르기 상태는 `REQUESTED` · `APPROVED` · `REJECTED` · `CANCELLED`(철회)다. 자녀 계정 연결을 확인할 수 없으면(연결 없음 · 삭제 · 보호자 다름) 403이다. 주문 · 장바구니 · 취소 등 다른 주문 API는 회원 로그인만 받는다.
 
 ## 결제
 
