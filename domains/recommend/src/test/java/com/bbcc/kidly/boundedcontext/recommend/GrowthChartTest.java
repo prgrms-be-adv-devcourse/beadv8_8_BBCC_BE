@@ -17,7 +17,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 class GrowthChartTest {
 
     /**
-     * 손으로 만든 작은 기준표다. 키 100cm면 체질량지수가 몸무게와 같아 경계값을 그대로 넣을 수 있다.
+     * 손으로 만든 작은 기준표다. 키 100cm면 체질량지수가 몸무게와 같고, 키 50cm면 몸무게의 4배라서 경계값을 오차 없이 넣을 수 있다.
+     * 키가 100cm가 아닌 줄이 있어야 체질량지수 식이 키를 잘못 쓴 경우도 잡힌다.
      * 228개월 행은 표에 행이 있어도 228개월부터는 판정하지 않는지 보려고 넣었다.
      */
     private static final GrowthChart CHART = GrowthChart.of(
@@ -36,16 +37,20 @@ class GrowthChartTest {
             new InfantWeightForLengthRow(MALE, 80.5, 12.0),
             new InfantWeightForLengthRow(MALE, 100.0, 17.0)));
 
-    @ParameterizedTest(name = "72개월, 키 100cm, 몸무게 {0}kg → {1}")
+    @ParameterizedTest(name = "72개월, 키 {0}cm, 몸무게 {1}kg → {2}")
     @CsvSource({
-        "13.9, SLIM",
-        "14.0, NORMAL",
-        "17.9, NORMAL",
-        "18.0, CHUNKY",
+        "100.0, 13.9, SLIM",
+        "100.0, 14.0, NORMAL",
+        "100.0, 17.9, NORMAL",
+        "100.0, 18.0, CHUNKY",
+        "50.0, 3.4, SLIM",
+        "50.0, 3.5, NORMAL",
+        "50.0, 4.4, NORMAL",
+        "50.0, 4.5, CHUNKY",
     })
     @DisplayName("규칙 4 24개월 이상은 체질량지수가 5백분위 미만이면 마름, 85백분위 이상이면 통통, 그 사이는 보통이다")
-    void judgeByBmiFrom24Months(double weightKg, BodyType expected) {
-        assertThat(CHART.judge(MALE, 72, 100.0, weightKg)).contains(expected);
+    void judgeByBmiFrom24Months(double heightCm, double weightKg, BodyType expected) {
+        assertThat(CHART.judge(MALE, 72, heightCm, weightKg)).contains(expected);
     }
 
     @ParameterizedTest(name = "12개월, 키 {0}cm, 몸무게 {1}kg → {2}")
