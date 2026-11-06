@@ -14,6 +14,13 @@ public final class DeadLetterHandling {
     /** 재처리 결과 칸 길이 */
     static final int RESULT_LENGTH = 500;
     static final String HANDED_OFF_RESULT = "자체 보관으로 넘김(재처리 대기 목록에서 처리)";
+
+    /**
+     * 재처리 결과가 '자체 보관으로 넘김'인지(#925 MCP가 한글 문구 대신 코드로 내보낼 때 쓴다).
+     */
+    public static boolean isHandedOff(String lastReprocessResult) {
+        return HANDED_OFF_RESULT.equals(lastReprocessResult);
+    }
     /** 결제 토픽. 여기서 온 메시지는 돈이 걸려 있어 관리자 목록 맨 앞에 둔다(#632) */
     static final String PAYMENT_SOURCE_TOPIC = "kidly.payment.events";
 

@@ -54,6 +54,11 @@ kidly:
     # 판매자 발송 전 부분 취소(#655)는 기본 켜짐(#924). 주문 모듈 테스트도 명시해 켜고 기능을 확인한다(꺼짐 거절은 단위 테스트)
     partial-cancel:
       enabled: true
+    # 주문 운영 조회 MCP 창구(#925)는 운영 기본 꺼짐. 주문 모듈 테스트는 켜고 도구를 확인한다(꺼짐이면 경로 없음은 단위 테스트).
+    # 상한은 기본(50)보다 작게 두어 줄이는 것을 적은 데이터로 확인한다
+    mcp:
+      enabled: true
+      max-results: 3
     auto-confirm:
       interval: P3650D
     outbox:

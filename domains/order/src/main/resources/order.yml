@@ -115,5 +115,10 @@ kidly:
     # 기본 true(#924): 받는 쪽(결제 부분 환불 · 상품 재고 복구 · 알림, order-item.cancelled)이 준비돼 켰다
     partial-cancel:
       enabled: ${ORDER_PARTIAL_CANCEL_ENABLED:true}
+    # 주문 운영 조회 MCP 창구(#925, 읽기 전용, POST /api/v1/admin/orders/mcp). 꺼져 있으면 경로가 없다. 관리자 통과는 Gateway가 한다
+    mcp:
+      enabled: ${ORDER_MCP_ENABLED:false}
+      # 도구 한 번이 돌려주는 목록 줄 수 상한(1~100). 더 큰 size는 이 값으로 줄인다
+      max-results: 50
 
     # 장바구니(boundedcontext.cart) 컨텍스트는 아직 설정이 없다

@@ -165,6 +165,29 @@
 | GET | `/api/v1/admin/orders/outbox/{outboxId}` | 아웃박스 상세 | 🛠 |
 | POST | `/api/v1/admin/orders/outbox/{outboxId}/retry` | 격리된 아웃박스 다시 보내기 | 🛠 |
 | POST | `/api/v1/admin/orders/purchase-confirmed-events` | 구매확정 이벤트 재발행 | 🛠 |
+| POST | `/api/v1/admin/orders/mcp` | 주문 운영 조회 MCP 창구(읽기 전용, 스위치 기본 꺼짐) | 🛠 |
+
+**주문 운영 조회 MCP 창구(#925)**: AI가 주문 운영 상태를 조회해 원인을 진단하는 읽기 전용 [MCP](https://modelcontextprotocol.io) 서버다. 재처리 · 종료 · 취소 같은 조작 도구는 없고, 조작은 위 관리자 API로 사람이 한다.
+
+- 켜기: 주문 서비스 환경변수 `ORDER_MCP_ENABLED=true`(설정 `kidly.order.mcp.enabled`, 기본 false). 꺼져 있으면 경로가 없다. 목록 한 번의 줄 수 상한은 `kidly.order.mcp.max-results`(기본 50, 1~100)
+- 연결: 상태 없는 Streamable HTTP(세션 없음). `POST /api/v1/admin/orders/mcp`에 JSON-RPC 본문, `Content-Type: application/json`, `Accept: application/json, text/event-stream`. 관리자 토큰으로 Gateway를 거친다. Gateway가 붙인 `X-Admin-Id`가 없거나 잘못되면 401 ProblemDetail
+- 결과: 도구마다 JSON 텍스트 하나. 목록은 `{items, page, size, totalElements, totalPages, hasNext}`이고 size(기본 20)가 상한보다 크면 상한으로 줄인다. 칸은 같은 일을 하는 관리자 API 응답과 같다(ID는 문자열, 시각은 `yyyy-MM-ddTHH:mm:ss`). 없는 주문 · 잘못된 인자는 `isError: true`와 `{error, message}`
+- 개인정보: 배송지 · 연락처 · 수령인 · 닉네임 · 자녀 정보는 응답에 없다. 회원 ID(`memberId` · 이력 `actorId`)는 내부 ID라 포함한다. DLT 상세는 원본 본문(`payload`) · 관리자 메모 · 예외 메시지 · 스택을 뺀 메타데이터만 주고, 실패는 예외 종류(`exceptionClass`)만 준다. 자유 문구가 될 수 있는 칸은 코드 · 예외 클래스 이름만 내보낸다(형식이 아니면 `null`, 관리자 API는 그대로):
+  - 아웃박스 `lastError` · DLT `exceptionClass`: 예외 클래스 이름만(마지막 마디가 `…Exception` · `…Error`). 아웃박스 메시지 키는 0으로 시작하지 않는 숫자 · UUID만
+  - 이력 `reason` · 실패 `failureCode`: 대문자로 시작하는 대문자 코드 · 결제 불일치 사유 코드(`member-mismatch` 등 목록) · `…Exception`/`…Error` 단순 이름만. 재고 실패 `reason`은 대문자 코드만
+  - 이력 `source`: 경로 틀(`POST /api/v1/orders/{orderId}/cancel`) · `scheduler:작업` · 이벤트 타입만
+  - DLT의 받은 값: 키 · `aggregateId` · `correlationId`는 관련 주문 ID와 같거나 UUID일 때만, `eventId`는 UUID만, `producer`는 원래 토픽 `kidly.{x}.events`의 x와 같을 때만, `eventType`(목록 · 상세)은 앞 마디가 그 토픽에 허용한 값일 때만(기본은 x 하나, `kidly.product.events`는 `product.` · `stock.`, `kidly.childprofile.events`는 `child.`, `kidly.auth.events`는 `child-account.`(주문이 건너뛰는 `auth.tokens-revoked`는 `null`). 토픽이 그 형식이 아니면 둘 다 `null`). 재처리 결과(`lastReprocessResult`)는 '자체 보관으로 넘김'이면 `HANDED_OFF`, 그 밖은 예외 클래스 이름만
+
+| 도구 | 인자 | 같은 관리자 API(`/api/v1/admin/orders` 아래) |
+|---|---|---|
+| `stuck_orders_summary` | 없음 | `GET /stuck/summary` |
+| `stuck_orders` | `kind`(필수) · `page` · `size` | `GET /stuck` |
+| `order_timeline` | `orderId`(필수) | `GET /{orderId}/history`. 이벤트가 바꾼 상태는 `actorType` EVENT · `source` 이벤트 타입. 상한보다 길면 최근 것만(`truncated`) |
+| `dead_letters` | `status` · `failureType` · `eventType` · `page` · `size` | `GET /dead-letters` |
+| `dead_letter_detail` | `deadLetterId`(필수) | `GET /dead-letters/{deadLetterId}`(본문 · 메모 · 예외 메시지 · 스택 제외) |
+| `event_failures` | `status` · `page` · `size` | `GET /event-failures` |
+| `payment_recoveries` | `status` · `page` · `size` | `GET /recoveries` |
+| `outbox_quarantined` | `page` · `size` | `GET /outbox/quarantined` |
 
 조르기(`/api/v1/wish/**`)는 회원 로그인과 자녀 로그인(자녀 토큰, #906)을 함께 받는다. 자녀는 자기 프로필의 공용 장바구니 담기 · 빼기 · 조회와 조르기 보내기 · 목록 · 상세 · 타임라인만 한다(다른 자녀 것이면 403). 승인 · 거절은 보호자(회원)만 한다(자녀면 403). 자녀 계정 연결을 확인할 수 없으면(연결 없음 · 삭제 · 보호자 다름) 403이다. 주문 · 장바구니 · 취소 등 다른 주문 API는 회원 로그인만 받는다.
 
