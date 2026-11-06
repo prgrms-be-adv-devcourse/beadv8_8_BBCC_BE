@@ -108,7 +108,7 @@ public class OrderController {
         return new PlaceOrderCommand(
             request.items().stream()
                 .map(item -> new PlaceOrderCommand.Item(
-                    item.optionId(), item.childId(), item.quantity(), item.unitPrice()))
+                    item.optionId(), item.childId(), item.quantity(), item.unitPrice(), item.cartItemId()))
                 .toList(),
             new PlaceOrderCommand.ShippingAddress(
                 address.recipientName(), address.phone(), address.zipCode(), address.address()));

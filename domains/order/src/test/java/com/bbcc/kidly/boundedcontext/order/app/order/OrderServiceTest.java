@@ -121,7 +121,8 @@ class OrderServiceTest {
         orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
             new OrderDeliveriesAdapter(delivery, delivery),
             sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY,
-            waitingRecordCloser, orderQueries);
+            waitingRecordCloser, orderQueries, (memberId, lines) -> {
+            });
         // 주문 취소가 닫을 재처리 대기 기록은 없다고 본다(#598, 닫는 동작은 통합 테스트가 본다)
         lenient().when(waitingRecordCloser.closeFor(any(), any(), any(), any()))
             .thenReturn(new WaitingRecordCloser.Closed(List.of(), null));

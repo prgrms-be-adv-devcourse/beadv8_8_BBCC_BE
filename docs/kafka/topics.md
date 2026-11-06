@@ -21,8 +21,9 @@
 | | `order-item.purchase-confirmed`(data에 확정 방식 `confirmType` DIRECT · AUTO, #901) | 주문 ID | | community, notification, recommend, settlement |
 | | `delivery.shipped` | 주문 ID | | notification |
 | | `delivery.delivered` | 주문 ID | | notification |
-| | `cart.item-added` | 회원 ID | | recommend |
-| | `cart.item-removed` | 회원 ID | | recommend |
+| | `cart.item-added`(#998 추가 칸 `ownerType` · `ownerId`: 장바구니 주인 MEMBER · CHILD, 키 = 결제 회원(보호자) ID) | 회원 ID | | recommend |
+| | `cart.item-removed`(사용자가 뺄 때만, #709. #998 추가 칸 `ownerType` · `ownerId`) | 회원 ID | | recommend |
+| | `cart.item-purchased`(결제완료로 산 칸 정리, #998: `cartItemId` · `ownerType` · `ownerId` · `memberId`(결제 회원) · `optionId` · `childId` · `quantity` · `orderId` · `orderItemId` · `reservationId`(예약 칸이었으면)) | 회원 ID | | (아직 없음. #999 뒤 order) |
 | | `wish.sent` | 자녀 ID | | notification |
 | | `wish.cancelled`(보낸 사람이 처리 전에 철회, #968) | 자녀 ID | | (아직 없음) |
 | | `wish.rejected` | 자녀 ID | | notification |

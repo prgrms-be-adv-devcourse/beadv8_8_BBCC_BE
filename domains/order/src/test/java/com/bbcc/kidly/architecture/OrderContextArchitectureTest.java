@@ -2,6 +2,7 @@ package com.bbcc.kidly.architecture;
 
 import static com.tngtech.archunit.base.DescribedPredicate.not;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.nameMatching;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
@@ -24,6 +25,9 @@ import java.util.List;
  *   <li>app/port/in에는 인터페이스 · record만 두고, 자기 port/in 밖(도메인 · 다른 컨텍스트)을 참조하지 않는다</li>
  *   <li>컨텍스트 사이 창구였던 api 패키지는 두지 않는다</li>
  *   <li>조르기(wish)는 아무도 참조하지 않는다. 걷어낼 때 wish 패키지만 지우면 된다</li>
+ *   <li>장바구니(cart)는 주문(order) 흐름을 모른다(#998, 순환 금지: 주문 → 장바구니, 조르기 → 장바구니 방향만). 예외는 모듈 공용 기반으로
+ *       쓰는 주문 컨텍스트의 복사본 조회(ReplicaLookup) · 이벤트 발행(OrderEventIssuer, 아웃박스) 포트뿐이고, 이 둘은 나중에 공용 컨텍스트로
+ *       옮긴다. 조르기 → 주문(바로 결제 · 보호자 장바구니 옮기기)은 아직 남아 있어(#999에서 없앤다) 이 규칙에 넣지 않는다</li>
  * </ul>
  */
 @AnalyzeClasses(packages = "com.bbcc.kidly.boundedcontext",
@@ -72,6 +76,16 @@ class OrderContextArchitectureTest {
         .and().resideOutsideOfPackage(BASE + WISH + "..")
         .should().dependOnClassesThat().resideInAPackage(BASE + WISH + "..")
         .as("주문 · 장바구니 · 배송은 조르기를 참조하지 않는다(#640)");
+
+    // 주문 컨텍스트 안의 모듈 공용 기반(복사본 · 아웃박스)을 여는 포트와 그 안의 값(중첩 record)
+    private static final String ORDER_SHARED_BASE =
+        BASE.replace(".", "\\.") + "order\\.app\\.port\\.in\\.(ReplicaLookup|OrderEventIssuer)(\\$.*)?";
+
+    @ArchTest
+    static final ArchRule CART_DOES_NOT_DEPEND_ON_ORDER = noClasses()
+        .that().resideInAPackage(BASE + "cart..")
+        .should().dependOnClassesThat(resideInAPackage(BASE + "order..").and(not(nameMatching(ORDER_SHARED_BASE))))
+        .as("장바구니는 주문을 참조하지 않는다(모듈 공용 기반 복사본 조회 · 이벤트 발행 포트만 예외, #998)");
 
     @ArchTest
     static final ArchRule IN_PORTS_USE_ONLY_THEMSELVES = CompositeArchRule.of(CONTEXTS.stream()

@@ -16,6 +16,7 @@ public record CartView(List<Line> items, long totalAmount) {
      * @param sellerId 상품 복사본의 판매자 ID. 복사본이 없으면 null
      * @param childId 자녀를 고르지 않았으면 null
      * @param sellerName 판매자의 지금 상호명(판매자 복사본). 상품 · 판매자 복사본이 없으면 null
+     * @param reserved 다른 곳이 예약한 칸인지(#998). 예약된 칸은 빼거나 수량을 바꿀 수 없다
      */
     public record Line(
         Long cartItemId,
@@ -30,6 +31,7 @@ public record CartView(List<Line> items, long totalAmount) {
         Long unitPrice,
         boolean purchasable,
         long lineAmount,
-        String sellerName) {
+        String sellerName,
+        boolean reserved) {
     }
 }

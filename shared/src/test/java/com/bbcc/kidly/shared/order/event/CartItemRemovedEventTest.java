@@ -27,9 +27,19 @@ class CartItemRemovedEventTest {
     }
 
     @Test
-    @DisplayName("뺐다는 사실만 담는다: 줄 · 회원 · 자녀(없으면 null) · 상품 · 옵션 · 뺄 때 줄 수량")
+    @DisplayName("뺐다는 사실만 담는다: 줄 · 회원 · 자녀(없으면 null) · 상품 · 옵션 · 뺄 때 줄 수량 + 주인(#998, 추가 칸)")
     void fields() {
         assertThat(Arrays.stream(CartItemRemovedEvent.Data.class.getRecordComponents()).map(RecordComponent::getName))
-            .containsExactly("cartItemId", "memberId", "childId", "productId", "optionId", "quantity");
+            .containsExactly("cartItemId", "memberId", "childId", "productId", "optionId", "quantity", "ownerType",
+                "ownerId");
+    }
+
+    @Test
+    @DisplayName("예전 모양 생성자(#709)는 주인 칸을 비운다")
+    void legacyConstructor() {
+        CartItemRemovedEvent.Data data = new CartItemRemovedEvent.Data(40L, 1L, null, 10L, 3L, 2);
+
+        assertThat(data.ownerType()).isNull();
+        assertThat(data.ownerId()).isNull();
     }
 }

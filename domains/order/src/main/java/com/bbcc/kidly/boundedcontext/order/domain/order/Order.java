@@ -131,13 +131,20 @@ public class Order extends OrderTimeEntity {
      * @param child 고른 자녀. 자녀를 고르지 않으면 null
      * @param quantity 수량
      * @param requestedUnitPrice 화면이 보여 준 단가 (현재 단가와 다르면 409)
+     * @param cartItemId 이 줄을 산 장바구니 칸 ID(#998). 없으면 null
      */
     public record RequestedItem(
         OrderItem.ProductSnapshot product,
         boolean purchasable,
         RequestedChild child,
         int quantity,
-        long requestedUnitPrice) {
+        long requestedUnitPrice,
+        Long cartItemId) {
+
+        public RequestedItem(OrderItem.ProductSnapshot product, boolean purchasable, RequestedChild child,
+            int quantity, long requestedUnitPrice) {
+            this(product, purchasable, child, quantity, requestedUnitPrice, null);
+        }
     }
 
     @Id
@@ -213,7 +220,8 @@ public class Order extends OrderTimeEntity {
         for (RequestedItem item : items) {
             validate(memberId, item);
             OrderItem orderItem = OrderItem.create(
-                item.product(), item.child() == null ? null : item.child().snapshot(), item.quantity());
+                item.product(), item.child() == null ? null : item.child().snapshot(), item.quantity(),
+                item.cartItemId());
             orderItem.assignTo(order);
             order.items.add(orderItem);
             order.totalAmount = Math.addExact(order.totalAmount, orderItem.getAmount());

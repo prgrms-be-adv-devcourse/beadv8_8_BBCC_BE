@@ -2,11 +2,10 @@ package com.bbcc.kidly.boundedcontext.cart.in.web;
 
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.AddCartItemResult;
+import com.bbcc.kidly.boundedcontext.cart.app.port.CartActors.Actor;
 import com.bbcc.kidly.boundedcontext.cart.in.web.dto.AddCartItemRequest;
 import com.bbcc.kidly.boundedcontext.cart.in.web.dto.CartResponse;
 import com.bbcc.kidly.boundedcontext.cart.in.web.dto.ChangeCartItemQuantityRequest;
-import com.bbcc.kidly.global.security.AuthMember;
-import com.bbcc.kidly.global.security.LoginMember;
 import jakarta.validation.Valid;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +20,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 장바구니 API. 로그인한 보호자 본인의 장바구니만 다룬다.
+ * 장바구니 API. 부른 사람(회원 또는 로그인한 자녀, #998)의 "내 장바구니"만 다룬다(@CartCaller). 남의 줄은 같은 가족이면 403,
+ * 그 밖이면 404. 예약된 줄은 빼거나 수량을 바꾸면 409.
  */
 @RestController
 @RequestMapping(CartController.CART_PATH)
@@ -38,10 +38,10 @@ public class CartController {
      */
     @PostMapping("/items")
     public ResponseEntity<CartResponse.Line> addItem(
-        @LoginMember AuthMember member,
+        @CartCaller Actor owner,
         @Valid @RequestBody AddCartItemRequest request) {
         AddCartItemResult result = cartService.addItem(
-            member.id(), request.optionId(), request.childId(), request.quantity());
+            owner, request.optionId(), request.childId(), request.quantity());
         CartResponse.Line body = CartResponse.Line.from(result.line());
         if (!result.created()) {
             return ResponseEntity.ok(body);
@@ -50,21 +50,21 @@ public class CartController {
     }
 
     @GetMapping
-    public CartResponse getCart(@LoginMember AuthMember member) {
-        return CartResponse.from(cartService.getCart(member.id()));
+    public CartResponse getCart(@CartCaller Actor owner) {
+        return CartResponse.from(cartService.getCart(owner));
     }
 
     @PatchMapping("/items/{cartItemId}")
     public CartResponse.Line changeQuantity(
-        @LoginMember AuthMember member,
+        @CartCaller Actor owner,
         @PathVariable Long cartItemId,
         @Valid @RequestBody ChangeCartItemQuantityRequest request) {
-        return CartResponse.Line.from(cartService.changeQuantity(member.id(), cartItemId, request.quantity()));
+        return CartResponse.Line.from(cartService.changeQuantity(owner, cartItemId, request.quantity()));
     }
 
     @DeleteMapping("/items/{cartItemId}")
-    public ResponseEntity<Void> removeItem(@LoginMember AuthMember member, @PathVariable Long cartItemId) {
-        cartService.removeItem(member.id(), cartItemId);
+    public ResponseEntity<Void> removeItem(@CartCaller Actor owner, @PathVariable Long cartItemId) {
+        cartService.removeItem(owner, cartItemId);
         return ResponseEntity.noContent().build();
     }
 }

@@ -35,6 +35,10 @@ class CartItemAddedEventTest {
         assertThat(data.optionId()).isEqualTo(3L);
         assertThat(data.quantity()).isEqualTo(2);
         assertThat(data.cartQuantity()).isEqualTo(5);
+        // 예전 모양 생성자(#654)는 주인 칸(#998)을 비운다
+        assertThat(data.ownerType()).isNull();
+        assertThat(data.ownerId()).isNull();
+        assertThat(new CartItemAddedEvent.Data(40L, 1L, null, 10L, 3L, 2, 5, "CHILD", 7L).ownerId()).isEqualTo(7L);
     }
 
     private static CartItemAddedEvent event(Long childId) {

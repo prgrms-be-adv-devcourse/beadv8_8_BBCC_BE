@@ -110,6 +110,11 @@ public class OrderItem extends OrderTimeEntity {
     @AttributeOverride(name = "name", column = @Column(name = "child_name"))
     private ChildSnapshot child;
 
+    /**
+     * 이 주문상품을 산 장바구니 칸(#998). 주문하기 요청에 주지 않았으면 null. 결제완료 정리 때 장바구니에 넘긴다.
+     */
+    private Long cartItemId;
+
     @Column(nullable = false)
     private int quantity;
 
@@ -155,9 +160,14 @@ public class OrderItem extends OrderTimeEntity {
      * 주문상품을 만든다. 주문상품 금액 = 주문 당시 단가 × 수량.
      */
     static OrderItem create(ProductSnapshot product, ChildSnapshot child, int quantity) {
+        return create(product, child, quantity, null);
+    }
+
+    static OrderItem create(ProductSnapshot product, ChildSnapshot child, int quantity, Long cartItemId) {
         OrderItem item = new OrderItem();
         item.product = product;
         item.child = child;
+        item.cartItemId = cartItemId;
         item.quantity = quantity;
         item.amount = Math.multiplyExact(product.unitPrice(), quantity);
         item.status = Status.ORDERED;
