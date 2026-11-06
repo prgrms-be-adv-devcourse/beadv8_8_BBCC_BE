@@ -47,4 +47,9 @@ public class KafkaTestcontainersConfiguration {
     NewTopic receivedOrderEventsTopic() {
         return TopicBuilder.name("kidly.order.events").partitions(3).replicas(1).build();
     }
+
+    @Bean
+    NewTopic receivedAuthEventsTopic() {
+        return TopicBuilder.name("kidly.auth.events").partitions(3).replicas(1).build();
+    }
 }

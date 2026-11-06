@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.notification.in.web.dto.UnreadCountResponse
 import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 알림함 API. 모두 로그인 필요. 오류: 404 NOTIFICATION_NOT_FOUND.
+ * 회원 알림함 API. 모두 회원 로그인 필요. 오류: 404 NOTIFICATION_NOT_FOUND.
+ * 자녀 알림함은 ChildInboxNotificationController가 같은 기능을 자녀 계정으로 연다.
  */
 @RestController
 @RequestMapping("/api/v1/notifications")
@@ -37,12 +39,12 @@ public class InboxNotificationController {
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return PageResponse.from(
-            inboxNotificationService.findMine(member.id(), page, size).map(InboxNotificationResponse::from));
+            inboxNotificationService.findMine(principal(member), page, size).map(InboxNotificationResponse::from));
     }
 
     @GetMapping("/unread-count")
     public UnreadCountResponse countUnread(@LoginMember AuthMember member) {
-        return new UnreadCountResponse(inboxNotificationService.countUnread(member.id()));
+        return new UnreadCountResponse(inboxNotificationService.countUnread(principal(member)));
     }
 
     /**
@@ -51,7 +53,7 @@ public class InboxNotificationController {
     @PatchMapping("/{notificationId}/read")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void read(@LoginMember AuthMember member, @PathVariable Long notificationId) {
-        inboxNotificationService.read(member.id(), notificationId);
+        inboxNotificationService.read(principal(member), notificationId);
     }
 
     /**
@@ -60,6 +62,10 @@ public class InboxNotificationController {
     @PatchMapping("/read-all")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void readAll(@LoginMember AuthMember member) {
-        inboxNotificationService.readAll(member.id());
+        inboxNotificationService.readAll(principal(member));
+    }
+
+    private static PrincipalId principal(AuthMember member) {
+        return PrincipalId.member(member.id());
     }
 }

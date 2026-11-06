@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderCancelledCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderItemCancelledCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,15 +22,15 @@ public class OrderCancelInboxService {
     @Transactional
     public void addOrderCancelled(OrderCancelledCommand command) {
         OrderCancelInbox.orderCancelled(command.reason()).ifPresent(content ->
-            inboxNotificationService.add(new InboxNotificationInfo(command.memberId(), NotificationType.ORDER_CANCELLED,
-                content.title(), content.body(), orderPath(command.orderId()),
+            inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
+                NotificationType.ORDER_CANCELLED, content.title(), content.body(), orderPath(command.orderId()),
                 "order.cancelled:" + command.orderId())));
     }
 
     @Transactional
     public void addItemsCancelledBySeller(OrderItemCancelledCommand command) {
         var content = OrderCancelInbox.itemsCancelledBySeller(command.reason(), command.itemCount());
-        inboxNotificationService.add(new InboxNotificationInfo(command.memberId(),
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
             NotificationType.ORDER_ITEM_CANCELLED, content.title(), content.body(), orderPath(command.orderId()),
             "order-item.cancelled:" + command.cancellationId()));
     }

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 
 import com.bbcc.kidly.boundedcontext.notification.app.dto.ProductChangedCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.domain.ProductName;
 import com.bbcc.kidly.boundedcontext.notification.domain.ProductNameChange;
@@ -41,7 +42,7 @@ public class ProductNameService {
         if (!change.newlySoldOutOptionIds().isEmpty()) {
             var content = ProductSoldOutInbox.compose(command.name(),
                 command.optionNames(change.newlySoldOutOptionIds()));
-            inboxNotificationService.add(new InboxNotificationInfo(command.sellerId(),
+            inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.sellerId()),
                 NotificationType.PRODUCT_OPTION_SOLD_OUT, content.title(), content.body(),
                 "/center/products/" + command.productId(),
                 "product.changed:" + command.eventId() + ":sold-out"));

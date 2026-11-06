@@ -125,7 +125,7 @@ class NotificationPaymentEventKafkaIntegrationTest {
         AsyncWait.until(TIMEOUT, () -> statuses().size() == 2
             && statuses().stream().allMatch(NotificationStatus.SENT::equals));
         assertThat(notifications()).filteredOn(n -> n.getType() == NotificationType.PAYOUT_COMPLETED).hasSize(1);
-        assertThat(jpaInboxNotificationRepository.findAll()).filteredOn(n -> memberId.equals(n.getMemberId()))
+        assertThat(jpaInboxNotificationRepository.findAll()).filteredOn(n -> memberId.equals(n.getRecipientId()))
             .extracting(InboxNotification::getType, InboxNotification::getLinkPath)
             .containsExactlyInAnyOrder(
                 tuple(NotificationType.PAYOUT_COMPLETED, "/center/settlements/" + targetId),

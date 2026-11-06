@@ -502,6 +502,24 @@ class RoutingIntegrationTest extends GatewayTestSupport {
         });
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/child/notifications?page=0&size=20", "/api/v1/child/notifications/unread-count",
+        "/api/v1/child/notifications/3/read", "/api/v1/child/notifications/read-all"
+    })
+    @DisplayName("자녀 알림함 API는 자녀 토큰이면 같은 메서드 · 경로 · 쿼리로 알림 서비스에 넘긴다")
+    void routesChildNotificationApisToNotificationService(String path) {
+        var now = Instant.now();
+        var token = TestTokens.issueChild(7001, 8, now, now.plusSeconds(1800));
+        client.patch().uri(path).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange()
+            .expectStatus().isOk();
+
+        assertThat(notificationBackend.lastRequest()).hasValueSatisfying(recorded -> {
+            assertThat(recorded.method()).isEqualTo("PATCH");
+            assertThat(recorded.uri()).isEqualTo(URI.create(path));
+        });
+    }
+
     @Test
     @DisplayName("알림함 경로와 이름만 비슷한 다른 경로는 404로 응답한다")
     void routesNotificationLookalikesToNotFound() {

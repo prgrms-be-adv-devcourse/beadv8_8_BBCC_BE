@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.ProductNameService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PurchaseConfirmedCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +44,7 @@ class AutoConfirmInboxServiceTest {
         autoConfirmInboxService.addAutoConfirmed(command("AUTO"));
 
         var info = captured();
-        assertThat(info.memberId()).isEqualTo(1L);
+        assertThat(info.recipient()).isEqualTo(InboxRecipient.member(1L));
         assertThat(info.type()).isEqualTo(NotificationType.PURCHASE_AUTO_CONFIRMED);
         assertThat(info.title()).isEqualTo("구매가 자동으로 확정됐어요");
         assertThat(info.body()).isEqualTo("곰돌이 티셔츠 2개가 자동으로 구매확정됐어요.");

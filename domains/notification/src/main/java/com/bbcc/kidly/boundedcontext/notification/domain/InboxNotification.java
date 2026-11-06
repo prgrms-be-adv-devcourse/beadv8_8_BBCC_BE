@@ -16,7 +16,8 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 알림함의 알림 한 건. 회원이 사이트에서 보고 읽음 처리한다.
+ * 알림함의 알림 한 건. 받는 로그인 주체(회원 또는 자녀 계정)가 사이트에서 보고 읽음 처리한다.
+ * 받는 사람은 종류와 ID를 함께 저장한다(InboxRecipient).
  * 제목 · 본문은 넣을 때 완성해 둔다. 같은 dedupKey는 한 건만 둔다(유니크).
  */
 @Entity
@@ -31,8 +32,12 @@ public class InboxNotification extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private InboxRecipientType recipientType;
+
     @Column(nullable = false)
-    private Long memberId;
+    private Long recipientId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -53,13 +58,14 @@ public class InboxNotification extends BaseTimeEntity {
     private LocalDateTime readAt;
 
     public static InboxNotification create(InboxNotificationInfo info) {
-        Assert.notNull(info.memberId(), "알림함 알림의 회원 ID는 비어 있을 수 없습니다");
+        Assert.notNull(info.recipient(), "알림함 알림의 받는 사람은 비어 있을 수 없습니다");
         Assert.notNull(info.type(), "알림함 알림의 유형은 비어 있을 수 없습니다");
         Assert.hasText(info.title(), "알림함 알림의 제목은 비어 있을 수 없습니다");
         Assert.hasText(info.body(), "알림함 알림의 본문은 비어 있을 수 없습니다");
         Assert.hasText(info.dedupKey(), "알림함 알림의 중복 키는 비어 있을 수 없습니다");
         var notification = new InboxNotification();
-        notification.memberId = info.memberId();
+        notification.recipientType = info.recipient().type();
+        notification.recipientId = info.recipient().id();
         notification.type = info.type();
         notification.title = info.title();
         notification.body = info.body();

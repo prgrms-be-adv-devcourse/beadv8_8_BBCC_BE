@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.ProductNameService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.InboxNotificationView;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.ProductChangedCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
@@ -60,7 +61,7 @@ class ProductNameServiceIntegrationTest {
             List.of(new ProductChangedCommand.Option(11L, "110", true),
                 new ProductChangedCommand.Option(12L, "120", false)), OCCURRED_AT.plusMinutes(1)));
 
-        assertThat(inboxNotificationService.findMine(7L, 0, 10).getContent())
+        assertThat(inboxNotificationService.findMine(PrincipalId.member(7L), 0, 10).getContent())
             .extracting(InboxNotificationView::type)
             .containsExactlyInAnyOrder(NotificationType.PRODUCT_STOPPED_BY_ADMIN.name(),
                 NotificationType.PRODUCT_OPTION_SOLD_OUT.name());

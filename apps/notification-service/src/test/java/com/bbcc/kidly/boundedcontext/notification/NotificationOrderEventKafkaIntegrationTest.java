@@ -189,7 +189,7 @@ class NotificationOrderEventKafkaIntegrationTest {
 
     private List<InboxNotification> inbox() {
         return jpaInboxNotificationRepository.findAll().stream()
-            .filter(notification -> memberId.equals(notification.getMemberId()))
+            .filter(notification -> memberId.equals(notification.getRecipientId()))
             .toList();
     }
 

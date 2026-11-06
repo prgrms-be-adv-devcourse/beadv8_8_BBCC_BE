@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderCancelledCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderItemCancelledCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PurchaseConfirmedCommand;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.WishRejectedCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WishSentCommand;
 import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
 import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
@@ -18,6 +19,7 @@ import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
+import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -26,7 +28,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * kidly.order.events에서 조르기 요청은 보호자 알림함에, 구매자가 하지 않은 주문 취소
+ * kidly.order.events에서 조르기 요청은 보호자 알림함에, 조르기 거절은 자녀 알림함에, 구매자가 하지 않은 주문 취소
  * (재고 부족 · 결제 기한 지남 · 판매자 취소)와 배송 출발 · 완료는 구매자 알림함에 넣는다.
  * 결제완료된 주문은 구매자에게 주문 확인 메일을 보내고, 결제완료 · 구매확정은 판매자 알림함에 넣는다.
  * 자동 구매확정은 구매자 알림함에도 넣는다.
@@ -51,6 +53,7 @@ public class NotificationOrderEventListener {
     public void on(ConsumerRecord<String, String> record) {
         switch (NotificationKafkaListenerConfig.header(record, "eventType")) {
             case "wish.sent" -> onWishSent(jsonMapper.readValue(record.value(), WishSentEvent.class));
+            case "wish.rejected" -> onWishRejected(jsonMapper.readValue(record.value(), WishRejectedEvent.class));
             case "order.cancelled" ->
                 onOrderCancelled(jsonMapper.readValue(record.value(), OrderCancelledEvent.class));
             case "order-item.cancelled" ->
@@ -70,6 +73,12 @@ public class NotificationOrderEventListener {
         var data = event.data();
         wishInboxService.addWishSent(new WishSentCommand(data.wishRequestId(), data.childId(), data.memberId(),
             data.items().stream().map(WishSentEvent.Item::productId).toList()));
+    }
+
+    private void onWishRejected(WishRejectedEvent event) {
+        var data = event.data();
+        wishInboxService.addWishRejected(new WishRejectedCommand(data.wishRequestId(), data.childId(),
+            data.items().stream().map(WishRejectedEvent.Item::productId).toList(), data.reason()));
     }
 
     private void onOrderCancelled(OrderCancelledEvent event) {
