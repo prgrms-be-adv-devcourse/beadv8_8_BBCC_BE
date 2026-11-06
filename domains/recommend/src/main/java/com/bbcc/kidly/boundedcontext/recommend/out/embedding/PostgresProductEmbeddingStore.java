@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend.out.embedding;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingTarget;
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import java.util.List;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -35,5 +36,34 @@ public class PostgresProductEmbeddingStore implements ProductEmbeddingStore {
             .query((rs, rowNum) -> new ProductEmbeddingTarget(
                 rs.getLong("product_id"), rs.getString("embedding_text"), rs.getBoolean("retried")))
             .list();
+    }
+
+    @Override
+    public boolean saveIfTextUnchanged(Long productId, String text, EmbeddingVector vector) {
+        int updated = jdbcClient.sql("""
+                UPDATE recommend.replica_product
+                SET embedding = CAST(:vector AS recommend.vector),
+                    embedded_text_md5 = md5(:text),
+                    embedding_attempted_at = NULL
+                WHERE product_id = :productId AND embedding_text = :text
+                """)
+            .param("vector", toLiteral(vector))
+            .param("text", text)
+            .param("productId", productId)
+            .update();
+        return updated == 1;
+    }
+
+    // pgvector의 문자열 표기 [v1,v2,...]다. Float.toString은 float로 다시 읽으면 같은 값이 되는 가장 짧은 표기를 돌려준다
+    private static String toLiteral(EmbeddingVector vector) {
+        float[] values = vector.values();
+        StringBuilder literal = new StringBuilder("[");
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) {
+                literal.append(',');
+            }
+            literal.append(Float.toString(values[i]));
+        }
+        return literal.append(']').toString();
     }
 }

@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.port.embedding;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import java.util.List;
 
 /**
@@ -12,4 +13,12 @@ public interface ProductEmbeddingStore {
      * 처음 보내는 상품이 앞서 보냈다가 성공하지 못한 상품보다 먼저 나온다. 판매 상태로는 거르지 않는다.
      */
     List<ProductEmbeddingTarget> findStale(int limit);
+
+    /**
+     * 벡터를 만든 글이 상품의 지금 글과 같을 때만 벡터를 저장하고 시도 시각을 지운다.
+     * 임베딩 API를 부르는 사이에 글이 바뀌었으면 낡은 벡터를 남기지 않으려고 저장하지 않는다.
+     *
+     * @return 저장했으면 true, 그 사이 글이 바뀌었거나 상품이 없어서 저장하지 않았으면 false
+     */
+    boolean saveIfTextUnchanged(Long productId, String text, EmbeddingVector vector);
 }
