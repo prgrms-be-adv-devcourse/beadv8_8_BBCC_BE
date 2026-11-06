@@ -64,7 +64,7 @@ class SellerOrderInboxServiceTest {
     void purchaseConfirmed() {
         given(productNameService.findName(9L)).willReturn(Optional.of("곰돌이 티셔츠"));
 
-        sellerOrderInboxService.addPurchaseConfirmed(new PurchaseConfirmedCommand(7L, 5L, 9L, 2));
+        sellerOrderInboxService.addPurchaseConfirmed(new PurchaseConfirmedCommand(7L, 3L, 1L, 5L, 9L, 2, "DIRECT"));
 
         var info = captured();
         assertThat(info.memberId()).isEqualTo(5L);
@@ -78,7 +78,7 @@ class SellerOrderInboxServiceTest {
     void purchaseConfirmedWithoutName() {
         given(productNameService.findName(9L)).willReturn(Optional.empty());
 
-        sellerOrderInboxService.addPurchaseConfirmed(new PurchaseConfirmedCommand(7L, 5L, 9L, 2));
+        sellerOrderInboxService.addPurchaseConfirmed(new PurchaseConfirmedCommand(7L, 3L, 1L, 5L, 9L, 2, "DIRECT"));
 
         assertThat(captured().body()).isEqualTo("주문상품 2개가 구매확정돼 정산 대상이 됐어요.");
     }

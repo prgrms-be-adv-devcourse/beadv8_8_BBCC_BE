@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.support.AsyncWait;
@@ -168,6 +169,22 @@ class NotificationOrderEventKafkaIntegrationTest {
         });
         assertThat(jpaNotificationRepository.findAll()).filteredOn(n -> email.equals(n.getRecipient()))
             .singleElement().satisfies(n -> assertThat(n.getType()).isEqualTo(NotificationType.ORDER_PAID));
+    }
+
+    @Test
+    @DisplayName("자동 구매확정되면 구매자 알림함에 넣고, 누르면 주문 상세로 간다")
+    void addAutoConfirmed() throws Exception {
+        var orderId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+        var sellerId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+        send(new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new OrderItemPurchaseConfirmedEvent.Data(ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE),
+                orderId, memberId, sellerId, null, 9L, 1L, "110", 1, 10_000L, LocalDateTime.now(), "AUTO")));
+
+        AsyncWait.until(TIMEOUT, () -> !inbox().isEmpty());
+        assertThat(inbox()).singleElement().satisfies(notification -> {
+            assertThat(notification.getType()).isEqualTo(NotificationType.PURCHASE_AUTO_CONFIRMED);
+            assertThat(notification.getLinkPath()).isEqualTo("/orders/" + orderId);
+        });
     }
 
     private List<InboxNotification> inbox() {
