@@ -8,33 +8,22 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 체형표다. 연령 구간, 성별, 키로 15백분위와 85백분위 몸무게를 찾는다.
+ * 체형 기준표다. 질병관리청 소아청소년 성장도표의 비만 판정 기준으로 아이의 체형을 판정한다.
  */
 public class GrowthChart {
 
-    private final Map<ChartKey, WeightPercentiles> rows;
     private final Map<AgeKey, BmiForAgeRow> bmiForAge;
     private final Map<AgeKey, InfantWeightForAgeRow> infantWeightForAge;
     private final Map<LengthKey, InfantWeightForLengthRow> infantWeightForLength;
 
     private GrowthChart(
-            Map<ChartKey, WeightPercentiles> rows,
             Map<AgeKey, BmiForAgeRow> bmiForAge,
             Map<AgeKey, InfantWeightForAgeRow> infantWeightForAge,
             Map<LengthKey, InfantWeightForLengthRow> infantWeightForLength
     ) {
-        this.rows = rows;
         this.bmiForAge = bmiForAge;
         this.infantWeightForAge = infantWeightForAge;
         this.infantWeightForLength = infantWeightForLength;
-    }
-
-    public static GrowthChart of(List<GrowthChartRow> rows) {
-        Map<ChartKey, WeightPercentiles> byKey = new HashMap<>();
-        for (GrowthChartRow row : rows) {
-            byKey.put(ChartKey.of(row.ageGroup(), row.gender(), row.heightCm()), row.percentiles());
-        }
-        return new GrowthChart(Map.copyOf(byKey), Map.of(), Map.of(), Map.of());
     }
 
     public static GrowthChart of(
@@ -54,12 +43,7 @@ public class GrowthChart {
         for (InfantWeightForLengthRow row : infantWeightForLength) {
             infantByLength.put(LengthKey.of(row.gender(), row.lengthCm()), row);
         }
-        return new GrowthChart(
-                Map.of(), Map.copyOf(bmiByAge), Map.copyOf(infantByAge), Map.copyOf(infantByLength));
-    }
-
-    public Optional<WeightPercentiles> find(AgeGroup ageGroup, Gender gender, double heightCm) {
-        return Optional.ofNullable(rows.get(ChartKey.of(ageGroup, gender, heightCm)));
+        return new GrowthChart(Map.copyOf(bmiByAge), Map.copyOf(infantByAge), Map.copyOf(infantByLength));
     }
 
     public Optional<BodyType> judge(Gender gender, long months, double heightCm, double weightKg) {
@@ -117,13 +101,6 @@ public class GrowthChart {
 
         private static LengthKey of(Gender gender, double lengthCm) {
             return new LengthKey(gender, Math.round(lengthCm * 2));
-        }
-    }
-
-    private record ChartKey(AgeGroup ageGroup, Gender gender, long heightMm) {
-
-        private static ChartKey of(AgeGroup ageGroup, Gender gender, double heightCm) {
-            return new ChartKey(ageGroup, gender, Math.round(heightCm * 10));
         }
     }
 }
