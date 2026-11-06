@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingTarget;
@@ -8,11 +9,13 @@ import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProdu
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 상품 임베딩 저장소가 실제 PostgreSQL(pgvector)에서 낡은 상품을 읽고 벡터를 저장하는 동작을 확인한다.
@@ -28,6 +31,9 @@ class ProductEmbeddingStoreIntegrationTest {
 
     @Autowired
     private RecommendReplicaProductService replicaProductService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("임베딩할 글이 있고 벡터가 없는 상품을 낡은 대상으로 읽는다")
@@ -60,6 +66,111 @@ class ProductEmbeddingStoreIntegrationTest {
             new ProductEmbeddingTarget(PRODUCT_1_ID, "상품명: 데일리 맨투맨", true));
     }
 
+    @Test
+    @DisplayName("임베딩할 글이 null인 상품은 벡터가 있든 없든 낡은 대상이 아니다")
+    void productWithoutTextIsNotStale() {
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_2_ID, "데일리 후드티"));
+        store.saveIfTextUnchanged(PRODUCT_1_ID, "상품명: 데일리 맨투맨", vectorOf(0.5f));
+
+        jdbcTemplate.update("update recommend.replica_product set embedding_text = null");
+
+        assertThat(store.findStale(10)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("지금 글이 같으면 벡터를 저장하고 시도 시각을 지운다")
+    void saveVectorAndClearAttemptedAtWhenTextUnchanged() {
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
+        store.markAttempted(List.of(PRODUCT_1_ID));
+        EmbeddingVector vector = vectorOf(0.5f);
+
+        boolean saved = store.saveIfTextUnchanged(PRODUCT_1_ID, "상품명: 데일리 맨투맨", vector);
+
+        assertThat(saved).isTrue();
+        assertThat(storedVector(PRODUCT_1_ID)).isEqualTo(vector);
+        assertThat(attemptedAt(PRODUCT_1_ID)).isNull();
+    }
+
+    @Test
+    @DisplayName("지금 글이 다르면 아무 행도 바꾸지 않고 false를 돌려준다")
+    void saveNothingWhenTextChanged() {
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
+        store.markAttempted(List.of(PRODUCT_1_ID));
+
+        boolean saved = store.saveIfTextUnchanged(PRODUCT_1_ID, "상품명: 옛 이름", vectorOf(0.5f));
+
+        assertThat(saved).isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+            "select embedding::text from recommend.replica_product where product_id = ?", String.class,
+            PRODUCT_1_ID)).isNull();
+        assertThat(attemptedAt(PRODUCT_1_ID)).isNotNull();
+        assertThat(store.findStale(10)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("벡터를 저장한 뒤 늦은 이벤트로 이름이 바뀌어도 저장된 벡터는 남고 그 상품은 다시 낡은 대상이 된다")
+    void keepVectorWhenLaterEventChangesName() {
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
+        EmbeddingVector vector = vectorOf(0.5f);
+        store.saveIfTextUnchanged(PRODUCT_1_ID, "상품명: 데일리 맨투맨", vector);
+
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "새 맨투맨",
+            RecommendFixture.PRODUCT_CHANGED_AT.plusMinutes(1)));
+
+        assertThat(storedVector(PRODUCT_1_ID)).isEqualTo(vector);
+        assertThat(store.findStale(10))
+            .containsExactly(new ProductEmbeddingTarget(PRODUCT_1_ID, "상품명: 새 맨투맨", false));
+    }
+
+    // 다음 PR의 후보 조회가 쓸 문법이다. 서비스 연결의 search_path에 recommend가 없어서 연산자에도 스키마를 붙인다
+    @Test
+    @DisplayName("저장한 벡터끼리 recommend 스키마의 코사인 거리 연산자로 거리를 잰다")
+    void measureDistanceBetweenStoredVectors() {
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_2_ID, "데일리 후드티"));
+        store.saveIfTextUnchanged(PRODUCT_1_ID, "상품명: 데일리 맨투맨", vectorOf(0.5f));
+        store.saveIfTextUnchanged(PRODUCT_2_ID, "상품명: 데일리 후드티", vectorOf(-3f));
+
+        assertThat(distance(PRODUCT_1_ID, PRODUCT_1_ID)).isCloseTo(0.0, within(1e-6));
+        assertThat(distance(PRODUCT_1_ID, PRODUCT_2_ID)).isGreaterThan(0.0);
+    }
+
+    @Test
+    @DisplayName("vector 확장은 recommend 스키마에 있다")
+    void vectorExtensionIsInRecommendSchema() {
+        assertThat(jdbcTemplate.queryForList("""
+            select n.nspname from pg_extension e join pg_namespace n on n.oid = e.extnamespace
+            where e.extname = 'vector'
+            """, String.class)).containsExactly("recommend");
+    }
+
+    // embedding::text는 [v1,v2,...]이고, 넣은 값과 같은지 float로 읽어 비교한다
+    private EmbeddingVector storedVector(Long productId) {
+        String text = jdbcTemplate.queryForObject(
+            "select embedding::text from recommend.replica_product where product_id = ?", String.class, productId);
+        String[] tokens = text.substring(1, text.length() - 1).split(",");
+        float[] values = new float[tokens.length];
+        for (int i = 0; i < tokens.length; i++) {
+            values[i] = Float.parseFloat(tokens[i]);
+        }
+        return new EmbeddingVector(values);
+    }
+
+    private LocalDateTime attemptedAt(Long productId) {
+        return jdbcTemplate.queryForObject(
+            "select embedding_attempted_at from recommend.replica_product where product_id = ?",
+            LocalDateTime.class, productId);
+    }
+
+    private double distance(Long productId, Long otherProductId) {
+        return jdbcTemplate.queryForObject("""
+            select a.embedding OPERATOR(recommend.<=>) b.embedding
+            from recommend.replica_product a, recommend.replica_product b
+            where a.product_id = ? and b.product_id = ?
+            """, Double.class, productId, otherProductId);
+    }
+
     // 값이 서로 다른 벡터를 만든다. seed가 같으면 같은 벡터다
     private static EmbeddingVector vectorOf(float seed) {
         float[] values = new float[EmbeddingVector.DIMENSIONS];
@@ -71,8 +182,12 @@ class ProductEmbeddingStoreIntegrationTest {
 
     // 상품 A의 상품 정보 변경됨에서 상품 ID와 이름만 바꾼다
     private static ProductChangedEvent productChangedEvent(Long productId, String name) {
+        return productChangedEvent(productId, name, RecommendFixture.PRODUCT_CHANGED_AT);
+    }
+
+    private static ProductChangedEvent productChangedEvent(Long productId, String name, LocalDateTime occurredAt) {
         ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
-        return new ProductChangedEvent(UUID.randomUUID(), RecommendFixture.PRODUCT_CHANGED_AT,
+        return new ProductChangedEvent(UUID.randomUUID(), occurredAt,
             new ProductChangedEvent.Data(productId, data.sellerId(), name, data.categoryId(), data.status(),
                 data.thumbnailUrl(), data.createdAt(), data.sizeFree(), data.options()));
     }
