@@ -7,6 +7,9 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbedding
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ProductEmbeddingTextTest {
 
@@ -21,5 +24,29 @@ class ProductEmbeddingTextTest {
             브랜드: 키들리
             소재: 면
             설명: 부드러운 면 티셔츠""");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"  "})
+    @DisplayName("브랜드가 없거나 공백이면 브랜드 줄을 뺀다")
+    void omitBlankBrand(String brand) {
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", brand, List.of(), "부드러운 면 티셔츠");
+
+        assertThat(text.value()).isEqualTo("""
+            상품명: 면 티셔츠
+            설명: 부드러운 면 티셔츠""");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"  "})
+    @DisplayName("설명이 없거나 공백이면 설명 줄을 뺀다")
+    void omitBlankDescription(String description) {
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", "키들리", List.of(), description);
+
+        assertThat(text.value()).isEqualTo("""
+            상품명: 면 티셔츠
+            브랜드: 키들리""");
     }
 }
