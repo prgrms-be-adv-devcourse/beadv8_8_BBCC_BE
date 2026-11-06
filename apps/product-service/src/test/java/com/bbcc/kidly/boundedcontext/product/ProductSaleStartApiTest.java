@@ -229,7 +229,7 @@ class ProductSaleStartApiTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"SALE_PENDING", "FOO"})
+    @ValueSource(strings = {"SALE_PENDING", "DELISTED", "FOO"})
     @DisplayName("판매 시작(ON_SALE)이나 판매 중지(STOPPED)가 아닌 판매 상태를 보내면 400이고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")
     void rejectStatusOtherThanOnSale(String status) {
         expectProblem(startSale(TestMembers.seller(SELLER_ID), Map.of("status", status)), HttpStatus.BAD_REQUEST,
