@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendKafkaMessages.RETRY_BACKOFF_TOTAL_MS;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendKafkaMessages.TIMEOUT;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -9,6 +10,7 @@ import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,9 +37,6 @@ class RecommendMemberKafkaIntegrationTest {
     private static final String MEMBER_DLT = "kidly.member.events.recommend.dlt";
     private static final LocalDateTime SEARCHED_AT = LocalDateTime.of(2026, 11, 3, 10, 0);
     private static final LocalDateTime WITHDRAWN_AT = LocalDateTime.of(2026, 11, 4, 9, 0);
-
-    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
-    private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
     private JpaActivityRecordRepository activityRecordRepository;
@@ -124,6 +123,39 @@ class RecommendMemberKafkaIntegrationTest {
         assertThat(messages.deadLetters(MEMBER_DLT, key)).singleElement()
             .satisfies(deadLetter -> assertThat(deadLetter.timestamp() - sent.timestamp())
                 .isLessThan(RETRY_BACKOFF_TOTAL_MS));
+    }
+
+    @Test
+    @DisplayName("회원 ID가 없는 탈퇴는 재시도 없이 회원 DLT로 보내고 다른 기록은 지우지 않는다")
+    void deadLetterWithdrawnWithoutMember() throws Exception {
+        Long otherMemberId = newId();
+        activityRecordRepository.saveAndFlush(search(otherMemberId));
+        var withoutMember = new MemberWithdrawnEvent(UUID.randomUUID(), WITHDRAWN_AT,
+            new MemberWithdrawnEvent.Data(null));
+        String key = String.valueOf(newId());
+
+        var sent = messages.sendRaw(MEMBER_TOPIC, key, withoutMember.eventType(), withoutMember.eventId(),
+            body(withoutMember));
+
+        AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(MEMBER_DLT, key).isEmpty());
+        assertThat(messages.deadLetters(MEMBER_DLT, key)).singleElement()
+            .satisfies(deadLetter -> assertThat(deadLetter.timestamp() - sent.timestamp())
+                .isLessThan(RETRY_BACKOFF_TOTAL_MS));
+        assertThat(recordsOf(otherMemberId)).hasSize(1);
+    }
+
+    // 회원 ID가 없는 탈퇴는 보내는 쪽이 만들지 않으므로 키를 따로 정해 본문만 같은 형식으로 만든다
+    private String body(MemberWithdrawnEvent event) throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("eventId", event.eventId());
+        body.put("eventType", event.eventType());
+        body.put("schemaVersion", event.schemaVersion());
+        body.put("occurredAt", event.occurredAt());
+        body.put("producer", event.producer());
+        body.put("aggregateId", event.aggregateId());
+        body.put("correlationId", event.correlationId());
+        body.put("data", event.data());
+        return jsonMapper.writeValueAsString(body);
     }
 
     private List<ActivityRecord> recordsOf(Long memberId) {

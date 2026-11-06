@@ -36,6 +36,11 @@ final class RecommendKafkaMessages {
     static final String GROUP = "kidly.recommend";
     static final Duration TIMEOUT = Duration.ofSeconds(30);
 
+    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
+    static final long RETRY_INTERVAL_MS = 1_000;
+    static final long RETRY_COUNT = 3;
+    static final long RETRY_BACKOFF_TOTAL_MS = RETRY_INTERVAL_MS * RETRY_COUNT;
+
     private final String bootstrapServers;
     private final JsonMapper jsonMapper;
 
