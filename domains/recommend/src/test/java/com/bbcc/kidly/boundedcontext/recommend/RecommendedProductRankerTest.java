@@ -102,4 +102,17 @@ class RecommendedProductRankerTest {
 
         assertThat(ranked).containsExactly(newest, recent, older, oldest);
     }
+
+    @Test
+    @DisplayName("PREF-08 장바구니에 있거나 구매한 상품처럼 제외할 상품은 목록에서 뺀다")
+    void excludedProductsAreRemoved() {
+        RecommendedProduct kept = recommendedProductRegisteredAt(1L, OLD_REGISTERED_AT);
+        RecommendedProduct inCart = recommendedProductRegisteredAt(2L, OLD_REGISTERED_AT);
+        RecommendedProduct purchased = recommendedProductRegisteredAt(3L, OLD_REGISTERED_AT);
+
+        List<RecommendedProduct> ranked = ranker.rank(
+            List.of(kept, inCart, purchased), ChildPreference.empty(), Set.of(2L, 3L), BASE_TIME);
+
+        assertThat(ranked).containsExactly(kept);
+    }
 }
