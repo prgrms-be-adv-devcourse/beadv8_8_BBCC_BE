@@ -17,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
+import com.bbcc.kidly.boundedcontext.order.in.web.OrderController;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
@@ -94,9 +95,32 @@ class SellerOrderApiTest {
                 .jsonPath("$.content[0].items.length()").isEqualTo(1)
                 .jsonPath("$.content[0].items[0].sellerId").isEqualTo(String.valueOf(SELLER_ID))
                 .jsonPath("$.content[0].items[0].optionName").isEqualTo("네이비 / 110")
-                .jsonPath("$.content[0].items[0].child.childId").isEqualTo("1")
+                .jsonPath("$.content[0].items[0].child").doesNotExist()
                 .jsonPath("$.content[0].items[0].unavailableReason").value(reason -> assertThat(reason).isNull())
                 .jsonPath("$.totalElements").isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("자녀를 지정한 주문도 판매자 응답에는 자녀 칸(child)과 자녀 키 · 몸무게 · 체형 값이 없다(#997). 구매자 주문 상세에는 그대로")
+        void noChildInSellerOrders() {
+            String body = client.get().uri(SELLER_ORDERS_PATH)
+                .headers(TestMembers.seller(SELLER_ID))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
+
+            assertThat(body).contains("\"orderId\":\"" + orderId + "\"");
+            assertThat(body).doesNotContain("\"child\"", "childId", "heightCm", "weightKg", "bodyType", "115.0",
+                "NORMAL");
+            client.get().uri(OrderController.ORDERS_PATH + "/" + orderId)
+                .headers(TestMembers.buyer(BUYER_ID))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.items[?(@.optionId == '1')].child.childId").isEqualTo(List.of("1"))
+                .jsonPath("$.items[?(@.optionId == '1')].child.heightCm").isEqualTo(List.of(115.0));
         }
 
         @Test

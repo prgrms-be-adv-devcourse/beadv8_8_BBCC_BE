@@ -15,6 +15,7 @@
 - `out`(#651): `persistence`(Spring Data JPA 저장소만) · `outbox`(아웃박스 메시지 · 저장 · 포트 구현) · `kafka`(발송 · 봉투 · 결제 이벤트 대기량 확인) · `deadletter`(DLT 보관 행 · 포트 구현) · `lock`(서버 한 대 실행 DB 잠금) · `config`(Kafka 토픽 · 설정값 → `OrderPolicy`, 배송은 택배 조회 빈 · 연결 설정) · `tracker`(배송: Delivery Tracker 연동, #650) · `{상대 컨텍스트}`(어댑터)
 - 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 `app.config` · `in.config` · `out.config`. `app.config`에는 설정 record만 둔다(#763)
 - 계층 규칙은 이 모듈의 `LayerArchitectureTest`(`LayerRules`, 컨텍스트마다), 컨텍스트 사이 규칙(다른 컨텍스트 참조는 내 out → 상대 `app.port.in`만)은 `OrderContextArchitectureTest`, 패키지 배치(위 in · out · 설정 자리)는 `OrderPackageLayoutArchitectureTest`, 기능 사이 의존 · 포트 규칙은 이 모듈의 `OrderArchitectureTest`가 검사한다(kidly-app에서 주문을 빼며 옮겼다, #826)
+- 판매 주문 조회(`GET /api/v1/seller/orders`, #997)는 자녀 칸을 읽지 않는 별도 조회다: `delivery/out/order` 어댑터가 `OrderLookup.findOrdersForSeller`(자녀 없는 `SellerOrderView`)만 쓰고, 주문은 `OrderRepository.findSellerOrderItemsByOrderIdIn`(JPQL 인터페이스 projection, 쿼리 한 번)으로 주문상품의 자녀 칸(child_id · child_name · height_cm · weight_kg · body_type)을 select하지 않는다. 배송의 `DeliveryOrders.Order.Item`에도 자녀 칸이 없다(판매자에게 자녀 정보를 넘기려면 제3자 제공 동의가 필요). 자녀가 필요한 장바구니 정리는 `OrderLookup.findOrder`(자녀 포함)를 그대로 쓴다. 구매자 · 관리자 응답 · 이벤트는 그대로
 
 ## 2. 이벤트 수신
 - 복사본 반영(#738)은 종류 · 대상 ID별 트랜잭션 advisory lock(`ReplicaUpdateLock`, `out.lock.ReplicaAdvisoryLock`)을 조회 전에 잡고 커밋 · 롤백까지 유지한다. 행이 없는 최초 생성도 직렬화하고, 상품은 상품 ID 하나로 전체 옵션 · 누락 옵션 처리를 묶는다. 자녀 변경 · 삭제는 같은 잠금을 쓴다. 이 잠금은 스케줄러의 한 서버 실행 잠금과 별개다.

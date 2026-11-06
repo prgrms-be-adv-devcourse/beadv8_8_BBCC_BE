@@ -160,7 +160,7 @@
 | POST | `/api/v1/wish/requests/{requestId}/rejection` | 조르기 거절(사유) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/cancellation` | 조르기 철회(보낸 사람만, 처리 전에만. 상태 `CANCELLED` · `cancelledAt`, 줄은 공용 장바구니에 남음, #968) | 🔒 |
 | GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 승인 · 거절 · 철회 → 결제한 주문, 철회면 `cancelledBy`) | 🔒 |
-| GET | `/api/v1/seller/orders` | 판매 주문 목록 | 🏪 |
+| GET | `/api/v1/seller/orders` | 판매 주문 목록. 주문상품에 자녀 정보(`child`)는 없다(#997, 제3자 제공 동의 없이 판매자에게 넘기지 않음) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/ship` | 발송(택배사 · 송장번호) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리 | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치는 기본 켜짐(#924), 끄면 409 | 🏪 |

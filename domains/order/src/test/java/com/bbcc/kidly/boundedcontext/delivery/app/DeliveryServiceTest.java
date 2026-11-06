@@ -334,8 +334,8 @@ class DeliveryServiceTest {
             Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
             when(deliveryRepository.findAllBySellerIdOrderByIdDesc(SELLER_A_ID, PageRequest.of(0, 20)))
                 .thenReturn(new PageImpl<>(List.of(delivery), PageRequest.of(0, 20), 1));
-            when(orderRepository.findAllWithItemsByIdIn(List.of(ORDER_ID)))
-                .thenReturn(List.of(withId(orderOfTwoSellers(), ORDER_ID)));
+            when(orderRepository.findSellerOrderItemsByOrderIdIn(List.of(ORDER_ID)))
+                .thenReturn(sellerRows(withId(orderOfTwoSellers(), ORDER_ID)));
 
             Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, 0, 20);
 
@@ -357,8 +357,8 @@ class DeliveryServiceTest {
                     Delivery.create(9L, SELLER_A_ID), Delivery.create(8L, SELLER_A_ID),
                     Delivery.create(7L, SELLER_A_ID)),
                     PageRequest.of(0, 20), 3));
-            when(orderRepository.findAllWithItemsByIdIn(List.of(9L, 8L, 7L)))
-                .thenReturn(List.of(withId(orderOfTwoSellers(), 9L), withId(orderOfTwoSellers(), 7L)));
+            when(orderRepository.findSellerOrderItemsByOrderIdIn(List.of(9L, 8L, 7L)))
+                .thenReturn(sellerRows(withId(orderOfTwoSellers(), 9L), withId(orderOfTwoSellers(), 7L)));
 
             Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, 0, 20);
 
@@ -380,7 +380,7 @@ class DeliveryServiceTest {
             clearShippingAddress(order);
             when(deliveryRepository.findAllBySellerIdOrderByIdDesc(SELLER_A_ID, PageRequest.of(0, 20)))
                 .thenReturn(new PageImpl<>(List.of(Delivery.create(ORDER_ID, SELLER_A_ID)), PageRequest.of(0, 20), 1));
-            when(orderRepository.findAllWithItemsByIdIn(List.of(ORDER_ID))).thenReturn(List.of(order));
+            when(orderRepository.findSellerOrderItemsByOrderIdIn(List.of(ORDER_ID))).thenReturn(sellerRows(order));
 
             SellerOrderView view = deliveryService.getSellerOrders(SELLER_A_ID, 0, 20).getContent().getFirst();
 
@@ -397,8 +397,112 @@ class DeliveryServiceTest {
             Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, 0, 20);
 
             assertThat(page.getContent()).isEmpty();
+            verify(orderRepository, never()).findSellerOrderItemsByOrderIdIn(any());
             verify(orderRepository, never()).findAllWithItemsByIdIn(any());
         }
+    }
+
+    /**
+     * 판매 주문 조회(#997)의 저장소 결과 줄: 주문 엔티티 값을 projection 줄로 옮긴다(자녀 칸 없음).
+     */
+    private static List<OrderRepository.SellerOrderItemRow> sellerRows(Order... orders) {
+        return java.util.Arrays.stream(orders)
+            .flatMap(order -> order.getItems().stream().map(item -> sellerRow(order, item)))
+            .toList();
+    }
+
+    private static OrderRepository.SellerOrderItemRow sellerRow(Order order, OrderItem item) {
+        Order.ShippingAddress address = order.getShippingAddress();
+        OrderItem.ProductSnapshot product = item.getProduct();
+        return new OrderRepository.SellerOrderItemRow() {
+            public Long getOrderId() {
+                return order.getId();
+            }
+
+            public Long getMemberId() {
+                return order.getMemberId();
+            }
+
+            public java.time.LocalDateTime getOrderedAt() {
+                return order.getCreatedAt();
+            }
+
+            public String getRecipientName() {
+                return address == null ? null : address.recipientName();
+            }
+
+            public String getPhone() {
+                return address == null ? null : address.phone();
+            }
+
+            public String getZipCode() {
+                return address == null ? null : address.zipCode();
+            }
+
+            public String getAddress() {
+                return address == null ? null : address.address();
+            }
+
+            public Long getOrderItemId() {
+                return item.getId();
+            }
+
+            public Long getProductId() {
+                return product.productId();
+            }
+
+            public Long getOptionId() {
+                return product.optionId();
+            }
+
+            public Long getSellerId() {
+                return product.sellerId();
+            }
+
+            public String getProductName() {
+                return product.productName();
+            }
+
+            public String getOptionName() {
+                return product.optionName();
+            }
+
+            public String getSize() {
+                return product.size();
+            }
+
+            public long getUnitPrice() {
+                return product.unitPrice();
+            }
+
+            public int getQuantity() {
+                return item.getQuantity();
+            }
+
+            public long getAmount() {
+                return item.getAmount();
+            }
+
+            public OrderItem.Status getStatus() {
+                return item.getStatus();
+            }
+
+            public java.time.LocalDateTime getDeliveredAt() {
+                return item.getDeliveredAt();
+            }
+
+            public java.time.LocalDateTime getConfirmedAt() {
+                return item.getConfirmedAt();
+            }
+
+            public OrderItem.ConfirmType getConfirmType() {
+                return item.getConfirmType();
+            }
+
+            public String getUnavailableReason() {
+                return item.getUnavailableReason();
+            }
+        };
     }
 
     private static void clearShippingAddress(Order order) {
