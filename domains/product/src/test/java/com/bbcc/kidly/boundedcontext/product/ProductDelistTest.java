@@ -12,6 +12,7 @@ import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.spec;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top110Measurements;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measurements;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
@@ -23,6 +24,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -73,6 +75,17 @@ class ProductDelistTest {
 
         assertRejected(() -> product.delist(OTHER_SELLER_ID), ProductErrorCode.NOT_PRODUCT_OWNER);
         assertThat(product.getStatus()).isEqualTo(statusBefore);
+    }
+
+    @Test
+    @DisplayName("등록 취소의 판매자가 null이면 코드가 잘못 호출된 것이라 거절하고 아무것도 바꾸지 않는다")
+    void rejectDelistWithNull() {
+        withSaleStarted();
+
+        assertThatThrownBy(() -> product.delist(null))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
     static Stream<Named<Consumer<ProductDelistTest>>> productsOfOtherSeller() {
