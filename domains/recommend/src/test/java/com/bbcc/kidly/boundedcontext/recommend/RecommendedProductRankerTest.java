@@ -64,13 +64,13 @@ class RecommendedProductRankerTest {
         ChildPreference preference = ChildPreference.empty().plus(new PreferenceActivity(CATEGORY_ID, BRAND, true));
         // 점수가 낮은 상품일수록 등록 시각이 늦어, 등록 최신순이면 반대 순서가 된다
         RecommendedProduct sevenPoints = recommendedProduct(1L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT);
-        RecommendedProduct threePoints = recommendedProduct(2L, CATEGORY_ID, "다른브랜드", OLD_REGISTERED_AT.plusDays(1));
+        RecommendedProduct fivePoints = recommendedProduct(2L, CATEGORY_ID, "다른브랜드", OLD_REGISTERED_AT.plusDays(1));
         RecommendedProduct onePoint = recommendedProduct(3L, 99L, "다른브랜드", BASE_TIME);
 
         List<RecommendedProduct> ranked =
-            ranker.rank(List.of(onePoint, threePoints, sevenPoints), preference, Set.of(), BASE_TIME);
+            ranker.rank(List.of(onePoint, fivePoints, sevenPoints), preference, Set.of(), BASE_TIME);
 
-        assertThat(ranked).containsExactly(sevenPoints, threePoints, onePoint);
+        assertThat(ranked).containsExactly(sevenPoints, fivePoints, onePoint);
     }
 
     @Test
