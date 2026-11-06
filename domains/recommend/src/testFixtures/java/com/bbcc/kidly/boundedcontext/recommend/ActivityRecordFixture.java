@@ -47,6 +47,10 @@ public final class ActivityRecordFixture {
 
     public static final LocalDateTime REMOVED_AT = LocalDateTime.of(2026, 11, 3, 10, 20);
 
+    public static final UUID VIEW_EVENT_ID = UUID.fromString("71e30000-0000-0000-0000-000000000001");
+
+    public static final LocalDateTime VIEWED_AT = LocalDateTime.of(2026, 11, 3, 10, 2);
+
     public static final UUID WITHDRAWN_EVENT_ID = UUID.fromString("3e3b0000-0000-0000-0000-000000000001");
 
     public static final LocalDateTime WITHDRAWN_AT = LocalDateTime.of(2026, 11, 4, 9, 0);
@@ -76,6 +80,10 @@ public final class ActivityRecordFixture {
     public static ActivityRecord.CartItemRemovedInfo cartItemRemovedFor(Long childProfileId, Long productId) {
         return new ActivityRecord.CartItemRemovedInfo(REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, childProfileId,
             productId, PRODUCT_A_120_OPTION_ID, REMOVED_QTY, REMOVED_AT);
+    }
+
+    public static ActivityRecord.ProductViewedInfo productViewed() {
+        return new ActivityRecord.ProductViewedInfo(VIEW_EVENT_ID, MEMBER_1_ID, PRODUCT_A_ID, VIEWED_AT);
     }
 
     public static SearchPerformedEvent searchPerformedEvent() {

@@ -8,6 +8,8 @@ import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
+import java.time.LocalDateTime;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -78,6 +80,13 @@ public class ActivityRecordService {
             data.quantity(),
             event.occurredAt());
         activityRecordRepository.save(ActivityRecord.cartItemRemoved(info));
+    }
+
+    // 이벤트로 받은 기록이 아니므로 이벤트 ID는 서버가 새로 만든다. 같은 상품을 다시 보면 새 기록이 한 줄 더 남는다
+    public void recordProductViewed(Long memberId, Long productId) {
+        ActivityRecord.ProductViewedInfo info = new ActivityRecord.ProductViewedInfo(
+            UUID.randomUUID(), memberId, productId, LocalDateTime.now());
+        activityRecordRepository.save(ActivityRecord.productViewed(info));
     }
 
     public void deleteActivityRecordsOfWithdrawnMember(MemberWithdrawnEvent event) {
