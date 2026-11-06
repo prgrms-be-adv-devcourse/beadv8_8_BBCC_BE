@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import java.time.Duration;
 import org.hibernate.validator.constraints.time.DurationMin;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -18,6 +19,8 @@ import org.springframework.validation.annotation.Validated;
  *     / · . 같은 글자로 다른 환경 경로를 가리키지 못하게 소문자만 받는다
  * @param fakeCredentials true면 AWS 자격 증명 대신 가짜 값으로 서명한다(로컬 · 테스트). 주소 모양은 같지만 실제로 올라가지 않는다
  * @param uploadUrlExpiry 업로드 주소 서명 유효 시간(예: PT5M)
+ * @param uploadCheck 리뷰에 새로 붙는 사진이 실제로 올라갔는지 확인하는 방식: s3(HeadObject, 기본) · none(확인 안 함, 로컬)
+ * @param uploadCheckTimeout 업로드 확인 한 장의 시간 제한(S3 API 호출 시간 제한, 기본 PT2S)
  */
 @Validated
 @ConfigurationProperties("kidly.community.review.image")
@@ -26,5 +29,7 @@ public record CommunityReviewImageStorageProperties(
     @NotBlank String region,
     @NotBlank @Pattern(regexp = "[a-z]+") String keyPrefix,
     boolean fakeCredentials,
-    @NotNull @DurationMin(seconds = 1) Duration uploadUrlExpiry) {
+    @NotNull @DurationMin(seconds = 1) Duration uploadUrlExpiry,
+    @DefaultValue("s3") @NotBlank String uploadCheck,
+    @DefaultValue("PT2S") @NotNull @DurationMin(millis = 1) Duration uploadCheckTimeout) {
 }

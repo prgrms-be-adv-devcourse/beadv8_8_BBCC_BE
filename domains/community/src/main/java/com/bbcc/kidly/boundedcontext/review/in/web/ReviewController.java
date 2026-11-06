@@ -31,7 +31,8 @@ public class ReviewController {
 
     /**
      * 201 + Location. 오류: 400 INVALID_RATING · INVALID_CONTENT · INVALID_ORDER_ITEM_ID · INVALID_FIT ·
-     * FIT_NOT_APPLICABLE · INVALID_IMAGE_URL · TOO_MANY_IMAGES, 403 REVIEW_NOT_ELIGIBLE, 409 REVIEW_ALREADY_WRITTEN.
+     * FIT_NOT_APPLICABLE · INVALID_IMAGE_URL · TOO_MANY_IMAGES · IMAGE_NOT_UPLOADED, 403 REVIEW_NOT_ELIGIBLE,
+     * 409 REVIEW_ALREADY_WRITTEN, 503 IMAGE_STORAGE_UNAVAILABLE.
      */
     @PostMapping
     public ResponseEntity<ReviewResponse> write(@LoginMember AuthMember member,
@@ -45,7 +46,8 @@ public class ReviewController {
     /**
      * 200. 보낸 값(별점 · 본문 · 핏 · 사진)만 바꾼다(fit: null은 핏을 지운다, imageUrls는 목록 전체 교체 · 빈 목록은 모두 삭제).
      * 오류: 400 NO_FIELDS_TO_UPDATE · INVALID_RATING · INVALID_CONTENT · INVALID_FIT · FIT_NOT_APPLICABLE ·
-     * INVALID_IMAGE_URL · TOO_MANY_IMAGES, 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND.
+     * INVALID_IMAGE_URL · TOO_MANY_IMAGES · IMAGE_NOT_UPLOADED, 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND,
+     * 503 IMAGE_STORAGE_UNAVAILABLE.
      */
     @PatchMapping("/{reviewId}")
     public ReviewResponse update(@LoginMember AuthMember member, @PathVariable Long reviewId,
