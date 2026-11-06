@@ -20,11 +20,18 @@ public record ProductEmbeddingText(String value) {
         String description) {
         List<String> lines = new ArrayList<>();
         lines.add("상품명: " + name);
-        lines.add("브랜드: " + brand);
+        addIfPresent(lines, "브랜드", brand);
         for (InfoValue infoValue : infoValues) {
             lines.add(infoValue.code() + ": " + infoValue.value());
         }
-        lines.add("설명: " + description);
+        addIfPresent(lines, "설명", description);
         return new ProductEmbeddingText(String.join("\n", lines));
+    }
+
+    private static void addIfPresent(List<String> lines, String label, String text) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        lines.add(label + ": " + text);
     }
 }
