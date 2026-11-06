@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
+import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.RejectReason;
 import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -35,6 +37,22 @@ class WishPolicyTest {
         assertThat(policy.canRemove(child, WishItem.create(CHILD_ID, 1L, 1, AddedBy.CHILD, SIBLING_ID))).isFalse();
         // 부모 회원 ID와 자녀 프로필 ID가 같은 숫자여도 종류가 다르면 남이 담은 줄
         assertThat(policy.canRemove(child, WishItem.create(CHILD_ID, 1L, 1, AddedBy.PARENT, CHILD_ID))).isFalse();
+    }
+
+    @Test
+    @DisplayName("철회(#968)는 보낸 사람만: 자녀가 보냈으면 그 자녀, 보호자가 대신 보냈으면 그 보호자")
+    void cancelBySenderOnly() {
+        WishItem item = WishItem.create(CHILD_ID, 1L, 1, AddedBy.CHILD, CHILD_ID);
+        WishRequest byChild = WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, null, 100, List.of(item));
+        WishRequest byParent = WishRequest.send(CHILD_ID, AddedBy.PARENT, PARENT_ID, null, 100,
+            List.of(WishItem.create(CHILD_ID, 2L, 1, AddedBy.PARENT, PARENT_ID)));
+
+        assertThat(policy.canCancel(new TestChildWishActor(CHILD_ID), byChild)).isTrue();
+        assertThat(policy.canCancel(new ParentWishActor(PARENT_ID), byChild)).isFalse();
+        assertThat(policy.canCancel(new TestChildWishActor(SIBLING_ID), byChild)).isFalse();
+        assertThat(policy.canCancel(new ParentWishActor(PARENT_ID), byParent)).isTrue();
+        assertThat(policy.canCancel(new ParentWishActor(PARENT_ID + 1), byParent)).isFalse();
+        assertThat(policy.canCancel(new TestChildWishActor(CHILD_ID), byParent)).isFalse();
     }
 
     @Test

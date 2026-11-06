@@ -19,6 +19,7 @@ import com.bbcc.kidly.boundedcontext.wish.domain.WishRequestLine;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRuleViolationException;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.order.event.WishApprovedEvent;
+import com.bbcc.kidly.shared.order.event.WishCancelledEvent;
 import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import java.time.LocalDateTime;
@@ -38,16 +39,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 조르기 보내기 · 보기 · 승인 · 거절(#701). 쓸 수 없는 자녀(남의 자녀 · 삭제된 자녀 · 없는 자녀)의 조르기는 없는 것으로 본다(404).
+ * 조르기 보내기 · 보기 · 승인 · 거절(#701) · 철회(#968). 쓸 수 없는 자녀(남의 자녀 · 삭제된 자녀 · 없는 자녀)의 조르기는 없는 것으로 본다(404).
  * <ul>
  *   <li>보내기: 그 자녀의 공용 장바구니 줄 여러 개 + 메시지(선택). 진행 중인 조르기에 든 줄은 넣을 수 없다(409). 줄은 공용 장바구니에 남는다</li>
  *   <li>승인 · 거절: 보호자만({@link WishPolicy#canDecide}), 한 번만(조르기 @Version — 승인 · 거절을 먼저 DB에 써서 동시에 처리하는
  *       쪽이 주문 · 장바구니를 건드리기 전에 버전 충돌로 진다)</li>
  *   <li>바로 결제: 주문하기와 같은 길로 보호자 주문을 만들고(주문상품 자녀 = 조른 자녀) 주문 ID를 기록한다. 결제가 끝나면 승인한 줄이
  *       공용 장바구니에서 빠진다({@link WishOrderSettlement}). 보호자 장바구니로 옮기기: 장바구니 담기와 같은 길로 담는다</li>
+ *   <li>철회: 보낸 사람만({@link WishPolicy#canCancel}), 처리 전에만(승인 · 거절과 같은 @Version 조건 전이 — 동시에 오면 먼저 저장한
+ *       쪽만 남고 진 쪽은 409). 잠금만 풀고 줄은 공용 장바구니에 남는다(#968)</li>
  * </ul>
  * 주문 · 장바구니가 거절하면(가격 바뀜 · 판매 중 아님 등) 그 오류가 그대로 나가고 승인도 롤백된다.
- * 보내기 · 승인 · 거절이 성공하면 같은 트랜잭션에서 wish.sent · wish.approved · wish.rejected를 낸다(#702, {@link WishEvents}, 키 = 자녀
+ * 보내기 · 승인 · 거절 · 철회가 성공하면 같은 트랜잭션에서 wish.sent · wish.approved ·
+ * wish.rejected · wish.cancelled를 낸다(#702, {@link WishEvents}, 키 = 자녀
  * 프로필 ID). 실패 · 롤백 · 동시 처리에서 진 쪽은 이벤트도 남지 않는다.
  */
 @Slf4j
@@ -192,7 +196,33 @@ public class WishRequestService {
     }
 
     /**
-     * 조르기 타임라인(#702): 조르기 단계(보냄 → 승인 · 거절)에 바로 결제한 주문의 주문 타임라인을 이어 붙인다. 새 이력 없이
+     * 보낸 사람이 처리 전에 철회한다(#968). 확인 순서: 조르기(404) → 다른 자녀(403) → 보낸 사람(403) → 처리 전(409).
+     * 승인 · 거절처럼 먼저 DB에 써서(flush) 동시에 처리하는 쪽과 버전으로 겨룬다. 진 쪽은 409이고 이벤트도 남지 않는다.
+     */
+    public WishRequestView cancel(WishActor actor, Long requestId) {
+        WishRequest request = findUsable(actor, requestId);
+        WishCatalog.Child child = childOf(request);
+        if (!wishPolicy.canCancel(actor, request)) {
+            throw new BusinessException(WishErrorCode.WISH_REQUEST_CANCEL_FORBIDDEN);
+        }
+        try {
+            request.cancel(itemsOf(request), LocalDateTime.now());
+        } catch (WishRuleViolationException e) {
+            throw WishErrors.toBusiness(e);
+        }
+        wishRequestRepository.flush();
+        Map<Long, Long> productIds = productIdsOf(request.getLines());
+        wishEvents.publish(new WishCancelledEvent(UUID.randomUUID(), LocalDateTime.now(), new WishCancelledEvent.Data(
+            request.getId(), request.getChildId(), child.memberId(), request.getLines().stream()
+                .map(line -> new WishCancelledEvent.Item(productIds.get(line.getOptionId()), line.getOptionId(),
+                    line.getRequestedQuantity()))
+                .toList())));
+        log.info("조르기 철회: requestId={} by={}", request.getId(), actor.type());
+        return toViews(List.of(request)).getFirst();
+    }
+
+    /**
+     * 조르기 타임라인(#702): 조르기 단계(보냄 → 승인 · 거절 · 철회)에 바로 결제한 주문의 주문 타임라인을 이어 붙인다. 새 이력 없이
      * 조르기의 시각 · 사유 · 주문 ID로 조립하고, 주문 쪽은 {@link WishOrders}(주문 컨텍스트)로 읽는다. 주문은 보호자 이름으로 만들었으므로
      * 그 자녀의 보호자 회원으로 읽는다.
      */
@@ -282,7 +312,8 @@ public class WishRequestService {
                 nameOf(request.getRejectReason()), request.getDecidedAt(),
                 request.getLines().stream()
                     .map(line -> toLine(line, products.get(line.getOptionId()), sellerNames))
-                    .toList()))
+                    .toList(),
+                request.getCancelledAt()))
             .toList();
     }
 

@@ -24,6 +24,7 @@
 | | `cart.item-added` | 회원 ID | | recommend |
 | | `cart.item-removed` | 회원 ID | | recommend |
 | | `wish.sent` | 자녀 ID | | notification |
+| | `wish.cancelled`(보낸 사람이 처리 전에 철회, #968) | 자녀 ID | | (아직 없음) |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |
 | | `payment.refunded` | 주문 ID | | notification |
 | | `payment.payout-completed` · `payment.payout-failed` | 정산서 ID | | settlement, notification(payout-completed) |

@@ -7,11 +7,12 @@ import java.util.List;
 /**
  * 조르기 타임라인(#702). ID는 문자열(장바구니와 같음). 칸은 추가만 한다.
  *
- * @param status 조르기 상태(REQUESTED · APPROVED · REJECTED)
+ * @param status 조르기 상태(REQUESTED · APPROVED · REJECTED · CANCELLED)
  * @param checkout ORDER · CART. 처리 전 · 거절이면 null
  * @param rejectReason 거절이 아니면 null
  * @param orderId 바로 결제로 만든 주문 ID. 없으면 null
- * @param steps SENT → APPROVED · REJECTED → (주문이 있으면) 주문 타임라인 단계
+ * @param steps SENT → APPROVED · REJECTED · CANCELLED → (주문이 있으면) 주문 타임라인 단계
+ * @param cancelledBy 철회한 사람 종류(보낸 사람, PARENT · CHILD, #968). 철회가 아니면 null
  */
 public record WishTimelineResponse(
     String requestId,
@@ -19,7 +20,8 @@ public record WishTimelineResponse(
     String checkout,
     String rejectReason,
     String orderId,
-    List<Step> steps) {
+    List<Step> steps,
+    String cancelledBy) {
 
     /**
      * @param status DONE · PARTIAL · WAITING · NOT_APPLICABLE
@@ -31,6 +33,7 @@ public record WishTimelineResponse(
     public static WishTimelineResponse from(WishTimelineView view) {
         return new WishTimelineResponse(String.valueOf(view.requestId()), view.status(), view.checkout(),
             view.rejectReason(), view.orderId() == null ? null : String.valueOf(view.orderId()),
-            view.steps().stream().map(step -> new Step(step.step(), step.status(), step.at())).toList());
+            view.steps().stream().map(step -> new Step(step.step(), step.status(), step.at())).toList(),
+            view.cancelledBy());
     }
 }

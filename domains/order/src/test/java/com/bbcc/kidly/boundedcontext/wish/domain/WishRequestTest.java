@@ -186,6 +186,51 @@ class WishRequestTest {
     }
 
     @Test
+    @DisplayName("철회(#968)하면 CANCELLED · 철회 시각을 남기고 든 줄의 잠금만 푼다(줄은 공용 장바구니에 남는다)")
+    void cancel() {
+        WishRequest request = sent(first, second);
+
+        request.cancel(List.of(first, second), NOW);
+
+        assertThat(request.getStatus()).isEqualTo(WishRequest.Status.CANCELLED);
+        assertThat(request.getCancelledAt()).isEqualTo(NOW);
+        assertThat(request.getDecidedAt()).isNull();
+        assertThat(first.isLocked()).isFalse();
+        assertThat(second.isLocked()).isFalse();
+        assertThat(first.getStatus()).isEqualTo(WishItem.Status.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("처리된 조르기(승인 · 거절 · 철회)는 철회할 수 없고, 철회한 조르기는 승인 · 거절할 수 없다")
+    void cancelOnlyWhenRequested() {
+        WishRequest approved = sent(first);
+        approved.approve(List.of(new Approval(10L, 1)), Checkout.CART, PARENT_ID, List.of(first), NOW);
+        WishRequest rejected = sent(second);
+        rejected.reject(RejectReason.NEXT_TIME, PARENT_ID, List.of(second), NOW);
+        WishItem third = item(12L, 3L, 1);
+        WishRequest cancelled = sent(third);
+        cancelled.cancel(List.of(third), NOW);
+
+        assertRule(() -> approved.cancel(List.of(first), NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
+        assertRule(() -> rejected.cancel(List.of(second), NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
+        assertRule(() -> cancelled.cancel(List.of(third), NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
+        assertRule(() -> cancelled.approve(List.of(new Approval(12L, 1)), Checkout.CART, PARENT_ID, List.of(third),
+            NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
+        assertRule(() -> cancelled.reject(RejectReason.OTHER, PARENT_ID, List.of(third), NOW),
+            Rule.WISH_REQUEST_ALREADY_DECIDED);
+    }
+
+    @Test
+    @DisplayName("보낸 사람인지는 종류와 ID가 모두 같아야 한다")
+    void requestedBy() {
+        WishRequest request = sent(first);
+
+        assertThat(request.isRequestedBy(AddedBy.CHILD, CHILD_ID)).isTrue();
+        assertThat(request.isRequestedBy(AddedBy.PARENT, CHILD_ID)).isFalse();
+        assertThat(request.isRequestedBy(AddedBy.CHILD, CHILD_ID + 1)).isFalse();
+    }
+
+    @Test
     @DisplayName("거절하면 사유를 남기고 든 줄의 잠금을 모두 푼다")
     void reject() {
         WishRequest request = sent(first, second);

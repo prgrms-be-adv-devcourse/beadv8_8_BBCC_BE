@@ -32,6 +32,7 @@ import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.WishCancelledEvent;
 import com.bbcc.kidly.shared.order.event.WishItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
@@ -262,7 +263,7 @@ class OrderOutboxKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("조르기 이벤트(#702)도 같은 토픽에 도착한다: 키 = 자녀 프로필 ID, 헤더 eventType · eventId, 본문 7칸 + data, "
+    @DisplayName("조르기 이벤트(#702 · 철회 #968)도 같은 토픽에 도착한다: 키 = 자녀 프로필 ID, 헤더 eventType · eventId, 본문 7칸 + data, "
         + "같은 자녀는 같은 파티션에 일어난 순서대로")
     void deliversWishEvents() {
         Long childId = 1L;
@@ -270,19 +271,23 @@ class OrderOutboxKafkaIntegrationTest {
         Long wishItemId = wishService.add(child, childId, 1L, 2).line().wishItemId();
         Long requestId = wishRequestService.send(child, childId, List.of(wishItemId), null).requestId();
         wishRequestService.reject(new ParentWishActor(BUYER_ID), requestId, "NEXT_TIME");
+        // 거절로 풀린 줄을 다시 조르고 자녀가 철회한다(#968)
+        Long againId = wishRequestService.send(child, childId, List.of(wishItemId), null).requestId();
+        wishRequestService.cancel(child, againId);
         List<DomainEvent> published = List.of(recorder.events(WishItemAddedEvent.class).getFirst(),
-            recorder.events(WishSentEvent.class).getFirst(), recorder.events(WishRejectedEvent.class).getFirst());
+            recorder.events(WishSentEvent.class).get(0), recorder.events(WishRejectedEvent.class).getFirst(),
+            recorder.events(WishSentEvent.class).get(1), recorder.events(WishCancelledEvent.class).getFirst());
 
         OutboxRelayResult result = relayService.relay();
 
-        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 3, 3));
+        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 5, 5));
         Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
             published.stream().map(event -> event.eventId().toString()).collect(Collectors.toSet()));
         List<ConsumerRecord<String, String>> inOrder = published.stream()
             .map(event -> received.get(event.eventId().toString()))
             .toList();
         assertThat(inOrder).extracting(record -> header(record, "eventType"))
-            .containsExactly("wish.item-added", "wish.sent", "wish.rejected");
+            .containsExactly("wish.item-added", "wish.sent", "wish.rejected", "wish.sent", "wish.cancelled");
         for (DomainEvent event : published) {
             ConsumerRecord<String, String> record = received.get(event.eventId().toString());
             assertThat(record.key()).isEqualTo(String.valueOf(childId));

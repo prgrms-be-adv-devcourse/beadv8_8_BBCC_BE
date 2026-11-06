@@ -112,6 +112,89 @@ class WishRequestConcurrencyIntegrationTest {
     }
 
     @Test
+    @DisplayName("같은 조르기의 승인(장바구니로 옮기기)과 철회(#968)가 겹치면 하나만 처리되고, 진 쪽은 409 · 이벤트 없음(반복)")
+    void approveAndCancel() throws InterruptedException {
+        for (int round = 1; round <= ROUNDS; round++) {
+            Long wishItemId = newWishItem(round);
+            Long requestId = wishRequestService.send(CHILD, CHILD_ID, List.of(wishItemId), null).requestId();
+            long cartLinesBefore = cartLineCount();
+            List<WishRequestView> results = new CopyOnWriteArrayList<>();
+
+            ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
+                () -> results.add(wishRequestService.approve(PARENT, requestId, new ApproveWishCommand("CART",
+                    List.of(new ApproveWishCommand.Item(wishItemId, 1, null)), null))),
+                () -> results.add(wishRequestService.cancel(CHILD, requestId))),
+                WishRequestConcurrencyIntegrationTest::isAlreadyDecided);
+
+            assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
+            assertThat(outcome.conflicts()).as("%d회차 진 쪽", round).isEqualTo(1);
+            assertThat(results).as("%d회차 처리", round).hasSize(1);
+            String status = jdbcTemplate.queryForObject("select status from orders.wish_request where id = ?",
+                String.class, requestId);
+            assertThat(status).as("%d회차 상태", round).isEqualTo(results.getFirst().status());
+            assertThat(cartLineCount() - cartLinesBefore).as("%d회차 장바구니 줄", round)
+                .isEqualTo("APPROVED".equals(status) ? 1 : 0);
+            assertThat(wishEventCount("wish.approved", requestId) + wishEventCount("wish.cancelled", requestId))
+                .as("%d회차 처리 이벤트", round).isOne();
+            assertThat(jdbcTemplate.queryForObject("select request_id from orders.wish_item where id = ?", Long.class,
+                wishItemId)).as("%d회차 잠금", round).isNull();
+        }
+    }
+
+    @Test
+    @DisplayName("같은 조르기의 바로 결제 승인과 철회(#968)가 겹치면 하나만 처리되고, 승인이 이기면 주문 하나 · 철회가 이기면 주문 없음(반복)")
+    void approveOrderAndCancel() throws InterruptedException {
+        for (int round = 1; round <= ROUNDS; round++) {
+            Long wishItemId = newWishItem(round);
+            Long requestId = wishRequestService.send(CHILD, CHILD_ID, List.of(wishItemId), null).requestId();
+            long ordersBefore = orderCount();
+            List<WishRequestView> results = new CopyOnWriteArrayList<>();
+
+            ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
+                () -> results.add(approveOrder(requestId, wishItemId)),
+                () -> results.add(wishRequestService.cancel(CHILD, requestId))),
+                WishRequestConcurrencyIntegrationTest::isAlreadyDecided);
+
+            assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
+            assertThat(outcome.conflicts()).as("%d회차 진 쪽", round).isEqualTo(1);
+            assertThat(results).as("%d회차 처리", round).hasSize(1);
+            String status = jdbcTemplate.queryForObject("select status from orders.wish_request where id = ?",
+                String.class, requestId);
+            assertThat(status).as("%d회차 상태", round).isEqualTo(results.getFirst().status());
+            assertThat(orderCount() - ordersBefore).as("%d회차 새 주문 수", round)
+                .isEqualTo("APPROVED".equals(status) ? 1 : 0);
+            assertThat(wishEventCount("wish.approved", requestId) + wishEventCount("wish.cancelled", requestId))
+                .as("%d회차 처리 이벤트", round).isOne();
+        }
+    }
+
+    @Test
+    @DisplayName("같은 조르기의 거절과 철회(#968)가 겹치면 하나만 처리되고 처리 이벤트도 하나다(반복)")
+    void rejectAndCancel() throws InterruptedException {
+        for (int round = 1; round <= ROUNDS; round++) {
+            Long wishItemId = newWishItem(round);
+            Long requestId = wishRequestService.send(CHILD, CHILD_ID, List.of(wishItemId), null).requestId();
+            List<WishRequestView> results = new CopyOnWriteArrayList<>();
+
+            ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
+                () -> results.add(wishRequestService.reject(PARENT, requestId, "NEXT_TIME")),
+                () -> results.add(wishRequestService.cancel(CHILD, requestId))),
+                WishRequestConcurrencyIntegrationTest::isAlreadyDecided);
+
+            assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
+            assertThat(outcome.conflicts()).as("%d회차 진 쪽", round).isEqualTo(1);
+            assertThat(results).as("%d회차 처리", round).hasSize(1);
+            String status = jdbcTemplate.queryForObject("select status from orders.wish_request where id = ?",
+                String.class, requestId);
+            assertThat(status).as("%d회차 상태", round).isEqualTo(results.getFirst().status());
+            assertThat(wishEventCount("wish.rejected", requestId) + wishEventCount("wish.cancelled", requestId))
+                .as("%d회차 처리 이벤트", round).isOne();
+            assertThat(jdbcTemplate.queryForObject("select request_id from orders.wish_item where id = ?", Long.class,
+                wishItemId)).as("%d회차 잠금", round).isNull();
+        }
+    }
+
+    @Test
     @DisplayName("같은 줄을 동시에 두 조르기로 보내면 하나만 만들어지고 줄은 그 조르기로 잠긴다(반복)")
     void sendSameItemTwice() throws InterruptedException {
         for (int round = 1; round <= ROUNDS; round++) {
