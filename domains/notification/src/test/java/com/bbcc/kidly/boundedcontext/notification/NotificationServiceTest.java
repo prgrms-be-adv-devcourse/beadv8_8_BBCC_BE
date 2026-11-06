@@ -313,6 +313,20 @@ class NotificationServiceTest {
     }
 
     @Test
+    @DisplayName("상품이 빈 결제완료 메시지도 실패시키지 않고 상품 이름 없이 메일과 알림함을 만든다")
+    void orderPaidWithoutItems() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.of("parent@kidly.co.kr"));
+        givenSaved();
+
+        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of()));
+
+        verify(notificationRepository).save(any());
+        var added = ArgumentCaptor.forClass(InboxNotificationInfo.class);
+        verify(inboxNotificationService).add(added.capture());
+        assertThat(added.getValue().body()).isEqualTo("주문의 결제가 끝났어요. 총 결제 금액은 10,000원이에요.");
+    }
+
+    @Test
     @DisplayName("사유가 없으면 사유 줄 없이 만든다")
     void suspendedWithoutReason() {
         given(memberContactService.findEmail(1L)).willReturn(Optional.of("parent@kidly.co.kr"));

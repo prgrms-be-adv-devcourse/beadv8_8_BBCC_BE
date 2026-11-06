@@ -178,9 +178,14 @@ public class NotificationService {
     // 알림함 본문은 1000자까지라 첫 상품 이름(255자까지)만 적고 나머지는 "외 N건"으로 줄인다
     private static String orderPaidInboxBody(OrderPaidCommand command) {
         var items = command.items();
+        var total = "총 결제 금액은 %,d원이에요.".formatted(command.totalAmount());
+        // 주문은 상품 없이 만들어지지 않지만, 받는 쪽은 상품이 빈 메시지도 실패시키지 않는다
+        if (items.isEmpty()) {
+            return "주문의 결제가 끝났어요. " + total;
+        }
         var first = items.getFirst().productName();
         var name = items.size() == 1 ? first : "%s 외 %d건".formatted(first, items.size() - 1);
-        return "%s 주문의 결제가 끝났어요. 총 결제 금액은 %,d원이에요.".formatted(name, command.totalAmount());
+        return "%s 주문의 결제가 끝났어요. %s".formatted(name, total);
     }
 
     private boolean exists(UUID eventId) {
