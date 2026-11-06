@@ -416,6 +416,12 @@ services:
       # 택배 조회(Delivery Tracker) 인증값. 비어 있으면 택배 조회만 꺼진다(판매자 수동 배송 완료는 그대로)
       DELIVERY_TRACKER_CLIENT_ID: ${DELIVERY_TRACKER_CLIENT_ID:-}
       DELIVERY_TRACKER_CLIENT_SECRET: ${DELIVERY_TRACKER_CLIENT_SECRET:-}
+      # 멈춘 주문 AI 진단 메모(#926). 기본 꺼짐, 켜도 키가 비어 있으면 꺼진다. 제공자 · 주소 · 모델 기본값은 order.yml(Groq)
+      ORDER_AI_ENABLED: ${ORDER_AI_ENABLED:-false}
+      ORDER_AI_PROVIDER: ${ORDER_AI_PROVIDER:-openai-compatible}
+      ORDER_AI_BASE_URL: ${ORDER_AI_BASE_URL:-https://api.groq.com/openai/v1}
+      ORDER_AI_MODEL: ${ORDER_AI_MODEL:-openai/gpt-oss-20b}
+      ORDER_AI_API_KEY: ${ORDER_AI_API_KEY:-}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${ORDER_PORT:-8100}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)

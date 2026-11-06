@@ -44,7 +44,8 @@ class StuckOrderQueryCountIntegrationTest {
     private QueryCounter queryCounter;
 
     @Test
-    @DisplayName("목록: 대상이 1건이든 10건이든 쿼리 수가 같다(한 페이지에 다 들면 목록 1번, 넘치면 목록 1번 + 건수 1번)")
+    @DisplayName("목록: 대상이 1건이든 10건이든 쿼리 수가 같다(한 페이지에 다 들면 목록 1번, 넘치면 목록 1번 + 건수 1번, "
+        + "그 페이지의 AI 진단 메모 1번(#926))")
     void listQueryCountRegardlessOfSize() {
         LocalDateTime now = LocalDateTime.now();
         shippingDelayed(1);
@@ -53,8 +54,8 @@ class StuckOrderQueryCountIntegrationTest {
         long many = countStatements(() -> stuckOrderService.getStuckOrders("SHIPPING_DELAYED", now, 0, 20));
         long fullPage = countStatements(() -> stuckOrderService.getStuckOrders("SHIPPING_DELAYED", now, 0, 5));
 
-        assertThat(many).isEqualTo(single).isEqualTo(1);
-        assertThat(fullPage).as("목록 1번 + 건수 1번").isEqualTo(2);
+        assertThat(many).isEqualTo(single).isEqualTo(2);
+        assertThat(fullPage).as("목록 1번 + 건수 1번 + 메모 1번").isEqualTo(3);
         assertThat(stuckOrderService.getStuckOrders("SHIPPING_DELAYED", now, 0, 20).getContent()).hasSize(MANY);
     }
 

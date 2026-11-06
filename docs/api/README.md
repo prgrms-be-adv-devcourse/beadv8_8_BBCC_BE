@@ -149,7 +149,7 @@
 | POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치는 기본 켜짐(#924), 끄면 409 | 🏪 |
 | GET | `/api/v1/admin/orders` | 전체 주문 조회 | 🛠 |
 | GET | `/api/v1/admin/orders/{orderId}/history` | 주문 상태 이력 | 🛠 |
-| GET | `/api/v1/admin/orders/stuck` | 멈춘 주문 목록(`kind`) | 🛠 |
+| GET | `/api/v1/admin/orders/stuck` | 멈춘 주문 목록(`kind`). 줄마다 AI 진단 메모 `aiMemo`(#926, 없으면 null) | 🛠 |
 | GET | `/api/v1/admin/orders/stuck/summary` | 멈춘 주문 종류별 건수 | 🛠 |
 | GET | `/api/v1/admin/orders/recoveries` | 결제 완료 반영 실패 목록 | 🛠 |
 | POST | `/api/v1/admin/orders/recoveries/{recoveryId}/retry` | 결제 완료 반영 재처리 | 🛠 |
@@ -190,6 +190,19 @@
 | `outbox_quarantined` | `page` · `size` | `GET /outbox/quarantined` |
 
 조르기(`/api/v1/wish/**`)는 회원 로그인과 자녀 로그인(자녀 토큰, #906)을 함께 받는다. 자녀는 자기 프로필의 공용 장바구니 담기 · 빼기 · 조회와 조르기 보내기 · 목록 · 상세 · 타임라인만 한다(다른 자녀 것이면 403). 승인 · 거절은 보호자(회원)만 한다(자녀면 403). 자녀 계정 연결을 확인할 수 없으면(연결 없음 · 삭제 · 보호자 다름) 403이다. 주문 · 장바구니 · 취소 등 다른 주문 API는 회원 로그인만 받는다.
+
+**멈춘 주문 AI 진단 메모(#926)**: 멈춘 주문 목록(`GET /api/v1/admin/orders/stuck`)의 줄마다 `aiMemo`가 붙는다(필드 추가). 주기 작업이 새로 멈춘 주문을 AI에 물어 남긴 원인 요약 · 권장 조치이고, AI의 제안일 뿐 조치는 관리자가 위 API로 한다. (주문, 멈춘 종류)별 가장 최근 성공 메모이며 없거나 실패만 있으면 `null`.
+
+| `aiMemo` 칸 | 설명 |
+|---|---|
+| `summary` | 원인 요약 |
+| `recommendedAction` | 권장 조치 |
+| `confidence` | `LOW` · `MEDIUM` · `HIGH` |
+| `provider` | 답한 곳(OpenAI 호환 주소의 호스트, 예: `api.groq.com` · 가짜면 `fake`) |
+| `model` | 모델 이름 |
+| `createdAt` | 메모를 남긴 시각 |
+
+주문 서비스 환경변수 `ORDER_AI_ENABLED`(기본 false) · `ORDER_AI_API_KEY`(없으면 꺼짐) · `ORDER_AI_PROVIDER`(`openai-compatible` · `fake`) · `ORDER_AI_BASE_URL` · `ORDER_AI_MODEL`(기본 Groq). AI에는 개인정보를 보내지 않는다.
 
 ## 결제
 
