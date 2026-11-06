@@ -85,6 +85,12 @@ spring:
               uri: ${kidly.gateway.settlement-uri}
               predicates:
                 - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**,/api/v1/admin/settlement-dead-letters/**
+            # 개발용 예치금 충전(local · test · dev 전용, #1010)은 결제 서비스로 간다. 아래 회원 라우트의 /api/v1/dev/**보다 먼저 맞춘다.
+            # prod 결제 서비스에는 이 API가 등록되지 않아 404다
+            - id: payment-dev
+              uri: ${kidly.gateway.payment-uri}
+              predicates:
+                - Path=/api/v1/dev/wallets/**
             # 회원 · 인증 · 판매자 API는 회원 서비스로 간다
             - id: member
               uri: ${kidly.gateway.member-uri}

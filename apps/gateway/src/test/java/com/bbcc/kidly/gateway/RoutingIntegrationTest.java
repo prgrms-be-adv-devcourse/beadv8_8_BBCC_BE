@@ -329,6 +329,19 @@ class RoutingIntegrationTest extends GatewayTestSupport {
             assertThat(request.uri()).isEqualTo(URI.create("/api/v1/webhooks/toss")));
     }
 
+    @Test
+    @DisplayName("개발용 예치금 충전은 회원 서비스가 아니라 결제 서비스에 넘긴다")
+    void routesDevWalletToPaymentService() {
+        client.post().uri("/api/v1/dev/wallets/me/charges").exchange()
+            .expectStatus().isOk();
+
+        assertThat(paymentBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.method()).isEqualTo("POST");
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/dev/wallets/me/charges"));
+        });
+        assertThat(memberBackend.lastRequest()).isEmpty();
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/admin/payments", "/api/v1/admin/wallets"})
     @DisplayName("결제 관리자 API는 관리자 토큰이면 결제 서비스에 넘긴다")
