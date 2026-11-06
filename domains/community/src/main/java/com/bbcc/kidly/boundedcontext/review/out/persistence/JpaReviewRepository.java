@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.review.out.persistence;
 
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewModerationStats;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewModerations;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
 import com.bbcc.kidly.boundedcontext.review.app.port.WithdrawnAuthors;
@@ -21,7 +22,7 @@ import org.springframework.data.repository.query.Param;
  * 인덱스 (product_id | member_id, created_at desc, id desc)의 범위 조건으로 쓰인다.
  */
 public interface JpaReviewRepository extends JpaRepository<Review, Long>, Reviews, WithdrawnAuthors,
-    ReviewModerations {
+    ReviewModerations, ReviewModerationStats {
 
     String STATUS = "com.bbcc.kidly.boundedcontext.review.domain.ModerationStatus.";
     String LIST_SELECT = """
@@ -91,6 +92,25 @@ public interface JpaReviewRepository extends JpaRepository<Review, Long>, Review
     @Query(ADMIN_SELECT + " where r.moderationStatus = :status and r.id < :id order by r.id desc")
     List<AdminReviewRow> findByModerationStatusAfter(@Param("status") ModerationStatus status, @Param("id") Long id,
         Limit limit);
+
+    @Override
+    @Query("select r.moderationStatus as status, count(r) as total from CommunityReview r group by r.moderationStatus")
+    List<StatusCountRow> countByModerationStatus();
+
+    @Override
+    @Query("select count(r) from CommunityReview r where r.moderationStatus = " + STATUS + "PENDING"
+        + " and r.moderationAttempts >= :maxAttempts")
+    long countExhaustedPending(@Param("maxAttempts") int maxAttempts);
+
+    @Override
+    @Query("select min(r.createdAt) from CommunityReview r where r.moderationStatus = " + STATUS + "PENDING"
+        + " and r.moderationAttempts < :maxAttempts")
+    LocalDateTime findOldestPendingCreatedAt(@Param("maxAttempts") int maxAttempts);
+
+    @Override
+    @Query("select r.id as id, r.moderationReason as reason, r.moderatedAt as moderatedAt from CommunityReview r"
+        + " where r.moderationStatus = " + STATUS + "HIDDEN order by r.moderatedAt desc, r.id desc")
+    List<HiddenRow> findRecentlyHidden(Limit limit);
 
     @Override
     @Lock(LockModeType.PESSIMISTIC_WRITE)

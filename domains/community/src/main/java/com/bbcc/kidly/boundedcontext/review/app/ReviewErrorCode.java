@@ -38,6 +38,7 @@ public enum ReviewErrorCode implements ErrorCode {
         "status는 PENDING · PASSED · HIDDEN · CONFIRMED_HIDDEN · RESTORED 중 하나로 보내 주세요."),
     INVALID_VISIBILITY(HttpStatus.BAD_REQUEST, "잘못된 공개 설정입니다",
         "visibility는 HIDDEN(숨김 확정) 또는 VISIBLE(다시 공개)로 보내 주세요."),
+    MCP_REQUEST_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "요청이 너무 큽니다", "MCP 요청 본문은 64KB 이하로 보내 주세요."),
     NO_FIELDS_TO_UPDATE(HttpStatus.BAD_REQUEST, "바꿀 값이 없습니다", "바꿀 값을 하나 이상 보내 주세요."),
     REVIEW_NOT_ELIGIBLE(HttpStatus.FORBIDDEN, "리뷰를 쓸 수 없는 주문상품입니다",
         "구매확정한 내 주문상품에만 리뷰를 쓸 수 있습니다. 리뷰 작성 가능 목록에서 골라 주세요."),
