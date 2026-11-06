@@ -15,7 +15,7 @@
 ## 이벤트
 | 보내는 이벤트 | 보내는 곳 | 보내는 때 | 받는 도메인 |
 |---|---|---|---|
-| `product.changed` | `app/product/support/ProductChangedPublisher` | 판매 시작 · 중지, 판매 중 상품 수정, 품절 여부 변경(`SoldOutPublisher`), 관리자 다시 보내기 | 주문, 추천, 검색 |
+| `product.changed` | `app/product/support/ProductChangedPublisher` | 판매 시작 · 중지, 등록 취소 · 되돌리기, 판매 중 상품 수정, 품절 여부 변경(`SoldOutPublisher`), 관리자 다시 보내기 | 주문, 추천, 검색 |
 | `stock.deducted` | `app/inventory/support/InventoryDeductor` | 주문 생성으로 재고를 모두 차감했을 때 | 주문 |
 | `stock.deduction-failed` | `app/inventory/support/InventoryDeductionRecorder` | 재고가 모자라거나 판매 중이 아니어서 거절했을 때 | 주문 |
 
@@ -81,6 +81,12 @@
     - 판매자 판매 시작에서는 관리자 판매중지(`SALE_STOPPED_BY_ADMIN`)보다 등록 취소가 먼저다. 판매자에게는 "새로 등록하라"가 "관리자에게 문의하라"보다 맞는 안내다
     - 재고 조정은 `ProductOption.validateAdjustableBy`가 403 다음 409 순서로 검사한다. 주문 취소에 따른 재고 복구는 시스템이 하는 일이라 막지 않는다
 - 새 주문은 차감에서 거절된다. 차감은 판매중 상품만 통과시키므로 따로 막지 않는다
+- API(`ProductSaleService`): 판매자 `PUT /api/v1/seller/products/{productId}/delisting`(200, 판매 상태 변경과 같은 응답), 관리자 되돌리기 `DELETE /api/v1/admin/products/{productId}/delisting`(200, 상태 `STOPPED`). 판매 상태 변경 API(`sale-status`)는 그대로이고, 등록 취소 상품에 보내면 409다. 요청 값 검증(`ON_SALE`/`STOPPED`만)도 그대로다
+    - 둘 다 상태를 바꾼 같은 트랜잭션에서 `product.changed`를 보낸다(아웃박스도 같은 트랜잭션). 등록 취소는 바뀌었을 때만 보내므로 다시 등록 취소해도 이벤트가 나가지 않고, 되돌리기는 늘 바뀌므로 늘 보낸다. 판매대기에서 바로 등록 취소해도 보낸다
+    - 새 enum 값 `DELISTED`는 받는 서비스(주문 · 검색 · 추천 · 커뮤니티 · 알림)가 모두 배포된 뒤에 보낸다. 그 전에 이 API나 다시 보내기(`changed-events`)로 등록 취소 상품의 메시지를 보내면, 모르는 값을 읽지 못한 메시지가 받는 쪽 DLT로 간다
+    - 관리자 판매 상태 변경이 등록 취소 상품에 409를 낼 때도 `PRODUCT_DELISTED` 문구("다시 팔려면 상품을 새로 등록해 주세요")를 그대로 쓴다. 관리자는 되돌리기로 판매중지로 돌린 뒤 판매 상태를 바꾼다
+    - 상품 수정에서는 소유자 검사(403) 다음에 이미지 검사(400)가 나고, 등록 취소 검사(409)는 그 뒤다. 등록 취소 상품에 잘못된 이미지를 보내면 409가 아니라 400을 받는다
+    - 재고 조정과 등록 취소가 동시에 오면 상품 행을 잠그지 않아 조정이 한 번 더 들어갈 수 있다. 받아들였다
 - 판매대기에서 바로 등록 취소한 상품도 다른 도메인에 알리는 상품이다(`hasStartedSale()`가 `true`). 받는 쪽이 팔 수 없는 상품으로 알아야 하기 때문이다. `hasStartedSale()`은 상태마다 알릴지 정하도록 `default` 없는 `switch`로 두어, 새 상태를 더하면 정하기 전까지 컴파일되지 않는다
 
 ## 상품 정보 변경됨의 브랜드 · 설명 · 사이즈별 실측 (ProductChangedData, #610)
@@ -93,7 +99,7 @@
 - `shared`는 JDK만 써서 JSON 왕복은 앱 테스트에서 확인한다(`ProductSaleStartApiTest`의 아웃박스 본문, `ProductChangedEventJsonIntegrationTest`)
 
 ## 상품 정보 변경됨 다시 보내기 (ProductChangedRepublishService, #577)
-검색 구독 그룹은 `latest`라 처음 붙기 전에 나간 메시지를 읽지 않는다. 관리자가 `POST /api/v1/admin/products/changed-events`로 판매를 시작한 상품마다 `product.changed`를 한 번씩 다시 보낸다. 검색 수신을 배포한 뒤와 검색 색인을 새로 만들 때 환경마다 한 번 부른다.
+검색 구독 그룹은 `latest`라 처음 붙기 전에 나간 메시지를 읽지 않는다. 관리자가 `POST /api/v1/admin/products/changed-events`로 다른 도메인에 알리는 상품(판매중 · 판매중지 · 등록 취소)마다 `product.changed`를 한 번씩 다시 보낸다. 판매대기 상품은 보내지 않는다. 검색 수신을 배포한 뒤와 검색 색인을 새로 만들 때 환경마다 한 번 부른다.
 
 - 기존 `ProductChangedPublisher`로 만들어 토픽 · 키 · 형식이 다른 발행과 같다. `eventId`는 새로 만들고(아웃박스는 같은 `eventId`를 한 번만 보낸다), `occurredAt`은 다시 보낸 시각이다. 받는 쪽은 반영하지만 `data`가 지금 상품 그대로라 값은 바뀌지 않는다
 - 전체를 한 트랜잭션에서 보낸다. 실패하면 아웃박스에 아무것도 남지 않으니 다시 부른다. 여러 번 불러도 받는 쪽 값은 같다

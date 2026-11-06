@@ -85,10 +85,12 @@
 | GET | `/api/v1/seller/products/{productId}` | 내 상품 상세 | 🏪 |
 | PUT | `/api/v1/seller/products/{productId}` | 상품 수정(version 확인. 옵션 · 가격 · 실측 교체는 판매대기 상품만) | 🏪 |
 | PUT | `/api/v1/seller/products/{productId}/sale-status` | 판매 시작 · 중지(`ON_SALE` · `STOPPED`) | 🏪 |
+| PUT | `/api/v1/seller/products/{productId}/delisting` | 등록 취소(판매자는 되돌릴 수 없음. 어느 판매 상태에서나 가능하고, 이미 등록 취소한 상품이면 200으로 그대로) | 🏪 |
 | POST | `/api/v1/seller/options/{optionId}/inventory-adjustments` | 재고 조정(증감량 · 사유 RESTOCK · DEFECTIVE · LOST · CORRECTION) | 🏪 |
 | POST | `/api/v1/seller/product-images/upload-urls` | 이미지 업로드 주소(Presigned URL) 발급 | 🏪 |
 | PUT | `/api/v1/admin/products/{productId}/sale-status` | 관리자 판매 중지 · 재개 | 🛠 |
-| POST | `/api/v1/admin/products/changed-events` | 판매를 시작한 상품 전체의 `product.changed` 재발행 | 🛠 |
+| DELETE | `/api/v1/admin/products/{productId}/delisting` | 등록 취소한 상품을 판매중지로 되돌림(등록 취소한 상품이 아니면 409) | 🛠 |
+| POST | `/api/v1/admin/products/changed-events` | 판매를 시작했거나 등록 취소한 상품 전체의 `product.changed` 재발행 | 🛠 |
 | GET | `/api/v1/admin/categories` | 카테고리 목록(평면 배열 + `parentId`) | 🛠 |
 | POST | `/api/v1/admin/categories` | 카테고리 만들기 | 🛠 |
 | PUT | `/api/v1/admin/categories/{categoryId}` | 카테고리 수정 | 🛠 |
