@@ -68,7 +68,7 @@ class ProductDelistTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("productsOfOtherSeller")
-    @DisplayName("OPT-08 상품을 등록한 판매자가 아니면 등록 취소할 수 없다 (이미 등록 취소한 상품이어도 403이 먼저다)")
+    @DisplayName("SALE-13 · OPT-08 상품을 등록한 판매자가 아니면 등록 취소할 수 없다 (이미 등록 취소한 상품이어도 403이 먼저다)")
     void rejectDelistFromOtherSeller(Consumer<ProductDelistTest> given) {
         given.accept(this);
         ProductStatus statusBefore = product.getStatus();
