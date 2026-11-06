@@ -19,9 +19,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 상품 상세 진입 기록 API를 HTTP 요청부터 응답까지 확인한다.
- */
 @FunctionalTest
 class ProductViewApiTest {
 
@@ -30,11 +27,9 @@ class ProductViewApiTest {
     @Autowired
     private RestTestClient client;
 
-    // 저장된 기록 전체를 읽으려고 JpaRepository의 기본 조회를 쓴다
     @Autowired
     private JpaActivityRecordRepository activityRecordRepository;
 
-    // 응답이 ID를 문자열로 보내므로 화면은 문자열 ID를 그대로 보낼 수 있다
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"{\"productId\": 31}", "{\"productId\": \"31\"}"})
     @DisplayName("로그인한 회원이 숫자나 문자열 상품 ID로 상세 진입을 기록하면 204와 빈 본문을 받고, 활동 기록에 상세 진입 한 줄이 남는다")

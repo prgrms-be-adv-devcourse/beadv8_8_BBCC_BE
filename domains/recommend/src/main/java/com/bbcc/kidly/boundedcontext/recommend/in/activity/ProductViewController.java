@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 로그인한 회원이 상품 상세에 들어간 것을 활동 기록으로 남기는 API다.
  * 상세 진입은 다른 도메인이 보내는 이벤트가 없어 화면이 직접 부른다.
  */
 @RestController

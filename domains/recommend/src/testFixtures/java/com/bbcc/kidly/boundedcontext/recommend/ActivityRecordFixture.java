@@ -82,7 +82,6 @@ public final class ActivityRecordFixture {
             productId, PRODUCT_A_120_OPTION_ID, REMOVED_QTY, REMOVED_AT);
     }
 
-    // 회원 1이 상품 31의 상세에 들어갔다
     public static ActivityRecord.ProductViewedInfo productViewed() {
         return new ActivityRecord.ProductViewedInfo(VIEW_EVENT_ID, MEMBER_1_ID, PRODUCT_A_ID, VIEWED_AT);
     }
