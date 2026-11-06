@@ -148,6 +148,29 @@ class ProductDelistApiTest {
     }
 
     @Test
+    @DisplayName("SALE-15 등록 취소한 상품은 판매자 내 상품 상세와 목록에 남고 status가 DELISTED로 보인다")
+    void delistedProductStaysInSellerScreens() {
+        delist(TestMembers.seller(SELLER_ID)).expectStatus().isOk();
+
+        client.get().uri(PRODUCTS_PATH + "/{productId}", productId)
+            .headers(TestMembers.seller(SELLER_ID))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.productId").isEqualTo(productId)
+            .jsonPath("$.status").isEqualTo("DELISTED");
+
+        client.get().uri(PRODUCTS_PATH)
+            .headers(TestMembers.seller(SELLER_ID))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content.length()").isEqualTo(1)
+            .jsonPath("$.content[0].productId").isEqualTo(productId)
+            .jsonPath("$.content[0].status").isEqualTo("DELISTED");
+    }
+
+    @Test
     @DisplayName("로그인 헤더 없이 등록 취소하면 401이고, 상태가 그대로다")
     void rejectDelistWithoutLogin() {
         delist(TestMembers.anonymous()).expectStatus().isUnauthorized();
