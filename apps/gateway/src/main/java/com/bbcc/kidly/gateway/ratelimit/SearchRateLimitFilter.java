@@ -64,15 +64,14 @@ class SearchRateLimitFilter implements GlobalFilter, Ordered {
         return problem.tooManyRequests(exchange, retryAfterSeconds);
     }
 
-    // 검색 서비스(ProductListService)처럼 앞뒤 공백을 뺀 검색어가 비어 있으면 검색어가 없는 것으로 본다.
-    // keyword가 여러 번 오면 검색 서비스(@ModelAttribute)는 값을 쉼표로 이어 받으므로, 첫 값만 보지 않고 하나라도 있으면 센다
-    // (?keyword=&keyword=수영복 이 세지 않고 지나가 임베딩을 부르지 않게)
+    // 검색 서비스가 받는 검색어와 같게 만들어 본다. 검색 서비스(@ModelAttribute)는 keyword가 여러 번 오면 쉼표로 이어 받고
+    // (?keyword=&keyword= → ","), ProductListService가 앞뒤 공백을 뺀 값이 비어 있지 않으면 임베딩을 부른다
     private static boolean isKeywordSearch(ServerHttpRequest request) {
         if (request.getMethod() != HttpMethod.GET || !PRODUCT_LIST_PATH.equals(request.getPath().value())) {
             return false;
         }
         var keywords = request.getQueryParams().get(KEYWORD);
-        return keywords != null && keywords.stream().anyMatch(keyword -> keyword != null && !keyword.isBlank());
+        return keywords != null && !keywords.isEmpty() && !String.join(",", keywords).isBlank();
     }
 
     private static String keyOf(ServerHttpRequest request) {

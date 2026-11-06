@@ -78,11 +78,13 @@ class SearchRateLimitIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("keyword가 여러 번 오면 첫 값이 비어 있어도 하나라도 있으면 센다")
+    @DisplayName("keyword가 여러 번 오면 검색 서비스처럼 쉼표로 이은 값으로 본다(값이 모두 비어도 \",\"라 센다)")
     void countsRepeatedKeyword() {
-        var ip = uniqueIp();
-        assertThat(exhaust(() -> client.get().uri(raw("/api/v1/products?keyword=&keyword=%EC%88%98%EC%98%81%EB%B3%B5"))
-            .header(SearchRateLimitFilter.REAL_IP, ip).exchange())).isBetween(CAPACITY, CAPACITY + 5);
+        for (String query : List.of("keyword=&keyword=%EC%88%98%EC%98%81%EB%B3%B5", "keyword=&keyword=")) {
+            var ip = uniqueIp();
+            assertThat(exhaust(() -> client.get().uri(raw("/api/v1/products?" + query))
+                .header(SearchRateLimitFilter.REAL_IP, ip).exchange())).isBetween(CAPACITY, CAPACITY + 5);
+        }
     }
 
     @Test
