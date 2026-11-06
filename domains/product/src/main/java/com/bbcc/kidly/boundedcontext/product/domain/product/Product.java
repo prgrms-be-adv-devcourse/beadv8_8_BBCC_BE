@@ -336,6 +336,7 @@ public class Product extends BaseTimeEntity {
             throw new IllegalArgumentException("옵션 목록은 비어 있을 수 없습니다");
         }
         validateOwner(info.sellerId());
+        requireNotDelisted();
         ProductOptions.validateNewOptions(info, options, productType);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
