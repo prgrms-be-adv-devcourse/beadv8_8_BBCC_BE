@@ -88,6 +88,15 @@ class GroqProviderTest(unittest.TestCase):
         with self.assertRaisesRegex(ProviderError, '^response_unsupported_health_claim$'):
             self.provider(transport(body(**sample))).analyze(data, 2300)
 
+    def test_rejects_low_traffic_trial_health_claim_with_conjunction(self):
+        data = replace(context(), evidence=(
+            Evidence('f0', 'requests_30m', 28.9966, 'estimated_count', 'dev', 'kidly-gateway'),
+        ))
+        sample = json.loads(json.loads(body())['choices'][0]['message']['content'])
+        sample['finding']['observation'] = '모든 서비스가 정상 가동 중이지만 요청량이 매우 낮음'
+        with self.assertRaisesRegex(ProviderError, '^response_unsupported_health_claim$'):
+            self.provider(transport(body(**sample))).analyze(data, 2300)
+
     def test_accepts_scoped_reports_for_operational_fixtures(self):
         cases = (
             ('environment_enabled', 0, 'boolean', 'dev', None, 'dev 운영 대상이 꺼져 있음', '환경 상태에서 중지 기록 확인'),
