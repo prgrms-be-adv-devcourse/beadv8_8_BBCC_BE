@@ -412,7 +412,7 @@ services:
       # Kafka 수신 스위치. 기본값은 order.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다. 끄면 수신이 멈추고 메시지는 Kafka 에 남아 true 로 올리면 처리된다
       ORDER_KAFKA_CONSUMER_ENABLED: ${ORDER_KAFKA_CONSUMER_ENABLED:-true}
       # 판매자 발송 전 부분 취소 · 조르기 스위치. 기본값은 order.yml 과 같다
-      ORDER_PARTIAL_CANCEL_ENABLED: ${ORDER_PARTIAL_CANCEL_ENABLED:-false}
+      ORDER_PARTIAL_CANCEL_ENABLED: ${ORDER_PARTIAL_CANCEL_ENABLED:-true}
       ORDER_WISH_ENABLED: ${ORDER_WISH_ENABLED:-true}
       # 택배 조회(Delivery Tracker) 인증값. 비어 있으면 택배 조회만 꺼진다(판매자 수동 배송 완료는 그대로)
       DELIVERY_TRACKER_CLIENT_ID: ${DELIVERY_TRACKER_CLIENT_ID:-}
