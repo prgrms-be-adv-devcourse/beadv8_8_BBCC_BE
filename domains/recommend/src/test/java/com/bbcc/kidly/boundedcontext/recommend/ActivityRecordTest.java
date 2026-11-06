@@ -234,4 +234,26 @@ class ActivityRecordTest {
             .containsExactly(ActivityType.PRODUCT_VIEWED, VIEW_EVENT_ID, MEMBER_1_ID, PRODUCT_A_ID, VIEWED_AT,
                 null, null, null, null, null, null);
     }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("productViewsWithNull")
+    @DisplayName("상세 진입 값에 필수 값이 없으면 활동 기록을 만들지 않는다")
+    void rejectProductViewedWithNull(ThrowingCallable creation) {
+        assertThatThrownBy(creation)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> productViewsWithNull() {
+        return Stream.of(
+            Named.of("상세 진입 값", () -> ActivityRecord.productViewed(null)),
+            Named.of("이벤트 ID", () -> ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+                null, MEMBER_1_ID, PRODUCT_A_ID, VIEWED_AT))),
+            Named.of("회원 ID", () -> ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+                VIEW_EVENT_ID, null, PRODUCT_A_ID, VIEWED_AT))),
+            Named.of("상품 ID", () -> ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+                VIEW_EVENT_ID, MEMBER_1_ID, null, VIEWED_AT))),
+            Named.of("진입 시각", () -> ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+                VIEW_EVENT_ID, MEMBER_1_ID, PRODUCT_A_ID, null))));
+    }
 }
