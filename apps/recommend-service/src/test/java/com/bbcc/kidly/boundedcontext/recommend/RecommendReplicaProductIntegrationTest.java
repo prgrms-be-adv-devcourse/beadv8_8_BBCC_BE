@@ -6,8 +6,10 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_C
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOption;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCategoryPathEntry;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
@@ -19,6 +21,7 @@ import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +29,7 @@ import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguratio
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -207,6 +211,25 @@ class RecommendReplicaProductIntegrationTest {
             .isZero();
     }
 
+    // ID와 이름이 순서대로 커지지 않는 경로로, 저장한 순서가 아니라 값의 크기로 정렬해서는 통과하지 못하게 한다
+    @Test
+    @DisplayName("상품 정보 변경됨의 카테고리 경로가 복사본에 저장되고, 다시 읽어도 대분류부터 종류 순서 그대로다")
+    void storeCategoryPathInOrder() {
+        replicaProductService.applyProductChanged(eventWithCategoryPath(List.of(
+            new ProductChangedEvent.CategoryPathEntry(30L, "하의"),
+            new ProductChangedEvent.CategoryPathEntry(7L, "청바지"),
+            new ProductChangedEvent.CategoryPathEntry(70L, "슬림핏")), PRODUCT_CHANGED_AT));
+
+        List<RecommendReplicaCategoryPathEntry> path = transactionTemplate.execute(status -> {
+            RecommendReplicaProduct product = replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow();
+            return List.copyOf(product.getCategoryPath());
+        });
+        assertThat(path)
+            .extracting(RecommendReplicaCategoryPathEntry::getCategoryId,
+                RecommendReplicaCategoryPathEntry::getCategoryName)
+            .containsExactly(tuple(30L, "하의"), tuple(7L, "청바지"), tuple(70L, "슬림핏"));
+    }
+
     @Test
     @DisplayName("상품 변경 이벤트를 반영하면 정보 값이 들어간 임베딩 글이 복사본에 저장된다")
     void storeEmbeddingTextWithInfoValues() {
@@ -229,6 +252,37 @@ class RecommendReplicaProductIntegrationTest {
                 설명: 상품 설명""");
     }
 
+    @ParameterizedTest(name = "경로 {0}칸 -> {1}칸")
+    @CsvSource({"3, 2", "2, 3"})
+    @DisplayName("INV-R01 더 늦게 일어난 이벤트의 경로 길이가 달라지면 카테고리 경로 행이 그 길이로 바뀌고 순서가 이어진다")
+    void replaceCategoryPathRowsWithLaterEvent(int beforeSize, int afterSize) {
+        replicaProductService.applyProductChanged(eventWithCategoryPath(
+            pathOfSize(beforeSize, 1L), PRODUCT_CHANGED_AT));
+        List<ProductChangedEvent.CategoryPathEntry> laterPath = pathOfSize(afterSize, 2L);
+
+        replicaProductService.applyProductChanged(eventWithCategoryPath(laterPath, LATER));
+
+        List<Long> expectedIds = new ArrayList<>();
+        for (ProductChangedEvent.CategoryPathEntry entry : laterPath) {
+            expectedIds.add(entry.id());
+        }
+        assertThat(jdbcTemplate.queryForList(
+            "select category_id from recommend.replica_product_category_path where product_id = ? order by position",
+            Long.class, PRODUCT_A_ID)).containsExactlyElementsOf(expectedIds);
+    }
+
+    @Test
+    @DisplayName("카테고리 경로가 빈 상품 정보 변경됨을 받으면 경로 행 없이 저장되고 다시 읽으면 빈 목록이다")
+    void storeEmptyCategoryPathAsNoRows() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+
+        List<RecommendReplicaCategoryPathEntry> path = transactionTemplate.execute(status -> List.copyOf(
+            replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow().getCategoryPath()));
+        assertThat(path).isEmpty();
+        assertThat(count("select count(*) from recommend.replica_product_category_path where product_id = ?"))
+            .isZero();
+    }
+
     @Test
     @DisplayName("등록 취소 상태의 상품 정보 변경됨을 받으면 상품 복사본이 등록 취소 상태로 저장된다")
     void storeDelistedStatus() {
@@ -248,6 +302,24 @@ class RecommendReplicaProductIntegrationTest {
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
             data.productId(), data.sellerId(), data.name(), data.categoryId(), data.status(), data.thumbnailUrl(),
             data.createdAt(), data.sizeFree(), data.options(), data.infoValues(), "키들리", "상품 설명", sizeSpecs));
+    }
+
+    // base가 다르면 ID가 모두 달라 이전 행이 남았는지 구분된다
+    private static List<ProductChangedEvent.CategoryPathEntry> pathOfSize(int size, long base) {
+        List<ProductChangedEvent.CategoryPathEntry> path = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            path.add(new ProductChangedEvent.CategoryPathEntry((base + i) * 10 + i, "카테고리" + i));
+        }
+        return path;
+    }
+
+    private static ProductChangedEvent eventWithCategoryPath(List<ProductChangedEvent.CategoryPathEntry> categoryPath,
+        LocalDateTime occurredAt) {
+        ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
+        return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
+            data.productId(), data.sellerId(), data.name(), data.categoryId(), data.status(), data.thumbnailUrl(),
+            data.createdAt(), data.sizeFree(), data.options(), data.infoValues(), data.brand(), data.description(),
+            data.sizeSpecs(), categoryPath));
     }
 
     private long count(String sql) {

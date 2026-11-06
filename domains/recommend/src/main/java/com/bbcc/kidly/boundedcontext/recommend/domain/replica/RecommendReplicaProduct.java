@@ -16,6 +16,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -32,7 +33,8 @@ import org.hibernate.annotations.BatchSize;
 
 /**
  * 추천이 사이즈를 계산하려고 상품 정보 변경됨 이벤트에서 옮겨 둔 상품 정보다.
- * 브랜드 · 설명 · 사이즈별 실측은 아직 계산에 쓰지 않고, 브랜드별 사이즈 보정과 실측 비교에 쓰려고 함께 옮겨 둔다.
+ * 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로는 아직 계산에 쓰지 않는다.
+ * 브랜드 · 사이즈별 실측은 브랜드별 사이즈 보정과 실측 비교에, 카테고리 경로는 함께 사면 좋은 상품의 카테고리 짝에 쓰려고 함께 옮겨 둔다.
  * 상품 정보 값은 이름 · 브랜드 · 설명과 함께 임베딩할 글({@code embeddingText})로 합쳐 저장한다.
  * 벡터 칸(embedding · embedded_text_md5 · embedding_attempted_at)은 이 엔티티가 매핑하지 않고 상품 임베딩 저장소만 쓴다.
  * 주문 도메인에도 상품 복사본 엔티티 {@code ReplicaProduct}가 있어서, JPA 엔티티 이름이 겹치지 않게 클래스 이름 앞에 도메인 이름을 붙인다.
@@ -117,12 +119,36 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "embedding_text", columnDefinition = "TEXT")
     private String embeddingText;
 
+    // applyIfNewer로만 바꾸도록 Lombok getter를 두지 않고, getCategoryPath로 읽기 전용 목록을 돌려준다
+    @Getter(AccessLevel.NONE)
+    @BatchSize(size = BATCH_FETCH_SIZE)
+    @ElementCollection
+    @OrderColumn(name = "position")
+    @CollectionTable(schema = "recommend", name = "replica_product_category_path",
+        joinColumns = @JoinColumn(name = "product_id"))
+    private List<RecommendReplicaCategoryPathEntry> categoryPath = new ArrayList<>();
+
     // 브랜드 · 설명 · 상품 정보 값은 새 칸이 없는 예전 메시지에서 null로 오므로 필수 값으로 검사하지 않는다.
-    // 사이즈별 실측은 이벤트가 칸이 없으면 빈 목록으로 바꿔 주므로 null이 오지 않는다
+    // 사이즈별 실측과 카테고리 경로는 이벤트가 칸이 없으면 빈 목록으로 바꿔 주므로 null이 오지 않는다
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
         String brand, String description, List<SizeSpecInfo> sizeSpecs, List<ProductEmbeddingText.InfoValue> infoValues,
-        LocalDateTime occurredAt) {
+        LocalDateTime occurredAt, List<CategoryPathEntryInfo> categoryPath) {
+
+        // 테스트 보조 코드만 쓰는 생성자다. 경로는 빈 목록이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 저장된 카테고리 경로가 빈 목록으로 지워진다
+        public ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
+            String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
+            String brand, String description, List<SizeSpecInfo> sizeSpecs,
+            List<ProductEmbeddingText.InfoValue> infoValues, LocalDateTime occurredAt) {
+            this(productId, sellerId, categoryId, name, status, thumbnailUrl, registeredAt, sizeFree, options,
+                brand, description, sizeSpecs, infoValues, occurredAt, List.of());
+        }
+    }
+
+    /**
+     * 경로는 대분류부터 종류 순서로 담는다.
+     */
+    public record CategoryPathEntryInfo(Long categoryId, String categoryName) {
     }
 
     /**
@@ -149,7 +175,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
 
     /**
      * 저장된 시각보다 늦게 일어난 상품 변경만 반영한다. 같은 이벤트를 다시 받거나 이전 이벤트가 늦게 도착해도 값이 되돌아가지 않는다.
-     * 반영할 때는 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄은 새 옵션으로, 사이즈별 실측 줄은 이벤트의 실측으로 다시 채운다.
+     * 반영할 때는 상품 ID를 뺀 모든 값을 덮어쓰고, 사이즈 줄은 새 옵션으로, 사이즈별 실측 줄과 카테고리 경로는 이벤트의 값으로 다시 채운다.
      */
     public void applyIfNewer(ChangeInfo info) {
         // 저장된 시각보다 늦지 않은 이벤트(다시 받은 이벤트, 늦게 도착한 이전 이벤트)는 다른 값이 비어 있어도 예외 없이 무시하도록 시각을 먼저 비교한다
@@ -177,11 +203,15 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     }
 
     private void apply(ChangeInfo info) {
-        // 실측 줄에 사이즈나 실측 값이 없으면 값을 하나도 바꾸기 전에 실패하도록 새 실측 줄을 먼저 만든다
+        // 실측 줄이나 카테고리 경로 칸에 필수 값이 없으면 값을 하나도 바꾸기 전에 실패하도록 새 줄을 먼저 만든다
         List<RecommendReplicaSizeSpec> newSizeSpecs = new ArrayList<>();
         for (SizeSpecInfo spec : info.sizeSpecs()) {
             newSizeSpecs.add(new RecommendReplicaSizeSpec(
                 spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
+        }
+        List<RecommendReplicaCategoryPathEntry> newCategoryPath = new ArrayList<>();
+        for (CategoryPathEntryInfo entry : info.categoryPath()) {
+            newCategoryPath.add(new RecommendReplicaCategoryPathEntry(entry.categoryId(), entry.categoryName()));
         }
         this.embeddingText = ProductEmbeddingText.compose(
             info.name(), info.brand(), info.infoValues(), info.description()).value();
@@ -201,6 +231,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.sellableSizes.clear();
         this.sizeSpecs.clear();
         this.sizeSpecs.addAll(newSizeSpecs);
+        this.categoryPath.clear();
+        this.categoryPath.addAll(newCategoryPath);
         for (OptionInfo option : info.options()) {
             if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {
                 this.sellableSizes.add(option.size() == null ? FREE_SIZE : option.size());
@@ -225,6 +257,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
      */
     public List<RecommendReplicaSizeSpec> getSizeSpecs() {
         return Collections.unmodifiableList(sizeSpecs);
+    }
+
+    /**
+     * 카테고리 경로를 대분류부터 종류 순서의 읽기 전용 목록으로 돌려준다.
+     */
+    public List<RecommendReplicaCategoryPathEntry> getCategoryPath() {
+        return Collections.unmodifiableList(categoryPath);
     }
 
     /**
