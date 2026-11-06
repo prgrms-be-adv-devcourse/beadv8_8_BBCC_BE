@@ -458,7 +458,12 @@ public class Product extends BaseTimeEntity {
         return true;
     }
 
+    /**
+     * 관리자가 등록 취소한 상품을 판매중지로 되돌린다. 다시 팔지는 판매자가 판매 시작으로 정한다. 관리자 판매중지 표시는
+     * 그대로 두므로, 관리자가 판매중지했던 상품은 되돌린 뒤에도 판매자가 다시 열 수 없다.
+     */
     public void revertDelistByAdmin() {
+        status = ProductStatus.STOPPED;
     }
 
     // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
