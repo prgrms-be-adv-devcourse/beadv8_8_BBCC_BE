@@ -190,7 +190,7 @@ jwt:
 spring:
   config:
     activate:
-      on-profile: prod
+      on-profile: "dev | prod"
 
 logging:
   file:

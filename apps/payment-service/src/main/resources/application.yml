@@ -84,7 +84,7 @@ server:
 spring:
   config:
     activate:
-      on-profile: prod
+      on-profile: "dev | prod"
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

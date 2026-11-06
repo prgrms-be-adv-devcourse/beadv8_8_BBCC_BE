@@ -50,7 +50,7 @@ server:
 spring:
   config:
     activate:
-      on-profile: prod
+      on-profile: "dev | prod"
 
 server:
   forward-headers-strategy: native

@@ -27,7 +27,7 @@ kidly:
 spring:
   config:
     activate:
-      on-profile: prod
+      on-profile: "dev | prod"
 
 # 식별값 비밀키는 한번 정하면 바꾸지 않는다. 바꾸면 이미 인증한 사람과 비교할 수 없다
 kidly:
