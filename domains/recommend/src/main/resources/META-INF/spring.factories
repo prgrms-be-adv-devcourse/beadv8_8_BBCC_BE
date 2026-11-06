@@ -1,0 +1,2 @@
+org.springframework.context.ApplicationListener=\
+com.bbcc.kidly.boundedcontext.recommend.out.ai.RecommendAiKeyApplicationListener
