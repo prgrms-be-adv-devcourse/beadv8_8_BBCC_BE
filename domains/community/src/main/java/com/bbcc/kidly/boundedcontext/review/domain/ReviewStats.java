@@ -25,4 +25,14 @@ public class ReviewStats extends ReviewTimeEntity {
 
     @Column(nullable = false)
     private long ratingSum;
+
+    // 핏별 리뷰 수(핏을 남긴 리뷰만 센다)
+    @Column(nullable = false)
+    private long fitSmall;
+
+    @Column(nullable = false)
+    private long fitTrueToSize;
+
+    @Column(nullable = false)
+    private long fitLarge;
 }

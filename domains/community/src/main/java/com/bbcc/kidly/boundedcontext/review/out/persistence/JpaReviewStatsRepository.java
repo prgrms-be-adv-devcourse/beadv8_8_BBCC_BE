@@ -19,14 +19,20 @@ public interface JpaReviewStatsRepository
     @Override
     @Modifying
     @Query(nativeQuery = true, value = """
-        insert into community.review_stats (product_id, review_count, rating_sum, created_at, updated_at)
-        values (:productId, 1, :rating, :now, :now)
+        insert into community.review_stats (product_id, review_count, rating_sum, fit_small, fit_true_to_size,
+                                            fit_large, created_at, updated_at)
+        values (:productId, 1, :rating, :fitSmall, :fitTrueToSize, :fitLarge, :now, :now)
         on conflict (product_id) do update
         set review_count = community.review_stats.review_count + 1,
             rating_sum = community.review_stats.rating_sum + excluded.rating_sum,
+            fit_small = community.review_stats.fit_small + excluded.fit_small,
+            fit_true_to_size = community.review_stats.fit_true_to_size + excluded.fit_true_to_size,
+            fit_large = community.review_stats.fit_large + excluded.fit_large,
             updated_at = excluded.updated_at
         """)
-    void addReview(@Param("productId") Long productId, @Param("rating") int rating, @Param("now") LocalDateTime now);
+    void addReview(@Param("productId") Long productId, @Param("rating") int rating, @Param("fitSmall") int fitSmall,
+        @Param("fitTrueToSize") int fitTrueToSize, @Param("fitLarge") int fitLarge,
+        @Param("now") LocalDateTime now);
 
     @Override
     @Modifying
@@ -34,9 +40,14 @@ public interface JpaReviewStatsRepository
         update community.review_stats
         set review_count = review_count + :countDelta,
             rating_sum = rating_sum + :ratingDelta,
+            fit_small = fit_small + :fitSmall,
+            fit_true_to_size = fit_true_to_size + :fitTrueToSize,
+            fit_large = fit_large + :fitLarge,
             updated_at = :now
         where product_id = :productId
         """)
     int adjust(@Param("productId") Long productId, @Param("countDelta") int countDelta,
-        @Param("ratingDelta") int ratingDelta, @Param("now") LocalDateTime now);
+        @Param("ratingDelta") int ratingDelta, @Param("fitSmall") int fitSmall,
+        @Param("fitTrueToSize") int fitTrueToSize, @Param("fitLarge") int fitLarge,
+        @Param("now") LocalDateTime now);
 }

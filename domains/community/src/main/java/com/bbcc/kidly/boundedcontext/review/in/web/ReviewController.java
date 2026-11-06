@@ -30,26 +30,27 @@ public class ReviewController {
     private final ReviewService reviewService;
 
     /**
-     * 201 + Location. 오류: 400 INVALID_RATING · INVALID_CONTENT · INVALID_ORDER_ITEM_ID, 403 REVIEW_NOT_ELIGIBLE,
-     * 409 REVIEW_ALREADY_WRITTEN.
+     * 201 + Location. 오류: 400 INVALID_RATING · INVALID_CONTENT · INVALID_ORDER_ITEM_ID · INVALID_FIT ·
+     * FIT_NOT_APPLICABLE, 403 REVIEW_NOT_ELIGIBLE, 409 REVIEW_ALREADY_WRITTEN.
      */
     @PostMapping
     public ResponseEntity<ReviewResponse> write(@LoginMember AuthMember member,
         @RequestBody WriteReviewRequest request) {
         ReviewResponse body = ReviewResponse.from(reviewService.write(member.id(), member.nickname(),
-            request.orderItemId(), request.ratingValue(), request.content()));
+            request.orderItemId(), request.ratingValue(), request.content(), request.fitInput()));
         return ResponseEntity.created(URI.create(REVIEWS_PATH + "/" + body.reviewId())).body(body);
     }
 
     /**
-     * 200. 보낸 값(별점 · 본문)만 바꾼다. 오류: 400 NO_FIELDS_TO_UPDATE · INVALID_RATING · INVALID_CONTENT,
-     * 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND.
+     * 200. 보낸 값(별점 · 본문 · 핏)만 바꾼다(fit: null은 핏을 지운다). 오류: 400 NO_FIELDS_TO_UPDATE · INVALID_RATING ·
+     * INVALID_CONTENT · INVALID_FIT · FIT_NOT_APPLICABLE, 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND.
      */
     @PatchMapping("/{reviewId}")
     public ReviewResponse update(@LoginMember AuthMember member, @PathVariable Long reviewId,
         @RequestBody UpdateReviewRequest request) {
         return ReviewResponse.from(reviewService.update(member.id(), reviewId, new ReviewService.ReviewChange(
-            request.ratingGiven(), request.ratingValue(), request.contentGiven(), request.contentValue())));
+            request.ratingGiven(), request.ratingValue(), request.contentGiven(), request.contentValue(),
+            request.fitInput())));
     }
 
     /**

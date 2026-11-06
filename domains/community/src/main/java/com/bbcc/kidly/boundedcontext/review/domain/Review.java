@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.review.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -32,7 +34,15 @@ public class Review extends ReviewTimeEntity {
      * @param content 앞뒤 공백을 뺀 1~1000자. 앞뒤 공백은 잘라 저장한다
      */
     public record Values(Long orderItemId, Long productId, Long memberId, String nickname, Integer rating,
-                         String content) {
+                         String content, Fit fit, boolean sizeApplicable) {
+
+        /**
+         * 핏 없이 쓴다.
+         */
+        public Values(Long orderItemId, Long productId, Long memberId, String nickname, Integer rating,
+            String content) {
+            this(orderItemId, productId, memberId, nickname, rating, content, null, false);
+        }
     }
 
     @Id
@@ -61,9 +71,15 @@ public class Review extends ReviewTimeEntity {
     // 작성자가 탈퇴한 시각. 탈퇴하지 않았으면 null. 탈퇴하면 닉네임을 지운다
     private LocalDateTime authorWithdrawnAt;
 
+    // 사이즈 핏. 남기지 않았으면 null
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Fit fit;
+
     public static Review create(Values values) {
         int rating = validRating(values.rating());
         String content = validContent(values.content());
+        Fit fit = validFit(values.fit(), values.sizeApplicable());
         Review review = new Review();
         review.orderItemId = values.orderItemId();
         review.productId = values.productId();
@@ -71,6 +87,7 @@ public class Review extends ReviewTimeEntity {
         review.nickname = values.nickname();
         review.rating = (short) rating;
         review.content = content;
+        review.fit = fit;
         return review;
     }
 
@@ -85,7 +102,15 @@ public class Review extends ReviewTimeEntity {
     /**
      * 수정할 값. 보낸 값만 바꾼다(given이 false면 그 값은 그대로). 보냈는데 null이면 그 값의 규칙 위반이다.
      */
-    public record Change(boolean ratingGiven, Integer rating, boolean contentGiven, String content) {
+    public record Change(boolean ratingGiven, Integer rating, boolean contentGiven, String content,
+                         boolean fitGiven, Fit fit) {
+
+        /**
+         * 핏은 바꾸지 않는다.
+         */
+        public Change(boolean ratingGiven, Integer rating, boolean contentGiven, String content) {
+            this(ratingGiven, rating, contentGiven, content, false, null);
+        }
 
         public static Change both(Integer rating, String content) {
             return new Change(true, rating, true, content);
@@ -97,6 +122,13 @@ public class Review extends ReviewTimeEntity {
 
         public static Change contentOnly(String content) {
             return new Change(false, null, true, content);
+        }
+
+        /**
+         * 핏만 바꾼다. null이면 핏을 지운다.
+         */
+        public static Change fitOnly(Fit fit) {
+            return new Change(false, null, false, null, true, fit);
         }
     }
 
@@ -111,14 +143,25 @@ public class Review extends ReviewTimeEntity {
      * 작성자가 보낸 값만 고친다. 바꿀 값이 없거나 규칙 위반이면 아무것도 바꾸지 않는다.
      */
     public void update(Long memberId, Change change) {
+        update(memberId, change, false);
+    }
+
+    /**
+     * 작성자가 보낸 값만 고친다. 바꿀 값이 없거나 규칙 위반이면 아무것도 바꾸지 않는다.
+     *
+     * @param sizeApplicable 구매 사이즈가 있는 주문상품인지(아니면 핏을 넣을 수 없다. 지우는 것은 된다)
+     */
+    public void update(Long memberId, Change change, boolean sizeApplicable) {
         checkAuthor(memberId);
-        if (!change.ratingGiven() && !change.contentGiven()) {
+        if (!change.ratingGiven() && !change.contentGiven() && !change.fitGiven()) {
             throw new ReviewRuleException(ReviewRule.NO_CHANGES);
         }
         int newRating = change.ratingGiven() ? validRating(change.rating()) : this.rating;
         String newContent = change.contentGiven() ? validContent(change.content()) : this.content;
+        Fit newFit = change.fitGiven() ? validFit(change.fit(), sizeApplicable) : this.fit;
         this.rating = (short) newRating;
         this.content = newContent;
+        this.fit = newFit;
     }
 
     public int getRating() {
@@ -140,6 +183,13 @@ public class Review extends ReviewTimeEntity {
             throw new ReviewRuleException(ReviewRule.RATING);
         }
         return rating;
+    }
+
+    private static Fit validFit(Fit fit, boolean sizeApplicable) {
+        if (fit != null && !sizeApplicable) {
+            throw new ReviewRuleException(ReviewRule.FIT_NOT_APPLICABLE);
+        }
+        return fit;
     }
 
     private static String validContent(String content) {

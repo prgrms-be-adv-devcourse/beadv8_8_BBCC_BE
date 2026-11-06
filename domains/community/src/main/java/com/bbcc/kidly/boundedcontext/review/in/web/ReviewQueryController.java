@@ -49,7 +49,8 @@ public class ReviewQueryController {
     @GetMapping("/summary")
     public ReviewSummaryResponse summary(@RequestParam(required = false) String productId) {
         var summary = reviewQueryService.summary(productId);
+        var fit = summary.fitSummary();
         return new ReviewSummaryResponse(String.valueOf(summary.productId()), summary.reviewCount(),
-            summary.averageRating());
+            summary.averageRating(), new ReviewSummaryResponse.FitSummary(fit.small(), fit.trueToSize(), fit.large()));
     }
 }

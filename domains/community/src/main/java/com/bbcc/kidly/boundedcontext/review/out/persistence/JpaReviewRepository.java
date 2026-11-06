@@ -15,7 +15,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * 리뷰 저장소. 목록은 리뷰 left join 상품 복사본 한 쿼리이고, 커서 조건은 (작성 시각, id) 튜플 비교라
+ * 리뷰 저장소. 목록은 리뷰 left join 상품 복사본 · 작성 자격(구매 사이즈) 한 쿼리이고, 커서 조건은 (작성 시각, id) 튜플 비교라
  * 인덱스 (product_id | member_id, created_at desc, id desc)의 범위 조건으로 쓰인다.
  */
 public interface JpaReviewRepository extends JpaRepository<Review, Long>, Reviews, WithdrawnAuthors {
@@ -24,9 +24,10 @@ public interface JpaReviewRepository extends JpaRepository<Review, Long>, Review
         select r.id as id, r.orderItemId as orderItemId, r.productId as productId, p.name as productName,
                p.thumbnailUrl as thumbnailUrl, p.displayStatus as displayStatus, r.rating as rating,
                r.content as content, r.nickname as nickname, r.authorWithdrawnAt as authorWithdrawnAt,
-               r.createdAt as createdAt, r.updatedAt as updatedAt
+               r.fit as fit, e.size as purchasedSize, r.createdAt as createdAt, r.updatedAt as updatedAt
         from CommunityReview r
         left join CommunityReplicaProduct p on p.productId = r.productId
+        left join CommunityReviewEligibility e on e.orderItemId = r.orderItemId
         """;
     String AFTER = " and (r.createdAt, r.id) < (:createdAt, :id)";
     String NEWEST_FIRST = " order by r.createdAt desc, r.id desc";

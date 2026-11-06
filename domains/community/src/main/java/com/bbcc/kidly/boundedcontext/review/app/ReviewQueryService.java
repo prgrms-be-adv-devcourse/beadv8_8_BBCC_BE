@@ -45,10 +45,13 @@ public class ReviewQueryService {
      */
     public ProductSummary summary(String productId) {
         Long id = parseProductId(productId);
-        ReviewSummary summary = reviewStatsReader.findById(id)
-            .map(stats -> ReviewSummary.of(stats.getReviewCount(), stats.getRatingSum()))
-            .orElseGet(ReviewSummary::none);
-        return new ProductSummary(id, summary.reviewCount(), summary.averageRating());
+        return reviewStatsReader.findById(id)
+            .map(stats -> {
+                ReviewSummary summary = ReviewSummary.of(stats.getReviewCount(), stats.getRatingSum());
+                return new ProductSummary(id, summary.reviewCount(), summary.averageRating(),
+                    new FitSummary(stats.getFitSmall(), stats.getFitTrueToSize(), stats.getFitLarge()));
+            })
+            .orElseGet(() -> new ProductSummary(id, 0, null, new FitSummary(0, 0, 0)));
     }
 
     private static ReviewPage page(String cursor, String size,
@@ -81,7 +84,13 @@ public class ReviewQueryService {
     /**
      * @param averageRating 리뷰가 없으면 null
      */
-    public record ProductSummary(Long productId, long reviewCount, BigDecimal averageRating) {
+    public record ProductSummary(Long productId, long reviewCount, BigDecimal averageRating, FitSummary fitSummary) {
+    }
+
+    /**
+     * 핏별 리뷰 수(핏을 남긴 리뷰만). 리뷰가 없으면 0 · 0 · 0.
+     */
+    public record FitSummary(long small, long trueToSize, long large) {
     }
 
     /**
@@ -96,6 +105,8 @@ public class ReviewQueryService {
      * @param displayStatus 표시 상태 이름(ON_SALE · SOLD_OUT · SALE_ENDED). 상품 복사본이 없으면 null
      * @param nickname 작성 시점 닉네임. 작성자가 탈퇴했으면 "탈퇴한 회원", 몰랐으면 null
      * @param authorWithdrawn 작성자가 탈퇴했는지
+     * @param fit 사이즈 핏(SMALL · TRUE_TO_SIZE · LARGE). 남기지 않았으면 null
+     * @param purchasedSize 작성 자격에 저장된 구매 사이즈. 없으면 null
      */
     public record ReviewItem(
         Long reviewId,
@@ -108,6 +119,8 @@ public class ReviewQueryService {
         String content,
         String nickname,
         boolean authorWithdrawn,
+        String fit,
+        String purchasedSize,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
@@ -116,7 +129,8 @@ public class ReviewQueryService {
             return new ReviewItem(row.getId(), row.getOrderItemId(), row.getProductId(), row.getProductName(),
                 row.getThumbnailUrl(), row.getDisplayStatus() == null ? null : row.getDisplayStatus().name(),
                 row.getRating().intValue(), row.getContent(),
-                AuthorDisplay.nickname(row.getNickname(), withdrawn), withdrawn, row.getCreatedAt(),
+                AuthorDisplay.nickname(row.getNickname(), withdrawn), withdrawn,
+                row.getFit() == null ? null : row.getFit().name(), row.getPurchasedSize(), row.getCreatedAt(),
                 row.getUpdatedAt());
         }
     }

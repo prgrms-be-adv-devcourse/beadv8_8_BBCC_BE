@@ -22,6 +22,8 @@ public record ReviewListResponse(List<Item> items, String nextCursor) {
      * @param displayStatus ON_SALE · SOLD_OUT · SALE_ENDED. 상품 정보를 아직 받지 못했으면 null
      * @param nickname 작성 시점 닉네임. 작성자가 탈퇴했으면 "탈퇴한 회원", 몰랐으면 null
      * @param authorWithdrawn 작성자가 탈퇴했는지
+     * @param fit 사이즈 핏(SMALL · TRUE_TO_SIZE · LARGE). 남기지 않았으면 null
+     * @param purchasedSize 구매한 사이즈. 없는 상품이면 null
      */
     public record Item(
         String reviewId,
@@ -34,6 +36,8 @@ public record ReviewListResponse(List<Item> items, String nextCursor) {
         String content,
         String nickname,
         boolean authorWithdrawn,
+        String fit,
+        String purchasedSize,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
@@ -41,7 +45,8 @@ public record ReviewListResponse(List<Item> items, String nextCursor) {
             return new Item(String.valueOf(item.reviewId()), String.valueOf(item.orderItemId()),
                 String.valueOf(item.productId()), item.productName(), item.thumbnailUrl(),
                 item.displayStatus(), item.rating(), item.content(),
-                item.nickname(), item.authorWithdrawn(), item.createdAt(), item.updatedAt());
+                item.nickname(), item.authorWithdrawn(), item.fit(), item.purchasedSize(),
+                item.createdAt(), item.updatedAt());
         }
     }
 }
