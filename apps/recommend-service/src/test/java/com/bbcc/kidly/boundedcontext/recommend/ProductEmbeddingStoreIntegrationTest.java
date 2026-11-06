@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 class ProductEmbeddingStoreIntegrationTest {
 
     private static final Long PRODUCT_1_ID = 31L;
+    private static final Long PRODUCT_2_ID = 32L;
 
     @Autowired
     private ProductEmbeddingStore store;
@@ -45,6 +46,18 @@ class ProductEmbeddingStoreIntegrationTest {
         store.saveIfTextUnchanged(PRODUCT_1_ID, "상품명: 데일리 맨투맨", vectorOf(0.5f));
 
         assertThat(store.findStale(10)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("처음 보내는 상품을 앞서 보냈다가 성공하지 못한 상품보다 먼저 읽고, 다시 보내는 상품만 retried가 true다")
+    void readNeverAttemptedProductBeforeRetriedOne() {
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_2_ID, "데일리 후드티"));
+        store.markAttempted(List.of(PRODUCT_1_ID));
+
+        assertThat(store.findStale(10)).containsExactly(
+            new ProductEmbeddingTarget(PRODUCT_2_ID, "상품명: 데일리 후드티", false),
+            new ProductEmbeddingTarget(PRODUCT_1_ID, "상품명: 데일리 맨투맨", true));
     }
 
     // 값이 서로 다른 벡터를 만든다. seed가 같으면 같은 벡터다
