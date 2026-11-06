@@ -90,3 +90,37 @@ groups:
       description: 최근 10분 미처리가 남아 있고 증가 추세가 5분 지속됐습니다. 그룹·토픽별 소비 진행·도메인 처리 실패를 확인하세요.
         임의 offset 변경·재처리는 하지 마세요. 그룹별 허용 대기시간 합의 전에는 이 규칙을 활성화하지 않습니다.
     isPaused: true
+  - uid: kidly-member-dlt-arrived
+    title: 회원 서비스 처리 실패 메시지 도착
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: sum by(env,topic) (increase(kafka_topic_partition_current_offset{job="kidly-kafka",topic=~"kidly\\.[a-z]+\\.events\\.(auth|member|seller|childprofile)\\.dlt"}[10m]))
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.env }} {{ $labels.topic }}에 처리 실패 메시지가 들어왔습니다"
+      description: 관리자 화면 > 처리 실패 메시지에서 원인을 확인한 뒤 재처리하세요. 최근 10분 동안 새 메시지가 없으면
+        해제됩니다. 재처리해도 DLT 오프셋은 줄지 않으므로 해제가 처리 완료를 뜻하지는 않습니다.
+    isPaused: false
