@@ -91,6 +91,41 @@ class ProductEventsTest {
     }
 
     @Test
+    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 카테고리 경로를 담고, 카테고리 경로의 원소는 id와 이름이다")
+    void dataCarriesCategoryPath() {
+        assertThat(ProductChangedEvent.Data.class.getRecordComponents()).extracting(RecordComponent::getName)
+            .containsExactly("productId", "sellerId", "name", "categoryId", "status", "thumbnailUrl", "createdAt",
+                "sizeFree", "options", "infoValues", "brand", "description", "sizeSpecs", "categoryPath");
+        assertThat(ProductChangedEvent.CategoryPathEntry.class.getRecordComponents())
+            .extracting(RecordComponent::getName).containsExactly("id", "name");
+    }
+
+    @Test
+    @DisplayName("카테고리 경로 칸이 생기기 전의 생성자로 만들면 카테고리 경로는 빈 목록이다")
+    void constructorsWithoutCategoryPathFillEmptyList() {
+        ProductChangedEvent.Data withoutInfoValues = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of());
+        ProductChangedEvent.Data withInfoValues = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of());
+        ProductChangedEvent.Data withSizeSpecs = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of(),
+            "브랜드", "설명", List.of());
+
+        assertThat(List.of(withoutInfoValues, withInfoValues, withSizeSpecs))
+            .allSatisfy(data -> assertThat(data.categoryPath()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("카테고리 경로 칸이 없는 예전 메시지처럼 null을 받으면 카테고리 경로는 빈 목록이다")
+    void nullCategoryPathBecomesEmptyList() {
+        ProductChangedEvent.Data data = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of(),
+            null, null, List.of(), null);
+
+        assertThat(data.categoryPath()).isEmpty();
+    }
+
+    @Test
     @DisplayName("사이즈 무관 상품은 권장 키 없이 옵션을 담는다")
     void sizeFreeProductHasNoHeightRange() {
         ProductChangedEvent.Option option = new ProductChangedEvent.Option(3L, "색상: 그레이 / 사이즈: FREE", "FREE", 30_000L,
