@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.delivery.app.port;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -17,7 +16,7 @@ public interface DeliveryOrders {
     Optional<Order> findOrder(Long orderId);
 
     /**
-     * 주문(주문상품 포함)들을 한 번에 읽는다. 없는 ID는 빠진다.
+     * 판매 주문 목록용: 주문(주문상품 포함)들을 한 번에 읽는다. 자녀 정보는 읽지 않는다(#997). 없는 ID는 빠진다.
      */
     List<Order> findOrdersWithItems(Collection<Long> orderIds);
 
@@ -68,7 +67,7 @@ public interface DeliveryOrders {
         }
 
         /**
-         * @param child 자녀를 고르지 않았으면 null
+         * 판매 주문 조회용이라 자녀 정보는 담지 않는다(#997, 판매자에게 자녀 정보를 넘기지 않는다).
          */
         public record Item(
             Long orderItemId,
@@ -85,11 +84,7 @@ public interface DeliveryOrders {
             LocalDateTime deliveredAt,
             LocalDateTime confirmedAt,
             String confirmType,
-            Child child,
             String unavailableReason) {
-        }
-
-        public record Child(Long childId, String name, BigDecimal heightCm, BigDecimal weightKg, String bodyType) {
         }
     }
 

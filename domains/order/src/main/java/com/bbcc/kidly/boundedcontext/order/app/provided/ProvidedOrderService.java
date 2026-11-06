@@ -1,16 +1,21 @@
 package com.bbcc.kidly.boundedcontext.order.app.provided;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository.SellerOrderItemRow;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.DeliveryRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup.OrderView;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,9 +37,18 @@ public class ProvidedOrderService implements OrderLookup, DeliveryRecorder {
         return orderRepository.findById(orderId).map(ProvidedOrderService::toView);
     }
 
+    /**
+     * 주문상품 줄(주문 값 포함)을 쿼리 한 번으로 읽어 주문별로 묶는다(주문 ID 순서 그대로). 자녀 칸은 읽지 않는다(#997).
+     */
     @Override
-    public List<OrderView> findOrdersWithItems(Collection<Long> orderIds) {
-        return orderRepository.findAllWithItemsByIdIn(orderIds).stream().map(ProvidedOrderService::toView).toList();
+    public List<SellerOrderView> findOrdersForSeller(Collection<Long> orderIds) {
+        if (orderIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<SellerOrderItemRow>> byOrder = new LinkedHashMap<>();
+        orderRepository.findSellerOrderItemsByOrderIdIn(orderIds)
+            .forEach(row -> byOrder.computeIfAbsent(row.getOrderId(), id -> new ArrayList<>()).add(row));
+        return byOrder.values().stream().map(ProvidedOrderService::toSellerView).toList();
     }
 
     @Override
@@ -47,6 +61,20 @@ public class ProvidedOrderService implements OrderLookup, DeliveryRecorder {
         String reason, LocalDateTime occurredAt) {
         historyRepository.save(OrderStatusHistory.of(orderId, OrderStatusHistory.TargetType.DELIVERY, deliveryId, from,
             to, reason, OrderStatusHistory.ActorType.valueOf(actor.type()), actor.id(), actor.source(), occurredAt));
+    }
+
+    private static SellerOrderView toSellerView(List<SellerOrderItemRow> rows) {
+        SellerOrderItemRow first = rows.getFirst();
+        OrderView.ShippingAddress address = first.getRecipientName() == null && first.getPhone() == null
+            && first.getZipCode() == null && first.getAddress() == null ? null
+            : new OrderView.ShippingAddress(first.getRecipientName(), first.getPhone(), first.getZipCode(),
+                first.getAddress());
+        return new SellerOrderView(first.getOrderId(), first.getMemberId(), first.getOrderedAt(), address,
+            rows.stream().map(row -> new SellerOrderView.SellerItem(row.getOrderItemId(), row.getProductId(),
+                row.getOptionId(), row.getSellerId(), row.getProductName(), row.getOptionName(), row.getSize(),
+                row.getUnitPrice(), row.getQuantity(), row.getAmount(), row.getStatus().name(), row.getDeliveredAt(),
+                row.getConfirmedAt(), row.getConfirmType() == null ? null : row.getConfirmType().name(),
+                row.getUnavailableReason())).toList());
     }
 
     private static OrderView toView(Order order) {

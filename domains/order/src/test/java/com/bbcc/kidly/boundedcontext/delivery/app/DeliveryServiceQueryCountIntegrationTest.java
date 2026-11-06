@@ -2,25 +2,33 @@ package com.bbcc.kidly.boundedcontext.delivery.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
+import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.boundedcontext.support.QueryCounter;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 판매 주문 목록이 배송 건 수와 상관없이 같은 수의 쿼리로 끝나는지(건마다 주문 · 주문상품을 읽지 않는지) 본다.
+ * 판매 주문 목록이 배송 건 수와 상관없이 같은 수의 쿼리로 끝나는지(건마다 주문 · 주문상품을 읽지 않는지), 자녀 칸을 읽지 않는지(#997) 본다.
  * 쿼리 수는 {@link QueryCounter}로 센다(공용 통합 테스트 컨텍스트 그대로, #586).
  */
 @IntegrationTest
@@ -43,6 +51,9 @@ class DeliveryServiceQueryCountIntegrationTest {
 
     @Autowired
     private QueryCounter queryCounter;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("배송 건이 1개든 5개든 쿼리 수가 같고, 각 항목은 자기 주문의 자기 판매자 주문상품만 순서대로 갖는다")
@@ -75,6 +86,43 @@ class DeliveryServiceQueryCountIntegrationTest {
                 .orElseThrow();
             assertOwnItems(view, MANY_SELLER_ID, orderId);
         }
+    }
+
+    @Test
+    @DisplayName("판매 주문 목록은 자녀를 고른 주문이어도 자녀 칸(child_* · 키 · 몸무게 · 체형)을 select하지 않는다(#997). 쿼리는 그대로 2번")
+    void sellerOrdersDoNotSelectChildColumns() {
+        Order order = orderRepository.save(Order.place(BUYER_ID, List.of(new Order.RequestedItem(
+                new OrderItem.ProductSnapshot(901L, 901L, SINGLE_SELLER_ID, "상품", null, "110", 10_000L, 1L), true,
+                new Order.RequestedChild(new OrderItem.ChildSnapshot(7L, "자녀", new BigDecimal("115.0"),
+                    new BigDecimal("20.0"), "NORMAL"), BUYER_ID, false), 1, 10_000L)),
+            new Order.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"),
+            new Order.Policy(Duration.ofMinutes(10), Duration.ofDays(15)), LocalDateTime.now()));
+        deliveryRepository.save(Delivery.create(order.getId(), SINGLE_SELLER_ID));
+        assertThat(jdbcTemplate.queryForObject("select child_id from orders.order_item where order_id = ?",
+            Long.class, order.getId())).as("자녀를 고른 주문상품").isEqualTo(7L);
+
+        List<String> statements = new ArrayList<>();
+        Logger sqlLogger = (Logger) LoggerFactory.getLogger("org.hibernate.SQL");
+        Level before = sqlLogger.getLevel();
+        sqlLogger.setLevel(Level.DEBUG);
+        try (CapturedLogs logs = CapturedLogs.start()) {
+            long count = queryCounter.count(() -> deliveryService.getSellerOrders(SINGLE_SELLER_ID, 0, 20));
+            assertThat(count).isEqualTo(2);
+            logs.events().stream()
+                .filter(event -> event.getLoggerName().equals("org.hibernate.SQL"))
+                .map(ILoggingEvent::getFormattedMessage)
+                .forEach(statements::add);
+        } finally {
+            sqlLogger.setLevel(before);
+        }
+
+        assertThat(statements).anySatisfy(sql -> assertThat(sql).contains("order_item"));
+        // 주문상품의 자녀 칸: child_id · child_name · height_cm · weight_kg · body_type
+        assertThat(statements).allSatisfy(sql -> assertThat(sql)
+            .doesNotContain("child_", "height_cm", "weight_kg", "body_type"));
+        assertThat(deliveryService.getSellerOrders(SINGLE_SELLER_ID, 0, 20).getContent())
+            .singleElement().satisfies(view -> assertThat(view.items()).singleElement()
+                .satisfies(item -> assertThat(item.optionId()).isEqualTo(901L)));
     }
 
     private long countStatements(Long sellerId) {

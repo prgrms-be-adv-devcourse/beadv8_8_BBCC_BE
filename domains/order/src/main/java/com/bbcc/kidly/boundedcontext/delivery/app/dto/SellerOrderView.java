@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.delivery.app.dto;
 
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryOrders.Order;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -28,9 +27,7 @@ public record SellerOrderView(
     }
 
     /**
-     * 주문 상세의 주문상품과 같은 모양.
-     *
-     * @param child 자녀를 고르지 않았으면 null
+     * 주문 상세의 주문상품과 같은 모양에서 자녀 정보를 뺀 것(#997).
      */
     public record Item(
         Long orderItemId,
@@ -47,11 +44,7 @@ public record SellerOrderView(
         LocalDateTime deliveredAt,
         LocalDateTime confirmedAt,
         String confirmType,
-        Child child,
         String unavailableReason) {
-    }
-
-    public record Child(Long childId, String name, BigDecimal heightCm, BigDecimal weightKg, String bodyType) {
     }
 
     public static SellerOrderView of(Delivery delivery, Order order) {
@@ -91,7 +84,6 @@ public record SellerOrderView(
     }
 
     private static Item toItem(Order.Item item) {
-        Order.Child child = item.child();
         return new Item(
             item.orderItemId(),
             item.productId(),
@@ -107,8 +99,6 @@ public record SellerOrderView(
             item.deliveredAt(),
             item.confirmedAt(),
             item.confirmType(),
-            child == null ? null
-                : new Child(child.childId(), child.name(), child.heightCm(), child.weightKg(), child.bodyType()),
             item.unavailableReason());
     }
 }

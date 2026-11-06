@@ -64,6 +64,62 @@ public interface OrderRepository {
     List<Order> findAllWithItemsByIdIn(Collection<Long> ids);
 
     /**
+     * 판매 주문 조회용 주문상품 줄(#997): 주문 · 배송지와 주문상품 값만 한 번에 읽는다(주문상품의 자녀 칸은 select하지 않는다).
+     * 주문 ID 오름차순, 그 안은 주문상품 ID 오름차순. 없는 ID는 빠진다.
+     */
+    List<SellerOrderItemRow> findSellerOrderItemsByOrderIdIn(Collection<Long> orderIds);
+
+    /**
+     * 판매 주문 조회의 한 줄(주문 + 주문상품 하나). 자녀 정보는 없다.
+     */
+    interface SellerOrderItemRow {
+
+        Long getOrderId();
+
+        Long getMemberId();
+
+        LocalDateTime getOrderedAt();
+
+        String getRecipientName();
+
+        String getPhone();
+
+        String getZipCode();
+
+        String getAddress();
+
+        Long getOrderItemId();
+
+        Long getProductId();
+
+        Long getOptionId();
+
+        Long getSellerId();
+
+        String getProductName();
+
+        String getOptionName();
+
+        String getSize();
+
+        long getUnitPrice();
+
+        int getQuantity();
+
+        long getAmount();
+
+        OrderItem.Status getStatus();
+
+        LocalDateTime getDeliveredAt();
+
+        LocalDateTime getConfirmedAt();
+
+        OrderItem.ConfirmType getConfirmType();
+
+        String getUnavailableReason();
+    }
+
+    /**
      * 회원의 주문 목록. 최근 주문부터.
      */
     Page<Order> findAllByMemberIdOrderByIdDesc(Long memberId, Pageable pageable);

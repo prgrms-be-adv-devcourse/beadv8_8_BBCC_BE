@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.in.DeliveryRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.DeliveryRecorder.HistoryActor;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup.OrderView;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup.SellerOrderView;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.SellerItemCancellation;
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -31,9 +32,10 @@ public class DeliveryOrdersAdapter implements DeliveryOrders {
         return orderLookup.findOrder(orderId).map(DeliveryOrdersAdapter::toOrder);
     }
 
+    // 판매 주문 목록은 자녀 칸을 읽지 않는 판매자용 조회로 읽는다(#997)
     @Override
     public List<Order> findOrdersWithItems(Collection<Long> orderIds) {
-        return orderLookup.findOrdersWithItems(orderIds).stream().map(DeliveryOrdersAdapter::toOrder).toList();
+        return orderLookup.findOrdersForSeller(orderIds).stream().map(DeliveryOrdersAdapter::toOrder).toList();
     }
 
     @Override
@@ -56,6 +58,17 @@ public class DeliveryOrdersAdapter implements DeliveryOrders {
             .map(share -> new CancelledShare(share.cancellationId(), share.orderItemIds(), share.orderCancelled()));
     }
 
+    private static Order toOrder(SellerOrderView order) {
+        OrderView.ShippingAddress address = order.shippingAddress();
+        return new Order(order.orderId(), order.memberId(), order.orderedAt(),
+            address == null ? null : new Order.ShippingAddress(address.recipientName(), address.phone(),
+                address.zipCode(), address.address()),
+            order.items().stream().map(item -> new Order.Item(item.orderItemId(), item.productId(), item.optionId(),
+                item.sellerId(), item.productName(), item.optionName(), item.size(), item.unitPrice(), item.quantity(),
+                item.amount(), item.status(), item.deliveredAt(), item.confirmedAt(), item.confirmType(),
+                item.unavailableReason())).toList());
+    }
+
     private static Order toOrder(OrderView order) {
         OrderView.ShippingAddress address = order.shippingAddress();
         return new Order(order.orderId(), order.memberId(), order.orderedAt(),
@@ -64,8 +77,8 @@ public class DeliveryOrdersAdapter implements DeliveryOrders {
             order.items().stream().map(DeliveryOrdersAdapter::toItem).toList());
     }
 
+    // 자녀 정보(OrderView.Item.child)는 옮기지 않는다(#997, 판매자 조회 경로에서 읽지 않음)
     private static Order.Item toItem(OrderView.Item item) {
-        OrderView.Child child = item.child();
         return new Order.Item(
             item.orderItemId(),
             item.productId(),
@@ -81,8 +94,6 @@ public class DeliveryOrdersAdapter implements DeliveryOrders {
             item.deliveredAt(),
             item.confirmedAt(),
             item.confirmType(),
-            child == null ? null : new Order.Child(child.childId(), child.name(), child.heightCm(),
-                child.weightKg(), child.bodyType()),
             item.unavailableReason());
     }
 }

@@ -41,6 +41,26 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
     List<Order> findAllWithItemsByIdIn(Collection<Long> ids);
 
     /**
+     * 판매 주문 조회(#997): 엔티티를 읽지 않고 필요한 칸만 고른다(주문상품의 자녀 칸 child_*는 select하지 않음). 쿼리 한 번.
+     */
+    @Override
+    @Query("""
+        select o.id as orderId, o.memberId as memberId, o.createdAt as orderedAt,
+               o.shippingAddress.recipientName as recipientName, o.shippingAddress.phone as phone,
+               o.shippingAddress.zipCode as zipCode, o.shippingAddress.address as address,
+               i.id as orderItemId, i.product.productId as productId, i.product.optionId as optionId,
+               i.product.sellerId as sellerId, i.product.productName as productName,
+               i.product.optionName as optionName, i.product.size as size, i.product.unitPrice as unitPrice,
+               i.quantity as quantity, i.amount as amount, i.status as status, i.deliveredAt as deliveredAt,
+               i.confirmedAt as confirmedAt, i.confirmType as confirmType, i.unavailableReason as unavailableReason
+        from Order o
+        join o.items i
+        where o.id in :orderIds
+        order by o.id asc, i.id asc
+        """)
+    List<SellerOrderItemRow> findSellerOrderItemsByOrderIdIn(Collection<Long> orderIds);
+
+    /**
      * 결제 완료 반영 실패로 재처리를 기다리는 주문(기록 PENDING)은 빼서 만료 취소 · 환불하지 않는다(#353).
      * 재처리 불가 · 복구됨 · 취소로 종료 기록은 그대로 대상이다. 기록은 주문당 1건(order_id 유니크 인덱스가 받침).
      */
