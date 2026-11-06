@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import com.bbcc.kidly.boundedcontext.order.app.replica.ReplicaService;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -12,12 +13,16 @@ import org.springframework.transaction.annotation.Transactional;
  * 받는 곳(#541): Kafka 리스너({@link ChildProfileEventKafkaListener}), 스위치가 꺼졌을 때 Spring 수신({@link SpringEventReceiver}).
  * 처리 메서드는 부르는 쪽 트랜잭션에 합류하고(Spring 수신), 없으면 새로 연다(Kafka 리스너).
  * 리스너는 재시도가 없어 저장이 실패하면 이벤트가 사라지므로, 깨진 값은 여기서 걸러 예외 없이 처리한다.
+ * 자녀가 삭제 상태가 되면(#1001) 복사본 반영과 같은 트랜잭션에서 그 자녀 장바구니를 비우고(ReplicaService), 받은 이벤트를 앱 안
+ * Spring 이벤트로 그대로 다시 알린다(EventPublisher, 아웃박스 · Kafka로 나가지 않는다). 조르기가 이것을 받아 진행 중 조르기를 철회한다
+ * (주문은 조르기를 모르므로 컨텍스트 규칙상 직접 부르지 않는다). 같은 트랜잭션이라 조르기 처리가 실패하면 함께 롤백되고 재시도된다.
  */
 @Component
 @RequiredArgsConstructor
 public class ChildProfileEventListener {
 
     private final ReplicaService replicaService;
+    private final EventPublisher eventPublisher;
 
     /**
      * 자녀 ID · 회원 ID · 발생 시각이 없으면 무시한다. 키 · 몸무게 · 성별 · 생년월일이 없으면 무시하되(#251 확정 기준,
@@ -33,11 +38,15 @@ public class ChildProfileEventListener {
         ChildChangedEvent.Data data = event.data();
         String missingBody = missingProfile(data);
         if (missingBody != null && data.deleted()) {
-            replicaService.applyChildDeleted(data.childId(), data.memberId(), event.occurredAt());
+            if (replicaService.applyChildDeleted(data.childId(), data.memberId(), event.occurredAt())) {
+                eventPublisher.publish(event);
+            }
             return;
         }
         if (EventGuard.accept("자녀", event, "childId", childId, missingBody)) {
-            replicaService.applyChildChanged(toCommand(event));
+            if (replicaService.applyChildChanged(toCommand(event)) && data.deleted()) {
+                eventPublisher.publish(event);
+            }
         }
     }
 

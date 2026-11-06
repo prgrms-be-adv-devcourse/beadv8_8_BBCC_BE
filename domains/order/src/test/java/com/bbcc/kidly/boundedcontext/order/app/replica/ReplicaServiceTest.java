@@ -7,6 +7,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.port.CartOwnerCleaner;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ReplicaUpdateLock;
@@ -48,6 +49,9 @@ class ReplicaServiceTest {
 
     @Mock
     private SellerReplicaRepository sellerReplicaRepository;
+
+    @Mock
+    private CartOwnerCleaner cartOwnerCleaner;
 
     @InjectMocks
     private ReplicaService replicaService;

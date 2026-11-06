@@ -51,6 +51,12 @@ public class OrderKafkaTestcontainers {
         return topic("kidly.auth.events");
     }
 
+    // 회원 토픽은 회원 서비스가 만든다. 주문은 회원 탈퇴(member.withdrawn)만 구독한다(#1001)
+    @Bean
+    NewTopic memberEventsTopic() {
+        return topic("kidly.member.events");
+    }
+
     private static NewTopic topic(String name) {
         return TopicBuilder.name(name).partitions(PARTITIONS).replicas(1).build();
     }

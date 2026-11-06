@@ -22,6 +22,12 @@ public interface WishRequestRepository {
         Collection<Long> requestedByIds);
 
     /**
+     * 이 보낸 사람의 이 상태 조르기(#1001 삭제 정리: 진행 중 조르기 철회). ID 순.
+     */
+    List<WishRequest> findAllByRequestedByTypeAndRequestedByIdAndStatusOrderByIdAsc(PrincipalType type,
+        Long requestedById, WishRequest.Status status);
+
+    /**
      * 이 상태의 조르기에 이 칸 중 하나라도 들어 있는지(진행 중 칸 중복 금지, BEG-02).
      */
     boolean existsByStatusAndLinesCartItemIdIn(WishRequest.Status status, Collection<Long> cartItemIds);

@@ -31,7 +31,7 @@ public class OrderKafkaListenerTestGuard implements SmartLifecycle {
 
     static final List<String> ORDER_LISTENERS = List.of(ProductEventKafkaListener.ID, SellerEventKafkaListener.ID,
         ChildProfileEventKafkaListener.ID, PaymentEventKafkaListener.ID, AuthEventKafkaListener.ID,
-        OrderDeadLetterKafkaListener.ID, WishCartEventKafkaListener.ID);
+        OrderDeadLetterKafkaListener.ID, WishCartEventKafkaListener.ID, MemberEventKafkaListener.ID);
 
     private final KafkaListenerEndpointRegistry registry;
     private final Map<String, MessageListenerContainer> listeners = new ConcurrentHashMap<>();

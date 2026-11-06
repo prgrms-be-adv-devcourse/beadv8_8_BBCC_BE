@@ -760,6 +760,22 @@ class CartServiceTest {
         }
 
         @Test
+        @DisplayName("주인 정리(#1001): 그 주인의 칸을 예약 칸까지 모두 지우고 이벤트는 내지 않는다")
+        void removeOwnerItems() {
+            CartItem reservedLine = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, OPTION_ID, CHILD_ID, 1);
+            reservedLine.reserve("wish-1");
+            CartItem plainLine = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, 3L, CHILD_ID, 1);
+            when(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(OwnerType.CHILD, CHILD_ID))
+                .thenReturn(List.of(reservedLine, plainLine));
+
+            assertThat(cartService.removeOwnerItems("CHILD", CHILD_ID)).isEqualTo(2);
+
+            verify(cartItemRepository).delete(reservedLine);
+            verify(cartItemRepository).delete(plainLine);
+            verifyNoEvent();
+        }
+
+        @Test
         @DisplayName("주인 칸 예약(#999): 주인의 칸만 예약하고 칸 값을 고른 순서로 돌려준다. 주인의 칸이 아니면 404이고 예약하지 않는다")
         void reserveOwned() {
             CartItem first = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, OPTION_ID, CHILD_ID, 2);

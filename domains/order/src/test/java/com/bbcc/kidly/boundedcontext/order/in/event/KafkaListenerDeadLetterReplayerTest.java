@@ -68,7 +68,8 @@ class KafkaListenerDeadLetterReplayerTest {
         ObjectProvider<Consumer<ConsumerRecord<String, String>>> orderEvents) {
         return new KafkaListenerDeadLetterReplayer(mock(ProductEventKafkaListener.class),
             mock(SellerEventKafkaListener.class), mock(ChildProfileEventKafkaListener.class),
-            mock(PaymentEventKafkaListener.class), mock(AuthEventKafkaListener.class), orderEvents);
+            mock(PaymentEventKafkaListener.class), mock(AuthEventKafkaListener.class),
+            mock(MemberEventKafkaListener.class), orderEvents);
     }
 
     // 운영과 같은 방식(빈 팩토리의 제네릭 타입 조회)으로 Consumer<ConsumerRecord<String, String>> 빈을 찾는다

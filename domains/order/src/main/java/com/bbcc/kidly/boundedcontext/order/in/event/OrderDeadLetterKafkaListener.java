@@ -12,7 +12,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 주문 DLT(kidly.{product|seller|childprofile|payment|auth|order}.events.order.dlt)를 읽어 관리자가 볼 수 있게 저장한다(#601).
+ * 주문 DLT(kidly.{product|seller|childprofile|payment|auth|member|order}.events.order.dlt)를 읽어 관리자가 볼 수 있게 저장한다(#601).
  * kidly.order.events.order.dlt는 조르기가 자기 토픽에서 받다 실패한 메시지다(#999).
  * 구독 그룹은 원래 토픽 리스너와 같은 kidly.order, 팩토리도 같다(스위치 · earliest · 한 건씩 완료).
  * <ul>
@@ -42,6 +42,7 @@ public class OrderDeadLetterKafkaListener {
             OrderKafkaListenerConfig.CHILDPROFILE_EVENTS_DLT,
             OrderKafkaListenerConfig.PAYMENT_EVENTS_DLT,
             OrderKafkaListenerConfig.AUTH_EVENTS_DLT,
+            OrderKafkaListenerConfig.MEMBER_EVENTS_DLT,
             OrderKafkaListenerConfig.ORDER_EVENTS_DLT})
     public void on(ConsumerRecord<String, String> record) {
         ReceiveDeadLetterCommand command = OrderDeadLetterRecords.command(record);

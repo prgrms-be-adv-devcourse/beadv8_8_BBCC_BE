@@ -28,6 +28,7 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
     private final ChildProfileEventKafkaListener childProfileListener;
     private final PaymentEventKafkaListener paymentListener;
     private final AuthEventKafkaListener authListener;
+    private final MemberEventKafkaListener memberListener;
     private final ObjectProvider<Consumer<ConsumerRecord<String, String>>> orderEventsListener;
 
     /**
@@ -36,7 +37,7 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
      */
     KafkaListenerDeadLetterReplayer(ProductEventKafkaListener productListener, SellerEventKafkaListener sellerListener,
         ChildProfileEventKafkaListener childProfileListener, PaymentEventKafkaListener paymentListener,
-        AuthEventKafkaListener authListener,
+        AuthEventKafkaListener authListener, MemberEventKafkaListener memberListener,
         ObjectProvider<Consumer<ConsumerRecord<String, String>>> orderEventsListener) {
         long candidates = orderEventsListener.stream().count();
         if (candidates > 1) {
@@ -48,6 +49,7 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
         this.childProfileListener = childProfileListener;
         this.paymentListener = paymentListener;
         this.authListener = authListener;
+        this.memberListener = memberListener;
         this.orderEventsListener = orderEventsListener;
     }
 
@@ -68,6 +70,7 @@ class KafkaListenerDeadLetterReplayer implements DeadLetterReplayer {
                 case OrderKafkaListenerConfig.CHILDPROFILE_EVENTS -> childProfileListener.on(record);
                 case OrderKafkaListenerConfig.PAYMENT_EVENTS -> paymentListener.on(record);
                 case OrderKafkaListenerConfig.AUTH_EVENTS -> authListener.on(record);
+                case OrderKafkaListenerConfig.MEMBER_EVENTS -> memberListener.on(record);
                 case OrderKafkaListenerConfig.ORDER_EVENTS -> orderEventsListener(message).accept(record);
                 default -> throw new UnknownDeadLetterSourceException(message.sourceTopic());
             }

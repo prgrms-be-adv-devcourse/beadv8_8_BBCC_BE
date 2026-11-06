@@ -30,11 +30,13 @@ class OrderKafkaListenerIntegrationTest {
 
     private static final List<String> DEAD_LETTER_TOPICS = List.of(
         "kidly.product.events.order.dlt", "kidly.seller.events.order.dlt", "kidly.childprofile.events.order.dlt",
-        "kidly.payment.events.order.dlt", "kidly.auth.events.order.dlt", "kidly.order.events.order.dlt");
+        "kidly.payment.events.order.dlt", "kidly.auth.events.order.dlt", "kidly.order.events.order.dlt",
+        "kidly.member.events.order.dlt");
 
     private static final List<String> LISTENER_IDS = List.of(ProductEventKafkaListener.ID,
         SellerEventKafkaListener.ID, ChildProfileEventKafkaListener.ID, PaymentEventKafkaListener.ID,
-        AuthEventKafkaListener.ID, OrderDeadLetterKafkaListener.ID, WishCartEventKafkaListener.ID);
+        AuthEventKafkaListener.ID, OrderDeadLetterKafkaListener.ID, WishCartEventKafkaListener.ID,
+        MemberEventKafkaListener.ID);
 
     @Autowired
     private KafkaContainer kafka;
@@ -56,7 +58,7 @@ class OrderKafkaListenerIntegrationTest {
     private ConcurrentKafkaListenerContainerFactory<?, ?> orderFactory;
 
     @Test
-    @DisplayName("기동하면 주문 DLT 토픽 6개가 파티션 1 · 복제 1로 생긴다")
+    @DisplayName("기동하면 주문 DLT 토픽 7개가 파티션 1 · 복제 1로 생긴다")
     void deadLetterTopicsDeclared() throws Exception {
         try (Admin admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
             kafka.getBootstrapServers()))) {

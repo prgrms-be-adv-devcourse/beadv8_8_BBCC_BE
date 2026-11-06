@@ -5,7 +5,7 @@
 | `kidly.member.events` | `member.registered` | 회원 ID | member | notification, payment |
 | | `member.suspended` | 회원 ID | | childprofile, notification |
 | | `member.changed` | 회원 ID | | seller |
-| | `member.withdrawn` | 회원 ID | | auth, childprofile, community(찜 정리 · 리뷰 닉네임 지움(탈퇴 표시)), member(배송지), notification, payment, recommend |
+| | `member.withdrawn` | 회원 ID | | auth, childprofile, community(찜 정리 · 리뷰 닉네임 지움(탈퇴 표시)), member(배송지), notification, order(#1001: 결제대기 주문 취소 · 회원 장바구니 정리), payment, recommend |
 | `kidly.seller.events` | `seller.changed` | 판매자 ID | seller | member, notification, order, product, recommend, search |
 | | `seller.application-rejected` | 신청 ID | | notification |
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
