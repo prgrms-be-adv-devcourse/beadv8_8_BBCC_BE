@@ -26,7 +26,8 @@ public enum AuthErrorCode implements ErrorCode {
     CHILD_ACCOUNT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 자녀 계정이 있습니다", "자녀 프로필을 다시 확인해 주세요."),
     CHILD_LOGIN_ID_TAKEN(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다", "다른 아이디를 입력해 주세요."),
     INVALID_CHILD_PASSWORD(HttpStatus.BAD_REQUEST, "자녀 비밀번호가 올바르지 않습니다", "비밀번호를 다시 확인해 주세요."),
-    INVALID_CHILD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다", "다시 확인해 주세요.");
+    INVALID_CHILD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다", "다시 확인해 주세요."),
+    DEAD_LETTER_NOT_FOUND(HttpStatus.NOT_FOUND, "DLT 메시지를 찾을 수 없습니다", "DLT 목록을 새로고침해 주세요.");
 
     private final HttpStatus status;
     private final String title;

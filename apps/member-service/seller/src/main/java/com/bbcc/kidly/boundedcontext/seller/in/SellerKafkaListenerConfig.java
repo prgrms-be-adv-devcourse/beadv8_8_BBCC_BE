@@ -32,11 +32,12 @@ import tools.jackson.core.JacksonException;
 @Configuration
 class SellerKafkaListenerConfig {
 
-    static final String DLT = "kidly.member.events.seller.dlt";
+    static final String MEMBER_EVENTS = "kidly.member.events";
+    static final String MEMBER_EVENTS_DLT = "kidly.member.events.seller.dlt";
 
     @Bean
     NewTopic sellerMemberEventsDeadLetterTopic() {
-        return TopicBuilder.name(DLT).partitions(1).replicas(1).build();
+        return TopicBuilder.name(MEMBER_EVENTS_DLT).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
@@ -53,7 +54,7 @@ class SellerKafkaListenerConfig {
 
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
-            (record, e) -> new TopicPartition(DLT, 0));
+            (record, e) -> new TopicPartition(MEMBER_EVENTS_DLT, 0));
         var errorHandler = new DefaultErrorHandler((record, e) -> {
             logDeadLetter(record, e);
             deadLetter.accept(record, e);
@@ -80,6 +81,6 @@ class SellerKafkaListenerConfig {
 
     static String header(ConsumerRecord<?, ?> record, String name) {
         var header = record.headers().lastHeader(name);
-        return header == null ? null : new String(header.value(), UTF_8);
+        return header == null || header.value() == null ? null : new String(header.value(), UTF_8);
     }
 }

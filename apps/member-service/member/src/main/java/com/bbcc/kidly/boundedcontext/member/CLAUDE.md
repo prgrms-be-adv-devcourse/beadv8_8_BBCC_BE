@@ -43,3 +43,8 @@
 - 읽기 시작 위치는 앱 설정 `latest`(회의 10-29 안건 4). 구독 그룹이 처음 붙기 전 메시지는 읽지 않는다
 - 보안 지연: 판매자 정지 → 무효화가 Kafka를 거쳐 비동기다. 그동안(보통 수 초, Kafka가 멈추면 그동안 내내) 정지된 판매자의 SELLER 토큰이 Gateway를 통과할 수 있다(MSA 가이드가 받아들인 한계)
 - 판매자 토픽은 판매자가 선언한다. 회원은 DLT만 선언한다
+
+## DLT 보관 · 재처리 (`app/MemberDeadLetterService`, #962)
+- `in/MemberDeadLetterKafkaListener`가 `kidly.seller.events.member.dlt` · `kidly.member.events.member.dlt`를 그룹 `kidly.member.dlt`(earliest)로 읽어 `member.dead_letter`(`domain/MemberDeadLetter`)에 DLT 위치당 1행으로 보관한다. 같은 위치가 이미 있으면 건너뛴다(DLT는 파티션 1개를 컨테이너 하나가 차례로 읽고, 유니크 제약이 뒷받침한다). 저장 실패는 최대 60초 간격으로 끝없이 재시도하고, DLT의 DLT는 없다
+- `/api/v1/admin/member-dead-letters`(관리자): 목록(status 기본 OPEN) · 상세 · `POST /{id}/reprocess`. 응답과 로그에 본문 · 예외 메시지를 넣지 않는다
+- 재처리는 원래 토픽에 다시 보내지 않고 원래 토픽의 리스너(`SellerEventListener.on` · `ShippingAddressMemberEventListener.on`)를 직접 부른다(원래 토픽은 다른 도메인도 받는다). 행을 비관적 쓰기 잠금으로 잡은 한 트랜잭션에서 처리기를 돌리고 REPROCESSED로 바꾸므로 동시에 눌러도 처리기는 한 번만 돈다. 처리기가 실패하면 그 트랜잭션은 롤백되고, 별도 트랜잭션에서 횟수 · 예외 종류만 남겨 200/OPEN을 돌려준다

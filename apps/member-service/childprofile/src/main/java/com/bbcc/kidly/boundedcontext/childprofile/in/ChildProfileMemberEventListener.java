@@ -16,7 +16,7 @@ public class ChildProfileMemberEventListener {
     private final ChildProfileService childProfileService;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(id = "childProfileMemberEventListener", topics = "kidly.member.events",
+    @KafkaListener(id = "childProfileMemberEventListener", topics = ChildProfileKafkaListenerConfig.MEMBER_EVENTS,
         groupId = "kidly.childprofile", containerFactory = "childprofileKafkaListenerContainerFactory")
     public void on(ConsumerRecord<String, String> record) {
         switch (ChildProfileKafkaListenerConfig.header(record, "eventType")) {

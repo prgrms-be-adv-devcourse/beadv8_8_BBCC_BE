@@ -26,14 +26,20 @@ import tools.jackson.core.JacksonException;
 @Configuration
 class ChildProfileKafkaListenerConfig {
 
+    static final String MEMBER_EVENTS = "kidly.member.events";
+    static final String AUTH_EVENTS = "kidly.auth.events";
+    private static final String DLT_SUFFIX = ".childprofile.dlt";
+    static final String MEMBER_EVENTS_DLT = MEMBER_EVENTS + DLT_SUFFIX;
+    static final String AUTH_EVENTS_DLT = AUTH_EVENTS + DLT_SUFFIX;
+
     @Bean
     NewTopic childprofileMemberEventsDeadLetterTopic() {
-        return TopicBuilder.name(dlt("kidly.member.events")).partitions(1).replicas(1).build();
+        return TopicBuilder.name(MEMBER_EVENTS_DLT).partitions(1).replicas(1).build();
     }
 
     @Bean
     NewTopic childprofileAuthEventsDeadLetterTopic() {
-        return TopicBuilder.name(dlt("kidly.auth.events")).partitions(1).replicas(1).build();
+        return TopicBuilder.name(AUTH_EVENTS_DLT).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다
@@ -49,7 +55,7 @@ class ChildProfileKafkaListenerConfig {
     }
 
     private static String dlt(String topic) {
-        return topic + ".childprofile.dlt";
+        return topic + DLT_SUFFIX;
     }
 
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
@@ -81,6 +87,6 @@ class ChildProfileKafkaListenerConfig {
 
     static String header(ConsumerRecord<?, ?> record, String name) {
         var header = record.headers().lastHeader(name);
-        return header == null ? null : new String(header.value(), UTF_8);
+        return header == null || header.value() == null ? null : new String(header.value(), UTF_8);
     }
 }

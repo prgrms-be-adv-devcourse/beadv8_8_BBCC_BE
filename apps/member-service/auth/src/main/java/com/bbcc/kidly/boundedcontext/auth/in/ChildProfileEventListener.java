@@ -15,7 +15,7 @@ public class ChildProfileEventListener {
     private final ChildProfileReplicaService service;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(id = "authChildProfileEventListener", topics = "kidly.childprofile.events",
+    @KafkaListener(id = "authChildProfileEventListener", topics = AuthKafkaListenerConfig.CHILD_PROFILE_EVENTS,
         groupId = "kidly.auth", containerFactory = "authKafkaListenerContainerFactory")
     public void on(ConsumerRecord<String, String> record) {
         if ("child.changed".equals(AuthKafkaListenerConfig.header(record, "eventType"))) {

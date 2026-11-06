@@ -27,6 +27,9 @@
 | DELETE | `/api/v1/auth/child-accounts/{id}` | 자녀 계정 삭제 | 🔒 |
 | POST | `/api/v1/admin/admins` | 관리자 계정 만들기 | 🛠 |
 | POST | `/api/v1/admin/admins/{adminId}/disable` | 관리자 계정 끄기 | 🛠 |
+| GET | `/api/v1/admin/auth-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
+| GET | `/api/v1/admin/auth-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
+| POST | `/api/v1/admin/auth-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 | POST | `/api/v1/dev/tokens` | 개발용 토큰 발급(local · test · dev 프로필에서만) | 🌐 |
 
 ## 회원
@@ -43,6 +46,9 @@
 | PATCH | `/api/v1/members/me/addresses/{addressId}/default` | 기본 배송지 변경 | 🔒 |
 | GET | `/api/v1/admin/members` | 회원 목록(필터 ALL · BUYER · SELLER · SUSPENDED · ADMIN) | 🛠 |
 | POST | `/api/v1/admin/members/{memberId}/suspend` | 회원 이용 정지 | 🛠 |
+| GET | `/api/v1/admin/member-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
+| GET | `/api/v1/admin/member-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
+| POST | `/api/v1/admin/member-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 
 ## 자녀 프로필
 
@@ -59,6 +65,9 @@
 | GET | `/api/v1/child/profile` | 자녀 계정이 자기 프로필 조회 | 🔒 |
 | GET | `/api/v1/child/onboarding` | 첫 로그인 안내 확인 여부 조회 (`noticeConfirmed`) | 🔒 |
 | POST | `/api/v1/child/onboarding/notice` | 첫 로그인 안내 확인 (204) | 🔒 |
+| GET | `/api/v1/admin/child-profile-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
+| GET | `/api/v1/admin/child-profile-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
+| POST | `/api/v1/admin/child-profile-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 
 ## 판매자
 
@@ -72,6 +81,9 @@
 | POST | `/api/v1/admin/seller-applications/{applicationId}/reject` | 판매자 거절(사유) | 🛠 |
 | POST | `/api/v1/admin/sellers/{sellerId}/suspend` | 판매자 자격 정지 | 🛠 |
 | POST | `/api/v1/admin/sellers/changed-events` | 모든 판매자의 `seller.changed`를 지금 상태로 다시 보냄 | 🛠 |
+| GET | `/api/v1/admin/seller-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
+| GET | `/api/v1/admin/seller-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
+| POST | `/api/v1/admin/seller-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 
 ## 상품
 

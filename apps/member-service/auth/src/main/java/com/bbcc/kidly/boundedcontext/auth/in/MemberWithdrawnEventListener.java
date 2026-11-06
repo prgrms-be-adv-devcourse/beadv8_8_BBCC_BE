@@ -19,7 +19,7 @@ public class MemberWithdrawnEventListener {
     private final SocialLoginService socialLoginService;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(id = "authMemberEventListener", topics = "kidly.member.events",
+    @KafkaListener(id = "authMemberEventListener", topics = AuthKafkaListenerConfig.MEMBER_EVENTS,
         groupId = "kidly.auth", containerFactory = "authKafkaListenerContainerFactory")
     public void on(ConsumerRecord<String, String> record) {
         switch (AuthKafkaListenerConfig.header(record, "eventType")) {

@@ -20,7 +20,7 @@ public class MemberEventListener {
     private final SellerApplicationService sellerApplicationService;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(id = "sellerMemberEventListener", topics = "kidly.member.events",
+    @KafkaListener(id = "sellerMemberEventListener", topics = SellerKafkaListenerConfig.MEMBER_EVENTS,
         groupId = "kidly.seller", containerFactory = "sellerKafkaListenerContainerFactory")
     @Transactional
     public void on(ConsumerRecord<String, String> record) {
