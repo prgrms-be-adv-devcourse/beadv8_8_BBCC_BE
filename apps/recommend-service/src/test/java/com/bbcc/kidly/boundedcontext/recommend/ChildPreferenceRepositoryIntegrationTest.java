@@ -26,6 +26,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 @IntegrationTest
 class ChildPreferenceRepositoryIntegrationTest {
 
+    private static final Long OTHER_CHILD_ID = 12L;
+
+    private static final Long NO_ACTIVITY_CHILD_ID = 13L;
+
+    private static final Long OTHER_CATEGORY_ID = 99L;
+
+    private static final String OTHER_BRAND = "다른브랜드";
+
     @Autowired
     private ChildPreferenceRepository childPreferenceRepository;
 
@@ -143,6 +151,28 @@ class ChildPreferenceRepositoryIntegrationTest {
         ChildPreference preference = childPreferenceRepository.findByChildProfileId(CHILD_1_ID);
         assertThat(preference.categoryPoints(PRODUCT_A_CATEGORY_ID)).isZero();
         assertThat(preference.brandPoints(PRODUCT_A_BRAND)).isZero();
+    }
+
+    @Test
+    @DisplayName("PREF-02 · 04 다른 자녀의 활동은 집계에 섞이지 않고, 활동이 없는 자녀는 빈 집계를 받는다")
+    void keepPreferencesOfDifferentChildrenApart() {
+        add(CHILD_1_ID, new PreferenceActivity(PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, true));
+        add(OTHER_CHILD_ID, new PreferenceActivity(OTHER_CATEGORY_ID, OTHER_BRAND, false));
+
+        ChildPreference child = childPreferenceRepository.findByChildProfileId(CHILD_1_ID);
+        ChildPreference otherChild = childPreferenceRepository.findByChildProfileId(OTHER_CHILD_ID);
+        ChildPreference childWithoutActivity = childPreferenceRepository.findByChildProfileId(NO_ACTIVITY_CHILD_ID);
+
+        assertThat(child.categoryPoints(PRODUCT_A_CATEGORY_ID)).isEqualTo(5);
+        assertThat(child.brandPoints(PRODUCT_A_BRAND)).isEqualTo(2);
+        assertThat(child.categoryPoints(OTHER_CATEGORY_ID)).isZero();
+        assertThat(child.brandPoints(OTHER_BRAND)).isZero();
+        assertThat(otherChild.categoryPoints(OTHER_CATEGORY_ID)).isEqualTo(3);
+        assertThat(otherChild.brandPoints(OTHER_BRAND)).isEqualTo(2);
+        assertThat(otherChild.categoryPoints(PRODUCT_A_CATEGORY_ID)).isZero();
+        assertThat(otherChild.brandPoints(PRODUCT_A_BRAND)).isZero();
+        assertThat(childWithoutActivity.categoryPoints(PRODUCT_A_CATEGORY_ID)).isZero();
+        assertThat(childWithoutActivity.brandPoints(PRODUCT_A_BRAND)).isZero();
     }
 
     private void add(Long childProfileId, PreferenceActivity activity) {
