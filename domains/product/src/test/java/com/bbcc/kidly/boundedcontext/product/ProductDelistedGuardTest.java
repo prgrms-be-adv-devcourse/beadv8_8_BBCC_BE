@@ -39,10 +39,16 @@ class ProductDelistedGuardTest {
     @DisplayName("SALE-15 등록 취소한 상품은 판매 상태 변경 · 상품 수정 · 옵션 · 실측 추가를 모두 409로 거절하고 아무것도 바꾸지 않는다")
     void rejectChangeOfDelisted(Function<ProductA, ThrowingCallable> call) {
         product.delist(SELLER_ID);
+        String nameBefore = product.getName();
+        int optionCountBefore = product.getOptions().size();
+        int sizeSpecCountBefore = product.getSizeSpecs().size();
 
         assertRejected(call.apply(productA), ProductErrorCode.PRODUCT_DELISTED);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
         assertThat(product.isStoppedByAdmin()).isFalse();
+        assertThat(product.getName()).isEqualTo(nameBefore);
+        assertThat(product.getOptions()).hasSize(optionCountBefore);
+        assertThat(product.getSizeSpecs()).hasSize(sizeSpecCountBefore);
     }
 
     @ParameterizedTest(name = "{0}")
