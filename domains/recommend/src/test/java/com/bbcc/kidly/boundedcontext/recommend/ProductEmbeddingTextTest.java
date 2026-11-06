@@ -54,6 +54,21 @@ class ProductEmbeddingTextTest {
             .isEqualTo(ProductEmbeddingText.compose("면 티셔츠", "키들리", infoValues, "설명"));
     }
 
+    @Test
+    @DisplayName("값이 없거나 공백인 정보 값은 빼고, 값이 모두 빠진 code는 줄을 두지 않는다")
+    void omitBlankInfoValues() {
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", null, List.of(
+            new InfoValue("material", "cotton"),
+            new InfoValue("material", null),
+            new InfoValue("material", " "),
+            new InfoValue("season", ""),
+            new InfoValue("season", null)), null);
+
+        assertThat(text.value()).isEqualTo("""
+            상품명: 면 티셔츠
+            material: cotton""");
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"  "})
