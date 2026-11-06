@@ -2,6 +2,7 @@
   "uid": "kidly-db-latency",
   "title": "Kidly 응답·DB 연결",
   "tags": [
+    "03 상세 진단",
     "kidly"
   ],
   "timezone": "browser",

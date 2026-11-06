@@ -52,6 +52,8 @@ spec:
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
             # 사용자가 따로 언어를 고르지 않으면 한국어로 보인다
+            - name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH
+              value: /etc/grafana/dashboards/kidly-home.json
             - name: GF_USERS_DEFAULT_LANGUAGE
               value: ko-KR
             - name: GF_ANALYTICS_REPORTING_ENABLED

@@ -44,6 +44,7 @@ configMapGenerator:
       - grafana/dashboards/kidly-server.json
       - grafana/dashboards/spring-boot.json
       - grafana/dashboards/kidly-ai-notes.json
+      - grafana/dashboards/kidly-home.json
       - grafana/dashboards/kidly-http.json
       - grafana/dashboards/kidly-db-latency.json
 

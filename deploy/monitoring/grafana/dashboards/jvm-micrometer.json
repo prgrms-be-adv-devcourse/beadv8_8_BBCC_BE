@@ -2688,7 +2688,7 @@
   ],
   "schemaVersion": 14,
   "style": "dark",
-  "tags": [],
+  "tags": ["03 상세 진단"],
   "templating": {
     "list": [
       {

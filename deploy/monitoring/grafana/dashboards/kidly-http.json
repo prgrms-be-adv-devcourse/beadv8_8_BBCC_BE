@@ -3,6 +3,7 @@
   "title": "Kidly 서비스 오류",
   "schemaVersion": 39,
   "tags": [
+    "01 장애 확인",
     "kidly",
     "http"
   ],
