@@ -2,12 +2,15 @@ package com.bbcc.kidly.boundedcontext.notification;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.notification.app.MemberContactService;
 import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotification;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
+import com.bbcc.kidly.boundedcontext.notification.out.JpaInboxNotificationRepository;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
@@ -54,6 +57,9 @@ class NotificationPaymentEventKafkaIntegrationTest {
 
     @Autowired
     private JpaNotificationRepository jpaNotificationRepository;
+
+    @Autowired
+    private JpaInboxNotificationRepository jpaInboxNotificationRepository;
 
     @Autowired
     private MemberContactService memberContactService;
@@ -109,7 +115,7 @@ class NotificationPaymentEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("같은 정산서의 지급 완료가 새 이벤트 ID로 다시 와도 메일은 한 통이다")
+    @DisplayName("같은 정산서의 지급 완료가 새 이벤트 ID로 다시 와도 메일 · 알림함은 한 건이다")
     void duplicatePayout() throws Exception {
         send(payoutCompleted(), targetId);
         send(payoutCompleted(), targetId);
@@ -119,6 +125,11 @@ class NotificationPaymentEventKafkaIntegrationTest {
         AsyncWait.until(TIMEOUT, () -> statuses().size() == 2
             && statuses().stream().allMatch(NotificationStatus.SENT::equals));
         assertThat(notifications()).filteredOn(n -> n.getType() == NotificationType.PAYOUT_COMPLETED).hasSize(1);
+        assertThat(jpaInboxNotificationRepository.findAll()).filteredOn(n -> memberId.equals(n.getMemberId()))
+            .extracting(InboxNotification::getType, InboxNotification::getLinkPath)
+            .containsExactlyInAnyOrder(
+                tuple(NotificationType.PAYOUT_COMPLETED, "/center/settlements/" + targetId),
+                tuple(NotificationType.REFUND_COMPLETED, "/orders/" + targetId));
     }
 
     @Test
