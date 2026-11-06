@@ -115,4 +115,16 @@ class RecommendedProductRankerTest {
 
         assertThat(ranked).containsExactly(kept);
     }
+
+    @Test
+    @DisplayName("PREF-09 기준 시각보다 늦게 등록한 상품은 빼고, 기준 시각에 등록한 상품은 남긴다")
+    void productsRegisteredAfterBaseTimeAreRemoved() {
+        RecommendedProduct atBaseTime = recommendedProductRegisteredAt(1L, BASE_TIME);
+        RecommendedProduct afterBaseTime = recommendedProductRegisteredAt(2L, BASE_TIME.plusSeconds(1));
+
+        List<RecommendedProduct> ranked = ranker.rank(
+            List.of(atBaseTime, afterBaseTime), ChildPreference.empty(), Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(atBaseTime);
+    }
 }
