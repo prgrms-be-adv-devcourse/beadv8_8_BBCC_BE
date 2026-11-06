@@ -9,10 +9,6 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * kidly.member.events에서 member.withdrawn을 받아 탈퇴한 회원의 활동 기록 삭제를 맡긴다.
- * 같은 탈퇴를 다시 받아도 이미 지워진 기록은 없으므로 결과는 한 번 받은 것과 같다.
- */
 @Component
 @RequiredArgsConstructor
 public class RecommendMemberEventListener {
@@ -28,7 +24,6 @@ public class RecommendMemberEventListener {
                 jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
             // 헤더가 없으면 어떤 이벤트인지 알 수 없어 재시도 없이 DLT로 보낸다
             case null -> throw new IllegalArgumentException("eventType 헤더가 없습니다");
-            // 추천이 받지 않는 종류는 건너뛴다
             default -> { }
         }
     }

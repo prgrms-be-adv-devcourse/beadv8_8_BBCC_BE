@@ -26,8 +26,6 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 추천이 회원 토픽의 회원 탈퇴를 받아 그 회원의 활동 기록을 지우는지 확인한다(#903).
- * 메시지는 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다. 회원은 다른 앱이라 이 테스트에서 띄우지 않는다.
  * 같은 토픽에는 다른 테스트의 메시지도 쌓여 이어서 받을 수 있으므로, 회원 ID(이벤트의 키)를 테스트마다 새로 만든다.
  */
 @KafkaIntegrationTest
@@ -54,7 +52,6 @@ class RecommendMemberKafkaIntegrationTest {
 
     private List<MessageListenerContainer> listeners;
 
-    // 리스너는 이 테스트 안에서만 켠다
     @BeforeEach
     void startListeners() {
         messages = new RecommendKafkaMessages(kafka.getBootstrapServers(), jsonMapper);

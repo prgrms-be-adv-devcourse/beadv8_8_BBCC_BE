@@ -69,7 +69,6 @@ public final class ActivityRecordFixture {
             PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY, CART_QTY, ADDED_AT);
     }
 
-    // 회원 1이 장바구니 줄 201(자녀 11, 상품 31의 옵션 32)을 3개인 채로 뺐다
     public static ActivityRecord.CartItemRemovedInfo cartItemRemoved() {
         return cartItemRemovedFor(CHILD_1_ID, PRODUCT_A_ID);
     }

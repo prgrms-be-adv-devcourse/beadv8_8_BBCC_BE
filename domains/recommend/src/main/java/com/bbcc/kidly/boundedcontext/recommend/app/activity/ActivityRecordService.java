@@ -63,10 +63,6 @@ public class ActivityRecordService {
         activityRecordRepository.save(ActivityRecord.cartItemAdded(info));
     }
 
-    /**
-     * 장바구니 빼기 이벤트의 값을 빼기 활동 기록으로 저장한다. 뺄 때 그 줄의 수량은 장바구니 수량 칸에 둔다.
-     * 같은 이벤트의 기록이 이미 있으면 다시 받은 이벤트로 보고 조용히 건너뛴다. 한 줄만 남는 것은 UNIQUE 제약이 지킨다.
-     */
     public void recordCartItemRemoved(CartItemRemovedEvent event) {
         if (activityRecordRepository.existsByEventId(event.eventId())) {
             return;
@@ -84,11 +80,8 @@ public class ActivityRecordService {
         activityRecordRepository.save(ActivityRecord.cartItemRemoved(info));
     }
 
-    /**
-     * 탈퇴한 회원의 활동 기록을 모두 지운다. 지울 기록이 없거나 같은 탈퇴를 다시 받아도 결과는 같다.
-     * 회원 ID가 없으면 예외로 실패한다. null로 조건을 걸면 어떤 기록도 지우지 못하면서 처리한 것처럼 끝나기 때문이다.
-     */
     public void deleteActivityRecordsOfWithdrawnMember(MemberWithdrawnEvent event) {
+        // null로 조건을 걸면 어떤 기록도 지우지 못하면서 처리한 것처럼 끝나기 때문에 회원 ID가 없으면 예외로 실패시킨다
         Long memberId = requireNonNull(event.data().memberId(), "memberId는 필수입니다");
         activityRecordRepository.deleteByMemberId(memberId);
     }

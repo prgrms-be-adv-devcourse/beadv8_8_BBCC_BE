@@ -259,7 +259,6 @@ class RecommendActivityKafkaIntegrationTest {
             new CartItemAddedEvent.Data(201L, memberId, 11L, 31L, 32L, 2, 3));
     }
 
-    // 회원 ID만 바꾼 장바구니 빼기다. 자녀 11을 고른 장바구니 줄 201(상품 31의 옵션 32)을 3개인 채로 뺐다
     private static CartItemRemovedEvent cartItemRemoved(Long memberId) {
         return new CartItemRemovedEvent(UUID.randomUUID(), REMOVED_AT,
             new CartItemRemovedEvent.Data(201L, memberId, 11L, 31L, 32L, 3));

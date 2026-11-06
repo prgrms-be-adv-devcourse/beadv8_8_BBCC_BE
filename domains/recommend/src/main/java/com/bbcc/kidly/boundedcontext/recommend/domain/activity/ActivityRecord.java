@@ -22,7 +22,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 회원이 검색하거나 장바구니에 담고 뺀 활동을 한 줄씩 남기는 활동 기록이다.
  * 다른 도메인의 ID는 FK 없이 값으로만 참조한다.
  * 활동 종류마다 쓰는 칸이 달라, 종류에 해당하지 않는 칸은 null이다.
  */
@@ -78,7 +77,7 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "product_option_id")
     private Long productOptionId;
 
-    // 이번에 담은 수량이다. 장바구니 담기에만 있다
+    // 이번에 담은 수량이다
     @Column(name = "added_qty")
     private Integer addedQty;
 

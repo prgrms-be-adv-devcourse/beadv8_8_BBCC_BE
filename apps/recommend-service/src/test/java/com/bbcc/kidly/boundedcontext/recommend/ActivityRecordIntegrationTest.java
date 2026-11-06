@@ -94,7 +94,6 @@ class ActivityRecordIntegrationTest {
                 PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY, CART_QTY, ADDED_AT);
     }
 
-    // 자녀를 고르지 않았거나 주문이 상품 정보를 받아 두지 않은 줄을 빼도 활동 기록을 남긴다
     @ParameterizedTest(name = "자녀 ID {0}, 상품 ID {1}")
     @MethodSource("childAndProductIds")
     @DisplayName("장바구니 빼기 이벤트를 활동 기록으로 저장하고 뺄 때의 수량을 장바구니 수량 칸에 둔다")
