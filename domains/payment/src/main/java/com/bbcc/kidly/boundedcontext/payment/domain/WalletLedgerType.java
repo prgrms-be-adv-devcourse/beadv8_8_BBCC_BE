@@ -18,7 +18,9 @@ public enum WalletLedgerType {
     REFUND(true),
     SETTLEMENT(true),
     // 탈퇴 회원 지갑의 남은 잔액을 운영자가 환급했다고 정리한다(실제 송금 없음, #731)
-    BALANCE_RETURN(false);
+    BALANCE_RETURN(false),
+    // local · test · dev에서 토스 없이 넣은 개발용 예치금(#1010). prod에는 이 기록을 만드는 API가 없다
+    DEV_CHARGE(true);
 
     private final boolean deposit;
 }
