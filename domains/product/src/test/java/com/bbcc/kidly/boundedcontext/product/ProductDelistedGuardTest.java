@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -33,6 +34,18 @@ class ProductDelistedGuardTest {
         assertRejected(call.apply(productA), ProductErrorCode.PRODUCT_DELISTED);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
         assertThat(product.isStoppedByAdmin()).isFalse();
+    }
+
+    @Test
+    @DisplayName("SALE-15 관리자가 판매중지한 뒤 등록 취소한 상품을 판매자가 다시 열면 관리자 판매중지보다 등록 취소로 거절한다")
+    void delistedBeatsAdminStop() {
+        product.stopSaleByAdmin();
+        product.delist(SELLER_ID);
+
+        assertRejected(() -> product.startSale(SELLER_ID, productA.top(), productA.clothing().type()),
+            ProductErrorCode.PRODUCT_DELISTED);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
+        assertThat(product.isStoppedByAdmin()).isTrue();
     }
 
     static Stream<Named<Function<ProductA, ThrowingCallable>>> guardedCalls() {
