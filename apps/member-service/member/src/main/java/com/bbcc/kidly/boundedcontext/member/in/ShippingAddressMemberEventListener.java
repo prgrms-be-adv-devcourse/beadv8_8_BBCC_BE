@@ -19,7 +19,7 @@ public class ShippingAddressMemberEventListener {
     private final ShippingAddressService shippingAddressService;
     private final JsonMapper jsonMapper;
 
-    @KafkaListener(id = "memberMemberEventListener", topics = "kidly.member.events",
+    @KafkaListener(id = "memberMemberEventListener", topics = MemberKafkaListenerConfig.MEMBER_EVENTS,
         groupId = "kidly.member", containerFactory = "memberKafkaListenerContainerFactory")
     public void on(ConsumerRecord<String, String> record) {
         switch (MemberKafkaListenerConfig.header(record, "eventType")) {
