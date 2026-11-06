@@ -69,6 +69,20 @@ class OrderEventEnvelopeTest {
             + "\"quantity\":2,\"cartQuantity\":5}}");
     }
 
+    @Test
+    @DisplayName("구매확정 data에 confirmType 키가 없는 예전 메시지(#901 전)도 읽히고 confirmType은 null이다")
+    void readsPurchaseConfirmedWithoutConfirmType() {
+        String legacy = "{\"orderItemId\":70,\"orderId\":7,\"memberId\":1,\"sellerId\":2,\"childId\":null,"
+            + "\"productId\":10,\"optionId\":3,\"size\":\"110\",\"quantity\":2,\"amount\":50000,"
+            + "\"confirmedAt\":\"2026-10-30T09:00:00\"}";
+
+        OrderItemPurchaseConfirmedEvent.Data data = JsonMapper.builder().build()
+            .readValue(legacy, OrderItemPurchaseConfirmedEvent.Data.class);
+
+        assertThat(data).isEqualTo(new OrderItemPurchaseConfirmedEvent.Data(70L, 7L, 1L, 2L, null, 10L, 3L, "110", 2,
+            50_000L, LocalDateTime.of(2026, 10, 30, 9, 0), null));
+    }
+
     private static OrderCreatedEvent orderCreated() {
         return new OrderCreatedEvent(EVENT_ID, OCCURRED_AT,
             new OrderCreatedEvent.Data(1024L, 1L, List.of(new OrderCreatedEvent.Item(5001L, 301L, 2))));

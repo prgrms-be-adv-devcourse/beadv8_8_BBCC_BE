@@ -166,8 +166,9 @@ class OrderFlowApiTest {
         OrderItemPurchaseConfirmedEvent confirmed = single(OrderItemPurchaseConfirmedEvent.class, orderId);
         assertThat(fieldNames(OrderItemPurchaseConfirmedEvent.Data.class)).containsExactly(
             "orderItemId", "orderId", "memberId", "sellerId", "childId", "productId", "optionId", "size",
-            "quantity", "amount", "confirmedAt");
+            "quantity", "amount", "confirmedAt", "confirmType");
         OrderItemPurchaseConfirmedEvent.Data data = confirmed.data();
+        assertThat(data.confirmType()).as("직접 확정(#901)").isEqualTo("DIRECT");
         assertThat(data.orderItemId()).isEqualTo(Long.valueOf(itemOfA.orderItemId()));
         assertThat(data.orderId()).isEqualTo(orderId);
         assertThat(data.memberId()).isEqualTo(BUYER_ID);

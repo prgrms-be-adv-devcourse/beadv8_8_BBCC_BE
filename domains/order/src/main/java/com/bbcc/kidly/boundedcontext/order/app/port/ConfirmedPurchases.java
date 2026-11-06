@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.app.port;
 
+import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.domain.Limit;
@@ -25,5 +26,10 @@ public interface ConfirmedPurchases {
         int getQuantity();
         long getAmount();
         LocalDateTime getConfirmedAt();
+
+        /**
+         * 저장된 구매확정 방식(#901). 없으면 null.
+         */
+        OrderItem.ConfirmType getConfirmType();
     }
 }

@@ -520,7 +520,8 @@ public class OrderService {
                 product.size(),
                 item.getQuantity(),
                 item.getAmount(),
-                item.getConfirmedAt())));
+                item.getConfirmedAt(),
+                item.getConfirmType().name())));
         log.info("구매확정: orderId={} orderItemId={} confirmType={}",
             order.getId(), item.getId(), item.getConfirmType());
     }

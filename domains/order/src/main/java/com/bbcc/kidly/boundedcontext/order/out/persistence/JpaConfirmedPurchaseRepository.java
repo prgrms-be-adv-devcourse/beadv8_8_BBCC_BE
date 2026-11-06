@@ -21,7 +21,8 @@ public interface JpaConfirmedPurchaseRepository extends Repository<OrderItem, Lo
     @Query("""
         select i.id as orderItemId, o.id as orderId, o.memberId as memberId, i.product.sellerId as sellerId,
                i.child.childId as childId, i.product.productId as productId, i.product.optionId as optionId,
-               i.product.size as size, i.quantity as quantity, i.amount as amount, i.confirmedAt as confirmedAt
+               i.product.size as size, i.quantity as quantity, i.amount as amount, i.confirmedAt as confirmedAt,
+               i.confirmType as confirmType
         from OrderItem i join i.order o
         where i.status = com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem.Status.CONFIRMED
           and i.confirmedAt is not null and i.id > :afterId and i.id <= :throughId

@@ -17,7 +17,7 @@
 | | `order.paid` | 주문 ID | | notification |
 | | `order.cancelled` | 주문 ID | | notification, payment, product |
 | | `order-item.cancelled` | 주문 ID | | notification, payment, product |
-| | `order-item.purchase-confirmed` | 주문 ID | | community, recommend, settlement |
+| | `order-item.purchase-confirmed`(data에 확정 방식 `confirmType` DIRECT · AUTO, #901) | 주문 ID | | community, recommend, settlement |
 | | `delivery.shipped` | 주문 ID | | notification |
 | | `delivery.delivered` | 주문 ID | | notification |
 | | `cart.item-added` | 회원 ID | | recommend |

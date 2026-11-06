@@ -87,6 +87,7 @@ class OrderConfirmIntegrationTest {
         assertThat(confirmed.get(0).data().orderItemId()).isEqualTo(orderItemId);
         assertThat(confirmed.get(0).data().orderId()).isEqualTo(order.orderId());
         assertThat(confirmed.get(0).data().childId()).isEqualTo(1L);
+        assertThat(confirmed.get(0).data().confirmType()).as("직접 확정 방식(#901)").isEqualTo("DIRECT");
     }
 
     @Test
@@ -99,7 +100,8 @@ class OrderConfirmIntegrationTest {
         OrderDetail.Item item = itemOf(order);
         assertThat(item.status()).isEqualTo("CONFIRMED");
         assertThat(item.confirmType()).isEqualTo("AUTO");
-        assertThat(events.stream(OrderItemPurchaseConfirmedEvent.class).toList()).hasSize(1);
+        assertThat(events.stream(OrderItemPurchaseConfirmedEvent.class).toList()).singleElement()
+            .satisfies(event -> assertThat(event.data().confirmType()).as("자동 확정 방식(#901)").isEqualTo("AUTO"));
     }
 
     @Test
