@@ -38,6 +38,8 @@ class ProductDelistedGuardTest {
     static Stream<Named<Function<ProductA, ThrowingCallable>>> guardedCalls() {
         return Stream.of(
             Named.of("판매자의 판매 시작", a -> () -> a.product().startSale(SELLER_ID, a.top(), a.clothing().type())),
-            Named.of("판매자의 판매 중지", a -> () -> a.product().stopSale(SELLER_ID)));
+            Named.of("판매자의 판매 중지", a -> () -> a.product().stopSale(SELLER_ID)),
+            Named.of("관리자의 판매 시작", a -> () -> a.product().startSaleByAdmin(a.top(), a.clothing().type())),
+            Named.of("관리자의 판매중지", a -> () -> a.product().stopSaleByAdmin()));
     }
 }
