@@ -1,9 +1,11 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -15,5 +17,18 @@ class EmbeddingVectorTest {
     void rejectWrongDimensions(int dimensions) {
         assertThatThrownBy(() -> new EmbeddingVector(new float[dimensions]))
             .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("만든 뒤에 넘긴 배열이나 돌려받은 배열을 바꿔도 벡터는 바뀌지 않는다")
+    void keepValuesWhenArraysAreChanged() {
+        float[] given = new float[EmbeddingVector.DIMENSIONS];
+        given[0] = 0.5f;
+        EmbeddingVector vector = new EmbeddingVector(given);
+
+        given[0] = 9f;
+        vector.values()[0] = 7f;
+
+        assertThat(vector.values()[0]).isEqualTo(0.5f);
     }
 }
