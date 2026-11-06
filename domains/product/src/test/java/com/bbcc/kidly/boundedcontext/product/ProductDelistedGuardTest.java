@@ -37,6 +37,15 @@ class ProductDelistedGuardTest {
     }
 
     @Test
+    @DisplayName("SALE-15 등록 취소한 상품에 지금과 같은 값을 보낸 수정도 409로 거절한다")
+    void rejectSameValueUpdateOfDelisted() {
+        product.delist(SELLER_ID);
+
+        assertRejected(() -> product.update(productA.sameUpdate()), ProductErrorCode.PRODUCT_DELISTED);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
+    }
+
+    @Test
     @DisplayName("SALE-15 관리자가 판매중지한 뒤 등록 취소한 상품을 판매자가 다시 열면 관리자 판매중지보다 등록 취소로 거절한다")
     void delistedBeatsAdminStop() {
         product.stopSaleByAdmin();
