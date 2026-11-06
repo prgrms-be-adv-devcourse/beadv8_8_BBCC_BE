@@ -82,7 +82,7 @@ class ChildPreferenceRepositoryIntegrationTest {
         "52, '  ', 1, 0",
         ", , 0, 0",
     })
-    @DisplayName("PREF-04 카테고리가 없는 활동은 카테고리 줄을, 브랜드가 null이거나 빈 · 공백인 활동은 브랜드 줄을 만들지 않는다")
+    @DisplayName("PREF-02 · 04 카테고리가 없는 활동은 카테고리 줄을, 브랜드가 null이거나 빈 · 공백인 활동은 브랜드 줄을 만들지 않는다")
     void createNoRowForMissingCategoryOrBrand(Long categoryId, String brand, int categoryRows, int brandRows) {
         add(CHILD_1_ID, new PreferenceActivity(categoryId, brand, false));
 
@@ -91,7 +91,7 @@ class ChildPreferenceRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("PREF-07 같은 활동을 두 번 더하면 카테고리 · 브랜드 줄은 하나씩이고 횟수는 2다")
+    @DisplayName("PREF-02 · 03 · 04 같은 활동을 두 번 더하면 카테고리 · 브랜드 줄은 하나씩이고 횟수는 2다")
     void keepOneRowWhenSameActivityAddedTwice() {
         PreferenceActivity activity = new PreferenceActivity(PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, true);
 
@@ -209,7 +209,7 @@ class ChildPreferenceRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("PREF-07 줄이 없는 자녀의 같은 카테고리 · 브랜드에 동시에 활동을 더해도 횟수가 요청 수만큼 오른다")
+    @DisplayName("PREF-02 · 03 · 04 줄이 없는 자녀의 같은 카테고리 · 브랜드에 동시에 활동을 더해도 횟수가 요청 수만큼 오른다")
     void addActivitiesConcurrently() throws Exception {
         PreferenceActivity cartAdd = new PreferenceActivity(PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, true);
         CountDownLatch ready = new CountDownLatch(CONCURRENT_REQUESTS);
