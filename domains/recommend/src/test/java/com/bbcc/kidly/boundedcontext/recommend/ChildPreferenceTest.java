@@ -16,6 +16,10 @@ class ChildPreferenceTest {
 
     private static final String BRAND = "키들리";
 
+    private static final Long OTHER_CATEGORY_ID = 99L;
+
+    private static final String OTHER_BRAND = "다른브랜드";
+
     @ParameterizedTest(name = "상세 진입 {0}번")
     @ValueSource(ints = {1, 3})
     @DisplayName("PREF-02 활동에 나온 카테고리는 나온 횟수와 상관없이 3점이다")
@@ -86,5 +90,23 @@ class ChildPreferenceTest {
 
         assertThat(preference.categoryPoints(CATEGORY_ID)).isEqualTo(3);
         assertThat(preference.brandPoints(BRAND)).isEqualTo(2);
+    }
+
+    @ParameterizedTest(name = "빼기를 먼저 {0}")
+    @ValueSource(booleans = {false, true})
+    @DisplayName("PREF-01 기준 시각 뒤 활동을 더했다가 빼면 순서와 상관없이 그 활동이 없던 집계와 점수가 같다")
+    void activityAfterBaseTimeIsReverted(boolean minusFirst) {
+        ChildPreference beforeBaseTime = ChildPreference.empty()
+            .plus(new PreferenceActivity(CATEGORY_ID, BRAND, false));
+        PreferenceActivity afterBaseTime = new PreferenceActivity(OTHER_CATEGORY_ID, OTHER_BRAND, true);
+
+        ChildPreference reverted = minusFirst
+            ? beforeBaseTime.minus(afterBaseTime).plus(afterBaseTime)
+            : beforeBaseTime.plus(afterBaseTime).minus(afterBaseTime);
+
+        assertThat(reverted.categoryPoints(CATEGORY_ID)).isEqualTo(3);
+        assertThat(reverted.brandPoints(BRAND)).isEqualTo(2);
+        assertThat(reverted.categoryPoints(OTHER_CATEGORY_ID)).isZero();
+        assertThat(reverted.brandPoints(OTHER_BRAND)).isZero();
     }
 }
