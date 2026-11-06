@@ -248,7 +248,7 @@ public class Product extends BaseTimeEntity {
         // 등록한 판매자만 상품을 고칠 수 있다. 같은 값을 보내도 다른 판매자이면 거절한다 (OPT-08)
         validateOwner(info.sellerId());
         // 같은 값을 보내도 등록 취소한 상품이면 거절하므로 바뀌었는지 보기 전에 검사한다
-        requireNotDelisted();
+        validateNotDelisted();
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
@@ -336,7 +336,7 @@ public class Product extends BaseTimeEntity {
             throw new IllegalArgumentException("옵션 목록은 비어 있을 수 없습니다");
         }
         validateOwner(info.sellerId());
-        requireNotDelisted();
+        validateNotDelisted();
         ProductOptions.validateNewOptions(info, options, productType);
         List<ProductOption> created = new ArrayList<>();
         for (OptionInfo option : info.options()) {
@@ -368,7 +368,7 @@ public class Product extends BaseTimeEntity {
             throw new IllegalArgumentException("실측 목록은 비어 있을 수 없습니다");
         }
         validateOwner(info.sellerId());
-        requireNotDelisted();
+        validateNotDelisted();
         ProductSizeSpecs.validateNewSpecs(info.specs(), sizeSpecs, options, category, productType);
         for (SizeSpecInfo spec : info.specs()) {
             sizeSpecs.add(SizeSpec.create(this, spec));
@@ -384,7 +384,7 @@ public class Product extends BaseTimeEntity {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
         validateOwner(sellerId);
-        requireNotDelisted();
+        validateNotDelisted();
         // 관리자가 운영 정책을 어긴 상품을 판매중지하면 판매자는 다시 열 수 없다 (SALE-11)
         if (stoppedByAdmin) {
             throw new BusinessException(ProductErrorCode.SALE_STOPPED_BY_ADMIN);
@@ -416,13 +416,13 @@ public class Product extends BaseTimeEntity {
     public boolean stopSale(Long sellerId) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
         validateOwner(sellerId);
-        requireNotDelisted();
+        validateNotDelisted();
         return markStopped();
     }
 
     // 등록 취소한 상품은 판매자도 관리자도 판매 상태 · 상품 정보 · 재고를 바꿀 수 없고, 관리자의 되돌리기만 등록 취소를 푼다
     // (SALE-15). 상품을 바꾸는 공개 메서드는 소유자 검사 바로 뒤에 이것을 부른다. 재고를 조정하는 옵션도 부르므로 package-private이다
-    void requireNotDelisted() {
+    void validateNotDelisted() {
         if (status == ProductStatus.DELISTED) {
             throw new BusinessException(ProductErrorCode.PRODUCT_DELISTED);
         }
@@ -432,7 +432,7 @@ public class Product extends BaseTimeEntity {
     public boolean startSaleByAdmin(Category category, ProductType productType) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
-        requireNotDelisted();
+        validateNotDelisted();
         boolean changed = openSale(category, productType);
         stoppedByAdmin = false;
         return changed;
@@ -443,7 +443,7 @@ public class Product extends BaseTimeEntity {
      * 판매 상태는 그대로라 false지만, 관리자 판매중지 표시는 켜지므로 상품은 바뀐다.
      */
     public boolean stopSaleByAdmin() {
-        requireNotDelisted();
+        validateNotDelisted();
         boolean changed = markStopped();
         // 이미 판매중지여도 판매자가 다시 열지 못하게 관리자가 판매중지한 상품으로 표시한다
         stoppedByAdmin = true;

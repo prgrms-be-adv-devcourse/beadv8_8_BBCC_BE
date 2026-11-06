@@ -118,7 +118,7 @@ public class ProductOption extends BaseTimeEntity {
     // 다른 판매자의 옵션이면 등록 취소 여부보다 먼저 거절한다
     public void validateAdjustableBy(Long sellerId) {
         product.validateOwner(sellerId);
-        product.requireNotDelisted();
+        product.validateNotDelisted();
     }
 
     // 보관 옵션은 구매자 상세와 판매자 화면 어디에도 보이지 않는다 (SALE-06)
