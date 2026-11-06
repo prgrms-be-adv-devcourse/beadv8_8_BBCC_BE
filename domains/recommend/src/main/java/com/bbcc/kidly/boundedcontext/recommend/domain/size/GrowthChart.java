@@ -73,9 +73,6 @@ public class GrowthChart {
         return Optional.of(BodyType.NORMAL);
     }
 
-    /**
-     * 통통 기준인 신장별 체중을 먼저 본다. 옷 둘레에 직접 닿는 값이라 마름 기준과 함께 맞으면 통통으로 둔다.
-     */
     private Optional<BodyType> judgeInfant(Gender gender, long months, double heightCm, double weightKg) {
         InfantWeightForLengthRow lengthRow = infantWeightForLength.get(LengthKey.of(gender, heightCm));
         InfantWeightForAgeRow ageRow = infantWeightForAge.get(new AgeKey(gender, months));
