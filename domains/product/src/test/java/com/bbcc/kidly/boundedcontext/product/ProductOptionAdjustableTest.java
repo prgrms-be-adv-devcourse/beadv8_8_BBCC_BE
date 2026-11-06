@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
 
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
@@ -23,5 +24,13 @@ class ProductOptionAdjustableTest {
         product.delist(SELLER_ID);
 
         assertRejected(() -> option.validateAdjustableBy(SELLER_ID), ProductErrorCode.PRODUCT_DELISTED);
+    }
+
+    @Test
+    @DisplayName("OPT-08 · SALE-15 다른 판매자의 옵션이면 등록 취소 상품이어도 403이 먼저다")
+    void rejectAdjustFromOtherSellerBeforeDelisted() {
+        product.delist(SELLER_ID);
+
+        assertRejected(() -> option.validateAdjustableBy(OTHER_SELLER_ID), ProductErrorCode.NOT_PRODUCT_OWNER);
     }
 }
