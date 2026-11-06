@@ -10,7 +10,7 @@
 | 데이터 | PVC `elasticsearch-data` 10Gi (local-path, 노드 디스크) |
 | 이미지 | `docker/elasticsearch`(공식 + nori)를 deploy 워크플로가 GHCR(private)에 올린 것. 태그는 그 폴더의 트리 해시 |
 | pull secret | `ghcr-pull`. 배포 잡의 `GITHUB_TOKEN` 으로 배포마다 다시 만든다(서버에 장기 토큰을 두지 않는다, #281) |
-| 메모리 | heap 1GB, request 1536Mi · limit 2Gi (실측 최대 1.42GB) |
+| 메모리 | heap 512MB, request 1Gi · limit 1280Mi (heap 1GB 때 heap 사용 약 250MiB, heap 512MB 로컬 실측 anon 872MiB) |
 | 검색 서비스 접속 | `ELASTICSEARCH_URIS=http://<medium 사설 IP>:30920`. IP 는 레포(공개)에 쓰지 않고 deploy 워크플로가 Environment 변수 `MONITORING_PRIVATE_IP` 로 서버 `.env` 에 붙인다 |
 
 dev · prod 는 이 ES 하나를 색인 이름 앞의 환경 이름(`SEARCH_INDEX_PREFIX`, `dev-*` · `prod-*`)으로 나눠 씁니다. 배포(dev 는 기능 브랜치 배포 포함)가 `docker/elasticsearch` 가 바뀌어 이 ES 의 이미지를 바꾸면 ES 가 다시 뜨는 동안 두 환경의 검색이 함께 멈춥니다.
