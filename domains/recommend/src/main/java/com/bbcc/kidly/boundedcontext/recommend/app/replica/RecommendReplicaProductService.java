@@ -52,15 +52,15 @@ public class RecommendReplicaProductService {
             toSizeSpecInfos(data.sizeSpecs()),
             toInfoValues(data.infoValues()),
             event.occurredAt(),
-            toCategoryPathInfos(data.categoryPath()));
+            toCategoryPathEntryInfos(data.categoryPath()));
     }
 
     // 이벤트의 카테고리 경로도 칸이 없는 예전 메시지는 빈 목록으로 오므로 null을 검사하지 않는다
-    private List<RecommendReplicaProduct.CategoryPathInfo> toCategoryPathInfos(
+    private List<RecommendReplicaProduct.CategoryPathEntryInfo> toCategoryPathEntryInfos(
         List<ProductChangedEvent.CategoryPathEntry> categoryPath) {
-        List<RecommendReplicaProduct.CategoryPathInfo> infos = new ArrayList<>();
+        List<RecommendReplicaProduct.CategoryPathEntryInfo> infos = new ArrayList<>();
         for (ProductChangedEvent.CategoryPathEntry entry : categoryPath) {
-            infos.add(new RecommendReplicaProduct.CategoryPathInfo(entry.id(), entry.name()));
+            infos.add(new RecommendReplicaProduct.CategoryPathEntryInfo(entry.id(), entry.name()));
         }
         return infos;
     }

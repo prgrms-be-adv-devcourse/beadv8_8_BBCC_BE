@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCategory;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCategoryPathEntry;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
@@ -219,12 +219,13 @@ class RecommendReplicaProductIntegrationTest {
             new ProductChangedEvent.CategoryPathEntry(70L, "슬림핏")), PRODUCT_CHANGED_AT));
 
         // 카테고리 경로는 지연 로딩이라 새 트랜잭션에서 읽어야 저장된 행을 실제로 불러온다
-        List<RecommendReplicaCategory> path = transactionTemplate.execute(status -> {
+        List<RecommendReplicaCategoryPathEntry> path = transactionTemplate.execute(status -> {
             RecommendReplicaProduct product = replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow();
             return List.copyOf(product.getCategoryPath());
         });
         assertThat(path)
-            .extracting(RecommendReplicaCategory::getCategoryId, RecommendReplicaCategory::getCategoryName)
+            .extracting(RecommendReplicaCategoryPathEntry::getCategoryId,
+                RecommendReplicaCategoryPathEntry::getCategoryName)
             .containsExactly(tuple(30L, "하의"), tuple(7L, "청바지"), tuple(70L, "슬림핏"));
     }
 
@@ -272,7 +273,7 @@ class RecommendReplicaProductIntegrationTest {
     void storeReplicaFromEventWithoutCategoryPath() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
 
-        List<RecommendReplicaCategory> path = transactionTemplate.execute(status -> List.copyOf(
+        List<RecommendReplicaCategoryPathEntry> path = transactionTemplate.execute(status -> List.copyOf(
             replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow().getCategoryPath()));
         assertThat(path).isEmpty();
         assertThat(count("select count(*) from recommend.replica_product_category_path where product_id = ?"))

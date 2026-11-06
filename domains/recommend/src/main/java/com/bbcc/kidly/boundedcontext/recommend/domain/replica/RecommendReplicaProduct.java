@@ -126,16 +126,16 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @OrderColumn(name = "position")
     @CollectionTable(schema = "recommend", name = "replica_product_category_path",
         joinColumns = @JoinColumn(name = "product_id"))
-    private List<RecommendReplicaCategory> categoryPath = new ArrayList<>();
+    private List<RecommendReplicaCategoryPathEntry> categoryPath = new ArrayList<>();
 
     // 브랜드 · 설명 · 상품 정보 값은 새 칸이 없는 예전 메시지에서 null로 오므로 필수 값으로 검사하지 않는다.
     // 사이즈별 실측과 카테고리 경로는 이벤트가 칸이 없으면 빈 목록으로 바꿔 주므로 null이 오지 않는다
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
         String brand, String description, List<SizeSpecInfo> sizeSpecs, List<ProductEmbeddingText.InfoValue> infoValues,
-        LocalDateTime occurredAt, List<CategoryPathInfo> categoryPath) {
+        LocalDateTime occurredAt, List<CategoryPathEntryInfo> categoryPath) {
 
-        // 카테고리 경로 없이 만드는 생성자다. 이 칸이 생기기 전의 호출과 테스트 보조 코드가 바뀌지 않게 둔다. 경로는 빈 목록이 된다
+        // 테스트 보조 코드만 쓰는 생성자다. 경로는 빈 목록이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 저장된 카테고리 경로가 빈 목록으로 지워진다
         public ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
             String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
             String brand, String description, List<SizeSpecInfo> sizeSpecs,
@@ -148,7 +148,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     /**
      * 카테고리 경로 한 칸의 입력 값이다. 경로는 대분류부터 종류 순서로 담는다.
      */
-    public record CategoryPathInfo(Long categoryId, String name) {
+    public record CategoryPathEntryInfo(Long categoryId, String categoryName) {
     }
 
     /**
@@ -209,9 +209,9 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             newSizeSpecs.add(new RecommendReplicaSizeSpec(
                 spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
         }
-        List<RecommendReplicaCategory> newCategoryPath = new ArrayList<>();
-        for (CategoryPathInfo entry : info.categoryPath()) {
-            newCategoryPath.add(new RecommendReplicaCategory(entry.categoryId(), entry.name()));
+        List<RecommendReplicaCategoryPathEntry> newCategoryPath = new ArrayList<>();
+        for (CategoryPathEntryInfo entry : info.categoryPath()) {
+            newCategoryPath.add(new RecommendReplicaCategoryPathEntry(entry.categoryId(), entry.categoryName()));
         }
         this.embeddingText = ProductEmbeddingText.compose(
             info.name(), info.brand(), info.infoValues(), info.description()).value();
@@ -262,7 +262,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     /**
      * 카테고리 경로를 대분류부터 종류 순서의 읽기 전용 목록으로 돌려준다.
      */
-    public List<RecommendReplicaCategory> getCategoryPath() {
+    public List<RecommendReplicaCategoryPathEntry> getCategoryPath() {
         return Collections.unmodifiableList(categoryPath);
     }
 

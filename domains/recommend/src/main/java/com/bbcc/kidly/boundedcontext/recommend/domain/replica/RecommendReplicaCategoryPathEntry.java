@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 @Embeddable
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class RecommendReplicaCategory {
+public class RecommendReplicaCategoryPathEntry {
 
     @Column(name = "category_id", nullable = false)
     private Long categoryId;
@@ -23,7 +23,7 @@ public class RecommendReplicaCategory {
     @Column(name = "category_name", nullable = false)
     private String categoryName;
 
-    public RecommendReplicaCategory(Long categoryId, String categoryName) {
+    public RecommendReplicaCategoryPathEntry(Long categoryId, String categoryName) {
         this.categoryId = requireNonNull(categoryId, "categoryId는 필수입니다");
         this.categoryName = requireNonNull(categoryName, "categoryName은 필수입니다");
     }
