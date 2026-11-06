@@ -118,7 +118,6 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "embedding_text", columnDefinition = "TEXT")
     private String embeddingText;
 
-    // 상품 카테고리의 경로다. 대분류부터 상품의 종류 카테고리까지 차례로 담으므로 순서를 position 칸에 저장한다.
     // applyIfNewer로만 바꾸도록 Lombok getter를 두지 않고, getCategoryPath로 읽기 전용 목록을 돌려준다
     @Getter(AccessLevel.NONE)
     @BatchSize(size = BATCH_FETCH_SIZE)
@@ -146,7 +145,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     }
 
     /**
-     * 카테고리 경로 한 칸의 입력 값이다. 경로는 대분류부터 종류 순서로 담는다.
+     * 경로는 대분류부터 종류 순서로 담는다.
      */
     public record CategoryPathEntryInfo(Long categoryId, String categoryName) {
     }

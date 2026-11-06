@@ -220,7 +220,6 @@ class RecommendReplicaProductIntegrationTest {
             new ProductChangedEvent.CategoryPathEntry(7L, "청바지"),
             new ProductChangedEvent.CategoryPathEntry(70L, "슬림핏")), PRODUCT_CHANGED_AT));
 
-        // 카테고리 경로는 지연 로딩이라 새 트랜잭션에서 읽어야 저장된 행을 실제로 불러온다
         List<RecommendReplicaCategoryPathEntry> path = transactionTemplate.execute(status -> {
             RecommendReplicaProduct product = replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow();
             return List.copyOf(product.getCategoryPath());
@@ -313,7 +312,6 @@ class RecommendReplicaProductIntegrationTest {
         return path;
     }
 
-    // 상품 A의 상품 정보 변경됨에 카테고리 경로를 담는다. 옵션은 110 · 120이다
     private static ProductChangedEvent eventWithCategoryPath(List<ProductChangedEvent.CategoryPathEntry> categoryPath,
         LocalDateTime occurredAt) {
         ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();

@@ -578,8 +578,6 @@ class RecommendReplicaProductTest {
             "키들리", description, List.of(), infoValues, occurredAt);
     }
 
-    // 상품 A의 다른 값은 그대로 두고 카테고리 경로와 발생 시각만 정해 만든다
-    // 상품 A의 기본 변경에 상의 > 티셔츠 경로만 더한다
     private static RecommendReplicaProduct.ChangeInfo productAChangeWithTopsPath() {
         RecommendReplicaProduct.ChangeInfo base = RecommendFixture.productAChange();
         return new RecommendReplicaProduct.ChangeInfo(base.productId(), base.sellerId(), base.categoryId(), base.name(),

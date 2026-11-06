@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 
 /**
  * 상품 정보 변경됨 이벤트의 카테고리 경로 한 칸이다. 카테고리는 상품 도메인의 것이라 ID만 값으로 가리키고 FK를 두지 않는다.
- * 상품 도메인의 카테고리와 이름이 겹치지 않게 앞에 복사본 이름을 붙인다.
  */
 @Embeddable
 @Getter
