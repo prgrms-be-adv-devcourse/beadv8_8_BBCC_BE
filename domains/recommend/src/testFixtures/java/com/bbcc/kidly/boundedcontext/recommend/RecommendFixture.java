@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
@@ -249,6 +250,13 @@ public final class RecommendFixture {
                 Map.of("TOTAL_LENGTH", new BigDecimal("45"), "CHEST_WIDTH", new BigDecimal("36"))));
     }
 
+    public static List<ProductEmbeddingText.InfoValue> productAInfoValues() {
+        return List.of(
+            new ProductEmbeddingText.InfoValue("season", "fall"),
+            new ProductEmbeddingText.InfoValue("material", "cotton"),
+            new ProductEmbeddingText.InfoValue("season", "spring"));
+    }
+
     /**
      * 판매 중인 상품 A의 상품 변경: 110(권장 키 105~115cm), 120(115~125cm) 옵션이 있다.
      */
@@ -303,7 +311,7 @@ public final class RecommendFixture {
         return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId,
             sellerId, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE,
             PRODUCT_A_THUMBNAIL_URL, registeredAt, false, productAChange().options(), PRODUCT_A_BRAND,
-            PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), PRODUCT_CHANGED_AT));
+            PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), productAInfoValues(), PRODUCT_CHANGED_AT));
     }
 
     /**
@@ -313,7 +321,7 @@ public final class RecommendFixture {
         return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID,
             PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, status, PRODUCT_A_THUMBNAIL_URL,
             PRODUCT_A_REGISTERED_AT, false, productAChange().options(), PRODUCT_A_BRAND, PRODUCT_A_DESCRIPTION,
-            productASizeSpecInfos(), PRODUCT_CHANGED_AT));
+            productASizeSpecInfos(), productAInfoValues(), PRODUCT_CHANGED_AT));
     }
 
     /**
@@ -380,7 +388,8 @@ public final class RecommendFixture {
         List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, sizeFree,
-            options, PRODUCT_A_BRAND, PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), occurredAt);
+            options, PRODUCT_A_BRAND, PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), productAInfoValues(),
+            occurredAt);
     }
 
     /**
@@ -398,7 +407,7 @@ public final class RecommendFixture {
         return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId, PRODUCT_A_SELLER_ID,
             categoryId, PRODUCT_A_NAME, status, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false,
             List.of(productOptionInfo("110", 105, 115), productOptionInfo("120", 115, 125)), PRODUCT_A_BRAND,
-            PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), PRODUCT_CHANGED_AT));
+            PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), productAInfoValues(), PRODUCT_CHANGED_AT));
     }
 
     /**
@@ -408,7 +417,7 @@ public final class RecommendFixture {
         List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             name, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, options,
-            PRODUCT_A_BRAND, PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), occurredAt);
+            PRODUCT_A_BRAND, PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), productAInfoValues(), occurredAt);
     }
 
     /**

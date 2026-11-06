@@ -208,6 +208,28 @@ class RecommendReplicaProductIntegrationTest {
     }
 
     @Test
+    @DisplayName("상품 변경 이벤트를 반영하면 정보 값이 들어간 임베딩 글이 복사본에 저장된다")
+    void storeEmbeddingTextWithInfoValues() {
+        ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
+        replicaProductService.applyProductChanged(new ProductChangedEvent(UUID.randomUUID(), PRODUCT_CHANGED_AT,
+            new ProductChangedEvent.Data(data.productId(), data.sellerId(), data.name(), data.categoryId(),
+                data.status(), data.thumbnailUrl(), data.createdAt(), data.sizeFree(), data.options(),
+                List.of(new ProductChangedEvent.AttributeEntry("season", 11L, "spring"),
+                    new ProductChangedEvent.AttributeEntry("material", 12L, "cotton"),
+                    new ProductChangedEvent.AttributeEntry("season", 13L, "fall")),
+                "키들리", "상품 설명", List.of())));
+
+        assertThat(jdbcTemplate.queryForObject(
+            "select embedding_text from recommend.replica_product where product_id = ?", String.class,
+            PRODUCT_A_ID)).isEqualTo("""
+                상품명: 데일리 맨투맨
+                브랜드: 키들리
+                material: cotton
+                season: fall, spring
+                설명: 상품 설명""");
+    }
+
+    @Test
     @DisplayName("등록 취소 상태의 상품 정보 변경됨을 받으면 상품 복사본이 등록 취소 상태로 저장된다")
     void storeDelistedStatus() {
         ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();

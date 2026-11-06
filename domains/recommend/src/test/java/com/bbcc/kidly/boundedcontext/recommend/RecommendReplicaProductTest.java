@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
@@ -84,6 +85,55 @@ class RecommendReplicaProductTest {
                     Map.of("TOTAL_LENGTH", new BigDecimal("42"), "CHEST_WIDTH", new BigDecimal("34"))),
                 tuple("120", 115, 125,
                     Map.of("TOTAL_LENGTH", new BigDecimal("45"), "CHEST_WIDTH", new BigDecimal("36"))));
+    }
+
+    @Test
+    @DisplayName("복사본을 만들 때 이벤트 값으로 임베딩 글을 채운다")
+    void createWithEmbeddingText() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        assertThat(replica.getEmbeddingText()).isEqualTo("""
+            상품명: 데일리 맨투맨
+            브랜드: 키들리
+            material: cotton
+            season: fall, spring
+            설명: 상품 설명""");
+    }
+
+    @Test
+    @DisplayName("더 늦게 일어난 상품 변경으로 설명이 바뀌면 임베딩 글도 바뀐다")
+    void rewriteEmbeddingTextWithLaterChange() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        replica.applyIfNewer(changeWithInfoValues("새 설명", List.of(), LATER));
+
+        assertThat(replica.getEmbeddingText()).isEqualTo("""
+            상품명: 데일리 맨투맨
+            브랜드: 키들리
+            설명: 새 설명""");
+    }
+
+    @Test
+    @DisplayName("저장된 시각보다 이르게 일어난 상품 변경은 임베딩 글을 바꾸지 않는다")
+    void keepEmbeddingTextWithEarlierChange() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+        String stored = replica.getEmbeddingText();
+
+        replica.applyIfNewer(changeWithInfoValues("새 설명", List.of(), PRODUCT_CHANGED_AT.minusMinutes(1)));
+
+        assertThat(replica.getEmbeddingText()).isEqualTo(stored);
+    }
+
+    @Test
+    @DisplayName("정보 값이 없는 예전 메시지의 상품 정보로도 정보 값 없이 임베딩 글을 만든다")
+    void createEmbeddingTextWithoutInfoValues() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithInfoValues("상품 설명", null, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.getEmbeddingText()).isEqualTo("""
+            상품명: 데일리 맨투맨
+            브랜드: 키들리
+            설명: 상품 설명""");
     }
 
     @Test
@@ -241,7 +291,7 @@ class RecommendReplicaProductTest {
 
         replica.applyIfNewer(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, 61L, 62L, PRODUCT_A_NAME,
             ProductStatus.STOPPED, "https://cdn.kidly.test/products/31-new.jpg", LocalDateTime.of(2026, 10, 2, 9, 0),
-            true, List.of(productOptionInfo("130", 125, 135)), null, null, List.of(), LATER));
+            true, List.of(productOptionInfo("130", 125, 135)), null, null, List.of(), List.of(), LATER));
 
         assertThat(replica)
             .extracting(
@@ -451,7 +501,7 @@ class RecommendReplicaProductTest {
     private static RecommendReplicaProduct.ChangeInfo changeWithoutName() {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, null,
             ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS, null, null,
-            List.of(), LATER);
+            List.of(), List.of(), LATER);
     }
 
     // 상품 A의 다른 값은 그대로 두고 브랜드 · 설명 · 사이즈별 실측과 발생 시각만 정해 만든다
@@ -459,12 +509,20 @@ class RecommendReplicaProductTest {
         List<RecommendReplicaProduct.SizeSpecInfo> sizeSpecs, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
-            brand, description, sizeSpecs, occurredAt);
+            brand, description, sizeSpecs, List.of(), occurredAt);
+    }
+
+    private static RecommendReplicaProduct.ChangeInfo changeWithInfoValues(String description,
+        List<ProductEmbeddingText.InfoValue> infoValues, LocalDateTime occurredAt) {
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
+            PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
+            "키들리", description, List.of(), infoValues, occurredAt);
     }
 
     private static RecommendReplicaProduct.ChangeInfo change(Long productId, Long sellerId, ProductStatus status,
         LocalDateTime registeredAt, List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(productId, sellerId, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME,
-            status, PRODUCT_A_THUMBNAIL_URL, registeredAt, false, options, null, null, List.of(), occurredAt);
+            status, PRODUCT_A_THUMBNAIL_URL, registeredAt, false, options, null, null, List.of(), List.of(),
+            occurredAt);
     }
 }
