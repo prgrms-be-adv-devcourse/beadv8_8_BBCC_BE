@@ -46,6 +46,21 @@ class ProductDelistTest {
         assertThat(product.isStoppedByAdmin()).isEqualTo(stoppedByAdminBefore);
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("productsBeforeDelist")
+    @DisplayName("SALE-13 이미 등록 취소한 상품을 다시 등록 취소하면 관리자 판매중지 표시까지 아무것도 바꾸지 않는다 (재시도 대비)")
+    void delistAgainChangesNothing(Consumer<ProductDelistTest> given) {
+        given.accept(this);
+        product.delist(SELLER_ID);
+        boolean stoppedByAdminBefore = product.isStoppedByAdmin();
+
+        boolean delisted = product.delist(SELLER_ID);
+
+        assertThat(delisted).isFalse();
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
+        assertThat(product.isStoppedByAdmin()).isEqualTo(stoppedByAdminBefore);
+    }
+
     static Stream<Named<Consumer<ProductDelistTest>>> productsBeforeDelist() {
         return Stream.of(
             Named.of("판매대기", ProductDelistTest::withSaleStartInputs),
