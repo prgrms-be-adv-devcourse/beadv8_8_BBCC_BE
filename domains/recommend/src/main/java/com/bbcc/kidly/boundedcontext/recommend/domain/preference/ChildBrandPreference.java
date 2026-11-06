@@ -37,9 +37,13 @@ public class ChildBrandPreference extends BaseTimeEntity {
     private int activityCount;
 
     public static ChildBrandPreference of(Long childProfileId, String brand, int activityCount) {
+        requireNonNull(brand, "brand는 필수입니다");
+        if (!PreferenceActivity.isBrandPresent(brand)) {
+            throw new IllegalArgumentException("브랜드는 비어 있을 수 없습니다");
+        }
         ChildBrandPreference preference = new ChildBrandPreference();
         preference.childProfileId = requireNonNull(childProfileId, "childProfileId는 필수입니다");
-        preference.brand = requireNonNull(brand, "brand는 필수입니다");
+        preference.brand = brand;
         preference.activityCount = activityCount;
         return preference;
     }
