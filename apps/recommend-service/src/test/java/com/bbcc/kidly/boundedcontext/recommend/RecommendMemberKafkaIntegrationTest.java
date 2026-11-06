@@ -70,7 +70,7 @@ class RecommendMemberKafkaIntegrationTest {
 
     @Test
     @DisplayName("회원 탈퇴를 회원 토픽에서 받아 그 회원의 활동 기록만 지운다")
-    void deleteWithdrawnMemberActivities() throws Exception {
+    void deleteActivityRecordsOfWithdrawnMember() throws Exception {
         Long memberId = newId();
         Long otherMemberId = newId();
         activityRecordRepository.saveAndFlush(search(memberId));

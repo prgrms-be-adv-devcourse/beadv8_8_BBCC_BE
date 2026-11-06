@@ -9,5 +9,5 @@ public interface ActivityRecordRepository {
     boolean existsByEventId(UUID eventId);
 
     // 지운 줄 수를 돌려준다
-    int deleteByMemberId(Long memberId);
+    void deleteByMemberId(Long memberId);
 }

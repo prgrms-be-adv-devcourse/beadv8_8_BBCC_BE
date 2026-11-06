@@ -158,13 +158,14 @@ class ActivityRecordIntegrationTest {
 
     @Test
     @DisplayName("회원 탈퇴 이벤트로 그 회원의 검색 · 담기 · 빼기 기록을 모두 지우고 다른 회원의 기록은 남긴다")
-    void deleteWithdrawnMemberActivities() {
+    void deleteActivityRecordsOfWithdrawnMember() {
         activityRecordService.recordSearch(ActivityRecordFixture.searchPerformedEvent());
         activityRecordService.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent());
         activityRecordService.recordCartItemRemoved(ActivityRecordFixture.cartItemRemovedEvent());
         ActivityRecord others = activityRecordRepository.saveAndFlush(otherMemberSearch());
 
-        activityRecordService.deleteWithdrawnMemberActivities(ActivityRecordFixture.memberWithdrawnEvent(MEMBER_1_ID));
+        activityRecordService.deleteActivityRecordsOfWithdrawnMember(
+            ActivityRecordFixture.memberWithdrawnEvent(MEMBER_1_ID));
 
         assertThat(activityRecordRepository.findAll()).singleElement()
             .extracting(ActivityRecord::getId, ActivityRecord::getMemberId)
@@ -173,15 +174,15 @@ class ActivityRecordIntegrationTest {
 
     @Test
     @DisplayName("기록이 없는 회원의 탈퇴나 같은 탈퇴를 다시 받아도 예외 없이 끝나고 다른 회원의 기록은 남는다")
-    void deleteWithdrawnMemberActivitiesTwice() {
+    void deleteActivityRecordsOfWithdrawnMemberTwice() {
         ActivityRecord others = activityRecordRepository.saveAndFlush(otherMemberSearch());
         var withdrawn = ActivityRecordFixture.memberWithdrawnEvent(MEMBER_1_ID);
 
-        assertThatCode(() -> activityRecordService.deleteWithdrawnMemberActivities(withdrawn))
+        assertThatCode(() -> activityRecordService.deleteActivityRecordsOfWithdrawnMember(withdrawn))
             .doesNotThrowAnyException();
         activityRecordService.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent());
-        activityRecordService.deleteWithdrawnMemberActivities(withdrawn);
-        assertThatCode(() -> activityRecordService.deleteWithdrawnMemberActivities(withdrawn))
+        activityRecordService.deleteActivityRecordsOfWithdrawnMember(withdrawn);
+        assertThatCode(() -> activityRecordService.deleteActivityRecordsOfWithdrawnMember(withdrawn))
             .doesNotThrowAnyException();
 
         assertThat(activityRecordRepository.findAll()).singleElement()
@@ -195,7 +196,7 @@ class ActivityRecordIntegrationTest {
         activityRecordService.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent());
         activityRecordRepository.saveAndFlush(otherMemberSearch());
 
-        assertThatThrownBy(() -> activityRecordService.deleteWithdrawnMemberActivities(
+        assertThatThrownBy(() -> activityRecordService.deleteActivityRecordsOfWithdrawnMember(
             ActivityRecordFixture.memberWithdrawnEvent(null)))
             .isInstanceOf(NullPointerException.class)
             .hasMessageContaining("필수입니다");

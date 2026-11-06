@@ -13,5 +13,5 @@ public interface JpaActivityRecordRepository extends JpaRepository<ActivityRecor
     @Override
     @Modifying
     @Query("delete from ActivityRecord r where r.memberId = :memberId")
-    int deleteByMemberId(@Param("memberId") Long memberId);
+    void deleteByMemberId(@Param("memberId") Long memberId);
 }

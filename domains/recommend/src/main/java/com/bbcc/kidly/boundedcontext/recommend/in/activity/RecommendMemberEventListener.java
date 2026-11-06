@@ -24,7 +24,7 @@ public class RecommendMemberEventListener {
         groupId = "kidly.recommend", containerFactory = "recommendKafkaListenerContainerFactory")
     public void on(ConsumerRecord<String, String> record) {
         switch (RecommendKafkaListenerConfig.header(record, "eventType")) {
-            case "member.withdrawn" -> activityRecordService.deleteWithdrawnMemberActivities(
+            case "member.withdrawn" -> activityRecordService.deleteActivityRecordsOfWithdrawnMember(
                 jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
             // 헤더가 없으면 어떤 이벤트인지 알 수 없어 재시도 없이 DLT로 보낸다
             case null -> throw new IllegalArgumentException("eventType 헤더가 없습니다");
