@@ -432,6 +432,10 @@ public class Product extends BaseTimeEntity {
      * 등록 취소할 수 있고, 관리자 판매중지 표시는 그대로 둔다. 등록 취소한 상품은 판매자가 되돌릴 수 없다.
      */
     public boolean delist(Long sellerId) {
+        // 이미 등록 취소한 상품이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
+        if (status == ProductStatus.DELISTED) {
+            return false;
+        }
         status = ProductStatus.DELISTED;
         return true;
     }
