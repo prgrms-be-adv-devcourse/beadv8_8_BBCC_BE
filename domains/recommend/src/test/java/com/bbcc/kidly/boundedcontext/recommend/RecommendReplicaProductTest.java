@@ -389,6 +389,15 @@ class RecommendReplicaProductTest {
             .extracting(RecommendReplicaCategory::getCategoryId).containsExactly(1L, 11L);
     }
 
+    @Test
+    @DisplayName("카테고리 경로가 비어 있는 상품 정보로도 복사본을 만들고, 경로는 비워 둔다")
+    void createWithEmptyCategoryPath() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithCategoryPath(List.of(), PRODUCT_CHANGED_AT));
+
+        assertThat(replica.getCategoryPath()).isEmpty();
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("changesNotLater")
     @DisplayName("INV-R01 저장된 시각과 같거나 이르게 일어난 상품 변경은 필수 값이 없어도 무시한다")
