@@ -156,11 +156,12 @@ class ActivityRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName("회원 탈퇴 이벤트로 그 회원의 검색 · 담기 · 빼기 기록을 모두 지우고 다른 회원의 기록은 남긴다")
+    @DisplayName("회원 탈퇴 이벤트로 그 회원의 검색 · 담기 · 빼기 · 상세 진입 기록을 모두 지우고 다른 회원의 기록은 남긴다")
     void deleteActivityRecordsOfWithdrawnMember() {
         activityRecordService.recordSearch(ActivityRecordFixture.searchPerformedEvent());
         activityRecordService.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent());
         activityRecordService.recordCartItemRemoved(ActivityRecordFixture.cartItemRemovedEvent());
+        activityRecordService.recordProductViewed(MEMBER_1_ID, PRODUCT_A_ID);
         ActivityRecord others = activityRecordRepository.saveAndFlush(otherMemberSearch());
 
         activityRecordService.deleteActivityRecordsOfWithdrawnMember(
