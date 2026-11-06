@@ -144,7 +144,7 @@
 | GET | `/api/v1/seller/orders` | 판매 주문 목록 | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/ship` | 발송(택배사 · 송장번호) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리 | 🏪 |
-| POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치가 꺼져 있으면 409 | 🏪 |
+| POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치는 기본 켜짐(#924), 끄면 409 | 🏪 |
 | GET | `/api/v1/admin/orders` | 전체 주문 조회 | 🛠 |
 | GET | `/api/v1/admin/orders/{orderId}/history` | 주문 상태 이력 | 🛠 |
 | GET | `/api/v1/admin/orders/stuck` | 멈춘 주문 목록(`kind`) | 🛠 |

@@ -112,8 +112,8 @@ kidly:
         wait-duration-in-open-state: PT1M
         permitted-number-of-calls-in-half-open-state: 3
     # 판매자 발송 전 부분 취소(#655, POST /api/v1/seller/orders/{sellerOrderId}/cancel). 꺼져 있으면 API가 409로 거절하고 이벤트도 없다
-    # 기본 false: 받는 쪽(결제 부분 환불 · 상품 재고 복구, order-item.cancelled)이 준비된 뒤에 켠다
+    # 기본 true(#924): 받는 쪽(결제 부분 환불 · 상품 재고 복구 · 알림, order-item.cancelled)이 준비돼 켰다
     partial-cancel:
-      enabled: ${ORDER_PARTIAL_CANCEL_ENABLED:false}
+      enabled: ${ORDER_PARTIAL_CANCEL_ENABLED:true}
 
     # 장바구니(boundedcontext.cart) 컨텍스트는 아직 설정이 없다

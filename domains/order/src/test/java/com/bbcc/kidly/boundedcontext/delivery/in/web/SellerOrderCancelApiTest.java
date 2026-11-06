@@ -20,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
+import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import java.net.URI;
 import java.time.LocalDateTime;
@@ -38,7 +39,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 판매자 발송 전 부분 취소 API(#655). 주문은 판매자 2(옵션 1, 2개 · 자녀 1) · 판매자 3(옵션 2, 1개) 몫으로 결제완료다.
- * 주문 모듈 테스트는 스위치(kidly.order.partial-cancel.enabled)를 켜 둔다(꺼짐 거절은 DeliveryServiceTest).
+ * 스위치(kidly.order.partial-cancel.enabled)는 기본 켜짐(#924)이고 주문 모듈 테스트도 켜 둔다(꺼짐 거절은 DeliveryServiceTest).
  * SELLER 역할 403은 Gateway가 맡으므로 여기서 보지 않는다.
  */
 @FunctionalTest
@@ -299,6 +300,56 @@ class SellerOrderCancelApiTest {
             .jsonPath("$.steps[?(@.step == 'CONFIRMED')].status").isEqualTo(List.of("WAITING"))
             .jsonPath("$.steps[?(@.step == 'CONFIRMED')].details[?(@.orderItemId == '" + orderItemIdOf(1L)
                 + "')].status").isEqualTo(List.of("NOT_APPLICABLE"));
+    }
+
+    @Test
+    @DisplayName("흐름(#924): 판매자 취소 → order-item.cancelled(취소 주문상품 · 금액) → 다른 판매자 몫은 발송 · 배송 완료 · "
+        + "구매확정이 그대로 진행되고, 구매확정 이벤트는 남은 주문상품만")
+    void remainingShareProceedsAfterPartialCancel() {
+        Long cancelledItemId = orderItemIdOf(1L);
+        Long remainingItemId = orderItemIdOf(2L);
+        Long otherDeliveryId = deliveryIdOf(OTHER_SELLER_ID);
+
+        cancel(SELLER_ID, deliveryIdOf(SELLER_ID), "OUT_OF_STOCK", null).expectStatus().isOk();
+
+        assertThat(recorder.events(OrderItemCancelledEvent.class)).singleElement()
+            .satisfies(event -> assertThat(event.data().items())
+                .containsExactly(new OrderItemCancelledEvent.Item(cancelledItemId, 1L, 2, 50_000L)));
+
+        client.post().uri(SELLER_ORDERS_PATH + "/" + otherDeliveryId + "/ship")
+            .headers(TestMembers.seller(OTHER_SELLER_ID))
+            .body(Map.of("carrier", "CJ", "trackingNumber", "1234567890"))
+            .exchange()
+            .expectStatus().isOk();
+        client.post().uri(SELLER_ORDERS_PATH + "/" + otherDeliveryId + "/deliver")
+            .headers(TestMembers.seller(OTHER_SELLER_ID))
+            .exchange()
+            .expectStatus().isOk();
+        client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + remainingItemId + "/confirm")
+            .headers(TestMembers.buyer(BUYER_ID))
+            .exchange()
+            .expectStatus().isOk();
+        client.post().uri(ORDERS_PATH + "/" + orderId + "/items/" + cancelledItemId + "/confirm")
+            .headers(TestMembers.buyer(BUYER_ID))
+            .exchange()
+            .expectStatus().isEqualTo(409);
+
+        client.get().uri(ORDERS_PATH + "/" + orderId)
+            .headers(TestMembers.buyer(BUYER_ID))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("PAID")
+            .jsonPath("$.items[?(@.optionId == '1')].status").isEqualTo(List.of("CANCELLED"))
+            .jsonPath("$.items[?(@.optionId == '2')].status").isEqualTo(List.of("CONFIRMED"));
+        assertThat(jdbcTemplate.queryForObject("select status from orders.delivery where id = ?", String.class,
+            otherDeliveryId)).isEqualTo("DELIVERED");
+        assertThat(recorder.events(OrderItemPurchaseConfirmedEvent.class)).singleElement()
+            .satisfies(event -> assertThat(event.data().orderItemId()).isEqualTo(remainingItemId));
+        assertThat(recorder.events(OrderCancelledEvent.class)).isEmpty();
+        assertThat(jdbcTemplate.queryForList("select event_type from orders.order_outbox order by id", String.class))
+            .containsExactly("order-item.cancelled", "delivery.shipped", "delivery.delivered",
+                "order-item.purchase-confirmed");
     }
 
     @Test
