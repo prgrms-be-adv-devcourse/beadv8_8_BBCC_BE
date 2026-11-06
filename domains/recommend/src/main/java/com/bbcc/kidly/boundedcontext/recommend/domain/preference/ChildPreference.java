@@ -37,19 +37,14 @@ public final class ChildPreference {
     }
 
     public ChildPreference plus(PreferenceActivity activity) {
-        Map<Long, Integer> activityCounts = new HashMap<>(categoryActivityCounts);
-        Map<Long, Integer> cartAddCounts = new HashMap<>(categoryCartAddCounts);
-        Map<String, Integer> brandCounts = new HashMap<>(brandActivityCounts);
-        if (activity.categoryId() != null) {
-            addCount(activityCounts, activity.categoryId(), 1);
-            if (activity.cartAdd()) {
-                addCount(cartAddCounts, activity.categoryId(), 1);
-            }
-        }
-        if (activity.brand() != null) {
-            addCount(brandCounts, activity.brand(), 1);
-        }
-        return new ChildPreference(activityCounts, cartAddCounts, brandCounts);
+        return apply(activity, 1);
+    }
+
+    /**
+     * 활동의 몫을 뺀다. 뺀 장바구니 담기, 기간이 지난 활동, 기준 시각 뒤의 활동을 집계에서 되돌릴 때 쓴다.
+     */
+    public ChildPreference minus(PreferenceActivity activity) {
+        return apply(activity, -1);
     }
 
     public int categoryPoints(Long categoryId) {
@@ -67,6 +62,23 @@ public final class ChildPreference {
             return BRAND_POINTS;
         }
         return 0;
+    }
+
+    // 횟수를 0에서 자르지 않는다. 자르면 빼기가 더하기보다 먼저 올 때 결과가 순서에 따라 달라진다
+    private ChildPreference apply(PreferenceActivity activity, int delta) {
+        Map<Long, Integer> activityCounts = new HashMap<>(categoryActivityCounts);
+        Map<Long, Integer> cartAddCounts = new HashMap<>(categoryCartAddCounts);
+        Map<String, Integer> brandCounts = new HashMap<>(brandActivityCounts);
+        if (activity.categoryId() != null) {
+            addCount(activityCounts, activity.categoryId(), delta);
+            if (activity.cartAdd()) {
+                addCount(cartAddCounts, activity.categoryId(), delta);
+            }
+        }
+        if (activity.brand() != null) {
+            addCount(brandCounts, activity.brand(), delta);
+        }
+        return new ChildPreference(activityCounts, cartAddCounts, brandCounts);
     }
 
     private static <K> void addCount(Map<K, Integer> counts, K key, int delta) {
