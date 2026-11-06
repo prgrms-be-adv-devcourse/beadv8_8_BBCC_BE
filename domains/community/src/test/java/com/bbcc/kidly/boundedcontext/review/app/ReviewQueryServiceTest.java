@@ -168,6 +168,16 @@ class ReviewQueryServiceTest {
         public int deleteAllOfReview(Long reviewId) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public boolean existsByImageUrl(String imageUrl) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<String> findAttachedUrls(Collection<String> imageUrls) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private static final class FakeReviews implements Reviews {

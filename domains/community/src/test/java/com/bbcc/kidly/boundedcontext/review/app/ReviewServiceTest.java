@@ -487,7 +487,8 @@ class ReviewServiceTest {
 
     private ReviewService service(int maxImages) {
         return new ReviewService(reviews, stats, eligibility, new ReviewSeparateTransaction(), images,
-            storage, new ReviewImageProperties(maxImages, DataSize.ofMegabytes(10)));
+            storage, new ReviewImageProperties(maxImages, DataSize.ofMegabytes(10)),
+            org.mockito.Mockito.mock(ReviewImageCleanupQueue.class));
     }
 
     private ReviewView writeWith(long orderItemId, ImageUrlsInput imageUrls) {
@@ -589,6 +590,16 @@ class ReviewServiceTest {
             int before = rows.size();
             rows.removeIf(image -> image.getReviewId().equals(reviewId));
             return before - rows.size();
+        }
+
+        @Override
+        public boolean existsByImageUrl(String imageUrl) {
+            return rows.stream().anyMatch(image -> image.getImageUrl().equals(imageUrl));
+        }
+
+        @Override
+        public List<String> findAttachedUrls(Collection<String> imageUrls) {
+            return rows.stream().map(ReviewImage::getImageUrl).filter(imageUrls::contains).distinct().toList();
         }
     }
 
