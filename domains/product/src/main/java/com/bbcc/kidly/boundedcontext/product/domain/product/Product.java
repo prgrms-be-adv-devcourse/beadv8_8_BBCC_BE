@@ -421,6 +421,7 @@ public class Product extends BaseTimeEntity {
     public boolean startSaleByAdmin(Category category, ProductType productType) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
+        requireNotDelisted();
         boolean changed = openSale(category, productType);
         stoppedByAdmin = false;
         return changed;
@@ -431,6 +432,7 @@ public class Product extends BaseTimeEntity {
      * 판매 상태는 그대로라 false지만, 관리자 판매중지 표시는 켜지므로 상품은 바뀐다.
      */
     public boolean stopSaleByAdmin() {
+        requireNotDelisted();
         boolean changed = markStopped();
         // 이미 판매중지여도 판매자가 다시 열지 못하게 관리자가 판매중지한 상품으로 표시한다
         stoppedByAdmin = true;
