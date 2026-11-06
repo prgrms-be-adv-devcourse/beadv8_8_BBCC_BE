@@ -1,0 +1,56 @@
+package com.bbcc.kidly.boundedcontext.notification;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
+
+import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationRepository;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class InboxNotificationServiceTest {
+
+    @Mock
+    private InboxNotificationRepository inboxNotificationRepository;
+
+    @InjectMocks
+    private InboxNotificationService inboxNotificationService;
+
+    @Test
+    @DisplayName("모두 읽음은 내 안 읽은 알림을 지금 시각으로 한 번에 읽음 처리한다")
+    void readAll() {
+        var before = LocalDateTime.now();
+
+        inboxNotificationService.readAll(1L);
+
+        var now = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(inboxNotificationRepository).readAllUnread(eq(1L), now.capture());
+        assertThat(now.getValue()).isBetween(before, LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("정리는 만든 지 90일이 지난 알림을 지우고 지운 개수를 준다")
+    void deleteExpired() {
+        given(inboxNotificationRepository.deleteCreatedBefore(any())).willReturn(3);
+        var before = LocalDateTime.now();
+
+        var deleted = inboxNotificationService.deleteExpired();
+
+        var cutoff = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(inboxNotificationRepository).deleteCreatedBefore(cutoff.capture());
+        assertThat(deleted).isEqualTo(3);
+        assertThat(cutoff.getValue())
+            .isBetween(before.minus(Duration.ofDays(90)), LocalDateTime.now().minus(Duration.ofDays(90)));
+    }
+}

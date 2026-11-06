@@ -27,4 +27,18 @@ public interface JpaInboxNotificationRepository
         """, nativeQuery = true)
     int insertIgnoringDuplicate(Long memberId, String type, String title, String body, String linkPath,
         String dedupKey, LocalDateTime now);
+
+    // 한 번의 UPDATE. 엔티티를 거치지 않으므로 수정 시각도 직접 넣는다
+    @Override
+    @Modifying
+    @Query("""
+        UPDATE InboxNotification n SET n.readAt = :now, n.updatedAt = :now
+        WHERE n.memberId = :memberId AND n.readAt IS NULL
+        """)
+    int readAllUnread(Long memberId, LocalDateTime now);
+
+    @Override
+    @Modifying
+    @Query("DELETE FROM InboxNotification n WHERE n.createdAt < :cutoff")
+    int deleteCreatedBefore(LocalDateTime cutoff);
 }

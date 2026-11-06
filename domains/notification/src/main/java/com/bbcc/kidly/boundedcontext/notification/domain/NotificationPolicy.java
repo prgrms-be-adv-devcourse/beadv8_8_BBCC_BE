@@ -7,7 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 알림 발송의 Kidly 정책. 재시도 간격 · 멈춘 발송을 다시 맡는 기준 · 보내지 않는 주소를 정한다.
+ * 알림 발송의 Kidly 정책. 재시도 간격 · 멈춘 발송을 다시 맡는 기준 · 보내지 않는 주소 · 알림함 보존 기간을 정한다.
  */
 public final class NotificationPolicy {
 
@@ -22,6 +22,9 @@ public final class NotificationPolicy {
 
     // 첫 시도 + 재시도 3번
     public static final int MAX_ATTEMPTS = RETRY_DELAYS.size() + 1;
+
+    // 알림함 알림을 남겨 두는 기간. 지나면 읽음 여부와 상관없이 정리 배치가 지운다
+    public static final Duration INBOX_RETENTION = Duration.ofDays(90);
 
     // RFC 2606 · 6761의 예약 도메인. 실제로 받을 수 없어 보내지 않는다 (초기 데이터 kidly.test, 테스트 example.com)
     private static final List<String> RESERVED_TLDS = List.of("test", "example", "invalid", "localhost");

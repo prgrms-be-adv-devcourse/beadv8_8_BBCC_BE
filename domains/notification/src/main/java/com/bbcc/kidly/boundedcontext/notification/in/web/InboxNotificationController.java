@@ -53,4 +53,13 @@ public class InboxNotificationController {
     public void read(@LoginMember AuthMember member, @PathVariable Long notificationId) {
         inboxNotificationService.read(member.id(), notificationId);
     }
+
+    /**
+     * 내 안 읽은 알림을 모두 읽음 처리. 204. 안 읽은 알림이 없어도 204.
+     */
+    @PatchMapping("/read-all")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void readAll(@LoginMember AuthMember member) {
+        inboxNotificationService.readAll(member.id());
+    }
 }

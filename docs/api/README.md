@@ -252,3 +252,6 @@
 | GET | `/api/v1/notifications` | 내 알림함(최신순, `page` · `size` 1~100, 기본 0 · 20) | 🔒 |
 | GET | `/api/v1/notifications/unread-count` | 안 읽은 내 알림 개수 `{ count }` | 🔒 |
 | PATCH | `/api/v1/notifications/{notificationId}/read` | 읽음 처리(204, 다시 해도 204). 없거나 남의 알림은 404 | 🔒 |
+| PATCH | `/api/v1/notifications/read-all` | 내 안 읽은 알림 모두 읽음 처리(204, 없어도 204). 이미 읽은 알림의 읽은 시각은 그대로 | 🔒 |
+
+알림함 알림은 만든 지 90일이 지나면 읽음 여부와 상관없이 지워진다(매일 04:00 KST).
