@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddi
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingTarget;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -62,23 +63,10 @@ public class PostgresProductEmbeddingStore implements ProductEmbeddingStore {
                     embedding_attempted_at = NULL
                 WHERE product_id = :productId AND embedding_text = :text
                 """)
-            .param("vector", toLiteral(vector))
+            .param("vector", Arrays.toString(vector.values()))
             .param("text", text)
             .param("productId", productId)
             .update();
         return updated == 1;
-    }
-
-    // pgvector의 문자열 표기 [v1,v2,...]다. Float.toString은 float로 다시 읽으면 같은 값이 되는 가장 짧은 표기를 돌려준다
-    private static String toLiteral(EmbeddingVector vector) {
-        float[] values = vector.values();
-        StringBuilder literal = new StringBuilder("[");
-        for (int i = 0; i < values.length; i++) {
-            if (i > 0) {
-                literal.append(',');
-            }
-            literal.append(Float.toString(values[i]));
-        }
-        return literal.append(']').toString();
     }
 }
