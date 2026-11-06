@@ -48,7 +48,7 @@ class ProductEventsTest {
     void dataCarriesBrandDescriptionAndSizeSpecs() {
         assertThat(ProductChangedEvent.Data.class.getRecordComponents()).extracting(RecordComponent::getName)
             .containsExactly("productId", "sellerId", "name", "categoryId", "status", "thumbnailUrl", "createdAt",
-                "sizeFree", "options", "infoValues", "brand", "description", "sizeSpecs");
+                "sizeFree", "options", "infoValues", "brand", "description", "sizeSpecs", "categoryPath");
         assertThat(ProductChangedEvent.SizeSpec.class.getRecordComponents()).extracting(RecordComponent::getName)
             .containsExactly("size", "minHeightCm", "maxHeightCm", "measurements");
     }
