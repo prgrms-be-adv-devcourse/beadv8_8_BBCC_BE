@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.preference;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,6 +37,23 @@ public final class ChildPreference {
         return new ChildPreference(new HashMap<>(), new HashMap<>(), new HashMap<>());
     }
 
+    /**
+     * 저장된 카테고리 · 브랜드 줄로 집계를 만든다. 줄에서 값만 꺼내 담으므로 집계는 넘긴 목록과 이어지지 않는다.
+     */
+    public static ChildPreference of(List<ChildCategoryPreference> categories, List<ChildBrandPreference> brands) {
+        Map<Long, Integer> activityCounts = new HashMap<>();
+        Map<Long, Integer> cartAddCounts = new HashMap<>();
+        for (ChildCategoryPreference category : categories) {
+            activityCounts.put(category.getCategoryId(), category.getActivityCount());
+            cartAddCounts.put(category.getCategoryId(), category.getCartAddCount());
+        }
+        Map<String, Integer> brandCounts = new HashMap<>();
+        for (ChildBrandPreference brand : brands) {
+            brandCounts.put(brand.getBrand(), brand.getActivityCount());
+        }
+        return new ChildPreference(activityCounts, cartAddCounts, brandCounts);
+    }
+
     public ChildPreference plus(PreferenceActivity activity) {
         return apply(activity, 1);
     }
@@ -58,7 +76,7 @@ public final class ChildPreference {
     }
 
     public int brandPoints(String brand) {
-        if (hasNoBrand(brand)) {
+        if (!PreferenceActivity.isBrandPresent(brand)) {
             return 0;
         }
         if (appeared(brandActivityCounts, brand)) {
@@ -72,21 +90,16 @@ public final class ChildPreference {
         Map<Long, Integer> activityCounts = new HashMap<>(categoryActivityCounts);
         Map<Long, Integer> cartAddCounts = new HashMap<>(categoryCartAddCounts);
         Map<String, Integer> brandCounts = new HashMap<>(brandActivityCounts);
-        if (activity.categoryId() != null) {
+        if (activity.hasCategory()) {
             activityCounts.merge(activity.categoryId(), delta, Integer::sum);
             if (activity.cartAdd()) {
                 cartAddCounts.merge(activity.categoryId(), delta, Integer::sum);
             }
         }
-        if (!hasNoBrand(activity.brand())) {
+        if (activity.hasBrand()) {
             brandCounts.merge(activity.brand(), delta, Integer::sum);
         }
         return new ChildPreference(activityCounts, cartAddCounts, brandCounts);
-    }
-
-    // 빈 문자열 브랜드끼리 일치해 점수를 받지 않도록 브랜드가 없는 것과 같게 본다
-    private static boolean hasNoBrand(String brand) {
-        return brand == null || brand.isBlank();
     }
 
     private static <K> boolean appeared(Map<K, Integer> counts, K key) {
