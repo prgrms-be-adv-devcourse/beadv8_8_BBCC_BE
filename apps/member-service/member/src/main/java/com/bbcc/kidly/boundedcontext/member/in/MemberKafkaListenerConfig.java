@@ -34,16 +34,20 @@ import tools.jackson.core.JacksonException;
 @Configuration
 class MemberKafkaListenerConfig {
 
+    static final String SELLER_EVENTS = "kidly.seller.events";
+    static final String MEMBER_EVENTS = "kidly.member.events";
     private static final String DLT_SUFFIX = ".member.dlt";
+    static final String SELLER_EVENTS_DLT = SELLER_EVENTS + DLT_SUFFIX;
+    static final String MEMBER_EVENTS_DLT = MEMBER_EVENTS + DLT_SUFFIX;
 
     @Bean
     NewTopic memberSellerEventsDeadLetterTopic() {
-        return TopicBuilder.name("kidly.seller.events" + DLT_SUFFIX).partitions(1).replicas(1).build();
+        return TopicBuilder.name(SELLER_EVENTS_DLT).partitions(1).replicas(1).build();
     }
 
     @Bean
     NewTopic memberMemberEventsDeadLetterTopic() {
-        return TopicBuilder.name("kidly.member.events" + DLT_SUFFIX).partitions(1).replicas(1).build();
+        return TopicBuilder.name(MEMBER_EVENTS_DLT).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
@@ -87,6 +91,6 @@ class MemberKafkaListenerConfig {
 
     static String header(ConsumerRecord<?, ?> record, String name) {
         var header = record.headers().lastHeader(name);
-        return header == null ? null : new String(header.value(), UTF_8);
+        return header == null || header.value() == null ? null : new String(header.value(), UTF_8);
     }
 }
