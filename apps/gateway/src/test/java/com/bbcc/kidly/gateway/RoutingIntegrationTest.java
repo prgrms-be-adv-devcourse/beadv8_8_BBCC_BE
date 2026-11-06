@@ -521,12 +521,12 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("프론트가 traceId를 읽을 수 있게 X-Request-Id를 노출한다")
+    @DisplayName("프론트가 traceId · 429의 Retry-After를 읽을 수 있게 X-Request-Id · Retry-After를 노출한다")
     void exposesRequestId() {
         corsGet()
             .expectStatus().isOk()
             .expectHeader().values(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
-                values -> assertThat(values).containsExactly("X-Request-Id"));
+                values -> assertThat(values).containsExactly("X-Request-Id, Retry-After"));
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.bbcc.kidly.gateway.web;
 import java.net.URI;
 import java.util.Map;
 import org.springframework.core.ResolvableType;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -13,9 +14,9 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * Gateway가 직접 내는 404 · 500 · 503 · 504와 막은 요청의 400 · 401 · 403에 쓰는 ProblemDetail이다(#608, #668).
+ * Gateway가 직접 내는 404 · 500 · 503 · 504와 막은 요청의 400 · 401 · 403 · 429에 쓰는 ProblemDetail이다(#608, #668).
  * 400 · 401 · 403 · 404 · 500 문구는 서비스(GlobalExceptionHandler)와 같아야 한다: common CommonErrorCode.INVALID_INPUT ·
- * UNAUTHORIZED · FORBIDDEN · NOT_FOUND · INTERNAL_ERROR, 5필드는 common ProblemDetails와 같다. 503 · 504는 common에
+ * UNAUTHORIZED · FORBIDDEN · NOT_FOUND · INTERNAL_ERROR, 5필드는 common ProblemDetails와 같다. 429 · 503 · 504는 common에
  * 없는 코드라 Gateway가 정했다. 직렬화는 WebFlux가 쓰는 코덱(Boot JsonMapper)으로 한다.
  */
 @Component
@@ -45,6 +46,12 @@ public class ProblemResponse {
 
     public Mono<Void> notFound(ServerWebExchange exchange) {
         return write(exchange, HttpStatus.NOT_FOUND, "찾을 수 없습니다", "요청한 대상을 찾을 수 없습니다.");
+    }
+
+    // 요청 수 제한(#816). common에 없는 코드라 Gateway가 정했다. 다시 보내도 되는 때를 Retry-After(초)로 알린다
+    public Mono<Void> tooManyRequests(ServerWebExchange exchange, long retryAfterSeconds) {
+        exchange.getResponse().getHeaders().set(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds));
+        return write(exchange, HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다", "잠시 후 다시 시도해 주세요.");
     }
 
     public Mono<Void> serviceUnavailable(ServerWebExchange exchange) {

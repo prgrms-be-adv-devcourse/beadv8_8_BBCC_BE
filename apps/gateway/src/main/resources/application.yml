@@ -14,8 +14,9 @@ spring:
                 allowed-origins: ${cors.allowed-origins}
                 allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
                 allowed-headers: "*"
-                # 프론트가 오류 문의에 traceId를 붙일 수 있게 (common RequestLoggingFilter.TRACE_ID_HEADER)
-                exposed-headers: X-Request-Id
+                # 프론트가 오류 문의에 traceId를 붙일 수 있게 (common RequestLoggingFilter.TRACE_ID_HEADER),
+                # 요청 수 제한(429)에 걸리면 언제 다시 보낼지 알 수 있게(Retry-After, #816)
+                exposed-headers: X-Request-Id,Retry-After
                 allow-credentials: true
                 max-age: 3600
           # 백엔드 호출 timeout(#668). 연결 3초(도메인의 외부 호출 connect-timeout과 같은 값), 응답 55초
@@ -143,6 +144,17 @@ management:
     web:
       exposure:
         include: health,prometheus
+
+kidly:
+  gateway:
+    rate-limit:
+      # 검색어가 있는 상품 목록 요청 수 제한(#816, ratelimit/SearchRateLimitFilter). 회원(로그인) · IP(비로그인)마다 센다.
+      # 검색어마다 검색 서비스가 임베딩 API(OpenAI)를 부른다. Gateway 메모리에 세므로 다시 뜨면 빈다
+      search:
+        capacity: 30
+        period: 1m
+        # 키 하나는 약 200바이트라 상한까지 차도 약 10MB(-Xmx256m). 넘으면 쓰지 않는 키를 지우고, 그래도 넘으면 새 키는 세지 않는다
+        max-keys: 50000
 
 jwt:
   # Access Token 유효 기간. 회원 서비스 auth.yml과 같은 값이어야 한다. 무효화 기록 보존 기간(+ 시계 오차 60초)도 여기서 나온다
