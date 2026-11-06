@@ -250,9 +250,6 @@ public final class RecommendFixture {
                 Map.of("TOTAL_LENGTH", new BigDecimal("45"), "CHEST_WIDTH", new BigDecimal("36"))));
     }
 
-    /**
-     * 상품 A의 상품 정보 값: 소재는 면, 계절은 봄과 가을 두 값이다. 임베딩 글에서 같은 code가 한 줄로 묶이는지 볼 수 있다.
-     */
     public static List<ProductEmbeddingText.InfoValue> productAInfoValues() {
         return List.of(
             new ProductEmbeddingText.InfoValue("season", "fall"),

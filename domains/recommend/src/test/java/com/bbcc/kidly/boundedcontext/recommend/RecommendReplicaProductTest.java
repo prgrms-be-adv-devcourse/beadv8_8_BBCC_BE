@@ -512,7 +512,6 @@ class RecommendReplicaProductTest {
             brand, description, sizeSpecs, List.of(), occurredAt);
     }
 
-    // 상품 A의 다른 값은 그대로 두고 설명 · 정보 값 · 발생 시각만 정해 만든다
     private static RecommendReplicaProduct.ChangeInfo changeWithInfoValues(String description,
         List<ProductEmbeddingText.InfoValue> infoValues, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,

@@ -34,7 +34,7 @@ public class RecommendReplicaProductService {
 
     // 이벤트의 상품 등록 시각(createdAt)은 감사 칸과 겹치지 않게 복사본의 상품 등록 시각으로 옮기고,
     // 옵션에서는 사이즈 · 권장 키 · 가격 · 품절 · 판매 상태를 옮긴다(옵션 이름과 옵션 값은 추천이 쓰지 않는다).
-    // 브랜드 · 설명 · 사이즈별 실측도 그대로 옮기고, 상품 정보 값은 임베딩 글에 쓸 code와 값만 옮긴다
+    // 브랜드 · 설명 · 사이즈별 실측도 그대로 옮긴다
     private RecommendReplicaProduct.ChangeInfo toChangeInfo(ProductChangedEvent event) {
         ProductChangedEvent.Data data = event.data();
         return new RecommendReplicaProduct.ChangeInfo(
