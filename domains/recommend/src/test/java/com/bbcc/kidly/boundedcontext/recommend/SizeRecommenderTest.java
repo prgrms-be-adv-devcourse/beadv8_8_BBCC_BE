@@ -105,7 +105,7 @@ class SizeRecommenderTest {
         "20.0, NORMAL, LOOSE, 120",
         "20.0, NORMAL, SLIM, 110",
         "20.0, NORMAL, , 120",
-        "23.0, CHUNKY, SLIM, 120",
+        "30.0, CHUNKY, SLIM, 120",
         "18.0, SLIM, LOOSE, 110",
         "20.0, NORMAL, REGULAR, 120",
     })
@@ -138,13 +138,13 @@ class SizeRecommenderTest {
 
     @ParameterizedTest(name = "키 {0}cm, 몸무게 {1}kg, 체형 {2} → {3}")
     @CsvSource({
-        "115.0, 23.0, CHUNKY, PROPER",
+        "115.0, 30.0, CHUNKY, PROPER",
         "115.0, 18.0, SLIM, PROPER",
-        "120.0, 23.0, CHUNKY, TIGHT",
+        "120.0, 30.0, CHUNKY, TIGHT",
         "120.0, 18.0, SLIM, ROOMY",
-        "124.0, 23.0, CHUNKY, TIGHT",
+        "124.0, 30.0, CHUNKY, TIGHT",
         "116.0, 18.0, SLIM, ROOMY",
-        "104.0, 23.0, CHUNKY, ROOMY",
+        "104.0, 30.0, CHUNKY, ROOMY",
         "126.0, 18.0, SLIM, TIGHT",
     })
     @DisplayName("범위 안 후보는 통통하면 작을 가능성 쪽, 마르면 여유 쪽으로 한 단계 옮기고 범위 밖 후보는 옮기지 않는다")
@@ -170,13 +170,13 @@ class SizeRecommenderTest {
     @ParameterizedTest(name = "몸무게 {0}kg, 입력 체형 {1}, 선호 핏 {2} → {3}")
     @CsvSource({
         "18.0, NORMAL, LOOSE, 110",
-        "19.1, NORMAL, LOOSE, 110",
-        "19.2, NORMAL, LOOSE, 120",
-        "22.7, NORMAL, SLIM, 110",
-        "22.8, NORMAL, SLIM, 120",
-        "23.0, , SLIM, 120",
+        "18.6, NORMAL, LOOSE, 110",
+        "18.7, NORMAL, LOOSE, 120",
+        "24.9, NORMAL, SLIM, 110",
+        "25.0, NORMAL, SLIM, 120",
+        "30.0, , SLIM, 120",
     })
-    @DisplayName("체형표가 있으면 몸무게로 판정한 체형으로 고른다 (15백분위 이하 마름, 85백분위 초과 통통)")
+    @DisplayName("규칙 4 기준표가 있으면 몸무게로 판정한 체형으로 고른다 (체질량지수 5백분위 미만 마름, 85백분위 이상 통통)")
     void bodyTypeJudgedByWeight(
         double weightKg, BodyType inputBodyType, PreferredFit preferredFit, String expectedSize) {
         SizeRecommendation result = recommender().recommend(
@@ -187,9 +187,9 @@ class SizeRecommenderTest {
 
     @ParameterizedTest(name = "입력 체형 {0}, 몸무게 {1}kg, 선호 핏 {2} → {3}, {4}")
     @CsvSource({
-        "SLIM, 23.0, LOOSE, 120, ROOMY",
+        "SLIM, 30.0, LOOSE, 120, ROOMY",
         "CHUNKY, 18.0, LOOSE, 120, ROOMY",
-        "SLIM, 23.0, SLIM, 110, TIGHT",
+        "SLIM, 30.0, SLIM, 110, TIGHT",
     })
     @DisplayName("입력 체형과 판정 체형이 두 단계 다르면 체형을 쓰지 않고 키와 선호 핏으로만 고른다")
     void heightOnlyWhenBodyTypesTwoStepsApart(
@@ -203,12 +203,10 @@ class SizeRecommenderTest {
 
     @ParameterizedTest(name = "생년월일 {0}, 몸무게 {1}kg, 선호 핏 {2} → {3}")
     @CsvSource({
-        "2024-10-13, 22.5, SLIM, 110",
-        "2024-10-12, 22.5, SLIM, 120",
-        "2023-10-13, 19.0, LOOSE, 120",
-        "2023-10-12, 19.0, LOOSE, 110",
+        "2024-10-13, 23.5, SLIM, 110",
+        "2024-10-12, 23.5, SLIM, 120",
     })
-    @DisplayName("만 나이 개월 수에 맞는 체형표로 판정한다 (24개월부터 2~3세 표, 36개월부터 3~18세 표)")
+    @DisplayName("규칙 14-2 만 나이 개월 수로 기준표를 고른다 (23개월까지 영아 기준, 24개월부터 연령별 체질량지수)")
     void bodyTypeJudgedByAgeGroup(
         LocalDate birthDate, double weightKg, PreferredFit preferredFit, String expectedSize) {
         SizeRecommendation result = recommender().recommend(
@@ -222,10 +220,10 @@ class SizeRecommenderTest {
         "2007-10-13, 120",
         "2007-10-12, 110",
     })
-    @DisplayName("만 19세(228개월)부터는 체형표가 없어 입력 체형으로 고른다")
+    @DisplayName("규칙 14-3 만 19세(228개월)부터는 기준표가 없어 입력 체형으로 고른다")
     void inputBodyTypeFromNineteen(LocalDate birthDate, String expectedSize) {
         SizeRecommendation result = recommender().recommend(
-            childSizeInputBornOn(birthDate, 23.0, PreferredFit.SLIM), productA(), TODAY);
+            childSizeInputBornOn(birthDate, 34.0, PreferredFit.SLIM), productA(), TODAY);
 
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
@@ -252,7 +250,8 @@ class SizeRecommenderTest {
     void chooseAmongThreeOrMoreCandidates(
         String product, double heightCm, BodyType bodyType, PreferredFit preferredFit, String expectedSize) {
         SizeRecommendation result = recommender().recommend(
-            childSizeInputWith(heightCm, 20.0, bodyType, preferredFit), overlappingProduct(product), TODAY);
+            childSizeInputWith(heightCm, weightJudgedAs(bodyType, heightCm), bodyType, preferredFit),
+            overlappingProduct(product), TODAY);
 
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }
@@ -283,6 +282,19 @@ class SizeRecommenderTest {
             default -> throw new IllegalArgumentException(name);
         };
         return ProductSizes.of(false, sizeRanges);
+    }
+
+    /**
+     * 테스트용 기준표(93개월 체질량지수 5백분위 14.1, 85백분위 18.9)로 입력 체형과 같게 판정되는 몸무게다.
+     */
+    private static double weightJudgedAs(BodyType bodyType, double heightCm) {
+        double heightM = heightCm / 100;
+        double bmi = switch (bodyType) {
+            case SLIM -> 13.0;
+            case NORMAL -> 16.0;
+            case CHUNKY -> 21.0;
+        };
+        return bmi * heightM * heightM;
     }
 
     private SizeRecommendation recommendForHeight(double heightCm) {
