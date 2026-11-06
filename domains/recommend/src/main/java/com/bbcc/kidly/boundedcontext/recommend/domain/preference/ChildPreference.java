@@ -73,19 +73,15 @@ public final class ChildPreference {
         Map<Long, Integer> cartAddCounts = new HashMap<>(categoryCartAddCounts);
         Map<String, Integer> brandCounts = new HashMap<>(brandActivityCounts);
         if (activity.categoryId() != null) {
-            addCount(activityCounts, activity.categoryId(), delta);
+            activityCounts.merge(activity.categoryId(), delta, Integer::sum);
             if (activity.cartAdd()) {
-                addCount(cartAddCounts, activity.categoryId(), delta);
+                cartAddCounts.merge(activity.categoryId(), delta, Integer::sum);
             }
         }
         if (!hasNoBrand(activity.brand())) {
-            addCount(brandCounts, activity.brand(), delta);
+            brandCounts.merge(activity.brand(), delta, Integer::sum);
         }
         return new ChildPreference(activityCounts, cartAddCounts, brandCounts);
-    }
-
-    private static <K> void addCount(Map<K, Integer> counts, K key, int delta) {
-        counts.put(key, counts.getOrDefault(key, 0) + delta);
     }
 
     // 빈 문자열 브랜드끼리 일치해 점수를 받지 않도록 브랜드가 없는 것과 같게 본다
