@@ -83,6 +83,49 @@ class RecommendMemberKafkaIntegrationTest {
         assertThat(recordsOf(otherMemberId)).hasSize(1);
     }
 
+    @Test
+    @DisplayName("같은 회원 탈퇴를 두 번 받아도 DLT로 보내지 않는다")
+    void acceptSameWithdrawnTwice() throws Exception {
+        Long memberId = newId();
+        var event = withdrawn(memberId);
+        activityRecordRepository.saveAndFlush(search(memberId));
+
+        messages.send(MEMBER_TOPIC, event);
+        var second = messages.send(MEMBER_TOPIC, event);
+
+        messages.awaitProcessed(MEMBER_TOPIC, second);
+        assertThat(recordsOf(memberId)).isEmpty();
+        assertThat(messages.deadLetters(MEMBER_DLT, String.valueOf(memberId))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("회원 토픽에서 추천이 받지 않는 종류는 건너뛰고 DLT로 보내지 않으며, 뒤 메시지를 처리한다")
+    void skipUnknownMemberEvent() throws Exception {
+        Long memberId = newId();
+        String key = String.valueOf(memberId);
+        activityRecordRepository.saveAndFlush(search(memberId));
+        messages.sendRaw(MEMBER_TOPIC, key, "member.registered", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
+
+        // 키가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
+        messages.send(MEMBER_TOPIC, withdrawn(memberId));
+
+        AsyncWait.until(TIMEOUT, () -> recordsOf(memberId).isEmpty());
+        assertThat(messages.deadLetters(MEMBER_DLT, key)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("회원 메시지에 eventType 헤더가 없으면 재시도 없이 회원 DLT로 보낸다")
+    void deadLetterWithoutEventType() throws Exception {
+        String key = String.valueOf(newId());
+
+        var sent = messages.sendRaw(MEMBER_TOPIC, key, null, UUID.randomUUID(), "어떤 이벤트인지 알 수 없는 본문");
+
+        AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(MEMBER_DLT, key).isEmpty());
+        assertThat(messages.deadLetters(MEMBER_DLT, key)).singleElement()
+            .satisfies(deadLetter -> assertThat(deadLetter.timestamp() - sent.timestamp())
+                .isLessThan(RETRY_BACKOFF_TOTAL_MS));
+    }
+
     private List<ActivityRecord> recordsOf(Long memberId) {
         return activityRecordRepository.findAll().stream()
             .filter(record -> memberId.equals(record.getMemberId()))
