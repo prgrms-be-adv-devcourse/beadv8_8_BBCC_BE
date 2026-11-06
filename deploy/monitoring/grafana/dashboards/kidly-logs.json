@@ -1,4 +1,38 @@
 {
+  "links": [
+    {
+      "title": "홈",
+      "type": "link",
+      "url": "/",
+      "includeVars": false,
+      "keepTime": false,
+      "targetBlank": false
+    },
+    {
+      "title": "서비스 상태",
+      "type": "link",
+      "url": "/d/kidly-http",
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "오류 로그",
+      "type": "link",
+      "url": "/d/kidly-logs",
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "활성 알림",
+      "type": "link",
+      "url": "/alerting/groups",
+      "includeVars": false,
+      "keepTime": false,
+      "targetBlank": false
+    }
+  ],
   "uid": "kidly-logs",
   "title": "Kidly 로그",
   "tags": [

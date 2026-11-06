@@ -170,7 +170,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**환경·서비스 선택 → 이상 상태 확인 → 로그 확인**\n\n운영 중지/재개는 GitHub Actions의 **environment-operation**에서 선택합니다. 수집 실패와 의도적 중지는 구분합니다.\n\nGateway와 하위 서비스 오류는 합산하지 않습니다. 데이터 없음은 정상이 아닙니다."
+        "content": "**환경·서비스 선택 → 이상 상태 확인 → 로그 확인**\n\n운영 중지/재개는 GitHub Actions의 [environment-operation](https://github.com/prgrms-be-adv-devcourse/beadv8_8_BBCC_BE/actions/workflows/environment-operation.yml)에서 선택합니다. 수집 실패와 의도적 중지는 구분합니다.\n\nGateway와 하위 서비스 오류는 합산하지 않습니다. 데이터 없음은 정상이 아닙니다."
       }
     },
     {
@@ -525,25 +525,36 @@
   ],
   "links": [
     {
-      "title": "AI 운영 분석",
+      "title": "홈",
       "type": "link",
-      "url": "/d/kidly-ai-notes",
-      "includeVars": true,
-      "keepTime": true
+      "url": "/",
+      "includeVars": false,
+      "keepTime": false,
+      "targetBlank": false
     },
     {
-      "title": "로그 확인",
+      "title": "서비스 상태",
+      "type": "link",
+      "url": "/d/kidly-http",
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "오류 로그",
       "type": "link",
       "url": "/d/kidly-logs",
+      "includeVars": true,
       "keepTime": true,
-      "targetBlank": false,
-      "includeVars": true
+      "targetBlank": false
     },
     {
-      "title": "운영 중지·재개 실행",
+      "title": "활성 알림",
       "type": "link",
-      "url": "https://github.com/prgrms-be-adv-devcourse/beadv8_8_BBCC_BE/actions/workflows/environment-operation.yml",
-      "targetBlank": true
+      "url": "/alerting/groups",
+      "includeVars": false,
+      "keepTime": false,
+      "targetBlank": false
     }
   ]
 }
