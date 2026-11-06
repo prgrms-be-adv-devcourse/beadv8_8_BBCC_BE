@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.DeliveryInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.DeliveryCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,7 +34,7 @@ class DeliveryInboxServiceTest {
         deliveryInboxService.addShipped(COMMAND);
 
         var info = captured();
-        assertThat(info.memberId()).isEqualTo(1L);
+        assertThat(info.recipient()).isEqualTo(InboxRecipient.member(1L));
         assertThat(info.type()).isEqualTo(NotificationType.DELIVERY_SHIPPED);
         assertThat(info.title()).isEqualTo("주문하신 상품이 출발했어요");
         assertThat(info.body()).isEqualTo("CJ대한통운 운송장 123456789012로 출발했어요.");

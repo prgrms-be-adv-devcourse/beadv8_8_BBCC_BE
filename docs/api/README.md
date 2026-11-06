@@ -271,5 +271,10 @@
 | GET | `/api/v1/notifications/unread-count` | 안 읽은 내 알림 개수 `{ count }` | 🔒 |
 | PATCH | `/api/v1/notifications/{notificationId}/read` | 읽음 처리(204, 다시 해도 204). 없거나 남의 알림은 404 | 🔒 |
 | PATCH | `/api/v1/notifications/read-all` | 내 안 읽은 알림 모두 읽음 처리(204, 없어도 204). 이미 읽은 알림의 읽은 시각은 그대로 | 🔒 |
+| GET | `/api/v1/child/notifications` | 자녀 계정이 자기 알림함 조회. 응답 · 규칙은 회원 알림함과 같다 | 🔒 |
+| GET | `/api/v1/child/notifications/unread-count` | 자녀 계정의 안 읽은 알림 개수 `{ count }` | 🔒 |
+| PATCH | `/api/v1/child/notifications/{notificationId}/read` | 자녀 계정의 알림 읽음 처리(204). 없거나 다른 주체의 알림은 404 | 🔒 |
+| PATCH | `/api/v1/child/notifications/read-all` | 자녀 계정의 안 읽은 알림 모두 읽음 처리(204) | 🔒 |
 
 알림함 알림은 만든 지 90일이 지나면 읽음 여부와 상관없이 지워진다(매일 04:00 KST).
+알림은 받는 사람을 로그인 주체(회원 · 자녀 계정)의 종류와 ID로 저장한다. `/api/v1/notifications`는 회원 토큰, `/api/v1/child/notifications`는 자녀 토큰으로만 부를 수 있고, 같은 숫자 ID라도 다른 주체의 알림은 보이지 않는다. 자녀 알림함에는 조르기 거절(`WISH_REJECTED`, `linkPath` `/child/wishes/{wishRequestId}`)이 들어오며, 자녀 계정을 지우면 그 계정의 알림도 지워진다.

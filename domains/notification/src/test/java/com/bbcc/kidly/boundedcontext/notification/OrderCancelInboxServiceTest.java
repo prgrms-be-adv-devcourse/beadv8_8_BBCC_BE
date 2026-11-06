@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.OrderCancelInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderCancelledCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderItemCancelledCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +41,7 @@ class OrderCancelInboxServiceTest {
         orderCancelInboxService.addOrderCancelled(new OrderCancelledCommand(3L, 1L, "OUT_OF_STOCK"));
 
         var info = captured();
-        assertThat(info.memberId()).isEqualTo(1L);
+        assertThat(info.recipient()).isEqualTo(InboxRecipient.member(1L));
         assertThat(info.type()).isEqualTo(NotificationType.ORDER_CANCELLED);
         assertThat(info.title()).isEqualTo("재고가 없어 주문이 취소됐어요");
         assertThat(info.body()).isEqualTo("결제 전에 재고가 없어 주문을 취소했어요.");

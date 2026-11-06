@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -8,6 +9,8 @@ import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationRepository;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
+import com.bbcc.kidly.shared.auth.PrincipalId;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
@@ -32,11 +35,20 @@ class InboxNotificationServiceTest {
     void readAll() {
         var before = LocalDateTime.now();
 
-        inboxNotificationService.readAll(1L);
+        inboxNotificationService.readAll(PrincipalId.member(1L));
 
         var now = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(inboxNotificationRepository).readAllUnread(eq(1L), now.capture());
+        verify(inboxNotificationRepository).readAllUnread(eq(InboxRecipient.member(1L)), now.capture());
         assertThat(now.getValue()).isBetween(before, LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("로그인 주체의 종류와 ID로 알림함 받는 사람을 정하고, 관리자는 알림함이 없다")
+    void recipientOfPrincipal() {
+        assertThat(InboxRecipient.of(PrincipalId.member(7L))).isEqualTo(InboxRecipient.member(7L));
+        assertThat(InboxRecipient.of(PrincipalId.child(7L))).isEqualTo(InboxRecipient.child(7L));
+        assertThatThrownBy(() -> InboxRecipient.of(PrincipalId.admin(7L)))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

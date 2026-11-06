@@ -10,7 +10,7 @@
 | | `seller.application-rejected` | 신청 ID | | notification |
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |
-| | `child-account.changed` | 자녀 계정 ID | | childprofile, order |
+| | `child-account.changed` | 자녀 계정 ID | | childprofile, notification, order |
 | `kidly.product.events` | `product.changed`(data에 관리자 판매 중지 `stoppedByAdmin`) | 상품 ID | product | community, notification, order, recommend, search |
 | | `stock.deducted` · `stock.deduction-failed` | 주문 ID | | order |
 | `kidly.order.events` | `order.created` | 주문 ID | order | product |
@@ -25,6 +25,7 @@
 | | `cart.item-removed` | 회원 ID | | recommend |
 | | `wish.sent` | 자녀 ID | | notification |
 | | `wish.cancelled`(보낸 사람이 처리 전에 철회, #968) | 자녀 ID | | (아직 없음) |
+| | `wish.rejected` | 자녀 ID | | notification |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |
 | | `payment.refunded` | 주문 ID | | notification |
 | | `payment.payout-completed` · `payment.payout-failed` | 정산서 ID | | settlement, notification(payout-completed) |

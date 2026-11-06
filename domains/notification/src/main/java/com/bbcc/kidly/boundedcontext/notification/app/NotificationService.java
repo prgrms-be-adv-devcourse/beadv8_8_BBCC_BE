@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.RefundEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.EmailNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
@@ -40,8 +41,8 @@ public class NotificationService {
 
     @Transactional
     public void createWelcomeEmail(WelcomeEmailCommand command) {
-        inboxNotificationService.add(new InboxNotificationInfo(command.memberId(), NotificationType.WELCOME,
-            "Kidly에 오신 것을 환영해요", "자녀의 키와 체형을 등록하면 지금 잘 맞는 사이즈의 옷을 골라 드려요.", null,
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
+            NotificationType.WELCOME, "Kidly에 오신 것을 환영해요", "자녀의 키와 체형을 등록하면 지금 잘 맞는 사이즈의 옷을 골라 드려요.", null,
             "member.registered:" + command.eventId()));
         var content = WelcomeEmail.compose(notificationProperties.siteUrl());
         createEmail(new EmailNotificationInfo(command.eventId(), command.memberId(), NotificationType.WELCOME,
@@ -57,8 +58,8 @@ public class NotificationService {
         if (command.amount() <= 0) {
             return;
         }
-        inboxNotificationService.add(new InboxNotificationInfo(command.sellerId(), NotificationType.PAYOUT_COMPLETED,
-            "정산금이 입금됐어요", "정산금 %,d원이 예치금으로 입금됐어요.".formatted(command.amount()),
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.sellerId()),
+            NotificationType.PAYOUT_COMPLETED, "정산금이 입금됐어요", "정산금 %,d원이 예치금으로 입금됐어요.".formatted(command.amount()),
             "/center/settlements/" + command.settlementId(), "payment.payout-completed:" + command.settlementId()));
         var key = payoutKey(command.settlementId());
         if (exists(key)) {
@@ -75,8 +76,8 @@ public class NotificationService {
     // 주문 결제완료는 주문마다 한 번만 나가므로 이벤트 ID로 한 통만 만든다
     @Transactional
     public void createOrderPaidEmail(OrderPaidCommand command) {
-        inboxNotificationService.add(new InboxNotificationInfo(command.memberId(), NotificationType.ORDER_PAID,
-            "주문이 결제됐어요", orderPaidInboxBody(command), "/orders/" + command.orderId(),
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
+            NotificationType.ORDER_PAID, "주문이 결제됐어요", orderPaidInboxBody(command), "/orders/" + command.orderId(),
             "order.paid:" + command.orderId()));
         if (exists(command.eventId())) {
             return;
@@ -94,8 +95,8 @@ public class NotificationService {
         if (command.memberId() == null) {
             return;
         }
-        inboxNotificationService.add(new InboxNotificationInfo(command.memberId(), NotificationType.REFUND_COMPLETED,
-            "환불이 완료됐어요", "취소한 주문의 %,d원을 예치금으로 돌려드렸어요.".formatted(command.amount()),
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
+            NotificationType.REFUND_COMPLETED, "환불이 완료됐어요", "취소한 주문의 %,d원을 예치금으로 돌려드렸어요.".formatted(command.amount()),
             "/orders/" + command.orderId(), "payment.refunded:" + command.eventId()));
         if (exists(command.eventId())) {
             return;
@@ -125,7 +126,8 @@ public class NotificationService {
     @Transactional
     public void createApplicationRejectedEmail(UUID eventId, Long memberId, String reason) {
         var hasReason = reason != null && !reason.isBlank();
-        inboxNotificationService.add(new InboxNotificationInfo(memberId, NotificationType.SELLER_APPLICATION_REJECTED,
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(memberId),
+            NotificationType.SELLER_APPLICATION_REJECTED,
             "판매자 신청이 거절됐어요", hasReason ? REJECTED_INBOX_BODY + " 거절 사유: " + reason.strip() : REJECTED_INBOX_BODY,
             null, "seller.application-rejected:" + eventId));
         if (exists(eventId)) {
@@ -140,7 +142,8 @@ public class NotificationService {
 
     @Transactional
     public void createSellerApprovedEmail(UUID eventId, Long sellerId, String businessName) {
-        inboxNotificationService.add(new InboxNotificationInfo(sellerId, NotificationType.SELLER_APPROVED,
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(sellerId),
+            NotificationType.SELLER_APPROVED,
             "판매자 신청이 승인됐어요", "%s 상호의 판매자 신청이 승인됐어요. 판매자 센터에서 상품을 등록해 보세요.".formatted(businessName),
             "/center", "seller.changed:" + eventId));
         if (exists(eventId)) {
@@ -155,7 +158,8 @@ public class NotificationService {
 
     @Transactional
     public void createSellerSuspendedEmail(UUID eventId, Long sellerId, String businessName) {
-        inboxNotificationService.add(new InboxNotificationInfo(sellerId, NotificationType.SELLER_SUSPENDED,
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(sellerId),
+            NotificationType.SELLER_SUSPENDED,
             "판매자 자격이 정지됐어요", "관리자가 %s 상호의 판매자 자격을 정지했어요.".formatted(businessName), null,
             "seller.changed:" + eventId));
         if (exists(eventId)) {
@@ -171,7 +175,7 @@ public class NotificationService {
     @Transactional
     public void createProductStoppedByAdminEmail(ProductChangedCommand command) {
         var link = "/center/products/" + command.productId();
-        inboxNotificationService.add(new InboxNotificationInfo(command.sellerId(),
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.sellerId()),
             NotificationType.PRODUCT_STOPPED_BY_ADMIN, "상품 판매가 중지됐어요",
             "관리자가 운영 정책에 따라 %s 상품의 판매를 중지했어요.".formatted(command.name()), link,
             "product.changed:" + command.eventId() + ":stopped-by-admin"));

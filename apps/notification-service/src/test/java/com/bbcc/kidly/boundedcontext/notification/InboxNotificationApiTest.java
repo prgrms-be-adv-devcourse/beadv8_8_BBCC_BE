@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
+import com.bbcc.kidly.shared.auth.PrincipalHeaders;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -21,7 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 알림함 API. 로그인 회원은 Gateway가 붙이는 X-Member-Id 헤더로 보낸다.
+ * 회원 · 자녀 알림함 API. 로그인 회원은 Gateway가 붙이는 X-Member-Id 헤더로, 자녀는 X-Child-* 헤더로 보낸다.
  */
 @FunctionalTest
 class InboxNotificationApiTest {
@@ -224,9 +226,98 @@ class InboxNotificationApiTest {
             .jsonPath("$.count").isEqualTo(count);
     }
 
+    @Test
+    @DisplayName("자녀 알림함은 내 자녀 계정 알림만 준다. 같은 숫자 ID의 회원 알림은 보이지 않는다")
+    void childListOnlyOwn() {
+        add(InboxRecipient.child(ME), "내 알림", "k1");
+        add(InboxRecipient.member(ME), "같은 ID 회원 알림", "k2");
+        add(InboxRecipient.child(OTHER), "다른 자녀 알림", "k3");
+
+        client.get().uri("/api/v1/child/notifications").headers(child(ME))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content.length()").isEqualTo(1)
+            .jsonPath("$.content[0].title").isEqualTo("내 알림")
+            .jsonPath("$.totalElements").isEqualTo(1);
+        client.get().uri("/api/v1/child/notifications/unread-count").headers(child(ME))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.count").isEqualTo(1);
+        // 회원 알림함에도 자녀 알림이 보이지 않는다
+        client.get().uri("/api/v1/notifications").headers(member(ME))
+            .exchange()
+            .expectBody()
+            .jsonPath("$.content.length()").isEqualTo(1)
+            .jsonPath("$.content[0].title").isEqualTo("같은 ID 회원 알림");
+    }
+
+    @Test
+    @DisplayName("자녀는 다른 자녀의 알림이나 같은 숫자 ID의 회원 알림을 읽음 처리할 수 없다(404)")
+    void childCannotReadOthers() {
+        add(InboxRecipient.child(OTHER), "다른 자녀 알림", "k1");
+        add(InboxRecipient.member(ME), "같은 ID 회원 알림", "k2");
+
+        for (var key : new String[] {"k1", "k2"}) {
+            client.patch().uri("/api/v1/child/notifications/{id}/read", idOf(key)).headers(child(ME))
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo("알림을 찾을 수 없습니다");
+            assertThat(readAtOf(key)).isNull();
+        }
+    }
+
+    @Test
+    @DisplayName("자녀가 자기 알림을 읽고 모두 읽음 처리하면 자기 알림만 바뀐다")
+    void childReadAndReadAll() {
+        add(InboxRecipient.child(ME), "첫째", "k1");
+        add(InboxRecipient.child(ME), "둘째", "k2");
+        add(InboxRecipient.member(ME), "같은 ID 회원 알림", "k3");
+        add(InboxRecipient.child(OTHER), "다른 자녀 알림", "k4");
+
+        client.patch().uri("/api/v1/child/notifications/{id}/read", idOf("k1")).headers(child(ME))
+            .exchange()
+            .expectStatus().isNoContent();
+        assertThat(readAtOf("k1")).isNotNull();
+        assertThat(readAtOf("k2")).isNull();
+
+        client.patch().uri("/api/v1/child/notifications/read-all").headers(child(ME))
+            .exchange()
+            .expectStatus().isNoContent();
+
+        assertThat(readAtOf("k2")).isNotNull();
+        assertThat(readAtOf("k3")).isNull();
+        assertThat(readAtOf("k4")).isNull();
+    }
+
+    @Test
+    @DisplayName("자녀 알림함은 자녀 로그인이 필요하다. 회원 헤더만 있으면 401이다")
+    void childRequiresChildLogin() {
+        client.get().uri("/api/v1/child/notifications").headers(member(ME))
+            .exchange().expectStatus().isUnauthorized();
+        client.get().uri("/api/v1/child/notifications/unread-count").exchange().expectStatus().isUnauthorized();
+        client.patch().uri("/api/v1/child/notifications/1/read").exchange().expectStatus().isUnauthorized();
+        client.patch().uri("/api/v1/child/notifications/read-all").exchange().expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @DisplayName("자녀 토큰으로 회원 알림함을 부르면 401이다")
+    void memberApiRejectsChild() {
+        client.get().uri("/api/v1/notifications").headers(child(ME))
+            .exchange().expectStatus().isUnauthorized();
+    }
+
+    private void add(InboxRecipient recipient, String title, String dedupKey) {
+        inboxNotificationService.add(
+            new InboxNotificationInfo(recipient, NotificationType.WISH_REJECTED, title, "본문", null, dedupKey));
+    }
+
     private void add(long memberId, String title, String linkPath, String dedupKey) {
         inboxNotificationService.add(
-            new InboxNotificationInfo(memberId, NotificationType.WELCOME, title, "본문", linkPath, dedupKey));
+            new InboxNotificationInfo(InboxRecipient.member(memberId), NotificationType.WELCOME, title, "본문",
+                linkPath, dedupKey));
     }
 
     private Long idOf(String dedupKey) {
@@ -237,6 +328,14 @@ class InboxNotificationApiTest {
     private Object readAtOf(String dedupKey) {
         return jdbcTemplate.queryForObject(
             "SELECT read_at FROM notification.inbox WHERE dedup_key = ?", Object.class, dedupKey);
+    }
+
+    // Gateway가 붙이는 자녀 헤더(자녀 계정 ID · 보호자 회원 ID)
+    private static Consumer<HttpHeaders> child(long accountId) {
+        return headers -> {
+            headers.set(PrincipalHeaders.CHILD_ACCOUNT_ID, String.valueOf(accountId));
+            headers.set(PrincipalHeaders.CHILD_GUARDIAN_ID, "99");
+        };
     }
 
     // Gateway가 붙이는 회원 헤더. 서비스는 X-Member-Id만으로 로그인 회원을 만든다

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PurchaseConfirmedCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,7 +31,7 @@ public class AutoConfirmInboxService {
         var body = productNameService.findName(command.productId())
             .map(name -> "%s %d개가 자동으로 구매확정됐어요.".formatted(name, command.quantity()))
             .orElse("주문상품 %d개가 자동으로 구매확정됐어요.".formatted(command.quantity()));
-        inboxNotificationService.add(new InboxNotificationInfo(command.memberId(),
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
             NotificationType.PURCHASE_AUTO_CONFIRMED, "구매가 자동으로 확정됐어요", body,
             "/orders/" + command.orderId(), "order-item.auto-confirmed:" + command.orderItemId()));
     }

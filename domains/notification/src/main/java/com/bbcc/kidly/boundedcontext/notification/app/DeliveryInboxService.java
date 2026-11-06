@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 
 import com.bbcc.kidly.boundedcontext.notification.app.dto.DeliveryCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -43,7 +44,8 @@ public class DeliveryInboxService {
     }
 
     private void add(DeliveryCommand command, NotificationType type, String title, String body, String keyPrefix) {
-        inboxNotificationService.add(new InboxNotificationInfo(command.memberId(), type, title, body,
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
+            type, title, body,
             "/orders/" + command.orderId(), keyPrefix + command.deliveryId()));
     }
 }

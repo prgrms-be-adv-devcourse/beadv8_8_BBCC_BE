@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotification;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +49,7 @@ class InboxNotificationTest {
     }
 
     private static InboxNotificationInfo info(String title) {
-        return new InboxNotificationInfo(1L, NotificationType.WELCOME, title, "본문", null, "key-1");
+        return new InboxNotificationInfo(InboxRecipient.member(1L), NotificationType.WELCOME, title, "본문", null,
+            "key-1");
     }
 }

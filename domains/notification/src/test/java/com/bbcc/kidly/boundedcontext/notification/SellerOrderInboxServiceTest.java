@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.SellerOrderInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PurchaseConfirmedCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import java.util.List;
 import java.util.Optional;
@@ -47,13 +48,13 @@ class SellerOrderInboxServiceTest {
         verify(inboxNotificationService, times(2)).add(captor.capture());
         assertThat(captor.getAllValues()).satisfiesExactly(
             info -> {
-                assertThat(info.memberId()).isEqualTo(5L);
+                assertThat(info.recipient()).isEqualTo(InboxRecipient.member(5L));
                 assertThat(info.type()).isEqualTo(NotificationType.SELLER_ORDER_PAID);
                 assertThat(info.body()).isEqualTo("곰돌이 티셔츠 외 1건 주문이 결제됐어요. 발송을 준비해 주세요.");
                 assertThat(info.dedupKey()).isEqualTo("order.paid:3:5");
             },
             info -> {
-                assertThat(info.memberId()).isEqualTo(6L);
+                assertThat(info.recipient()).isEqualTo(InboxRecipient.member(6L));
                 assertThat(info.body()).isEqualTo("토끼 양말 주문이 결제됐어요. 발송을 준비해 주세요.");
                 assertThat(info.dedupKey()).isEqualTo("order.paid:3:6");
             });
@@ -67,7 +68,7 @@ class SellerOrderInboxServiceTest {
         sellerOrderInboxService.addPurchaseConfirmed(new PurchaseConfirmedCommand(7L, 3L, 1L, 5L, 9L, 2, "DIRECT"));
 
         var info = captured();
-        assertThat(info.memberId()).isEqualTo(5L);
+        assertThat(info.recipient()).isEqualTo(InboxRecipient.member(5L));
         assertThat(info.type()).isEqualTo(NotificationType.SELLER_PURCHASE_CONFIRMED);
         assertThat(info.body()).isEqualTo("곰돌이 티셔츠 2개가 구매확정돼 정산 대상이 됐어요.");
         assertThat(info.dedupKey()).isEqualTo("order-item.purchase-confirmed:7");

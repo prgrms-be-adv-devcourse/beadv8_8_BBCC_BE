@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PurchaseConfirmedCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,8 +30,9 @@ public class SellerOrderInboxService {
     public void addOrderPaid(OrderPaidCommand command) {
         var itemsBySeller = command.items().stream()
             .collect(Collectors.groupingBy(OrderPaidCommand.Item::sellerId, LinkedHashMap::new, Collectors.toList()));
-        itemsBySeller.forEach((sellerId, items) -> inboxNotificationService.add(new InboxNotificationInfo(sellerId,
-            NotificationType.SELLER_ORDER_PAID, "새 주문이 들어왔어요", orderPaidBody(items), null,
+        itemsBySeller.forEach((sellerId, items) -> inboxNotificationService.add(new InboxNotificationInfo(
+            InboxRecipient.member(sellerId), NotificationType.SELLER_ORDER_PAID, "새 주문이 들어왔어요",
+            orderPaidBody(items), null,
             "order.paid:%d:%d".formatted(command.orderId(), sellerId))));
     }
 
@@ -40,7 +42,7 @@ public class SellerOrderInboxService {
         var body = productNameService.findName(command.productId())
             .map(name -> "%s %d개가 구매확정돼 정산 대상이 됐어요.".formatted(name, command.quantity()))
             .orElse("주문상품 %d개가 구매확정돼 정산 대상이 됐어요.".formatted(command.quantity()));
-        inboxNotificationService.add(new InboxNotificationInfo(command.sellerId(),
+        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.sellerId()),
             NotificationType.SELLER_PURCHASE_CONFIRMED, "구매가 확정됐어요", body, null,
             "order-item.purchase-confirmed:" + command.orderItemId()));
     }

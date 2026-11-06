@@ -19,6 +19,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.ProductChangedCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.RefundEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
@@ -361,17 +362,21 @@ class NotificationServiceTest {
         var added = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService, times(7)).add(added.capture());
         assertThat(added.getAllValues())
-            .extracting(InboxNotificationInfo::memberId, InboxNotificationInfo::type, InboxNotificationInfo::linkPath,
+            .extracting(InboxNotificationInfo::recipient, InboxNotificationInfo::type, InboxNotificationInfo::linkPath,
                 InboxNotificationInfo::dedupKey)
             .containsExactly(
-                tuple(1L, NotificationType.WELCOME, null, "member.registered:" + EVENT_ID),
-                tuple(1L, NotificationType.ORDER_PAID, "/orders/3", "order.paid:3"),
-                tuple(1L, NotificationType.REFUND_COMPLETED, "/orders/3", "payment.refunded:" + EVENT_ID),
-                tuple(5L, NotificationType.PAYOUT_COMPLETED, "/center/settlements/7", "payment.payout-completed:7"),
-                tuple(5L, NotificationType.SELLER_APPROVED, "/center", "seller.changed:" + EVENT_ID),
-                tuple(1L, NotificationType.SELLER_APPLICATION_REJECTED, null,
+                tuple(InboxRecipient.member(1L), NotificationType.WELCOME, null, "member.registered:" + EVENT_ID),
+                tuple(InboxRecipient.member(1L), NotificationType.ORDER_PAID, "/orders/3", "order.paid:3"),
+                tuple(InboxRecipient.member(1L),
+                    NotificationType.REFUND_COMPLETED, "/orders/3", "payment.refunded:" + EVENT_ID),
+                tuple(InboxRecipient.member(5L),
+                    NotificationType.PAYOUT_COMPLETED, "/center/settlements/7", "payment.payout-completed:7"),
+                tuple(InboxRecipient.member(5L),
+                    NotificationType.SELLER_APPROVED, "/center", "seller.changed:" + EVENT_ID),
+                tuple(InboxRecipient.member(1L), NotificationType.SELLER_APPLICATION_REJECTED, null,
                     "seller.application-rejected:" + EVENT_ID),
-                tuple(5L, NotificationType.SELLER_SUSPENDED, null, "seller.changed:" + EVENT_ID));
+                tuple(InboxRecipient.member(5L),
+                    NotificationType.SELLER_SUSPENDED, null, "seller.changed:" + EVENT_ID));
         assertThat(added.getAllValues()).extracting(InboxNotificationInfo::body).containsExactly(
             "자녀의 키와 체형을 등록하면 지금 잘 맞는 사이즈의 옷을 골라 드려요.",
             "곰돌이 티셔츠 외 1건 주문의 결제가 끝났어요. 총 결제 금액은 25,000원이에요.",
@@ -439,7 +444,8 @@ class NotificationServiceTest {
         assertThat(saved.getValue().getRecipient()).isEqualTo("seller@kidly.co.kr");
         assertThat(saved.getValue().getBody())
             .contains("곰돌이 티셔츠", "https://kidly.kro.kr/center/products/9");
-        verify(inboxNotificationService).add(new InboxNotificationInfo(5L, NotificationType.PRODUCT_STOPPED_BY_ADMIN,
+        verify(inboxNotificationService).add(new InboxNotificationInfo(InboxRecipient.member(5L),
+            NotificationType.PRODUCT_STOPPED_BY_ADMIN,
             "상품 판매가 중지됐어요", "관리자가 운영 정책에 따라 곰돌이 티셔츠 상품의 판매를 중지했어요.", "/center/products/9",
             "product.changed:" + EVENT_ID + ":stopped-by-admin"));
     }
