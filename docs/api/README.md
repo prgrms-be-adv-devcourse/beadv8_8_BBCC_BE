@@ -110,7 +110,7 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/v1/products` | 상품 목록 · 검색(카테고리 · 키워드 · 항목 값 · 정렬 `NEWEST` · `PRICE_ASC` · `PRICE_DESC` · `RELEVANCE`). 관련도순은 검색어가 있으면 의미 검색(OpenAI 임베딩 · kNN)을 더하고, 없으면 최신순과 같다. 검색 서비스가 Elasticsearch에서 읽음 | 🌐 |
+| GET | `/api/v1/products` | 상품 목록 · 검색(카테고리 · 키워드 · 항목 값 · 정렬 `NEWEST` · `PRICE_ASC` · `PRICE_DESC` · `RELEVANCE`). 검색어가 있으면 정렬과 관계없이 의미 검색(OpenAI 임베딩 · kNN)으로 뜻이 가까운 상품을 더한다. 관련도순은 검색어가 있는 상품을 먼저 보이고, 검색어가 없으면 최신순과 같다. 검색 서비스가 Elasticsearch에서 읽음 | 🌐 |
 
 ## 추천
 

@@ -133,15 +133,41 @@ class ElasticsearchProductSearchTest {
     }
 
     @Test
-    @DisplayName("관련도순이 아니면 검색어 벡터가 있어도 의미 검색을 하지 않는다")
-    void otherSortIgnoresVector() throws IOException {
+    @DisplayName("관련도순이 아니어도 검색어 벡터가 있으면 검색어 조건이나 kNN 중 하나만 맞으면 찾고, 정한 필드로 정렬한다")
+    void otherSortWithVector() throws IOException {
         givenProducts(0);
 
-        productSearch.search(new ProductSearchCondition(null, "원피스", Map.of(), ProductSearchSort.PRICE_ASC,
-            List.of(0.1f, 0.2f, 0.3f)), PageRequest.of(0, 20));
+        productSearch.search(new ProductSearchCondition(3L, "원피스", Map.of("COLOR", List.of(5L)),
+            ProductSearchSort.PRICE_ASC, List.of(0.1f, 0.2f, 0.3f)), PageRequest.of(0, 20));
 
         SearchRequest request = capturedSearch();
         assertThat(request.knn()).isEmpty();
+        List<Query> filters = request.query().bool().filter();
+        assertThat(filters).hasSize(3).noneMatch(Query::isBool);
+        assertThat(request.query().bool().minimumShouldMatch()).isEqualTo("1");
+        assertThat(request.query().bool().should()).hasSize(2);
+        assertThat(request.query().bool().should().getFirst().isBool()).isTrue();
+        assertThat(request.query().bool().should().get(1).knn()).satisfies(knn -> {
+            assertThat(knn.field()).isEqualTo("embedding");
+            assertThat(knn.queryVector()).containsExactly(0.1f, 0.2f, 0.3f);
+            assertThat(knn.k()).isEqualTo(100);
+            assertThat(knn.numCandidates()).isEqualTo(200);
+            assertThat(knn.similarity()).isEqualTo(0.3f);
+            assertThat(knn.filter()).isEqualTo(filters);
+        });
+        assertThat(sortKeys(request.sort())).containsExactly("minPrice asc", "productId desc");
+    }
+
+    @Test
+    @DisplayName("관련도순이 아니고 검색어 벡터가 없으면 검색어를 filter로만 건다")
+    void otherSortWithoutVector() throws IOException {
+        givenProducts(0);
+
+        productSearch.search(condition(null, "원피스", Map.of(), ProductSearchSort.PRICE_ASC), PageRequest.of(0, 20));
+
+        SearchRequest request = capturedSearch();
+        assertThat(request.knn()).isEmpty();
+        assertThat(request.query().bool().should()).isEmpty();
         assertThat(filters(request)).hasSize(2);
     }
 

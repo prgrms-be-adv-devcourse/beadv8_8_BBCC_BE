@@ -71,7 +71,7 @@ final class EmbeddingCircuitBreaker {
         consecutiveFailures++;
         if (consecutiveFailures >= FAILURE_THRESHOLD) {
             openedAt = clock.instant();
-            log.warn("임베딩 API가 연속 {}번 실패해 {}초 동안 부르지 않습니다. 그동안 관련도순은 키워드로만 찾습니다",
+            log.warn("임베딩 API가 연속 {}번 실패해 {}초 동안 부르지 않습니다. 그동안 검색은 키워드로만 찾습니다",
                 consecutiveFailures, OPEN_DURATION.toSeconds());
         }
     }
