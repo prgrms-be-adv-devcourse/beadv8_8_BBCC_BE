@@ -45,7 +45,7 @@ public class ChildAccountService {
         if (accounts.existsByLoginId(request.loginId())) {
             throw new BusinessException(AuthErrorCode.CHILD_LOGIN_ID_TAKEN);
         }
-        var password = validatePassword(request.password());
+        var password = new ChildPassword(request.password());
         var account = ChildAccount.create(request.loginId(), passwordEncoder.encode(password.value()), guardianId,
             request.childProfileId());
         var saved = accounts.saveAccount(account);
@@ -56,17 +56,9 @@ public class ChildAccountService {
     @Transactional
     public void resetPassword(Long guardianId, Long accountId, String value) {
         var account = ownedAccount(guardianId, accountId);
-        var password = validatePassword(value);
+        var password = new ChildPassword(value);
         account.changePassword(passwordEncoder.encode(password.value()));
         revokeTokens(account.getId());
-    }
-
-    private ChildPassword validatePassword(String value) {
-        try {
-            return new ChildPassword(value);
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(AuthErrorCode.INVALID_CHILD_PASSWORD, e.getMessage());
-        }
     }
 
     @Transactional
