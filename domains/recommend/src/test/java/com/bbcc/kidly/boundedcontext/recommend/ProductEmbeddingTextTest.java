@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText.InfoValue;
@@ -90,6 +91,24 @@ class ProductEmbeddingTextTest {
         assertThat(text.value()).endsWith("a😀");
         assertThat(text.value().codePointCount(0, text.value().length()))
             .isEqualTo(ProductEmbeddingText.MAX_LENGTH);
+    }
+
+    @Test
+    @DisplayName("상품명이 없으면 글을 만들지 않는다")
+    void rejectNullName() {
+        assertThatThrownBy(() -> ProductEmbeddingText.compose(null, "키들리", List.of(), "설명"))
+            .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("정보 값 목록이 없으면 빈 목록으로 보고 글을 만든다")
+    void treatNullInfoValuesAsEmpty() {
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", "키들리", null, "설명");
+
+        assertThat(text.value()).isEqualTo("""
+            상품명: 면 티셔츠
+            브랜드: 키들리
+            설명: 설명""");
     }
 
     @ParameterizedTest
