@@ -33,7 +33,8 @@ class RecommendMigrationIntegrationTest {
     @Test
     @DisplayName("추천 init 테이블만 있는 DB에서 baseline을 잡아도 상품 복사본의 브랜드 · 설명 칸과 사이즈별 실측 표를 만든다")
     void createsProductDetailsWhenOnlyInitTablesExist() {
-        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+        try (var postgres = new PostgreSQLContainer(
+            DockerImageName.parse("pgvector/pgvector:pg18-trixie").asCompatibleSubstituteFor("postgres"))) {
             postgres.start();
             var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
                 postgres.getPassword());
@@ -50,7 +51,8 @@ class RecommendMigrationIntegrationTest {
     @Test
     @DisplayName("kidly-app이 마지막 추천 마이그레이션까지 적용한 DB에서는 baseline을 잡고, 보강 마이그레이션은 스키마를 바꾸지 않는다")
     void keepsSchemaWhenKidlyAppAppliedLastMigration() {
-        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+        try (var postgres = new PostgreSQLContainer(
+            DockerImageName.parse("pgvector/pgvector:pg18-trixie").asCompatibleSubstituteFor("postgres"))) {
             postgres.start();
             var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
                 postgres.getPassword());
@@ -69,7 +71,8 @@ class RecommendMigrationIntegrationTest {
     @Test
     @DisplayName("kidly-app이 마지막 추천 마이그레이션까지 적용한 DB에서 baseline을 잡아도 활동 기록 표를 만든다")
     void createsActivityRecordAfterBaseline() {
-        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+        try (var postgres = new PostgreSQLContainer(
+            DockerImageName.parse("pgvector/pgvector:pg18-trixie").asCompatibleSubstituteFor("postgres"))) {
             postgres.start();
             var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
                 postgres.getPassword());

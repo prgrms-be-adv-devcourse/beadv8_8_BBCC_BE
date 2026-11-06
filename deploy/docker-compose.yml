@@ -20,7 +20,8 @@ x-logging: &logging
 
 services:
   postgres:
-    image: postgres:18
+    # 추천이 벡터를 저장하려고 pgvector 확장이 든 이미지를 쓴다. 공식 postgres:18과 같은 Debian 13(trixie) 기반이라 기존 볼륨을 그대로 쓴다.
+    image: pgvector/pgvector:pg18-trixie
     env_file: .env
     volumes:
       - postgres-data:/var/lib/postgresql
