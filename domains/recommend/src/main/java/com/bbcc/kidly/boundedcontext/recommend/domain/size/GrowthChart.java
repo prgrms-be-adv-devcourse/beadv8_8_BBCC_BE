@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.size;
 
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import java.util.HashMap;
 import java.util.List;
@@ -25,8 +26,20 @@ public class GrowthChart {
         return new GrowthChart(Map.copyOf(byKey));
     }
 
+    public static GrowthChart of(
+            List<BmiForAgeRow> bmiForAge,
+            List<InfantWeightForAgeRow> infantWeightForAge,
+            List<InfantWeightForLengthRow> infantWeightForLength
+    ) {
+        return new GrowthChart(Map.of());
+    }
+
     public Optional<WeightPercentiles> find(AgeGroup ageGroup, Gender gender, double heightCm) {
         return Optional.ofNullable(rows.get(ChartKey.of(ageGroup, gender, heightCm)));
+    }
+
+    public Optional<BodyType> judge(Gender gender, long months, double heightCm, double weightKg) {
+        return Optional.empty();
     }
 
     private record ChartKey(AgeGroup ageGroup, Gender gender, long heightMm) {
