@@ -61,7 +61,10 @@ public class RecommendedProductSelector {
                 product.getName(),
                 product.getThumbnailUrl(),
                 product.getMinPrice(),
-                recommendedSize
+                recommendedSize,
+                product.getCategoryId(),
+                product.getBrand(),
+                product.getProductRegisteredAt()
         );
     }
 }
