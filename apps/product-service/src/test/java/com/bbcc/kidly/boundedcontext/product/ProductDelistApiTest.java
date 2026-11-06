@@ -17,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -30,6 +31,7 @@ class ProductDelistApiTest {
 
     private static final String PRODUCTS_PATH = "/api/v1/seller/products";
     private static final long SELLER_ID = 7L;
+    private static final long OTHER_SELLER_ID = 8L;
     private static final Map<String, Object> ON_SALE = Map.of("status", "ON_SALE");
     private static final Map<String, Object> STOPPED = Map.of("status", "STOPPED");
 
@@ -93,6 +95,34 @@ class ProductDelistApiTest {
         assertThat(storedVersion()).isEqualTo(versionAfterFirst);
     }
 
+    @Test
+    @DisplayName("SALE-13 · OPT-08 다른 판매자의 상품을 등록 취소하면 403이고, 상태가 그대로다")
+    void rejectDelistOfOtherSellersProduct() {
+        changeSaleStatus(ON_SALE);
+
+        expectProblem(delist(TestMembers.seller(OTHER_SELLER_ID)), HttpStatus.FORBIDDEN,
+            "상품을 바꿀 권한이 없습니다", "본인이 등록한 상품만 바꿀 수 있습니다.");
+
+        assertThat(storedStatus()).isEqualTo("ON_SALE");
+    }
+
+    @Test
+    @DisplayName("SALE-13 없는 상품을 등록 취소하면 404다")
+    void rejectDelistOfMissingProduct() {
+        productId = "999999";
+
+        expectProblem(delist(TestMembers.seller(SELLER_ID)), HttpStatus.NOT_FOUND,
+            "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
+    }
+
+    @Test
+    @DisplayName("로그인 헤더 없이 등록 취소하면 401이고, 상태가 그대로다")
+    void rejectDelistWithoutLogin() {
+        delist(TestMembers.anonymous()).expectStatus().isUnauthorized();
+
+        assertThat(storedStatus()).isEqualTo("SALE_PENDING");
+    }
+
     // 판매 상태 변경 API로 상품을 원하는 상태까지 옮긴다. 관리자 판매중지 API는 따로 확인하므로 그 상태는 표로 만든다
     private void prepare(String given) {
         if (given.equals("판매대기")) {
@@ -117,6 +147,19 @@ class ProductDelistApiTest {
             .body(body)
             .exchange()
             .expectStatus().isOk();
+    }
+
+    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
+    private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
+        response
+            .expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").exists()
+            .jsonPath("$.title").isEqualTo(title)
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").isEqualTo(detail)
+            .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId + "/delisting");
     }
 
     private RestTestClient.ResponseSpec delist(Consumer<HttpHeaders> login) {
