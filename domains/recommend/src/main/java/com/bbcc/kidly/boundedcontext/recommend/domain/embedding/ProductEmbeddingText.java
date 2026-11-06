@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.embedding;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -17,6 +18,13 @@ public record ProductEmbeddingText(String value) {
 
     public static ProductEmbeddingText compose(String name, String brand, List<InfoValue> infoValues,
         String description) {
-        throw new UnsupportedOperationException("not implemented");
+        List<String> lines = new ArrayList<>();
+        lines.add("상품명: " + name);
+        lines.add("브랜드: " + brand);
+        for (InfoValue infoValue : infoValues) {
+            lines.add(infoValue.code() + ": " + infoValue.value());
+        }
+        lines.add("설명: " + description);
+        return new ProductEmbeddingText(String.join("\n", lines));
     }
 }
