@@ -19,6 +19,8 @@ class ChildPreferenceOfTest {
 
     private static final Long CATEGORY_ID = 52L;
 
+    private static final String BRAND = "키들리";
+
     @ParameterizedTest(name = "활동 {0}번, 담기 {1}번 → {2}점")
     @CsvSource({
         "1, 0, 3",
@@ -35,5 +37,21 @@ class ChildPreferenceOfTest {
             List.of());
 
         assertThat(preference.categoryPoints(CATEGORY_ID)).isEqualTo(expected);
+    }
+
+    @ParameterizedTest(name = "활동 {0}번 → {1}점")
+    @CsvSource({
+        "1, 2",
+        "2, 2",
+        "0, 0",
+        "-1, 0",
+    })
+    @DisplayName("PREF-04 저장된 브랜드 줄은 활동 횟수가 1 이상이면 2점이고 0 이하는 나오지 않은 것이다")
+    void brandPointsOfStoredRow(int activityCount, int expected) {
+        ChildPreference preference = ChildPreference.of(
+            List.of(),
+            List.of(ChildBrandPreference.of(CHILD_ID, BRAND, activityCount)));
+
+        assertThat(preference.brandPoints(BRAND)).isEqualTo(expected);
     }
 }
