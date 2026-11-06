@@ -56,6 +56,12 @@ spring:
               predicates:
                 - Method=GET
                 - Path=/api/v1/products
+            # 검색 결과 클릭 기록은 검색 서비스로 간다(#1004)
+            - id: search-clicks
+              uri: ${kidly.gateway.search-uri}
+              predicates:
+                - Method=POST
+                - Path=/api/v1/search/clicks
             # 자녀 프로필과 보호자 본인인증 API는 회원 서비스로 간다
             - id: childprofile
               uri: ${kidly.gateway.member-uri}
