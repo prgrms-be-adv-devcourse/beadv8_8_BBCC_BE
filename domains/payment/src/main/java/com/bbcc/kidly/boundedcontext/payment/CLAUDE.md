@@ -118,8 +118,16 @@
 - 아직 없음: 부분 취소 반영, 웹훅 유실 대비 주기 조회
 
 ## 입출금 내역 (`app/WalletService`, #200)
-- `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 · 잔액 환급 ID
+- `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 · 잔액 환급 · 개발용 충전 ID
 - 지갑이 없으면 빈 목록이다(잔액 조회는 0). 종류 · 기간 필터는 없다
+
+## 개발용 예치금 충전 (`app/DevChargeService` · `in/DevWalletController`, #1010)
+- `POST /api/v1/dev/wallets/me/charges` `{ "amount": 1 ~ 1000000 }` (🔒 `@LoginMember`) → 200 `devChargeId` · `ledgerId` · `amount` · `balance`(충전 뒤 잔액). dev에서 시드 회원의 예치금을 토스 결제창 없이 채우려고 둔다(판매자 부분 취소 환불 확인 등)
+- 서비스 · 컨트롤러 모두 `@Profile({"local", "test", "dev"})`라 prod에는 빈이 없다(회원 서비스 `DevTokenController`와 같음, `DevWalletControllerProfileTest`). prod에 열리면 누구나 예치금을 만들 수 있다
+- 로그인한 회원 자기 지갑에만 넣는다. 개발용 토큰을 어느 회원으로든 받을 수 있어 회원 ID를 받지 않는다
+- 지갑이 없으면 만들고(`createIfAbsent`) 락으로 읽어 입금한다. 동결된 지갑은 충전 요청처럼 409 `WALLET_FROZEN`, 범위 밖 · 빈 금액은 400
+- 기록(`dev_charge`: 지갑 · 회원 · 금액)과 원장 `DEV_CHARGE`(입금, ref_id = 개발용 충전 ID)를 남긴다. 토스 충전이 아니라서 `charge`에 만들지 않는다(취소 · 대사 · 충전 목록에 나오지 않는다). 충전 지표(`kidly_payment_charges_total`)에도 세지 않는다. 행동 로그 `DEV_CHARGED`는 남긴다
+- 원장 종류는 결제 안에서만 쓴다(이벤트 · `shared`에 없다). 화면에는 원장 조회의 `type` 문자열로만 보인다
 
 ## 회원 탈퇴 지갑 동결 (`app/WalletService.freeze`, #670)
 - `member.withdrawn`을 받아 지갑을 동결한다(`wallet.frozen_at`). 탈퇴는 막지 않는다. 잔액은 그대로 두고 소멸시키지 않는다
@@ -186,6 +194,7 @@
 | `PAYOUT_COMPLETED` | `SettlementPayoutService` (처음 처리한 정산서만, 0원 포함) | memberId(판매자), walletId, settlementId, amount, ledgerId, balance |
 | `WALLET_FROZEN` | `WalletService.freeze` (처음 동결할 때만) | memberId, walletId, balance |
 | `BALANCE_RETURNED` | `WalletService.returnBalance` (탈퇴 회원 잔액 환급 기록) | memberId, walletId, balanceReturnId, amount, balance, ledgerId, returnedBy |
+| `DEV_CHARGED` | `DevChargeService` (개발용 예치금 충전, local · test · dev) | memberId, walletId, devChargeId, amount, balance, ledgerId |
 
 ## Kafka 수신 (#593)
 - 결제가 받는 이벤트 중 보내는 쪽이 Kafka로 보내는 4종을 Kafka로 받는다(`member.withdrawn`은 #670에서 더함). 구독 그룹 `kidly.payment`, 토픽마다 리스너 하나(`in/event`)
