@@ -15,7 +15,7 @@
 ## 이벤트
 | 보내는 이벤트 | 보내는 곳 | 보내는 때 | 받는 도메인 |
 |---|---|---|---|
-| `product.changed` | `app/product/support/ProductChangedPublisher` | 판매 시작 · 중지, 등록 취소 · 되돌리기, 판매 중 상품 수정, 품절 여부 변경(`SoldOutPublisher`), 관리자 다시 보내기 | 주문, 추천, 검색 |
+| `product.changed` | `app/product/support/ProductChangedPublisher` | 판매 시작 · 중지, 등록 취소 · 되돌리기, 판매 중 상품 수정, 품절 여부 변경(`SoldOutPublisher`), 관리자 다시 보내기 | 주문, 추천, 검색, 커뮤니티, 알림 |
 | `stock.deducted` | `app/inventory/support/InventoryDeductor` | 주문 생성으로 재고를 모두 차감했을 때 | 주문 |
 | `stock.deduction-failed` | `app/inventory/support/InventoryDeductionRecorder` | 재고가 모자라거나 판매 중이 아니어서 거절했을 때 | 주문 |
 
@@ -83,7 +83,7 @@
 - 새 주문은 차감에서 거절된다. 차감은 판매중 상품만 통과시키므로 따로 막지 않는다
 - API(`ProductSaleService`): 판매자 `PUT /api/v1/seller/products/{productId}/delisting`(200, 판매 상태 변경과 같은 응답), 관리자 되돌리기 `DELETE /api/v1/admin/products/{productId}/delisting`(200, 상태 `STOPPED`). 판매 상태 변경 API(`sale-status`)는 그대로이고, 등록 취소 상품에 보내면 409다. 요청 값 검증(`ON_SALE`/`STOPPED`만)도 그대로다
     - 둘 다 상태를 바꾼 같은 트랜잭션에서 `product.changed`를 보낸다(아웃박스도 같은 트랜잭션). 등록 취소는 바뀌었을 때만 보내므로 다시 등록 취소해도 이벤트가 나가지 않고, 되돌리기는 늘 바뀌므로 늘 보낸다. 판매대기에서 바로 등록 취소해도 보낸다
-    - 새 enum 값 `DELISTED`는 받는 서비스(주문 · 검색 · 추천 · 커뮤니티 · 알림)가 모두 배포된 뒤에 보낸다. 그 전에 이 API나 다시 보내기(`changed-events`)로 등록 취소 상품의 메시지를 보내면, 모르는 값을 읽지 못한 메시지가 받는 쪽 DLT로 간다
+    - 새 enum 값 `DELISTED`는 받는 서비스(주문 · 검색 · 추천 · 커뮤니티 · 알림)가 모두 배포된 뒤에 보낸다. 그 전에 이 API나 다시 보내기(`changed-events`)로 등록 취소 상품의 메시지를 보내면, 검색 · 추천 · 주문 · 알림은 모르는 값을 역직렬화하지 못해 DLT로 간다(커뮤니티는 null로 읽는다)
     - 관리자 판매 상태 변경이 등록 취소 상품에 409를 낼 때도 `PRODUCT_DELISTED` 문구("다시 팔려면 상품을 새로 등록해 주세요")를 그대로 쓴다. 관리자는 되돌리기로 판매중지로 돌린 뒤 판매 상태를 바꾼다
     - 상품 수정에서는 소유자 검사(403) 다음에 이미지 검사(400)가 나고, 등록 취소 검사(409)는 그 뒤다. 등록 취소 상품에 잘못된 이미지를 보내면 409가 아니라 400을 받는다
     - 재고 조정과 등록 취소가 동시에 오면 상품 행을 잠그지 않아 조정이 한 번 더 들어갈 수 있다. 받아들였다

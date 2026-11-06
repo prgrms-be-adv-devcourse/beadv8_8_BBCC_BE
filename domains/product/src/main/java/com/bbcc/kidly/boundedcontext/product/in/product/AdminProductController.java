@@ -41,7 +41,7 @@ public class AdminProductController {
         return ProductSaleStatusResponse.from(productSaleService.revertDelistByAdmin(productId));
     }
 
-    // 판매를 시작한 상품마다 상품 정보 변경됨을 다시 보내고, 보낸 상품 수를 돌려준다
+    // 판매를 시작했거나 등록 취소한 상품(다른 도메인에 알리는 상품)마다 상품 정보 변경됨을 다시 보내고, 보낸 상품 수를 돌려준다
     @PostMapping("/changed-events")
     public ProductChangedRepublishResponse republishChangedEvents() {
         return new ProductChangedRepublishResponse(productChangedRepublishService.republishStartedSaleProducts());
