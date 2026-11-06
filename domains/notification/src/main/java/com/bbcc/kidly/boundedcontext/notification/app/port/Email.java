@@ -9,7 +9,7 @@ import org.springframework.util.StringUtils;
  * @param subject 제목
  * @param text    본문
  */
-public record Email(String to, String subject, String text) {
+public record Email(String to, String subject, String text) implements OutgoingMessage {
 
     public Email {
         if (!StringUtils.hasText(to)) {

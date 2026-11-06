@@ -7,6 +7,8 @@ springdoc = "3.1.1"
 archunit = "1.5.1"
 spring-dotenv = "5.1.0"
 aws-sdk = "2.55.16"
+# 알림 웹 푸시(FCM HTTP v1)
+firebase-admin = "9.11.0"
 # Gateway(apps/gateway)만 쓴다. Boot 4.0.x · 4.1.x와 호환되는 release train
 spring-cloud = "2025.1.4"
 # 추천(domains/recommend)만 쓴다
@@ -20,6 +22,7 @@ springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starte
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 spring-dotenv = { module = "me.paulschwarz:springboot4-dotenv", version.ref = "spring-dotenv" }
 aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
+firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }
 spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
 spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
 
