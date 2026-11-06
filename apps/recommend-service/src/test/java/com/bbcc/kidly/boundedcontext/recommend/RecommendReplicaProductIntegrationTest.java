@@ -6,8 +6,10 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_C
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOption;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCategory;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
@@ -207,6 +209,25 @@ class RecommendReplicaProductIntegrationTest {
             .isZero();
     }
 
+    // ID와 이름이 순서대로 커지지 않는 경로로, 저장한 순서가 아니라 값의 크기로 정렬해서는 통과하지 못하게 한다
+    @Test
+    @DisplayName("상품 정보 변경됨의 카테고리 경로가 복사본에 저장되고, 다시 읽어도 대분류부터 종류 순서 그대로다")
+    void storeCategoryPathInOrder() {
+        replicaProductService.applyProductChanged(eventWithCategoryPath(List.of(
+            new ProductChangedEvent.CategoryPathEntry(30L, "하의"),
+            new ProductChangedEvent.CategoryPathEntry(7L, "청바지"),
+            new ProductChangedEvent.CategoryPathEntry(70L, "슬림핏")), PRODUCT_CHANGED_AT));
+
+        // 카테고리 경로는 지연 로딩이라 새 트랜잭션에서 읽어야 저장된 행을 실제로 불러온다
+        List<RecommendReplicaCategory> path = transactionTemplate.execute(status -> {
+            RecommendReplicaProduct product = replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow();
+            return List.copyOf(product.getCategoryPath());
+        });
+        assertThat(path)
+            .extracting(RecommendReplicaCategory::getCategoryId, RecommendReplicaCategory::getCategoryName)
+            .containsExactly(tuple(30L, "하의"), tuple(7L, "청바지"), tuple(70L, "슬림핏"));
+    }
+
     @Test
     @DisplayName("상품 변경 이벤트를 반영하면 정보 값이 들어간 임베딩 글이 복사본에 저장된다")
     void storeEmbeddingTextWithInfoValues() {
@@ -248,6 +269,16 @@ class RecommendReplicaProductIntegrationTest {
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
             data.productId(), data.sellerId(), data.name(), data.categoryId(), data.status(), data.thumbnailUrl(),
             data.createdAt(), data.sizeFree(), data.options(), data.infoValues(), "키들리", "상품 설명", sizeSpecs));
+    }
+
+    // 상품 A의 상품 정보 변경됨에 카테고리 경로를 담는다. 옵션은 110 · 120이다
+    private static ProductChangedEvent eventWithCategoryPath(List<ProductChangedEvent.CategoryPathEntry> categoryPath,
+        LocalDateTime occurredAt) {
+        ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
+        return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
+            data.productId(), data.sellerId(), data.name(), data.categoryId(), data.status(), data.thumbnailUrl(),
+            data.createdAt(), data.sizeFree(), data.options(), data.infoValues(), data.brand(), data.description(),
+            data.sizeSpecs(), categoryPath));
     }
 
     private long count(String sql) {
