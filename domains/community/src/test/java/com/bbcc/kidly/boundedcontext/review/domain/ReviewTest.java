@@ -179,6 +179,26 @@ class ReviewTest {
                 e -> assertThat(e.rule()).isEqualTo(ReviewRule.NO_CHANGES));
     }
 
+    @Test
+    @DisplayName("수정 미리 확인(checkUpdate)은 수정과 같은 규칙으로 막고 값을 바꾸지 않는다")
+    void checkUpdateDoesNotChange() {
+        Review review = withFit(Fit.SMALL, true);
+
+        review.checkUpdate(AUTHOR, new Review.Change(true, 1, true, "바뀐 글", true, Fit.LARGE, true), true);
+        assertThatThrownBy(() -> review.checkUpdate(AUTHOR, Review.Change.ratingOnly(9), true))
+            .isInstanceOfSatisfying(ReviewRuleException.class, e -> assertThat(e.rule()).isEqualTo(ReviewRule.RATING));
+        assertThatThrownBy(() -> review.checkUpdate(AUTHOR + 1, Review.Change.ratingOnly(1), true))
+            .isInstanceOfSatisfying(ReviewRuleException.class, e -> assertThat(e.rule()).isEqualTo(ReviewRule.AUTHOR));
+        assertThatThrownBy(() -> review.checkUpdate(AUTHOR, Review.Change.fitOnly(Fit.LARGE), false))
+            .isInstanceOfSatisfying(ReviewRuleException.class,
+                e -> assertThat(e.rule()).isEqualTo(ReviewRule.FIT_NOT_APPLICABLE));
+
+        assertThat(review.getRating()).isEqualTo(5);
+        assertThat(review.getContent()).isEqualTo("좋아요");
+        assertThat(review.getFit()).isEqualTo(Fit.SMALL);
+        assertThat(review.getContentVersion()).isZero();
+    }
+
     private static Review withFit(Fit fit, boolean sizeApplicable) {
         return Review.create(new Review.Values(11L, 14L, AUTHOR, "닉네임", 5, "좋아요", fit, sizeApplicable));
     }

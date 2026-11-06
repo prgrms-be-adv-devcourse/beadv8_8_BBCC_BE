@@ -47,6 +47,10 @@ kidly:
     kafka:
       consumer:
         enabled: false
+    # 리뷰 사진 업로드 확인은 테스트용 가짜(FakeReviewImageUploadChecker, 올린 것으로 등록한 주소만 있음)로 한다
+    review:
+      image:
+        upload-check: fake
     # 운영 조회 MCP 창구를 켠다(기능 테스트가 /api/v1/admin/community/mcp를 부른다)
     mcp:
       enabled: true
