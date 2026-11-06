@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCategory;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
@@ -40,6 +41,10 @@ class RecommendReplicaProductTest {
 
     private static final List<RecommendReplicaProduct.SizeSpecInfo> SIZE_130_SPECS = List.of(
         new RecommendReplicaProduct.SizeSpecInfo("130", 125, 135, Map.of("TOTAL_LENGTH", new BigDecimal("48"))));
+
+    private static final List<RecommendReplicaProduct.CategoryPathInfo> TOPS_PATH = List.of(
+        new RecommendReplicaProduct.CategoryPathInfo(1L, "상의"),
+        new RecommendReplicaProduct.CategoryPathInfo(11L, "티셔츠"));
 
     private static final List<RecommendReplicaProduct.OptionInfo> OPTIONS =
         List.of(productOptionInfo("130", 125, 135));
@@ -346,6 +351,17 @@ class RecommendReplicaProductTest {
         assertThat(replica.getSizeSpecs()).isEmpty();
     }
 
+    @Test
+    @DisplayName("처음 받은 상품 정보로 만든 복사본에 카테고리 경로가 대분류부터 종류 순서대로 들어간다")
+    void createWithCategoryPath() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithCategoryPath(TOPS_PATH, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.getCategoryPath())
+            .extracting(RecommendReplicaCategory::getCategoryId, RecommendReplicaCategory::getCategoryName)
+            .containsExactly(tuple(1L, "상의"), tuple(11L, "티셔츠"));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("changesNotLater")
     @DisplayName("INV-R01 저장된 시각과 같거나 이르게 일어난 상품 변경은 필수 값이 없어도 무시한다")
@@ -517,6 +533,14 @@ class RecommendReplicaProductTest {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
             "키들리", description, List.of(), infoValues, occurredAt);
+    }
+
+    // 상품 A의 다른 값은 그대로 두고 카테고리 경로와 발생 시각만 정해 만든다
+    private static RecommendReplicaProduct.ChangeInfo changeWithCategoryPath(
+        List<RecommendReplicaProduct.CategoryPathInfo> categoryPath, LocalDateTime occurredAt) {
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
+            PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
+            null, null, List.of(), occurredAt, categoryPath);
     }
 
     private static RecommendReplicaProduct.ChangeInfo change(Long productId, Long sellerId, ProductStatus status,
