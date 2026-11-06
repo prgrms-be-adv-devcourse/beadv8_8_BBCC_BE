@@ -69,6 +69,29 @@ class ProductEmbeddingTextTest {
             material: cotton""");
     }
 
+    @Test
+    @DisplayName("글이 4,000자를 넘으면 4,000 code point에서 자르고 마지막 줄인 설명이 잘린다")
+    void truncateDescriptionAtMaxLength() {
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", "키들리", List.of(), "a".repeat(5_000));
+
+        assertThat(text.value().codePointCount(0, text.value().length()))
+            .isEqualTo(ProductEmbeddingText.MAX_LENGTH);
+        assertThat(text.value()).startsWith("상품명: 면 티셔츠\n브랜드: 키들리\n설명: aaa").endsWith("a");
+    }
+
+    @Test
+    @DisplayName("자르는 경계에 서로게이트 쌍이 있으면 쌍을 가르지 않는다")
+    void truncateWithoutSplittingSurrogatePair() {
+        String head = "상품명: 면 티셔츠\n설명: ";
+        String description = "a".repeat(ProductEmbeddingText.MAX_LENGTH - 1 - head.length()) + "😀😀😀";
+
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", null, List.of(), description);
+
+        assertThat(text.value()).endsWith("a😀");
+        assertThat(text.value().codePointCount(0, text.value().length()))
+            .isEqualTo(ProductEmbeddingText.MAX_LENGTH);
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"  "})
