@@ -64,4 +64,15 @@ class ChildPreferenceTest {
 
         assertThat(preference.brandPoints(productBrand)).isEqualTo(expected);
     }
+
+    @Test
+    @DisplayName("PREF-07 뺀 장바구니 담기는 그 담기가 준 카테고리 · 담기 · 브랜드 몫이 모두 빠진다")
+    void removedCartAddLosesAllItsPoints() {
+        PreferenceActivity cartAdd = new PreferenceActivity(CATEGORY_ID, BRAND, true);
+
+        ChildPreference preference = ChildPreference.empty().plus(cartAdd).minus(cartAdd);
+
+        assertThat(preference.categoryPoints(CATEGORY_ID)).isZero();
+        assertThat(preference.brandPoints(BRAND)).isZero();
+    }
 }
