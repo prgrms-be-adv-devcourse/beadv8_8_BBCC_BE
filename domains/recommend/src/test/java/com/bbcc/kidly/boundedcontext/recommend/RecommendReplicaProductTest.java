@@ -546,7 +546,11 @@ class RecommendReplicaProductTest {
                 new RecommendReplicaProduct.SizeSpecInfo(null, 105, 115, Map.of("TOTAL_LENGTH", new BigDecimal("42")))),
                 LATER)),
             Named.of("실측 줄의 실측 값", changeWithDetails("키들리", "상품 설명", List.of(
-                new RecommendReplicaProduct.SizeSpecInfo("110", 105, 115, null)), LATER)));
+                new RecommendReplicaProduct.SizeSpecInfo("110", 105, 115, null)), LATER)),
+            Named.of("카테고리 경로 칸의 ID", changeWithCategoryPath(
+                List.of(new RecommendReplicaProduct.CategoryPathInfo(null, "상의")), LATER)),
+            Named.of("카테고리 경로 칸의 이름", changeWithCategoryPath(
+                List.of(new RecommendReplicaProduct.CategoryPathInfo(1L, null)), LATER)));
     }
 
     // 상품명만 빠진, 저장된 시각보다 늦은 상품 변경이다
