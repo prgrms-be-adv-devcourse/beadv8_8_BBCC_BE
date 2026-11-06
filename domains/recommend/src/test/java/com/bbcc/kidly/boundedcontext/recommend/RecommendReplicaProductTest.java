@@ -100,6 +100,42 @@ class RecommendReplicaProductTest {
     }
 
     @Test
+    @DisplayName("더 늦게 일어난 상품 변경으로 설명이 바뀌면 임베딩 글도 바뀐다")
+    void rewriteEmbeddingTextWithLaterChange() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+
+        replica.applyIfNewer(changeWithInfoValues("새 설명", List.of(), LATER));
+
+        assertThat(replica.getEmbeddingText()).isEqualTo("""
+            상품명: 데일리 맨투맨
+            브랜드: 키들리
+            설명: 새 설명""");
+    }
+
+    @Test
+    @DisplayName("저장된 시각보다 이르게 일어난 상품 변경은 임베딩 글을 바꾸지 않는다")
+    void keepEmbeddingTextWithEarlierChange() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+        String stored = replica.getEmbeddingText();
+
+        replica.applyIfNewer(changeWithInfoValues("새 설명", List.of(), PRODUCT_CHANGED_AT.minusMinutes(1)));
+
+        assertThat(replica.getEmbeddingText()).isEqualTo(stored);
+    }
+
+    @Test
+    @DisplayName("정보 값이 없는 예전 메시지의 상품 정보로도 정보 값 없이 임베딩 글을 만든다")
+    void createEmbeddingTextWithoutInfoValues() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithInfoValues("상품 설명", null, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.getEmbeddingText()).isEqualTo("""
+            상품명: 데일리 맨투맨
+            브랜드: 키들리
+            설명: 상품 설명""");
+    }
+
+    @Test
     @DisplayName("상품 정보 변경 이벤트의 상품명을 복사본에 옮긴다")
     void copyProductName() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
@@ -473,6 +509,14 @@ class RecommendReplicaProductTest {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
             brand, description, sizeSpecs, List.of(), occurredAt);
+    }
+
+    // 상품 A의 다른 값은 그대로 두고 설명 · 정보 값 · 발생 시각만 정해 만든다
+    private static RecommendReplicaProduct.ChangeInfo changeWithInfoValues(String description,
+        List<RecommendReplicaProduct.InfoValueInfo> infoValues, LocalDateTime occurredAt) {
+        return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
+            PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, OPTIONS,
+            "키들리", description, List.of(), infoValues, occurredAt);
     }
 
     private static RecommendReplicaProduct.ChangeInfo change(Long productId, Long sellerId, ProductStatus status,
