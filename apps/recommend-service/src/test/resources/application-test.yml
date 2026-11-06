@@ -8,6 +8,11 @@ spring:
     admin:
       auto-create: false
 
+  # 개발자 PC의 OS 환경 변수에 OpenAI 키가 있어도 테스트는 늘 chat · 임베딩 모델 빈 없이 뜬다
+  ai:
+    openai:
+      api-key: ""
+
 # 테스트는 PC마다 결과가 같아야 하므로 각자의 .env를 읽지 않는다
 springdotenv:
   enabled: false
