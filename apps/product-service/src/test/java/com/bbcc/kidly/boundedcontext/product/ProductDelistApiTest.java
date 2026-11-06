@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,6 +76,21 @@ class ProductDelistApiTest {
             .jsonPath("$.version").isEqualTo(storedVersion());
 
         assertThat(storedStatus()).isEqualTo("DELISTED");
+    }
+
+    @Test
+    @DisplayName("SALE-13 이미 등록 취소한 상품을 다시 등록 취소하면 200이고, 상태와 version이 그대로다")
+    void delistAgainChangesNothing() {
+        delist(TestMembers.seller(SELLER_ID)).expectStatus().isOk();
+        long versionAfterFirst = storedVersion();
+
+        delist(TestMembers.seller(SELLER_ID))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("DELISTED")
+            .jsonPath("$.version").isEqualTo(versionAfterFirst);
+
+        assertThat(storedVersion()).isEqualTo(versionAfterFirst);
     }
 
     // 판매 상태 변경 API로 상품을 원하는 상태까지 옮긴다. 관리자 판매중지 API는 따로 확인하므로 그 상태는 표로 만든다
