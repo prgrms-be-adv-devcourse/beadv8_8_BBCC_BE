@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -98,6 +99,58 @@ class ReviewStatsIntegrationTest {
     private Map<String, Object> review(long id) {
         return jdbcTemplate.queryForMap("select rating::int as rating, content from community.review where id = ?",
             id);
+    }
+
+    @Test
+    @DisplayName("핏 집계(DB): 작성 · 핏 변경 · 같은 변경 두 번 · 지우기 · 삭제 뒤 fit_* = 실제 행별 핏 개수")
+    void fitCountsFollowRows() {
+        sizedEligible(501, PRODUCT);
+        sizedEligible(502, PRODUCT);
+        long first = reviewService.write(ME, "닉", "501", 4, "좋아요", ReviewService.FitInput.text("SMALL"))
+            .reviewId();
+        long second = reviewService.write(ME, "닉", "502", 5, "최고", ReviewService.FitInput.text("SMALL"))
+            .reviewId();
+        assertFitsMatchRows();
+        assertThat(fits()).containsExactly(2L, 0L, 0L);
+
+        ReviewService.ReviewChange toLarge = new ReviewService.ReviewChange(false, null, false, null,
+            ReviewService.FitInput.text("LARGE"));
+        reviewService.update(ME, first, toLarge);
+        reviewService.update(ME, first, toLarge);
+        assertThat(fits()).containsExactly(1L, 0L, 1L);
+
+        reviewService.update(ME, second, new ReviewService.ReviewChange(false, null, false, null,
+            ReviewService.FitInput.cleared()));
+        assertThat(fits()).containsExactly(0L, 0L, 1L);
+
+        reviewService.delete(ME, first);
+        assertThat(fits()).containsExactly(0L, 0L, 0L);
+        assertFitsMatchRows();
+    }
+
+    private List<Long> fits() {
+        Map<String, Object> row = jdbcTemplate.queryForMap("select fit_small, fit_true_to_size, fit_large "
+            + "from community.review_stats where product_id = ?", PRODUCT);
+        return List.of(((Number) row.get("fit_small")).longValue(), ((Number) row.get("fit_true_to_size")).longValue(),
+            ((Number) row.get("fit_large")).longValue());
+    }
+
+    private void assertFitsMatchRows() {
+        assertThat(jdbcTemplate.queryForList("""
+            select s.product_id from community.review_stats s
+            where s.fit_small <> (select count(*) from community.review r
+                                  where r.product_id = s.product_id and r.fit = 'SMALL')
+               or s.fit_true_to_size <> (select count(*) from community.review r
+                                         where r.product_id = s.product_id and r.fit = 'TRUE_TO_SIZE')
+               or s.fit_large <> (select count(*) from community.review r
+                                  where r.product_id = s.product_id and r.fit = 'LARGE')
+            """)).isEmpty();
+    }
+
+    private void sizedEligible(long orderItemId, long productId) {
+        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
+            + "option_id, size, confirmed_at, created_at, updated_at) "
+            + "values (?, 1, ?, ?, 1, '110', now(), now(), now())", orderItemId, ME, productId);
     }
 
     private void eligible(long orderItemId, long productId) {

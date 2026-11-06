@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.review.app.ReviewQueryService.ReviewPage;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewStatsReader;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
 import com.bbcc.kidly.boundedcontext.review.domain.DisplayStatus;
+import com.bbcc.kidly.boundedcontext.review.domain.Fit;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewStats;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -203,6 +204,16 @@ class ReviewQueryServiceTest {
 
         @Override
         public LocalDateTime getAuthorWithdrawnAt() {
+            return null;
+        }
+
+        @Override
+        public Fit getFit() {
+            return null;
+        }
+
+        @Override
+        public String getPurchasedSize() {
             return null;
         }
 

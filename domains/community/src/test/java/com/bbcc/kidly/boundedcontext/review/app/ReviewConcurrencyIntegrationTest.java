@@ -205,6 +205,58 @@ class ReviewConcurrencyIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("핏 동시성: 여러 회원 동시 작성(핏 섞음) · 같은 리뷰 동시 핏 변경 · 핏 변경 + 삭제 동시 뒤 fit_* = 행별 핏 개수")
+    void fitCountsUnderConcurrency() throws Exception {
+        String[] fits = {"SMALL", "TRUE_TO_SIZE", "LARGE"};
+        List<Object> writes = runConcurrently(9, i -> {
+            sizedEligible(700 + i, 100L + i);
+            return () -> reviewService.write(100L + i, "닉", String.valueOf(700 + i), 4, "본문",
+                ReviewService.FitInput.text(fits[i % 3]));
+        });
+        assertThat(Outcomes.of(writes).technical()).isEmpty();
+        assertFitsMatchRows();
+
+        for (int round = 0; round < ROUNDS; round++) {
+            sizedEligible(800 + round, ME);
+            long reviewId = reviewService.write(ME, "닉", String.valueOf(800 + round), 3, "처음",
+                ReviewService.FitInput.text("SMALL")).reviewId();
+
+            Outcomes changes = Outcomes.of(runConcurrently(6, i -> () -> reviewService.update(ME, reviewId,
+                new ReviewService.ReviewChange(false, null, false, null, ReviewService.FitInput.text(fits[i % 3])))));
+            assertThat(changes.technical()).as("기술 오류").isEmpty();
+            assertFitsMatchRows();
+
+            Outcomes changeAndDelete = Outcomes.of(runConcurrently(2, i -> i == 0
+                ? () -> reviewService.update(ME, reviewId, new ReviewService.ReviewChange(false, null, false, null,
+                    ReviewService.FitInput.text("LARGE")))
+                : () -> {
+                    reviewService.delete(ME, reviewId);
+                    return "deleted";
+                }));
+            assertThat(changeAndDelete.technical()).as("기술 오류").isEmpty();
+            assertFitsMatchRows();
+        }
+    }
+
+    private void assertFitsMatchRows() {
+        assertThat(jdbcTemplate.queryForList("""
+            select s.product_id from community.review_stats s
+            where s.fit_small <> (select count(*) from community.review r
+                                  where r.product_id = s.product_id and r.fit = 'SMALL')
+               or s.fit_true_to_size <> (select count(*) from community.review r
+                                         where r.product_id = s.product_id and r.fit = 'TRUE_TO_SIZE')
+               or s.fit_large <> (select count(*) from community.review r
+                                  where r.product_id = s.product_id and r.fit = 'LARGE')
+            """)).isEmpty();
+    }
+
+    private void sizedEligible(long orderItemId, long memberId) {
+        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
+            + "option_id, size, confirmed_at, created_at, updated_at) "
+            + "values (?, 1, ?, ?, 1, '110', now(), now(), now())", orderItemId, memberId, PRODUCT);
+    }
+
     private long writeReview(long orderItemId, int rating) {
         eligible(orderItemId);
         return reviewService.write(ME, "닉", String.valueOf(orderItemId), rating, "처음").reviewId();
