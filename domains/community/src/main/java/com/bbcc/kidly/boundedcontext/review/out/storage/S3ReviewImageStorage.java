@@ -73,6 +73,13 @@ public class S3ReviewImageStorage implements ReviewImageStorage {
 
     // 버킷의 리뷰 사진 경로는 공개 읽기라 서명 없는 주소로 화면에 보여 준다(버킷 정책에 리뷰 경로가 있어야 한다)
     private String publicUrl(String key) {
-        return "https://" + properties.bucket() + ".s3." + properties.region() + ".amazonaws.com/" + key;
+        return publicBaseUrl(properties.bucket(), properties.region()) + key;
+    }
+
+    /**
+     * 버킷 공개 주소(뒤에 key를 붙이면 사진 공개 주소). 정리용 저장소도 같은 규칙으로 주소 ↔ key를 바꾼다.
+     */
+    public static String publicBaseUrl(String bucket, String region) {
+        return "https://" + bucket + ".s3." + region + ".amazonaws.com/";
     }
 }

@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.review.out.persistence;
 
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImages;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewImage;
+import java.util.Collection;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -16,4 +18,8 @@ public interface JpaReviewImageRepository extends JpaRepository<ReviewImage, Lon
     @Modifying
     @Query("delete from CommunityReviewImage i where i.reviewId = :reviewId")
     int deleteAllOfReview(@Param("reviewId") Long reviewId);
+
+    @Override
+    @Query("select distinct i.imageUrl from CommunityReviewImage i where i.imageUrl in :imageUrls")
+    List<String> findAttachedUrls(@Param("imageUrls") Collection<String> imageUrls);
 }
