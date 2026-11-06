@@ -123,7 +123,8 @@ class ProductDelistTest {
         product.delist(SELLER_ID);
         product.revertDelistByAdmin();
 
-        assertRejected(() -> product.startSale(SELLER_ID, top, clothing.type()), ProductErrorCode.SALE_STOPPED_BY_ADMIN);
+        assertRejected(() -> product.startSale(SELLER_ID, top, clothing.type()),
+            ProductErrorCode.SALE_STOPPED_BY_ADMIN);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.STOPPED);
     }
 
