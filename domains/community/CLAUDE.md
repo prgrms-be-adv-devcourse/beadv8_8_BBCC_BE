@@ -8,8 +8,8 @@
 - `domain`: 업무 규칙 · 불변식(엔티티 · 값, JPA 엔티티 겸용). JPA 표준 어노테이션만 쓰고 Spring · `common` · 로그를 쓰지 않는다. 업무 판단은 domain 메서드가 하고 app은 순서만 조율한다. 불변식 위반은 도메인 예외다
 - `app`: 유스케이스 서비스. 오류 코드는 컨텍스트마다 `ErrorCode`를 구현한 enum(`ReviewErrorCode` · `FavoriteErrorCode`)과 `BusinessException`
 - `app.port`: 나가는 것(저장소 · 다른 컨텍스트)의 인터페이스, `app.port.in`: 다른 컨텍스트가 들어오는 인터페이스. 둘 다 최상위는 인터페이스만 두고, 주고받는 값은 그 인터페이스 안에 둔다(값은 record, 종류는 enum). 나가는 포트 구현은 `out`(저장소는 Spring Data `Jpa…Repository`가 포트를 상속), 들어오는 포트 구현은 app
-- `in`: `web`(컨트롤러 · `dto`, 관리자 API가 생기면 `web.admin`) · `event`(이벤트 수신 · 매퍼) · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
-- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 · 기술 보관 행/저장소 어댑터. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`) · `storage`(DB 밖 파일 저장소 어댑터. 예: 리뷰 사진 업로드 주소를 서명하는 `S3ReviewImageStorage`) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 다섯만 둔다(`CommunityPackageLayoutArchitectureTest`)
+- `in`: `web`(컨트롤러 · `dto`, 관리자 API는 `web.admin`) · `event`(이벤트 수신 · 매퍼) · `scheduler`(주기 실행, app 서비스만 부른다) · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
+- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 · 기술 보관 행/저장소 어댑터. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`) · `storage`(DB 밖 파일 저장소 어댑터. 예: 리뷰 사진 업로드 주소를 서명하는 `S3ReviewImageStorage`) · `moderation`(리뷰 내용 검사기 어댑터: 금칙어 · OpenAI 호환 AI와 이어 붙이기) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 여섯만 둔다(`CommunityPackageLayoutArchitectureTest`)
 - 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`
 - 한 앱 안에서 빈 · 엔티티 이름이 다른 도메인과 겹치면 기동이 실패한다: 다른 도메인에 같은 이름이 있을 수 있는 클래스(`…EventListener` · `SpringEventReceiver` · `EventGuard` 등)는 `Community` 접두어를 붙이고, 엔티티는 `@Entity(name = "Community…")`로 이름을 정한다
 - 검사: 계층 규칙은 `LayerArchitectureTest`(`LayerRules`), 컨텍스트 사이 규칙(내 out → 상대 `app.port.in`만)은 `CommunityContextArchitectureTest`, 패키지 배치는 `CommunityPackageLayoutArchitectureTest`. 컨텍스트 루트의 `package-info`는 `@NullMarked`로 클래스를 남겨 뼈대만 있을 때도 검사 대상이 비지 않게 한다
@@ -34,6 +34,12 @@
   - 설정은 `community.yml`의 `kidly.community.review.image.*`(장수 · 크기는 app `ReviewImageProperties`, 버킷 · 경로 · 서명은 `out.config`). 최대 장수(`max-count`)는 값만 바꿔 조절한다. 로컬 · 테스트 프로필은 가짜 자격 증명이다
   - 사진 행(`review_image`)은 리뷰를 지우면 DB가 함께 지운다(ON DELETE CASCADE). 수정에서 보내면 그 리뷰의 행을 모두 지우고 보낸 순서로 새로 넣는다. 목록은 한 쪽의 리뷰 ID로 사진을 한 번에 읽는다(쪽마다 쿼리 1번 더, 사진 수와 상관없음)
   - S3 객체는 지우지 않는다(리뷰 삭제 · 사진 교체 · 쓰이지 않은 업로드 모두). 정리는 따로 정한다
+- 리뷰 내용 검사(#1002): 리뷰는 저장하면 바로 공개(`PENDING`)이고, 스케줄러(`in.scheduler`)가 주기마다 대기 리뷰를 검사해 걸리면 숨긴다(`HIDDEN`, 관리자 판단 대기). 관리자는 숨김 확정(`CONFIRMED_HIDDEN`) · 다시 공개(`RESTORED`)를 한다
+  - 검사는 `app.port.ContentModerator` 하나로만 부르고 결과는 커뮤니티 말(PASSED · FLAGGED(이유 분류) · UNDECIDED(원인))이다. 제공자 요청 · 응답 해석 · 분류 대응(Llama Guard S1~S14 → 이유)은 `out.moderation` 어댑터 안에서만 한다. 검사기 조합(`moderators`) · 금칙어 · AI 주소 · 모델 · 키(환경변수) · 시간은 `community.yml` 설정이다. 새 제공자는 `ModerationAdapter` 하나를 더하고 이름을 설정에 넣는다. 모든 어댑터는 같은 계약 테스트(`ContentModeratorContractTest` 상속)를 통과한다
+  - 실행: 서버 한 대만(PostgreSQL 세션 advisory lock, 못 잡으면 건너뜀), 검사기 호출은 트랜잭션 밖, 결과 반영은 한 건 = 트랜잭션 하나(`ReviewModerationRecorder`가 행 잠금으로 다시 읽어 버전 · 시도 횟수가 그대로이고 아직 대기일 때만). 판단 못 함(장애 · 시간 초과)은 대기 그대로 시도 +1, 429는 시도 횟수를 올리지 않고 그 주기의 남은 건을 멈춘다. 재시도 상한에 닿으면 대기 목록에서 빠지고 공개 그대로(관리자 목록 `attemptsExhausted`)
+  - 글 · 사진이 실제로 바뀐 수정은 버전 +1이고, 공개 상태면 다시 대기(숨김 상태는 그대로). 별점 · 핏만 바뀐 수정은 그대로
+  - 집계: 숨김 리뷰는 상품 요약 집계에 들어 있지 않다. 공개 → 숨김이면 그 리뷰 몫(수 · 별점 · 핏)을 빼고, 숨김 → 공개면 그때 값으로 더한다(같은 트랜잭션, 실제로 바뀔 때만). 숨김 리뷰의 수정 · 삭제는 집계를 건드리지 않는다. 숨김 · 복원 · 수정 · 삭제 · 탈퇴 뒤 요약 = 공개 리뷰만 다시 센 값(`ReviewModerationStatsIntegrationTest`)
+  - 로그는 리뷰 ID · 결과 · 이유 · 원인만. 키 · 요청/응답 본문 · 리뷰 본문 · 사진 주소를 넣지 않는다
 - 수신으로 처음 보는 행을 만들 때는 먼저 조회하고, 저장은 따로 연 트랜잭션(`ReviewSeparateTransaction`)에서 바로 반영한다. ID를 직접 넣는 엔티티(상품 복사본)는 Spring Data `save`가 merge가 되어 이미 커밋된 행을 덮어쓰므로, 새 행은 persist만 하는 저장소 조각(`out.store.ReplicaProductInsert`)으로 넣는다. 동시 수신으로 그 행의 유일 제약(SQLState 23505 + 제약 이름)에 막히고 다시 조회해 행이 있으면 "이미 있음"으로 수렴한다(복사본은 이어서 늦을 때만 덮어쓰기). 그 밖의 위반은 던진다(재시도 → DLT). 로그에 값을 남기지 않는다
 - 따로 연 트랜잭션은 바깥 트랜잭션이 있는 채로 열리므로 수신 한 건이 DB 커넥션을 최대 2개 쓴다. Kafka 리스너는 동시성 1이라 커넥션 2개로 끝나고, Spring 이벤트 경로는 발행 쪽 스레드 수만큼 동시에 2개씩 들 수 있다(커넥션 풀 크기를 정할 때 본다)
 - 저장했다가 다시 비교 · 정렬 · 커서에 쓰는 시각(`occurredAt` · `confirmedAt` · 생성 · 수정 시각)은 도메인에서 마이크로초로 잘라 저장 · 비교한다(`ReviewTimes`). 실행 환경에 따라 나노초가 나오는데 DB는 마이크로초로 저장해, 자르지 않으면 같은 이벤트가 "더 늦은" 값으로 보인다. 테스트의 기준 시각은 나노초가 있는 고정값으로 쓴다

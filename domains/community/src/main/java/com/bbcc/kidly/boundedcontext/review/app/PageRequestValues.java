@@ -10,7 +10,8 @@ import java.util.Base64;
  * 커서 목록의 입력 값: 쪽 크기(size)와 커서. 목록마다 같은 규칙으로 검사한다.
  * <ul>
  *   <li>size: 1~50 정수, 없으면 20. 아니면 INVALID_PAGE_SIZE</li>
- *   <li>커서: 마지막 항목의 (정렬 시각, id)를 Base64URL로 감싼 불투명 문자열. 읽을 수 없으면 INVALID_CURSOR</li>
+ *   <li>커서: 마지막 항목의 정렬 기준 값을 Base64URL로 감싼 불투명 문자열. 시각순 목록은 (정렬 시각, id)(Cursor),
+ *       id순 목록은 id만(IdCursor). 읽을 수 없거나 다른 목록의 커서면 INVALID_CURSOR</li>
  * </ul>
  */
 final class PageRequestValues {
@@ -35,6 +36,26 @@ final class PageRequestValues {
             // 아래에서 같은 오류로 응답한다
         }
         throw new BusinessException(ReviewErrorCode.INVALID_PAGE_SIZE);
+    }
+
+    /**
+     * id 순 목록의 커서 = 마지막 항목의 id.
+     */
+    record IdCursor(Long id) {
+
+        String encode() {
+            return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(String.valueOf(id).getBytes(StandardCharsets.UTF_8));
+        }
+
+        static IdCursor decode(String cursor) {
+            try {
+                String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+                return new IdCursor(Long.parseLong(raw));
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException(ReviewErrorCode.INVALID_CURSOR);
+            }
+        }
     }
 
     /**

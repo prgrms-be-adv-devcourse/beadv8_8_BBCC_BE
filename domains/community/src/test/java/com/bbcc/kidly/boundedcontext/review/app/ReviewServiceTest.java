@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImages;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewStatsCounter;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
+import com.bbcc.kidly.boundedcontext.review.domain.ModerationStatus;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewEligibility;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewImage;
@@ -28,6 +29,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
@@ -342,6 +344,61 @@ class ReviewServiceTest {
         assertError(() -> two.update(ME, id, imagesChange(ImageUrlsInput.of(ownUrls(3)))),
             ReviewErrorCode.TOO_MANY_IMAGES);
         assertThat(images.urlsOf(id)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("검사: 새 리뷰는 PENDING. 글 · 사진이 바뀐 수정은 PENDING + 버전 +1, 별점 · 핏만 · 같은 글 · 같은 사진이면 그대로")
+    void contentEditRequeuesModeration() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        long id = writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg")))).reviewId();
+        Review review = reviews.findForUpdate(id).orElseThrow();
+        assertThat(review.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
+        ReflectionTestUtils.setField(review, "moderationStatus", ModerationStatus.PASSED);
+
+        service.update(ME, id, new ReviewService.ReviewChange(true, 2, false, null));
+        service.update(ME, id, new ReviewService.ReviewChange(false, null, true, " 좋아요 "));
+        service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of(own(0, "jpg")))));
+        assertThat(review.getModerationStatus()).isEqualTo(ModerationStatus.PASSED);
+        assertThat(review.getContentVersion()).isZero();
+
+        service.update(ME, id, new ReviewService.ReviewChange(false, null, true, "바뀐 글"));
+        assertThat(review.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
+        assertThat(review.getContentVersion()).isEqualTo(1L);
+
+        ReflectionTestUtils.setField(review, "moderationStatus", ModerationStatus.RESTORED);
+        service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of(own(1, "png")))));
+        assertThat(review.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
+        assertThat(review.getContentVersion()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("검사: 관리자 숨김 확정 리뷰는 글을 고쳐도 숨김 그대로")
+    void confirmedHiddenStaysHidden() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        long id = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요").reviewId();
+        Review review = reviews.findForUpdate(id).orElseThrow();
+        ReflectionTestUtils.setField(review, "moderationStatus", ModerationStatus.CONFIRMED_HIDDEN);
+
+        service.update(ME, id, new ReviewService.ReviewChange(false, null, true, "고친 글"));
+
+        assertThat(review.getModerationStatus()).isEqualTo(ModerationStatus.CONFIRMED_HIDDEN);
+    }
+
+    @ParameterizedTest(name = "[{0}]")
+    @EnumSource(value = ModerationStatus.class, names = {"HIDDEN", "CONFIRMED_HIDDEN"})
+    @DisplayName("집계: 숨김 리뷰는 별점 · 핏을 고치거나 지워도 집계를 건드리지 않는다(이미 빠져 있다)")
+    void hiddenReviewLeavesStats(ModerationStatus status) {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT, "110");
+        long id = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
+            ReviewService.FitInput.text("SMALL")).reviewId();
+        ReflectionTestUtils.setField(reviews.findForUpdate(id).orElseThrow(), "moderationStatus", status);
+        List<Delta> afterWrite = List.copyOf(stats.deltas);
+
+        service.update(ME, id, new ReviewService.ReviewChange(true, 1, false, null,
+            ReviewService.FitInput.text("LARGE")));
+        service.delete(ME, id);
+
+        assertThat(stats.deltas).isEqualTo(afterWrite);
     }
 
     private ReviewService service(int maxImages) {

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.review.app.port;
 
 import com.bbcc.kidly.boundedcontext.review.domain.DisplayStatus;
 import com.bbcc.kidly.boundedcontext.review.domain.Fit;
+import com.bbcc.kidly.boundedcontext.review.domain.ModerationStatus;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,7 +29,7 @@ public interface Reviews {
     void delete(Review review);
 
     /**
-     * 상품 리뷰 첫 쪽: 최신순(created_at desc, id desc). 상품 정보는 상품 복사본에서, 없으면 null.
+     * 상품 리뷰 첫 쪽: 공개 리뷰만 최신순(created_at desc, id desc). 상품 정보는 상품 복사본에서, 없으면 null.
      */
     List<ReviewListRow> findByProduct(Long productId, Limit limit);
 
@@ -38,7 +39,7 @@ public interface Reviews {
     List<ReviewListRow> findByProductAfter(Long productId, LocalDateTime createdAt, Long id, Limit limit);
 
     /**
-     * 내 리뷰 첫 쪽: 최신순. 상품 정보는 항목마다 상품 복사본에서.
+     * 내 리뷰 첫 쪽: 숨김 리뷰도 포함해 최신순. 상품 정보는 항목마다 상품 복사본에서.
      */
     List<ReviewListRow> findByMember(Long memberId, Limit limit);
 
@@ -76,6 +77,9 @@ public interface Reviews {
 
         // 작성 자격에 저장된 구매 사이즈. 없으면 null
         String getPurchasedSize();
+
+        // 검사 상태. 공개 목록에는 공개 상태만 나온다
+        ModerationStatus getModerationStatus();
 
         LocalDateTime getCreatedAt();
 

@@ -25,6 +25,7 @@ public record ReviewListResponse(List<Item> items, String nextCursor) {
      * @param fit 사이즈 핏(SMALL · TRUE_TO_SIZE · LARGE). 남기지 않았으면 null
      * @param purchasedSize 구매한 사이즈. 없는 상품이면 null
      * @param imageUrls 사진 공개 주소(순서대로). 없으면 빈 목록
+     * @param visibility PUBLIC(공개) · UNDER_REVIEW(검토 중, 내 리뷰에만 보인다). 상품 목록은 늘 PUBLIC
      */
     public record Item(
         String reviewId,
@@ -40,6 +41,7 @@ public record ReviewListResponse(List<Item> items, String nextCursor) {
         String fit,
         String purchasedSize,
         List<String> imageUrls,
+        String visibility,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
@@ -48,7 +50,7 @@ public record ReviewListResponse(List<Item> items, String nextCursor) {
                 String.valueOf(item.productId()), item.productName(), item.thumbnailUrl(),
                 item.displayStatus(), item.rating(), item.content(),
                 item.nickname(), item.authorWithdrawn(), item.fit(), item.purchasedSize(), item.imageUrls(),
-                item.createdAt(), item.updatedAt());
+                item.visibility(), item.createdAt(), item.updatedAt());
         }
     }
 }

@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>설정은 계층마다 config 한 곳: 스프링 설정(@Configuration)은 in/config · out/config, 설정 값(@ConfigurationProperties)은
  *       app · in/config · out/config. config에는 설정만 둔다</li>
  *   <li>out 바로 아래 하위 패키지는 persistence · config · store(저장소 조각) · storage(파일 저장소 어댑터) ·
- *       {상대 컨텍스트}(어댑터)만 둔다</li>
+ *       moderation(내용 검사기 어댑터) · {상대 컨텍스트}(어댑터)만 둔다</li>
  *   <li>out/persistence에는 Spring Data JPA 저장소(인터페이스)만 둔다</li>
  *   <li>관리자 API(/api/v1/admin/**) 컨트롤러는 in/web/admin에만 두고, in/web/admin의 컨트롤러는 관리자 경로만 쓴다</li>
  * </ul>
@@ -41,7 +41,7 @@ class CommunityPackageLayoutArchitectureTest {
     private static final Set<String> LAYERS = Set.of("app", "domain", "in", "out");
     private static final String ADMIN_PATH = "/api/v1/admin";
     private static final String[] CONFIG = {BASE + "*.in.config..", BASE + "*.out.config.."};
-    private static final Set<String> OUT_PACKAGES = Set.of("persistence", "config", "store", "storage");
+    private static final Set<String> OUT_PACKAGES = Set.of("persistence", "config", "store", "storage", "moderation");
     private static final Set<String> CONTEXTS = Set.of("review", "favorite");
 
     @ArchTest
@@ -57,7 +57,7 @@ class CommunityPackageLayoutArchitectureTest {
         .that().resideInAPackage(BASE + "*.out.*..")
         .should(resideInKnownOutSubpackage())
         .allowEmptyShould(true)
-        .as("out 바로 아래 하위 패키지는 persistence · config · store · storage · {상대 컨텍스트}만 둔다");
+        .as("out 바로 아래 하위 패키지는 persistence · config · store · storage · moderation · {상대 컨텍스트}만 둔다");
 
     @ArchTest
     static final ArchRule CONFIGURATIONS_LIVE_IN_CONFIG = classes()
@@ -116,7 +116,8 @@ class CommunityPackageLayoutArchitectureTest {
     }
 
     private static ArchCondition<JavaClass> resideInKnownOutSubpackage() {
-        return new ArchCondition<>("out의 persistence · config · store · storage · 상대 컨텍스트 아래에 있다") {
+        return new ArchCondition<>(
+            "out의 persistence · config · store · storage · moderation · 상대 컨텍스트 아래에 있다") {
             @Override
             public void check(JavaClass javaClass, ConditionEvents events) {
                 String[] parts = javaClass.getPackageName().substring(BASE.length()).split("\\.");
@@ -126,7 +127,8 @@ class CommunityPackageLayoutArchitectureTest {
                 if (!known) {
                     events.add(SimpleConditionEvent.violated(javaClass,
                         javaClass.getName()
-                            + "는 out의 정해진 하위 패키지(persistence · config · store · storage · 상대 컨텍스트) 밖에 있다"));
+                            + "는 out의 정해진 하위 패키지"
+                            + "(persistence · config · store · storage · moderation · 상대 컨텍스트) 밖에 있다"));
                 }
             }
         };

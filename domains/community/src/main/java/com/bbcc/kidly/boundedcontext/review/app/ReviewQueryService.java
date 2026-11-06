@@ -129,6 +129,7 @@ public class ReviewQueryService {
      * @param fit 사이즈 핏(SMALL · TRUE_TO_SIZE · LARGE). 남기지 않았으면 null
      * @param purchasedSize 작성 자격에 저장된 구매 사이즈. 없으면 null
      * @param imageUrls 사진 공개 주소(순서대로). 없으면 빈 목록
+     * @param visibility PUBLIC(공개) · UNDER_REVIEW(검사에서 숨김, 내 리뷰에만 보인다). 숨긴 이유는 담지 않는다
      */
     public record ReviewItem(
         Long reviewId,
@@ -144,17 +145,19 @@ public class ReviewQueryService {
         String fit,
         String purchasedSize,
         List<String> imageUrls,
+        String visibility,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
         static ReviewItem from(ReviewListRow row, List<String> imageUrls) {
+            boolean visible = row.getModerationStatus() == null || row.getModerationStatus().isPublic();
             boolean withdrawn = row.getAuthorWithdrawnAt() != null;
             return new ReviewItem(row.getId(), row.getOrderItemId(), row.getProductId(), row.getProductName(),
                 row.getThumbnailUrl(), row.getDisplayStatus() == null ? null : row.getDisplayStatus().name(),
                 row.getRating().intValue(), row.getContent(),
                 AuthorDisplay.nickname(row.getNickname(), withdrawn), withdrawn,
                 row.getFit() == null ? null : row.getFit().name(), row.getPurchasedSize(), List.copyOf(imageUrls),
-                row.getCreatedAt(), row.getUpdatedAt());
+                visible ? "PUBLIC" : "UNDER_REVIEW", row.getCreatedAt(), row.getUpdatedAt());
         }
     }
 }

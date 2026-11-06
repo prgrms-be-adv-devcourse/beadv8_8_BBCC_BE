@@ -31,6 +31,35 @@ kidly:
         max-file-size: 10MB
         # 업로드 주소 서명 유효 시간
         upload-url-expiry: PT5M
+    # 리뷰 부적절 콘텐츠 검사. 리뷰는 저장하면 바로 공개(검사 대기)이고, 주기마다 대기 리뷰를 검사해 걸리면 숨긴다(관리자 판단 대기)
+    # 값이 비었거나 틀리면 키 이름이 나오는 오류로 기동에 실패한다
+    moderation:
+      # 주기 검사(스케줄러)를 켤지. 테스트 프로필은 아래에서 끈다(테스트가 처리 메서드를 직접 부른다)
+      enabled: ${COMMUNITY_MODERATION_ENABLED:true}
+      # 검사 주기(이전 실행이 끝난 뒤부터)와 한 번에 검사할 최대 건수. 기본 1분에 10건 = 하루 최대 14,400요청(AI 무료 한도 안에서 조절)
+      interval: PT1M
+      batch-size: 10
+      # 판단 못 함(장애 · 시간 초과)을 다시 시도하는 최대 횟수. 닿으면 공개 그대로 대기 목록에서 빠지고 관리자 목록에서 본다
+      # 한도 초과(429)는 횟수에 넣지 않고 그 주기의 남은 검사만 멈춘다
+      max-attempts: 10
+      # 쓸 검사기와 부르는 순서. 앞에서 걸리면 뒤는 부르지 않는다. banned-words(금칙어, 늘 동작) · ai(OpenAI 호환 API, 키가 있을 때만)
+      moderators:
+        - banned-words
+        - ai
+      # 금칙어(대소문자 · 공백 · 특수문자 무시). 운영 중 값만 바꿔 조절한다
+      banned-words:
+        - 씨발
+        - 시발
+        - 병신
+        - 개새끼
+        - 좆
+      # OpenAI 호환 채팅 API 검사기. 같은 호환 API의 다른 제공자 · 모델이면 이 값만 바꾼다(코드 수정 없음)
+      ai:
+        base-url: https://api.groq.com/openai/v1
+        model: meta-llama/llama-guard-4-12b
+        # 키는 환경변수로만 받는다(다른 변수 이름을 쓰려면 여기 이름만 바꾼다). 비면 AI를 빼고 금칙어만 쓴다. 로그 · 응답에 남기지 않는다
+        api-key: ${GROQ_API_KEY:}
+        timeout: PT10S
 
 ---
 # 로컬 실행 · 테스트는 AWS에 접근할 수 없어 가짜 자격 증명으로 업로드 주소 모양만 만든다(S3가 서명을 거절해 실제로 올라가지는 않는다)
@@ -43,3 +72,14 @@ kidly:
     review:
       image:
         fake-credentials: true
+
+---
+# 테스트는 주기 검사를 끈다(처리 메서드를 직접 부른다)
+spring:
+  config:
+    activate:
+      on-profile: test
+kidly:
+  community:
+    moderation:
+      enabled: false
