@@ -71,6 +71,30 @@ class GroqProviderTest(unittest.TestCase):
         self.assertNotIn('test-not-a-real-api-key', request.data.decode())
         client.open.assert_called_once()
 
+    def test_rejects_actual_trial_health_claim(self):
+        sample = json.loads(json.loads(body())['choices'][0]['message']['content'])
+        sample['finding']['observation'] = '모든 서비스가 정상 실행 중'
+        sample['finding']['hypothesis'] = '전반적인 시스템 안정성 확보'
+        data = replace(context(), evidence=(Evidence('f0', 'up', 1, 'boolean', 'dev', 'kidly-gateway'),))
+        with self.assertRaisesRegex(ProviderError, '^response_unsupported_health_claim$'):
+            self.provider(transport(body(**sample))).analyze(data, 2300)
+
+    def test_accepts_scoped_reports_for_operational_fixtures(self):
+        cases = (
+            ('environment_enabled', 0, 'boolean', 'dev', None, 'dev 운영 대상이 꺼져 있음', '환경 상태에서 중지 기록 확인'),
+            ('environment_transition', 1, 'boolean', 'dev', None, 'dev 환경 전환 중', '배포 진행 상태 확인'),
+            ('requests_30m', 1, 'estimated_count', 'dev', 'kidly-gateway', 'Gateway 요청 추정치 1건', '서비스 오류 화면에서 요청 수 확인'),
+            ('up', 1, 'boolean', 'dev', 'kidly-gateway', 'Gateway 지표 수집 성공', '서비스 오류 화면에서 HTTP 요청 지표 유무 확인'),
+            ('host_memory_available', 8, 'percent', 'global', None, '관측된 호스트 최소 가용 메모리 8%', '서버 화면에서 호스트별 MemAvailable 확인'),
+        )
+        for metric, value, unit, env, service, observation, check in cases:
+            with self.subTest(metric=metric):
+                data = replace(context(), evidence=(Evidence('f0', metric, value, unit, env, service),))
+                sample = {'observation': observation, 'hypothesis': '현재 근거로는 전체 서비스가 정상인지 판단할 수 없음',
+                          'check': check, 'recommendation': '추가 확인 후 대응 여부 판단', 'evidence_id': 'f0'}
+                report = self.provider(transport(body(finding=sample))).analyze(data, 2300)
+                self.assertEqual(report.findings[0].checks, (check,))
+
     def test_no_evidence_does_not_call_model(self):
         client = transport()
         with self.assertRaisesRegex(ProviderError, '^insufficient_evidence$'):
