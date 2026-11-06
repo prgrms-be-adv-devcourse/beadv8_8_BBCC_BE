@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.BmiForAgeRow;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.InfantWeightForAgeRow;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.InfantWeightForLengthRow;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
@@ -189,7 +190,8 @@ public final class RecommendFixture {
      * 테스트용 체형 기준표. 질병관리청 2017 성장도표에서 남자 행 몇 개만 옮겼다.
      * 연령별 체질량지수 5백분위 · 85백분위는 24개월 14.2 · 17.4, 93개월 14.1 · 18.9, 227개월 18.6 · 25.4다.
      * 자녀 1은 TODAY에 93개월이라, 키 115cm면 18.6kg까지 마름, 25.0kg부터 통통으로 판정된다.
-     * 영아 표는 23개월 연령별 체중 5백분위(9.9kg)만 있고 신장별 체중 행이 없어서, 24개월 미만은 판정하지 않고 입력 체형을 쓴다.
+     * 영아 표는 23개월 연령별 체중 5백분위(9.9kg)와 누운키 80.0cm의 신장별 체중 95백분위(12.0kg)만 있다.
+     * 그래서 24개월 미만은 누운키가 80.0cm일 때만 판정하고, 그 밖의 키는 판정하지 않고 입력 체형을 쓴다.
      */
     public static GrowthChart growthChart() {
         return GrowthChart.of(
@@ -198,7 +200,7 @@ public final class RecommendFixture {
                 new BmiForAgeRow(Gender.MALE, 93, 14.1, 18.9),
                 new BmiForAgeRow(Gender.MALE, 227, 18.6, 25.4)),
             List.of(new InfantWeightForAgeRow(Gender.MALE, 23, 9.9)),
-            List.of());
+            List.of(new InfantWeightForLengthRow(Gender.MALE, 80.0, 12.0)));
     }
 
     /**

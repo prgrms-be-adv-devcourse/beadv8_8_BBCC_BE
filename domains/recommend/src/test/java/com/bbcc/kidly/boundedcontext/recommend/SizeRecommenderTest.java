@@ -8,12 +8,14 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productA;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.recommender;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.time.LocalDate;
 import java.util.List;
@@ -201,16 +203,20 @@ class SizeRecommenderTest {
         assertThat(result.getFit()).isEqualTo(expectedFit);
     }
 
-    @ParameterizedTest(name = "생년월일 {0}, 몸무게 {1}kg, 선호 핏 {2} → {3}")
+    @ParameterizedTest(name = "생년월일 {0}, 키 80cm, 몸무게 9.5kg, 선호 핏 여유 → {1}")
     @CsvSource({
-        "2024-10-13, 23.5, SLIM, 110",
-        "2024-10-12, 23.5, SLIM, 120",
+        "2024-10-13, 70",
+        "2024-10-12, 80",
     })
     @DisplayName("규칙 14-2 만 나이 개월 수로 기준표를 고른다 (23개월까지 영아 기준, 24개월부터 연령별 체질량지수)")
-    void bodyTypeJudgedByAgeGroup(
-        LocalDate birthDate, double weightKg, PreferredFit preferredFit, String expectedSize) {
-        SizeRecommendation result = recommender().recommend(
-            childSizeInputBornOn(birthDate, weightKg, preferredFit), productA(), TODAY);
+    void bodyTypeJudgedByAgeGroup(LocalDate birthDate, String expectedSize) {
+        ChildSizeInput child = ChildSizeInput.of(
+            80.0, 9.5, Gender.MALE, birthDate, BodyType.NORMAL, PreferredFit.LOOSE);
+        ProductSizes overlappingSizes = ProductSizes.of(false, List.of(
+            SizeRange.of("70", 70, 80),
+            SizeRange.of("80", 80, 90)));
+
+        SizeRecommendation result = recommender().recommend(child, overlappingSizes, TODAY);
 
         assertThat(result.getRecommendedSize()).isEqualTo(expectedSize);
     }

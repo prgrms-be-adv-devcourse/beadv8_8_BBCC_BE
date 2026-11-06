@@ -107,7 +107,7 @@ class SizeRecommenderNoticeTest {
         "2007-10-12",
         "2024-10-13",
     })
-    @DisplayName("규칙 14-3 228개월부터나 영아 기준표에 없는 누운키면 판정 없이 입력 체형으로 고르고 안내를 주지 않는다")
+    @DisplayName("규칙 14-3 INV-R05 5번 228개월부터나 영아 기준표에 없는 누운키면 판정 없이 입력 체형으로 고르고 안내를 주지 않는다")
     void inputBodyTypeWithoutNoticeOutsideChart(LocalDate birthDate) {
         ChildSizeInput child = ChildSizeInput.of(
             115.0, 30.0, Gender.MALE, birthDate, BodyType.SLIM, PreferredFit.SLIM);
