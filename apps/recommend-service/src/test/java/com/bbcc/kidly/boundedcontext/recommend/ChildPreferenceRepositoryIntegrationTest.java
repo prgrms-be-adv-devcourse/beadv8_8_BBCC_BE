@@ -14,6 +14,13 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceActiv
 import com.bbcc.kidly.boundedcontext.recommend.out.preference.JpaChildBrandPreferenceRepository;
 import com.bbcc.kidly.boundedcontext.recommend.out.preference.JpaChildCategoryPreferenceRepository;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,6 +34,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @IntegrationTest
 class ChildPreferenceRepositoryIntegrationTest {
+
+    private static final int CONCURRENT_REQUESTS = 8;
 
     private static final Long OTHER_CHILD_ID = 12L;
 
@@ -197,6 +206,40 @@ class ChildPreferenceRepositoryIntegrationTest {
             ChildBrandPreference.of(CHILD_1_ID, PRODUCT_A_BRAND, 1)))
             .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(brandPreferences.findAllByChildProfileId(CHILD_1_ID)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("PREF-07 줄이 없는 자녀의 같은 카테고리 · 브랜드에 동시에 활동을 더해도 횟수가 요청 수만큼 오른다")
+    void addActivitiesConcurrently() throws Exception {
+        PreferenceActivity cartAdd = new PreferenceActivity(PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, true);
+        CountDownLatch ready = new CountDownLatch(CONCURRENT_REQUESTS);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_REQUESTS);
+        try {
+            List<Future<?>> requests = new ArrayList<>();
+            for (int i = 0; i < CONCURRENT_REQUESTS; i++) {
+                requests.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    add(CHILD_1_ID, cartAdd);
+                    return null;
+                }));
+            }
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            for (Future<?> request : requests) {
+                request.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(categoryPreferences.findAllByChildProfileId(CHILD_1_ID)).singleElement()
+            .extracting(ChildCategoryPreference::getActivityCount, ChildCategoryPreference::getCartAddCount)
+            .containsExactly(CONCURRENT_REQUESTS, CONCURRENT_REQUESTS);
+        assertThat(brandPreferences.findAllByChildProfileId(CHILD_1_ID)).singleElement()
+            .extracting(ChildBrandPreference::getActivityCount)
+            .isEqualTo(CONCURRENT_REQUESTS);
     }
 
     private void add(Long childProfileId, PreferenceActivity activity) {
