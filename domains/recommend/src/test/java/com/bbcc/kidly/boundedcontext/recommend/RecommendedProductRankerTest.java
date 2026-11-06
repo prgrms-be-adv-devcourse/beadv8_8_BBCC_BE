@@ -87,4 +87,19 @@ class RecommendedProductRankerTest {
 
         assertThat(ranked).containsExactly(laterLargerId, laterSmallerId, earlier);
     }
+
+    @Test
+    @DisplayName("PREF-06 활동이 없는 자녀의 목록은 등록 최신순이다")
+    void noActivityKeepsNewestFirst() {
+        // 최근 7일 안에 등록한 상품과 그 전에 등록한 상품이 섞여 있다
+        RecommendedProduct oldest = recommendedProductRegisteredAt(3L, OLD_REGISTERED_AT);
+        RecommendedProduct older = recommendedProductRegisteredAt(1L, BASE_TIME.minusDays(10));
+        RecommendedProduct recent = recommendedProductRegisteredAt(2L, BASE_TIME.minusDays(1));
+        RecommendedProduct newest = recommendedProductRegisteredAt(4L, BASE_TIME);
+
+        List<RecommendedProduct> ranked = ranker.rank(
+            List.of(older, newest, oldest, recent), ChildPreference.empty(), Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(newest, recent, older, oldest);
+    }
 }
