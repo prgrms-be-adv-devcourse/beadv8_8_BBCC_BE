@@ -27,6 +27,8 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      * @param description 상품 설명. 등록하지 않았으면 null
      * @param sizeSpecs 사이즈별 실측이다. 상품의 실측 행마다 하나를 담고, 사이즈 무관 상품의 FREE 행도 담는다.
      *        사이즈 역할 항목이 없는 유형의 상품처럼 실측 행이 없으면 빈 목록이다. 이 칸이 생기기 전에 나간 메시지도 빈 목록으로 읽힌다
+     * @param categoryPath 상품 카테고리의 경로다. 대분류부터 상품의 종류 카테고리까지 차례로 담고, 마지막 원소의 id는 {@code categoryId}와 같다.
+     *        이 칸이 생기기 전에 나간 메시지는 빈 목록으로 읽힌다
      */
     public record Data(
             Long productId,
@@ -41,18 +43,44 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
             List<AttributeEntry> infoValues,
             String brand,
             String description,
-            List<SizeSpec> sizeSpecs) {
+            List<SizeSpec> sizeSpecs,
+            List<CategoryPathEntry> categoryPath) {
 
-        // 사이즈별 실측 칸이 없는 예전 메시지를 읽으면 null이 들어오므로, 받는 쪽이 null을 검사하지 않게 빈 목록으로 바꾼다
+        // 사이즈별 실측 · 카테고리 경로 칸이 없는 예전 메시지를 읽으면 null이 들어오므로, 받는 쪽이 null을 검사하지 않게 빈 목록으로 바꾼다
         public Data {
             if (sizeSpecs == null) {
                 sizeSpecs = List.of();
             }
+            if (categoryPath == null) {
+                categoryPath = List.of();
+            }
+        }
+
+        /**
+         * 이벤트를 만드는 다른 도메인 테스트 코드가 바뀌지 않게 하려고, 카테고리 경로 없이 만드는 생성자를 둔다.
+         * 카테고리 경로는 빈 목록이 된다. 상품이 이벤트를 보낼 때 쓰면 경로가 빠지므로 쓰지 않는다.
+         */
+        public Data(
+                Long productId,
+                Long sellerId,
+                String name,
+                Long categoryId,
+                ProductStatus status,
+                String thumbnailUrl,
+                LocalDateTime createdAt,
+                boolean sizeFree,
+                List<Option> options,
+                List<AttributeEntry> infoValues,
+                String brand,
+                String description,
+                List<SizeSpec> sizeSpecs) {
+            this(productId, sellerId, name, categoryId, status, thumbnailUrl, createdAt, sizeFree, options,
+                    infoValues, brand, description, sizeSpecs, List.of());
         }
 
         /**
          * 이벤트를 만드는 다른 도메인 테스트 코드가 바뀌지 않게 하려고, 브랜드 · 설명 · 사이즈별 실측 없이 만드는 생성자를 둔다.
-         * 브랜드와 설명은 null, 사이즈별 실측은 빈 목록이 된다. 상품이 이벤트를 보낼 때 쓰면 세 값이 빠지므로 쓰지 않는다.
+         * 브랜드와 설명은 null, 사이즈별 실측과 카테고리 경로는 빈 목록이 된다. 상품이 이벤트를 보낼 때 쓰면 네 값이 빠지므로 쓰지 않는다.
          */
         public Data(
                 Long productId,
@@ -85,6 +113,15 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
                 List<Option> options) {
             this(productId, sellerId, name, categoryId, status, thumbnailUrl, createdAt, sizeFree, options, List.of());
         }
+    }
+
+    /**
+     * 카테고리 경로의 한 단계다.
+     *
+     * @param id 상품 도메인의 카테고리 ID
+     * @param name 카테고리 이름. 카테고리 ID는 환경마다 달라 받는 쪽은 이름으로 대분류와 종류를 알아본다
+     */
+    public record CategoryPathEntry(Long id, String name) {
     }
 
     /**
