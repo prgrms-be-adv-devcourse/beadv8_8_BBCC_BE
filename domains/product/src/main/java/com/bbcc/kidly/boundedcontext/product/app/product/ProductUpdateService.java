@@ -23,7 +23,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.global.error.BusinessException;
-import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -95,7 +94,7 @@ public class ProductUpdateService {
         if (!result.requestedOptions().isEmpty()) {
             inventoryReplacer.align(result.requestedOptions(), optionsBefore, request.options(), sellerId);
         }
-        if (result.changed() && product.getStatus() != ProductStatus.SALE_PENDING) {
+        if (result.changed() && product.hasStartedSale()) {
             productChangedPublisher.publish(product, type);
         }
         return sellerProductService.findMyProductDetail(sellerId, productId);
