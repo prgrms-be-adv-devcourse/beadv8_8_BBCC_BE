@@ -28,9 +28,9 @@ public interface JpaNotificationRepository extends JpaRepository<Notification, L
                                   @Param("sendingBefore") LocalDateTime sendingBefore,
                                   Pageable pageable);
 
-    // 대량 UPDATE는 엔티티를 거치지 않으므로 수정 시각 · 버전을 직접 바꾼다
+    // 대량 UPDATE는 엔티티를 거치지 않으므로 수정 시각 · 버전을 직접 바꾸고, 영속성 컨텍스트에 남은 옛 값을 비운다
     @Override
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("""
         UPDATE Notification n
         SET n.status = com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.SKIPPED,
@@ -43,7 +43,7 @@ public interface JpaNotificationRepository extends JpaRepository<Notification, L
     int skipUnsentOf(@Param("memberId") Long memberId, @Param("now") LocalDateTime now);
 
     @Override
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("""
         UPDATE Notification n SET n.recipient = NULL, n.updatedAt = :now, n.version = n.version + 1
         WHERE n.memberId = :memberId AND n.recipient IS NOT NULL
