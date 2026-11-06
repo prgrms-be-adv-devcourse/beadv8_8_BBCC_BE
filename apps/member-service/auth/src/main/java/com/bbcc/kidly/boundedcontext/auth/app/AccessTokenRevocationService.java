@@ -31,6 +31,10 @@ public class AccessTokenRevocationService implements MemberTokenRevoker {
     public void revoke(PrincipalId principal, LocalDateTime revokedAt) {
         eventPublisher.publishEvent(new AuthTokensRevokedEvent(UUID.randomUUID(), revokedAt,
             new AuthTokensRevokedEvent.Data(principal.type(), principal.id(), revokedAt)));
+        logAfterCommit(principal);
+    }
+
+    private static void logAfterCommit(PrincipalId principal) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {

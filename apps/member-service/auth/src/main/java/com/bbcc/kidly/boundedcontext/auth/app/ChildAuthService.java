@@ -36,18 +36,7 @@ public class ChildAuthService {
 
     @Transactional
     public AuthTokens login(ChildLoginRequest request) {
-        var found = accounts.findByLoginId(request.loginId());
-        var hash = found.map(ChildAccount::getPasswordHash).orElse(dummyHash);
-        var matches = encoder.matches(request.password(), hash);
-        if (found.isEmpty()) {
-            throw rejected("unknown-login-id");
-        }
-        var accountId = found.get().getId();
-        if (!matches) {
-            throw rejected("wrong-password childAccountId=" + accountId);
-        }
-        var child = accounts.findByIdAndPasswordHashForUpdate(accountId, hash)
-            .orElseThrow(() -> rejected("deleted-or-password-changed childAccountId=" + accountId));
+        var child = lockIfPasswordUnchanged(matchWithoutLock(request));
         var refresh = refreshTokens.issue(PrincipalId.child(child.getId()));
         log.info("자녀 로그인: childAccountId={}", child.getId());
         return new AuthTokens(issuer.issue(new TokenSubject.Child(child.getId(), child.getGuardianId())), refresh);
@@ -62,6 +51,23 @@ public class ChildAuthService {
         if (refreshToken != null) {
             refreshTokens.revoke(PrincipalType.CHILD, refreshToken);
         }
+    }
+
+    private ChildAccount matchWithoutLock(ChildLoginRequest request) {
+        var found = accounts.findByLoginId(request.loginId());
+        var matches = encoder.matches(request.password(), found.map(ChildAccount::getPasswordHash).orElse(dummyHash));
+        if (found.isEmpty()) {
+            throw rejected("unknown-login-id");
+        }
+        if (!matches) {
+            throw rejected("wrong-password childAccountId=" + found.get().getId());
+        }
+        return found.get();
+    }
+
+    private ChildAccount lockIfPasswordUnchanged(ChildAccount account) {
+        return accounts.findByIdAndPasswordHashForUpdate(account.getId(), account.getPasswordHash())
+            .orElseThrow(() -> rejected("deleted-or-password-changed childAccountId=" + account.getId()));
     }
 
     private static BusinessException rejected(String reason) {
