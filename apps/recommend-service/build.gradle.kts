@@ -32,6 +32,9 @@ dependencies {
     // Test
     // 기능 테스트의 로그인 헤더(TestMembers)
     testImplementation(testFixtures(project(":common")))
+    // 모델 빈이 없는지 확인하는 테스트가 ChatModel · EmbeddingModel 타입을 쓴다
+    testImplementation(platform(libs.spring.ai.bom))
+    testImplementation("org.springframework.ai:spring-ai-model")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
