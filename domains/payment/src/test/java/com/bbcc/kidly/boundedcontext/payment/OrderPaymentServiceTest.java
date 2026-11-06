@@ -12,6 +12,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.OrderPaymentService;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics;
 import com.bbcc.kidly.boundedcontext.payment.domain.CancelledOrderRepository;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PayOrderCommand;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
@@ -60,6 +61,9 @@ class OrderPaymentServiceTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    @Mock
+    private PaymentMetrics metrics;
+
     @InjectMocks
     private OrderPaymentService orderPaymentService;
 
@@ -93,6 +97,7 @@ class OrderPaymentServiceTest {
             new PaymentCompletedEvent.Item(1000L, 10_000L),
             new PaymentCompletedEvent.Item(1001L, 5_000L));
         assertThat(event.getValue().data().paidAt()).isEqualTo(payment.getPaidAt());
+        then(metrics).should().countOrderPaid();
     }
 
     @Test
@@ -136,6 +141,7 @@ class OrderPaymentServiceTest {
         then(paymentRepository).should(never()).save(any());
         PaymentFailedEvent event = assertFailedEvent(PaymentFailureCode.AMOUNT_MISMATCH, 14_000L);
         assertThat(event.data().paymentId()).isNull();
+        then(metrics).should().countOrderPaymentFailed(PaymentFailureCode.AMOUNT_MISMATCH);
     }
 
     @Test

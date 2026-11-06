@@ -25,6 +25,7 @@ public class PaymentOutboxRelayService {
     private final PaymentOutboxRepository outboxRepository;
     private final PaymentEventSender sender;
     private final PaymentOutboxProperties properties;
+    private final PaymentMetrics metrics;
 
     /**
      * 한 트랜잭션에서 릴레이 잠금을 얻고 안 보낸 메시지를 id 순서로 batch-size건 보낸다. 잠금을 못 얻으면 아무것도 하지 않는다.
@@ -43,6 +44,7 @@ public class PaymentOutboxRelayService {
                 sender.send(message);
             } catch (PaymentEventSendException e) {
                 message.recordFailure(e.getMessage());
+                metrics.countOutboxSendFailure(message.getEventType());
                 // 같은 장애가 주기마다 반복되므로 스택 트레이스는 남기지 않는다
                 log.warn("결제 아웃박스 전송 실패로 이번 릴레이를 멈춥니다. attempt={} {}",
                     message.getAttemptCount(), e.getMessage());

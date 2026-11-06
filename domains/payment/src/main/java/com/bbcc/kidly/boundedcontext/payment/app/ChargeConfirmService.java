@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.payment.app;
 
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics.ChargeResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ConfirmChargeRequest;
@@ -23,18 +24,25 @@ public class ChargeConfirmService {
 
     private final ChargeService chargeService;
     private final PaymentGateway paymentGateway;
+    private final PaymentMetrics metrics;
 
     public ChargeConfirmResult confirm(Long memberId, ConfirmChargeRequest request) {
         ChargeConfirmTarget target = chargeService.startConfirming(memberId, request);
         PgResult<PgApproval> result = paymentGateway.confirm(
             request.paymentKey(), target.orderId(), target.amount(), target.orderId());
         return switch (result) {
-            case PgResult.Success<PgApproval> success -> chargeService.approve(target.chargeId(), success.value());
+            case PgResult.Success<PgApproval> success -> {
+                ChargeConfirmResult approved = chargeService.approve(target.chargeId(), success.value());
+                metrics.countCharge(ChargeResult.DONE);
+                yield approved;
+            }
             case PgResult.Rejected<PgApproval> rejected -> {
                 chargeService.fail(target.chargeId(), rejected.code());
+                metrics.countCharge(ChargeResult.REJECTED);
                 throw rejectedException(rejected);
             }
             case PgResult.Unknown<PgApproval> unknown -> {
+                metrics.countCharge(ChargeResult.UNKNOWN);
                 log.warn("충전 승인 결과를 알 수 없어 승인 중으로 둡니다. chargeId={}, reason={}",
                     target.chargeId(), unknown.reason());
                 yield ChargeConfirmResult.confirmingOf(target);

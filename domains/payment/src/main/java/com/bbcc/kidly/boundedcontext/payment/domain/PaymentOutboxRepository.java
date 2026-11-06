@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.payment.domain;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface PaymentOutboxRepository {
@@ -26,6 +27,10 @@ public interface PaymentOutboxRepository {
      * 아직 보내지 않은 메시지를 id 순서로 최대 limit건.
      */
     List<PaymentOutboxMessage> findUnsent(int limit);
+
+    long countUnsent();
+
+    Optional<LocalDateTime> findOldestUnsentCreatedAt();
 
     /**
      * 보낸 시각이 cutoff보다 이른 메시지를 지운다. 안 보낸 메시지는 지우지 않는다.

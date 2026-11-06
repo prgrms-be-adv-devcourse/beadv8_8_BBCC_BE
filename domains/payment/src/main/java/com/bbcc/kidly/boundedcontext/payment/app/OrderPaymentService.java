@@ -39,6 +39,7 @@ public class OrderPaymentService {
     private final WalletLedgerRepository walletLedgerRepository;
     private final CancelledOrderRepository cancelledOrderRepository;
     private final EventPublisher eventPublisher;
+    private final PaymentMetrics metrics;
 
     @Transactional
     public void pay(PayOrderCommand command) {
@@ -85,6 +86,7 @@ public class OrderPaymentService {
             "memberId={} walletId={} orderId={} paymentId={} amount={} balance={}",
             payment.getMemberId(), wallet.getId(), payment.getOrderId(), payment.getId(), payment.getAmount(),
             wallet.getBalance());
+        metrics.countOrderPaid();
 
         eventPublisher.publish(new PaymentCompletedEvent(UUID.randomUUID(), now, new PaymentCompletedEvent.Data(
             payment.getId(),
@@ -111,6 +113,7 @@ public class OrderPaymentService {
         PaymentActionLog.record(PaymentAction.ORDER_PAYMENT_FAILED,
             "memberId={} orderId={} paymentId={} amount={} reasonCode={}",
             command.memberId(), command.orderId(), paymentId, command.amount(), reasonCode);
+        metrics.countOrderPaymentFailed(reasonCode);
         eventPublisher.publish(new PaymentFailedEvent(UUID.randomUUID(), now, new PaymentFailedEvent.Data(
             paymentId,
             command.orderId(),

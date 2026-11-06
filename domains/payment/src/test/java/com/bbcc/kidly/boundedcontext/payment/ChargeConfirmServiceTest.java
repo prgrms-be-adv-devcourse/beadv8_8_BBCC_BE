@@ -13,6 +13,8 @@ import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeConfirmService;
 import com.bbcc.kidly.boundedcontext.payment.app.ChargeService;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics.ChargeResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeConfirmTarget;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ConfirmChargeRequest;
@@ -41,6 +43,9 @@ class ChargeConfirmServiceTest {
     @Mock
     private PaymentGateway paymentGateway;
 
+    @Mock
+    private PaymentMetrics metrics;
+
     @InjectMocks
     private ChargeConfirmService chargeConfirmService;
 
@@ -60,6 +65,7 @@ class ChargeConfirmServiceTest {
         given(chargeService.approve(CHARGE_ID, approval)).willReturn(done);
 
         assertThat(chargeConfirmService.confirm(MEMBER_ID, REQUEST)).isEqualTo(done);
+        then(metrics).should().countCharge(ChargeResult.DONE);
     }
 
     @Test
@@ -74,6 +80,7 @@ class ChargeConfirmServiceTest {
                 assertThat(e.getDetail()).isEqualTo("카드사에서 거절했습니다");
             });
         then(chargeService).should().fail(CHARGE_ID, "REJECT_CARD_COMPANY");
+        then(metrics).should().countCharge(ChargeResult.REJECTED);
         then(chargeService).should(never()).approve(any(), any());
     }
 
@@ -86,6 +93,7 @@ class ChargeConfirmServiceTest {
         ChargeConfirmResult result = chargeConfirmService.confirm(MEMBER_ID, REQUEST);
 
         assertThat(result).isEqualTo(new ChargeConfirmResult(CHARGE_ID, "CONFIRMING", 10_000L, null));
+        then(metrics).should().countCharge(ChargeResult.UNKNOWN);
         then(chargeService).should(never()).fail(any(), any());
         then(chargeService).should(never()).approve(any(), any());
     }

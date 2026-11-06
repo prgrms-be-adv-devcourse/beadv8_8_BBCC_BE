@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.payment.in.event;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
@@ -67,24 +68,26 @@ class PaymentKafkaListenerConfig {
     @Bean
     ConcurrentKafkaListenerContainerFactory<Object, Object> paymentKafkaListenerContainerFactory(
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
-        ProducerFactory<String, String> producerFactory) {
+        ProducerFactory<String, String> producerFactory, PaymentMetrics metrics) {
         var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
         configurer.configure(factory, consumerFactory);
         factory.getContainerProperties().setAckMode(AckMode.RECORD);
         var consumerOverrides = new Properties();
         consumerOverrides.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         factory.getContainerProperties().setKafkaConsumerProperties(consumerOverrides);
-        factory.setCommonErrorHandler(errorHandler(producerFactory));
+        factory.setCommonErrorHandler(errorHandler(producerFactory, metrics));
         return factory;
     }
 
     // 실패한 메시지는 받은 토픽의 DLT(예: kidly.order.events.payment.dlt) 파티션 0으로 보낸다
-    private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
+    private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory,
+        PaymentMetrics metrics) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
         var errorHandler = new DefaultErrorHandler((record, e) -> {
             logDeadLetter(record, e);
             deadLetter.accept(record, e);
+            metrics.countDeadLetter(record.topic());
         }, new FixedBackOff(1000L, 3));
         errorHandler.addNotRetryableExceptions(JacksonException.class, BusinessException.class,
             IllegalArgumentException.class, IllegalStateException.class, NullPointerException.class);

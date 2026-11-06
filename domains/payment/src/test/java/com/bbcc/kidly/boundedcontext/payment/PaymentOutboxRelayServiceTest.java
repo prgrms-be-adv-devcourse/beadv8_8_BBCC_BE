@@ -9,6 +9,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentOutboxProperties;
+import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics;
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentOutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentEventSendException;
@@ -39,12 +40,15 @@ class PaymentOutboxRelayServiceTest {
     @Mock
     private PaymentEventSender sender;
 
+    @Mock
+    private PaymentMetrics metrics;
+
     private PaymentOutboxRelayService relayService;
 
     @BeforeEach
     void setUp() {
         relayService = new PaymentOutboxRelayService(outboxRepository, sender,
-            new PaymentOutboxProperties(Duration.ofSeconds(1), BATCH_SIZE, Duration.ofDays(7)));
+            new PaymentOutboxProperties(Duration.ofSeconds(1), BATCH_SIZE, Duration.ofDays(7)), metrics);
     }
 
     @Test
@@ -101,6 +105,7 @@ class PaymentOutboxRelayServiceTest {
         assertThat(failed.getAttemptCount()).isOne();
         assertThat(failed.getLastError()).contains("eventType=payment.completed");
         assertThat(after.getAttemptCount()).isZero();
+        then(metrics).should().countOutboxSendFailure(failed.getEventType());
         assertThat(result).isEqualTo(new PaymentOutboxRelayResult(PaymentOutboxRelayResult.Outcome.STOPPED, 3, 1));
         assertThat(output.getOut()).contains("WARN").contains("attempt=1").doesNotContain(failed.getPayload());
     }
