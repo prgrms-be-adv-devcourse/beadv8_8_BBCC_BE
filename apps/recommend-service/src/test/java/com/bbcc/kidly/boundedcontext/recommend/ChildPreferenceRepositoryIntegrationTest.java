@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_I
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_BRAND;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_CATEGORY_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ChildBrandPreference;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ChildCategoryPreference;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -173,6 +175,28 @@ class ChildPreferenceRepositoryIntegrationTest {
         assertThat(otherChild.brandPoints(PRODUCT_A_BRAND)).isZero();
         assertThat(childWithoutActivity.categoryPoints(PRODUCT_A_CATEGORY_ID)).isZero();
         assertThat(childWithoutActivity.brandPoints(PRODUCT_A_BRAND)).isZero();
+    }
+
+    @Test
+    @DisplayName("같은 자녀 · 카테고리의 집계 줄을 두 줄 저장하면 UNIQUE 제약이 막는다")
+    void rejectSecondCategoryRowOfSameChild() {
+        categoryPreferences.saveAndFlush(ChildCategoryPreference.of(CHILD_1_ID, PRODUCT_A_CATEGORY_ID, 1, 0));
+
+        assertThatThrownBy(() -> categoryPreferences.saveAndFlush(
+            ChildCategoryPreference.of(CHILD_1_ID, PRODUCT_A_CATEGORY_ID, 1, 0)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(categoryPreferences.findAllByChildProfileId(CHILD_1_ID)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("같은 자녀 · 브랜드의 집계 줄을 두 줄 저장하면 UNIQUE 제약이 막는다")
+    void rejectSecondBrandRowOfSameChild() {
+        brandPreferences.saveAndFlush(ChildBrandPreference.of(CHILD_1_ID, PRODUCT_A_BRAND, 1));
+
+        assertThatThrownBy(() -> brandPreferences.saveAndFlush(
+            ChildBrandPreference.of(CHILD_1_ID, PRODUCT_A_BRAND, 1)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(brandPreferences.findAllByChildProfileId(CHILD_1_ID)).hasSize(1);
     }
 
     private void add(Long childProfileId, PreferenceActivity activity) {
