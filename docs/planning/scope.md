@@ -24,8 +24,9 @@
 | ① | 닉네임 | 회원 정보 수정은 닉네임만 (중복 불가). 바꾸면 `member.changed`를 보내 판매자 신청의 신청자 이름에 반영 |
 | ① | 자녀 정보 입력 | **필수**: 이름 · 생년월일 · 성별 · 키 · 몸무게 / **선택**: 체형 · 선호 핏 (입력하지 않으면 `null`) · 키 · 몸무게는 소수 첫째 자리까지 (0.1cm · 0.1kg) · 체형은 `SLIM`(마름) · `NORMAL`(보통) · `CHUNKY`(통통), 선호 핏은 `SLIM`(딱 맞게) · `REGULAR`(보통) · `LOOSE`(여유) · 입력 범위: 이름 50자 이하, 키 40.0~200.0cm, 몸무게 2.0~150.0kg · 수정은 전체 값을 보내는 방식 |
 | ① | 성장 이력에서 체형 비교 | 체형이 비어 있을 수 있으므로 `null` → 값, 값 → `null`도 바뀐 것으로 보고 1건 쌓음 |
-| ①② | 이벤트 값 목록 | `child.changed` gender: MALE · FEMALE, bodyType: SLIM(마름) · NORMAL(보통) · CHUNKY(통통), preferredFit: SLIM · REGULAR · LOOSE / `product.changed` status: SALE_PENDING(판매 시작 전) · ON_SALE · STOPPED, 옵션 saleStatus: ON_SALE · STOPPED, size는 문자열 (예: "110", 사이즈 없는 상품은 null), sizeFree로 사이즈 구분 없음 표시 (세미 제안 P10 반영) |
+| ①② | 이벤트 값 목록 | `child.changed` gender: MALE · FEMALE, bodyType: SLIM(마름) · NORMAL(보통) · CHUNKY(통통), preferredFit: SLIM · REGULAR · LOOSE / `product.changed` status: SALE_PENDING(판매 시작 전) · ON_SALE · STOPPED · DELISTED(등록 취소), 옵션 saleStatus: ON_SALE · STOPPED, size는 문자열 (예: "110", 사이즈 없는 상품은 null), sizeFree로 사이즈 구분 없음 표시 (세미 제안 P10 반영) |
 | ② | 판매 상태 | 상품은 판매대기(`SALE_PENDING`) → 판매중(`ON_SALE`) ⇄ 판매중지(`STOPPED`). 관리자가 멈춘 상품은 관리자만 다시 열 수 있음. 판매자는 판매대기 · 판매중 · 판매중지 어느 상태에서나 등록 취소(`DELISTED`)할 수 있고, 등록 취소는 되돌릴 수 없음. 관리자만 판매중지(`STOPPED`)로 되돌릴 수 있음. 옵션 상태 값(판매중지 · 보관)은 있지만 세미에서는 모든 옵션이 판매중 |
+| ② | 등록 취소 상품 | 구매자 상세는 404가 아니라 200으로 열리고 「판매 종료」로 표시, 모든 옵션 구매 불가. 목록 · 검색에서는 숨김. 판매자 화면에는 「등록 취소」로 남음. 판매 상태 변경(판매자 · 관리자) · 상품 수정 · 재고 조정은 409(다른 판매자의 상품이면 403이 먼저). 이미 차감된 주문은 그대로 진행하고 취소되면 재고를 복구. 판매대기에서 바로 등록 취소한 상품도 `product.changed`를 보냄 |
 | ② | 품절 | 상태가 아니라 판매 가능 수량 0. 모든 옵션이 품절이어도 목록에 「품절」로 남고, 남은 수량은 5개 이하일 때만 보여 줌 |
 | ② | 상품 수정 | 판매대기 상품만 옵션 · 가격 · 실측 · 카테고리를 바꿈. 판매를 시작한 상품은 기본 정보와 정보 값만 바꿈 |
 | ② | 가격 | 옵션마다 저장하지만, 의류는 색상 · 사이즈가 달라도 상품 하나에 가격 하나 |
