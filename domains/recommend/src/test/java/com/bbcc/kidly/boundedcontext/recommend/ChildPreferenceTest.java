@@ -75,4 +75,16 @@ class ChildPreferenceTest {
         assertThat(preference.categoryPoints(CATEGORY_ID)).isZero();
         assertThat(preference.brandPoints(BRAND)).isZero();
     }
+
+    @Test
+    @DisplayName("PREF-07 담기를 빼도 같은 카테고리 · 브랜드의 다른 활동이 남아 있으면 3점 · 2점은 남는다")
+    void removedCartAddKeepsPointsOfOtherActivities() {
+        PreferenceActivity cartAdd = new PreferenceActivity(CATEGORY_ID, BRAND, true);
+        PreferenceActivity detailView = new PreferenceActivity(CATEGORY_ID, BRAND, false);
+
+        ChildPreference preference = ChildPreference.empty().plus(detailView).plus(cartAdd).minus(cartAdd);
+
+        assertThat(preference.categoryPoints(CATEGORY_ID)).isEqualTo(3);
+        assertThat(preference.brandPoints(BRAND)).isEqualTo(2);
+    }
 }
