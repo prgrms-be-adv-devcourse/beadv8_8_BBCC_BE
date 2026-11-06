@@ -11,12 +11,14 @@ import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,6 +35,7 @@ class ProductDelistedRejectApiTest {
     private static final String ADMIN_PRODUCTS_PATH = "/api/v1/admin/products";
     private static final long SELLER_ID = 7L;
     private static final long ADMIN_ID = 1L;
+    private static final long OTHER_SELLER_ID = 8L;
     private static final String DELISTED_TITLE = "등록 취소한 상품입니다";
     private static final String DELISTED_DETAIL =
         "등록 취소한 상품은 판매 상태 · 상품 정보 · 재고를 바꿀 수 없습니다. 다시 팔려면 상품을 새로 등록해 주세요.";
@@ -119,6 +122,54 @@ class ProductDelistedRejectApiTest {
 
         assertThat(storedVersion()).isEqualTo(version);
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SALE-15 등록 취소한 상품의 옵션 재고를 조정하면 409이고, 조정 기록이 남지 않는다")
+    void rejectInventoryAdjustment() {
+        long optionId = firstOptionId();
+
+        expectDelisted(adjustInventory(TestMembers.seller(SELLER_ID), optionId), adjustmentsPath(optionId));
+
+        assertThat(sellerAdjustmentCount(optionId)).isZero();
+    }
+
+    @Test
+    @DisplayName("SALE-15 다른 판매자가 등록 취소 상품의 재고를 조정하면 409가 아니라 403이다")
+    void rejectInventoryAdjustmentOfOtherSellerWith403First() {
+        long optionId = firstOptionId();
+
+        adjustInventory(TestMembers.seller(OTHER_SELLER_ID), optionId)
+            .expectStatus().isForbidden()
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("상품을 바꿀 권한이 없습니다");
+
+        assertThat(sellerAdjustmentCount(optionId)).isZero();
+    }
+
+    private RestTestClient.ResponseSpec adjustInventory(Consumer<HttpHeaders> login, long optionId) {
+        return client.post().uri(adjustmentsPath(optionId))
+            .headers(login)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("deltaQuantity", 10, "reason", "RESTOCK"))
+            .exchange();
+    }
+
+    private static String adjustmentsPath(long optionId) {
+        return "/api/v1/seller/options/" + optionId + "/inventory-adjustments";
+    }
+
+    private long firstOptionId() {
+        return jdbcTemplate.queryForObject(
+            "select min(id) from product.product_option where product_id = ?", Long.class, Long.valueOf(productId));
+    }
+
+    // 옵션을 등록할 때 남긴 INITIAL 기록을 뺀, 판매자가 조정한 기록 수다
+    private int sellerAdjustmentCount(long optionId) {
+        return jdbcTemplate.queryForObject(
+            "select count(*) from product.inventory_adjustment_record"
+                + " where product_option_id = ? and reason <> 'INITIAL'",
+            Integer.class, optionId);
     }
 
     private void expectDelisted(RestTestClient.ResponseSpec response, String instance) {
