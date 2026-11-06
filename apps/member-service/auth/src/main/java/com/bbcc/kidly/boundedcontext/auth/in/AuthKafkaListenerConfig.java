@@ -32,16 +32,19 @@ import tools.jackson.core.JacksonException;
 @Configuration
 class AuthKafkaListenerConfig {
 
-    static final String DLT = "kidly.member.events.auth.dlt";
+    static final String MEMBER_EVENTS = "kidly.member.events";
+    static final String CHILD_PROFILE_EVENTS = "kidly.childprofile.events";
+    static final String MEMBER_EVENTS_DLT = "kidly.member.events.auth.dlt";
+    static final String CHILD_PROFILE_EVENTS_DLT = "kidly.childprofile.events.auth.dlt";
 
     @Bean
     NewTopic authMemberEventsDeadLetterTopic() {
-        return TopicBuilder.name(DLT).partitions(1).replicas(1).build();
+        return TopicBuilder.name(MEMBER_EVENTS_DLT).partitions(1).replicas(1).build();
     }
 
     @Bean
     NewTopic authChildProfileEventsDeadLetterTopic() {
-        return TopicBuilder.name("kidly.childprofile.events.auth.dlt").partitions(1).replicas(1).build();
+        return TopicBuilder.name(CHILD_PROFILE_EVENTS_DLT).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
@@ -85,6 +88,6 @@ class AuthKafkaListenerConfig {
 
     static String header(ConsumerRecord<?, ?> record, String name) {
         var header = record.headers().lastHeader(name);
-        return header == null ? null : new String(header.value(), UTF_8);
+        return header == null || header.value() == null ? null : new String(header.value(), UTF_8);
     }
 }
