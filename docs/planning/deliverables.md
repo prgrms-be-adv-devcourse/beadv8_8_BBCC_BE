@@ -13,7 +13,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | `member.withdrawn` 회원탈퇴됨 | 회원 → 회원(배송지) · 자녀 프로필 · **결제** (추천 · 커뮤니티 예정) | 배송지 · 자녀 프로필 삭제 · **지갑 동결** / 활동 기록 · AI 응답 삭제(추천, P16) · 찜 삭제 · 리뷰 작성자 표시(커뮤니티, #663) | memberId | 보완 · 최종 |
 | `child.changed` 자녀 정보 변경됨 | 자녀 프로필 → 추천 · 주문 | 복사본 저장 (삭제면 삭제 직전 값 + deleted) | childId · memberId · heightCm · weightKg · gender · birthDate · bodyType(없으면 null) · preferredFit(없으면 null) · deleted | ① |
 | `seller.changed` 판매자 정보 변경됨 | 판매자 → 회원 · 상품 · 주문 · 추천 · **검색** | 복사본 저장 (승인 · 정지 때 발행) · 상호명 색인(검색) | sellerId · businessName · status(ACTIVE · SUSPENDED) | ② · 최종 |
-| `product.changed` 상품 정보 변경됨 | 상품 → 추천 · 주문 · **검색 · 커뮤니티** · 상품(검색용 표, 되돌리기용) | 복사본 저장 (판매 상태 변경 · 수정 · 품절 변경 때 발행) · 색인(검색) · 임베딩 다시 생성(추천) | productId · sellerId · name · categoryId · status · thumbnailUrl · createdAt · sizeFree · infoValues · options(optionId · optionName · size · price · minHeightCm · maxHeightCm · soldOut · saleStatus · values) · **brand · description · sizeSpecs**(#610) | ② · 최종 |
+| `product.changed` 상품 정보 변경됨 | 상품 → 추천 · 주문 · **검색 · 커뮤니티** · 상품(검색용 표, 되돌리기용) | 복사본 저장 (판매 상태 변경 · 수정 · 품절 변경 때 발행) · 색인(검색) · 임베딩 다시 생성(추천) | productId · sellerId · name · categoryId · status · thumbnailUrl · createdAt · sizeFree · infoValues · options(optionId · optionName · size · price · minHeightCm · maxHeightCm · soldOut · saleStatus · values) · **brand · description · sizeSpecs**(#610) · **categoryPath**(id · name, 대분류 → 종류, #955) | ② · 최종 |
 | `order.created` 주문 생성됨 | 주문 → 상품 | 재고 차감 (선점) | orderId · memberId · items(orderItemId · optionId · quantity) | ④ |
 | `stock.deducted` 재고 차감됨 | 상품 → 주문 | 결제 요청 (결제대기일 때만) | orderId | ④ |
 | `order.payment-requested` 결제 요청됨 | 주문 → 결제 | 예치금으로 결제 | orderId · memberId · amount · items(orderItemId · amount) | ④ |
@@ -62,7 +62,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 |---|---|
 | 보내는 이벤트 | product.changed (②) · stock.deducted (④) · stock.deduction-failed (보완) |
 | 받는 이벤트 | order.created 재고 차감 (선점) (④) · order.cancelled 재고 복구 · 이후 차감 거절 (보완) · seller.changed 판매자 복사본 · product.changed 검색용 표 갱신 (되돌리기용) |
-| 최종 | 판매자 · 주문 이벤트를 Kafka로 받음(그룹 `kidly.product`, #692) · `order-item.cancelled` 재고 복구(#716) · `product.changed`에 brand · description · sizeSpecs 추가(#610) · 보내는 이벤트는 아웃박스 |
+| 최종 | 판매자 · 주문 이벤트를 Kafka로 받음(그룹 `kidly.product`, #692) · `order-item.cancelled` 재고 복구(#716) · `product.changed`에 brand · description · sizeSpecs 추가(#610) · `product.changed`에 categoryPath 칸 추가(#955) · 보내는 이벤트는 아웃박스 |
 
 ## 검색 · codes-gy (새 표)
 
