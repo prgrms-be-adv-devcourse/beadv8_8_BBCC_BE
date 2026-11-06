@@ -7,6 +7,9 @@ import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.CART
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.CART_QTY;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.KEYWORD;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.ADDED_QTY;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.REMOVED_AT;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.REMOVED_EVENT_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.REMOVED_QTY;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.RESULT_COUNT;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.SEARCHED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.SEARCH_EVENT_ID;
@@ -26,6 +29,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class ActivityRecordTest {
@@ -144,5 +148,66 @@ class ActivityRecordTest {
             Named.of("담은 시각", () -> ActivityRecord.cartItemAdded(new ActivityRecord.CartItemAddedInfo(
                 CART_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY,
                 CART_QTY, null))));
+    }
+
+    @ParameterizedTest(name = "자녀 ID {0}, 상품 ID {1}")
+    @MethodSource("childAndProductIds")
+    @DisplayName("장바구니 빼기 값으로 빼기 종류의 활동 기록을 만들고, 뺄 때의 수량은 장바구니 수량 칸에 둔다")
+    void createCartItemRemoved(Long childProfileId, Long productId) {
+        ActivityRecord record = ActivityRecord.cartItemRemoved(
+            ActivityRecordFixture.cartItemRemovedFor(childProfileId, productId));
+
+        assertThat(record)
+            .extracting(
+                ActivityRecord::getType,
+                ActivityRecord::getEventId,
+                ActivityRecord::getCartItemId,
+                ActivityRecord::getMemberId,
+                ActivityRecord::getChildProfileId,
+                ActivityRecord::getProductId,
+                ActivityRecord::getProductOptionId,
+                ActivityRecord::getAddedQty,
+                ActivityRecord::getCartQty,
+                ActivityRecord::getOccurredAt,
+                ActivityRecord::getKeyword)
+            .containsExactly(ActivityType.CART_ITEM_REMOVED, REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID,
+                childProfileId, productId, PRODUCT_A_120_OPTION_ID, null, REMOVED_QTY, REMOVED_AT, null);
+    }
+
+    static Stream<Arguments> childAndProductIds() {
+        return Stream.of(
+            Arguments.of(CHILD_1_ID, PRODUCT_A_ID),
+            Arguments.of(null, PRODUCT_A_ID),
+            Arguments.of(CHILD_1_ID, null),
+            Arguments.of(null, null));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cartItemsRemovedWithNull")
+    @DisplayName("장바구니 빼기 값에 필수 값이 없으면 활동 기록을 만들지 않는다")
+    void rejectCartItemRemovedWithNull(ThrowingCallable creation) {
+        assertThatThrownBy(creation)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> cartItemsRemovedWithNull() {
+        return Stream.of(
+            Named.of("빼기 값", () -> ActivityRecord.cartItemRemoved(null)),
+            Named.of("이벤트 ID", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                null, CART_ITEM_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, REMOVED_QTY,
+                REMOVED_AT))),
+            Named.of("장바구니 줄 ID", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                REMOVED_EVENT_ID, null, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, REMOVED_QTY,
+                REMOVED_AT))),
+            Named.of("회원 ID", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                REMOVED_EVENT_ID, CART_ITEM_ID, null, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, REMOVED_QTY,
+                REMOVED_AT))),
+            Named.of("옵션 ID", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, null, REMOVED_QTY,
+                REMOVED_AT))),
+            Named.of("뺀 시각", () -> ActivityRecord.cartItemRemoved(new ActivityRecord.CartItemRemovedInfo(
+                REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID,
+                REMOVED_QTY, null))));
     }
 }

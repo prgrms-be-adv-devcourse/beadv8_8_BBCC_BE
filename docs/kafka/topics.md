@@ -5,7 +5,7 @@
 | `kidly.member.events` | `member.registered` | 회원 ID | member | notification, payment |
 | | `member.suspended` | 회원 ID | | childprofile, notification |
 | | `member.changed` | 회원 ID | | seller |
-| | `member.withdrawn` | 회원 ID | | auth, childprofile, member(배송지), payment |
+| | `member.withdrawn` | 회원 ID | | auth, childprofile, member(배송지), payment, recommend |
 | `kidly.seller.events` | `seller.changed` | 판매자 ID | seller | member, notification, order, product, recommend, search |
 | | `seller.application-rejected` | 신청 ID | | notification |
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
@@ -22,6 +22,7 @@
 | | `delivery.shipped` | 주문 ID | | notification |
 | | `delivery.delivered` | 주문 ID | | notification |
 | | `cart.item-added` | 회원 ID | | recommend |
+| | `cart.item-removed` | 회원 ID | | recommend |
 | | `wish.sent` | 자녀 ID | | notification |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |
 | | `payment.refunded` | 주문 ID | | notification |
@@ -31,7 +32,7 @@
 
 - 순서는 **같은 토픽 + 같은 키** 안에서만 보장됩니다. 한 주문의 이벤트(생성 → 결제 요청 → 취소 → 구매확정)는 모두 `kidly.order.events`에 주문 ID 키로 들어가므로 순서가 지켜집니다.
 - member는 `seller.changed`를 회원 서비스에서 Kafka로 받습니다. 토큰 무효화는 auth가 `auth.tokens-revoked`를 보내고 Gateway가 받아 처리합니다.
-- 받는 도메인은 11-04 코드의 `@KafkaListener` 기준입니다. 그 밖의 주문 이벤트(장바구니 빼기, 위시 관련)는 Kafka로 받는 도메인이 없어 표에 넣지 않았습니다.
+- 받는 도메인은 11-04 코드의 `@KafkaListener` 기준입니다. 그 밖의 주문 이벤트(위시 관련)는 Kafka로 받는 도메인이 없어 표에 넣지 않았습니다.
 - 새 이벤트를 만들거나 토픽, 키, 메시지 형식을 바꾸려면 팀에 먼저 묻습니다. 결정되면 이 표에 추가합니다.
 
 ---

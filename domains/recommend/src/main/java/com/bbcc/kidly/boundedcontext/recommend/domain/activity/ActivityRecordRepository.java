@@ -7,4 +7,6 @@ public interface ActivityRecordRepository {
     ActivityRecord save(ActivityRecord activityRecord);
 
     boolean existsByEventId(UUID eventId);
+
+    void deleteByMemberId(Long memberId);
 }

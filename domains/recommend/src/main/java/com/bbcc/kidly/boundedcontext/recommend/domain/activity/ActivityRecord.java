@@ -22,7 +22,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 회원이 검색하거나 장바구니에 담은 활동을 한 줄씩 남기는 활동 기록이다.
  * 다른 도메인의 ID는 FK 없이 값으로만 참조한다.
  * 활동 종류마다 쓰는 칸이 달라, 종류에 해당하지 않는 칸은 null이다.
  */
@@ -47,7 +46,7 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    // 검색은 늘 null이고, 장바구니 담기는 자녀를 고른 경우만 값이 있다
+    // 검색은 늘 null이고, 장바구니 담기 · 빼기는 자녀를 고른 경우만 값이 있다
     @Column(name = "child_profile_id")
     private Long childProfileId;
 
@@ -82,7 +81,7 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "added_qty")
     private Integer addedQty;
 
-    // 담은 뒤 장바구니 줄의 총 수량이다
+    // 그 시점 장바구니 줄의 수량이다. 담기는 담은 뒤, 빼기는 뺄 때의 수량이다
     @Column(name = "cart_qty")
     private Integer cartQty;
 
@@ -119,6 +118,26 @@ public class ActivityRecord extends BaseTimeEntity {
         record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         record.productOptionId = requireNonNull(info.productOptionId(), "productOptionId는 필수입니다");
         record.addedQty = info.addedQty();
+        record.cartQty = info.cartQty();
+        record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
+        return record;
+    }
+
+    public record CartItemRemovedInfo(UUID eventId, Long cartItemId, Long memberId, Long childProfileId,
+        Long productId, Long productOptionId, int cartQty, LocalDateTime occurredAt) {
+    }
+
+    public static ActivityRecord cartItemRemoved(CartItemRemovedInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        ActivityRecord record = new ActivityRecord();
+        record.type = ActivityType.CART_ITEM_REMOVED;
+        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        record.cartItemId = requireNonNull(info.cartItemId(), "cartItemId는 필수입니다");
+        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        record.childProfileId = info.childProfileId();
+        // 주문이 상품 정보를 받아 두지 않았으면 상품 ID 없이 온다
+        record.productId = info.productId();
+        record.productOptionId = requireNonNull(info.productOptionId(), "productOptionId는 필수입니다");
         record.cartQty = info.cartQty();
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         return record;

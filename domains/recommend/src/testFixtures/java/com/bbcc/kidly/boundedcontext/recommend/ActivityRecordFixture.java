@@ -7,7 +7,9 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,6 +41,16 @@ public final class ActivityRecordFixture {
 
     public static final LocalDateTime ADDED_AT = LocalDateTime.of(2026, 11, 3, 10, 5);
 
+    public static final UUID REMOVED_EVENT_ID = UUID.fromString("ca7a0000-0000-0000-0000-000000000002");
+
+    public static final int REMOVED_QTY = 3;
+
+    public static final LocalDateTime REMOVED_AT = LocalDateTime.of(2026, 11, 3, 10, 20);
+
+    public static final UUID WITHDRAWN_EVENT_ID = UUID.fromString("3e3b0000-0000-0000-0000-000000000001");
+
+    public static final LocalDateTime WITHDRAWN_AT = LocalDateTime.of(2026, 11, 4, 9, 0);
+
     private ActivityRecordFixture() {
     }
 
@@ -57,6 +69,15 @@ public final class ActivityRecordFixture {
             PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY, CART_QTY, ADDED_AT);
     }
 
+    public static ActivityRecord.CartItemRemovedInfo cartItemRemoved() {
+        return cartItemRemovedFor(CHILD_1_ID, PRODUCT_A_ID);
+    }
+
+    public static ActivityRecord.CartItemRemovedInfo cartItemRemovedFor(Long childProfileId, Long productId) {
+        return new ActivityRecord.CartItemRemovedInfo(REMOVED_EVENT_ID, CART_ITEM_ID, MEMBER_1_ID, childProfileId,
+            productId, PRODUCT_A_120_OPTION_ID, REMOVED_QTY, REMOVED_AT);
+    }
+
     public static SearchPerformedEvent searchPerformedEvent() {
         return new SearchPerformedEvent(SEARCH_EVENT_ID, SEARCHED_AT, new SearchPerformedEvent.Data(MEMBER_1_ID,
             KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT));
@@ -65,5 +86,18 @@ public final class ActivityRecordFixture {
     public static CartItemAddedEvent cartItemAddedEvent() {
         return new CartItemAddedEvent(CART_EVENT_ID, ADDED_AT, new CartItemAddedEvent.Data(CART_ITEM_ID,
             MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY, CART_QTY));
+    }
+
+    public static CartItemRemovedEvent cartItemRemovedEvent() {
+        return cartItemRemovedEventFor(CHILD_1_ID, PRODUCT_A_ID);
+    }
+
+    public static CartItemRemovedEvent cartItemRemovedEventFor(Long childId, Long productId) {
+        return new CartItemRemovedEvent(REMOVED_EVENT_ID, REMOVED_AT, new CartItemRemovedEvent.Data(CART_ITEM_ID,
+            MEMBER_1_ID, childId, productId, PRODUCT_A_120_OPTION_ID, REMOVED_QTY));
+    }
+
+    public static MemberWithdrawnEvent memberWithdrawnEvent(Long memberId) {
+        return new MemberWithdrawnEvent(WITHDRAWN_EVENT_ID, WITHDRAWN_AT, new MemberWithdrawnEvent.Data(memberId));
     }
 }

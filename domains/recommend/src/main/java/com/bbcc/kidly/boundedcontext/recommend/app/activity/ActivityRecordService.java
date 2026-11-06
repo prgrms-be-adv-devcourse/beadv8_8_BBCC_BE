@@ -1,8 +1,12 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.activity;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecordRepository;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -57,5 +61,28 @@ public class ActivityRecordService {
             data.cartQuantity(),
             event.occurredAt());
         activityRecordRepository.save(ActivityRecord.cartItemAdded(info));
+    }
+
+    public void recordCartItemRemoved(CartItemRemovedEvent event) {
+        if (activityRecordRepository.existsByEventId(event.eventId())) {
+            return;
+        }
+        CartItemRemovedEvent.Data data = event.data();
+        ActivityRecord.CartItemRemovedInfo info = new ActivityRecord.CartItemRemovedInfo(
+            event.eventId(),
+            data.cartItemId(),
+            data.memberId(),
+            data.childId(),
+            data.productId(),
+            data.optionId(),
+            data.quantity(),
+            event.occurredAt());
+        activityRecordRepository.save(ActivityRecord.cartItemRemoved(info));
+    }
+
+    public void deleteActivityRecordsOfWithdrawnMember(MemberWithdrawnEvent event) {
+        // null로 조건을 걸면 어떤 기록도 지우지 못하면서 처리한 것처럼 끝나기 때문에 회원 ID가 없으면 예외로 실패시킨다
+        Long memberId = requireNonNull(event.data().memberId(), "memberId는 필수입니다");
+        activityRecordRepository.deleteByMemberId(memberId);
     }
 }
