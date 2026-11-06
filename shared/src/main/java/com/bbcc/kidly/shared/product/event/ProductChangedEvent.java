@@ -116,10 +116,10 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
     }
 
     /**
-     * 카테고리 하나다.
+     * 카테고리 경로의 한 단계다.
      *
-     * @param id 카테고리 ID
-     * @param name 카테고리 이름
+     * @param id 상품 도메인의 카테고리 ID
+     * @param name 카테고리 이름. 카테고리 ID는 환경마다 달라 받는 쪽은 이름으로 대분류와 종류를 알아본다
      */
     public record CategoryPathEntry(Long id, String name) {
     }
