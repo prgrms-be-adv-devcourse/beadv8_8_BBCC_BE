@@ -7,6 +7,11 @@ plugins {
 dependencies {
     // 리뷰 사진을 브라우저가 S3에 직접 올리도록 업로드 주소(Presigned URL)를 만든다 (S3Presigner)
     implementation(libs.aws.s3)
+    // 운영 조회 MCP 창구(review.in.mcp의 SDK 전송 쪽만 쓴다). 상태 없는 서블릿 전송 + 동기 서버
+    // 전이 의존: mcp-core · mcp-json-jackson3, reactor-core · Jackson 3(Boot BOM 관리),
+    // 새로 들어옴 com.networknt:json-schema-validator 3.0.6 · com.ethlo.time:itu 1.14.0 · tools.jackson.dataformat:jackson-dataformat-yaml(Boot BOM).
+    // servlet-api는 provided(Boot Tomcat 것을 씀)
+    implementation("io.modelcontextprotocol.sdk:mcp:2.1.0")
     // 기능 테스트의 로그인 헤더(common TestMembers)
     testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")

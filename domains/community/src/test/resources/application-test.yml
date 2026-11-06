@@ -47,6 +47,9 @@ kidly:
     kafka:
       consumer:
         enabled: false
+    # 운영 조회 MCP 창구를 켠다(기능 테스트가 /api/v1/admin/community/mcp를 부른다)
+    mcp:
+      enabled: true
     # 리뷰 검사: 스케줄을 끄고(테스트가 처리 메서드를 직접 부른다) 금칙어 → 테스트용 가짜(fake) 순서로 검사한다.
     # fake는 테스트 코드의 FakeModerationAdapter이고, AI는 부르지 않는다. 재시도 상한은 테스트가 짧게 보도록 3
     moderation:

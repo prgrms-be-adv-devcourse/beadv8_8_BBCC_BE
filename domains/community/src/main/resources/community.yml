@@ -31,6 +31,13 @@ kidly:
         max-file-size: 10MB
         # 업로드 주소 서명 유효 시간
         upload-url-expiry: PT5M
+    # 운영 조회 MCP 창구(읽기 전용, POST /api/v1/admin/community/mcp, 관리자만). AI가 커뮤니티 운영 상태(리뷰 요약 · DLT ·
+    # 검사 현황 · 상품 복사본)를 조회한다. 조작 도구는 없다. 응답에 리뷰 본문 · 닉네임 · 회원 ID · 사진 주소 · DLT 원본을 넣지 않는다
+    mcp:
+      # 창구를 열지(기본 꺼짐, 꺼지면 빈 · 경로 없음). 서버에서 열려면 환경변수로 켠다
+      enabled: ${COMMUNITY_MCP_ENABLED:false}
+      # 목록 결과 상한(1~100). 더 큰 size는 이 값으로 줄인다
+      max-results: 50
     # 리뷰 부적절 콘텐츠 검사. 리뷰는 저장하면 바로 공개(검사 대기)이고, 주기마다 대기 리뷰를 검사해 걸리면 숨긴다(관리자 판단 대기)
     # 값이 비었거나 틀리면 키 이름이 나오는 오류로 기동에 실패한다
     moderation:
