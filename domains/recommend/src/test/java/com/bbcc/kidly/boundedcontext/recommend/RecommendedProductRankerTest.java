@@ -11,7 +11,10 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceActiv
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductRanker;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -53,5 +56,20 @@ class RecommendedProductRankerTest {
         RecommendedProduct product = recommendedProduct(1L, productCategoryId, productBrand, registeredAt);
 
         assertThat(ranker.scoreOf(product, preference, BASE_TIME)).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("PREF-06 점수가 큰 상품이 먼저 나온다")
+    void higherScoreFirst() {
+        ChildPreference preference = ChildPreference.empty().plus(new PreferenceActivity(CATEGORY_ID, BRAND, true));
+        // 점수가 낮은 상품일수록 등록 시각이 늦어, 등록 최신순이면 반대 순서가 된다
+        RecommendedProduct sevenPoints = recommendedProduct(1L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT);
+        RecommendedProduct threePoints = recommendedProduct(2L, CATEGORY_ID, "다른브랜드", OLD_REGISTERED_AT.plusDays(1));
+        RecommendedProduct onePoint = recommendedProduct(3L, 99L, "다른브랜드", BASE_TIME);
+
+        List<RecommendedProduct> ranked =
+            ranker.rank(List.of(onePoint, threePoints, sevenPoints), preference, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(sevenPoints, threePoints, onePoint);
     }
 }
