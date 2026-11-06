@@ -61,7 +61,7 @@ public class SizeRecommender {
 
     private BodyTypeDecision decideBodyType(ChildSizeInput childSizeInput, LocalDate today) {
         BodyType input = childSizeInput.bodyType();
-        Optional<BodyType> judged = judgeByWeight(childSizeInput, today);
+        Optional<BodyType> judged = judgeBodyType(childSizeInput, today);
         if (judged.isEmpty()) {
             return BodyTypeDecision.unchanged(input);
         }
@@ -124,21 +124,10 @@ public class SizeRecommender {
                 || input == BodyType.CHUNKY && judged == BodyType.SLIM;
     }
 
-    private Optional<BodyType> judgeByWeight(ChildSizeInput childSizeInput, LocalDate today) {
+    private Optional<BodyType> judgeBodyType(ChildSizeInput childSizeInput, LocalDate today) {
         long months = Period.between(childSizeInput.birthDate(), today).toTotalMonths();
-        Optional<AgeGroup> ageGroup = AgeGroup.fromMonths(months);
-        if (ageGroup.isEmpty()) {
-            return Optional.empty();
-        }
-
-        double chartHeight = ageGroup.get().roundHeight(childSizeInput.heightCm());
-        Optional<WeightPercentiles> percentiles = growthChart.find(
-                ageGroup.get(), childSizeInput.gender(), chartHeight);
-        if (percentiles.isEmpty()) {
-            return Optional.empty();
-        }
-
-        return Optional.of(percentiles.get().bodyTypeOf(childSizeInput.weightKg()));
+        return growthChart.judge(
+                childSizeInput.gender(), months, childSizeInput.heightCm(), childSizeInput.weightKg());
     }
 
     private List<SizeRange> distinctBySize(List<SizeRange> sizeRanges) {

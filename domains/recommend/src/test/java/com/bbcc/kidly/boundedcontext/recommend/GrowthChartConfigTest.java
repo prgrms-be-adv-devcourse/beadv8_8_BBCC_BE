@@ -2,10 +2,9 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.size.AgeGroup;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
-import com.bbcc.kidly.boundedcontext.recommend.domain.size.WeightPercentiles;
 import com.bbcc.kidly.boundedcontext.recommend.out.size.GrowthChartConfig;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,34 +14,60 @@ class GrowthChartConfigTest {
 
     private static final GrowthChart GROWTH_CHART = new GrowthChartConfig().growthChart();
 
-    @ParameterizedTest(name = "{0}, {1}, 키 {2}cm → {3}kg / {4}kg")
+    @ParameterizedTest(name = "{0}, {1}개월, 키 100cm, 몸무게 {2}kg → {3}")
     @CsvSource({
-        "MONTHS_0_23, MALE, 45.0, 2.2, 2.7",
-        "MONTHS_0_23, FEMALE, 80.5, 9.3, 11.2",
-        "MONTHS_24_35, MALE, 115.0, 18.6, 22.4",
-        "YEARS_3_18, MALE, 115.0, 19.1, 22.7",
-        "YEARS_3_18, FEMALE, 115.0, 18.7, 22.6",
-        "YEARS_3_18, MALE, 90.0, 12.2, 14.2",
-        "YEARS_3_18, MALE, 186.0, 65.7, 83.9",
-        "YEARS_3_18, FEMALE, 172.0, 54.5, 69.7",
+        "MALE, 24, 14.1, SLIM",
+        "MALE, 24, 14.2, NORMAL",
+        "MALE, 24, 17.3, NORMAL",
+        "MALE, 24, 17.4, CHUNKY",
+        "MALE, 72, 13.8, SLIM",
+        "MALE, 72, 13.9, NORMAL",
+        "MALE, 72, 17.5, NORMAL",
+        "MALE, 72, 17.6, CHUNKY",
+        "MALE, 96, 14.1, SLIM",
+        "MALE, 96, 14.2, NORMAL",
+        "MALE, 96, 19.1, NORMAL",
+        "MALE, 96, 19.2, CHUNKY",
+        "FEMALE, 72, 13.6, SLIM",
+        "FEMALE, 72, 13.7, NORMAL",
+        "FEMALE, 72, 17.4, NORMAL",
+        "FEMALE, 72, 17.5, CHUNKY",
+        "FEMALE, 227, 17.6, SLIM",
+        "FEMALE, 227, 17.7, NORMAL",
+        "FEMALE, 227, 23.5, NORMAL",
+        "FEMALE, 227, 23.6, CHUNKY",
     })
-    @DisplayName("성장도표 CSV에서 연령 구간, 성별, 키로 15백분위와 85백분위 몸무게를 찾는다")
-    void findPercentiles(
-        AgeGroup ageGroup, Gender gender, double heightCm, double percentile15Kg, double percentile85Kg) {
-        assertThat(GROWTH_CHART.find(ageGroup, gender, heightCm))
-            .contains(WeightPercentiles.of(percentile15Kg, percentile85Kg));
+    @DisplayName("규칙 14 성장도표 CSV의 연령별 체질량지수 5백분위와 85백분위로 판정한다")
+    void judgeByBmiForAgeCsv(Gender gender, long months, double weightKg, BodyType expected) {
+        assertThat(GROWTH_CHART.judge(gender, months, 100.0, weightKg)).contains(expected);
     }
 
-    @ParameterizedTest(name = "{0}, {1}, 키 {2}cm")
+    @ParameterizedTest(name = "{0}, {1}개월, 키 {2}cm, 몸무게 {3}kg → {4}")
     @CsvSource({
-        "YEARS_3_18, MALE, 89.0",
-        "YEARS_3_18, MALE, 187.0",
-        "YEARS_3_18, FEMALE, 173.0",
-        "MONTHS_0_23, MALE, 110.5",
-        "YEARS_3_18, MALE, 115.5",
+        "MALE, 12, 75.0, 8.0, SLIM",
+        "MALE, 12, 75.0, 8.1, NORMAL",
+        "MALE, 12, 75.0, 10.8, NORMAL",
+        "MALE, 12, 75.0, 10.9, CHUNKY",
+        "MALE, 0, 45.0, 2.5, SLIM",
+        "MALE, 0, 45.0, 2.9, CHUNKY",
+        "FEMALE, 23, 110.0, 9.1, SLIM",
+        "FEMALE, 23, 110.0, 21.4, NORMAL",
+        "FEMALE, 23, 110.0, 21.5, CHUNKY",
     })
-    @DisplayName("표에 없는 키는 빈 값을 준다 (표의 끝 밖, 표의 키 간격에 맞지 않는 키)")
-    void emptyWhenHeightNotInChart(AgeGroup ageGroup, Gender gender, double heightCm) {
-        assertThat(GROWTH_CHART.find(ageGroup, gender, heightCm)).isEmpty();
+    @DisplayName("규칙 14 성장도표 CSV의 연령별 체중 5백분위와 신장별 체중 95백분위로 24개월 미만을 판정한다")
+    void judgeInfantByCsv(Gender gender, long months, double heightCm, double weightKg, BodyType expected) {
+        assertThat(GROWTH_CHART.judge(gender, months, heightCm, weightKg)).contains(expected);
+    }
+
+    @ParameterizedTest(name = "{0}, {1}개월, 키 {2}cm")
+    @CsvSource({
+        "MALE, 228, 100.0",
+        "FEMALE, 228, 100.0",
+        "MALE, 23, 44.5",
+        "MALE, 23, 110.5",
+    })
+    @DisplayName("규칙 14-3 성장도표 CSV 범위 밖(228개월부터, 누운키 45cm 미만 · 110cm 초과)이면 판정하지 않는다")
+    void noJudgementOutsideCsv(Gender gender, long months, double heightCm) {
+        assertThat(GROWTH_CHART.judge(gender, months, heightCm, 20.0)).isEmpty();
     }
 }

@@ -25,13 +25,13 @@ class SizeRecommenderExampleTest {
     @ParameterizedTest(name = "몸무게 {0}kg, 입력 체형 {1}, 선호 핏 {2} → {3}, {4}, 안내 [{5}]")
     @CsvSource({
         "20.0, NORMAL, LOOSE, 120, ROOMY, ''",
-        "23.0, NORMAL, LOOSE, 120, PROPER, BODY_TYPE_ADJUSTED",
+        "23.0, NORMAL, LOOSE, 120, ROOMY, ''",
         "18.0, NORMAL, LOOSE, 110, PROPER, BODY_TYPE_ADJUSTED PREFERRED_FIT_NOT_APPLIED",
-        "23.0, NORMAL, SLIM, 120, PROPER, BODY_TYPE_ADJUSTED PREFERRED_FIT_NOT_APPLIED",
-        "23.0, SLIM, LOOSE, 120, ROOMY, HEIGHT_ONLY",
-        "23.0, , LOOSE, 120, PROPER, ''",
+        "23.0, NORMAL, SLIM, 110, TIGHT, ''",
+        "23.0, SLIM, LOOSE, 120, ROOMY, BODY_TYPE_ADJUSTED",
+        "23.0, , LOOSE, 120, ROOMY, ''",
     })
-    @DisplayName("기획서 결정 기록의 예시대로 추천한다 (상품 A, 키 115cm, 3 ~ 18세 남자, 실제 성장도표)")
+    @DisplayName("기획서 결정 기록의 예시대로 추천한다 (상품 A, 키 115cm, 93개월 남자, 실제 성장도표)")
     void recommendAsDecisionLogExample(
         double weightKg,
         BodyType inputBodyType,
