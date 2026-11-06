@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ChildPreference;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceActivity;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -38,5 +39,15 @@ class ChildPreferenceTest {
             .plus(new PreferenceActivity(activityCategoryId, BRAND, false));
 
         assertThat(preference.categoryPoints(productCategoryId)).isZero();
+    }
+
+    @Test
+    @DisplayName("PREF-03 장바구니 담기에 나온 카테고리는 상세 진입과 섞여도 5점이다")
+    void categoryInCartAddGetsFivePoints() {
+        ChildPreference preference = ChildPreference.empty()
+            .plus(new PreferenceActivity(CATEGORY_ID, BRAND, false))
+            .plus(new PreferenceActivity(CATEGORY_ID, BRAND, true));
+
+        assertThat(preference.categoryPoints(CATEGORY_ID)).isEqualTo(5);
     }
 }
