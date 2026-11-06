@@ -376,6 +376,19 @@ class RecommendReplicaProductTest {
             .containsExactly(tuple(2L, "하의"));
     }
 
+    @Test
+    @DisplayName("INV-R01 저장된 시각보다 이르게 일어난 상품 변경은 카테고리 경로를 바꾸지 않는다")
+    void ignoreEarlierCategoryPath() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithCategoryPath(TOPS_PATH, PRODUCT_CHANGED_AT));
+
+        replica.applyIfNewer(changeWithCategoryPath(
+            List.of(new RecommendReplicaProduct.CategoryPathInfo(2L, "하의")), PRODUCT_CHANGED_AT.minusMinutes(1)));
+
+        assertThat(replica.getCategoryPath())
+            .extracting(RecommendReplicaCategory::getCategoryId).containsExactly(1L, 11L);
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("changesNotLater")
     @DisplayName("INV-R01 저장된 시각과 같거나 이르게 일어난 상품 변경은 필수 값이 없어도 무시한다")
