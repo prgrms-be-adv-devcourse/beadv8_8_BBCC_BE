@@ -33,6 +33,9 @@ public record ProductEmbeddingText(String value) {
     private static List<String> infoValueLines(List<InfoValue> infoValues) {
         Map<String, List<String>> valuesByCode = new TreeMap<>();
         for (InfoValue infoValue : infoValues) {
+            if (infoValue.value() == null || infoValue.value().isBlank()) {
+                continue;
+            }
             valuesByCode.computeIfAbsent(infoValue.code(), code -> new ArrayList<>()).add(infoValue.value());
         }
         List<String> lines = new ArrayList<>();
