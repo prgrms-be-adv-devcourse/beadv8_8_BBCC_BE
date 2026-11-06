@@ -203,6 +203,16 @@ public class Category extends BaseSoftDeleteEntity {
         return productType;
     }
 
+    // 부모는 지연 로딩 프록시일 수 있으므로 필드가 아니라 getter로 따라간다
+    public List<Category> path() {
+        List<Category> path = new ArrayList<>();
+        for (Category current = this; current != null; current = current.getParent()) {
+            path.add(current);
+        }
+        Collections.reverse(path);
+        return path;
+    }
+
     public List<CategoryMeasurementItem> getMeasurementItems() {
         return Collections.unmodifiableList(measurementItems);
     }

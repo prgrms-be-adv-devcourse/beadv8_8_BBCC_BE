@@ -6,7 +6,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductChangedData;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
-import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
@@ -47,8 +46,8 @@ class ProductChangedDataIntegrationTest {
 
         ProductChangedEvent.Data data = new TransactionTemplate(transactionManager).execute(status -> {
             Product product = productRepository.findById(productId).orElseThrow();
-            ProductType type = entityManager.find(ProductType.class, clothing.type().getId());
-            return ProductChangedData.of(product, type, Map.of());
+            Category category = entityManager.find(Category.class, product.getCategoryId());
+            return ProductChangedData.of(product, category, Map.of());
         });
 
         assertThat(data.infoValues()).containsExactlyInAnyOrder(

@@ -37,7 +37,7 @@ public class ProductSaleService {
         if (changed) {
             // 늘어난 version을 응답에 담으려고 바로 DB에 반영한다. 다른 요청이 먼저 고쳤으면 여기서 충돌해 이벤트를 만들지 않는다
             productRepository.saveAndFlush(product);
-            productChangedPublisher.publish(product, productType);
+            productChangedPublisher.publish(product, category);
         }
         return toResult(product);
     }
@@ -59,7 +59,7 @@ public class ProductSaleService {
         }
         productRepository.saveAndFlush(product);
         if (changed) {
-            productChangedPublisher.publish(product, productType);
+            productChangedPublisher.publish(product, category);
         }
         return toResult(product);
     }
@@ -88,7 +88,7 @@ public class ProductSaleService {
 
     private void publishChanged(Product product) {
         Category category = findCategory(product);
-        productChangedPublisher.publish(product, category.getProductType());
+        productChangedPublisher.publish(product, category);
     }
 
     private Product findProduct(Long productId) {

@@ -98,6 +98,14 @@
 - 설명이 본문에 실리므로 등록 · 수정 요청의 설명을 5,000자로 제한한다. 1MB를 넘는 설명 하나가 아웃박스 릴레이를 멈추고 뒤의 재고 이벤트까지 막을 수 있어서다(11-02 정석님)
 - `shared`는 JDK만 써서 JSON 왕복은 앱 테스트에서 확인한다(`ProductSaleStartApiTest`의 아웃박스 본문, `ProductChangedEventJsonIntegrationTest`)
 
+## 상품 정보 변경됨의 카테고리 경로 (ProductChangedData, #955)
+추천이 함께 사면 좋은 상품의 카테고리 짝(상의 ↔ 하의 등)을 거르려면 대분류 · 종류의 이름이 필요한데, 운영 카테고리는 관리자가 만들어 ID가 환경마다 다르다. 그래서 `data`에 `categoryPath`를 더했다.
+
+- `categoryPath`는 대분류부터 상품의 종류(말단 카테고리)까지 `(id, name)`을 순서대로 담고, 마지막 `id`는 `categoryId`와 같다. `Category.path()`가 `parent`를 따라 올라가 만든다
+- 지운 상위 카테고리도 담는다. 상품이 이미 쓰는 카테고리는 지워도 읽히기 때문이다
+- 카테고리 이름과 부모는 만든 뒤 바뀌지 않아 경로도 바뀌지 않는다. 나중에 이름이나 부모를 바꾸는 기능을 더하면 그 카테고리를 쓰는 상품의 `product.changed`를 다시 보내야 받는 쪽 이름이 맞는다
+- 배포 뒤 받는 쪽의 기존 복사본을 채우려면 환경마다 다시 보내기(`POST /api/v1/admin/products/changed-events`)를 부른다
+
 ## 상품 정보 변경됨 다시 보내기 (ProductChangedRepublishService, #577)
 검색 구독 그룹은 `latest`라 처음 붙기 전에 나간 메시지를 읽지 않는다. 관리자가 `POST /api/v1/admin/products/changed-events`로 다른 도메인에 알리는 상품(판매중 · 판매중지 · 등록 취소)마다 `product.changed`를 한 번씩 다시 보낸다. 판매대기 상품은 보내지 않는다. 검색 수신을 배포한 뒤와 검색 색인을 새로 만들 때 환경마다 한 번 부른다.
 

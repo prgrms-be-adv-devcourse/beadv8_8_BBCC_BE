@@ -164,6 +164,21 @@ class ProductSaleStartApiTest {
     }
 
     @Test
+    @DisplayName("SALE-08 판매 시작으로 아웃박스에 남은 본문의 data에 카테고리 경로가 대분류부터 종류까지 ID · 이름으로 있다")
+    void startSaleOutboxPayloadCarriesCategoryPath() {
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+
+        JsonNode categoryPath = jsonMapper.readTree(
+            jdbcTemplate.queryForObject("select payload from product.product_outbox", String.class))
+            .get("data").get("categoryPath");
+        assertThat(categoryPath.size()).isEqualTo(2);
+        assertThat(categoryPath.get(0).get("id").asLong()).isEqualTo(saved.clothingCategory().getId());
+        assertThat(categoryPath.get(0).get("name").asString()).isEqualTo("의류");
+        assertThat(categoryPath.get(1).get("id").asLong()).isEqualTo(saved.top().getId());
+        assertThat(categoryPath.get(1).get("name").asString()).isEqualTo("상의");
+    }
+
+    @Test
     @DisplayName("판매 시작이 커밋되면 나간 상품 정보 변경됨이 상품 ID를 키로 아웃박스에 한 줄 남는다")
     void startSaleStoresOutboxMessage() {
         startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
