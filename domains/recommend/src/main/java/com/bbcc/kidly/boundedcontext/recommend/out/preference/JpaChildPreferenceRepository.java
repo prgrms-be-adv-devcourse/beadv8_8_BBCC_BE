@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 /**
- * 카테고리 표와 브랜드 표를 함께 다루므로 Spring Data 리포지토리 하나로 만들 수 없어, 표마다 리포지토리를 두고 이 클래스가 묶는다.
+ * 표마다 Spring Data 리포지토리를 두어 각 표의 증감 쿼리를 그 표의 리포지토리에 두고, 이 클래스가 두 표를 한 집계로 묶는다.
  * 쓰기는 호출한 쪽의 트랜잭션 안에서 실행한다.
  */
 @Repository
