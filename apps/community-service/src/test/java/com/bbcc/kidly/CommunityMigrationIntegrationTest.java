@@ -3,6 +3,7 @@ package com.bbcc.kidly;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
@@ -64,6 +65,27 @@ class CommunityMigrationIntegrationTest {
             assertThat(historyTypes(jdbc)).first().isEqualTo("BASELINE " + BASELINE_VERSION);
             assertThat(historyTypes(jdbc)).anySatisfy(type -> assertThat(type)
                 .startsWith("SQL ").satisfies(sql -> assertThat(sql.substring(4)).isGreaterThan(BASELINE_VERSION)));
+        }
+    }
+
+    @Test
+    @DisplayName("baseline 버전까지만 적용된 DB에 리뷰 핏 칸을 더하고, 이미 있던 집계 행의 핏별 수는 0이다")
+    void addsFitColumnsAfterBaseline() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createCommunityTablesUpTo(dataSource, jdbc, BASELINE_VERSION);
+            jdbc.update("insert into community.review_stats (product_id, review_count, rating_sum, created_at, "
+                + "updated_at) values (14, 2, 9, now(), now())");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(reviewColumns(jdbc)).contains("fit");
+            assertThat(jdbc.queryForMap("select fit_small, fit_true_to_size, fit_large from community.review_stats "
+                + "where product_id = 14")).containsExactlyInAnyOrderEntriesOf(
+                    Map.of("fit_small", 0L, "fit_true_to_size", 0L, "fit_large", 0L));
         }
     }
 

@@ -130,6 +130,40 @@ class ReviewTest {
         assertThat(review.getContent()).isEqualTo("좋아요");
     }
 
+    @Test
+    @DisplayName("핏은 세 값 또는 없음(null)이고, 사이즈가 있는 주문상품만 핏을 받는다")
+    void fitOnCreate() {
+        assertThat(withFit(Fit.SMALL, true).getFit()).isEqualTo(Fit.SMALL);
+        assertThat(withFit(null, false).getFit()).isNull();
+        assertThatThrownBy(() -> withFit(Fit.LARGE, false))
+            .isInstanceOfSatisfying(ReviewRuleException.class,
+                e -> assertThat(e.rule()).isEqualTo(ReviewRule.FIT_NOT_APPLICABLE));
+    }
+
+    @Test
+    @DisplayName("수정에서 핏만 바꾸거나 지울 수 있고(별점 · 본문 그대로), 사이즈 없는 주문상품에 핏을 넣으면 규칙 위반")
+    void fitOnUpdate() {
+        Review review = withFit(Fit.SMALL, true);
+
+        review.update(AUTHOR, Review.Change.fitOnly(Fit.LARGE), true);
+        assertThat(review.getFit()).isEqualTo(Fit.LARGE);
+        assertThat(review.getRating()).isEqualTo(5);
+
+        review.update(AUTHOR, Review.Change.fitOnly(null), true);
+        assertThat(review.getFit()).isNull();
+
+        assertThatThrownBy(() -> review.update(AUTHOR, Review.Change.fitOnly(Fit.SMALL), false))
+            .isInstanceOfSatisfying(ReviewRuleException.class,
+                e -> assertThat(e.rule()).isEqualTo(ReviewRule.FIT_NOT_APPLICABLE));
+        assertThat(review.getFit()).isNull();
+        // 사이즈가 없어도 핏을 지우는 것은 된다
+        review.update(AUTHOR, Review.Change.fitOnly(null), false);
+    }
+
+    private static Review withFit(Fit fit, boolean sizeApplicable) {
+        return Review.create(new Review.Values(11L, 14L, AUTHOR, "닉네임", 5, "좋아요", fit, sizeApplicable));
+    }
+
     private static Review review(Integer rating, String content) {
         return Review.create(new Review.Values(11L, 14L, AUTHOR, "닉네임", rating, content));
     }

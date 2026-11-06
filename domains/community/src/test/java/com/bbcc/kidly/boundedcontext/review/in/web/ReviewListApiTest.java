@@ -37,11 +37,15 @@ class ReviewListApiTest {
         jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
             + "source_occurred_at, created_at, updated_at) values (14, '상품 A', 'https://img/14.png', 'SALE_ENDED', "
             + "?, ?, ?)", CREATED_AT, CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
+            + "option_id, size, confirmed_at, created_at, updated_at) values (11, 12, ?, 14, 15, '110', ?, ?, ?)",
+            ME, CREATED_AT, CREATED_AT, CREATED_AT);
         jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at) values (11, 14, ?, '닉', 4, '좋아요', ?, ?)",
+            + "content, fit, created_at, updated_at) values (11, 14, ?, '닉', 4, '좋아요', 'LARGE', ?, ?)",
             ME, CREATED_AT, CREATED_AT);
-        jdbcTemplate.update("insert into community.review_stats (product_id, review_count, rating_sum, created_at, "
-            + "updated_at) values (14, 3, 13, ?, ?)", CREATED_AT, CREATED_AT);
+        jdbcTemplate.update("insert into community.review_stats (product_id, review_count, rating_sum, fit_small, "
+            + "fit_true_to_size, fit_large, created_at, updated_at) values (14, 3, 13, 1, 0, 2, ?, ?)",
+            CREATED_AT, CREATED_AT);
     }
 
     @Test
@@ -62,6 +66,8 @@ class ReviewListApiTest {
             .jsonPath("$.items[0].content").isEqualTo("좋아요")
             .jsonPath("$.items[0].nickname").isEqualTo("닉")
             .jsonPath("$.items[0].authorWithdrawn").isEqualTo(false)
+            .jsonPath("$.items[0].fit").isEqualTo("LARGE")
+            .jsonPath("$.items[0].purchasedSize").isEqualTo("110")
             .jsonPath("$.items[0].createdAt").isEqualTo("2026-11-01T10:00:00.123456")
             .jsonPath("$.items[0].updatedAt").isEqualTo("2026-11-01T10:00:00.123456")
             .jsonPath("$.items[0].memberId").doesNotExist()
@@ -109,14 +115,20 @@ class ReviewListApiTest {
             .expectBody()
             .jsonPath("$.productId").isEqualTo("14")
             .jsonPath("$.reviewCount").isEqualTo(3)
-            .jsonPath("$.averageRating").isEqualTo(4.3);
+            .jsonPath("$.averageRating").isEqualTo(4.3)
+            .jsonPath("$.fitSummary.small").isEqualTo(1)
+            .jsonPath("$.fitSummary.trueToSize").isEqualTo(0)
+            .jsonPath("$.fitSummary.large").isEqualTo(2);
         client.get().uri(PATH + "/summary?productId=999")
             .exchange()
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.productId").isEqualTo("999")
             .jsonPath("$.reviewCount").isEqualTo(0)
-            .jsonPath("$.averageRating").isEmpty();
+            .jsonPath("$.averageRating").isEmpty()
+            .jsonPath("$.fitSummary.small").isEqualTo(0)
+            .jsonPath("$.fitSummary.trueToSize").isEqualTo(0)
+            .jsonPath("$.fitSummary.large").isEqualTo(0);
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewEligibilities;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewStatsCounter;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
+import com.bbcc.kidly.boundedcontext.review.domain.Fit;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewEligibility;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewRule;
@@ -42,23 +43,35 @@ public class ReviewService {
      * @param orderItemId 리뷰 작성 가능 목록의 orderItemId(문자열)
      */
     public ReviewView write(Long memberId, String nickname, String orderItemId, Integer rating, String content) {
+        return write(memberId, nickname, orderItemId, rating, content, FitInput.absent());
+    }
+
+    /**
+     * @param fit 사이즈 핏(선택). 정해진 값이 아니면 INVALID_FIT, 구매 사이즈 없는 주문상품이면 FIT_NOT_APPLICABLE
+     */
+    public ReviewView write(Long memberId, String nickname, String orderItemId, Integer rating, String content,
+        FitInput fit) {
         Long itemId = parseOrderItemId(orderItemId);
         translateRule(() -> {
             Review.checkInput(rating, content);
             return null;
         });
+        Fit fitValue = fit.toFit();
         ReviewEligibility eligibility = reviewEligibilities.findByOrderItemIdAndMemberId(itemId, memberId)
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_ELIGIBLE));
         if (reviews.existsByOrderItemId(itemId)) {
             throw new BusinessException(ReviewErrorCode.REVIEW_ALREADY_WRITTEN);
         }
-        Review review = Review.create(new Review.Values(itemId, eligibility.getProductId(), memberId, nickname, rating,
-            content));
+        String purchasedSize = eligibility.getSize();
+        Review review = translateRule(() -> Review.create(new Review.Values(itemId, eligibility.getProductId(),
+            memberId, nickname, rating, content, fitValue, purchasedSize != null)));
         try {
             return separateTransaction.call(() -> {
                 Review saved = reviews.saveAndFlush(review);
-                reviewStatsCounter.addReview(saved.getProductId(), saved.getRating(), ReviewTimes.now());
-                return ReviewView.from(saved);
+                FitDelta fitDelta = FitDelta.of(null, saved.getFit());
+                reviewStatsCounter.addReview(saved.getProductId(), saved.getRating(), fitDelta.small(),
+                    fitDelta.trueToSize(), fitDelta.large(), ReviewTimes.now());
+                return ReviewView.from(saved, purchasedSize);
             });
         } catch (DataIntegrityViolationException e) {
             if (UniqueViolations.isViolationOf(e, ORDER_ITEM_UNIQUE)) {
@@ -77,24 +90,34 @@ public class ReviewService {
     }
 
     /**
-     * 보낸 값만 고친다. 별점을 보내지 않으면 집계도 바뀌지 않는다.
-     * 오류: 400 NO_FIELDS_TO_UPDATE · INVALID_RATING · INVALID_CONTENT, 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND.
+     * 보낸 값만 고친다. 집계는 별점이나 핏이 실제로 바뀔 때만 바뀐다(본문만 바꾸거나 같은 값이면 그대로).
+     * 작성자 확인이 값 확인보다 먼저다(남의 리뷰는 값이 틀려도 403).
+     * 오류: 400 NO_FIELDS_TO_UPDATE · INVALID_RATING · INVALID_CONTENT · INVALID_FIT · FIT_NOT_APPLICABLE,
+     * 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND.
      */
     @Transactional
     public ReviewView update(Long memberId, Long reviewId, ReviewChange change) {
         Review review = reviews.findForUpdate(reviewId)
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
-        int before = review.getRating();
         translateRule(() -> {
-            review.update(memberId, change.toDomain());
+            review.checkAuthor(memberId);
+            return null;
+        });
+        Fit fitValue = change.fit().toFit();
+        String purchasedSize = purchasedSizeOf(review);
+        int ratingBefore = review.getRating();
+        Fit fitBefore = review.getFit();
+        translateRule(() -> {
+            review.update(memberId, change.toDomain(fitValue), purchasedSize != null);
             return null;
         });
         Review saved = reviews.saveAndFlush(review);
-        int ratingDelta = saved.getRating() - before;
-        if (ratingDelta != 0) {
-            adjustStats(saved.getProductId(), 0, ratingDelta);
+        int ratingDelta = saved.getRating() - ratingBefore;
+        FitDelta fitDelta = FitDelta.of(fitBefore, saved.getFit());
+        if (ratingDelta != 0 || !fitDelta.isZero()) {
+            adjustStats(saved.getProductId(), 0, ratingDelta, fitDelta);
         }
-        return ReviewView.from(saved);
+        return ReviewView.from(saved, purchasedSize);
     }
 
     @Transactional
@@ -106,15 +129,23 @@ public class ReviewService {
             return null;
         });
         reviews.delete(review);
-        adjustStats(review.getProductId(), -1, -review.getRating());
+        adjustStats(review.getProductId(), -1, -review.getRating(), FitDelta.of(review.getFit(), null));
+    }
+
+    // 구매 사이즈는 작성 자격에 저장된 값을 쓴다(리뷰에 따로 저장하지 않는다)
+    private String purchasedSizeOf(Review review) {
+        return reviewEligibilities.findByOrderItemIdAndMemberId(review.getOrderItemId(), review.getMemberId())
+            .map(ReviewEligibility::getSize)
+            .orElse(null);
     }
 
     /**
      * 집계 행이 없으면(바뀐 행 0) 조용히 넘기지 않고 실패시킨다(트랜잭션이 되돌려져 리뷰 변경도 남지 않는다).
      * 메시지에는 상품 ID만 넣는다.
      */
-    private void adjustStats(Long productId, int countDelta, int ratingDelta) {
-        if (reviewStatsCounter.adjust(productId, countDelta, ratingDelta, ReviewTimes.now()) == 0) {
+    private void adjustStats(Long productId, int countDelta, int ratingDelta, FitDelta fit) {
+        if (reviewStatsCounter.adjust(productId, countDelta, ratingDelta, fit.small(), fit.trueToSize(), fit.large(),
+            ReviewTimes.now()) == 0) {
             throw new IllegalStateException("리뷰 집계 행이 없습니다: productId=" + productId);
         }
     }
@@ -145,16 +176,87 @@ public class ReviewService {
             case CONTENT -> ReviewErrorCode.INVALID_CONTENT;
             case AUTHOR -> ReviewErrorCode.REVIEW_FORBIDDEN;
             case NO_CHANGES -> ReviewErrorCode.NO_FIELDS_TO_UPDATE;
+            case FIT_NOT_APPLICABLE -> ReviewErrorCode.FIT_NOT_APPLICABLE;
         };
     }
 
     /**
      * 수정 요청 값. given이 false면 그 값은 보내지 않은 것(그대로 둔다), true인데 값이 null이면 규칙 위반(400)이다.
      */
-    public record ReviewChange(boolean ratingGiven, Integer rating, boolean contentGiven, String content) {
+    public record ReviewChange(boolean ratingGiven, Integer rating, boolean contentGiven, String content,
+                               FitInput fit) {
 
-        Review.Change toDomain() {
-            return new Review.Change(ratingGiven, rating, contentGiven, content);
+        /**
+         * 핏은 바꾸지 않는다.
+         */
+        public ReviewChange(boolean ratingGiven, Integer rating, boolean contentGiven, String content) {
+            this(ratingGiven, rating, contentGiven, content, FitInput.absent());
+        }
+
+        Review.Change toDomain(Fit fitValue) {
+            return new Review.Change(ratingGiven, rating, contentGiven, content, fit.given(), fitValue);
+        }
+    }
+
+    /**
+     * 요청의 핏 값. 키가 없으면 absent(그대로 둠), null을 보냈으면 cleared(핏을 지움), 문자열이면 text, 그 밖의 타입이면 invalid.
+     * 값은 SMALL · TRUE_TO_SIZE · LARGE와 정확히 같아야 한다(대소문자 포함, 아니면 INVALID_FIT).
+     */
+    public record FitInput(boolean given, boolean valid, String text) {
+
+        public static FitInput absent() {
+            return new FitInput(false, true, null);
+        }
+
+        public static FitInput cleared() {
+            return new FitInput(true, true, null);
+        }
+
+        public static FitInput text(String text) {
+            return new FitInput(true, true, text);
+        }
+
+        public static FitInput invalid() {
+            return new FitInput(true, false, null);
+        }
+
+        Fit toFit() {
+            if (!valid) {
+                throw new BusinessException(ReviewErrorCode.INVALID_FIT);
+            }
+            if (text == null) {
+                return null;
+            }
+            try {
+                return Fit.valueOf(text);
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException(ReviewErrorCode.INVALID_FIT);
+            }
+        }
+    }
+
+    /**
+     * 핏별 수 증감(이전 값 −1 · 새 값 +1, 같으면 0).
+     */
+    record FitDelta(int small, int trueToSize, int large) {
+
+        static FitDelta of(Fit before, Fit after) {
+            if (before == after) {
+                return new FitDelta(0, 0, 0);
+            }
+            int[] delta = new int[3];
+            if (before != null) {
+                delta[before.ordinal()]--;
+            }
+            if (after != null) {
+                delta[after.ordinal()]++;
+            }
+            return new FitDelta(delta[Fit.SMALL.ordinal()], delta[Fit.TRUE_TO_SIZE.ordinal()],
+                delta[Fit.LARGE.ordinal()]);
+        }
+
+        boolean isZero() {
+            return small == 0 && trueToSize == 0 && large == 0;
         }
     }
 
@@ -169,14 +271,17 @@ public class ReviewService {
         String content,
         String nickname,
         boolean authorWithdrawn,
+        String fit,
+        String purchasedSize,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
-        static ReviewView from(Review review) {
+        static ReviewView from(Review review, String purchasedSize) {
             boolean withdrawn = review.isAuthorWithdrawn();
             return new ReviewView(review.getId(), review.getOrderItemId(), review.getProductId(), review.getRating(),
                 review.getContent(), AuthorDisplay.nickname(review.getNickname(), withdrawn), withdrawn,
-                review.getCreatedAt(), review.getUpdatedAt());
+                review.getFit() == null ? null : review.getFit().name(), purchasedSize, review.getCreatedAt(),
+                review.getUpdatedAt());
         }
     }
 }

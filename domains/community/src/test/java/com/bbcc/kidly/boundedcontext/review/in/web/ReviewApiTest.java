@@ -234,7 +234,8 @@ class ReviewApiTest {
     @Test
     @DisplayName("리뷰 생성 · 수정 시각은 마이크로초로 저장되고, 응답 값은 DB 값과 같다")
     void timesStoredInMicrosAndEchoed() {
-        Map<?, ?> body = client.post().uri(PATH).headers(TestMembers.buyer(ME)).contentType(MediaType.APPLICATION_JSON)
+        Map<?, ?> body = client.post().uri(PATH).headers(TestMembers.buyer(ME))
+            .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("orderItemId", "11", "rating", 5, "content", "좋아요"))
             .exchange()
             .expectStatus().isCreated()
@@ -282,6 +283,59 @@ class ReviewApiTest {
         org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForMap(
             "select rating::int as rating, content from community.review where id = ?", Long.valueOf(reviewId)))
             .containsEntry("rating", 3).containsEntry("content", "본문만 고침");
+    }
+
+    @Test
+    @DisplayName("핏: 작성 201(fit · purchasedSize), PATCH fit만 · null 200, 틀린 값 400 INVALID_FIT, 사이즈 없음 400")
+    void fit() {
+        Map<?, ?> body = client.post().uri(PATH).headers(TestMembers.buyer(ME))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("orderItemId", "11", "rating", 5, "content", "좋아요", "fit", "SMALL"))
+            .exchange()
+            .expectStatus().isCreated()
+            .returnResult(Map.class)
+            .getResponseBody();
+        assertThat(body.get("fit")).isEqualTo("SMALL");
+        assertThat(body.get("purchasedSize")).isEqualTo("110");
+        String reviewId = body.get("reviewId").toString();
+
+        client.patch().uri(PATH + "/" + reviewId).headers(TestMembers.buyer(ME))
+            .contentType(MediaType.APPLICATION_JSON).body(Map.of("fit", "TRUE_TO_SIZE"))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.fit").isEqualTo("TRUE_TO_SIZE")
+            .jsonPath("$.rating").isEqualTo(5)
+            .jsonPath("$.purchasedSize").isEqualTo("110");
+        Map<String, Object> clear = new HashMap<>();
+        clear.put("fit", null);
+        client.patch().uri(PATH + "/" + reviewId).headers(TestMembers.buyer(ME))
+            .contentType(MediaType.APPLICATION_JSON).body(clear)
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(Map.class)
+            .value(response -> assertThat(response.containsKey("fit") && response.get("fit") == null).isTrue());
+
+        for (Object invalid : new Object[] {"small", "MEDIUM", 1}) {
+            expectProblem(client.patch().uri(PATH + "/" + reviewId).headers(TestMembers.buyer(ME))
+                .contentType(MediaType.APPLICATION_JSON).body(Map.of("fit", invalid)).exchange(),
+                400, ReviewErrorCode.INVALID_FIT);
+        }
+
+        expectProblem(client.post().uri(PATH).headers(TestMembers.buyer(ME)).contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("orderItemId", "11", "rating", 5, "content", "좋아요", "fit", "small")).exchange(),
+            400, ReviewErrorCode.INVALID_FIT);
+
+        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
+            + "option_id, size, confirmed_at, created_at, updated_at) values (21, 12, ?, 14, 15, null, now(), now(), "
+            + "now())", ME);
+        client.post().uri(PATH).headers(TestMembers.buyer(ME)).contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("orderItemId", "21", "rating", 5, "content", "사이즈 없는 상품", "fit", "SMALL"))
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectBody()
+            .jsonPath("$.title").isEqualTo(ReviewErrorCode.FIT_NOT_APPLICABLE.title())
+            .jsonPath("$.detail").isEqualTo("사이즈가 없는 상품에는 사이즈 평가를 남길 수 없어요. fit을 빼고 보내 주세요");
     }
 
     private static void expectProblem(RestTestClient.ResponseSpec response, int status, ReviewErrorCode code) {

@@ -189,6 +189,59 @@ class ReviewServiceTest {
             ReviewErrorCode.INVALID_RATING);
     }
 
+    @Test
+    @DisplayName("핏 집계: 작성 +1, 수정 이전 −1 · 새 +1, 같은 값 · 별점만 바꾸면 그대로, 지우면 −1, 삭제 −1")
+    void fitStats() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT, "110");
+        ReviewView written = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
+            ReviewService.FitInput.text("SMALL"));
+        long id = written.reviewId();
+
+        service.update(ME, id, change(ReviewService.FitInput.text("LARGE")));
+        service.update(ME, id, change(ReviewService.FitInput.text("LARGE")));
+        service.update(ME, id, new ReviewService.ReviewChange(true, 2, false, null));
+        service.update(ME, id, change(ReviewService.FitInput.cleared()));
+        service.update(ME, id, change(ReviewService.FitInput.text("TRUE_TO_SIZE")));
+        service.delete(ME, id);
+
+        assertThat(written.fit()).isEqualTo("SMALL");
+        assertThat(written.purchasedSize()).isEqualTo("110");
+        assertThat(stats.fitDeltas).containsExactly(
+            List.of(1, 0, 0), List.of(-1, 0, 1), List.of(0, 0, 0), List.of(0, 0, -1), List.of(0, 1, 0),
+            List.of(0, -1, 0));
+    }
+
+    @Test
+    @DisplayName("사이즈 없는 주문상품에 핏을 보내면 FIT_NOT_APPLICABLE, 정해진 값이 아니면 INVALID_FIT(저장 전)")
+    void fitErrors() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        assertError(() -> service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
+            ReviewService.FitInput.text("SMALL")), ReviewErrorCode.FIT_NOT_APPLICABLE);
+        assertError(() -> service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
+            ReviewService.FitInput.text("small")), ReviewErrorCode.INVALID_FIT);
+        assertError(() -> service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
+            ReviewService.FitInput.invalid()), ReviewErrorCode.INVALID_FIT);
+        assertThat(reviews.saves).isZero();
+        assertThat(stats.deltas).isEmpty();
+
+        long id = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요").reviewId();
+        List<Delta> afterWrite = List.copyOf(stats.deltas);
+        List<List<Integer>> fitsAfterWrite = List.copyOf(stats.fitDeltas);
+        assertError(() -> service.update(ME, id, change(ReviewService.FitInput.text("LARGE"))),
+            ReviewErrorCode.FIT_NOT_APPLICABLE);
+        assertThat(stats.deltas).isEqualTo(afterWrite);
+        assertThat(stats.fitDeltas).isEqualTo(fitsAfterWrite);
+        // 남의 리뷰는 핏 값이 틀려도 작성자 확인이 먼저다(별점 · 본문과 같은 순서)
+        assertError(() -> service.update(ME + 1, id, change(ReviewService.FitInput.text("small"))),
+            ReviewErrorCode.REVIEW_FORBIDDEN);
+        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(false, null, false, null)),
+            ReviewErrorCode.NO_FIELDS_TO_UPDATE);
+    }
+
+    private static ReviewService.ReviewChange change(ReviewService.FitInput fit) {
+        return new ReviewService.ReviewChange(false, null, false, null, fit);
+    }
+
     private static void assertError(Runnable call, ReviewErrorCode code) {
         assertThatThrownBy(call::run).isInstanceOfSatisfying(BusinessException.class,
             e -> assertThat(e.getErrorCode()).isEqualTo(code));
@@ -209,14 +262,21 @@ class ReviewServiceTest {
         // adjust가 돌려줄 바뀐 행 수. 0이면 집계 행이 없는 상황이다
         private int adjustedRows = 1;
 
+        // 핏 집계 증감(작다 · 맞다 · 크다). 핏이 바뀌지 않으면 0 · 0 · 0
+        private final List<List<Integer>> fitDeltas = new ArrayList<>();
+
         @Override
-        public void addReview(Long productId, int rating, LocalDateTime now) {
+        public void addReview(Long productId, int rating, int fitSmall, int fitTrueToSize, int fitLarge,
+            LocalDateTime now) {
             deltas.add(new Delta(productId, 1, rating));
+            fitDeltas.add(List.of(fitSmall, fitTrueToSize, fitLarge));
         }
 
         @Override
-        public int adjust(Long productId, int countDelta, int ratingDelta, LocalDateTime now) {
+        public int adjust(Long productId, int countDelta, int ratingDelta, int fitSmall, int fitTrueToSize,
+            int fitLarge, LocalDateTime now) {
             deltas.add(new Delta(productId, countDelta, ratingDelta));
+            fitDeltas.add(List.of(fitSmall, fitTrueToSize, fitLarge));
             return adjustedRows;
         }
     }
@@ -226,8 +286,12 @@ class ReviewServiceTest {
         private final Map<Long, ReviewEligibility> rows = new HashMap<>();
 
         void mine(long orderItemId, long memberId, long productId) {
+            mine(orderItemId, memberId, productId, null);
+        }
+
+        void mine(long orderItemId, long memberId, long productId, String size) {
             rows.put(orderItemId, ReviewEligibility.create(new ReviewEligibility.Values(orderItemId, 12L, memberId,
-                productId, 15L, null, FIXED_TIME)));
+                productId, 15L, size, FIXED_TIME)));
         }
 
         @Override

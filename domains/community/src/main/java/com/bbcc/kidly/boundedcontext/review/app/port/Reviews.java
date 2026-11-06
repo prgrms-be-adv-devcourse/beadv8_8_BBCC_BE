@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.review.app.port;
 
 import com.bbcc.kidly.boundedcontext.review.domain.DisplayStatus;
+import com.bbcc.kidly.boundedcontext.review.domain.Fit;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -69,6 +70,12 @@ public interface Reviews {
 
         // 작성자가 탈퇴했으면 그 시각, 아니면 null
         LocalDateTime getAuthorWithdrawnAt();
+
+        // 사이즈 핏. 남기지 않았으면 null
+        Fit getFit();
+
+        // 작성 자격에 저장된 구매 사이즈. 없으면 null
+        String getPurchasedSize();
 
         LocalDateTime getCreatedAt();
 
