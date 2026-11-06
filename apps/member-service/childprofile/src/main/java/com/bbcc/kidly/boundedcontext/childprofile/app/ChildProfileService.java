@@ -114,6 +114,13 @@ public class ChildProfileService {
         log.info("탈퇴 회원 자녀 삭제: memberId={} count={}", memberId, children.size());
     }
 
+    // 본인인증 기록까지 지워야 같은 사람이 다시 가입해 인증할 수 있다
+    @Transactional
+    public void deleteWithdrawnMember(Long memberId) {
+        deleteAll(memberId);
+        guardianVerificationRepository.deleteByMemberId(memberId);
+    }
+
     @Transactional(readOnly = true)
     public List<GrowthRecordResult> getGrowthRecords(Long memberId, Long childId) {
         return childProfileRepository.getByIdAndMemberId(childId, memberId).getGrowthRecords().stream()

@@ -1,14 +1,12 @@
 package com.bbcc.kidly.boundedcontext.childprofile.in;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
-import com.bbcc.kidly.boundedcontext.childprofile.app.GuardianVerificationService;
 import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -20,12 +18,10 @@ import tools.jackson.databind.json.JsonMapper;
 public class ChildProfileMemberEventListener {
 
     private final ChildProfileService childProfileService;
-    private final GuardianVerificationService guardianVerificationService;
     private final JsonMapper jsonMapper;
 
     @KafkaListener(id = "childProfileMemberEventListener", topics = "kidly.member.events",
         groupId = "kidly.childprofile", containerFactory = "childprofileKafkaListenerContainerFactory")
-    @Transactional
     public void on(ConsumerRecord<String, String> record) {
         switch (ChildProfileKafkaListenerConfig.header(record, "eventType")) {
             case "member.withdrawn" -> onWithdrawn(jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
@@ -35,8 +31,7 @@ public class ChildProfileMemberEventListener {
     }
 
     private void onWithdrawn(MemberWithdrawnEvent event) {
-        childProfileService.deleteAll(event.data().memberId());
-        guardianVerificationService.deleteByMemberId(event.data().memberId());
+        childProfileService.deleteWithdrawnMember(event.data().memberId());
     }
 
     private void onSuspended(MemberSuspendedEvent event) {
