@@ -10,6 +10,7 @@
 | | `seller.application-rejected` | 신청 ID | | notification |
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |
+| | `child-account.changed` | 자녀 계정 ID | | childprofile |
 | `kidly.product.events` | `product.changed` | 상품 ID | product | community, order, recommend, search |
 | | `stock.deducted` · `stock.deduction-failed` | 주문 ID | | order |
 | `kidly.order.events` | `order.created` | 주문 ID | order | product |
