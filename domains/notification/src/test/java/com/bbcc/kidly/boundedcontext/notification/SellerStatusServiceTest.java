@@ -1,12 +1,15 @@
 package com.bbcc.kidly.boundedcontext.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.bbcc.kidly.boundedcontext.notification.app.MemberContactService;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.SellerStatusService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.SellerChangedCommand;
@@ -36,6 +39,9 @@ class SellerStatusServiceTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private MemberContactService memberContactService;
+
     @InjectMocks
     private SellerStatusService sellerStatusService;
 
@@ -43,6 +49,7 @@ class SellerStatusServiceTest {
     @DisplayName("복사본이 없는 판매자의 ACTIVE는 승인이므로 복사본을 만들고 승인 메일을 만든다")
     void approved() {
         given(sellerStatusCopyRepository.findById(5L)).willReturn(Optional.empty());
+        given(memberContactService.findEmail(5L)).willReturn(Optional.of("seller@kidly.dev"));
 
         sellerStatusService.apply(command(SellerStatus.ACTIVE, OCCURRED_AT));
 
@@ -50,6 +57,19 @@ class SellerStatusServiceTest {
         verify(sellerStatusCopyRepository).save(saved.capture());
         assertThat(saved.getValue().getStatus()).isEqualTo(SellerStatus.ACTIVE);
         verify(notificationService).createSellerApprovedEmail(EVENT_ID, 5L, "키들리 상점");
+    }
+
+    @Test
+    @DisplayName("승인을 받았는데 회원 이메일 복사본이 아직 없으면 복사본을 저장하지 않고 실패해 다시 받을 수 있게 한다")
+    void approvedWithoutEmail() {
+        given(sellerStatusCopyRepository.findById(5L)).willReturn(Optional.empty());
+        given(memberContactService.findEmail(5L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> sellerStatusService.apply(command(SellerStatus.ACTIVE, OCCURRED_AT)))
+            .isInstanceOf(IllegalStateException.class);
+
+        verify(sellerStatusCopyRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
     }
 
     @Test
