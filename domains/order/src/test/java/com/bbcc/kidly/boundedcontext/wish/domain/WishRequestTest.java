@@ -2,314 +2,129 @@ package com.bbcc.kidly.boundedcontext.wish.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
-import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.Approval;
-import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.Checkout;
-import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.OrderResult;
+import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.CancelReason;
+import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.LineValue;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.RejectReason;
+import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.Status;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRuleViolationException.Rule;
 import java.time.LocalDateTime;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.test.util.ReflectionTestUtils;
 
-/**
- * 조르기 규칙(#701): 보내기 · 진행 중 줄 잠금 · 일부 승인 · 수량 변경 · 거절 · 한 번만 처리 · 바로 결제 결과 반영.
- */
 class WishRequestTest {
 
-    private static final Long CHILD_ID = 7L;
-    private static final Long PARENT_ID = 1L;
-    private static final Long REQUEST_ID = 100L;
-    private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 2, 14, 0);
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 6, 10, 0);
+    private static final int MAX_MESSAGE = 100;
 
-    private WishItem first;
-    private WishItem second;
-    private long idSeq;
+    @Test
+    @DisplayName("보내면 종류 WISH · 대기 상태이고, 메시지는 앞뒤 공백을 지운다(공백뿐이면 없음)")
+    void send() {
+        WishRequest request = WishRequest.send(PrincipalType.CHILD, 1L, 1L, "  사 주세요  ", MAX_MESSAGE);
+        WishRequest blank = WishRequest.send(PrincipalType.CHILD, 1L, 1L, "   ", MAX_MESSAGE);
 
-    @BeforeEach
-    void setUp() {
-        first = item(10L, 1L, 2);
-        second = item(11L, 2L, 1);
-    }
-
-    @Nested
-    @DisplayName("보내기")
-    class Send {
-
-        @Test
-        @DisplayName("줄 여러 개 + 메시지로 만들고, 저장 뒤 든 줄을 모두 잠근다(줄은 공용 장바구니에 남는다)")
-        void sendsAndLocks() {
-            WishRequest request = sent(first, second);
-
-            assertThat(request.getStatus()).isEqualTo(WishRequest.Status.REQUESTED);
-            assertThat(request.getMessage()).isEqualTo("사 주세요");
-            assertThat(request.getLines()).extracting(WishRequestLine::getWishItemId, WishRequestLine::getOptionId,
-                    WishRequestLine::getRequestedQuantity, WishRequestLine::getApprovedQuantity)
-                .containsExactly(tuple(10L, 1L, 2, null),
-                    tuple(11L, 2L, 1, null));
-            assertThat(first.getRequestId()).isEqualTo(REQUEST_ID);
-            assertThat(second.getRequestId()).isEqualTo(REQUEST_ID);
-            assertThat(first.getStatus()).isEqualTo(WishItem.Status.ACTIVE);
-        }
-
-        @Test
-        @DisplayName("메시지는 선택이다: 비었거나 공백뿐이면 null, 앞뒤 공백은 지운다")
-        void optionalMessage() {
-            assertThat(WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, "  ", 100, List.of(first)).getMessage())
-                .isNull();
-            assertThat(WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, " 응 ", 100, List.of(second)).getMessage())
-                .isEqualTo("응");
-        }
-
-        @Test
-        @DisplayName("진행 중인 조르기에 든 줄은 다른 조르기에 넣을 수 없다")
-        void lockedItemRejected() {
-            sent(first);
-
-            assertRule(() -> WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, null, 100, List.of(second, first)),
-                Rule.WISH_ITEM_IN_REQUEST);
-            assertThat(second.isLocked()).isFalse();
-        }
-
-        @Test
-        @DisplayName("줄이 없거나 · 겹치거나 · 다른 자녀 줄이거나 · 메시지가 정책보다 길면 거절한다")
-        void invalidRequest() {
-            assertRule(() -> WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, null, 100, List.of()),
-                Rule.INVALID_WISH_REQUEST);
-            assertRule(() -> WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, null, 100, List.of(first, first)),
-                Rule.INVALID_WISH_REQUEST);
-            assertRule(() -> WishRequest.send(8L, AddedBy.PARENT, PARENT_ID, null, 100, List.of(first)),
-                Rule.INVALID_WISH_REQUEST);
-            assertRule(() -> WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, "가".repeat(11), 10, List.of(first)),
-                Rule.INVALID_WISH_REQUEST);
-            assertThat(WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, "가".repeat(10), 10, List.of(first))
-                .getMessage()).hasSize(10);
-        }
-
-        @Test
-        @DisplayName("잠긴 줄은 수량을 바꿀 수 없다")
-        void lockedItemQuantityFixed() {
-            sent(first);
-
-            assertRule(() -> first.addQuantity(1), Rule.WISH_ITEM_IN_REQUEST);
-            assertThat(first.getQuantity()).isEqualTo(2);
-        }
-    }
-
-    @Nested
-    @DisplayName("승인")
-    class Approve {
-
-        @Test
-        @DisplayName("일부만 · 수량을 바꿔 승인할 수 있다. 바로 결제면 승인한 줄은 결제 결과까지 잠기고 나머지는 풀린다")
-        void partialOrder() {
-            WishRequest request = sent(first, second);
-
-            List<WishRequestLine> approved = request.approve(List.of(new Approval(10L, 5)), Checkout.ORDER, PARENT_ID,
-                List.of(first, second), NOW);
-
-            assertThat(approved).extracting(WishRequestLine::getWishItemId, WishRequestLine::getApprovedQuantity)
-                .containsExactly(tuple(10L, 5));
-            assertThat(request.getStatus()).isEqualTo(WishRequest.Status.APPROVED);
-            assertThat(request.getCheckout()).isEqualTo(Checkout.ORDER);
-            assertThat(request.getDecidedById()).isEqualTo(PARENT_ID);
-            assertThat(request.getDecidedAt()).isEqualTo(NOW);
-            assertThat(first.isLocked()).isTrue();
-            assertThat(second.isLocked()).isFalse();
-            assertThat(first.getQuantity()).isEqualTo(2);
-        }
-
-        @Test
-        @DisplayName("보호자 장바구니로 옮기기면 승인과 함께 모든 줄이 풀린다(줄은 공용 장바구니에 남는다)")
-        void cartUnlocksAll() {
-            WishRequest request = sent(first, second);
-
-            request.approve(List.of(new Approval(10L, 1), new Approval(11L, 1)), Checkout.CART, PARENT_ID,
-                List.of(first, second), NOW);
-
-            assertThat(first.isLocked()).isFalse();
-            assertThat(second.isLocked()).isFalse();
-            assertThat(first.getStatus()).isEqualTo(WishItem.Status.ACTIVE);
-            assertThat(request.isAwaitingOrder()).isFalse();
-        }
-
-        @Test
-        @DisplayName("이미 승인 · 거절한 조르기는 다시 처리할 수 없다")
-        void onlyOnce() {
-            WishRequest approved = sent(first);
-            approved.approve(List.of(new Approval(10L, 1)), Checkout.CART, PARENT_ID, List.of(first), NOW);
-            WishRequest rejected = sent(second);
-            rejected.reject(RejectReason.NEXT_TIME, PARENT_ID, List.of(second), NOW);
-
-            assertRule(() -> approved.approve(List.of(new Approval(10L, 1)), Checkout.ORDER, PARENT_ID,
-                List.of(first), NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
-            assertRule(() -> approved.reject(RejectReason.OTHER, PARENT_ID, List.of(first), NOW),
-                Rule.WISH_REQUEST_ALREADY_DECIDED);
-            assertRule(() -> rejected.approve(List.of(new Approval(11L, 1)), Checkout.CART, PARENT_ID,
-                List.of(second), NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
-        }
-
-        @Test
-        @DisplayName("고른 줄이 없거나 · 조르기에 없는 줄이거나 · 겹치면 거절하고 아무것도 바꾸지 않는다")
-        void invalidApproval() {
-            WishRequest request = sent(first, second);
-
-            assertRule(() -> request.approve(List.of(), Checkout.ORDER, PARENT_ID, List.of(first, second), NOW),
-                Rule.INVALID_APPROVAL);
-            assertRule(() -> request.approve(List.of(new Approval(99L, 1)), Checkout.ORDER, PARENT_ID,
-                List.of(first, second), NOW), Rule.INVALID_APPROVAL);
-            assertRule(() -> request.approve(List.of(new Approval(10L, 1), new Approval(10L, 2)), Checkout.ORDER,
-                PARENT_ID, List.of(first, second), NOW), Rule.INVALID_APPROVAL);
-            assertThat(request.getStatus()).isEqualTo(WishRequest.Status.REQUESTED);
-            assertThat(request.getLines()).allMatch(line -> !line.isApproved());
-            assertThat(first.isLocked()).isTrue();
-        }
-
-        @ParameterizedTest
-        @ValueSource(ints = {0, 100})
-        @DisplayName("승인 수량은 1~99다")
-        void approvedQuantityRange(int quantity) {
-            WishRequest request = sent(first);
-
-            assertRule(() -> request.approve(List.of(new Approval(10L, quantity)), Checkout.CART, PARENT_ID,
-                List.of(first), NOW), Rule.INVALID_APPROVAL);
-        }
+        assertThat(request.getType()).isEqualTo(WishRequest.Type.WISH);
+        assertThat(request.getStatus()).isEqualTo(Status.REQUESTED);
+        assertThat(request.getMessage()).isEqualTo("사 주세요");
+        assertThat(request.isRequestedBy(PrincipalType.CHILD, 1L)).isTrue();
+        assertThat(request.isRequestedBy(PrincipalType.MEMBER, 1L)).isFalse();
+        assertThat(blank.getMessage()).isNull();
     }
 
     @Test
-    @DisplayName("철회(#968)하면 CANCELLED · 철회 시각을 남기고 든 줄의 잠금만 푼다(줄은 공용 장바구니에 남는다)")
-    void cancel() {
-        WishRequest request = sent(first, second);
-
-        request.cancel(List.of(first, second), NOW);
-
-        assertThat(request.getStatus()).isEqualTo(WishRequest.Status.CANCELLED);
-        assertThat(request.getCancelledAt()).isEqualTo(NOW);
-        assertThat(request.getDecidedAt()).isNull();
-        assertThat(first.isLocked()).isFalse();
-        assertThat(second.isLocked()).isFalse();
-        assertThat(first.getStatus()).isEqualTo(WishItem.Status.ACTIVE);
+    @DisplayName("메시지가 정책 길이를 넘으면 INVALID_WISH_REQUEST")
+    void messageTooLong() {
+        assertThatThrownBy(() -> WishRequest.send(PrincipalType.CHILD, 1L, 1L, "가".repeat(MAX_MESSAGE + 1),
+            MAX_MESSAGE))
+            .isInstanceOfSatisfying(WishRuleViolationException.class,
+                e -> assertThat(e.getRule()).isEqualTo(Rule.INVALID_WISH_REQUEST));
     }
 
     @Test
-    @DisplayName("처리된 조르기(승인 · 거절 · 철회)는 철회할 수 없고, 철회한 조르기는 승인 · 거절할 수 없다")
-    void cancelOnlyWhenRequested() {
-        WishRequest approved = sent(first);
-        approved.approve(List.of(new Approval(10L, 1)), Checkout.CART, PARENT_ID, List.of(first), NOW);
-        WishRequest rejected = sent(second);
-        rejected.reject(RejectReason.NEXT_TIME, PARENT_ID, List.of(second), NOW);
-        WishItem third = item(12L, 3L, 1);
-        WishRequest cancelled = sent(third);
-        cancelled.cancel(List.of(third), NOW);
+    @DisplayName("칸은 한 번만, 하나 이상 겹치지 않게 담는다")
+    void addLines() {
+        WishRequest request = requested();
 
-        assertRule(() -> approved.cancel(List.of(first), NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
-        assertRule(() -> rejected.cancel(List.of(second), NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
-        assertRule(() -> cancelled.cancel(List.of(third), NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
-        assertRule(() -> cancelled.approve(List.of(new Approval(12L, 1)), Checkout.CART, PARENT_ID, List.of(third),
-            NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
-        assertRule(() -> cancelled.reject(RejectReason.OTHER, PARENT_ID, List.of(third), NOW),
+        assertThat(request.getLines()).hasSize(2);
+        assertThat(request.cartItemIds()).containsExactly(10L, 11L);
+        assertThat(request.containsCartItem(11L)).isTrue();
+        assertThat(request.containsCartItem(12L)).isFalse();
+        assertThat(request.containsCartItem(null)).isFalse();
+        assertViolation(() -> request.addLines(List.of(new LineValue(12L, null, 1L, 1))), Rule.INVALID_WISH_REQUEST);
+
+        WishRequest empty = WishRequest.send(PrincipalType.CHILD, 1L, 1L, null, MAX_MESSAGE);
+        assertViolation(() -> empty.addLines(List.of()), Rule.INVALID_WISH_REQUEST);
+        assertViolation(() -> empty.addLines(List.of(new LineValue(10L, null, 1L, 1), new LineValue(10L, null, 1L, 1))),
+            Rule.INVALID_WISH_REQUEST);
+        assertViolation(() -> empty.addLines(List.of(new LineValue(null, null, 1L, 1))), Rule.INVALID_WISH_REQUEST);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"wish-", "wish-abc", "wish--1", "order-1", "local-998", "wish-1234567890123456789", ""})
+    @DisplayName("조르기 예약이 아닌 예약 ID에서는 조르기 ID를 꺼내지 않는다")
+    void notWishReservation(String reservationId) {
+        assertThat(WishRequest.idOfReservation(reservationId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("조르기 예약 ID는 wish-{조르기 ID}다")
+    void wishReservation() {
+        assertThat(WishRequest.idOfReservation("wish-42")).contains(42L);
+        assertThat(WishRequest.idOfReservation(null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("결제되면 한 번만 결제 완료가 되고 결제한 사람 · 시각을 남긴다. 다시 결제돼도 바뀌지 않는다")
+    void pay() {
+        WishRequest request = requested();
+
+        assertThat(request.pay(PrincipalType.MEMBER, 7L, NOW)).isTrue();
+        assertThat(request.pay(PrincipalType.MEMBER, 8L, NOW.plusMinutes(1))).isFalse();
+
+        assertThat(request.getStatus()).isEqualTo(Status.PAID);
+        assertThat(request.getPayerType()).isEqualTo(PrincipalType.MEMBER);
+        assertThat(request.getPayerId()).isEqualTo(7L);
+        assertThat(request.getPaidAt()).isEqualTo(NOW);
+        assertViolation(() -> request.reject(RejectReason.OTHER, PrincipalType.MEMBER, 7L, NOW),
             Rule.WISH_REQUEST_ALREADY_DECIDED);
+        assertViolation(() -> request.cancel(CancelReason.DIRECT, NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
     }
 
     @Test
-    @DisplayName("보낸 사람인지는 종류와 ID가 모두 같아야 한다")
-    void requestedBy() {
-        WishRequest request = sent(first);
+    @DisplayName("거절하면 사유 · 거절한 사람 · 시각을 남기고, 거절 · 철회된 조르기는 결제 완료 · 다시 처리가 409다")
+    void rejectAndCancel() {
+        WishRequest rejected = requested();
+        rejected.reject(RejectReason.NEXT_TIME, PrincipalType.MEMBER, 7L, NOW);
+        WishRequest cancelled = requested();
+        cancelled.cancel(CancelReason.DIRECT, NOW);
 
-        assertThat(request.isRequestedBy(AddedBy.CHILD, CHILD_ID)).isTrue();
-        assertThat(request.isRequestedBy(AddedBy.PARENT, CHILD_ID)).isFalse();
-        assertThat(request.isRequestedBy(AddedBy.CHILD, CHILD_ID + 1)).isFalse();
-    }
-
-    @Test
-    @DisplayName("거절하면 사유를 남기고 든 줄의 잠금을 모두 푼다")
-    void reject() {
-        WishRequest request = sent(first, second);
-
-        request.reject(RejectReason.TOO_EXPENSIVE, PARENT_ID, List.of(first, second), NOW);
-
-        assertThat(request.getStatus()).isEqualTo(WishRequest.Status.REJECTED);
-        assertThat(request.getRejectReason()).isEqualTo(RejectReason.TOO_EXPENSIVE);
-        assertThat(first.isLocked()).isFalse();
-        assertThat(second.isLocked()).isFalse();
-    }
-
-    @Nested
-    @DisplayName("바로 결제 결과")
-    class SettleOrder {
-
-        private WishRequest request;
-
-        @BeforeEach
-        void ordered() {
-            request = sent(first, second);
-            request.approve(List.of(new Approval(10L, 1)), Checkout.ORDER, PARENT_ID, List.of(first, second), NOW);
-            request.recordOrder(500L);
-        }
-
-        @Test
-        @DisplayName("결제되면 승인한 줄만 공용 장바구니에서 빠지고(PURCHASED) 결과는 한 번만 정해진다")
-        void paid() {
-            assertThat(request.settleOrder(true, false, List.of(first, second))).contains(OrderResult.PAID);
-
-            assertThat(first.getStatus()).isEqualTo(WishItem.Status.PURCHASED);
-            assertThat(first.isLocked()).isFalse();
-            assertThat(second.getStatus()).isEqualTo(WishItem.Status.ACTIVE);
-            assertThat(request.isAwaitingOrder()).isFalse();
-            assertThat(request.settleOrder(true, true, List.of(first, second))).isEmpty();
-            assertThat(request.getOrderResult()).isEqualTo(OrderResult.PAID);
-        }
-
-        @Test
-        @DisplayName("결제 뒤 취소된 주문도 결제된 것으로 본다(본 시점과 상관없이 결과가 같다)")
-        void paidThenCancelled() {
-            assertThat(request.settleOrder(true, true, List.of(first, second))).contains(OrderResult.PAID);
-            assertThat(first.getStatus()).isEqualTo(WishItem.Status.PURCHASED);
-        }
-
-        @Test
-        @DisplayName("결제 없이 취소되면(결제 실패 · 마감 등) 승인한 줄의 잠금만 풀리고 공용 장바구니에 남는다")
-        void cancelled() {
-            assertThat(request.settleOrder(false, true, List.of(first, second))).contains(OrderResult.CANCELLED);
-
-            assertThat(first.getStatus()).isEqualTo(WishItem.Status.ACTIVE);
-            assertThat(first.isLocked()).isFalse();
-        }
-
-        @Test
-        @DisplayName("결제대기면 아무것도 바꾸지 않는다(승인한 줄은 잠긴 채)")
-        void pending() {
-            assertThat(request.settleOrder(false, false, List.of(first, second))).isEmpty();
-
-            assertThat(first.isLocked()).isTrue();
-            assertThat(request.isAwaitingOrder()).isTrue();
+        assertThat(rejected.getStatus()).isEqualTo(Status.REJECTED);
+        assertThat(rejected.getRejectReason()).isEqualTo(RejectReason.NEXT_TIME);
+        assertThat(rejected.getRejectedByType()).isEqualTo(PrincipalType.MEMBER);
+        assertThat(rejected.getRejectedById()).isEqualTo(7L);
+        assertThat(rejected.getRejectedAt()).isEqualTo(NOW);
+        assertThat(cancelled.getStatus()).isEqualTo(Status.CANCELLED);
+        assertThat(cancelled.getCancelReason()).isEqualTo(CancelReason.DIRECT);
+        assertThat(cancelled.getCancelledAt()).isEqualTo(NOW);
+        for (WishRequest done : List.of(rejected, cancelled)) {
+            assertViolation(() -> done.pay(PrincipalType.MEMBER, 7L, NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
+            assertViolation(() -> done.cancel(CancelReason.SYSTEM, NOW), Rule.WISH_REQUEST_ALREADY_DECIDED);
+            assertViolation(() -> done.reject(RejectReason.OTHER, PrincipalType.MEMBER, 7L, NOW),
+                Rule.WISH_REQUEST_ALREADY_DECIDED);
         }
     }
 
-    private WishRequest sent(WishItem... items) {
-        WishRequest request = WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, "사 주세요", 100, List.of(items));
-        ReflectionTestUtils.setField(request, "id", REQUEST_ID + idSeq++);
-        request.lockItems(List.of(items));
+    private static WishRequest requested() {
+        WishRequest request = WishRequest.send(PrincipalType.CHILD, 1L, 1L, null, MAX_MESSAGE);
+        request.addLines(List.of(new LineValue(10L, 100L, 1L, 2), new LineValue(11L, null, 2L, 1)));
         return request;
     }
 
-    private static WishItem item(Long id, Long optionId, int quantity) {
-        WishItem item = WishItem.create(CHILD_ID, optionId, quantity, AddedBy.CHILD, CHILD_ID);
-        ReflectionTestUtils.setField(item, "id", id);
-        return item;
-    }
-
-    private static void assertRule(Executable call, Rule rule) {
-        assertThatThrownBy(call::execute)
-            .isInstanceOfSatisfying(WishRuleViolationException.class, e -> assertThat(e.getRule()).isEqualTo(rule));
+    private static void assertViolation(Runnable action, Rule rule) {
+        assertThatThrownBy(action::run).isInstanceOfSatisfying(WishRuleViolationException.class,
+            e -> assertThat(e.getRule()).isEqualTo(rule));
     }
 }

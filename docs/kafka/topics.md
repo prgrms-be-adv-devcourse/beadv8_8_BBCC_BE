@@ -23,10 +23,11 @@
 | | `delivery.delivered` | 주문 ID | | notification |
 | | `cart.item-added`(#998 추가 칸 `ownerType` · `ownerId`: 장바구니 주인 MEMBER · CHILD, 키 = 결제 회원(보호자) ID) | 회원 ID | | recommend |
 | | `cart.item-removed`(사용자가 뺄 때만, #709. #998 추가 칸 `ownerType` · `ownerId`) | 회원 ID | | recommend |
-| | `cart.item-purchased`(결제완료로 산 칸 정리, #998: `cartItemId` · `ownerType` · `ownerId` · `memberId`(줄의 결제 회원, 실제 결제자와 다를 수 있음) · `optionId` · `childId` · `quantity`(이번에 산 수량. 칸에서 그만큼 빠지고 0이 되면 칸이 지워진다) · `orderId` · `orderItemId` · `reservationId`(예약 칸이었으면)) | 회원 ID | | (아직 없음. #999 뒤 order) |
+| | `cart.item-purchased`(결제완료로 산 칸 정리, #998: `cartItemId` · `ownerType` · `ownerId` · `memberId`(줄의 결제 회원, 실제 결제자와 다를 수 있음) · `optionId` · `childId` · `quantity`(이번에 산 수량. 칸에서 그만큼 빠지고 0이 되면 칸이 지워진다) · `orderId` · `orderItemId` · `reservationId`(예약 칸이었으면)) | 회원 ID | | order(조르기 결제 완료, 자기 토픽 #999) |
 | | `wish.sent` | 자녀 ID | | notification |
-| | `wish.cancelled`(보낸 사람이 처리 전에 철회, #968) | 자녀 ID | | (아직 없음) |
+| | `wish.paid`(조르기 예약 칸이 결제됨, 조르기마다 1번. data `payerType` · `payerId` · `orderId`, #999) | 자녀 ID | | (아직 없음) |
 | | `wish.rejected` | 자녀 ID | | notification |
+| | `wish.cancelled`(처리 전에 철회, #968. #999 추가 칸 `cancelReason` DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM, 없는 예전 메시지는 DIRECT) | 자녀 ID | | (아직 없음) |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |
 | | `payment.refunded` | 주문 ID | | notification |
 | | `payment.payout-completed` · `payment.payout-failed` | 정산서 ID | | settlement, notification(payout-completed) |
@@ -36,7 +37,9 @@
 
 - 순서는 **같은 토픽 + 같은 키** 안에서만 보장됩니다. 한 주문의 이벤트(생성 → 결제 요청 → 취소 → 구매확정)는 모두 `kidly.order.events`에 주문 ID 키로 들어가므로 순서가 지켜집니다.
 - member는 `seller.changed`를 회원 서비스에서 Kafka로 받습니다. 토큰 무효화는 auth가 `auth.tokens-revoked`를 보내고 Gateway가 받아 처리합니다.
-- 받는 도메인은 11-04 코드의 `@KafkaListener` 기준입니다. 그 밖의 주문 이벤트(위시 관련)는 Kafka로 받는 도메인이 없어 표에 넣지 않았습니다.
+- 받는 도메인은 11-04 코드의 `@KafkaListener` 기준입니다. 조르기 이벤트(`wish.*`)는 받는 도메인이 없어도 표에 둡니다(받는 곳이 없으면 "(아직 없음)").
+- 주문은 자기 토픽 `kidly.order.events`를 구독 그룹 `kidly.order`로 읽습니다(#999, 조르기 결제 완료). 자기 토픽 구독은 허용입니다: 받은 메시지를 다시 넣지 않고, 실패는 주문 DLT `kidly.order.events.order.dlt`로 갑니다. 결제 정리 트랜잭션과 떨어져 있어 조르기 처리가 실패해도 결제는 되돌아가지 않습니다.
+- `wish.approved` · `wish.item-added`는 #999에서 보내지 않습니다(승인 단계 · 공용 장바구니를 없앰, 받는 도메인 없음).
 - 새 이벤트를 만들거나 토픽, 키, 메시지 형식을 바꾸려면 팀에 먼저 묻습니다. 결정되면 이 표에 추가합니다.
 
 ---

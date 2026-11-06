@@ -13,8 +13,8 @@ import com.bbcc.kidly.boundedcontext.order.in.event.ChildProfileEventListener;
 import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.boundedcontext.wish.app.WishErrorCode;
-import com.bbcc.kidly.boundedcontext.wish.app.WishService;
-import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
+import com.bbcc.kidly.boundedcontext.wish.app.WishRequestService;
+import com.bbcc.kidly.boundedcontext.wish.out.actor.ChildWishActor;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
@@ -55,7 +55,7 @@ class ChildDeletionIntegrationTest {
     private OrderPlacement placement;
 
     @Autowired
-    private WishService wishService;
+    private WishRequestService wishRequestService;
 
     @Autowired
     private ProductReplicaRepository products;
@@ -122,7 +122,7 @@ class ChildDeletionIntegrationTest {
     }
 
     @Test
-    @DisplayName("프로필 없는 삭제 복사본으로 주문하거나 조르기에 담을 수 없다")
+    @DisplayName("프로필 없는 삭제 복사본으로 주문하거나 조르기를 보낼 수 없다")
     void deletedChildCannotOrderOrWish() {
         listener.onChildChanged(deleted(DELETED_AT));
         products.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, DELETED_AT)));
@@ -131,11 +131,11 @@ class ChildDeletionIntegrationTest {
         assertThatThrownBy(() -> placement.place(1L, command, null))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(OrderErrorCode.CHILD_NOT_ORDERABLE));
-        assertThatThrownBy(() -> wishService.add(new ParentWishActor(1L), 1L, 1L, 1))
+        assertThatThrownBy(() -> wishRequestService.send(new ChildWishActor(1L, 1L), List.of(1L), null))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(WishErrorCode.CHILD_NOT_FOUND));
         assertThat(jdbcTemplate.queryForObject("select count(*) from orders.orders", Long.class)).isZero();
-        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.wish_item", Long.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.wish_request", Long.class)).isZero();
     }
 
     @ParameterizedTest

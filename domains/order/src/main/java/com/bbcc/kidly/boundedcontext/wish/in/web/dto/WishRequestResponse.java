@@ -5,38 +5,45 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 조르기 한 건(#701). ID는 문자열(장바구니와 같음). 가격 · 판매 상태는 지금 값이다. 칸은 추가만 한다.
+ * 구매 요청(조르기) 한 건(#999). ID는 문자열(장바구니와 같음). 가격 · 판매 상태는 지금 값이다. 칸은 추가만 한다.
  *
- * @param status REQUESTED · APPROVED · REJECTED · CANCELLED(#968, 보낸 사람이 철회)
- * @param requestedBy 보낸 사람 종류(PARENT · CHILD)
- * @param checkout ORDER(바로 결제) · CART(보호자 장바구니로 옮기기). 승인 전 · 거절이면 null
- * @param orderId 바로 결제로 만든 주문 ID. 없으면 null
- * @param orderResult 바로 결제한 주문의 결과(PAID · CANCELLED). 정해지기 전이면 null
+ * @param type 요청 종류(WISH)
+ * @param childId 받는 사람(자녀 프로필 ID)
+ * @param status REQUESTED · PAID · REJECTED · CANCELLED
+ * @param requestedByType 보낸 사람 종류(MEMBER · CHILD)
+ * @param payerType 결제한 사람 종류. 결제 완료가 아니면 null
  * @param rejectReason 거절 사유. 거절이 아니면 null
- * @param cancelledAt 철회 시각(#968). 철회가 아니면 null
+ * @param cancelReason 철회 원인(DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM). 철회가 아니면 null
+ * @param purchases 조르기로 산 것(결제돼 장바구니에서 빠진 칸)
  */
 public record WishRequestResponse(
     String requestId,
+    String type,
     String childId,
     String status,
-    String requestedBy,
+    String requestedByType,
+    String requestedById,
     String message,
     LocalDateTime requestedAt,
-    String checkout,
-    String orderId,
-    String orderResult,
+    String payerType,
+    String payerId,
+    LocalDateTime paidAt,
     String rejectReason,
-    LocalDateTime decidedAt,
+    LocalDateTime rejectedAt,
+    String cancelReason,
+    LocalDateTime cancelledAt,
     List<Line> items,
-    LocalDateTime cancelledAt) {
+    List<Purchase> purchases) {
 
     /**
-     * @param approvedQuantity 승인 수량. 승인하지 않은 줄 · 처리 전이면 null
+     * @param cartItemId 장바구니 칸 ID. #999 전 조르기는 null
+     * @param quantity 보낸 때 칸 수량
      * @param unitPrice 지금 가격. 상품 정보가 없으면 null
      * @param saleStatus 지금 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED 등). 판매 중이 아니어도 빼지 않는다(화면이 버튼을 막는다)
+     * @param purchased 결제돼 장바구니에서 빠졌는지
      */
     public record Line(
-        String wishItemId,
+        String cartItemId,
         String optionId,
         String productId,
         String sellerId,
@@ -44,25 +51,34 @@ public record WishRequestResponse(
         String optionName,
         String size,
         String sellerName,
-        int requestedQuantity,
-        Integer approvedQuantity,
+        int quantity,
         Long unitPrice,
         boolean purchasable,
-        String saleStatus) {
+        String saleStatus,
+        boolean purchased) {
 
         static Line from(WishRequestView.Line view) {
-            return new Line(toText(view.wishItemId()), toText(view.optionId()), toText(view.productId()),
+            return new Line(toText(view.cartItemId()), toText(view.optionId()), toText(view.productId()),
                 toText(view.sellerId()), view.productName(), view.optionName(), view.size(), view.sellerName(),
-                view.requestedQuantity(), view.approvedQuantity(), view.unitPrice(), view.purchasable(),
-                view.saleStatus());
+                view.quantity(), view.unitPrice(), view.purchasable(), view.saleStatus(), view.purchased());
         }
     }
 
+    /**
+     * @param quantity 그 칸에서 이번에 산 수량(칸에 남은 수량 아님)
+     */
+    public record Purchase(String orderId, String cartItemId, int quantity, LocalDateTime purchasedAt) {
+    }
+
     public static WishRequestResponse from(WishRequestView view) {
-        return new WishRequestResponse(toText(view.requestId()), toText(view.childId()), view.status(),
-            view.requestedBy(), view.message(), view.requestedAt(), view.checkout(), toText(view.orderId()),
-            view.orderResult(), view.rejectReason(), view.decidedAt(),
-            view.items().stream().map(Line::from).toList(), view.cancelledAt());
+        return new WishRequestResponse(toText(view.requestId()), view.type(), toText(view.childId()), view.status(),
+            view.requestedByType(), toText(view.requestedById()), view.message(), view.requestedAt(),
+            view.payerType(), toText(view.payerId()), view.paidAt(), view.rejectReason(), view.rejectedAt(),
+            view.cancelReason(), view.cancelledAt(), view.items().stream().map(Line::from).toList(),
+            view.purchases().stream()
+                .map(purchase -> new Purchase(toText(purchase.orderId()), toText(purchase.cartItemId()),
+                    purchase.quantity(), purchase.purchasedAt()))
+                .toList());
     }
 
     private static String toText(Long id) {

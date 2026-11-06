@@ -547,6 +547,58 @@ class CartServiceTest {
         }
 
         @Test
+        @DisplayName("예약 칸을 정리하면(일부 차감 · 삭제 모두) 그 예약의 허용 주체 행 모두에 결제 정리 시각을 남긴다. "
+            + "이미 있으면 그대로 두고, 예약 아닌 칸은 예약을 보지 않는다(#999)")
+        void marksReservationPurchased() {
+            CartItem partial = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, OPTION_ID, CHILD_ID, 3);
+            ReflectionTestUtils.setField(partial, "id", 27L);
+            partial.reserve("wish-4");
+            CartItem whole = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, 3L, CHILD_ID, 1);
+            ReflectionTestUtils.setField(whole, "id", 28L);
+            whole.reserve("wish-5");
+            CartItem plain = line(BUYER_ID, 4L, null, 1);
+            ReflectionTestUtils.setField(plain, "id", 29L);
+            CartReservation first = CartReservation.allow("wish-4", OwnerType.MEMBER, BUYER_ID);
+            CartReservation second = CartReservation.allow("wish-4", OwnerType.MEMBER, OTHER_ID);
+            LocalDateTime earlier = LocalDateTime.of(2026, 1, 1, 0, 0);
+            CartReservation alreadyMarked = CartReservation.allow("wish-5", OwnerType.MEMBER, BUYER_ID);
+            alreadyMarked.markPurchased(earlier);
+            when(cartItemRepository.findById(27L)).thenReturn(Optional.of(partial));
+            when(cartItemRepository.findById(28L)).thenReturn(Optional.of(whole));
+            when(cartItemRepository.findById(29L)).thenReturn(Optional.of(plain));
+            when(reservationRepository.findAllByReservationId("wish-4")).thenReturn(List.of(first, second));
+            when(reservationRepository.findAllByReservationId("wish-5")).thenReturn(List.of(alreadyMarked));
+
+            cartService.clearOrdered(7L, List.of(
+                new CartCleanup.OrderedLine(77L, 27L, BUYER_ID, OPTION_ID, CHILD_ID, 1),
+                new CartCleanup.OrderedLine(78L, 28L, BUYER_ID, 3L, CHILD_ID, 1),
+                new CartCleanup.OrderedLine(79L, 29L, BUYER_ID, 4L, null, 1)));
+
+            assertThat(partial.getQuantity()).isEqualTo(2);
+            assertThat(first.getPurchasedAt()).isNotNull();
+            assertThat(second.getPurchasedAt()).isEqualTo(first.getPurchasedAt());
+            assertThat(alreadyMarked.getPurchasedAt()).isEqualTo(earlier);
+            verify(cartItemRepository).delete(whole);
+            verify(reservationRepository, never()).findAllByReservationId(null);
+        }
+
+        @Test
+        @DisplayName("hasPurchase: 결제 정리 표시가 있는 예약이면 true, 표시 없는 예약 · 없는 예약 · null이면 false")
+        void hasPurchase() {
+            CartReservation marked = CartReservation.allow("wish-6", OwnerType.MEMBER, BUYER_ID);
+            marked.markPurchased(LocalDateTime.now());
+            when(reservationRepository.findAllByReservationId("wish-6"))
+                .thenReturn(List.of(CartReservation.allow("wish-6", OwnerType.MEMBER, OTHER_ID), marked));
+            when(reservationRepository.findAllByReservationId("wish-7"))
+                .thenReturn(List.of(CartReservation.allow("wish-7", OwnerType.MEMBER, BUYER_ID)));
+
+            assertThat(cartService.hasPurchase("wish-6")).isTrue();
+            assertThat(cartService.hasPurchase("wish-7")).isFalse();
+            assertThat(cartService.hasPurchase("missing")).isFalse();
+            assertThat(cartService.hasPurchase(null)).isFalse();
+        }
+
+        @Test
         @DisplayName("칸 ID 없이 수량이 있는 예전 방식 줄은 구매자 회원의 (옵션, 자녀) 칸에서 산 수량만큼 뺀다(칸은 남는다)")
         void deductsBuyersLineWithoutCartItemId() {
             CartItem mine = line(BUYER_ID, OPTION_ID, CHILD_ID, 4);
@@ -705,6 +757,33 @@ class CartServiceTest {
             assertThatThrownBy(() -> cartService.reserve(List.of(CART_ITEM_ID),
                 List.of(new CartReservations.Payer("ADMIN", 1L)), "r-1"))
                 .extracting("errorCode").isEqualTo(CartErrorCode.INVALID_RESERVATION);
+        }
+
+        @Test
+        @DisplayName("주인 칸 예약(#999): 주인의 칸만 예약하고 칸 값을 고른 순서로 돌려준다. 주인의 칸이 아니면 404이고 예약하지 않는다")
+        void reserveOwned() {
+            CartItem first = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, OPTION_ID, CHILD_ID, 2);
+            CartItem second = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, 3L, CHILD_ID, 1);
+            CartItem parents = CartItem.create(OwnerType.MEMBER, BUYER_ID, BUYER_ID, OPTION_ID, null, 1);
+            ReflectionTestUtils.setField(first, "id", 11L);
+            ReflectionTestUtils.setField(second, "id", 12L);
+            ReflectionTestUtils.setField(parents, "id", 13L);
+            when(cartItemRepository.findAllByIdIn(any()))
+                .thenReturn(List.of(first, second)).thenReturn(List.of(first, second))
+                .thenReturn(List.of(first, parents));
+            CartReservations.Payer owner = new CartReservations.Payer("CHILD", CHILD_ID);
+            List<CartReservations.Payer> payers = List.of(new CartReservations.Payer("MEMBER", BUYER_ID));
+
+            List<CartReservations.ReservedLine> reserved = cartService.reserveOwned(owner, List.of(12L, 11L), payers,
+                "wish-1");
+
+            assertThat(reserved).containsExactly(new CartReservations.ReservedLine(12L, 3L, CHILD_ID, 1),
+                new CartReservations.ReservedLine(11L, OPTION_ID, CHILD_ID, 2));
+            assertThat(first.getReservationId()).isEqualTo("wish-1");
+            assertThat(second.getReservationId()).isEqualTo("wish-1");
+            assertThatThrownBy(() -> cartService.reserveOwned(owner, List.of(11L, 13L), payers, "wish-2"))
+                .extracting("errorCode").isEqualTo(CartErrorCode.CART_ITEM_NOT_FOUND);
+            assertThat(parents.isReserved()).isFalse();
         }
 
         @Test

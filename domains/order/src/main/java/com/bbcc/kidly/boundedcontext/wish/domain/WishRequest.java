@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.wish.domain;
 
-import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRuleViolationException.Rule;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -18,27 +17,23 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 조르기 한 건(#701): 한 자녀의 공용 장바구니 줄 여러 개 + 메시지 한 줄(선택). 보호자가 한 번만 승인하거나 거절한다(@Version).
+ * 구매 요청 한 건(#999). 지금 종류는 조르기(WISH) 하나다: 자녀가 자기 장바구니 칸을 골라 보호자에게 사 달라고 한다.
+ * 승인 단계는 없다(승인 = 결제): 보호자가 예약된 칸으로 주문해 결제가 끝나면 결제 완료가 된다.
+ * 사람은 고정하지 않고 종류 + ID로 둔다(보낸 사람 · 결제한 사람 · 거절한 사람). 받는 사람은 자녀 프로필이다.
  * <ul>
- *   <li>REQUESTED: 든 줄이 모두 잠긴다(다른 조르기에 넣거나 수량을 바꾸거나 뺄 수 없다)</li>
- *   <li>APPROVED: 고른 줄만 고른 수량으로 승인한다. 바로 결제(ORDER)면 주문 ID를 기록하고, 그 주문의 결제 결과가 정해질 때까지
- *       승인한 줄은 잠긴 채로 둔다(결제되면 PAID · 공용 장바구니에서 빠짐, 결제 전에 취소되면 CANCELLED · 잠금만 풀림).
- *       보호자 장바구니로 옮기기(CART)는 승인과 함께 끝난다</li>
- *   <li>REJECTED: 사유 하나를 고른다. 잠금이 모두 풀린다</li>
- *   <li>CANCELLED: 보낸 사람이 처리 전에 철회했다(#968). 잠금이 모두 풀리고 줄은 공용 장바구니에 남는다(다시 조를 수 있다)</li>
+ *   <li>REQUESTED: 든 칸이 장바구니에 예약돼 있다(예약 ID = {@link #reservationId()}). 주인은 그 칸을 빼거나 바꿀 수 없다</li>
+ *   <li>PAID: 예약 칸 중 하나 이상이 결제돼 장바구니에서 빠졌다. 결제한 사람 · 시각을 남긴다</li>
+ *   <li>REJECTED: 승인자가 거절했다(사유 하나)</li>
+ *   <li>CANCELLED: 보낸 사람이 철회했거나(DIRECT, #968) 자녀 · 계정 삭제(#1001) · 시스템(데이터 옮기기)으로 철회됐다</li>
  * </ul>
- * 승인 · 거절 · 철회는 REQUESTED에서만 되고, 동시에 오면 @Version으로 먼저 저장한 쪽만 남는다.
- * 줄 잠금 · 해제 · 구매 반영은 줄({@link WishItem})의 메서드로 하고, 어느 줄을 그렇게 할지는 이 조르기가 정한다.
+ * 결제 완료 · 거절 · 철회는 REQUESTED에서만 되고, 동시에 오면 @Version으로 먼저 저장한 쪽만 남는다.
  */
 @Entity
 @Table(schema = "orders", name = "wish_request")
@@ -46,26 +41,19 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WishRequest extends WishTimeEntity {
 
+    /**
+     * 장바구니 예약 ID 앞자리. 장바구니 구매 이벤트의 예약 ID가 이것으로 시작하면 조르기의 예약이다.
+     */
+    public static final String RESERVATION_PREFIX = "wish-";
+
+    public enum Type {
+        WISH
+    }
+
     public enum Status {
         REQUESTED,
-        APPROVED,
-        REJECTED,
-        CANCELLED
-    }
-
-    /**
-     * 승인 뒤 구매 방법.
-     */
-    public enum Checkout {
-        ORDER,
-        CART
-    }
-
-    /**
-     * 바로 결제한 주문의 결과. 정해지기 전에는 null.
-     */
-    public enum OrderResult {
         PAID,
+        REJECTED,
         CANCELLED
     }
 
@@ -80,27 +68,41 @@ public class WishRequest extends WishTimeEntity {
     }
 
     /**
-     * 승인할 줄 하나.
-     *
-     * @param quantity 승인 수량(조른 수량과 달라도 된다, 1~99)
+     * 철회 원인: 보낸 사람이 직접 · 자녀 삭제 · 자녀 계정 삭제(#1001) · 시스템(#999 데이터 옮기기 등).
      */
-    public record Approval(Long wishItemId, int quantity) {
+    public enum CancelReason {
+        DIRECT,
+        CHILD_DELETED,
+        ACCOUNT_DELETED,
+        SYSTEM
+    }
+
+    /**
+     * 보낼 칸 하나(보낸 때 값).
+     *
+     * @param productId 상품 복사본이 없으면 null
+     */
+    public record LineValue(Long cartItemId, Long productId, Long optionId, int quantity) {
     }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Type type;
+
+    /**
+     * 받는 사람(자녀 프로필 ID).
+     */
     @Column(nullable = false)
     private Long childId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private AddedBy requestedByType;
+    private PrincipalType requestedByType;
 
-    /**
-     * 부모면 회원 ID, 자녀면 자녀 프로필 ID.
-     */
     @Column(nullable = false)
     private Long requestedById;
 
@@ -112,28 +114,28 @@ public class WishRequest extends WishTimeEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
-    private Checkout checkout;
+    private PrincipalType payerType;
 
-    private Long orderId;
+    private Long payerId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20)
-    private OrderResult orderResult;
+    private LocalDateTime paidAt;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 30)
     private RejectReason rejectReason;
 
-    /**
-     * 승인 · 거절한 보호자 회원 ID.
-     */
-    private Long decidedById;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private PrincipalType rejectedByType;
 
-    private LocalDateTime decidedAt;
+    private Long rejectedById;
 
-    /**
-     * 철회 시각(#968). 철회한 사람은 보낸 사람(requestedByType · requestedById)이다.
-     */
+    private LocalDateTime rejectedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private CancelReason cancelReason;
+
     private LocalDateTime cancelledAt;
 
     @Version
@@ -144,150 +146,114 @@ public class WishRequest extends WishTimeEntity {
     private List<WishRequestLine> lines = new ArrayList<>();
 
     /**
-     * 조르기를 만든다. 줄 잠금은 저장해 ID가 생긴 뒤 {@link #lockItems}로 한다.
+     * 조르기를 만든다(칸 없이). 예약 ID가 조르기 ID라 저장해 ID가 생긴 뒤 칸을 예약하고 {@link #addLines}로 담는다.
      *
      * @param message 앞뒤 공백을 지운 메시지. 비었으면 null로 둔다
      * @param maxMessageLength 메시지 최대 길이(정책)
      */
-    public static WishRequest send(Long childId, AddedBy requestedByType, Long requestedById, String message,
-        int maxMessageLength, List<WishItem> items) {
+    public static WishRequest send(PrincipalType requestedByType, Long requestedById, Long childId, String message,
+        int maxMessageLength) {
         String trimmed = message == null || message.isBlank() ? null : message.strip();
-        if (items.isEmpty() || (trimmed != null && trimmed.length() > maxMessageLength)) {
+        if (trimmed != null && trimmed.length() > maxMessageLength) {
             throw new WishRuleViolationException(Rule.INVALID_WISH_REQUEST);
         }
-        Set<Long> seen = new HashSet<>();
-        for (WishItem item : items) {
-            if (!seen.add(item.getId()) || !item.getChildId().equals(childId)
-                || item.getStatus() != WishItem.Status.ACTIVE) {
-                throw new WishRuleViolationException(Rule.INVALID_WISH_REQUEST);
-            }
-            item.requireUnlocked();
-        }
         WishRequest request = new WishRequest();
+        request.type = Type.WISH;
         request.childId = childId;
         request.requestedByType = requestedByType;
         request.requestedById = requestedById;
         request.message = trimmed;
         request.status = Status.REQUESTED;
-        for (WishItem item : items) {
-            request.lines.add(new WishRequestLine(request, item.getId(), item.getOptionId(), item.getQuantity()));
-        }
         return request;
     }
 
     /**
-     * 든 줄을 이 조르기로 잠근다(저장 뒤). 줄은 send에 준 것과 같다.
+     * 예약한 칸을 담는다. 한 번만, 칸이 하나 이상이고 겹치지 않아야 한다.
      */
-    public void lockItems(List<WishItem> items) {
-        items.forEach(item -> item.lockFor(id));
+    public void addLines(List<LineValue> values) {
+        Set<Long> seen = new HashSet<>();
+        if (!lines.isEmpty() || values.isEmpty()
+            || values.stream().anyMatch(value -> value.cartItemId() == null || !seen.add(value.cartItemId()))) {
+            throw new WishRuleViolationException(Rule.INVALID_WISH_REQUEST);
+        }
+        values.forEach(value -> lines.add(new WishRequestLine(this, value.cartItemId(), value.productId(),
+            value.optionId(), value.quantity())));
     }
 
     /**
-     * 고른 줄만 고른 수량으로 승인한다. 승인하지 않은 줄은 잠금을 푼다. 장바구니로 옮기기면 승인한 줄도 푼다(여기서 끝남).
+     * 장바구니 예약 ID("wish-{조르기 ID}"). 저장 뒤에만 부른다.
+     */
+    public String reservationId() {
+        return RESERVATION_PREFIX + id;
+    }
+
+    /**
+     * 예약 ID에서 조르기 ID를 꺼낸다. 조르기의 예약이 아니면(앞자리가 다르거나 숫자가 아님) 빈 값.
+     */
+    public static Optional<Long> idOfReservation(String reservationId) {
+        if (reservationId == null || !reservationId.startsWith(RESERVATION_PREFIX)) {
+            return Optional.empty();
+        }
+        String digits = reservationId.substring(RESERVATION_PREFIX.length());
+        if (digits.isEmpty() || digits.length() > 18 || !digits.chars().allMatch(Character::isDigit)) {
+            return Optional.empty();
+        }
+        return Optional.of(Long.parseLong(digits));
+    }
+
+    /**
+     * 이 조르기에 든 칸인지.
+     */
+    public boolean containsCartItem(Long cartItemId) {
+        return cartItemId != null && lines.stream().anyMatch(line -> cartItemId.equals(line.getCartItemId()));
+    }
+
+    /**
+     * 예약 칸이 결제됐다: 처음이면 결제 완료로 바꾸고 결제한 사람을 남긴다.
      *
-     * @param items 이 조르기의 줄(잠금을 바꿀 대상)
-     * @return 승인한 줄(조르기 줄 순서)
+     * @return 이번에 결제 완료가 됐으면 true. 이미 결제 완료면 false
+     * @throws WishRuleViolationException 거절 · 철회된 조르기면 WISH_REQUEST_ALREADY_DECIDED
      */
-    public List<WishRequestLine> approve(List<Approval> approvals, Checkout checkout, Long deciderId,
-        List<WishItem> items, LocalDateTime now) {
-        requireUndecided();
-        Map<Long, WishRequestLine> byItem = lines.stream()
-            .collect(Collectors.toMap(WishRequestLine::getWishItemId, Function.identity()));
-        Set<Long> chosen = new HashSet<>();
-        for (Approval approval : approvals) {
-            if (!byItem.containsKey(approval.wishItemId()) || !chosen.add(approval.wishItemId())
-                || approval.quantity() < 1 || approval.quantity() > WishItem.MAX_QUANTITY) {
-                throw new WishRuleViolationException(Rule.INVALID_APPROVAL);
-            }
+    public boolean pay(PrincipalType payerType, Long payerId, LocalDateTime now) {
+        if (status == Status.PAID) {
+            return false;
         }
-        if (chosen.isEmpty()) {
-            throw new WishRuleViolationException(Rule.INVALID_APPROVAL);
-        }
-        approvals.forEach(approval -> byItem.get(approval.wishItemId()).approve(approval.quantity()));
-        this.status = Status.APPROVED;
-        this.checkout = checkout;
-        decide(deciderId, now);
-        for (WishItem item : items) {
-            if (checkout == Checkout.CART || !chosen.contains(item.getId())) {
-                item.unlockFrom(id);
-            }
-        }
-        return approvedLines();
+        requireRequested();
+        this.status = Status.PAID;
+        this.payerType = payerType;
+        this.payerId = payerId;
+        this.paidAt = now;
+        return true;
     }
 
-    /**
-     * 바로 결제로 만든 주문을 기록한다.
-     */
-    public void recordOrder(Long orderId) {
-        this.orderId = orderId;
-    }
-
-    /**
-     * @param items 이 조르기의 줄(잠금을 풀 대상)
-     */
-    public void reject(RejectReason reason, Long deciderId, List<WishItem> items, LocalDateTime now) {
-        requireUndecided();
+    public void reject(RejectReason reason, PrincipalType rejectedByType, Long rejectedById, LocalDateTime now) {
+        requireRequested();
         this.status = Status.REJECTED;
         this.rejectReason = reason;
-        decide(deciderId, now);
-        items.forEach(item -> item.unlockFrom(id));
+        this.rejectedByType = rejectedByType;
+        this.rejectedById = rejectedById;
+        this.rejectedAt = now;
     }
 
     /**
-     * 보낸 사람이 처리 전에 철회한다(#968). 누가 철회할 수 있는지는 app의 정책이 먼저 확인한다.
-     * 처리된 조르기(승인 · 거절 · 철회)면 WISH_REQUEST_ALREADY_DECIDED.
-     *
-     * @param items 이 조르기의 줄(잠금을 풀 대상, 줄은 남는다)
+     * 철회한다. 누가 철회할 수 있는지는 app의 정책이 먼저 확인한다(직접 철회는 보낸 사람만, #968).
      */
-    public void cancel(List<WishItem> items, LocalDateTime now) {
-        requireUndecided();
+    public void cancel(CancelReason reason, LocalDateTime now) {
+        requireRequested();
         this.status = Status.CANCELLED;
+        this.cancelReason = reason;
         this.cancelledAt = now;
-        items.forEach(item -> item.unlockFrom(id));
     }
 
     /**
      * 이 사람이 보낸 조르기인지(종류 · ID가 같다).
      */
-    public boolean isRequestedBy(AddedBy type, Long actorId) {
+    public boolean isRequestedBy(PrincipalType type, Long actorId) {
         return requestedByType == type && requestedById.equals(actorId);
     }
 
-    /**
-     * 바로 결제한 주문의 결제 결과를 반영한다. 결제된 적이 있으면(결제 뒤 취소 포함) PAID: 승인한 줄을 공용 장바구니에서 뺀다.
-     * 결제 없이 취소됐으면 CANCELLED: 승인한 줄의 잠금만 푼다. 아직 결제대기면 그대로 둔다.
-     *
-     * @param items 이 조르기의 줄
-     * @return 이번에 정해진 결과. 결과를 기다리는 조르기가 아니거나 아직 결제대기면 빈 값
-     */
-    public Optional<OrderResult> settleOrder(boolean paid, boolean cancelled, List<WishItem> items) {
-        if (!isAwaitingOrder() || (!paid && !cancelled)) {
-            return Optional.empty();
-        }
-        this.orderResult = paid ? OrderResult.PAID : OrderResult.CANCELLED;
-        for (WishItem item : items) {
-            if (paid) {
-                item.purchaseBy(id);
-            } else {
-                item.unlockFrom(id);
-            }
-        }
-        return Optional.of(orderResult);
-    }
-
-    /**
-     * 바로 결제로 만든 주문의 결과를 기다리는 중인지.
-     */
-    public boolean isAwaitingOrder() {
-        return status == Status.APPROVED && checkout == Checkout.ORDER && orderId != null && orderResult == null;
-    }
-
-    public List<WishRequestLine> approvedLines() {
-        return lines.stream().filter(WishRequestLine::isApproved).toList();
-    }
-
-    public List<Long> wishItemIds() {
-        return lines.stream().map(WishRequestLine::getWishItemId).toList();
+    public List<Long> cartItemIds() {
+        return lines.stream().map(WishRequestLine::getCartItemId).toList();
     }
 
     /**
@@ -297,14 +263,9 @@ public class WishRequest extends WishTimeEntity {
         return getCreatedAt();
     }
 
-    private void requireUndecided() {
+    private void requireRequested() {
         if (status != Status.REQUESTED) {
             throw new WishRuleViolationException(Rule.WISH_REQUEST_ALREADY_DECIDED);
         }
-    }
-
-    private void decide(Long deciderId, LocalDateTime now) {
-        this.decidedById = deciderId;
-        this.decidedAt = now;
     }
 }

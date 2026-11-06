@@ -21,7 +21,8 @@ class WishEventsTest {
     private static final Long MEMBER_ID = 1L;
 
     @Test
-    @DisplayName("이벤트 타입은 wish.item-added · wish.sent · wish.approved · wish.rejected · wish.cancelled, 발행은 주문 도메인, "
+    @DisplayName("이벤트 타입은 wish.item-added · wish.sent · wish.approved · wish.rejected · wish.cancelled · "
+        + "wish.paid(#999), 발행은 주문 도메인, "
         + "키는 자녀 프로필 ID")
     void metadata() {
         List<DomainEvent> events = List.of(
@@ -34,12 +35,15 @@ class WishEventsTest {
             new WishRejectedEvent(UUID.randomUUID(), AT, new WishRejectedEvent.Data(50L, CHILD_ID, MEMBER_ID,
                 List.of(new WishRejectedEvent.Item(10L, 3L, 2)), "TOO_EXPENSIVE")),
             new WishCancelledEvent(UUID.randomUUID(), AT, new WishCancelledEvent.Data(50L, CHILD_ID, MEMBER_ID,
-                List.of(new WishCancelledEvent.Item(10L, 3L, 2)))));
+                List.of(new WishCancelledEvent.Item(10L, 3L, 2)))),
+            new WishPaidEvent(UUID.randomUUID(), AT, new WishPaidEvent.Data(50L, CHILD_ID, MEMBER_ID,
+                List.of(new WishPaidEvent.Item(10L, 3L, 2)), "MEMBER", MEMBER_ID, 90L)));
 
         assertThat(events).extracting(DomainEvent::eventType)
-            .containsExactly("wish.item-added", "wish.sent", "wish.approved", "wish.rejected", "wish.cancelled");
+            .containsExactly("wish.item-added", "wish.sent", "wish.approved", "wish.rejected", "wish.cancelled",
+                "wish.paid");
         assertThat(events).extracting(DomainEvent::producer).containsOnly("order");
-        assertThat(events).extracting(DomainEvent::aggregateId).containsExactly("40", "50", "50", "50", "50");
+        assertThat(events).extracting(DomainEvent::aggregateId).containsExactly("40", "50", "50", "50", "50", "50");
         assertThat(events).extracting(DomainEvent::correlationId).containsOnly(String.valueOf(CHILD_ID));
         assertThat(events).extracting(DomainEvent::schemaVersion).containsOnly(1);
     }
@@ -54,10 +58,18 @@ class WishEventsTest {
         assertThat(names(WishRejectedEvent.Data.class))
             .containsExactly("wishRequestId", "childId", "memberId", "items", "reason");
         assertThat(names(WishCancelledEvent.Data.class))
-            .containsExactly("wishRequestId", "childId", "memberId", "items");
+            .containsExactly("wishRequestId", "childId", "memberId", "items", "cancelReason");
+        assertThat(names(WishPaidEvent.Data.class))
+            .containsExactly("wishRequestId", "childId", "memberId", "items", "payerType", "payerId", "orderId");
         assertThat(List.of(WishItemAddedEvent.Item.class, WishSentEvent.Item.class, WishApprovedEvent.Item.class,
-            WishRejectedEvent.Item.class, WishCancelledEvent.Item.class))
+            WishRejectedEvent.Item.class, WishCancelledEvent.Item.class, WishPaidEvent.Item.class))
             .allSatisfy(item -> assertThat(names(item)).containsExactly("productId", "optionId", "quantity"));
+    }
+
+    @Test
+    @DisplayName("원인 칸이 없던 예전 철회 모양(#968)으로 만들면 cancelReason은 null이다(받는 쪽은 DIRECT로 읽는다)")
+    void legacyCancelled() {
+        assertThat(new WishCancelledEvent.Data(50L, CHILD_ID, MEMBER_ID, List.of()).cancelReason()).isNull();
     }
 
     private static List<String> names(Class<?> record) {

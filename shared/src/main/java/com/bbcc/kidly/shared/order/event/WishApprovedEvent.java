@@ -12,6 +12,7 @@ import java.util.UUID;
  * 같은 자녀의 조르기 흐름 순서를 지키도록 {@code correlationId}(키)는 자녀 프로필 ID다.
  * 클래스 이름 규칙으로 {@code eventType}은 {@code wish.approved},
  * 발행 도메인은 주문(조르기는 주문 도메인 안의 컨텍스트)이다.
+ * #999부터 발행하지 않는다(조르기 재설계). shared 정리 때 지운다.
  */
 public record WishApprovedEvent(UUID eventId, LocalDateTime occurredAt, Data data) implements DomainEvent {
 
