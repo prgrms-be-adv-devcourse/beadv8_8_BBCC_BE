@@ -136,6 +136,31 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
+    @DisplayName("검색 결과 클릭 기록은 같은 경로 · 본문으로 검색 서비스에 넘긴다")
+    void routesSearchClicksToSearchService() {
+        client.post().uri("/api/v1/search/clicks").header(HttpHeaders.CONTENT_TYPE, "application/json")
+            .bodyValue("{\"keyword\":\"원피스\",\"productId\":31,\"rank\":3}").exchange()
+            .expectStatus().isOk();
+
+        assertThat(searchBackend.lastRequest()).hasValueSatisfying(request -> {
+            assertThat(request.method()).isEqualTo("POST");
+            assertThat(request.uri()).isEqualTo(URI.create("/api/v1/search/clicks"));
+        });
+    }
+
+    @Test
+    @DisplayName("검색 결과 클릭 경로라도 POST가 아니거나 하위 경로면 404로 응답한다")
+    void routesOtherSearchClickRequestsToNotFound() {
+        client.get().uri("/api/v1/search/clicks").exchange()
+            .expectStatus().isNotFound();
+        client.post().uri("/api/v1/search/clicks/1").exchange()
+            .expectStatus().isNotFound();
+
+        assertNoBackendRequests();
+        assertThat(searchBackend.lastRequest()).isEmpty();
+    }
+
+    @Test
     @DisplayName("자녀 프로필 목록 · 하위 경로는 같은 메서드 · 경로로 회원 서비스에 넘긴다")
     void routesChildrenToMemberService() {
         client.get().uri("/api/v1/children").exchange()

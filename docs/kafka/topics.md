@@ -30,6 +30,7 @@
 | | `payment.payout-completed` · `payment.payout-failed` | 정산서 ID | | settlement, notification(payout-completed) |
 | `kidly.settlement.events` | `settlement.payout-requested` | 정산서 ID | settlement | payment |
 | `kidly.search.events` | `search.performed` | 회원 ID | search | recommend |
+| | `search.result-clicked`(검색 결과 클릭, #1004) | 회원 ID | | 없음(추천이 필요할 때 받는다) |
 
 - 순서는 **같은 토픽 + 같은 키** 안에서만 보장됩니다. 한 주문의 이벤트(생성 → 결제 요청 → 취소 → 구매확정)는 모두 `kidly.order.events`에 주문 ID 키로 들어가므로 순서가 지켜집니다.
 - member는 `seller.changed`를 회원 서비스에서 Kafka로 받습니다. 토큰 무효화는 auth가 `auth.tokens-revoked`를 보내고 Gateway가 받아 처리합니다.

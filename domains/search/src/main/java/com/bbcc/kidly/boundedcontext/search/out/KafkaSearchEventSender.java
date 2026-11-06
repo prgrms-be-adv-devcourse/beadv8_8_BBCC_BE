@@ -4,7 +4,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.bbcc.kidly.boundedcontext.search.app.port.SearchEventSender;
 import com.bbcc.kidly.shared.event.DomainEvent;
-import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,7 +43,7 @@ public class KafkaSearchEventSender implements SearchEventSender, DisposableBean
     }
 
     @Override
-    public void send(SearchPerformedEvent event) {
+    public void send(DomainEvent event) {
         try {
             var record = toRecord(event);
             executor.execute(() -> sendNow(event, record));

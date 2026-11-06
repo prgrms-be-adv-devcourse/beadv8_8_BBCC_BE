@@ -4,8 +4,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.search.app.ProductListService;
+import com.bbcc.kidly.boundedcontext.search.app.SearchClickService;
 import com.bbcc.kidly.boundedcontext.search.app.SearchIndexService;
 import com.bbcc.kidly.boundedcontext.search.app.dto.ProductListRequest;
+import com.bbcc.kidly.boundedcontext.search.app.dto.SearchClickRequest;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -29,7 +31,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 로그인 회원이 검색하면 search.performed가 kidly.search.events에 나가는지 실제 Kafka로 본다(#611).
+ * 로그인 회원이 검색하면 search.performed가(#611), 검색 결과를 누르면 search.result-clicked가(#1004)
+ * kidly.search.events에 나가는지 실제 Kafka로 본다.
  * 토픽은 검색이 NewTopic으로 선언한다(@KafkaIntegrationTest가 기동 때 토픽 생성을 켠다).
  */
 @KafkaIntegrationTest
@@ -40,6 +43,9 @@ class SearchPerformedKafkaIntegrationTest {
 
     @Autowired
     private ProductListService productListService;
+
+    @Autowired
+    private SearchClickService searchClickService;
 
     @Autowired
     private SearchIndexService indexService;
@@ -99,6 +105,36 @@ class SearchPerformedKafkaIntegrationTest {
         AsyncWait.until(TIMEOUT, () -> !records().isEmpty());
         assertThat(records()).singleElement()
             .satisfies(record -> assertThat(record.value()).contains("바지").doesNotContain("원피스"));
+    }
+
+    @Test
+    @DisplayName("검색 결과 클릭은 검색과 같은 회원 키로 search.result-clicked를 보낸다")
+    void sendsSearchResultClicked() {
+        productListService.list(new ProductListRequest(null, "원피스", null, "RELEVANCE", null, null), memberId);
+        searchClickService.record(new SearchClickRequest(" 원피스 ", 31L, 3, "RELEVANCE"), memberId);
+
+        AsyncWait.until(TIMEOUT, () -> records().size() == 2);
+        List<ConsumerRecord<String, String>> records = records();
+        assertThat(records).extracting(record -> header(record, "eventType"))
+            .containsExactly("search.performed", "search.result-clicked");
+        ConsumerRecord<String, String> record = records.getLast();
+        String eventId = header(record, "eventId");
+        assertThat(record.headers().lastHeader("__TypeId__")).isNull();
+
+        JsonNode body = jsonMapper.readTree(record.value());
+        assertThat(body.get("eventId").asString()).isEqualTo(eventId);
+        assertThat(body.get("eventType").asString()).isEqualTo("search.result-clicked");
+        assertThat(body.get("schemaVersion").asInt()).isEqualTo(1);
+        assertThat(body.get("occurredAt").asString()).isNotBlank();
+        assertThat(body.get("producer").asString()).isEqualTo("search");
+        assertThat(body.get("aggregateId").asString()).isEqualTo(String.valueOf(memberId));
+        assertThat(body.get("correlationId").asString()).isEqualTo(String.valueOf(memberId));
+        JsonNode data = body.get("data");
+        assertThat(data.get("memberId").asLong()).isEqualTo(memberId);
+        assertThat(data.get("keyword").asString()).isEqualTo("원피스");
+        assertThat(data.get("productId").asLong()).isEqualTo(31L);
+        assertThat(data.get("rank").asInt()).isEqualTo(3);
+        assertThat(data.get("sort").asString()).isEqualTo("RELEVANCE");
     }
 
     // 토픽을 처음부터 지금 끝까지 읽어 이 테스트 회원의 메시지만 돌려준다
