@@ -54,6 +54,23 @@ class ChildPreferenceRepositoryIntegrationTest {
         assertThat(preference.brandPoints(PRODUCT_A_BRAND)).isEqualTo(2);
     }
 
+    @ParameterizedTest(name = "카테고리 {0}, 브랜드 [{1}] → 카테고리 줄 {2}개, 브랜드 줄 {3}개")
+    @CsvSource(value = {
+        "52, 키들리, 1, 1",
+        ", 키들리, 0, 1",
+        "52, , 1, 0",
+        "52, '', 1, 0",
+        "52, '  ', 1, 0",
+        ", , 0, 0",
+    })
+    @DisplayName("PREF-04 카테고리가 없는 활동은 카테고리 줄을, 브랜드가 null이거나 빈 · 공백인 활동은 브랜드 줄을 만들지 않는다")
+    void createNoRowForMissingCategoryOrBrand(Long categoryId, String brand, int categoryRows, int brandRows) {
+        add(CHILD_1_ID, new PreferenceActivity(categoryId, brand, false));
+
+        assertThat(categoryPreferences.findAllByChildProfileId(CHILD_1_ID)).hasSize(categoryRows);
+        assertThat(brandPreferences.findAllByChildProfileId(CHILD_1_ID)).hasSize(brandRows);
+    }
+
     @Test
     @DisplayName("PREF-07 같은 활동을 두 번 더하면 카테고리 · 브랜드 줄은 하나씩이고 횟수는 2다")
     void keepOneRowWhenSameActivityAddedTwice() {
