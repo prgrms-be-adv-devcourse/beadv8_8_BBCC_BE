@@ -18,6 +18,7 @@ import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
 import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -92,6 +93,17 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     @Override
     public List<DeliveryView> findByOrder(Long orderId) {
         return deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId).stream().map(DeliveryService::toView).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeliveryView> findByOrders(Collection<Long> orderIds) {
+        if (orderIds.isEmpty()) {
+            return List.of();
+        }
+        return deliveryRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(orderIds).stream()
+            .map(DeliveryService::toView)
+            .toList();
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.delivery.app.port.in;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -22,6 +23,11 @@ public interface DeliveryOperations {
      * 주문의 배송들. 만든 순서대로.
      */
     List<DeliveryView> findByOrder(Long orderId);
+
+    /**
+     * 여러 주문의 배송들(#1000, 자녀 구매 내역의 배송 중 판단). 주문 ID 순 · 만든 순서대로. 빈 목록이면 조회하지 않는다.
+     */
+    List<DeliveryView> findByOrders(Collection<Long> orderIds);
 
     /**
      * 구매자 취소로 주문의 배송들을 취소한다(발송 전만, 이미 취소면 그대로). 발송 여부는 부른 쪽이 먼저 확인한다.

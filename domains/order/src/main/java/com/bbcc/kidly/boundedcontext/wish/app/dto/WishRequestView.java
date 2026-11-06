@@ -20,6 +20,8 @@ import java.util.List;
  * @param cancelReason 철회 원인(DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM). 철회가 아니면 null
  * @param cancelledAt 철회 시각. 철회가 아니면 null
  * @param purchases 조르기로 산 것(결제돼 장바구니에서 빠진 칸, 먼저 산 것부터)
+ * @param paidOrderItemIds 조르기로 결제된 주문상품 ID(#1000, 먼저 산 것부터). 화면이 자녀 구매 내역과 맞춰 출처를 표시한다.
+ *     장바구니 구매 이벤트에 주문상품 ID가 없던 산 것은 빠진다
  */
 public record WishRequestView(
     Long requestId,
@@ -38,7 +40,8 @@ public record WishRequestView(
     String cancelReason,
     LocalDateTime cancelledAt,
     List<Line> items,
-    List<Purchase> purchases) {
+    List<Purchase> purchases,
+    List<Long> paidOrderItemIds) {
 
     /**
      * 조르기에 든 칸 하나. 상품 복사본이 없으면 상품 필드 null, purchasable false.

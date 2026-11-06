@@ -15,6 +15,8 @@ import java.util.List;
  * @param rejectReason 거절 사유. 거절이 아니면 null
  * @param cancelReason 철회 원인(DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM). 철회가 아니면 null
  * @param purchases 조르기로 산 것(결제돼 장바구니에서 빠진 칸)
+ * @param paidOrderItemIds 조르기로 결제된 주문상품 ID(#1000). 화면이 자녀 구매 내역(GET /api/v1/orders/items/mine)의
+ *     orderItemId와 맞춰 "조르기로 산 것"을 표시한다. 없으면 빈 목록
  */
 public record WishRequestResponse(
     String requestId,
@@ -33,7 +35,8 @@ public record WishRequestResponse(
     String cancelReason,
     LocalDateTime cancelledAt,
     List<Line> items,
-    List<Purchase> purchases) {
+    List<Purchase> purchases,
+    List<String> paidOrderItemIds) {
 
     /**
      * @param cartItemId 장바구니 칸 ID. #999 전 조르기는 null
@@ -78,7 +81,8 @@ public record WishRequestResponse(
             view.purchases().stream()
                 .map(purchase -> new Purchase(toText(purchase.orderId()), toText(purchase.cartItemId()),
                     purchase.quantity(), purchase.purchasedAt()))
-                .toList());
+                .toList(),
+            view.paidOrderItemIds().stream().map(String::valueOf).toList());
     }
 
     private static String toText(Long id) {

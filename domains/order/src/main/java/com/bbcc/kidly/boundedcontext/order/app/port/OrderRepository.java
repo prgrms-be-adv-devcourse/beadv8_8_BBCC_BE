@@ -25,6 +25,39 @@ public interface OrderRepository {
         Long getOrderItemId();
     }
 
+    /**
+     * 자녀 구매 내역 한 줄(#1000). 가격 · 배송지 · 자녀 칸은 읽지 않는다. 판매자 ID는 배송 상태를 맞추는 데만 쓴다(응답에 없음).
+     */
+    interface ChildPurchaseRow {
+
+        Long getOrderItemId();
+
+        Long getOrderId();
+
+        LocalDateTime getOrderedAt();
+
+        Long getProductId();
+
+        Long getSellerId();
+
+        String getProductName();
+
+        String getOptionName();
+
+        int getQuantity();
+
+        OrderItem.Status getItemStatus();
+
+        Order.Status getOrderStatus();
+
+        LocalDateTime getDeliveredAt();
+    }
+
+    /**
+     * 이 자녀가 입을 아이로 지정된 주문상품 중 결제된 적 있는 주문(paidAt 있음)의 것. 주문 일시 · 주문상품 ID 최신순(#1000).
+     */
+    Page<ChildPurchaseRow> findChildPurchases(Long childId, Pageable pageable);
+
     Order save(Order order);
 
     Optional<Order> findById(Long id);
