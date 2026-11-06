@@ -6,7 +6,6 @@ import java.util.Arrays;
 
 /**
  * 임베딩 API가 돌려준 상품 글의 벡터다. 저장 칸의 차원과 같은 길이만 만들 수 있다.
- * record의 배열 칸은 equals가 참조를 비교하고 밖에서 바꿀 수도 있어서, 받을 때와 돌려줄 때 복사하고 값으로 비교한다.
  */
 public record EmbeddingVector(float[] values) {
 

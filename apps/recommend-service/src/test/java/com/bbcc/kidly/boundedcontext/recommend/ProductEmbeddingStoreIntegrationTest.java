@@ -168,7 +168,6 @@ class ProductEmbeddingStoreIntegrationTest {
             .containsExactly(new ProductEmbeddingTarget(PRODUCT_1_ID, "상품명: 새 맨투맨", false));
     }
 
-    // 다음 PR의 후보 조회가 쓸 문법이다. 서비스 연결의 search_path에 recommend가 없어서 연산자에도 스키마를 붙인다
     @Test
     @DisplayName("저장한 벡터끼리 recommend 스키마의 코사인 거리 연산자로 거리를 잰다")
     void measureDistanceBetweenStoredVectors() {
@@ -190,7 +189,6 @@ class ProductEmbeddingStoreIntegrationTest {
             """, String.class)).containsExactly("recommend");
     }
 
-    // embedding::text는 [v1,v2,...]이고, 넣은 값과 같은지 float로 읽어 비교한다
     private EmbeddingVector storedVector(Long productId) {
         String text = jdbcTemplate.queryForObject(
             "select embedding::text from recommend.replica_product where product_id = ?", String.class, productId);
@@ -234,7 +232,6 @@ class ProductEmbeddingStoreIntegrationTest {
             List.of(), List.of(), RecommendFixture.PRODUCT_CHANGED_AT.plusMinutes(1));
     }
 
-    // 값이 서로 다른 벡터를 만든다. seed가 같으면 같은 벡터다
     private static EmbeddingVector vectorOf(float seed) {
         float[] values = new float[EmbeddingVector.DIMENSIONS];
         for (int i = 0; i < values.length; i++) {
@@ -243,7 +240,6 @@ class ProductEmbeddingStoreIntegrationTest {
         return new EmbeddingVector(values);
     }
 
-    // 상품 A의 상품 정보 변경됨에서 상품 ID와 이름만 바꾼다
     private static ProductChangedEvent productChangedEvent(Long productId, String name) {
         return productChangedEvent(productId, name, RecommendFixture.PRODUCT_CHANGED_AT);
     }

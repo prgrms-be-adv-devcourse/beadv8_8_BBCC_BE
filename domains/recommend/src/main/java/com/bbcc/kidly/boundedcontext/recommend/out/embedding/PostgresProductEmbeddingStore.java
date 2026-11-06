@@ -12,9 +12,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * pgvector가 있는 PostgreSQL에 상품 복사본의 벡터를 저장한다.
- * 벡터 칸은 엔티티가 매핑하지 않아서 엔티티를 고쳐 저장해도 벡터가 덮어써지지 않는다.
  * 확장이 recommend 스키마에 있고 서비스 연결의 search_path에는 없어서, 타입과 연산자 앞에 스키마를 붙인다.
- * 문장 하나가 한 번에 반영되므로 트랜잭션을 열지 않는다.
  */
 @Component
 public class PostgresProductEmbeddingStore implements ProductEmbeddingStore {
@@ -41,7 +39,6 @@ public class PostgresProductEmbeddingStore implements ProductEmbeddingStore {
             .list();
     }
 
-    // DB 세션의 시간대가 아니라 다른 칸처럼 애플리케이션의 한국 시간으로 남겨 칸끼리 시각을 비교할 수 있게 한다
     @Override
     public void markAttempted(Collection<Long> productIds) {
         if (productIds.isEmpty()) {
