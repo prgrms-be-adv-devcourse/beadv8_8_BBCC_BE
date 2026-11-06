@@ -9,9 +9,10 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 3. 경로 방화벽(`web/RequestFirewallFilter`): 정규화되지 않거나 위험한 경로 · 메서드를 400으로 막는다
 4. 토큰 검사(`auth/AccessTokenFilter`): 밖에서 온 `X-Member-*` · `X-Admin-*` · `X-Child-*`를 지우고, Bearer 토큰을 검증 · 무효화 확인해 주체별 헤더를 붙인다. 실패하면 401
 5. 역할 검사(`auth/RoleFilter`): `/api/v1/admin/**`는 관리자 주체, `/api/v1/seller/**`는 SELLER 회원 주체, `/api/v1/child/**`는 자녀 주체. 없으면 401 · 403
-6. CORS(`application.yml`의 `globalcors`) · 라우팅. 서비스는 CORS를 하지 않는다
-- 1 · 2 · 3은 WebFilter(`web/WebFilterConfig`에 순서대로 등록), 4 · 5는 GlobalFilter(`RoleFilter` 순서 = `AccessTokenFilter.ORDER + 1`)
-- 400 · 401 · 403 · 404 · 500 · 503 · 504 본문은 `web/ProblemResponse`가 쓴다(#668)
+6. 검색 요청 수 제한(`ratelimit/SearchRateLimitFilter`, #816): 검색어가 있는 `GET /api/v1/products`만 주체(회원 · 관리자 · 자녀) ID, 비로그인은 IP(nginx가 덮어쓰는 `X-Real-IP`, 없으면 연결 주소)마다 센다. 한도는 `application.yml`의 `kidly.gateway.rate-limit.search`(분당 30번). 넘으면 429 + `Retry-After`(초). 검색 서비스가 검색어마다 임베딩 API(OpenAI)를 부르기 때문이다. Gateway 메모리라 다시 뜨면 비고, Gateway를 여러 대로 늘리면 공용 저장소(#690)로 옮긴다. `X-Forwarded-For` 첫 값은 클라이언트가 지어낼 수 있어 쓰지 않는다
+7. CORS(`application.yml`의 `globalcors`) · 라우팅. 서비스는 CORS를 하지 않는다
+- 1 · 2 · 3은 WebFilter(`web/WebFilterConfig`에 순서대로 등록), 4 · 5 · 6은 GlobalFilter(`RoleFilter` 순서 = `AccessTokenFilter.ORDER + 1`, `SearchRateLimitFilter` = `+ 2`)
+- 400 · 401 · 403 · 404 · 429 · 500 · 503 · 504 본문은 `web/ProblemResponse`가 쓴다(#668)
   - 404(`/internal/**`, 라우트에 없는 경로): 이름 있는 필터 `web/NotFoundGatewayFilterFactory`(`application.yml`에서 `NotFound`)
   - 503 · 504 · 500: `web/GatewayErrorWebExceptionHandler`
   - 백엔드 호출 timeout(`application.yml`의 `spring.cloud.gateway.server.webflux.httpclient`): 연결 3초, 응답 55초. 55초는 결제 승인(Toss 연결 3초 + 읽기 30초)보다 길고 nginx 기본 `proxy_read_timeout` 60초보다 짧다. 테스트는 `application-test.yml`에서 응답 1초로 줄인다
