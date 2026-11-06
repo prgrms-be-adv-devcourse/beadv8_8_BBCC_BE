@@ -1,0 +1,49 @@
+package com.bbcc.kidly.boundedcontext.review.out.storage;
+
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
+import com.bbcc.kidly.boundedcontext.review.domain.ReviewImageUpload;
+import com.bbcc.kidly.boundedcontext.review.out.config.CommunityReviewImageStorageProperties;
+import java.util.UUID;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+
+/**
+ * S3에 리뷰 사진을 올리는 서명 주소(Presigned PUT)를 만든다. Content-Type · Content-Length를 서명에 넣어
+ * 요청한 형식 · 크기로만 올라가게 하고, 이름은 서버가 UUID로 만든다. 서명만 하므로 AWS를 부르지 않는다.
+ */
+public class S3ReviewImageStorage implements ReviewImageStorage {
+
+    private final S3Presigner presigner;
+    private final CommunityReviewImageStorageProperties properties;
+
+    public S3ReviewImageStorage(S3Presigner presigner, CommunityReviewImageStorageProperties properties) {
+        this.presigner = presigner;
+        this.properties = properties;
+    }
+
+    @Override
+    public UploadUrl issueUploadUrl(ReviewImageUpload upload, long memberId) {
+        String key = upload.key(properties.keyPrefix(), memberId, UUID.randomUUID());
+        PutObjectRequest putObject = PutObjectRequest.builder()
+            .bucket(properties.bucket())
+            .key(key)
+            .contentType(upload.format().contentType())
+            .contentLength(upload.contentLength())
+            .build();
+        PresignedPutObjectRequest presigned = presigner.presignPutObject(request -> request
+            .signatureDuration(properties.uploadUrlExpiry())
+            .putObjectRequest(putObject));
+        return new UploadUrl(presigned.url().toString(), publicUrl(key), presigned.expiration());
+    }
+
+    @Override
+    public String ownImageUrlPrefix(long memberId) {
+        return publicUrl(ReviewImageUpload.directory(properties.keyPrefix(), memberId));
+    }
+
+    // 버킷의 리뷰 사진 경로는 공개 읽기라 서명 없는 주소로 화면에 보여 준다(버킷 정책에 리뷰 경로가 있어야 한다)
+    private String publicUrl(String key) {
+        return "https://" + properties.bucket() + ".s3." + properties.region() + ".amazonaws.com/" + key;
+    }
+}

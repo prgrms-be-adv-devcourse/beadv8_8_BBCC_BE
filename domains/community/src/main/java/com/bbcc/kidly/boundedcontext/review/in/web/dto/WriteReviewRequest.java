@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.review.in.web.dto;
 
 import com.bbcc.kidly.boundedcontext.review.app.ReviewService.FitInput;
+import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -10,8 +11,10 @@ import tools.jackson.databind.JsonNode;
  * @param rating 1~5 정수. JSON 원래 타입 그대로 받는다(소수 · 문자열 · 참거짓이면 400 INVALID_RATING)
  * @param fit 사이즈 핏(선택): SMALL · TRUE_TO_SIZE · LARGE. 키가 없거나 null이면 핏 없이 작성한다
  * @param content 공백을 뺀 1~1000자
+ * @param imageUrls 사진(선택): 업로드 주소 발급으로 받은 imageUrl 문자열 목록(보낸 순서, 최대 장수까지). 없거나 null이면 사진 없음
  */
-public record WriteReviewRequest(String orderItemId, JsonNode rating, String content, JsonNode fit) {
+public record WriteReviewRequest(String orderItemId, JsonNode rating, String content, JsonNode fit,
+                                 JsonNode imageUrls) {
 
     /**
      * @return 소수부 없는 JSON 숫자면 그 정수, 아니면 null(별점 규칙 위반으로 400)
@@ -25,5 +28,12 @@ public record WriteReviewRequest(String orderItemId, JsonNode rating, String con
      */
     public FitInput fitInput() {
         return FitRequest.toInput(fit);
+    }
+
+    /**
+     * @return 키 없음 · 목록 · 틀린 타입을 구분한 사진 주소
+     */
+    public ImageUrlsInput imageUrlsInput() {
+        return ImageUrlsRequest.forWrite(imageUrls);
     }
 }

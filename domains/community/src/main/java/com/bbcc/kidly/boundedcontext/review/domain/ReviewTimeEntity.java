@@ -32,4 +32,11 @@ public abstract class ReviewTimeEntity {
     void recordUpdated() {
         this.updatedAt = ReviewTimes.now();
     }
+
+    /**
+     * 이 엔티티의 칸은 그대로지만 딸린 값(예: 리뷰 사진)이 바뀌었을 때 수정 시각을 바꾼다.
+     */
+    protected void touch() {
+        this.updatedAt = ReviewTimes.now();
+    }
 }

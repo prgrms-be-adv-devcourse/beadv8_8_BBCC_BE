@@ -27,6 +27,13 @@ public enum ReviewErrorCode implements ErrorCode {
     INVALID_FIT(HttpStatus.BAD_REQUEST, "잘못된 사이즈 평가입니다", "fit은 SMALL · TRUE_TO_SIZE · LARGE 중 하나로 보내 주세요."),
     FIT_NOT_APPLICABLE(HttpStatus.BAD_REQUEST, "사이즈 평가를 남길 수 없는 상품입니다",
         "사이즈가 없는 상품에는 사이즈 평가를 남길 수 없어요. fit을 빼고 보내 주세요"),
+    // detail의 %s는 한 장 최대 크기(설정 값, 예: 10MB)로 채운다(INVALID_IMAGE_FILE.detailWith(최대 크기))
+    INVALID_IMAGE_FILE(HttpStatus.BAD_REQUEST, "올릴 수 없는 사진 파일입니다",
+        "사진은 jpg · png · webp 파일 1장당 %s 이하로, files에 1장 이상 담아 보내 주세요."),
+    // detail의 %d는 최대 장수(설정 값)로 채운다(TOO_MANY_IMAGES.detailWith(최대 장수))
+    TOO_MANY_IMAGES(HttpStatus.BAD_REQUEST, "사진이 너무 많습니다", "사진은 최대 %d장까지 올릴 수 있어요. 사진 수를 줄여 보내 주세요."),
+    INVALID_IMAGE_URL(HttpStatus.BAD_REQUEST, "쓸 수 없는 사진 주소입니다",
+        "사진은 업로드 주소 발급(/api/v1/reviews/images/upload-urls)으로 받은 imageUrl만 쓸 수 있어요. 받은 주소를 그대로 문자열 목록으로 보내 주세요."),
     NO_FIELDS_TO_UPDATE(HttpStatus.BAD_REQUEST, "바꿀 값이 없습니다", "바꿀 값을 하나 이상 보내 주세요."),
     REVIEW_NOT_ELIGIBLE(HttpStatus.FORBIDDEN, "리뷰를 쓸 수 없는 주문상품입니다",
         "구매확정한 내 주문상품에만 리뷰를 쓸 수 있습니다. 리뷰 작성 가능 목록에서 골라 주세요."),
@@ -38,4 +45,11 @@ public enum ReviewErrorCode implements ErrorCode {
     private final HttpStatus status;
     private final String title;
     private final String detail;
+
+    /**
+     * detail에 값을 채운 응답 문구(TOO_MANY_IMAGES의 최대 장수 · INVALID_IMAGE_FILE의 최대 크기).
+     */
+    public String detailWith(Object... values) {
+        return detail.formatted(values);
+    }
 }

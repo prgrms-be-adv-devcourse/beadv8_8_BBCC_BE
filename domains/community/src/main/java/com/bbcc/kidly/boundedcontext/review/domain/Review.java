@@ -103,13 +103,28 @@ public class Review extends ReviewTimeEntity {
      * 수정할 값. 보낸 값만 바꾼다(given이 false면 그 값은 그대로). 보냈는데 null이면 그 값의 규칙 위반이다.
      */
     public record Change(boolean ratingGiven, Integer rating, boolean contentGiven, String content,
-                         boolean fitGiven, Fit fit) {
+                         boolean fitGiven, Fit fit, boolean imagesGiven) {
 
         /**
-         * 핏은 바꾸지 않는다.
+         * 사진은 바꾸지 않는다.
+         */
+        public Change(boolean ratingGiven, Integer rating, boolean contentGiven, String content,
+            boolean fitGiven, Fit fit) {
+            this(ratingGiven, rating, contentGiven, content, fitGiven, fit, false);
+        }
+
+        /**
+         * 핏 · 사진은 바꾸지 않는다.
          */
         public Change(boolean ratingGiven, Integer rating, boolean contentGiven, String content) {
             this(ratingGiven, rating, contentGiven, content, false, null);
+        }
+
+        /**
+         * 사진만 바꾼다(사진 목록은 리뷰 밖 사진 행에 있다).
+         */
+        public static Change imagesOnly() {
+            return new Change(false, null, false, null, false, null, true);
         }
 
         public static Change both(Integer rating, String content) {
@@ -148,12 +163,13 @@ public class Review extends ReviewTimeEntity {
 
     /**
      * 작성자가 보낸 값만 고친다. 바꿀 값이 없거나 규칙 위반이면 아무것도 바꾸지 않는다.
+     * 사진을 보냈으면(사진 행은 밖에서 바꾼다) 다른 값이 그대로여도 수정 시각을 바꾼다.
      *
      * @param sizeApplicable 구매 사이즈가 있는 주문상품인지(아니면 핏을 넣을 수 없다. 지우는 것은 된다)
      */
     public void update(Long memberId, Change change, boolean sizeApplicable) {
         checkAuthor(memberId);
-        if (!change.ratingGiven() && !change.contentGiven() && !change.fitGiven()) {
+        if (!change.ratingGiven() && !change.contentGiven() && !change.fitGiven() && !change.imagesGiven()) {
             throw new ReviewRuleException(ReviewRule.NO_CHANGES);
         }
         int newRating = change.ratingGiven() ? validRating(change.rating()) : this.rating;
@@ -162,6 +178,9 @@ public class Review extends ReviewTimeEntity {
         this.rating = (short) newRating;
         this.content = newContent;
         this.fit = newFit;
+        if (change.imagesGiven()) {
+            touch();
+        }
     }
 
     public int getRating() {

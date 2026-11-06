@@ -1,14 +1,18 @@
 package com.bbcc.kidly.boundedcontext.review.app;
 
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImages;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewStatsReader;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews.ReviewListRow;
+import com.bbcc.kidly.boundedcontext.review.domain.ReviewImage;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
@@ -16,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 리뷰 목록(상품별 · 내 리뷰)과 상품 리뷰 요약. 목록은 최신순 커서이고 한 쪽은 size건, 다음 쪽이 있는지는 1건 더 읽어 안다(쿼리 1번).
+ * 사진은 그 쪽 리뷰 ID로 한 번에 읽어 붙인다(쪽마다 쿼리 1번 더, 사진 수와 상관없음. 빈 쪽은 읽지 않는다).
  * 판매 종료 상품의 리뷰도 그대로 보인다(표시 상태로 구분).
  */
 @Service
@@ -25,6 +30,7 @@ public class ReviewQueryService {
 
     private final Reviews reviews;
     private final ReviewStatsReader reviewStatsReader;
+    private final ReviewImages reviewImages;
 
     /**
      * @param productId 상품 ID(문자열). 없거나 양의 정수가 아니면 INVALID_PRODUCT_ID
@@ -54,7 +60,7 @@ public class ReviewQueryService {
             .orElseGet(() -> new ProductSummary(id, 0, null, new FitSummary(0, 0, 0)));
     }
 
-    private static ReviewPage page(String cursor, String size,
+    private ReviewPage page(String cursor, String size,
         Function<Limit, List<ReviewListRow>> first,
         BiFunction<PageRequestValues.Cursor, Limit, List<ReviewListRow>> after) {
         int pageSize = PageRequestValues.pageSize(size);
@@ -62,11 +68,26 @@ public class ReviewQueryService {
         List<ReviewListRow> rows = cursor == null
             ? first.apply(limit)
             : after.apply(PageRequestValues.Cursor.decode(cursor), limit);
-        List<ReviewItem> items = rows.stream().limit(pageSize).map(ReviewItem::from).toList();
+        List<ReviewListRow> pageRows = rows.stream().limit(pageSize).toList();
+        Map<Long, List<String>> images = imagesOf(pageRows);
+        List<ReviewItem> items = pageRows.stream()
+            .map(row -> ReviewItem.from(row, images.getOrDefault(row.getId(), List.of())))
+            .toList();
         boolean hasNext = rows.size() > pageSize;
         return new ReviewPage(items, hasNext
             ? new PageRequestValues.Cursor(items.getLast().createdAt(), items.getLast().reviewId()).encode()
             : null);
+    }
+
+    private Map<Long, List<String>> imagesOf(List<ReviewListRow> rows) {
+        if (rows.isEmpty()) {
+            return Map.of();
+        }
+        return reviewImages.findByReviewIdInOrderByReviewIdAscPositionAsc(
+                rows.stream().map(ReviewListRow::getId).toList())
+            .stream()
+            .collect(Collectors.groupingBy(ReviewImage::getReviewId,
+                Collectors.mapping(ReviewImage::getImageUrl, Collectors.toList())));
     }
 
     private static Long parseProductId(String productId) {
@@ -107,6 +128,7 @@ public class ReviewQueryService {
      * @param authorWithdrawn 작성자가 탈퇴했는지
      * @param fit 사이즈 핏(SMALL · TRUE_TO_SIZE · LARGE). 남기지 않았으면 null
      * @param purchasedSize 작성 자격에 저장된 구매 사이즈. 없으면 null
+     * @param imageUrls 사진 공개 주소(순서대로). 없으면 빈 목록
      */
     public record ReviewItem(
         Long reviewId,
@@ -121,17 +143,18 @@ public class ReviewQueryService {
         boolean authorWithdrawn,
         String fit,
         String purchasedSize,
+        List<String> imageUrls,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
-        static ReviewItem from(ReviewListRow row) {
+        static ReviewItem from(ReviewListRow row, List<String> imageUrls) {
             boolean withdrawn = row.getAuthorWithdrawnAt() != null;
             return new ReviewItem(row.getId(), row.getOrderItemId(), row.getProductId(), row.getProductName(),
                 row.getThumbnailUrl(), row.getDisplayStatus() == null ? null : row.getDisplayStatus().name(),
                 row.getRating().intValue(), row.getContent(),
                 AuthorDisplay.nickname(row.getNickname(), withdrawn), withdrawn,
-                row.getFit() == null ? null : row.getFit().name(), row.getPurchasedSize(), row.getCreatedAt(),
-                row.getUpdatedAt());
+                row.getFit() == null ? null : row.getFit().name(), row.getPurchasedSize(), List.copyOf(imageUrls),
+                row.getCreatedAt(), row.getUpdatedAt());
         }
     }
 }

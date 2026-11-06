@@ -5,6 +5,8 @@ plugins {
 // 커뮤니티 통합 · 기능 테스트를 이 모듈에서 돌린다. 다른 도메인 모듈에는 의존하지 않는다(kidly.domain이 막는다).
 // 테스트 앱은 커뮤니티 · common · shared만으로 뜬다(src/test의 CommunityTestApplication)
 dependencies {
+    // 리뷰 사진을 브라우저가 S3에 직접 올리도록 업로드 주소(Presigned URL)를 만든다 (S3Presigner)
+    implementation(libs.aws.s3)
     // 기능 테스트의 로그인 헤더(common TestMembers)
     testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
