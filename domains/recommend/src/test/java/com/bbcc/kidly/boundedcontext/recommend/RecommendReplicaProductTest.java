@@ -354,8 +354,7 @@ class RecommendReplicaProductTest {
     @Test
     @DisplayName("처음 받은 상품 정보로 만든 복사본에 카테고리 경로가 대분류부터 종류 순서대로 들어간다")
     void createWithCategoryPath() {
-        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
-            changeWithCategoryPath(TOPS_PATH, PRODUCT_CHANGED_AT));
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(productAChangeWithTopsPath());
 
         assertThat(replica.getCategoryPath())
             .extracting(RecommendReplicaCategoryPathEntry::getCategoryId,
@@ -366,8 +365,7 @@ class RecommendReplicaProductTest {
     @Test
     @DisplayName("INV-R01 더 늦게 일어난 상품 변경으로 카테고리 경로를 새 값으로 바꾸고, 줄어든 칸은 남지 않는다")
     void applyLaterCategoryPath() {
-        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
-            changeWithCategoryPath(TOPS_PATH, PRODUCT_CHANGED_AT));
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(productAChangeWithTopsPath());
 
         replica.applyIfNewer(changeWithCategoryPath(
             List.of(new RecommendReplicaProduct.CategoryPathEntryInfo(2L, "하의")), LATER));
@@ -381,8 +379,7 @@ class RecommendReplicaProductTest {
     @Test
     @DisplayName("INV-R01 저장된 시각보다 이르게 일어난 상품 변경은 카테고리 경로를 바꾸지 않는다")
     void ignoreEarlierCategoryPath() {
-        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
-            changeWithCategoryPath(TOPS_PATH, PRODUCT_CHANGED_AT));
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(productAChangeWithTopsPath());
 
         replica.applyIfNewer(changeWithCategoryPath(
             List.of(new RecommendReplicaProduct.CategoryPathEntryInfo(2L, "하의")), PRODUCT_CHANGED_AT.minusMinutes(1)));
@@ -513,7 +510,7 @@ class RecommendReplicaProductTest {
     @MethodSource("changesWithNull")
     @DisplayName("상품 정보에 필수 값이 없으면 복사본을 덮어쓰지 않고 이전 값을 그대로 둔다")
     void rejectChangeWithNull(RecommendReplicaProduct.ChangeInfo change) {
-        RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(productAChangeWithTopsPath());
 
         assertThatThrownBy(() -> replica.applyIfNewer(change))
             .isInstanceOf(NullPointerException.class)
@@ -528,6 +525,10 @@ class RecommendReplicaProductTest {
         assertThat(replica.toProductSizes()).isEqualTo(ProductSizes.of(false, List.of(
             SizeRange.of("110", 105, 115),
             SizeRange.of("120", 115, 125))));
+        assertThat(replica.getCategoryPath())
+            .extracting(RecommendReplicaCategoryPathEntry::getCategoryId,
+                RecommendReplicaCategoryPathEntry::getCategoryName)
+            .containsExactly(tuple(1L, "상의"), tuple(11L, "티셔츠"));
     }
 
     static Stream<Named<RecommendReplicaProduct.ChangeInfo>> changesWithNull() {
@@ -578,6 +579,14 @@ class RecommendReplicaProductTest {
     }
 
     // 상품 A의 다른 값은 그대로 두고 카테고리 경로와 발생 시각만 정해 만든다
+    // 상품 A의 기본 변경에 상의 > 티셔츠 경로만 더한다
+    private static RecommendReplicaProduct.ChangeInfo productAChangeWithTopsPath() {
+        RecommendReplicaProduct.ChangeInfo base = RecommendFixture.productAChange();
+        return new RecommendReplicaProduct.ChangeInfo(base.productId(), base.sellerId(), base.categoryId(), base.name(),
+            base.status(), base.thumbnailUrl(), base.registeredAt(), base.sizeFree(), base.options(), base.brand(),
+            base.description(), base.sizeSpecs(), base.occurredAt(), TOPS_PATH);
+    }
+
     private static RecommendReplicaProduct.ChangeInfo changeWithCategoryPath(
         List<RecommendReplicaProduct.CategoryPathEntryInfo> categoryPath, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,

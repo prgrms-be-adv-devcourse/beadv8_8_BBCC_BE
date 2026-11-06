@@ -21,6 +21,7 @@ import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,6 +29,7 @@ import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguratio
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -251,26 +253,27 @@ class RecommendReplicaProductIntegrationTest {
                 설명: 상품 설명""");
     }
 
-    @Test
-    @DisplayName("INV-R01 더 늦게 일어난 이벤트의 경로가 더 짧으면 카테고리 경로 행이 그 길이로 줄고 남은 행이 없다")
-    void shrinkCategoryPathRowsWithLaterEvent() {
-        replicaProductService.applyProductChanged(eventWithCategoryPath(List.of(
-            new ProductChangedEvent.CategoryPathEntry(1L, "상의"),
-            new ProductChangedEvent.CategoryPathEntry(11L, "티셔츠"),
-            new ProductChangedEvent.CategoryPathEntry(111L, "반팔")), PRODUCT_CHANGED_AT));
+    @ParameterizedTest(name = "경로 {0}칸 -> {1}칸")
+    @CsvSource({"3, 2", "2, 3"})
+    @DisplayName("INV-R01 더 늦게 일어난 이벤트의 경로 길이가 달라지면 카테고리 경로 행이 그 길이로 바뀌고 순서가 이어진다")
+    void replaceCategoryPathRowsWithLaterEvent(int beforeSize, int afterSize) {
+        replicaProductService.applyProductChanged(eventWithCategoryPath(
+            pathOfSize(beforeSize, 1L), PRODUCT_CHANGED_AT));
 
-        replicaProductService.applyProductChanged(eventWithCategoryPath(List.of(
-            new ProductChangedEvent.CategoryPathEntry(2L, "하의"),
-            new ProductChangedEvent.CategoryPathEntry(21L, "바지")), LATER));
+        replicaProductService.applyProductChanged(eventWithCategoryPath(pathOfSize(afterSize, 2L), LATER));
 
+        List<Long> expectedIds = new ArrayList<>();
+        for (int i = 0; i < afterSize; i++) {
+            expectedIds.add((i + 2L) * 10 + i);
+        }
         assertThat(jdbcTemplate.queryForList(
             "select category_id from recommend.replica_product_category_path where product_id = ? order by position",
-            Long.class, PRODUCT_A_ID)).containsExactly(2L, 21L);
+            Long.class, PRODUCT_A_ID)).containsExactlyElementsOf(expectedIds);
     }
 
     @Test
-    @DisplayName("카테고리 경로 칸이 없는 예전 상품 정보 변경됨을 받아도 복사본을 저장하고 경로는 비워 둔다")
-    void storeReplicaFromEventWithoutCategoryPath() {
+    @DisplayName("카테고리 경로가 빈 상품 정보 변경됨을 받으면 경로 행 없이 저장되고 다시 읽으면 빈 목록이다")
+    void storeEmptyCategoryPathAsNoRows() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
 
         List<RecommendReplicaCategoryPathEntry> path = transactionTemplate.execute(status -> List.copyOf(
@@ -299,6 +302,15 @@ class RecommendReplicaProductIntegrationTest {
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
             data.productId(), data.sellerId(), data.name(), data.categoryId(), data.status(), data.thumbnailUrl(),
             data.createdAt(), data.sizeFree(), data.options(), data.infoValues(), "키들리", "상품 설명", sizeSpecs));
+    }
+
+    // size칸 경로이고 칸 ID는 (base + 위치) * 10 + 위치다. base가 다르면 ID가 모두 달라 이전 행이 남았는지 구분된다
+    private static List<ProductChangedEvent.CategoryPathEntry> pathOfSize(int size, long base) {
+        List<ProductChangedEvent.CategoryPathEntry> path = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            path.add(new ProductChangedEvent.CategoryPathEntry((base + i) * 10 + i, "카테고리" + i));
+        }
+        return path;
     }
 
     // 상품 A의 상품 정보 변경됨에 카테고리 경로를 담는다. 옵션은 110 · 120이다
