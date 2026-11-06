@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.InboxNotificationView;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotification;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationRepository;
+import com.bbcc.kidly.boundedcontext.notification.domain.NotificationPolicy;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 알림함. 알림을 넣고, 회원이 자기 알림을 보고 읽음 처리한다.
+ * 알림함. 알림을 넣고, 회원이 자기 알림을 보고 읽음 처리한다. 오래된 알림은 정리한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -49,5 +50,22 @@ public class InboxNotificationService {
         inboxNotificationRepository.findByIdAndMemberId(notificationId, memberId)
             .orElseThrow(() -> new BusinessException(NotificationErrorCode.NOTIFICATION_NOT_FOUND))
             .read(LocalDateTime.now());
+    }
+
+    /**
+     * 내 안 읽은 알림을 모두 읽음 처리. 이미 읽은 알림의 읽은 시각은 그대로 둔다. 안 읽은 알림이 없어도 된다.
+     */
+    @Transactional
+    public void readAll(Long memberId) {
+        inboxNotificationRepository.readAllUnread(memberId, LocalDateTime.now());
+    }
+
+    /**
+     * 보존 기간(NotificationPolicy.INBOX_RETENTION)이 지난 알림을 지운다. 지운 개수.
+     */
+    @Transactional
+    public int deleteExpired() {
+        return inboxNotificationRepository.deleteCreatedBefore(
+            LocalDateTime.now().minus(NotificationPolicy.INBOX_RETENTION));
     }
 }

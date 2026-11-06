@@ -39,3 +39,5 @@ kidly:
     site-url: ${NOTIFICATION_SITE_URL:http://localhost:5173}
     # 실패 · 멈춘 알림을 다시 보내는 주기
     retry-interval: PT1M
+    # 보존 기간(90일)이 지난 알림함 알림을 지우는 시각(cron, 초 분 시 일 월 요일, KST). "-"면 정리하지 않는다
+    inbox-cleanup-cron: "0 0 4 * * *"

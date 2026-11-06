@@ -153,6 +153,30 @@ class InboxNotificationApiTest {
     }
 
     @Test
+    @DisplayName("모두 읽음은 내 안 읽은 알림만 읽음 처리하고, 이미 읽은 알림의 읽은 시각은 그대로 둔다")
+    void readAll() {
+        add(ME, "첫째", null, "k1");
+        add(ME, "둘째", null, "k2");
+        add(OTHER, "남의 것", null, "k3");
+        client.patch().uri("/api/v1/notifications/{id}/read", idOf("k1")).headers(member(ME))
+            .exchange()
+            .expectStatus().isNoContent();
+        var firstReadAt = readAtOf("k1");
+
+        client.patch().uri("/api/v1/notifications/read-all").headers(member(ME))
+            .exchange()
+            .expectStatus().isNoContent();
+        client.patch().uri("/api/v1/notifications/read-all").headers(member(ME))
+            .exchange()
+            .expectStatus().isNoContent();
+
+        expectUnreadCount(0);
+        assertThat(readAtOf("k1")).isEqualTo(firstReadAt);
+        assertThat(readAtOf("k2")).isNotNull();
+        assertThat(readAtOf("k3")).isNull();
+    }
+
+    @Test
     @DisplayName("남의 알림이나 없는 알림을 읽으면 404 NOTIFICATION_NOT_FOUND이고 바뀌지 않는다")
     void readOthersNotFound() {
         add(OTHER, "남의 것", null, "k1");
@@ -178,6 +202,7 @@ class InboxNotificationApiTest {
         client.get().uri("/api/v1/notifications").exchange().expectStatus().isUnauthorized();
         client.get().uri("/api/v1/notifications/unread-count").exchange().expectStatus().isUnauthorized();
         client.patch().uri("/api/v1/notifications/1/read").exchange().expectStatus().isUnauthorized();
+        client.patch().uri("/api/v1/notifications/read-all").exchange().expectStatus().isUnauthorized();
     }
 
     @Test
@@ -207,6 +232,11 @@ class InboxNotificationApiTest {
     private Long idOf(String dedupKey) {
         return jdbcTemplate.queryForObject(
             "SELECT id FROM notification.inbox WHERE dedup_key = ?", Long.class, dedupKey);
+    }
+
+    private Object readAtOf(String dedupKey) {
+        return jdbcTemplate.queryForObject(
+            "SELECT read_at FROM notification.inbox WHERE dedup_key = ?", Object.class, dedupKey);
     }
 
     // Gateway가 붙이는 회원 헤더. 서비스는 X-Member-Id만으로 로그인 회원을 만든다

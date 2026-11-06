@@ -18,4 +18,10 @@ public interface InboxNotificationRepository {
     Page<InboxNotification> findByMemberIdOrderByCreatedAtDescIdDesc(Long memberId, Pageable pageable);
 
     long countByMemberIdAndReadAtIsNull(Long memberId);
+
+    // 내 안 읽은 알림을 모두 읽음으로 바꾼다. 바꾼 개수
+    int readAllUnread(Long memberId, LocalDateTime now);
+
+    // 이 시각보다 먼저 만든 알림을 읽음 여부와 상관없이 지운다. 지운 개수
+    int deleteCreatedBefore(LocalDateTime cutoff);
 }
