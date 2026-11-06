@@ -31,7 +31,7 @@ public class ProductChangedRepublishService {
                 continue;
             }
             Category category = categoryRepository.getById(product.getCategoryId());
-            productChangedPublisher.publish(product, category.getProductType());
+            productChangedPublisher.publish(product, category);
             publishedCount++;
         }
         return publishedCount;

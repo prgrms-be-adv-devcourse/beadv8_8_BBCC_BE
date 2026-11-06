@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -18,8 +19,10 @@ public final class ProductChangedData {
     }
 
     // 옵션은 상품에 저장된 순서대로 담는다. availableQtyByOptionId에 없는 옵션은 재고 행이 없어 살 수 없으므로 품절로 본다
+    // category는 상품이 속한 말단 카테고리다. 상품 유형과 카테고리 경로를 여기서 꺼낸다
     public static ProductChangedEvent.Data of(
-        Product product, ProductType productType, Map<Long, Integer> availableQtyByOptionId) {
+        Product product, Category category, Map<Long, Integer> availableQtyByOptionId) {
+        ProductType productType = category.getProductType();
         List<ProductChangedEvent.Option> options = new ArrayList<>();
         for (ProductOption option : product.getOptions()) {
             // 보관한 옵션은 다시 팔 수 없어 받는 쪽에 보내지 않는다 (SALE-02)
@@ -31,7 +34,17 @@ public final class ProductChangedData {
         return new ProductChangedEvent.Data(
             product.getId(), product.getSellerId(), product.getName(), product.getCategoryId(),
             product.getStatus(), product.getThumbnailUrl(), product.getCreatedAt(), product.isSizeFree(), options,
-            toInfoValueEntries(product), product.getBrand(), product.getDescription(), toSizeSpecs(product));
+            toInfoValueEntries(product), product.getBrand(), product.getDescription(), toSizeSpecs(product),
+            toCategoryPath(category));
+    }
+
+    // 대분류부터 종류까지 카테고리의 ID · 이름을 순서대로 옮긴다. 받는 쪽은 ID가 환경마다 다르므로 이름으로 대분류와 종류를 알아본다
+    private static List<ProductChangedEvent.CategoryPathEntry> toCategoryPath(Category category) {
+        List<ProductChangedEvent.CategoryPathEntry> entries = new ArrayList<>();
+        for (Category node : category.path()) {
+            entries.add(new ProductChangedEvent.CategoryPathEntry(node.getId(), node.getName()));
+        }
+        return entries;
     }
 
     // 실측 행마다 사이즈 이름 · 권장 키 · 실측 값을 상품에 저장된 순서대로 옮긴다

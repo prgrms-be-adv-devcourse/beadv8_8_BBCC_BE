@@ -4,7 +4,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepositor
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductChangedData;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
-import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import java.time.LocalDateTime;
@@ -26,13 +26,13 @@ public class ProductChangedPublisher {
     private final InventoryRepository inventoryRepository;
     private final EventPublisher eventPublisher;
 
-    public void publish(Product product, ProductType productType) {
+    public void publish(Product product, Category category) {
         List<Long> optionIds = new ArrayList<>();
         for (ProductOption option : product.getOptions()) {
             optionIds.add(option.getId());
         }
         Map<Long, Integer> availableQtyByOptionId = inventoryRepository.findAvailableQtyByOptionId(optionIds);
-        ProductChangedEvent.Data data = ProductChangedData.of(product, productType, availableQtyByOptionId);
+        ProductChangedEvent.Data data = ProductChangedData.of(product, category, availableQtyByOptionId);
         eventPublisher.publish(new ProductChangedEvent(UUID.randomUUID(), LocalDateTime.now(), data));
     }
 }

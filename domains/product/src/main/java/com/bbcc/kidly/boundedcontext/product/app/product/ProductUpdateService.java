@@ -95,7 +95,7 @@ public class ProductUpdateService {
             inventoryReplacer.align(result.requestedOptions(), optionsBefore, request.options(), sellerId);
         }
         if (result.changed() && product.hasStartedSale()) {
-            productChangedPublisher.publish(product, type);
+            productChangedPublisher.publish(product, category);
         }
         return sellerProductService.findMyProductDetail(sellerId, productId);
     }

@@ -68,9 +68,9 @@ class ProductChangedDataTest {
         ProductChangedEvent.Data data = ProductChangedData.of(product, top,
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 0));
 
-        // 옵션 값 · 상품 정보 값 · 브랜드 · 설명 · 사이즈별 실측은 다른 테스트가 확인하므로 여기서는 비교하지 않는다
+        // 옵션 값 · 상품 정보 값 · 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로는 다른 테스트가 확인하므로 여기서는 비교하지 않는다
         assertThat(data).usingRecursiveComparison()
-            .ignoringFields("infoValues", "options.values", "brand", "description", "sizeSpecs")
+            .ignoringFields("infoValues", "options.values", "brand", "description", "sizeSpecs", "categoryPath")
             .isEqualTo(new ProductChangedEvent.Data(
                 PRODUCT_ID, SELLER_ID, "상품 A", CATEGORY_ID, ProductStatus.ON_SALE, product.getThumbnailUrl(),
                 REGISTERED_AT, false, List.of(
