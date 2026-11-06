@@ -2,8 +2,11 @@ package com.bbcc.kidly.boundedcontext.notification;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.ProductNameService;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.InboxNotificationView;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
@@ -67,6 +70,9 @@ class NotificationProductEventKafkaIntegrationTest {
     private ProductNameService productNameService;
 
     @Autowired
+    private InboxNotificationService inboxNotificationService;
+
+    @Autowired
     private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
 
     @Autowired
@@ -74,6 +80,7 @@ class NotificationProductEventKafkaIntegrationTest {
 
     private final Long productId = randomId();
     private final Long markerProductId = randomId();
+    private final Long sellerId = randomId();
 
     private MessageListenerContainer listener;
 
@@ -115,6 +122,22 @@ class NotificationProductEventKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("관리자가 판매를 중지하면 Kafka로 받아 판매자 알림함에 한 건 남기고, 같은 메시지를 다시 받아도 한 건이다")
+    void stoppedByAdmin() throws Exception {
+        var stopped = productChanged(productId, "곰돌이 티셔츠", OCCURRED_AT.plusMinutes(1), true);
+
+        send(productChanged(productId, "곰돌이 티셔츠", OCCURRED_AT));
+        send(stopped);
+        send(stopped);
+        sendMarker();
+
+        AsyncWait.until(TIMEOUT, () -> nameOf(markerProductId).isPresent());
+        assertThat(inboxNotificationService.findMine(sellerId, 0, 10).getContent())
+            .extracting(InboxNotificationView::type, InboxNotificationView::linkPath)
+            .containsExactly(tuple("PRODUCT_STOPPED_BY_ADMIN", "/center/products/" + productId));
+    }
+
+    @Test
     @DisplayName("알림이 받지 않는 종류는 건너뛰고 DLT로 보내지 않는다")
     void skipOtherEventType() throws Exception {
         sendRaw("product.deleted", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
@@ -149,9 +172,14 @@ class NotificationProductEventKafkaIntegrationTest {
         send(productChanged(markerProductId, "표시 상품", OCCURRED_AT), productId);
     }
 
-    private static ProductChangedEvent productChanged(Long id, String name, LocalDateTime occurredAt) {
+    private ProductChangedEvent productChanged(Long id, String name, LocalDateTime occurredAt) {
+        return productChanged(id, name, occurredAt, false);
+    }
+
+    private ProductChangedEvent productChanged(Long id, String name, LocalDateTime occurredAt, boolean stoppedByAdmin) {
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(
-            id, 1L, name, 1L, ProductStatus.ON_SALE, null, OCCURRED_AT, false, List.of()));
+            id, sellerId, name, 1L, stoppedByAdmin ? ProductStatus.STOPPED : ProductStatus.ON_SALE, null, OCCURRED_AT,
+            false, List.of(), List.of(), null, null, List.of(), List.of(), stoppedByAdmin));
     }
 
     private void send(ProductChangedEvent event) throws Exception {

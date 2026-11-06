@@ -29,6 +29,8 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      *        사이즈 역할 항목이 없는 유형의 상품처럼 실측 행이 없으면 빈 목록이다. 이 칸이 생기기 전에 나간 메시지도 빈 목록으로 읽힌다
      * @param categoryPath 상품 카테고리의 경로다. 대분류부터 상품의 종류 카테고리까지 차례로 담고, 마지막 원소의 id는 {@code categoryId}와 같다.
      *        이 칸이 생기기 전에 나간 메시지는 빈 목록으로 읽힌다
+     * @param stoppedByAdmin true면 관리자가 운영 정책에 따라 판매를 중지한 상품이다. 판매자는 다시 판매를 시작할 수 없다.
+     *        이 칸이 생기기 전에 나간 메시지는 false로 읽힌다
      */
     public record Data(
             Long productId,
@@ -44,7 +46,8 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
             String brand,
             String description,
             List<SizeSpec> sizeSpecs,
-            List<CategoryPathEntry> categoryPath) {
+            List<CategoryPathEntry> categoryPath,
+            Boolean stoppedByAdmin) {
 
         // 사이즈별 실측 · 카테고리 경로 칸이 없는 예전 메시지를 읽으면 null이 들어오므로, 받는 쪽이 null을 검사하지 않게 빈 목록으로 바꾼다
         public Data {
@@ -54,6 +57,33 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
             if (categoryPath == null) {
                 categoryPath = List.of();
             }
+            // 칸이 없는 예전 메시지는 null로 읽힌다. boolean이면 역직렬화가 실패하므로 Boolean으로 받아 false로 바꾼다
+            if (stoppedByAdmin == null) {
+                stoppedByAdmin = false;
+            }
+        }
+
+        /**
+         * 이벤트를 만드는 다른 도메인 테스트 코드가 바뀌지 않게 하려고, 관리자 판매 중지 여부 없이 만드는 생성자를 둔다(false).
+         * 상품이 이벤트를 보낼 때는 이 생성자를 쓰지 않는다.
+         */
+        public Data(
+                Long productId,
+                Long sellerId,
+                String name,
+                Long categoryId,
+                ProductStatus status,
+                String thumbnailUrl,
+                LocalDateTime createdAt,
+                boolean sizeFree,
+                List<Option> options,
+                List<AttributeEntry> infoValues,
+                String brand,
+                String description,
+                List<SizeSpec> sizeSpecs,
+                List<CategoryPathEntry> categoryPath) {
+            this(productId, sellerId, name, categoryId, status, thumbnailUrl, createdAt, sizeFree, options,
+                    infoValues, brand, description, sizeSpecs, categoryPath, false);
         }
 
         /**

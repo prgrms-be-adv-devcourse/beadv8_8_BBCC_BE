@@ -11,7 +11,7 @@
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |
 | | `child-account.changed` | 자녀 계정 ID | | childprofile, order |
-| `kidly.product.events` | `product.changed` | 상품 ID | product | community, order, recommend, search |
+| `kidly.product.events` | `product.changed`(data에 관리자 판매 중지 `stoppedByAdmin`) | 상품 ID | product | community, notification, order, recommend, search |
 | | `stock.deducted` · `stock.deduction-failed` | 주문 ID | | order |
 | `kidly.order.events` | `order.created` | 주문 ID | order | product |
 | | `order.payment-requested` | 주문 ID | | payment |
@@ -50,3 +50,5 @@
 - `payment.payout-completed` (`PaymentPayoutCompletedEvent`): `settlementId`, `sellerId`, `amount`(실제로 입금한 금액, 원). 키는 정산서 ID. 0원 정산도 `amount=0`으로 보낸다. 같은 정산서의 지급 요청이 다시 오면 입금하지 않고 처음 결과로 다시 보내며, 이때 `eventId`가 달라진다.
 - 수신 도메인 `notification`은 환불 완료 메일을 `memberId`에게 보내고, `memberId`가 `null`인 예전 메시지는 받는 사람을 알 수 없어 보내지 않는다. 정산금 지급 메일은 판매자에게 보내되 0원 정산은 입금이 없어 보내지 않고, `eventId` 대신 `settlementId`로 한 통만 만든다.
 - `member.registered` (`MemberRegisteredEvent`): `memberId`, `email`, `resent`. 기존 회원 이메일은 관리자 `POST /api/v1/admin/members/registered-events`로 채운다. 회원 서비스가 이메일이 있는 회원(탈퇴 회원 제외)마다 `resent=true`인 `member.registered`를 새 `eventId`로 다시 보낸다(토픽 보존 기간이 지나 재소비로는 채울 수 없다). `resent`를 더하기 전의 메시지에는 없어 `null`로 읽히고 새 가입으로 본다. 수신 도메인 `notification`은 `resent`면 이메일 복사본만 저장하고 환영 메일 · 알림함은 만들지 않는다. `payment`는 지갑이 이미 있으면 새로 만들지 않아 그대로다.
+- `product.changed` (`ProductChangedEvent`)의 `stoppedByAdmin`: 관리자가 운영 정책에 따라 판매를 중지한 상품이면 `true`. 판매자가 스스로 중지한 상품은 `false`이고, 이 칸을 더하기 전의 메시지도 `false`로 읽힌다. 판매자가 이미 중지한 상품을 관리자가 중지하면 판매 상태가 그대로라 이벤트가 나가지 않는다.
+- 수신 도메인 `notification`은 `product.changed`로 상품 이름 복사본에 판매 상태와 재고 있는 옵션을 저장하고, 복사본보다 늦은 변경에서 판매 중이던 상품을 관리자가 중지하면 판매자에게 메일 · 알림함을, 재고가 있던 옵션이 새로 품절되면 알림함만 남긴다. 처음 받은 상품은 알리지 않는다.

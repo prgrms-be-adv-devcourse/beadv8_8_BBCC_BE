@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.notification.in.event;
 
 import com.bbcc.kidly.boundedcontext.notification.app.ProductNameService;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.ProductChangedCommand;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -9,7 +10,8 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * kidly.product.events에서 product.changed를 받아 알림 문구에 쓸 상품 이름 복사본을 저장한다.
+ * kidly.product.events에서 product.changed를 받아 알림 문구에 쓸 상품 이름 복사본을 저장하고,
+ * 판매자에게 관리자 판매 중지 · 옵션 품절을 알린다.
  * 같은 메시지를 다시 받거나 옛 메시지가 늦게 와도 ProductName이 발생 시각으로 거른다.
  */
 @Component
@@ -29,6 +31,11 @@ public class NotificationProductEventListener {
     }
 
     private void onChanged(ProductChangedEvent event) {
-        productNameService.save(event.data().productId(), event.data().name(), event.occurredAt());
+        var data = event.data();
+        var options = data.options().stream()
+            .map(option -> new ProductChangedCommand.Option(option.optionId(), option.optionName(), option.soldOut()))
+            .toList();
+        productNameService.save(new ProductChangedCommand(event.eventId(), data.productId(), data.sellerId(),
+            data.name(), data.status(), data.stoppedByAdmin(), options, event.occurredAt()));
     }
 }

@@ -219,6 +219,20 @@ class ProductChangedDataTest {
             new ProductChangedEvent.CategoryPathEntry(CATEGORY_ID, "상의"));
     }
 
+    @Test
+    @DisplayName("SALE-11 관리자가 판매중지한 상품이면 관리자 판매중지를 true로 담고, 판매자가 판매중지한 상품이면 false로 담는다")
+    void carryStoppedByAdmin() {
+        withOptionsAndSizeSpecs110And120();
+        product.startSale(SELLER_ID, top, clothing.type());
+        product.stopSale(SELLER_ID);
+
+        assertThat(ProductChangedData.of(product, top, Map.of()).stoppedByAdmin()).isFalse();
+
+        product.stopSaleByAdmin();
+
+        assertThat(ProductChangedData.of(product, top, Map.of()).stoppedByAdmin()).isTrue();
+    }
+
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 실측 · 권장 키를 넣고, 옵션 ID를 정해 둔다
     private void withOptionsAndSizeSpecs110And120() {
         product.addOptions(addOptions(List.of(
