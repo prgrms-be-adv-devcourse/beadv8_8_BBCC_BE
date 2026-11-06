@@ -247,6 +247,8 @@ public class Product extends BaseTimeEntity {
         ProductInfoValues.requireNonNullValues(info.infoValues());
         // 등록한 판매자만 상품을 고칠 수 있다. 같은 값을 보내도 다른 판매자이면 거절한다 (OPT-08)
         validateOwner(info.sellerId());
+        // 같은 값을 보내도 등록 취소한 상품이면 거절하므로 바뀌었는지 보기 전에 검사한다
+        requireNotDelisted();
         if (info.name().isBlank()) {
             throw new IllegalArgumentException("상품명은 비어 있을 수 없습니다");
         }
