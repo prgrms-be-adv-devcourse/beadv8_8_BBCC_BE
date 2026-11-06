@@ -51,6 +51,11 @@
 - 쿠키(Refresh Token)는 인증만 다룬다(`in.RefreshTokenCookies`, 주체 종류를 받는다). 회원 탈퇴 응답은 쿠키를 건드리지 않고, 클라이언트가 탈퇴 뒤 로그아웃을 불러 지운다
 - 설정은 `auth.yml`(`jwt.*` · `refresh-token.*` · `kakao.*` · `kidly.auth.admin.bootstrap.*`)
 
+## DLT 보관 · 재처리 (`app/AuthDeadLetterService`, #962)
+- `in/AuthDeadLetterKafkaListener`가 `kidly.member.events.auth.dlt` · `kidly.childprofile.events.auth.dlt`를 그룹 `kidly.auth.dlt`(earliest)로 읽어 `auth.dead_letter`(`domain/AuthDeadLetter`)에 DLT 위치당 1행으로 보관한다. 같은 위치가 이미 있으면 건너뛴다(DLT는 파티션 1개를 컨테이너 하나가 차례로 읽고, 유니크 제약이 뒷받침한다). 저장 실패는 최대 60초 간격으로 끝없이 재시도하고, DLT의 DLT는 없다
+- `/api/v1/admin/auth-dead-letters`(관리자): 목록(status 기본 OPEN) · 상세 · `POST /{id}/reprocess`. 응답과 로그에 본문 · 예외 메시지를 넣지 않는다
+- 재처리는 원래 토픽에 다시 보내지 않고 원래 토픽에 따라 `MemberWithdrawnEventListener.on` · `ChildProfileEventListener.on`을 직접 부른다(원래 토픽은 다른 도메인도 받는다). 행을 비관적 쓰기 잠금으로 잡은 한 트랜잭션에서 처리기를 돌리고 REPROCESSED로 바꾸므로 동시에 눌러도 처리기는 한 번만 돈다. 처리기가 실패하면 그 트랜잭션은 롤백되고, 별도 트랜잭션에서 횟수 · 예외 종류만 남겨 200/OPEN을 돌려준다
+
 ## 그 밖
 - `RefreshTokenCleaner`: 만료된 Refresh Token을 하루 한 번(04:00 KST) 지운다. 재발급할 때도 만료를 확인하므로 정리가 늦어도 동작은 같다
 - `DevTokenService` · `DevTokenController`: `@Profile({"local", "test", "dev"})`. 운영에는 등록되지 않는다
