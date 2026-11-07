@@ -33,6 +33,7 @@ import com.bbcc.kidly.boundedcontext.search.out.ElasticsearchProductSearch;
 import com.bbcc.kidly.boundedcontext.search.out.ProductDocument;
 import com.bbcc.kidly.boundedcontext.search.out.SearchEmbeddingProperties;
 import com.bbcc.kidly.boundedcontext.search.out.SearchIndexProperties;
+import com.bbcc.kidly.boundedcontext.search.out.SearchSynonyms;
 import com.bbcc.kidly.boundedcontext.search.out.SellerDocument;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,7 +74,8 @@ class ElasticsearchProductSearchTest {
     @BeforeEach
     void setUp() {
         productSearch = new ElasticsearchProductSearch(client, new SearchIndexProperties("local"),
-            new SearchEmbeddingProperties("", "https://api.openai.test/v1", "text-embedding-3-small", 3, 0.3f));
+            new SearchEmbeddingProperties("", "https://api.openai.test/v1", "text-embedding-3-small", 3, 0.3f),
+            SearchSynonyms.of("바지, 팬츠", "아우터 => 점퍼, 자켓"));
     }
 
     @Test
@@ -90,6 +92,10 @@ class ElasticsearchProductSearchTest {
         assertThat(request.query().bool().must()).singleElement().satisfies(must -> {
             assertThat(must.constantScore().boost()).isEqualTo(2.0f);
             assertThat(must.constantScore().filter().isBool()).isTrue();
+        });
+        assertThat(request.query().bool().should()).singleElement().satisfies(should -> {
+            assertThat(should.constantScore().boost()).isEqualTo(2.0f);
+            assertMatchAll(should.constantScore().filter(), "name", "원피스");
         });
         assertThat(request.knn()).singleElement().satisfies(knn -> {
             assertThat(knn.field()).isEqualTo("embedding");
@@ -215,6 +221,44 @@ class ElasticsearchProductSearchTest {
                 name -> assertMatchAll(name, "name", "여아용"),
                 brand -> assertMatchAll(brand, "brand", "여아용"));
         });
+    }
+
+    @Test
+    @DisplayName("단어별로 찾을 때 동의어 사전에서 넓힌 말이 상품명에 있어도 맞는다. 검색어 전체는 넓히지 않는다")
+    void synonyms() throws IOException {
+        givenProducts(0);
+
+        productSearch.search(condition(null, "여아 바지", Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20));
+
+        assertThat(filters(capturedSearch())).filteredOn(Query::isBool).singleElement().satisfies(filter -> {
+            List<Query> either = filter.bool().should();
+            assertMatchAll(either.get(0), "name", "여아 바지");
+            List<Query> words = either.get(1).bool().filter();
+            assertThat(words.get(0).bool().should()).hasSize(2);
+            assertThat(words.get(1).bool().should()).satisfiesExactly(
+                name -> assertMatchAll(name, "name", "바지"),
+                brand -> assertMatchAll(brand, "brand", "바지"),
+                synonym -> assertMatchAll(synonym, "name", "팬츠"));
+        });
+    }
+
+    @Test
+    @DisplayName("한 방향 동의어는 왼쪽 말로 찾을 때만 넓힌다")
+    void oneWaySynonyms() throws IOException {
+        givenProducts(0);
+
+        productSearch.search(condition(null, "아우터", Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20));
+        productSearch.search(condition(null, "점퍼", Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20));
+
+        verify(client, times(2)).search(searchCaptor.capture(), eq(ProductDocument.class));
+        List<List<Query>> wordQueries = searchCaptor.getAllValues().stream()
+            .map(request -> request.query().bool().filter().stream().filter(Query::isBool).findFirst().orElseThrow())
+            .map(filter -> filter.bool().should().get(1).bool().filter().getFirst().bool().should())
+            .toList();
+        assertThat(wordQueries.get(0)).hasSize(4);
+        assertMatchAll(wordQueries.get(0).get(2), "name", "점퍼");
+        assertMatchAll(wordQueries.get(0).get(3), "name", "자켓");
+        assertThat(wordQueries.get(1)).hasSize(2);
     }
 
     @Test
