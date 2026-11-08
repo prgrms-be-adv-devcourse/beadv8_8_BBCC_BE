@@ -59,6 +59,12 @@ kidly:
     mcp:
       enabled: true
       max-results: 3
+    # 멈춘 주문 AI 진단(#926)은 운영 기본 꺼짐. 주문 모듈 테스트는 가짜 제공자(외부 호출 없음)로 켜고 주기는 길게 둔다(테스트가 직접 부른다)
+    ai:
+      enabled: true
+      provider: fake
+      model: fake-model
+      interval: P3650D
     auto-confirm:
       interval: P3650D
     outbox:
