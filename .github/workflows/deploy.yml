@@ -375,6 +375,7 @@ jobs:
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
           JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           HOLIDAY_API_SERVICE_KEY: ${{ secrets.HOLIDAY_API_SERVICE_KEY }}
           KIDLY_ADMIN_BOOTSTRAP_PASSWORD: ${{ secrets.KIDLY_ADMIN_BOOTSTRAP_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -390,6 +391,8 @@ jobs:
           keys=(DB_PASSWORD KAKAO_CLIENT_SECRET PORTONE_API_SECRET IDENTITY_KEY_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
           # 없어도 되는 비밀. 있으면 붙이고 없으면 건너뛴다 (MAIL_PASSWORD 가 없으면 메일은 보내지 않고 로그만 남긴다)
           [[ -z "$MAIL_PASSWORD" ]] || keys+=(MAIL_PASSWORD)
+          # FIREBASE_CREDENTIALS(서비스 계정 키 JSON의 Base64)가 없으면 웹 푸시는 보내지 않고 로그만 남긴다(#1017)
+          [[ -z "$FIREBASE_CREDENTIALS" ]] || keys+=(FIREBASE_CREDENTIALS)
           # HOLIDAY_API_SERVICE_KEY 가 없으면 영업일 판단(공휴일 조회)이 실패한다
           [[ -z "$HOLIDAY_API_SERVICE_KEY" ]] || keys+=(HOLIDAY_API_SERVICE_KEY)
           # KIDLY_ADMIN_BOOTSTRAP_PASSWORD 가 없으면 첫 관리자를 만들지 않는다. 단 .env 에 이메일이 있는데 비어 있으면 앱이 기동에 실패한다

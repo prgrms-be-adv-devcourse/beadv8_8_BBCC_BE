@@ -284,6 +284,8 @@ services:
       # 메일 계정 · 켜기 · 보내는 주소. 기본값은 notification.yml 과 같다. .env 에서 받는다
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # 웹 푸시 서비스 계정 키(Base64). 배포 워크플로가 Secret 에서 붙인다. 없으면 푸시는 보내지 않는다
+      FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-}
       MAIL_ENABLED: ${MAIL_ENABLED:-true}
       MAIL_FROM: ${MAIL_FROM:-}
       # 메일 본문의 사이트 주소. 서비스 prod 설정이 기본값 없이 요구하므로 .env 에서 받는다
