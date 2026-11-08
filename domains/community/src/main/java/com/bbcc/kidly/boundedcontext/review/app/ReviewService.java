@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.review.domain.ReviewTimes;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -30,7 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>수정 · 삭제: 리뷰를 행 잠금으로 읽고 작성자를 확인한 뒤, 수정은 별점 차이만큼 · 삭제는 −1 · −별점으로 집계를 바꾼다.
  *       숨김 리뷰는 이미 집계에서 빠져 있어 바꾸지 않는다</li>
  *   <li>검사: 새 리뷰는 검사 대기(공개). 글 · 사진이 실제로 바뀐 수정은 다시 검사 대기(숨김 상태는 그대로)</li>
- *   <li>사진: 업로드 주소 발급으로 받은 본인 주소만 받는다(최대 장수는 설정 값). 작성은 리뷰와 같은 트랜잭션에서 저장하고,
+ *   <li>사진: 업로드 주소 발급으로 받은 본인 주소만 받는다(최대 장수는 설정 값). 새로 붙는 주소는 저장소에 실제로 올라갔는지
+ *       트랜잭션 밖에서 확인한다(이미 붙어 있던 주소는 붙일 때 확인했으므로 다시 보지 않는다). 작성은 리뷰와 같은 트랜잭션에서 저장하고,
  *       수정은 보내면 목록 전체를 바꾼다(지우고 새로 넣기). 리뷰를 지우면 DB가 사진 행도 지운다</li>
  * </ul>
  * 로그 · 예외 메시지에 본문 · 닉네임을 넣지 않는다.
@@ -68,7 +70,8 @@ public class ReviewService {
 
     /**
      * @param imageUrls 사진 주소(선택, 보낸 순서). 본인 주소가 아니면 INVALID_IMAGE_URL, 최대 장수를 넘으면 TOO_MANY_IMAGES.
-     *     입력 확인이라 자격 확인보다 먼저 본다
+     *     입력 확인이라 자격 확인보다 먼저 본다. 실제로 올라갔는지는 자격 · 중복 확인 뒤 저장 트랜잭션 밖에서 본다
+     *     (없으면 IMAGE_NOT_UPLOADED, 확인할 수 없으면 503 IMAGE_STORAGE_UNAVAILABLE)
      */
     public ReviewView write(Long memberId, String nickname, String orderItemId, Integer rating, String content,
         FitInput fit, ImageUrlsInput imageUrls) {
@@ -87,6 +90,8 @@ public class ReviewService {
         String purchasedSize = eligibility.getSize();
         Review review = translateRule(() -> Review.create(new Review.Values(itemId, eligibility.getProductId(),
             memberId, nickname, rating, content, fitValue, purchasedSize != null)));
+        // 사진이 실제로 올라갔는지는 다른 검사를 모두 통과한 뒤, 저장 트랜잭션 밖에서 확인한다
+        ensureUploaded(images.urls());
         try {
             return separateTransaction.call(() -> {
                 Review saved = reviews.saveAndFlush(review);
@@ -107,7 +112,6 @@ public class ReviewService {
     /**
      * 별점 · 본문을 둘 다 고친다.
      */
-    @Transactional
     public ReviewView update(Long memberId, Long reviewId, Integer rating, String content) {
         return update(memberId, reviewId, new ReviewChange(true, rating, true, content));
     }
@@ -117,18 +121,42 @@ public class ReviewService {
      * 사진을 보내면 목록 전체를 바꾼다(빈 목록이면 모두 지움). 작성자 확인이 값 확인보다 먼저고(남의 리뷰는 값이 틀려도 403),
      * 값을 모두 확인한 뒤에 바꾸므로 하나라도 틀리면 아무것도 바뀌지 않는다.
      * 오류: 400 NO_FIELDS_TO_UPDATE · INVALID_RATING · INVALID_CONTENT · INVALID_FIT · FIT_NOT_APPLICABLE ·
-     * INVALID_IMAGE_URL · TOO_MANY_IMAGES, 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND.
+     * INVALID_IMAGE_URL · TOO_MANY_IMAGES · IMAGE_NOT_UPLOADED, 403 REVIEW_FORBIDDEN, 404 REVIEW_NOT_FOUND,
+     * 503 IMAGE_STORAGE_UNAVAILABLE. 새로 붙는 사진의 업로드 확인(외부 호출)은 다른 검사를 모두 미리 한 뒤 트랜잭션 밖에서 하고,
+     * 반영은 행 잠금으로 다시 읽어 한 트랜잭션에서 한다.
      */
-    @Transactional
     public ReviewView update(Long memberId, Long reviewId, ReviewChange change) {
+        // 1) 트랜잭션 밖에서 미리 확인한다: 없음(404) · 작성자(403) · 값(400) · 사진 형식 · 장수(400) · 새 사진 업로드(400 · 503)
+        Review current = reviews.findById(reviewId)
+            .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
+        translateRule(() -> {
+            current.checkAuthor(memberId);
+            return null;
+        });
+        Fit fitValue = change.fit().toFit();
+        ReviewImageUrls images = change.images().given() ? checkedImages(memberId, change.images()) : null;
+        String sizeBefore = purchasedSizeOf(current);
+        translateRule(() -> {
+            current.checkUpdate(memberId, change.toDomain(fitValue), sizeBefore != null);
+            return null;
+        });
+        if (images != null) {
+            // 이미 붙어 있는 주소는 붙일 때 확인했으므로 새로 붙는 주소만 확인한다
+            List<String> attached = imageUrlsOf(reviewId);
+            ensureUploaded(images.urls().stream().filter(url -> !attached.contains(url)).toList());
+        }
+        // 2) 한 트랜잭션에서 행 잠금으로 다시 읽어 반영한다
+        return separateTransaction.call(() -> apply(memberId, reviewId, change, fitValue, images));
+    }
+
+    private ReviewView apply(Long memberId, Long reviewId, ReviewChange change, Fit fitValue,
+        ReviewImageUrls images) {
         Review review = reviews.findForUpdate(reviewId)
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
         translateRule(() -> {
             review.checkAuthor(memberId);
             return null;
         });
-        Fit fitValue = change.fit().toFit();
-        ReviewImageUrls images = change.images().given() ? checkedImages(memberId, change.images()) : null;
         String purchasedSize = purchasedSizeOf(review);
         int ratingBefore = review.getRating();
         Fit fitBefore = review.getFit();
@@ -170,6 +198,25 @@ public class ReviewService {
         // 숨김 리뷰는 이미 집계에서 빠져 있다
         if (review.isPublic()) {
             adjustStats(review.getProductId(), -1, -review.getRating(), FitDelta.of(review.getFit(), null));
+        }
+    }
+
+    /**
+     * 사진이 저장소에 실제로 올라갔는지 확인한다(외부 호출이라 트랜잭션 밖에서 부른다). 없으면 IMAGE_NOT_UPLOADED,
+     * 확인할 수 없으면 IMAGE_STORAGE_UNAVAILABLE(둘 다 저장하지 않는다). 넘길 주소가 없으면 부르지 않는다.
+     */
+    private void ensureUploaded(List<String> imageUrls) {
+        if (imageUrls.isEmpty()) {
+            return;
+        }
+        Set<String> missing;
+        try {
+            missing = imageStorage.findNotUploaded(imageUrls);
+        } catch (ReviewImageStorage.CheckUnavailableException e) {
+            throw new BusinessException(ReviewErrorCode.IMAGE_STORAGE_UNAVAILABLE);
+        }
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ReviewErrorCode.IMAGE_NOT_UPLOADED);
         }
     }
 

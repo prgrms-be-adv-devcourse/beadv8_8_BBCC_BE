@@ -192,10 +192,7 @@ public class Review extends ReviewTimeEntity {
      * @param sizeApplicable 구매 사이즈가 있는 주문상품인지(아니면 핏을 넣을 수 없다. 지우는 것은 된다)
      */
     public void update(Long memberId, Change change, boolean sizeApplicable) {
-        checkAuthor(memberId);
-        if (!change.ratingGiven() && !change.contentGiven() && !change.fitGiven() && !change.imagesGiven()) {
-            throw new ReviewRuleException(ReviewRule.NO_CHANGES);
-        }
+        checkUpdate(memberId, change, sizeApplicable);
         int newRating = change.ratingGiven() ? validRating(change.rating()) : this.rating;
         String newContent = change.contentGiven() ? validContent(change.content()) : this.content;
         Fit newFit = change.fitGiven() ? validFit(change.fit(), sizeApplicable) : this.fit;
@@ -204,6 +201,26 @@ public class Review extends ReviewTimeEntity {
         this.fit = newFit;
         if (change.imagesGiven()) {
             touch();
+        }
+    }
+
+    /**
+     * 수정과 같은 규칙(작성자 · 바꿀 값 · 별점 · 본문 · 핏)으로 미리 확인만 한다. 값은 바꾸지 않는다.
+     * 외부 확인(사진 업로드 여부)을 하기 전에 막을 것을 먼저 막는 데 쓴다.
+     */
+    public void checkUpdate(Long memberId, Change change, boolean sizeApplicable) {
+        checkAuthor(memberId);
+        if (!change.ratingGiven() && !change.contentGiven() && !change.fitGiven() && !change.imagesGiven()) {
+            throw new ReviewRuleException(ReviewRule.NO_CHANGES);
+        }
+        if (change.ratingGiven()) {
+            validRating(change.rating());
+        }
+        if (change.contentGiven()) {
+            validContent(change.content());
+        }
+        if (change.fitGiven()) {
+            validFit(change.fit(), sizeApplicable);
         }
     }
 

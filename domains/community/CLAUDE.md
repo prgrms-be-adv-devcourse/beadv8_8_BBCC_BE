@@ -30,7 +30,8 @@
 - 중복은 DB 유일 제약으로 막는다: (회원, 상품) 찜, (주문상품) 리뷰
 - 리뷰 사이즈 핏(`Fit`: SMALL · TRUE_TO_SIZE · LARGE, 선택)은 구매 사이즈가 있는 주문상품만 받는다. 핏별 수는 `review_stats`의 `fit_*`를 다른 집계와 같은 문장에서 증감한다(작성 +1, 수정 이전 −1 · 새 +1, 삭제 −1). 구매 사이즈(`purchasedSize`)는 리뷰에 따로 저장하지 않고 작성 자격(`review_eligibility.size`)을 조인해 읽는다
 - 리뷰 사진: 브라우저가 업로드 주소 발급(`POST /api/v1/reviews/images/upload-urls`)으로 받은 서명 주소로 S3에 직접 올리고, 받은 공개 주소(`imageUrls`)를 리뷰 작성 · 수정에 보낸다. 서명 · 공개 주소는 `app.port.ReviewImageStorage`(구현 `out.storage`)만 알고, domain · app은 S3를 모른다
-  - 주소 검사는 보안 경계다: 본인 경로(`{key-prefix}/reviews/{회원 ID}/`) 공개 주소 접두어 + 서버가 만든 이름(소문자 UUID.jpg|png|webp)만 받고, 같은 주소는 한 번만(`ReviewImageUrls`). 업로드됐는지(저장소에 실제로 있는지)는 보지 않는다
+  - 주소 검사는 보안 경계다: 본인 경로(`{key-prefix}/reviews/{회원 ID}/`) 공개 주소 접두어 + 서버가 만든 이름(소문자 UUID.jpg|png|webp)만 받고, 같은 주소는 한 번만(`ReviewImageUrls`)
+  - 업로드 확인(#1030): 형식 · 본인 경로 · 장수 검사 뒤 새로 붙는 주소만 저장소에 실제로 있는지 확인한다(`ReviewImageStorage.findNotUploaded`, 구현은 `out.storage`의 확인 방식: s3 = 동기 S3Client HeadObject(HTTP 구현은 S3 SDK가 가져온 Apache 5 자동 선택) · none = 확인 안 함, 설정 `upload-check`). 없으면 400 `IMAGE_NOT_UPLOADED`, 확인 불가(403 · 5xx · 시간 초과 · 연결 실패)면 503 `IMAGE_STORAGE_UNAVAILABLE`, 둘 다 저장하지 않는다. 외부 호출은 트랜잭션 밖이다: 작성은 저장 트랜잭션 전, 수정은 잠그지 않고 읽어 모든 검사(`Review.checkUpdate`)를 미리 한 뒤 확인하고 행 잠금으로 다시 읽어 한 트랜잭션에서 반영한다. 이미 붙어 있던 주소는 붙일 때 확인했으므로 사이에 다른 수정이 끼어도 다시 보지 않는다. 로그에 주소 · key를 남기지 않는다
   - 설정은 `community.yml`의 `kidly.community.review.image.*`(장수 · 크기는 app `ReviewImageProperties`, 버킷 · 경로 · 서명은 `out.config`). 최대 장수(`max-count`)는 값만 바꿔 조절한다. 로컬 · 테스트 프로필은 가짜 자격 증명이다
   - 사진 행(`review_image`)은 리뷰를 지우면 DB가 함께 지운다(ON DELETE CASCADE). 수정에서 보내면 그 리뷰의 행을 모두 지우고 보낸 순서로 새로 넣는다. 목록은 한 쪽의 리뷰 ID로 사진을 한 번에 읽는다(쪽마다 쿼리 1번 더, 사진 수와 상관없음)
   - S3 객체는 지우지 않는다(리뷰 삭제 · 사진 교체 · 쓰이지 않은 업로드 모두). 정리는 따로 정한다

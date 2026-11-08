@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.review.app.port.ModerationRunLock;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
 import com.bbcc.kidly.boundedcontext.review.domain.ModerationReason;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.FakeModerationAdapter;
+import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,9 @@ class ReviewModerationIntegrationTest {
     private FakeModerationAdapter fake;
 
     @Autowired
+    private FakeReviewImageUploadChecker uploadChecker;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -66,12 +70,14 @@ class ReviewModerationIntegrationTest {
     @BeforeEach
     void reset() {
         fake.reset();
+        uploadChecker.reset();
     }
 
     @Test
     @DisplayName("통과: PENDING → PASSED, 검사 시각 기록, 집계 그대로. 검사기에는 본문과 사진 주소가 간다")
     void passes() {
         String image = imageStorage.ownImageUrlPrefix(ME) + "0b6f3c1e-8a2d-4c5b-9e7f-1a2b3c4d5e6f.jpg";
+        uploadChecker.markUploaded(image);
         long id = reviewService.write(ME, "닉", String.valueOf(eligible(11, ME)), 4, "좋은 옷",
             ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of(image))).reviewId();
 

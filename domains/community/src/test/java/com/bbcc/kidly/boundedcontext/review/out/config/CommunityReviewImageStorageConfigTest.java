@@ -7,18 +7,23 @@ import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.bind.validation.BindValidationException;
 import org.springframework.boot.context.properties.bind.validation.ValidationErrors;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.services.s3.S3Client;
 import org.springframework.validation.FieldError;
 
 /**
  * 리뷰 사진 설정(kidly.community.review.image.*)을 시작 때 검사한다. 값이 비거나 형식이 틀리면 키 이름이 나오는 오류로 기동에 실패한다.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class CommunityReviewImageStorageConfigTest {
 
     private static final String PREFIX = "kidly.community.review.image.";
@@ -46,10 +51,33 @@ class CommunityReviewImageStorageConfigTest {
         });
     }
 
+    @Test
+    @DisplayName("업로드 확인 방식 기본은 s3(동기 S3 클라이언트로 HeadObject), none이면 S3 클라이언트를 만들지 않고 한 줄 남긴다")
+    void uploadCheckSelection(CapturedOutput output) {
+        runner.run(context -> {
+            assertThat(context).hasSingleBean(S3Client.class);
+            assertThat(context).hasBean("communityS3ReviewImageUploadChecker");
+        });
+        runner.withPropertyValues(PREFIX + "upload-check=none").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(S3Client.class);
+        });
+        assertThat(output.getAll()).contains("리뷰 사진 업로드 확인 꺼짐(upload-check: none)");
+    }
+
+    @Test
+    @DisplayName("모르는 업로드 확인 방식이면 그 키 이름이 나오는 오류로 기동에 실패한다")
+    void failsOnUnknownUploadCheck() {
+        runner.withPropertyValues(PREFIX + "upload-check=gcs").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasStackTraceContaining(PREFIX + "upload-check");
+        });
+    }
+
     @ParameterizedTest(name = "[{0}]")
     @ValueSource(strings = {"key-prefix=", "key-prefix=dev/", "key-prefix=/dev", "key-prefix=Dev", "key-prefix=..",
         "key-prefix=dev,prod", "bucket=", "region=", "upload-url-expiry=PT0S", "max-count=0", "max-count=101",
-        "max-file-size=0B"})
+        "max-file-size=0B", "upload-check=", "upload-check-timeout=PT0S"})
     @DisplayName("값이 비었거나 형식이 틀리면 그 키(전체 이름)가 나오는 오류로 기동에 실패한다")
     void failsOnInvalidValue(String setting) {
         runner.withPropertyValues(PREFIX + setting)
