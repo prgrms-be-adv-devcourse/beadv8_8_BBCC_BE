@@ -46,6 +46,7 @@
   - 검사는 `app.port.ContentModerator` 하나로만 부르고 결과는 커뮤니티 말(PASSED · FLAGGED(이유 분류) · UNDECIDED(원인))이다. 제공자 요청 · 응답 해석 · 분류 대응(Llama Guard S1~S14 → 이유)은 `out.moderation` 어댑터 안에서만 한다. 검사기 조합(`moderators`) · 금칙어 · AI 주소 · 모델 · 키(환경변수) · 시간은 `community.yml` 설정이다. 새 제공자는 `ModerationAdapter` 하나를 더하고 이름을 설정에 넣는다. 모든 어댑터는 같은 계약 테스트(`ContentModeratorContractTest` 상속)를 통과한다
   - 실행: 서버 한 대만(PostgreSQL 세션 advisory lock, 못 잡으면 건너뜀), 검사기 호출은 트랜잭션 밖, 결과 반영은 한 건 = 트랜잭션 하나(`ReviewModerationRecorder`가 행 잠금으로 다시 읽어 버전 · 시도 횟수가 그대로이고 아직 대기일 때만). 판단 못 함(장애 · 시간 초과)은 대기 그대로 시도 +1, 429는 시도 횟수를 올리지 않고 그 주기의 남은 건을 멈춘다. 재시도 상한에 닿으면 대기 목록에서 빠지고 공개 그대로(관리자 목록 `attemptsExhausted`)
   - 글 · 사진이 실제로 바뀐 수정은 버전 +1이고, 공개 상태면 다시 대기(숨김 상태는 그대로). 별점 · 핏만 바뀐 수정은 그대로
+  - 검사 상태 칸(`review.moderation_status`)에는 DB 기본값이 없다(#1042). 새 리뷰의 `PENDING`은 엔티티가 넣고, JPA를 거치지 않고 칸 없이 넣으면 NOT NULL 위반이다. 테스트 · 시드에서 리뷰를 직접 넣을 때는 값을 넣는다
   - 집계: 숨김 리뷰는 상품 요약 집계에 들어 있지 않다. 공개 → 숨김이면 그 리뷰 몫(수 · 별점 · 핏)을 빼고, 숨김 → 공개면 그때 값으로 더한다(같은 트랜잭션, 실제로 바뀔 때만). 숨김 리뷰의 수정 · 삭제는 집계를 건드리지 않는다. 숨김 · 복원 · 수정 · 삭제 · 탈퇴 뒤 요약 = 공개 리뷰만 다시 센 값(`ReviewModerationStatsIntegrationTest`)
   - 로그는 리뷰 ID · 결과 · 이유 · 원인만. 키 · 요청/응답 본문 · 리뷰 본문 · 사진 주소를 넣지 않는다
 - 운영 조회 MCP 창구(#1005, 읽기 전용): `POST /api/v1/admin/community/mcp`, 스위치 `kidly.community.mcp.enabled`(기본 false) · 목록 상한 `max-results`. 도구는 review_summary · dead_letters · dead_letter_detail · moderation_queue · replica_health

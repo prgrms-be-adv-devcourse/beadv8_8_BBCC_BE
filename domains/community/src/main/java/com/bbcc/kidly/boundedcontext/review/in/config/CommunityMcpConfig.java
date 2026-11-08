@@ -53,6 +53,8 @@ public class CommunityMcpConfig {
             new FilterRegistrationBean<>(new CommunityMcpAdminFilter());
         registration.addUrlPatterns(PATH);
         registration.setName("communityMcpAdminFilter");
+        // 공용 요청 로그 필터(common RequestLoggingFilter, @Order(HIGHEST_PRECEDENCE)) 뒤에 돈다. 그래야 이 필터가 낸 401 · 413에도
+        // 요청 추적 값(traceId)이 MDC · 응답 헤더(X-Request-Id)에 있다. 같거나 앞선 순서로 바꾸지 않는다(CommunityMcpApiTest)
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
         return registration;
     }
