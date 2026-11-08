@@ -41,7 +41,14 @@ public record ReviewImageUpload(ReviewImageFormat format, long contentLength) {
      * 회원 한 명의 리뷰 사진 경로({환경}/reviews/{회원 ID}/). 본인 사진인지 이 경로로 판별한다.
      */
     public static String directory(String keyPrefix, long memberId) {
-        return keyPrefix + "/reviews/" + memberId + "/";
+        return reviewsDirectory(keyPrefix) + memberId + "/";
+    }
+
+    /**
+     * 이 환경의 리뷰 사진 경로({환경}/reviews/). 정리할 때 이 경로 아래만 읽는다.
+     */
+    public static String reviewsDirectory(String keyPrefix) {
+        return keyPrefix + "/reviews/";
     }
 
     /**

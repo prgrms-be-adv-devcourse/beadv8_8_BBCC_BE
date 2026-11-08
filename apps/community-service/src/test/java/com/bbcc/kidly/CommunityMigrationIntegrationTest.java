@@ -141,6 +141,35 @@ class CommunityMigrationIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("baseline 버전까지만 적용된 DB에 리뷰 사진 정리 대기 표를 만들고, 같은 key는 한 행 · 까닭은 두 값만이며 처리 순서 · 사진 주소 인덱스가 있다")
+    void addsReviewImageCleanupTableAfterBaseline() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createCommunityTablesUpTo(dataSource, jdbc, BASELINE_VERSION);
+
+            serviceFlyway(dataSource).load().migrate();
+
+            String insert = "insert into community.review_image_cleanup (object_key, reason, next_attempt_at, "
+                + "created_at) values (?, ?, now(), now())";
+            jdbc.update(insert, "dev/reviews/13/a.jpg", "REPLACED");
+            assertThat(jdbc.queryForObject("select attempts from community.review_image_cleanup", Integer.class))
+                .isZero();
+            assertThatThrownBy(() -> jdbc.update(insert, "dev/reviews/13/a.jpg", "REVIEW_DELETED"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+            assertThatThrownBy(() -> jdbc.update(insert, "dev/reviews/13/b.jpg", "UNKNOWN"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+            assertThat(jdbc.update("insert into community.review_image_cleanup (object_key, reason, next_attempt_at, "
+                + "created_at) values ('dev/reviews/13/a.jpg', 'REPLACED', now(), now()) "
+                + "on conflict (object_key) do nothing")).isZero();
+            assertThat(jdbc.queryForList("select indexname from pg_indexes where schemaname = 'community'",
+                String.class)).contains("idx_review_image_cleanup_next_attempt", "idx_review_image_image_url");
+        }
+    }
+
     // baseline 버전까지만 적용하고 이력은 지워 서비스가 처음 뜨기 전의 운영 DB 상태로 둔다
     private static void createCommunityTablesUpTo(DriverManagerDataSource dataSource, JdbcTemplate jdbc,
         String version) {

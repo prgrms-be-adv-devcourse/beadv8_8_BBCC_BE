@@ -22,4 +22,14 @@ public interface ReviewImages {
      * 리뷰의 사진 행을 한 문장으로 모두 지운다(사진 교체 때 먼저 지우고 새로 넣는다).
      */
     int deleteAllOfReview(Long reviewId);
+
+    /**
+     * 사진 주소가 지금 어느 리뷰에든 붙어 있는지(정리 직전 확인).
+     */
+    boolean existsByImageUrl(String imageUrl);
+
+    /**
+     * 넘긴 주소 가운데 지금 리뷰에 붙어 있는 것(한 쿼리, 넘긴 주소 수와 상관없음).
+     */
+    List<String> findAttachedUrls(Collection<String> imageUrls);
 }
