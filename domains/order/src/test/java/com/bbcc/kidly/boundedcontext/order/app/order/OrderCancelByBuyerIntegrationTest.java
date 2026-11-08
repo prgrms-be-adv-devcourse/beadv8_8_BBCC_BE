@@ -5,6 +5,8 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
+import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryErrorCode;
@@ -231,7 +233,8 @@ class OrderCancelByBuyerIntegrationTest {
                 assertThat(cancelledEvents(orderId)).isEqualTo(1);
             } else if (order.getPaidAt() == null) {
                 assertThat(deliveries).as("%d회차 결제 전 취소", round).isEmpty();
-                assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(buyerId)).hasSize(1);
+                assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+                    buyerId)).hasSize(1);
                 assertThat(cancelledEvents(orderId)).isEqualTo(1);
             } else {
                 // 결제가 먼저 커밋되고 취소가 그 뒤에 결제완료 주문을 취소한 순서
@@ -381,7 +384,7 @@ class OrderCancelByBuyerIntegrationTest {
      * @param twoSellers true면 판매자 2명(옵션 1 · 2), false면 판매자 1명(옵션 1). 장바구니에 담고 주문한다
      */
     private Long place(Long buyerId, boolean twoSellers) {
-        cartService.addItem(buyerId, 1L, null, 1);
+        cartService.addItem(CartOwners.member(buyerId), 1L, null, 1);
         List<PlaceOrderCommand.Item> items = twoSellers
             ? List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L),
                 new PlaceOrderCommand.Item(2L, null, 1, 30_000L))

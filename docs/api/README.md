@@ -140,11 +140,11 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/v1/cart` | 장바구니 조회 | 🔒 |
-| POST | `/api/v1/cart/items` | 장바구니 담기(같은 줄이면 수량 합산, 1 ~ 99) | 🔒 |
-| PATCH | `/api/v1/cart/items/{cartItemId}` | 장바구니 수량 변경 | 🔒 |
-| DELETE | `/api/v1/cart/items/{cartItemId}` | 장바구니에서 빼기 | 🔒 |
-| POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택) | 🔒 |
+| GET | `/api/v1/cart` | 내 장바구니 조회(회원 · 로그인한 자녀 각자, 줄마다 `reserved`) | 🔒 |
+| POST | `/api/v1/cart/items` | 장바구니 담기(같은 줄이면 수량 합산, 1 ~ 99). 자녀는 입을 아이가 자기로 고정 | 🔒 |
+| PATCH | `/api/v1/cart/items/{cartItemId}` | 장바구니 수량 변경(예약된 칸 409) | 🔒 |
+| DELETE | `/api/v1/cart/items/{cartItemId}` | 장바구니에서 빼기(예약된 칸 409) | 🔒 |
+| POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) | 🔒 |
 | GET | `/api/v1/orders` | 내 주문 목록 | 🔒 |
 | GET | `/api/v1/orders/{orderId}` | 주문 상세 | 🔒 |
 | POST | `/api/v1/orders/{orderId}/cancel` | 구매자 주문 취소(발송 전, 주문 전체) | 🔒 |
@@ -205,6 +205,8 @@
 | `event_failures` | `status` · `page` · `size` | `GET /event-failures` |
 | `payment_recoveries` | `status` · `page` · `size` | `GET /recoveries` |
 | `outbox_quarantined` | `page` · `size` | `GET /outbox/quarantined` |
+
+장바구니(`/api/v1/cart/**`, #998)는 회원 로그인과 자녀 로그인(자녀 토큰)을 함께 받고, 각자 "내 장바구니"를 쓴다. 자녀 장바구니는 그 자녀만 보고 바꾼다: 보호자 · 형제가 그 칸을 바꾸면 403, 다른 회원이면 404. 자녀가 담을 때 입을 아이는 자기로 고정이고(다른 자녀를 고르면 400), 자녀 프로필이 아직 없으면 담을 수 없다(404). 자녀 계정 연결을 확인할 수 없으면 403이다. 다른 곳(조르기 등)이 예약한 칸은 빼거나 수량을 바꾸면 409다(`reserved` true).
 
 조르기(`/api/v1/wish/**`)는 회원 로그인과 자녀 로그인(자녀 토큰, #906)을 함께 받는다. 자녀는 자기 프로필의 공용 장바구니 담기 · 빼기 · 조회와 조르기 보내기 · 목록 · 상세 · 타임라인만 한다(다른 자녀 것이면 403). 승인 · 거절은 보호자(회원)만 한다(자녀면 403). 철회(#968)는 보낸 사람만 한다: 자녀가 보냈으면 그 자녀, 보호자가 대신 보냈으면 그 보호자(아니면 403 · 처리된 조르기면 409). 조르기 상태는 `REQUESTED` · `APPROVED` · `REJECTED` · `CANCELLED`(철회)다. 자녀 계정 연결을 확인할 수 없으면(연결 없음 · 삭제 · 보호자 다름) 403이다. 주문 · 장바구니 · 취소 등 다른 주문 API는 회원 로그인만 받는다.
 

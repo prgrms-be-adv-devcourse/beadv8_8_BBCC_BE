@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
@@ -369,7 +370,7 @@ class WishRequestIntegrationTest {
 
         assertThat(approved.checkout()).isEqualTo("CART");
         assertThat(approved.orderId()).isNull();
-        assertThat(cartService.getCart(BUYER_ID).items())
+        assertThat(cartService.getCart(CartOwners.member(BUYER_ID)).items())
             .extracting(CartView.Line::optionId, CartView.Line::childId, CartView.Line::quantity)
             .containsExactly(tuple(OPTION_B, CHILD_ID, 4));
         assertThat(wishService.getWishes(PARENT, CHILD_ID).items())

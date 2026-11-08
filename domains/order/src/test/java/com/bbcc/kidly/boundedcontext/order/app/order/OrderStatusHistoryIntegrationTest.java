@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
@@ -380,7 +381,7 @@ class OrderStatusHistoryIntegrationTest {
     }
 
     private OrderDetail place(boolean twoSellers) {
-        cartService.addItem(BUYER_ID, 1L, null, 1);
+        cartService.addItem(CartOwners.member(BUYER_ID), 1L, null, 1);
         return orderService.place(BUYER_ID, command(twoSellers));
     }
 

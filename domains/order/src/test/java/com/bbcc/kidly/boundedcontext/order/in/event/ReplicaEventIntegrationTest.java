@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
@@ -79,7 +80,7 @@ class ReplicaEventIntegrationTest {
         assertThat(childReplicaRepository.findByChildId(1L)).get()
             .extracting(ReplicaChild::getBodyType).isEqualTo("NORMAL");
 
-        AddCartItemResult result = cartService.addItem(BUYER_ID, 1L, 1L, 2);
+        AddCartItemResult result = cartService.addItem(CartOwners.member(BUYER_ID), 1L, 1L, 2);
 
         assertThat(result.created()).isTrue();
         assertThat(result.line().lineAmount()).isEqualTo(50_000L);

@@ -66,7 +66,7 @@ class OrderEventEnvelopeTest {
             + "\"eventType\":\"cart.item-added\",\"schemaVersion\":1,\"occurredAt\":\"2026-10-29T17:30:00.123456\","
             + "\"producer\":\"order\",\"aggregateId\":\"40\",\"correlationId\":\"1\","
             + "\"data\":{\"cartItemId\":40,\"memberId\":1,\"childId\":null,\"productId\":10,\"optionId\":301,"
-            + "\"quantity\":2,\"cartQuantity\":5}}");
+            + "\"quantity\":2,\"cartQuantity\":5,\"ownerType\":null,\"ownerId\":null}}");
     }
 
     @Test

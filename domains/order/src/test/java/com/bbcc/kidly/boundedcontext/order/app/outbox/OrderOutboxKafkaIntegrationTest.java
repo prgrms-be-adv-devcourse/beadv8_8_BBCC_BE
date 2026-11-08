@@ -5,7 +5,9 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
+import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCleanup;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.wish.app.TestChildWishActor;
@@ -36,6 +38,7 @@ import com.bbcc.kidly.shared.order.event.WishCancelledEvent;
 import com.bbcc.kidly.shared.order.event.WishItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
+import com.bbcc.kidly.shared.order.event.CartItemPurchasedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
 import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
@@ -232,8 +235,8 @@ class OrderOutboxKafkaIntegrationTest {
     @Test
     @DisplayName("장바구니 담기(#654)도 같은 토픽에 도착한다: 키 = 회원 ID, 헤더 eventType · eventId, 본문 7칸 + data")
     void deliversCartItemAdded() {
-        cartService.addItem(BUYER_ID, 1L, null, 2);
-        cartService.addItem(BUYER_ID, 1L, null, 1);
+        cartService.addItem(CartOwners.member(BUYER_ID), 1L, null, 2);
+        cartService.addItem(CartOwners.member(BUYER_ID), 1L, null, 1);
         List<CartItemAddedEvent> published = recorder.events(CartItemAddedEvent.class);
 
         OutboxRelayResult result = relayService.relay();
@@ -307,8 +310,8 @@ class OrderOutboxKafkaIntegrationTest {
     @DisplayName("장바구니 빼기(#709)도 같은 토픽에 도착한다: 키 = 회원 ID, 헤더 eventType · eventId, 본문 7칸 + data, "
         + "담기와 같은 파티션에 일어난 순서대로")
     void deliversCartItemRemoved() {
-        Long cartItemId = cartService.addItem(BUYER_ID, 1L, null, 2).line().cartItemId();
-        cartService.removeItem(BUYER_ID, cartItemId);
+        Long cartItemId = cartService.addItem(CartOwners.member(BUYER_ID), 1L, null, 2).line().cartItemId();
+        cartService.removeItem(CartOwners.member(BUYER_ID), cartItemId);
         CartItemAddedEvent added = recorder.events(CartItemAddedEvent.class).getFirst();
         CartItemRemovedEvent removed = recorder.events(CartItemRemovedEvent.class).getFirst();
 
@@ -331,6 +334,41 @@ class OrderOutboxKafkaIntegrationTest {
         // 같은 회원의 담기 · 빼기는 같은 파티션에 일어난 순서대로 쌓인다
         assertThat(removedRecord.partition()).isEqualTo(addedRecord.partition());
         assertThat(removedRecord.offset()).isGreaterThan(addedRecord.offset());
+    }
+
+    @Test
+    @DisplayName("결제 정리(#998)는 cart.item-purchased로 같은 토픽에 도착한다: 키 = 회원 ID, 헤더 eventType · eventId, 본문 7칸 + data, "
+        + "담기와 같은 파티션에 일어난 순서대로. cart.item-removed는 나가지 않는다")
+    void deliversCartItemPurchased() {
+        Long cartItemId = cartService.addItem(CartOwners.member(BUYER_ID), 1L, null, 2).line().cartItemId();
+        cartService.clearOrdered(900L, List.of(new CartCleanup.OrderedLine(901L, cartItemId, BUYER_ID, 1L, null,
+            2)));
+        CartItemAddedEvent added = recorder.events(CartItemAddedEvent.class).getFirst();
+        CartItemPurchasedEvent purchased = recorder.events(CartItemPurchasedEvent.class).getFirst();
+        assertThat(recorder.events(CartItemRemovedEvent.class)).isEmpty();
+
+        OutboxRelayResult result = relayService.relay();
+
+        assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 2, 2));
+        Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
+            Set.of(added.eventId().toString(), purchased.eventId().toString()));
+        ConsumerRecord<String, String> addedRecord = received.get(added.eventId().toString());
+        ConsumerRecord<String, String> purchasedRecord = received.get(purchased.eventId().toString());
+        assertThat(purchasedRecord.key()).isEqualTo(String.valueOf(BUYER_ID));
+        assertThat(header(purchasedRecord, "eventType")).isEqualTo("cart.item-purchased");
+        assertThat(header(purchasedRecord, "eventId")).isEqualTo(purchased.eventId().toString());
+        assertThat(purchasedRecord.headers().lastHeader("__TypeId__")).isNull();
+        JsonNode body = jsonMapper.readTree(purchasedRecord.value());
+        assertThat(body.propertyNames()).containsExactly("eventId", "eventType", "schemaVersion",
+            "occurredAt", "producer", "aggregateId", "correlationId", "data");
+        assertThat(body.get("producer").asString()).isEqualTo("order");
+        assertThat(body.get("aggregateId").asString()).isEqualTo(String.valueOf(cartItemId));
+        assertThat(body.get("correlationId").asString()).isEqualTo(String.valueOf(BUYER_ID));
+        assertThat(purchased.data()).isEqualTo(new CartItemPurchasedEvent.Data(cartItemId, "MEMBER", BUYER_ID,
+            BUYER_ID, 1L, null, 2, 900L, 901L, null));
+        assertThat(body.get("data").toString()).isEqualTo(jsonMapper.writeValueAsString(purchased.data()));
+        assertThat(purchasedRecord.partition()).isEqualTo(addedRecord.partition());
+        assertThat(purchasedRecord.offset()).isGreaterThan(addedRecord.offset());
     }
 
     @Test

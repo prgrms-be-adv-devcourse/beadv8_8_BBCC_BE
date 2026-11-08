@@ -2,9 +2,9 @@ package com.bbcc.kidly.boundedcontext.cart.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.CartView;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
-import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
@@ -56,7 +56,7 @@ class CartQueryCountIntegrationTest {
 
         assertThat(manyCount).isEqualTo(singleCount);
         assertThat(singleCount).as("장바구니 줄 1번 + 상품 복사본 1번 + 판매자 상호명 1번").isEqualTo(3);
-        assertThat(cartService.getCart(MANY_BUYER_ID).items())
+        assertThat(cartService.getCart(CartOwners.member(MANY_BUYER_ID)).items())
             .extracting(CartView.Line::sellerId, CartView.Line::sellerName)
             .containsExactly(
                 org.assertj.core.groups.Tuple.tuple(205L, "판매자 5"),
@@ -67,7 +67,7 @@ class CartQueryCountIntegrationTest {
     }
 
     private long countStatements(Long memberId) {
-        return queryCounter.count(() -> cartService.getCart(memberId));
+        return queryCounter.count(() -> cartService.getCart(CartOwners.member(memberId)));
     }
 
     /**
@@ -80,6 +80,6 @@ class CartQueryCountIntegrationTest {
             "상품 " + index, null, "110", 10_000L, 1L, "ON_SALE", "ON_SALE", false, OCCURRED_AT)));
         sellerReplicaRepository.save(ReplicaSeller.create(
             new ReplicaSeller.Values(sellerId, "판매자 " + index, "ACTIVE", OCCURRED_AT)));
-        cartItemRepository.save(CartItem.create(memberId, optionId, null, 1));
+        cartItemRepository.save(CartOwners.memberLine(memberId, optionId, null, 1));
     }
 }

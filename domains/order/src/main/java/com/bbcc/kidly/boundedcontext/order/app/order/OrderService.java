@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderCartLines;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries.CancelledDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries.Delivery;
@@ -72,6 +73,7 @@ public class OrderService {
     private final Order.Policy orderPolicy;
     private final WaitingRecordCloser waitingRecordCloser;
     private final OrderQueryService orderQueries;
+    private final OrderCartLines orderCartLines;
 
     /**
      * 복사본이 없는 옵션 · 자녀는 여기서 404. 나머지 검사(빈 항목 · 중복 · 수량 · 가격 · 판매 중 · 자기 상품 · 자녀)는
@@ -113,6 +115,15 @@ public class OrderService {
 
     private OrderDetail create(Long memberId, PlaceOrderCommand command, String idempotencyKey, String requestHash) {
         LocalDateTime now = LocalDateTime.now();
+        // 장바구니 칸으로 사면(#998) 그 칸이 구매자 칸이거나 구매자가 허용된 예약 칸인지 장바구니가 확인한다(아니면 403 · 404)
+        List<OrderCartLines.Line> cartLines = command.items().stream()
+            .filter(item -> item.cartItemId() != null)
+            .map(item -> new OrderCartLines.Line(item.cartItemId(), item.optionId(), item.childId(),
+                item.quantity()))
+            .toList();
+        if (!cartLines.isEmpty()) {
+            orderCartLines.requireOrderable(memberId, cartLines);
+        }
         List<Order.RequestedItem> requested = command.items().stream().map(this::toRequestedItem).toList();
         PlaceOrderCommand.ShippingAddress address = command.shippingAddress();
 
@@ -553,7 +564,8 @@ public class OrderService {
             product.isPurchasable(),
             child,
             item.quantity(),
-            item.unitPrice());
+            item.unitPrice(),
+            item.cartItemId());
     }
 
     private Order.RequestedChild toRequestedChild(Long childId) {
