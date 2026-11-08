@@ -170,6 +170,30 @@ class CommunityMigrationIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("baseline DB에 모두 적용하면 검사 상태 칸에 기본값이 없고, 이미 있던 리뷰의 값 · NOT NULL · CHECK는 그대로다")
+    void dropsModerationStatusDefault() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createCommunityTablesUpTo(dataSource, jdbc, BASELINE_VERSION);
+            jdbc.update("insert into community.review (id, order_item_id, product_id, member_id, nickname, rating, "
+                + "content, created_at, updated_at) values (1, 11, 14, 13, '닉', 4, '본문', now(), now())");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(jdbc.queryForMap("select column_default, is_nullable from information_schema.columns "
+                + "where table_schema = 'community' and table_name = 'review' and column_name = 'moderation_status'"))
+                .containsEntry("column_default", null).containsEntry("is_nullable", "NO");
+            assertThat(jdbc.queryForObject("select moderation_status from community.review where id = 1",
+                String.class)).isEqualTo("PASSED");
+            assertThatThrownBy(() -> jdbc.update("update community.review set moderation_status = 'UNKNOWN'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        }
+    }
+
     // baseline 버전까지만 적용하고 이력은 지워 서비스가 처음 뜨기 전의 운영 DB 상태로 둔다
     private static void createCommunityTablesUpTo(DriverManagerDataSource dataSource, JdbcTemplate jdbc,
         String version) {

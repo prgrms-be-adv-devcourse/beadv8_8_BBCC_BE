@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.kafka.clients.producer.RecordMetadata;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
@@ -33,7 +33,9 @@ class CommunityMemberEventKafkaIntegrationTest {
 
     private static final String TOPIC = "kidly.member.events";
     private static final String BREAK_REVIEW = "test_break_community_review_withdrawn";
-    private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
+    // 커뮤니티 리스너 팩토리의 재시도 횟수(처음 1번 뒤 3번)
+    private static final long RETRIES = 3;
+    private static final String ATTEMPTS = "community.test_withdrawal_attempts";
     private static final LocalDateTime WITHDRAWN_AT = LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123);
 
     @Autowired
@@ -65,7 +67,9 @@ class CommunityMemberEventKafkaIntegrationTest {
     void stopListener() {
         listener.stop();
         deadLetterListener.stop();
-        jdbcTemplate.execute("alter table community.review drop constraint if exists " + BREAK_REVIEW);
+        jdbcTemplate.execute("drop trigger if exists " + BREAK_REVIEW + " on community.review");
+        jdbcTemplate.execute("drop function if exists community." + BREAK_REVIEW + "()");
+        jdbcTemplate.execute("drop sequence if exists " + ATTEMPTS);
     }
 
     @Test
@@ -106,24 +110,29 @@ class CommunityMemberEventKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("처리가 실패하면 3번 재시도한 뒤 kidly.member.events.community.dlt(파티션 0)에 1건 보내고, 찜은 그대로이며 DLT는 DB에 보관된다")
+    @DisplayName("처리가 실패하면 처음 1번 + 재시도 3번(모두 4번) 처리한 뒤 kidly.member.events.community.dlt(파티션 0)에 1건 보내고, "
+        + "찜은 그대로이며 DLT는 DB에 보관된다")
     void processingFailureToDeadLetter() {
         long member = newId();
         favorite(member, 15);
         review(member, 301);
-        jdbcTemplate.execute("alter table community.review add constraint " + BREAK_REVIEW
-            + " check (member_id <> " + member + " or author_withdrawn_at is null) not valid");
+        breakWithdrawalOf(member);
         var event = withdrawn(member);
 
-        RecordMetadata sent = kafkaClient.send(TOPIC, event);
+        kafkaClient.send(TOPIC, event);
 
         String eventId = event.eventId().toString();
         AsyncWait.until(CommunityKafkaTestClient.TIMEOUT, () -> !kafkaClient.deadLetters(TOPIC, eventId).isEmpty());
         assertThat(kafkaClient.deadLetters(TOPIC, eventId)).singleElement().satisfies(deadLetter -> {
             assertThat(deadLetter.partition()).isZero();
             assertThat(deadLetter.key()).isEqualTo(String.valueOf(member));
-            assertThat(deadLetter.timestamp() - sent.timestamp()).isGreaterThanOrEqualTo(RETRY_BACKOFF_TOTAL_MS);
+            assertThat(CommunityKafkaTestClient.header(deadLetter, "eventId")).isEqualTo(eventId);
+            assertThat(CommunityKafkaTestClient.header(deadLetter, "eventType")).isEqualTo("member.withdrawn");
+            assertThat(CommunityKafkaTestClient.header(deadLetter, KafkaHeaders.DLT_ORIGINAL_TOPIC)).isEqualTo(TOPIC);
         });
+        // 처리 시도 횟수: 시도마다 트리거가 시퀀스를 하나 올린다(시퀀스는 롤백돼도 되돌아가지 않는다)
+        assertThat(jdbcTemplate.queryForObject("select last_value from " + ATTEMPTS, Long.class))
+            .isEqualTo(1 + RETRIES);
         assertThat(jdbcTemplate.queryForObject("select count(*) from community.favorite where member_id = ?",
             Integer.class, member)).isEqualTo(1);
         // 회원 DLT도 다른 커뮤니티 DLT와 같은 리스너가 DB에 보관한다(관리자 재처리 대상)
@@ -131,6 +140,19 @@ class CommunityMemberEventKafkaIntegrationTest {
             "select count(*) from community.dead_letter where event_id = ?", Integer.class, eventId) == 1);
         assertThat(jdbcTemplate.queryForObject("select source_topic from community.dead_letter where event_id = ?",
             String.class, eventId)).isEqualTo(TOPIC);
+    }
+
+    /**
+     * 그 회원의 리뷰 탈퇴 표시(UPDATE)가 늘 실패하게 한다. 시도마다 시퀀스를 하나 올리고 CHECK 위반(23514)으로 끝낸다
+     * (처리기가 재시도하는 예외와 같은 종류). 테스트가 끝나면 지운다.
+     */
+    private void breakWithdrawalOf(long memberId) {
+        jdbcTemplate.execute("create sequence " + ATTEMPTS);
+        jdbcTemplate.execute("create function community." + BREAK_REVIEW + "() returns trigger language plpgsql as $$ "
+            + "begin perform nextval('" + ATTEMPTS + "'); "
+            + "raise exception 'test withdrawal failure' using errcode = 'check_violation'; end $$");
+        jdbcTemplate.execute("create trigger " + BREAK_REVIEW + " before update on community.review for each row "
+            + "when (old.member_id = " + memberId + ") execute function community." + BREAK_REVIEW + "()");
     }
 
     private void favorite(long memberId, long productId) {
@@ -143,7 +165,8 @@ class CommunityMemberEventKafkaIntegrationTest {
 
     private void review(long memberId, long orderItemId) {
         jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at) values (?, 14, ?, '닉', 4, '본문', now(), now())",
+            + "content, created_at, updated_at, moderation_status) values (?, 14, ?, '닉', 4, '본문', now(), now(), "
+            + "'PASSED')",
             orderItemId, memberId);
     }
 

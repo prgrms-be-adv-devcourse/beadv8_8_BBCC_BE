@@ -336,7 +336,8 @@ class ReviewImageCleanupIntegrationTest {
 
     private long insertReview() {
         jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at) values (11, 14, ?, '닉', 4, '본문', now(), now())", ME);
+            + "content, created_at, updated_at, moderation_status) values (11, 14, ?, '닉', 4, '본문', now(), now(), "
+            + "'PASSED')", ME);
         return jdbcTemplate.queryForObject("select id from community.review where order_item_id = 11", Long.class);
     }
 

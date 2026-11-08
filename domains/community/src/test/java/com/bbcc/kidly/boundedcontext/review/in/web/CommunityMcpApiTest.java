@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.error.CommonErrorCode;
+import com.bbcc.kidly.global.filter.RequestLoggingFilter;
 import com.bbcc.kidly.global.security.TestAdmins;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -159,6 +160,36 @@ class CommunityMcpApiTest {
             .expectStatus().isEqualTo(413)
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
             .expectBody().jsonPath("$.status").isEqualTo(413);
+    }
+
+    @Test
+    @DisplayName("401 · 413 · 200 응답 모두 요청 추적 헤더(X-Request-Id)가 있다: 요청에 주면 같은 값, 안 주면 새 값")
+    void traceIdOnEveryResponse() {
+        String traceId = "0b6f3c1e-8a2d-4c5b-9e7f-1a2b3c4d5e6f";
+        Map<String, Object> list = Map.of("jsonrpc", "2.0", "id", 1, "method", "tools/list", "params", Map.of());
+
+        client.post().uri(MCP).header(RequestLoggingFilter.TRACE_ID_HEADER, traceId)
+            .contentType(MediaType.APPLICATION_JSON).header("Accept", "application/json, text/event-stream")
+            .body(list).exchange()
+            .expectStatus().isUnauthorized()
+            .expectHeader().valueEquals(RequestLoggingFilter.TRACE_ID_HEADER, traceId);
+        client.post().uri(MCP).headers(TestAdmins.of(ADMIN)).header(RequestLoggingFilter.TRACE_ID_HEADER, traceId)
+            .contentType(MediaType.APPLICATION_JSON).header("Accept", "application/json, text/event-stream")
+            .body(Map.of("jsonrpc", "2.0", "id", 1, "method", "tools/list",
+                "params", Map.of("pad", "x".repeat(70_000))))
+            .exchange()
+            .expectStatus().isEqualTo(413)
+            .expectHeader().valueEquals(RequestLoggingFilter.TRACE_ID_HEADER, traceId);
+        client.post().uri(MCP).headers(TestAdmins.of(ADMIN)).header(RequestLoggingFilter.TRACE_ID_HEADER, traceId)
+            .contentType(MediaType.APPLICATION_JSON).header("Accept", "application/json, text/event-stream")
+            .body(list).exchange()
+            .expectStatus().isOk()
+            .expectHeader().valueEquals(RequestLoggingFilter.TRACE_ID_HEADER, traceId);
+        client.post().uri(MCP).contentType(MediaType.APPLICATION_JSON)
+            .header("Accept", "application/json, text/event-stream")
+            .body(list).exchange()
+            .expectStatus().isUnauthorized()
+            .expectHeader().valueMatches(RequestLoggingFilter.TRACE_ID_HEADER, "[0-9a-f-]{36}");
     }
 
     private Map<String, Object> callTool(String name, Map<String, Object> arguments, List<String> bodies) {
