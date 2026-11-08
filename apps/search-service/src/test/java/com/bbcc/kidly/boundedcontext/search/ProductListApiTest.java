@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.search;
 import static com.bbcc.kidly.boundedcontext.search.SearchEvents.product;
 import static com.bbcc.kidly.boundedcontext.search.SearchEvents.seller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.bbcc.kidly.boundedcontext.search.app.SearchIndexService;
 import com.bbcc.kidly.shared.auth.MemberHeaders;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
@@ -95,6 +97,16 @@ class ProductListApiTest {
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.status").isEqualTo("UP");
+    }
+
+    @Test
+    @DisplayName("임베딩 연속 실패 차단 지표를 내보낸다(닫혀 있으면 0)")
+    void embeddingCircuitMetric() {
+        client.get().uri("/actuator/prometheus")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .value(body -> assertThat(body).contains("kidly_search_embedding_circuit_open 0.0"));
     }
 
     @Test

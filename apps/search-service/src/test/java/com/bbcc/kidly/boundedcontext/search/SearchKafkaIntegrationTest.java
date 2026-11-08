@@ -13,12 +13,14 @@ import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import com.bbcc.kidly.support.SearchIndexes;
+import com.github.dockerjava.api.DockerClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -47,6 +49,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -62,8 +65,11 @@ class SearchKafkaIntegrationTest {
     private static final String PRODUCT_TOPIC = "kidly.product.events";
     private static final String SELLER_TOPIC = "kidly.seller.events";
     private static final String PRODUCT_DLT = "kidly.product.events.search.dlt";
+    private static final String SELLER_DLT = "kidly.seller.events.search.dlt";
+    private static final String DEAD_LETTER_LISTENER_ID = "searchDeadLetterListener";
     private static final List<String> LISTENER_IDS = List.of("searchProductEventListener", "searchSellerEventListener");
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(90);
 
     // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
@@ -82,6 +88,9 @@ class SearchKafkaIntegrationTest {
 
     @Autowired
     private SearchIndexes indexes;
+
+    @Autowired
+    private GenericContainer<?> elasticsearchContainer;
 
     private final long productId = ThreadLocalRandom.current().nextLong(1, 1_000_000_000L);
     private final long sellerId = ThreadLocalRandom.current().nextLong(1, 1_000_000_000L);
@@ -158,6 +167,72 @@ class SearchKafkaIntegrationTest {
         RecordMetadata sent = sendProduct("product.changed", body);
 
         assertDeadLetteredWithoutRetry(sent, body);
+    }
+
+    @Test
+    @DisplayName("DLT의 product.changed · seller.changed를 다시 읽어 색인한다(#1026)")
+    void replayDeadLetters(CapturedOutput output) throws Exception {
+        startDeadLetterListener();
+
+        send(PRODUCT_DLT, String.valueOf(productId), "product.changed",
+            envelope(product("여아 원피스"), "product.changed", "product"));
+        send(SELLER_DLT, String.valueOf(sellerId), "seller.changed",
+            envelope(SearchEvents.seller(sellerId, "키들리 상점"), "seller.changed", "seller"));
+
+        AsyncWait.until(TIMEOUT, () -> find("원피스").map(item -> "키들리 상점".equals(item.businessName()))
+            .orElse(false));
+        assertThat(output.getOut()).contains("DLT 이벤트를 색인에 반영했습니다. topic=" + PRODUCT_DLT);
+    }
+
+    @Test
+    @DisplayName("DLT에서 다시 해도 안 되는 메시지(읽지 못한 본문)는 DLT로 다시 보내지 않고 건너뛴 뒤 다음 메시지를 반영한다")
+    void skipUnreadableDeadLetter(CapturedOutput output) throws Exception {
+        startDeadLetterListener();
+        String secret = "본문-" + UUID.randomUUID();
+
+        send(PRODUCT_DLT, String.valueOf(productId), "product.changed", "{\"data\":{\"name\":\"" + secret);
+        send(PRODUCT_DLT, String.valueOf(productId), "product.changed",
+            envelope(product("여아 원피스"), "product.changed", "product"));
+
+        // DLT 파티션은 하나라, 뒤 메시지를 반영했으면 앞 메시지는 이미 건너뛰었다
+        assertFound("원피스", item -> assertThat(item.productId()).isEqualTo(productId));
+        assertThat(output.getOut())
+            .contains("DLT 이벤트를 색인에 반영하지 못해 건너뜁니다. topic=" + PRODUCT_DLT)
+            .doesNotContain(secret);
+        assertThat(topics()).doesNotContain(PRODUCT_DLT + ".search.dlt");
+    }
+
+    @Test
+    @DisplayName("Elasticsearch가 멈춘 동안 DLT로 간 변경을 Elasticsearch가 돌아오면 반영한다(#1026)")
+    void recoverAfterElasticsearchOutage() throws Exception {
+        startDeadLetterListener();
+        DockerClient docker = elasticsearchContainer.getDockerClient();
+        String containerId = elasticsearchContainer.getContainerId();
+        docker.pauseContainerCmd(containerId).exec();
+        try {
+            sendProduct("product.changed", envelope(product("여아 원피스"), "product.changed", "product"));
+            // 응답 시간 제한(3초)으로 4번 실패한 뒤 DLT로 간다. DLT 리스너도 실패해 다시 시도하며 기다린다
+            AsyncWait.until(TIMEOUT, () -> !deadLetters().isEmpty());
+        } finally {
+            docker.unpauseContainerCmd(containerId).exec();
+        }
+
+        // DLT 재시도 간격은 1초부터 두 배씩이라 멈춘 시간에 따라 수십 초 걸릴 수 있다
+        AsyncWait.until(RECOVERY_TIMEOUT, () -> find("원피스").isPresent());
+    }
+
+    private void startDeadLetterListener() {
+        MessageListenerContainer listener = registry.getListenerContainer(DEAD_LETTER_LISTENER_ID);
+        listener.start();
+        listeners.add(listener);
+        AsyncWait.until(TIMEOUT, () -> !listener.getAssignedPartitions().isEmpty());
+    }
+
+    private Set<String> topics() throws Exception {
+        try (Admin admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
+            kafka.getBootstrapServers()))) {
+            return admin.listTopics().names().get(10, TimeUnit.SECONDS);
+        }
     }
 
     private ProductChangedEvent product(String name) {
