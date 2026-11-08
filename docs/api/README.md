@@ -292,7 +292,7 @@
 | DELETE | `/api/v1/notifications/push-tokens` | 로그아웃 때 이 브라우저의 FID 해제. 본문 `{ fid }`. 204, 없거나 남의 FID여도 204(남의 것은 지우지 않는다) | 🔒 |
 
 알림함 알림은 만든 지 90일이 지나면 읽음 여부와 상관없이 지워진다(매일 04:00 KST).
-알림은 받는 사람을 로그인 주체(회원 · 자녀 계정)의 종류와 ID로 저장한다. `/api/v1/notifications`는 회원 토큰, `/api/v1/child/notifications`는 자녀 토큰으로만 부를 수 있고, 같은 숫자 ID라도 다른 주체의 알림은 보이지 않는다. 자녀 알림함에는 조르기 거절(`WISH_REJECTED`, `linkPath` `/child/wishes/{wishRequestId}`)이 들어오며, 자녀 계정을 지우면 그 계정의 알림도 지워진다.
+알림은 받는 사람을 로그인 주체(회원 · 자녀 계정)의 종류와 ID로 저장한다. `/api/v1/notifications`는 회원 토큰, `/api/v1/child/notifications`는 자녀 토큰으로만 부를 수 있고, 같은 숫자 ID라도 다른 주체의 알림은 보이지 않는다. 자녀 알림함에는 조르기 거절(`WISH_REJECTED`)이 들어오고, 주문이 이벤트를 보내기 시작하면(#1018) 조르기 결제 완료(`WISH_PAID`) · 만료(`WISH_EXPIRED`)도 들어온다. 셋 다 `linkPath`는 `/child/wishes/{wishRequestId}`이며, 자녀 계정을 지우면 그 계정의 알림도 지워진다.
 
 웹 푸시는 FCM으로 보낸다. 대상은 등록 토큰이 아니라 FID(Firebase Installation ID)다. 프론트는 Firebase Messaging의 `register(messaging, { vapidKey })`와 `onRegistered`로 받은 FID를 사이트에 들어올 때와 `onRegistered`가 불릴 때마다 `PUT`하고, 로그아웃 때 `DELETE`한다(서비스 워커 `firebase-messaging-sw.js` 필요).
 푸시로 보내는 알림은 회원이 사이트를 떠난 뒤 일어나는 일이다: 주문 확인(`ORDER_PAID`), 구매자가 하지 않은 주문 취소(`ORDER_CANCELLED` · `ORDER_ITEM_CANCELLED`), 배송 출발 · 완료(`DELIVERY_SHIPPED` · `DELIVERY_DELIVERED`), 판매자 새 주문(`SELLER_ORDER_PAID`). 제목 · 본문은 알림함 알림과 같고, 누르면 알림함 `linkPath`(없으면 사이트 첫 화면)를 연다. 자녀 계정에는 보내지 않는다.
