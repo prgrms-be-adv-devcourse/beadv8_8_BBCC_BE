@@ -39,6 +39,7 @@ import org.springframework.stereotype.Component;
  * KEYWORD_SCORE를 받고, 검색어 벡터가 있으면 kNN으로 뜻이 가까운 상품을 더한다(kNN 점수는 코사인 유사도로 0.5~1).
  * 두 점수를 더해 높은 순으로 보여 주므로 검색어가 있는 상품이 늘 먼저 오고, 그 안에서는 뜻이 가까운 순이다.
  * BM25 점수를 쓰지 않는 건 상한이 없어 상품 수에 따라 kNN 점수와 앞뒤가 바뀌기 때문이다.
+ * 검색어 형태소가 모두 상품명에 있는 상품은 고정 점수 NAME_SCORE를 더 받아, 브랜드 · 동의어로만 맞은 상품보다 먼저 온다(#1025).
  * 다른 정렬(최신순 · 가격순)도 검색어 벡터가 있으면 검색어가 있는 상품에 뜻이 가까운 상품을 더하고, 정한 필드로 정렬한다.
  * 점수를 쓰지 않으므로 kNN을 검색어 조건과 나란히 둔 should(하나만 맞으면 통과)로 건다.
  */
@@ -61,10 +62,13 @@ public class ElasticsearchProductSearch implements ProductSearch {
     static final String EMBEDDING = "embedding";
     // kNN 점수(최대 1)보다 커야 검색어가 있는 상품이 뜻만 가까운 상품보다 먼저 온다
     static final float KEYWORD_SCORE = 2.0f;
+    // 검색어 형태소가 모두 상품명에 있을 때 더하는 점수. kNN 점수(최대 1)보다 커야 상품명이 맞은 상품이 늘 먼저 온다
+    static final float NAME_SCORE = 2.0f;
 
     private final ElasticsearchClient client;
     private final SearchIndexProperties properties;
     private final SearchEmbeddingProperties embeddingProperties;
+    private final SearchSynonyms synonyms;
 
     @Override
     public Page<ProductSearchItem> search(ProductSearchCondition condition, Pageable pageable) {
@@ -103,11 +107,15 @@ public class ElasticsearchProductSearch implements ProductSearch {
                     .sort(sorts(condition.sort()));
             }
             List<Query> filters = filters(condition, false);
+            String keyword = condition.keyword().strip();
             builder.query(query -> query.bool(bool -> bool
                     .filter(filters)
                     .must(must -> must.constantScore(constant -> constant
-                        .filter(keywordFilter(condition.keyword().strip()))
-                        .boost(KEYWORD_SCORE)))))
+                        .filter(keywordFilter(keyword))
+                        .boost(KEYWORD_SCORE)))
+                    .should(should -> should.constantScore(constant -> constant
+                        .filter(matchAll("name", keyword))
+                        .boost(NAME_SCORE)))))
                 .sort(scoreSort(), fieldSort("productId", SortOrder.Desc));
             if (condition.keywordVector() != null) {
                 builder.knn(knn -> knn
@@ -180,13 +188,18 @@ public class ElasticsearchProductSearch implements ProductSearch {
     // 2) 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(단어 그대로) 중 한 곳에 있어야 맞는다(키들리 원피스).
     //    브랜드는 고유명사라 nori가 앞뒤 글자에 따라 다르게 나누므로(키들리 → 키 · 들리, 키들리 원피스 → 키 · 리 · 원피스)
     //    형태소로 나누지 않고 단어로 맞춘다. 그래서 브랜드는 단어를 다 써야 찾는다(꼬마 → 꼬마숲은 못 찾음)
-    // 관련도순이 아니면 filter라 점수를 계산하지 않으므로 필드 가중치는 두지 않는다
-    private static Query keywordFilter(String keyword) {
+    // 3) 동의어(#1025): 단어별로 찾을 때 사전에서 넓힌 말(바지 → 팬츠)이 상품명에 있어도 맞는다. 검색어 전체(1)는 넓히지 않는다
+    // 관련도순이 아니면 filter라 점수를 계산하지 않으므로 필드 가중치는 두지 않는다(관련도순의 상품명 점수는 따로 건다)
+    private Query keywordFilter(String keyword) {
         List<Query> words = new ArrayList<>();
         for (String word : keyword.split("\\s+")) {
-            words.add(Query.of(query -> query.bool(bool -> bool
-                .should(matchAll("name", word), matchAll("brand", word))
-                .minimumShouldMatch("1"))));
+            List<Query> either = new ArrayList<>();
+            either.add(matchAll("name", word));
+            either.add(matchAll("brand", word));
+            for (String synonym : synonyms.expand(word)) {
+                either.add(matchAll("name", synonym));
+            }
+            words.add(Query.of(query -> query.bool(bool -> bool.should(either).minimumShouldMatch("1"))));
         }
         return Query.of(query -> query.bool(bool -> bool
             .should(matchAll("name", keyword), Query.of(byWord -> byWord.bool(all -> all.filter(words))))
