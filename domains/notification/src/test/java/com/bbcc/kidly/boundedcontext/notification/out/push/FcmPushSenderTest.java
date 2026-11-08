@@ -2,12 +2,19 @@ package com.bbcc.kidly.boundedcontext.notification.out.push;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 import com.bbcc.kidly.boundedcontext.notification.app.port.PushFailure;
+import com.bbcc.kidly.boundedcontext.notification.app.port.PushMessage;
+import com.bbcc.kidly.boundedcontext.notification.app.port.PushSendException;
 import com.google.firebase.ErrorCode;
+import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.MessagingErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -57,5 +64,16 @@ class FcmPushSenderTest {
             .isInstanceOf(IllegalStateException.class)
             .hasMessage("FIREBASE_CREDENTIALS를 서비스 계정 키 JSON으로 읽지 못했습니다")
             .hasNoCause();
+    }
+
+    @Test
+    @DisplayName("SDK가 예상 못 한 예외를 던지면 다시 시도할 수 있는 발송 실패로 바꾼다(SENDING에 멈추지 않는다)")
+    void unexpectedSdkFailureIsRetryable() throws Exception {
+        var messaging = mock(FirebaseMessaging.class);
+        given(messaging.sendEachForMulticast(any())).willThrow(new IllegalStateException("boom"));
+        var sender = new FcmPushSender(null, messaging);
+
+        assertThatThrownBy(() -> sender.send(new PushMessage(List.of("fid-1"), "제목", "본문", "https://kidly.kro.kr/orders/3")))
+            .isInstanceOfSatisfying(PushSendException.class, e -> assertThat(e.isRetryable()).isTrue());
     }
 }

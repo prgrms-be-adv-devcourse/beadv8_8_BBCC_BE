@@ -38,8 +38,12 @@ public class FcmPushSender implements NotificationPushSender, AutoCloseable {
     private final FirebaseMessaging firebaseMessaging;
 
     private FcmPushSender(FirebaseApp firebaseApp) {
+        this(firebaseApp, FirebaseMessaging.getInstance(firebaseApp));
+    }
+
+    FcmPushSender(FirebaseApp firebaseApp, FirebaseMessaging firebaseMessaging) {
         this.firebaseApp = firebaseApp;
-        this.firebaseMessaging = FirebaseMessaging.getInstance(firebaseApp);
+        this.firebaseMessaging = firebaseMessaging;
     }
 
     /**
@@ -75,6 +79,9 @@ public class FcmPushSender implements NotificationPushSender, AutoCloseable {
         } catch (FirebaseMessagingException e) {
             var failure = classify(e.getMessagingErrorCode(), e.getErrorCode());
             throw new PushSendException("FCM 요청 실패: " + failure, failure == PushFailure.RETRYABLE, e);
+        } catch (RuntimeException e) {
+            // SDK 안의 예상 못 한 오류(네트워크 · 직렬화 등). 알림이 SENDING에 멈추지 않게 일시 오류로 다시 시도한다
+            throw new PushSendException("FCM 요청 실패: " + e.getClass().getSimpleName(), true, e);
         }
         var failures = new ArrayList<PushSendResult.Failure>();
         var responses = response.getResponses();
