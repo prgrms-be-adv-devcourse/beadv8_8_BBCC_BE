@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.review.domain.Fit;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewEligibility;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewImage;
+import com.bbcc.kidly.boundedcontext.review.domain.ReviewImageCleanup.Reason;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewImageUrls;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewRule;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewRuleException;
@@ -34,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>사진: 업로드 주소 발급으로 받은 본인 주소만 받는다(최대 장수는 설정 값). 새로 붙는 주소는 저장소에 실제로 올라갔는지
  *       트랜잭션 밖에서 확인한다(이미 붙어 있던 주소는 붙일 때 확인했으므로 다시 보지 않는다). 작성은 리뷰와 같은 트랜잭션에서 저장하고,
  *       수정은 보내면 목록 전체를 바꾼다(지우고 새로 넣기). 리뷰를 지우면 DB가 사진 행도 지운다</li>
+ *   <li>사진 정리: 수정으로 빠진 사진 · 리뷰 삭제로 남은 사진은 그 트랜잭션에서 정리 대기에 넣고, 다시 붙는 사진은 대기에서 뺀다
+ *       (저장소에서 지우는 일은 ReviewImageCleanupService가 나중에 한다)</li>
  * </ul>
  * 로그 · 예외 메시지에 본문 · 닉네임을 넣지 않는다.
  */
@@ -51,6 +54,7 @@ public class ReviewService {
     private final ReviewImages reviewImages;
     private final ReviewImageStorage imageStorage;
     private final ReviewImageProperties imageProperties;
+    private final ReviewImageCleanupQueue cleanupQueue;
 
     /**
      * @param nickname 작성 시점 닉네임(로그인 정보). 없으면 null로 저장한다
@@ -99,6 +103,8 @@ public class ReviewService {
                 reviewStatsCounter.addReview(saved.getProductId(), saved.getRating(), fitDelta.small(),
                     fitDelta.trueToSize(), fitDelta.large(), ReviewTimes.now());
                 reviewImages.saveAll(images.toImages(saved.getId()));
+                // 정리 대기에 있던 사진을 다시 붙이면 그 대기를 지운다
+                cleanupQueue.cancel(images.urls());
                 return ReviewView.from(saved, purchasedSize, images.urls());
             });
         } catch (DataIntegrityViolationException e) {
@@ -182,6 +188,10 @@ public class ReviewService {
             reviewImages.deleteAllOfReview(saved.getId());
             reviewImages.saveAll(images.toImages(saved.getId()));
             imageUrls = images.urls();
+            // 빠진 사진은 정리 대기에, 새로 붙는 사진은 정리 대기에서 뺀다(같은 트랜잭션)
+            cleanupQueue.enqueue(imagesBefore.stream().filter(url -> !images.urls().contains(url)).toList(),
+                Reason.REPLACED);
+            cleanupQueue.cancel(images.urls().stream().filter(url -> !imagesBefore.contains(url)).toList());
         }
         return ReviewView.from(saved, purchasedSize, imageUrls);
     }
@@ -194,6 +204,8 @@ public class ReviewService {
             review.checkAuthor(memberId);
             return null;
         });
+        // 사진 행은 리뷰를 지우면 DB가 함께 지우므로(CASCADE) 그 전에 주소를 읽어 정리 대기에 넣는다
+        cleanupQueue.enqueue(imageUrlsOf(review.getId()), Reason.REVIEW_DELETED);
         reviews.delete(review);
         // 숨김 리뷰는 이미 집계에서 빠져 있다
         if (review.isPublic()) {
