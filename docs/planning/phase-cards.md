@@ -344,23 +344,27 @@ v2.0: 정산 담당 보강본으로 바꿨습니다. 월 정산 → **영업일 
 
 | 받는 것 | 넘기는 것 |
 |---|---|
-| ⑥ **구매확정됨** → 리뷰 작성 자격 · ② **상품 정보 변경됨** → 상품 복사본(이름 · 썸네일 · 표시 상태) · 회원: 회원탈퇴됨(예정, #663) | 없음 (리뷰 작성됨 `review.created`는 받을 도메인이 정해지면, K28) |
+| ⑥ **구매확정됨** → 리뷰 작성 자격 · ② **상품 정보 변경됨** → 상품 복사본(이름 · 썸네일 · 표시 상태) · 회원: **회원탈퇴됨** → 찜 삭제 · 리뷰 작성자 닉네임 지움(#663) | 없음 (리뷰 작성됨 `review.created`는 받을 도메인이 정해지면, K28) |
 
 | 만들 API |  |
 |---|---|
 | `GET /api/v1/reviews/eligible` | 작성할 수 있는 주문상품 (로그인, 커서 목록). 400 `INVALID_PAGE_SIZE` · `INVALID_CURSOR` |
-| `POST /api/v1/reviews` | 리뷰 작성 `{orderItemId, rating, content}` → 201 + Location. 400 `INVALID_RATING` · `INVALID_CONTENT` / 403 `REVIEW_NOT_ELIGIBLE` / 409 `REVIEW_ALREADY_WRITTEN` |
-| `PATCH /api/v1/reviews/{reviewId}` | 리뷰 수정 (보낸 필드만, 작성자만). 400 `NO_FIELDS_TO_UPDATE` / 403 `REVIEW_FORBIDDEN` / 404 `REVIEW_NOT_FOUND` |
+| `POST /api/v1/reviews/images/upload-urls` | 리뷰 사진 업로드 주소(Presigned PUT) 발급 (로그인, 1~5장, jpg · png · webp 1장 10MB 이하, 5분 뒤 만료). 400 `INVALID_IMAGE_FILE` · `TOO_MANY_IMAGES` |
+| `POST /api/v1/reviews` | 리뷰 작성 `{orderItemId, rating, content, fit, imageUrls}`(`fit` · `imageUrls`는 선택) → 201 + Location. 400 `INVALID_RATING` · `INVALID_CONTENT` · `INVALID_FIT` · `FIT_NOT_APPLICABLE` · `INVALID_IMAGE_URL` · `TOO_MANY_IMAGES` · `IMAGE_NOT_UPLOADED` / 403 `REVIEW_NOT_ELIGIBLE` / 409 `REVIEW_ALREADY_WRITTEN` / 503 `IMAGE_STORAGE_UNAVAILABLE` |
+| `PATCH /api/v1/reviews/{reviewId}` | 리뷰 수정 (보낸 필드만, 작성자만. `fit` null은 핏 지우기, `imageUrls`는 목록 교체 · 빈 목록은 모두 삭제). 400 `NO_FIELDS_TO_UPDATE` / 403 `REVIEW_FORBIDDEN` / 404 `REVIEW_NOT_FOUND` / 503 `IMAGE_STORAGE_UNAVAILABLE` |
 | `DELETE /api/v1/reviews/{reviewId}` | 리뷰 삭제 (작성자만) → 204. 403 · 404 |
-| `GET /api/v1/reviews?productId=` | 상품별 리뷰 목록 (로그인 없이, 최신순). 400 `INVALID_PRODUCT_ID` |
-| `GET /api/v1/reviews/me` | 내 리뷰 |
-| `GET /api/v1/reviews/summary?productId=` | 리뷰 요약 `{productId, reviewCount, averageRating}` (로그인 없이) |
-| `PUT /api/v1/favorites/{productId}` | 찜 (다시 해도 1건, 판매 종료 · 없는 상품 거절) — 진행 중 |
-| `DELETE /api/v1/favorites/{productId}` | 찜 취소 (없어도 204) — 진행 중 |
-| `GET /api/v1/favorites?productIds=` | 내 찜 목록. productIds를 주면 그중 내가 찜한 것만 (목록 하트 표시) — 진행 중 |
-| `GET /api/v1/favorites/summary?productId=` | 찜 요약 `{productId, favoriteCount}` (로그인 없이) — 진행 중 |
+| `GET /api/v1/reviews?productId=` | 상품별 리뷰 목록 (로그인 없이, 최신순, 공개 리뷰만). 400 `INVALID_PRODUCT_ID` |
+| `GET /api/v1/reviews/me` | 내 리뷰 (숨겨진 리뷰는 `visibility: UNDER_REVIEW`) |
+| `GET /api/v1/reviews/summary?productId=` | 리뷰 요약 `{productId, reviewCount, averageRating, fitSummary}` (로그인 없이, 공개 리뷰만) |
+| `PUT /api/v1/favorites/{productId}` | 찜 (다시 해도 1건, 판매 종료 · 없는 상품 거절) |
+| `DELETE /api/v1/favorites/{productId}` | 찜 취소 (없어도 204) |
+| `GET /api/v1/favorites?productIds=` | 내 찜 목록. productIds를 주면 그중 내가 찜한 것만 (목록 하트 표시) |
+| `GET /api/v1/favorites/summary?productId=` | 찜 요약 `{productId, favoriteCount}` (로그인 없이) |
+| `GET /api/v1/admin/community/reviews?status=` | 관리자 검사 상태별 리뷰 목록(`PENDING` · `PASSED` · `HIDDEN` · `CONFIRMED_HIDDEN` · `RESTORED`). 400 `INVALID_MODERATION_STATUS` |
+| `PATCH /api/v1/admin/community/reviews/{reviewId}/visibility` | 관리자 숨김 확정(`HIDDEN`) · 다시 공개(`VISIBLE`), 같은 값을 다시 보내도 200. 400 `INVALID_VISIBILITY` / 404 `REVIEW_NOT_FOUND` |
+| `POST /api/v1/admin/community/mcp` | 커뮤니티 운영 조회 MCP 창구 (관리자, 읽기 전용, 기본 꺼짐). 413 `MCP_REQUEST_TOO_LARGE` |
 
 - **완료 기준** 구매확정한 주문상품이 작성 가능 목록에 나오고, 리뷰를 쓰면 상품 상세의 리뷰 수 · 평균 별점이 바뀐다. 상품을 찜하면 찜 수가 늘고 내 찜 목록에 보인다.
 - **화면** 상품 상세는 상품 API와 커뮤니티 API(리뷰 요약 · 목록 · 찜 요약 · 내 찜)를 각각 불러 합친다. 목록 화면의 하트는 `GET /favorites?productIds=`로 한 번에 확인한다.
 - **운영** 처음 배포한 뒤 환경마다 한 번 상품 전체 재발행(`POST /api/v1/admin/products/changed-events`, 상품 기능)으로 복사본을 채운다(주문 · 추천 · 검색도 같은 이벤트를 다시 받으므로 팀에 알림). 배포 전에 구매확정된 주문상품은 작성 자격이 없어, 시연은 배포 뒤 구매확정한 주문으로 한다.
-- **추가 예정** 리뷰 댓글(판매자 답글 포함) · AI 욕설 검사 · `review.created` · 상품 문의 · 좋아요 · 사진 리뷰 · 사이즈 핏 리뷰 · 공지 · FAQ · 챗봇(별도 모듈 검토) 순서.
+- **추가 예정** 리뷰 댓글(판매자 답글 포함) · `review.created` · 상품 문의 · 좋아요 · 공지 · FAQ · 챗봇(별도 모듈 검토) 순서.

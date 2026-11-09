@@ -10,7 +10,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 |---|---|---|---|---|
 | `member.registered` 회원가입됨 | 회원 → 결제 · 알림 | 지갑 생성 · 환영 메일 | memberId · email | ① |
 | `member.changed` 회원 정보 변경됨 | 회원 → 판매자 | 신청자 닉네임 반영 | memberId · nickname | 보완 |
-| `member.withdrawn` 회원탈퇴됨 | 회원 → 회원(배송지) · 자녀 프로필 · **결제** (추천 · 커뮤니티 예정) | 배송지 · 자녀 프로필 삭제 · **지갑 동결** / 활동 기록 · AI 응답 삭제(추천, P16) · 찜 삭제 · 리뷰 작성자 표시(커뮤니티, #663) | memberId | 보완 · 최종 |
+| `member.withdrawn` 회원탈퇴됨 | 회원 → 회원(배송지) · 자녀 프로필 · **결제** · **커뮤니티** (추천 예정) | 배송지 · 자녀 프로필 삭제 · **지갑 동결** / 활동 기록 · AI 응답 삭제(추천, P16) · 찜 삭제 · 리뷰 작성자 닉네임 지움(커뮤니티, #663) | memberId | 보완 · 최종 |
 | `child.changed` 자녀 정보 변경됨 | 자녀 프로필 → 추천 · 주문 | 복사본 저장 (삭제면 삭제 직전 값 + deleted) | childId · memberId · heightCm · weightKg · gender · birthDate · bodyType(없으면 null) · preferredFit(없으면 null) · deleted | ① |
 | `seller.changed` 판매자 정보 변경됨 | 판매자 → 회원 · 상품 · 주문 · 추천 · **검색** | 복사본 저장 (승인 · 정지 때 발행) · 상호명 색인(검색) | sellerId · businessName · status(ACTIVE · SUSPENDED) | ② · 최종 |
 | `product.changed` 상품 정보 변경됨 | 상품 → 추천 · 주문 · **검색 · 커뮤니티** · 상품(검색용 표, 되돌리기용) | 복사본 저장 (판매 상태 변경 · 수정 · 품절 변경 때 발행) · 색인(검색) · 임베딩 다시 생성(추천) | productId · sellerId · name · categoryId · status · thumbnailUrl · createdAt · sizeFree · infoValues · options(optionId · optionName · size · price · minHeightCm · maxHeightCm · soldOut · saleStatus · values) · **brand · description · sizeSpecs**(#610) · **categoryPath**(id · name, 대분류 → 종류, #955) | ② · 최종 |
@@ -132,15 +132,23 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 
 세미의 「리뷰 · 최종 프로젝트」를 대신합니다. 커뮤니티는 회원이 상품에 남기는 반응을 저장하고 보여 줍니다. 모듈 `domains/community`(컨텍스트 review · favorite), DB 스키마 `community`.
 
-| ID | 기능 | 이슈 | 상태(11/2) |
+| ID | 기능 | 이슈 | 상태(11/9) |
 |---|---|---|---|
 | CM-01 | 커뮤니티 모듈 · 스키마 기본 구성 | #657 | 머지 |
 | CM-02 | 상품 복사본 · 판매 상태 표시 | #658 | 머지 |
 | CM-03 | 리뷰 작성 자격(구매확정 수신) · 작성 가능 목록 | #659 | 머지 |
 | CM-04 | 리뷰 작성 · 수정 · 삭제, 상품별 집계 | #660 | 머지 |
 | CM-05 | 상품별 리뷰 목록 · 내 리뷰 · 리뷰 요약 | #661 | 머지 |
-| CM-06 | 찜 추가 · 취소 · 내 찜 목록 · 찜 수 | #662 | 진행 중 |
-| CM-07 | 회원 탈퇴 반영 | #663 | 예정 |
+| CM-06 | 찜 추가 · 취소 · 내 찜 목록 · 찜 수 | #662 | 머지 |
+| CM-07 | 회원 탈퇴 반영 | #663 | 머지 |
+| CM-08 | 받지 못한 이벤트(DLT) 보관 · 관리자 재처리 | #741 | 머지 |
+| CM-09 | 리뷰 사이즈 핏 · 핏 분포 | #922 | 머지 |
+| CM-10 | 사진 리뷰(업로드 주소 발급 · 사진 목록) | #986 | 머지 |
+| CM-11 | 부적절 리뷰 검사 · 관리자 숨김 확정 · 다시 공개 | #1002 | 머지 |
+| CM-12 | 운영 조회 MCP 창구(읽기 전용) | #1005 | 머지 |
+| CM-13 | 리뷰 사진 업로드 여부 확인 | #1030 | 머지 |
+| CM-14 | 쓰이지 않는 리뷰 사진 정리 | #1036 | 머지 |
+| CM-15 | 검사 · 운영 조회 후속 정리 | #1042 | 머지 |
 
 | 맡지 않는 일 | 담당 도메인 |
 |---|---|
@@ -154,5 +162,5 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | 구분 | 내용 |
 |---|---|
 | 보내는 이벤트 | 없음. `review.created`(`kidly.community.events`)는 받을 도메인이 정해지면 아웃박스로 (K28) |
-| 받는 이벤트 | `product.changed` 상품 복사본(더 늦게 발생한 것만) · `order-item.purchase-confirmed` 리뷰 작성 자격(주문상품마다 1건) · `member.withdrawn` 찜 삭제 · 리뷰 작성자 표시(예정) |
-| 구독 그룹 · DLT | `kidly.community`, 실패는 1초 간격 3번 뒤 `{토픽}.community.dlt`(관리자 재처리 화면 없음). 수신 스위치 `kidly.community.kafka.consumer.enabled`(기본 켬) |
+| 받는 이벤트 | `product.changed` 상품 복사본(더 늦게 발생한 것만) · `order-item.purchase-confirmed` 리뷰 작성 자격(주문상품마다 1건) · `member.withdrawn` 찜 삭제 · 리뷰 작성자 닉네임 지움(#663) |
+| 구독 그룹 · DLT | `kidly.community`, 실패는 1초 간격 3번 뒤 `{토픽}.community.dlt`. DLT는 `community.dead_letter`에 보관하고 관리자 API(`/api/v1/admin/community/dead-letters` 목록 · 상세 · 재처리, #741)로 다시 처리. 수신 스위치 `kidly.community.kafka.consumer.enabled`(기본 켬) |
