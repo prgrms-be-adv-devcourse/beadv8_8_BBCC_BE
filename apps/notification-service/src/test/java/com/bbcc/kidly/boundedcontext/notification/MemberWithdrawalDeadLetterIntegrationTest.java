@@ -9,14 +9,21 @@ import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationDeadLette
 import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationDeadLetters.Summary;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -43,6 +50,12 @@ class MemberWithdrawalDeadLetterIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private DataSource dataSource;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     @Test
     @DisplayName("탈퇴하면 그 회원의 회원 토픽 DLT 본문을 비우고, 재처리하면 실패로 기록되며 복사본 · 메일 · 알림함이 생기지 않는다")
     void erasesPayloadOnWithdrawal() {
@@ -60,11 +73,14 @@ class MemberWithdrawalDeadLetterIntegrationTest {
     }
 
     @Test
-    @DisplayName("탈퇴 뒤에 보관된 가입 DLT를 재처리해도 탈퇴 표시로 건너뛰어 복사본 · 메일 · 알림함이 생기지 않는다")
+    @DisplayName("본문이 남은 가입 DLT를 탈퇴 뒤에 재처리해도 탈퇴 표시로 건너뛰어 복사본 · 메일 · 알림함이 생기지 않는다")
     void skipsRegistrationOfWithdrawnMember() {
+        Long id = receive(MEMBER_ID, 1L);
+        byte[] body = payload(id);
         memberWithdrawalService.purge(MEMBER_ID);
         memberWithdrawalService.purge(MEMBER_ID);  // 같은 탈퇴를 다시 받아도 표시는 한 행
-        Long id = receive(MEMBER_ID, 1L);
+        // 본문 비우기를 거치지 않은 행(이 수정 전에 보관된 것 등)을 흉내 낸다
+        jdbcTemplate.update("update notification.dead_letter set payload = ? where id = ?", body, id);
 
         Summary replayed = deadLetterService.reprocess(id, ADMIN_ID);
 
@@ -73,6 +89,52 @@ class MemberWithdrawalDeadLetterIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
             "select count(*) from notification.withdrawn_member where member_id = ?", Long.class, MEMBER_ID))
             .isOne();
+    }
+
+    @Test
+    @DisplayName("탈퇴 뒤에 보관되는 그 회원의 회원 토픽 DLT는 본문 없이 저장하고, 다른 회원 것은 본문을 둔다")
+    void storesWithoutPayloadAfterWithdrawal() {
+        memberWithdrawalService.purge(MEMBER_ID);
+
+        Long id = receive(MEMBER_ID, 1L);
+        Long otherId = receive(OTHER_MEMBER_ID, 2L);
+
+        assertThat(payload(id)).isNull();
+        assertThat(payload(otherId)).isNotNull();
+        Summary replayed = deadLetterService.reprocess(id, ADMIN_ID);
+        assertThat(replayed.getState()).isEqualTo(State.OPEN);
+        assertNothingFor(MEMBER_ID);
+    }
+
+    @Test
+    @DisplayName("탈퇴 처리와 가입 처리는 같은 회원 잠금을 트랜잭션이 끝날 때까지 쥔다")
+    void holdsMemberLockUntilCommit() {
+        var transaction = new TransactionTemplate(transactionManager);
+        transaction.executeWithoutResult(status -> {
+            memberWithdrawalService.purge(MEMBER_ID);
+            assertThat(lockedElsewhere(MEMBER_ID)).isTrue();
+            assertThat(lockedElsewhere(OTHER_MEMBER_ID)).isFalse();
+        });
+        transaction.executeWithoutResult(status -> {
+            assertThat(memberWithdrawalService.lockAndCheckWithdrawn(MEMBER_ID)).isTrue();
+            assertThat(lockedElsewhere(MEMBER_ID)).isTrue();
+        });
+        assertThat(lockedElsewhere(MEMBER_ID)).isFalse();
+    }
+
+    // 트랜잭션에 묶이지 않은 다른 연결에서 같은 키를 잡아 본다. 못 잡으면 잠겨 있다(autocommit이라 잡았으면 바로 풀린다)
+    private boolean lockedElsewhere(Long memberId) {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                 "select pg_try_advisory_xact_lock(hashtextextended(?, 0))")) {
+            statement.setString(1, "kidly.notification.member-withdrawal:" + memberId);
+            try (ResultSet result = statement.executeQuery()) {
+                result.next();
+                return !result.getBoolean(1);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private void assertNothingFor(Long memberId) {
