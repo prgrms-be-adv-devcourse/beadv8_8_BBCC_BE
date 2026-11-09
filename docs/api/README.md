@@ -160,7 +160,7 @@
 | GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 결제 완료 · 거절 · 철회 · 만료(시스템), 산 주문 ID `orderIds`, 직접 철회면 `cancelledBy`) | 🔒 |
 | GET | `/api/v1/seller/orders` | 판매 주문 목록. 주문상품에 자녀 정보(`child`)는 없다(#997, 제3자 제공 동의 없이 판매자에게 넘기지 않음) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/ship` | 발송(택배사 · 송장번호) | 🏪 |
-| POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리 | 🏪 |
+| POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리(처음 완료 때 `delivery.delivered` 1번: 그 몫 주문상품(취소 제외) · 자동 구매확정 예정 시각, #1061. 택배 조회 완료도 같다) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치는 기본 켜짐(#924), 끄면 409 | 🏪 |
 | GET | `/api/v1/admin/orders` | 전체 주문 조회 | 🛠 |
 | GET | `/api/v1/admin/orders/{orderId}/history` | 주문 상태 이력 | 🛠 |

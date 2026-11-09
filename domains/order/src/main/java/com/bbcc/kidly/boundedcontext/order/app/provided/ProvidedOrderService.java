@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository.SellerOrderItemRow;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.DeliveryRecorder;
+import com.bbcc.kidly.boundedcontext.order.app.port.in.DeliveryRecorder.DeliveredItem;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup.OrderView;
 import com.bbcc.kidly.boundedcontext.order.app.port.in.OrderLookup.SellerOrderView;
@@ -31,6 +32,7 @@ public class ProvidedOrderService implements OrderLookup, DeliveryRecorder {
 
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository historyRepository;
+    private final Order.Policy orderPolicy;
 
     @Override
     public Optional<OrderView> findOrder(Long orderId) {
@@ -52,8 +54,13 @@ public class ProvidedOrderService implements OrderLookup, DeliveryRecorder {
     }
 
     @Override
-    public void recordDelivered(Long orderId, Long sellerId, LocalDateTime deliveredAt) {
-        orderRepository.findById(orderId).ifPresent(order -> order.recordDelivered(sellerId, deliveredAt));
+    public List<DeliveredItem> recordDelivered(Long orderId, Long sellerId, LocalDateTime deliveredAt) {
+        return orderRepository.findById(orderId)
+            .map(order -> order.recordDelivered(sellerId, deliveredAt).stream()
+                .map(item -> new DeliveredItem(item.getId(), item.getProduct().productId(), item.getQuantity(),
+                    item.getDeliveredAt(), item.autoConfirmAt(orderPolicy.autoConfirmAfter())))
+                .toList())
+            .orElse(List.of());
     }
 
     @Override

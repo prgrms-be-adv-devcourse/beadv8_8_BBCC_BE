@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.bbcc.kidly.boundedcontext.delivery.app.config.PartialCancelProperties;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.DeliveryResult;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.SellerOrderView;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryEvents;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.delivery.out.order.DeliveryOrdersAdapter;
@@ -20,8 +21,11 @@ import com.bbcc.kidly.boundedcontext.order.app.provided.ProvidedOrderService;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +52,8 @@ class DeliveryServiceTest {
     private static final Long SELLER_A_ID = 10L;
     private static final Long SELLER_B_ID = 20L;
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 14, 9, 0);
+    // 자동 구매확정 기간 7일(#1061 예정 시각 계산)
+    private static final Order.Policy POLICY = new Order.Policy(Duration.ofMinutes(10), Duration.ofDays(7));
 
     @Mock
     private DeliveryRepository deliveryRepository;
@@ -70,13 +76,17 @@ class DeliveryServiceTest {
     }
 
     private DeliveryService deliveryService(boolean partialCancelEnabled) {
-        ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository);
+        return deliveryService(partialCancelEnabled, event -> {
+        });
+    }
+
+    private DeliveryService deliveryService(boolean partialCancelEnabled, DeliveryEvents events) {
+        ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository, POLICY);
         // 판매자 취소 반영(주문 SellerCancelService)은 여기 경우(꺼짐 · 사유 · 404)에서 불리지 않으므로 없이(null) 둔다.
         // 불리면 NullPointerException으로 테스트가 실패한다. 반영은 통합 · 기능 테스트가 본다
         // 배송 이벤트(#900)는 주문이 있을 때만 나가고 여기 주문 저장소 mock은 주문이 없다고 답한다. 발행은 통합 테스트가 본다
         return new DeliveryService(deliveryRepository, new DeliveryOrdersAdapter(provided, provided, null),
-            new PartialCancelProperties(partialCancelEnabled), event -> {
-            });
+            new PartialCancelProperties(partialCancelEnabled), events);
     }
 
     @Nested
@@ -165,6 +175,72 @@ class DeliveryServiceTest {
             assertThat(result.orderId()).isEqualTo(ORDER_ID);
             assertThat(result.sellerId()).isEqualTo(SELLER_A_ID);
             assertThat(result.shippedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("판매자 수동 완료의 delivery.delivered에 그 판매자 몫 주문상품 · 자동 구매확정 예정 시각(= 주문상품 배송 완료 시각 + "
+            + "자동 구매확정 기간)을 싣는다. 다시 완료하면 이벤트가 없다(#1061)")
+        void deliveredEventCarriesItemsAndAutoConfirmAt() {
+            List<DomainEvent> published = new ArrayList<>();
+            DeliveryService service = deliveryService(true, published::add);
+            Delivery delivery = Delivery.create(ORDER_ID, SELLER_A_ID);
+            delivery.ship(Delivery.Carrier.CJ, "1234567890", NOW);
+            Order order = withItemIds(withId(orderOfTwoSellers(), ORDER_ID));
+            when(deliveryRepository.findByIdAndSellerId(DELIVERY_ID, SELLER_A_ID)).thenReturn(Optional.of(delivery));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            service.complete(SELLER_A_ID, DELIVERY_ID);
+            service.complete(SELLER_A_ID, DELIVERY_ID);
+
+            assertThat(published).singleElement().isInstanceOfSatisfying(DeliveryDeliveredEvent.class, event -> {
+                assertThat(event.data().items()).containsExactly(
+                    new DeliveryDeliveredEvent.Item(101L, 1L, 1), new DeliveryDeliveredEvent.Item(102L, 1L, 1));
+                assertThat(event.data().autoConfirmAt())
+                    .isEqualTo(itemOf(order, 101L).getDeliveredAt().plus(POLICY.autoConfirmAfter()))
+                    .isEqualTo(event.data().deliveredAt().plus(POLICY.autoConfirmAfter()));
+            });
+        }
+
+        @Test
+        @DisplayName("택배 조회 완료도 같은 자리에서 주문상품 · 자동 구매확정 예정 시각(택배사 시각 + 기간)을 싣는다(#1061)")
+        void trackingDeliveredEventCarriesItemsAndAutoConfirmAt() {
+            List<DomainEvent> published = new ArrayList<>();
+            DeliveryService service = deliveryService(true, published::add);
+            Delivery delivery = Delivery.create(ORDER_ID, SELLER_B_ID);
+            delivery.ship(Delivery.Carrier.CJ, "1234567890", NOW);
+            Order order = withItemIds(withId(orderOfTwoSellers(), ORDER_ID));
+            LocalDateTime trackedAt = NOW.plusDays(1);
+            when(deliveryRepository.findById(DELIVERY_ID)).thenReturn(Optional.of(delivery));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+            assertThat(service.completeByTracking(DELIVERY_ID, trackedAt)).isTrue();
+            assertThat(service.completeByTracking(DELIVERY_ID, trackedAt.plusHours(1))).isFalse();
+
+            assertThat(published).singleElement().isInstanceOfSatisfying(DeliveryDeliveredEvent.class, event -> {
+                assertThat(event.data().items()).containsExactly(new DeliveryDeliveredEvent.Item(103L, 2L, 1));
+                assertThat(event.data().deliveredAt()).isEqualTo(trackedAt);
+                assertThat(event.data().autoConfirmAt()).isEqualTo(trackedAt.plusDays(7));
+            });
+        }
+
+        @Test
+        @DisplayName("배송된 주문상품이 없으면(그 판매자 몫이 주문에 없음) autoConfirmAt은 null, items는 빈 목록이다(#1061)")
+        void deliveredEventWithoutItems() {
+            List<DomainEvent> published = new ArrayList<>();
+            DeliveryService service = deliveryService(true, published::add);
+            Long otherSellerId = 30L;
+            Delivery delivery = Delivery.create(ORDER_ID, otherSellerId);
+            delivery.ship(Delivery.Carrier.CJ, "1234567890", NOW);
+            when(deliveryRepository.findByIdAndSellerId(DELIVERY_ID, otherSellerId)).thenReturn(Optional.of(delivery));
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(withItemIds(withId(orderOfTwoSellers(),
+                ORDER_ID))));
+
+            service.complete(otherSellerId, DELIVERY_ID);
+
+            assertThat(published).singleElement().isInstanceOfSatisfying(DeliveryDeliveredEvent.class, event -> {
+                assertThat(event.data().autoConfirmAt()).isNull();
+                assertThat(event.data().items()).isEmpty();
+            });
         }
 
         @Test
@@ -513,6 +589,25 @@ class DeliveryServiceTest {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    // 주문상품 ID를 101부터 차례로 넣는다(배송 완료 이벤트의 주문상품 ID 확인용)
+    private static Order withItemIds(Order order) {
+        long id = 101L;
+        for (OrderItem item : order.getItems()) {
+            try {
+                java.lang.reflect.Field field = OrderItem.class.getDeclaredField("id");
+                field.setAccessible(true);
+                field.set(item, id++);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return order;
+    }
+
+    private static OrderItem itemOf(Order order, Long orderItemId) {
+        return order.getItems().stream().filter(item -> item.getId().equals(orderItemId)).findFirst().orElseThrow();
     }
 
     private static Order withId(Order order, Long id) {

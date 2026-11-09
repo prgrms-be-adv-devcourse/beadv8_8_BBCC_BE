@@ -21,9 +21,19 @@ public interface DeliveryOrders {
     List<Order> findOrdersWithItems(Collection<Long> orderIds);
 
     /**
-     * 그 판매자 몫 주문상품에 배송 완료 시각을 남긴다. 주문이 없으면 아무것도 하지 않는다.
+     * 그 판매자 몫 주문상품에 배송 완료 시각을 남긴다(이미 있으면 처음 시각 유지). 주문이 없으면 아무것도 하지 않는다(빈 목록).
+     *
+     * @return 그 판매자 몫 중 취소되지 않은 주문상품과 자동 구매확정 예정 시각(#1061)
      */
-    void recordDelivered(Long orderId, Long sellerId, LocalDateTime deliveredAt);
+    List<DeliveredItem> recordDelivered(Long orderId, Long sellerId, LocalDateTime deliveredAt);
+
+    /**
+     * 배송된 주문상품 한 줄(#1061).
+     *
+     * @param autoConfirmAt 자동 구매확정 예정 시각(주문의 자동 확정과 같은 기준: 주문상품 배송 완료 시각 + 자동 구매확정 기간)
+     */
+    record DeliveredItem(Long orderItemId, Long productId, int quantity, LocalDateTime autoConfirmAt) {
+    }
 
     /**
      * 배송 상태가 바뀐 이력 한 줄을 주문 상태 이력에 남긴다.
