@@ -118,11 +118,11 @@ spring:
               uri: ${kidly.gateway.community-uri}
               predicates:
                 - Path=/api/v1/reviews/**,/api/v1/favorites/**,/api/v1/admin/community/**
-            # 알림함 API(회원 · 자녀)는 알림 서비스로 간다(#852)
+            # 알림함 API(회원 · 자녀)와 알림 관리자 API(DLT)는 알림 서비스로 간다(#852)
             - id: notification
               uri: ${kidly.gateway.notification-uri}
               predicates:
-                - Path=/api/v1/notifications/**,/api/v1/child/notifications/**
+                - Path=/api/v1/notifications/**,/api/v1/child/notifications/**,/api/v1/admin/notification-dead-letters/**
             # 나머지는 어느 서비스에도 넘기지 않고 404 ProblemDetail로 답한다. 인증 · 역할 검사(GlobalFilter)는 라우트가 있어야 돌므로 모든 경로를 받아 둔다.
             # 새 서비스 경로는 이 위에 더한다
             - id: not-found
