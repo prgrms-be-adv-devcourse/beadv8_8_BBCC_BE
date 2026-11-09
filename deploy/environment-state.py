@@ -25,8 +25,8 @@ SERVICES = {
     'order-service': ('kidly-order', 'ORDER_PORT', 'order'),
     'community-service': ('kidly-community', 'COMMUNITY_PORT', 'community'),
 }
-# compose 밖 k3s(t3.large 노드)에서 도는 서비스. .env 에 이 NodePort 키가 있는 환경에서 뜬다고 본다
-# 메트릭은 medium Alloy 가 Pod 에서 바로 모으므로 대상 파일을 쓰지 않고, 기대 목록에만 넣는다
+# compose 밖 k3s(t3.large 에 단독으로 띄운 k3s)에서 도는 서비스. .env 에 이 NodePort 키가 있는 환경에서 뜬다고 본다
+# 메트릭은 monitoring-agent Alloy 가 k3s API 로 Pod 를 찾아 모으므로 대상 파일을 쓰지 않고, 기대 목록에만 넣는다
 K3S_SERVICES = {'RECOMMEND_NODE_PORT': 'kidly-recommend'}
 
 

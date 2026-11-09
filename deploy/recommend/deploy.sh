@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# medium(k3s server)에서 deploy 유저로 실행한다(~/.kube/config). 워크플로(.github/workflows/deploy.yml 의 recommend job)가 이 폴더(/opt/app/recommend-<환경>)에 올린 뒤 부른다
+# t3.large(단독 k3s)에서 deploy 유저로 실행한다(~/.kube/config). 워크플로(.github/workflows/deploy.yml 의 recommend job)가 이 폴더(/opt/app/recommend-<환경>)에 올린 뒤 부른다
 # APP_ENV · RECOMMEND_IMAGE · GHCR_USER · RECOMMEND_NODE_PORT · SPRING_PROFILE · KAFKA_BOOTSTRAP_SERVERS · DB_URL · DB_USERNAME 은 환경 변수로,
 # 비밀 세 줄(GHCR 토큰 · DB_PASSWORD · OPENAI_API_KEY, 마지막은 비어도 된다)은 stdin 으로 받는다
 set -euo pipefail
@@ -16,10 +16,9 @@ IFS= read -r db_password || true
 IFS= read -r openai_key || true
 [[ -n "$ghcr_token" && -n "$db_password" ]] || { echo "::error::stdin 으로 GHCR 토큰과 DB_PASSWORD 가 와야 합니다"; exit 1; }
 
-# 앱 노드(t3.large agent)가 없으면 Pod 가 Pending 으로 남는다. 아무것도 바꾸기 전에 멈춘다
-ready=$(kubectl get nodes -l kidly/role=app -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' | grep -c '^True$' || true)
-if (( ready == 0 )); then
-  echo "::error::라벨 kidly/role=app 인 Ready 노드가 없습니다. t3.large 를 k3s agent 로 붙이세요(deploy/recommend/README.md)"
+# 이 서버에 k3s 가 없거나 kubeconfig 가 없으면 아무것도 바꾸기 전에 멈춘다
+if ! kubectl get --raw /readyz > /dev/null 2>&1; then
+  echo "::error::이 서버의 k3s API 에 붙지 못했습니다. k3s 설치와 ~/.kube/config 를 확인하세요(deploy/recommend/README.md)"
   exit 1
 fi
 

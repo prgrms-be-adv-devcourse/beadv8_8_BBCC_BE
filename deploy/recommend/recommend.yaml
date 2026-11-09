@@ -1,4 +1,4 @@
-# 추천 서비스(apps/recommend-service, #1028). t3.large 의 k3s agent 노드(kidly/role=app)에 환경마다 namespace 하나로 뜬다
+# 추천 서비스(apps/recommend-service, #1028). t3.large 에 단독으로 띄운 k3s(노드 하나)에 환경마다 namespace 하나로 뜬다
 # __APP_ENV__ · __IMAGE__ · __NODE_PORT__ · __SPRING_PROFILE__ · __KAFKA__ · __DB_URL__ · __DB_USERNAME__ 는 deploy.sh 가 바꾼다
 # Secret recommend-secrets(DB_PASSWORD · OPENAI_API_KEY) 와 pull secret ghcr-pull 은 deploy.sh 가 배포마다 만든다
 apiVersion: v1
@@ -28,8 +28,6 @@ spec:
       labels:
         app: recommend
     spec:
-      nodeSelector:
-        kidly/role: app
       imagePullSecrets:
         - name: ghcr-pull
       # 처리 중인 요청 · Kafka 메시지를 마치고 내려간다(Spring graceful shutdown 기본 30초 + preStop 5초)
@@ -107,7 +105,7 @@ spec:
           volumeMounts:
             - name: logs
               mountPath: /app/logs
-      # 파일 로그는 Pod 와 함께 사라진다. 로그는 medium Alloy 가 Pod 콘솔에서 Loki 로 모은다
+      # 파일 로그는 Pod 와 함께 사라진다. 로그는 t3.large 의 monitoring-agent Alloy 가 Pod 콘솔에서 Loki 로 모은다
       volumes:
         - name: logs
           emptyDir:
