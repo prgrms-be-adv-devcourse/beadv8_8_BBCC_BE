@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.DeliveryCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,7 +22,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class DeliveryInboxServiceTest {
 
-    private static final DeliveryCommand COMMAND = new DeliveryCommand(7L, 3L, 1L, "CJ대한통운", "123456789012");
+    private static final DeliveryCommand COMMAND = new DeliveryCommand(7L, 3L, 1L, "CJ대한통운", "123456789012",
+        null);
 
     @Mock
     private InboxNotificationService inboxNotificationService;
@@ -49,13 +51,13 @@ class DeliveryInboxServiceTest {
     @Test
     @DisplayName("택배사나 운송장이 없으면 null을 넣지 않고 운송장 없는 출발 문구를 넣는다")
     void shippedWithoutTracking() {
-        deliveryInboxService.addShipped(new DeliveryCommand(7L, 3L, 1L, null, null));
+        deliveryInboxService.addShipped(new DeliveryCommand(7L, 3L, 1L, null, null, null));
 
         assertThat(captured().body()).isEqualTo("주문하신 상품이 출발했어요. 주문 상세에서 배송 상태를 확인해 주세요.");
     }
 
     @Test
-    @DisplayName("배송이 완료되면 구매자 알림함에 넣고, 출발과 다른 중복 키를 쓴다")
+    @DisplayName("자동 구매확정 예정 시각이 없는 예전 배송 완료는 날짜 없는 문구로 넣고, 출발과 다른 중복 키를 쓴다")
     void delivered() {
         deliveryInboxService.addDelivered(COMMAND);
 
@@ -64,6 +66,17 @@ class DeliveryInboxServiceTest {
         assertThat(info.title()).isEqualTo("배송이 완료됐어요");
         assertThat(info.body()).isEqualTo("주문하신 상품이 도착했어요. 받은 상품을 확인해 주세요.");
         assertThat(info.linkPath()).isEqualTo("/orders/3");
+        assertThat(info.dedupKey()).isEqualTo("delivery.delivered:7");
+    }
+
+    @Test
+    @DisplayName("배송 완료에 자동 구매확정 예정 시각이 있으면 본문에 그 날짜를 넣는다")
+    void deliveredWithAutoConfirmAt() {
+        deliveryInboxService.addDelivered(new DeliveryCommand(7L, 3L, 1L, "CJ대한통운", "123456789012",
+            LocalDateTime.of(2026, 11, 15, 9, 0)));
+
+        var info = captured();
+        assertThat(info.body()).isEqualTo("주문하신 상품이 도착했어요. 11월 15일에 자동으로 구매확정되니 그 전에 받은 상품을 확인해 주세요.");
         assertThat(info.dedupKey()).isEqualTo("delivery.delivered:7");
     }
 

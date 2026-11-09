@@ -7,14 +7,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.bbcc.kidly.boundedcontext.notification.app.AutoConfirmInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
-import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.ProductNameService;
-import com.bbcc.kidly.boundedcontext.notification.app.dto.AutoConfirmScheduledCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.PurchaseConfirmedCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
-import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,9 +32,6 @@ class AutoConfirmInboxServiceTest {
 
     @Mock
     private ProductNameService productNameService;
-
-    @Mock
-    private NotificationService notificationService;
 
     @InjectMocks
     private AutoConfirmInboxService autoConfirmInboxService;
@@ -76,24 +70,6 @@ class AutoConfirmInboxServiceTest {
         autoConfirmInboxService.addAutoConfirmed(command(confirmType));
 
         verifyNoInteractions(inboxNotificationService, productNameService);
-    }
-
-    @Test
-    @DisplayName("자동 구매확정 예고는 구매자 알림함에 확정 예정 날짜와 함께 넣고, 같은 내용을 웹 푸시로 보낸다")
-    void autoConfirmScheduled() {
-        given(productNameService.findName(9L)).willReturn(Optional.of("곰돌이 티셔츠"));
-
-        autoConfirmInboxService.addAutoConfirmScheduled(
-            new AutoConfirmScheduledCommand(7L, 3L, 1L, 9L, 2, LocalDateTime.of(2026, 11, 20, 0, 0)));
-
-        var info = captured();
-        assertThat(info.recipient()).isEqualTo(InboxRecipient.member(1L));
-        assertThat(info.type()).isEqualTo(NotificationType.PURCHASE_AUTO_CONFIRM_SCHEDULED);
-        assertThat(info.title()).isEqualTo("곧 구매가 자동으로 확정돼요");
-        assertThat(info.body()).isEqualTo("곰돌이 티셔츠 2개가 11월 20일에 자동으로 구매확정돼요. 그 전에 받은 상품을 확인해 주세요.");
-        assertThat(info.linkPath()).isEqualTo("/orders/3");
-        assertThat(info.dedupKey()).isEqualTo("order-item.auto-confirm-scheduled:7");
-        verify(notificationService).createPush(info);
     }
 
     private static PurchaseConfirmedCommand command(String confirmType) {

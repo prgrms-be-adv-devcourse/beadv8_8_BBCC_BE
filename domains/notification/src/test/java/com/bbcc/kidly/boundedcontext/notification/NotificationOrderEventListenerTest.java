@@ -9,8 +9,8 @@ import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.OrderCancelInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.SellerOrderInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.WishInboxService;
-import com.bbcc.kidly.boundedcontext.notification.app.dto.AutoConfirmScheduledCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.ChildWishCommand;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.DeliveryCommand;
 import com.bbcc.kidly.boundedcontext.notification.in.event.NotificationOrderEventListener;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -77,13 +77,26 @@ class NotificationOrderEventListenerTest {
     }
 
     @Test
-    @DisplayName("order-item.auto-confirm-scheduled는 확정 예정 시각으로 구매자 예고 알림을 만든다")
-    void autoConfirmScheduled() {
-        listener.on(record("order-item.auto-confirm-scheduled", "{\"orderItemId\":7,\"orderId\":3,\"memberId\":1,"
-            + "\"sellerId\":5,\"productId\":9,\"quantity\":2,\"confirmAt\":\"2026-11-20T00:00:00\"}"));
+    @DisplayName("delivery.delivered는 자동 구매확정 예정 시각을 배송 완료 알림에 넘긴다")
+    void deliveryDelivered() {
+        listener.on(record("delivery.delivered", "{\"deliveryId\":7,\"orderId\":3,\"memberId\":1,\"sellerId\":5,"
+            + "\"carrier\":\"CJ\",\"carrierName\":\"CJ대한통운\",\"trackingNumber\":\"123456789012\","
+            + "\"deliveredAt\":\"2026-11-08T09:00:00\",\"autoConfirmAt\":\"2026-11-15T09:00:00\","
+            + "\"items\":[{\"orderItemId\":11,\"productId\":9,\"quantity\":2}]}"));
 
-        then(autoConfirmInboxService).should().addAutoConfirmScheduled(
-            new AutoConfirmScheduledCommand(7L, 3L, 1L, 9L, 2, LocalDateTime.of(2026, 11, 20, 0, 0)));
+        then(deliveryInboxService).should().addDelivered(new DeliveryCommand(7L, 3L, 1L, "CJ대한통운", "123456789012",
+            LocalDateTime.of(2026, 11, 15, 9, 0)));
+    }
+
+    @Test
+    @DisplayName("자동 구매확정 예정 시각이 없는 예전 delivery.delivered는 시각 없이 넘긴다")
+    void deliveryDeliveredWithoutAutoConfirmAt() {
+        listener.on(record("delivery.delivered", "{\"deliveryId\":7,\"orderId\":3,\"memberId\":1,\"sellerId\":5,"
+            + "\"carrier\":\"CJ\",\"carrierName\":\"CJ대한통운\",\"trackingNumber\":\"123456789012\","
+            + "\"deliveredAt\":\"2026-11-08T09:00:00\"}"));
+
+        then(deliveryInboxService).should().addDelivered(
+            new DeliveryCommand(7L, 3L, 1L, "CJ대한통운", "123456789012", null));
     }
 
     private static ConsumerRecord<String, String> record(String eventType, String data) {

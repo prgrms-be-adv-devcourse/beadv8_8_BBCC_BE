@@ -129,7 +129,7 @@ class PushDispatchIntegrationTest {
     @DisplayName("배송이 출발하면 알림함과 같은 내용의 푸시를 만들어 커밋 뒤 보내고, 같은 배송은 한 건이다")
     void deliveryShippedPush() {
         pushTokenService.register(MEMBER_ID, "fid-a");
-        var command = new DeliveryCommand(7L, 3L, MEMBER_ID, "CJ대한통운", "123456789012");
+        var command = new DeliveryCommand(7L, 3L, MEMBER_ID, "CJ대한통운", "123456789012", null);
 
         deliveryInboxService.addShipped(command);
         deliveryInboxService.addShipped(command);
