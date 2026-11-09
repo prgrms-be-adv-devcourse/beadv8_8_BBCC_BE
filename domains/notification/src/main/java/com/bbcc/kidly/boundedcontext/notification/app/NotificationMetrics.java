@@ -9,6 +9,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 알림 발송 지표(#1071). 채널별 발송 결과 카운터와, 아직 보내지 못한 알림의 수 · 가장 오래된 나이 게이지.
@@ -36,6 +38,7 @@ public class NotificationMetrics {
 
     /**
      * 발송 한 번이 끝난 알림의 결과를 센다. 결과는 sent · skipped · retry(다시 시도할 실패) · failed(더 시도하지 않는 실패).
+     * 기록이 버전 충돌로 롤백되면 세지 않도록 커밋 뒤에 올린다. 그래서 상태를 기록하는 트랜잭션 안에서만 부른다.
      */
     public void recordResult(Notification notification) {
         String outcome = switch (notification.getStatus()) {
@@ -47,11 +50,16 @@ public class NotificationMetrics {
         if (outcome == null) {
             return;
         }
-        Counter.builder(SENDS)
+        Counter counter = Counter.builder(SENDS)
             .description("알림 발송 결과 수(채널 · 결과별)")
             .tag("channel", notification.getChannel().name().toLowerCase(Locale.ROOT))
             .tag("outcome", outcome)
-            .register(registry)
-            .increment();
+            .register(registry);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                counter.increment();
+            }
+        });
     }
 }
