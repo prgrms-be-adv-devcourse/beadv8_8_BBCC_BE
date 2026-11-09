@@ -44,6 +44,31 @@ class CommunityServiceApplicationApiTest {
             .jsonPath("$.status").isEqualTo("UP");
     }
 
+    @Test
+    @DisplayName("/actuator/prometheus에 커뮤니티 운영 지표가 나온다(꺼진 스케줄러의 시계열은 없다)")
+    void prometheusExposesCommunityMetrics() {
+        String body = client.get().uri("/actuator/prometheus")
+            .exchange()
+            .expectStatus().isOk()
+            .returnResult(String.class)
+            .getResponseBody();
+
+        assertThat(body).contains(
+            "kidly_community_dlt_messages{state=\"open\"}",
+            "kidly_community_dlt_oldest_age_seconds",
+            "kidly_community_dlt_store_failures_total",
+            "kidly_community_dlt_last_stored_seconds",
+            "kidly_community_moderation_pending{stage=\"waiting\"}",
+            "kidly_community_moderation_pending{stage=\"retrying\"}",
+            "kidly_community_moderation_pending{stage=\"exhausted\"}",
+            "kidly_community_moderation_pending_oldest_age_seconds",
+            "kidly_community_moderation_checks_total{cause=\"none\",result=\"passed\"}",
+            "kidly_community_review_image_storage_unavailable_total{operation=\"upload_check\"}",
+            "kidly_community_replica_product_last_changed_age_seconds");
+        // 테스트 프로필은 검사 · 사진 정리 스케줄러를 끈다
+        assertThat(body).doesNotContain("kidly_community_scheduler_last_success_seconds{");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/products/1", "/api/v1/orders", "/api/v1/cart", "/api/v1/payments/1"})
     @DisplayName("다른 도메인 API는 없어 ProblemDetail 형식의 404를 받는다")

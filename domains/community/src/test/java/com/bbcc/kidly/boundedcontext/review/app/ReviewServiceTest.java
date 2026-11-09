@@ -488,7 +488,7 @@ class ReviewServiceTest {
     private ReviewService service(int maxImages) {
         return new ReviewService(reviews, stats, eligibility, new ReviewSeparateTransaction(), images,
             storage, new ReviewImageProperties(maxImages, DataSize.ofMegabytes(10)),
-            org.mockito.Mockito.mock(ReviewImageCleanupQueue.class));
+            org.mockito.Mockito.mock(ReviewImageCleanupQueue.class), org.mockito.Mockito.mock(CommunityMetrics.class));
     }
 
     private ReviewView writeWith(long orderItemId, ImageUrlsInput imageUrls) {
