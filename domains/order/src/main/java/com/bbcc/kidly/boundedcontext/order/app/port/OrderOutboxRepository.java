@@ -37,6 +37,16 @@ public interface OrderOutboxRepository {
 
     long countQuarantined();
 
+    /**
+     * 보내지 않았고 격리되지 않은 메시지 수(운영 지표, #1067).
+     */
+    long countUnsent();
+
+    /**
+     * 보내지 않았고 격리되지 않은 메시지 중 가장 앞(id 순서) 메시지의 만든 시각(운영 지표, #1067). 없으면 빈 값.
+     */
+    Optional<LocalDateTime> findOldestUnsentCreatedAt();
+
     Optional<OutboxStatus> findStatus(Long id);
 
     /**

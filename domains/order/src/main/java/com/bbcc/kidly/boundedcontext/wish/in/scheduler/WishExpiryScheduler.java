@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.wish.in.scheduler;
 
 import com.bbcc.kidly.boundedcontext.wish.app.WishExpiryService;
+import com.bbcc.kidly.boundedcontext.wish.app.WishJobMetrics;
 import com.bbcc.kidly.boundedcontext.wish.app.config.WishExpiryProperties;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishJobRunner;
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ public class WishExpiryScheduler {
     // 주기 값의 바인딩 검증(1초 이상)이 @Scheduled 등록보다 먼저 돌게 하려고 주입한다(배송 DeliveryStatusPoller와 같음)
     private final WishExpiryProperties properties;
     private final WishJobRunner jobRunner;
+    private final WishJobMetrics metrics;
     private final RotatingCursor cursor = new RotatingCursor();
 
     // 기동 직후가 아니라 한 주기 뒤에 처음 돈다(#926 방식): 배포 직후 여러 서버가 함께 뜨며 몰리지 않게 하고, 테스트 컨텍스트가
@@ -41,7 +43,10 @@ public class WishExpiryScheduler {
     @Scheduled(fixedDelayString = "${kidly.order.wish.expiry.interval}",
         initialDelayString = "${kidly.order.wish.expiry.interval}")
     public void expireOverdue() {
-        jobRunner.run(JOB, this::expireTargets);
+        // 마지막 성공 시각(#1067): 이 서버가 끝까지 돌았을 때만. 예외로 끝나면 갱신하지 않는다
+        if (jobRunner.run(JOB, this::expireTargets)) {
+            metrics.markExpirySuccess();
+        }
     }
 
     private void expireTargets() {

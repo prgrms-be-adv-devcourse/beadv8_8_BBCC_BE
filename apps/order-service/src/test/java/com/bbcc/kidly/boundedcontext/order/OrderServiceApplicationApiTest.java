@@ -44,6 +44,37 @@ class OrderServiceApplicationApiTest {
             .jsonPath("$.status").isEqualTo("UP");
     }
 
+    @Test
+    @DisplayName("/actuator/prometheus에 주문 운영 지표(#1067)가 나온다: 적체 게이지 · 멈춘 주문(종류별) · 작업 마지막 성공 시각(주문 · 배송 · "
+        + "조르기) · 택배 조회 서킷 상태")
+    void prometheusExposesOrderMetrics() {
+        String body = client.get().uri("/actuator/prometheus")
+            .exchange()
+            .expectStatus().isOk()
+            .returnResult(String.class)
+            .getResponseBody();
+
+        assertThat(body).contains(
+            "kidly_order_dlt_messages{state=\"open\"}",
+            "kidly_order_event_failures{state=\"pending\"}",
+            "kidly_order_payment_recoveries{state=\"pending\"}",
+            "kidly_order_outbox_unsent_messages ",
+            "kidly_order_outbox_oldest_unsent_age_seconds ",
+            "kidly_order_outbox_quarantined_messages ",
+            "kidly_order_stuck_orders{kind=\"stock_check_stale\"}",
+            "kidly_order_stuck_orders{kind=\"outbox_stuck\"}",
+            "kidly_order_scheduler_last_success_seconds{job=\"payment_expiry\"}",
+            "kidly_order_scheduler_last_success_seconds{job=\"auto_confirm\"}",
+            "kidly_order_scheduler_last_success_seconds{job=\"outbox_relay\"}",
+            "kidly_order_scheduler_last_success_seconds{job=\"outbox_cleanup\"}",
+            "kidly_order_scheduler_last_success_seconds{job=\"stuck_diagnosis\"}",
+            "kidly_order_scheduler_last_success_seconds{job=\"delivery_tracking\"}",
+            "kidly_order_scheduler_last_success_seconds{job=\"wish_expiry\"}",
+            "kidly_order_delivery_tracker_circuit_state{state=\"closed\"} 1",
+            "kidly_order_delivery_tracker_circuit_state{state=\"open\"} 0",
+            "kidly_order_delivery_tracker_circuit_state{state=\"half_open\"} 0");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/products/1", "/api/v1/reviews", "/api/v1/favorites", "/api/v1/payments/1"})
     @DisplayName("다른 도메인 API는 없어 ProblemDetail 형식의 404를 받는다")

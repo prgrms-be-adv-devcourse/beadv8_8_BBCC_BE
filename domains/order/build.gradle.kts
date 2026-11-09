@@ -13,6 +13,8 @@ dependencies {
     // 전이 의존: reactor-core · Jackson 3(Boot BOM 관리), 새로 들어옴 com.networknt:json-schema-validator 3.0.6 · com.ethlo.time:itu,
     // servlet-api는 provided(Boot Tomcat 것을 씀)
     implementation("io.modelcontextprotocol.sdk:mcp:2.1.0")
+    // 주문 운영 지표(#1067). 버전은 Boot BOM이 정한다(결제 #981과 같음). 레지스트리 · actuator는 common이 넣는다
+    implementation("io.micrometer:micrometer-core")
     // 기능 테스트의 로그인 헤더(common TestMembers)
     testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")

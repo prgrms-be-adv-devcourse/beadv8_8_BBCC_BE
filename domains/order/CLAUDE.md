@@ -71,10 +71,13 @@
 - 구매확정 사실 복구(#741): `POST /api/v1/admin/orders/purchase-confirmed-events`는 주문 DB의 CONFIRMED 주문상품만 기존 `order-item.purchase-confirmed` 계약으로 재발행한다(저장된 confirmType 포함, 없으면 null, #901). 다른 스키마를 읽지 않고, 실제 confirmedAt · 주문 키 · 스냅샷을 유지한다. 새 eventId로 같은 사실을 재전달하므로 수신자는 주문상품 ID 기준 멱등성을 지켜야 한다(현재 정산 · 추천 · 커뮤니티가 해당 규칙을 사용한다).
 - 복구는 afterOrderItemId(기본 0) · size(1~100) 커서 배치이고 첫 응답의 throughOrderItemId를 다음 요청에도 유지한다. hasNext가 참이면 nextAfterOrderItemId로 이어 간다. 발행 수는 아웃박스 저장 수이며 실제 수신 완료 수가 아니다. 스캔 중 커서보다 작은 ID가 뒤늦게 확정되면 정상 확정 이벤트로 처리되고, 필요하면 같은 범위를 다시 스캔한다. 요청 실패 시 그 배치의 아웃박스도 롤백된다.
 
+- 운영 지표(#1067, `kidly.order.*`, 태그는 고정 값만): 적체 게이지는 `order/app/OrderBacklogGauges`(DLT OPEN · 이벤트 실패 PENDING · 결제 복구 PENDING · 아웃박스 미전송 · 가장 오래된 미전송 나이 · 격리, 격리 제외 기준 · 멈춘 주문 종류별 = 관리자 요약, 30초 캐시), 주기 작업 마지막 성공 시각 · 아웃박스 전송 실패 카운터는 `order/app/OrderOperationMetrics`(app 기능 slice끼리 참조하지 않게 app 바로 아래). 배송 · 조르기는 같은 이름(`kidly.order.scheduler.last.success.seconds{job}`)을 자기 컨텍스트(`delivery/app/DeliveryJobMetrics` · `wish/app/WishJobMetrics`)에서 등록한다. 성공은 이 서버가 잠금을 잡고 끝까지 돌았을 때만(건별 실패는 성공, 예외 · 다른 서버 · 릴레이 STOPPED · 결제 만료 실행 조건으로 건너뜀은 아님, 첫 성공 전 NaN). 택배 조회 서킷 상태는 `DeliveryTrackerChecker.bindCircuitState`가 직접 등록한다(지금 상태만 1). 아웃박스 전송 실패 카운터의 태그는 `event_type`(이벤트 타입) · `outcome`(retry · quarantined)뿐이다. Kafka 보내기가 꺼져 있으면(`kidly.kafka.producer.enabled=false`, 릴레이 빈 없음) `outbox_relay`, 택배 조회 인증값이 없으면 `delivery_tracking`, 조르기 만료가 꺼져 있으면 `wish_expiry` 작업 시각은 계속 NaN이다
+
 ## 4. 테스트
 - 주문 마이그레이션(`db/migration/orders`)은 주문 서비스 baseline(202611031100) 뒤 새 파일을 두 번 적용돼도 안전하게 쓴다(`CREATE TABLE IF NOT EXISTS` · 제약 · 인덱스도 `IF NOT EXISTS` 또는 DO 블록). kidly-app 시절 DB(`OrderMigrationIntegrationTest`가 재현)에는 이미 적용돼 있을 수 있다
 - 통합 · 기능 · Kafka 테스트는 이 모듈에서 돈다. 주석 · 컨테이너 · 정리는 주문 모듈 공통 `boundedcontext.support`(#651, 앱의 `com.bbcc.kidly.support`와 다른 패키지)(`IntegrationTest` · `FunctionalTest` · `KafkaIntegrationTest`)를 쓰고, 테스트 앱은 `OrderTestApplication`(주문 모듈 네 컨텍스트 · `common`만)이다
 - 주문 테스트는 다른 도메인 코드를 쓰지 않는다(`OrderTestIndependenceTest`). 다른 도메인이 하던 반응은 테스트가 이벤트로 직접 넣는다
+- 주문 모듈 테스트 클래스패스에는 actuator가 없어 `support/OrderTestMeterRegistryConfig`가 메모리 레지스트리(`SimpleMeterRegistry`, 없을 때만)를 준다(#1067, 커뮤니티와 같음). 지표 테스트는 이 레지스트리에서 값을 읽는다. 한 레지스트리에 같은 이름 · 태그 게이지는 처음 것만 남으므로 단위 테스트는 지표 객체 하나를 같이 쓴다
   - `OrderEventDelivery`: 다른 도메인 이벤트를 주문에 넣는다(수신 방식이 바뀌면 이것만 고친다)
   - `PaymentEvents`: 결제 쪽이 보내던 결제 완료 · 결제 실패
   - `OrderFlowEventRecorder`: 주문이 발행한 이벤트 확인

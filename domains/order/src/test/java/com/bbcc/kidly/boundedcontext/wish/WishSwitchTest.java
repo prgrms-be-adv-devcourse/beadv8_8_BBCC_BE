@@ -26,6 +26,8 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.persistence.EntityManagerFactory;
 import java.time.Duration;
 import java.util.Arrays;
@@ -59,6 +61,7 @@ class WishSwitchTest {
         .withBean(OrderEventIssuer.class, () -> mock(OrderEventIssuer.class))
         .withBean(CartReservations.class, () -> mock(CartReservations.class))
         .withBean(JsonMapper.class, () -> JsonMapper.builder().build())
+        .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
         .withBean(WishExpiryProperties.class, () -> new WishExpiryProperties(true, Duration.ofDays(7),
             Duration.ofHours(1), Duration.ofMinutes(15)))
         .withBean(PlatformTransactionManager.class, () -> mock(PlatformTransactionManager.class))
