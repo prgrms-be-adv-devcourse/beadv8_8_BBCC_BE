@@ -119,7 +119,9 @@ class SettlementDeadLetterKafkaIntegrationTest {
         assertThat(failed.getLastReplayFailureType()).isEqualTo(IllegalStateException.class.getName());
         assertThat(settlementStatus(settlementId)).isEqualTo("COMPLETED");
 
-        jdbcTemplate.update("update settlement.settlement set settlement_amount = 90001 where id = ?", settlementId);
+        // 지급액 = 판매 합계 - 수수료(DB CHECK)를 지키며 정산서를 지급 결과 금액에 맞춘다
+        jdbcTemplate.update("update settlement.settlement set total_sales_amount = 100001, settlement_amount = 90001"
+            + " where id = ?", settlementId);
         Summary reprocessed = deadLetterService.reprocess(id, ADMIN_ID);
         assertThat(reprocessed.getState()).isEqualTo(State.REPROCESSED);
         assertThat(reprocessed.getReplayCount()).isEqualTo(2);
