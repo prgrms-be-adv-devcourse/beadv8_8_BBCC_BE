@@ -345,6 +345,9 @@
 | PATCH | `/api/v1/child/notifications/read-all` | 자녀 계정의 안 읽은 알림 모두 읽음 처리(204) | 🔒 |
 | PUT | `/api/v1/notifications/push-tokens` | 이 브라우저의 웹 푸시 FID 등록. 본문 `{ fid }`(1~1024자). 204, 다시 해도 204. 다른 회원이 쓰던 FID면 주인을 바꾼다 | 🔒 |
 | DELETE | `/api/v1/notifications/push-tokens` | 로그아웃 때 이 브라우저의 FID 해제. 본문 `{ fid }`. 204, 없거나 남의 FID여도 204(남의 것은 지우지 않는다) | 🔒 |
+| GET | `/api/v1/admin/notification-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
+| GET | `/api/v1/admin/notification-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
+| POST | `/api/v1/admin/notification-dead-letters/{id}/reprocess` | DLT 메시지 재처리(원래 토픽에 다시 넣지 않음. 탈퇴한 회원의 가입 이벤트는 반영하지 않는다) | 🛠 |
 
 알림함 알림은 만든 지 90일이 지나면 읽음 여부와 상관없이 지워진다(매일 04:00 KST).
 알림은 받는 사람을 로그인 주체(회원 · 자녀 계정)의 종류와 ID로 저장한다. `/api/v1/notifications`는 회원 토큰, `/api/v1/child/notifications`는 자녀 토큰으로만 부를 수 있고, 같은 숫자 ID라도 다른 주체의 알림은 보이지 않는다. 자녀 알림함에는 조르기 거절(`WISH_REJECTED`)이 들어오고, 주문이 이벤트를 보내기 시작하면(#1018) 조르기 결제 완료(`WISH_PAID`) · 만료(`WISH_EXPIRED`)도 들어온다. 셋 다 `linkPath`는 `/child/wishes/{wishRequestId}`이며, 자녀 계정을 지우면 그 계정의 알림도 지워진다.
