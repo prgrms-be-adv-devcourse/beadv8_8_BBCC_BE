@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -62,4 +63,24 @@ public interface JpaNotificationRepository extends JpaRepository<Notification, L
                    AND n.nextAttemptAt IS NULL))
         """)
     int deleteFinishedCreatedBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Override
+    @Query("""
+        SELECT COUNT(n) FROM Notification n
+        WHERE n.status IN (com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.PENDING,
+                           com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.SENDING)
+           OR (n.status = com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.FAILED
+               AND n.nextAttemptAt IS NOT NULL)
+        """)
+    long countUnsent();
+
+    @Override
+    @Query("""
+        SELECT MIN(n.createdAt) FROM Notification n
+        WHERE n.status IN (com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.PENDING,
+                           com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.SENDING)
+           OR (n.status = com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.FAILED
+               AND n.nextAttemptAt IS NOT NULL)
+        """)
+    Optional<LocalDateTime> findOldestUnsentCreatedAt();
 }
