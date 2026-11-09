@@ -13,6 +13,9 @@ public interface ChildProfileRepository {
 
     List<ChildProfile> findAllByMemberId(Long memberId);
 
+    // 삭제되지 않은 자녀 전체
+    List<ChildProfile> findAll();
+
     long count();
 
     default ChildProfile getByIdAndMemberId(Long id, Long memberId) {

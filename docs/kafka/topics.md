@@ -40,6 +40,7 @@
 - 받는 도메인은 11-04 코드의 `@KafkaListener` 기준입니다. 조르기 이벤트(`wish.*`)는 받는 도메인이 없어도 표에 둡니다(받는 곳이 없으면 "(아직 없음)").
 - 주문은 자기 토픽 `kidly.order.events`를 구독 그룹 `kidly.order`로 읽습니다(#999, 조르기 결제 완료). 자기 토픽 구독은 허용입니다: 받은 메시지를 다시 넣지 않고, 실패는 주문 DLT `kidly.order.events.order.dlt`로 갑니다. 결제 정리 트랜잭션과 떨어져 있어 조르기 처리가 실패해도 결제는 되돌아가지 않습니다.
 - `wish.approved` · `wish.item-added`는 #999에서 보내지 않습니다(승인 단계 · 공용 장바구니를 없앰, 받는 도메인 없음).
+- `child.changed`는 관리자 `POST /api/v1/admin/children/changed-events`로 삭제되지 않은 자녀 전체를 지금 값으로 다시 보낼 수 있습니다(#1055). 형식 · 키는 같고 `eventId` · `occurredAt`만 새로 정합니다. 받는 도메인(auth · order · recommend)은 여러 번 받아도 결과가 같습니다.
 - 새 이벤트를 만들거나 토픽, 키, 메시지 형식을 바꾸려면 팀에 먼저 묻습니다. 결정되면 이 표에 추가합니다.
 
 ---
