@@ -1,0 +1,6 @@
+# Codex 설정(~/.codex/config.toml)에 더하는 주문 운영 조회 MCP(#925 · #1041) 예시. 읽기 전용 · dev 전용 · 관리자만.
+# 호스트는 dev 주소로 바꾼다. 토큰 값은 이 파일에 쓰지 않는다: Codex가 아래 이름의 환경변수에서 읽어 Authorization: Bearer로 붙인다.
+# 관리자 access 토큰은 30분 뒤 만료되고 관리자 전체 권한이다. 셸 프로필에 두지 말고 시연 세션에서만 설정한 뒤 지운다.
+[mcp_servers.kidly-order]
+url = "https://dev.example.invalid/api/v1/admin/orders/mcp"
+bearer_token_env_var = "KIDLY_ADMIN_TOKEN"
