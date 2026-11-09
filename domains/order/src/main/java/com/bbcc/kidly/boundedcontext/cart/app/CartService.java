@@ -202,6 +202,14 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
     }
 
     @Override
+    public int removeOwnerItems(String ownerType, Long ownerId) {
+        OwnerType type = OwnerType.valueOf(ownerType);
+        List<CartItem> items = cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(type, ownerId);
+        items.forEach(cartItemRepository::delete);
+        return items.size();
+    }
+
+    @Override
     public void reserve(List<Long> cartItemIds, List<Payer> payers, String reservationId) {
         if (cartItemIds == null || cartItemIds.isEmpty() || cartItemIds.stream().anyMatch(Objects::isNull)
             || payers == null || payers.isEmpty() || reservationId == null || reservationId.isBlank()

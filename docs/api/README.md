@@ -216,6 +216,7 @@
 - 산 것 `purchases[]`는 결제로 장바구니에서 빠진 칸이다(`orderId` · `cartItemId` · `quantity` · `purchasedAt`). `quantity`는 그 칸에서 이번에 산 수량이다(칸에 남은 수량 아님)
 - 결제된 주문상품 ID `paidOrderItemIds[]`(#1000, 목록 · 상세 모두, 문자열, 먼저 산 것부터): 이 조르기로 결제된 주문상품이다. 아래 나를 위해 산 상품 내역의 `orderItemId`와 맞춰 화면이 출처를 표시한다. 결제 완료 반영과 같이 비동기라 결제 직후에는 잠시 비어 있을 수 있다
 - 사람 종류 값이 바뀌었다(계약 변경, #999): 보낸 사람 `requestedByType`(예전 `requestedBy`) · 타임라인 `cancelledBy`는 `MEMBER` · `CHILD`다(예전 `PARENT`는 `MEMBER`로 바뀌고 옛 데이터도 옮겼다)
+- 자녀 · 자녀 계정 삭제(#1001): 그 자녀 장바구니 칸이 지워지고(예약 칸 포함) 그 자녀가 보낸 진행 중 조르기는 `CANCELLED`(원인 `CHILD_DELETED` · `ACCOUNT_DELETED`)가 된다. 회원 탈퇴는 결제대기 주문을 취소하고 회원 장바구니를 비운다(결제 · 배송 중 주문은 그대로). 정리로 빠진 칸은 `cart.item-removed`를 내지 않는다
 - 상태는 `REQUESTED` · `PAID` · `REJECTED` · `CANCELLED`(원인 `cancelReason` DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM)다. #999 전 조르기는 옮기면서 진행 중이던 것을 `CANCELLED`(SYSTEM)로 바꿨다. 공용 장바구니(`/api/v1/wish` · `/api/v1/wish/items`)와 승인(`/approval`)은 없앴다
 - 자녀 계정 연결을 확인할 수 없으면(연결 없음 · 삭제 · 보호자 다름) 403이다. 주문 · 취소 등 다른 주문 API는 회원 로그인만 받는다(나를 위해 산 상품 내역만 자녀 로그인)
 

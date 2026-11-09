@@ -19,6 +19,17 @@ public interface CartCleanup {
     void clearOrdered(Long orderId, List<OrderedLine> lines);
 
     /**
+     * 이 주인의 장바구니 칸을 모두 지운다(#1001: 자녀 · 자녀 계정 삭제, 회원 탈퇴 정리). 예약된 칸도 지운다(예약 자체는 예약한 쪽이
+     * 푼다). 정리라 cart.item-removed는 내지 않는다(다른 도메인은 삭제 · 탈퇴 이벤트를 직접 받는다). 없으면 아무것도 하지 않는다.
+     *
+     * @param ownerType 주인 종류 이름 MEMBER · CHILD(장바구니 OwnerType 이름. app/port/in은 인터페이스 · record만 두는 규칙이라 enum을
+     *                  두지 않고 CartReservations.Payer처럼 이름으로 받는다. 모르는 이름이면 IllegalArgumentException)
+     * @param ownerId 회원 ID 또는 자녀 프로필 ID
+     * @return 지운 칸 수
+     */
+    int removeOwnerItems(String ownerType, Long ownerId);
+
+    /**
      * @param orderItemId 그 칸을 산 주문상품 ID. 모르면 null
      * @param cartItemId 주문하기 요청에 준 장바구니 칸 ID. 없으면 null
      * @param memberId 구매자(보호자) 회원 ID

@@ -158,6 +158,11 @@ public interface OrderRepository {
     Page<Order> findAllByMemberIdOrderByIdDesc(Long memberId, Pageable pageable);
 
     /**
+     * 그 회원의 이 상태 주문(#1001 회원 탈퇴: 결제대기 주문 취소). ID 순.
+     */
+    List<Order> findAllByMemberIdAndStatusOrderByIdAsc(Long memberId, Order.Status status);
+
+    /**
      * 회원의 주문 수. 목록을 읽을 수 없는 큰 page의 빈 페이지에 전체 건수를 채운다.
      */
     long countByMemberId(Long memberId);

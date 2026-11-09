@@ -89,7 +89,8 @@ class OrderKafkaListenerConfigTest {
         "kidly.childprofile.events, 2, kidly.childprofile.events.order.dlt",
         "kidly.payment.events, 1, kidly.payment.events.order.dlt",
         "kidly.auth.events, 2, kidly.auth.events.order.dlt",
-        "kidly.order.events, 1, kidly.order.events.order.dlt"
+        "kidly.order.events, 1, kidly.order.events.order.dlt",
+        "kidly.member.events, 2, kidly.member.events.order.dlt"
     })
     @DisplayName("DLT는 원래 토픽 이름 + .order.dlt, 파티션은 원래 번호와 상관없이 0(DLT는 파티션 1개)")
     void deadLetterPartition(String topic, int partition, String deadLetterTopic) {

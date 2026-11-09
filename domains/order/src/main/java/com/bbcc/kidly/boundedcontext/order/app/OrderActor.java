@@ -23,6 +23,7 @@ public record OrderActor(OrderStatusHistory.ActorType type, Long id, String sour
     public static final String PAYMENT_COMPLETED = "payment.completed";
     public static final String PAYMENT_FAILED = "payment.failed";
     public static final String STOCK_DEDUCTION_FAILED = "stock.deduction-failed";
+    public static final String MEMBER_WITHDRAWN = "member.withdrawn";
 
     public static OrderActor buyer(Long memberId, String source) {
         return new OrderActor(OrderStatusHistory.ActorType.BUYER, memberId, source);
