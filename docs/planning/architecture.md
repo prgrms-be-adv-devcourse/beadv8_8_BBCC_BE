@@ -29,7 +29,7 @@
 | 결제 | codes-gy | 지갑(동결 포함), 충전 · 충전 취소, 주문 결제 · 환불, 정산금 입금, 토스 웹훅. payment-service로 분리 중 |
 | 검색 | codes-gy | 상품 목록 검색(Elasticsearch), 상품 · 판매자 이벤트로 색인, 검색어 이벤트 발행. search-service로 따로 뜸 |
 | 정산 | baiees | 정산 대상, 영업일 일정산(Spring Batch), 지급 요청 · 결과 반영 (지갑 적립은 결제) |
-| 커뮤니티 | L2J92 | 리뷰(작성 자격 · 작성 · 목록 · 요약) · 찜 — review · favorite 컨텍스트. 상품 · 주문 · 회원 이벤트만 받고 보내는 이벤트는 없음 |
+| 커뮤니티 | L2J92 | 리뷰(작성 자격 · 작성 · 목록 · 요약 · 사이즈 핏 · 사진) · 찜 · 부적절 리뷰 검사 · 쓰이지 않는 사진 정리 · 운영 조회(MCP) — review · favorite 컨텍스트. 상품 · 주문 · 회원 이벤트만 받고 보내는 이벤트는 없음 |
 | 공통 | 팀 | 오류 응답, 이벤트 형식(`shared` 계약), 이벤트 발행 · Kafka 규칙, 공통 설정, 요청 로그 · 모니터링, FE 동작 설정(setting 모듈). API Gateway(apps/gateway, maruhxn) |
 
 ### 주문 모듈 구조 변경 (세미 → 최종)
@@ -52,7 +52,7 @@
 
 | 보내는 쪽 | 토픽 | 이벤트 → 받는 쪽 (구독 그룹 `kidly.{받는도메인}`) |
 |---|---|---|
-| 회원 | `kidly.member.events` | `member.registered` → 결제 · 알림 · `member.changed` → 판매자 · `member.withdrawn` → 자녀 프로필 · 결제 (추천 · 커뮤니티 예정) · `member.tokens-revoked` → Gateway |
+| 회원 | `kidly.member.events` | `member.registered` → 결제 · 알림 · `member.changed` → 판매자 · `member.withdrawn` → 자녀 프로필 · 결제 · 커뮤니티 (추천 예정) · `member.tokens-revoked` → Gateway |
 | 판매자 | `kidly.seller.events` | `seller.changed` → 회원 · 상품 · 주문 · 추천 · 검색 |
 | 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 주문 · 추천 |
 | 상품 | `kidly.product.events` | `product.changed` → 주문 · 추천 · 검색 · 커뮤니티 · `stock.deducted` · `stock.deduction-failed` → 주문 |

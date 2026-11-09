@@ -41,5 +41,8 @@
 | 아웃박스 표 (주문 · 상품 · 정산 · 자녀 프로필) | 도메인마다 보낼 이벤트를 업무와 같은 트랜잭션에 저장하고 릴레이가 Kafka로 보냄 (결제와 같은 방식) | 각 도메인 Flyway |
 | community `replica_product` | product_id(PK) · name · thumbnail_url · display_status · source_occurred_at. 리뷰 · 찜 화면용 상품 복사본 | 상품당 1행 |
 | community `review_eligibility` | order_item_id · order_id · member_id · product_id · option_id · size · confirmed_at. 리뷰 작성 자격 | order_item_id 유일 (K30) |
-| community `review` · `review_stats` | 리뷰: order_item_id · member_id · product_id · rating · content · nickname · 작성 · 수정 시각 / 집계: product_id · review_count · rating_sum | order_item_id 유일, 별점 1~5 CHECK |
-| community 찜 · 찜 집계 | member_id · product_id · 찜한 시각 / product_id · favorite_count | (member_id, product_id) 유일, 진행 중(#662) |
+| community `review` · `review_stats` | 리뷰: order_item_id · member_id · product_id · rating · content · nickname · fit · author_withdrawn_at · 검사 칸(moderation_status · moderation_reason · moderation_attempts · moderated_at · moderated_by_admin_id · content_version) · 작성 · 수정 시각 / 집계: product_id · review_count · rating_sum · fit_small · fit_true_to_size · fit_large | order_item_id 유일, 별점 1~5 CHECK, 검사 상태 5값 CHECK(DB 기본값 없음) |
+| community `review_image` | review_id · position · image_url · created_at. 리뷰 사진(순서대로) | (review_id, position) 유일, 리뷰를 지우면 함께 지움(ON DELETE CASCADE) |
+| community `review_image_cleanup` | object_key · reason(REPLACED · REVIEW_DELETED) · attempts · next_attempt_at · last_failure_type · created_at. 쓰이지 않는 사진 정리 대기 | object_key 유일 |
+| community `dead_letter` | DLT 토픽 · 파티션 · 오프셋 · 원래 토픽 · 키 · eventType · eventId · 본문 · 실패 종류 · 상태(OPEN · REPROCESSED) · 재처리 횟수. 받지 못한 이벤트 보관(#741) | (dlt_topic, dlt_partition, dlt_offset) 유일 |
+| community 찜 · 찜 집계 | member_id · product_id · 찜한 시각 / product_id · favorite_count | (member_id, product_id) 유일 |

@@ -68,3 +68,6 @@
 | 작성 자격 | ReviewEligibility | 리뷰를 쓸 수 있는 주문상품. 구매확정 이벤트로 만든다 |
 | 찜 | favorite | 회원이 관심 상품을 표시해 둔 것. 회원 × 상품마다 1개 (조르기와 다름) |
 | 표시 상태 | displayStatus | ON_SALE(판매 중) · SOLD_OUT(품절) · SALE_ENDED(판매 종료). 커뮤니티 화면용 |
+| 사이즈 핏 | fit | SMALL(작다) · TRUE_TO_SIZE(맞다) · LARGE(크다). 리뷰에 남기는 크기 의견(선택, 구매 사이즈가 있는 주문상품만) |
+| 검사 상태 | moderationStatus | PENDING(검사 대기 · 공개) · PASSED(통과 · 공개) · HIDDEN(검사에서 숨김, 관리자 판단 대기) · CONFIRMED_HIDDEN(관리자 숨김 확정) · RESTORED(관리자 다시 공개) |
+| 노출 | visibility | 리뷰 목록 항목의 PUBLIC(공개) · UNDER_REVIEW(숨겨짐: 검사 숨김 · 숨김 확정, 작성자의 내 리뷰에만 보임) |
