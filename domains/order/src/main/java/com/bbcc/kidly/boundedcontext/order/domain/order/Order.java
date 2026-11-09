@@ -444,12 +444,22 @@ public class Order extends OrderTimeEntity {
         return cancelled;
     }
 
-    public void recordDelivered(Long sellerId, LocalDateTime at) {
+    /**
+     * 그 판매자 몫 주문상품에 배송 완료 시각을 남긴다(이미 있으면 처음 시각 유지, 취소된 주문상품은 그대로).
+     *
+     * @return 그 판매자 몫 중 취소되지 않은 주문상품(배송된 주문상품, #1061)
+     */
+    public List<OrderItem> recordDelivered(Long sellerId, LocalDateTime at) {
+        List<OrderItem> delivered = new ArrayList<>();
         for (OrderItem item : items) {
             if (Objects.equals(item.getProduct().sellerId(), sellerId)) {
                 item.markDelivered(at);
+                if (item.getStatus() != OrderItem.Status.CANCELLED) {
+                    delivered.add(item);
+                }
             }
         }
+        return delivered;
     }
 
     /**
@@ -490,7 +500,8 @@ public class Order extends OrderTimeEntity {
         if (item.getStatus() == OrderItem.Status.CONFIRMED) {
             return TransitionResult.ALREADY_DONE;
         }
-        if (item.getDeliveredAt() == null || now.isBefore(item.getDeliveredAt().plus(policy.autoConfirmAfter()))) {
+        LocalDateTime autoConfirmAt = item.autoConfirmAt(policy.autoConfirmAfter());
+        if (autoConfirmAt == null || now.isBefore(autoConfirmAt)) {
             return TransitionResult.NOT_APPLICABLE;
         }
         return item.confirm(OrderItem.ConfirmType.AUTO, now)

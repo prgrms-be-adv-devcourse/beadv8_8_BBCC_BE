@@ -20,7 +20,7 @@
 | | `order-item.cancelled` | 주문 ID | | notification, payment, product |
 | | `order-item.purchase-confirmed`(data에 확정 방식 `confirmType` DIRECT · AUTO, #901) | 주문 ID | | community, notification, recommend, settlement |
 | | `delivery.shipped` | 주문 ID | | notification |
-| | `delivery.delivered` | 주문 ID | | notification |
+| | `delivery.delivered`(#1061 추가 칸 `autoConfirmAt`: 자동 구매확정 예정 시각 = 주문상품 배송 완료 시각 + 자동 구매확정 기간(주문의 자동 확정과 같은 기준), `items`: 그 배송(판매자 몫)의 주문상품 `orderItemId` · `productId` · `quantity`(취소 제외). 없는 예전 메시지는 null) | 주문 ID | | notification |
 | | `cart.item-added`(#998 추가 칸 `ownerType` · `ownerId`: 장바구니 주인 MEMBER · CHILD, 키 = 결제 회원(보호자) ID) | 회원 ID | | recommend |
 | | `cart.item-removed`(사용자가 뺄 때만, #709. #998 추가 칸 `ownerType` · `ownerId`) | 회원 ID | | recommend |
 | | `cart.item-purchased`(결제완료로 산 칸 정리, #998: `cartItemId` · `ownerType` · `ownerId` · `memberId`(줄의 결제 회원, 실제 결제자와 다를 수 있음) · `optionId` · `childId` · `quantity`(이번에 산 수량. 칸에서 그만큼 빠지고 0이 되면 칸이 지워진다) · `orderId` · `orderItemId` · `reservationId`(예약 칸이었으면)) | 회원 ID | | order(조르기 결제 완료, 자기 토픽 #999) |

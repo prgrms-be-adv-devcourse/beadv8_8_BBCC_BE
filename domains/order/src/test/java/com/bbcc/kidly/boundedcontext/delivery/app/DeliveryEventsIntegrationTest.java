@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
@@ -61,6 +62,9 @@ class DeliveryEventsIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private Order.Policy orderPolicy;
+
     @BeforeEach
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
@@ -90,7 +94,8 @@ class DeliveryEventsIntegrationTest {
     }
 
     @Test
-    @DisplayName("판매자 수동 완료면 delivery.delivered 한 건(완료 시각 = 배송 완료 시각), 다시 완료해도 · 뒤에 택배 조회 완료가 와도 더 없다")
+    @DisplayName("판매자 수동 완료면 delivery.delivered 한 건(완료 시각 = 배송 완료 시각, 주문상품 · 자동 구매확정 예정 시각 = 주문상품 "
+        + "배송 완료 시각 + 기간), 다시 완료해도 · 뒤에 택배 조회 완료가 와도 더 없다")
     void deliveredByHandOnce() {
         Delivery delivery = shippedDelivery("DUMMY");
 
@@ -101,13 +106,22 @@ class DeliveryEventsIntegrationTest {
         Delivery delivered = deliveryRepository.findById(delivery.getId()).orElseThrow();
         assertThat(recorder.events(DeliveryDeliveredEvent.class)).singleElement().satisfies(event -> {
             // 시각은 DB 값(드라이버가 마이크로초로 반올림)이 메모리 값과 1µs 안인지 본다
+            Map<String, Object> item = orderItem(delivery.getOrderId());
             assertThat(event.data()).isEqualTo(new DeliveryDeliveredEvent.Data(delivery.getId(),
                 delivery.getOrderId(), BUYER_ID, SELLER_ID, "DUMMY", "테스트택배", TRACKING_NUMBER,
-                event.data().deliveredAt()));
+                event.data().deliveredAt(), event.data().autoConfirmAt(), List.of(new DeliveryDeliveredEvent.Item(
+                    (Long) item.get("id"), (Long) item.get("product_id"), 1))));
             assertThat(delivered.getDeliveredAt()).isCloseTo(event.data().deliveredAt(), within(1, ChronoUnit.MICROS));
+            // 주문상품 배송 완료 시각은 배송 완료 시각과 같은 값이고, 예정 시각은 그 값 + 자동 구매확정 기간(자동 확정과 같은 기준)
+            LocalDateTime itemDeliveredAt = ((java.sql.Timestamp) item.get("delivered_at")).toLocalDateTime();
+            assertThat(itemDeliveredAt).isEqualTo(delivered.getDeliveredAt());
+            assertThat(event.data().autoConfirmAt()).isCloseTo(itemDeliveredAt.plus(orderPolicy.autoConfirmAfter()),
+                within(1, ChronoUnit.MICROS));
         });
-        assertThat(rows("delivery.delivered")).singleElement()
-            .satisfies(row -> assertThat(row).containsEntry("message_key", String.valueOf(delivery.getOrderId())));
+        assertThat(rows("delivery.delivered")).singleElement().satisfies(row -> {
+            assertThat(row).containsEntry("message_key", String.valueOf(delivery.getOrderId()));
+            assertThat((String) row.get("payload")).contains("\"autoConfirmAt\"", "\"items\"", "\"orderItemId\"");
+        });
     }
 
     @Test
@@ -126,6 +140,10 @@ class DeliveryEventsIntegrationTest {
                 assertThat(event.data().carrier()).isEqualTo("HANJIN");
                 assertThat(event.data().carrierName()).isEqualTo("한진택배");
                 assertThat(event.data().memberId()).isEqualTo(BUYER_ID);
+                assertThat(event.data().autoConfirmAt()).isEqualTo(trackedAt.plus(orderPolicy.autoConfirmAfter()));
+                assertThat(event.data().items()).singleElement()
+                    .satisfies(item -> assertThat(item.orderItemId())
+                        .isEqualTo(orderItem(delivery.getOrderId()).get("id")));
             });
         assertThat(rows("delivery.delivered")).hasSize(1);
     }
@@ -193,6 +211,11 @@ class DeliveryEventsIntegrationTest {
 
     private Delivery deliveryOf(OrderDetail order) {
         return deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId()).getFirst();
+    }
+
+    private Map<String, Object> orderItem(Long orderId) {
+        return jdbcTemplate.queryForMap("select id, product_id, delivered_at from orders.order_item where order_id = ?",
+            orderId);
     }
 
     private List<Map<String, Object>> rows(String eventType) {

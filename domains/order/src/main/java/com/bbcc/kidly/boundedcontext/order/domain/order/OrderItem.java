@@ -18,6 +18,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -180,6 +181,14 @@ public class OrderItem extends OrderTimeEntity {
 
     void markUnavailable(String reason) {
         this.unavailableReason = reason;
+    }
+
+    /**
+     * 자동 구매확정 예정 시각 = 배송 완료 시각 + 자동 구매확정 기간(#1061). 이 시각부터(포함) 자동 확정 대상이다
+     * ({@link Order#autoConfirmItem}과 같은 기준). 배송 전이면 null.
+     */
+    public LocalDateTime autoConfirmAt(Duration autoConfirmAfter) {
+        return deliveredAt == null ? null : deliveredAt.plus(autoConfirmAfter);
     }
 
     void markDelivered(LocalDateTime at) {

@@ -35,12 +35,25 @@ class DeliveryEventsTest {
     }
 
     @Test
-    @DisplayName("칸: 배송 · 주문 · 구매자 · 판매자 · 택배사 코드 · 택배사 이름 · 운송장 번호 · 시각. 배송지 · 수령인 칸은 없다")
+    @DisplayName("칸: 배송 · 주문 · 구매자 · 판매자 · 택배사 코드 · 택배사 이름 · 운송장 번호 · 시각"
+        + "(배송 완료는 + 자동 구매확정 예정 시각 · 주문상품, #1061). 배송지 · 수령인 칸은 없다")
     void fields() {
         assertThat(names(DeliveryShippedEvent.Data.class)).containsExactly("deliveryId", "orderId", "memberId",
             "sellerId", "carrier", "carrierName", "trackingNumber", "shippedAt");
         assertThat(names(DeliveryDeliveredEvent.Data.class)).containsExactly("deliveryId", "orderId", "memberId",
-            "sellerId", "carrier", "carrierName", "trackingNumber", "deliveredAt");
+            "sellerId", "carrier", "carrierName", "trackingNumber", "deliveredAt", "autoConfirmAt", "items");
+        assertThat(names(DeliveryDeliveredEvent.Item.class)).containsExactly("orderItemId", "productId", "quantity");
+    }
+
+    @Test
+    @DisplayName("배송 완료의 예전 모양(8칸) 생성자는 자동 구매확정 예정 시각 · 주문상품을 null로 둔다(#1061)")
+    void deliveredLegacyShape() {
+        DeliveryDeliveredEvent.Data legacy = new DeliveryDeliveredEvent.Data(30L, 1024L, 1L, 2L, "CJ", "CJ대한통운",
+            "1234567890", AT);
+
+        assertThat(legacy.autoConfirmAt()).isNull();
+        assertThat(legacy.items()).isNull();
+        assertThat(legacy.deliveredAt()).isEqualTo(AT);
     }
 
     private static List<String> names(Class<?> record) {
