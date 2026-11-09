@@ -19,7 +19,7 @@ import contracts as c
 import mcp_server as mcp
 import receive
 import snapshot
-from storage import Store, LokiPublisher, deliver_accepted
+from storage import Store, LokiPublisher, deliver_accepted, render
 from errors import NotesError
 
 
@@ -43,6 +43,21 @@ def response(status=204, raw=b'{}'):
 
 
 class NotesPublishingTest(unittest.TestCase):
+    def test_trial_cpu_note_puts_check_first_and_shows_authoritative_scope(self):
+        trial_context = replace(context(), evidence=(
+            c.Evidence('f2', 'host_cpu_used', 91.28959593547114, 'percent', 'global'),
+        ))
+        trial_report = replace(report(), findings=(
+            c.Finding('CPU 사용률이 91%로 높음', '워크로드가 CPU를 사용 중일 수 있음',
+                      ('개별 호스트의 CPU 사용량을 Grafana에서 확인',),
+                      'CPU 사용량이 높은 호스트에서 서비스 로그를 검토', ('f2',)),
+        ))
+        publication = c.Publication(trial_context, trial_report, 'server-worker', 'test', 2002, False, 'test')
+        note = render(publication)['report']
+        self.assertIn('근거 f2: 수집된 호스트 중 최대 CPU 사용률 (5분 평균) 91.3%', note)
+        self.assertLess(note.index('1. 개별 호스트'), note.index('관측: CPU'))
+        self.assertIn('대응 제안: CPU 사용량이 높은 호스트', note)
+
     def test_issue_infer_publish_and_receipt_after_deadline(self):
         with tempfile.TemporaryDirectory() as temp:
             metrics = Path(temp)/'metrics.prom'
