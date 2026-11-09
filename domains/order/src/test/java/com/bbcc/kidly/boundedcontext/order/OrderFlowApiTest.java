@@ -7,6 +7,7 @@ import static com.bbcc.kidly.boundedcontext.order.in.web.OrderController.ORDERS_
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
@@ -33,6 +34,7 @@ import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -387,7 +389,7 @@ class OrderFlowApiTest {
      */
     private OrderScheduler smallBatchScheduler() {
         return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate,
-            jobRunner);
+            jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
     }
 
     @Test

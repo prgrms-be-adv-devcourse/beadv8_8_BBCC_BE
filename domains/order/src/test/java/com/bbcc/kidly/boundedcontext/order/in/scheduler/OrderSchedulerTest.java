@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -13,11 +15,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,11 +82,48 @@ class OrderSchedulerTest {
         verifyNoInteractions(orderService);
     }
 
+    @Test
+    @DisplayName("마지막 성공 시각(#1067): 끝까지 돌면 갱신, 기동 뒤 성공 전 · 다른 서버가 돎 · 실행 조건으로 건너뜀 · 예외면 NaN 그대로")
+    void lastSuccessOnlyOnSuccess() {
+        when(orderService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenReturn(List.of());
+        MeterRegistry registry = new SimpleMeterRegistry();
+        OrderScheduler scheduler = scheduler(100, 1000, registry);
+        assertThat(lastSuccess(registry, "auto_confirm")).isNaN();
+
+        scheduler.autoConfirm();
+        when(paymentExpiryGate.allowsRun()).thenReturn(false);
+        scheduler.expireOverduePayments();
+
+        assertThat(lastSuccess(registry, "auto_confirm")).isCloseTo(System.currentTimeMillis() / 1000.0, within(5.0));
+        assertThat(lastSuccess(registry, "payment_expiry")).as("실행 조건으로 건너뜀").isNaN();
+
+        MeterRegistry failing = new SimpleMeterRegistry();
+        when(orderService.findOverduePaymentOrderIds(any(), anyLong(), anyInt()))
+            .thenThrow(new IllegalStateException("DB 끊김"));
+        when(paymentExpiryGate.allowsRun()).thenReturn(true);
+        OrderScheduler failingScheduler = scheduler(100, 1000, failing);
+        assertThatThrownBy(failingScheduler::expireOverduePayments).isInstanceOf(IllegalStateException.class);
+        assertThat(lastSuccess(failing, "payment_expiry")).as("예외").isNaN();
+
+        jobRunner = ImmediateJobRunner.declining();
+        MeterRegistry declined = new SimpleMeterRegistry();
+        scheduler(100, 1000, declined).autoConfirm();
+        assertThat(lastSuccess(declined, "auto_confirm")).as("다른 서버가 돎").isNaN();
+    }
+
+    private static double lastSuccess(MeterRegistry registry, String job) {
+        return registry.get("kidly.order.scheduler.last.success.seconds").tag("job", job).gauge().value();
+    }
+
     // 결제 마감 만료는 실행 조건(#561)이 허락할 때만 돈다. 따로 정하지 않으면 허락한다
     private OrderScheduler scheduler(int batchSize, int maxPerRun) {
+        return scheduler(batchSize, maxPerRun, new SimpleMeterRegistry());
+    }
+
+    private OrderScheduler scheduler(int batchSize, int maxPerRun, MeterRegistry registry) {
         lenient().when(paymentExpiryGate.allowsRun()).thenReturn(true);
         return new OrderScheduler(orderService, new OrderSchedulerProperties(batchSize, maxPerRun), INTERVALS,
-            paymentExpiryGate, jobRunner);
+            paymentExpiryGate, jobRunner, new OrderOperationMetrics(registry));
     }
 
     /**

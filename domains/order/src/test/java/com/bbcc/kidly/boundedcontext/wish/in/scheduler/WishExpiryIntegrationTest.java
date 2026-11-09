@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.assertj.core.api.Assertions.within;
 
 import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
@@ -32,6 +33,7 @@ import com.bbcc.kidly.boundedcontext.wish.out.actor.ChildWishActor;
 import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -88,6 +90,9 @@ class WishExpiryIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private MeterRegistry registry;
+
     @BeforeEach
     void setUp() {
         for (long optionId = 1; optionId <= 12; optionId++) {
@@ -95,6 +100,28 @@ class WishExpiryIntegrationTest {
                 ReplicaFixture.product(optionId, 25_000L, "ON_SALE", false, OCCURRED_AT)));
         }
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
+    }
+
+    @Test
+    @DisplayName("주기 작업이 끝까지 돌면 마지막 성공 시각(#1067, job=wish_expiry)을 갱신한다")
+    void marksLastSuccess() throws InterruptedException {
+        // 공유 컨텍스트라 앞선 테스트가 남긴 값이 있을 수 있다: 호출 전 값을 기록하고, 값이 초 단위라 다음 초가 된 뒤 부른다
+        double before = wishExpiryLastSuccess();
+        while (!Double.isNaN(before) && System.currentTimeMillis() / 1000 <= (long) before) {
+            Thread.sleep(50);
+        }
+
+        scheduler.expireOverdue();
+
+        double after = wishExpiryLastSuccess();
+        assertThat(after).isNotNaN().isCloseTo(System.currentTimeMillis() / 1000.0, within(5.0));
+        if (!Double.isNaN(before)) {
+            assertThat(after).isGreaterThan(before);
+        }
+    }
+
+    private double wishExpiryLastSuccess() {
+        return registry.get("kidly.order.scheduler.last.success.seconds").tag("job", "wish_expiry").gauge().value();
     }
 
     @Test

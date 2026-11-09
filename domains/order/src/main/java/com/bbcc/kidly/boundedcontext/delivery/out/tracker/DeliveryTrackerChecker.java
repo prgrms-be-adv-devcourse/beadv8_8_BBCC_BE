@@ -5,10 +5,15 @@ import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker.Tra
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.delivery.out.config.DeliveryTrackerCircuitBreakerProperties;
 import com.bbcc.kidly.boundedcontext.delivery.out.config.DeliveryTrackerProperties;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.EnumMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.locks.LockSupport;
 import org.springframework.web.client.RestClient;
@@ -20,6 +25,10 @@ import org.springframework.web.client.RestClient;
  * 다시 조회한다.
  */
 public class DeliveryTrackerChecker implements DeliveryStatusChecker {
+
+    static final String CIRCUIT_STATE = "kidly.order.delivery.tracker.circuit.state";
+    private static final List<CircuitBreaker.State> CIRCUIT_STATES = List.of(CircuitBreaker.State.CLOSED,
+        CircuitBreaker.State.OPEN, CircuitBreaker.State.HALF_OPEN);
 
     // 10/15 실제 API carriers 목록으로 확인한 ID
     static final Map<Delivery.Carrier, String> CARRIER_IDS = new EnumMap<>(Map.of(
@@ -49,7 +58,7 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
     /**
      * 빈 설정(out/config의 DeliveryTrackerConfig, #651)이 쓴다. 클라이언트는 받은 빌더를 그대로 써서 테스트에서 가짜 서버를 붙일 수 있다.
      */
-    public static DeliveryStatusChecker create(DeliveryTrackerProperties properties,
+    public static DeliveryTrackerChecker create(DeliveryTrackerProperties properties,
         DeliveryTrackerCircuitBreakerProperties circuitBreaker, RestClient.Builder builder, ZoneId zone, Clock clock) {
         return new DeliveryTrackerChecker(new DeliveryTrackerClient(properties, builder),
             TrackerCircuitBreaker.create(circuitBreaker, clock), properties.minCallInterval(), zone);
@@ -87,5 +96,18 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
             LockSupport.parkNanos(waitNanos);
         }
         lastCallNanos = System.nanoTime();
+    }
+
+    /**
+     * 서킷 상태 게이지(#1067)를 등록한다: kidly.order.delivery.tracker.circuit.state{state=closed|open|half_open}, 지금 상태만 1이고
+     * 나머지는 0. 열림 뒤 반열림은 다음 호출을 허락받을 때 바뀐다(그 전까지 open).
+     */
+    public void bindCircuitState(MeterRegistry registry) {
+        for (CircuitBreaker.State state : CIRCUIT_STATES) {
+            Gauge.builder(CIRCUIT_STATE, circuitBreaker, breaker -> breaker.state() == state ? 1 : 0)
+                .description("택배 조회 서킷브레이커 상태. 지금 상태(closed · open · half_open)만 1")
+                .tag("state", state.name().toLowerCase(Locale.ROOT))
+                .register(registry);
+        }
     }
 }

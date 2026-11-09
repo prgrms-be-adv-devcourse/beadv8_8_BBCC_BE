@@ -1,14 +1,18 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.StuckOrderDiagnosisService;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -30,8 +34,27 @@ class StuckOrderDiagnosisSchedulerTest {
         job.run();
         return true;
     };
+    private final MeterRegistry registry = new SimpleMeterRegistry();
     private final StuckOrderDiagnosisScheduler scheduler =
-        new StuckOrderDiagnosisScheduler(service, jobRunner, Duration.ofMinutes(5));
+        new StuckOrderDiagnosisScheduler(service, jobRunner, new OrderOperationMetrics(registry),
+            Duration.ofMinutes(5));
+
+    @Test
+    @DisplayName("마지막 성공 시각(#1067): 진단 실행이 끝나면 갱신, 예외면 갱신 안 함")
+    void lastSuccess() {
+        when(service.diagnoseNew(any())).thenThrow(new IllegalStateException("DB 끊김"));
+        scheduler.runOnWorker();
+        assertThat(lastSuccessValue()).isNaN();
+
+        org.mockito.Mockito.reset(service);
+        when(service.diagnoseNew(any())).thenReturn(new StuckOrderDiagnosisService.Run(0, 0, 0, false, false));
+        scheduler.runOnWorker();
+        assertThat(lastSuccessValue()).isCloseTo(System.currentTimeMillis() / 1000.0, within(5.0));
+    }
+
+    private double lastSuccessValue() {
+        return registry.get("kidly.order.scheduler.last.success.seconds").tag("job", "stuck_diagnosis").gauge().value();
+    }
 
     @AfterEach
     void tearDown() throws InterruptedException {

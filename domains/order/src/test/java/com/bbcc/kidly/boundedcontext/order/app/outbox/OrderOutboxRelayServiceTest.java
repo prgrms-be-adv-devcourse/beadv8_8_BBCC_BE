@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
@@ -17,6 +18,8 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository.Outbox
 import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxStore;
 import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -51,9 +54,13 @@ class OrderOutboxRelayServiceTest {
 
     private OrderOutboxRelayService relayService;
 
+    private MeterRegistry registry;
+
     @BeforeEach
     void setUp() {
-        relayService = new OrderOutboxRelayService(new OrderOutboxStore(jpaRepository), sender, PROPERTIES);
+        registry = new SimpleMeterRegistry();
+        relayService = new OrderOutboxRelayService(new OrderOutboxStore(jpaRepository), sender, PROPERTIES,
+            new OrderOperationMetrics(registry));
     }
 
     @Nested
@@ -103,6 +110,26 @@ class OrderOutboxRelayServiceTest {
                 .isEqualTo("IllegalStateException: TimeoutException: Topic not present in metadata after 5000 ms.");
             assertThat(after.getSentAt()).isNull();
             assertThat(after.getAttemptCount()).isZero();
+            // 전송 실패 카운터(#1067): 이벤트 타입 · 결과(retry)만 태그로
+            assertThat(registry.get("kidly.order.outbox.send.failures").tags("event_type", "order.created",
+                "outcome", "retry").counter().count()).isEqualTo(1.0);
+            assertThat(registry.find("kidly.order.outbox.send.failures").tag("outcome", "quarantined").counter())
+                .isNull();
+        }
+
+        @Test
+        @DisplayName("영구 실패로 격리하면 전송 실패 카운터의 outcome이 quarantined다(#1067)")
+        void countsQuarantinedFailure() {
+            OrderOutboxMessage bad = message(2L);
+            givenUnsent(bad);
+            IllegalStateException tooLarge = new IllegalStateException("RecordTooLargeException");
+            doThrow(tooLarge).when(sender).send(sameMessage(bad));
+            when(sender.isPermanentFailure(tooLarge)).thenReturn(true);
+
+            relayService.relay();
+
+            assertThat(registry.get("kidly.order.outbox.send.failures").tags("event_type", "order.created",
+                "outcome", "quarantined").counter().count()).isEqualTo(1.0);
         }
 
         @Test

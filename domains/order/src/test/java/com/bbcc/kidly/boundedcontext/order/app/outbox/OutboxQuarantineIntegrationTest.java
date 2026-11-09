@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
@@ -14,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.order.app.stuck.StuckOrderService;
 import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -200,7 +202,8 @@ class OutboxQuarantineIntegrationTest {
 
     private OutboxRelayResult relay(OrderEventSender sender) {
         var properties = new OrderOutboxProperties(Duration.ofSeconds(1), 100, Duration.ofDays(7));
-        return transactions.execute(s -> new OrderOutboxRelayService(repository, sender, properties).relay());
+        return transactions.execute(s -> new OrderOutboxRelayService(repository, sender, properties,
+            new OrderOperationMetrics(new SimpleMeterRegistry())).relay());
     }
 
     private Long save(String key) {

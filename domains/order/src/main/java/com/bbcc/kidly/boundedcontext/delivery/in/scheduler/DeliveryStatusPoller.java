@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.delivery.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryJobMetrics;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryTrackingService;
 import com.bbcc.kidly.boundedcontext.delivery.app.config.DeliveryTrackingProperties;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.TrackingTarget;
@@ -28,6 +29,7 @@ public class DeliveryStatusPoller {
     // 주기 값의 바인딩 검증(1초 이상)이 @Scheduled 등록보다 먼저 돌게 하려고 주입한다(주문 OrderScheduler와 같음)
     private final DeliveryTrackingProperties properties;
     private final DeliveryJobRunner jobRunner;
+    private final DeliveryJobMetrics metrics;
     private final RotatingCursor cursor = new RotatingCursor();
 
     @Scheduled(fixedDelayString = "${kidly.order.delivery-tracking.interval}")
@@ -36,7 +38,10 @@ public class DeliveryStatusPoller {
             log.debug("스케줄러 건너뜀: job={} reason=disabled", JOB);
             return;
         }
-        jobRunner.run(JOB, this::trackTargets);
+        // 마지막 성공 시각(#1067): 이 서버가 끝까지 돌았을 때만. 예외로 끝나면 갱신하지 않는다
+        if (jobRunner.run(JOB, this::trackTargets)) {
+            metrics.markTrackingSuccess();
+        }
     }
 
     private void trackTargets() {

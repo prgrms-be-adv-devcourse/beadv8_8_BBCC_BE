@@ -7,12 +7,14 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderOutboxRepository.OutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxMessage;
 import com.bbcc.kidly.boundedcontext.order.out.outbox.OrderOutboxStore;
 import com.bbcc.kidly.boundedcontext.order.out.persistence.JpaOrderOutboxRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,7 +54,8 @@ class OrderOutboxRelayLogContextTest {
 
     @BeforeEach
     void setUp() {
-        relayService = new OrderOutboxRelayService(new OrderOutboxStore(jpaRepository), sender, PROPERTIES);
+        relayService = new OrderOutboxRelayService(new OrderOutboxStore(jpaRepository), sender, PROPERTIES,
+            new OrderOperationMetrics(new SimpleMeterRegistry()));
     }
 
     @AfterEach

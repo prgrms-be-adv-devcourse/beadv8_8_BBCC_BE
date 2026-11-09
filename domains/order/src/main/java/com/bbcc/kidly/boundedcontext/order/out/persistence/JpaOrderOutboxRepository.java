@@ -51,6 +51,13 @@ public interface JpaOrderOutboxRepository extends Repository<OrderOutboxMessage,
 
     long countByQuarantinedAtIsNotNull();
 
+    // 미전송 부분 인덱스(idx_order_outbox_unsent, sent_at is null)로 읽는다(#1067)
+    long countBySentAtIsNullAndQuarantinedAtIsNull();
+
+    @Query("select m.createdAt from OrderOutboxMessage m where m.sentAt is null and m.quarantinedAt is null "
+        + "order by m.id asc")
+    List<LocalDateTime> findUnsentCreatedAt(Limit limit);
+
     @Query(STATUS + "where m.id = :id")
     Optional<OutboxStatus> findStatusById(Long id);
 

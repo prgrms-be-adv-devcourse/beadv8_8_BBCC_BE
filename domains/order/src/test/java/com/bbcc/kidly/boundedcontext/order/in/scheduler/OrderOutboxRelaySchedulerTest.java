@@ -2,15 +2,20 @@ package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,10 +50,40 @@ class OrderOutboxRelaySchedulerTest {
         verify(relayService, times(1)).relay();
     }
 
+    private MeterRegistry registry;
+
     @BeforeEach
     void setUp() {
+        registry = new SimpleMeterRegistry();
         scheduler = new OrderOutboxRelayScheduler(relayService,
-            new OrderOutboxProperties(Duration.ofSeconds(1), 100, Duration.ofDays(7)), jobRunner);
+            new OrderOutboxProperties(Duration.ofSeconds(1), 100, Duration.ofDays(7)), jobRunner,
+            new OrderOperationMetrics(registry));
+    }
+
+    @Test
+    @DisplayName("마지막 성공 시각(#1067): 보냈거나 · 보낼 것이 없거나 · 격리하고 계속했으면 갱신, 전송 실패로 멈춤(STOPPED) · 예외면 갱신 안 함")
+    void lastSuccess() {
+        when(relayService.relay()).thenReturn(new OutboxRelayResult(OutboxRelayResult.Outcome.STOPPED, 3, 0));
+        scheduler.relay();
+        assertThat(lastSuccessValue()).as("STOPPED").isNaN();
+
+        when(relayService.relay()).thenThrow(new IllegalStateException("DB 끊김"));
+        scheduler.relay();
+        assertThat(lastSuccessValue()).as("예외").isNaN();
+
+        for (OutboxRelayResult.Outcome outcome : List.of(OutboxRelayResult.Outcome.COMPLETED,
+            OutboxRelayResult.Outcome.QUARANTINED)) {
+            setUp();
+            org.mockito.Mockito.reset(relayService);
+            when(relayService.relay()).thenReturn(new OutboxRelayResult(outcome, 1, 0));
+            scheduler.relay();
+            assertThat(lastSuccessValue()).as(outcome.name()).isCloseTo(System.currentTimeMillis() / 1000.0,
+                within(5.0));
+        }
+    }
+
+    private double lastSuccessValue() {
+        return registry.get("kidly.order.scheduler.last.success.seconds").tag("job", "outbox_relay").gauge().value();
     }
 
     @Test

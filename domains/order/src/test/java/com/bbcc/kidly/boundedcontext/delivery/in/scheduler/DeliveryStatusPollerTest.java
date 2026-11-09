@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.delivery.in.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -9,10 +11,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryJobMetrics;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryTrackingService;
 import com.bbcc.kidly.boundedcontext.delivery.app.config.DeliveryTrackingProperties;
 import com.bbcc.kidly.boundedcontext.delivery.app.dto.TrackingTarget;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryJobRunner;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,9 +42,40 @@ class DeliveryStatusPollerTest {
         return true;
     };
 
+    private final MeterRegistry registry = new SimpleMeterRegistry();
+    // 한 레지스트리에 같은 이름 · 태그 게이지는 처음 것만 남으므로 지표 객체 하나를 모든 poller가 같이 쓴다
+    private final DeliveryJobMetrics metrics = new DeliveryJobMetrics(registry);
+
     private DeliveryStatusPoller poller(int batchSize, int maxPerRun, DeliveryJobRunner jobRunner) {
         return new DeliveryStatusPoller(trackingService,
-            new DeliveryTrackingProperties(Duration.ofMinutes(10), batchSize, maxPerRun), jobRunner);
+            new DeliveryTrackingProperties(Duration.ofMinutes(10), batchSize, maxPerRun), jobRunner, metrics);
+    }
+
+    @Test
+    @DisplayName("마지막 성공 시각(#1067, job=delivery_tracking): 끝까지 돌면 갱신, 비활성 · 다른 서버가 돎 · 예외면 갱신 안 함")
+    void lastSuccess() {
+        given(trackingService.isEnabled()).willReturn(false);
+        poller(2, 10, runsNow).trackDeliveries();
+        assertThat(lastSuccessValue()).as("비활성").isNaN();
+
+        given(trackingService.isEnabled()).willReturn(true);
+        poller(2, 10, (jobName, job) -> false).trackDeliveries();
+        assertThat(lastSuccessValue()).as("다른 서버가 돎").isNaN();
+
+        given(trackingService.findTargets(anyLong(), anyInt())).willThrow(new IllegalStateException("DB 끊김"));
+        assertThatThrownBy(() -> poller(2, 10, runsNow).trackDeliveries()).isInstanceOf(IllegalStateException.class);
+        assertThat(lastSuccessValue()).as("예외").isNaN();
+
+        org.mockito.Mockito.reset(trackingService);
+        given(trackingService.isEnabled()).willReturn(true);
+        given(trackingService.findTargets(anyLong(), anyInt())).willReturn(List.of());
+        poller(2, 10, runsNow).trackDeliveries();
+        assertThat(lastSuccessValue()).isCloseTo(System.currentTimeMillis() / 1000.0, within(5.0));
+    }
+
+    private double lastSuccessValue() {
+        return registry.get("kidly.order.scheduler.last.success.seconds").tag("job", "delivery_tracking").gauge()
+            .value();
     }
 
     private static TrackingTarget target(long id) {

@@ -9,11 +9,13 @@ import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
 import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -116,6 +118,6 @@ class OrderSchedulerLogContextTest {
 
     private OrderScheduler scheduler() {
         return new OrderScheduler(orderService, new OrderSchedulerProperties(100, 1000), INTERVALS,
-            paymentExpiryGate, new ImmediateJobRunner());
+            paymentExpiryGate, new ImmediateJobRunner(), new OrderOperationMetrics(new SimpleMeterRegistry()));
     }
 }

@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.StuckOrderDiagnosisService;
 import jakarta.annotation.PreDestroy;
@@ -30,16 +31,18 @@ public class StuckOrderDiagnosisScheduler {
 
     private final StuckOrderDiagnosisService diagnosisService;
     private final SingleServerJobRunner jobRunner;
+    private final OrderOperationMetrics metrics;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(
         Thread.ofPlatform().name("order-stuck-diagnosis").daemon(true).factory());
     private final AtomicBoolean running = new AtomicBoolean();
 
     public StuckOrderDiagnosisScheduler(StuckOrderDiagnosisService diagnosisService,
-        SingleServerJobRunner jobRunner,
+        SingleServerJobRunner jobRunner, OrderOperationMetrics metrics,
         // 주기 값이 Duration으로 읽히지 않으면 @Scheduled 등록 전에 키 이름이 나오는 오류로 실패하게 주입한다
         @Value("${kidly.order.ai.interval}") Duration interval) {
         this.diagnosisService = diagnosisService;
         this.jobRunner = jobRunner;
+        this.metrics = metrics;
     }
 
     // 기동 직후에는 부르지 않는다(첫 실행도 주기만큼 뒤). 테스트 컨텍스트에서도 다른 테스트에 끼어들지 않는다
@@ -61,8 +64,12 @@ public class StuckOrderDiagnosisScheduler {
     void runOnWorker() {
         try {
             StuckOrderDiagnosisService.Run[] run = new StuckOrderDiagnosisService.Run[1];
-            if (jobRunner.run(DIAGNOSIS_JOB, () -> run[0] = diagnosisService.diagnoseNew(LocalDateTime.now()))
-                && run[0] != null && run[0].requested() > 0) {
+            boolean ran = jobRunner.run(DIAGNOSIS_JOB,
+                () -> run[0] = diagnosisService.diagnoseNew(LocalDateTime.now()));
+            if (ran) {
+                metrics.markJobSuccess(OrderOperationMetrics.Job.STUCK_DIAGNOSIS);
+            }
+            if (ran && run[0] != null && run[0].requested() > 0) {
                 log.info("멈춘 주문 진단: requested={} diagnosed={} failed={} dailyLimitReached={}",
                     run[0].requested(), run[0].diagnosed(), run[0].failed(), run[0].limitReached());
             }
