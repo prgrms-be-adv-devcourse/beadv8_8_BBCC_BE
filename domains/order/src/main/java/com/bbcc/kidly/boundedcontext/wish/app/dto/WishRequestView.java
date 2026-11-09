@@ -8,7 +8,7 @@ import java.util.List;
  *
  * @param type 요청 종류(WISH)
  * @param childId 받는 사람(자녀 프로필 ID)
- * @param status REQUESTED · PAID · REJECTED · CANCELLED
+ * @param status REQUESTED · PAID · REJECTED · CANCELLED · EXPIRED(#1008)
  * @param requestedByType 보낸 사람 종류(MEMBER · CHILD)
  * @param requestedById 보낸 사람 ID(회원 ID 또는 자녀 프로필 ID)
  * @param message 메시지. 없으면 null
@@ -22,6 +22,8 @@ import java.util.List;
  * @param purchases 조르기로 산 것(결제돼 장바구니에서 빠진 칸, 먼저 산 것부터)
  * @param paidOrderItemIds 조르기로 결제된 주문상품 ID(#1000, 먼저 산 것부터). 화면이 자녀 구매 내역과 맞춰 출처를 표시한다.
  *     장바구니 구매 이벤트에 주문상품 ID가 없던 산 것은 빠진다
+ * @param expiresAt 만료 기한(보낸 시각 + 지금 설정 기한, #1008). 대기 중이고 만료가 켜져 있을 때만, 그 밖 null
+ * @param expiredAt 만료 처리 시각(#1008). 만료가 아니면 null
  */
 public record WishRequestView(
     Long requestId,
@@ -41,7 +43,9 @@ public record WishRequestView(
     LocalDateTime cancelledAt,
     List<Line> items,
     List<Purchase> purchases,
-    List<Long> paidOrderItemIds) {
+    List<Long> paidOrderItemIds,
+    LocalDateTime expiresAt,
+    LocalDateTime expiredAt) {
 
     /**
      * 조르기에 든 칸 하나. 상품 복사본이 없으면 상품 필드 null, purchasable false.

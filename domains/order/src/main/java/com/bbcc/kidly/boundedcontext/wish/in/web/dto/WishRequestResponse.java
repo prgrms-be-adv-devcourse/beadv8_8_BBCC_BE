@@ -9,7 +9,7 @@ import java.util.List;
  *
  * @param type 요청 종류(WISH)
  * @param childId 받는 사람(자녀 프로필 ID)
- * @param status REQUESTED · PAID · REJECTED · CANCELLED
+ * @param status REQUESTED · PAID · REJECTED · CANCELLED · EXPIRED(#1008)
  * @param requestedByType 보낸 사람 종류(MEMBER · CHILD)
  * @param payerType 결제한 사람 종류. 결제 완료가 아니면 null
  * @param rejectReason 거절 사유. 거절이 아니면 null
@@ -17,6 +17,8 @@ import java.util.List;
  * @param purchases 조르기로 산 것(결제돼 장바구니에서 빠진 칸)
  * @param paidOrderItemIds 조르기로 결제된 주문상품 ID(#1000). 화면이 자녀 구매 내역(GET /api/v1/orders/items/mine)의
  *     orderItemId와 맞춰 "조르기로 산 것"을 표시한다. 없으면 빈 목록
+ * @param expiresAt 만료 기한(보낸 시각 + 지금 설정 기한, #1008). 대기 중이고 만료가 켜져 있을 때만, 그 밖 null
+ * @param expiredAt 만료 처리 시각(#1008). 만료가 아니면 null
  */
 public record WishRequestResponse(
     String requestId,
@@ -36,7 +38,9 @@ public record WishRequestResponse(
     LocalDateTime cancelledAt,
     List<Line> items,
     List<Purchase> purchases,
-    List<String> paidOrderItemIds) {
+    List<String> paidOrderItemIds,
+    LocalDateTime expiresAt,
+    LocalDateTime expiredAt) {
 
     /**
      * @param cartItemId 장바구니 칸 ID. #999 전 조르기는 null
@@ -82,7 +86,8 @@ public record WishRequestResponse(
                 .map(purchase -> new Purchase(toText(purchase.orderId()), toText(purchase.cartItemId()),
                     purchase.quantity(), purchase.purchasedAt()))
                 .toList(),
-            view.paidOrderItemIds().stream().map(String::valueOf).toList());
+            view.paidOrderItemIds().stream().map(String::valueOf).toList(),
+            view.expiresAt(), view.expiredAt());
     }
 
     private static String toText(Long id) {

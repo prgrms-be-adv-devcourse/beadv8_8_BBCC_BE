@@ -50,7 +50,7 @@ class CartReservationPurchaseIntegrationTest {
     void marksPurchaseForAnyReservation() {
         Long line = cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, null, 3).line().cartItemId();
         cartService.reserve(List.of(line), List.of(new CartReservations.Payer("MEMBER", BUYER_ID),
-            new CartReservations.Payer("MEMBER", OTHER_MEMBER_ID)), RESERVATION_ID);
+            new CartReservations.Payer("MEMBER", OTHER_MEMBER_ID)), RESERVATION_ID, null);
         assertThat(cartService.hasPurchase(RESERVATION_ID)).isFalse();
         LocalDateTime before = LocalDateTime.now().minusSeconds(1);
 

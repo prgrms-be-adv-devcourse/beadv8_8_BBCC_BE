@@ -3,10 +3,13 @@ package com.bbcc.kidly.boundedcontext.wish.out.persistence;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishRequestRepository;
 import com.bbcc.kidly.boundedcontext.wish.domain.PrincipalType;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
 /**
@@ -22,4 +25,12 @@ public interface JpaWishRequestRepository extends Repository<WishRequest, Long>,
     @EntityGraph(attributePaths = "lines")
     List<WishRequest> findAllByRequestedByTypeAndRequestedByIdInOrderByIdDesc(PrincipalType type,
         Collection<Long> requestedByIds);
+
+    @Override
+    @Query("""
+        select r.id from WishRequest r
+        where r.status = :status and r.createdAt <= :sentBefore and r.id > :afterId
+        order by r.id asc
+        """)
+    List<Long> findOverdueRequestIds(WishRequest.Status status, LocalDateTime sentBefore, Long afterId, Limit limit);
 }

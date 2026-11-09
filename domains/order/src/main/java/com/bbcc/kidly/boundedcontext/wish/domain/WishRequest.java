@@ -32,8 +32,9 @@ import lombok.NoArgsConstructor;
  *   <li>PAID: 예약 칸 중 하나 이상이 결제돼 장바구니에서 빠졌다. 결제한 사람 · 시각을 남긴다</li>
  *   <li>REJECTED: 승인자가 거절했다(사유 하나)</li>
  *   <li>CANCELLED: 보낸 사람이 철회했거나(DIRECT, #968) 자녀 · 계정 삭제(#1001) · 시스템(데이터 옮기기)으로 철회됐다</li>
+ *   <li>EXPIRED: 기한(보낸 시각 + 설정 기한, 저장하지 않음) 안에 결제 · 거절이 없어 시스템이 만료했다(#1008)</li>
  * </ul>
- * 결제 완료 · 거절 · 철회는 REQUESTED에서만 되고, 동시에 오면 @Version으로 먼저 저장한 쪽만 남는다.
+ * 결제 완료 · 거절 · 철회 · 만료는 REQUESTED에서만 되고, 동시에 오면 @Version으로 먼저 저장한 쪽만 남는다.
  */
 @Entity
 @Table(schema = "orders", name = "wish_request")
@@ -54,7 +55,8 @@ public class WishRequest extends WishTimeEntity {
         REQUESTED,
         PAID,
         REJECTED,
-        CANCELLED
+        CANCELLED,
+        EXPIRED
     }
 
     /**
@@ -137,6 +139,11 @@ public class WishRequest extends WishTimeEntity {
     private CancelReason cancelReason;
 
     private LocalDateTime cancelledAt;
+
+    /**
+     * 만료 처리 시각(#1008). 만료한 주체는 시스템이다.
+     */
+    private LocalDateTime expiredAt;
 
     @Version
     private Long version;
@@ -243,6 +250,15 @@ public class WishRequest extends WishTimeEntity {
         this.status = Status.CANCELLED;
         this.cancelReason = reason;
         this.cancelledAt = now;
+    }
+
+    /**
+     * 기한이 지나 만료한다(#1008, 시스템). 기한이 지났는지는 app이 설정 기한으로 판단한다.
+     */
+    public void expire(LocalDateTime now) {
+        requireRequested();
+        this.status = Status.EXPIRED;
+        this.expiredAt = now;
     }
 
     /**

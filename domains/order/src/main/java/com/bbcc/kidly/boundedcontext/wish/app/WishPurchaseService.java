@@ -28,8 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>같은 주문의 다른 칸 · 같은 메시지 다시 받기 · 순서가 바뀐 칸: 산 칸만 (없으면) 더하고 이벤트는 다시 내지 않는다(1회분)</li>
  *   <li>조르기의 예약이 아님 · 없는 조르기 · 그 조르기의 칸이 아님: 아무것도 하지 않는다</li>
  *   <li>조르기 예약 칸인데 주문 ID · 결제 회원이 없음: 건너뛰고 WARN 한 줄(조르기 ID · 칸 ID)</li>
- *   <li>이미 거절 · 철회된 조르기(보호자가 주문한 뒤 결제 전에 철회 · 거절된 경우 등): 상태는 바꾸지 않고 이벤트도 내지 않지만,
- *       산 사실(조르기로 산 것)은 남기고 WARN 한 줄(조르기 ID · 주문 ID)을 남긴다</li>
+ *   <li>예약 ID가 실린 구매 사실이 이미 거절 · 철회 · 만료(#1008)된 조르기에 오면(다시 처리 등): 상태는 바꾸지 않고 이벤트도 내지 않지만,
+ *       산 사실(조르기로 산 것)은 남기고 WARN 한 줄(조르기 ID · 주문 ID)을 남긴다. 보통은 거절 · 철회 · 만료가 예약을 먼저 풀어
+ *       결제 정리의 구매 사실에 예약 ID가 없으므로 그 결제는 조르기와 이어지지 않는다(산 것에 남지 않음)</li>
  * </ul>
  */
 @Slf4j
@@ -79,7 +80,7 @@ public class WishPurchaseService {
         if (wishPurchaseRepository.existsByRequestIdAndCartItemId(request.getId(), line.cartItemId())) {
             return false;
         }
-        if (request.getStatus() == WishRequest.Status.REJECTED || request.getStatus() == WishRequest.Status.CANCELLED) {
+        if (request.getStatus() != WishRequest.Status.REQUESTED && request.getStatus() != WishRequest.Status.PAID) {
             wishPurchaseRepository.save(WishPurchase.of(request.getId(), line.orderId(), line.orderItemId(),
                 line.cartItemId(), line.optionId(), line.quantity()));
             log.warn("처리된 조르기의 칸이 결제됐습니다(상태는 그대로): requestId={} orderId={}", request.getId(),

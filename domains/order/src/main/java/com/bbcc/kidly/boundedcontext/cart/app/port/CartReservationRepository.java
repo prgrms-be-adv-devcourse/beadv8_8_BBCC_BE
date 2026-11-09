@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.cart.app.port;
 
 import com.bbcc.kidly.boundedcontext.cart.domain.CartReservation;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -11,6 +12,8 @@ public interface CartReservationRepository {
     CartReservation save(CartReservation reservation);
 
     List<CartReservation> findAllByReservationId(String reservationId);
+
+    List<CartReservation> findAllByReservationIdIn(Collection<String> reservationIds);
 
     void delete(CartReservation reservation);
 }

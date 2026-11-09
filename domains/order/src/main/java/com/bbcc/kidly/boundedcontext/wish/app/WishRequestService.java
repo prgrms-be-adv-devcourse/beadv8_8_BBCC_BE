@@ -42,7 +42,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 구매 요청(조르기) 보내기 · 보기 · 거절 · 철회(#999). 승인 = 결제라 승인 API는 없다: 승인자는 예약된 칸으로 주문하기를 부르고
+ * 구매 요청(조르기) 보내기 · 보기 · 거절 · 철회(#999). 대기 중인 조르기는 기한(보낸 시각 + 설정 기한)이 지나면 만료된다(#1008,
+ * {@link WishExpiryService}). 기한 지난 조르기의 거절 · 철회는 409다. 승인 = 결제라 승인 API는 없다: 승인자는 예약된 칸으로 주문하기를 부르고
  * (장바구니 주문 확인, #998), 결제가 끝나면 장바구니 구매 이벤트로 결제 완료가 된다({@link WishPurchaseService}).
  * 조르기는 주문을 모르고 장바구니 칸 예약 입구({@link WishCart})만 부른다.
  * <ul>
@@ -68,6 +69,7 @@ public class WishRequestService {
     private final WishCart wishCart;
     private final WishPolicy wishPolicy;
     private final WishEvents wishEvents;
+    private final WishExpiry wishExpiry;
 
     /**
      * 확인 순서: 자녀 로그인(403) → 칸 고르기(비었거나 겹침 400) → 자녀 프로필 · 승인자(404) → 진행 중 칸(409) → 메시지(400)
@@ -99,8 +101,9 @@ public class WishRequestService {
         } catch (WishRuleViolationException e) {
             throw WishErrors.toBusiness(e);
         }
+        // 장바구니 예약에 결제 가능 기한(= 만료 기한 사본, 꺼져 있으면 null)을 둔다: 만료 작업 전이라도 기한 지난 결제는 409(#1008)
         List<WishCart.ReservedLine> reserved = wishCart.reserveOwned(requester, cartItemIds, approvers,
-            request.reservationId());
+            request.reservationId(), wishExpiry.reservationValidUntil(request));
         Map<Long, Long> productIds = productIdsOf(reserved.stream().map(WishCart.ReservedLine::optionId).toList());
         try {
             request.addLines(reserved.stream()
@@ -146,7 +149,8 @@ public class WishRequestService {
     }
 
     /**
-     * 확인 순서: 조르기(404 · 같은 가족 403) → 승인자(403) → 사유(정책 목록에 없으면 400) → 처리 전(409).
+     * 확인 순서: 조르기(404 · 같은 가족 403) → 승인자(403) → 사유(정책 목록에 없으면 400) → 기한(지났거나 만료면 409
+     * WISH_REQUEST_EXPIRED, #1008) → 결제 반영 중(409) → 처리 전(409).
      */
     public WishRequestView reject(WishActor actor, Long requestId, String reason) {
         WishRequest request = findVisible(actor, requestId);
@@ -157,6 +161,7 @@ public class WishRequestService {
             .filter(candidate -> candidate.name().equals(reason))
             .findFirst()
             .orElseThrow(() -> new BusinessException(WishErrorCode.INVALID_REJECT_REASON));
+        requireNotExpired(request);
         requireNoPurchaseInProgress(request);
         try {
             request.reject(rejectReason, actor.type(), actor.id(), LocalDateTime.now());
@@ -175,13 +180,15 @@ public class WishRequestService {
     }
 
     /**
-     * 보낸 사람이 처리 전에 철회한다(#968). 확인 순서: 조르기(404 · 같은 가족 403) → 보낸 사람(403) → 처리 전(409).
+     * 보낸 사람이 처리 전에 철회한다(#968). 확인 순서: 조르기(404 · 같은 가족 403) → 보낸 사람(403) → 기한(지났거나 만료면 409
+     * WISH_REQUEST_EXPIRED, #1008) → 결제 반영 중(409) → 처리 전(409).
      */
     public WishRequestView cancel(WishActor actor, Long requestId) {
         WishRequest request = findVisible(actor, requestId);
         if (!wishPolicy.canCancel(actor, request)) {
             throw new BusinessException(WishErrorCode.WISH_REQUEST_CANCEL_FORBIDDEN);
         }
+        requireNotExpired(request);
         requireNoPurchaseInProgress(request);
         try {
             request.cancel(CancelReason.DIRECT, LocalDateTime.now());
@@ -200,13 +207,23 @@ public class WishRequestService {
     }
 
     /**
-     * 조르기 타임라인(#702 · #999): 조르기 단계(보냄 → 결제 완료 · 거절 · 철회)와 조르기로 산 주문 ID.
+     * 조르기 타임라인(#702 · #999): 조르기 단계(보냄 → 결제 완료 · 거절 · 철회 · 만료(시스템, #1008))와 조르기로 산 주문 ID.
      */
     @Transactional(readOnly = true)
     public WishTimelineView getTimeline(WishActor actor, Long requestId) {
         WishRequest request = findVisible(actor, requestId);
         return WishTimelineView.of(request, wishPurchaseRepository.findAllByRequestIdInOrderByIdAsc(
             List.of(request.getId())));
+    }
+
+    /**
+     * 기한이 지난 조르기의 거절 · 철회는 409(#1008, WISH_REQUEST_EXPIRED): 이미 만료됐거나, 주기 작업 전이라도 대기 중이고 기한이 지났으면.
+     * 주기 작업이 돌았는지와 상관없이 같은 응답이다.
+     */
+    private void requireNotExpired(WishRequest request) {
+        if (request.getStatus() == WishRequest.Status.EXPIRED || wishExpiry.isOverdue(request, LocalDateTime.now())) {
+            throw new BusinessException(WishErrorCode.WISH_REQUEST_EXPIRED);
+        }
     }
 
     /**
@@ -280,7 +297,7 @@ public class WishRequestService {
             .toList();
     }
 
-    private static WishRequestView toView(WishRequest request, Map<Long, ProductOption> products,
+    private WishRequestView toView(WishRequest request, Map<Long, ProductOption> products,
         Map<Long, String> sellerNames, List<WishPurchase> purchases) {
         Set<Long> purchased = purchases.stream().map(WishPurchase::getCartItemId).collect(Collectors.toSet());
         return new WishRequestView(request.getId(), request.getType().name(), request.getChildId(),
@@ -296,7 +313,8 @@ public class WishRequestService {
                 .map(purchase -> new WishRequestView.Purchase(purchase.getOrderId(), purchase.getCartItemId(),
                     purchase.getQuantity(), purchase.getCreatedAt()))
                 .toList(),
-            purchases.stream().map(WishPurchase::getOrderItemId).filter(Objects::nonNull).distinct().toList());
+            purchases.stream().map(WishPurchase::getOrderItemId).filter(Objects::nonNull).distinct().toList(),
+            wishExpiry.expiresAt(request).orElse(null), request.getExpiredAt());
     }
 
     private Map<Long, String> sellerNamesOf(Collection<ProductOption> products) {

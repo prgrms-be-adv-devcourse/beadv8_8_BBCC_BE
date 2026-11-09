@@ -171,7 +171,7 @@ class WishRequestApiTest {
         send(child(ACCOUNT_ID, BUYER_ID), List.of(other, line), null).expectStatus().isEqualTo(409)
             .expectBody().jsonPath("$.title").isEqualTo("조르는 중인 상품입니다");
         transactions.executeWithoutResult(status -> cartReservations.reserve(List.of(Long.valueOf(other)),
-            List.of(new CartReservations.Payer("MEMBER", BUYER_ID)), "other-1"));
+            List.of(new CartReservations.Payer("MEMBER", BUYER_ID)), "other-1", null));
         send(child(ACCOUNT_ID, BUYER_ID), List.of(other), null).expectStatus().isEqualTo(409)
             .expectBody().jsonPath("$.title").isEqualTo("예약된 장바구니 상품입니다");
 
@@ -379,6 +379,28 @@ class WishRequestApiTest {
         client.get().uri(CART_PATH).headers(child(ACCOUNT_ID, BUYER_ID)).exchange()
             .expectBody().jsonPath("$.items[0].reserved").isEqualTo(true);
         assertThat(outbox("wish.paid")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("기한 만료(#1008): 대기 중이면 expiresAt = 보낸 시각 + 7일, 기한이 지난 조르기의 철회 · 거절은 409")
+    void expiry() {
+        String requestId = sendOne(addToCart(child(ACCOUNT_ID, BUYER_ID), "1", 1));
+        LocalDateTime sentAt = jdbcTemplate.queryForObject("select created_at from orders.wish_request where id = ?",
+            LocalDateTime.class, Long.valueOf(requestId));
+
+        String body = client.get().uri(WISH_REQUESTS_PATH + "/" + requestId).headers(TestMembers.buyer(BUYER_ID))
+            .exchange()
+            .expectStatus().isOk()
+            .returnResult(String.class).getResponseBody();
+        assertThat(LocalDateTime.parse(jsonMapper.readTree(body).get("expiresAt").asString()))
+            .isEqualTo(sentAt.plusDays(7));
+        jdbcTemplate.update("update orders.wish_request set created_at = created_at - interval '8 days' where id = ?",
+            Long.valueOf(requestId));
+
+        cancel(child(ACCOUNT_ID, BUYER_ID), requestId).expectStatus().isEqualTo(409)
+            .expectBody().jsonPath("$.title").isEqualTo("기한이 지난 조르기입니다");
+        reject(TestMembers.buyer(BUYER_ID), requestId, "NEXT_TIME").expectStatus().isEqualTo(409)
+            .expectBody().jsonPath("$.title").isEqualTo("기한이 지난 조르기입니다");
     }
 
     @Test

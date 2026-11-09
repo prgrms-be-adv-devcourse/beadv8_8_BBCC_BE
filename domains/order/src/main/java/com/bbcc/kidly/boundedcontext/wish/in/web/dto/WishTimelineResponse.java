@@ -7,11 +7,11 @@ import java.util.List;
 /**
  * 조르기 타임라인(#702 · #999). ID는 문자열(장바구니와 같음). 칸은 추가만 한다.
  *
- * @param status 조르기 상태(REQUESTED · PAID · REJECTED · CANCELLED)
+ * @param status 조르기 상태(REQUESTED · PAID · REJECTED · CANCELLED · EXPIRED)
  * @param rejectReason 거절이 아니면 null
  * @param cancelReason 철회 원인. 철회가 아니면 null
  * @param orderIds 조르기로 산 주문 ID(먼저 산 것부터)
- * @param steps SENT → PAID · REJECTED · CANCELLED
+ * @param steps SENT → PAID · REJECTED · CANCELLED · EXPIRED(시스템 만료, #1008)
  * @param cancelledBy 직접 철회한 사람 종류(보낸 사람, MEMBER · CHILD, #968). 직접 철회가 아니면 null
  */
 public record WishTimelineResponse(

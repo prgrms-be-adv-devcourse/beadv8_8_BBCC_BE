@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.wish.out.cart;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartReservations;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishApprovers.Principal;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishCart;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,11 +22,18 @@ public class WishCartAdapter implements WishCart {
 
     @Override
     public List<ReservedLine> reserveOwned(Principal owner, List<Long> cartItemIds, List<Principal> payers,
-        String reservationId) {
+        String reservationId, LocalDateTime validUntil) {
         return cartReservations.reserveOwned(toPayer(owner), cartItemIds,
-                payers.stream().map(WishCartAdapter::toPayer).toList(), reservationId).stream()
+                payers.stream().map(WishCartAdapter::toPayer).toList(), reservationId, validUntil).stream()
             .map(line -> new ReservedLine(line.cartItemId(), line.optionId(), line.childId(), line.quantity()))
             .toList();
+    }
+
+    @Override
+    public int updateValidUntil(List<ValidUntil> changes) {
+        return cartReservations.updateValidUntil(changes.stream()
+            .map(change -> new CartReservations.ValidUntil(change.reservationId(), change.validUntil()))
+            .toList());
     }
 
     @Override
