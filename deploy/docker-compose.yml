@@ -327,18 +327,24 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       # Kafka 수신 스위치. 기본값은 order.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다. 끄면 수신이 멈추고 메시지는 Kafka 에 남아 true 로 올리면 처리된다
       ORDER_KAFKA_CONSUMER_ENABLED: ${ORDER_KAFKA_CONSUMER_ENABLED:-true}
+      # 결제 마감. 기본값은 order.yml 과 같다(PT10M). .env.dev · .env.prod 에는 두지 않고, 시연 때만 잠깐 서버 .env 에 넣는다(#1041)
+      ORDER_PAYMENT_TIMEOUT: ${ORDER_PAYMENT_TIMEOUT:-PT10M}
       # 판매자 발송 전 부분 취소 · 조르기 스위치. 기본값은 order.yml 과 같다
       ORDER_PARTIAL_CANCEL_ENABLED: ${ORDER_PARTIAL_CANCEL_ENABLED:-true}
       ORDER_WISH_ENABLED: ${ORDER_WISH_ENABLED:-true}
       # 택배 조회(Delivery Tracker) 인증값. 비어 있으면 택배 조회만 꺼진다(판매자 수동 배송 완료는 그대로)
       DELIVERY_TRACKER_CLIENT_ID: ${DELIVERY_TRACKER_CLIENT_ID:-}
       DELIVERY_TRACKER_CLIENT_SECRET: ${DELIVERY_TRACKER_CLIENT_SECRET:-}
+      # 주문 운영 조회 MCP 창구(#925 · #1041, 읽기 전용 · 관리자만). 기본 꺼짐, dev 만 .env.dev 에서 켠다
+      ORDER_MCP_ENABLED: ${ORDER_MCP_ENABLED:-false}
       # 멈춘 주문 AI 진단 메모(#926). 기본 꺼짐, 켜도 키가 비어 있으면 꺼진다. 제공자 · 주소 · 모델 기본값은 order.yml(Groq)
       ORDER_AI_ENABLED: ${ORDER_AI_ENABLED:-false}
       ORDER_AI_PROVIDER: ${ORDER_AI_PROVIDER:-openai-compatible}
       ORDER_AI_BASE_URL: ${ORDER_AI_BASE_URL:-https://api.groq.com/openai/v1}
       ORDER_AI_MODEL: ${ORDER_AI_MODEL:-openai/gpt-oss-20b}
-      ORDER_AI_API_KEY: ${ORDER_AI_API_KEY:-}
+      # 키는 따로 두지 않고 deploy 워크플로가 서버 .env 에 붙이는 GROQ_API_KEY(팀 Groq 무료 키, Environment Secret)를 쓴다(#1041).
+      # ORDER_AI_API_KEY 를 .env 에 두면 그 값이 먼저다. 하루 상한(ORDER_AI_DAILY_LIMIT, 기본 200)은 order.yml 그대로
+      ORDER_AI_API_KEY: ${ORDER_AI_API_KEY:-${GROQ_API_KEY:-}}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${ORDER_PORT:-8100}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)

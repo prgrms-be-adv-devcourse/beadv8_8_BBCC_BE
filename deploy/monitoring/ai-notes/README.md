@@ -7,6 +7,7 @@ Grafana → Kidly → **Kidly AI 운영 분석**. 최근 메모 행을 펼쳐 �
 ## 흐름
 
 1. `get_analysis_context(environment)`로 실제 지표와 deadline을 받습니다
+   - 주문 운영 상태가 필요하면 주문 MCP(`order-mcp.example.toml`, Codex 설정 · dev 관리자 토큰)의 멈춘 주문 요약 · DLT · 아웃박스 격리 도구를 조회해 근거에 넣습니다([운영 안내](../docs/ai-notes-operations.md#주문-mcp-함께-쓰기1041))
 2. AI가 추론해 공통 `AnalysisReport`를 만듭니다. 원인 가설을 사실과 구분합니다
 3. `publish_analysis(context_id, report)`로 게시합니다
 4. `get_publication_status(context_id)`로 영수증/전송 상태를 확인합니다
