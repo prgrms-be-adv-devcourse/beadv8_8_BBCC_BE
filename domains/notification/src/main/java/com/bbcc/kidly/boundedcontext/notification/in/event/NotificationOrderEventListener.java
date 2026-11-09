@@ -16,13 +16,14 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.PurchaseConfirmedComma
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WishRejectedCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WishSentCommand;
 import com.bbcc.kidly.boundedcontext.notification.in.event.AwaitedOrderEvents.AutoConfirmScheduled;
-import com.bbcc.kidly.boundedcontext.notification.in.event.AwaitedOrderEvents.WishClosed;
 import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
 import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
+import com.bbcc.kidly.shared.order.event.WishExpiredEvent;
+import com.bbcc.kidly.shared.order.event.WishPaidEvent;
 import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import lombok.RequiredArgsConstructor;
@@ -58,10 +59,8 @@ public class NotificationOrderEventListener {
         switch (NotificationKafkaListenerConfig.header(record, "eventType")) {
             case "wish.sent" -> onWishSent(jsonMapper.readValue(record.value(), WishSentEvent.class));
             case "wish.rejected" -> onWishRejected(jsonMapper.readValue(record.value(), WishRejectedEvent.class));
-            case "wish.paid" -> wishInboxService.addWishPaid(
-                childWish(jsonMapper.readValue(record.value(), WishClosed.class)));
-            case "wish.expired" -> wishInboxService.addWishExpired(
-                childWish(jsonMapper.readValue(record.value(), WishClosed.class)));
+            case "wish.paid" -> onWishPaid(jsonMapper.readValue(record.value(), WishPaidEvent.class));
+            case "wish.expired" -> onWishExpired(jsonMapper.readValue(record.value(), WishExpiredEvent.class));
             case "order-item.auto-confirm-scheduled" ->
                 onAutoConfirmScheduled(jsonMapper.readValue(record.value(), AutoConfirmScheduled.class));
             case "order.cancelled" ->
@@ -91,10 +90,16 @@ public class NotificationOrderEventListener {
             data.items().stream().map(WishRejectedEvent.Item::productId).toList(), data.reason()));
     }
 
-    private static ChildWishCommand childWish(WishClosed event) {
+    private void onWishPaid(WishPaidEvent event) {
         var data = event.data();
-        return new ChildWishCommand(data.wishRequestId(), data.childId(),
-            data.items().stream().map(WishClosed.Item::productId).toList());
+        wishInboxService.addWishPaid(new ChildWishCommand(data.wishRequestId(), data.childId(),
+            data.items().stream().map(WishPaidEvent.Item::productId).toList()));
+    }
+
+    private void onWishExpired(WishExpiredEvent event) {
+        var data = event.data();
+        wishInboxService.addWishExpired(new ChildWishCommand(data.wishRequestId(), data.childId(),
+            data.items().stream().map(WishExpiredEvent.Item::productId).toList()));
     }
 
     private void onAutoConfirmScheduled(AutoConfirmScheduled event) {
