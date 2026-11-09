@@ -22,6 +22,11 @@ public interface ReviewModerationStats {
     long countExhaustedPending(int maxAttempts);
 
     /**
+     * 판단하지 못해 다시 검사할 대기 리뷰 수(시도 1번 이상, 재시도 상한 전).
+     */
+    long countRetryingPending(int maxAttempts);
+
+    /**
      * 대기 목록(상한 전)에서 가장 오래된 리뷰의 작성 시각. 없으면 null.
      */
     LocalDateTime findOldestPendingCreatedAt(int maxAttempts);

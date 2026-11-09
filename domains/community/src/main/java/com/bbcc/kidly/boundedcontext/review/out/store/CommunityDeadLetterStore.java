@@ -47,6 +47,11 @@ public class CommunityDeadLetterStore implements CommunityDeadLetters {
     }
 
     @Override
+    public LocalDateTime findOldestCreatedAt(State state) {
+        return repository.findOldestCreatedAt(state);
+    }
+
+    @Override
     public Optional<Summary> findSummary(Long id) {
         return repository.findSummary(id);
     }

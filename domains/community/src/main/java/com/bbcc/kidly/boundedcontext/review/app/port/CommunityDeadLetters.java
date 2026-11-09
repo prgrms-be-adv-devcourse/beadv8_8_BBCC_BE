@@ -16,6 +16,11 @@ public interface CommunityDeadLetters {
 
     long countByState(State state);
 
+    /**
+     * 그 상태 가운데 가장 먼저 보관한 시각(운영 지표). 없으면 null.
+     */
+    LocalDateTime findOldestCreatedAt(State state);
+
     Optional<Summary> findSummary(Long id);
 
     Optional<Target> findForReplay(Long id);

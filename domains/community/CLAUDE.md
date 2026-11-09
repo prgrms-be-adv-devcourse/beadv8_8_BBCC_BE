@@ -53,6 +53,12 @@
   - 도구 정의(`in.mcp`의 `CommunityMcpTool` 구현 · `CommunityMcpTools`)는 MCP SDK를 모르고 app 조회 서비스만 부른다(SDK 없이 단위 테스트). SDK 타입은 전송 쪽 `CommunityMcpSdkBinding`에만 둔다. SDK 버전 · 전송 방식을 바꿀 때는 이 파일과 `in.config.CommunityMcpConfig`만, 도구 추가 · 출력 칸은 도구 정의 하나(+ 필요하면 app 조회)만 고친다
   - 응답은 집계 · ID · 상태 · 분류만 담는다. 리뷰 본문 · 사진 주소 · 닉네임 · 회원 ID · DLT 원본 본문 · 예외 메시지 · 처리한 관리자는 넣지 않고, 자유 문구가 될 수 있는 칸(토픽 · eventType · 예외 이름 · 메시지 키 · 이벤트 ID)은 정해진 형식일 때만 내보낸다(`McpSafeText`, 아니면 null)
   - 잘못된 인자 · 업무 오류는 도구 오류(isError, 정해진 문구)이고 서버 오류가 아니다. MVC 밖이라 관리자 헤더(X-Admin-Id)는 `CommunityMcpAdminFilter`가 공용 관리자 규칙과 같게 확인한다(401 ProblemDetail)
+- 운영 지표(#1068): `review.app.CommunityMetrics` 한 곳에 이름 · 라벨 값을 둔다(라벨은 고정 집합뿐, 리뷰 · 회원 · 상품 ID · 닉네임 금지). in(리스너 · 스케줄러)과 app 서비스는 기록 메서드만 부르고, 게이지는 운영 조회(MCP)와 같은 app 조회로 수집할 때 읽는다(실패하면 NaN)
+  - DLT: 미처리 수 `kidly.community.dlt.messages{state=open}` · 가장 오래된 미처리 나이 · 보관 실패 카운터(재시도마다) · 마지막 보관 시각(처음 전 NaN)
+  - 검사: 대기 수 `kidly.community.moderation.pending{stage=waiting|retrying|exhausted}`(세 값은 한 번 읽은 묶음을 10초 캐시) · 상한 전 가장 오래된 대기 나이 · 검사기 호출 결과 카운터 `checks{result, cause}`(호출마다 센다, 반영 여부와 상관없다)
+  - 스케줄러 마지막 성공 시각 `kidly.community.scheduler.last.success.seconds{task}`: 켜진 스케줄러만 등록하고 처음 값은 기동 시각. 끝까지 돈 주기만 갱신(잠금을 못 잡아 건너뜀 · 예외 · 사진 저장소에 닿지 않는 설정은 그대로)
+  - 사진 업로드 확인 불가(503) 카운터 · 상품 복사본 마지막 반영 뒤 지난 시간(복사본이 없으면 NaN)
+  - 레지스트리는 앱이 준다(community-service: actuator + Prometheus, `/actuator/prometheus`). 모듈 테스트 앱은 메모리 레지스트리(`support.CommunityTestMeterRegistryConfig`)
 - 수신으로 처음 보는 행을 만들 때는 먼저 조회하고, 저장은 따로 연 트랜잭션(`ReviewSeparateTransaction`)에서 바로 반영한다. ID를 직접 넣는 엔티티(상품 복사본)는 Spring Data `save`가 merge가 되어 이미 커밋된 행을 덮어쓰므로, 새 행은 persist만 하는 저장소 조각(`out.store.ReplicaProductInsert`)으로 넣는다. 동시 수신으로 그 행의 유일 제약(SQLState 23505 + 제약 이름)에 막히고 다시 조회해 행이 있으면 "이미 있음"으로 수렴한다(복사본은 이어서 늦을 때만 덮어쓰기). 그 밖의 위반은 던진다(재시도 → DLT). 로그에 값을 남기지 않는다
 - 따로 연 트랜잭션은 바깥 트랜잭션이 있는 채로 열리므로 수신 한 건이 DB 커넥션을 최대 2개 쓴다. Kafka 리스너는 동시성 1이라 커넥션 2개로 끝나고, Spring 이벤트 경로는 발행 쪽 스레드 수만큼 동시에 2개씩 들 수 있다(커넥션 풀 크기를 정할 때 본다)
 - 저장했다가 다시 비교 · 정렬 · 커서에 쓰는 시각(`occurredAt` · `confirmedAt` · 생성 · 수정 시각)은 도메인에서 마이크로초로 잘라 저장 · 비교한다(`ReviewTimes`). 실행 환경에 따라 나노초가 나오는데 DB는 마이크로초로 저장해, 자르지 않으면 같은 이벤트가 "더 늦은" 값으로 보인다. 테스트의 기준 시각은 나노초가 있는 고정값으로 쓴다

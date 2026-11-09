@@ -1,7 +1,8 @@
 package com.bbcc.kidly.boundedcontext.review.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.review.app.CommunityMetrics;
+import com.bbcc.kidly.boundedcontext.review.app.CommunityMetrics.SchedulerTask;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -12,11 +13,18 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "kidly.community.moderation.enabled", havingValue = "true", matchIfMissing = true)
 public class CommunityReviewModerationScheduler {
 
     private final ReviewModerationService moderationService;
+    private final CommunityMetrics metrics;
+
+    // 켜진 스케줄러만 마지막 성공 시각 지표를 갖는다(처음 값은 기동 시각)
+    public CommunityReviewModerationScheduler(ReviewModerationService moderationService, CommunityMetrics metrics) {
+        this.moderationService = moderationService;
+        this.metrics = metrics;
+        metrics.registerScheduler(SchedulerTask.REVIEW_MODERATION);
+    }
 
     // fixedDelay는 이전 실행이 끝난 뒤부터 주기를 재므로 실행이 겹치지 않는다. 첫 실행도 한 주기 뒤로 미룬다.
     // 예외 메시지에 값이 들어갈 수 있어 예외 종류만 남긴다
@@ -24,7 +32,10 @@ public class CommunityReviewModerationScheduler {
         initialDelayString = "${kidly.community.moderation.interval}")
     public void moderate() {
         try {
-            moderationService.processPending();
+            // 다른 서버가 잠금을 쥐어 건너뛴 주기는 성공으로 치지 않는다
+            if (!moderationService.processPending().skipped()) {
+                metrics.recordSchedulerSuccess(SchedulerTask.REVIEW_MODERATION);
+            }
         } catch (RuntimeException e) {
             log.error("리뷰 검사 주기가 예외로 끝났습니다. error={}", e.getClass().getSimpleName());
         }

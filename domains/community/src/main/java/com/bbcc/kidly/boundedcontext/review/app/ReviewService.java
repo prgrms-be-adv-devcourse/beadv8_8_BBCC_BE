@@ -55,6 +55,7 @@ public class ReviewService {
     private final ReviewImageStorage imageStorage;
     private final ReviewImageProperties imageProperties;
     private final ReviewImageCleanupQueue cleanupQueue;
+    private final CommunityMetrics metrics;
 
     /**
      * @param nickname 작성 시점 닉네임(로그인 정보). 없으면 null로 저장한다
@@ -225,6 +226,7 @@ public class ReviewService {
         try {
             missing = imageStorage.findNotUploaded(imageUrls);
         } catch (ReviewImageStorage.CheckUnavailableException e) {
+            metrics.recordImageStorageUnavailable(CommunityMetrics.StorageOperation.UPLOAD_CHECK);
             throw new BusinessException(ReviewErrorCode.IMAGE_STORAGE_UNAVAILABLE);
         }
         if (!missing.isEmpty()) {

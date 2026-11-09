@@ -103,6 +103,11 @@ public interface JpaReviewRepository extends JpaRepository<Review, Long>, Review
     long countExhaustedPending(@Param("maxAttempts") int maxAttempts);
 
     @Override
+    @Query("select count(r) from CommunityReview r where r.moderationStatus = " + STATUS + "PENDING"
+        + " and r.moderationAttempts >= 1 and r.moderationAttempts < :maxAttempts")
+    long countRetryingPending(@Param("maxAttempts") int maxAttempts);
+
+    @Override
     @Query("select min(r.createdAt) from CommunityReview r where r.moderationStatus = " + STATUS + "PENDING"
         + " and r.moderationAttempts < :maxAttempts")
     LocalDateTime findOldestPendingCreatedAt(@Param("maxAttempts") int maxAttempts);

@@ -12,6 +12,8 @@ dependencies {
     // 새로 들어옴 com.networknt:json-schema-validator 3.0.6 · com.ethlo.time:itu 1.14.0 · tools.jackson.dataformat:jackson-dataformat-yaml(Boot BOM).
     // servlet-api는 provided(Boot Tomcat 것을 씀)
     implementation("io.modelcontextprotocol.sdk:mcp:2.1.0")
+    // 운영 지표(review.app.CommunityMetrics). 레지스트리는 앱이 준다(community-service: actuator + Prometheus). 버전은 Boot BOM
+    implementation("io.micrometer:micrometer-core")
     // 기능 테스트의 로그인 헤더(common TestMembers)
     testImplementation(testFixtures(project(":common")))
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
