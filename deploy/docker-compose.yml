@@ -376,6 +376,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       # Kafka 수신 스위치. 기본값은 community.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다. 끄면 수신이 멈추고 메시지는 Kafka 에 남아 true 로 올리면 처리된다
       COMMUNITY_KAFKA_CONSUMER_ENABLED: ${COMMUNITY_KAFKA_CONSUMER_ENABLED:-true}
+      # 리뷰 검사 AI 키(#1002). 비어 있으면 AI 를 빼고 금칙어만 쓴다
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      # 운영 조회 MCP 창구(#1005). 기본 꺼짐
+      COMMUNITY_MCP_ENABLED: ${COMMUNITY_MCP_ENABLED:-false}
+      # 쓰이지 않는 리뷰 사진 정리(#1036). 기본 꺼짐, 서버 역할의 S3 삭제 · 목록 권한을 확인한 뒤 켠다
+      COMMUNITY_REVIEW_IMAGE_CLEANUP_ENABLED: ${COMMUNITY_REVIEW_IMAGE_CLEANUP_ENABLED:-false}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${COMMUNITY_PORT:-8102}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
