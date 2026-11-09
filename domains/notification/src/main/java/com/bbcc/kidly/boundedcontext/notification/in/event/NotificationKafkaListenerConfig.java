@@ -32,36 +32,42 @@ import tools.jackson.core.JacksonException;
 @Configuration
 class NotificationKafkaListenerConfig {
 
-    private static final String DLT_SUFFIX = ".notification.dlt";
+    static final String DLT_SUFFIX = ".notification.dlt";
+    static final String MEMBER_EVENTS = "kidly.member.events";
+    static final String PRODUCT_EVENTS = "kidly.product.events";
+    static final String PAYMENT_EVENTS = "kidly.payment.events";
+    static final String SELLER_EVENTS = "kidly.seller.events";
+    static final String ORDER_EVENTS = "kidly.order.events";
+    static final String AUTH_EVENTS = "kidly.auth.events";
 
     @Bean
     NewTopic notificationMemberEventsDeadLetterTopic() {
-        return deadLetterTopic("kidly.member.events");
+        return deadLetterTopic(MEMBER_EVENTS);
     }
 
     @Bean
     NewTopic notificationProductEventsDeadLetterTopic() {
-        return deadLetterTopic("kidly.product.events");
+        return deadLetterTopic(PRODUCT_EVENTS);
     }
 
     @Bean
     NewTopic notificationPaymentEventsDeadLetterTopic() {
-        return deadLetterTopic("kidly.payment.events");
+        return deadLetterTopic(PAYMENT_EVENTS);
     }
 
     @Bean
     NewTopic notificationSellerEventsDeadLetterTopic() {
-        return deadLetterTopic("kidly.seller.events");
+        return deadLetterTopic(SELLER_EVENTS);
     }
 
     @Bean
     NewTopic notificationOrderEventsDeadLetterTopic() {
-        return deadLetterTopic("kidly.order.events");
+        return deadLetterTopic(ORDER_EVENTS);
     }
 
     @Bean
     NewTopic notificationAuthEventsDeadLetterTopic() {
-        return deadLetterTopic("kidly.auth.events");
+        return deadLetterTopic(AUTH_EVENTS);
     }
 
     private static NewTopic deadLetterTopic(String topic) {

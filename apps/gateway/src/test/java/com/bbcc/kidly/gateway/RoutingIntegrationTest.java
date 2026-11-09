@@ -505,6 +505,20 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
     @ParameterizedTest
     @ValueSource(strings = {
+        "/api/v1/admin/notification-dead-letters", "/api/v1/admin/notification-dead-letters/3",
+        "/api/v1/admin/notification-dead-letters/3/reprocess"
+    })
+    @DisplayName("알림 관리자 API(DLT)는 같은 메서드 · 경로 · 쿼리로 알림 서비스에 넘긴다")
+    void routesNotificationAdminApisToNotificationService(String path) {
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isOk();
+
+        assertThat(notificationBackend.lastRequest()).hasValueSatisfying(recorded ->
+            assertThat(recorded.uri()).isEqualTo(URI.create(path)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
         "/api/v1/child/notifications?page=0&size=20", "/api/v1/child/notifications/unread-count",
         "/api/v1/child/notifications/3/read", "/api/v1/child/notifications/read-all"
     })
