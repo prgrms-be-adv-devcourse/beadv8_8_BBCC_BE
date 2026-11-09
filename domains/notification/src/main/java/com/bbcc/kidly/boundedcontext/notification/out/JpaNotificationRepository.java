@@ -45,8 +45,21 @@ public interface JpaNotificationRepository extends JpaRepository<Notification, L
     @Override
     @Modifying(clearAutomatically = true)
     @Query("""
-        UPDATE Notification n SET n.recipient = NULL, n.updatedAt = :now, n.version = n.version + 1
-        WHERE n.memberId = :memberId AND n.recipient IS NOT NULL
+        UPDATE Notification n
+        SET n.recipient = NULL, n.body = '', n.updatedAt = :now, n.version = n.version + 1
+        WHERE n.memberId = :memberId AND (n.recipient IS NOT NULL OR n.body <> '')
         """)
     int eraseRecipientOf(@Param("memberId") Long memberId, @Param("now") LocalDateTime now);
+
+    @Override
+    @Modifying
+    @Query("""
+        DELETE FROM Notification n
+        WHERE n.createdAt < :cutoff
+          AND (n.status IN (com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.SENT,
+                            com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.SKIPPED)
+               OR (n.status = com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.FAILED
+                   AND n.nextAttemptAt IS NULL))
+        """)
+    int deleteFinishedCreatedBefore(@Param("cutoff") LocalDateTime cutoff);
 }

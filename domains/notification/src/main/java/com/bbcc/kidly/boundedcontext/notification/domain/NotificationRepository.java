@@ -28,7 +28,13 @@ public interface NotificationRepository {
     int skipUnsentOf(Long memberId, LocalDateTime now);
 
     /**
-     * 이 회원 알림의 받는 주소를 비운다(회원 탈퇴). 상태 · 시각 · 유형은 그대로다. 버전을 올린다. 바꾼 개수.
+     * 이 회원 알림의 받는 주소와 본문(상호 · 정지 사유 · 상품 이름이 들어간다)을 비운다(회원 탈퇴).
+     * 제목은 고정 문구라 남긴다. 상태 · 시각 · 유형도 운영 확인용으로 그대로다. 버전을 올린다. 바꾼 개수.
      */
     int eraseRecipientOf(Long memberId, LocalDateTime now);
+
+    /**
+     * 이 시각보다 먼저 만든 알림 중 끝난 것(SENT · SKIPPED, 더 시도하지 않는 FAILED)을 지운다. 지운 개수.
+     */
+    int deleteFinishedCreatedBefore(LocalDateTime cutoff);
 }

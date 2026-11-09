@@ -82,7 +82,7 @@ class MemberWithdrawalServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("탈퇴하면 발송 기록의 주소를 비우고 보내지 않은 것만 SKIPPED로 끝낸다. 두 번 받아도 같다")
+    @DisplayName("탈퇴하면 발송 기록의 주소 · 본문을 비우고 보내지 않은 것만 SKIPPED로 끝낸다. 두 번 받아도 같다")
     void eraseEmailRecords() {
         var now = LocalDateTime.now();
         var pending = save(email(MEMBER_ID, EMAIL));
@@ -111,9 +111,27 @@ class MemberWithdrawalServiceIntegrationTest {
         assertThat(jdbcTemplate.queryForList(
             "SELECT recipient FROM notification.notification WHERE member_id = ?", String.class, MEMBER_ID))
             .hasSize(5).containsOnlyNulls();
+        assertThat(jdbcTemplate.queryForList(
+            "SELECT body FROM notification.notification WHERE member_id = ?", String.class, MEMBER_ID))
+            .hasSize(5).containsOnly("");
+        assertThat(find(sent).getTitle()).isEqualTo("제목");
         assertThat(find(other)).satisfies(notification -> {
             assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
             assertThat(notification.getRecipient()).isEqualTo(OTHER_EMAIL);
+            assertThat(notification.getBody()).isEqualTo("본문");
+        });
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 주소가 없는 푸시 기록의 본문도 비운다")
+    void erasePushBody() {
+        var id = save(sent(NotificationFixture.deliveryPush(MEMBER_ID, null), LocalDateTime.now()));
+
+        memberWithdrawalService.purge(MEMBER_ID);
+
+        assertThat(find(id)).satisfies(notification -> {
+            assertThat(notification.getBody()).isEmpty();
+            assertThat(notification.getStatus()).isEqualTo(NotificationStatus.SENT);
         });
     }
 

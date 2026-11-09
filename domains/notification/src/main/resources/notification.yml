@@ -33,7 +33,7 @@ management:
 
 kidly:
   mail:
-    # 기본 켬. false면 보내지 않고 받는 사람 · 제목만 로그로 남긴다.
+    # 기본 켬. false면 보내지 않고 제목만 로그로 남긴다.
     # 켜져 있어도 계정(MAIL_USERNAME · MAIL_PASSWORD)이 없으면 보내지 않고 로그만 남긴다 (앱은 뜬다)
     enabled: ${MAIL_ENABLED:true}
     # 보내는 주소. 없으면 MAIL_USERNAME
@@ -45,6 +45,8 @@ kidly:
     retry-interval: PT1M
     # 보존 기간(90일)이 지난 알림함 알림을 지우는 시각(cron, 초 분 시 일 월 요일, KST). "-"면 정리하지 않는다
     inbox-cleanup-cron: "0 0 4 * * *"
+    # 보존 기간(1년)이 지난 끝난 발송 기록(이메일 · 푸시)을 지우는 시각(cron, KST). "-"면 정리하지 않는다
+    notification-cleanup-cron: "0 5 4 * * *"
     # 웹 푸시 FCM 서비스 계정 키(JSON의 Base64). 없으면 푸시를 보내지 않는다(앱은 뜬다)
     firebase-credentials: ${FIREBASE_CREDENTIALS:}
     # 270일 동안 다시 등록되지 않은 푸시 FID를 지우는 시각(cron, KST). "-"면 정리하지 않는다
