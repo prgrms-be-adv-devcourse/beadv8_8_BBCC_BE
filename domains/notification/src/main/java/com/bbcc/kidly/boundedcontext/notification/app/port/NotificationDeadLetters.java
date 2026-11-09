@@ -24,6 +24,9 @@ public interface NotificationDeadLetters {
 
     int recordReplayFailure(Long id, Long adminId, LocalDateTime now, String failureType);
 
+    // 원래 토픽 · 키가 같은 기록의 본문을 비운다(탈퇴 회원 개인정보 파기). 행은 남긴다
+    int erasePayloadOf(String sourceTopic, String messageKey, LocalDateTime now);
+
     enum State {
         OPEN, REPROCESSED
     }
