@@ -6,18 +6,14 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 조르기에 담을 상품 옵션 · 판매자 상호 · 자녀(#641). 구현은 out의 주문 컨텍스트(복사본) 어댑터이고 부르는 쪽 트랜잭션에 합류한다.
+ * 조르기가 보여 줄 상품 옵션 · 판매자 상호 · 자녀(#641). 구현은 out의 주문 컨텍스트(복사본) 어댑터이고 부르는 쪽 트랜잭션에 합류한다.
  */
 public interface WishCatalog {
-
-    Optional<ProductOption> findProductOption(Long optionId);
 
     /**
      * 없는 옵션은 빠진다.
      */
     List<ProductOption> findProductOptions(Collection<Long> optionIds);
-
-    Optional<String> findSellerName(Long sellerId);
 
     /**
      * 판매자 ID → 상호. 없는 판매자는 빠진다.
@@ -25,6 +21,11 @@ public interface WishCatalog {
     Map<Long, String> findSellerNames(Collection<Long> sellerIds);
 
     Optional<Child> findChild(Long childId);
+
+    /**
+     * 그 회원이 보호자인 자녀(삭제된 자녀 포함). 받은 적 없으면 빈 목록.
+     */
+    List<Child> findChildrenOfMember(Long memberId);
 
     /**
      * 자녀 계정 → 자녀 프로필 · 보호자(#906). 받은 적 없는 계정은 빈 값.

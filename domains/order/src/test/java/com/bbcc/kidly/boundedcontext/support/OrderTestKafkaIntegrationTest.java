@@ -22,7 +22,7 @@ class OrderTestKafkaIntegrationTest {
     private KafkaContainer kafka;
 
     @Test
-    @DisplayName("주문 토픽 · 받는 토픽 5개 · 주문 DLT 5개가 생긴다(자녀 계정 kidly.auth.events, #906)")
+    @DisplayName("주문 토픽 · 받는 토픽 5개 · 주문 DLT 6개가 생긴다(자녀 계정 kidly.auth.events #906, 자기 토픽 DLT #999)")
     void topicsDeclared() throws Exception {
         try (Admin admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
             kafka.getBootstrapServers()))) {
@@ -31,7 +31,8 @@ class OrderTestKafkaIntegrationTest {
             assertThat(topics).contains("kidly.order.events", "kidly.product.events", "kidly.seller.events",
                 "kidly.childprofile.events", "kidly.payment.events", "kidly.product.events.order.dlt",
                 "kidly.seller.events.order.dlt", "kidly.childprofile.events.order.dlt",
-                "kidly.payment.events.order.dlt", "kidly.auth.events", "kidly.auth.events.order.dlt");
+                "kidly.payment.events.order.dlt", "kidly.auth.events", "kidly.auth.events.order.dlt",
+                "kidly.order.events.order.dlt");
         }
     }
 }

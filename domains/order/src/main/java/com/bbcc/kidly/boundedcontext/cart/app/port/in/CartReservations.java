@@ -19,6 +19,25 @@ public interface CartReservations {
     void reserve(List<Long> cartItemIds, List<Payer> payers, String reservationId);
 
     /**
+     * 주인의 칸만 예약하고(#999) 예약한 칸의 지금 값을 고른 순서로 돌려준다. 주인의 칸이 아니면(없는 칸 포함) CART_ITEM_NOT_FOUND(404,
+     * 남의 칸이 있는지 알리지 않음). 그 밖의 규칙은 {@link #reserve}와 같다.
+     *
+     * @param owner 칸 주인(장바구니 주인 종류 MEMBER · CHILD와 ID)
+     */
+    List<ReservedLine> reserveOwned(Payer owner, List<Long> cartItemIds, List<Payer> payers, String reservationId);
+
+    /**
+     * 이 예약에 아직 남아 있는 칸 ID(#999). 예약 칸은 주인이 뺄 수 없으므로, 예약한 칸보다 적으면 빠진 칸은 결제 정리로 빠진 것이다.
+     * 없는 예약이면 빈 목록.
+     */
+    List<Long> reservedCartItemIds(String reservationId);
+
+    /**
+     * 결제 정리가 이 예약의 칸을 정리한 적이 있는지(#999). 칸이 남는 일부 수량 결제도 포함한다. 없는 예약(풀린 예약 포함)이면 false.
+     */
+    boolean hasPurchase(String reservationId);
+
+    /**
      * 예약을 푼다(칸은 남는다). 없는 예약이면 아무것도 하지 않는다.
      */
     void release(String reservationId);
@@ -30,5 +49,13 @@ public interface CartReservations {
      * @param id 회원 ID 또는 자녀 프로필 ID
      */
     record Payer(String type, Long id) {
+    }
+
+    /**
+     * 예약한 칸의 지금 값.
+     *
+     * @param childId 입을 자녀. 없으면 null
+     */
+    record ReservedLine(Long cartItemId, Long optionId, Long childId, int quantity) {
     }
 }

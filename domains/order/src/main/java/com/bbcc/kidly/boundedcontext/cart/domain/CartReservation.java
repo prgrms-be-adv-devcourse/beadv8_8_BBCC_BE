@@ -10,6 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -42,12 +44,36 @@ public class CartReservation extends CartTimeEntity {
     @Column(nullable = false)
     private Long payerId;
 
+    /**
+     * 결제 정리가 이 예약의 칸을 처음 정리한 시각(#999). 아직 없으면 null.
+     */
+    private LocalDateTime purchasedAt;
+
+    /**
+     * 결제 정리 표시와 예약 해제가 겹칠 때(#999): 표시가 버전을 올리므로, 확인한 뒤 표시가 커밋되면 해제의 삭제가 낙관적 락으로 진다(409).
+     */
+    @Version
+    private Long version;
+
     public static CartReservation allow(String reservationId, OwnerType payerType, Long payerId) {
         CartReservation reservation = new CartReservation();
         reservation.reservationId = reservationId;
         reservation.payerType = payerType;
         reservation.payerId = payerId;
         return reservation;
+    }
+
+    /**
+     * 결제 정리 시각을 남긴다. 이미 있으면 그대로 둔다(처음 정리한 시각).
+     */
+    public void markPurchased(LocalDateTime at) {
+        if (purchasedAt == null) {
+            this.purchasedAt = at;
+        }
+    }
+
+    public boolean isPurchased() {
+        return purchasedAt != null;
     }
 
     public boolean allows(OwnerType type, Long id) {

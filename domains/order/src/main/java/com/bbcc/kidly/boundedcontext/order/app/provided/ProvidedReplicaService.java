@@ -62,6 +62,13 @@ public class ProvidedReplicaService implements ReplicaLookup {
     }
 
     @Override
+    public List<ChildView> findChildrenOfMember(Long memberId) {
+        return childReplicaRepository.findAllByMemberId(memberId).stream()
+            .map(child -> new ChildView(child.getChildId(), child.getMemberId(), child.isDeleted()))
+            .toList();
+    }
+
+    @Override
     public Optional<ChildAccountView> findChildAccount(Long accountId) {
         return childAccountReplicaRepository.findByAccountId(accountId)
             .map(account -> new ChildAccountView(account.getAccountId(), account.getChildProfileId(),

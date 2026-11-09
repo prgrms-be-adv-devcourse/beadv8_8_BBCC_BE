@@ -2,10 +2,10 @@ package com.bbcc.kidly.boundedcontext.wish.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
-import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishApprovers.Principal;
+import com.bbcc.kidly.boundedcontext.wish.domain.PrincipalType;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest;
-import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.RejectReason;
+import com.bbcc.kidly.boundedcontext.wish.out.actor.ChildWishActor;
 import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -13,62 +13,36 @@ import org.junit.jupiter.api.Test;
 
 class WishPolicyTest {
 
-    private static final Long PARENT_ID = 1L;
-    private static final Long CHILD_ID = 7L;
-    private static final Long SIBLING_ID = 8L;
-
     private final WishPolicy policy = new WishPolicy();
+    private final ChildWishActor child = new ChildWishActor(1L, 7L);
+    private final ParentWishActor guardian = new ParentWishActor(7L);
 
     @Test
-    @DisplayName("부모는 자녀가 담은 줄도 뺄 수 있다")
-    void parentRemovesAny() {
-        WishItem byChild = WishItem.create(CHILD_ID, 1L, 1, AddedBy.CHILD, CHILD_ID);
-
-        assertThat(policy.canRemove(new ParentWishActor(PARENT_ID), byChild)).isTrue();
+    @DisplayName("보내기는 로그인한 자녀만(#999)")
+    void sendByChildOnly() {
+        assertThat(policy.canSend(child)).isTrue();
+        assertThat(policy.canSend(guardian)).isFalse();
     }
 
     @Test
-    @DisplayName("자녀는 자기가 담은 줄만 뺄 수 있다(부모 · 다른 자녀가 담은 줄은 못 뺀다)")
-    void childRemovesOwnOnly() {
-        TestChildWishActor child = new TestChildWishActor(CHILD_ID);
+    @DisplayName("거절은 그 조르기의 승인자만, 철회는 보낸 사람만")
+    void rejectByApproverAndCancelByRequester() {
+        WishRequest request = WishRequest.send(PrincipalType.CHILD, 1L, 1L, null, policy.maxMessageLength());
+        List<Principal> approvers = List.of(new Principal(PrincipalType.MEMBER, 7L));
 
-        assertThat(policy.canRemove(child, WishItem.create(CHILD_ID, 1L, 1, AddedBy.CHILD, CHILD_ID))).isTrue();
-        assertThat(policy.canRemove(child, WishItem.create(CHILD_ID, 1L, 1, AddedBy.PARENT, PARENT_ID))).isFalse();
-        assertThat(policy.canRemove(child, WishItem.create(CHILD_ID, 1L, 1, AddedBy.CHILD, SIBLING_ID))).isFalse();
-        // 부모 회원 ID와 자녀 프로필 ID가 같은 숫자여도 종류가 다르면 남이 담은 줄
-        assertThat(policy.canRemove(child, WishItem.create(CHILD_ID, 1L, 1, AddedBy.PARENT, CHILD_ID))).isFalse();
+        assertThat(policy.canReject(guardian, approvers)).isTrue();
+        assertThat(policy.canReject(new ParentWishActor(8L), approvers)).isFalse();
+        assertThat(policy.canReject(child, approvers)).isFalse();
+        assertThat(policy.canCancel(child, request)).isTrue();
+        assertThat(policy.canCancel(guardian, request)).isFalse();
+        assertThat(policy.canCancel(new ChildWishActor(2L, 7L), request)).isFalse();
     }
 
     @Test
-    @DisplayName("철회(#968)는 보낸 사람만: 자녀가 보냈으면 그 자녀, 보호자가 대신 보냈으면 그 보호자")
-    void cancelBySenderOnly() {
-        WishItem item = WishItem.create(CHILD_ID, 1L, 1, AddedBy.CHILD, CHILD_ID);
-        WishRequest byChild = WishRequest.send(CHILD_ID, AddedBy.CHILD, CHILD_ID, null, 100, List.of(item));
-        WishRequest byParent = WishRequest.send(CHILD_ID, AddedBy.PARENT, PARENT_ID, null, 100,
-            List.of(WishItem.create(CHILD_ID, 2L, 1, AddedBy.PARENT, PARENT_ID)));
-
-        assertThat(policy.canCancel(new TestChildWishActor(CHILD_ID), byChild)).isTrue();
-        assertThat(policy.canCancel(new ParentWishActor(PARENT_ID), byChild)).isFalse();
-        assertThat(policy.canCancel(new TestChildWishActor(SIBLING_ID), byChild)).isFalse();
-        assertThat(policy.canCancel(new ParentWishActor(PARENT_ID), byParent)).isTrue();
-        assertThat(policy.canCancel(new ParentWishActor(PARENT_ID + 1), byParent)).isFalse();
-        assertThat(policy.canCancel(new TestChildWishActor(CHILD_ID), byParent)).isFalse();
-    }
-
-    @Test
-    @DisplayName("기본값: 같은 옵션은 합치고, 자녀 한 명당 50줄까지")
-    void defaults() {
-        assertThat(policy.mergesSameOption()).isTrue();
-        assertThat(policy.maxLines()).isEqualTo(50);
-    }
-
-    @Test
-    @DisplayName("조르기 정책 기본값(#701): 메시지 100자, 승인 · 거절은 보호자만, 거절 사유 고정 목록 4개")
-    void requestDefaults() {
+    @DisplayName("메시지는 100자, 거절 사유는 화면 순서대로 넷")
+    void values() {
         assertThat(policy.maxMessageLength()).isEqualTo(100);
-        assertThat(policy.canDecide(new ParentWishActor(PARENT_ID))).isTrue();
-        assertThat(policy.canDecide(new TestChildWishActor(CHILD_ID))).isFalse();
-        assertThat(policy.rejectReasons()).containsExactly(
-            RejectReason.TOO_EXPENSIVE, RejectReason.ALREADY_HAVE, RejectReason.NEXT_TIME, RejectReason.OTHER);
+        assertThat(policy.rejectReasons()).extracting(Enum::name)
+            .containsExactly("TOO_EXPENSIVE", "ALREADY_HAVE", "NEXT_TIME", "OTHER");
     }
 }

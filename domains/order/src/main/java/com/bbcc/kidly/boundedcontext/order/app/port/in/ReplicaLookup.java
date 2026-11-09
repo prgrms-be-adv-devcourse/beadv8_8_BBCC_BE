@@ -27,6 +27,11 @@ public interface ReplicaLookup {
     Optional<ChildView> findChild(Long childId);
 
     /**
+     * 그 회원이 보호자인 자녀 복사본(삭제된 자녀 포함, #999 조르기 승인자 목록). 없으면 빈 목록.
+     */
+    List<ChildView> findChildrenOfMember(Long memberId);
+
+    /**
      * 자녀 계정 → 자녀 프로필 · 보호자 복사본(#906, child-account.changed). 받은 적 없는 계정은 빈 값.
      */
     Optional<ChildAccountView> findChildAccount(Long accountId);

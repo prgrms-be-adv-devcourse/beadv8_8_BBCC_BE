@@ -10,7 +10,6 @@ import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartReservationRepository;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCheckout;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCleanup;
-import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartIntake;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartReservations;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartItem.OwnerType;
@@ -41,7 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 같은 가족(같은 보호자)의 줄이면 403(부모가 아이 장바구니를 다루는 것 포함), 그 밖이면 없는 줄(404)로 본다.
  * 아이 장바구니는 입을 아이가 그 아이로 고정이고, 그 아이 프로필 복사본이 없으면 담을 수 없다(CART-C-01).
  * 상품 · 판매자 · 자녀는 {@link CartCatalog}(주문 컨텍스트의 복사본)로 읽고, 주문은 읽지 않는다(#998).
- * 다른 컨텍스트에는 결제완료 정리({@link CartCleanup}) · 담기({@link CartIntake}) · 칸 예약({@link CartReservations}) ·
+ * 다른 컨텍스트에는 결제완료 정리({@link CartCleanup}) · 칸 예약({@link CartReservations}) ·
  * 주문 가능 확인({@link CartCheckout})을 내준다.
  * 담기에 성공하면 {@link CartItemAddedEvent}(#654), 사용자가 빼면 {@link CartItemRemovedEvent}(#709), 결제완료로 정리하면
  * {@link CartItemPurchasedEvent}(이번에 산 수량 · 주문 ID · 주문상품 ID, 예약 칸이면 예약 ID, #998)를 같은 트랜잭션에서 낸다({@link CartEvents}).
@@ -50,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class CartService implements CartCleanup, CartIntake, CartReservations, CartCheckout {
+public class CartService implements CartCleanup, CartReservations, CartCheckout {
 
     private final CartItemRepository cartItemRepository;
     private final CartReservationRepository reservationRepository;
@@ -106,14 +105,6 @@ public class CartService implements CartCleanup, CartIntake, CartReservations, C
         }
         publishItemAdded(created, product, quantity);
         return new AddCartItemResult(toLine(created, product, sellerNameOf(product)), true);
-    }
-
-    /**
-     * 회원 장바구니 담기와 같다({@link #addItem}).
-     */
-    @Override
-    public void add(Long memberId, Long optionId, Long childId, int quantity) {
-        addItem(new Actor(OwnerType.MEMBER, memberId, memberId), optionId, childId, quantity);
     }
 
     /**
@@ -181,6 +172,7 @@ public class CartService implements CartCleanup, CartIntake, CartReservations, C
     @Override
     public void clearOrdered(Long orderId, List<OrderedLine> lines) {
         Set<Long> deleted = new HashSet<>();
+        LocalDateTime now = LocalDateTime.now();
         for (OrderedLine line : lines) {
             // 주문에 기록된 칸(주문 때 requireOrderable로 확인됨)은 칸 ID로만 찾아 결제자 · 예약 상태와 상관없이 정리한다:
             // 결제자가 칸의 결제 회원과 달라도(보호자 2명 · 예약 허용 주체), 예약이 결제 전에 풀려도(철회 · 거절) 산 칸이 남지 않는다.
@@ -190,6 +182,8 @@ public class CartService implements CartCleanup, CartIntake, CartReservations, C
                 : cartItemRepository.findByOwnerTypeAndOwnerIdAndOptionIdAndChildId(OwnerType.MEMBER, line.memberId(),
                     line.optionId(), line.childId());
             target.filter(item -> !deleted.contains(item.getId())).ifPresent(item -> {
+                // 예약 칸이면 그 예약에 결제 정리 시각을 남긴다(칸이 남는 일부 결제도 예약한 쪽이 알 수 있게, #999)
+                markPurchased(item.getReservationId(), now);
                 // 산 수량만큼 뺀다. 수량을 모르는 예전 줄은 칸 전체를 산 것으로 본다
                 int purchased = line.quantity() == null ? item.getQuantity() : line.quantity();
                 if (item.deductPurchased(purchased) <= 0) {
@@ -198,6 +192,12 @@ public class CartService implements CartCleanup, CartIntake, CartReservations, C
                 }
                 publishItemPurchased(item, purchased, orderId, line.orderItemId());
             });
+        }
+    }
+
+    private void markPurchased(String reservationId, LocalDateTime at) {
+        if (reservationId != null) {
+            reservationRepository.findAllByReservationId(reservationId).forEach(saved -> saved.markPurchased(at));
         }
     }
 
@@ -224,6 +224,45 @@ public class CartService implements CartCleanup, CartIntake, CartReservations, C
             .filter(payer -> existing.stream().noneMatch(saved -> saved.allows(payer.type(), payer.id())))
             .forEach(payer -> reservationRepository.save(
                 CartReservation.allow(reservationId, payer.type(), payer.id())));
+    }
+
+    @Override
+    public List<ReservedLine> reserveOwned(Payer owner, List<Long> cartItemIds, List<Payer> payers,
+        String reservationId) {
+        Owner parsedOwner = parse(owner);
+        if (cartItemIds == null || cartItemIds.isEmpty() || cartItemIds.stream().anyMatch(Objects::isNull)) {
+            throw new BusinessException(CartErrorCode.INVALID_RESERVATION);
+        }
+        Map<Long, CartItem> owned = cartItemRepository.findAllByIdIn(new HashSet<>(cartItemIds)).stream()
+            .filter(item -> item.isOwnedBy(parsedOwner.type(), parsedOwner.id()))
+            .collect(Collectors.toMap(CartItem::getId, Function.identity()));
+        if (!owned.keySet().containsAll(cartItemIds)) {
+            throw new BusinessException(CartErrorCode.CART_ITEM_NOT_FOUND);
+        }
+        reserve(cartItemIds, payers, reservationId);
+        return cartItemIds.stream()
+            .map(owned::get)
+            .map(item -> new ReservedLine(item.getId(), item.getOptionId(), item.getChildId(), item.getQuantity()))
+            .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> reservedCartItemIds(String reservationId) {
+        if (reservationId == null) {
+            return List.of();
+        }
+        return cartItemRepository.findAllByReservationId(reservationId).stream().map(CartItem::getId).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasPurchase(String reservationId) {
+        if (reservationId == null) {
+            return false;
+        }
+        return reservationRepository.findAllByReservationId(reservationId).stream()
+            .anyMatch(CartReservation::isPurchased);
     }
 
     @Override

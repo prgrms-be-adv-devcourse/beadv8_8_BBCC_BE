@@ -10,9 +10,8 @@ import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartCleanup;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
-import com.bbcc.kidly.boundedcontext.wish.app.TestChildWishActor;
 import com.bbcc.kidly.boundedcontext.wish.app.WishRequestService;
-import com.bbcc.kidly.boundedcontext.wish.app.WishService;
+import com.bbcc.kidly.boundedcontext.wish.out.actor.ChildWishActor;
 import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
@@ -35,7 +34,6 @@ import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.WishCancelledEvent;
-import com.bbcc.kidly.shared.order.event.WishItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.shared.order.event.CartItemPurchasedEvent;
@@ -107,9 +105,6 @@ class OrderOutboxKafkaIntegrationTest {
 
     @Autowired
     private DeliveryRepository deliveryRepository;
-
-    @Autowired
-    private WishService wishService;
 
     @Autowired
     private WishRequestService wishRequestService;
@@ -270,19 +265,20 @@ class OrderOutboxKafkaIntegrationTest {
         + "같은 자녀는 같은 파티션에 일어난 순서대로")
     void deliversWishEvents() {
         Long childId = 1L;
-        TestChildWishActor child = new TestChildWishActor(childId);
-        Long wishItemId = wishService.add(child, childId, 1L, 2).line().wishItemId();
-        Long requestId = wishRequestService.send(child, childId, List.of(wishItemId), null).requestId();
+        ChildWishActor child = new ChildWishActor(childId, BUYER_ID);
+        Long cartItemId = cartService.addItem(CartOwners.child(childId, BUYER_ID), 1L, null, 2).line().cartItemId();
+        Long requestId = wishRequestService.send(child, List.of(cartItemId), null).requestId();
         wishRequestService.reject(new ParentWishActor(BUYER_ID), requestId, "NEXT_TIME");
-        // 거절로 풀린 줄을 다시 조르고 자녀가 철회한다(#968)
-        Long againId = wishRequestService.send(child, childId, List.of(wishItemId), null).requestId();
+        // 거절로 풀린 칸을 다시 조르고 자녀가 철회한다(#968)
+        Long againId = wishRequestService.send(child, List.of(cartItemId), null).requestId();
         wishRequestService.cancel(child, againId);
-        List<DomainEvent> published = List.of(recorder.events(WishItemAddedEvent.class).getFirst(),
+        List<DomainEvent> published = List.of(
             recorder.events(WishSentEvent.class).get(0), recorder.events(WishRejectedEvent.class).getFirst(),
             recorder.events(WishSentEvent.class).get(1), recorder.events(WishCancelledEvent.class).getFirst());
 
         OutboxRelayResult result = relayService.relay();
 
+        // 장바구니 담기(cart.item-added, 키 = 회원 ID) 1건 + 조르기 4건
         assertThat(result).isEqualTo(new OutboxRelayResult(OutboxRelayResult.Outcome.COMPLETED, 5, 5));
         Map<String, ConsumerRecord<String, String>> received = read(TOPIC,
             published.stream().map(event -> event.eventId().toString()).collect(Collectors.toSet()));
@@ -290,7 +286,7 @@ class OrderOutboxKafkaIntegrationTest {
             .map(event -> received.get(event.eventId().toString()))
             .toList();
         assertThat(inOrder).extracting(record -> header(record, "eventType"))
-            .containsExactly("wish.item-added", "wish.sent", "wish.rejected", "wish.sent", "wish.cancelled");
+            .containsExactly("wish.sent", "wish.rejected", "wish.sent", "wish.cancelled");
         for (DomainEvent event : published) {
             ConsumerRecord<String, String> record = received.get(event.eventId().toString());
             assertThat(record.key()).isEqualTo(String.valueOf(childId));
