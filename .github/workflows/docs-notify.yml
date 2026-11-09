@@ -1,4 +1,4 @@
-# develop · main 에 docs/ 변경이 들어오면 Slack 프로젝트 채널에 알린다.
+# develop · main 에 docs/ 변경이 들어오면 Slack 알림 채널에 알린다.
 # docs/ 만 바뀐 push 는 deploy.yml 이 건너뛰어 배포 알림도 오지 않으므로 따로 알린다
 # 파일마다 바뀐 줄 수 · diff 링크 · 바뀐 절 제목을 적는다(.github/scripts/docs-notify.py)
 name: Docs Notify
@@ -21,8 +21,8 @@ jobs:
 
       - name: Send to Slack
         env:
-          # 프로젝트 채널의 웹훅. 일일 요약(slack-daily-summary.yml)과 같은 채널이다
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DAILY_SUMMARY_WEBHOOK_URL }}
+          # 알림 채널의 웹훅. push · PR · 배포 알림(slack-notify.yml · deploy-notify.yml)과 같은 채널이다
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           # {"GitHub아이디": "이름"} 형식의 Actions 변수. public 레포라 실명을 코드에 두지 않는다
           NAME_MAP: ${{ vars.SLACK_NAME_MAP }}
           GH_TOKEN: ${{ github.token }}
@@ -36,7 +36,7 @@ jobs:
         run: |
           # 시크릿이 없으면 다른 채널로 보내지 않고 건너뛴다
           if [ -z "$SLACK_WEBHOOK_URL" ]; then
-            echo "SLACK_DAILY_SUMMARY_WEBHOOK_URL 이 없어 알림을 보내지 않는다"
+            echo "SLACK_WEBHOOK_URL 이 없어 알림을 보내지 않는다"
             exit 0
           fi
           python3 .github/scripts/docs-notify.py
