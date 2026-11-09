@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.notification.in.event;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * 주문이 아직 보내지 않는 이벤트(#1018)를 알림이 읽는 모양. 주문에 요청한 shared 레코드와 칸 이름이 같아,
@@ -11,18 +10,6 @@ import java.util.List;
 final class AwaitedOrderEvents {
 
     private AwaitedOrderEvents() {
-    }
-
-    /**
-     * wish.paid · wish.expired. items는 둘 다 조른 상품이다(일부만 결제해도 결제 완료).
-     */
-    record WishClosed(Data data) {
-
-        record Data(Long wishRequestId, Long childId, List<Item> items) {
-        }
-
-        record Item(Long productId) {
-        }
     }
 
     /**
