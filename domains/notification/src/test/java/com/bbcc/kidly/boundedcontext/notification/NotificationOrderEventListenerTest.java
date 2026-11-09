@@ -58,7 +58,7 @@ class NotificationOrderEventListenerTest {
     }
 
     @Test
-    @DisplayName("wish.paid는 결제한 상품으로 자녀 결제 완료 알림을 만든다")
+    @DisplayName("wish.paid는 조른 상품으로 자녀 결제 완료 알림을 만든다")
     void wishPaid() {
         listener.on(record("wish.paid", "{\"wishRequestId\":7,\"childId\":3,\"memberId\":1,\"orderId\":40,"
             + "\"items\":[{\"productId\":null,\"optionId\":5,\"quantity\":1},"

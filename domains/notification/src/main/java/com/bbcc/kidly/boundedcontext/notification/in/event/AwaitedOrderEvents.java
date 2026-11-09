@@ -14,7 +14,7 @@ final class AwaitedOrderEvents {
     }
 
     /**
-     * wish.paid · wish.expired. items는 결제 완료면 결제한 상품, 만료면 조른 상품이다.
+     * wish.paid · wish.expired. items는 둘 다 조른 상품이다(일부만 결제해도 결제 완료).
      */
     record WishClosed(Data data) {
 

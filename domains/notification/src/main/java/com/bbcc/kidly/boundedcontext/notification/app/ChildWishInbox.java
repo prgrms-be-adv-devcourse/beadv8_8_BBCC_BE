@@ -11,7 +11,7 @@ public record ChildWishInbox(String title, String body) {
 
     public static ChildWishInbox paid(Optional<String> firstProductName, int itemCount) {
         return new ChildWishInbox("조르기를 들어줬어요!",
-            "부모님이 결제했어요. " + products("산 상품", firstProductName, itemCount));
+            "부모님이 결제했어요. " + products("조른 상품", firstProductName, itemCount));
     }
 
     public static ChildWishInbox rejected(String reason, Optional<String> firstProductName, int itemCount) {

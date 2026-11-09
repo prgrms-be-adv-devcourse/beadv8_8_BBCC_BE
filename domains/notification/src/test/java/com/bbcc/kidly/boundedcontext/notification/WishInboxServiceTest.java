@@ -111,7 +111,7 @@ class WishInboxServiceTest {
     }
 
     @Test
-    @DisplayName("결제 완료는 자녀 활성 계정 알림함에 결제한 상품과 함께 넣고, 조르기 ID 중복 키를 둔다")
+    @DisplayName("결제 완료는 자녀 활성 계정 알림함에 조른 상품과 함께 넣고, 조르기 ID 중복 키를 둔다")
     void addWishPaid() {
         given(childAccountService.findActiveAccountId(3L)).willReturn(Optional.of(30L));
         given(productNameService.findName(10L)).willReturn(Optional.of("무지 티셔츠"));
@@ -122,7 +122,7 @@ class WishInboxServiceTest {
         assertThat(info.recipient()).isEqualTo(InboxRecipient.child(30L));
         assertThat(info.type()).isEqualTo(NotificationType.WISH_PAID);
         assertThat(info.title()).isEqualTo("조르기를 들어줬어요!");
-        assertThat(info.body()).isEqualTo("부모님이 결제했어요. 산 상품: 무지 티셔츠");
+        assertThat(info.body()).isEqualTo("부모님이 결제했어요. 조른 상품: 무지 티셔츠");
         assertThat(info.linkPath()).isEqualTo("/child/wishes/7");
         assertThat(info.dedupKey()).isEqualTo("wish.paid:7");
     }

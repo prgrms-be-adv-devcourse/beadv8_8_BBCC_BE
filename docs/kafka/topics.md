@@ -25,7 +25,7 @@
 | | `cart.item-removed`(사용자가 뺄 때만, #709. #998 추가 칸 `ownerType` · `ownerId`) | 회원 ID | | recommend |
 | | `cart.item-purchased`(결제완료로 산 칸 정리, #998: `cartItemId` · `ownerType` · `ownerId` · `memberId`(줄의 결제 회원, 실제 결제자와 다를 수 있음) · `optionId` · `childId` · `quantity`(이번에 산 수량. 칸에서 그만큼 빠지고 0이 되면 칸이 지워진다) · `orderId` · `orderItemId` · `reservationId`(예약 칸이었으면)) | 회원 ID | | order(조르기 결제 완료, 자기 토픽 #999) |
 | | `wish.sent` | 자녀 ID | | notification |
-| | `wish.paid`(조르기 예약 칸이 결제됨, 조르기마다 1번. data `payerType` · `payerId` · `orderId`, #999) | 자녀 ID | | (아직 없음) |
+| | `wish.paid`(조르기 예약 칸이 결제됨, 조르기마다 1번. data `payerType` · `payerId` · `orderId`, #999) | 자녀 ID | | notification |
 | | `wish.rejected` | 자녀 ID | | notification |
 | | `wish.cancelled`(처리 전에 철회, #968. #999 추가 칸 `cancelReason` DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM, 없는 예전 메시지는 DIRECT) | 자녀 ID | | (아직 없음) |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |
