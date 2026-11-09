@@ -20,6 +20,8 @@ public class DeliveryInboxService {
     private static final String SHIPPED_BODY = "%s 운송장 %s로 출발했어요.";
     private static final String SHIPPED_BODY_WITHOUT_TRACKING = "주문하신 상품이 출발했어요. 주문 상세에서 배송 상태를 확인해 주세요.";
     private static final String DELIVERED_BODY = "주문하신 상품이 도착했어요. 받은 상품을 확인해 주세요.";
+    private static final String DELIVERED_BODY_WITH_AUTO_CONFIRM =
+        "주문하신 상품이 도착했어요. %d월 %d일에 자동으로 구매확정되니 그 전에 받은 상품을 확인해 주세요.";
 
     private final InboxNotificationService inboxNotificationService;
     private final NotificationService notificationService;
@@ -40,8 +42,17 @@ public class DeliveryInboxService {
 
     @Transactional
     public void addDelivered(DeliveryCommand command) {
-        add(command, NotificationType.DELIVERY_DELIVERED, "배송이 완료됐어요", DELIVERED_BODY,
+        add(command, NotificationType.DELIVERY_DELIVERED, "배송이 완료됐어요", deliveredBody(command),
             "delivery.delivered:");
+    }
+
+    // 자동 구매확정 예정 시각이 없는 예전 메시지는 날짜 없는 문구를 쓴다
+    private static String deliveredBody(DeliveryCommand command) {
+        if (command.autoConfirmAt() == null) {
+            return DELIVERED_BODY;
+        }
+        return DELIVERED_BODY_WITH_AUTO_CONFIRM.formatted(command.autoConfirmAt().getMonthValue(),
+            command.autoConfirmAt().getDayOfMonth());
     }
 
     private void add(DeliveryCommand command, NotificationType type, String title, String body, String keyPrefix) {
