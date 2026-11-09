@@ -267,7 +267,8 @@ class RoutingIntegrationTest extends GatewayTestSupport {
         "/api/v1/admin/admins/1?x=1", "/api/v1/admin/members/1?x=1",
         "/api/v1/admin/sellers/1/changed-events?x=1", "/api/v1/admin/seller-applications/1?x=1",
         "/api/v1/admin/auth-dead-letters/1?x=1", "/api/v1/admin/member-dead-letters/1?x=1",
-        "/api/v1/admin/seller-dead-letters/1?x=1", "/api/v1/admin/child-profile-dead-letters/1?x=1"
+        "/api/v1/admin/seller-dead-letters/1?x=1", "/api/v1/admin/child-profile-dead-letters/1?x=1",
+        "/api/v1/admin/children/changed-events?x=1"
     })
     @DisplayName("회원 API는 같은 메서드 · 경로 · 쿼리로 회원 서비스에 넘긴다")
     void routesMembersToMemberService(String path) {
