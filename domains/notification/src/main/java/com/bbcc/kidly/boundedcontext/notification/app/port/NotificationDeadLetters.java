@@ -10,6 +10,9 @@ import org.springframework.data.domain.Pageable;
  */
 public interface NotificationDeadLetters {
 
+    // 회원 이벤트 토픽. 키는 회원 ID다(aggregateId). 탈퇴한 회원의 원본은 본문을 두지 않는다
+    String MEMBER_EVENTS = "kidly.member.events";
+
     boolean insert(Received message, LocalDateTime now);
 
     Page<Summary> findByState(State state, Pageable pageable);

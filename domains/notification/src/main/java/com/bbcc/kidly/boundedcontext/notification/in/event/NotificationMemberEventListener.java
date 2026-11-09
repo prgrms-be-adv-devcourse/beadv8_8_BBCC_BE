@@ -44,7 +44,7 @@ public class NotificationMemberEventListener {
     }
 
     private void onRegistered(MemberRegisteredEvent event) {
-        if (memberWithdrawalService.isWithdrawn(event.data().memberId())) {
+        if (memberWithdrawalService.lockAndCheckWithdrawn(event.data().memberId())) {
             return;
         }
         memberContactService.save(event.data().memberId(), event.data().email());
