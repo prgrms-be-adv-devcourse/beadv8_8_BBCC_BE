@@ -43,7 +43,7 @@ spec:
       # 노드의 네트워크 장치 · 호스트 이름(메트릭 instance 라벨)을 그대로 보려고 호스트 네트워크를 쓴다. 클러스터 DNS 는 그대로 쓴다
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-      # large 가 k3s 에 합류하면 이 nodeSelector 를 빼고 deploy/monitoring-agent 를 지운다
+      # large 는 k3s agent 지만(#1028) 호스트 · compose 앱은 deploy/monitoring-agent 가 맡아 여기에만 띄운다. large 의 추천 Pod 는 이 Alloy 가 API · Pod IP 로 모은다
       nodeSelector:
         kidly/role: infra
       containers:

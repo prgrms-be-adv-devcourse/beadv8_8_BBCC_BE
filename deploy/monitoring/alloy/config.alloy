@@ -72,6 +72,89 @@ loki.source.kubernetes "pods" {
 	forward_to = [loki.write.loki.receiver]
 }
 
+// 추천 서비스 Pod(namespace recommend-<환경>, #1028). t3.large 노드에 뜨지만 노드를 가리지 않고 여기서 모은다(large 에는 이 DaemonSet 이 없다)
+// 메트릭은 Pod IP 로 바로 긁고(노드 사이 flannel 8472/udp), 로그는 API 서버로 읽는다(kubelet 10250/tcp)
+// job · env · service_name 은 compose 때(monitoring-agent)와 같게 둬 대시보드 · 알림이 그대로 잡는다. instance 는 Pod 이름이다
+discovery.kubernetes "recommend" {
+	role = "pod"
+
+	namespaces {
+		names = ["recommend-dev", "recommend-prod"]
+	}
+}
+
+discovery.relabel "recommend" {
+	targets = discovery.kubernetes.recommend.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_phase"]
+		regex         = "Running"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_port_name"]
+		regex         = "http"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		regex         = "recommend-(dev|prod)"
+		target_label  = "env"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "instance"
+	}
+}
+
+prometheus.scrape "kidly_recommend" {
+	job_name        = "kidly-recommend"
+	targets         = discovery.relabel.recommend.output
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+}
+
+loki.source.kubernetes "recommend" {
+	targets    = discovery.relabel.recommend.output
+	forward_to = [loki.process.recommend.receiver]
+}
+
+// monitoring-agent 의 kidly_app 과 같은 처리. Pod 콘솔은 ECS JSON 한 줄이라 텍스트 줄 처리는 두지 않는다
+loki.process "recommend" {
+	stage.static_labels {
+		values = {
+			service_name = "kidly-recommend",
+		}
+	}
+
+	stage.json {
+		expressions = {
+			level    = "log.level",
+			traceId  = "",
+			memberId = "",
+		}
+	}
+
+	stage.labels {
+		values = {
+			level = "",
+		}
+	}
+
+	stage.structured_metadata {
+		values = {
+			traceId  = "",
+			memberId = "",
+		}
+	}
+
+	forward_to = [loki.write.loki.receiver]
+}
+
 loki.write "loki" {
 	endpoint {
 		url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
