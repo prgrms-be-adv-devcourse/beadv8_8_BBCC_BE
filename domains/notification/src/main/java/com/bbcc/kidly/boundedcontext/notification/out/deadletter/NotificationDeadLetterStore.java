@@ -39,7 +39,7 @@ public class NotificationDeadLetterStore implements NotificationDeadLetters {
                message_key, event_type, event_id, payload, failure_type, state, replay_count, created_at, updated_at)
             values (?, ?, ?, ?, ?, ?, ?, ?, ?,
               case when exists (select 1 from notification.withdrawn_member where member_id = cast(? as bigint))
-                then null else ? end,
+                then null else cast(? as bytea) end,
               ?, 'OPEN', 0, ?, ?)
             on conflict (dlt_topic, dlt_partition, dlt_offset) do nothing
             """, m.dltTopic(), m.dltPartition(), m.dltOffset(), m.sourceTopic(), m.sourcePartition(), m.sourceOffset(),

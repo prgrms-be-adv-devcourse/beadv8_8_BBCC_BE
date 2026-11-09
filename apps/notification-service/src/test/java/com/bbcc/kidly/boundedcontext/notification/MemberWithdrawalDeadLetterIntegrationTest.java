@@ -107,6 +107,17 @@ class MemberWithdrawalDeadLetterIntegrationTest {
     }
 
     @Test
+    @DisplayName("본문이 없는 회원 토픽 DLT(tombstone 등)도 보관한다")
+    void storesMessageWithoutPayload() {
+        deadLetterService.receive(new Received(MEMBER_EVENTS + ".notification.dlt", 0, 3L, MEMBER_EVENTS, 0, 3L,
+            OTHER_MEMBER_ID.toString(), null, null, null, IllegalStateException.class.getName()));
+
+        Long id = jdbcTemplate.queryForObject("select id from notification.dead_letter where dlt_offset = 3",
+            Long.class);
+        assertThat(payload(id)).isNull();
+    }
+
+    @Test
     @DisplayName("탈퇴 처리와 가입 처리는 같은 회원 잠금을 트랜잭션이 끝날 때까지 쥔다")
     void holdsMemberLockUntilCommit() {
         var transaction = new TransactionTemplate(transactionManager);
