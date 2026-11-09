@@ -78,4 +78,12 @@ public class NotificationDeadLetterStore implements NotificationDeadLetters {
             where id = ? and state = 'OPEN'
             """, adminId, now, failureType, now, id);
     }
+
+    @Override
+    public int erasePayloadOf(String sourceTopic, String messageKey, LocalDateTime now) {
+        return jdbc.update("""
+            update notification.dead_letter set payload = null, updated_at = ?
+            where source_topic = ? and message_key = ? and payload is not null
+            """, now, sourceTopic, messageKey);
+    }
 }

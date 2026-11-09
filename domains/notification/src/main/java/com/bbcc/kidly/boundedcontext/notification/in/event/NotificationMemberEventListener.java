@@ -17,6 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * kidly.member.events에서 회원 가입 · 탈퇴를 받는다. 이벤트 필드가 바뀌면 여기 변환만 고친다.
  * member.registered: 회원 이메일 복사본을 저장하고 환영 메일을 만든다. 관리자가 기존 회원을 다시 보낸 것(resent)은 복사본만 저장한다.
+ *   이미 탈퇴한 회원(DLT 재처리로 탈퇴 뒤에 처리되는 경우)이면 아무것도 하지 않는다.
  * member.suspended: 정지 사유 메일을 만든다.
  * member.withdrawn: 그 회원의 알림함 · 복사본을 지우고 이메일 발송 기록의 주소를 비운다(MemberWithdrawalService).
  * 같은 메시지를 다시 받아도 복사본은 한 건이고, 환영 메일은 NotificationService가 eventId로 한 통만 만든다.
@@ -43,6 +44,9 @@ public class NotificationMemberEventListener {
     }
 
     private void onRegistered(MemberRegisteredEvent event) {
+        if (memberWithdrawalService.isWithdrawn(event.data().memberId())) {
+            return;
+        }
         memberContactService.save(event.data().memberId(), event.data().email());
         if (Boolean.TRUE.equals(event.data().resent())) {  // 없는 예전 메시지(null)는 새 가입
             return;
