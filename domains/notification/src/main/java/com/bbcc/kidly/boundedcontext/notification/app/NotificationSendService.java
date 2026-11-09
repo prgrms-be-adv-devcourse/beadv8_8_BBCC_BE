@@ -30,6 +30,7 @@ public class NotificationSendService {
     private final NotificationRepository notificationRepository;
     private final PushTokenRepository pushTokenRepository;
     private final NotificationProperties notificationProperties;
+    private final NotificationMetrics notificationMetrics;
 
     /**
      * 발송을 맡는다. 맡았고 보낼 곳이 있으면 채널에 맞는 보낼 내용을 돌려준다.
@@ -49,6 +50,7 @@ public class NotificationSendService {
         };
         if (message.isEmpty()) {
             notification.markSkipped();
+            notificationMetrics.recordResult(notification);
             log.info("보낼 곳이 없어 보내지 않습니다. notificationId={} channel={}", notificationId,
                 notification.getChannel());
         }
@@ -58,7 +60,10 @@ public class NotificationSendService {
     @Transactional
     public void recordSent(Long notificationId) {
         notificationRepository.findById(notificationId)
-            .ifPresent(notification -> notification.markSent(LocalDateTime.now()));
+            .ifPresent(notification -> {
+                notification.markSent(LocalDateTime.now());
+                notificationMetrics.recordResult(notification);
+            });
     }
 
     /**
@@ -69,6 +74,7 @@ public class NotificationSendService {
         return notificationRepository.findById(notificationId)
             .map(notification -> {
                 notification.markFailed(error, retryable, LocalDateTime.now());
+                notificationMetrics.recordResult(notification);
                 return notification.willRetry();
             })
             .orElse(false);
@@ -93,6 +99,7 @@ public class NotificationSendService {
                     case RETRYABLE_FAILED -> notification.markFailed(result.failureReason(), true, now);
                     case FAILED -> notification.markFailed(result.failureReason(), false, now);
                 }
+                notificationMetrics.recordResult(notification);
                 return notification.willRetry();
             })
             .orElse(false);

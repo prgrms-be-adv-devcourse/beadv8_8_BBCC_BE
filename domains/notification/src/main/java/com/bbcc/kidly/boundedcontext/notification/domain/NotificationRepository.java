@@ -37,4 +37,14 @@ public interface NotificationRepository {
      * 이 시각보다 먼저 만든 알림 중 끝난 것(SENT · SKIPPED, 더 시도하지 않는 FAILED)을 지운다. 지운 개수.
      */
     int deleteFinishedCreatedBefore(LocalDateTime cutoff);
+
+    /**
+     * 아직 보내지 못한 알림(PENDING · SENDING, 다음 시도가 있는 FAILED) 수.
+     */
+    long countUnsent();
+
+    /**
+     * 아직 보내지 못한 알림 중 가장 먼저 만든 것의 생성 시각.
+     */
+    Optional<LocalDateTime> findOldestUnsentCreatedAt();
 }
