@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @IntegrationTest
@@ -28,6 +29,9 @@ class NotificationRepositoryIntegrationTest {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("같은 이벤트 · 같은 채널의 알림이 있는지 확인하고, 두 번째 저장은 유니크 제약으로 막는다")
@@ -88,5 +92,51 @@ class NotificationRepositoryIntegrationTest {
 
         assertThatThrownBy(() -> notificationRepository.save(stale))
             .isInstanceOf(OptimisticLockingFailureException.class);
+    }
+
+    @Test
+    @DisplayName("기준 시각보다 먼저 만든 끝난 발송 기록(SENT · SKIPPED · 더 시도하지 않는 FAILED)만 지운다")
+    void deleteFinishedCreatedBefore() {
+        var cutoff = LocalDateTime.of(2025, 11, 9, 4, 5);
+        var now = LocalDateTime.now();
+        var oldSent = save(sent(now), cutoff.minusSeconds(1));
+        var oldSkipped = save(skipped(now), cutoff.minusDays(10));
+        var oldGivenUp = save(givenUp(now), cutoff.minusDays(10));
+        var oldRetryable = save(NotificationFixture.retryableFailed(EMAIL, now), cutoff.minusDays(10));
+        var oldPending = save(NotificationFixture.welcomeEmail(EMAIL), cutoff.minusDays(10));
+        var oldSending = save(NotificationFixture.sending(EMAIL, now), cutoff.minusDays(10));
+        var sentAtCutoff = save(sent(now), cutoff);
+
+        var deleted = transactionTemplate.execute(status ->
+            notificationRepository.deleteFinishedCreatedBefore(cutoff));
+
+        assertThat(deleted).isEqualTo(3);
+        assertThat(jdbcTemplate.queryForList("SELECT id FROM notification.notification ORDER BY id", Long.class))
+            .containsExactly(oldRetryable, oldPending, oldSending, sentAtCutoff)
+            .doesNotContain(oldSent, oldSkipped, oldGivenUp);
+    }
+
+    private Long save(Notification notification, LocalDateTime createdAt) {
+        var id = notificationRepository.save(notification).getId();
+        jdbcTemplate.update("UPDATE notification.notification SET created_at = ? WHERE id = ?", createdAt, id);
+        return id;
+    }
+
+    private static Notification sent(LocalDateTime now) {
+        var notification = NotificationFixture.sending(EMAIL, now);
+        notification.markSent(now);
+        return notification;
+    }
+
+    private static Notification skipped(LocalDateTime now) {
+        var notification = NotificationFixture.sending(EMAIL, now);
+        notification.markSkipped();
+        return notification;
+    }
+
+    private static Notification givenUp(LocalDateTime now) {
+        var notification = NotificationFixture.sending(EMAIL, now);
+        notification.markFailed("주소 거부", false, now);
+        return notification;
     }
 }

@@ -7,7 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 알림 발송의 Kidly 정책. 재시도 간격 · 멈춘 발송을 다시 맡는 기준 · 보내지 않는 주소 · 알림함 보존 기간 ·
+ * 알림 발송의 Kidly 정책. 재시도 간격 · 멈춘 발송을 다시 맡는 기준 · 보내지 않는 주소 · 발송 기록과 알림함 보존 기간 ·
  * 푸시 FID 상한과 보존 기간을 정한다.
  */
 public final class NotificationPolicy {
@@ -26,6 +26,9 @@ public final class NotificationPolicy {
 
     // 알림함 알림을 남겨 두는 기간. 지나면 읽음 여부와 상관없이 정리 배치가 지운다
     public static final Duration INBOX_RETENTION = Duration.ofDays(90);
+
+    // 끝난 발송 기록(받는 주소 · 본문)을 남겨 두는 기간. 발송 문의(CS)에 답할 수 있게 1년 두고, 지나면 정리 배치가 지운다
+    public static final Duration HISTORY_RETENTION = Duration.ofDays(365);
 
     // 회원 한 명이 가질 수 있는 푸시 FID(브라우저) 수. 넘으면 마지막 등록이 오래된 것부터 지운다
     public static final int PUSH_FID_LIMIT_PER_MEMBER = 10;

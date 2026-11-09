@@ -13,9 +13,11 @@ import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipientType;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
+import com.bbcc.kidly.boundedcontext.notification.domain.NotificationPolicy;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.domain.PushNotificationInfo;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -211,6 +213,15 @@ public class NotificationService {
         var notification = notificationRepository.save(Notification.push(new PushNotificationInfo(key,
             inbox.recipient().id(), inbox.type(), inbox.title(), inbox.body(), inbox.linkPath())));
         dispatchAfterCommit(notification.getId());
+    }
+
+    /**
+     * 보존 기간(NotificationPolicy.HISTORY_RETENTION)이 지난 끝난 발송 기록을 지운다. 아직 보낼 것은 남긴다. 지운 개수.
+     */
+    @Transactional
+    public int deleteExpired() {
+        return notificationRepository.deleteFinishedCreatedBefore(
+            LocalDateTime.now().minus(NotificationPolicy.HISTORY_RETENTION));
     }
 
     private void createEmail(EmailNotificationInfo info) {
