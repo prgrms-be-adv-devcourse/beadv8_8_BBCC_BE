@@ -295,7 +295,8 @@ public class WishRequestService {
             purchases.stream()
                 .map(purchase -> new WishRequestView.Purchase(purchase.getOrderId(), purchase.getCartItemId(),
                     purchase.getQuantity(), purchase.getCreatedAt()))
-                .toList());
+                .toList(),
+            purchases.stream().map(WishPurchase::getOrderItemId).filter(Objects::nonNull).distinct().toList());
     }
 
     private Map<Long, String> sellerNamesOf(Collection<ProductOption> products) {

@@ -9,6 +9,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -97,4 +99,20 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
         """)
     List<AutoConfirmRow> findAutoConfirmTargets(
         OrderItem.Status status, LocalDateTime deliveredBefore, Long afterId, Limit limit);
+
+    // 자녀 칸 · 가격 · 배송지는 고르지 않는다(projection, #1000). 결제된 적 있는 주문 = paidAt 있음(주문의 기존 판단)
+    @Override
+    @Query(value = """
+        select i.id as orderItemId, o.id as orderId, o.createdAt as orderedAt, i.product.productId as productId,
+            i.product.sellerId as sellerId, i.product.productName as productName,
+            i.product.optionName as optionName, i.quantity as quantity, i.status as itemStatus,
+            o.status as orderStatus, i.deliveredAt as deliveredAt
+        from OrderItem i join i.order o
+        where i.child.childId = :childId and o.paidAt is not null
+        order by o.createdAt desc, i.id desc
+        """, countQuery = """
+        select count(i) from OrderItem i join i.order o
+        where i.child.childId = :childId and o.paidAt is not null
+        """)
+    Page<ChildPurchaseRow> findChildPurchases(Long childId, Pageable pageable);
 }

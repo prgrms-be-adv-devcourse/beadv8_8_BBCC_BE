@@ -150,9 +150,10 @@
 | POST | `/api/v1/orders/{orderId}/cancel` | 구매자 주문 취소(발송 전, 주문 전체) | 🔒 |
 | GET | `/api/v1/orders/{orderId}/timeline` | 주문 처리 타임라인(단계 · 상태 · 시각) | 🔒 |
 | POST | `/api/v1/orders/{orderId}/items/{orderItemId}/confirm` | 구매확정 | 🔒 |
+| GET | `/api/v1/orders/items/mine` | 나를 위해 산 상품 내역(자녀 로그인만, 최신순 · 목록 형식, 출처 칸 없음, #1000) | 🔒 |
 | POST | `/api/v1/wish/requests` | 조르기 보내기(자녀만, 내 장바구니 칸 `cartItemIds` + 메시지. 칸을 예약한다) | 🔒 |
 | GET | `/api/v1/wish/requests` | 조르기 목록(내가 보낸 것 + 내가 승인자인 것, `childId`로 거르기 선택) | 🔒 |
-| GET | `/api/v1/wish/requests/{requestId}` | 조르기 상세(칸 · 산 것 `purchases`) | 🔒 |
+| GET | `/api/v1/wish/requests/{requestId}` | 조르기 상세(칸 · 산 것 `purchases` · 결제된 주문상품 ID `paidOrderItemIds`) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/rejection` | 조르기 거절(승인자만, 사유. 예약이 풀린다) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/cancellation` | 조르기 철회(보낸 사람만, 처리 전에만. 상태 `CANCELLED` · `cancelReason` DIRECT, 예약이 풀리고 칸은 장바구니에 남음, #968) | 🔒 |
 | GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 결제 완료 · 거절 · 철회, 산 주문 ID `orderIds`, 직접 철회면 `cancelledBy`) | 🔒 |
@@ -212,9 +213,18 @@
 - 거절: 승인자만(아니면 403), 사유 하나. 철회(#968): 보낸 사람만(아니면 403). 둘 다 처리 전에만(처리된 조르기면 409) 되고 예약을 푼다(칸은 장바구니에 남아 다시 조를 수 있다). 결제가 끝났는데 아직 조르기에 반영되기 전이면(결제로 빠진 칸이 있거나, 칸이 남는 일부 수량 결제라도 결제 정리가 끝났으면) 409(`결제가 반영 중인 조르기입니다`)다
 - 보호자가 주문한 뒤의 철회 · 거절은 결제를 막지 않는다. 결제되면 칸은 정리되고, 조르기는 철회 · 거절 상태로 남는다
 - 산 것 `purchases[]`는 결제로 장바구니에서 빠진 칸이다(`orderId` · `cartItemId` · `quantity` · `purchasedAt`). `quantity`는 그 칸에서 이번에 산 수량이다(칸에 남은 수량 아님)
+- 결제된 주문상품 ID `paidOrderItemIds[]`(#1000, 목록 · 상세 모두, 문자열, 먼저 산 것부터): 이 조르기로 결제된 주문상품이다. 아래 나를 위해 산 상품 내역의 `orderItemId`와 맞춰 화면이 출처를 표시한다. 결제 완료 반영과 같이 비동기라 결제 직후에는 잠시 비어 있을 수 있다
 - 사람 종류 값이 바뀌었다(계약 변경, #999): 보낸 사람 `requestedByType`(예전 `requestedBy`) · 타임라인 `cancelledBy`는 `MEMBER` · `CHILD`다(예전 `PARENT`는 `MEMBER`로 바뀌고 옛 데이터도 옮겼다)
 - 상태는 `REQUESTED` · `PAID` · `REJECTED` · `CANCELLED`(원인 `cancelReason` DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM)다. #999 전 조르기는 옮기면서 진행 중이던 것을 `CANCELLED`(SYSTEM)로 바꿨다. 공용 장바구니(`/api/v1/wish` · `/api/v1/wish/items`)와 승인(`/approval`)은 없앴다
-- 자녀 계정 연결을 확인할 수 없으면(연결 없음 · 삭제 · 보호자 다름) 403이다. 주문 · 취소 등 다른 주문 API는 회원 로그인만 받는다
+- 자녀 계정 연결을 확인할 수 없으면(연결 없음 · 삭제 · 보호자 다름) 403이다. 주문 · 취소 등 다른 주문 API는 회원 로그인만 받는다(나를 위해 산 상품 내역만 자녀 로그인)
+
+나를 위해 산 상품 내역(`GET /api/v1/orders/items/mine?page=&size=`, #1000, BEG-07)은 자녀 로그인만 받는다(회원 로그인이면 403 `자녀만 볼 수 있습니다`, 보호자는 주문 목록으로 본다. 헤더 없음 401, 자녀 계정 연결을 확인할 수 없으면 403). 자기 프로필이 입을 아이로 지정된 주문상품을 주문 일시 최신순으로 팀 목록 형식(`content` · `page` · `size` · `totalElements` · `totalPages` · `hasNext`)으로 준다. `size`는 1~100(기본 20).
+
+- 대상: 결제된 적 있는 주문의 주문상품만. 결제대기 · 결제 없이 취소된 주문은 빠지고, 결제 뒤 취소는 `CANCELLED`로 보인다
+- 한 줄: `orderItemId` · `orderedAt` · `productId` · `productName` · `optionName` · `quantity` · `status`
+- 상태 `status`: `PAID`(결제 완료) · `SHIPPING`(배송 중, 그 판매자 배송이 발송됨) · `DELIVERED`(배송 완료) · `CONFIRMED`(구매확정) · `CANCELLED`(주문상품 또는 주문 취소)
+- 빼는 값: 가격 · 금액 · 배송지 · 판매자 · 주문 ID(주문 상세 링크) · 출처
+- 출처(조르기로 산 것 / 보호자가 산 것)는 화면이 합친다: 그 자녀의 조르기 목록(`GET /api/v1/wish/requests`)의 `paidOrderItemIds`를 모아 이 목록의 `orderItemId`와 맞추고, 있으면 조르기로 산 것, 없으면 보호자가 산 것으로 표시한다. 조르기 반영이 비동기라 결제 직후에는 잠시 보호자가 산 것으로 보일 수 있다. 주문은 조르기를 모르고 조르기는 주문을 읽지 않는다
 
 **멈춘 주문 AI 진단 메모(#926)**: 멈춘 주문 목록(`GET /api/v1/admin/orders/stuck`)의 줄마다 `aiMemo`가 붙는다(필드 추가). 주기 작업이 새로 멈춘 주문을 AI에 물어 남긴 원인 요약 · 권장 조치이고, AI의 제안일 뿐 조치는 관리자가 위 API로 한다. (주문, 멈춘 종류)별 가장 최근 성공 메모이며 없거나 실패만 있으면 `null`.
 
