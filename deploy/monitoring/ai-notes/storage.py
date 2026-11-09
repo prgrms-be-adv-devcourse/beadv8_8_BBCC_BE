@@ -120,6 +120,13 @@ class Store:
                 os.unlink(name)
 
 
+HOST_PERCENT_LABELS = {
+    'host_cpu_used': '수집된 호스트 중 최대 CPU 사용률 (5분 평균)',
+    'host_memory_available': '수집된 호스트 중 최소 가용 메모리 비율',
+    'host_disk_used': '수집된 호스트 중 최대 루트 디스크 사용률',
+}
+
+
 def render(publication):
     context, report = publication.context, publication.report
     def stamp(epoch):
@@ -130,12 +137,17 @@ def render(publication):
              'Stale at publish: '+str(publication.stale_at_publish)]
     facts = {f.evidence_id: f for f in context.evidence}
     for finding in report.findings:
-        lines.extend(('', '관측: '+finding.observation, '원인 후보: '+finding.hypothesis))
+        lines.append('')
         lines.extend(f'{i+1}. {check}' for i, check in enumerate(finding.checks))
+        lines.extend(('관측: '+finding.observation, '원인 후보: '+finding.hypothesis))
         lines.append('대응 제안: '+finding.recommendation)
         for ref in finding.evidence_ids:
             fact = facts[ref]
-            lines.append(f'근거 {ref}: {fact.environment}/{fact.service or "scope"} {fact.metric}={fact.value} {fact.unit}')
+            label = HOST_PERCENT_LABELS.get(fact.metric) if fact.environment == 'global' and fact.unit == 'percent' else None
+            if label:
+                lines.append(f'근거 {ref}: {label} {fact.value:.1f}%')
+            else:
+                lines.append(f'근거 {ref}: {fact.environment}/{fact.service or "scope"} {fact.metric}={fact.value} {fact.unit}')
     lines.append('\n제약:')
     lines.extend(dict.fromkeys(context.limitations+report.limitations))
     return {'headline': f'AI 분석 · 관측 {stamp(context.window_end)} · {len(report.findings)}개 항목 · {report.provider}/{report.model}',
