@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.review.in.scheduler;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import com.bbcc.kidly.boundedcontext.review.app.CommunityMetrics;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewImageCleanupService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -17,6 +18,7 @@ class CommunityReviewImageCleanupSchedulerTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withUserConfiguration(CommunityReviewImageCleanupScheduler.class)
         .withBean(ReviewImageCleanupService.class, () -> mock(ReviewImageCleanupService.class))
+        .withBean(CommunityMetrics.class, () -> mock(CommunityMetrics.class))
         .withPropertyValues("kidly.community.review.image.cleanup.interval=PT10M");
 
     @ParameterizedTest(name = "enabled={0} → 스케줄러 {1}")

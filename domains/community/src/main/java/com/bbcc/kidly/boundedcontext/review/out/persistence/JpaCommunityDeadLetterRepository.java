@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.review.out.persistence;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.State;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.Summary;
 import com.bbcc.kidly.boundedcontext.review.out.store.CommunityDeadLetterRecord;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,4 +32,7 @@ public interface JpaCommunityDeadLetterRepository extends Repository<CommunityDe
     Optional<Summary> findSummary(Long id);
 
     long countByState(State state);
+
+    @Query("select min(m.createdAt) from CommunityDeadLetterRecord m where m.state = :state")
+    LocalDateTime findOldestCreatedAt(State state);
 }
