@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ConfirmedPurcha
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.RecentActivity;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -91,7 +92,21 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
 
     @Override
     public Map<Long, EmbeddingVector> findEmbeddings(Collection<Long> productIds) {
-        throw new UnsupportedOperationException();
+        Map<Long, EmbeddingVector> embeddings = new HashMap<>();
+        if (productIds.isEmpty()) {
+            return embeddings;
+        }
+        List<Map.Entry<Long, EmbeddingVector>> rows = jdbcClient.sql("""
+                SELECT product_id, CAST(embedding AS text) AS embedding FROM recommend.replica_product
+                WHERE embedding IS NOT NULL AND product_id IN (:productIds)
+                """)
+            .param("productIds", productIds)
+            .query((rs, rowNum) -> Map.entry(rs.getLong("product_id"), VectorText.parse(rs.getString("embedding"))))
+            .list();
+        for (Map.Entry<Long, EmbeddingVector> row : rows) {
+            embeddings.put(row.getKey(), row.getValue());
+        }
+        return embeddings;
     }
 
     // 상세 진입 · 담기 기록은 카테고리 · 브랜드 칸을 채우지 않을 수 있어 상품 복사본의 지금 값으로 채운다
