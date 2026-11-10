@@ -599,6 +599,32 @@ class RecommendReplicaProductTest {
             base.description(), base.sizeSpecs(), base.infoValues(), base.occurredAt(), TOPS_PATH);
     }
 
+    @Test
+    @DisplayName("PREF-05 상품 정보의 판매 시작 시각을 복사본에 남긴다")
+    void createWithSaleStartedAt() {
+        LocalDateTime saleStartedAt = PRODUCT_A_REGISTERED_AT.plusDays(3);
+
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(changeWithSaleStartedAt(saleStartedAt));
+
+        assertThat(replica.getSaleStartedAt()).isEqualTo(saleStartedAt);
+    }
+
+    @Test
+    @DisplayName("PREF-05 판매 시작 시각이 없는 예전 메시지의 상품 정보로도 복사본을 만들고, 판매 시작 시각은 비워 둔다")
+    void createWithoutSaleStartedAt() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(changeWithSaleStartedAt(null));
+
+        assertThat(replica.getSaleStartedAt()).isNull();
+    }
+
+    private static RecommendReplicaProduct.ChangeInfo changeWithSaleStartedAt(LocalDateTime saleStartedAt) {
+        RecommendReplicaProduct.ChangeInfo base = changeWithCategoryPath(List.of(), PRODUCT_CHANGED_AT);
+        return new RecommendReplicaProduct.ChangeInfo(base.productId(), base.sellerId(), base.categoryId(),
+            base.name(), base.status(), base.thumbnailUrl(), base.registeredAt(), base.sizeFree(), base.options(),
+            base.brand(), base.description(), base.sizeSpecs(), base.infoValues(), base.occurredAt(),
+            base.categoryPath(), saleStartedAt);
+    }
+
     private static RecommendReplicaProduct.ChangeInfo changeWithCategoryPath(
         List<RecommendReplicaProduct.CategoryPathEntryInfo> categoryPath, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,
