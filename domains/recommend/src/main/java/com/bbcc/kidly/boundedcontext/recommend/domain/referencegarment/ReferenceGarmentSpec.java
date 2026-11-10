@@ -9,6 +9,12 @@ import java.util.Map;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 
+/**
+ * 보호자가 입력한 기준 옷 한 벌의 구분, 세부 종류, 실측이다. 규칙을 모두 통과한 값만 만들어진다.
+ * record의 생성자는 public이라 검증을 건너뛰고 만들 수 있으므로, 생성자가 private인 클래스로 둔다.
+ * 세부 종류가 구분에 맞는지는 카테고리 경로 이름으로 판단하므로 만들 때 경로를 함께 받고, 경로는 저장하지 않는다.
+ * 문제가 여러 개면 세부 종류, 이 구분에 없는 실측 항목, 필수 실측, 값 순서로 먼저 걸린 하나만 알린다.
+ */
 @Getter
 @Accessors(fluent = true)
 public final class ReferenceGarmentSpec {
@@ -29,17 +35,30 @@ public final class ReferenceGarmentSpec {
         this.measurements = measurements;
     }
 
+    /**
+     * @param categoryPathNames 세부 종류 카테고리의 경로 이름이다. 대분류부터 말단 순서이고, 찾지 못했으면 null이거나 비어 있다.
+     */
     public static ReferenceGarmentSpec of(GarmentPart part, Long categoryId, List<String> categoryPathNames,
         Map<String, BigDecimal> measurements) {
         requireNonNull(part, "part는 필수입니다");
         requireNonNull(categoryId, "categoryId는 필수입니다");
+        checkCategory(part, categoryPathNames);
+        Map<String, BigDecimal> given = measurements == null ? Map.of() : measurements;
+        checkMeasurementCodes(part, given);
+        checkMeasurementValues(given);
+        return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(given));
+    }
+
+    private static void checkCategory(GarmentPart part, List<String> categoryPathNames) {
         if (categoryPathNames == null || categoryPathNames.isEmpty()) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
         }
         if (!part.includesCategoryIn(categoryPathNames)) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH);
         }
-        Map<String, BigDecimal> given = measurements == null ? Map.of() : measurements;
+    }
+
+    private static void checkMeasurementCodes(GarmentPart part, Map<String, BigDecimal> given) {
         for (String code : given.keySet()) {
             if (!part.acceptsCode(code)) {
                 throw new BusinessException(ReferenceGarmentErrorCode.UNSUPPORTED_MEASUREMENT);
@@ -48,12 +67,14 @@ public final class ReferenceGarmentSpec {
         if (!part.hasAllRequired(given.keySet())) {
             throw new BusinessException(ReferenceGarmentErrorCode.REQUIRED_MEASUREMENT_MISSING);
         }
+    }
+
+    private static void checkMeasurementValues(Map<String, BigDecimal> given) {
         for (BigDecimal value : given.values()) {
             if (isInvalidValue(value)) {
                 throw new BusinessException(ReferenceGarmentErrorCode.INVALID_MEASUREMENT_VALUE);
             }
         }
-        return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(given));
     }
 
     private static boolean isInvalidValue(BigDecimal value) {
