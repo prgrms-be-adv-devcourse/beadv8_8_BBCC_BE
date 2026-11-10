@@ -9,6 +9,7 @@ import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -53,7 +54,7 @@ class PreferenceJobIntegrationTest {
         PreferenceTestData.insertActivity(jdbc, ActivityType.PRODUCT_VIEWED, MEMBER_ONLY_ID, null, now.minusDays(2),
             104L, 14L, "회원브랜드", null);
 
-        LocalDateTime before = now();
+        LocalDateTime before = now().truncatedTo(ChronoUnit.SECONDS);
 
         assertThat(service.run(today())).isEqualTo(PreferenceJobResult.COMPLETED);
 
