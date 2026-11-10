@@ -5,7 +5,7 @@ distributor:
     otlp:
       protocols:
         http:
-          endpoint: 0.0.0.0:4318
+          endpoint: 127.0.0.1:4318
 compactor:
   compaction:
     block_retention: 2h
@@ -16,3 +16,6 @@ storage:
       path: /var/tempo/blocks
     wal:
       path: /var/tempo/wal
+
+usage_report:
+  reporting_enabled: false

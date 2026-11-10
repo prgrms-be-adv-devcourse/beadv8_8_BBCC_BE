@@ -8,7 +8,7 @@
 
 시험 시간에만 적용한다.
 
-1. 모니터링 서버에서 Tempo를 띄운다. 기존 권한으로 모니터링 서버의 loopback에 kubectl port-forward를 열고, 앱 서버에서 기존 승인된 SSH 경로로 loopback 14318에 로컬 포워드를 연다. SSH 경로나 권한이 없으면 멈춘다. Tempo에 NodePort나 외부 Ingress는 만들지 않는다.
+1. 모니터링 서버에서 Tempo를 띄운다. 기존 권한으로 모니터링 서버의 loopback에 Pod 또는 Deployment에 직접 kubectl port-forward를 열고, 앱 서버에서 기존 승인된 SSH 경로로 loopback 14318에 로컬 포워드를 연다. SSH 경로나 권한이 없으면 멈춘다. OTLP는 Pod loopback에서만 받는다. Grafana 조회용 ClusterIP에는 NetworkPolicy를 적용하고, 다른 Pod에서 접근이 차단되는지 dev에서 확인한다.
 2. 앱 서버에서 dev Compose 브리지의 호스트 게이트웨이 주소와 접근 제한을 확인한다. dev 컨테이너만 수신 포트에 닿도록 제한한 뒤 TRIAL_OTLP_LISTEN을 그 주소와 포트로 지정하고 기존 Alloy 설정에 otlp.alloy를 합친다. 수신 데이터의 환경·서비스 이름은 필터용이며 인증 수단으로 쓰지 않는다.
 3. dev nginx에서 외부 추적 헤더를 제거하는 설정을 검사하고 reload한다. Grafana의 시험 데이터소스는 제공한 파일 기준으로 임시 등록한다. 기존 Loki 데이터소스는 그대로 둔다.
 4. dev Gateway·주문에 Compose override를 적용하고 정상·404 트레이스와 민감 속성 제거를 확인한다. 같은 부하로 p50·p95·실패율·성공 TPS를 비교한다.

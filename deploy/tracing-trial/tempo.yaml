@@ -61,6 +61,21 @@ spec:
   ports:
     - name: query
       port: 3200
-    - name: otlp
-      port: 4318
-      targetPort: 4318
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tempo-trial
+spec:
+  podSelector:
+    matchLabels:
+      app: tempo-trial
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: grafana
+      ports:
+        - protocol: TCP
+          port: 3200
