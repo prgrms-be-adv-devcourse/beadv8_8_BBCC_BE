@@ -67,6 +67,13 @@ class K3sManifestTests(unittest.TestCase):
         self.assertEqual(mounts['/app/jwt']['name'], 'jwt')
         self.assertIn({'name': 'logs', 'emptyDir': {'sizeLimit': '256Mi'}}, pod['volumes'])
 
+    def test_jwt_secret_is_readable_by_app_group(self):
+        items = self.items()
+        spec = items['Deployment/member']['spec']['template']['spec']
+        self.assertEqual(spec['securityContext']['fsGroup'], 1001)
+        jwt = next(v for v in spec['volumes'] if v['name'] == 'jwt')
+        self.assertEqual(jwt['secret']['defaultMode'], 0o440)
+
     def test_service_without_keys_has_no_jwt_secret(self):
         items = self.items('payment', self.service(volumes=[]))
         self.assertNotIn('Secret/payment-jwt', items)
