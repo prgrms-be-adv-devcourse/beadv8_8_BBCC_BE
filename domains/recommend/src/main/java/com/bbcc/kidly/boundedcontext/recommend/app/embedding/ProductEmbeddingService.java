@@ -7,10 +7,12 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 글이 바뀐 상품을 묶어 임베딩하고 벡터를 저장한다.
  */
+@Slf4j
 @RequiredArgsConstructor
 public class ProductEmbeddingService {
 
@@ -52,6 +54,8 @@ public class ProductEmbeddingService {
         try {
             vectors = embedder.embed(texts);
         } catch (RuntimeException e) {
+            // 예외 메시지와 스택 트레이스에는 임베딩 API의 응답 본문이 들어갈 수 있어 예외 종류만 남긴다
+            log.warn("상품 임베딩 요청이 실패했습니다. count={}, error={}", targets.size(), e.getClass().getSimpleName());
             return false;
         }
         for (int i = 0; i < targets.size(); i++) {
