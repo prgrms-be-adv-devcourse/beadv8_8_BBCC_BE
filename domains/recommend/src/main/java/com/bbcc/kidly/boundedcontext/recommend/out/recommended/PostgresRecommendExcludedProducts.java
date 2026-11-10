@@ -2,8 +2,6 @@ package com.bbcc.kidly.boundedcontext.recommend.out.recommended;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.recommended.RecommendExcludedProducts;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -19,7 +17,7 @@ public class PostgresRecommendExcludedProducts implements RecommendExcludedProdu
 
     @Override
     public Set<Long> findIds(Long memberId, Long childProfileId, LocalDateTime cartAddedSince) {
-        List<Long> productIds = jdbcClient.sql("""
+        return jdbcClient.sql("""
                 SELECT a.product_id FROM recommend.activity_record a
                 WHERE a.type = 'CART_ITEM_ADDED' AND a.member_id = :memberId AND a.occurred_at >= :cartAddedSince
                   AND a.product_id IS NOT NULL
@@ -34,7 +32,6 @@ public class PostgresRecommendExcludedProducts implements RecommendExcludedProdu
             .param("childProfileId", childProfileId)
             .param("cartAddedSince", cartAddedSince)
             .query(Long.class)
-            .list();
-        return new HashSet<>(productIds);
+            .set();
     }
 }
