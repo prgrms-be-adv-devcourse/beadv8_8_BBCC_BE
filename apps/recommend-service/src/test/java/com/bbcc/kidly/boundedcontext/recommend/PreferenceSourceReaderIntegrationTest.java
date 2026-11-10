@@ -77,7 +77,7 @@ class PreferenceSourceReaderIntegrationTest {
     }
 
     @Test
-    @DisplayName("PREF-01 자녀 활동은 기간 안의 검색 · 상세 진입 · 담기만 발생 시각 순으로 읽고, 카테고리 · 브랜드는 활동 값을 먼저 쓰고 없으면 상품 복사본 값을 쓴다")
+    @DisplayName("PREF-01 자녀 활동은 기간 안의 검색 · 상세 진입 · 담기만 시각 순으로 읽고 빈 카테고리 · 브랜드는 복사본 값으로 채운다")
     void readChildActivitiesWithinPeriod() {
         LocalDateTime from = SINCE;
         LocalDateTime to = SINCE.plusHours(3);

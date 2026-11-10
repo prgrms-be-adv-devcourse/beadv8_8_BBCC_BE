@@ -25,7 +25,7 @@ class TasteSimilarityReaderIntegrationTest {
     private JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("같은 방향은 1, 반대 방향은 -1, 직교는 0이고 벡터가 없는 상품은 결과에 없다")
+    @DisplayName("유사도를 0 아래로 자르지 않고 그대로 읽으며(자르기는 계산 쪽이 한다) 벡터가 없는 상품은 결과에 없다")
     void measureCosineSimilarityWithoutClamping() {
         PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", PreferenceTestData.unitVector(0, 1f));
         PreferenceTestData.insertProduct(jdbc, 101L, 10L, "Nike", PreferenceTestData.unitVector(0, -1f));
