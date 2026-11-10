@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -73,6 +74,10 @@ public class AiResponseService {
         Class<T> responseType,
         Supplier<T> call
     ) {
+        // 트랜잭션 안에서 부르면 하루 횟수 줄의 잠금이 AI 응답을 기다리는 동안 이어져 모든 AI 호출이 줄을 선다.
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("AI 응답 서비스는 트랜잭션 밖에서 불러야 합니다.");
+        }
         LocalDateTime now = LocalDateTime.now(clock);
         AiResponseKey key = AiResponseKey.of(input);
         Optional<T> stored = findStored(type, key, now, responseType);
