@@ -85,7 +85,7 @@ public class ActivityRecordService {
     // 이벤트로 받은 기록이 아니므로 이벤트 ID는 서버가 새로 만든다. 같은 상품을 다시 보면 새 기록이 한 줄 더 남는다
     public void recordProductViewed(Long memberId, Long productId) {
         ActivityRecord.ProductViewedInfo info = new ActivityRecord.ProductViewedInfo(
-            UUID.randomUUID(), memberId, productId, LocalDateTime.now());
+            UUID.randomUUID(), memberId, null, productId, LocalDateTime.now());
         activityRecordRepository.save(ActivityRecord.productViewed(info));
     }
 
