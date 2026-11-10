@@ -79,7 +79,7 @@ public class AiResponseService {
         if (stored.isPresent()) {
             return stored;
         }
-        if (!quota.tryAcquire(now.toLocalDate(), dailyCallLimit)) {
+        if (!tryAcquireQuietly(type, now)) {
             return Optional.empty();
         }
         Optional<T> result = callWithTimeout(type, call);
@@ -88,6 +88,16 @@ public class AiResponseService {
         }
         saveQuietly(type, key, result.get(), now);
         return result;
+    }
+
+    private boolean tryAcquireQuietly(AiResponseType type, LocalDateTime now) {
+        try {
+            return quota.tryAcquire(now.toLocalDate(), dailyCallLimit);
+        } catch (RuntimeException e) {
+            log.warn("AI 호출 횟수를 세지 못해 호출하지 않는다. type={}, cause={}",
+                type, e.getClass().getSimpleName());
+            return false;
+        }
     }
 
     private <T> Optional<T> findStored(
