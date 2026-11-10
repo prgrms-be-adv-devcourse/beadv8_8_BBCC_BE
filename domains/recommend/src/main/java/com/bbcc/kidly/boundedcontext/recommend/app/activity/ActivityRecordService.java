@@ -9,6 +9,7 @@ import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class ActivityRecordService {
+
+    // 상세 진입이 같은 날인지는 서비스가 쓰는 한국 시간의 날짜로 가른다
+    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
     private final ActivityRecordRepository activityRecordRepository;
 
@@ -82,11 +86,14 @@ public class ActivityRecordService {
         activityRecordRepository.save(ActivityRecord.cartItemRemoved(info));
     }
 
-    // 이벤트로 받은 기록이 아니므로 이벤트 ID는 서버가 새로 만든다. 같은 상품을 다시 보면 새 기록이 한 줄 더 남는다
+    /**
+     * 이벤트로 받은 기록이 아니므로 이벤트 ID는 서버가 새로 만든다.
+     * 같은 날 같은 상품을 다시 보면 저장하지 않고 조용히 끝낸다. 새로 고칠 때마다 기록이 쌓여 한 상품이 취향 계산을 독차지하지 않게 하려는 것이다.
+     */
     public void recordProductViewed(Long memberId, Long productId) {
         ActivityRecord.ProductViewedInfo info = new ActivityRecord.ProductViewedInfo(
-            UUID.randomUUID(), memberId, null, productId, LocalDateTime.now());
-        activityRecordRepository.save(ActivityRecord.productViewed(info));
+            UUID.randomUUID(), memberId, null, productId, LocalDateTime.now(SERVICE_ZONE));
+        activityRecordRepository.saveProductViewedIfAbsent(ActivityRecord.productViewed(info));
     }
 
     public void deleteActivityRecordsOfWithdrawnMember(MemberWithdrawnEvent event) {
