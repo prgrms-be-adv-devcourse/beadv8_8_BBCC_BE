@@ -16,10 +16,11 @@ public enum CompanionKind {
 
     private static final String ACCESSORY_ROOT_NAME = "잡화";
 
-    // 카테고리에 코드 칸이 없어 말단 카테고리 이름으로 종류를 맞춘다.
+    // 카테고리에 코드 칸이 없어 말단 카테고리 이름으로 종류를 맞춘다. 하의는 바지로 이름이 바뀌어도 하의로 본다
     private static final Map<String, CompanionKind> CLOTHING_LEAF_NAMES = Map.of(
         "상의", TOP,
         "하의", BOTTOM,
+        "바지", BOTTOM,
         "원피스", ONE_PIECE,
         "아우터", OUTER);
 
@@ -29,10 +30,10 @@ public enum CompanionKind {
         if (categoryPathNames.isEmpty()) {
             return Optional.empty();
         }
-        if (categoryPathNames.getFirst().equals(ACCESSORY_ROOT_NAME)) {
+        if (categoryPathNames.getFirst().strip().equals(ACCESSORY_ROOT_NAME)) {
             return Optional.of(ACCESSORY);
         }
-        String leafName = categoryPathNames.getLast();
+        String leafName = categoryPathNames.getLast().strip();
         return Optional.ofNullable(CLOTHING_LEAF_NAMES.get(leafName));
     }
 }
