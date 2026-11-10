@@ -88,7 +88,7 @@ class RecommendMigrationIntegrationTest {
     }
 
     @Test
-    @DisplayName("PREF-15 이미 같은 날 같은 상세 진입이 여러 줄 쌓인 DB에 마이그레이션하면 가장 먼저 쌓인 한 줄만 남기고, 날짜 · 회원 · 자녀 · 상품 · 활동 종류가 다른 줄은 그대로 둔다")
+    @DisplayName("PREF-15 같은 날 같은 상세 진입이 쌓인 DB에 마이그레이션하면 가장 먼저 쌓인 한 줄만 남기고 다른 줄은 그대로 둔다")
     void keepFirstProductViewOfSameDay() {
         try (var postgres = new PostgreSQLContainer(
             DockerImageName.parse("pgvector/pgvector:pg18-trixie").asCompatibleSubstituteFor("postgres"))) {
