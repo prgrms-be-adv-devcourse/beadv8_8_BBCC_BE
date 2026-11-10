@@ -13,8 +13,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 선호 스냅숏 저장소가 실제 PostgreSQL(pgvector)에서 친밀도와 취향 벡터를 저장하고 읽는 동작을 확인한다.
@@ -27,6 +31,9 @@ class PreferenceSnapshotStoreIntegrationTest {
 
     @Autowired
     private PreferenceSnapshotStore store;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     @DisplayName("자녀 스냅숏을 바꾼 뒤 읽으면 친밀도, 취향 벡터, 계산 시각이 그대로 나온다")
@@ -124,5 +131,40 @@ class PreferenceSnapshotStoreIntegrationTest {
         assertThatThrownBy(() -> store.replaceChild(CHILD_ID, invalid)).isInstanceOf(DataAccessException.class);
 
         assertThat(store.findChild(CHILD_ID)).isEqualTo(previous);
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', textBlock = """
+        child_category_affinity | child_profile_id, category_id | 1, 10
+        child_brand_affinity | child_profile_id, brand | 1, 'a-brand'
+        member_category_affinity | member_id, category_id | 1, 10
+        member_brand_affinity | member_id, brand | 1, 'a-brand'
+        """)
+    @DisplayName("친밀도 표에 같은 대상의 같은 키 줄을 두 번 넣으면 PK 제약이 막는다")
+    void rejectDuplicateAffinityRows(String table, String keyColumns, String keyValues) {
+        String sql = "INSERT INTO recommend." + table + " (" + keyColumns + ", score, calculated_at) VALUES ("
+            + keyValues + ", 0.5, now())";
+        jdbc.update(sql);
+
+        assertThatThrownBy(() -> jdbc.update(sql)).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"child_taste_vector, child_profile_id", "member_taste_vector, member_id"})
+    @DisplayName("취향 벡터 표에 같은 대상의 줄을 두 번 넣으면 PK 제약이 막는다")
+    void rejectDuplicateTasteVectorRows(String table, String keyColumn) {
+        String sql = "INSERT INTO recommend." + table + " (" + keyColumn + ", embedding, weight_sum, activity_count,"
+            + " calculated_at) VALUES (1, CAST(array_fill(0.5::real, ARRAY[1536]) AS recommend.vector), 1, 1, now())";
+        jdbc.update(sql);
+
+        assertThatThrownBy(() -> jdbc.update(sql)).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("브랜드 친밀도 점수가 1을 넘으면 CHECK 제약이 막는다")
+    void rejectBrandScoreAboveOne() {
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO recommend.child_brand_affinity (child_profile_id, brand,"
+            + " score, calculated_at) VALUES (1, 'a-brand', 1.5, now())"))
+            .isInstanceOf(DataIntegrityViolationException.class);
     }
 }
