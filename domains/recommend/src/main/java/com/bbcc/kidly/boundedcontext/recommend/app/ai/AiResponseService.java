@@ -68,6 +68,22 @@ public class AiResponseService {
         this.reusePeriod = reusePeriod;
     }
 
+    /**
+     * 같은 종류 · 같은 입력의 저장된 답이 있으면 그것을 돌려주고, 없으면 {@code call}로 AI를 불러 답을 저장한 뒤 돌려준다.
+     * <ul>
+     *   <li>빈 값은 AI 결과가 없다는 뜻이다. 부른 쪽이 규칙 결과로 대신한다.
+     *       호출이 실패하거나 제한 시간을 넘기거나 null을 돌려줘도, 하루 상한에 닿아도 빈 값이다.</li>
+     *   <li>트랜잭션 밖에서 불러야 한다. 안에서 부르면 {@link IllegalStateException}을 던진다.</li>
+     *   <li>{@code call}은 다른 스레드에서 돈다. 트랜잭션, 지연 로딩, MDC가 따라가지 않으므로
+     *       프롬프트에 쓸 입력은 부르기 전에 모두 읽어 둔다.</li>
+     *   <li>응답 형식(record의 칸 이름 · 타입 · 의미)을 바꾸면 입력의 프롬프트 버전을 올린다.
+     *       저장된 답은 모르는 칸을 무시하고 읽으므로, 올리지 않으면 옛 답이 새 칸 없이 재사용 기간 동안 쓰인다.</li>
+     *   <li>응답 타입은 {@code Class}로 읽으므로 {@code List} 같은 제네릭은 record 하나로 감싼다.</li>
+     *   <li>실패하거나 제한 시간을 넘긴 호출도 하루 호출 횟수에 든다.</li>
+     *   <li>저장된 답은 재사용 기간 안의 옛 답일 수 있으니, 상품이 지금 판매 중인지는 부른 쪽이 다시 거른다.</li>
+     *   <li>입력의 ID 목록에 null이 있으면 키를 만들지 못해 예외를 던진다.</li>
+     * </ul>
+     */
     public <T> Optional<T> respond(
         AiResponseType type,
         AiResponseKey.Input input,
