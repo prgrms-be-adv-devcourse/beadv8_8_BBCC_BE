@@ -77,7 +77,7 @@ public class SizeRecommendation {
         if (answer == null || !isProductSize(productSizes, answer.recommendedSize())) {
             return this;
         }
-        Fit aiFit = findFit(answer.fit());
+        Fit aiFit = findByName(Fit.class, answer.fit());
         if (aiFit == null) {
             return this;
         }
@@ -100,27 +100,17 @@ public class SizeRecommendation {
         return false;
     }
 
-    // 모델이 준 문자열이 Fit 이름과 정확히 같을 때만 Fit으로 바꾼다. 모르는 값은 예외 대신 null이다.
-    private static Fit findFit(String name) {
-        for (Fit fit : Fit.values()) {
-            if (fit.name().equals(name)) {
-                return fit;
-            }
-        }
-        return null;
-    }
-
     // 글 조각을 AI에 주지 않으므로 AI가 돌려준 sourceId는 믿을 수 없어 늘 null로 둔다.
     private static List<SizeReason> usableReasons(List<AiSizeAnswer.Reason> aiReasons) {
-        List<SizeReason> reasons = new ArrayList<>();
         if (aiReasons == null) {
-            return reasons;
+            return List.of();
         }
+        List<SizeReason> reasons = new ArrayList<>();
         for (AiSizeAnswer.Reason aiReason : aiReasons) {
             if (aiReason == null || aiReason.detail() == null || aiReason.detail().isBlank()) {
                 continue;
             }
-            SizeReasonType type = findReasonType(aiReason.type());
+            SizeReasonType type = findByName(SizeReasonType.class, aiReason.type());
             if (type != null) {
                 reasons.add(new SizeReason(type, aiReason.detail(), null));
             }
@@ -128,10 +118,11 @@ public class SizeRecommendation {
         return List.copyOf(reasons);
     }
 
-    private static SizeReasonType findReasonType(String name) {
-        for (SizeReasonType type : SizeReasonType.values()) {
-            if (type.name().equals(name)) {
-                return type;
+    // 모델이 준 문자열이 모르는 값일 수 있어, valueOf의 예외 대신 이름이 정확히 같은지 비교하고 없으면 null을 돌려준다.
+    private static <E extends Enum<E>> E findByName(Class<E> type, String name) {
+        for (E constant : type.getEnumConstants()) {
+            if (constant.name().equals(name)) {
+                return constant;
             }
         }
         return null;
