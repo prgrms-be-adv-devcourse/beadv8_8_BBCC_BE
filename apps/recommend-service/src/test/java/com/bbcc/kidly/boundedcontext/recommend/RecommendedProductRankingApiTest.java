@@ -2,14 +2,28 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_CATEGORY_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_NAME;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_REGISTERED_AT;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_CHANGED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSnapshotStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
+import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.CategoryAffinity;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,11 +40,19 @@ class RecommendedProductRankingApiTest {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
+    private static final Long OTHER_CATEGORY_ID = 53L;
+
     @Autowired
     private RestTestClient client;
 
     @Autowired
     private RecommendReplicaChildService replicaChildService;
+
+    @Autowired
+    private RecommendReplicaProductService replicaProductService;
+
+    @Autowired
+    private PreferenceSnapshotStore snapshotStore;
 
     @BeforeEach
     void setUp() {
@@ -61,10 +83,33 @@ class RecommendedProductRankingApiTest {
         assertThat(LocalDateTime.parse(asOf)).isBetween(before, after).hasNano(0);
     }
 
+    @Test
+    @DisplayName("PREF-06 취향 벡터가 없는 자녀는 저장된 카테고리 친밀도가 있는 상품이 더 늦게 판매를 시작한 상품보다 먼저 나온다")
+    void orderByStoredCategoryAffinity() {
+        saveProduct(301L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT);
+        saveProduct(302L, OTHER_CATEGORY_ID, PRODUCT_A_REGISTERED_AT.plusDays(1));
+        snapshotStore.replaceChild(CHILD_1_ID, new PreferenceSnapshot(
+            List.of(new CategoryAffinity(PRODUCT_A_CATEGORY_ID, 0.6)), List.of(), null, PRODUCT_CHANGED_AT));
+
+        list("")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of("301", "302"));
+    }
+
     private RestTestClient.ResponseSpec list(String query) {
         return client.get().uri(PATH + "?childId={childId}" + query, CHILD_1_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange();
+    }
+
+    // 상품 A와 같은 판매자 · 옵션(110 · 120)으로 상품 ID · 카테고리 · 등록 시각만 바꾼다. 자녀 1(115cm)에게 맞는 사이즈가 있다
+    private void saveProduct(Long productId, Long categoryId, LocalDateTime registeredAt) {
+        replicaProductService.applyProductChanged(new ProductChangedEvent(UUID.randomUUID(), PRODUCT_CHANGED_AT,
+            new ProductChangedEvent.Data(productId, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, categoryId,
+                ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, registeredAt, false, List.of(
+                    RecommendFixture.productOption(1L, "110", 105, 115),
+                    RecommendFixture.productOption(2L, "120", 115, 125)))));
     }
 
     private record AsOfOnly(String asOf) {
