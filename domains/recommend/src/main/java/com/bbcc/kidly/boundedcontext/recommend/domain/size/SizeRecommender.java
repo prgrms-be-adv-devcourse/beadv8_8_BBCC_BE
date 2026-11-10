@@ -51,6 +51,13 @@ public class SizeRecommender {
         );
     }
 
+    /**
+     * 사이즈를 고를 때 쓰는 체형을 돌려준다. 입력 체형과 판정 체형이 두 단계 다르면 체형을 쓰지 않으므로 null이다.
+     */
+    public BodyType decidedBodyType(ChildSizeInput childSizeInput, LocalDate today) {
+        return decideBodyType(childSizeInput, today).bodyType();
+    }
+
     private List<String> sizesOf(List<SizeRange> sizeRanges) {
         List<String> sizes = new ArrayList<>();
         for (SizeRange sizeRange : sizeRanges) {
