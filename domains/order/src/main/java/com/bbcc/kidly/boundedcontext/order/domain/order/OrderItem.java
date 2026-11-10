@@ -32,7 +32,9 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(schema = "orders", name = "order_item", indexes = {
     @Index(name = "idx_order_item_order_id", columnList = "order_id"),
-    @Index(name = "idx_order_item_status_delivered_at", columnList = "status, delivered_at")})
+    @Index(name = "idx_order_item_status_delivered_at", columnList = "status, delivered_at"),
+    // 판매자 미종결 주문상품 수(#1120, V202611101300)
+    @Index(name = "idx_order_item_seller_status", columnList = "seller_id, status")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderItem extends OrderTimeEntity {

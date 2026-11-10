@@ -173,6 +173,12 @@ public interface OrderRepository {
     Page<Order> findAllByOrderByIdDesc(Pageable pageable);
 
     /**
+     * 그 판매자 상품의 주문상품 중 이 상태이고 주문이 그 상태가 아닌 수(#1120 판매자 미종결 주문상품). 주문 전체 취소(구매자 취소 ·
+     * 결제 만료 · 재고 부족 · 결제 실패)는 주문 상태만 바꾸고 주문상품은 주문됨으로 남으므로 주문 상태로 함께 거른다. 건수 쿼리 한 번.
+     */
+    long countSellerItems(Long sellerId, OrderItem.Status itemStatus, Order.Status excludedOrderStatus);
+
+    /**
      * 전체 주문 수. 목록을 읽을 수 없는 큰 page의 빈 페이지에 전체 건수를 채운다.
      */
     long count();

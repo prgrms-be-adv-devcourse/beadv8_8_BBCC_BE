@@ -42,6 +42,7 @@ public enum OrderErrorCode implements ErrorCode {
     CHILD_NOT_FOUND(HttpStatus.NOT_FOUND, "자녀를 찾을 수 없습니다", "없는 자녀입니다. 자녀를 다시 선택해 주세요."),
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다", "없는 주문입니다. 주문 목록에서 다시 선택해 주세요."),
     ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "주문상품을 찾을 수 없습니다", "없는 주문상품입니다. 주문 상세를 새로고침해 주세요."),
+    INVALID_SELLER_ID(HttpStatus.BAD_REQUEST, "잘못된 판매자 ID입니다", "판매자 ID는 1 이상의 숫자여야 합니다."),
     INVALID_IDEMPOTENCY_KEY(HttpStatus.BAD_REQUEST, "잘못된 요청 키입니다", "주문서를 다시 열어 주문해 주세요."),
     IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT, "이미 다른 주문에 쓴 요청입니다", "주문서를 다시 열어 주문해 주세요."),
     RECOVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 반영 실패 기록을 찾을 수 없습니다",

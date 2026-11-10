@@ -105,4 +105,4 @@
 
 ## 7. 주문 조회
 
-- 주문 조회(#742)는 `app.order.OrderQueryService`가 상세 · 목록 · 타임라인 · 관리자 목록/이력을 읽기 전용으로 제공한다. 생성 · 결제 · 취소 · 구매확정은 `OrderService`에 두며, 변경 응답 조립은 기존 쓰기 트랜잭션 안에서 조회 도우미를 재사용한다.
+- 주문 조회(#742)는 `app.order.OrderQueryService`가 상세 · 목록 · 타임라인 · 관리자 목록/이력을 읽기 전용으로 제공한다. 서비스 사이 전용 판매자 미종결 주문상품 수(#1120, `in/web/internal/SellerOrderItemController`, `GET /internal/sellers/{sellerId}/order-items/summary`, 인증 헤더 없음 · Gateway가 `/internal/**` 차단)는 공유 계약 `shared.order.out.SellerOrderItems`(응답 `shared.order.dto.SellerOrderItemSummary`, 다른 도메인의 동기 호출 계약)를 구현한 `OrderQueryService.summarize`가 '주문이 취소되지 않았고 주문상품이 ORDERED'인 건수를 주문 · 주문상품 조인 쿼리 한 번으로 센다(주문 전체 취소는 주문상품을 ORDERED로 남기므로 주문 상태로 거른다, 인덱스 `idx_order_item_seller_status`, `V202611101300`). 컨트롤러는 그 계약을 같은 모양으로 HTTP에 낸다(`sellerId`는 숫자). 주문은 개수만 주고 판매자 상태 · 탈퇴 판단은 부르는 쪽이 한다. 잘못된 판매자 ID(숫자 아님 · 1 미만)는 400 `INVALID_SELLER_ID`. 생성 · 결제 · 취소 · 구매확정은 `OrderService`에 두며, 변경 응답 조립은 기존 쓰기 트랜잭션 안에서 조회 도우미를 재사용한다.
