@@ -14,6 +14,7 @@ import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -179,6 +180,37 @@ class ProductSaleStartApiTest {
     }
 
     @Test
+    @DisplayName("판매 시작으로 DB에 판매 시작 시각이 남고, 나간 이벤트와 아웃박스 본문의 data.saleStartedAt이 그 값이다")
+    void startSaleStoresSaleStartedAt() {
+        assertThat(storedSaleStartedAt()).isNull();
+
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+
+        LocalDateTime stored = storedSaleStartedAt();
+        assertThat(stored).isNotNull();
+        ProductChangedEvent.Data published = eventRecorder.events(ProductChangedEvent.class).getFirst().data();
+        assertThat(published.saleStartedAt()).isEqualTo(stored);
+        JsonNode payloadData = jsonMapper.readTree(
+            jdbcTemplate.queryForObject("select payload from product.product_outbox", String.class)).get("data");
+        assertThat(payloadData.get("saleStartedAt").asString()).isEqualTo(stored.toString());
+    }
+
+    @Test
+    @DisplayName("판매중지한 상품을 다시 판매 시작해도 판매 시작 시각은 처음 값 그대로이고, 다시 나간 이벤트도 그 값을 담는다")
+    void restartSaleKeepsSaleStartedAt() {
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+        LocalDateTime first = storedSaleStartedAt();
+        startSale(TestMembers.seller(SELLER_ID), Map.of("status", "STOPPED")).expectStatus().isOk();
+        eventRecorder.clear();
+
+        startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
+
+        assertThat(storedSaleStartedAt()).isEqualTo(first);
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(event -> assertThat(event.data().saleStartedAt()).isEqualTo(first));
+    }
+
+    @Test
     @DisplayName("판매 시작이 커밋되면 나간 상품 정보 변경됨이 상품 ID를 키로 아웃박스에 한 줄 남는다")
     void startSaleStoresOutboxMessage() {
         startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
@@ -222,6 +254,7 @@ class ProductSaleStartApiTest {
         expectProblem(startSale(TestMembers.seller(SELLER_ID), ON_SALE), HttpStatus.CONFLICT,
             "판매를 시작할 수 없습니다", "판매를 시작할 수 없습니다. 120 사이즈에 실측과 권장 키가 없습니다.");
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
+        assertThat(storedSaleStartedAt()).isNull();
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
@@ -332,6 +365,11 @@ class ProductSaleStartApiTest {
     private String storedStatus() {
         return jdbcTemplate.queryForObject(
             "select status from product.product where id = ?", String.class, Long.valueOf(productId));
+    }
+
+    private LocalDateTime storedSaleStartedAt() {
+        return jdbcTemplate.queryForObject(
+            "select sale_started_at from product.product where id = ?", LocalDateTime.class, Long.valueOf(productId));
     }
 
     private long storedVersion() {
