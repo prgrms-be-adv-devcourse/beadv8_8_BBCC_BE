@@ -23,6 +23,9 @@ public final class ReferenceGarmentSpec {
 
     public static ReferenceGarmentSpec of(GarmentPart part, Long categoryId, List<String> categoryPathNames,
         Map<String, BigDecimal> measurements) {
+        if (categoryPathNames == null || categoryPathNames.isEmpty()) {
+            throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
+        }
         if (!part.includesCategoryIn(categoryPathNames)) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH);
         }
