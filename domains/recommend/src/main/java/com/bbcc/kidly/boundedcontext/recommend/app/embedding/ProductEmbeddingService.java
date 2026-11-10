@@ -21,10 +21,21 @@ public class ProductEmbeddingService {
 
     public void embedStaleProducts() {
         List<ProductEmbeddingTarget> targets = store.findStale(BATCH_SIZE);
-        if (targets.isEmpty()) {
-            return;
+        List<ProductEmbeddingTarget> neverAttempted = new ArrayList<>();
+        List<ProductEmbeddingTarget> retried = new ArrayList<>();
+        for (ProductEmbeddingTarget target : targets) {
+            if (target.retried()) {
+                retried.add(target);
+            } else {
+                neverAttempted.add(target);
+            }
         }
-        embedTogether(targets);
+        if (!neverAttempted.isEmpty()) {
+            embedTogether(neverAttempted);
+        }
+        for (ProductEmbeddingTarget target : retried) {
+            embedTogether(List.of(target));
+        }
     }
 
     private void embedTogether(List<ProductEmbeddingTarget> targets) {
