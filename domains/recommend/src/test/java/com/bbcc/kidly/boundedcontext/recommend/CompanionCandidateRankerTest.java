@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class CompanionCandidateRankerTest {
 
@@ -72,6 +74,20 @@ class CompanionCandidateRankerTest {
         List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
 
         assertThat(productIds(ranked)).containsExactly(3L, 2L, 1L);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0.77, 1", "0.78, 2"})
+    @DisplayName("PAIR-02 짝 종류가 n개일 때 i번째(0부터) 종류의 짝 우선순위 점수는 (n - i) / n이다")
+    void pairPriorityScoreIsRemainingShareOfPairKinds(double outerSimilarity, long expectedFirstProductId) {
+        // 상의의 짝 3개 중 하의는 1, 아우터는 2/3이라, 아우터 유사도가 7/9(0.777…)를 넘어야 유사도 0인 하의를 앞선다
+        List<CompanionCandidate> candidates = List.of(
+            candidate(1L, BOTTOM, 0.0),
+            candidate(2L, OUTER, outerSimilarity));
+
+        List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
+
+        assertThat(productIds(ranked)).first().isEqualTo(expectedFirstProductId);
     }
 
     @Test

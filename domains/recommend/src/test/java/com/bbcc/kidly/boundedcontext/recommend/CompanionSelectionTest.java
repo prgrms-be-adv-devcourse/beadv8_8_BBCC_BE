@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -133,6 +134,16 @@ class CompanionSelectionTest {
 
         assertThat(selection.picks()).extracting(pick -> pick.product().productId())
             .containsExactly(6L, 5L, 4L, 3L);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"2, 2", "0, 0"})
+    @DisplayName("규칙 후보가 4개보다 적으면 있는 만큼만 돌려준다")
+    void returnAllWhenFewerThanFourCandidates(int candidateCount, int expectedPickCount) {
+        CompanionSelection selection = CompanionSelection.of(null, rankedCandidates(candidateCount));
+
+        assertThat(selection.source()).isEqualTo(CompanionSource.RULE);
+        assertThat(selection.picks()).hasSize(expectedPickCount);
     }
 
     // 상품 ID 1부터 count까지를 규칙 순서(점수 순)로 둔 후보 목록이다
