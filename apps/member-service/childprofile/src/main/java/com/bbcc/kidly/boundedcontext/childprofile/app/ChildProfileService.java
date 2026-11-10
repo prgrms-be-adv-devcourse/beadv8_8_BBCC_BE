@@ -9,6 +9,8 @@ import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildAccountLink;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildAccountLinkRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GrowthRecord;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.GrowthRecordRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileErrorCode;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
@@ -28,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChildProfileService {
 
     private final ChildProfileRepository childProfileRepository;
+    private final GrowthRecordRepository growthRecordRepository;
     private final ChildAccountLinkRepository childAccountLinkRepository;
     private final GuardianVerificationRepository guardianVerificationRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -40,6 +43,7 @@ public class ChildProfileService {
         var now = LocalDateTime.now();
         var child = childProfileRepository.save(ChildProfile.register(request.toRegisterInfo(memberId), now));
         publish(child, false, now);
+        publishGrowthRecorded(child.getGrowthRecords().getLast());
         log.info("자녀 등록: memberId={} childId={}", memberId, child.getId());
         return ChildProfileResult.from(child);
     }
@@ -81,8 +85,9 @@ public class ChildProfileService {
     public ChildProfileResult update(Long memberId, Long childId, ChildProfileUpdateRequest request) {
         var now = LocalDateTime.now();
         var child = childProfileRepository.getByIdAndMemberId(childId, memberId);
-        child.update(request.toUpdateInfo(), now);
+        var recorded = child.update(request.toUpdateInfo(), now);
         publish(child, false, now);
+        recorded.ifPresent(this::publishGrowthRecorded);
         log.info("자녀 수정: memberId={} childId={}", memberId, childId);
         return ChildProfileResult.from(child);
     }
@@ -118,6 +123,11 @@ public class ChildProfileService {
         return childProfileRepository.getByIdAndMemberId(childId, memberId).getGrowthRecords().stream()
             .map(GrowthRecordResult::from)
             .toList();
+    }
+
+    private void publishGrowthRecorded(GrowthRecord record) {
+        var saved = growthRecordRepository.save(record);
+        eventPublisher.publishEvent(saved.toRecordedEvent());
     }
 
     private void publish(ChildProfile child, boolean deleted, LocalDateTime now) {

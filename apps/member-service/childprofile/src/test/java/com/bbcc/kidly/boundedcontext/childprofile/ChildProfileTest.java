@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class ChildProfileTest {
 
@@ -47,8 +48,10 @@ class ChildProfileTest {
         var child = ChildProfileFixture.child(MEMBER_ID);
         var later = NOW.plusDays(30);
 
-        child.update(updateInfo("첫째", new BigDecimal("117.5"), WEIGHT, BodyType.NORMAL, PreferredFit.LOOSE), later);
+        var recorded = child.update(
+            updateInfo("첫째", new BigDecimal("117.5"), WEIGHT, BodyType.NORMAL, PreferredFit.LOOSE), later);
 
+        assertThat(recorded).containsSame(child.getGrowthRecords().getLast());
         assertThat(child.getHeightCm()).isEqualByComparingTo("117.5");
         assertThat(child.getGrowthRecords()).hasSize(2);
         assertThat(child.lastRecordedAt()).isEqualTo(later);
@@ -60,7 +63,8 @@ class ChildProfileTest {
     void updateBodyTypeNullToValueAddsRecord() {
         var child = ChildProfile.register(register(HEIGHT, WEIGHT, null), NOW);
 
-        child.update(updateInfo("첫째", HEIGHT, WEIGHT, BodyType.SLIM, null), NOW.plusDays(1));
+        var recorded = child.update(updateInfo("첫째", HEIGHT, WEIGHT, BodyType.SLIM, null), NOW.plusDays(1));
+        assertThat(recorded).containsSame(child.getGrowthRecords().getLast());
         child.update(updateInfo("첫째", HEIGHT, WEIGHT, null, null), NOW.plusDays(2));
 
         assertThat(child.getGrowthRecords()).extracting(GrowthRecord::getBodyType)
@@ -72,9 +76,11 @@ class ChildProfileTest {
     void updateWithoutHeightOrBodyTypeChangeKeepsRecords() {
         var child = ChildProfileFixture.child(MEMBER_ID);
 
-        child.update(updateInfo("둘째", HEIGHT, new BigDecimal("21.0"), BodyType.NORMAL, PreferredFit.SLIM),
+        var recorded = child.update(
+            updateInfo("둘째", HEIGHT, new BigDecimal("21.0"), BodyType.NORMAL, PreferredFit.SLIM),
             NOW.plusDays(1));
 
+        assertThat(recorded).isEmpty();
         assertThat(child.getName()).isEqualTo("둘째");
         assertThat(child.getWeightKg()).isEqualByComparingTo("21.0");
         assertThat(child.getPreferredFit()).isEqualTo(PreferredFit.SLIM);
@@ -87,10 +93,31 @@ class ChildProfileTest {
     void updateWithSameValuesKeepsRecords() {
         var child = ChildProfileFixture.child(MEMBER_ID);
 
-        child.update(updateInfo("첫째", new BigDecimal("115"), WEIGHT, BodyType.NORMAL, PreferredFit.LOOSE),
+        var recorded = child.update(
+            updateInfo("첫째", new BigDecimal("115"), WEIGHT, BodyType.NORMAL, PreferredFit.LOOSE),
             NOW.plusDays(1));
 
+        assertThat(recorded).isEmpty();
         assertThat(child.getGrowthRecords()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("성장 이력 이벤트는 저장된 이력의 값을 담고 occurredAt은 기록 시각이며, 저장 전 이력은 이벤트로 만들 수 없다")
+    void growthEventMapsPersistedRecord() {
+        var child = ChildProfile.register(register(new BigDecimal("115"), WEIGHT, null), NOW);
+        var record = child.getGrowthRecords().getFirst();
+        assertThatThrownBy(record::toRecordedEvent).isInstanceOf(NullPointerException.class);
+        ReflectionTestUtils.setField(child, "id", 10L);
+        ReflectionTestUtils.setField(record, "id", 20L);
+        var event = record.toRecordedEvent();
+        var repeated = record.toRecordedEvent();
+        assertThat(event.eventId()).isNotEqualTo(repeated.eventId());
+        assertThat(event.data()).isEqualTo(repeated.data());
+        assertThat(event.occurredAt()).isEqualTo(NOW).isEqualTo(event.data().recordedAt());
+        assertThat(event.data().growthRecordId()).isEqualTo(20L);
+        assertThat(event.data().childId()).isEqualTo(10L);
+        assertThat(event.data().heightCm()).isEqualTo(new BigDecimal("115.0"));
+        assertThat(event.data().bodyType()).isNull();
     }
 
     @Test
