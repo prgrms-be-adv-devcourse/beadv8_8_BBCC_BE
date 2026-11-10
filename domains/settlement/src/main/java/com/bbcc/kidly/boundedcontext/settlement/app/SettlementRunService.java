@@ -31,6 +31,7 @@ import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.batch.core.launch.JobRestartException;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.StepExecution;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -58,8 +59,15 @@ public class SettlementRunService {
     public SettlementRunResult runManually(LocalDate cutoffOn, Long adminId) {
         var period = SettlementPeriod.manual(cutoffOn, LocalDate.now());
         var result = run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
-        settlementAdminActions.record(adminId, SettlementAdminActionType.RUN_MANUAL, result.runId(),
-            LocalDateTime.now());
+        // 실행 ID는 실행 뒤에야 생기고 작업은 Batch가 이미 커밋했으므로 기록과 묶을 수 없다. 기록이 DB 오류로 실패해도 결과는
+        // 돌려준다(500 뒤 다시 시도하면 SETTLEMENT_ALREADY_RUN으로 거절된다). 관리자 ID는 Batch 파라미터 requestedBy에도 남아 있다
+        try {
+            settlementAdminActions.record(adminId, SettlementAdminActionType.RUN_MANUAL, result.runId(),
+                LocalDateTime.now());
+        } catch (DataAccessException e) {
+            log.error("정산 관리자 행위 기록 실패: adminId={} action={} runId={}", adminId,
+                SettlementAdminActionType.RUN_MANUAL, result.runId());
+        }
         return result;
     }
 
@@ -96,9 +104,9 @@ public class SettlementRunService {
         if (!execution.getStatus().isRunning()) {
             throw new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_NOT_RECOVERABLE);
         }
-        var recovered = jobOperator.recover(execution);
+        // 기록을 먼저 남겨, 기록 없이 정리되지 않게 한다. 기록 뒤 정리가 실패하면(버전 충돌 등) 시도 기록으로 남는다
         settlementAdminActions.record(adminId, SettlementAdminActionType.RUN_RECOVER, runId, LocalDateTime.now());
-        return resultOf(recovered);
+        return resultOf(jobOperator.recover(execution));
     }
 
     // runId는 작업 실행 ID. JDBC 저장소는 없는 ID면 EmptyResultDataAccessException을 던진다

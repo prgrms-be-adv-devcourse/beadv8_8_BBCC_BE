@@ -19,9 +19,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 정산 DLT 보관 · 조회 · 재처리. 재처리는 원래 처리기의 트랜잭션으로 끝내고 결과만 별도로 기록한다.
+ * 정산 DLT 보관 · 조회 · 재처리. 재처리는 원래 처리기의 트랜잭션으로 끝내고 결과와 감사 기록만 따로 한 트랜잭션으로 남긴다.
  * DLT 잠금을 쥔 채 새 DB 연결을 기다리지 않는다.
  */
 @Slf4j
@@ -32,6 +33,7 @@ public class SettlementDeadLetterService {
     private final SettlementDeadLetters repository;
     private final SettlementDeadLetterReplay replayer;
     private final SettlementAdminActions settlementAdminActions;
+    private final TransactionTemplate transactionTemplate;
 
     @Transactional
     public boolean receive(Received received) {
@@ -58,7 +60,8 @@ public class SettlementDeadLetterService {
             .orElseThrow(() -> new BusinessException(SettlementErrorCode.DEAD_LETTER_NOT_FOUND));
     }
 
-    // 트랜잭션을 걸지 않는다: 반영은 원래 처리기의 트랜잭션, 결과 기록은 저장소의 짧은 조건부 UPDATE다
+    // 메서드 전체에 트랜잭션을 걸지 않는다: 반영은 원래 처리기의 트랜잭션이다. 결과 기록과 감사 기록은 짧은 트랜잭션 하나로 묶어,
+    // 감사 기록이 실패하면 결과 기록도 되돌린다(DLT가 OPEN으로 남아 다시 재처리할 수 있다)
     public Summary reprocess(Long id, Long adminId) {
         var target = repository.findForReplay(id)
             .orElseThrow(() -> new BusinessException(SettlementErrorCode.DEAD_LETTER_NOT_FOUND));
@@ -71,16 +74,23 @@ public class SettlementDeadLetterService {
             replayer.replay(target.message());
         } catch (RuntimeException e) {
             String failureType = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
-            repository.recordReplayFailure(id, adminId, LocalDateTime.now(), failureType);
-            settlementAdminActions.record(adminId, SettlementAdminActionType.DEAD_LETTER_REPROCESS, id,
-                LocalDateTime.now());
+            transactionTemplate.executeWithoutResult(status -> {
+                repository.recordReplayFailure(id, adminId, LocalDateTime.now(), failureType);
+                recordAdminAction(id, adminId);
+            });
             log.warn("정산 DLT 재처리 실패: deadLetterId={} adminId={} exception={}", id, adminId, failureType);
             return get(id);
         }
-        repository.markReprocessed(id, adminId, LocalDateTime.now());
-        settlementAdminActions.record(adminId, SettlementAdminActionType.DEAD_LETTER_REPROCESS, id,
-            LocalDateTime.now());
+        transactionTemplate.executeWithoutResult(status -> {
+            repository.markReprocessed(id, adminId, LocalDateTime.now());
+            recordAdminAction(id, adminId);
+        });
         log.info("정산 DLT 재처리 완료: deadLetterId={} adminId={}", id, adminId);
         return get(id);
+    }
+
+    private void recordAdminAction(Long id, Long adminId) {
+        settlementAdminActions.record(adminId, SettlementAdminActionType.DEAD_LETTER_REPROCESS, id,
+            LocalDateTime.now());
     }
 }
