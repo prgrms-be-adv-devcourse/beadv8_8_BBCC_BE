@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReason;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReasonType;
@@ -73,6 +75,22 @@ class SizeRecommendationAiTest {
             Named.of("적합도 빈 값", new AiSizeAnswer("110", "", reasons)),
             Named.of("모르는 적합도", new AiSizeAnswer("110", "LOOSE", reasons)),
             Named.of("소문자 적합도", new AiSizeAnswer("110", "tight", reasons)));
+    }
+
+    @Test
+    @DisplayName("사이즈 무관 상품이면 AI가 그 상품의 사이즈 이름을 골라도 규칙 결과를 그대로 쓴다")
+    void keepRuleForSizeFreeProduct() {
+        ProductSizes sizeFreeProduct = ProductSizes.of(true, List.of(SizeRange.of("FREE", 90, 130)));
+        AiSizeAnswer answer = new AiSizeAnswer("FREE", "PROPER",
+            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
+
+        SizeRecommendation result = SizeRecommendation.sizeFree().decideWith(sizeFreeProduct, answer);
+
+        assertThat(result.getRecommendedSize()).isNull();
+        assertThat(result.getFit()).isNull();
+        assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.RULE);
+        assertThat(result.getNotices()).containsExactly(SizeNotice.SIZE_FREE);
+        assertThat(result.getReasons()).isEmpty();
     }
 
     private static void assertRuleResult(SizeRecommendation result) {
