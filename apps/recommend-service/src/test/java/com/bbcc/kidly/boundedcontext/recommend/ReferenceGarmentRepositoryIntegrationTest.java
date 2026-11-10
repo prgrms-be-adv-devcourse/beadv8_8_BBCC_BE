@@ -55,7 +55,7 @@ class ReferenceGarmentRepositoryIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("FIT-01 소수 첫째 자리 실측과 선택 실측까지 저장하고 다시 읽으면 값이 그대로다")
+    @DisplayName("소수 첫째 자리 실측과 선택 실측까지 저장하고 다시 읽으면 값이 그대로다")
     void roundTripMeasurements() {
         Map<String, BigDecimal> measurements = Map.of(
             "TOTAL_LENGTH", new BigDecimal("40.5"), "CHEST_WIDTH", new BigDecimal("42.0"),
@@ -81,7 +81,7 @@ class ReferenceGarmentRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-01 같은 자녀의 같은 구분을 새로 한 번 더 저장하면 UNIQUE 제약이 막는다")
+    @DisplayName("같은 자녀의 같은 구분을 새로 한 번 더 저장하면 UNIQUE 제약이 막는다")
     void rejectSecondRowOfSameChildAndPart() {
         save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
 
@@ -91,7 +91,7 @@ class ReferenceGarmentRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-01 같은 자녀의 다른 구분과 다른 자녀의 같은 구분은 각각 저장된다")
+    @DisplayName("같은 자녀의 다른 구분과 다른 자녀의 같은 구분은 각각 저장된다")
     void saveOtherPartAndOtherChild() {
         save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
 
@@ -103,7 +103,7 @@ class ReferenceGarmentRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-01 찾은 기준 옷을 바꾸고 커밋하면 줄은 하나이고 값과 수정 시각이 바뀐다")
+    @DisplayName("찾은 기준 옷을 바꾸고 커밋하면 줄은 하나이고 값과 수정 시각이 바뀐다")
     void replaceFoundGarmentInPlace() {
         save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
         LocalDateTime updatedBefore = jdbcTemplate.queryForObject(
@@ -123,7 +123,7 @@ class ReferenceGarmentRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-01 하의를 먼저 저장해도 자녀의 기준 옷은 상의, 하의 순서로 돌아오고 다른 자녀의 것은 섞이지 않는다")
+    @DisplayName("하의를 먼저 저장해도 자녀의 기준 옷은 상의, 하의 순서로 돌아오고 다른 자녀의 것은 섞이지 않는다")
     void listTopBeforeBottomOfOneChild() {
         save(CHILD_ID, bottomSpec());
         save(OTHER_CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
@@ -138,7 +138,7 @@ class ReferenceGarmentRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-01 구분 하나를 지우면 그 줄만 지워지고 같은 자녀의 다른 구분과 다른 자녀의 것은 남는다")
+    @DisplayName("구분 하나를 지우면 그 줄만 지워지고 같은 자녀의 다른 구분과 다른 자녀의 것은 남는다")
     void deleteOnlyThatPart() {
         save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
         save(CHILD_ID, bottomSpec());
@@ -153,7 +153,7 @@ class ReferenceGarmentRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-01 없는 기준 옷을 지워도 예외가 없고 다른 줄은 그대로다")
+    @DisplayName("없는 기준 옷을 지워도 예외가 없고 다른 줄은 그대로다")
     void deleteMissingGarmentWithoutError() {
         save(OTHER_CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
 
@@ -164,7 +164,7 @@ class ReferenceGarmentRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-01 자녀를 지우면 그 자녀의 두 줄만 지워지고 다른 자녀의 것은 남는다")
+    @DisplayName("자녀를 지우면 그 자녀의 두 줄만 지워지고 다른 자녀의 것은 남는다")
     void deleteAllOfChild() {
         save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
         save(CHILD_ID, bottomSpec());
@@ -178,7 +178,7 @@ class ReferenceGarmentRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-01 회원의 기준 옷을 지우면 삭제된 자녀를 포함한 그 회원의 자녀 것만 지워지고 다른 회원 자녀의 것은 남는다")
+    @DisplayName("회원의 기준 옷을 지우면 삭제된 자녀를 포함한 그 회원의 자녀 것만 지워지고 다른 회원 자녀의 것은 남는다")
     void deleteAllOfMemberChildren() {
         replicaChildService.applyChildChanged(childChanged(CHILD_ID, MEMBER_ID, false));
         replicaChildService.applyChildChanged(childChanged(DELETED_CHILD_ID, MEMBER_ID, true));

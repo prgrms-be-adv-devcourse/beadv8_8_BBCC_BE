@@ -44,7 +44,7 @@ class GarmentCategoryPathsIntegrationTest {
 
     // ID와 이름이 순서대로 커지지 않는 경로로, 값의 크기로 정렬해서는 통과하지 못하게 한다
     @Test
-    @DisplayName("FIT-01 상품 복사본의 카테고리 경로에 있는 카테고리를 찾으면 그 경로 전체가 대분류부터 말단 순서로 돌아온다")
+    @DisplayName("상품 복사본의 카테고리 경로에 있는 카테고리를 찾으면 그 경로 전체가 대분류부터 말단 순서로 돌아온다")
     void findFullPathInOrder() {
         applyProduct(RecommendFixture.PRODUCT_A_ID, topPath("의류"), RecommendFixture.PRODUCT_CHANGED_AT);
 

@@ -22,7 +22,7 @@ class ReferenceGarmentTest {
     private static final Long BOTTOM_CATEGORY_ID = 60L;
 
     @Test
-    @DisplayName("FIT-01 기준 옷은 자녀 ID와 검증된 값의 구분 · 세부 종류 · 실측을 그대로 담는다")
+    @DisplayName("기준 옷은 자녀 ID와 검증된 값의 구분 · 세부 종류 · 실측을 그대로 담는다")
     void createKeepsSpecValues() {
         ReferenceGarmentSpec spec = topSpec(TOP_CATEGORY_ID, "40.5", "42.0");
 
@@ -35,7 +35,7 @@ class ReferenceGarmentTest {
     }
 
     @Test
-    @DisplayName("FIT-01 같은 구분의 새 값으로 바꾸면 세부 종류와 실측이 바뀐다")
+    @DisplayName("같은 구분의 새 값으로 바꾸면 세부 종류와 실측이 바뀐다")
     void replaceChangesCategoryAndMeasurements() {
         ReferenceGarment garment = ReferenceGarment.create(CHILD_ID, topSpec(TOP_CATEGORY_ID, "40.5", "42.0"));
         ReferenceGarmentSpec replacement = topSpec(53L, "44.0", "45.5");
@@ -48,7 +48,7 @@ class ReferenceGarmentTest {
     }
 
     @Test
-    @DisplayName("FIT-01 다른 구분의 값으로는 바꿀 수 없다")
+    @DisplayName("다른 구분의 값으로는 바꿀 수 없다")
     void replaceRejectsOtherPart() {
         ReferenceGarment garment = ReferenceGarment.create(CHILD_ID, topSpec(TOP_CATEGORY_ID, "40.5", "42.0"));
         ReferenceGarmentSpec bottom = bottomSpec();
@@ -59,7 +59,7 @@ class ReferenceGarmentTest {
     }
 
     @Test
-    @DisplayName("FIT-01 자녀 ID나 값이 없으면 기준 옷을 만들 수 없다")
+    @DisplayName("자녀 ID나 값이 없으면 기준 옷을 만들 수 없다")
     void createRejectsNull() {
         ReferenceGarmentSpec spec = topSpec(TOP_CATEGORY_ID, "40.5", "42.0");
 
@@ -68,7 +68,7 @@ class ReferenceGarmentTest {
     }
 
     @Test
-    @DisplayName("FIT-01 바꿀 값이 없으면 예외이고 기준 옷은 그대로다")
+    @DisplayName("바꿀 값이 없으면 예외이고 기준 옷은 그대로다")
     void replaceRejectsNull() {
         ReferenceGarment garment = ReferenceGarment.create(CHILD_ID, topSpec(TOP_CATEGORY_ID, "40.5", "42.0"));
 
