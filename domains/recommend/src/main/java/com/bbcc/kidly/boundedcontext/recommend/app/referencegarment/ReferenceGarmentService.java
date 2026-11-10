@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.Reference
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +35,11 @@ public class ReferenceGarmentService {
         GarmentPart part = GarmentPart.valueOf(partName);
         ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(
             part, categoryId, garmentCategoryPaths.findPathOf(categoryId), measurements);
-        ReferenceGarment garment = referenceGarmentRepository.save(ReferenceGarment.create(childId, spec));
-        return ReferenceGarmentResult.from(garment);
+        Optional<ReferenceGarment> existing = referenceGarmentRepository.findByChildProfileIdAndPart(childId, part);
+        if (existing.isPresent()) {
+            existing.get().replace(spec);
+            return ReferenceGarmentResult.from(existing.get());
+        }
+        return ReferenceGarmentResult.from(referenceGarmentRepository.save(ReferenceGarment.create(childId, spec)));
     }
 }
