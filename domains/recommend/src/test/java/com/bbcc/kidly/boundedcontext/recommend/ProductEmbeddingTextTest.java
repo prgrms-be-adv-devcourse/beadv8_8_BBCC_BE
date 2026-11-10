@@ -54,6 +54,17 @@ class ProductEmbeddingTextTest {
     }
 
     @Test
+    @DisplayName("카테고리 경로 중 이름이 없거나 공백인 칸은 빼고 나머지를 순서대로 잇는다")
+    void skipBlankNamesInCategoryPath() {
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠",
+            Arrays.asList("의류", null, " ", "상의"), null, List.of(), null);
+
+        assertThat(text.value()).isEqualTo("""
+            상품명: 면 티셔츠
+            카테고리: 의류 > 상의""");
+    }
+
+    @Test
     @DisplayName("같은 code의 정보 값은 한 줄에 값 오름차순으로, code는 오름차순으로 쓴다")
     void groupInfoValuesByCodeInOrder() {
         ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", List.of(), null, List.of(
