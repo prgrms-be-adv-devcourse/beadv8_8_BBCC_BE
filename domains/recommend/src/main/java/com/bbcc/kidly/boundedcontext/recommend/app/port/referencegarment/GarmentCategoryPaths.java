@@ -9,8 +9,9 @@ import java.util.List;
 public interface GarmentCategoryPaths {
 
     /**
-     * 경로에 그 카테고리가 들어 있는 상품 하나의 카테고리 경로 전체를 대분류부터 말단 순서로 돌려준다.
-     * 그 카테고리의 상품이 추천에 하나도 없으면 빈 목록이다. 구분에 맞는 카테고리인지는 판단하지 않는다.
+     * 상품의 말단 카테고리가 그 카테고리인 상품 중 가장 늦게 반영된 상품의 카테고리 경로 전체를
+     * 대분류부터 말단 순서로 돌려준다. 말단이 아닌 카테고리이거나 그 카테고리의 상품이 추천에 하나도 없으면
+     * 빈 목록이다. 구분에 맞는 카테고리인지는 판단하지 않는다.
      */
     List<GarmentCategoryPathEntry> findPathOf(Long categoryId);
 }

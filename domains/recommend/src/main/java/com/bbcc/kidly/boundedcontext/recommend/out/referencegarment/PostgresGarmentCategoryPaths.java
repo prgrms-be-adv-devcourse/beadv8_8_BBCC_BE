@@ -7,7 +7,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
 /**
- * 같은 카테고리의 상품은 경로가 같으므로, 그 카테고리가 경로에 있는 상품 중 ID가 가장 작은 하나의 경로를 읽는다.
+ * 세부 종류는 말단 카테고리이므로, 상품의 카테고리가 그 카테고리인 상품 중 가장 늦게 반영된 하나의 경로를 읽는다.
+ * 카테고리 이름이 나중에 바뀌어도 가장 최근 경로를 쓰기 위해서다. 같은 시각이면 상품 ID가 큰 상품을 고른다.
  * 카테고리 경로는 상품의 판매 상태나 삭제 여부와 상관없으므로 상품 상태는 보지 않는다.
  */
 @Component
@@ -25,7 +26,10 @@ public class PostgresGarmentCategoryPaths implements GarmentCategoryPaths {
                 SELECT category_id, category_name
                 FROM recommend.replica_product_category_path
                 WHERE product_id = (
-                    SELECT MIN(product_id) FROM recommend.replica_product_category_path WHERE category_id = :categoryId)
+                    SELECT product_id FROM recommend.replica_product
+                    WHERE category_id = :categoryId
+                    ORDER BY event_occurred_at DESC, product_id DESC
+                    LIMIT 1)
                 ORDER BY position
                 """)
             .param("categoryId", categoryId)
