@@ -33,18 +33,21 @@ class PreferenceSourceReaderIntegrationTest {
     private JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("기간 안에 활동했거나 구매확정한 자녀만 중복 없이 ID 순으로 읽는다")
-    void readChildTargetsWithinPeriod() {
+    @DisplayName("PREF-11 활동은 활동 기준, 구매확정은 구매 기준으로 기간 안인 자녀만 중복 없이 ID 순으로 읽는다")
+    void readChildTargetsWithinEachPeriod() {
+        LocalDateTime purchaseSince = SINCE.minusDays(150);
         childActivity(1L, SINCE);
         childActivity(2L, SINCE.minusSeconds(1));
-        PreferenceTestData.insertPurchase(jdbc, 3L, 100L, SINCE);
-        PreferenceTestData.insertPurchase(jdbc, 2L, 100L, SINCE.minusSeconds(1));
+        PreferenceTestData.insertPurchase(jdbc, 3L, 100L, SINCE.minusDays(100));
+        PreferenceTestData.insertPurchase(jdbc, 5L, 100L, purchaseSince.minusSeconds(1));
         childActivity(4L, SINCE.plusDays(1));
         PreferenceTestData.insertPurchase(jdbc, 4L, 100L, SINCE.plusDays(1));
         memberActivity(9L, SINCE.plusDays(1));
         childActivity(6L, SINCE.plusDays(2));
+        childActivity(7L, SINCE.minusDays(100));
+        PreferenceTestData.insertPurchase(jdbc, 8L, 100L, purchaseSince);
 
-        assertThat(reader.findChildTargets(SINCE, SINCE, 0, 10)).containsExactly(1L, 3L, 4L, 6L);
+        assertThat(reader.findChildTargets(SINCE, purchaseSince, 0, 10)).containsExactly(1L, 3L, 4L, 6L, 8L);
     }
 
     @Test
@@ -74,7 +77,7 @@ class PreferenceSourceReaderIntegrationTest {
     }
 
     @Test
-    @DisplayName("자녀 활동은 기간 안의 검색 · 상세 진입 · 담기만 발생 시각 순으로 읽고, 카테고리 · 브랜드는 활동 값을 먼저 쓰고 없으면 상품 복사본 값을 쓴다")
+    @DisplayName("PREF-01 자녀 활동은 기간 안의 검색 · 상세 진입 · 담기만 발생 시각 순으로 읽고, 카테고리 · 브랜드는 활동 값을 먼저 쓰고 없으면 상품 복사본 값을 쓴다")
     void readChildActivitiesWithinPeriod() {
         LocalDateTime from = SINCE;
         LocalDateTime to = SINCE.plusHours(3);
@@ -120,7 +123,7 @@ class PreferenceSourceReaderIntegrationTest {
     }
 
     @Test
-    @DisplayName("자녀 구매는 기간 안의 구매확정을 상품 복사본의 브랜드와 함께 읽고, 복사본이 없으면 브랜드는 null이다")
+    @DisplayName("PREF-16 자녀 구매는 기간 안의 구매확정을 상품 복사본의 브랜드와 함께 읽고, 복사본이 없으면 브랜드는 null이다")
     void readChildPurchasesWithBrand() {
         LocalDateTime to = SINCE.plusDays(1);
         PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", null);
