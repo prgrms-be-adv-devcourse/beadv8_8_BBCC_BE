@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.embedding;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbedder;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingRunLock;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingTarget;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
@@ -26,8 +27,15 @@ public class ProductEmbeddingService {
 
     private final ProductEmbeddingStore store;
     private final ProductEmbedder embedder;
+    private final ProductEmbeddingRunLock runLock;
 
     public void embedStaleProducts() {
+        if (!runLock.runExclusively(this::embedOneBatch)) {
+            log.debug("다른 서버가 상품 임베딩을 실행 중이라 건너뜁니다");
+        }
+    }
+
+    private void embedOneBatch() {
         List<ProductEmbeddingTarget> targets = store.findStale(BATCH_SIZE);
         List<ProductEmbeddingTarget> neverAttempted = new ArrayList<>();
         List<ProductEmbeddingTarget> retried = new ArrayList<>();
