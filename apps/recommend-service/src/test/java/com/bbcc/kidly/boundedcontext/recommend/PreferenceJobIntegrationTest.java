@@ -147,6 +147,27 @@ class PreferenceJobIntegrationTest {
     }
 
     @Test
+    @DisplayName("PREF-11 회원 Step이 실패한 뒤 다시 실행하면 자녀 Step은 다시 돌지 않고 정리 Step이 자녀 줄을 지우지 않는다")
+    void restartFromFailedMemberStep() throws InterruptedException {
+        childActivity(ActivityType.PRODUCT_VIEWED, CHILD_ID, now().minusDays(1), 100L, 10L, "본브랜드", null);
+        PreferenceTestData.insertActivity(jdbc, ActivityType.PRODUCT_VIEWED, MEMBER_ONLY_ID, null,
+            now().minusDays(2), 104L, 14L, "회원브랜드", null);
+        assertThat(runFailingInsertsInto("member_category_affinity", "true")).isEqualTo(PreferenceJobResult.FAILED);
+        LocalDateTime firstBaseTime = calculatedAts().getFirst();
+        waitForNextSecond(firstBaseTime);
+
+        assertThat(service.run(today())).isEqualTo(PreferenceJobResult.COMPLETED);
+
+        assertThat(jdbc.queryForList("""
+            SELECT read_count FROM recommend.batch_step_execution WHERE step_name = 'childPreferenceStep'
+            AND job_execution_id = (SELECT max(job_execution_id) FROM recommend.batch_job_execution)
+            """, Long.class)).allMatch(readCount -> readCount == 0L);
+        assertThat(ids("SELECT child_profile_id FROM recommend.child_category_affinity")).containsExactly(CHILD_ID);
+        assertThat(ids("SELECT member_id FROM recommend.member_category_affinity")).containsExactly(MEMBER_ONLY_ID);
+        assertThat(calculatedAts()).containsExactly(firstBaseTime);
+    }
+
+    @Test
     @DisplayName("PREF-11 이번 실행이 다시 쓰지 않은 탈퇴 회원 · 삭제 자녀 · 활동이 끊긴 자녀의 줄은 지우고 지금 대상의 줄은 남긴다")
     void cleanUpRowsNotRewritten() {
         LocalDateTime now = now();
