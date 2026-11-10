@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.BatchStatus;
@@ -57,18 +58,18 @@ public class PreferenceJobService {
         if (!baseDate.equals(LocalDate.now(SERVICE_ZONE))) {
             throw new IllegalArgumentException("선호 Job 기준일은 오늘이어야 합니다: " + baseDate);
         }
-        JobParameters parameters = new JobParametersBuilder()
+        JobParameters instance = new JobParametersBuilder()
             .addLocalDate(PreferenceJobConfig.BASE_DATE, baseDate)
             .toJobParameters();
         AtomicReference<PreferenceJobResult> result = new AtomicReference<>();
-        if (!runLock.runExclusively(() -> result.set(runLocked(baseDate, parameters)))) {
+        if (!runLock.runExclusively(() -> result.set(runLocked(baseDate, instance)))) {
             return PreferenceJobResult.LOCKED;
         }
         return result.get();
     }
 
-    private PreferenceJobResult runLocked(LocalDate baseDate, JobParameters parameters) {
-        JobExecution last = jobRepository.getLastJobExecution(PreferenceJobConfig.JOB_NAME, parameters);
+    private PreferenceJobResult runLocked(LocalDate baseDate, JobParameters instance) {
+        JobExecution last = jobRepository.getLastJobExecution(PreferenceJobConfig.JOB_NAME, instance);
         if (last != null && last.getStatus() == BatchStatus.COMPLETED) {
             return PreferenceJobResult.ALREADY_COMPLETED;
         }
@@ -77,6 +78,9 @@ public class PreferenceJobService {
                 return PreferenceJobResult.IN_PROGRESS;
             }
         }
+        JobParameters parameters = new JobParametersBuilder(instance)
+            .addLocalDateTime(PreferenceJobConfig.BASE_TIME, baseTimeOf(last), false)
+            .toJobParameters();
         JobExecution execution;
         try {
             execution = jobOperator.start(preferenceJob, parameters);
@@ -93,6 +97,19 @@ public class PreferenceJobService {
         log.warn("선호 Job이 끝나지 못했습니다: baseDate={} executionId={} status={}", baseDate, execution.getId(),
             execution.getStatus());
         return PreferenceJobResult.FAILED;
+    }
+
+    // 다시 실행할 때 기준 시각이 바뀌면 앞 실행이 커밋한 줄을 정리 Step이 지운다. Job 파라미터는 실행을 만들 때 저장되어
+    // Step 도중 서버가 죽어도 남으므로 앞 실행의 시각을 이어 쓴다
+    private static LocalDateTime baseTimeOf(JobExecution last) {
+        if (last != null) {
+            LocalDateTime previous = last.getJobParameters().getLocalDateTime(PreferenceJobConfig.BASE_TIME);
+            if (previous != null) {
+                return previous;
+            }
+        }
+        // DB는 마이크로초까지만 남기고 반올림한다. 나노초가 남은 기준 시각보다 저장된 계산 시각이 작아지면 정리 Step이 방금 쓴 줄을 지운다
+        return LocalDateTime.now(SERVICE_ZONE).truncatedTo(ChronoUnit.SECONDS);
     }
 
     // 잠금 연결이 유휴로 끊겨 잠금이 조용히 풀리면 다른 서버가 살아 있는 실행을 닫을 수 있다. 그래서 잠금을 쥐었어도

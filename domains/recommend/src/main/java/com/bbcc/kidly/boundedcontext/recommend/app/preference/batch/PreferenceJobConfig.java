@@ -26,14 +26,14 @@ public class PreferenceJobConfig {
     public static final String JOB_NAME = "preferenceJob";
     // 같은 기준일(KST 날짜)은 같은 Job 인스턴스다
     public static final String BASE_DATE = "baseDate";
-    private static final String BASE_TIME_EXPRESSION =
-        "#{jobExecutionContext['" + PreferenceBaseTimeListener.BASE_TIME + "']}";
+    // 기준일의 실행이 함께 쓰는 배치 기준 시각이다. 같은 인스턴스를 가르지 않도록 identifying이 아닌 파라미터로 넘긴다
+    public static final String BASE_TIME = "baseTime";
+    private static final String BASE_TIME_EXPRESSION = "#{jobParameters['" + BASE_TIME + "']}";
 
     @Bean
     public Job preferenceJob(JobRepository jobRepository, Step childPreferenceStep, Step memberPreferenceStep,
         Step stalePreferenceCleanupStep) {
         return new JobBuilder(JOB_NAME, jobRepository)
-            .listener(new PreferenceBaseTimeListener())
             .start(childPreferenceStep)
             .next(memberPreferenceStep)
             .next(stalePreferenceCleanupStep)
