@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -34,6 +33,7 @@ import org.slf4j.LoggerFactory;
 @ExtendWith(MockitoExtension.class)
 class ProductEmbeddingServiceTest {
 
+    private static final int BATCH_SIZE = 100;
     private static final Long PRODUCT_1_ID = 1L;
     private static final Long PRODUCT_2_ID = 2L;
     private static final Long PRODUCT_3_ID = 3L;
@@ -59,7 +59,7 @@ class ProductEmbeddingServiceTest {
     void embedNeverAttemptedProductsInOneRequest() {
         EmbeddingVector vector1 = vectorOf(0.1f);
         EmbeddingVector vector2 = vectorOf(0.2f);
-        given(store.findStale(anyInt())).willReturn(List.of(
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
             new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, false),
             new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, false)));
         given(embedder.embed(List.of(PRODUCT_1_TEXT, PRODUCT_2_TEXT))).willReturn(List.of(vector1, vector2));
@@ -76,11 +76,11 @@ class ProductEmbeddingServiceTest {
     @Test
     @DisplayName("낡은 상품이 없으면 임베딩 요청을 보내지 않는다")
     void doNotRequestWhenNothingIsStale() {
-        given(store.findStale(anyInt())).willReturn(List.of());
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of());
 
         service.embedStaleProducts();
 
-        verify(store).findStale(anyInt());
+        verify(store).findStale(BATCH_SIZE);
         verifyNoMoreInteractions(store);
         verifyNoInteractions(embedder);
     }
@@ -91,7 +91,7 @@ class ProductEmbeddingServiceTest {
         EmbeddingVector vector1 = vectorOf(0.1f);
         EmbeddingVector vector2 = vectorOf(0.2f);
         EmbeddingVector vector3 = vectorOf(0.3f);
-        given(store.findStale(anyInt())).willReturn(List.of(
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
             new ProductEmbeddingTarget(PRODUCT_3_ID, PRODUCT_3_TEXT, false),
             new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, true),
             new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, true)));
@@ -117,14 +117,14 @@ class ProductEmbeddingServiceTest {
     @Test
     @DisplayName("처음 보내는 상품들의 요청이 실패하면 아무것도 저장하지 않고, 앞서 실패한 상품도 보내지 않으며, 예외를 던지지 않는다")
     void stopWithoutSavingWhenNeverAttemptedRequestFails() {
-        given(store.findStale(anyInt())).willReturn(List.of(
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
             new ProductEmbeddingTarget(PRODUCT_3_ID, PRODUCT_3_TEXT, false),
             new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, true)));
         given(embedder.embed(List.of(PRODUCT_3_TEXT))).willThrow(new IllegalStateException("임베딩 요청 실패"));
 
         assertThatCode(service::embedStaleProducts).doesNotThrowAnyException();
 
-        verify(store).findStale(anyInt());
+        verify(store).findStale(BATCH_SIZE);
         verify(store).markAttempted(List.of(PRODUCT_3_ID));
         verifyNoMoreInteractions(store);
         verify(embedder).embed(List.of(PRODUCT_3_TEXT));
@@ -135,7 +135,7 @@ class ProductEmbeddingServiceTest {
     @DisplayName("앞서 실패한 상품의 요청이 실패하면 그 뒤 상품은 보내지 않는다")
     void stopAfterRetriedRequestFails() {
         EmbeddingVector vector3 = vectorOf(0.3f);
-        given(store.findStale(anyInt())).willReturn(List.of(
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
             new ProductEmbeddingTarget(PRODUCT_3_ID, PRODUCT_3_TEXT, false),
             new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, true),
             new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, true)));
@@ -153,7 +153,7 @@ class ProductEmbeddingServiceTest {
     @Test
     @DisplayName("요청이 실패하면 상품 글 · 예외 메시지 · 스택 트레이스 없이 상품 수와 예외 종류만 경고 로그로 남긴다")
     void logOnlyCountAndExceptionTypeWhenRequestFails() {
-        given(store.findStale(anyInt())).willReturn(List.of(
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
             new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, false),
             new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, false)));
         given(embedder.embed(List.of(PRODUCT_1_TEXT, PRODUCT_2_TEXT)))
