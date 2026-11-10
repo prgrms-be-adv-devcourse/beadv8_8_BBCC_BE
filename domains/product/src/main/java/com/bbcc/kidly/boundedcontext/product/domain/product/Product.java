@@ -169,6 +169,11 @@ public class Product extends BaseTimeEntity {
     @Column(name = "is_stopped_by_admin", nullable = false)
     private boolean stoppedByAdmin;
 
+    // 처음 판매중이 된 시각이다. 판매대기에서 판매를 시작하기 전에는 비어 있고, 한 번 채우면 바꾸지 않는다.
+    // 추천이 상품의 최신성을 상품을 만든 시각이 아니라 이 시각으로 재려고 둔다
+    @Column(name = "sale_started_at")
+    private LocalDateTime saleStartedAt;
+
     // 같은 상품을 동시에 바꾸면 나중 쪽이 실패한다
     @Version
     private Long version;
