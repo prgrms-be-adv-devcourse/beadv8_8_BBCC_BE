@@ -17,9 +17,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 로그인한 보호자가 자녀별 기준 옷(지금 잘 맞게 입는 상의 · 하의 한 벌)을 조회 · 저장 · 삭제하는 API다.
- */
 @RestController
 @RequiredArgsConstructor
 public class ReferenceGarmentController {

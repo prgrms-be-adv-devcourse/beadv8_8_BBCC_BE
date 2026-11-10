@@ -31,12 +31,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 자녀별 기준 옷 API를 HTTP 요청부터 응답까지 확인한다.
- * 자녀는 이벤트로 받아 둔 복사본으로만 알 수 있으므로, 복사본은 리스너가 부르는 서비스에 이벤트를 넘겨 만든다.
- * 자녀 1은 회원 1의 자녀다. 세부 종류(상품 말단 카테고리)는 상품 복사본의 카테고리 경로에서 찾으므로,
- * 상의(ID 7)와 하의(ID 70) 카테고리를 쓰는 상품 복사본을 미리 만들어 둔다.
- */
 @FunctionalTest
 class ReferenceGarmentApiTest {
 
@@ -105,8 +99,6 @@ class ReferenceGarmentApiTest {
     void saveTopWithRequiredMeasurements() {
         Map<String, Object> top = garment("TOP", "7", Map.of("TOTAL_LENGTH", 42.0, "CHEST_WIDTH", 34.5));
 
-        // ID는 문자열로, 실측은 소수 첫째 자리까지(42가 아니라 42.0) 보낸다.
-        // 본문을 Map으로 꺼내면 값의 타입(문자열, 실수)까지 비교된다
         put(MEMBER_1_ID, CHILD_1_ID, "TOP", TOP_BODY)
             .expectStatus().isOk()
             .expectBody(Map.class).isEqualTo(top);
