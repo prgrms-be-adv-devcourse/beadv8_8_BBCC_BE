@@ -24,8 +24,10 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
      * 고른 수가 모자라면 규칙 순서(ranked 순서)에서 아직 고르지 않은 상품을 이유 없이 채운다.
      */
     public static CompanionSelection of(List<CompanionAiPick> aiPicks, List<CompanionCandidate> ranked) {
+        // AI에는 규칙 상위 20개만 넘기므로 그 밖의 상품은 후보 밖으로 본다
+        List<CompanionCandidate> sentToAi = ranked.subList(0, Math.min(ranked.size(), CompanionWeights.CANDIDATE_COUNT));
         Map<Long, CompanionCandidate> candidatesByProductId = new HashMap<>();
-        for (CompanionCandidate candidate : ranked) {
+        for (CompanionCandidate candidate : sentToAi) {
             candidatesByProductId.put(candidate.product().productId(), candidate);
         }
         List<CompanionPick> picks = new ArrayList<>();
