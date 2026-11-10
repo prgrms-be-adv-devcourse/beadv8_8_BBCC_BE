@@ -3,15 +3,21 @@ package com.bbcc.kidly.boundedcontext.recommend.domain.companion;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 /** 보고 있는 상품과 짝이 되는 종류의 후보만 골라 점수가 높은 순으로 정한다. */
 public class CompanionCandidateRanker {
 
-    public List<CompanionCandidate> rank(CompanionKind viewed, List<CompanionCandidate> candidates) {
-        List<CompanionKind> pairKinds = CompanionPairs.of(viewed);
+    public List<CompanionCandidate> rank(List<String> viewedCategoryPathNames, List<CompanionCandidate> candidates) {
+        Optional<CompanionKind> viewed = CompanionKind.of(viewedCategoryPathNames);
+        if (viewed.isEmpty()) {
+            return List.of();
+        }
+        List<CompanionKind> pairKinds = CompanionPairs.of(viewed.get());
         List<CompanionCandidate> pairs = new ArrayList<>();
         for (CompanionCandidate candidate : candidates) {
-            if (pairKinds.contains(candidate.kind())) {
+            Optional<CompanionKind> kind = candidate.kind();
+            if (kind.isPresent() && pairKinds.contains(kind.get())) {
                 pairs.add(candidate);
             }
         }
@@ -25,7 +31,7 @@ public class CompanionCandidateRanker {
 
     private double score(CompanionCandidate candidate, List<CompanionKind> pairKinds) {
         return CompanionWeights.SIMILARITY * similarityOrZero(candidate)
-            + CompanionWeights.PAIR_PRIORITY * pairPriorityScore(candidate.kind(), pairKinds);
+            + CompanionWeights.PAIR_PRIORITY * pairPriorityScore(candidate.kind().orElseThrow(), pairKinds);
     }
 
     // 상품 벡터가 아직 없어 유사도를 모르는 후보는 짝 우선순위로만 순서를 정한다
