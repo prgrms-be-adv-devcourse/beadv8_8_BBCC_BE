@@ -276,18 +276,18 @@ class ReferenceGarmentSpecTest {
         Map<String, BigDecimal> measurements = requiredMeasurements(GarmentPart.TOP);
         return Stream.of(
             Arguments.of(Named.of("구분 없음", (ThrowingCallable) () ->
-                ReferenceGarmentSpec.of(null, CATEGORY_ID, topPath, measurements))),
+                ReferenceGarmentSpec.of(null, CATEGORY_ID, topPath, measurements)), "part는 필수입니다"),
             Arguments.of(Named.of("세부 종류 ID 없음", (ThrowingCallable) () ->
-                ReferenceGarmentSpec.of(GarmentPart.TOP, null, topPath, measurements))));
+                ReferenceGarmentSpec.of(GarmentPart.TOP, null, topPath, measurements)), "categoryId는 필수입니다"));
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("creationsWithoutPartOrCategoryId")
     @DisplayName("구분이나 세부 종류 ID가 없으면 기준 옷 값을 만들지 않는다")
-    void rejectedWithoutPartOrCategoryId(ThrowingCallable creation) {
+    void rejectedWithoutPartOrCategoryId(ThrowingCallable creation, String expectedMessage) {
         assertThatThrownBy(creation)
             .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("필수입니다");
+            .hasMessage(expectedMessage);
     }
 
     private static List<GarmentCategoryPathEntry> matchingPath(GarmentPart part) {
