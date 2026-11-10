@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.settlement;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementDeadLetterService;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementDeadLetters.State;
@@ -37,6 +38,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
@@ -94,8 +96,7 @@ class SettlementDeadLetterKafkaIntegrationTest {
     @Test
     @DisplayName("금액이 다른 지급 결과 → DLT DB 보관 → 그대로 재처리하면 실패 기록 → 정산서를 고친 뒤 재처리하면 지급 완료")
     void storesAndReprocessesDeadLetter() throws Exception {
-        long settlementId = settlementRepository.save(SettlementFixture.settlement(sellerId,
-            SettlementFixture.PERIOD_START, SettlementFixture.PERIOD_END)).getId();
+        long settlementId = saveSettlement();
         String eventId = UUID.randomUUID().toString();
         RecordMetadata sent = send(settlementId, eventId, completed(settlementId, 90_001L));
 
@@ -135,6 +136,44 @@ class SettlementDeadLetterKafkaIntegrationTest {
         // 실패 · 성공한 재처리만 남고, 실행하지 않은 마지막 요청은 남지 않는다
         assertThat(AdminActions.of(jdbcTemplate, "DEAD_LETTER_REPROCESS", id)).hasSize(2)
             .allSatisfy(row -> assertThat(row.adminId()).isEqualTo(ADMIN_ID));
+    }
+
+    @Test
+    @DisplayName("감사 기록이 실패하면 재처리 결과(실패 · 성공)도 남지 않아 DLT가 OPEN으로 남고, 다시 재처리하면 결과와 기록이 함께 남는다")
+    void auditFailureRollsBackReplayResult() throws Exception {
+        long settlementId = saveSettlement();
+        String eventId = UUID.randomUUID().toString();
+        send(settlementId, eventId, completed(settlementId, 90_001L));
+        AsyncWait.until(TIMEOUT, () -> deadLetterCount(eventId) == 1);
+        Long id = deadLetterId(eventId);
+
+        // 관리자 ID가 없으면 감사 기록만 NOT NULL 위반으로 실패한다(DLT의 last_replayed_by는 null을 허용한다)
+        // 처리기 실패 → 실패 기록 + 감사 기록 실패: 실패 기록도 되돌린다
+        assertThatThrownBy(() -> deadLetterService.reprocess(id, null))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(deadLetterService.get(id).getReplayCount()).isZero();
+
+        // 처리기 성공 → 완료 기록 + 감사 기록 실패: 반영(PAID)은 처리기 트랜잭션으로 남고 완료 기록은 되돌린다
+        jdbcTemplate.update("update settlement.settlement set total_sales_amount = 100001, settlement_amount = 90001"
+            + " where id = ?", settlementId);
+        assertThatThrownBy(() -> deadLetterService.reprocess(id, null))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(settlementStatus(settlementId)).isEqualTo("PAID");
+        Summary notRecorded = deadLetterService.get(id);
+        assertThat(notRecorded.getState()).isEqualTo(State.OPEN);
+        assertThat(notRecorded.getReplayCount()).isZero();
+        assertThat(AdminActions.of(jdbcTemplate, "DEAD_LETTER_REPROCESS", id)).isEmpty();
+
+        // OPEN이라 다시 재처리할 수 있다. 처리기는 멱등해 이미 PAID면 그대로 두고, 결과와 감사 기록이 함께 남는다
+        Summary reprocessed = deadLetterService.reprocess(id, ADMIN_ID);
+        assertThat(reprocessed.getState()).isEqualTo(State.REPROCESSED);
+        assertThat(reprocessed.getReplayCount()).isOne();
+        assertThat(AdminActions.of(jdbcTemplate, "DEAD_LETTER_REPROCESS", id)).hasSize(1);
+    }
+
+    private long saveSettlement() {
+        return settlementRepository.save(SettlementFixture.settlement(sellerId,
+            SettlementFixture.PERIOD_START, SettlementFixture.PERIOD_END)).getId();
     }
 
     private PaymentPayoutCompletedEvent completed(long settlementId, long amount) {
