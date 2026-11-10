@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.embedding.ProductEmbeddingService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbedder;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingRunLock;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingTarget;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
@@ -38,6 +39,9 @@ class ProductEmbeddingServiceIntegrationTest {
     private RecommendReplicaProductService replicaProductService;
 
     @Autowired
+    private ProductEmbeddingRunLock runLock;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
@@ -45,7 +49,7 @@ class ProductEmbeddingServiceIntegrationTest {
     void storeVectorAndLeaveStaleList() {
         replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
         List<List<String>> requests = new ArrayList<>();
-        ProductEmbeddingService service = new ProductEmbeddingService(store, recordingEmbedder(requests));
+        ProductEmbeddingService service = new ProductEmbeddingService(store, recordingEmbedder(requests), runLock);
 
         service.embedStaleProducts();
 
@@ -62,13 +66,13 @@ class ProductEmbeddingServiceIntegrationTest {
         replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
         ProductEmbeddingService failingService = new ProductEmbeddingService(store, texts -> {
             throw new IllegalStateException("임베딩 요청 실패");
-        });
+        }, runLock);
         failingService.embedStaleProducts();
         assertThat(store.findStale(10))
             .containsExactly(new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, true));
         replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_2_ID, "데일리 후드티"));
         List<List<String>> requests = new ArrayList<>();
-        ProductEmbeddingService service = new ProductEmbeddingService(store, recordingEmbedder(requests));
+        ProductEmbeddingService service = new ProductEmbeddingService(store, recordingEmbedder(requests), runLock);
 
         service.embedStaleProducts();
 

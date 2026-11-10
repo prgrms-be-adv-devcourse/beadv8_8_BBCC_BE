@@ -16,6 +16,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.bbcc.kidly.boundedcontext.recommend.app.embedding.ProductEmbeddingService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbedder;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingRunLock;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingTarget;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
@@ -50,7 +51,7 @@ class ProductEmbeddingServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ProductEmbeddingService(store, embedder);
+        service = new ProductEmbeddingService(store, embedder, grantingLock());
     }
 
     @Test
@@ -175,6 +176,35 @@ class ProductEmbeddingServiceTest {
                 .doesNotContain("응답 본문", PRODUCT_1_TEXT, PRODUCT_2_TEXT);
             assertThat(event.getThrowableProxy()).isNull();
         });
+    }
+
+    @Test
+    @DisplayName("다른 서버가 잠금을 쥐고 있어 건너뛰면 낡은 상품을 읽지 않고 임베딩 요청도 보내지 않으며, 건너뛰었다는 DEBUG 로그만 남긴다")
+    void skipWhenLockIsHeldElsewhere() {
+        ProductEmbeddingService busyService = new ProductEmbeddingService(store, embedder, work -> false);
+        Logger serviceLogger = (Logger) LoggerFactory.getLogger(ProductEmbeddingService.class);
+        Level originalLevel = serviceLogger.getLevel();
+        serviceLogger.setLevel(Level.DEBUG);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        serviceLogger.addAppender(logs);
+
+        try {
+            busyService.embedStaleProducts();
+        } finally {
+            serviceLogger.detachAppender(logs);
+            serviceLogger.setLevel(originalLevel);
+        }
+
+        verifyNoInteractions(store, embedder);
+        assertThat(logs.list).singleElement().satisfies(event -> assertThat(event.getLevel()).isEqualTo(Level.DEBUG));
+    }
+
+    private static ProductEmbeddingRunLock grantingLock() {
+        return work -> {
+            work.run();
+            return true;
+        };
     }
 
     private static EmbeddingVector vectorOf(float value) {
