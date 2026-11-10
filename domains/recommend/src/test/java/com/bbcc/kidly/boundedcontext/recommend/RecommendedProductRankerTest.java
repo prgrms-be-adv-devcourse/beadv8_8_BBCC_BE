@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedPro
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductRanker;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -109,6 +110,77 @@ class RecommendedProductRankerTest {
 
         // 0.45 × 0.6(카테고리 친밀도로 대신) + 0.15 × 0.6
         assertThat(score).isCloseTo(0.36, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("PREF-06 점수가 큰 상품이 먼저 나온다")
+    void higherScoreFirst() {
+        PreferenceSnapshot snapshot = snapshot(0, 0, tasteVector());
+        // 점수가 낮은 상품일수록 등록 시각이 늦어, 등록 최신순이면 반대 순서가 된다
+        RecommendedProduct closest = recommendedProduct(1L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT);
+        RecommendedProduct middle = recommendedProduct(2L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT.plusDays(1));
+        RecommendedProduct farthest = recommendedProduct(3L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT.plusDays(2));
+        Map<Long, Double> similarities = Map.of(1L, 0.9, 2L, 0.5, 3L, 0.1);
+
+        List<RecommendedProduct> ranked =
+            ranker.rank(List.of(farthest, middle, closest), snapshot, similarities, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(closest, middle, farthest);
+    }
+
+    @Test
+    @DisplayName("PREF-06 점수가 같으면 등록 시각이 늦은 상품, 그것도 같으면 상품 ID가 큰 상품이 먼저 나온다")
+    void sameScoreOrderedByRegisteredAtThenProductId() {
+        PreferenceSnapshot snapshot = snapshot(0.6, 0.6, null);
+        // 세 상품 모두 등록한 지 7일이 넘어 카테고리 · 브랜드 몫만 받는다
+        RecommendedProduct earlier = recommendedProduct(3L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT);
+        RecommendedProduct laterSmallerId = recommendedProduct(1L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT.plusDays(1));
+        RecommendedProduct laterLargerId = recommendedProduct(2L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT.plusDays(1));
+
+        List<RecommendedProduct> ranked = ranker.rank(
+            List.of(earlier, laterSmallerId, laterLargerId), snapshot, NO_SIMILARITIES, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(laterLargerId, laterSmallerId, earlier);
+    }
+
+    @Test
+    @DisplayName("PREF-06 활동이 없는 자녀의 목록은 등록 최신순이다")
+    void noActivityKeepsNewestFirst() {
+        // 최근 7일 안에 등록한 상품과 그 전에 등록한 상품이 섞여 있다
+        RecommendedProduct oldest = recommendedProductRegisteredAt(3L, OLD_REGISTERED_AT);
+        RecommendedProduct older = recommendedProductRegisteredAt(1L, BASE_TIME.minusDays(10));
+        RecommendedProduct recent = recommendedProductRegisteredAt(2L, BASE_TIME.minusDays(1));
+        RecommendedProduct newest = recommendedProductRegisteredAt(4L, BASE_TIME);
+
+        List<RecommendedProduct> ranked = ranker.rank(List.of(older, newest, oldest, recent),
+            PreferenceSnapshot.empty(), NO_SIMILARITIES, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(newest, recent, older, oldest);
+    }
+
+    @Test
+    @DisplayName("PREF-08 장바구니에 있거나 구매한 상품처럼 제외할 상품은 목록에서 뺀다")
+    void excludedProductsAreRemoved() {
+        RecommendedProduct kept = recommendedProductRegisteredAt(1L, OLD_REGISTERED_AT);
+        RecommendedProduct inCart = recommendedProductRegisteredAt(2L, OLD_REGISTERED_AT);
+        RecommendedProduct purchased = recommendedProductRegisteredAt(3L, OLD_REGISTERED_AT);
+
+        List<RecommendedProduct> ranked = ranker.rank(List.of(kept, inCart, purchased),
+            PreferenceSnapshot.empty(), NO_SIMILARITIES, Set.of(2L, 3L), BASE_TIME);
+
+        assertThat(ranked).containsExactly(kept);
+    }
+
+    @Test
+    @DisplayName("PREF-09 기준 시각보다 늦게 등록한 상품은 빼고, 기준 시각에 등록한 상품은 남긴다")
+    void productsRegisteredAfterAsOfAreRemoved() {
+        RecommendedProduct atAsOf = recommendedProductRegisteredAt(1L, BASE_TIME);
+        RecommendedProduct afterAsOf = recommendedProductRegisteredAt(2L, BASE_TIME.plusSeconds(1));
+
+        List<RecommendedProduct> ranked = ranker.rank(List.of(atAsOf, afterAsOf),
+            PreferenceSnapshot.empty(), NO_SIMILARITIES, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(atAsOf);
     }
 
     private static PreferenceSnapshot snapshot(double categoryScore, double brandScore, TasteVector tasteVector) {

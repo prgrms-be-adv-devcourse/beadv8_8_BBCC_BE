@@ -242,7 +242,8 @@ class PreferenceCalculatorTest {
 
     private static PreferenceSignal removedCartAdd(
         LocalDateTime occurredAt, Long categoryId, String brand, Long productId) {
-        return new PreferenceSignal(PreferenceSignalType.CART_ITEM_ADDED, occurredAt, categoryId, brand, productId, true);
+        return new PreferenceSignal(
+            PreferenceSignalType.CART_ITEM_ADDED, occurredAt, categoryId, brand, productId, true);
     }
 
     private static PreferenceSignal signal(
