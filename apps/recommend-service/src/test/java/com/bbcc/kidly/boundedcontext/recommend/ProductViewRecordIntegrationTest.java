@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -126,6 +127,19 @@ class ProductViewRecordIntegrationTest {
             .isEqualTo(record);
     }
 
+    @Test
+    @DisplayName("같은 eventId로 다른 상품의 상세 진입을 저장하면 조용히 버리지 않고 예외가 난다")
+    void failWhenEventIdIsAlreadyUsed() {
+        UUID eventId = UUID.randomUUID();
+        ActivityRecord first = viewedWithEventId(eventId, PRODUCT_A_ID);
+        ActivityRecord other = viewedWithEventId(eventId, OTHER_PRODUCT_ID);
+        saveIfAbsent(first);
+
+        assertThatThrownBy(() -> saveIfAbsent(other)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(activityRecordRepository.findAll()).singleElement()
+            .extracting(ActivityRecord::getProductId).isEqualTo(PRODUCT_A_ID);
+    }
+
     // 저장소 프록시가 IllegalArgumentException을 Spring 예외로 바꾸므로 원인으로 확인한다
     @Test
     @DisplayName("상세 진입이 아닌 기록을 저장하려 하면 예외가 나고 아무것도 저장하지 않는다")
@@ -160,6 +174,11 @@ class ProductViewRecordIntegrationTest {
     private static ActivityRecord productViewed(Long childProfileId, Long productId, LocalDateTime viewedAt) {
         return ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
             UUID.randomUUID(), MEMBER_1_ID, childProfileId, productId, viewedAt));
+    }
+
+    private static ActivityRecord viewedWithEventId(UUID eventId, Long productId) {
+        return ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+            eventId, MEMBER_1_ID, CHILD_1_ID, productId, VIEW_DAY.atTime(10, 0)));
     }
 
     private static ActivityRecord cartItemAdded(LocalDateTime addedAt) {
