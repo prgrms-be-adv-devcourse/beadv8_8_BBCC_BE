@@ -34,6 +34,24 @@ class PreferenceTargetReaderTest {
         assertThat(readAll(reader)).containsExactly(1L, 2L, 5L);
     }
 
+    @Test
+    @DisplayName("PREF-11 저장한 위치로 새 Reader를 열면 저장한 ID 다음부터 읽는다")
+    void reopenFromSavedPosition() {
+        given(targets.findIds(BASE_TIME, 0, 2)).willReturn(List.of(1L, 2L));
+        given(targets.findIds(BASE_TIME, 2, 2)).willReturn(List.of(5L));
+        PreferenceTargetReader first = new PreferenceTargetReader(targets, BASE_TIME, 2);
+        ExecutionContext context = new ExecutionContext();
+        first.open(context);
+        first.read();
+        first.read();
+        first.update(context);
+
+        PreferenceTargetReader restarted = new PreferenceTargetReader(targets, BASE_TIME, 2);
+        restarted.open(context);
+
+        assertThat(readAll(restarted)).containsExactly(5L);
+    }
+
     private static List<Long> readAll(PreferenceTargetReader reader) {
         List<Long> ids = new ArrayList<>();
         Long id = reader.read();
