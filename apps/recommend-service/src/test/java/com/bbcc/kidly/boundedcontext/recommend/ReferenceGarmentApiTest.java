@@ -12,11 +12,14 @@ import com.bbcc.kidly.support.FunctionalTest;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -48,6 +51,15 @@ class ReferenceGarmentApiTest {
 
     private static final String BOTTOM_BODY =
         "{\"categoryId\": 70, \"measurements\": {\"TOTAL_LENGTH\": 55.5, \"WAIST_WIDTH\": 26}}";
+
+    private static final ErrorText REQUIRED_MISSING = new ErrorText("필수 실측이 없습니다",
+        "상의는 총장과 가슴단면, 하의는 총장과 허리단면을 입력해 주세요.");
+
+    private static final ErrorText UNSUPPORTED_CODE = new ErrorText("이 구분에 없는 실측 항목입니다",
+        "상의는 총장 · 가슴단면 · 어깨너비 · 소매길이, 하의는 총장 · 허리단면 · 밑위만 입력할 수 있습니다.");
+
+    private static final ErrorText INVALID_VALUE = new ErrorText("잘못된 실측 값입니다",
+        "실측 값은 0cm보다 크고 200cm 이하이며, 소수 첫째 자리까지 입력할 수 있습니다.");
 
     @Autowired
     private RestTestClient client;
@@ -172,6 +184,34 @@ class ReferenceGarmentApiTest {
         list(MEMBER_1_ID, CHILD_1_ID).expectStatus().isOk().expectBody().json("[]");
     }
 
+    @ParameterizedTest(name = "{0} {1}")
+    @MethodSource("invalidMeasurements")
+    @DisplayName("필수 실측이 빠지거나, 그 구분에 없는 코드나 허용 범위 밖의 값이 있으면 400이고 저장되지 않는다")
+    void rejectInvalidMeasurements(String part, String measurements, ErrorText error) {
+        String categoryId = "TOP".equals(part) ? "7" : "70";
+
+        expectProblem(put(MEMBER_1_ID, CHILD_1_ID, part, body(categoryId, measurements)),
+            400, error.title(), error.detail(), path(CHILD_1_ID) + "/" + part);
+
+        list(MEMBER_1_ID, CHILD_1_ID).expectStatus().isOk().expectBody().json("[]");
+    }
+
+    static Stream<Arguments> invalidMeasurements() {
+        return Stream.of(
+            Arguments.of("TOP", "\"TOTAL_LENGTH\": 42", REQUIRED_MISSING),
+            Arguments.of("TOP", "", REQUIRED_MISSING),
+            Arguments.of("BOTTOM", "\"WAIST_WIDTH\": 26", REQUIRED_MISSING),
+            Arguments.of("TOP", "\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": 34.5, \"RISE\": 20", UNSUPPORTED_CODE),
+            Arguments.of("BOTTOM", "\"TOTAL_LENGTH\": 55, \"WAIST_WIDTH\": 26, \"SHOULDER_WIDTH\": 30",
+                UNSUPPORTED_CODE),
+            Arguments.of("BOTTOM", "\"TOTAL_LENGTH\": 55, \"CHEST_WIDTH\": 26", UNSUPPORTED_CODE),
+            Arguments.of("TOP", "\"TOTAL_LENGTH\": 0, \"CHEST_WIDTH\": 34.5", INVALID_VALUE),
+            Arguments.of("TOP", "\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": -1", INVALID_VALUE),
+            Arguments.of("BOTTOM", "\"TOTAL_LENGTH\": 200.1, \"WAIST_WIDTH\": 26", INVALID_VALUE),
+            Arguments.of("BOTTOM", "\"TOTAL_LENGTH\": 55, \"WAIST_WIDTH\": 26.25", INVALID_VALUE),
+            Arguments.of("TOP", "\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": null", INVALID_VALUE));
+    }
+
     private static Map<String, Object> garment(String part, String categoryId, Map<String, Double> measurements) {
         return Map.of("part", part, "categoryId", categoryId, "measurements", measurements);
     }
@@ -232,5 +272,8 @@ class ReferenceGarmentApiTest {
         return client.delete().uri(path(childId) + "/" + part)
             .headers(TestMembers.buyer(memberId))
             .exchange();
+    }
+
+    private record ErrorText(String title, String detail) {
     }
 }
