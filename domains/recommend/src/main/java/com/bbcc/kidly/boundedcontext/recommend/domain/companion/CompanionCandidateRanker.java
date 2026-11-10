@@ -20,10 +20,7 @@ public class CompanionCandidateRanker {
             .thenComparing(candidate -> candidate.product().saleStartedAt())
             .thenComparing(candidate -> candidate.product().productId())
             .reversed());
-        if (pairs.size() > CompanionWeights.CANDIDATE_COUNT) {
-            return new ArrayList<>(pairs.subList(0, CompanionWeights.CANDIDATE_COUNT));
-        }
-        return pairs;
+        return List.copyOf(pairs.subList(0, Math.min(pairs.size(), CompanionWeights.CANDIDATE_COUNT)));
     }
 
     private double score(CompanionCandidate candidate, List<CompanionKind> pairKinds) {
