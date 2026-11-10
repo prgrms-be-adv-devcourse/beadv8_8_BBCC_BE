@@ -58,8 +58,8 @@ public class CompanionProductService {
 
     // AI 결과가 없으면 null을 돌려주고, 고르는 쪽(CompanionSelection)이 규칙 결과로 대신한다
     private List<CompanionAiPick> askAi(Long productId, CompanionCandidates candidates) {
-        // OpenAI 키가 없으면 AI 선택 빈이 없으므로 AI 공통 서비스를 부르지 않는다
-        if (aiPicker.isEmpty()) {
+        // OpenAI 키가 없으면 AI 선택 빈이 없고, 후보가 없으면 고를 것이 없으므로 AI 공통 서비스를 부르지 않는다
+        if (aiPicker.isEmpty() || candidates.ranked().isEmpty()) {
             return null;
         }
         CompanionAiPicker picker = aiPicker.get();
