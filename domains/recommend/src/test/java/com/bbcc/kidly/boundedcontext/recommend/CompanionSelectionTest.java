@@ -24,7 +24,7 @@ class CompanionSelectionTest {
     private static final LocalDateTime SALE_STARTED_AT = LocalDateTime.of(2026, 11, 1, 10, 0);
 
     @Test
-    @DisplayName("AI가 후보에서 고른 상품을 AI가 고른 순서대로 이유와 함께 돌려주고, 출처는 AI다")
+    @DisplayName("PAIR-06 AI가 후보에서 고른 상품을 AI가 고른 순서대로 이유와 함께 돌려주고, 출처는 AI다")
     void useAiPicksInOrderWithReasons() {
         List<CompanionCandidate> ranked = rankedCandidates(6);
         List<CompanionAiPick> aiPicks = List.of(
@@ -44,7 +44,7 @@ class CompanionSelectionTest {
     }
 
     @Test
-    @DisplayName("AI가 고른 것 중 후보 밖 상품과 중복은 버리고, 모자란 자리는 규칙 순서로 이유 없이 채우며, 출처는 AI다")
+    @DisplayName("PAIR-06 AI가 고른 것 중 후보 밖 상품과 중복은 버리고, 모자란 자리는 규칙 순서로 이유 없이 채우며, 출처는 AI다")
     void dropInvalidAiPicksAndFillWithRuleOrder() {
         List<CompanionCandidate> ranked = rankedCandidates(6);
         List<CompanionAiPick> aiPicks = List.of(
@@ -62,7 +62,7 @@ class CompanionSelectionTest {
     }
 
     @Test
-    @DisplayName("AI 답에 빈 항목이 섞여 있으면 그 항목만 버린다")
+    @DisplayName("PAIR-06 AI 답에 빈 항목이 섞여 있으면 그 항목만 버린다")
     void skipNullAiPicks() {
         List<CompanionCandidate> ranked = rankedCandidates(6);
         List<CompanionAiPick> aiPicks = new ArrayList<>();
@@ -78,7 +78,7 @@ class CompanionSelectionTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "   "})
-    @DisplayName("AI가 고른 상품의 이유가 비어 있으면 상품은 쓰고 이유는 없는 것으로 본다")
+    @DisplayName("PAIR-06 AI가 고른 상품의 이유가 비어 있으면 상품은 쓰고 이유는 없는 것으로 본다")
     void treatBlankReasonAsMissing(String blankReason) {
         List<CompanionCandidate> ranked = rankedCandidates(6);
 
@@ -90,7 +90,7 @@ class CompanionSelectionTest {
     }
 
     @Test
-    @DisplayName("AI에 넘기는 규칙 상위 20개 밖의 상품을 AI가 고르면 후보 밖 상품으로 보고 버린다")
+    @DisplayName("PAIR-06 AI에 넘기는 규칙 상위 20개 밖의 상품을 AI가 고르면 후보 밖 상품으로 보고 버린다")
     void dropAiPicksOutsideTopTwentyCandidates() {
         List<CompanionCandidate> ranked = rankedCandidates(25);
 
@@ -107,7 +107,7 @@ class CompanionSelectionTest {
 
     @ParameterizedTest
     @MethodSource("noUsableAiPicks")
-    @DisplayName("AI 결과가 없거나 AI가 고른 것이 모두 버려지면 규칙 상위 4개를 이유 없이 돌려주고, 출처는 RULE이다")
+    @DisplayName("PAIR-06 AI 결과가 없거나 AI가 고른 것이 모두 버려지면 규칙 상위 4개를 이유 없이 돌려주고, 출처는 RULE이다")
     void useRuleTopFourWhenNoUsableAiPicks(List<CompanionAiPick> aiPicks) {
         List<CompanionCandidate> ranked = rankedCandidates(6);
 
@@ -120,7 +120,7 @@ class CompanionSelectionTest {
     }
 
     @Test
-    @DisplayName("AI가 4개보다 많이 고르면 AI가 고른 순서의 앞 4개만 돌려준다")
+    @DisplayName("PAIR-06 AI가 4개보다 많이 고르면 AI가 고른 순서의 앞 4개만 돌려준다")
     void keepFirstFourAiPicks() {
         List<CompanionCandidate> ranked = rankedCandidates(6);
         List<CompanionAiPick> aiPicks = List.of(
@@ -138,7 +138,7 @@ class CompanionSelectionTest {
 
     @ParameterizedTest
     @CsvSource({"2, 2", "0, 0"})
-    @DisplayName("규칙 후보가 4개보다 적으면 있는 만큼만 돌려준다")
+    @DisplayName("PAIR-06 규칙 후보가 4개보다 적으면 있는 만큼만 돌려준다")
     void returnAllWhenFewerThanFourCandidates(int candidateCount, int expectedPickCount) {
         CompanionSelection selection = CompanionSelection.of(null, rankedCandidates(candidateCount));
 

@@ -37,7 +37,7 @@ class CompanionKindTest {
 
     @ParameterizedTest
     @MethodSource("kindsByVariantCategoryNames")
-    @DisplayName("PAIR-01 하의는 카테고리 이름이 바지여도 하의이고, 카테고리 이름 앞뒤의 공백은 무시한다")
+    @DisplayName("PAIR-07 하의는 카테고리 이름이 바지여도 하의이고, 카테고리 이름 앞뒤의 공백은 무시한다")
     void kindFromVariantCategoryNames(List<String> categoryPathNames, CompanionKind expected) {
         assertThat(CompanionKind.of(categoryPathNames)).contains(expected);
     }
