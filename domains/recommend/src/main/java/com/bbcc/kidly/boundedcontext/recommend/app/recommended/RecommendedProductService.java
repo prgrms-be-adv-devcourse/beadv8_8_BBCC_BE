@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.recommended;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductPage;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductResult;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductSelector;
@@ -14,7 +15,9 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,9 +55,21 @@ public class RecommendedProductService {
         this.selector = new RecommendedProductSelector(new SizeRecommender(growthChart));
     }
 
-    // 상품의 사이즈 줄은 지연 로딩이므로 트랜잭션 안에서 읽어 계산한다
+    // 기준 시각을 정하지 않고 지금 시각으로 목록만 읽는다
     @Transactional(readOnly = true)
     public Page<RecommendedProductResult> list(Long memberId, Long childId, Long categoryId, int page, int size) {
+        return list(memberId, childId, categoryId, page, size, null).page();
+    }
+
+    // 상품의 사이즈 줄은 지연 로딩이므로 트랜잭션 안에서 읽어 계산한다
+    // asOf가 없으면 지금 시각(한국 시간, 초 단위)을 기준 시각으로 정해 결과에 담는다
+    @Transactional(readOnly = true)
+    public RecommendedProductPage list(Long memberId, Long childId, Long categoryId, int page, int size,
+        LocalDateTime asOf) {
+        LocalDateTime baseTime = asOf;
+        if (baseTime == null) {
+            baseTime = LocalDateTime.now(SERVICE_ZONE).truncatedTo(ChronoUnit.SECONDS);
+        }
         RecommendReplicaChild child = replicaChildRepository.findById(childId)
             .orElseThrow(() -> new BusinessException(RecommendErrorCode.CHILD_NOT_FOUND));
         if (!child.isVisibleTo(memberId)) {
@@ -65,7 +80,8 @@ public class RecommendedProductService {
         List<RecommendedProduct> recommended =
             selector.select(child.toChildSizeInput(), products, LocalDate.now(SERVICE_ZONE));
         Pageable pageable = PageRequest.of(page, size);
-        return new PageImpl<>(toPageContent(recommended, pageable), pageable, recommended.size());
+        return new RecommendedProductPage(
+            new PageImpl<>(toPageContent(recommended, pageable), pageable, recommended.size()), baseTime);
     }
 
     // 요청한 페이지의 상품만 결과로 바꾼다. 시작 위치가 전체 개수를 넘으면 빈 목록이다
