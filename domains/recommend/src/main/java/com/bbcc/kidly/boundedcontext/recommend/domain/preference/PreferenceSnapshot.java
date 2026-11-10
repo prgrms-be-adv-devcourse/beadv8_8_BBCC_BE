@@ -73,7 +73,7 @@ public record PreferenceSnapshot(
         for (Map.Entry<String, Double> entry : brandAffinities.affinities().entrySet()) {
             brands.add(new BrandAffinity(entry.getKey(), entry.getValue()));
         }
-        return new PreferenceSnapshot(categories, brands, tasteVector, calculatedAt);
+        return new PreferenceSnapshot(List.copyOf(categories), List.copyOf(brands), tasteVector, calculatedAt);
     }
 
     /**
