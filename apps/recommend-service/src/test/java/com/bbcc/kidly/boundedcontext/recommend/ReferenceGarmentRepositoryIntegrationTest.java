@@ -96,6 +96,21 @@ class ReferenceGarmentRepositoryIntegrationTest {
         assertThat(updatedAfter).isAfter(updatedBefore);
     }
 
+    @Test
+    @DisplayName("FIT-01 하의를 먼저 저장해도 자녀의 기준 옷은 상의, 하의 순서로 돌아오고 다른 자녀의 것은 섞이지 않는다")
+    void listTopBeforeBottomOfOneChild() {
+        save(CHILD_ID, bottomSpec());
+        save(OTHER_CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+        save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+
+        List<ReferenceGarment> garments = transactionTemplate.execute(
+            status -> referenceGarmentRepository.findAllByChildProfileId(CHILD_ID));
+
+        assertThat(garments).extracting(ReferenceGarment::getPart)
+            .containsExactly(GarmentPart.TOP, GarmentPart.BOTTOM);
+        assertThat(garments).extracting(ReferenceGarment::getChildProfileId).containsOnly(CHILD_ID);
+    }
+
     private void save(Long childProfileId, ReferenceGarmentSpec spec) {
         transactionTemplate.executeWithoutResult(
             status -> referenceGarmentRepository.save(ReferenceGarment.create(childProfileId, spec)));
