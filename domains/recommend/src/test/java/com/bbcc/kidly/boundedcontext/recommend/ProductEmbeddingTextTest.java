@@ -5,10 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText.InfoValue;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -26,6 +31,26 @@ class ProductEmbeddingTextTest {
             브랜드: 키들리
             소재: 면
             설명: 부드러운 면 티셔츠""");
+    }
+
+    @ParameterizedTest
+    @MethodSource("pathsWithoutName")
+    @DisplayName("카테고리 경로가 없거나 비었거나 이름이 모두 비어 있으면 카테고리 줄을 뺀다")
+    void omitCategoryLineWithoutPathName(List<String> categoryPath) {
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", categoryPath, "키들리", List.of(),
+            "부드러운 면 티셔츠");
+
+        assertThat(text.value()).isEqualTo("""
+            상품명: 면 티셔츠
+            브랜드: 키들리
+            설명: 부드러운 면 티셔츠""");
+    }
+
+    private static Stream<Arguments> pathsWithoutName() {
+        return Stream.of(
+            Arguments.of(Named.of("null", null)),
+            Arguments.of(Named.of("빈 목록", List.of())),
+            Arguments.of(Named.of("이름이 모두 공백", Arrays.asList(null, "", "  "))));
     }
 
     @Test
