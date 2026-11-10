@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionAiPick;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionCandidate;
-import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionPick;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionSelection;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionSource;
@@ -101,7 +100,7 @@ class CompanionSelectionTest {
         for (long id = 1; id <= count; id++) {
             RecommendedProduct product = new RecommendedProduct(id, 100L, "상품 " + id, null, 10_000L, "110", 1L,
                 null, SALE_STARTED_AT, SALE_STARTED_AT);
-            ranked.add(new CompanionCandidate(product, CompanionKind.BOTTOM, 0.5));
+            ranked.add(new CompanionCandidate(product, List.of("의류", "하의"), 0.5));
         }
         return ranked;
     }

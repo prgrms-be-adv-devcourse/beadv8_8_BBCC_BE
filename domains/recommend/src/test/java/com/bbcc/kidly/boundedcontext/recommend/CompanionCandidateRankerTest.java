@@ -1,14 +1,9 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
-import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.BOTTOM;
-import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.ONE_PIECE;
-import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.OUTER;
-import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.TOP;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionCandidate;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionCandidateRanker;
-import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -19,6 +14,13 @@ import org.junit.jupiter.api.Test;
 class CompanionCandidateRankerTest {
 
     private static final LocalDateTime SALE_STARTED_AT = LocalDateTime.of(2026, 11, 1, 10, 0);
+
+    private static final List<String> TOP = List.of("의류", "상의");
+    private static final List<String> BOTTOM = List.of("의류", "하의");
+    private static final List<String> ONE_PIECE = List.of("의류", "원피스");
+    private static final List<String> OUTER = List.of("의류", "아우터");
+    private static final List<String> ACCESSORY = List.of("잡화", "모자");
+    private static final List<String> UNKNOWN = List.of("의류", "내의");
 
     private final CompanionCandidateRanker ranker = new CompanionCandidateRanker();
 
@@ -37,11 +39,33 @@ class CompanionCandidateRankerTest {
     }
 
     @Test
+    @DisplayName("PAIR-01 카테고리로 종류를 정할 수 없는 후보는 빠진다")
+    void excludeCandidatesWithoutKind() {
+        List<CompanionCandidate> candidates = List.of(
+            candidate(1L, BOTTOM, 0.5),
+            candidate(2L, UNKNOWN, 0.9),
+            candidate(3L, List.of(), 0.9));
+
+        List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
+
+        assertThat(productIds(ranked)).containsExactly(1L);
+    }
+
+    @Test
+    @DisplayName("PAIR-01 보고 있는 상품의 종류를 정할 수 없으면 후보가 없다")
+    void noCandidatesWhenViewedProductHasNoKind() {
+        List<CompanionCandidate> candidates = List.of(candidate(1L, BOTTOM, 0.5), candidate(2L, TOP, 0.5));
+
+        assertThat(ranker.rank(UNKNOWN, candidates)).isEmpty();
+        assertThat(ranker.rank(List.of(), candidates)).isEmpty();
+    }
+
+    @Test
     @DisplayName("PAIR-02 후보는 0.3 × 유사도 + 0.7 × 짝 우선순위 점수 순이라, 유사도가 높은 아우터가 유사도 0인 하의보다 앞설 수 있다")
     void rankByWeightedSumOfSimilarityAndPairPriority() {
         // 상의의 짝은 하의(1), 아우터(2/3), 잡화(1/3) 순이다
         List<CompanionCandidate> candidates = List.of(
-            candidate(1L, CompanionKind.ACCESSORY, 0.5),
+            candidate(1L, ACCESSORY, 0.5),
             candidate(2L, BOTTOM, 0.0),
             candidate(3L, OUTER, 1.0));
 
@@ -68,13 +92,13 @@ class CompanionCandidateRankerTest {
     void breakTiesByLaterSaleStartThenLargerId() {
         LocalDateTime later = SALE_STARTED_AT.plusDays(4);
         List<CompanionCandidate> candidates = List.of(
-            candidate(1L, BOTTOM, 0.5, SALE_STARTED_AT),
-            candidate(2L, BOTTOM, 0.5, later),
-            candidate(3L, BOTTOM, 0.5, later));
+            candidate(1L, BOTTOM, 0.5, later),
+            candidate(2L, BOTTOM, 0.5, SALE_STARTED_AT),
+            candidate(3L, BOTTOM, 0.5, SALE_STARTED_AT));
 
         List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
 
-        assertThat(productIds(ranked)).containsExactly(3L, 2L, 1L);
+        assertThat(productIds(ranked)).containsExactly(1L, 3L, 2L);
     }
 
     @Test
@@ -92,15 +116,15 @@ class CompanionCandidateRankerTest {
         assertThat(productIds(ranked)).last().isEqualTo(6L);
     }
 
-    private static CompanionCandidate candidate(Long productId, CompanionKind kind, Double similarity) {
-        return candidate(productId, kind, similarity, SALE_STARTED_AT);
+    private static CompanionCandidate candidate(Long productId, List<String> categoryPathNames, Double similarity) {
+        return candidate(productId, categoryPathNames, similarity, SALE_STARTED_AT);
     }
 
-    private static CompanionCandidate candidate(Long productId, CompanionKind kind, Double similarity,
+    private static CompanionCandidate candidate(Long productId, List<String> categoryPathNames, Double similarity,
         LocalDateTime saleStartedAt) {
         RecommendedProduct product = new RecommendedProduct(productId, 100L, "상품 " + productId, null, 10_000L, "110",
             1L, null, saleStartedAt, saleStartedAt);
-        return new CompanionCandidate(product, kind, similarity);
+        return new CompanionCandidate(product, categoryPathNames, similarity);
     }
 
     private static List<Long> productIds(List<CompanionCandidate> candidates) {
