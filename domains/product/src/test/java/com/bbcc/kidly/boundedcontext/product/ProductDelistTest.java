@@ -126,6 +126,19 @@ class ProductDelistTest {
         assertThat(product.getStatus()).isEqualTo(ProductStatus.STOPPED);
     }
 
+    @Test
+    @DisplayName("판매대기에서 등록 취소한 상품을 관리자가 되돌린 뒤 판매를 시작하면 그때 판매 시작 시각이 들어간다")
+    void startSaleAfterRevertOfPendingDelistRecordsSaleStartedAt() {
+        withSaleStartInputs();
+        product.delist(SELLER_ID);
+        product.revertDelistByAdmin();
+        assertThat(product.getSaleStartedAt()).isNull();
+
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(ProductFixture.NOW);
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("productsBeforeDelist")
     @DisplayName("SALE-17 등록 취소한 상품은 판매대기에서 취소했어도 다른 도메인에 알리는 상품이다")

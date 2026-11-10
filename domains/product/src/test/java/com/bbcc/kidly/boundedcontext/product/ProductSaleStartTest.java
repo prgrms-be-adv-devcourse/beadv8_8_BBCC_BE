@@ -66,6 +66,18 @@ class ProductSaleStartTest {
     }
 
     @Test
+    @DisplayName("판매중지한 상품을 다시 판매 시작해도 판매 시작 시각은 처음 값 그대로다")
+    void restartSaleKeepsSaleStartedAt() {
+        withOptionsAndSizeSpecs110And120();
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
+        product.stopSale(SELLER_ID);
+
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW.plusDays(1));
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(ProductFixture.NOW);
+    }
+
+    @Test
     @DisplayName("이미 판매중인 상품에 다시 판매를 시작하면 아무것도 바꾸지 않는다 (재시도 대비)")
     void startSaleAgainChangesNothing() {
         withOptionsAndSizeSpecs110And120();
@@ -227,6 +239,7 @@ class ProductSaleStartTest {
             Named.of("판매 시작의 판매자", () -> productA(clothing).startSale(null, top, type, ProductFixture.NOW)),
             Named.of("판매 시작의 카테고리", () -> productA(clothing).startSale(SELLER_ID, null, type, ProductFixture.NOW)),
             Named.of("판매 시작의 상품 유형", () -> productA(clothing).startSale(SELLER_ID, top, null, ProductFixture.NOW)),
+            Named.of("판매 시작의 시각", () -> productA(clothing).startSale(SELLER_ID, top, type, null)),
             Named.of("입력 검사의 카테고리", () -> productA(clothing).validateSaleStartInputs(null, type)),
             Named.of("입력 검사의 상품 유형", () -> productA(clothing).validateSaleStartInputs(top, null)));
     }
@@ -256,6 +269,7 @@ class ProductSaleStartTest {
                 assertThat(e.getDetail()).isEqualTo(detail);
             });
         assertThat(product.getStatus()).isEqualTo(ProductStatus.SALE_PENDING);
+        assertThat(product.getSaleStartedAt()).isNull();
     }
 
     // 상품 A에 네이비 110 · 120 옵션을 붙인다

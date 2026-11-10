@@ -180,6 +180,27 @@ class ProductSaleStopTest {
     }
 
     @Test
+    @DisplayName("관리자가 판매대기 상품을 판매 시작하면 판매 시작 시각이 넘긴 시각이다")
+    void startSaleByAdminRecordsSaleStartedAt() {
+        withSaleStartInputs();
+
+        product.startSaleByAdmin(top, clothing.type(), ProductFixture.NOW);
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(ProductFixture.NOW);
+    }
+
+    @Test
+    @DisplayName("관리자가 판매중지한 상품을 다시 판매 시작해도 판매 시작 시각은 처음 값 그대로다")
+    void restartSaleByAdminKeepsSaleStartedAt() {
+        withSaleStarted();
+        product.stopSaleByAdmin();
+
+        product.startSaleByAdmin(top, clothing.type(), ProductFixture.NOW.plusDays(1));
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(ProductFixture.NOW);
+    }
+
+    @Test
     @DisplayName("관리자가 판매중 상품에 판매 시작을 다시 보내면 아무것도 바꾸지 않는다 (재시도 대비)")
     void startSaleByAdminAgainChangesNothing() {
         withSaleStarted();
@@ -203,7 +224,7 @@ class ProductSaleStopTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("callsWithNull")
-    @DisplayName("판매 중지와 관리자의 판매 시작에 판매자 · 카테고리 · 상품 유형이 null이면 거절한다")
+    @DisplayName("판매 중지와 관리자의 판매 시작에 판매자 · 카테고리 · 상품 유형 · 시각이 null이면 거절한다")
     void rejectCallWithNull(ThrowingCallable call) {
         assertThatThrownBy(call)
             .isInstanceOf(NullPointerException.class)
@@ -256,7 +277,8 @@ class ProductSaleStopTest {
         return Stream.of(
             Named.of("판매 중지의 판매자", () -> productA(clothing).stopSale(null)),
             Named.of("관리자 판매 시작의 카테고리", () -> productA(clothing).startSaleByAdmin(null, type, ProductFixture.NOW)),
-            Named.of("관리자 판매 시작의 상품 유형", () -> productA(clothing).startSaleByAdmin(top, null, ProductFixture.NOW)));
+            Named.of("관리자 판매 시작의 상품 유형", () -> productA(clothing).startSaleByAdmin(top, null, ProductFixture.NOW)),
+            Named.of("관리자 판매 시작의 시각", () -> productA(clothing).startSaleByAdmin(top, type, null)));
     }
 
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣고 판매를 시작한다
