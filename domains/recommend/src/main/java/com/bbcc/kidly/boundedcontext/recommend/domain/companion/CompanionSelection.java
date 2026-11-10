@@ -36,6 +36,9 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
             requestedPicks = List.of();
         }
         for (CompanionAiPick aiPick : requestedPicks) {
+            if (picks.size() >= CompanionWeights.PICK_COUNT) {
+                break;
+            }
             CompanionCandidate candidate = candidatesByProductId.get(aiPick.productId());
             if (candidate == null || !pickedProductIds.add(aiPick.productId())) {
                 continue;
