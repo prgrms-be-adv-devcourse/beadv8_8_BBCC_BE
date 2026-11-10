@@ -1,0 +1,41 @@
+package com.bbcc.kidly.boundedcontext.recommend;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
+import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
+import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import com.bbcc.kidly.support.IntegrationTest;
+import java.time.LocalDateTime;
+import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * AI 응답 저장소가 실제 PostgreSQL에서 응답 JSON을 저장하고 지난 답을 찾아 주는 동작을 확인한다.
+ */
+@IntegrationTest
+class AiResponseStoreIntegrationTest {
+
+    private static final AiResponseKey KEY = new AiResponseKey("a".repeat(64));
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 10, 12, 0);
+
+    private final JsonMapper jsonMapper = new JsonMapper();
+
+    @Autowired
+    private AiResponseStore store;
+
+    @Test
+    @DisplayName("저장한 응답 JSON을 같은 종류와 키로 다시 읽는다")
+    void readSavedResponseJson() {
+        String json = "{\"summary\":\"데일리 맨투맨\",\"productIds\":[3,1,2],\"score\":0.5}";
+        store.save(AiResponseType.HOME_PREVIEW, KEY, json, NOW);
+
+        Optional<String> found = store.findLatestSince(AiResponseType.HOME_PREVIEW, KEY, NOW.minusHours(24));
+
+        assertThat(found).isPresent();
+        assertThat(jsonMapper.readTree(found.get())).isEqualTo(jsonMapper.readTree(json));
+    }
+}
