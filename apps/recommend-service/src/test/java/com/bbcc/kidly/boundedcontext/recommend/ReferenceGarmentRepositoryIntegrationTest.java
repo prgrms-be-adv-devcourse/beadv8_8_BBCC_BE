@@ -3,16 +3,22 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentCategoryPathEntry;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarment;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentSpec;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,8 +36,17 @@ class ReferenceGarmentRepositoryIntegrationTest {
 
     private static final Long OTHER_CHILD_ID = 12L;
 
+    private static final Long DELETED_CHILD_ID = 13L;
+
+    private static final Long MEMBER_ID = RecommendFixture.MEMBER_1_ID;
+
+    private static final Long OTHER_MEMBER_ID = RecommendFixture.OTHER_MEMBER_ID;
+
     @Autowired
     private ReferenceGarmentRepository referenceGarmentRepository;
+
+    @Autowired
+    private RecommendReplicaChildService replicaChildService;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -149,6 +164,31 @@ class ReferenceGarmentRepositoryIntegrationTest {
 
         assertThat(count(CHILD_ID)).isZero();
         assertThat(count(OTHER_CHILD_ID)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FIT-01 회원의 기준 옷을 지우면 삭제된 자녀를 포함한 그 회원의 자녀 것만 지워지고 다른 회원 자녀의 것은 남는다")
+    void deleteAllOfMemberChildren() {
+        replicaChildService.applyChildChanged(childChanged(CHILD_ID, MEMBER_ID, false));
+        replicaChildService.applyChildChanged(childChanged(DELETED_CHILD_ID, MEMBER_ID, true));
+        replicaChildService.applyChildChanged(childChanged(OTHER_CHILD_ID, OTHER_MEMBER_ID, false));
+        save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+        save(CHILD_ID, bottomSpec());
+        save(DELETED_CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+        save(OTHER_CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+
+        transactionTemplate.executeWithoutResult(
+            status -> referenceGarmentRepository.deleteAllOfMember(MEMBER_ID));
+
+        assertThat(count(CHILD_ID)).isZero();
+        assertThat(count(DELETED_CHILD_ID)).isZero();
+        assertThat(count(OTHER_CHILD_ID)).isEqualTo(1);
+    }
+
+    private static ChildChangedEvent childChanged(Long childId, Long memberId, boolean deleted) {
+        return new ChildChangedEvent(UUID.randomUUID(), RecommendFixture.CHILD_CHANGED_AT,
+            new ChildChangedEvent.Data(childId, memberId, new BigDecimal("115.0"), new BigDecimal("20.0"),
+                Gender.MALE, RecommendFixture.CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, deleted));
     }
 
     private void save(Long childProfileId, ReferenceGarmentSpec spec) {

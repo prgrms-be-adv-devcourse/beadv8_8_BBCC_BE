@@ -32,4 +32,9 @@ public interface JpaReferenceGarmentRepository
     @Modifying
     @Query("delete from ReferenceGarment g where g.childProfileId = :childProfileId")
     void deleteByChildProfileId(@Param("childProfileId") Long childProfileId);
+
+    @Override
+    default void deleteAllOfMember(Long memberId) {
+        throw new UnsupportedOperationException();
+    }
 }
