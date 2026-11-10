@@ -51,4 +51,16 @@ public class SizeRecommendation {
         }
         return new SizeRecommendation(size, fit, List.copyOf(notices), List.copyOf(candidateSizes));
     }
+
+    public SizeRecommendationSource getSource() {
+        throw new UnsupportedOperationException("아직 구현하지 않았습니다");
+    }
+
+    public List<SizeReason> getReasons() {
+        throw new UnsupportedOperationException("아직 구현하지 않았습니다");
+    }
+
+    public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer) {
+        throw new UnsupportedOperationException("아직 구현하지 않았습니다");
+    }
 }
