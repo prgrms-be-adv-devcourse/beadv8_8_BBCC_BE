@@ -30,7 +30,7 @@ public final class RecommendedProductFixture {
     public static RecommendedProduct recommendedProduct(
         Long productId, Long categoryId, String brand, LocalDateTime registeredAt) {
         return new RecommendedProduct(productId, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, PRODUCT_A_THUMBNAIL_URL,
-            25_000L, "110", categoryId, brand, registeredAt);
+            25_000L, "110", categoryId, brand, registeredAt, registeredAt);
     }
 
     /**

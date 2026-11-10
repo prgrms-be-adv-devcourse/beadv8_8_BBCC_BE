@@ -97,7 +97,7 @@ public class RecommendedProductRanker {
     }
 
     private double freshnessOf(RecommendedProduct product, LocalDateTime asOf) {
-        double elapsedDays = Duration.between(product.productRegisteredAt(), asOf).toSeconds() / SECONDS_PER_DAY;
+        double elapsedDays = Duration.between(product.saleStartedAt(), asOf).toSeconds() / SECONDS_PER_DAY;
         if (elapsedDays < 0 || elapsedDays >= PreferenceWeights.FRESHNESS_DAYS) {
             return 0;
         }
