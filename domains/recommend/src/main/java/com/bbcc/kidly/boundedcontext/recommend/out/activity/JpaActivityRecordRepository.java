@@ -20,14 +20,16 @@ public interface JpaActivityRecordRepository extends JpaRepository<ActivityRecor
     @Query("delete from ActivityRecord r where r.memberId = :memberId")
     void deleteByMemberId(@Param("memberId") Long memberId);
 
-    // 엔티티를 거치지 않아 감사 시각이 채워지지 않으므로 생성 · 수정 시각은 활동 시각으로 넣는다
+    // 엔티티를 거치지 않아 감사 시각이 채워지지 않으므로 생성 · 수정 시각은 활동 시각으로 넣는다.
+    // 같은 날 중복 색인과의 충돌만 건너뛰고, event_id 같은 다른 제약 충돌은 예외로 드러낸다.
     @Modifying
     @Query(nativeQuery = true, value = """
         INSERT INTO recommend.activity_record
             (event_id, type, member_id, child_profile_id, product_id, occurred_at, created_at, updated_at)
         VALUES
             (:eventId, 'PRODUCT_VIEWED', :memberId, :childProfileId, :productId, :occurredAt, :occurredAt, :occurredAt)
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (member_id, child_profile_id, product_id, ((occurred_at)::date))
+            WHERE type = 'PRODUCT_VIEWED' DO NOTHING
         """)
     int insertProductViewedIfAbsent(
         @Param("eventId") UUID eventId,
