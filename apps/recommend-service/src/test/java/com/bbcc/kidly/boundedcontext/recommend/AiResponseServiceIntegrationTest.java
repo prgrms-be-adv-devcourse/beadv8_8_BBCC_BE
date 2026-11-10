@@ -17,6 +17,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -32,12 +33,12 @@ import tools.jackson.databind.json.JsonMapper;
 class AiResponseServiceIntegrationTest {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    // 실제 시계를 쓰면 한국 시간 자정을 지나는 순간 하루 횟수 줄의 날짜가 바뀌므로 시계를 고정한다
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-11T03:00:00Z"), SEOUL);
+    private static final LocalDateTime NOW = LocalDateTime.now(CLOCK);
     private static final AiResponseType TYPE = AiResponseType.BOUGHT_TOGETHER;
     private static final AiResponseKey.Input INPUT = new AiResponseKey.Input(
         10L, 5L, 36, null, null, null, null, List.of(1L, 2L, 3L), List.of(7L), 1);
-
-    @Autowired
-    private AiResponseService service;
 
     @Autowired
     private AiResponseStore store;
@@ -56,31 +57,34 @@ class AiResponseServiceIntegrationTest {
     void callAiOnceForSameInput() {
         AtomicInteger calls = new AtomicInteger();
 
+        AiResponseService service = fixedClockService();
+
         Optional<Answer> first = service.respond(TYPE, INPUT, Answer.class, countingCall(calls));
         Optional<Answer> second = service.respond(TYPE, INPUT, Answer.class, countingCall(calls));
 
         assertThat(first).contains(answer());
         assertThat(second).contains(answer());
         assertThat(calls).hasValue(1);
-        assertThat(callCountOn(LocalDate.now(SEOUL))).isEqualTo(1);
+        assertThat(callCountOn(NOW.toLocalDate())).isEqualTo(1);
     }
 
     @ParameterizedTest
-    @CsvSource({"0, 0", "1, 1"})
+    @CsvSource({"0, 0, 저장한 답", "1, 1, 새로 부른 답"})
     @DisplayName("재사용 기간(24시간) 경계: 정확히 24시간 전에 저장한 답은 다시 쓰고, 24시간 1초 전에 저장한 답은 다시 쓰지 않고 AI를 부른다")
-    void reuseBoundary(long secondsBeyondReusePeriod, int expectedCalls) {
-        Clock clock = Clock.fixed(Instant.parse("2026-11-11T03:00:00Z"), SEOUL);
-        LocalDateTime now = LocalDateTime.now(clock);
-        AiResponseService fixedClockService = new AiResponseService(
-            store, quota, jsonMapper, clock, 2_000, Duration.ofSeconds(2), Duration.ofHours(24));
-        store.save(TYPE, AiResponseKey.of(INPUT), "{\"productIds\":[9],\"reason\":\"저장한 답\"}",
-            now.minusHours(24).minusSeconds(secondsBeyondReusePeriod));
+    void reuseBoundary(long secondsBeyondReusePeriod, int expectedCalls, String expectedReason) {
+        store.save(TYPE, AiResponseKey.of(INPUT), "{\"productIds\":[1,2],\"reason\":\"저장한 답\"}",
+            NOW.minusHours(24).minusSeconds(secondsBeyondReusePeriod));
         AtomicInteger calls = new AtomicInteger();
 
-        Optional<Answer> answer = fixedClockService.respond(TYPE, INPUT, Answer.class, countingCall(calls));
+        Optional<Answer> answer = fixedClockService().respond(TYPE, INPUT, Answer.class, countingCall(calls));
 
         assertThat(calls).hasValue(expectedCalls);
-        assertThat(answer).isPresent();
+        assertThat(answer).contains(new Answer(List.of(1L, 2L), expectedReason));
+    }
+
+    private AiResponseService fixedClockService() {
+        return new AiResponseService(
+            store, quota, jsonMapper, CLOCK, 2_000, Duration.ofSeconds(2), Duration.ofHours(24));
     }
 
     private Integer callCountOn(LocalDate date) {
@@ -88,7 +92,7 @@ class AiResponseServiceIntegrationTest {
             "select call_count from recommend.ai_call_usage where usage_date = ?", Integer.class, date);
     }
 
-    private static java.util.function.Supplier<Answer> countingCall(AtomicInteger calls) {
+    private static Supplier<Answer> countingCall(AtomicInteger calls) {
         return () -> {
             calls.incrementAndGet();
             return answer();
