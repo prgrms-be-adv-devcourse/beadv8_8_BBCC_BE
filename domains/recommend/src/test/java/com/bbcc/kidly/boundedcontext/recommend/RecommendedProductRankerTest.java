@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.OLD_REGISTERED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.recommendedProduct;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.recommendedProductRegisteredAt;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.recommendedProductSaleStartedAt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
@@ -52,6 +53,18 @@ class RecommendedProductRankerTest {
 
         // 취향 벡터가 없는 식에서 최신성의 가중치는 0.20이다
         assertThat(score).isCloseTo(0.20 * freshness, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("PREF-05 최신성은 등록 시각이 아니라 판매 시작 시각으로 잰다")
+    void freshnessUsesSaleStartedAt() {
+        // 30일 전에 만들어 두고 3.5일 전에 판매를 시작한 상품이다
+        RecommendedProduct product = recommendedProductSaleStartedAt(
+            PRODUCT_ID, OLD_REGISTERED_AT, BASE_TIME.minusSeconds(302_400));
+
+        double score = ranker.scoreOf(product, PreferenceSnapshot.empty(), NO_SIMILARITIES, BASE_TIME);
+
+        assertThat(score).isCloseTo(0.20 * 0.5, within(1e-9));
     }
 
     @Test
