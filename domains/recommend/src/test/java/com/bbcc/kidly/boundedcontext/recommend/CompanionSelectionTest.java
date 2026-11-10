@@ -12,8 +12,11 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedPro
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class CompanionSelectionTest {
 
@@ -55,6 +58,24 @@ class CompanionSelectionTest {
             .containsExactly(3L, 1L, 2L, 4L);
         assertThat(selection.picks()).extracting(CompanionPick::reason)
             .containsExactly("색이 잘 어울린다", null, null, null);
+    }
+
+    static Stream<List<CompanionAiPick>> noUsableAiPicks() {
+        return Stream.of(null, List.of(), List.of(new CompanionAiPick(99L, "후보에 없는 상품")));
+    }
+
+    @ParameterizedTest
+    @MethodSource("noUsableAiPicks")
+    @DisplayName("AI 결과가 없거나 AI가 고른 것이 모두 버려지면 규칙 상위 4개를 이유 없이 돌려주고, 출처는 RULE이다")
+    void useRuleTopFourWhenNoUsableAiPicks(List<CompanionAiPick> aiPicks) {
+        List<CompanionCandidate> ranked = rankedCandidates(6);
+
+        CompanionSelection selection = CompanionSelection.of(aiPicks, ranked);
+
+        assertThat(selection.source()).isEqualTo(CompanionSource.RULE);
+        assertThat(selection.picks()).extracting(pick -> pick.product().productId())
+            .containsExactly(1L, 2L, 3L, 4L);
+        assertThat(selection.picks()).extracting(CompanionPick::reason).containsOnlyNulls();
     }
 
     // 상품 ID 1부터 count까지를 규칙 순서(점수 순)로 둔 후보 목록이다
