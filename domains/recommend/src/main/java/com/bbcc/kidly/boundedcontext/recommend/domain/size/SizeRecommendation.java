@@ -48,7 +48,7 @@ public class SizeRecommendation {
             List<SizeNotice> notices,
             List<String> candidateSizes
     ) {
-        // 추천 사이즈가 있으면 적합도도 있어야 하고, 추천 사이즈는 늘 후보 중 하나다 (INV-R04)
+        // 규칙 결과는 추천 사이즈가 있으면 적합도도 있어야 하고, 추천 사이즈는 늘 후보 중 하나다 (INV-R04)
         requireNonNull(size, "size는 필수입니다");
         requireNonNull(fit, "fit은 필수입니다");
         requireNonNull(notices, "notices는 필수입니다");
@@ -68,13 +68,16 @@ public class SizeRecommendation {
 
     /**
      * 규칙 결과에 AI 답을 합친 최종 결과를 돌려준다. AI가 고른 사이즈는 규칙 후보 밖이어도 상품에 있으면 채택한다.
+     * 사이즈 무관 상품이거나, AI 답이 없거나, 상품에 없는 사이즈이거나, 적합도가 모르는 값이면 규칙 결과를 그대로 돌려준다.
+     * AI 답을 채택하면 후보는 규칙 후보를 그대로 두고, 규칙 계산을 설명하는 안내는 비우고, 쓸 수 있는 근거만 남긴다.
      */
     public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer) {
+        requireNonNull(productSizes, "productSizes는 필수입니다");
         // 사이즈 무관 상품도 사이즈 이름(FREE 등)을 가질 수 있어, 상품 사이즈 검사보다 먼저 거른다
         if (productSizes.isSizeFree()) {
             return this;
         }
-        if (answer == null || !isProductSize(productSizes, answer.recommendedSize())) {
+        if (answer == null || !productSizes.hasSize(answer.recommendedSize())) {
             return this;
         }
         Fit aiFit = findByName(Fit.class, answer.fit());
@@ -89,15 +92,6 @@ public class SizeRecommendation {
                 SizeRecommendationSource.AI,
                 usableReasons(answer.reasons())
         );
-    }
-
-    private static boolean isProductSize(ProductSizes productSizes, String size) {
-        for (SizeRange range : productSizes.sizeRanges()) {
-            if (range.size().equals(size)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     // 글 조각을 AI에 주지 않으므로 AI가 돌려준 sourceId는 믿을 수 없어 늘 null로 둔다.

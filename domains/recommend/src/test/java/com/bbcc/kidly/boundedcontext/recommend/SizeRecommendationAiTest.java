@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
@@ -49,7 +50,7 @@ class SizeRecommendationAiTest {
     @ParameterizedTest(name = "AI 사이즈 [{0}]")
     @NullAndEmptySource
     @ValueSource(strings = {"130", " "})
-    @DisplayName("AI가 상품에 없는 사이즈를 고르거나 사이즈를 비우면 규칙 결과를 그대로 쓴다")
+    @DisplayName("INV-R04 AI가 상품에 없는 사이즈를 고르거나 사이즈를 비우면 규칙 결과를 그대로 쓴다")
     void keepRuleWhenAiSizeIsNotInProduct(String aiSize) {
         AiSizeAnswer answer = new AiSizeAnswer(aiSize, "TIGHT",
             List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
@@ -110,7 +111,7 @@ class SizeRecommendationAiTest {
     }
 
     @Test
-    @DisplayName("INV-R04 AI가 규칙 후보 밖의 상품 사이즈를 골라도 그 답을 쓰고, 후보는 규칙 후보 그대로 둔다")
+    @DisplayName("AI가 규칙 후보 밖의 상품 사이즈를 골라도 그 답을 쓰고, 후보는 규칙 후보 그대로 둔다")
     void adoptAiAnswerOutsideRuleCandidates() {
         SizeRecommendation ruleOnly120 = SizeRecommendation.recommended("120", Fit.PROPER, List.of(), List.of("120"));
         AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT",
@@ -152,6 +153,16 @@ class SizeRecommendationAiTest {
 
         assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
         assertThat(result.getReasons()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("상품 사이즈 없이 AI 답을 합치면 NullPointerException을 던진다")
+    void rejectNullProductSizes() {
+        AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT", null);
+
+        assertThatThrownBy(() -> RULE_120.decideWith(null, answer))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessage("productSizes는 필수입니다");
     }
 
     private static void assertRuleResult(SizeRecommendation result) {
