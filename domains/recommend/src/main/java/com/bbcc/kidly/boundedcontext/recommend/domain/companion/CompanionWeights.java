@@ -12,6 +12,8 @@ public final class CompanionWeights {
 
     public static final int CANDIDATE_COUNT = 20;
 
+    public static final int PICK_COUNT = 4;
+
     private CompanionWeights() {
     }
 }
