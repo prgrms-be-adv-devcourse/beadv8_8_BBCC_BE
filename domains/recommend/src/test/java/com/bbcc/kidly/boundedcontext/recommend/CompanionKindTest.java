@@ -34,4 +34,15 @@ class CompanionKindTest {
     void kindFromCategoryPath(List<String> categoryPathNames, CompanionKind expected) {
         assertThat(CompanionKind.of(categoryPathNames)).contains(expected);
     }
+
+    static Stream<List<String>> unknownCategoryPaths() {
+        return Stream.of(List.of("의류", "내의"), List.of("가구", "의자"), List.of());
+    }
+
+    @ParameterizedTest
+    @MethodSource("unknownCategoryPaths")
+    @DisplayName("PAIR-01 표에 없는 카테고리이거나 카테고리 경로가 없는 상품은 종류가 없어 짝을 찾지 않는다")
+    void noKindForUnknownCategoryPath(List<String> categoryPathNames) {
+        assertThat(CompanionKind.of(categoryPathNames)).isEmpty();
+    }
 }
