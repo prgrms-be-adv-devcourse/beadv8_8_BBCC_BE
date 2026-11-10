@@ -2,6 +2,7 @@ package com.bbcc.kidly;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Properties;
 import java.util.stream.Stream;
@@ -29,6 +30,7 @@ class RecommendMigrationIntegrationTest {
     private static final String INIT_VERSION = "202610160256";
     private static final String LAST_KIDLY_APP_VERSION = "202611021557";
     private static final String PRODUCT_DETAILS_IF_MISSING_VERSION = "202611030905";
+    private static final String BEFORE_PRODUCT_VIEW_UNIQUE_VERSION = "202611061217";
 
     @Test
     @DisplayName("추천 init 테이블만 있는 DB에서 baseline을 잡아도 상품 복사본의 브랜드 · 설명 칸과 사이즈별 실측 표를 만든다")
@@ -83,6 +85,48 @@ class RecommendMigrationIntegrationTest {
 
             assertThat(recommendTables(jdbc)).contains("activity_record");
         }
+    }
+
+    @Test
+    @DisplayName("PREF-15 이미 같은 날 같은 상세 진입이 여러 줄 쌓인 DB에 마이그레이션하면 가장 먼저 쌓인 한 줄만 남기고, 날짜 · 회원 · 자녀 · 상품 · 활동 종류가 다른 줄은 그대로 둔다")
+    void keepFirstProductViewOfSameDay() {
+        try (var postgres = new PostgreSQLContainer(
+            DockerImageName.parse("pgvector/pgvector:pg18-trixie").asCompatibleSubstituteFor("postgres"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            serviceFlyway(dataSource).target(BEFORE_PRODUCT_VIEW_UNIQUE_VERSION).load().migrate();
+            LocalDateTime tenAm = LocalDateTime.of(2026, 11, 10, 10, 0);
+            // 1 · 2: 자녀 없이 같은 날 두 번(2는 지워진다). 3: 다음 날. 4 · 5: 자녀 11로 같은 날 두 번(5는 지워진다)
+            insertActivity(jdbc, 1, "PRODUCT_VIEWED", 1L, null, 31L, tenAm);
+            insertActivity(jdbc, 2, "PRODUCT_VIEWED", 1L, null, 31L, tenAm.withHour(23).withMinute(59));
+            insertActivity(jdbc, 3, "PRODUCT_VIEWED", 1L, null, 31L, tenAm.plusDays(1));
+            insertActivity(jdbc, 4, "PRODUCT_VIEWED", 1L, 11L, 31L, tenAm.minusHours(1));
+            insertActivity(jdbc, 5, "PRODUCT_VIEWED", 1L, 11L, 31L, tenAm);
+            // 6: 다른 회원. 7: 다른 상품. 8 · 9: 같은 날 같은 상품의 장바구니 담기라 종류가 달라 지워지지 않는다
+            insertActivity(jdbc, 6, "PRODUCT_VIEWED", 2L, null, 31L, tenAm);
+            insertActivity(jdbc, 7, "PRODUCT_VIEWED", 1L, null, 32L, tenAm);
+            insertActivity(jdbc, 8, "CART_ITEM_ADDED", 1L, null, 31L, tenAm);
+            insertActivity(jdbc, 9, "CART_ITEM_ADDED", 1L, null, 31L, tenAm);
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(jdbc.queryForList("SELECT id FROM recommend.activity_record ORDER BY id", Long.class))
+                .containsExactly(1L, 3L, 4L, 6L, 7L, 8L, 9L);
+            assertThat(jdbc.queryForList(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = 'recommend' AND tablename = 'activity_record'",
+                String.class)).contains("idx_activity_record_product_viewed_per_day");
+        }
+    }
+
+    private static void insertActivity(JdbcTemplate jdbc, long id, String type, Long memberId, Long childProfileId,
+        Long productId, LocalDateTime occurredAt) {
+        jdbc.update("""
+            INSERT INTO recommend.activity_record
+                (id, event_id, type, member_id, child_profile_id, product_id, occurred_at, created_at, updated_at)
+            VALUES (?, gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?)
+            """, id, type, memberId, childProfileId, productId, occurredAt, occurredAt, occurredAt);
     }
 
     // kidly-app이 적용한 추천 마이그레이션은 이 서비스의 것과 같다. target 버전까지 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다
