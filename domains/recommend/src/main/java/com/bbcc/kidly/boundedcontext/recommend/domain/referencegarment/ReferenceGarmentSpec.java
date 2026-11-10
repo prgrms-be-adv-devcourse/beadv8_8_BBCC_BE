@@ -29,6 +29,6 @@ public final class ReferenceGarmentSpec {
         if (!part.includesCategoryIn(categoryPathNames)) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH);
         }
-        return new ReferenceGarmentSpec(part, categoryId, measurements);
+        return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(measurements));
     }
 }
