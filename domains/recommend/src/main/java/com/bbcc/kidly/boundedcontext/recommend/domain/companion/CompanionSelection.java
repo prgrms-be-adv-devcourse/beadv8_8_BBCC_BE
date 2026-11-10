@@ -30,12 +30,21 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
         }
         List<CompanionPick> picks = new ArrayList<>();
         Set<Long> pickedProductIds = new HashSet<>();
-        for (CompanionAiPick aiPick : aiPicks) {
+        // AI를 부르지 못했거나 실패하면 고른 것이 없으므로 빈 목록으로 본다
+        List<CompanionAiPick> requestedPicks = aiPicks;
+        if (requestedPicks == null) {
+            requestedPicks = List.of();
+        }
+        for (CompanionAiPick aiPick : requestedPicks) {
             CompanionCandidate candidate = candidatesByProductId.get(aiPick.productId());
             if (candidate == null || !pickedProductIds.add(aiPick.productId())) {
                 continue;
             }
             picks.add(new CompanionPick(candidate.product(), aiPick.reason()));
+        }
+        CompanionSource source = CompanionSource.AI;
+        if (picks.isEmpty()) {
+            source = CompanionSource.RULE;
         }
         for (CompanionCandidate candidate : ranked) {
             if (picks.size() >= CompanionWeights.PICK_COUNT) {
@@ -45,6 +54,6 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
                 picks.add(new CompanionPick(candidate.product(), null));
             }
         }
-        return new CompanionSelection(CompanionSource.AI, picks);
+        return new CompanionSelection(source, picks);
     }
 }
