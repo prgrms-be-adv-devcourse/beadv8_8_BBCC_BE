@@ -39,6 +39,14 @@ public interface OrderDeliveries {
     List<CancelledDelivery> cancelByOrder(Long orderId);
 
     /**
+     * 판매자가 판매할 수 없게 돼(#1121) 그 주문의 그 판매자 배송이 발송 전이면 판매자 발송 전 취소와 같은 경로로 취소한다
+     * (배송 취소 + 그 판매자 주문상품 취소 사유 SELLER_UNAVAILABLE + order-item.cancelled). 발송 · 배송 완료 · 취소 · 없음이면 그대로.
+     *
+     * @return 이번에 취소했으면 true
+     */
+    boolean cancelForUnavailableSeller(Long orderId, Long sellerId);
+
+    /**
      * 발송 전(READY)이고 생성 시각 &lt; before인 배송. 생성 시각 · 배송 ID 오름차순. 목록 1번 + 건수 1번으로 읽는다.
      */
     Page<DelayedDelivery> findShippingDelayed(LocalDateTime before, Pageable pageable);

@@ -464,6 +464,25 @@ public class OrderService {
     }
 
     /**
+     * 판매자가 판매할 수 없게 된 주문 하나 정리(#1121, 한 주문 = 한 트랜잭션). 결제대기면 주문 전체 취소(사유 SELLER_UNAVAILABLE,
+     * order.cancelled), 결제완료면 그 판매자 배송이 발송 전일 때만 판매자 발송 전 취소와 같은 경로로 그 판매자 몫 취소
+     * (order-item.cancelled). 배송 중 · 배송 완료 · 이미 취소 · 그 밖의 상태는 그대로다. 주체는 SYSTEM · 출처 seller.changed.
+     */
+    public void cancelForUnavailableSeller(Long orderId, Long sellerId) {
+        Order order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            return;
+        }
+        if (order.getStatus() == Order.Status.PENDING_PAYMENT) {
+            // 상태는 취소 경로가 주문을 다시 읽어 도메인이 판단하고, 그 사이 결제 · 만료와 겹치면 주문 @Version으로 한쪽만 성공한다
+            cancel(orderId, OrderActor.SELLER_CHANGED, OrderActor.system(OrderActor.SELLER_CHANGED), null,
+                Order::cancelForSellerUnavailable);
+        } else if (order.getStatus() == Order.Status.PAID) {
+            orderDeliveries.cancelForUnavailableSeller(orderId, sellerId);
+        }
+    }
+
+    /**
      * 주문이 없으면 무시. 이번에 취소했을 때만 order.cancelled를 발행한다(사유는 주문에 기록된 값,
      * 주문상품 순서 그대로).
      *

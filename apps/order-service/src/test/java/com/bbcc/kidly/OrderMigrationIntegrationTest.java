@@ -55,6 +55,9 @@ class OrderMigrationIntegrationTest {
     // 주문상품 판매자 인덱스 마이그레이션(#1120) 파일
     private static final String ORDER_ITEM_SELLER_INDEX_MIGRATION =
         "db/migration/orders/V202611101300__order_item_seller_index.sql";
+    // 판매 불가 판매자 취소 사유 마이그레이션(#1121) 파일
+    private static final String SELLER_UNAVAILABLE_MIGRATION =
+        "db/migration/orders/V202611101400__seller_unavailable_cancel_reason.sql";
 
     @Test
     @DisplayName("kidly-app이 주문 마이그레이션을 모두 적용한 DB에서는 baseline을 잡고 스키마를 바꾸지 않는다")
@@ -306,6 +309,30 @@ class OrderMigrationIntegrationTest {
 
             assertThat(schema(jdbc)).isEqualTo(before).contains("CREATE INDEX idx_order_item_seller_status ON "
                 + "orders.order_item USING btree (seller_id, status)");
+        }
+    }
+
+    @Test
+    @DisplayName("판매 불가 판매자 취소 사유 마이그레이션(#1121): 세 사유 칸이 SELLER_UNAVAILABLE을 받고, 같은 파일을 다시 적용해도 "
+        + "오류 · 변화가 없으며 예전 사유 값도 그대로 받는다")
+    void sellerUnavailableReasonMigrationIsRepeatable() throws Exception {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            serviceFlyway(dataSource).load().migrate();
+            var before = schema(jdbc);
+            String sql = new String(new ClassPathResource(SELLER_UNAVAILABLE_MIGRATION).getInputStream()
+                .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            jdbc.execute(sql);
+
+            assertThat(schema(jdbc)).isEqualTo(before);
+            var definitions = jdbc.queryForList("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname IN "
+                + "('orders_cancel_reason_check', 'order_item_cancel_reason_check', "
+                + "'order_item_cancellation_reason_check')", String.class);
+            assertThat(definitions).hasSize(3).allSatisfy(definition -> assertThat(definition)
+                .contains("SELLER_UNAVAILABLE", "OUT_OF_STOCK"));
         }
     }
 

@@ -16,8 +16,8 @@
 | `kidly.order.events` | `order.created` | 주문 ID | order | product |
 | | `order.payment-requested` | 주문 ID | | payment |
 | | `order.paid` | 주문 ID | | notification |
-| | `order.cancelled` | 주문 ID | | notification, payment, product |
-| | `order-item.cancelled` | 주문 ID | | notification, payment, product |
+| | `order.cancelled`(data `reason`: OUT_OF_STOCK · PAYMENT_FAILED · PAYMENT_EXPIRED · BUYER_CANCELLED, #1121 추가 값 SELLER_UNAVAILABLE = 판매자가 판매할 수 없게 돼 결제 전 주문 전체 취소. 결제 뒤 판매자 몫 취소로 주문 전체가 취소될 때는 `order.cancelled`를 보내지 않는다) | 주문 ID | | notification, payment, product |
+| | `order-item.cancelled`(data `reason`: 판매자 취소 OUT_OF_STOCK · WRONG_PRODUCT_INFO · OTHER, #1121 추가 값 SELLER_UNAVAILABLE = 판매자가 판매할 수 없게 돼 시스템이 배송 전 몫 취소) | 주문 ID | | notification, payment, product |
 | | `order-item.purchase-confirmed`(data에 확정 방식 `confirmType` DIRECT · AUTO, #901) | 주문 ID | | community, notification, recommend, settlement |
 | | `delivery.shipped` | 주문 ID | | notification |
 | | `delivery.delivered`(#1061 추가 칸 `autoConfirmAt`: 자동 구매확정 예정 시각 = 주문상품 배송 완료 시각 + 자동 구매확정 기간(주문의 자동 확정과 같은 기준), `items`: 그 배송(판매자 몫)의 주문상품 `orderItemId` · `productId` · `quantity`(취소 제외). 없는 예전 메시지는 null) | 주문 ID | | notification |
