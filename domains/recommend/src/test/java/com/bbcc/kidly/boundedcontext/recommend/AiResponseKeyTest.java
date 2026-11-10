@@ -53,4 +53,15 @@ class AiResponseKeyTest {
 
         assertThat(AiResponseKey.of(withZeros)).isEqualTo(AiResponseKey.of(withoutZeros));
     }
+
+    @Test
+    @DisplayName("null 목록과 빈 목록은 같은 키다")
+    void nullListEqualsEmptyList() {
+        AiResponseKey.Input nullLists = new AiResponseKey.Input(
+            10L, null, null, null, null, null, null, null, null, 1);
+        AiResponseKey.Input emptyLists = new AiResponseKey.Input(
+            10L, null, null, null, null, null, null, List.of(), List.of(), 1);
+
+        assertThat(AiResponseKey.of(nullLists)).isEqualTo(AiResponseKey.of(emptyLists));
+    }
 }
