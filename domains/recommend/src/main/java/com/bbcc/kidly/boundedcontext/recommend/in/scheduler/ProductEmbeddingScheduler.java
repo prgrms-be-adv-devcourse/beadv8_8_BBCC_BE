@@ -8,8 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 글이 바뀐 상품을 주기마다 임베딩한다. 서버가 여러 대여도 잠금을 잡은 한 대만 실행한다.
- * Spring AI가 OpenAI 임베딩 모델 빈을 만드는 조건과 같을 때만 뜬다(키가 없으면 모델 빈이 없다).
+ * 글이 바뀐 상품을 주기마다 임베딩한다.
  */
 @Slf4j
 @Component
@@ -19,7 +18,8 @@ public class ProductEmbeddingScheduler {
 
     private final ProductEmbeddingService embeddingService;
 
-    // fixedDelay는 이전 실행이 끝난 뒤부터 주기를 재므로 실행이 겹치지 않는다. 첫 실행도 한 주기 뒤로 미룬다
+    // fixedDelay는 이전 실행이 끝난 뒤부터 주기를 재므로 실행이 겹치지 않는다.
+    // 기동 직후 다른 초기화와 겹치지 않게 첫 실행도 한 주기 뒤로 미룬다
     @Scheduled(fixedDelayString = "${kidly.recommend.embedding.interval:PT1M}",
         initialDelayString = "${kidly.recommend.embedding.interval:PT1M}")
     public void embedStaleProducts() {

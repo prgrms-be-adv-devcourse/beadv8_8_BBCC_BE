@@ -10,7 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.bbcc.kidly.boundedcontext.recommend.out.embedding.ProductEmbeddingRunLockStore;
+import com.bbcc.kidly.boundedcontext.recommend.out.embedding.PostgresProductEmbeddingRunLock;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -26,11 +26,11 @@ import org.junit.jupiter.api.Test;
  * 잠금을 풀지 못한 연결은 풀로 돌려보내지 않고 버려서, 잠금을 쥔 채 풀에 남아 다음 실행을 계속 막는 일이 없게 한다.
  * 해제 SQL의 실패는 실제 DB에서 만들 수 없어서 JDBC를 대역으로 확인한다.
  */
-class ProductEmbeddingRunLockStoreTest {
+class PostgresProductEmbeddingRunLockTest {
 
     private final DataSource dataSource = mock(DataSource.class);
     private final Connection connection = mock(Connection.class);
-    private final ProductEmbeddingRunLockStore lockStore = new ProductEmbeddingRunLockStore(dataSource);
+    private final PostgresProductEmbeddingRunLock runLock = new PostgresProductEmbeddingRunLock(dataSource);
     private final AtomicBoolean workRan = new AtomicBoolean();
 
     @BeforeEach
@@ -46,7 +46,7 @@ class ProductEmbeddingRunLockStoreTest {
         PreparedStatement unlock = statementReturning(true);
         when(connection.prepareStatement(contains("pg_advisory_unlock"))).thenReturn(unlock);
 
-        assertThat(lockStore.runExclusively(() -> workRan.set(true))).isTrue();
+        assertThat(runLock.runExclusively(() -> workRan.set(true))).isTrue();
 
         assertThat(workRan).isTrue();
         verify(connection, never()).abort(any(Executor.class));
@@ -58,7 +58,7 @@ class ProductEmbeddingRunLockStoreTest {
     void abortConnectionWhenUnlockFails() throws SQLException {
         when(connection.prepareStatement(contains("pg_advisory_unlock"))).thenThrow(new SQLException("unlock"));
 
-        assertThat(lockStore.runExclusively(() -> workRan.set(true))).isTrue();
+        assertThat(runLock.runExclusively(() -> workRan.set(true))).isTrue();
 
         assertThat(workRan).isTrue();
         verify(connection).abort(any(Executor.class));
@@ -70,7 +70,7 @@ class ProductEmbeddingRunLockStoreTest {
         PreparedStatement unlock = statementReturning(false);
         when(connection.prepareStatement(contains("pg_advisory_unlock"))).thenReturn(unlock);
 
-        lockStore.runExclusively(() -> workRan.set(true));
+        runLock.runExclusively(() -> workRan.set(true));
 
         verify(connection).abort(any(Executor.class));
     }
@@ -80,7 +80,7 @@ class ProductEmbeddingRunLockStoreTest {
     void throwWorkExceptionAndAbortConnectionWhenBothFail() throws SQLException {
         when(connection.prepareStatement(contains("pg_advisory_unlock"))).thenThrow(new SQLException("unlock"));
 
-        assertThatThrownBy(() -> lockStore.runExclusively(() -> {
+        assertThatThrownBy(() -> runLock.runExclusively(() -> {
             throw new IllegalArgumentException("작업 실패");
         })).isInstanceOf(IllegalArgumentException.class).hasMessage("작업 실패");
 
@@ -93,7 +93,7 @@ class ProductEmbeddingRunLockStoreTest {
         when(connection.prepareStatement(contains("pg_advisory_unlock"))).thenThrow(new SQLException("unlock"));
         doThrow(new SQLException("close")).when(connection).close();
 
-        assertThat(lockStore.runExclusively(() -> workRan.set(true))).isTrue();
+        assertThat(runLock.runExclusively(() -> workRan.set(true))).isTrue();
 
         assertThat(workRan).isTrue();
         verify(connection).abort(any(Executor.class));

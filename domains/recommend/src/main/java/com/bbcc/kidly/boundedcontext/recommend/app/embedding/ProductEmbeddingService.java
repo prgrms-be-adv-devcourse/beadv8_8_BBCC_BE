@@ -13,7 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
- * 글이 바뀐 상품을 묶어 임베딩하고 벡터를 저장한다.
+ * 글이 바뀐 상품을 묶어 임베딩하고 벡터를 저장한다. 서버가 여러 대여도 실행 잠금을 잡은 한 대만 한 묶음을 처리한다.
  * 이 서비스는 트랜잭션을 걸지 않는다. 저장소 메서드가 각자 바로 커밋되고 OpenAI 호출은 트랜잭션 밖에서 한다.
  * Spring AI가 OpenAI 임베딩 모델 빈을 만드는 조건과 같을 때만 뜬다(키가 없으면 모델 빈이 없다).
  */

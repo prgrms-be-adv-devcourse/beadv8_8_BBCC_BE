@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 /**
  * Spring AI 임베딩 모델(OpenAI)로 상품 글을 벡터로 바꾼다.
- * Spring AI가 OpenAI 임베딩 모델 빈을 만드는 조건과 같을 때만 뜬다(키가 없으면 모델 빈이 없다).
  */
 @Component
 @ConditionalOnProperty(name = "spring.ai.model.embedding", havingValue = "openai", matchIfMissing = true)

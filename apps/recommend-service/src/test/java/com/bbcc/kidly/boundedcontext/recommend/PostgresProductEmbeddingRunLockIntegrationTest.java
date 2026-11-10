@@ -22,7 +22,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 상품 임베딩 실행 잠금이 실제 PostgreSQL에서 스레드 둘 중 하나만 일을 하게 하는지 확인한다.
  */
 @IntegrationTest
-class ProductEmbeddingRunLockStoreIntegrationTest {
+class PostgresProductEmbeddingRunLockIntegrationTest {
 
     private static final long WAIT_SECONDS = 10;
 
