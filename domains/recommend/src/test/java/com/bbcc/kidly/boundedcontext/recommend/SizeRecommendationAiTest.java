@@ -12,6 +12,9 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationSou
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class SizeRecommendationAiTest {
 
@@ -35,5 +38,27 @@ class SizeRecommendationAiTest {
         assertThat(result.getNotices()).isEmpty();
         assertThat(result.getReasons())
             .containsExactly(new SizeReason(SizeReasonType.HEIGHT, HEIGHT_DETAIL, null));
+    }
+
+    @ParameterizedTest(name = "AI 사이즈 [{0}]")
+    @NullAndEmptySource
+    @ValueSource(strings = {"130", " "})
+    @DisplayName("AI가 상품에 없는 사이즈를 고르거나 사이즈를 비우면 규칙 결과를 그대로 쓴다")
+    void keepRuleWhenAiSizeIsNotInProduct(String aiSize) {
+        AiSizeAnswer answer = new AiSizeAnswer(aiSize, "TIGHT",
+            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
+
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer);
+
+        assertRuleResult(result);
+    }
+
+    private static void assertRuleResult(SizeRecommendation result) {
+        assertThat(result.getRecommendedSize()).isEqualTo("120");
+        assertThat(result.getFit()).isEqualTo(Fit.PROPER);
+        assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.RULE);
+        assertThat(result.getCandidateSizes()).containsExactly("110", "120");
+        assertThat(result.getNotices()).containsExactly(SizeNotice.BODY_TYPE_ADJUSTED);
+        assertThat(result.getReasons()).isEmpty();
     }
 }
