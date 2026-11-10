@@ -46,7 +46,7 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
             if (candidate == null || !pickedProductIds.add(aiPick.productId())) {
                 continue;
             }
-            picks.add(new CompanionPick(candidate.product(), aiPick.reason()));
+            picks.add(new CompanionPick(candidate.product(), reasonOrNull(aiPick.reason())));
         }
         CompanionSource source = CompanionSource.AI;
         if (picks.isEmpty()) {
@@ -61,5 +61,13 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
             }
         }
         return new CompanionSelection(source, picks);
+    }
+
+    // 화면에 빈 이유 칸을 보여 주지 않도록 비어 있는 이유는 없는 것으로 본다
+    private static String reasonOrNull(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return null;
+        }
+        return reason;
     }
 }
