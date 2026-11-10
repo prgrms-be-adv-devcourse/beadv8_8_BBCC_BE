@@ -111,7 +111,7 @@ class RecommendedProductServiceTest {
     void rejectUnavailableChild(Optional<RecommendReplicaChild> foundChild, Long memberId) {
         given(replicaChildRepository.findById(CHILD_1_ID)).willReturn(foundChild);
 
-        assertThatThrownBy(() -> service.list(memberId, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, PAGE_SIZE))
+        assertThatThrownBy(() -> service.list(memberId, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, PAGE_SIZE, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(RecommendErrorCode.CHILD_NOT_FOUND);
         verifyNoInteractions(replicaProductRepository, replicaSellerRepository);
@@ -123,7 +123,7 @@ class RecommendedProductServiceTest {
         givenVisibleChildAndThreeProducts();
 
         Page<RecommendedProductResult> result =
-            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2);
+            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2, null).page();
 
         // 자녀는 키 115cm · 몸무게 20.0kg · 체형 보통이고 선호 핏이 여유라, 110과 120 두 후보 중 큰 120을 추천한다
         // 세 상품 모두 옵션 110과 120의 판매가가 25,000원이라 최저가도 25,000원이다
@@ -145,7 +145,7 @@ class RecommendedProductServiceTest {
         givenVisibleChildAndThreeProducts();
 
         Page<RecommendedProductResult> result =
-            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, 1, 2);
+            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, 1, 2, null).page();
 
         assertThat(result.getContent())
             .extracting(RecommendedProductResult::productId)
@@ -162,7 +162,7 @@ class RecommendedProductServiceTest {
             .willReturn(List.of(RecommendReplicaSeller.create(RecommendReplicaSellerFixture.sellerApproved())));
 
         Page<RecommendedProductResult> result =
-            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2);
+            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2, null).page();
 
         // 두 상품 모두 상품 A의 판매자가 팔고, 그 판매자 복사본의 상호명은 소소한옷장이다
         assertThat(result.getContent())
@@ -181,7 +181,7 @@ class RecommendedProductServiceTest {
             .willReturn(List.of(RecommendReplicaSeller.create(RecommendReplicaSellerFixture.sellerApproved())));
 
         Page<RecommendedProductResult> result =
-            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2);
+            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2, null).page();
 
         assertThat(result.getContent())
             .extracting(RecommendedProductResult::productId, RecommendedProductResult::businessName)
@@ -196,7 +196,7 @@ class RecommendedProductServiceTest {
         // 첫 페이지의 두 상품은 같은 판매자가 팔고, 다음 페이지로 밀린 가장 오래된 상품만 다른 판매자가 판다
         givenVisibleChildAndProductsSoldBy(OTHER_SELLER_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_SELLER_ID);
 
-        service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2);
+        service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2, null).page();
 
         // 다음 페이지 상품의 판매자는 읽지 않고, 같은 판매자 ID는 한 번만 넘긴다
         verify(replicaSellerRepository, times(1)).findAllById(sellerIdsCaptor.capture());
