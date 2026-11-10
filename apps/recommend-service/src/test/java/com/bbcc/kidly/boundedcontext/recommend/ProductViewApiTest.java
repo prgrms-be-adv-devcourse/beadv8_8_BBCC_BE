@@ -1,10 +1,12 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
 import com.bbcc.kidly.boundedcontext.recommend.out.activity.JpaActivityRecordRepository;
@@ -30,6 +32,10 @@ class ProductViewApiTest {
     @Autowired
     private JpaActivityRecordRepository activityRecordRepository;
 
+    // 추천은 이벤트로 받아 둔 자녀 복사본으로 자녀를 확인하므로, 복사본은 리스너가 부르는 서비스에 이벤트를 넘겨 만든다
+    @Autowired
+    private RecommendReplicaChildService replicaChildService;
+
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"{\"productId\": 31}", "{\"productId\": \"31\"}"})
     @DisplayName("로그인한 회원이 숫자나 문자열 상품 ID로 상세 진입을 기록하면 204와 빈 본문을 받고, 활동 기록에 상세 진입 한 줄이 남는다")
@@ -42,6 +48,22 @@ class ProductViewApiTest {
             .extracting(ActivityRecord::getType, ActivityRecord::getMemberId, ActivityRecord::getProductId,
                 ActivityRecord::getChildProfileId)
             .containsExactly(ActivityType.PRODUCT_VIEWED, MEMBER_1_ID, PRODUCT_A_ID, null);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"{\"productId\": 31, \"childId\": 11}", "{\"productId\": 31, \"childId\": \"11\"}"})
+    @DisplayName("로그인한 회원이 자기 자녀의 숫자나 문자열 ID를 함께 보내 상세 진입을 기록하면 204와 빈 본문을 받고, 그 자녀의 상세 진입 한 줄이 남는다")
+    void recordProductViewOfChild(String body) {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        view(MEMBER_1_ID, body)
+            .expectStatus().isNoContent()
+            .expectBody().isEmpty();
+
+        assertThat(activityRecordRepository.findAll()).singleElement()
+            .extracting(ActivityRecord::getType, ActivityRecord::getMemberId, ActivityRecord::getProductId,
+                ActivityRecord::getChildProfileId)
+            .containsExactly(ActivityType.PRODUCT_VIEWED, MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
     }
 
     @Test
