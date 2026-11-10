@@ -1,0 +1,48 @@
+package com.bbcc.kidly.boundedcontext.recommend.domain.preference;
+
+import static java.util.Objects.requireNonNull;
+
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 자녀 또는 회원 한 명의 신호로 카테고리 · 브랜드 친밀도와 취향 벡터를 계산한다.
+ */
+public class PreferenceCalculator {
+
+    private static final double SECONDS_PER_DAY = 86_400.0;
+
+    public PreferenceSnapshot calculate(
+            List<PreferenceSignal> signals,
+            Map<Long, EmbeddingVector> productEmbeddings,
+            LocalDateTime baseTime
+    ) {
+        requireNonNull(signals, "signals는 필수입니다");
+        requireNonNull(productEmbeddings, "productEmbeddings는 필수입니다");
+        requireNonNull(baseTime, "baseTime은 필수입니다");
+        // 친밀도는 1 − Π(1 − 무게)이므로 키마다 Π(1 − 무게)를 모은다
+        Map<Long, Double> categoryRemainders = new LinkedHashMap<>();
+        for (PreferenceSignal signal : signals) {
+            double weight = weightOf(signal, baseTime);
+            if (signal.categoryId() != null) {
+                categoryRemainders.merge(signal.categoryId(), 1 - weight, (left, right) -> left * right);
+            }
+        }
+        List<CategoryAffinity> categories = new ArrayList<>();
+        for (Map.Entry<Long, Double> entry : categoryRemainders.entrySet()) {
+            categories.add(new CategoryAffinity(entry.getKey(), 1 - entry.getValue()));
+        }
+        return new PreferenceSnapshot(categories, List.of(), null, baseTime);
+    }
+
+    private double weightOf(PreferenceSignal signal, LocalDateTime baseTime) {
+        PreferenceSignalType type = signal.type();
+        double elapsedDays = Duration.between(signal.occurredAt(), baseTime).toSeconds() / SECONDS_PER_DAY;
+        return type.intensity() * (1 - elapsedDays / type.windowDays());
+    }
+}

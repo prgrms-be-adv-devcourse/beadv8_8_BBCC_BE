@@ -19,4 +19,16 @@ public record PreferenceSnapshot(
     public static PreferenceSnapshot empty() {
         return new PreferenceSnapshot(List.of(), List.of(), null, null);
     }
+
+    /**
+     * 카테고리의 친밀도다. 계산한 결과에 없는 카테고리는 0이다.
+     */
+    public double categoryAffinity(Long categoryId) {
+        for (CategoryAffinity category : categories) {
+            if (category.categoryId().equals(categoryId)) {
+                return category.score();
+            }
+        }
+        return 0;
+    }
 }
