@@ -38,7 +38,7 @@
 |---|---|---|---|
 | GET | `/api/v1/members/me` | 내 정보 조회 | 🔒 |
 | PATCH | `/api/v1/members/me` | 내 정보 수정(닉네임) | 🔒 |
-| DELETE | `/api/v1/members/me` | 탈퇴. 신청하면 바로 탈퇴한다 | 🔒 |
+| DELETE | `/api/v1/members/me` | 탈퇴. 판매자에게 남은 주문·정산이 있으면 409, 확인할 수 없으면 503 | 🔒 |
 | GET | `/api/v1/members/me/addresses` | 배송지 목록 | 🔒 |
 | POST | `/api/v1/members/me/addresses` | 배송지 등록 | 🔒 |
 | PATCH | `/api/v1/members/me/addresses/{addressId}` | 배송지 수정 | 🔒 |
