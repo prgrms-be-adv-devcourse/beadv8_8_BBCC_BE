@@ -13,8 +13,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class PreferenceCalculatorTest {
 
@@ -81,6 +84,83 @@ class PreferenceCalculatorTest {
         PreferenceSnapshot snapshot = calculator.calculate(signals, NO_EMBEDDINGS, BASE_TIME);
 
         assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isCloseTo(expected, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("PREF-03 카테고리가 없는 활동은 어느 카테고리에도 넣지 않는다")
+    void activityWithoutCategoryIsLeftOut() {
+        PreferenceSignal signal = signal(PreferenceSignalType.SEARCH, BASE_TIME, null, null, null);
+
+        PreferenceSnapshot snapshot = calculator.calculate(List.of(signal), NO_EMBEDDINGS, BASE_TIME);
+
+        assertThat(snapshot.categories()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "\"{0}\" 브랜드 → {1}")
+    @CsvSource({
+        "키들리, 0.3",
+        "'키들리 ', 0.0",
+        "키들리키즈, 0.0",
+    })
+    @DisplayName("PREF-04 브랜드 친밀도는 브랜드 글자가 같을 때만 일치한다")
+    void brandMatchesOnlySameText(String brand, double expected) {
+        PreferenceSignal signal = signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 1L);
+
+        PreferenceSnapshot snapshot = calculator.calculate(List.of(signal), NO_EMBEDDINGS, BASE_TIME);
+
+        assertThat(snapshot.brandAffinity(brand)).isCloseTo(expected, within(1e-9));
+    }
+
+    @ParameterizedTest(name = "브랜드 \"{0}\"")
+    @NullAndEmptySource
+    @ValueSource(strings = "   ")
+    @DisplayName("PREF-04 브랜드가 없는 활동은 어느 브랜드에도 넣지 않는다")
+    void activityWithoutBrandIsLeftOut(String brand) {
+        PreferenceSignal signal = signal(PreferenceSignalType.CART_ITEM_ADDED, BASE_TIME, CATEGORY_ID, brand, 1L);
+
+        PreferenceSnapshot snapshot = calculator.calculate(List.of(signal), NO_EMBEDDINGS, BASE_TIME);
+
+        assertThat(snapshot.brands()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}일 전 구매확정 → {1}")
+    @CsvSource({
+        "0, 0.8",
+        "90, 0.4",
+        "181, 0.0",
+    })
+    @DisplayName("PREF-16 구매확정의 무게는 0.8 × (1 − 지난 날 수 / 180)이고 180일 안의 것만 센다")
+    void purchaseConfirmedWeight(long daysAgo, double expected) {
+        PreferenceSignal signal =
+            signal(PreferenceSignalType.PURCHASE_CONFIRMED, BASE_TIME.minusDays(daysAgo), CATEGORY_ID, BRAND, 1L);
+
+        PreferenceSnapshot snapshot = calculator.calculate(List.of(signal), NO_EMBEDDINGS, BASE_TIME);
+
+        assertThat(snapshot.brandAffinity(BRAND)).isCloseTo(expected, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("PREF-16 구매확정은 카테고리 친밀도와 취향 벡터에 넣지 않는다")
+    void purchaseConfirmedCountsOnlyForBrand() {
+        PreferenceSignal signal = signal(PreferenceSignalType.PURCHASE_CONFIRMED, BASE_TIME, CATEGORY_ID, BRAND, 1L);
+
+        PreferenceSnapshot snapshot =
+            calculator.calculate(List.of(signal), Map.of(1L, EmbeddingVectorFixture.axis(0)), BASE_TIME);
+
+        assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isZero();
+        assertThat(snapshot.tasteVector()).isNull();
+    }
+
+    @Test
+    @DisplayName("PREF-16 같은 브랜드를 오늘 구매확정하고 오늘 담기도 했으면 브랜드 친밀도는 1 − 0.2 × 0.4 = 0.92다")
+    void purchaseConfirmedCombinesWithCartAdd() {
+        List<PreferenceSignal> signals = List.of(
+            signal(PreferenceSignalType.PURCHASE_CONFIRMED, BASE_TIME, CATEGORY_ID, BRAND, 1L),
+            signal(PreferenceSignalType.CART_ITEM_ADDED, BASE_TIME, CATEGORY_ID, BRAND, 2L));
+
+        PreferenceSnapshot snapshot = calculator.calculate(signals, NO_EMBEDDINGS, BASE_TIME);
+
+        assertThat(snapshot.brandAffinity(BRAND)).isCloseTo(0.92, within(1e-9));
     }
 
     private static PreferenceSignal signal(
