@@ -22,6 +22,11 @@ public final class PreferenceSignals {
             signals.add(new PreferenceSignal(signalTypeOf(activity.type()), activity.occurredAt(),
                 activity.categoryId(), activity.brand(), activity.productId(), activity.removedFromCart()));
         }
+        // 방금 산 종류가 목록 위를 차지하지 않게 구매확정에는 카테고리를 담지 않는다
+        for (ConfirmedPurchase purchase : purchases) {
+            signals.add(new PreferenceSignal(PreferenceSignalType.PURCHASE_CONFIRMED, purchase.confirmedAt(), null,
+                purchase.brand(), purchase.productId(), false));
+        }
         return signals;
     }
 
