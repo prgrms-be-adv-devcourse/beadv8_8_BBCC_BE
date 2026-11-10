@@ -66,6 +66,17 @@ class PreferenceSourceReaderIntegrationTest {
     }
 
     @Test
+    @DisplayName("PREF-11 삭제한 자녀가 앞에 있어도 limit개는 삭제하지 않은 자녀로 채워 페이지가 이어진다")
+    void fillPageWithoutDeletedChildren() {
+        childActivity(1L, SINCE);
+        childActivity(2L, SINCE);
+        childActivity(3L, SINCE);
+        insertReplicaChild(1L, SINCE.plusHours(1));
+
+        assertThat(reader.findChildTargets(SINCE, SINCE, 0, 2)).containsExactly(2L, 3L);
+    }
+
+    @Test
     @DisplayName("대상 자녀는 after보다 큰 ID만 limit개까지 읽는다")
     void readChildTargetsAfterIdWithLimit() {
         childActivity(1L, SINCE);
