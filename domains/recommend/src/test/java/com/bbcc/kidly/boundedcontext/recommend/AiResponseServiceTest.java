@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -34,6 +35,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -163,6 +165,34 @@ class AiResponseServiceTest {
 
         assertThat(answer).isEmpty();
         verify(store, never()).save(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("응답 저장이 실패해도 이미 받은 AI 답을 돌려주고, 로그에 예외 메시지를 남기지 않는다")
+    void returnAnswerEvenWhenSavingFails() {
+        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
+        willThrow(new DataIntegrityViolationException("Failing row contains (비밀 값)"))
+            .given(store).save(eq(TYPE), eq(KEY), any(), eq(NOW));
+        ListAppender<ILoggingEvent> logs = attachLogs();
+
+        Optional<Answer> answer;
+        try {
+            answer = service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+        } finally {
+            detachLogs(logs);
+        }
+
+        assertThat(answer).contains(freshAnswer());
+        assertThat(logs.list).isNotEmpty();
+        assertThat(logs.list).allSatisfy(event -> {
+            assertThat(event.getFormattedMessage()).doesNotContain("비밀 값");
+            assertThat(event.getThrowableProxy()).isNull();
+        });
+    }
+
+    private Answer freshAnswerCall() {
+        return freshAnswer();
     }
 
     private static void sleep(Duration duration) {
