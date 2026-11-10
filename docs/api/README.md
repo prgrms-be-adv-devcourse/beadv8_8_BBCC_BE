@@ -5,7 +5,7 @@
 - Swagger: 서비스마다 연다(로컬 `http://localhost:<서비스 포트>/swagger-ui.html`, 포트는 README의 로컬 실행 표). 서비스에 직접 붙으므로 로그인이 필요한 API는 Gateway 헤더(`X-Member-*`)를 직접 넣어야 한다
 - 오류 응답은 ProblemDetail 5필드(`type`, `title`, `status`, `detail`, `instance`)다. 도메인 오류의 상태 · `title` · `detail`은 각 도메인의 `XxxErrorCode` enum에 있다
 - API를 추가 · 변경 · 삭제하는 PR에서 이 표도 같이 고친다
-- 권한: 🌐 누구나 · 🔒 로그인 · 🏪 판매자 · 🛠 관리자. 판매자 · 관리자 역할은 Gateway가 `/api/v1/seller/**` · `/api/v1/admin/**` 경로로 검사한다
+- 권한: 🌐 누구나 · 🔒 로그인 · 🏪 판매자 · 🛠 관리자 · 내부(서비스끼리만 부름. Gateway가 `/internal/**`을 밖에서 404로 막는다). 판매자 · 관리자 역할은 Gateway가 `/api/v1/seller/**` · `/api/v1/admin/**` 경로로 검사한다
 - 요청 수 제한: 검색어가 있는 상품 목록(`GET /api/v1/products?keyword=...`)은 Gateway가 로그인 주체(회원 · 관리자 · 자녀) · 비로그인 IP마다 분당 30번까지 받는다. 넘으면 429 ProblemDetail(`title` "요청이 너무 많습니다")과 `Retry-After`(초)다(#816)
 
 ## 인증
@@ -277,6 +277,7 @@
 | GET | `/api/v1/admin/settlement-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
 | GET | `/api/v1/admin/settlement-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/settlement-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
+| GET | `/internal/sellers/{sellerId}/withdrawal-blockers` | 판매자 탈퇴를 막는 정산 사유. `blockers`에 `UNSETTLED_ITEM`(정산서에 아직 안 들어간 구매확정 항목) · `UNPAID_SETTLEMENT`(지급 대기 `COMPLETED` · 지급 실패 `FAILED` 정산서)와 건수(`count`)를 이 순서로, 0건인 사유는 빼고 준다. 없으면 `[]`(모르는 판매자도 200) | 내부 |
 
 ## 커뮤니티
 
