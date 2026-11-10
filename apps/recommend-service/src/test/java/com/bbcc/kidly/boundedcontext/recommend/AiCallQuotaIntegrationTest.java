@@ -8,6 +8,8 @@ import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -52,6 +54,16 @@ class AiCallQuotaIntegrationTest {
         assertThat(nextDay).isTrue();
         assertThat(callCount(TODAY)).isEqualTo(1);
         assertThat(callCount(tomorrow)).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1})
+    @DisplayName("상한이 0 이하면 거절하고 횟수 줄을 만들지 않는다")
+    void refuseWithoutCountingWhenLimitIsNotPositive(int dailyLimit) {
+        boolean acquired = quota.tryAcquire(TODAY, dailyLimit);
+
+        assertThat(acquired).isFalse();
+        assertThat(callCount(TODAY)).isNull();
     }
 
     private Integer callCount(LocalDate date) {
