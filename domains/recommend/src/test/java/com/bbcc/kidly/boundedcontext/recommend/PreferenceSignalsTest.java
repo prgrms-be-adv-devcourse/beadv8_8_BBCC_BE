@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.preference.batch.PreferenceSignals;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
@@ -38,5 +39,15 @@ class PreferenceSignalsTest {
 
         assertThat(PreferenceSignals.of(List.of(), purchases)).containsExactly(
             new PreferenceSignal(PreferenceSignalType.PURCHASE_CONFIRMED, AT.minusDays(90), null, "브랜드C", 3L, false));
+    }
+
+    @Test
+    @DisplayName("장바구니 빼기처럼 신호가 없는 활동 종류가 오면 계산하지 않고 실패한다")
+    void rejectUnsupportedActivityType() {
+        List<RecentActivity> activities = List.of(
+            new RecentActivity(ActivityType.CART_ITEM_REMOVED, 2L, 12L, "브랜드B", AT, false));
+
+        assertThatThrownBy(() -> PreferenceSignals.of(activities, List.of()))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 }
