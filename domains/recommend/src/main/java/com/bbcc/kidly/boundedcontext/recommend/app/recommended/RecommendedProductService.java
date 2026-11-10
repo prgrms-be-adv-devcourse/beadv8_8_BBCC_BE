@@ -18,7 +18,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,12 +43,6 @@ public class RecommendedProductService {
         this.replicaChildRepository = replicaChildRepository;
         this.replicaSellerRepository = replicaSellerRepository;
         this.ranking = ranking;
-    }
-
-    // 기준 시각을 정하지 않고 지금 시각으로 목록만 읽는다
-    @Transactional(readOnly = true)
-    public Page<RecommendedProductResult> list(Long memberId, Long childId, Long categoryId, int page, int size) {
-        return list(memberId, childId, categoryId, page, size, null).page();
     }
 
     // 상품의 사이즈 줄은 지연 로딩이므로 트랜잭션 안에서 읽어 계산한다
