@@ -74,7 +74,19 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
 
     @Override
     public List<ConfirmedPurchase> findChildPurchases(Long childProfileId, LocalDateTime from, LocalDateTime to) {
-        throw new UnsupportedOperationException();
+        return jdbcClient.sql("""
+                SELECT pr.product_id, p.brand, pr.confirmed_at
+                FROM recommend.purchase_record pr
+                LEFT JOIN recommend.replica_product p ON p.product_id = pr.product_id
+                WHERE pr.child_profile_id = :id AND pr.confirmed_at >= :from AND pr.confirmed_at <= :to
+                ORDER BY pr.confirmed_at, pr.id
+                """)
+            .param("id", childProfileId)
+            .param("from", from)
+            .param("to", to)
+            .query((rs, rowNum) -> new ConfirmedPurchase(rs.getLong("product_id"), rs.getString("brand"),
+                rs.getObject("confirmed_at", LocalDateTime.class)))
+            .list();
     }
 
     @Override
