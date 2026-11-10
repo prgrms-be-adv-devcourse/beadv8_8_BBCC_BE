@@ -24,6 +24,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +64,16 @@ class ProductSaleStartTest {
         product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
         assertThat(product.getSaleStartedAt()).isEqualTo(ProductFixture.NOW);
+    }
+
+    @Test
+    @DisplayName("나노초 자리가 있는 시각으로 판매를 시작하면 판매 시작 시각은 마이크로초까지만 남는다")
+    void startSaleTruncatesSaleStartedAtToMicros() {
+        withOptionsAndSizeSpecs110And120();
+
+        product.startSale(SELLER_ID, top, clothing.type(), LocalDateTime.of(2026, 11, 10, 11, 4, 5, 123_456_789));
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(LocalDateTime.of(2026, 11, 10, 11, 4, 5, 123_456_000));
     }
 
     @Test
