@@ -82,6 +82,27 @@ class ReferenceGarmentSpecTest {
             ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
     }
 
+    static Stream<Arguments> categoryIdsOutsideLeafOfPath() {
+        List<GarmentCategoryPathEntry> topPath = List.of(
+            new GarmentCategoryPathEntry(1L, "의류"),
+            new GarmentCategoryPathEntry(5L, "상의"),
+            new GarmentCategoryPathEntry(52L, "티셔츠"));
+        return Stream.of(
+            Arguments.of(Named.of("대분류 ID", 1L), topPath),
+            Arguments.of(Named.of("중간 카테고리 ID", 5L), topPath),
+            Arguments.of(Named.of("경로에 없는 ID", 99L), topPath));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("categoryIdsOutsideLeafOfPath")
+    @DisplayName("경로의 마지막 칸이 세부 종류 ID가 아니면 확인할 수 없는 세부 종류라고 거절한다")
+    void rejectedWhenLastEntryOfPathIsNotTheCategoryId(Long categoryId, List<GarmentCategoryPathEntry> categoryPath) {
+        assertRejected(
+            () -> ReferenceGarmentSpec.of(GarmentPart.TOP, categoryId, categoryPath,
+                requiredMeasurements(GarmentPart.TOP)),
+            ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
+    }
+
     static Stream<Arguments> acceptedMeasurements() {
         return Stream.of(
             Arguments.of(GarmentPart.TOP, List.of("의류", "상의"),
