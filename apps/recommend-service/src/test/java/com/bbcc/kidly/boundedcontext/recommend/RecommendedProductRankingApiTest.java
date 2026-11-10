@@ -8,13 +8,16 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_CHANGED_AT;
+import static com.bbcc.kidly.boundedcontext.recommend.EmbeddingVectorFixture.axis;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSnapshotStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.CategoryAffinity;
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.TasteVector;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -22,12 +25,14 @@ import com.bbcc.kidly.support.FunctionalTest;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
@@ -53,6 +58,9 @@ class RecommendedProductRankingApiTest {
 
     @Autowired
     private PreferenceSnapshotStore snapshotStore;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @BeforeEach
     void setUp() {
@@ -97,6 +105,23 @@ class RecommendedProductRankingApiTest {
             .jsonPath("$.content[*].productId").isEqualTo(List.of("301", "302"));
     }
 
+    @Test
+    @DisplayName("PREF-06 취향 벡터가 있는 자녀는 취향 벡터와 가까운 상품이 더 늦게 판매를 시작한 상품보다 먼저 나온다")
+    void orderByTasteSimilarity() {
+        saveProduct(401L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT);
+        saveProduct(402L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT.plusDays(1));
+        // 401은 취향 벡터와 같은 방향이라 유사도 1이고, 402는 수직이라 유사도 0이다
+        saveEmbedding(401L, axis(0));
+        saveEmbedding(402L, axis(1));
+        snapshotStore.replaceChild(CHILD_1_ID, new PreferenceSnapshot(
+            List.of(), List.of(), new TasteVector(axis(0), 1.0, 1), PRODUCT_CHANGED_AT));
+
+        list("")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of("401", "402"));
+    }
+
     private RestTestClient.ResponseSpec list(String query) {
         return client.get().uri(PATH + "?childId={childId}" + query, CHILD_1_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
@@ -110,6 +135,12 @@ class RecommendedProductRankingApiTest {
                 ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, registeredAt, false, List.of(
                     RecommendFixture.productOption(1L, "110", 105, 115),
                     RecommendFixture.productOption(2L, "120", 115, 125)))));
+    }
+
+    // pgvector 글 형식([1.0, 0.0, ...])으로 상품 복사본의 벡터를 넣는다
+    private void saveEmbedding(Long productId, EmbeddingVector vector) {
+        jdbc.update("UPDATE recommend.replica_product SET embedding = CAST(? AS recommend.vector) WHERE product_id = ?",
+            Arrays.toString(vector.values()), productId);
     }
 
     private record AsOfOnly(String asOf) {
