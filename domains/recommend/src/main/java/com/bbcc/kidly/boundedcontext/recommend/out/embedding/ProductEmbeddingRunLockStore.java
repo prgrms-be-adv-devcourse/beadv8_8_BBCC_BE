@@ -29,7 +29,9 @@ public class ProductEmbeddingRunLockStore implements ProductEmbeddingRunLock {
 
     @Override
     public boolean runExclusively(Runnable work) {
-        try (Connection connection = dataSource.getConnection()) {
+        Connection connection = open();
+        boolean aborted = false;
+        try {
             if (!call(connection, "select pg_try_advisory_lock(hashtextextended(?, 0))")) {
                 return false;
             }
@@ -37,8 +39,18 @@ public class ProductEmbeddingRunLockStore implements ProductEmbeddingRunLock {
                 work.run();
                 return true;
             } finally {
-                release(connection);
+                aborted = release(connection);
             }
+        } catch (SQLException e) {
+            throw new IllegalStateException("상품 임베딩 실행 잠금을 쓰지 못했습니다", e);
+        } finally {
+            close(connection, aborted);
+        }
+    }
+
+    private Connection open() {
+        try {
+            return dataSource.getConnection();
         } catch (SQLException e) {
             throw new IllegalStateException("상품 임베딩 실행 잠금을 쓰지 못했습니다", e);
         }
@@ -47,11 +59,13 @@ public class ProductEmbeddingRunLockStore implements ProductEmbeddingRunLock {
     /**
      * 잠금을 푼다. 풀지 못하면(해제 SQL 실패 · 쥐고 있지 않음) 그 연결을 풀로 돌려보내지 않고 버린다(abort).
      * 잠금을 쥔 채 풀에 남으면 다음 실행이 계속 건너뛰기 때문이다.
+     *
+     * @return 연결을 버렸으면 true
      */
-    private void release(Connection connection) {
+    private boolean release(Connection connection) {
         try {
             if (call(connection, "select pg_advisory_unlock(hashtextextended(?, 0))")) {
-                return;
+                return false;
             }
             log.warn("상품 임베딩 실행 잠금이 풀리지 않아 연결을 버립니다");
         } catch (SQLException e) {
@@ -61,6 +75,21 @@ public class ProductEmbeddingRunLockStore implements ProductEmbeddingRunLock {
             connection.abort(Runnable::run);
         } catch (SQLException e) {
             log.warn("상품 임베딩 실행 잠금 연결을 버리지 못했습니다. error={}", e.getClass().getSimpleName());
+        }
+        return true;
+    }
+
+    /**
+     * 연결을 닫는다. 버린 연결은 커넥션 풀이 닫을 때 다시 던질 수 있고 일은 이미 끝났으므로 그 예외를 삼킨다.
+     */
+    private void close(Connection connection, boolean aborted) {
+        try {
+            connection.close();
+        } catch (SQLException e) {
+            if (!aborted) {
+                throw new IllegalStateException("상품 임베딩 실행 잠금 연결을 닫지 못했습니다", e);
+            }
+            log.warn("버린 상품 임베딩 실행 잠금 연결을 닫지 못했습니다. error={}", e.getClass().getSimpleName());
         }
     }
 
