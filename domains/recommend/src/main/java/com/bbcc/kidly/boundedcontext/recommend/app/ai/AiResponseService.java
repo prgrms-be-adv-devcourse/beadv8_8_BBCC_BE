@@ -9,6 +9,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,6 +79,21 @@ public class AiResponseService {
         if (stored.isPresent()) {
             return Optional.of(jsonMapper.readValue(stored.get(), responseType));
         }
-        return Optional.empty();
+        if (!quota.tryAcquire(now.toLocalDate(), dailyCallLimit)) {
+            return Optional.empty();
+        }
+        T result = callWithTimeout(call);
+        store.save(type, key, jsonMapper.writeValueAsString(result), now);
+        return Optional.of(result);
+    }
+
+    private <T> T callWithTimeout(Supplier<T> call) {
+        FutureTask<T> task = new FutureTask<>(call::get);
+        Thread.ofVirtual().start(task);
+        try {
+            return task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            throw new IllegalStateException("AI 호출에 실패했습니다", e);
+        }
     }
 }
