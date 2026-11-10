@@ -80,6 +80,10 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @Column(name = "product_registered_at", nullable = false)
     private LocalDateTime productRegisteredAt;
 
+    // 상품이 처음 판매중이 된 시각이다. 칸이 없는 예전 메시지로 만든 복사본은 비어 있다
+    @Column(name = "sale_started_at")
+    private LocalDateTime saleStartedAt;
+
     @Column(name = "is_size_free", nullable = false)
     private boolean sizeFree;
 
@@ -133,7 +137,17 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
         String brand, String description, List<SizeSpecInfo> sizeSpecs, List<ProductEmbeddingText.InfoValue> infoValues,
-        LocalDateTime occurredAt, List<CategoryPathEntryInfo> categoryPath) {
+        LocalDateTime occurredAt, List<CategoryPathEntryInfo> categoryPath, LocalDateTime saleStartedAt) {
+
+        // 판매 시작 시각 칸이 없는 예전 메시지처럼 판매 시작 시각 없이 만드는 생성자다
+        public ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
+            String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
+            String brand, String description, List<SizeSpecInfo> sizeSpecs,
+            List<ProductEmbeddingText.InfoValue> infoValues, LocalDateTime occurredAt,
+            List<CategoryPathEntryInfo> categoryPath) {
+            this(productId, sellerId, categoryId, name, status, thumbnailUrl, registeredAt, sizeFree, options,
+                brand, description, sizeSpecs, infoValues, occurredAt, categoryPath, null);
+        }
 
         // 테스트 보조 코드만 쓰는 생성자다. 경로는 빈 목록이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 저장된 카테고리 경로가 빈 목록으로 지워진다
         public ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
@@ -224,6 +238,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.status = info.status();
         this.thumbnailUrl = info.thumbnailUrl();
         this.productRegisteredAt = info.registeredAt();
+        this.saleStartedAt = info.saleStartedAt();
         this.sizeFree = info.sizeFree() || hasOnlyOptionsWithoutSize(info.options());
         this.brand = info.brand();
         this.description = info.description();
