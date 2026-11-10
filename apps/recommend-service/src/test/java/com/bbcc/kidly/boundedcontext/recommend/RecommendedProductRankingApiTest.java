@@ -154,6 +154,23 @@ class RecommendedProductRankingApiTest {
             .jsonPath("$.content[*].productId").isEqualTo(List.of("601", "602"));
     }
 
+    @Test
+    @DisplayName("PREF-09 1쪽을 본 뒤 기준 시각보다 늦게 판매를 시작한 상품이 생겨도 같은 asOf로 받은 2쪽에 중복 · 누락이 없다")
+    void samePagesWithSameAsOf() {
+        LocalDateTime asOf = LocalDateTime.of(2026, 11, 9, 10, 0);
+        saveProduct(701L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT);
+        saveProduct(702L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT.plusDays(1));
+        list("&page=0&size=1&asOf=" + asOf)
+            .expectBody().jsonPath("$.content[*].productId").isEqualTo(List.of("702"));
+
+        saveProduct(703L, PRODUCT_A_CATEGORY_ID, asOf.plusHours(1));
+
+        list("&page=1&size=1&asOf=" + asOf)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of("701"));
+    }
+
     private RestTestClient.ResponseSpec list(String query) {
         return client.get().uri(PATH + "?childId={childId}" + query, CHILD_1_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
