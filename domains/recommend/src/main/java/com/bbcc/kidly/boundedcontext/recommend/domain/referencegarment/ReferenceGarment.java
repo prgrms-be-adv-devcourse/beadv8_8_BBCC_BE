@@ -12,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -43,7 +44,9 @@ public class ReferenceGarment extends BaseTimeEntity {
     @Column(name = "category_id", nullable = false)
     private Long categoryId;
 
-    // 키는 실측 항목 코드, 값은 cm다
+    // 키는 실측 항목 코드, 값은 cm다. DB에서 읽은 Map은 바꿀 수 있어서,
+    // 검증 없이 바뀌지 않도록 getMeasurements가 읽기 전용 Map을 돌려준다
+    @Getter(AccessLevel.NONE)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false)
     private Map<String, BigDecimal> measurements;
@@ -68,5 +71,9 @@ public class ReferenceGarment extends BaseTimeEntity {
         }
         this.categoryId = spec.categoryId();
         this.measurements = spec.measurements();
+    }
+
+    public Map<String, BigDecimal> getMeasurements() {
+        return Collections.unmodifiableMap(measurements);
     }
 }
