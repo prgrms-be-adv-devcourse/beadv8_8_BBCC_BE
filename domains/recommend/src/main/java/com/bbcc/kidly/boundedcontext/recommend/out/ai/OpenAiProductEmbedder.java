@@ -18,6 +18,10 @@ public class OpenAiProductEmbedder implements ProductEmbedder {
     @Override
     public List<EmbeddingVector> embed(List<String> texts) {
         List<float[]> embeddings = embeddingModel.embed(texts);
+        if (embeddings.size() != texts.size()) {
+            throw new IllegalStateException(
+                "임베딩 개수가 글 수와 다릅니다: texts=" + texts.size() + ", embeddings=" + embeddings.size());
+        }
         List<EmbeddingVector> vectors = new ArrayList<>();
         for (float[] embedding : embeddings) {
             vectors.add(new EmbeddingVector(embedding));
