@@ -42,6 +42,10 @@ public class PreferenceCalculator {
 
     private double weightOf(PreferenceSignal signal, LocalDateTime baseTime) {
         PreferenceSignalType type = signal.type();
+        LocalDateTime windowStart = baseTime.minusDays(type.windowDays());
+        if (signal.occurredAt().isAfter(baseTime) || signal.occurredAt().isBefore(windowStart)) {
+            return 0;
+        }
         double elapsedDays = Duration.between(signal.occurredAt(), baseTime).toSeconds() / SECONDS_PER_DAY;
         return type.intensity() * (1 - elapsedDays / type.windowDays());
     }
