@@ -604,7 +604,8 @@ class RecommendReplicaProductTest {
     void createWithSaleStartedAt() {
         LocalDateTime saleStartedAt = PRODUCT_A_REGISTERED_AT.plusDays(3);
 
-        RecommendReplicaProduct replica = RecommendReplicaProduct.create(changeWithSaleStartedAt(saleStartedAt, PRODUCT_CHANGED_AT));
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithSaleStartedAt(saleStartedAt, PRODUCT_CHANGED_AT));
 
         assertThat(replica.getSaleStartedAt()).isEqualTo(saleStartedAt);
     }
@@ -612,7 +613,8 @@ class RecommendReplicaProductTest {
     @Test
     @DisplayName("PREF-05 판매 시작 시각이 없는 예전 메시지의 상품 정보로도 복사본을 만들고, 판매 시작 시각은 비워 둔다")
     void createWithoutSaleStartedAt() {
-        RecommendReplicaProduct replica = RecommendReplicaProduct.create(changeWithSaleStartedAt(null, PRODUCT_CHANGED_AT));
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithSaleStartedAt(null, PRODUCT_CHANGED_AT));
 
         assertThat(replica.getSaleStartedAt()).isNull();
     }
