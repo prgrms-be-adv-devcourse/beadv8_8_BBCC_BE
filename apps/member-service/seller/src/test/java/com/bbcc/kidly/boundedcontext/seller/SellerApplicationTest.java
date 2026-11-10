@@ -70,6 +70,30 @@ class SellerApplicationTest {
     }
 
     @Test
+    @DisplayName("신청한 회원이 탈퇴했으면 승인할 수 없고 PENDING 그대로다")
+    void approveRejectsWithdrawnApplicant() {
+        var application = SellerFixture.application(APPLICANT_ID);
+        application.clearPersonalInfo(NOW);
+
+        assertThatThrownBy(() -> application.approve(ADMIN_ID, NOW.plusMinutes(1)))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(SellerErrorCode.APPLICANT_WITHDRAWN));
+        assertThat(application.getStatus()).isEqualTo(SellerApplicationStatus.PENDING);
+        assertThat(application.getDecidedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("신청한 회원이 탈퇴했어도 거절할 수 있다")
+    void rejectWithdrawnApplicant() {
+        var application = SellerFixture.application(APPLICANT_ID);
+        application.clearPersonalInfo(NOW);
+
+        application.reject(ADMIN_ID, REJECT_REASON, NOW.plusMinutes(1));
+
+        assertThat(application.getStatus()).isEqualTo(SellerApplicationStatus.REJECTED);
+    }
+
+    @Test
     @DisplayName("거절하면 REJECTED가 되고 사유 · 거절한 관리자 · 시각이 남는다")
     void reject() {
         var application = SellerFixture.application(APPLICANT_ID);

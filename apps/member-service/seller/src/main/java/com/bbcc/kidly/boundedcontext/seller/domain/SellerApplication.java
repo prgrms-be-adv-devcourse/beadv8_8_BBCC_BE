@@ -89,7 +89,11 @@ public class SellerApplication extends BaseTimeEntity {
         return new SellerApplication(info);
     }
 
+    // 탈퇴한 회원은 판매자가 될 수 없다. 거절은 심사 대기 목록을 정리할 수 있게 막지 않는다
     public void approve(Long adminId, LocalDateTime now) {
+        if (applicantWithdrawnAt != null) {
+            throw new BusinessException(SellerErrorCode.APPLICANT_WITHDRAWN);
+        }
         decide(SellerApplicationStatus.APPROVED, adminId, now);
     }
 

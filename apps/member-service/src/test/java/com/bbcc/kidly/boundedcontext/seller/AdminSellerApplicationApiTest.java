@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerErrorCode;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerPolicy;
+import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationSummaryResponse;
 import com.bbcc.kidly.boundedcontext.seller.in.dto.SellerApplicationResponse;
 import com.bbcc.kidly.member.support.response.PageResponse;
@@ -37,6 +38,9 @@ class AdminSellerApplicationApiTest {
 
     @Autowired
     private SellerApplicationRepository sellerApplicationRepository;
+
+    @Autowired
+    private SellerRepository sellerRepository;
 
     @Test
     @DisplayName("신청 목록을 최신순으로 페이지 응답에 담아 준다. 사업자등록번호는 가린다")
@@ -126,6 +130,21 @@ class AdminSellerApplicationApiTest {
         approve(applicationId).expectStatus().isEqualTo(HttpStatus.CONFLICT)
             .expectBody()
             .jsonPath("$.title").isEqualTo(SellerErrorCode.APPLICATION_NOT_PENDING.title());
+    }
+
+    @Test
+    @DisplayName("신청한 회원이 탈퇴했으면 승인은 409이고 판매자를 만들지 않으며, 거절은 할 수 있다")
+    void approveWithdrawnApplicant() {
+        var application = SellerFixture.application(1L);
+        application.clearPersonalInfo(SellerFixture.NOW);
+        var applicationId = sellerApplicationRepository.save(application).getId();
+
+        approve(applicationId).expectStatus().isEqualTo(HttpStatus.CONFLICT)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo(SellerErrorCode.APPLICANT_WITHDRAWN.title());
+
+        assertThat(sellerRepository.existsById(1L)).isFalse();
+        reject(applicationId, SellerFixture.REJECT_REASON).expectStatus().isOk();
     }
 
     @Test
