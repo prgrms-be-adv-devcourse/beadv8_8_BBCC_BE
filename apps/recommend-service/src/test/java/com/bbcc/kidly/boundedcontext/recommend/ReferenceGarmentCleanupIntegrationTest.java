@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_CHANGED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarment;
@@ -10,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.Reference
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,6 +64,49 @@ class ReferenceGarmentCleanupIntegrationTest {
         assertThat(replicaChildRepository.findById(CHILD_1_ID)).get()
             .extracting(RecommendReplicaChild::isDeleted)
             .isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("같은 자녀 삭제를 두 번 받아도 예외 없이 기준 옷이 없고 복사본의 삭제 시각은 처음 그대로다")
+    void acceptSameChildDeletedTwice() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        save(ReferenceGarmentFixture.top(CHILD_1_ID));
+        var deleted = RecommendFixture.childDeletedEvent(DELETED_AT);
+
+        replicaChildService.applyChildChanged(deleted);
+        assertThatCode(() -> replicaChildService.applyChildChanged(deleted)).doesNotThrowAnyException();
+
+        assertThat(count(CHILD_1_ID)).isZero();
+        assertThat(replicaChildRepository.findById(CHILD_1_ID)).get()
+            .extracting(RecommendReplicaChild::isDeleted, RecommendReplicaChild::getDeletedAt)
+            .containsExactly(true, DELETED_AT);
+    }
+
+    @Test
+    @DisplayName("복사본에 반영한 시각보다 이르게 일어난 삭제가 늦게 도착해도 그 자녀의 기준 옷은 지운다")
+    void deleteGarmentsOnLateChildDeleted() {
+        replicaChildService.applyChildChanged(
+            RecommendFixture.childChangedEventAt(new BigDecimal("120.0"), DELETED_AT.plusMinutes(10)));
+        save(ReferenceGarmentFixture.top(CHILD_1_ID));
+        save(ReferenceGarmentFixture.bottom(CHILD_1_ID));
+
+        assertThatCode(() -> replicaChildService.applyChildChanged(RecommendFixture.childDeletedEvent(DELETED_AT)))
+            .doesNotThrowAnyException();
+
+        assertThat(count(CHILD_1_ID)).isZero();
+    }
+
+    @Test
+    @DisplayName("삭제가 아닌 자녀 정보 변경을 받으면 기준 옷은 그대로다")
+    void keepGarmentsOnChildChanged() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        save(ReferenceGarmentFixture.top(CHILD_1_ID));
+        save(ReferenceGarmentFixture.bottom(CHILD_1_ID));
+
+        replicaChildService.applyChildChanged(
+            RecommendFixture.childChangedEventAt(new BigDecimal("120.0"), CHILD_CHANGED_AT.plusMinutes(1)));
+
+        assertThat(count(CHILD_1_ID)).isEqualTo(2);
     }
 
     private void save(ReferenceGarment garment) {
