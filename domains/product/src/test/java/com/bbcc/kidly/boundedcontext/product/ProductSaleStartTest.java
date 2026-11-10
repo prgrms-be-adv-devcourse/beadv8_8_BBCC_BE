@@ -56,6 +56,16 @@ class ProductSaleStartTest {
     }
 
     @Test
+    @DisplayName("판매대기 상품을 판매 시작하면 판매 시작 시각이 넘긴 시각이다")
+    void startSaleRecordsSaleStartedAt() {
+        withOptionsAndSizeSpecs110And120();
+
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(ProductFixture.NOW);
+    }
+
+    @Test
     @DisplayName("이미 판매중인 상품에 다시 판매를 시작하면 아무것도 바꾸지 않는다 (재시도 대비)")
     void startSaleAgainChangesNothing() {
         withOptionsAndSizeSpecs110And120();
