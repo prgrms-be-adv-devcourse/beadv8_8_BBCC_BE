@@ -9,5 +9,5 @@ import jakarta.validation.constraints.Positive;
  */
 public record ProductViewRequest(
     @NotNull(message = "상품 ID가 필요합니다.") @Positive(message = "상품 ID는 1 이상이어야 합니다.") Long productId,
-    Long childId) {
+    @Positive(message = "자녀 ID는 1 이상이어야 합니다.") Long childId) {
 }
