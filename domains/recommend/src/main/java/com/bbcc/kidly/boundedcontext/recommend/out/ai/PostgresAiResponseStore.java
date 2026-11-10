@@ -1,0 +1,58 @@
+package com.bbcc.kidly.boundedcontext.recommend.out.ai;
+
+import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
+import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
+import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import java.time.LocalDateTime;
+import java.util.Optional;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Component;
+
+/**
+ * 추천 DB의 ai_response 표로 구현한 {@link AiResponseStore}다.
+ */
+@Component
+public class PostgresAiResponseStore implements AiResponseStore {
+
+    private final JdbcClient jdbcClient;
+
+    public PostgresAiResponseStore(JdbcClient jdbcClient) {
+        this.jdbcClient = jdbcClient;
+    }
+
+    @Override
+    public Optional<String> findLatestSince(AiResponseType type, AiResponseKey key, LocalDateTime since) {
+        return jdbcClient.sql("""
+                SELECT response::text
+                FROM recommend.ai_response
+                WHERE response_type = :type AND input_hash = :hash AND created_at >= :since
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """)
+            .param("type", type.name())
+            .param("hash", key.value())
+            .param("since", since)
+            .query(String.class)
+            .optional();
+    }
+
+    @Override
+    public void save(AiResponseType type, AiResponseKey key, String responseJson, LocalDateTime createdAt) {
+        jdbcClient.sql("""
+                INSERT INTO recommend.ai_response (response_type, input_hash, response, created_at)
+                VALUES (:type, :hash, CAST(:response AS jsonb), :createdAt)
+                """)
+            .param("type", type.name())
+            .param("hash", key.value())
+            .param("response", responseJson)
+            .param("createdAt", createdAt)
+            .update();
+    }
+
+    @Override
+    public int deleteCreatedBefore(LocalDateTime cutoff) {
+        return jdbcClient.sql("DELETE FROM recommend.ai_response WHERE created_at < :cutoff")
+            .param("cutoff", cutoff)
+            .update();
+    }
+}
