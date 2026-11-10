@@ -216,6 +216,20 @@ class AiResponseServiceTest {
         assertThat(answer).contains(freshAnswer());
     }
 
+    @Test
+    @DisplayName("하루 횟수를 세다 DB 오류가 나면 셀 수 없으므로 AI를 부르지 않고 AI 결과 없음을 돌려준다")
+    void returnNothingWhenCountingCallsFails() {
+        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT))
+            .willThrow(new QueryTimeoutException("횟수 갱신 시간 초과"));
+        AtomicInteger calls = new AtomicInteger();
+
+        Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, countingCall(calls, freshAnswer()));
+
+        assertThat(answer).isEmpty();
+        assertThat(calls).hasValue(0);
+    }
+
     private Answer freshAnswerCall() {
         return freshAnswer();
     }
