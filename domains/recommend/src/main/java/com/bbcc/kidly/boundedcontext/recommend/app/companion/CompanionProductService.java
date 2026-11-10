@@ -48,6 +48,21 @@ public class CompanionProductService {
 
     public CompanionProductsResult recommend(Long memberId, Long productId, Long childId) {
         CompanionCandidates candidates = candidateReader.read(memberId, productId, childId);
+        CompanionSelection selection = CompanionSelection.of(askAi(productId, candidates), candidates.ranked());
+        List<CompanionProductResult> products = new ArrayList<>();
+        for (CompanionPick pick : selection.picks()) {
+            products.add(toResult(pick, candidates));
+        }
+        return new CompanionProductsResult(selection.source(), products);
+    }
+
+    // AI 결과가 없으면 null을 돌려주고, 고르는 쪽(CompanionSelection)이 규칙 결과로 대신한다
+    private List<CompanionAiPick> askAi(Long productId, CompanionCandidates candidates) {
+        // OpenAI 키가 없으면 AI 선택 빈이 없으므로 AI 공통 서비스를 부르지 않는다
+        if (aiPicker.isEmpty()) {
+            return null;
+        }
+        CompanionAiPicker picker = aiPicker.get();
         List<Long> candidateProductIds = new ArrayList<>();
         for (CompanionCandidate candidate : candidates.ranked()) {
             candidateProductIds.add(candidate.product().productId());
@@ -56,17 +71,11 @@ public class CompanionProductService {
             candidateProductIds, null, PROMPT_VERSION);
         // BOUGHT_TOGETHER는 함께 사면 좋은 상품 답을 뜻한다.
         Optional<CompanionAiAnswer> answer = aiResponseService.respond(AiResponseType.BOUGHT_TOGETHER, input,
-            CompanionAiAnswer.class, () -> aiPicker.orElseThrow().pick(candidates.aiRequest()));
-        List<CompanionAiPick> aiPicks = null;
-        if (answer.isPresent()) {
-            aiPicks = answer.get().picks();
+            CompanionAiAnswer.class, () -> picker.pick(candidates.aiRequest()));
+        if (answer.isEmpty()) {
+            return null;
         }
-        CompanionSelection selection = CompanionSelection.of(aiPicks, candidates.ranked());
-        List<CompanionProductResult> products = new ArrayList<>();
-        for (CompanionPick pick : selection.picks()) {
-            products.add(toResult(pick, candidates));
-        }
-        return new CompanionProductsResult(selection.source(), products);
+        return answer.get().picks();
     }
 
     private CompanionProductResult toResult(CompanionPick pick, CompanionCandidates candidates) {
