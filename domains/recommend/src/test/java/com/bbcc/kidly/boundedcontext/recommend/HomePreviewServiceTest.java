@@ -89,6 +89,61 @@ class HomePreviewServiceTest {
             .containsExactly(tuple(5L, "이유 5"), tuple(2L, "이유 2"), tuple(6L, "이유 6"), tuple(1L, "이유 1"));
     }
 
+    @Test
+    @DisplayName("HOME-02 chat 모델이 없으면 AI를 부르지 않고 하루 호출 횟수도 세지 않은 채 규칙 결과를 돌려준다")
+    void ruleResultWithoutPicker() {
+        givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
+
+        HomePreviewResult result = service(null).preview(MEMBER_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(result.items()).extracting(item -> item.product().productId()).containsExactly(1L, 2L, 3L, 4L);
+        assertThat(quota.acquired).isZero();
+    }
+
+    @Test
+    @DisplayName("HOME-02 후보가 없으면 AI를 부르지 않고 하루 호출 횟수도 세지 않는다")
+    void skipAiWithoutCandidates() {
+        givenCandidates();
+        RecordingPicker picker = new RecordingPicker(answer(1L, "이유 1"));
+
+        HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(result.items()).isEmpty();
+        assertThat(picker.requests).isEmpty();
+        assertThat(quota.acquired).isZero();
+    }
+
+    @Test
+    @DisplayName("HOME-02 AI 호출이 실패하면 규칙 결과를 돌려준다")
+    void ruleResultWhenAiFails() {
+        givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
+        HomePreviewPicker failingPicker = request -> {
+            throw new IllegalStateException("AI 호출 실패");
+        };
+
+        HomePreviewResult result = service(failingPicker).preview(MEMBER_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(result.items()).extracting(item -> item.product().productId()).containsExactly(1L, 2L, 3L, 4L);
+    }
+
+    @Test
+    @DisplayName("자녀 값과 후보 구성이 같으면 후보 순서만 바뀌어도 저장한 AI 답을 다시 쓰고 AI를 다시 부르지 않는다")
+    void reuseStoredAnswerWhenOnlyOrderChanges() {
+        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5"));
+        givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
+        service(picker).preview(MEMBER_ID, CHILD_ID);
+        givenCandidates(6L, 5L, 4L, 3L, 2L, 1L);
+
+        HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
+
+        assertThat(picker.requests).hasSize(1);
+        assertThat(result.source()).isEqualTo("AI");
+        assertThat(result.items().getFirst().reason()).isEqualTo("이유 5");
+    }
+
     private HomePreviewService service(HomePreviewPicker picker) {
         return new HomePreviewService(candidateReader, replicaSellerRepository, aiResponseService,
             Optional.ofNullable(picker));
