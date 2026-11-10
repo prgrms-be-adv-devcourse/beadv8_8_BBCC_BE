@@ -7,6 +7,9 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnaps
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.TasteVector;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,9 +30,11 @@ public class PostgresPreferenceSnapshotStore implements PreferenceSnapshotStore 
         "recommend.member_brand_affinity", "recommend.member_taste_vector");
 
     private final JdbcClient jdbcClient;
+    private final NamedParameterJdbcTemplate namedJdbc;
 
-    public PostgresPreferenceSnapshotStore(JdbcClient jdbcClient) {
+    public PostgresPreferenceSnapshotStore(JdbcClient jdbcClient, NamedParameterJdbcTemplate namedJdbc) {
         this.jdbcClient = jdbcClient;
+        this.namedJdbc = namedJdbc;
     }
 
     @Override
@@ -57,24 +62,8 @@ public class PostgresPreferenceSnapshotStore implements PreferenceSnapshotStore 
     private void replace(Owner owner, Long id, PreferenceSnapshot snapshot) {
         deleteAll(owner, id);
         LocalDateTime calculatedAt = snapshot.calculatedAt();
-        for (CategoryAffinity category : snapshot.categories()) {
-            jdbcClient.sql("INSERT INTO " + owner.categoryTable() + " (" + owner.keyColumn()
-                    + ", category_id, score, calculated_at) VALUES (:id, :categoryId, :score, :calculatedAt)")
-                .param("id", id)
-                .param("categoryId", category.categoryId())
-                .param("score", category.score())
-                .param("calculatedAt", calculatedAt)
-                .update();
-        }
-        for (BrandAffinity brand : snapshot.brands()) {
-            jdbcClient.sql("INSERT INTO " + owner.brandTable() + " (" + owner.keyColumn()
-                    + ", brand, score, calculated_at) VALUES (:id, :brand, :score, :calculatedAt)")
-                .param("id", id)
-                .param("brand", brand.brand())
-                .param("score", brand.score())
-                .param("calculatedAt", calculatedAt)
-                .update();
-        }
+        insertCategories(owner, id, snapshot.categories(), calculatedAt);
+        insertBrands(owner, id, snapshot.brands(), calculatedAt);
         TasteVector taste = snapshot.tasteVector();
         if (taste != null) {
             jdbcClient.sql("INSERT INTO " + owner.vectorTable() + " (" + owner.keyColumn()
@@ -87,6 +76,37 @@ public class PostgresPreferenceSnapshotStore implements PreferenceSnapshotStore 
                 .param("calculatedAt", calculatedAt)
                 .update();
         }
+    }
+
+    private void insertCategories(Owner owner, Long id, List<CategoryAffinity> categories,
+        LocalDateTime calculatedAt) {
+        if (categories.isEmpty()) {
+            return;
+        }
+        SqlParameterSource[] batch = new SqlParameterSource[categories.size()];
+        for (int i = 0; i < batch.length; i++) {
+            batch[i] = new MapSqlParameterSource("id", id)
+                .addValue("categoryId", categories.get(i).categoryId())
+                .addValue("score", categories.get(i).score())
+                .addValue("calculatedAt", calculatedAt);
+        }
+        namedJdbc.batchUpdate("INSERT INTO " + owner.categoryTable() + " (" + owner.keyColumn()
+            + ", category_id, score, calculated_at) VALUES (:id, :categoryId, :score, :calculatedAt)", batch);
+    }
+
+    private void insertBrands(Owner owner, Long id, List<BrandAffinity> brands, LocalDateTime calculatedAt) {
+        if (brands.isEmpty()) {
+            return;
+        }
+        SqlParameterSource[] batch = new SqlParameterSource[brands.size()];
+        for (int i = 0; i < batch.length; i++) {
+            batch[i] = new MapSqlParameterSource("id", id)
+                .addValue("brand", brands.get(i).brand())
+                .addValue("score", brands.get(i).score())
+                .addValue("calculatedAt", calculatedAt);
+        }
+        namedJdbc.batchUpdate("INSERT INTO " + owner.brandTable() + " (" + owner.keyColumn()
+            + ", brand, score, calculated_at) VALUES (:id, :brand, :score, :calculatedAt)", batch);
     }
 
     private void deleteAll(Owner owner, Long id) {
