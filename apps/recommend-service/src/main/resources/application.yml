@@ -74,6 +74,10 @@ spring:
         max-completion-tokens: 2048
       embedding:
         model: text-embedding-3-small
+        # 상품 임베딩 주기 작업은 실행하는 동안 실행 잠금 연결을 쥐고 있다. 기본값(요청마다 60초, 재시도 3회)이면
+        # OpenAI 장애 때 한 번 실행이 4분을 넘으므로, 요청 하나를 20초 안에 끝내고 한 번만 다시 시도한다. 실패한 상품은 다음 주기에 다시 보낸다
+        timeout: 20s
+        max-retries: 1
 
 springdoc:
   swagger-ui:
