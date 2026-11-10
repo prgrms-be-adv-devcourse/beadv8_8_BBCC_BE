@@ -27,8 +27,10 @@ class ProductEmbeddingServiceTest {
 
     private static final Long PRODUCT_1_ID = 1L;
     private static final Long PRODUCT_2_ID = 2L;
+    private static final Long PRODUCT_3_ID = 3L;
     private static final String PRODUCT_1_TEXT = "상품명: 데일리 맨투맨";
     private static final String PRODUCT_2_TEXT = "상품명: 데일리 후드티";
+    private static final String PRODUCT_3_TEXT = "상품명: 데일리 조거팬츠";
 
     @Mock
     private ProductEmbeddingStore store;
@@ -72,6 +74,35 @@ class ProductEmbeddingServiceTest {
         verify(store).findStale(anyInt());
         verifyNoMoreInteractions(store);
         verifyNoInteractions(embedder);
+    }
+
+    @Test
+    @DisplayName("앞서 실패한 상품은 처음 보내는 상품들 뒤에 하나씩 따로 요청한다")
+    void embedRetriedProductsOneByOneAfterNeverAttemptedOnes() {
+        EmbeddingVector vector1 = vectorOf(0.1f);
+        EmbeddingVector vector2 = vectorOf(0.2f);
+        EmbeddingVector vector3 = vectorOf(0.3f);
+        given(store.findStale(anyInt())).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_3_ID, PRODUCT_3_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, true),
+            new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, true)));
+        given(embedder.embed(List.of(PRODUCT_3_TEXT))).willReturn(List.of(vector3));
+        given(embedder.embed(List.of(PRODUCT_1_TEXT))).willReturn(List.of(vector1));
+        given(embedder.embed(List.of(PRODUCT_2_TEXT))).willReturn(List.of(vector2));
+
+        service.embedStaleProducts();
+
+        InOrder inOrder = inOrder(store, embedder);
+        inOrder.verify(store).markAttempted(List.of(PRODUCT_3_ID));
+        inOrder.verify(embedder).embed(List.of(PRODUCT_3_TEXT));
+        inOrder.verify(store).saveIfTextUnchanged(PRODUCT_3_ID, PRODUCT_3_TEXT, vector3);
+        inOrder.verify(store).markAttempted(List.of(PRODUCT_1_ID));
+        inOrder.verify(embedder).embed(List.of(PRODUCT_1_TEXT));
+        inOrder.verify(store).saveIfTextUnchanged(PRODUCT_1_ID, PRODUCT_1_TEXT, vector1);
+        inOrder.verify(store).markAttempted(List.of(PRODUCT_2_ID));
+        inOrder.verify(embedder).embed(List.of(PRODUCT_2_TEXT));
+        inOrder.verify(store).saveIfTextUnchanged(PRODUCT_2_ID, PRODUCT_2_TEXT, vector2);
+        verifyNoMoreInteractions(embedder);
     }
 
     private static EmbeddingVector vectorOf(float value) {
