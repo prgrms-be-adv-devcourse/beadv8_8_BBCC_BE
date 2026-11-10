@@ -313,6 +313,22 @@ class RecommendReplicaProductIntegrationTest {
         return path;
     }
 
+    @Test
+    @DisplayName("PREF-05 상품 정보 변경됨의 판매 시작 시각이 복사본에 저장되고, 다시 읽어도 같다")
+    void storeSaleStartedAt() {
+        LocalDateTime saleStartedAt = LocalDateTime.of(2026, 11, 3, 9, 30, 15);
+        ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
+
+        replicaProductService.applyProductChanged(new ProductChangedEvent(UUID.randomUUID(), PRODUCT_CHANGED_AT,
+            new ProductChangedEvent.Data(data.productId(), data.sellerId(), data.name(), data.categoryId(),
+                data.status(), data.thumbnailUrl(), data.createdAt(), data.sizeFree(), data.options(),
+                data.infoValues(), data.brand(), data.description(), data.sizeSpecs(), data.categoryPath(),
+                data.stoppedByAdmin(), saleStartedAt)));
+
+        assertThat(replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow().getSaleStartedAt())
+            .isEqualTo(saleStartedAt);
+    }
+
     private static ProductChangedEvent eventWithCategoryPath(List<ProductChangedEvent.CategoryPathEntry> categoryPath,
         LocalDateTime occurredAt) {
         ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
