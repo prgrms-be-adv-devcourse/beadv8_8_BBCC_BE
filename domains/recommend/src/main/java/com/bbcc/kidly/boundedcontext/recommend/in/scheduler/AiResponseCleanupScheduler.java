@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.in.scheduler;
 
-import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseRetentionService;
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseCleanupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -16,13 +16,13 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class AiResponseCleanupScheduler {
 
-    private final AiResponseRetentionService retentionService;
+    private final AiResponseCleanupService cleanupService;
 
     // 서버 여러 대가 함께 지워도 결과가 같아 잠금을 두지 않는다.
     @Scheduled(cron = "${kidly.recommend.ai.response-cleanup-cron:0 30 4 * * *}", zone = "Asia/Seoul")
     public void deleteExpiredResponses() {
         try {
-            retentionService.deleteExpiredResponses();
+            cleanupService.deleteExpiredResponses();
         } catch (RuntimeException e) {
             // 예외 메시지와 스택 트레이스에는 DB 오류의 행 값이 들어갈 수 있어 예외 종류만 남긴다
             log.error("AI 응답 정리가 예외로 끝났습니다. error={}", e.getClass().getSimpleName());

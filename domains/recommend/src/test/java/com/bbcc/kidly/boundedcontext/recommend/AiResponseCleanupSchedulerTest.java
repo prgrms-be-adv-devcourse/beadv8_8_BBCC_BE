@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseRetentionService;
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseCleanupService;
 import com.bbcc.kidly.boundedcontext.recommend.in.scheduler.AiResponseCleanupScheduler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,20 +24,20 @@ import org.springframework.scheduling.annotation.Scheduled;
 class AiResponseCleanupSchedulerTest {
 
     @Mock
-    private AiResponseRetentionService retentionService;
+    private AiResponseCleanupService cleanupService;
 
     @Test
     @DisplayName("실행할 때마다 보관 기간이 지난 AI 응답 지우기를 맡긴다")
     void deleteExpiredResponses() {
-        new AiResponseCleanupScheduler(retentionService).deleteExpiredResponses();
+        new AiResponseCleanupScheduler(cleanupService).deleteExpiredResponses();
 
-        verify(retentionService).deleteExpiredResponses();
+        verify(cleanupService).deleteExpiredResponses();
     }
 
     @Test
     @DisplayName("서비스가 예외를 던져도 스케줄러는 던지지 않고, 로그에 예외 메시지를 남기지 않는다")
     void swallowException() {
-        doThrow(new QueryTimeoutException("Failing row contains (행 값)")).when(retentionService)
+        doThrow(new QueryTimeoutException("Failing row contains (행 값)")).when(cleanupService)
             .deleteExpiredResponses();
         Logger schedulerLogger = (Logger) LoggerFactory.getLogger(AiResponseCleanupScheduler.class);
         ListAppender<ILoggingEvent> logs = new ListAppender<>();
@@ -45,7 +45,7 @@ class AiResponseCleanupSchedulerTest {
         schedulerLogger.addAppender(logs);
 
         try {
-            assertThatCode(() -> new AiResponseCleanupScheduler(retentionService).deleteExpiredResponses())
+            assertThatCode(() -> new AiResponseCleanupScheduler(cleanupService).deleteExpiredResponses())
                 .doesNotThrowAnyException();
         } finally {
             schedulerLogger.detachAppender(logs);

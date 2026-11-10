@@ -15,21 +15,21 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
-public class AiResponseRetentionService {
+public class AiResponseCleanupService {
 
     private final AiResponseStore store;
     private final Clock clock;
     private final Duration retention;
 
     @Autowired
-    public AiResponseRetentionService(
+    public AiResponseCleanupService(
         AiResponseStore store,
         @Value("${kidly.recommend.ai.response-retention:P30D}") Duration retention
     ) {
         this(store, Clock.system(ZoneId.of("Asia/Seoul")), retention);
     }
 
-    public AiResponseRetentionService(AiResponseStore store, Clock clock, Duration retention) {
+    public AiResponseCleanupService(AiResponseStore store, Clock clock, Duration retention) {
         this.store = store;
         this.clock = clock;
         this.retention = retention;
