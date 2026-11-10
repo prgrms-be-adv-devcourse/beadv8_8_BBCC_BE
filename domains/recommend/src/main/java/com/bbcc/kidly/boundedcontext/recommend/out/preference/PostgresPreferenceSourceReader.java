@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.out.preference;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSourceReader;
+import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ConfirmedPurchase;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.RecentActivity;
@@ -13,6 +14,10 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
+
+    // 자녀와 회원은 활동을 고르는 조건만 달라서 같은 쿼리를 쓴다
+    private static final String CHILD_ACTIVITIES = "a.child_profile_id = :id";
+    private static final String MEMBER_ACTIVITIES = "a.member_id = :id AND a.child_profile_id IS NULL";
 
     private final JdbcClient jdbcClient;
 
@@ -59,12 +64,12 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
 
     @Override
     public List<RecentActivity> findChildActivities(Long childProfileId, LocalDateTime from, LocalDateTime to) {
-        throw new UnsupportedOperationException();
+        return findActivities(CHILD_ACTIVITIES, childProfileId, from, to);
     }
 
     @Override
     public List<RecentActivity> findMemberActivities(Long memberId, LocalDateTime from, LocalDateTime to) {
-        throw new UnsupportedOperationException();
+        return findActivities(MEMBER_ACTIVITIES, memberId, from, to);
     }
 
     @Override
@@ -75,5 +80,34 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
     @Override
     public Map<Long, EmbeddingVector> findEmbeddings(Collection<Long> productIds) {
         throw new UnsupportedOperationException();
+    }
+
+    // 상세 진입 · 담기 기록은 카테고리 · 브랜드 칸을 채우지 않을 수 있어 상품 복사본의 지금 값으로 채운다
+    private List<RecentActivity> findActivities(String ownerCondition, Long id, LocalDateTime from, LocalDateTime to) {
+        return jdbcClient.sql("""
+                SELECT a.type, a.product_id, COALESCE(a.category_id, p.category_id) AS category_id,
+                       COALESCE(a.brand, p.brand) AS brand, a.occurred_at,
+                       (a.type = 'CART_ITEM_ADDED' AND EXISTS (
+                           SELECT 1 FROM recommend.activity_record r
+                           WHERE r.type = 'CART_ITEM_REMOVED' AND r.cart_item_id = a.cart_item_id
+                             AND r.occurred_at <= :to)) AS removed_from_cart
+                FROM recommend.activity_record a
+                LEFT JOIN recommend.replica_product p ON p.product_id = a.product_id
+                WHERE %s
+                  AND a.type IN ('SEARCH', 'PRODUCT_VIEWED', 'CART_ITEM_ADDED')
+                  AND a.occurred_at >= :from AND a.occurred_at <= :to
+                ORDER BY a.occurred_at, a.id
+                """.formatted(ownerCondition))
+            .param("id", id)
+            .param("from", from)
+            .param("to", to)
+            .query((rs, rowNum) -> new RecentActivity(
+                ActivityType.valueOf(rs.getString("type")),
+                rs.getObject("product_id", Long.class),
+                rs.getObject("category_id", Long.class),
+                rs.getString("brand"),
+                rs.getObject("occurred_at", LocalDateTime.class),
+                rs.getBoolean("removed_from_cart")))
+            .list();
     }
 }
