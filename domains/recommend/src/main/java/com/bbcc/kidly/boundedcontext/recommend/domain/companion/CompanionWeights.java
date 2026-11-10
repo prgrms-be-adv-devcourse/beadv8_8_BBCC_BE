@@ -10,6 +10,8 @@ public final class CompanionWeights {
 
     public static final double PAIR_PRIORITY = 0.7;
 
+    public static final int CANDIDATE_COUNT = 20;
+
     private CompanionWeights() {
     }
 }
