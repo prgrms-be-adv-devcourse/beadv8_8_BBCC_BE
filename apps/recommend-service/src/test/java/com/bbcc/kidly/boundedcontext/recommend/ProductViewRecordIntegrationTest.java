@@ -1,7 +1,11 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.ADDED_QTY;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.CART_ITEM_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.CART_QTY;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_120_OPTION_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -11,9 +15,20 @@ import com.bbcc.kidly.boundedcontext.recommend.out.activity.JpaActivityRecordRep
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.function.IntFunction;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +42,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 class ProductViewRecordIntegrationTest {
 
     private static final LocalDate VIEW_DAY = LocalDate.of(2026, 11, 10);
+    private static final int THREADS = 5;
+    private static final long TIMEOUT_SECONDS = 60;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -49,6 +66,42 @@ class ProductViewRecordIntegrationTest {
             .containsExactly(ActivityType.PRODUCT_VIEWED, childProfileId, VIEW_DAY.atTime(10, 0));
     }
 
+    @ParameterizedTest(name = "자녀 ID {0}")
+    @MethodSource("childProfileIds")
+    @DisplayName("PREF-15 같은 회원 · 자녀 · 상품이라도 날짜가 바뀌면(23:59:59와 다음 날 00:00:00) 상세 진입을 각각 저장한다")
+    void saveViewsOfDifferentDays(Long childProfileId) {
+        boolean lastOfDay = saveIfAbsent(childProfileId, VIEW_DAY.atTime(23, 59, 59));
+        boolean firstOfNextDay = saveIfAbsent(childProfileId, VIEW_DAY.plusDays(1).atStartOfDay());
+
+        assertThat(lastOfDay).isTrue();
+        assertThat(firstOfNextDay).isTrue();
+        assertThat(activityRecordRepository.findAll()).extracting(ActivityRecord::getOccurredAt)
+            .containsExactlyInAnyOrder(VIEW_DAY.atTime(23, 59, 59), VIEW_DAY.plusDays(1).atStartOfDay());
+    }
+
+    @ParameterizedTest(name = "자녀 ID {0}")
+    @MethodSource("childProfileIds")
+    @DisplayName("PREF-15 같은 상세 진입을 실제 스레드 여러 개가 동시에 저장해도 예외 없이 한 줄만 남는다")
+    void saveSameViewAtOnce(Long childProfileId) throws Exception {
+        List<Boolean> saved = runAtOnce(i -> saveIfAbsent(childProfileId, VIEW_DAY.atTime(10, i)));
+
+        assertThat(saved).containsOnlyOnce(true).hasSize(THREADS);
+        assertThat(activityRecordRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("PREF-15 같은 회원 · 자녀 · 상품 · 날짜의 장바구니 담기 기록은 모두 저장하고, 상세 진입이 있어도 담기를 막지 않는다")
+    void keepCartItemsAddedOfSameDay() {
+        activityRecordRepository.saveAndFlush(cartItemAdded(VIEW_DAY.atTime(10, 0)));
+        boolean viewed = saveIfAbsent(CHILD_1_ID, VIEW_DAY.atTime(10, 1));
+        activityRecordRepository.saveAndFlush(cartItemAdded(VIEW_DAY.atTime(10, 2)));
+
+        assertThat(viewed).isTrue();
+        assertThat(activityRecordRepository.findAll()).extracting(ActivityRecord::getType)
+            .containsExactlyInAnyOrder(
+                ActivityType.CART_ITEM_ADDED, ActivityType.PRODUCT_VIEWED, ActivityType.CART_ITEM_ADDED);
+    }
+
     static Stream<Long> childProfileIds() {
         return Stream.of(CHILD_1_ID, null);
     }
@@ -59,5 +112,40 @@ class ProductViewRecordIntegrationTest {
             UUID.randomUUID(), MEMBER_1_ID, childProfileId, PRODUCT_A_ID, viewedAt));
         return Boolean.TRUE.equals(transactionTemplate.execute(
             status -> activityRecordRepository.saveProductViewedIfAbsent(record)));
+    }
+
+    private static ActivityRecord cartItemAdded(LocalDateTime addedAt) {
+        return ActivityRecord.cartItemAdded(new ActivityRecord.CartItemAddedInfo(UUID.randomUUID(), CART_ITEM_ID,
+            MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY, CART_QTY, addedAt));
+    }
+
+    // 작업마다 자기 스레드 · 자기 트랜잭션으로 저장하고, 출발 신호 하나로 함께 시작한다
+    private <T> List<T> runAtOnce(IntFunction<T> task) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(THREADS);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<T>> futures = IntStream.range(0, THREADS)
+                .mapToObj(i -> executor.submit(() -> {
+                    start.await();
+                    return task.apply(i);
+                }))
+                .toList();
+            start.countDown();
+            List<T> results = new ArrayList<>();
+            for (Future<T> future : futures) {
+                results.add(get(future));
+            }
+            return results;
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static <T> T get(Future<T> future) throws Exception {
+        try {
+            return future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            throw new AssertionError("동시 저장이 예외로 끝났다", e.getCause());
+        }
     }
 }
