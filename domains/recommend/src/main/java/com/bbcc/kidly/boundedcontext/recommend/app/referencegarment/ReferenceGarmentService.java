@@ -42,4 +42,9 @@ public class ReferenceGarmentService {
         }
         return ReferenceGarmentResult.from(referenceGarmentRepository.save(ReferenceGarment.create(childId, spec)));
     }
+
+    @Transactional
+    public void delete(Long memberId, Long childId, String partName) {
+        referenceGarmentRepository.deleteByChildProfileIdAndPart(childId, GarmentPart.valueOf(partName));
+    }
 }
