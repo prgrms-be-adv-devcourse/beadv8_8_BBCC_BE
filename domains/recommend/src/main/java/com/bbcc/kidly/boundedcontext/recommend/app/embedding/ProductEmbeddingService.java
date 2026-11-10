@@ -30,15 +30,15 @@ public class ProductEmbeddingService {
                 neverAttempted.add(target);
             }
         }
-        if (!neverAttempted.isEmpty()) {
-            embedTogether(neverAttempted);
+        if (!neverAttempted.isEmpty() && !embedTogether(neverAttempted)) {
+            return;
         }
         for (ProductEmbeddingTarget target : retried) {
             embedTogether(List.of(target));
         }
     }
 
-    private void embedTogether(List<ProductEmbeddingTarget> targets) {
+    private boolean embedTogether(List<ProductEmbeddingTarget> targets) {
         List<Long> productIds = new ArrayList<>();
         List<String> texts = new ArrayList<>();
         for (ProductEmbeddingTarget target : targets) {
@@ -46,9 +46,15 @@ public class ProductEmbeddingService {
             texts.add(target.text());
         }
         store.markAttempted(productIds);
-        List<EmbeddingVector> vectors = embedder.embed(texts);
+        List<EmbeddingVector> vectors;
+        try {
+            vectors = embedder.embed(texts);
+        } catch (RuntimeException e) {
+            return false;
+        }
         for (int i = 0; i < targets.size(); i++) {
             store.saveIfTextUnchanged(productIds.get(i), texts.get(i), vectors.get(i));
         }
+        return true;
     }
 }
