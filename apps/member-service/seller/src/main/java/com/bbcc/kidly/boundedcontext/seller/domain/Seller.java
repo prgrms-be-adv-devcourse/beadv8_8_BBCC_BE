@@ -19,7 +19,7 @@ import org.springframework.util.Assert;
 
 /**
  * 판매자. {@code id}는 회원 ID와 같아서(sellerId = memberId) 회원 1명당 최대 1개다.
- * 승인된 신청에서만 만든다. ACTIVE → SUSPENDED로만 바뀐다(해제 없음).
+ * 승인된 신청에서만 만든다. ACTIVE → SUSPENDED(해제 없음), ACTIVE · SUSPENDED → CLOSED(회원 탈퇴)로만 바뀐다.
  */
 @Entity
 @Table(name = "seller", schema = "seller")
@@ -57,10 +57,18 @@ public class Seller extends BaseTimeEntity {
     }
 
     public void suspend(Long adminId, String reason, LocalDateTime now) {
+        if (status == SellerStatus.CLOSED) {
+            throw new BusinessException(SellerErrorCode.SELLER_CLOSED);
+        }
         if (status != SellerStatus.ACTIVE) {
             throw new BusinessException(SellerErrorCode.SELLER_ALREADY_SUSPENDED);
         }
         this.status = SellerStatus.SUSPENDED;
         this.suspension = new SellerSuspension(reason, adminId, now);
+    }
+
+    // 회원 탈퇴로 판매자를 닫는다. 정지된 판매자도 닫고 정지 기록은 남긴다. 이미 닫혔으면 그대로 둔다
+    public void close() {
+        this.status = SellerStatus.CLOSED;
     }
 }
