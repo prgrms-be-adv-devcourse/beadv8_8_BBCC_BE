@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSourceReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ConfirmedPurchase;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.RecentActivity;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -132,6 +135,23 @@ class PreferenceSourceReaderIntegrationTest {
             new ConfirmedPurchase(100L, "Nike", SINCE),
             new ConfirmedPurchase(999L, null, SINCE.plusHours(1)),
             new ConfirmedPurchase(100L, "Nike", to));
+    }
+
+    @Test
+    @DisplayName("상품 벡터는 요청한 상품 중 벡터가 있는 상품만 값 그대로 읽는다")
+    void readEmbeddingsOfRequestedProductsWithVector() {
+        EmbeddingVector vector = PreferenceTestData.vectorOf(0.5f);
+        PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", vector);
+        PreferenceTestData.insertProduct(jdbc, 101L, 10L, "Nike", null);
+        PreferenceTestData.insertProduct(jdbc, 102L, 10L, "Nike", PreferenceTestData.vectorOf(-0.5f));
+
+        assertThat(reader.findEmbeddings(List.of(100L, 101L, 999L))).containsOnly(Map.entry(100L, vector));
+    }
+
+    @Test
+    @DisplayName("상품 ID가 비어 있으면 빈 Map을 읽는다")
+    void readNoEmbeddingsForEmptyProductIds() {
+        assertThat(reader.findEmbeddings(List.of())).isEmpty();
     }
 
     private void insert(ActivityType type, Long childProfileId, LocalDateTime occurredAt, Long productId,
