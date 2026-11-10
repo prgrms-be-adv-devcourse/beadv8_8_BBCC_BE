@@ -32,7 +32,7 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      * @param stoppedByAdmin true면 관리자가 운영 정책에 따라 판매를 중지한 상품이다. 판매자는 다시 판매를 시작할 수 없다.
      *        이 칸이 생기기 전에 나간 메시지는 false로 읽힌다
      * @param saleStartedAt 상품이 처음 판매중이 된 시각(한국 시간)이다. 판매중지 뒤 다시 판매해도 바뀌지 않는다.
-     *        이 칸이 생기기 전에 나간 메시지와, 이 칸이 생기기 전에 판매를 시작한 상품은 null일 수 있으므로 받는 쪽은 null을 다뤄야 한다
+     *        이 칸이 생기기 전에 나간 메시지와, 판매를 시작하지 않고 등록 취소한 상품은 null이므로 받는 쪽은 null을 다뤄야 한다
      */
     public record Data(
             Long productId,
