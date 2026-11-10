@@ -26,6 +26,7 @@ public class PostgresAiResponseStore implements AiResponseStore {
                 SELECT response::text
                 FROM recommend.ai_response
                 WHERE response_type = :type AND input_hash = :hash AND created_at >= :createdAfter
+                ORDER BY created_at DESC, id DESC
                 LIMIT 1
                 """)
             .param("type", type.name())
