@@ -2,7 +2,9 @@ package com.bbcc.kidly.boundedcontext.recommend.app.recommended;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSnapshotStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.TasteSimilarityReader;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.recommended.RecommendExcludedProducts;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceWeights;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductRanker;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductSelector;
@@ -32,6 +34,7 @@ public class RecommendedProductRanking {
     private final RecommendReplicaProductRepository replicaProductRepository;
     private final PreferenceSnapshotStore snapshotStore;
     private final TasteSimilarityReader tasteSimilarityReader;
+    private final RecommendExcludedProducts excludedProducts;
     private final RecommendedProductSelector selector;
     private final RecommendedProductRanker ranker = new RecommendedProductRanker();
 
@@ -39,10 +42,12 @@ public class RecommendedProductRanking {
         RecommendReplicaProductRepository replicaProductRepository,
         PreferenceSnapshotStore snapshotStore,
         TasteSimilarityReader tasteSimilarityReader,
-        GrowthChart growthChart) {
+        GrowthChart growthChart,
+        RecommendExcludedProducts excludedProducts) {
         this.replicaProductRepository = replicaProductRepository;
         this.snapshotStore = snapshotStore;
         this.tasteSimilarityReader = tasteSimilarityReader;
+        this.excludedProducts = excludedProducts;
         this.selector = new RecommendedProductSelector(new SizeRecommender(growthChart));
     }
 
@@ -54,7 +59,10 @@ public class RecommendedProductRanking {
             selector.select(child.toChildSizeInput(), products, LocalDate.now(SERVICE_ZONE));
         PreferenceSnapshot combined = PreferenceSnapshot.combine(
             snapshotStore.findChild(child.getChildProfileId()), snapshotStore.findMember(memberId));
-        return ranker.rank(selected, combined, readSimilarities(combined, selected), Set.of(), asOf);
+        // 담고 30일이 넘도록 빼지 않은 상품은 결제로 장바구니가 비워져 빼기 이벤트가 오지 않은 것으로 보고 뺄 상품으로 세지 않는다
+        Set<Long> excludedProductIds = excludedProducts.findIds(memberId, child.getChildProfileId(),
+            asOf.minusDays(PreferenceWeights.ACTIVITY_WINDOW_DAYS));
+        return ranker.rank(selected, combined, readSimilarities(combined, selected), excludedProductIds, asOf);
     }
 
     // 취향 벡터가 없으면 유사도를 쓰지 않으므로 상품 벡터를 읽지 않는다
