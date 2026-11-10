@@ -3,11 +3,13 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentCategoryPathEntry;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentSpec;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +43,7 @@ class ReferenceGarmentSpecTest {
     @DisplayName("FIT-01 구분에 맞는 카테고리 경로면 기준 옷 값이 만들어진다")
     void createdWhenCategoryPathMatchesPart(GarmentPart part, List<String> categoryPathNames) {
         ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(
-            part, CATEGORY_ID, categoryPathNames, requiredMeasurements(part));
+            part, CATEGORY_ID, path(categoryPathNames), requiredMeasurements(part));
 
         assertThat(spec.part()).isEqualTo(part);
         assertThat(spec.categoryId()).isEqualTo(CATEGORY_ID);
@@ -59,7 +61,7 @@ class ReferenceGarmentSpecTest {
     @DisplayName("FIT-01 구분과 맞지 않는 카테고리 경로면 구분과 맞지 않는 세부 종류라고 거절한다")
     void rejectedWhenCategoryPathDoesNotMatchPart(GarmentPart part, List<String> categoryPathNames) {
         assertRejected(
-            () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, categoryPathNames, requiredMeasurements(part)),
+            () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, path(categoryPathNames), requiredMeasurements(part)),
             ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH);
     }
 
@@ -76,7 +78,7 @@ class ReferenceGarmentSpecTest {
     @DisplayName("카테고리 경로를 찾지 못했으면 확인할 수 없는 세부 종류라고 거절한다")
     void rejectedWhenCategoryPathIsNotFound(GarmentPart part, List<String> categoryPathNames) {
         assertRejected(
-            () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, categoryPathNames, requiredMeasurements(part)),
+            () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, path(categoryPathNames), requiredMeasurements(part)),
             ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
     }
 
@@ -100,7 +102,7 @@ class ReferenceGarmentSpecTest {
     @DisplayName("필수 실측만 넣어도, 선택 실측까지 넣어도 기준 옷 값이 만들어지고 실측은 넣은 그대로다")
     void createdWithRequiredOnlyOrWithOptionalMeasurements(
         GarmentPart part, List<String> categoryPathNames, Map<String, BigDecimal> measurements) {
-        ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(part, CATEGORY_ID, categoryPathNames, measurements);
+        ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(part, CATEGORY_ID, path(categoryPathNames), measurements);
 
         assertThat(spec.measurements()).isEqualTo(measurements);
     }
@@ -110,7 +112,7 @@ class ReferenceGarmentSpecTest {
     void measurementsAreNotAffectedByLaterChangeOfGivenMap() {
         Map<String, BigDecimal> given = new HashMap<>(requiredMeasurements(GarmentPart.TOP));
         ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(
-            GarmentPart.TOP, CATEGORY_ID, List.of("의류", "상의"), given);
+            GarmentPart.TOP, CATEGORY_ID, path(List.of("의류", "상의")), given);
 
         given.put("SLEEVE_LENGTH", cm("38.5"));
 
@@ -120,8 +122,8 @@ class ReferenceGarmentSpecTest {
     @Test
     @DisplayName("기준 옷 값의 실측은 밖에서 바꿀 수 없다")
     void measurementsCannotBeChangedFromOutside() {
-        ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(GarmentPart.TOP, CATEGORY_ID, List.of("의류", "상의"),
-            new HashMap<>(requiredMeasurements(GarmentPart.TOP)));
+        ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(GarmentPart.TOP, CATEGORY_ID,
+            path(List.of("의류", "상의")), new HashMap<>(requiredMeasurements(GarmentPart.TOP)));
 
         assertThatThrownBy(() -> spec.measurements().put("SLEEVE_LENGTH", cm("38.5")))
             .isInstanceOf(UnsupportedOperationException.class);
@@ -203,7 +205,7 @@ class ReferenceGarmentSpecTest {
         Map<String, BigDecimal> measurements = Map.of("TOTAL_LENGTH", cm(value), "CHEST_WIDTH", cm("34.0"));
 
         ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(
-            GarmentPart.TOP, CATEGORY_ID, List.of("의류", "상의"), measurements);
+            GarmentPart.TOP, CATEGORY_ID, path(List.of("의류", "상의")), measurements);
 
         assertThat(spec.measurements()).isEqualTo(measurements);
     }
@@ -237,12 +239,12 @@ class ReferenceGarmentSpecTest {
     void rejectedByTheFirstFailedCheck(String problems, List<String> categoryPathNames,
         Map<String, BigDecimal> measurements, ReferenceGarmentErrorCode expected) {
         assertRejected(
-            () -> ReferenceGarmentSpec.of(GarmentPart.TOP, CATEGORY_ID, categoryPathNames, measurements),
+            () -> ReferenceGarmentSpec.of(GarmentPart.TOP, CATEGORY_ID, path(categoryPathNames), measurements),
             expected);
     }
 
     static Stream<Arguments> creationsWithoutPartOrCategoryId() {
-        List<String> topPath = List.of("의류", "상의");
+        List<GarmentCategoryPathEntry> topPath = matchingPath(GarmentPart.TOP);
         Map<String, BigDecimal> measurements = requiredMeasurements(GarmentPart.TOP);
         return Stream.of(
             Arguments.of(Named.of("구분 없음", (ThrowingCallable) () ->
@@ -260,8 +262,20 @@ class ReferenceGarmentSpecTest {
             .hasMessageContaining("필수입니다");
     }
 
-    private static List<String> matchingPath(GarmentPart part) {
-        return part == GarmentPart.TOP ? List.of("의류", "상의") : List.of("의류", "하의");
+    private static List<GarmentCategoryPathEntry> matchingPath(GarmentPart part) {
+        return path(part == GarmentPart.TOP ? List.of("의류", "상의") : List.of("의류", "하의"));
+    }
+
+    private static List<GarmentCategoryPathEntry> path(List<String> names) {
+        if (names == null) {
+            return null;
+        }
+        List<GarmentCategoryPathEntry> entries = new ArrayList<>();
+        for (int i = 0; i < names.size(); i++) {
+            boolean last = i == names.size() - 1;
+            entries.add(new GarmentCategoryPathEntry(last ? CATEGORY_ID : (long) i + 1, names.get(i)));
+        }
+        return entries;
     }
 
     private static void assertRejected(ThrowingCallable creation, ReferenceGarmentErrorCode expected) {

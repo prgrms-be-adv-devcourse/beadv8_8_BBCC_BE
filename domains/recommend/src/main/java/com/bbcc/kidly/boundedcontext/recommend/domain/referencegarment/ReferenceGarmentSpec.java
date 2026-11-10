@@ -4,6 +4,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.Getter;
@@ -36,26 +37,34 @@ public final class ReferenceGarmentSpec {
     }
 
     /**
-     * @param categoryPathNames 세부 종류 카테고리의 경로 이름이다. 대분류부터 말단 순서이고, 찾지 못했으면 null이거나 비어 있다.
+     * @param categoryPath 세부 종류 카테고리의 경로다. 대분류부터 말단 순서이고, 찾지 못했으면 null이거나 비어 있다.
      */
-    public static ReferenceGarmentSpec of(GarmentPart part, Long categoryId, List<String> categoryPathNames,
-        Map<String, BigDecimal> measurements) {
+    public static ReferenceGarmentSpec of(GarmentPart part, Long categoryId,
+        List<GarmentCategoryPathEntry> categoryPath, Map<String, BigDecimal> measurements) {
         requireNonNull(part, "part는 필수입니다");
         requireNonNull(categoryId, "categoryId는 필수입니다");
-        checkCategory(part, categoryPathNames);
+        checkCategory(part, categoryPath);
         Map<String, BigDecimal> given = measurements == null ? Map.of() : measurements;
         checkMeasurementCodes(part, given);
         checkMeasurementValues(given);
         return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(given));
     }
 
-    private static void checkCategory(GarmentPart part, List<String> categoryPathNames) {
-        if (categoryPathNames == null || categoryPathNames.isEmpty()) {
+    private static void checkCategory(GarmentPart part, List<GarmentCategoryPathEntry> categoryPath) {
+        if (categoryPath == null || categoryPath.isEmpty()) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
         }
-        if (!part.includesCategoryIn(categoryPathNames)) {
+        if (!part.includesCategoryIn(namesOf(categoryPath))) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH);
         }
+    }
+
+    private static List<String> namesOf(List<GarmentCategoryPathEntry> categoryPath) {
+        List<String> names = new ArrayList<>();
+        for (GarmentCategoryPathEntry entry : categoryPath) {
+            names.add(entry.categoryName());
+        }
+        return names;
     }
 
     private static void checkMeasurementCodes(GarmentPart part, Map<String, BigDecimal> given) {
