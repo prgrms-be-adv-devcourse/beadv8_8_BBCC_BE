@@ -59,6 +59,21 @@ class CompanionSelectionTest {
             .containsExactly("색이 잘 어울린다", null, null, null);
     }
 
+    @Test
+    @DisplayName("AI 답에 빈 항목이 섞여 있으면 그 항목만 버린다")
+    void skipNullAiPicks() {
+        List<CompanionCandidate> ranked = rankedCandidates(6);
+        List<CompanionAiPick> aiPicks = new ArrayList<>();
+        aiPicks.add(null);
+        aiPicks.add(new CompanionAiPick(4L, "색이 잘 어울린다"));
+
+        CompanionSelection selection = CompanionSelection.of(aiPicks, ranked);
+
+        assertThat(selection.source()).isEqualTo(CompanionSource.AI);
+        assertThat(selection.picks()).extracting(pick -> pick.product().productId())
+            .containsExactly(4L, 1L, 2L, 3L);
+    }
+
     static Stream<List<CompanionAiPick>> noUsableAiPicks() {
         return Stream.of(null, List.of(), List.of(new CompanionAiPick(99L, "후보에 없는 상품")));
     }
