@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 
@@ -29,8 +31,10 @@ public record AiResponseKey(String value) {
     }
 
     private static String joinIds(List<Long> ids) {
+        List<Long> sorted = new ArrayList<>(ids);
+        Collections.sort(sorted);
         StringBuilder joined = new StringBuilder();
-        for (Long id : ids) {
+        for (Long id : sorted) {
             if (joined.length() > 0) {
                 joined.append(',');
             }
