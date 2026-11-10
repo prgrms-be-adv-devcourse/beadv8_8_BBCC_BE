@@ -111,6 +111,46 @@ class ReferenceGarmentRepositoryIntegrationTest {
         assertThat(garments).extracting(ReferenceGarment::getChildProfileId).containsOnly(CHILD_ID);
     }
 
+    @Test
+    @DisplayName("FIT-01 구분 하나를 지우면 그 줄만 지워지고 같은 자녀의 다른 구분과 다른 자녀의 것은 남는다")
+    void deleteOnlyThatPart() {
+        save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+        save(CHILD_ID, bottomSpec());
+        save(OTHER_CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+
+        transactionTemplate.executeWithoutResult(
+            status -> referenceGarmentRepository.deleteByChildProfileIdAndPart(CHILD_ID, GarmentPart.TOP));
+
+        assertThat(count(CHILD_ID)).isEqualTo(1);
+        assertThat(find(CHILD_ID, GarmentPart.BOTTOM).getPart()).isEqualTo(GarmentPart.BOTTOM);
+        assertThat(count(OTHER_CHILD_ID)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FIT-01 없는 기준 옷을 지워도 예외가 없고 다른 줄은 그대로다")
+    void deleteMissingGarmentWithoutError() {
+        save(OTHER_CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+
+        transactionTemplate.executeWithoutResult(
+            status -> referenceGarmentRepository.deleteByChildProfileIdAndPart(CHILD_ID, GarmentPart.TOP));
+
+        assertThat(count(OTHER_CHILD_ID)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FIT-01 자녀를 지우면 그 자녀의 두 줄만 지워지고 다른 자녀의 것은 남는다")
+    void deleteAllOfChild() {
+        save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+        save(CHILD_ID, bottomSpec());
+        save(OTHER_CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+
+        transactionTemplate.executeWithoutResult(
+            status -> referenceGarmentRepository.deleteByChildProfileId(CHILD_ID));
+
+        assertThat(count(CHILD_ID)).isZero();
+        assertThat(count(OTHER_CHILD_ID)).isEqualTo(1);
+    }
+
     private void save(Long childProfileId, ReferenceGarmentSpec spec) {
         transactionTemplate.executeWithoutResult(
             status -> referenceGarmentRepository.save(ReferenceGarment.create(childProfileId, spec)));
