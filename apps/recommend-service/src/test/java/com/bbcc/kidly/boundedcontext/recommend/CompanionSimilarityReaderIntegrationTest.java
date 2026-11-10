@@ -42,4 +42,21 @@ class CompanionSimilarityReaderIntegrationTest {
         assertThat(similarities.get(101L)).isCloseTo(-1.0, within(1e-6));
         assertThat(similarities.get(102L)).isCloseTo(0.0, within(1e-6));
     }
+
+    @Test
+    @DisplayName("PAIR-05 보고 있는 상품에 벡터가 없으면 모든 후보의 유사도를 모르는 것으로 보고 빈 Map을 읽는다")
+    void readNoSimilaritiesWhenViewedProductHasNoVector() {
+        PreferenceTestData.insertProduct(jdbc, VIEWED_PRODUCT_ID, 10L, "Nike", null);
+        PreferenceTestData.insertProduct(jdbc, 100L, 20L, "Nike", PreferenceTestData.unitVector(0, 1f));
+
+        assertThat(reader.similarities(VIEWED_PRODUCT_ID, List.of(100L))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("후보 상품 ID가 비어 있으면 빈 Map을 읽는다")
+    void readNoSimilaritiesForEmptyProductIds() {
+        PreferenceTestData.insertProduct(jdbc, VIEWED_PRODUCT_ID, 10L, "Nike", PreferenceTestData.unitVector(0, 1f));
+
+        assertThat(reader.similarities(VIEWED_PRODUCT_ID, List.of())).isEmpty();
+    }
 }
