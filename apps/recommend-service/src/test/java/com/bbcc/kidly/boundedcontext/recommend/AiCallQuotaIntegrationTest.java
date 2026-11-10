@@ -38,6 +38,22 @@ class AiCallQuotaIntegrationTest {
         assertThat(callCount(TODAY)).isEqualTo(3);
     }
 
+    @Test
+    @DisplayName("날짜가 다르면 날짜마다 따로 센다")
+    void countEachDateSeparately() {
+        LocalDate tomorrow = TODAY.plusDays(1);
+
+        boolean today = quota.tryAcquire(TODAY, 1);
+        boolean todayAgain = quota.tryAcquire(TODAY, 1);
+        boolean nextDay = quota.tryAcquire(tomorrow, 1);
+
+        assertThat(today).isTrue();
+        assertThat(todayAgain).isFalse();
+        assertThat(nextDay).isTrue();
+        assertThat(callCount(TODAY)).isEqualTo(1);
+        assertThat(callCount(tomorrow)).isEqualTo(1);
+    }
+
     private Integer callCount(LocalDate date) {
         List<Integer> counts = jdbcTemplate.queryForList(
             "select call_count from recommend.ai_call_usage where usage_date = ?", Integer.class, date);
