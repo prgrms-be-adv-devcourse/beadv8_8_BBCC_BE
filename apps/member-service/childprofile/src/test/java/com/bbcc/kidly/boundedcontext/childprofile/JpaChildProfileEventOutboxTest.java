@@ -15,6 +15,7 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordedEvent;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -73,6 +74,22 @@ class JpaChildProfileEventOutboxTest {
         assertThat(body.get("data").get("heightCm").asDouble()).isEqualTo(115.0);
         assertThat(body.get("data").get("birthDate").asString()).isEqualTo("2019-01-15");
         assertThat(body.get("data").get("deleted").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("성장 기록 이벤트는 본문에 growthRecordId와 recordedAt을 담고 자녀 ID를 키로 저장된다")
+    void appendGrowthRecordBody() {
+        var event = new ChildGrowthRecordedEvent(EVENT_ID, NOW,
+            new ChildGrowthRecordedEvent.Data(7L, CHILD_ID, ChildProfileFixture.HEIGHT, null, NOW));
+        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER).append(event);
+        var captor = ArgumentCaptor.forClass(ChildProfileOutboxMessage.class);
+        verify(outboxRepository).save(captor.capture());
+        var body = JSON_MAPPER.readTree(captor.getValue().getPayload());
+        assertThat(body.get("eventType").asString()).isEqualTo("child.growth-recorded");
+        assertThat(body.get("data").get("growthRecordId").asLong()).isEqualTo(7L);
+        assertThat(body.get("data").get("bodyType").isNull()).isTrue();
+        assertThat(body.get("data").get("recordedAt").asString()).isEqualTo(body.get("occurredAt").asString());
+        assertThat(captor.getValue().getMessageKey()).isEqualTo("3");
     }
 
     @Test

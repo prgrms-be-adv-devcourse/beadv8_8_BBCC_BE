@@ -70,6 +70,7 @@
 | GET | `/api/v1/admin/child-profile-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/child-profile-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 | POST | `/api/v1/admin/children/changed-events` | 삭제되지 않은 자녀마다 `child.changed`를 지금 값으로 다시 보냄(인증 · 주문 · 추천 자녀 복사본 채우기). 응답 `publishedCount` | 🛠 |
+| POST | `/api/v1/admin/children/growth-recorded-events` | 삭제되지 않은 자녀의 성장 이력을 `child.growth-recorded`로 다시 보냄. 응답 `publishedCount` | 🛠 |
 
 ## 판매자
 

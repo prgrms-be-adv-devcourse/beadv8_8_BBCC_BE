@@ -70,10 +70,15 @@ class ChildProfileOutboxRecorderIntegrationTest {
     void recordOnRegister() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
 
-        assertThat(outboxRows()).singleElement().satisfies(row -> assertThat(row)
-            .containsEntry("event_type", "child.changed")
+        var rows = outboxRows();
+        assertThat(rows).extracting(row -> row.get("event_type"))
+            .containsExactly("child.changed", "child.growth-recorded");
+        assertThat(rows).allSatisfy(row -> assertThat(row)
             .containsEntry("topic", "kidly.childprofile.events")
             .containsEntry("message_key", String.valueOf(childId)));
+        var recordId = jdbcTemplate.queryForObject("select id from childprofile.growth_record", Long.class);
+        assertThat(JSON_MAPPER.readTree((String) rows.get(1).get("payload"))
+            .get("data").get("growthRecordId").asLong()).isEqualTo(recordId);
     }
 
     @Test
@@ -84,9 +89,10 @@ class ChildProfileOutboxRecorderIntegrationTest {
         childProfileService.deleteAll(MEMBER_ID);
 
         var rows = outboxRows();
-        assertThat(rows).hasSize(2);
-        assertThat(rows.get(1)).containsEntry("message_key", String.valueOf(childId));
-        assertThat(JSON_MAPPER.readTree((String) rows.get(1).get("payload")).get("data").get("deleted").asBoolean())
+        assertThat(rows).hasSize(3);
+        assertThat(rows.getLast()).containsEntry("event_type", "child.changed")
+            .containsEntry("message_key", String.valueOf(childId));
+        assertThat(JSON_MAPPER.readTree((String) rows.getLast().get("payload")).get("data").get("deleted").asBoolean())
             .isTrue();
     }
 
