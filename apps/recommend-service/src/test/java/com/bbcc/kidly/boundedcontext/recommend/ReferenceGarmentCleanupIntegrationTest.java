@@ -23,10 +23,18 @@ import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -44,6 +52,10 @@ class ReferenceGarmentCleanupIntegrationTest {
     private static final Long OTHER_MEMBER_CHILD_ID = 21L;
 
     private static final LocalDateTime DELETED_AT = CHILD_CHANGED_AT.plusMinutes(5);
+
+    private static final int RACE_REPETITIONS = 20;
+
+    private static final long TIMEOUT_SECONDS = 60;
 
     @Autowired
     private RecommendReplicaChildService replicaChildService;
@@ -162,6 +174,24 @@ class ReferenceGarmentCleanupIntegrationTest {
         assertThat(activityRecordRepository.findAll()).hasSize(2);
     }
 
+    // 두 이벤트가 같은 줄을 지우려 겹치는 순간이 짧아서 한 번으로는 겹치지 않을 수 있으므로 여러 번 되풀이한다
+    @RepeatedTest(RACE_REPETITIONS)
+    @DisplayName("자녀 삭제와 그 회원의 탈퇴를 실제 스레드 두 개가 동시에 받아도 둘 다 예외 없이 끝나고 기준 옷이 남지 않는다")
+    void deleteGarmentsOfChildAndMemberAtOnce() throws Exception {
+        givenTwoMembersWithGarmentsAndActivityRecords();
+        var childDeleted = RecommendFixture.childDeletedEvent(DELETED_AT);
+        var withdrawn = ActivityRecordFixture.memberWithdrawnEvent(MEMBER_1_ID);
+
+        List<Throwable> failures = runAtOnce(
+            () -> replicaChildService.applyChildChanged(childDeleted),
+            () -> memberWithdrawalService.deleteDataOfWithdrawnMember(withdrawn));
+
+        assertThat(failures).isEmpty();
+        assertThat(count(CHILD_1_ID)).isZero();
+        assertThat(count(SIBLING_ID)).isZero();
+        assertThat(count(OTHER_MEMBER_CHILD_ID)).isEqualTo(1);
+    }
+
     // 회원 1은 자녀 1과 삭제된 형제, 다른 회원은 자녀 하나를 둔다. 회원마다 활동 기록이 하나씩 있다
     private void givenTwoMembersWithGarmentsAndActivityRecords() {
         replicaChildService.applyChildChanged(childChanged(CHILD_1_ID, MEMBER_1_ID, false));
@@ -193,5 +223,36 @@ class ReferenceGarmentCleanupIntegrationTest {
     private long count(Long childProfileId) {
         return jdbcTemplate.queryForObject(
             "select count(*) from recommend.reference_garment where child_profile_id = ?", Long.class, childProfileId);
+    }
+
+    // 작업마다 스레드를 하나씩 띄우고 모두 준비된 뒤 출발 신호 하나로 함께 시작한다. 예외로 끝난 작업의 예외를 모아 돌려준다
+    private static List<Throwable> runAtOnce(Runnable... tasks) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(tasks.length);
+        CountDownLatch ready = new CountDownLatch(tasks.length);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<?>> futures = new ArrayList<>();
+            for (Runnable task : tasks) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    task.run();
+                    return null;
+                }));
+            }
+            ready.await();
+            start.countDown();
+            List<Throwable> failures = new ArrayList<>();
+            for (Future<?> future : futures) {
+                try {
+                    future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                } catch (ExecutionException e) {
+                    failures.add(e.getCause());
+                }
+            }
+            return failures;
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }
