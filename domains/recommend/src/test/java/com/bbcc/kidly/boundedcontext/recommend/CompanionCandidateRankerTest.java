@@ -62,6 +62,20 @@ class CompanionCandidateRankerTest {
         assertThat(productIds(ranked)).containsExactly(3L, 1L, 2L);
     }
 
+    @Test
+    @DisplayName("PAIR-02 점수가 같으면 판매 시작 시각이 늦은 상품이 앞이고, 그것도 같으면 상품 ID가 큰 상품이 앞이다")
+    void breakTiesByLaterSaleStartThenLargerId() {
+        LocalDateTime later = SALE_STARTED_AT.plusDays(4);
+        List<CompanionCandidate> candidates = List.of(
+            candidate(1L, BOTTOM, 0.5, SALE_STARTED_AT),
+            candidate(2L, BOTTOM, 0.5, later),
+            candidate(3L, BOTTOM, 0.5, later));
+
+        List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
+
+        assertThat(productIds(ranked)).containsExactly(3L, 2L, 1L);
+    }
+
     private static CompanionCandidate candidate(Long productId, CompanionKind kind, Double similarity) {
         return candidate(productId, kind, similarity, SALE_STARTED_AT);
     }
