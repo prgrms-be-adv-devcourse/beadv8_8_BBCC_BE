@@ -140,7 +140,7 @@ public class AiResponseService {
         }
     }
 
-    private void saveQuietly(AiResponseType type, AiResponseKey key, Object response, LocalDateTime now) {
+    private <T> void saveQuietly(AiResponseType type, AiResponseKey key, T response, LocalDateTime now) {
         try {
             store.save(type, key, jsonMapper.writeValueAsString(response), now);
         } catch (RuntimeException e) {
