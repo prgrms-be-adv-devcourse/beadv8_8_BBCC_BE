@@ -8,9 +8,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 자녀 한 명의 상의(세부 종류 52) · 하의(세부 종류 60) 기준 옷이다. 필수 실측만 담는다.
- */
 public final class ReferenceGarmentFixture {
 
     private ReferenceGarmentFixture() {

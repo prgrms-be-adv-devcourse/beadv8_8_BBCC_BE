@@ -299,7 +299,6 @@ class RecommendKafkaListenerIntegrationTest {
         return transactionTemplate.execute(status -> referenceGarmentRepository.findAllByChildProfileId(childId));
     }
 
-    // 자녀 삭제다. 삭제 이벤트도 삭제 직전 값을 담으며, 회원 ID와 나머지 값은 고정이다
     private static ChildChangedEvent childDeleted(Long childId, LocalDateTime occurredAt) {
         return new ChildChangedEvent(UUID.randomUUID(), occurredAt, new ChildChangedEvent.Data(childId, 1L,
             new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE, LocalDate.of(2020, 5, 1), BodyType.NORMAL,

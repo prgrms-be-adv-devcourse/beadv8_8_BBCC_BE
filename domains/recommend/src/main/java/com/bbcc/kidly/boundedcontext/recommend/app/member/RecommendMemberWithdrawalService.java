@@ -20,9 +20,6 @@ public class RecommendMemberWithdrawalService {
 
     private final ReferenceGarmentRepository referenceGarmentRepository;
 
-    /**
-     * 그 회원의 활동 기록과, 삭제 표시된 자녀를 포함한 그 회원 자녀들의 기준 옷을 지운다.
-     */
     @Transactional
     public void deleteDataOfWithdrawnMember(MemberWithdrawnEvent event) {
         Long memberId = requireNonNull(event.data().memberId(), "memberId는 필수입니다");

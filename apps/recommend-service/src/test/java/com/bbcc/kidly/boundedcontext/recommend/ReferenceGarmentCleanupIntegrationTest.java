@@ -40,10 +40,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 자녀 삭제와 회원 탈퇴를 받았을 때 기준 옷이 남지 않는지 서비스를 직접 불러 확인한다.
- * Kafka로 받는 연결은 RecommendKafkaListenerIntegrationTest와 RecommendMemberKafkaIntegrationTest가 확인한다.
- */
 @IntegrationTest
 class ReferenceGarmentCleanupIntegrationTest {
 
@@ -69,7 +65,6 @@ class ReferenceGarmentCleanupIntegrationTest {
     @Autowired
     private RecommendMemberWithdrawalService memberWithdrawalService;
 
-    // 남은 활동 기록 전체를 읽으려고 JpaRepository의 기본 조회를 쓴다
     @Autowired
     private JpaActivityRecordRepository activityRecordRepository;
 
@@ -174,7 +169,6 @@ class ReferenceGarmentCleanupIntegrationTest {
         assertThat(activityRecordRepository.findAll()).hasSize(2);
     }
 
-    // 두 이벤트가 같은 줄을 지우려 겹치는 순간이 짧아서 한 번으로는 겹치지 않을 수 있으므로 여러 번 되풀이한다
     @RepeatedTest(RACE_REPETITIONS)
     @DisplayName("자녀 삭제와 그 회원의 탈퇴를 실제 스레드 두 개가 동시에 받아도 둘 다 예외 없이 끝나고 기준 옷이 남지 않는다")
     void deleteGarmentsOfChildAndMemberAtOnce() throws Exception {
@@ -192,7 +186,6 @@ class ReferenceGarmentCleanupIntegrationTest {
         assertThat(count(OTHER_MEMBER_CHILD_ID)).isEqualTo(1);
     }
 
-    // 회원 1은 자녀 1과 삭제된 형제, 다른 회원은 자녀 하나를 둔다. 회원마다 활동 기록이 하나씩 있다
     private void givenTwoMembersWithGarmentsAndActivityRecords() {
         replicaChildService.applyChildChanged(childChanged(CHILD_1_ID, MEMBER_1_ID, false));
         replicaChildService.applyChildChanged(childChanged(SIBLING_ID, MEMBER_1_ID, true));
@@ -225,7 +218,6 @@ class ReferenceGarmentCleanupIntegrationTest {
             "select count(*) from recommend.reference_garment where child_profile_id = ?", Long.class, childProfileId);
     }
 
-    // 작업마다 스레드를 하나씩 띄우고 모두 준비된 뒤 출발 신호 하나로 함께 시작한다. 예외로 끝난 작업의 예외를 모아 돌려준다
     private static List<Throwable> runAtOnce(Runnable... tasks) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(tasks.length);
         CountDownLatch ready = new CountDownLatch(tasks.length);
