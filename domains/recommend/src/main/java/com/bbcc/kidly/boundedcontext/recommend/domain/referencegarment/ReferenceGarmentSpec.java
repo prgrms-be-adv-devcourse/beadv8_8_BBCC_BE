@@ -11,6 +11,12 @@ import lombok.experimental.Accessors;
 @Accessors(fluent = true)
 public final class ReferenceGarmentSpec {
 
+    // 아동복 실측은 가장 긴 바지 총장도 100cm 안팎이라, 200cm를 넘는 값은 mm를 cm로 잘못 넣은 실수로 본다.
+    private static final BigDecimal MAX_CM = new BigDecimal("200");
+
+    // 줄자의 mm 눈금과 맞춰 소수 첫째 자리까지만 받는다.
+    private static final int MAX_FRACTION_DIGITS = 1;
+
     private final GarmentPart part;
     private final Long categoryId;
     private final Map<String, BigDecimal> measurements;
@@ -38,6 +44,18 @@ public final class ReferenceGarmentSpec {
         if (!part.hasAllRequired(given.keySet())) {
             throw new BusinessException(ReferenceGarmentErrorCode.REQUIRED_MEASUREMENT_MISSING);
         }
+        for (BigDecimal value : given.values()) {
+            if (isInvalidValue(value)) {
+                throw new BusinessException(ReferenceGarmentErrorCode.INVALID_MEASUREMENT_VALUE);
+            }
+        }
         return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(given));
+    }
+
+    private static boolean isInvalidValue(BigDecimal value) {
+        return value == null
+            || value.signum() <= 0
+            || value.compareTo(MAX_CM) > 0
+            || value.stripTrailingZeros().scale() > MAX_FRACTION_DIGITS;
     }
 }
