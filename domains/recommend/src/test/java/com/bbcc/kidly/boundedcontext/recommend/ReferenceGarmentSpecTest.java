@@ -207,6 +207,39 @@ class ReferenceGarmentSpecTest {
         assertThat(spec.measurements()).isEqualTo(measurements);
     }
 
+    static Stream<Arguments> inputsWithSeveralProblems() {
+        List<String> topPath = List.of("의류", "상의");
+        List<String> bottomPath = List.of("의류", "하의");
+        Map<String, BigDecimal> onlyTotal = Map.of("TOTAL_LENGTH", cm("45.0"));
+        Map<String, BigDecimal> waistInsteadOfChest = Map.of("TOTAL_LENGTH", cm("45.0"), "WAIST_WIDTH", cm("24.0"));
+        Map<String, BigDecimal> unknownCodeAndTooLong = Map.of("TOTAL_LENGTH", cm("45.0"), "CHEST_WIDTH", cm("34.0"),
+            "FOO", cm("420"));
+        Map<String, BigDecimal> onlyTooLongTotal = Map.of("TOTAL_LENGTH", cm("420"));
+        return Stream.of(
+            Arguments.of("맞지 않는 세부 종류 + 필수 누락", bottomPath, onlyTotal,
+                ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH),
+            Arguments.of("맞지 않는 세부 종류 + 잘못된 값", bottomPath, onlyTooLongTotal,
+                ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH),
+            Arguments.of("경로 없음 + 이 구분에 없는 항목", null, waistInsteadOfChest,
+                ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND),
+            Arguments.of("이 구분에 없는 항목 + 필수 누락", topPath, waistInsteadOfChest,
+                ReferenceGarmentErrorCode.UNSUPPORTED_MEASUREMENT),
+            Arguments.of("이 구분에 없는 항목 + 잘못된 값", topPath, unknownCodeAndTooLong,
+                ReferenceGarmentErrorCode.UNSUPPORTED_MEASUREMENT),
+            Arguments.of("필수 누락 + 잘못된 값", topPath, onlyTooLongTotal,
+                ReferenceGarmentErrorCode.REQUIRED_MEASUREMENT_MISSING));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("inputsWithSeveralProblems")
+    @DisplayName("문제가 여러 개면 세부 종류, 이 구분에 없는 항목, 필수 누락, 값 순서로 먼저 걸린 하나만 거절한다")
+    void rejectedByTheFirstFailedCheck(String problems, List<String> categoryPathNames,
+        Map<String, BigDecimal> measurements, ReferenceGarmentErrorCode expected) {
+        assertRejected(
+            () -> ReferenceGarmentSpec.of(GarmentPart.TOP, CATEGORY_ID, categoryPathNames, measurements),
+            expected);
+    }
+
     private static List<String> matchingPath(GarmentPart part) {
         return part == GarmentPart.TOP ? List.of("의류", "상의") : List.of("의류", "하의");
     }
