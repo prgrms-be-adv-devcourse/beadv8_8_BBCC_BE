@@ -44,7 +44,8 @@ class ProductEventsTest {
     }
 
     @Test
-    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 · 관리자 판매 중지 · 판매 시작 시각 순서로 담고, 실측은 사이즈 · 권장 키 · 실측 맵이다")
+    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 · 관리자 판매 중지 · 판매 시작 시각 순서로 담고, "
+        + "실측은 사이즈 · 권장 키 · 실측 맵이다")
     void dataCarriesBrandDescriptionAndSizeSpecs() {
         assertThat(ProductChangedEvent.Data.class.getRecordComponents()).extracting(RecordComponent::getName)
             .containsExactly("productId", "sellerId", "name", "categoryId", "status", "thumbnailUrl", "createdAt",
