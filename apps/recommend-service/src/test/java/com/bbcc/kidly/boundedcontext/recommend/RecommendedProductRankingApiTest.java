@@ -140,6 +140,20 @@ class RecommendedProductRankingApiTest {
             .jsonPath("$.content[*].productId").isEqualTo(List.of("501"));
     }
 
+    @Test
+    @DisplayName("PREF-12 자녀를 고르지 않은 회원 활동으로 계산한 친밀도도 그 회원의 자녀 순서에 반영된다")
+    void orderByMemberAffinity() {
+        saveProduct(601L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT);
+        saveProduct(602L, OTHER_CATEGORY_ID, PRODUCT_A_REGISTERED_AT.plusDays(1));
+        snapshotStore.replaceMember(MEMBER_1_ID, new PreferenceSnapshot(
+            List.of(new CategoryAffinity(PRODUCT_A_CATEGORY_ID, 0.6)), List.of(), null, PRODUCT_CHANGED_AT));
+
+        list("")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of("601", "602"));
+    }
+
     private RestTestClient.ResponseSpec list(String query) {
         return client.get().uri(PATH + "?childId={childId}" + query, CHILD_1_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
