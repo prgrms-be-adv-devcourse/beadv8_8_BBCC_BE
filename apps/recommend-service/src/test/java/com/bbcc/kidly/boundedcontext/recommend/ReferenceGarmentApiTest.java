@@ -245,7 +245,7 @@ class ReferenceGarmentApiTest {
     }
 
     @ParameterizedTest(name = "구분 {0}")
-    @ValueSource(strings = {"SHOES", "top", "상의"})
+    @ValueSource(strings = {"SHOES", "top", "TOPS"})
     @DisplayName("주소의 구분이 TOP이나 BOTTOM이 아니면 저장도 삭제도 400이고 기준 옷은 바뀌지 않는다")
     void rejectUnknownPart(String part) {
         put(MEMBER_1_ID, CHILD_1_ID, "TOP", TOP_BODY).expectStatus().isOk();
