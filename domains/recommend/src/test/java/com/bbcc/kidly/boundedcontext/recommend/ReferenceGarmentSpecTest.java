@@ -124,6 +124,33 @@ class ReferenceGarmentSpecTest {
             .isInstanceOf(UnsupportedOperationException.class);
     }
 
+    static Stream<Arguments> measurementsMissingRequired() {
+        return Stream.of(
+            Arguments.of(GarmentPart.TOP, null),
+            Arguments.of(GarmentPart.TOP, Map.of()),
+            Arguments.of(GarmentPart.TOP, Map.of("TOTAL_LENGTH", cm("45.0"))),
+            Arguments.of(GarmentPart.TOP, Map.of("CHEST_WIDTH", cm("34.0"))),
+            Arguments.of(GarmentPart.TOP, Map.of("SHOULDER_WIDTH", cm("30.0"), "SLEEVE_LENGTH", cm("38.5"))),
+            Arguments.of(GarmentPart.BOTTOM, null),
+            Arguments.of(GarmentPart.BOTTOM, Map.of()),
+            Arguments.of(GarmentPart.BOTTOM, Map.of("TOTAL_LENGTH", cm("60.0"))),
+            Arguments.of(GarmentPart.BOTTOM, Map.of("WAIST_WIDTH", cm("24.0"))),
+            Arguments.of(GarmentPart.BOTTOM, Map.of("RISE", cm("20.0"))));
+    }
+
+    @ParameterizedTest(name = "{0} 기준 옷, 실측 {1}")
+    @MethodSource("measurementsMissingRequired")
+    @DisplayName("필수 실측이 하나라도 없으면 필수 실측이 없다고 거절한다")
+    void rejectedWhenRequiredMeasurementIsMissing(GarmentPart part, Map<String, BigDecimal> measurements) {
+        assertRejected(
+            () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, matchingPath(part), measurements),
+            ReferenceGarmentErrorCode.REQUIRED_MEASUREMENT_MISSING);
+    }
+
+    private static List<String> matchingPath(GarmentPart part) {
+        return part == GarmentPart.TOP ? List.of("의류", "상의") : List.of("의류", "하의");
+    }
+
     private static void assertRejected(ThrowingCallable creation, ReferenceGarmentErrorCode expected) {
         assertThatThrownBy(creation)
             .isInstanceOfSatisfying(BusinessException.class,
