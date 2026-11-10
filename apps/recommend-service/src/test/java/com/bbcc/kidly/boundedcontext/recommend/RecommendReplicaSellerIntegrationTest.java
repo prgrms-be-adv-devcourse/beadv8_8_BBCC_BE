@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -45,6 +46,23 @@ class RecommendReplicaSellerIntegrationTest {
                 RecommendReplicaSeller::getStatus,
                 RecommendReplicaSeller::getEventOccurredAt)
             .containsExactly("새옷장", SellerStatus.SUSPENDED, later);
+    }
+
+    // 상태 칸은 CHECK 제약이 허용하는 값만 저장한다. 판매자 도메인이 상태를 새로 더하면
+    // 이 제약을 먼저 고쳐야 받은 메시지가 DLT로 빠지지 않으므로, 모든 상태를 저장해 본다
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(SellerStatus.class)
+    @DisplayName("판매자 복사본은 판매자의 모든 상태를 저장한다")
+    void saveEveryStatus(SellerStatus status) {
+        LocalDateTime later = SELLER_CHANGED_AT.plusMinutes(1);
+        replicaSellerService.applySellerChanged(RecommendReplicaSellerFixture.sellerApprovedEvent());
+
+        replicaSellerService.applySellerChanged(
+            RecommendReplicaSellerFixture.sellerChangedEventAt("소소한옷장", status, later));
+
+        assertThat(replicaSellerRepository.findById(PRODUCT_A_SELLER_ID)).get()
+            .extracting(RecommendReplicaSeller::getStatus, RecommendReplicaSeller::getEventOccurredAt)
+            .containsExactly(status, later);
     }
 
     // 같은 이벤트를 두 번 받는 경우도 발생 시각이 같으므로 0분 경우가 확인한다. 값을 바꿔 보내야 무시됐는지 알 수 있다
