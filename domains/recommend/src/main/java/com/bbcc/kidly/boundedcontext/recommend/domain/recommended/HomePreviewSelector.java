@@ -39,12 +39,13 @@ public class HomePreviewSelector {
     public HomePreview select(List<RecommendedProduct> candidates, List<HomePreviewPick> aiPicks) {
         Objects.requireNonNull(candidates, "candidates는 필수입니다");
         Set<Long> pickedIds = new HashSet<>();
-        List<HomePreview.Item> aiItems = validAiItems(candidates, aiPicks, pickedIds);
-        if (!aiItems.isEmpty()) {
-            fillRemainingSlots(aiItems, candidates, pickedIds);
-            return new HomePreview(HomePreviewSource.AI, aiItems);
+        List<HomePreview.Item> items = validAiItems(candidates, aiPicks, pickedIds);
+        HomePreviewSource source = HomePreviewSource.AI;
+        if (items.isEmpty()) {
+            source = HomePreviewSource.RULE;
         }
-        return new HomePreview(HomePreviewSource.RULE, ruleItems(candidates));
+        fillRemainingSlots(items, candidates, pickedIds);
+        return new HomePreview(source, items);
     }
 
     // AI 답에서 후보에 있고 아직 나오지 않은 상품만 앞에서 4개까지 AI 답 순서대로 모은다
@@ -71,7 +72,8 @@ public class HomePreviewSelector {
         return items;
     }
 
-    // 4개가 되거나 후보가 떨어질 때까지 아직 나오지 않은 후보를 후보 순서대로 이유 없이 더한다
+    // 4개가 되거나 후보가 떨어질 때까지 아직 나오지 않은 후보를 후보 순서대로 이유 없이 더한다.
+    // 고른 것이 하나도 없으면 후보 앞에서 4개가 된다
     private void fillRemainingSlots(
             List<HomePreview.Item> items, List<RecommendedProduct> candidates, Set<Long> pickedIds) {
         for (RecommendedProduct candidate : candidates) {
@@ -82,15 +84,5 @@ public class HomePreviewSelector {
                 items.add(new HomePreview.Item(candidate, null));
             }
         }
-    }
-
-    // 후보 앞에서 4개를 이유 없이 모은다
-    private List<HomePreview.Item> ruleItems(List<RecommendedProduct> candidates) {
-        List<HomePreview.Item> items = new ArrayList<>();
-        int end = Math.min(candidates.size(), PREVIEW_SIZE);
-        for (int i = 0; i < end; i++) {
-            items.add(new HomePreview.Item(candidates.get(i), null));
-        }
-        return items;
     }
 }
