@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend.out.ai;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbedder;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -16,6 +17,11 @@ public class OpenAiProductEmbedder implements ProductEmbedder {
 
     @Override
     public List<EmbeddingVector> embed(List<String> texts) {
-        return List.of();
+        List<float[]> embeddings = embeddingModel.embed(texts);
+        List<EmbeddingVector> vectors = new ArrayList<>();
+        for (float[] embedding : embeddings) {
+            vectors.add(new EmbeddingVector(embedding));
+        }
+        return vectors;
     }
 }
