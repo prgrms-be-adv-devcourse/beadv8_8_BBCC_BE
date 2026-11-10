@@ -37,7 +37,8 @@ CREATE TABLE recommend.member_brand_affinity (
     CONSTRAINT member_brand_affinity_score_check CHECK (score >= 0 AND score <= 1)
 );
 
--- 본 · 담은 상품의 임베딩을 무게로 합쳐 길이 1로 맞춘 벡터다. weight_sum과 activity_count는 다음 계산이 이어 받는다.
+-- 본 · 담은 상품의 임베딩을 무게로 합쳐 길이 1로 맞춘 벡터다.
+-- weight_sum은 요청 때 자녀 몫과 회원 몫을 합칠 때 무게로 쓴다. activity_count는 합친 활동 수다.
 CREATE TABLE recommend.child_taste_vector (
     child_profile_id bigint NOT NULL,
     embedding recommend.vector(1536) NOT NULL,
