@@ -27,4 +27,17 @@ class AiResponseKeyTest {
 
         assertThat(key.value()).isEqualTo("4d092372bb5f88230177cc2003d2186e3775606081ac2f57b99968fc6881d248");
     }
+
+    @Test
+    @DisplayName("후보와 장바구니 ID 목록은 순서만 달라도 같은 키다")
+    void listOrderDoesNotChangeKey() {
+        AiResponseKey.Input shuffled = new AiResponseKey.Input(
+            10L, 5L, 36, new BigDecimal("95.5"), new BigDecimal("14"),
+            BodyType.NORMAL, PreferredFit.REGULAR, List.of(3L, 1L, 2L), List.of(9L, 7L), 1);
+        AiResponseKey.Input sorted = new AiResponseKey.Input(
+            10L, 5L, 36, new BigDecimal("95.5"), new BigDecimal("14"),
+            BodyType.NORMAL, PreferredFit.REGULAR, List.of(1L, 2L, 3L), List.of(7L, 9L), 1);
+
+        assertThat(AiResponseKey.of(shuffled)).isEqualTo(AiResponseKey.of(sorted));
+    }
 }
