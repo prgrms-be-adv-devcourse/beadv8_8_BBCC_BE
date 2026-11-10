@@ -152,4 +152,21 @@ class AiResponseKeyTest {
     void rejectNonHashValue(String value) {
         assertThatThrownBy(() -> new AiResponseKey(value)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    @DisplayName("null은 키가 될 수 없다")
+    void rejectNullValue() {
+        assertThatThrownBy(() -> new AiResponseKey(null)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "4d092372bb5f88230177cc2003d2186e3775606081ac2f57b99968fc6881d248",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    })
+    @DisplayName("64자 소문자 hex는 키로 받는다")
+    void acceptSha256Hex(String value) {
+        assertThat(new AiResponseKey(value).value()).isEqualTo(value);
+    }
 }
