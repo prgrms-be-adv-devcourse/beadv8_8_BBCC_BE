@@ -25,7 +25,8 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
      */
     public static CompanionSelection of(List<CompanionAiPick> aiPicks, List<CompanionCandidate> ranked) {
         // AI에는 규칙 상위 20개만 넘기므로 그 밖의 상품은 후보 밖으로 본다
-        List<CompanionCandidate> sentToAi = ranked.subList(0, Math.min(ranked.size(), CompanionWeights.CANDIDATE_COUNT));
+        int sentToAiCount = Math.min(ranked.size(), CompanionWeights.CANDIDATE_COUNT);
+        List<CompanionCandidate> sentToAi = ranked.subList(0, sentToAiCount);
         Map<Long, CompanionCandidate> candidatesByProductId = new HashMap<>();
         for (CompanionCandidate candidate : sentToAi) {
             candidatesByProductId.put(candidate.product().productId(), candidate);
