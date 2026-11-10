@@ -70,7 +70,11 @@ public class SizeRecommendation {
      * 규칙 결과에 AI 답을 합친 최종 결과를 돌려준다. AI가 고른 사이즈는 규칙 후보 밖이어도 상품에 있으면 채택한다.
      */
     public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer) {
-        if (!isProductSize(productSizes, answer.recommendedSize())) {
+        if (answer == null || !isProductSize(productSizes, answer.recommendedSize())) {
+            return this;
+        }
+        Fit aiFit = findFit(answer.fit());
+        if (aiFit == null) {
             return this;
         }
         List<SizeReason> aiReasons = new ArrayList<>();
@@ -79,7 +83,7 @@ public class SizeRecommendation {
         }
         return new SizeRecommendation(
                 answer.recommendedSize(),
-                Fit.valueOf(answer.fit()),
+                aiFit,
                 List.of(),
                 candidateSizes,
                 SizeRecommendationSource.AI,
@@ -94,5 +98,15 @@ public class SizeRecommendation {
             }
         }
         return false;
+    }
+
+    // 모델이 준 문자열이 Fit 이름과 정확히 같을 때만 Fit으로 바꾼다. 모르는 값은 예외 대신 null이다.
+    private static Fit findFit(String name) {
+        for (Fit fit : Fit.values()) {
+            if (fit.name().equals(name)) {
+                return fit;
+            }
+        }
+        return null;
     }
 }
