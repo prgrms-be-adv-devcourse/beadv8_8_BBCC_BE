@@ -3,18 +3,12 @@ package com.bbcc.kidly.boundedcontext.recommend.app.recommended;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductPage;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductResult;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
-import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductSelector;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
-import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
-import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.global.error.BusinessException;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -39,20 +33,17 @@ public class RecommendedProductService {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
-    private final RecommendReplicaProductRepository replicaProductRepository;
     private final RecommendReplicaChildRepository replicaChildRepository;
     private final RecommendReplicaSellerRepository replicaSellerRepository;
-    private final RecommendedProductSelector selector;
+    private final RecommendedProductRanking ranking;
 
     public RecommendedProductService(
-        RecommendReplicaProductRepository replicaProductRepository,
         RecommendReplicaChildRepository replicaChildRepository,
         RecommendReplicaSellerRepository replicaSellerRepository,
-        GrowthChart growthChart) {
-        this.replicaProductRepository = replicaProductRepository;
+        RecommendedProductRanking ranking) {
         this.replicaChildRepository = replicaChildRepository;
         this.replicaSellerRepository = replicaSellerRepository;
-        this.selector = new RecommendedProductSelector(new SizeRecommender(growthChart));
+        this.ranking = ranking;
     }
 
     // 기준 시각을 정하지 않고 지금 시각으로 목록만 읽는다
@@ -76,9 +67,7 @@ public class RecommendedProductService {
             throw new BusinessException(RecommendErrorCode.CHILD_NOT_FOUND);
         }
 
-        List<RecommendReplicaProduct> products = replicaProductRepository.findAllOnSale(categoryId);
-        List<RecommendedProduct> recommended =
-            selector.select(child.toChildSizeInput(), products, LocalDate.now(SERVICE_ZONE));
+        List<RecommendedProduct> recommended = ranking.rank(memberId, child, categoryId, baseTime);
         Pageable pageable = PageRequest.of(page, size);
         return new RecommendedProductPage(
             new PageImpl<>(toPageContent(recommended, pageable), pageable, recommended.size()), baseTime);
