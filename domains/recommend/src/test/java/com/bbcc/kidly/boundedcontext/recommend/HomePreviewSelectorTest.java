@@ -11,11 +11,14 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.HomePreviewSel
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.HomePreviewSource;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class HomePreviewSelectorTest {
 
@@ -48,11 +51,12 @@ class HomePreviewSelectorTest {
     }
 
     @Test
-    @DisplayName("HOME-03 AI 답에서 후보에 없는 ID와 이미 나온 ID는 버리고 남은 것 중 앞 4개만 쓴다")
+    @DisplayName("HOME-03 AI 답에서 빈 원소, 후보에 없는 ID, 이미 나온 ID는 버리고 남은 것 중 앞 4개만 쓴다")
     void dropInvalidAndDuplicatePicks() {
         List<RecommendedProduct> candidates = productsWithIds(10);
-        List<HomePreviewPick> aiPicks = List.of(
+        List<HomePreviewPick> aiPicks = Arrays.asList(
             new HomePreviewPick(99L, "후보 밖"),
+            null,
             new HomePreviewPick(null, "ID 없음"),
             new HomePreviewPick(5L, "이유 5"),
             new HomePreviewPick(5L, "이유 5 다시"),
@@ -96,6 +100,49 @@ class HomePreviewSelectorTest {
         assertThat(preview.items())
             .extracting(item -> item.product().productId(), HomePreview.Item::reason)
             .containsExactly(tuple(7L, "이유 7"), tuple(1L, "이유 1"), tuple(2L, null), tuple(3L, null));
+    }
+
+    @Test
+    @DisplayName("HOME-03 후보를 20개보다 많이 넘겨도 앞 20개 밖의 상품을 고른 AI 답은 버린다")
+    void dropPicksBeyondTopTwenty() {
+        List<RecommendedProduct> candidates = productsWithIds(25);
+        List<HomePreviewPick> aiPicks = List.of(new HomePreviewPick(22L, "이유 22"), new HomePreviewPick(3L, "이유 3"));
+
+        HomePreview preview = selector.select(candidates, aiPicks);
+
+        assertThat(preview.source()).isEqualTo(HomePreviewSource.AI);
+        assertThat(preview.items())
+            .extracting(item -> item.product().productId(), HomePreview.Item::reason)
+            .containsExactly(tuple(3L, "이유 3"), tuple(1L, null), tuple(2L, null), tuple(4L, null));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"  "})
+    @DisplayName("HOME-03 AI가 준 이유가 없거나 빈 문자열 · 공백이면 상품은 쓰고 이유만 null로 둔다")
+    void blankReasonBecomesNull(String reason) {
+        List<RecommendedProduct> candidates = productsWithIds(4);
+        List<HomePreviewPick> aiPicks = List.of(new HomePreviewPick(2L, reason));
+
+        HomePreview preview = selector.select(candidates, aiPicks);
+
+        assertThat(preview.source()).isEqualTo(HomePreviewSource.AI);
+        assertThat(preview.items().getFirst().product().productId()).isEqualTo(2L);
+        assertThat(preview.items().getFirst().reason()).isNull();
+    }
+
+    @Test
+    @DisplayName("HOME-04 후보가 4개보다 적으면 AI가 고른 것 뒤에 남은 후보를 있는 만큼만 채운다")
+    void fillUpToCandidateCount() {
+        List<RecommendedProduct> candidates = productsWithIds(2);
+        List<HomePreviewPick> aiPicks = List.of(new HomePreviewPick(2L, "이유 2"));
+
+        HomePreview preview = selector.select(candidates, aiPicks);
+
+        assertThat(preview.source()).isEqualTo(HomePreviewSource.AI);
+        assertThat(preview.items())
+            .extracting(item -> item.product().productId(), HomePreview.Item::reason)
+            .containsExactly(tuple(2L, "이유 2"), tuple(1L, null));
     }
 
     // 상품 ID를 1부터 차례로 붙인 상품 목록이다. 목록 순서가 선호 점수 순서다
