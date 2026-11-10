@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSourceReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ConfirmedPurchase;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.RecentActivity;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
@@ -113,6 +114,24 @@ class PreferenceSourceReaderIntegrationTest {
 
         assertThat(reader.findMemberActivities(1L, SINCE, to)).containsExactly(
             new RecentActivity(ActivityType.PRODUCT_VIEWED, 100L, 10L, "Nike", SINCE, false));
+    }
+
+    @Test
+    @DisplayName("자녀 구매는 기간 안의 구매확정을 상품 복사본의 브랜드와 함께 읽고, 복사본이 없으면 브랜드는 null이다")
+    void readChildPurchasesWithBrand() {
+        LocalDateTime to = SINCE.plusDays(1);
+        PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", null);
+        PreferenceTestData.insertPurchase(jdbc, 7L, 100L, to);
+        PreferenceTestData.insertPurchase(jdbc, 7L, 100L, SINCE);
+        PreferenceTestData.insertPurchase(jdbc, 7L, 999L, SINCE.plusHours(1));
+        PreferenceTestData.insertPurchase(jdbc, 7L, 100L, SINCE.minusSeconds(1));
+        PreferenceTestData.insertPurchase(jdbc, 7L, 100L, to.plusSeconds(1));
+        PreferenceTestData.insertPurchase(jdbc, 8L, 100L, SINCE);
+
+        assertThat(reader.findChildPurchases(7L, SINCE, to)).containsExactly(
+            new ConfirmedPurchase(100L, "Nike", SINCE),
+            new ConfirmedPurchase(999L, null, SINCE.plusHours(1)),
+            new ConfirmedPurchase(100L, "Nike", to));
     }
 
     private void insert(ActivityType type, Long childProfileId, LocalDateTime occurredAt, Long productId,
