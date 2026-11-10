@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -103,6 +105,15 @@ class AiResponseStoreIntegrationTest {
         Optional<String> kept = store.findLatestSince(AiResponseType.HOME_PREVIEW, KEY, NOW.minusDays(1));
         assertThat(kept).isPresent();
         assertThat(jsonMapper.readTree(kept.get()).get("version").asString()).isEqualTo("recent");
+    }
+
+    @Test
+    @DisplayName("JSON이 아닌 응답은 저장하지 않고 예외를 던진다")
+    void rejectResponseThatIsNotJson() {
+        assertThatThrownBy(() -> store.save(AiResponseType.HOME_PREVIEW, KEY, "{not json", NOW))
+            .isInstanceOf(DataAccessException.class);
+
+        assertThat(rowCount()).isZero();
     }
 
     private int rowCount() {
