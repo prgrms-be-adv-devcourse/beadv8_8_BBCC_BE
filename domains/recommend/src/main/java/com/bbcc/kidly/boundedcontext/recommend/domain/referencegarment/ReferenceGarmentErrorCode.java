@@ -6,9 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.springframework.http.HttpStatus;
 
-/**
- * 기준 옷 값이 규칙에 맞지 않을 때의 오류다. 보호자가 입력을 고치면 되므로 모두 400이다.
- */
 @Getter
 @Accessors(fluent = true)
 @RequiredArgsConstructor
