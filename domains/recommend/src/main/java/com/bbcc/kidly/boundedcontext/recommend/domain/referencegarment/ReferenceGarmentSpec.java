@@ -29,9 +29,15 @@ public final class ReferenceGarmentSpec {
         if (!part.includesCategoryIn(categoryPathNames)) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH);
         }
-        if (measurements == null || !part.hasAllRequired(measurements.keySet())) {
+        Map<String, BigDecimal> given = measurements == null ? Map.of() : measurements;
+        for (String code : given.keySet()) {
+            if (!part.acceptsCode(code)) {
+                throw new BusinessException(ReferenceGarmentErrorCode.UNSUPPORTED_MEASUREMENT);
+            }
+        }
+        if (!part.hasAllRequired(given.keySet())) {
             throw new BusinessException(ReferenceGarmentErrorCode.REQUIRED_MEASUREMENT_MISSING);
         }
-        return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(measurements));
+        return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(given));
     }
 }

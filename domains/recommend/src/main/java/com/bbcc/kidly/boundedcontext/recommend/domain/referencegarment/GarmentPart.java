@@ -8,15 +8,22 @@ import java.util.Set;
  */
 public enum GarmentPart {
 
-    TOP(Set.of("TOTAL_LENGTH", "CHEST_WIDTH"), Set.of("상의", "아우터", "원피스")),
-    BOTTOM(Set.of("TOTAL_LENGTH", "WAIST_WIDTH"), Set.of("하의", "치마"));
+    TOP(Set.of("TOTAL_LENGTH", "CHEST_WIDTH"), Set.of("SHOULDER_WIDTH", "SLEEVE_LENGTH"),
+        Set.of("상의", "아우터", "원피스")),
+    BOTTOM(Set.of("TOTAL_LENGTH", "WAIST_WIDTH"), Set.of("RISE"), Set.of("하의", "치마"));
 
     private final Set<String> requiredCodes;
+    private final Set<String> optionalCodes;
     private final Set<String> categoryNames;
 
-    GarmentPart(Set<String> requiredCodes, Set<String> categoryNames) {
+    GarmentPart(Set<String> requiredCodes, Set<String> optionalCodes, Set<String> categoryNames) {
         this.requiredCodes = requiredCodes;
+        this.optionalCodes = optionalCodes;
         this.categoryNames = categoryNames;
+    }
+
+    boolean acceptsCode(String measurementCode) {
+        return requiredCodes.contains(measurementCode) || optionalCodes.contains(measurementCode);
     }
 
     boolean hasAllRequired(Set<String> measurementCodes) {
