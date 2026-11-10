@@ -19,7 +19,7 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
     /**
      * @param status 판매 상태. 품절은 여기가 아니라 옵션의 {@code soldOut}으로 보낸다
      * @param thumbnailUrl 썸네일 URL. 등록하지 않았으면 null
-     * @param createdAt 상품 등록 시각. 판매 시작 시각이 아니다
+     * @param createdAt 상품 등록 시각. 판매 시작 시각은 {@code saleStartedAt}이다
      * @param sizeFree true면 사이즈 무관 상품이다. 추천은 권장 키가 아니라 이 값으로 사이즈 무관을 판단한다
      * @param options 그 상품의 옵션. 보관한 옵션은 넣지 않는다
      * @param infoValues 상품 정보 값이다. 다중 선택 목록 항목은 같은 {@code code}로 여러 개를 담는다
@@ -31,6 +31,8 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      *        이 칸이 생기기 전에 나간 메시지는 빈 목록으로 읽힌다
      * @param stoppedByAdmin true면 관리자가 운영 정책에 따라 판매를 중지한 상품이다. 판매자는 다시 판매를 시작할 수 없다.
      *        이 칸이 생기기 전에 나간 메시지는 false로 읽힌다
+     * @param saleStartedAt 상품이 처음 판매중이 된 시각(한국 시간)이다. 판매중지 뒤 다시 판매해도 바뀌지 않는다.
+     *        이 칸이 생기기 전에 나간 메시지와, 판매를 시작하지 않고 등록 취소한 상품은 null이므로 받는 쪽은 null을 다뤄야 한다
      */
     public record Data(
             Long productId,
@@ -47,7 +49,8 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
             String description,
             List<SizeSpec> sizeSpecs,
             List<CategoryPathEntry> categoryPath,
-            Boolean stoppedByAdmin) {
+            Boolean stoppedByAdmin,
+            LocalDateTime saleStartedAt) {
 
         // 사이즈별 실측 · 카테고리 경로 칸이 없는 예전 메시지를 읽으면 null이 들어오므로, 받는 쪽이 null을 검사하지 않게 빈 목록으로 바꾼다
         public Data {
@@ -61,6 +64,30 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
             if (stoppedByAdmin == null) {
                 stoppedByAdmin = false;
             }
+        }
+
+        /**
+         * 이벤트를 만드는 다른 도메인 테스트 코드가 바뀌지 않게 하려고, 판매 시작 시각 없이 만드는 생성자를 둔다(null).
+         * 상품이 이벤트를 보낼 때는 이 생성자를 쓰지 않는다.
+         */
+        public Data(
+                Long productId,
+                Long sellerId,
+                String name,
+                Long categoryId,
+                ProductStatus status,
+                String thumbnailUrl,
+                LocalDateTime createdAt,
+                boolean sizeFree,
+                List<Option> options,
+                List<AttributeEntry> infoValues,
+                String brand,
+                String description,
+                List<SizeSpec> sizeSpecs,
+                List<CategoryPathEntry> categoryPath,
+                Boolean stoppedByAdmin) {
+            this(productId, sellerId, name, categoryId, status, thumbnailUrl, createdAt, sizeFree, options,
+                    infoValues, brand, description, sizeSpecs, categoryPath, stoppedByAdmin, null);
         }
 
         /**
