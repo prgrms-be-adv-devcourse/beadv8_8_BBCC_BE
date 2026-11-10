@@ -8,11 +8,13 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.Reference
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentSpec;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -73,6 +75,53 @@ class ReferenceGarmentSpecTest {
         assertRejected(
             () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, categoryPathNames, requiredMeasurements(part)),
             ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
+    }
+
+    static Stream<Arguments> acceptedMeasurements() {
+        return Stream.of(
+            Arguments.of(GarmentPart.TOP, List.of("의류", "상의"),
+                Map.of("TOTAL_LENGTH", cm("45.0"), "CHEST_WIDTH", cm("34.0"))),
+            Arguments.of(GarmentPart.TOP, List.of("의류", "상의"),
+                Map.of("TOTAL_LENGTH", cm("45.0"), "CHEST_WIDTH", cm("34.0"), "SHOULDER_WIDTH", cm("30.0"))),
+            Arguments.of(GarmentPart.TOP, List.of("의류", "상의"),
+                Map.of("TOTAL_LENGTH", cm("45.0"), "CHEST_WIDTH", cm("34.0"),
+                    "SHOULDER_WIDTH", cm("30.0"), "SLEEVE_LENGTH", cm("38.5"))),
+            Arguments.of(GarmentPart.BOTTOM, List.of("의류", "하의"),
+                Map.of("TOTAL_LENGTH", cm("60.0"), "WAIST_WIDTH", cm("24.0"))),
+            Arguments.of(GarmentPart.BOTTOM, List.of("의류", "하의"),
+                Map.of("TOTAL_LENGTH", cm("60.0"), "WAIST_WIDTH", cm("24.0"), "RISE", cm("20.0"))));
+    }
+
+    @ParameterizedTest(name = "{0} 기준 옷, 실측 {2}")
+    @MethodSource("acceptedMeasurements")
+    @DisplayName("필수 실측만 넣어도, 선택 실측까지 넣어도 기준 옷 값이 만들어지고 실측은 넣은 그대로다")
+    void createdWithRequiredOnlyOrWithOptionalMeasurements(
+        GarmentPart part, List<String> categoryPathNames, Map<String, BigDecimal> measurements) {
+        ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(part, CATEGORY_ID, categoryPathNames, measurements);
+
+        assertThat(spec.measurements()).isEqualTo(measurements);
+    }
+
+    @Test
+    @DisplayName("만든 뒤에 넘겨 준 실측 Map을 바꿔도 기준 옷 값의 실측은 그대로다")
+    void measurementsAreNotAffectedByLaterChangeOfGivenMap() {
+        Map<String, BigDecimal> given = new HashMap<>(requiredMeasurements(GarmentPart.TOP));
+        ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(
+            GarmentPart.TOP, CATEGORY_ID, List.of("의류", "상의"), given);
+
+        given.put("SLEEVE_LENGTH", cm("38.5"));
+
+        assertThat(spec.measurements()).containsOnlyKeys("TOTAL_LENGTH", "CHEST_WIDTH");
+    }
+
+    @Test
+    @DisplayName("기준 옷 값의 실측은 밖에서 바꿀 수 없다")
+    void measurementsCannotBeChangedFromOutside() {
+        ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(GarmentPart.TOP, CATEGORY_ID, List.of("의류", "상의"),
+            new HashMap<>(requiredMeasurements(GarmentPart.TOP)));
+
+        assertThatThrownBy(() -> spec.measurements().put("SLEEVE_LENGTH", cm("38.5")))
+            .isInstanceOf(UnsupportedOperationException.class);
     }
 
     private static void assertRejected(ThrowingCallable creation, ReferenceGarmentErrorCode expected) {
