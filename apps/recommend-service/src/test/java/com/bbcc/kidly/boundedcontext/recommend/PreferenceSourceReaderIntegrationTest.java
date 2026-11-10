@@ -87,8 +87,8 @@ class PreferenceSourceReaderIntegrationTest {
         insert(ActivityType.PRODUCT_VIEWED, 7L, from.plusHours(2), 100L, null, null, null);
         insert(ActivityType.SEARCH, 7L, from, null, 50L, null, null);
         insert(ActivityType.CART_ITEM_REMOVED, 7L, from.plusHours(1), 100L, null, null, 99L);
-        insert(ActivityType.PRODUCT_VIEWED, 7L, from.minusSeconds(1), 100L, null, null, null);
-        insert(ActivityType.PRODUCT_VIEWED, 7L, to.plusSeconds(1), 100L, null, null, null);
+        insert(ActivityType.PRODUCT_VIEWED, 7L, from.minusSeconds(1), 102L, null, null, null);
+        insert(ActivityType.PRODUCT_VIEWED, 7L, to.plusSeconds(1), 103L, null, null, null);
         insert(ActivityType.PRODUCT_VIEWED, 8L, from.plusHours(1), 100L, null, null, null);
 
         assertThat(reader.findChildActivities(7L, from, to)).containsExactly(
