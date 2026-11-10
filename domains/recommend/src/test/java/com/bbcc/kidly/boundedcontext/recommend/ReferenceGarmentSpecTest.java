@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -238,6 +239,25 @@ class ReferenceGarmentSpecTest {
         assertRejected(
             () -> ReferenceGarmentSpec.of(GarmentPart.TOP, CATEGORY_ID, categoryPathNames, measurements),
             expected);
+    }
+
+    static Stream<Arguments> creationsWithoutPartOrCategoryId() {
+        List<String> topPath = List.of("의류", "상의");
+        Map<String, BigDecimal> measurements = requiredMeasurements(GarmentPart.TOP);
+        return Stream.of(
+            Arguments.of(Named.of("구분 없음", (ThrowingCallable) () ->
+                ReferenceGarmentSpec.of(null, CATEGORY_ID, topPath, measurements))),
+            Arguments.of(Named.of("세부 종류 ID 없음", (ThrowingCallable) () ->
+                ReferenceGarmentSpec.of(GarmentPart.TOP, null, topPath, measurements))));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("creationsWithoutPartOrCategoryId")
+    @DisplayName("구분이나 세부 종류 ID가 없으면 기준 옷 값을 만들지 않는다")
+    void rejectedWithoutPartOrCategoryId(ThrowingCallable creation) {
+        assertThatThrownBy(creation)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
     }
 
     private static List<String> matchingPath(GarmentPart part) {
