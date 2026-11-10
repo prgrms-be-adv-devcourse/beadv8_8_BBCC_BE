@@ -58,6 +58,24 @@ class AdminSellerApplicationApiTest {
     }
 
     @Test
+    @DisplayName("탈퇴한 회원의 신청도 목록에 담고, 비운 신청자 닉네임 · 사업자등록번호는 null로 준다")
+    void listWithdrawnApplicant() {
+        var application = SellerFixture.rejectedApplication(1L);
+        application.clearPersonalInfo(SellerFixture.NOW.plusDays(1));
+        sellerApplicationRepository.save(application);
+
+        var page = list("");
+
+        assertThat(page.content()).singleElement().satisfies(row -> {
+            assertThat(row.applicantId()).isEqualTo(1L);
+            assertThat(row.businessName()).isEqualTo(SellerFixture.BUSINESS_NAME);
+            assertThat(row.status()).isEqualTo(SellerApplicationStatus.REJECTED);
+            assertThat(row.applicantNickname()).isNull();
+            assertThat(row.maskedBusinessRegistrationNumber()).isNull();
+        });
+    }
+
+    @Test
     @DisplayName("status로 거르면 그 상태의 신청만 준다")
     void listByStatus() {
         var approvedId = apply(1L);
