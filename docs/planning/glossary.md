@@ -34,7 +34,9 @@
 | 검색용 표 | ProductSearchDocument | 상품의 되돌리기용 검색 표 (목록 검색은 검색 서비스로 옮김) |
 | 적합도 | `Fit` | ROOMY(여유 있음) · PROPER(적정) · TIGHT(작을 가능성 있음) |
 | 안내 코드 | `SizeNotice` | SIZE_FREE · NO_MATCHING_SIZE · BODY_TYPE_ADJUSTED · PREFERRED_FIT_NOT_APPLIED · HEIGHT_ONLY |
-| 후보 사이즈 | `candidateSizes` | 추천 규칙의 후보가 된 사이즈 목록 |
+| 후보 사이즈 | `candidateSizes` | 추천 규칙의 후보가 된 사이즈 목록 (AI가 고른 사이즈는 이 목록 밖의 상품 사이즈일 수 있음) |
+| 근거 종류 | `SizeReasonType` | 사이즈 추천 근거의 종류. HEIGHT · BODY_TYPE · PREFERRED_FIT · MEASUREMENT · RULE_RESULT · GROWTH |
+| 추천 출처 | `source` | 사이즈 추천 답을 누가 골랐는지. AI · RULE(규칙) |
 | 지급 요청 | payout | 정산서 금액을 판매자 지갑에 적립해 달라는 요청, 결제가 처리 |
 | 영업일 일정산 | - | 주말 · 공휴일을 뺀 날마다 하루 한 번 정산. 공휴일은 특일 정보 API로 판단 |
 | 원장 | WalletLedger | 지갑 잔액이 바뀔 때마다 남기는 기록. 종류 CHARGE · CHARGE_CANCEL · CHARGE_CANCEL_REVERT · PAYMENT · REFUND · SETTLEMENT |
