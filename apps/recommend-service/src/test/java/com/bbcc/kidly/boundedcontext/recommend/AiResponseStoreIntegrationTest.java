@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -37,5 +39,21 @@ class AiResponseStoreIntegrationTest {
 
         assertThat(found).isPresent();
         assertThat(jsonMapper.readTree(found.get())).isEqualTo(jsonMapper.readTree(json));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "-1, true",
+        "0, true",
+        "1, false"
+    })
+    @DisplayName("기준 시각보다 먼저 만든 줄은 읽지 않고 같은 시각에 만든 줄은 읽는다")
+    void readOnlyResponsesCreatedAtOrAfterCutoff(long cutoffOffsetSeconds, boolean expectedFound) {
+        store.save(AiResponseType.HOME_PREVIEW, KEY, "{\"summary\":\"맨투맨\"}", NOW);
+
+        Optional<String> found = store.findLatestSince(
+            AiResponseType.HOME_PREVIEW, KEY, NOW.plusSeconds(cutoffOffsetSeconds));
+
+        assertThat(found.isPresent()).isEqualTo(expectedFound);
     }
 }
