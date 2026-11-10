@@ -8,9 +8,11 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_CHANGED_AT;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaSellerFixture.BUSINESS_NAME;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
+import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaSellerService;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -44,6 +46,9 @@ class HomePreviewApiTest {
     @Autowired
     private RecommendReplicaProductService replicaProductService;
 
+    @Autowired
+    private RecommendReplicaSellerService replicaSellerService;
+
     @BeforeEach
     void setUp() {
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
@@ -67,6 +72,18 @@ class HomePreviewApiTest {
             .jsonPath("$.products[0].minPrice").isNumber()
             .jsonPath("$.products[0].recommendedSize").isNotEmpty()
             .jsonPath("$.products[0].reason").isEmpty();
+    }
+
+    @Test
+    @DisplayName("판매자 복사본이 있으면 상품 카드에 판매자 상호를 채운다")
+    void fillBusinessNameFromSellerReplica() {
+        replicaSellerService.applySellerChanged(RecommendReplicaSellerFixture.sellerApprovedEvent());
+        saveProduct(401L, PRODUCT_A_REGISTERED_AT);
+
+        preview()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.products[0].businessName").isEqualTo(BUSINESS_NAME);
     }
 
     @Test
@@ -103,7 +120,11 @@ class HomePreviewApiTest {
         client.get().uri(PATH)
             .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange()
-            .expectStatus().isBadRequest();
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.status").isEqualTo(400)
+            .jsonPath("$.instance").isEqualTo(PATH);
     }
 
     @Test
@@ -112,7 +133,11 @@ class HomePreviewApiTest {
         client.get().uri(PATH + "?childId={childId}", CHILD_1_ID)
             .headers(TestMembers.anonymous())
             .exchange()
-            .expectStatus().isUnauthorized();
+            .expectStatus().isUnauthorized()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.status").isEqualTo(401)
+            .jsonPath("$.instance").isEqualTo(PATH);
     }
 
     private RestTestClient.ResponseSpec preview() {

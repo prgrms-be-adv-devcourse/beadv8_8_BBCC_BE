@@ -38,6 +38,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.json.JsonMapper;
@@ -144,6 +146,47 @@ class HomePreviewServiceTest {
         assertThat(result.items().getFirst().reason()).isEqualTo("이유 5");
     }
 
+    @Test
+    @DisplayName("후보 구성이 바뀌면 저장한 답을 쓰지 않고 AI를 다시 부른다")
+    void callAiAgainWhenCandidatesChange() {
+        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5"));
+        givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
+        service(picker).preview(MEMBER_ID, CHILD_ID);
+        givenCandidates(1L, 2L, 3L, 4L, 5L, 7L);
+
+        service(picker).preview(MEMBER_ID, CHILD_ID);
+
+        assertThat(picker.requests).hasSize(2);
+    }
+
+    @ParameterizedTest
+    @MethodSource("changedChildren")
+    @DisplayName("자녀의 개월 수 · 키 · 몸무게 · 체형 · 선호 핏 중 하나가 바뀌면 저장한 답을 쓰지 않고 AI를 다시 부른다")
+    void callAiAgainWhenChildChanges(HomePreviewAiRequest.Child changedChild) {
+        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5"));
+        givenCandidates(CHILD, 1L, 2L, 3L, 4L, 5L, 6L);
+        service(picker).preview(MEMBER_ID, CHILD_ID);
+        givenCandidates(changedChild, 1L, 2L, 3L, 4L, 5L, 6L);
+
+        service(picker).preview(MEMBER_ID, CHILD_ID);
+
+        assertThat(picker.requests).hasSize(2);
+    }
+
+    static List<HomePreviewAiRequest.Child> changedChildren() {
+        return List.of(
+            new HomePreviewAiRequest.Child(
+                49, CHILD.heightCm(), CHILD.weightKg(), CHILD.bodyType(), CHILD.preferredFit()),
+            new HomePreviewAiRequest.Child(
+                CHILD.ageMonths(), new BigDecimal("106.0"), CHILD.weightKg(), CHILD.bodyType(), CHILD.preferredFit()),
+            new HomePreviewAiRequest.Child(
+                CHILD.ageMonths(), CHILD.heightCm(), new BigDecimal("18.0"), CHILD.bodyType(), CHILD.preferredFit()),
+            new HomePreviewAiRequest.Child(
+                CHILD.ageMonths(), CHILD.heightCm(), CHILD.weightKg(), BodyType.SLIM, CHILD.preferredFit()),
+            new HomePreviewAiRequest.Child(
+                CHILD.ageMonths(), CHILD.heightCm(), CHILD.weightKg(), CHILD.bodyType(), PreferredFit.SLIM));
+    }
+
     private HomePreviewService service(HomePreviewPicker picker) {
         return new HomePreviewService(candidateReader, replicaSellerRepository, aiResponseService,
             Optional.ofNullable(picker));
@@ -151,6 +194,11 @@ class HomePreviewServiceTest {
 
     // 상품 ID 순서가 선호 점수 순서인 후보를 읽게 한다
     private void givenCandidates(Long... productIds) {
+        givenCandidates(CHILD, productIds);
+    }
+
+    // 자녀 값을 정해 상품 ID 순서가 선호 점수 순서인 후보를 읽게 한다
+    private void givenCandidates(HomePreviewAiRequest.Child child, Long... productIds) {
         List<RecommendedProduct> products = new ArrayList<>();
         List<HomePreviewAiRequest.Candidate> aiCandidates = new ArrayList<>();
         for (Long productId : productIds) {
@@ -160,7 +208,7 @@ class HomePreviewServiceTest {
                 List.of("의류", "상의"), product.minPrice(), product.recommendedSize()));
         }
         given(candidateReader.read(MEMBER_ID, CHILD_ID)).willReturn(
-            new HomePreviewCandidates(CHILD_ID, products, new HomePreviewAiRequest(CHILD, aiCandidates)));
+            new HomePreviewCandidates(CHILD_ID, products, new HomePreviewAiRequest(child, aiCandidates)));
     }
 
     // 상품 ID와 이유를 번갈아 받아 AI 답을 만든다
