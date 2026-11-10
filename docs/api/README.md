@@ -148,6 +148,7 @@
 | POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸이라도 그 예약의 결제 가능 기한이 지났으면 409 `RESERVATION_EXPIRED`(`결제 기한이 지난 예약입니다`, #1008). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음. 기한도 지났으면 `RESERVATION_EXPIRED`가 먼저). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) | 🔒 |
 | GET | `/api/v1/orders` | 내 주문 목록 | 🔒 |
 | GET | `/api/v1/orders/{orderId}` | 주문 상세 | 🔒 |
+| GET | `/internal/sellers/{sellerId}/order-items/summary` | 서비스 사이 전용(#1120, 판매자 탈퇴 #1091의 남은 주문 확인). 200 `{"sellerId": 12, "openItemCount": 3}`: 그 판매자 상품의 주문상품 중 주문이 취소되지 않았고 주문상품이 `ORDERED`인 수(결제대기 · 결제완료 · 배송 준비 · 배송 중 · 배송 완료 후 구매확정 전. 구매확정 · 취소된 주문상품과 전체 취소된 주문의 주문상품은 빠짐, 주문이 없으면 0). `sellerId`는 숫자다(주문의 다른 응답은 ID가 문자열). 같은 모양의 계약 `shared.order.out.SellerOrderItems`(`summarize`)를 주문이 구현한다. 판매자 ID가 숫자가 아니거나 1 미만이면 400 `잘못된 판매자 ID입니다`. 인증 헤더를 요구하지 않고 밖에서는 Gateway가 `/internal/**`을 막는다(404) | 내부 |
 | POST | `/api/v1/orders/{orderId}/cancel` | 구매자 주문 취소(발송 전, 주문 전체) | 🔒 |
 | GET | `/api/v1/orders/{orderId}/timeline` | 주문 처리 타임라인(단계 · 상태 · 시각) | 🔒 |
 | POST | `/api/v1/orders/{orderId}/items/{orderItemId}/confirm` | 구매확정 | 🔒 |
