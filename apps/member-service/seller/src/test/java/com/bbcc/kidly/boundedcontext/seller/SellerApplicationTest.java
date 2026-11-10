@@ -70,6 +70,30 @@ class SellerApplicationTest {
     }
 
     @Test
+    @DisplayName("신청한 회원이 탈퇴했으면 승인할 수 없고 PENDING 그대로다")
+    void approveRejectsWithdrawnApplicant() {
+        var application = SellerFixture.application(APPLICANT_ID);
+        application.clearPersonalInfo(NOW);
+
+        assertThatThrownBy(() -> application.approve(ADMIN_ID, NOW.plusMinutes(1)))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(SellerErrorCode.APPLICANT_WITHDRAWN));
+        assertThat(application.getStatus()).isEqualTo(SellerApplicationStatus.PENDING);
+        assertThat(application.getDecidedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("신청한 회원이 탈퇴했어도 거절할 수 있다")
+    void rejectWithdrawnApplicant() {
+        var application = SellerFixture.application(APPLICANT_ID);
+        application.clearPersonalInfo(NOW);
+
+        application.reject(ADMIN_ID, REJECT_REASON, NOW.plusMinutes(1));
+
+        assertThat(application.getStatus()).isEqualTo(SellerApplicationStatus.REJECTED);
+    }
+
+    @Test
     @DisplayName("거절하면 REJECTED가 되고 사유 · 거절한 관리자 · 시각이 남는다")
     void reject() {
         var application = SellerFixture.application(APPLICANT_ID);
@@ -134,5 +158,36 @@ class SellerApplicationTest {
 
         application.changeApplicantNickname("새닉네임", NOW.plusDays(1));
         assertThat(application.getApplicantNickname()).isEqualTo("새닉네임");
+    }
+
+    @Test
+    @DisplayName("신청 회원이 탈퇴하면 대표자명 · 사업자등록번호 · 신청자 닉네임을 비우고 탈퇴 시각을 남긴다. 나머지는 그대로다")
+    void clearPersonalInfo() {
+        var application = SellerFixture.approvedApplication(APPLICANT_ID);
+
+        application.clearPersonalInfo(NOW.plusDays(1));
+
+        assertThat(application.getRepresentativeName()).isNull();
+        assertThat(application.getBusinessRegistrationNumber()).isNull();
+        assertThat(application.getApplicantNickname()).isNull();
+        assertThat(application.maskedBusinessRegistrationNumber()).isNull();
+        assertThat(application.getApplicantWithdrawnAt()).isEqualTo(NOW.plusDays(1));
+        assertThat(application.getApplicantNicknameChangedAt()).isNull();
+        assertThat(application.getApplicantId()).isEqualTo(APPLICANT_ID);
+        assertThat(application.getBusinessName()).isEqualTo(BUSINESS_NAME);
+        assertThat(application.getStatus()).isEqualTo(SellerApplicationStatus.APPROVED);
+        assertThat(application.getDecidedBy()).isEqualTo(ADMIN_ID);
+        assertThat(application.getDecidedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원은 닉네임을 바꿀 수 없어서, 탈퇴 뒤에 온 닉네임 변경은 비운 닉네임을 다시 채우지 않는다")
+    void clearPersonalInfoIgnoresEarlierNicknameChange() {
+        var application = SellerFixture.application(APPLICANT_ID);
+        application.clearPersonalInfo(NOW);
+
+        application.changeApplicantNickname("하은맘", NOW.minusMinutes(1));
+
+        assertThat(application.getApplicantNickname()).isNull();
     }
 }
