@@ -30,13 +30,17 @@ public class MemberPreferenceTargets implements PreferenceTargets {
             baseTime.minusDays(PreferenceWeights.ACTIVITY_WINDOW_DAYS + 1), afterId, limit);
     }
 
+    // 구매 기록은 늘 자녀가 있어 회원 몫에는 구매확정이 없다
     @Override
     public List<PreferenceSignal> findSignals(Long targetId, LocalDateTime baseTime) {
-        throw new UnsupportedOperationException();
+        return PreferenceSignals.of(
+            sourceReader.findMemberActivities(
+                targetId, baseTime.minusDays(PreferenceWeights.ACTIVITY_WINDOW_DAYS), baseTime),
+            List.of());
     }
 
     @Override
     public void replace(Long targetId, PreferenceSnapshot snapshot) {
-        throw new UnsupportedOperationException();
+        snapshotStore.replaceMember(targetId, snapshot);
     }
 }
