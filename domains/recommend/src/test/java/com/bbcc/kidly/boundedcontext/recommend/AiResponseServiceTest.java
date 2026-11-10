@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -8,6 +9,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -37,6 +39,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.QueryTimeoutException;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -228,6 +231,23 @@ class AiResponseServiceTest {
 
         assertThat(answer).isEmpty();
         assertThat(calls).hasValue(0);
+    }
+
+    @Test
+    @DisplayName("트랜잭션 안에서 부르면 하루 횟수 줄이 AI 응답을 기다리는 동안 잠기므로, 아무것도 하지 않고 IllegalStateException을 던진다")
+    void rejectCallInsideTransaction() {
+        AtomicInteger calls = new AtomicInteger();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+
+        try {
+            assertThatThrownBy(() -> service.respond(TYPE, INPUT, Answer.class, countingCall(calls, freshAnswer())))
+                .isInstanceOf(IllegalStateException.class);
+        } finally {
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+
+        assertThat(calls).hasValue(0);
+        verifyNoInteractions(store, quota);
     }
 
     private Answer freshAnswerCall() {
