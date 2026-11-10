@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.bbcc.kidly.boundedcontext.recommend.EmbeddingVectorFixture.axes;
+import static com.bbcc.kidly.boundedcontext.recommend.EmbeddingVectorFixture.axis;
 import static org.assertj.core.api.Assertions.within;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
@@ -8,14 +10,18 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceCalcu
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSignal;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSignalType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.TasteVector;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -145,7 +151,7 @@ class PreferenceCalculatorTest {
         PreferenceSignal signal = signal(PreferenceSignalType.PURCHASE_CONFIRMED, BASE_TIME, CATEGORY_ID, BRAND, 1L);
 
         PreferenceSnapshot snapshot =
-            calculator.calculate(List.of(signal), Map.of(1L, EmbeddingVectorFixture.axis(0)), BASE_TIME);
+            calculator.calculate(List.of(signal), Map.of(1L, axis(0)), BASE_TIME);
 
         assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isZero();
         assertThat(snapshot.tasteVector()).isNull();
@@ -161,6 +167,82 @@ class PreferenceCalculatorTest {
         PreferenceSnapshot snapshot = calculator.calculate(signals, NO_EMBEDDINGS, BASE_TIME);
 
         assertThat(snapshot.brandAffinity(BRAND)).isCloseTo(0.92, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("PREF-07 장바구니에서 뺀 담기는 무게 0이고, 같은 카테고리 · 브랜드의 다른 활동은 그대로 센다")
+    void removedCartAddWeighsNothing() {
+        List<PreferenceSignal> signals = List.of(
+            removedCartAdd(BASE_TIME, CATEGORY_ID, BRAND, 1L),
+            signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 2L));
+        Map<Long, EmbeddingVector> embeddings = Map.of(1L, axis(0), 2L, axis(1));
+
+        PreferenceSnapshot snapshot = calculator.calculate(signals, embeddings, BASE_TIME);
+
+        assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isCloseTo(0.3, within(1e-9));
+        assertThat(snapshot.brandAffinity(BRAND)).isCloseTo(0.3, within(1e-9));
+        assertThat(snapshot.tasteVector().embedding()).isEqualTo(axis(1));
+        assertThat(snapshot.tasteVector().activityCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("PREF-13 취향 벡터는 상세 진입 · 담기마다 무게 × 상품 벡터를 더해 길이를 1로 맞춘 것이다")
+    void tasteVectorIsNormalizedWeightedSum() {
+        List<PreferenceSignal> signals = List.of(
+            signal(PreferenceSignalType.CART_ITEM_ADDED, BASE_TIME, CATEGORY_ID, BRAND, 1L),
+            signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 2L));
+        Map<Long, EmbeddingVector> embeddings = Map.of(1L, axis(0), 2L, axis(1));
+
+        TasteVector tasteVector = calculator.calculate(signals, embeddings, BASE_TIME).tasteVector();
+
+        // 0.6 × 축0 + 0.3 × 축1을 길이 1로 맞추면 (2, 1) / √5다
+        float[] values = tasteVector.embedding().values();
+        assertThat((double) values[0]).isCloseTo(2 / Math.sqrt(5), within(1e-6));
+        assertThat((double) values[1]).isCloseTo(1 / Math.sqrt(5), within(1e-6));
+        assertThat(tasteVector.weightSum()).isCloseTo(0.9, within(1e-9));
+        assertThat(tasteVector.activityCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("PREF-13 상품 벡터가 없는 활동과 검색은 취향 벡터에 넣지 않는다")
+    void tasteVectorSkipsMissingEmbeddingAndSearch() {
+        List<PreferenceSignal> signals = List.of(
+            signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 1L),
+            signal(PreferenceSignalType.CART_ITEM_ADDED, BASE_TIME, CATEGORY_ID, BRAND, 3L),
+            signal(PreferenceSignalType.SEARCH, BASE_TIME, CATEGORY_ID, null, 2L));
+        Map<Long, EmbeddingVector> embeddings = Map.of(1L, axis(0), 2L, axis(1));
+
+        TasteVector tasteVector = calculator.calculate(signals, embeddings, BASE_TIME).tasteVector();
+
+        assertThat(tasteVector.embedding()).isEqualTo(axis(0));
+        assertThat(tasteVector.weightSum()).isCloseTo(0.3, within(1e-9));
+        assertThat(tasteVector.activityCount()).isEqualTo(1);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("signalsWithoutTasteVector")
+    @DisplayName("PREF-13 넣을 활동이 없거나 합이 0 벡터면 취향 벡터는 없다")
+    void noTasteVectorWithoutUsableActivity(String description, List<PreferenceSignal> signals) {
+        Map<Long, EmbeddingVector> embeddings = Map.of(1L, axis(0), 2L, axes(0, -1, 0, 0));
+
+        PreferenceSnapshot snapshot = calculator.calculate(signals, embeddings, BASE_TIME);
+
+        assertThat(snapshot.tasteVector()).isNull();
+    }
+
+    static Stream<Arguments> signalsWithoutTasteVector() {
+        return Stream.of(
+            Arguments.of("활동 없음", List.of()),
+            Arguments.of("벡터 없는 상품만 봄",
+                List.of(signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 3L))),
+            Arguments.of("서로 반대인 벡터를 같은 무게로 봄", List.of(
+                signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 1L),
+                signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 2L))));
+    }
+
+    private static PreferenceSignal removedCartAdd(
+        LocalDateTime occurredAt, Long categoryId, String brand, Long productId) {
+        return new PreferenceSignal(PreferenceSignalType.CART_ITEM_ADDED, occurredAt, categoryId, brand, productId, true);
     }
 
     private static PreferenceSignal signal(
