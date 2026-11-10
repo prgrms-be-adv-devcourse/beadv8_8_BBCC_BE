@@ -4,7 +4,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.Getter;
@@ -48,7 +50,7 @@ public final class ReferenceGarmentSpec {
         Map<String, BigDecimal> given = measurements == null ? Map.of() : measurements;
         checkMeasurementCodes(part, given);
         checkMeasurementValues(given);
-        return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(given));
+        return new ReferenceGarmentSpec(part, categoryId, withSingleFractionDigit(given));
     }
 
     private static void checkCategory(GarmentPart part, Long categoryId, List<GarmentCategoryPathEntry> categoryPath) {
@@ -86,6 +88,15 @@ public final class ReferenceGarmentSpec {
                 throw new BusinessException(ReferenceGarmentErrorCode.INVALID_MEASUREMENT_VALUE);
             }
         }
+    }
+
+    // 40, 40.0, 40.50이 같은 표현으로 보관되도록 맞춘다. 검증이 소수 첫째 자리까지만 통과시키므로 반올림은 일어나지 않는다.
+    private static Map<String, BigDecimal> withSingleFractionDigit(Map<String, BigDecimal> given) {
+        Map<String, BigDecimal> normalized = new HashMap<>();
+        for (Map.Entry<String, BigDecimal> entry : given.entrySet()) {
+            normalized.put(entry.getKey(), entry.getValue().setScale(MAX_FRACTION_DIGITS, RoundingMode.UNNECESSARY));
+        }
+        return Map.copyOf(normalized);
     }
 
     private static boolean isInvalidValue(BigDecimal value) {
