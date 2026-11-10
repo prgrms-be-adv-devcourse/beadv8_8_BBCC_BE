@@ -36,6 +36,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.QueryTimeoutException;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -201,6 +202,18 @@ class AiResponseServiceTest {
 
         assertThat(answer).contains(freshAnswer());
         verify(store).save(eq(TYPE), eq(KEY), any(), eq(NOW));
+    }
+
+    @Test
+    @DisplayName("저장한 응답을 찾다 DB 오류가 나면 저장한 응답이 없는 것으로 보고 AI를 불러 답을 돌려준다")
+    void callAiWhenFindingStoredResponseFails() {
+        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD)))
+            .willThrow(new QueryTimeoutException("조회 시간 초과"));
+        given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
+
+        Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(answer).contains(freshAnswer());
     }
 
     private Answer freshAnswerCall() {
