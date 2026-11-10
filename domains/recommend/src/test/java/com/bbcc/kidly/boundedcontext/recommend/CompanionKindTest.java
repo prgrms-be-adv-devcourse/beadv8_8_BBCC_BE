@@ -28,6 +28,20 @@ class CompanionKindTest {
             Arguments.of(List.of("잡화"), ACCESSORY));
     }
 
+    static Stream<Arguments> kindsByVariantCategoryNames() {
+        return Stream.of(
+            Arguments.of(List.of("의류", "바지"), BOTTOM),
+            Arguments.of(List.of("의류", " 상의 "), TOP),
+            Arguments.of(List.of(" 잡화", "모자"), ACCESSORY));
+    }
+
+    @ParameterizedTest
+    @MethodSource("kindsByVariantCategoryNames")
+    @DisplayName("PAIR-01 하의는 카테고리 이름이 바지여도 하의이고, 카테고리 이름 앞뒤의 공백은 무시한다")
+    void kindFromVariantCategoryNames(List<String> categoryPathNames, CompanionKind expected) {
+        assertThat(CompanionKind.of(categoryPathNames)).contains(expected);
+    }
+
     @ParameterizedTest
     @MethodSource("kindsByCategoryPath")
     @DisplayName("PAIR-01 의류는 말단 카테고리 이름으로 종류를 정하고, 대분류가 잡화면 말단과 상관없이 잡화다")
