@@ -17,24 +17,44 @@ import java.util.List;
 public record AiResponseKey(String value) {
 
     public static AiResponseKey of(Input input) {
-        String text = "productId=" + input.productId()
-            + "\nchildProfileId=" + input.childProfileId()
-            + "\nageMonths=" + input.ageMonths()
+        String text = "productId=" + blankIfNull(input.productId())
+            + "\nchildProfileId=" + blankIfNull(input.childProfileId())
+            + "\nageMonths=" + blankIfNull(input.ageMonths())
             + "\nheightCm=" + decimalText(input.heightCm())
             + "\nweightKg=" + decimalText(input.weightKg())
-            + "\nbodyType=" + input.bodyType().name()
-            + "\npreferredFit=" + input.preferredFit().name()
+            + "\nbodyType=" + enumName(input.bodyType())
+            + "\npreferredFit=" + enumName(input.preferredFit())
             + "\ncandidateProductIds=" + joinIds(input.candidateProductIds())
             + "\ncartProductIds=" + joinIds(input.cartProductIds())
             + "\npromptVersion=" + input.promptVersion();
         return new AiResponseKey(sha256Hex(text));
     }
 
+    private static String blankIfNull(Object value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toString();
+    }
+
+    private static String enumName(Enum<?> value) {
+        if (value == null) {
+            return "";
+        }
+        return value.name();
+    }
+
     private static String decimalText(BigDecimal value) {
+        if (value == null) {
+            return "";
+        }
         return value.stripTrailingZeros().toPlainString();
     }
 
     private static String joinIds(List<Long> ids) {
+        if (ids == null) {
+            return "";
+        }
         List<Long> sorted = new ArrayList<>(ids);
         Collections.sort(sorted);
         StringBuilder joined = new StringBuilder();
