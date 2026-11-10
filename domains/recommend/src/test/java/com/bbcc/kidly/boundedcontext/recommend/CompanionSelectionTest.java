@@ -39,6 +39,24 @@ class CompanionSelectionTest {
                 "기본 아이템이라 어디에나 어울린다");
     }
 
+    @Test
+    @DisplayName("AI가 고른 것 중 후보 밖 상품과 중복은 버리고, 모자란 자리는 규칙 순서로 이유 없이 채우며, 출처는 AI다")
+    void dropInvalidAiPicksAndFillWithRuleOrder() {
+        List<CompanionCandidate> ranked = rankedCandidates(6);
+        List<CompanionAiPick> aiPicks = List.of(
+            new CompanionAiPick(99L, "후보에 없는 상품"),
+            new CompanionAiPick(3L, "색이 잘 어울린다"),
+            new CompanionAiPick(3L, "중복"));
+
+        CompanionSelection selection = CompanionSelection.of(aiPicks, ranked);
+
+        assertThat(selection.source()).isEqualTo(CompanionSource.AI);
+        assertThat(selection.picks()).extracting(pick -> pick.product().productId())
+            .containsExactly(3L, 1L, 2L, 4L);
+        assertThat(selection.picks()).extracting(CompanionPick::reason)
+            .containsExactly("색이 잘 어울린다", null, null, null);
+    }
+
     // 상품 ID 1부터 count까지를 규칙 순서(점수 순)로 둔 후보 목록이다
     private static List<CompanionCandidate> rankedCandidates(int count) {
         List<CompanionCandidate> ranked = new ArrayList<>();
