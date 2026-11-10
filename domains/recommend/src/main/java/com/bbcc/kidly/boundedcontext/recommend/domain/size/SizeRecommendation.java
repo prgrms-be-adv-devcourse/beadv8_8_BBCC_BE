@@ -70,6 +70,10 @@ public class SizeRecommendation {
      * 규칙 결과에 AI 답을 합친 최종 결과를 돌려준다. AI가 고른 사이즈는 규칙 후보 밖이어도 상품에 있으면 채택한다.
      */
     public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer) {
+        // 사이즈 무관 상품도 사이즈 이름(FREE 등)을 가질 수 있어, 상품 사이즈 검사보다 먼저 거른다
+        if (productSizes.isSizeFree()) {
+            return this;
+        }
         if (answer == null || !isProductSize(productSizes, answer.recommendedSize())) {
             return this;
         }
