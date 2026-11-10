@@ -132,7 +132,8 @@ public class PostgresPreferenceSnapshotStore implements PreferenceSnapshotStore 
                 + where + " UNION ALL SELECT calculated_at FROM " + owner.brandTable() + where
                 + " UNION ALL SELECT calculated_at FROM " + owner.vectorTable() + where + ") rows")
             .param("id", id)
-            .query(LocalDateTime.class)
-            .single();
+            .query((rs, rowNum) -> rs.getObject(1, LocalDateTime.class))
+            .optional()
+            .orElse(null);
     }
 }
