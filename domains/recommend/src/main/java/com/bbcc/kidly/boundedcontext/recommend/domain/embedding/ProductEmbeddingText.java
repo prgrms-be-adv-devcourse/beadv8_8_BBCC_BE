@@ -26,9 +26,7 @@ public record ProductEmbeddingText(String value) {
         requireNonNull(name, "name은 필수입니다");
         List<String> lines = new ArrayList<>();
         lines.add("상품명: " + name);
-        if (!categoryPath.isEmpty()) {
-            lines.add("카테고리: " + String.join(CATEGORY_SEPARATOR, categoryPath));
-        }
+        addIfPresent(lines, "카테고리", joinCategoryNames(categoryPath));
         addIfPresent(lines, "브랜드", brand);
         lines.addAll(infoValueLines(infoValues == null ? List.of() : infoValues));
         addIfPresent(lines, "설명", description);
@@ -40,6 +38,19 @@ public record ProductEmbeddingText(String value) {
             return text;
         }
         return text.substring(0, text.offsetByCodePoints(0, MAX_LENGTH));
+    }
+
+    private static String joinCategoryNames(List<String> categoryPath) {
+        if (categoryPath == null) {
+            return null;
+        }
+        List<String> names = new ArrayList<>();
+        for (String name : categoryPath) {
+            if (name != null && !name.isBlank()) {
+                names.add(name);
+            }
+        }
+        return String.join(CATEGORY_SEPARATOR, names);
     }
 
     // 이벤트 안의 순서가 달라도 같은 글이 나오도록 code와 값을 모두 오름차순으로 쓴다
