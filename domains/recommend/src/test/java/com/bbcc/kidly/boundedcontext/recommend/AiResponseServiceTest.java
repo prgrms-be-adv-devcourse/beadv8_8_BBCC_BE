@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -14,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -24,6 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.json.JsonMapper;
@@ -69,8 +73,24 @@ class AiResponseServiceTest {
 
         assertThat(answer).contains(new Answer(List.of(1L, 2L), "저장된 답"));
         assertThat(calls).hasValue(0);
-        verify(quota, never()).tryAcquire(any(), org.mockito.ArgumentMatchers.anyInt());
+        verify(quota, never()).tryAcquire(any(), anyInt());
         verify(store, never()).save(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("저장한 응답이 없으면 한국 시간 날짜로 횟수를 세고, AI를 불러, 같은 종류 · 키 · 지금 시각으로 저장한 뒤 돌려준다")
+    void callAiAndSaveWhenNothingStored() {
+        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
+        AtomicInteger calls = new AtomicInteger();
+
+        Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, countingCall(calls, freshAnswer()));
+
+        assertThat(answer).contains(freshAnswer());
+        assertThat(calls).hasValue(1);
+        ArgumentCaptor<String> savedJson = ArgumentCaptor.forClass(String.class);
+        verify(store).save(eq(TYPE), eq(KEY), savedJson.capture(), eq(NOW));
+        assertThat(jsonMapper.readValue(savedJson.getValue(), Answer.class)).isEqualTo(freshAnswer());
     }
 
     private static Answer freshAnswer() {
