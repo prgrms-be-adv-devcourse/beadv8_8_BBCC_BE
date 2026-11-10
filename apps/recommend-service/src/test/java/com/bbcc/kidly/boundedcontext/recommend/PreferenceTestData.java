@@ -24,6 +24,15 @@ final class PreferenceTestData {
     }
 
     /**
+     * index번째 칸만 sign이고 나머지는 0인 벡터다. 칸이 다른 두 벡터는 서로 직교한다.
+     */
+    static EmbeddingVector unitVector(int index, float sign) {
+        float[] values = new float[EmbeddingVector.DIMENSIONS];
+        values[index] = sign;
+        return new EmbeddingVector(values);
+    }
+
+    /**
      * 활동 기록 한 줄을 넣는다. 카테고리 · 브랜드 · 상품 · 장바구니 줄 ID는 null일 수 있다.
      */
     static void insertActivity(JdbcTemplate jdbc, ActivityType type, Long memberId, Long childProfileId,
