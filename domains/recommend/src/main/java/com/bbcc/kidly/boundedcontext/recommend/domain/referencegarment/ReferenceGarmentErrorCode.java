@@ -21,7 +21,9 @@ public enum ReferenceGarmentErrorCode implements ErrorCode {
     REQUIRED_MEASUREMENT_MISSING(HttpStatus.BAD_REQUEST, "필수 실측이 없습니다",
         "상의는 총장과 가슴단면, 하의는 총장과 허리단면을 입력해 주세요."),
     UNSUPPORTED_MEASUREMENT(HttpStatus.BAD_REQUEST, "이 구분에 없는 실측 항목입니다",
-        "상의는 총장 · 가슴단면 · 어깨너비 · 소매길이, 하의는 총장 · 허리단면 · 밑위만 입력할 수 있습니다.");
+        "상의는 총장 · 가슴단면 · 어깨너비 · 소매길이, 하의는 총장 · 허리단면 · 밑위만 입력할 수 있습니다."),
+    INVALID_MEASUREMENT_VALUE(HttpStatus.BAD_REQUEST, "잘못된 실측 값입니다",
+        "실측 값은 0cm보다 크고 200cm 이하이며, 소수 첫째 자리까지 입력할 수 있습니다.");
 
     private final HttpStatus status;
     private final String title;

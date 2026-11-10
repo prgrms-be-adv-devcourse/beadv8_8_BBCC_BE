@@ -19,6 +19,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ReferenceGarmentSpecTest {
 
@@ -166,6 +167,44 @@ class ReferenceGarmentSpecTest {
         assertRejected(
             () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, matchingPath(part), measurements),
             ReferenceGarmentErrorCode.UNSUPPORTED_MEASUREMENT);
+    }
+
+    static Stream<Arguments> invalidMeasurementValues() {
+        return Stream.of(
+            Arguments.of(GarmentPart.TOP, "TOTAL_LENGTH", cm("0")),
+            Arguments.of(GarmentPart.TOP, "TOTAL_LENGTH", cm("0.0")),
+            Arguments.of(GarmentPart.TOP, "TOTAL_LENGTH", cm("-1")),
+            Arguments.of(GarmentPart.TOP, "CHEST_WIDTH", cm("200.1")),
+            Arguments.of(GarmentPart.TOP, "CHEST_WIDTH", cm("420")),
+            Arguments.of(GarmentPart.TOP, "SLEEVE_LENGTH", cm("40.25")),
+            Arguments.of(GarmentPart.TOP, "SHOULDER_WIDTH", null),
+            Arguments.of(GarmentPart.BOTTOM, "WAIST_WIDTH", cm("0.05")),
+            Arguments.of(GarmentPart.BOTTOM, "WAIST_WIDTH", null),
+            Arguments.of(GarmentPart.BOTTOM, "RISE", cm("-0.1")));
+    }
+
+    @ParameterizedTest(name = "{0} 기준 옷의 {1} = {2}")
+    @MethodSource("invalidMeasurementValues")
+    @DisplayName("실측 값이 0 이하이거나 200을 넘거나 소수 둘째 자리가 있거나 비어 있으면 잘못된 실측 값이라고 거절한다")
+    void rejectedWhenMeasurementValueIsInvalid(GarmentPart part, String code, BigDecimal invalidValue) {
+        Map<String, BigDecimal> measurements = new HashMap<>(requiredMeasurements(part));
+        measurements.put(code, invalidValue);
+
+        assertRejected(
+            () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, matchingPath(part), measurements),
+            ReferenceGarmentErrorCode.INVALID_MEASUREMENT_VALUE);
+    }
+
+    @ParameterizedTest(name = "{0}cm")
+    @ValueSource(strings = {"0.1", "1", "200", "200.0", "40.50"})
+    @DisplayName("실측 값이 0보다 크고 200 이하이며 소수 첫째 자리까지면 받는다")
+    void createdWhenMeasurementValueIsOnTheBoundary(String value) {
+        Map<String, BigDecimal> measurements = Map.of("TOTAL_LENGTH", cm(value), "CHEST_WIDTH", cm("34.0"));
+
+        ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(
+            GarmentPart.TOP, CATEGORY_ID, List.of("의류", "상의"), measurements);
+
+        assertThat(spec.measurements()).isEqualTo(measurements);
     }
 
     private static List<String> matchingPath(GarmentPart part) {
