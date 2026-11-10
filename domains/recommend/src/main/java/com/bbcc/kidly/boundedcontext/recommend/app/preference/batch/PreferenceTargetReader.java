@@ -11,14 +11,18 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
 
 /**
  * 선호를 계산할 대상 ID를 오름차순으로 한 페이지씩 읽는다.
+ * chunk가 커밋될 때마다 마지막으로 돌려준 ID를 저장하므로, 실패한 Step을 다시 실행하면 커밋된 마지막 chunk 다음부터 읽는다.
  */
 public class PreferenceTargetReader implements ItemStreamReader<Long> {
+
+    private static final String LAST_TARGET_ID = "lastTargetId";
 
     private final PreferenceTargets targets;
     private final LocalDateTime baseTime;
     private final int pageSize;
     private final Deque<Long> buffer = new ArrayDeque<>();
     private long fetchedUpTo;
+    private long lastReturnedId;
     private boolean lastPage;
 
     public PreferenceTargetReader(PreferenceTargets targets, LocalDateTime baseTime, int pageSize) {
@@ -41,14 +45,22 @@ public class PreferenceTargetReader implements ItemStreamReader<Long> {
                 fetchedUpTo = ids.getLast();
             }
         }
-        return buffer.poll();
+        Long id = buffer.poll();
+        if (id != null) {
+            lastReturnedId = id;
+        }
+        return id;
     }
 
     @Override
     public void open(ExecutionContext executionContext) {
+        lastReturnedId = executionContext.getLong(LAST_TARGET_ID, 0L);
+        fetchedUpTo = lastReturnedId;
     }
 
+    // 미리 읽어 두고 아직 돌려주지 않은 ID를 저장하면, 다시 실행할 때 그 대상들을 건너뛴다
     @Override
     public void update(ExecutionContext executionContext) {
+        executionContext.putLong(LAST_TARGET_ID, lastReturnedId);
     }
 }
