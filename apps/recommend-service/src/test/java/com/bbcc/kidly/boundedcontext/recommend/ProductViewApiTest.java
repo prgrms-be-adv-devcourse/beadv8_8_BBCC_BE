@@ -104,15 +104,45 @@ class ProductViewApiTest {
             Arguments.of(Named.of("삭제된 자녀", Optional.of(childChanged(MEMBER_1_ID, true)))));
     }
 
-    @Test
-    @DisplayName("PREF-15 같은 회원이 같은 상품의 상세에 같은 날 두 번 들어가면 둘 다 204를 받고 기록은 한 줄만 남는다")
-    void recordSameProductOnceOnSameDay() {
-        view(MEMBER_1_ID, "{\"productId\": 31}").expectStatus().isNoContent();
-        view(MEMBER_1_ID, "{\"productId\": 31}").expectStatus().isNoContent().expectBody().isEmpty();
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"{\"productId\": 31}", "{\"productId\": 31, \"childId\": 11}"})
+    @DisplayName("PREF-15 같은 회원이 같은 상품의 상세에 같은 날 두 번 들어가면 자녀를 골랐든 아니든 둘 다 204를 받고 기록은 한 줄만 남는다")
+    void recordSameProductOnceOnSameDay(String body) {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        view(MEMBER_1_ID, body).expectStatus().isNoContent();
+        view(MEMBER_1_ID, body).expectStatus().isNoContent().expectBody().isEmpty();
 
         assertThat(activityRecordRepository.findAll())
             .extracting(ActivityRecord::getType, ActivityRecord::getProductId)
             .containsExactly(tuple(ActivityType.PRODUCT_VIEWED, PRODUCT_A_ID));
+    }
+
+    @Test
+    @DisplayName("PREF-15 같은 날 같은 상품이라도 자녀를 고른 기록과 고르지 않은 기록은 각각 한 줄씩 남는다")
+    void recordSeparatelyPerChild() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        view(MEMBER_1_ID, "{\"productId\": 31}").expectStatus().isNoContent();
+        view(MEMBER_1_ID, "{\"productId\": 31, \"childId\": 11}").expectStatus().isNoContent();
+        view(MEMBER_1_ID, "{\"productId\": 31}").expectStatus().isNoContent();
+        view(MEMBER_1_ID, "{\"productId\": 31, \"childId\": 11}").expectStatus().isNoContent();
+
+        assertThat(activityRecordRepository.findAll())
+            .extracting(ActivityRecord::getMemberId, ActivityRecord::getChildProfileId)
+            .containsExactlyInAnyOrder(tuple(MEMBER_1_ID, null), tuple(MEMBER_1_ID, CHILD_1_ID));
+    }
+
+    @Test
+    @DisplayName("PREF-15 같은 날 같은 상품이라도 회원이 다르면 각각 한 줄씩 남는다")
+    void recordSeparatelyPerMember() {
+        view(MEMBER_1_ID, "{\"productId\": 31}").expectStatus().isNoContent();
+        view(OTHER_MEMBER_ID, "{\"productId\": 31}").expectStatus().isNoContent();
+        view(OTHER_MEMBER_ID, "{\"productId\": 31}").expectStatus().isNoContent();
+
+        assertThat(activityRecordRepository.findAll())
+            .extracting(ActivityRecord::getMemberId, ActivityRecord::getChildProfileId)
+            .containsExactlyInAnyOrder(tuple(MEMBER_1_ID, null), tuple(OTHER_MEMBER_ID, null));
     }
 
     @Test
