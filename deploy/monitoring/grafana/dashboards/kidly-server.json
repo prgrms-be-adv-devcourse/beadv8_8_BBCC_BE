@@ -846,6 +846,74 @@
               "legendFormat": "{{name}}"
             }
           ]
+        },
+        {
+          "id": 21,
+          "type": "timeseries",
+          "title": "스왑 사용량",
+          "description": "총 스왑과 사용 중인 스왑을 표시합니다. 총 스왑이 0이면 비활성입니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 38,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "node_memory_SwapTotal_bytes{job=\"integrations/unix\",instance=\"$instance\"}",
+              "legendFormat": "총 스왑"
+            },
+            {
+              "refId": "B",
+              "expr": "node_memory_SwapTotal_bytes{job=\"integrations/unix\",instance=\"$instance\"} - node_memory_SwapFree_bytes{job=\"integrations/unix\",instance=\"$instance\"}",
+              "legendFormat": "사용 중"
+            }
+          ]
+        },
+        {
+          "id": 22,
+          "type": "timeseries",
+          "title": "스왑 입출력",
+          "description": "커널 스왑 카운터의 최근 5분 초당 페이지 수입니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 38,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(node_vmstat_pswpin{job=\"integrations/unix\",instance=\"$instance\"}[5m])",
+              "legendFormat": "읽기"
+            },
+            {
+              "refId": "B",
+              "expr": "rate(node_vmstat_pswpout{job=\"integrations/unix\",instance=\"$instance\"}[5m])",
+              "legendFormat": "쓰기"
+            }
+          ]
         }
       ]
     }
