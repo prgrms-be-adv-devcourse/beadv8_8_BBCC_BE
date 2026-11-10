@@ -214,7 +214,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
             newCategoryPath.add(new RecommendReplicaCategoryPathEntry(entry.categoryId(), entry.categoryName()));
         }
         this.embeddingText = ProductEmbeddingText.compose(
-            info.name(), info.brand(), info.infoValues(), info.description()).value();
+            info.name(), List.of(), info.brand(), info.infoValues(), info.description()).value();
         this.sellerId = info.sellerId();
         this.categoryId = info.categoryId();
         this.name = info.name();
