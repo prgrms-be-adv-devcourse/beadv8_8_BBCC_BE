@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.companion;
 
+import static java.util.Objects.requireNonNull;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +24,11 @@ public enum CompanionKind {
         "아우터", OUTER);
 
     public static Optional<CompanionKind> of(List<String> categoryPathNames) {
+        requireNonNull(categoryPathNames, "categoryPathNames는 필수입니다");
+        // 카테고리 경로 칸이 생기기 전에 받은 상품은 경로가 빈 목록이다
+        if (categoryPathNames.isEmpty()) {
+            return Optional.empty();
+        }
         if (categoryPathNames.getFirst().equals(ACCESSORY_ROOT_NAME)) {
             return Optional.of(ACCESSORY);
         }
