@@ -6,6 +6,14 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -20,6 +28,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class AiCallQuotaIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
+    private static final long WAIT_SECONDS = 20;
 
     @Autowired
     private AiCallQuota quota;
@@ -64,6 +73,67 @@ class AiCallQuotaIntegrationTest {
 
         assertThat(acquired).isFalse();
         assertThat(callCount(TODAY)).isNull();
+    }
+
+    @Test
+    @DisplayName("스레드 둘이 동시에 세어도 허용한 횟수가 상한을 넘지 않는다")
+    void doNotExceedLimitWhenCountedConcurrently() throws Exception {
+        int dailyLimit = 50;
+        int attemptsPerThread = 100;
+        AtomicInteger allowed = new AtomicInteger();
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<?> first = executor.submit(
+                () -> acquireRepeatedly(dailyLimit, attemptsPerThread, ready, start, allowed));
+            Future<?> second = executor.submit(
+                () -> acquireRepeatedly(dailyLimit, attemptsPerThread, ready, start, allowed));
+            assertThat(ready.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            waitFor(first);
+            waitFor(second);
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
+
+        assertThat(allowed.get()).isEqualTo(dailyLimit);
+        assertThat(callCount(TODAY)).isEqualTo(dailyLimit);
+    }
+
+    private void acquireRepeatedly(int dailyLimit, int attempts, CountDownLatch ready, CountDownLatch start,
+        AtomicInteger allowed) {
+        ready.countDown();
+        awaitLatch(start);
+        for (int i = 0; i < attempts; i++) {
+            if (quota.tryAcquire(TODAY, dailyLimit)) {
+                allowed.incrementAndGet();
+            }
+        }
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            if (!latch.await(WAIT_SECONDS, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("기다리던 신호가 오지 않았습니다");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static void waitFor(Future<?> future) {
+        try {
+            future.get(WAIT_SECONDS, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        } catch (ExecutionException | TimeoutException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private Integer callCount(LocalDate date) {
