@@ -70,6 +70,17 @@ class ReferenceGarmentRepositoryIntegrationTest {
     }
 
     @Test
+    @DisplayName("읽어 온 기준 옷의 실측은 밖에서 바꿀 수 없다")
+    void foundMeasurementsAreReadOnly() {
+        save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
+
+        ReferenceGarment found = find(CHILD_ID, GarmentPart.TOP);
+
+        assertThatThrownBy(() -> found.getMeasurements().put("TOTAL_LENGTH", BigDecimal.ONE))
+            .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
     @DisplayName("FIT-01 같은 자녀의 같은 구분을 새로 한 번 더 저장하면 UNIQUE 제약이 막는다")
     void rejectSecondRowOfSameChildAndPart() {
         save(CHILD_ID, topSpec(topMeasurements("40.5", "42.0")));
