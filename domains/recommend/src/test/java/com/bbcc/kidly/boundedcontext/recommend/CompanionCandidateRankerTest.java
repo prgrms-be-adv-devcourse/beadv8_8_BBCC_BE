@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionCandida
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,21 @@ class CompanionCandidateRankerTest {
         List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
 
         assertThat(productIds(ranked)).containsExactly(3L, 2L, 1L);
+    }
+
+    @Test
+    @DisplayName("후보가 20개보다 많으면 점수가 높은 20개만 AI에 넘길 후보로 남긴다")
+    void keepTopTwentyCandidates() {
+        List<CompanionCandidate> candidates = new ArrayList<>();
+        for (long id = 1; id <= 25; id++) {
+            candidates.add(candidate(id, BOTTOM, id / 100.0));
+        }
+
+        List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
+
+        assertThat(ranked).hasSize(20);
+        assertThat(productIds(ranked)).first().isEqualTo(25L);
+        assertThat(productIds(ranked)).last().isEqualTo(6L);
     }
 
     private static CompanionCandidate candidate(Long productId, CompanionKind kind, Double similarity) {
